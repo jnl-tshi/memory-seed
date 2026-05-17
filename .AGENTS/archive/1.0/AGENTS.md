@@ -1,0 +1,34 @@
+---
+memory-system-version: 1.0
+tags:
+  - agent-entry
+  - ai-memory
+---
+
+# Agent Entry Point
+
+This repository uses `.AGENTS/` as its agent memory and onboarding system.
+
+## Operating Mode
+
+This repository is already initialized. Start here:
+
+1. Read `.AGENTS/agent-rules.md`.
+2. Read `.AGENTS/index.md` for the compact memory index.
+3. Read `.AGENTS/context.md` for project orientation and current state.
+4. Follow the start-of-work and end-of-work routines in `.AGENTS/agent-rules.md`.
+
+Do not read or apply `.AGENTS/project-bootstrap.md` during operating mode.
+
+## Bootstrap Mode
+
+Use `.AGENTS/project-bootstrap.md` only when initializing a brand-new project or repairing a missing/incomplete `.AGENTS` memory system. The normal bootstrap seed state is:
+
+```text
+.AGENTS/
+  agent-rules.md
+  project-bootstrap.md
+```
+
+If `.AGENTS/` is missing, partial, or corrupted, use `.AGENTS/project-bootstrap.md` only long enough to restore the standard structure. Once `.AGENTS/index.md`, `.AGENTS/context.md`, `.AGENTS/style.md`, and `.AGENTS/sessions/` exist, bootstrap mode is complete and future agents must use operating mode.
+
