@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from .core import doctor, get_version, init_project
+from .core import doctor, get_version, init_project, update_project
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -13,6 +13,9 @@ def main(argv: list[str] | None = None) -> int:
     init_parser = subparsers.add_parser("init", help="copy Memory Seed into this project")
     init_parser.add_argument("--dry-run", action="store_true", help="show planned files without writing")
     init_parser.add_argument("--force", action="store_true", help="backup and overwrite existing seed files")
+
+    update_parser = subparsers.add_parser("update", help="update reusable control-plane files")
+    update_parser.add_argument("--dry-run", action="store_true", help="show planned files without writing")
 
     subparsers.add_parser("doctor", help="check Memory Seed control-plane files")
     subparsers.add_parser("version", help="print Memory Seed control-plane version")
@@ -59,6 +62,27 @@ def main(argv: list[str] | None = None) -> int:
         if result.backed_up:
             print("Added .AGENTS/backups/ to .gitignore to reduce accidental backup leaks.")
         print("Next: open AGENTS.md and follow bootstrap mode.")
+        return 0
+
+    if args.command == "update":
+        result = update_project(dry_run=args.dry_run)
+
+        if args.dry_run:
+            for planned in result.planned:
+                print(f"Would update: {planned}")
+            print("No files changed.")
+            return 0
+
+        for created in result.created:
+            print(f"Updated: {created}")
+        for backup in result.backed_up:
+            print(f"Backed up: {backup}")
+        if result.backed_up:
+            print("Added .AGENTS/backups/ to .gitignore to reduce accidental backup leaks.")
+        if result.changed:
+            print("Project memory files were not changed.")
+        else:
+            print("Control-plane files are already current. No files changed.")
         return 0
 
     parser.error(f"Unknown command: {args.command}")

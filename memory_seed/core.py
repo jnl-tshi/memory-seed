@@ -93,6 +93,42 @@ def init_project(cwd: str | Path = ".", dry_run: bool = False, force: bool = Fal
     )
 
 
+def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
+    target_root = Path(cwd).resolve()
+    planned = [seed_file.destination for seed_file in SEED_FILES]
+
+    if dry_run:
+        return InitResult(changed=False, planned=planned)
+
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    created: list[str] = []
+    backed_up: list[str] = []
+
+    for seed_file in SEED_FILES:
+        destination = target_root / seed_file.destination
+        if destination.exists() and _read_memory_system_version(destination) == VERSION:
+            continue
+
+        if destination.exists():
+            _ensure_backup_gitignore(target_root)
+            backup_relative = Path(".AGENTS") / "backups" / timestamp / seed_file.destination
+            backup_path = target_root / backup_relative
+            backup_path.parent.mkdir(parents=True, exist_ok=True)
+            _copy_text_file(destination, backup_path)
+            backed_up.append(backup_relative.as_posix())
+
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        _copy_text_file(seed_file.source, destination)
+        created.append(seed_file.destination)
+
+    return InitResult(
+        changed=bool(created or backed_up),
+        planned=planned,
+        created=created,
+        backed_up=backed_up,
+    )
+
+
 def doctor(cwd: str | Path = ".") -> DoctorResult:
     target_root = Path(cwd).resolve()
     missing: list[str] = []

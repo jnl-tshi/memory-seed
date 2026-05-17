@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from memory_seed.core import SEED_FILES, doctor, get_version, init_project
+from memory_seed.core import SEED_FILES, doctor, get_version, init_project, update_project
 
 
 class MemorySeedTests(unittest.TestCase):
@@ -110,6 +110,73 @@ class MemorySeedTests(unittest.TestCase):
             result.version_mismatches,
             [{"file": "GEMINI.md", "expected": "1.3", "actual": "1.1"}],
         )
+
+    def test_update_refreshes_control_plane_and_preserves_generated_memory(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        (cwd / "AGENTS.md").write_text("old agent entry", encoding="utf-8")
+        (cwd / "CLAUDE.md").unlink()
+        (cwd / ".AGENTS" / "context.md").write_text("project facts", encoding="utf-8")
+
+        result = update_project(cwd=cwd)
+
+        self.assertTrue(result.changed)
+        self.assertIn("CLAUDE.md", result.created)
+        self.assertTrue(any(path.endswith("/AGENTS.md") for path in result.backed_up))
+        self.assertIn(
+            "memory-system-version: 1.3",
+            (cwd / "AGENTS.md").read_text(encoding="utf-8"),
+        )
+        self.assertIn(
+            "memory-system-version: 1.3",
+            (cwd / "CLAUDE.md").read_text(encoding="utf-8"),
+        )
+        self.assertEqual(
+            (cwd / ".AGENTS" / "context.md").read_text(encoding="utf-8"),
+            "project facts",
+        )
+        self.assertIn(".AGENTS/backups/", (cwd / ".gitignore").read_text(encoding="utf-8"))
+
+    def test_update_dry_run_reports_seed_files_without_writing(self):
+        cwd = self.make_project()
+        (cwd / "AGENTS.md").write_text("old agent entry", encoding="utf-8")
+
+        result = update_project(cwd=cwd, dry_run=True)
+
+        self.assertFalse(result.changed)
+        self.assertEqual(result.created, [])
+        self.assertEqual(result.backed_up, [])
+        self.assertEqual(
+            sorted(result.planned),
+            sorted(seed_file.destination for seed_file in SEED_FILES),
+        )
+        self.assertEqual((cwd / "AGENTS.md").read_text(encoding="utf-8"), "old agent entry")
+
+    def test_update_does_nothing_when_control_plane_is_current(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        result = update_project(cwd=cwd)
+
+        self.assertFalse(result.changed)
+        self.assertEqual(result.created, [])
+        self.assertEqual(result.backed_up, [])
+        self.assertFalse((cwd / ".AGENTS" / "backups").exists())
+
+    def test_update_uses_yaml_version_instead_of_full_file_comparison(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        agents = cwd / "AGENTS.md"
+        agents.write_text(
+            agents.read_text(encoding="utf-8") + "\nLocal same-version note.\n",
+            encoding="utf-8",
+        )
+
+        result = update_project(cwd=cwd)
+
+        self.assertFalse(result.changed)
+        self.assertEqual(result.backed_up, [])
+        self.assertIn("Local same-version note.", agents.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
