@@ -65,6 +65,14 @@ It does not copy generated project memory such as `.AGENTS/context.md`, `.AGENTS
 
 Use `--dry-run` to preview without changing files. Use `--force` only when you intentionally want to back up and replace existing seed files.
 
+When `--force` creates backups, Memory Seed adds `.AGENTS/backups/` to the target project's `.gitignore` to reduce the chance of committing replaced local memory files.
+
+## Public Memory Hygiene
+
+Memory Seed files are plain Markdown and may be committed with a project. Treat `.AGENTS` files as publishable unless the project is explicitly private.
+
+Do not put secrets, credentials, tokens, private keys, sensitive account details, client confidential information, or unnecessary personal data into generated memory files or session logs.
+
 ## Publishing
 
 This repository is configured for PyPI trusted publishing from GitHub Actions.

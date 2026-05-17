@@ -79,6 +79,18 @@ class MemorySeedTests(unittest.TestCase):
             "memory-system-version: 1.2",
             (cwd / "AGENTS.md").read_text(encoding="utf-8"),
         )
+        self.assertIn(".AGENTS/backups/", (cwd / ".gitignore").read_text(encoding="utf-8"))
+
+    def test_init_force_preserves_existing_gitignore_when_adding_backup_ignore(self):
+        cwd = self.make_project()
+        (cwd / "AGENTS.md").write_text("existing", encoding="utf-8")
+        (cwd / ".gitignore").write_text("dist/\n", encoding="utf-8")
+
+        init_project(cwd=cwd, force=True)
+
+        gitignore = (cwd / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn("dist/\n", gitignore)
+        self.assertEqual(gitignore.count(".AGENTS/backups/"), 1)
 
     def test_doctor_reports_missing_and_version_mismatched_control_plane_files(self):
         cwd = self.make_project()

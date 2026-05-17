@@ -56,6 +56,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Copied: {created}")
         for backup in result.backed_up:
             print(f"Backed up: {backup}")
+        if result.backed_up:
+            print("Added .AGENTS/backups/ to .gitignore to reduce accidental backup leaks.")
         print("Next: open AGENTS.md and follow bootstrap mode.")
         return 0
 
@@ -65,4 +67,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

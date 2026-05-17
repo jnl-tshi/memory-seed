@@ -192,6 +192,12 @@ Use dated files under `.AGENTS/sessions/` with short entries such as:
 
 Prefer concise bullets. Capture meaningful decisions, durable changes, follow-up risk, or handoff context. Do not log trivial work or every command.
 
+## Public Memory Hygiene
+
+Treat `.AGENTS` files as potentially publishable unless the user explicitly says the repository will always remain private. Do not write secrets, credentials, tokens, private keys, sensitive account details, client confidential information, or unnecessary personal data into `context.md`, `style.md`, `index.md`, or session logs.
+
+When a project may become public, keep session entries focused on durable technical decisions and omit private local paths, private identities, and sensitive operational details unless the user explicitly asks to preserve them.
+
 ## Bootstrap Boundary
 
 This repository is in operating mode because `.AGENTS/index.md`, `.AGENTS/context.md`, `.AGENTS/style.md`, and `.AGENTS/sessions/` exist.

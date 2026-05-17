@@ -10,6 +10,7 @@ from pathlib import Path
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
 VERSION = "1.2"
+BACKUP_IGNORE_ENTRY = ".AGENTS/backups/"
 
 
 @dataclass(frozen=True)
@@ -74,6 +75,7 @@ def init_project(cwd: str | Path = ".", dry_run: bool = False, force: bool = Fal
         destination = target_root / seed_file.destination
 
         if destination.exists() and force:
+            _ensure_backup_gitignore(target_root)
             backup_relative = Path(".AGENTS") / "backups" / timestamp / seed_file.destination
             backup_path = target_root / backup_relative
             backup_path.parent.mkdir(parents=True, exist_ok=True)
@@ -129,3 +131,20 @@ def _read_memory_system_version(path: Path) -> str | None:
     if not match:
         return None
     return match.group(1)
+
+
+def _ensure_backup_gitignore(target_root: Path) -> None:
+    gitignore = target_root / ".gitignore"
+    if gitignore.exists():
+        content = gitignore.read_text(encoding="utf-8")
+    else:
+        content = ""
+
+    lines = content.splitlines()
+    if BACKUP_IGNORE_ENTRY in lines:
+        return
+
+    prefix = content
+    if prefix and not prefix.endswith(("\n", "\r\n")):
+        prefix += "\n"
+    gitignore.write_text(prefix + BACKUP_IGNORE_ENTRY + "\n", encoding="utf-8")

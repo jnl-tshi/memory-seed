@@ -35,6 +35,7 @@ Once `.AGENTS/index.md`, `.AGENTS/context.md`, `.AGENTS/style.md`, and `.AGENTS/
 - `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.AGENTS/agent-rules.md`, and `.AGENTS/project-bootstrap.md` are reusable control-plane files. Copy the standard baseline for these files unless the user explicitly requests a different memory workflow.
 - Tool-specific routing files should route into `AGENTS.md` and the shared `.AGENTS/` memory core rather than creating separate vendor memories.
 - Keep the same operating/bootstrap boundary across projects so initialized projects do not drift into incompatible agent-routing structures.
+- Treat generated memory files as potentially publishable unless the user explicitly says the target repository will remain private. Never seed secrets, credentials, tokens, private keys, sensitive account details, client confidential information, or unnecessary personal data into generated memory.
 
 
 ## Version Policy
@@ -103,6 +104,8 @@ Record these fields in `.AGENTS/context.md`:
 - Expected workflow.
 
 Use a cautious security posture when risk is unclear and the project may include secrets, credentials, personal data, user data, payments, proprietary data, network exposure, or destructive automation.
+
+If the project may be public, record privacy constraints in `.AGENTS/context.md` and keep `.AGENTS/sessions/` entries free of sensitive details.
 
 ## Step 4: Create The Files
 
