@@ -38,3 +38,29 @@ GEMINI.md
 The current reusable control-plane version is `1.2`.
 
 Archived reusable versions are stored under `.AGENTS/archive/<version>/`.
+
+## Python CLI
+
+Memory Seed includes a small Python CLI.
+
+From this repository, run:
+
+```powershell
+python -m memory_seed.cli version
+python -m memory_seed.cli doctor
+python -m memory_seed.cli init --dry-run
+```
+
+The `init` command copies only the reusable seed files into the current folder:
+
+```text
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+.AGENTS/agent-rules.md
+.AGENTS/project-bootstrap.md
+```
+
+It does not copy generated project memory such as `.AGENTS/context.md`, `.AGENTS/index.md`, `.AGENTS/style.md`, `.AGENTS/sessions/`, or `.AGENTS/archive/`.
+
+Use `--dry-run` to preview without changing files. Use `--force` only when you intentionally want to back up and replace existing seed files.

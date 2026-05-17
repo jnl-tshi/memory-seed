@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memory-seed"
+version = "1.2.0"
+description = "Portable local memory seed for file-reading AI coding agents"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "John Tshibuyi" }]
+
+[project.scripts]
+memory-seed = "memory_seed.cli:main"
+
+[tool.setuptools]
+packages = ["memory_seed"]
+
+[tool.setuptools.package-data]
+memory_seed = [
+  "seed/AGENTS.md",
+  "seed/CLAUDE.md",
+  "seed/GEMINI.md",
+  "seed/.AGENTS/agent-rules.md",
+  "seed/.AGENTS/project-bootstrap.md",
+]
