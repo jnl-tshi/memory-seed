@@ -9,7 +9,7 @@ description = "Portable local memory seed for file-reading AI coding agents"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "Jean Tshibuyi" }]
+authors = [{ name = "Jean Nathan Tshibuyi" }]
 keywords = ["ai", "agents", "memory", "markdown", "local-first"]
 classifiers = [
   "Development Status :: 3 - Alpha",
