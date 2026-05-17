@@ -64,3 +64,19 @@ GEMINI.md
 It does not copy generated project memory such as `.AGENTS/context.md`, `.AGENTS/index.md`, `.AGENTS/style.md`, `.AGENTS/sessions/`, or `.AGENTS/archive/`.
 
 Use `--dry-run` to preview without changing files. Use `--force` only when you intentionally want to back up and replace existing seed files.
+
+## Publishing
+
+This repository is configured for PyPI trusted publishing from GitHub Actions.
+
+PyPI pending publisher settings should match:
+
+```text
+PyPI Project Name: memory-seed
+Owner: jnl-tshi
+Repository name: memory-seed
+Workflow name: publish.yml
+Environment name: pypi
+```
+
+The publish workflow lives at `.github/workflows/publish.yml`. It runs tests, builds the package with `uv build`, and publishes through PyPI's trusted publisher flow.
