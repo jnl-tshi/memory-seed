@@ -1,5 +1,5 @@
-﻿---
-memory-system-version: 1.3
+---
+memory-system-version: 1.2
 tags:
   - ai-memory
   - project-bootstrap
@@ -24,7 +24,7 @@ GEMINI.md
   project-bootstrap.md
 ```
 
-Once `.AGENTS/index.md`, `.AGENTS/context.md`, `.AGENTS/style.md`, and `.AGENTS/sessions/` exist, bootstrap mode is complete and future sessions should use operating mode.
+Once `.AGENTS/index.md`, `.AGENTS/context.md`, `.AGENTS/style.md`, and `.AGENTS/sessions/` exist, bootstrap mode is complete.
 
 ## Template Hygiene
 
@@ -133,7 +133,7 @@ Create root `GEMINI.md` as the Gemini CLI routing file if it does not already ex
 
 - In operating mode, read `.AGENTS/agent-rules.md`, `.AGENTS/index.md`, and `.AGENTS/context.md`.
 - Do not read or apply `.AGENTS/project-bootstrap.md` once `.AGENTS/index.md`, `.AGENTS/context.md`, `.AGENTS/style.md`, and `.AGENTS/sessions/` exist.
-- Use `.AGENTS/project-bootstrap.md` when `.AGENTS/index.md`, `.AGENTS/context.md`, `.AGENTS/style.md`, or `.AGENTS/sessions/` are missing.
+- Use `.AGENTS/project-bootstrap.md` only when `.AGENTS/` is void except for `agent-rules.md` and `project-bootstrap.md`.
 
 `CLAUDE.md` should say:
 

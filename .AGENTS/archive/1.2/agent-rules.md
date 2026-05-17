@@ -1,5 +1,5 @@
 ---
-memory-system-version: 1.3
+memory-system-version: 1.2
 tags:
   - ai-memory
   - agent-rules
@@ -54,22 +54,9 @@ Required files and folders:
 
 `project-bootstrap.md` may exist but is not part of the operating-mode read order.
 
-## Mode Check Routine
-
-Before operating-mode startup, check whether all initialized memory files exist:
-
-```text
-.AGENTS/index.md
-.AGENTS/context.md
-.AGENTS/style.md
-.AGENTS/sessions/
-```
-
-If all exist, proceed with the start-of-work routine. If any are missing, use `.AGENTS/project-bootstrap.md` to initialize or repair the memory system before reading missing operating files.
-
 ## Start-of-Work Routine
 
-At the start of a session after the mode check confirms operating mode:
+At the start of a session:
 
 1. Read `.AGENTS/agent-rules.md`.
 2. Read `.AGENTS/index.md`.
@@ -213,9 +200,9 @@ When a project may become public, keep session entries focused on durable techni
 
 ## Bootstrap Boundary
 
-This repository is in operating mode only when `.AGENTS/index.md`, `.AGENTS/context.md`, `.AGENTS/style.md`, and `.AGENTS/sessions/` exist.
+This repository is in operating mode because `.AGENTS/index.md`, `.AGENTS/context.md`, `.AGENTS/style.md`, and `.AGENTS/sessions/` exist.
 
-Do not read or apply `.AGENTS/project-bootstrap.md` after operating mode is confirmed. Use it for brand-new projects, seed-only projects, or incomplete `.AGENTS` folders.
+Do not read or apply `.AGENTS/project-bootstrap.md` during operating mode. That file is only for brand-new projects or incomplete `.AGENTS` folders where `.AGENTS/` is void except for `agent-rules.md` and `project-bootstrap.md`.
 
 If a user explicitly asks to bootstrap a new project, use `.AGENTS/project-bootstrap.md` as the bootstrap procedure for that new project. Do not apply bootstrap rules to this initialized project unless the user explicitly asks to rebuild the memory system.
 

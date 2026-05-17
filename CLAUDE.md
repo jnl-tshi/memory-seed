@@ -1,5 +1,5 @@
 ﻿---
-memory-system-version: 1.2
+memory-system-version: 1.3
 tags:
   - agent-entry
   - ai-memory
@@ -15,4 +15,3 @@ Before planning, editing, reviewing, or running commands:
 3. If tool-specific behavior is needed, adapt only the tooling, not the policy.
 
 Do not treat this file as a replacement for `AGENTS.md`.
-

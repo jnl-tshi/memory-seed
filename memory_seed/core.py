@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-import shutil
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -9,7 +8,7 @@ from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "1.2"
+VERSION = "1.3"
 BACKUP_IGNORE_ENTRY = ".AGENTS/backups/"
 
 
@@ -79,11 +78,11 @@ def init_project(cwd: str | Path = ".", dry_run: bool = False, force: bool = Fal
             backup_relative = Path(".AGENTS") / "backups" / timestamp / seed_file.destination
             backup_path = target_root / backup_relative
             backup_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(destination, backup_path)
+            _copy_text_file(destination, backup_path)
             backed_up.append(backup_relative.as_posix())
 
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(seed_file.source, destination)
+        _copy_text_file(seed_file.source, destination)
         created.append(seed_file.destination)
 
     return InitResult(
@@ -131,6 +130,10 @@ def _read_memory_system_version(path: Path) -> str | None:
     if not match:
         return None
     return match.group(1)
+
+
+def _copy_text_file(source: Path, destination: Path) -> None:
+    destination.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
 
 
 def _ensure_backup_gitignore(target_root: Path) -> None:

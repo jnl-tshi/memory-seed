@@ -35,7 +35,7 @@ GEMINI.md
 
 ## Current Version
 
-The current reusable control-plane version is `1.2`.
+The current reusable control-plane version is `1.3`.
 
 Archived reusable versions are stored under `.AGENTS/archive/<version>/`.
 

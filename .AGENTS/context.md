@@ -24,7 +24,7 @@ The goal is to preserve key project context, decisions, risks, workflow rules, a
 
 ## Current State
 
-The Memory Seed control plane is in version `1.2`.
+The Memory Seed control plane is in version `1.3`.
 
 Existing reusable control-plane artifacts:
 
