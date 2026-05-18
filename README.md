@@ -70,6 +70,18 @@ When `--force` creates backups, Memory Seed adds `.AGENTS/backups/` to the targe
 
 The `update` command refreshes only the reusable control-plane files in an existing project. It uses each file's `memory-system-version` YAML field to decide whether that file is current. It backs up replaced control-plane files under `.AGENTS/backups/<timestamp>/`, restores any missing reusable seed files, skips files already on the current control-plane version, and does not change generated project memory such as `.AGENTS/context.md`, `.AGENTS/index.md`, `.AGENTS/style.md`, or `.AGENTS/sessions/`.
 
+## For Code Projects
+
+When Memory Seed is planted into a software, library, or API project, agents will use [Semble](https://github.com/MinishLab/semble) for code search. Semble returns only the relevant code chunks, using ~98% fewer tokens than grep+read.
+
+Install it once, globally:
+
+```bash
+claude mcp add semble -s user -- uvx --from "semble[mcp]" semble
+```
+
+During bootstrap, the agent adds a Code Search section to the project's `AGENTS.md` so all future agents — including sub-agents — can call `semble search` directly. No per-project setup is needed after that.
+
 ## Public Memory Hygiene
 
 Memory Seed files are plain Markdown and may be committed with a project. Treat `.AGENTS` files as publishable unless the project is explicitly private.

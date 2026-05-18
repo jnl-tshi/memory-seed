@@ -5,6 +5,7 @@ from pathlib import Path
 
 from memory_seed.core import (
     SEED_FILES,
+    compact_sessions,
     doctor,
     get_version,
     init_project,
@@ -188,6 +189,77 @@ class MemorySeedTests(unittest.TestCase):
         for seed_file in SEED_FILES:
             content = seed_file.source.read_text(encoding="utf-8")
             self.assertIn("memory-system-version: 1.4", content, seed_file.destination)
+
+    # --- compact tests ---
+
+    def _make_sessions(self, cwd, entries):
+        sessions_dir = cwd / ".AGENTS" / "sessions"
+        sessions_dir.mkdir(parents=True, exist_ok=True)
+        for filename, content in entries.items():
+            (sessions_dir / filename).write_text(content, encoding="utf-8")
+
+    def test_compact_returns_headings_from_recent_sessions(self):
+        cwd = self.make_project()
+        today = __import__("datetime").date.today().isoformat()
+        self._make_sessions(cwd, {
+            f"{today}.md": "## First heading\n\nSome text.\n\n## Second heading\n\nMore text.\n",
+        })
+
+        result = compact_sessions(cwd=cwd, days=7)
+
+        self.assertEqual(result.sessions_scanned, [f"{today}.md"])
+        self.assertEqual(result.headings[today], ["First heading", "Second heading"])
+        self.assertIn("Some text.", result.full_text)
+        self.assertEqual(result.date_range, (today, today))
+
+    def test_compact_respects_day_filter(self):
+        cwd = self.make_project()
+        self._make_sessions(cwd, {
+            "2020-01-01.md": "## Old entry\n\nOld text.\n",
+            "2099-12-31.md": "## Future entry\n\nFuture text.\n",
+        })
+
+        result = compact_sessions(cwd=cwd, days=7)
+
+        self.assertEqual(result.sessions_scanned, ["2099-12-31.md"])
+        self.assertNotIn("Old text.", result.full_text)
+
+    def test_compact_all_includes_every_session(self):
+        cwd = self.make_project()
+        self._make_sessions(cwd, {
+            "2020-01-01.md": "## Old entry\n",
+            "2099-12-31.md": "## Future entry\n",
+        })
+
+        result = compact_sessions(cwd=cwd, scan_all=True)
+
+        self.assertEqual(len(result.sessions_scanned), 2)
+        self.assertIn("2020-01-01.md", result.sessions_scanned)
+        self.assertIn("2099-12-31.md", result.sessions_scanned)
+
+    def test_compact_empty_sessions_returns_empty_result(self):
+        cwd = self.make_project()
+
+        result = compact_sessions(cwd=cwd)
+
+        self.assertEqual(result.sessions_scanned, [])
+        self.assertEqual(result.headings, {})
+        self.assertEqual(result.full_text, "")
+        self.assertIsNone(result.date_range)
+
+    def test_compact_ignores_non_date_filenames(self):
+        cwd = self.make_project()
+        today = __import__("datetime").date.today().isoformat()
+        self._make_sessions(cwd, {
+            f"{today}.md": "## Valid\n",
+            "notes.md": "## Should be ignored\n",
+            "readme.txt": "not a session",
+        })
+
+        result = compact_sessions(cwd=cwd, days=7)
+
+        self.assertEqual(result.sessions_scanned, [f"{today}.md"])
+        self.assertNotIn("Should be ignored", result.full_text)
 
 
 if __name__ == "__main__":

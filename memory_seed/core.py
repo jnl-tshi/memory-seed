@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 
@@ -10,6 +10,9 @@ PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
 VERSION = "1.4"
 BACKUP_IGNORE_ENTRY = ".AGENTS/backups/"
+
+SESSION_DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.md$")
+HEADING_RE = re.compile(r"^##\s+(.+)$", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,14 @@ class DoctorResult:
     ok: bool
     missing: list[str] = field(default_factory=list)
     version_mismatches: list[dict[str, str]] = field(default_factory=list)
+
+
+@dataclass
+class CompactResult:
+    sessions_scanned: list[str]
+    headings: dict[str, list[str]]
+    full_text: str
+    date_range: tuple[str, str] | None
 
 
 SEED_FILES = [
@@ -154,6 +165,64 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
         ok=not missing and not version_mismatches,
         missing=missing,
         version_mismatches=version_mismatches,
+    )
+
+
+def compact_sessions(
+    cwd: str | Path = ".",
+    days: int = 7,
+    scan_all: bool = False,
+) -> CompactResult:
+    target_root = Path(cwd).resolve()
+    sessions_dir = target_root / ".AGENTS" / "sessions"
+
+    if not sessions_dir.is_dir():
+        return CompactResult(
+            sessions_scanned=[],
+            headings={},
+            full_text="",
+            date_range=None,
+        )
+
+    today = datetime.now().date()
+    cutoff = None if scan_all else today - timedelta(days=days)
+
+    dated_files: list[tuple[str, Path]] = []
+    for path in sorted(sessions_dir.iterdir()):
+        m = SESSION_DATE_RE.match(path.name)
+        if not m:
+            continue
+        date_str = m.group(1)
+        if cutoff is not None:
+            try:
+                file_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            except ValueError:
+                continue
+            if file_date < cutoff:
+                continue
+        dated_files.append((date_str, path))
+
+    if not dated_files:
+        return CompactResult(
+            sessions_scanned=[],
+            headings={},
+            full_text="",
+            date_range=None,
+        )
+
+    headings: dict[str, list[str]] = {}
+    full_parts: list[str] = []
+
+    for date_str, path in dated_files:
+        content = path.read_text(encoding="utf-8")
+        headings[date_str] = HEADING_RE.findall(content)
+        full_parts.append(content)
+
+    return CompactResult(
+        sessions_scanned=[f.name for _, f in dated_files],
+        headings=headings,
+        full_text="\n".join(full_parts),
+        date_range=(dated_files[0][0], dated_files[-1][0]),
     )
 
 

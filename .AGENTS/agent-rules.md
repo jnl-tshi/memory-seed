@@ -125,6 +125,34 @@ Use for architecture changes, security-sensitive work, publishing/release change
 - Treat model choice as capability tiers: economy for simple extraction or formatting, standard for routine implementation, and frontier for architecture, security, ambiguous debugging, or high-impact validation.
 - Prefer narrow context packets for workers and validators instead of handing them the whole repository history.
 
+## Code Search
+
+When working in a code repository, use Semble before grep or full-file reads to reduce token consumption. Semble returns only the relevant chunks, using ~98% fewer tokens than grep+read at equivalent recall.
+
+### Tool Hierarchy
+
+1. **`semble search`** — natural-language or symbol query; returns only the relevant code chunks. Prefer this at Level 0 and Level 1 for any code exploration or lookup task.
+2. **`grep`** — for exhaustive literal matches or exact string confirmation when Semble results are insufficient.
+3. **Full-file read** — only when a returned chunk lacks enough surrounding context to act on.
+
+### Usage
+
+```bash
+semble search "authentication flow" .
+semble search "getUserById" .
+semble find-related src/auth.py 42 .   # find code related to a known location
+```
+
+If `semble` is not on `$PATH`, use `uvx --from "semble[mcp]" semble` in its place.
+
+To add Semble as a user-scoped MCP server for direct tool access in Claude Code:
+
+```bash
+claude mcp add semble -s user -- uvx --from "semble[mcp]" semble
+```
+
+This section applies to software, library, API, and tool projects. It does not apply to memory-system, writing, or data-only projects.
+
 ## File Change Permission Model
 
 Agents must treat `.AGENTS` and agent-routing files according to these buckets.

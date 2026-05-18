@@ -149,6 +149,29 @@ Create root `GEMINI.md` as the Gemini CLI routing file if it does not already ex
 - Tool-specific behavior may adapt tooling, but not policy.
 - `GEMINI.md` is a routing file, not a replacement memory system.
 
+For **code projects** (software, production app, API, library, or package), append a Code Search section to the generated `AGENTS.md` so agents and sub-agents use Semble before grep:
+
+```markdown
+## Code Search
+
+Use `semble search` to find code by describing what it does or naming a symbol, instead of grep:
+
+​```bash
+semble search "authentication flow" .
+semble search "getUserById" .
+semble find-related src/auth.py 42 .
+​```
+
+If `semble` is not on `$PATH`, use `uvx --from "semble[mcp]" semble` in its place.
+
+### Workflow
+
+1. Start with `semble search` to find relevant chunks.
+2. Read full files only when the returned chunk is not enough context.
+3. Use `semble find-related` with a result's `file_path` and `line` to discover related code.
+4. Use grep only for exhaustive literal matches or exact string confirmation.
+```
+
 ## Step 5: Seed context.md
 
 Minimum sections:
@@ -261,8 +284,8 @@ Minimum generated `style.md` structure:
 Profile-specific guidance:
 
 - Data science or ML: reproducibility, data leakage prevention, train/validation/test boundaries, experiment tracking, notebook execution order, artifact versioning, metric discipline.
-- Production app, API, website, or SaaS: secure defaults, input validation, authentication/authorization expectations, secrets handling, dependency hygiene, logging without sensitive data, tests, deployment checks, rollback-aware changes.
-- Library or package: API stability, semantic versioning, typing, tests, public documentation, compatibility policy, changelog expectations.
+- Production app, API, website, or SaaS: secure defaults, input validation, authentication/authorization expectations, secrets handling, dependency hygiene, logging without sensitive data, tests, deployment checks, rollback-aware changes. Include the Semble code search snippet in the generated `AGENTS.md` (see Step 4).
+- Library or package: API stability, semantic versioning, typing, tests, public documentation, compatibility policy, changelog expectations. Include the Semble code search snippet in the generated `AGENTS.md` (see Step 4).
 - Writing, diary, notes, or second brain: clarity, linking conventions, metadata/tagging, privacy expectations, durable naming, low-friction capture, sync/backup awareness.
 - Automation or scripting: idempotency, dry-run behaviour where useful, explicit paths, logging, safe failure modes, protection against destructive commands.
 - Research project: source traceability, assumptions, methodology notes, reproducibility, separation of evidence from interpretation.

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import io
 import sys
+from datetime import date
+from pathlib import Path
 
-from .core import doctor, get_version, init_project, update_project
+from .core import compact_sessions, doctor, get_version, init_project, update_project
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -17,13 +20,56 @@ def main(argv: list[str] | None = None) -> int:
     update_parser = subparsers.add_parser("update", help="update reusable control-plane files")
     update_parser.add_argument("--dry-run", action="store_true", help="show planned files without writing")
 
+    compact_parser = subparsers.add_parser("compact", help="summarise recent session activity")
+    compact_parser.add_argument("--days", type=int, default=7, help="number of days to scan (default: 7)")
+    compact_parser.add_argument("--all", action="store_true", dest="scan_all", help="scan all sessions")
+    compact_parser.add_argument("--output", type=str, default=None, help="write summary to file instead of stdout")
+
     subparsers.add_parser("doctor", help="check Memory Seed control-plane files")
     subparsers.add_parser("version", help="print Memory Seed control-plane version")
 
     args = parser.parse_args(argv)
 
+    if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+
     if args.command == "version":
         print(get_version())
+        return 0
+
+    if args.command == "compact":
+        result = compact_sessions(days=args.days, scan_all=args.scan_all)
+
+        if not result.sessions_scanned:
+            print("No session files found.")
+            return 0
+
+        lines: list[str] = []
+        lines.append("# Compact Summary")
+        lines.append("")
+        lines.append(f"Generated: {date.today().isoformat()}")
+        lines.append(f"Sessions scanned: {', '.join(result.sessions_scanned)}")
+        lines.append("")
+        lines.append("## Session Activity")
+
+        for date_str, heading_list in result.headings.items():
+            lines.append("")
+            lines.append(f"### {date_str}")
+            for heading in heading_list:
+                lines.append(f"- {heading}")
+
+        lines.append("")
+        lines.append("## All Entries")
+        lines.append("")
+        lines.append(result.full_text)
+
+        output = "\n".join(lines)
+
+        if args.output:
+            Path(args.output).write_text(output, encoding="utf-8")
+            print(f"Summary written to {args.output}")
+        else:
+            print(output)
         return 0
 
     if args.command == "doctor":

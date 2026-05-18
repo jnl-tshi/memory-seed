@@ -109,7 +109,7 @@ Project-type-aware style selection belongs to bootstrap, not to an already-gener
 ## Current Design Direction
 
 - Do not pursue an HTML frontend/dashboard as a core Memory Seed direction; it clutters the project's purpose.
-- Next orchestration research should focus on using Semble MCP/design MCP for projects using Semble where that improves token efficiency.
+- Semble (github.com/MinishLab/semble) is the recommended code search tool for target code projects. It is wired into `agent-rules.md` (Level 0/1 tool hierarchy) and `project-bootstrap.md` (auto-included in AGENTS.md for software/library projects). Do not build a Markdown-optimised variant; Memory Seed files are intentionally small.
 - Optimize orchestration and compacting around Markdown memory files rather than code-function names or source-symbol indexes.
 - Future CLI idea: add a compact trigger that consolidates session facts into durable facts across `context.md`, `index.md`, and `style.md`.
 
