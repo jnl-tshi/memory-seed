@@ -50,6 +50,7 @@ python -m memory_seed.cli version
 python -m memory_seed.cli doctor
 python -m memory_seed.cli init --dry-run
 python -m memory_seed.cli update --dry-run
+python -m memory_seed.cli compact
 ```
 
 The `init` command copies only the reusable seed files into the current folder:
@@ -69,6 +70,17 @@ Use `--dry-run` to preview without changing files. Use `--force` only when you i
 When `--force` creates backups, Memory Seed adds `.AGENTS/backups/` to the target project's `.gitignore` to reduce the chance of committing replaced local memory files.
 
 The `update` command refreshes only the reusable control-plane files in an existing project. It uses each file's `memory-system-version` YAML field to decide whether that file is current. It backs up replaced control-plane files under `.AGENTS/backups/<timestamp>/`, restores any missing reusable seed files, skips files already on the current control-plane version, and does not change generated project memory such as `.AGENTS/context.md`, `.AGENTS/index.md`, `.AGENTS/style.md`, or `.AGENTS/sessions/`.
+
+The `compact` command summarises recent session activity so an agent can identify durable facts to promote into `context.md`, `index.md`, and `style.md`:
+
+```bash
+memory-seed compact              # last 7 days (default)
+memory-seed compact --days 30    # last 30 days
+memory-seed compact --all        # all sessions
+memory-seed compact --output summary.md  # write to file
+```
+
+The output is a structured Markdown report with session headings and full entry text. The CLI summarises; the agent (or user) decides what to promote. No files are modified automatically.
 
 ## For Code Projects
 

@@ -24,7 +24,7 @@ The goal is to preserve key project context, decisions, risks, workflow rules, a
 
 ## Current State
 
-The Memory Seed control plane is in version `1.4`.
+The Memory Seed control plane is in version `1.4`. The Python package is at version `1.5.0`.
 
 Existing reusable control-plane artifacts:
 
@@ -104,14 +104,21 @@ Project-type-aware style selection belongs to bootstrap, not to an already-gener
 - Plain Markdown control-plane files that can be copied or initialized into other projects.
 - Project-specific operating files generated in each target project.
 - Session logs that capture why the memory system changes over time.
-- Future initializer script that can pull or copy the current seed into a target project.
+- Python CLI (`memory-seed`) published on PyPI with commands: `init`, `update`, `compact`, `doctor`, `version`.
+
+## Publishing Convention
+
+- Publish to PyPI by creating a GitHub Release (e.g. `gh release create v1.5.0 --title "v1.5.0" --notes "..."`).
+- The release triggers the `publish.yml` workflow, which runs tests, builds, and publishes via PyPI trusted publishing.
+- Do not use `gh workflow run` directly — it produces an unlabelled run in the Actions UI.
+- The package version in `pyproject.toml` and the git tag must match (e.g. `version = "1.5.0"` and tag `v1.5.0`).
 
 ## Current Design Direction
 
 - Do not pursue an HTML frontend/dashboard as a core Memory Seed direction; it clutters the project's purpose.
 - Semble (github.com/MinishLab/semble) is the recommended code search tool for target code projects. It is wired into `agent-rules.md` (Level 0/1 tool hierarchy) and `project-bootstrap.md` (auto-included in AGENTS.md for software/library projects). Do not build a Markdown-optimised variant; Memory Seed files are intentionally small.
 - Optimize orchestration and compacting around Markdown memory files rather than code-function names or source-symbol indexes.
-- Future CLI idea: add a compact trigger that consolidates session facts into durable facts across `context.md`, `index.md`, and `style.md`.
+- `memory-seed compact` is implemented. It summarises recent session activity into a Markdown report that an agent reads to identify and promote durable facts. The CLI summarises; the agent judges. No automated writes to durable files.
 
 ## Portability And Vendor Lock-In
 
