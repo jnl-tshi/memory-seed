@@ -3,7 +3,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from memory_seed.core import SEED_FILES, doctor, get_version, init_project, update_project
+from memory_seed.core import (
+    SEED_FILES,
+    doctor,
+    get_version,
+    init_project,
+    update_project,
+)
 
 
 class MemorySeedTests(unittest.TestCase):
@@ -13,7 +19,7 @@ class MemorySeedTests(unittest.TestCase):
         return path
 
     def test_version_reads_reusable_control_plane_version(self):
-        self.assertEqual(get_version(), "1.3")
+        self.assertEqual(get_version(), "1.4")
 
     def test_init_dry_run_reports_seed_files_without_writing(self):
         cwd = self.make_project()
@@ -76,7 +82,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(result.backed_up[0].startswith(".AGENTS/backups/"))
         self.assertEqual((cwd / result.backed_up[0]).read_text(encoding="utf-8"), "existing")
         self.assertIn(
-            "memory-system-version: 1.3",
+            "memory-system-version: 1.4",
             (cwd / "AGENTS.md").read_text(encoding="utf-8"),
         )
         self.assertIn(".AGENTS/backups/", (cwd / ".gitignore").read_text(encoding="utf-8"))
@@ -97,7 +103,7 @@ class MemorySeedTests(unittest.TestCase):
         init_project(cwd=cwd)
         gemini = cwd / "GEMINI.md"
         gemini.write_text(
-            gemini.read_text(encoding="utf-8").replace("1.3", "1.1"),
+            gemini.read_text(encoding="utf-8").replace("1.4", "1.1"),
             encoding="utf-8",
         )
         (cwd / "CLAUDE.md").unlink()
@@ -108,7 +114,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertEqual(result.missing, ["CLAUDE.md"])
         self.assertEqual(
             result.version_mismatches,
-            [{"file": "GEMINI.md", "expected": "1.3", "actual": "1.1"}],
+            [{"file": "GEMINI.md", "expected": "1.4", "actual": "1.1"}],
         )
 
     def test_update_refreshes_control_plane_and_preserves_generated_memory(self):
@@ -124,11 +130,11 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("CLAUDE.md", result.created)
         self.assertTrue(any(path.endswith("/AGENTS.md") for path in result.backed_up))
         self.assertIn(
-            "memory-system-version: 1.3",
+            "memory-system-version: 1.4",
             (cwd / "AGENTS.md").read_text(encoding="utf-8"),
         )
         self.assertIn(
-            "memory-system-version: 1.3",
+            "memory-system-version: 1.4",
             (cwd / "CLAUDE.md").read_text(encoding="utf-8"),
         )
         self.assertEqual(
@@ -177,6 +183,11 @@ class MemorySeedTests(unittest.TestCase):
         self.assertFalse(result.changed)
         self.assertEqual(result.backed_up, [])
         self.assertIn("Local same-version note.", agents.read_text(encoding="utf-8"))
+
+    def test_control_plane_files_report_current_version(self):
+        for seed_file in SEED_FILES:
+            content = seed_file.source.read_text(encoding="utf-8")
+            self.assertIn("memory-system-version: 1.4", content, seed_file.destination)
 
 
 if __name__ == "__main__":

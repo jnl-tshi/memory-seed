@@ -1,5 +1,5 @@
-﻿---
-memory-system-version: 1.4
+---
+memory-system-version: 1.3
 tags:
   - ai-memory
   - agent-rules
@@ -79,51 +79,6 @@ At the start of a session after the mode check confirms operating mode:
 
 If the repository root is unclear, identify it first and note any uncertainty in `context.md` only if it is durable project context.
 
-## Orchestration Levels
-
-Use the lowest orchestration level that can complete the work safely. Higher levels trade more tokens and coordination cost for better coverage, validation, and risk control.
-
-### Level 0: Direct Work
-
-Use for simple, low-risk changes with clear scope.
-
-- One agent works directly.
-- Keep context loading minimal.
-- Verify with the smallest relevant check.
-
-### Level 1: Plan, Implement, Verify
-
-Use for normal project work.
-
-- Inspect the relevant files first.
-- State the approach briefly when useful.
-- Implement the change.
-- Run targeted verification before reporting completion.
-
-### Level 2: Orchestrator, Worker, Validator
-
-Use for large, multi-file, ambiguous, or risky changes where splitting work reduces risk or improves throughput.
-
-- Orchestrator owns scope, sequencing, context budget, and integration.
-- Workers own bounded, non-overlapping subtasks.
-- Validator checks behavior, tests, regressions, and policy fit.
-- If the active agent cannot spawn subagents, follow the same phases serially.
-
-### Level 3: Research And Human Checkpoints
-
-Use for architecture changes, security-sensitive work, publishing/release changes, destructive operations, or decisions where current best practice may matter.
-
-- Research first when the answer may have changed or external standards matter.
-- Summarize evidence and tradeoffs before implementation.
-- Ask for human approval at meaningful checkpoints.
-- Keep validation records explicit enough for future agents to audit the decision.
-
-### Token And Model Budget Policy
-
-- Default to the least expensive level that can safely handle the task.
-- Use worker/validator splits only when they reduce risk, reduce wall-clock time, or improve review quality enough to justify the extra context.
-- Treat model choice as capability tiers: economy for simple extraction or formatting, standard for routine implementation, and frontier for architecture, security, ambiguous debugging, or high-impact validation.
-- Prefer narrow context packets for workers and validators instead of handing them the whole repository history.
 
 ## File Change Permission Model
 

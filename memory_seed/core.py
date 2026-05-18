@@ -8,7 +8,7 @@ from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "1.3"
+VERSION = "1.4"
 BACKUP_IGNORE_ENTRY = ".AGENTS/backups/"
 
 
@@ -173,6 +173,10 @@ def _copy_text_file(source: Path, destination: Path) -> None:
 
 
 def _ensure_backup_gitignore(target_root: Path) -> None:
+    _ensure_gitignore_entry(target_root, BACKUP_IGNORE_ENTRY)
+
+
+def _ensure_gitignore_entry(target_root: Path, entry: str) -> None:
     gitignore = target_root / ".gitignore"
     if gitignore.exists():
         content = gitignore.read_text(encoding="utf-8")
@@ -180,10 +184,10 @@ def _ensure_backup_gitignore(target_root: Path) -> None:
         content = ""
 
     lines = content.splitlines()
-    if BACKUP_IGNORE_ENTRY in lines:
+    if entry in lines:
         return
 
     prefix = content
     if prefix and not prefix.endswith(("\n", "\r\n")):
         prefix += "\n"
-    gitignore.write_text(prefix + BACKUP_IGNORE_ENTRY + "\n", encoding="utf-8")
+    gitignore.write_text(prefix + entry + "\n", encoding="utf-8")

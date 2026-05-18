@@ -24,7 +24,7 @@ The goal is to preserve key project context, decisions, risks, workflow rules, a
 
 ## Current State
 
-The Memory Seed control plane is in version `1.3`.
+The Memory Seed control plane is in version `1.4`.
 
 Existing reusable control-plane artifacts:
 
@@ -105,6 +105,13 @@ Project-type-aware style selection belongs to bootstrap, not to an already-gener
 - Project-specific operating files generated in each target project.
 - Session logs that capture why the memory system changes over time.
 - Future initializer script that can pull or copy the current seed into a target project.
+
+## Current Design Direction
+
+- Do not pursue an HTML frontend/dashboard as a core Memory Seed direction; it clutters the project's purpose.
+- Next orchestration research should focus on using Semble MCP/design MCP for projects using Semble where that improves token efficiency.
+- Optimize orchestration and compacting around Markdown memory files rather than code-function names or source-symbol indexes.
+- Future CLI idea: add a compact trigger that consolidates session facts into durable facts across `context.md`, `index.md`, and `style.md`.
 
 ## Portability And Vendor Lock-In
 
