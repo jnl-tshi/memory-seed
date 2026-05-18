@@ -48,7 +48,7 @@ Operating memory artifacts created during repair:
 - Compatibility target: Codex, Claude Code, Gemini CLI, and other AI coding agents that can read local files.
 - Risk level: private/local, with possible personal or project-sensitive notes.
 - Security posture: local-first, plain-text, privacy-aware, no unnecessary vendor-specific dependencies.
-- Primary outputs: Markdown memory files, reusable control-plane templates, future initialization scripts, and session logs that explain design evolution.
+- Primary outputs: Markdown memory files, reusable control-plane templates, Python CLI (`memory-seed` on PyPI), and session logs that explain design evolution.
 
 ## Agent Start Here
 
