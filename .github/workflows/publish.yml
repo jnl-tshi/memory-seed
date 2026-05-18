@@ -23,7 +23,7 @@ jobs:
           python-version: "3.11"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v8
+        uses: astral-sh/setup-uv@v7
 
       - name: Run tests
         run: python -m unittest tests.test_memory_seed
