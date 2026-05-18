@@ -24,7 +24,7 @@ The goal is to preserve key project context, decisions, risks, workflow rules, a
 
 ## Current State
 
-The Memory Seed control plane is in version `1.4`. The Python package is at version `1.5.1`.
+The Memory Seed control plane is in version `1.4`. The Python package is at version `1.5.2`.
 
 Existing reusable control-plane artifacts:
 
