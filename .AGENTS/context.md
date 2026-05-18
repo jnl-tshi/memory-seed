@@ -77,16 +77,6 @@ memory seed/
     sessions/               # Append-only dated session logs
 ```
 
-Future structure under consideration:
-
-```text
-.AGENTS/
-  archive/
-    1.0/                    # Archived reusable control-plane artifacts from version 1.0
-scripts/
-  init-memory-seed.*         # Future initializer for planting Memory Seed into target projects
-```
-
 ## Core Workflow
 
 Memory Seed has two workflows:
@@ -128,7 +118,7 @@ Known routing targets:
 
 - `AGENTS.md` for agents that recognize this convention.
 - `CLAUDE.md` for Claude Code.
-- Potential future `GEMINI.md` for Gemini CLI if needed.
+- `GEMINI.md` for Gemini CLI.
 
 The design should remain usable by other file-reading AI coding agents such as IDE agents, terminal agents, and open-source coding assistants.
 

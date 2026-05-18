@@ -25,10 +25,13 @@ tags:
 
 - Project name: Memory Seed.
 - Project type: reusable local AI memory-system seed and refinement workspace.
-- Current priority: repair the operating memory files and evolve a portable seed that can be launched into other projects.
-- Main output: plain-file local memory system for AI agents, without vendor lock-in.
+- Current priority: evolve the portable seed and CLI tooling; operating memory is healthy.
+- Main output: plain-file local memory system for AI agents (no vendor lock-in) + Python CLI on PyPI (`memory-seed` v1.5.0).
+- CLI commands: `init`, `update`, `compact`, `doctor`, `version`.
+- Control-plane version: `1.4`. Package version: `1.5.0`.
 - Current risk: private/local system design work with possible personal notes because this project lives inside a second-brain folder.
 - Compatibility target: Codex, Claude Code, Gemini CLI, and other file-reading AI coding agents.
+- Publishing: always use `gh release create` (not `gh workflow run`) to trigger PyPI publish.
 
 ## Key Pointers
 
