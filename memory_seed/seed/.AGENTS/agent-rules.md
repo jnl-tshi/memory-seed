@@ -206,6 +206,24 @@ Session logs are append-only. Do not rewrite or compress old session entries unl
 
 Periodically review recent session logs and promote only stable, reusable facts into `context.md`. Keep `context.md` concise enough for fast agent orientation, but complete enough to traverse the repository and understand why the project is structured as it is.
 
+### Consolidation Review Triggers
+
+Review recent session logs for durable-memory promotion when any of these are true:
+
+- More than three meaningful session entries have accumulated since the last consolidation.
+- A completed task changed project direction, architecture, release process, CLI behavior, workflow rules, file ownership, or durable risk.
+- A session produced more than roughly 2,000 words / 8,000 tokens of notes or compact output.
+- A release, publish, migration, bootstrap repair, security decision, or major refactor completed.
+- The agent notices `context.md`, `index.md`, or `style.md` no longer reflects the current project state.
+
+These triggers require review, not automatic edits. Promote only facts that are stable, reusable, and likely to help a future agent avoid wrong assumptions.
+
+## Compact Command Routine
+
+When the user asks to run `memory-seed compact`, run the command from the repository root, read the generated summary, and report the key session facts back to the user.
+
+Use the compact output as review input, not as an automatic write plan. Recommend durable facts that may deserve promotion into `.AGENTS/context.md`, `.AGENTS/index.md`, or `.AGENTS/style.md`, but do not edit those durable memory files unless the user asks or leaving them stale would immediately mislead future work.
+
 Examples of facts worth promoting:
 
 - Notebook ownership changes.

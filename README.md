@@ -65,11 +65,13 @@ GEMINI.md
 
 It does not copy generated project memory such as `.AGENTS/context.md`, `.AGENTS/index.md`, `.AGENTS/style.md`, `.AGENTS/sessions/`, or `.AGENTS/archive/`.
 
-Use `--dry-run` to preview without changing files. Use `--force` only when you intentionally want to back up and replace existing seed files.
+Use `--dry-run` to preview the files `init` would copy without changing files. If any reusable seed file already exists, plain `init` refuses to overwrite it and exits with an error. Use `--force` only when you intentionally want to back up and replace existing seed files.
 
-When `--force` creates backups, Memory Seed adds `.AGENTS/backups/` to the target project's `.gitignore` to reduce the chance of committing replaced local memory files.
+When `--force` creates backups, Memory Seed adds `.AGENTS/backups/` to the target project's `.gitignore` to reduce the chance of committing replaced local memory files. `init --force` is a reinstall operation: it writes all bundled seed files, including files that were already on the current `memory-system-version`.
 
 The `update` command refreshes only the reusable control-plane files in an existing project. It uses each file's `memory-system-version` YAML field to decide whether that file is current. It backs up replaced control-plane files under `.AGENTS/backups/<timestamp>/`, restores any missing reusable seed files, skips files already on the current control-plane version, and does not change generated project memory such as `.AGENTS/context.md`, `.AGENTS/index.md`, `.AGENTS/style.md`, or `.AGENTS/sessions/`.
+
+Use `update --dry-run` to list the reusable control-plane targets without writing files. Current behavior is conservative but broad: dry-run lists all five control-plane paths rather than calculating which files are missing or version-mismatched. The real `update` command skips files that already have the current `memory-system-version`.
 
 The `compact` command summarises recent session activity so an agent can identify durable facts to promote into `context.md`, `index.md`, and `style.md`:
 
@@ -81,6 +83,20 @@ memory-seed compact --output summary.md  # write to file
 ```
 
 The output is a structured Markdown report with session headings and full entry text. The CLI summarises; the agent (or user) decides what to promote. No files are modified automatically.
+
+### Existing-Project Command Behavior
+
+When run in a project that already has Memory Seed files:
+
+- `memory-seed version` prints the bundled reusable control-plane version. It does not inspect the project.
+- `memory-seed doctor` checks only the five reusable control-plane files and reports missing files or `memory-system-version` mismatches. It does not check generated operating memory files.
+- `memory-seed init --dry-run` lists the five seed files it would copy and changes nothing, even if those files already exist.
+- `memory-seed init` refuses to overwrite existing seed files unless `--force` is used.
+- `memory-seed init --force` backs up existing seed files and rewrites all five bundled seed files. It does not generate operating memory files.
+- `memory-seed update` skips current-version control-plane files, backs up and replaces stale files, restores missing files, and leaves generated project memory untouched.
+- `memory-seed compact` reads dated session logs and prints a Markdown summary. It writes only when `--output` is provided.
+
+Known behavior to understand: `update --dry-run` currently lists all control-plane targets, not only files that would actually change. `init --force` intentionally rewrites all bundled seed files and should be used as a reinstall command rather than a targeted refresh.
 
 ## For Code Projects
 

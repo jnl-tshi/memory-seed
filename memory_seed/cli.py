@@ -18,7 +18,11 @@ def main(argv: list[str] | None = None) -> int:
     init_parser.add_argument("--force", action="store_true", help="backup and overwrite existing seed files")
 
     update_parser = subparsers.add_parser("update", help="update reusable control-plane files")
-    update_parser.add_argument("--dry-run", action="store_true", help="show planned files without writing")
+    update_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="list control-plane targets without writing",
+    )
 
     compact_parser = subparsers.add_parser("compact", help="summarise recent session activity")
     compact_parser.add_argument("--days", type=int, default=7, help="number of days to scan (default: 7)")
