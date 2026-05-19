@@ -108,6 +108,24 @@ Run it over stdio:
 memory-seed-mcp --stdio
 ```
 
+Example MCP client command configuration:
+
+```json
+{
+  "command": "memory-seed-mcp",
+  "args": ["--stdio"]
+}
+```
+
+If the console script is not on `PATH`, use the module form from the project environment:
+
+```json
+{
+  "command": "python",
+  "args": ["-m", "memory_seed.mcp_server", "--stdio"]
+}
+```
+
 The server exposes:
 
 ```text
@@ -120,6 +138,22 @@ memory_get_chunk(chunk_id, cwd=".")
 The ranking engine remains local and dependency-light. It uses deterministic lexical scoring and recency math by default; optional semantic embedding support stays in the importable Python core and is not required to run the MCP server.
 
 For human-validatable search behavior, see the fixture-style tests in `tests/test_mcp_server.py`. They assert that specific queries return expected dated session entries first and include enough evidence for manual review.
+
+To manually validate the search-then-fetch workflow without configuring an agent client, run:
+
+```powershell
+memory-seed-mcp-validate "bootstrap mode check"
+```
+
+or:
+
+```powershell
+python -m memory_seed.mcp_validate "bootstrap mode check"
+```
+
+The validation report shows the ranked search results, then fetches the top result by `chunk_id` and prints the exact source, heading, and full chunk text.
+
+Ranking behavior should remain stable on `main`. If you want to experiment with ranking changes, use a separate branch and merge back only when fixture tests show a clear improvement.
 
 ## For Code Projects
 
