@@ -1,8 +1,63 @@
 # Memory Seed
 
-Memory Seed is a portable local memory system for AI coding agents.
+Memory Seed is a portable local memory system for AI coding agents. It plants a small Markdown control plane into a project so agents can recover project purpose, conventions, risks, decisions, and recent work without depending on vendor-hosted memory.
 
-It provides a small set of plain Markdown control-plane files that can be planted into a new or existing project. During bootstrap, the seed generates project-specific operating memory so future agent sessions can recover the project's purpose, current state, conventions, risks, and recent decisions without depending on vendor-hosted memory.
+It is built first for solo developers who move between Codex, Claude Code, Gemini CLI, and other file-reading agents. Teams can also use it to standardize local agent memory across repositories without introducing a database or hosted memory service.
+
+## Quickstart
+
+From the root of a project where you want local agent memory:
+
+```powershell
+uvx --from memory-seed memory-seed init --dry-run
+uvx --from memory-seed memory-seed init
+```
+
+Then ask your coding agent to read `AGENTS.md` and follow the bootstrap instructions. The agent will generate the project-specific operating memory:
+
+```text
+.AGENTS/
+  index.md
+  context.md
+  style.md
+  sessions/
+```
+
+For an existing project that already has Memory Seed:
+
+```powershell
+uvx --from memory-seed memory-seed update --dry-run
+uvx --from memory-seed memory-seed update
+```
+
+For agent-native memory search over MCP:
+
+```json
+{
+  "command": "uvx",
+  "args": ["--from", "memory-seed", "memory-seed-mcp", "--stdio"]
+}
+```
+
+Validate the search workflow manually:
+
+```powershell
+uvx --from memory-seed memory-seed-mcp-validate "bootstrap mode check"
+```
+
+## Why This Exists
+
+AI coding agents are useful, but their project context is fragile. They forget decisions between sessions, vendor memory is not portable, and stuffing full history into prompts wastes context.
+
+Memory Seed keeps the durable memory layer local, inspectable, and boring on purpose:
+
+- Markdown files live with the project.
+- Tool-specific entry files route into one shared `.AGENTS/` memory core.
+- Generated project memory stays separate from reusable seed files.
+- Session logs capture what changed and why.
+- MCP search lets agents retrieve precise historical context without reading every log.
+
+The result is a lightweight memory workflow you can understand, commit, review, copy, and repair.
 
 ## Goals
 
