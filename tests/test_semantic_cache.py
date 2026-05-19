@@ -3,6 +3,7 @@ import shutil
 import tempfile
 import unittest
 from datetime import date
+from datetime import datetime
 from pathlib import Path
 
 from memory_seed.semantic_cache import (
@@ -55,6 +56,7 @@ class SemanticCacheTests(unittest.TestCase):
         self.assertEqual(len(chunks), 3)
         self.assertEqual(chunks[0].source_file, "2026-05-18.md")
         self.assertEqual(chunks[0].session_date, date(2026, 5, 18))
+        self.assertIsNone(chunks[0].entry_datetime)
         self.assertEqual(chunks[0].heading_path, ("Session Log - 2026-05-18",))
         self.assertEqual(chunks[1].heading_path, ("Session Log - 2026-05-18", "Context: Ranking Engine"))
         self.assertEqual(chunks[2].heading_path, ("Session Log - 2026-05-18", "Context: Ranking Engine", "Target Discovery"))
@@ -64,6 +66,20 @@ class SemanticCacheTests(unittest.TestCase):
         self.assertIn("memory-seed", chunks[1].lexical_terms)
         self.assertIn(".AGENTS/context.md", chunks[1].lexical_terms)
         self.assertGreaterEqual(chunks[2].start_line, chunks[1].end_line)
+
+    def test_extracts_optional_entry_datetime_from_session_heading(self):
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-05-19.md",
+            "## 2026-05-19 20:42 - Durable memory consolidation\n\n"
+            "Promoted durable facts.\n",
+        )
+
+        chunks = extract_memory_chunks(cwd)
+
+        self.assertEqual(chunks[0].entry_datetime, datetime(2026, 5, 19, 20, 42))
+        self.assertEqual(chunks[0].title, "2026-05-19 20:42 - Durable memory consolidation")
 
     def test_ignores_non_date_session_files(self):
         cwd = self.make_project()
@@ -81,6 +97,7 @@ class SemanticCacheTests(unittest.TestCase):
             source_path=".AGENTS/sessions/2026-05-18.md",
             source_file="2026-05-18.md",
             session_date=date(2026, 5, 18),
+            entry_datetime=None,
             heading_path=("Target Discovery",),
             heading_level=2,
             title="Target Discovery",
@@ -96,6 +113,7 @@ class SemanticCacheTests(unittest.TestCase):
             source_path=".AGENTS/sessions/2026-05-18.md",
             source_file="2026-05-18.md",
             session_date=date(2026, 5, 18),
+            entry_datetime=None,
             heading_path=("Other",),
             heading_level=2,
             title="Other",
@@ -119,6 +137,7 @@ class SemanticCacheTests(unittest.TestCase):
             source_path=".AGENTS/sessions/2026-05-19.md",
             source_file="2026-05-19.md",
             session_date=today,
+            entry_datetime=None,
             heading_path=("Embedding",),
             heading_level=2,
             title="Embedding",
@@ -153,6 +172,7 @@ class SemanticCacheTests(unittest.TestCase):
             source_path=".AGENTS/sessions/2026-05-19.md",
             source_file="2026-05-19.md",
             session_date=today,
+            entry_datetime=None,
             heading_path=("Control Plane",),
             heading_level=2,
             title="Control Plane",
@@ -182,6 +202,7 @@ class SemanticCacheTests(unittest.TestCase):
             source_path=".AGENTS/sessions/2026-05-19.md",
             source_file="2026-05-19.md",
             session_date=today,
+            entry_datetime=None,
             heading_path=("Topic",),
             heading_level=2,
             title="Topic",
@@ -197,6 +218,7 @@ class SemanticCacheTests(unittest.TestCase):
             source_path=".AGENTS/sessions/2025-01-01.md",
             source_file="2025-01-01.md",
             session_date=date(2025, 1, 1),
+            entry_datetime=None,
             heading_path=("Topic",),
             heading_level=2,
             title="Topic",
@@ -228,6 +250,7 @@ class SemanticCacheTests(unittest.TestCase):
             source_path=".AGENTS/sessions/2026-02-18.md",
             source_file="2026-02-18.md",
             session_date=date(2026, 2, 18),
+            entry_datetime=None,
             heading_path=("Architecture Baseline",),
             heading_level=2,
             title="Architecture Baseline",

@@ -174,6 +174,9 @@ def _ranked_to_dict(result: RankedMemoryChunk) -> dict[str, Any]:
         "recency_multiplier": round(result.recency_multiplier, 6),
         "age_days": result.age_days,
         "date": chunk.session_date.isoformat(),
+        "entry_datetime": None
+        if chunk.entry_datetime is None
+        else chunk.entry_datetime.isoformat(),
         "source": chunk.source_path,
         "line_range": [chunk.start_line, chunk.end_line],
         "heading_path": list(chunk.heading_path),
@@ -189,6 +192,9 @@ def _chunk_to_dict(chunk: MemoryChunk) -> dict[str, Any]:
         "source": chunk.source_path,
         "source_file": chunk.source_file,
         "date": chunk.session_date.isoformat(),
+        "entry_datetime": None
+        if chunk.entry_datetime is None
+        else chunk.entry_datetime.isoformat(),
         "line_range": [chunk.start_line, chunk.end_line],
         "heading_path": list(chunk.heading_path),
         "heading_level": chunk.heading_level,

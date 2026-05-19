@@ -66,5 +66,6 @@ tags:
 ### `sessions/YYYY-MM-DD.md`
 
 - Append concise entries for meaningful work.
+- Prefer entry headings like `## YYYY-MM-DD HH:MM - Short title` when time is known; keep filenames date-only.
 - Include decisions, files changed, validation results, and follow-up gaps.
 - Do not log every command or temporary observation.

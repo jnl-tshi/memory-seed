@@ -31,7 +31,7 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.write_session(
             cwd,
             "2026-05-17.md",
-            "## Bootstrap mode check fix\n\n"
+            "## 2026-05-17 09:15 - Bootstrap mode check fix\n\n"
             "Updated AGENTS.md and agent-rules.md to require checking for initialized memory files before operating mode.\n",
         )
         self.write_session(
@@ -60,7 +60,8 @@ class MemoryMcpServerTests(unittest.TestCase):
 
         self.assertEqual(formatted["query"], "bootstrap mode check")
         self.assertEqual(formatted["results"][0]["source"], ".AGENTS/sessions/2026-05-17.md")
-        self.assertEqual(formatted["results"][0]["heading_path"], ["Bootstrap mode check fix"])
+        self.assertEqual(formatted["results"][0]["heading_path"], ["2026-05-17 09:15 - Bootstrap mode check fix"])
+        self.assertEqual(formatted["results"][0]["entry_datetime"], "2026-05-17T09:15:00")
         self.assertIn("Updated AGENTS.md", formatted["results"][0]["excerpt"])
         self.assertIn("heading_path", formatted["results"][0]["matched_fields"])
         self.assertIsInstance(formatted["results"][0]["score"], float)
@@ -100,6 +101,7 @@ class MemoryMcpServerTests(unittest.TestCase):
         payload = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": chunk_id})
 
         self.assertEqual(payload["chunk"]["chunk_id"], chunk_id)
+        self.assertIsNone(payload["chunk"]["entry_datetime"])
         self.assertIn("Semble guidance", payload["chunk"]["text"])
 
     def test_jsonrpc_tools_list_and_call(self):

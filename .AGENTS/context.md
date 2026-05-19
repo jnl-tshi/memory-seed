@@ -175,5 +175,6 @@ Version policy:
 - Keep `index.md` short and navigational.
 - Keep this project's generated `style.md` focused on Memory Seed conventions.
 - Keep sessions append-only and chronological.
+- Prefer timestamped session entry headings (`## YYYY-MM-DD HH:MM - Short title`) while keeping session filenames date-only.
 - Promote only stable, reusable facts from sessions into `context.md`.
 - Do not edit locked control-plane files unless the user explicitly asks for workflow, bootstrap, routing, versioning, or memory-structure changes.

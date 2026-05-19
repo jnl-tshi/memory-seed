@@ -23,6 +23,7 @@ STRUCTURAL_QUERY_TERMS = (
     "spec",
     "design",
 )
+ENTRY_DATETIME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s+-\s+.+$")
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,7 @@ class MemoryChunk:
     source_path: str
     source_file: str
     session_date: date
+    entry_datetime: datetime | None
     heading_path: tuple[str, ...]
     heading_level: int
     title: str
@@ -186,6 +188,7 @@ def _extract_chunks_from_file(
                 source_path=path.relative_to(target_root).as_posix(),
                 source_file=path.name,
                 session_date=session_date,
+                entry_datetime=_entry_datetime(current_title),
                 heading_path=title_path,
                 heading_level=current_level,
                 title=current_title,
@@ -235,6 +238,16 @@ def _extract_tags(lines: Sequence[str]) -> tuple[str, ...]:
         for match in TAG_RE.finditer(line):
             tags.add(match.group(1).lower())
     return tuple(sorted(tags))
+
+
+def _entry_datetime(title: str) -> datetime | None:
+    match = ENTRY_DATETIME_RE.match(title)
+    if not match:
+        return None
+    try:
+        return datetime.strptime(" ".join(match.groups()), "%Y-%m-%d %H:%M")
+    except ValueError:
+        return None
 
 
 def _extract_contexts(heading_path: Sequence[str]) -> tuple[str, ...]:

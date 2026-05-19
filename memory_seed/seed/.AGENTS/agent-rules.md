@@ -256,17 +256,17 @@ A clean `.AGENTS` folder should satisfy all of the following:
 
 ## Session Log Format
 
-Use dated files under `.AGENTS/sessions/` with short entries such as:
+Use dated files under `.AGENTS/sessions/` with short entries. Prefer minute-level timestamps in entry headings when available, especially when multiple agents may work in the same repository:
 
 ```markdown
-## 2026-05-02 - Project setup and workflow update
+## 2026-05-02 14:35 - Project setup and workflow update
 
 - Updated the project workflow or implementation area touched today.
 - Recorded the key decision, artifact, or file path that future agents need.
 - Follow-up: note any rerun, validation, review, or unresolved risk.
 ```
 
-Prefer concise bullets. Capture meaningful decisions, durable changes, follow-up risk, or handoff context. Do not log trivial work or every command.
+Keep session filenames date-only, such as `.AGENTS/sessions/2026-05-02.md`. Timestamped headings are optional and backward compatible with untimed headings. Prefer concise bullets. Capture meaningful decisions, durable changes, follow-up risk, or handoff context. Do not log trivial work or every command.
 
 ## Public Memory Hygiene
 
