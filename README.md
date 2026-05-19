@@ -43,7 +43,32 @@ Archived reusable versions are stored under `.AGENTS/archive/<version>/`.
 
 Memory Seed includes a small Python CLI.
 
-From this repository, run:
+Recommended one-off usage uses `uvx` so you do not need a global install and you avoid stale local commands:
+
+```powershell
+uvx --from memory-seed memory-seed doctor
+uvx --from memory-seed memory-seed init --dry-run
+uvx --from memory-seed memory-seed update --dry-run
+uvx --from memory-seed memory-seed compact
+```
+
+For repeatable team or production usage, pin the package version:
+
+```powershell
+uvx --from memory-seed==1.6.1 memory-seed doctor
+uvx --from memory-seed==1.6.1 memory-seed update --dry-run
+```
+
+For offline or lower-latency use, install or upgrade the CLI:
+
+```powershell
+python -m pip install --upgrade memory-seed
+python -m pip show memory-seed
+```
+
+`python -m pip show memory-seed` reports the installed Python package version, such as `1.6.1`. `memory-seed version` reports the reusable control-plane version, currently `1.4`; it is not the package-version check.
+
+From this repository checkout, run:
 
 ```powershell
 python -m memory_seed.cli version
@@ -105,10 +130,28 @@ Memory Seed also includes a lightweight MCP server that lets agents search local
 Run it over stdio:
 
 ```powershell
-memory-seed-mcp --stdio
+uvx --from memory-seed memory-seed-mcp --stdio
 ```
 
-Example MCP client command configuration:
+Recommended MCP client command configuration:
+
+```json
+{
+  "command": "uvx",
+  "args": ["--from", "memory-seed", "memory-seed-mcp", "--stdio"]
+}
+```
+
+For repeatable team or production usage, pin the package version:
+
+```json
+{
+  "command": "uvx",
+  "args": ["--from", "memory-seed==1.6.1", "memory-seed-mcp", "--stdio"]
+}
+```
+
+If you installed Memory Seed globally, use the console script directly:
 
 ```json
 {
@@ -117,7 +160,7 @@ Example MCP client command configuration:
 }
 ```
 
-If the console script is not on `PATH`, use the module form from the project environment:
+If the console script is not on `PATH`, use the module form from the active Python environment:
 
 ```json
 {
@@ -144,12 +187,19 @@ For human-validatable search behavior, see the fixture-style tests in `tests/tes
 To manually validate the search-then-fetch workflow without configuring an agent client, run:
 
 ```powershell
-memory-seed-mcp-validate "bootstrap mode check"
+uvx --from memory-seed memory-seed-mcp-validate "bootstrap mode check"
 ```
 
-or:
+or, with a pinned package:
 
 ```powershell
+uvx --from memory-seed==1.6.1 memory-seed-mcp-validate "bootstrap mode check"
+```
+
+If installed globally or running from this checkout:
+
+```powershell
+memory-seed-mcp-validate "bootstrap mode check"
 python -m memory_seed.mcp_validate "bootstrap mode check"
 ```
 

@@ -24,7 +24,7 @@ The goal is to preserve key project context, decisions, risks, workflow rules, a
 
 ## Current State
 
-The Memory Seed control plane is in version `1.4`. The Python package is at version `1.6.0`.
+The Memory Seed control plane is in version `1.4`. The Python package is at version `1.6.1`.
 
 Recent durable implementation state:
 
@@ -32,6 +32,7 @@ Recent durable implementation state:
 - `memory_seed.mcp_server` provides a dependency-light stdio MCP adapter exposing `memory_search` and `memory_get_chunk`.
 - `memory_seed.mcp_validate` provides a human-readable validation workflow that runs search, fetches the top chunk by `chunk_id`, and prints source evidence.
 - Console entry points now include `memory-seed-mcp --stdio` and `memory-seed-mcp-validate`.
+- Public docs recommend `uvx --from memory-seed ...` by default, pinned `uvx --from memory-seed==<version> ...` for repeatability, and installed CLI usage for offline or lower-latency workflows.
 
 Existing reusable control-plane artifacts:
 
