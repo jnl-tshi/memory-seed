@@ -38,6 +38,8 @@ tags:
 
 - `.AGENTS/context.md` owns project purpose, state, architecture, portability goals, and durable design decisions.
 - `memory_seed/semantic_cache.py` owns local session-memory chunking and ranking; `memory_seed/mcp_server.py` owns the MCP adapter.
+- `CHANGELOG.md` summarizes release history; `NEXT_STEPS.md` tracks user-assisted follow-up work.
+- `.github/ISSUE_TEMPLATE/` contains public issue templates for bugs, compatibility reports, feature requests, and memory workflow improvements.
 - `.AGENTS/project-bootstrap.md` owns bootstrap-time project classification and style-profile selection for new target projects.
 - `.AGENTS/style.md` owns conventions for this initialized Memory Seed project after bootstrap has generated it.
 - `.AGENTS/agent-rules.md` owns the operating workflow and file permission model.

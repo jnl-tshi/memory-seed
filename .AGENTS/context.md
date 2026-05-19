@@ -104,6 +104,7 @@ Project-type-aware style selection belongs to bootstrap, not to an already-gener
 - Session logs that capture why the memory system changes over time.
 - Python CLI (`memory-seed`) published on PyPI with commands: `init`, `update`, `compact`, `doctor`, `version`.
 - MCP server tooling for agent-native local memory search.
+- Public project support files: `CHANGELOG.md`, `NEXT_STEPS.md`, and `.github/ISSUE_TEMPLATE/`.
 
 ## Publishing Convention
 
