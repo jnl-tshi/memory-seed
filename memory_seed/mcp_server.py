@@ -1,0 +1,247 @@
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from datetime import date, datetime
+from pathlib import Path
+from typing import Any
+
+from .semantic_cache import (
+    MemoryChunk,
+    RankedMemoryChunk,
+    extract_memory_chunks,
+    rank_session_memory,
+)
+
+
+SERVER_NAME = "memory-seed"
+SERVER_VERSION = "0.1.0"
+
+
+TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "memory_search",
+        "description": "Search local Memory Seed session logs and return ranked, source-linked context chunks.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "cwd": {"type": "string", "default": "."},
+                "top_k": {"type": "integer", "default": 8},
+                "today": {"type": "string", "description": "Optional YYYY-MM-DD date override."},
+                "lambda_days": {"type": "number", "default": 0.01},
+                "recency_enabled": {"type": "boolean", "default": True},
+                "recency_floor": {"type": "number", "default": 0.15},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "memory_get_chunk",
+        "description": "Fetch an exact Memory Seed chunk by chunk_id.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "chunk_id": {"type": "string"},
+                "cwd": {"type": "string", "default": "."},
+            },
+            "required": ["chunk_id"],
+        },
+    },
+]
+
+
+def call_tool(name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+    args = arguments or {}
+    if name == "memory_search":
+        query = _required_str(args, "query")
+        cwd = args.get("cwd", ".")
+        top_k = int(args.get("top_k", 8))
+        ranked = rank_session_memory(
+            query,
+            cwd,
+            top_k=top_k,
+            today=_parse_optional_date(args.get("today")),
+            lambda_days=float(args.get("lambda_days", 0.01)),
+            recency_enabled=bool(args.get("recency_enabled", True)),
+            recency_floor=float(args.get("recency_floor", 0.15)),
+        )
+        return format_search_results(query, ranked, top_k=top_k)
+
+    if name == "memory_get_chunk":
+        chunk_id = _required_str(args, "chunk_id")
+        cwd = args.get("cwd", ".")
+        for chunk in extract_memory_chunks(cwd):
+            if chunk.chunk_id == chunk_id:
+                return {"chunk": _chunk_to_dict(chunk)}
+        raise ValueError(f"chunk_id not found: {chunk_id}")
+
+    raise ValueError(f"Unknown tool: {name}")
+
+
+def format_search_results(
+    query: str,
+    ranked: list[RankedMemoryChunk],
+    *,
+    top_k: int = 8,
+) -> dict[str, Any]:
+    results = [_ranked_to_dict(result) for result in ranked[:top_k]]
+    return {
+        "query": query,
+        "results": results,
+        "human_report": _human_report(query, results),
+    }
+
+
+def handle_jsonrpc_message(message: dict[str, Any]) -> dict[str, Any] | None:
+    message_id = message.get("id")
+    method = message.get("method")
+    try:
+        if method == "initialize":
+            return _result(
+                message_id,
+                {
+                    "protocolVersion": "2024-11-05",
+                    "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
+                    "capabilities": {"tools": {}},
+                },
+            )
+        if method == "notifications/initialized":
+            return None
+        if method == "tools/list":
+            return _result(message_id, {"tools": TOOLS})
+        if method == "tools/call":
+            params = message.get("params") or {}
+            tool_result = call_tool(params.get("name"), params.get("arguments") or {})
+            return _result(
+                message_id,
+                {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(tool_result, indent=2, sort_keys=True),
+                        }
+                    ]
+                },
+            )
+        return _error(message_id, -32601, f"Method not found: {method}")
+    except Exception as exc:
+        return _error(message_id, -32603, str(exc))
+
+
+def serve_stdio(input_stream=None, output_stream=None) -> int:
+    input_stream = input_stream or sys.stdin
+    output_stream = output_stream or sys.stdout
+    for line in input_stream:
+        if not line.strip():
+            continue
+        try:
+            message = json.loads(line)
+            response = handle_jsonrpc_message(message)
+        except Exception as exc:
+            response = _error(None, -32700, str(exc))
+        if response is not None:
+            output_stream.write(json.dumps(response, separators=(",", ":")) + "\n")
+            output_stream.flush()
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="memory-seed-mcp")
+    parser.add_argument(
+        "--stdio",
+        action="store_true",
+        help="run the Memory Seed MCP server over newline-delimited stdio JSON-RPC",
+    )
+    args = parser.parse_args(argv)
+    if args.stdio:
+        return serve_stdio()
+    parser.print_help()
+    return 0
+
+
+def _ranked_to_dict(result: RankedMemoryChunk) -> dict[str, Any]:
+    chunk = result.chunk
+    return {
+        "chunk_id": chunk.chunk_id,
+        "score": round(result.final_score, 6),
+        "match_score": round(result.match_score, 6),
+        "lexical_score": round(result.lexical_score, 6),
+        "semantic_score": None
+        if result.semantic_score is None
+        else round(result.semantic_score, 6),
+        "recency_multiplier": round(result.recency_multiplier, 6),
+        "age_days": result.age_days,
+        "date": chunk.session_date.isoformat(),
+        "source": chunk.source_path,
+        "line_range": [chunk.start_line, chunk.end_line],
+        "heading_path": list(chunk.heading_path),
+        "matched_terms": list(result.matched_terms),
+        "matched_fields": list(result.matched_fields),
+        "excerpt": _excerpt(chunk.text),
+    }
+
+
+def _chunk_to_dict(chunk: MemoryChunk) -> dict[str, Any]:
+    return {
+        "chunk_id": chunk.chunk_id,
+        "source": chunk.source_path,
+        "source_file": chunk.source_file,
+        "date": chunk.session_date.isoformat(),
+        "line_range": [chunk.start_line, chunk.end_line],
+        "heading_path": list(chunk.heading_path),
+        "heading_level": chunk.heading_level,
+        "title": chunk.title,
+        "text": chunk.text,
+        "tags": list(chunk.tags),
+        "contexts": list(chunk.contexts),
+        "lexical_terms": list(chunk.lexical_terms),
+    }
+
+
+def _human_report(query: str, results: list[dict[str, Any]]) -> str:
+    lines = [f"Query: {query}", "Top results:"]
+    for index, result in enumerate(results, start=1):
+        heading = " > ".join(result["heading_path"]) or "(untitled)"
+        lines.append(
+            f"{index}. {result['date']} {heading} "
+            f"[score={result['score']}, source={result['source']}:{result['line_range'][0]}]"
+        )
+    if not results:
+        lines.append("No matching memory chunks found.")
+    return "\n".join(lines)
+
+
+def _excerpt(text: str, limit: int = 280) -> str:
+    compact = " ".join(text.split())
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 3].rstrip() + "..."
+
+
+def _parse_optional_date(value: Any) -> date | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, date):
+        return value
+    return datetime.strptime(str(value), "%Y-%m-%d").date()
+
+
+def _required_str(arguments: dict[str, Any], key: str) -> str:
+    value = arguments.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"Missing required string argument: {key}")
+    return value
+
+
+def _result(message_id: Any, result: dict[str, Any]) -> dict[str, Any]:
+    return {"jsonrpc": "2.0", "id": message_id, "result": result}
+
+
+def _error(message_id: Any, code: int, message: str) -> dict[str, Any]:
+    return {"jsonrpc": "2.0", "id": message_id, "error": {"code": code, "message": message}}
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -98,6 +98,29 @@ When run in a project that already has Memory Seed files:
 
 Known behavior to understand: `update --dry-run` currently lists all control-plane targets, not only files that would actually change. `init --force` intentionally rewrites all bundled seed files and should be used as a reinstall command rather than a targeted refresh.
 
+## MCP Memory Search
+
+Memory Seed also includes a lightweight MCP server that lets agents search local session memory through structured tool calls instead of shelling out to broad compact summaries.
+
+Run it over stdio:
+
+```powershell
+memory-seed-mcp --stdio
+```
+
+The server exposes:
+
+```text
+memory_search(query, cwd=".", top_k=8, today=None, lambda_days=0.01, recency_enabled=true, recency_floor=0.15)
+memory_get_chunk(chunk_id, cwd=".")
+```
+
+`memory_search` returns JSON with source path, line range, heading path, score fields, matched fields, matched terms, and an excerpt. This is intended to be both agent-efficient and human-validatable.
+
+The ranking engine remains local and dependency-light. It uses deterministic lexical scoring and recency math by default; optional semantic embedding support stays in the importable Python core and is not required to run the MCP server.
+
+For human-validatable search behavior, see the fixture-style tests in `tests/test_mcp_server.py`. They assert that specific queries return expected dated session entries first and include enough evidence for manual review.
+
 ## For Code Projects
 
 When Memory Seed is planted into a software, library, or API project, agents will use [Semble](https://github.com/MinishLab/semble) for code search. Semble returns only the relevant code chunks, using ~98% fewer tokens than grep+read.

@@ -178,7 +178,7 @@ def _extract_chunks_from_file(
         if current_title is None:
             return
         text = "\n".join(current_lines).strip()
-        title_path = tuple(heading_stack[:current_level])
+        title_path = tuple(heading for heading in heading_stack[:current_level] if heading)
         payload = "\n".join((current_title, text)).strip()
         chunks.append(
             MemoryChunk(

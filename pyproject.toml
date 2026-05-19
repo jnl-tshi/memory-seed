@@ -24,6 +24,7 @@ classifiers = [
 
 [project.scripts]
 memory-seed = "memory_seed.cli:main"
+memory-seed-mcp = "memory_seed.mcp_server:main"
 
 [tool.setuptools]
 packages = ["memory_seed"]
