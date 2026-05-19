@@ -32,6 +32,8 @@ tags:
 - Keep `.AGENTS/index.md` short.
 - Treat version changes as deliberate design events, not incidental edits.
 - Archive only reusable versioned artifacts when replacing a prior memory-system version.
+- Keep local retrieval tooling dependency-light by default; optional semantic embedding support should remain adapter-based unless explicitly promoted to a required dependency.
+- Preserve proven ranking behavior on `main`; test ranking changes on a branch with human-validatable fixture tests before merging.
 
 ## Bootstrap Style Generation
 

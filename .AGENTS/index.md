@@ -25,9 +25,10 @@ tags:
 
 - Project name: Memory Seed.
 - Project type: reusable local AI memory-system seed and refinement workspace.
-- Current priority: evolve the portable seed and CLI tooling; operating memory is healthy.
-- Main output: plain-file local memory system for AI agents (no vendor lock-in) + Python CLI on PyPI (`memory-seed`).
+- Current priority: evolve the portable seed, CLI tooling, and local MCP memory retrieval; operating memory is healthy.
+- Main output: plain-file local memory system for AI agents (no vendor lock-in) + Python CLI/MCP tooling on PyPI (`memory-seed`).
 - CLI commands: `init`, `update`, `compact`, `doctor`, `version`.
+- MCP tooling: `memory-seed-mcp --stdio` exposes `memory_search` and `memory_get_chunk`; `memory-seed-mcp-validate` demonstrates search-then-fetch validation.
 - Control-plane version: `1.4`. Package version: `1.5.3`.
 - Current risk: private/local system design work with possible personal notes because this project lives inside a second-brain folder.
 - Compatibility target: Codex, Claude Code, Gemini CLI, and other file-reading AI coding agents.
@@ -36,6 +37,7 @@ tags:
 ## Key Pointers
 
 - `.AGENTS/context.md` owns project purpose, state, architecture, portability goals, and durable design decisions.
+- `memory_seed/semantic_cache.py` owns local session-memory chunking and ranking; `memory_seed/mcp_server.py` owns the MCP adapter.
 - `.AGENTS/project-bootstrap.md` owns bootstrap-time project classification and style-profile selection for new target projects.
 - `.AGENTS/style.md` owns conventions for this initialized Memory Seed project after bootstrap has generated it.
 - `.AGENTS/agent-rules.md` owns the operating workflow and file permission model.

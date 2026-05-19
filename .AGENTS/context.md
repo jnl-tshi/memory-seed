@@ -26,6 +26,13 @@ The goal is to preserve key project context, decisions, risks, workflow rules, a
 
 The Memory Seed control plane is in version `1.4`. The Python package is at version `1.5.3`.
 
+Recent durable implementation state:
+
+- `memory_seed.semantic_cache` provides heading-aware local session-memory chunking and ranking.
+- `memory_seed.mcp_server` provides a dependency-light stdio MCP adapter exposing `memory_search` and `memory_get_chunk`.
+- `memory_seed.mcp_validate` provides a human-readable validation workflow that runs search, fetches the top chunk by `chunk_id`, and prints source evidence.
+- Console entry points now include `memory-seed-mcp --stdio` and `memory-seed-mcp-validate`.
+
 Existing reusable control-plane artifacts:
 
 - `AGENTS.md`
@@ -95,6 +102,7 @@ Project-type-aware style selection belongs to bootstrap, not to an already-gener
 - Project-specific operating files generated in each target project.
 - Session logs that capture why the memory system changes over time.
 - Python CLI (`memory-seed`) published on PyPI with commands: `init`, `update`, `compact`, `doctor`, `version`.
+- MCP server tooling for agent-native local memory search.
 
 ## Publishing Convention
 
@@ -109,6 +117,8 @@ Project-type-aware style selection belongs to bootstrap, not to an already-gener
 - Semble (github.com/MinishLab/semble) is the recommended code search tool for target code projects. It is wired into `agent-rules.md` (Level 0/1 tool hierarchy) and `project-bootstrap.md` (auto-included in AGENTS.md for software/library projects). Do not build a Markdown-optimised variant; Memory Seed files are intentionally small.
 - Optimize orchestration and compacting around Markdown memory files rather than code-function names or source-symbol indexes.
 - `memory-seed compact` is implemented. It summarises recent session activity into a Markdown report that an agent reads to identify and promote durable facts. The CLI summarises; the agent judges. No automated writes to durable files.
+- Local semantic-cache/MCP retrieval is implemented as an importable core plus MCP adapter, not as a ranking-changing replacement for `compact`.
+- Preserve current ranking behavior on `main`; ranking experiments should happen on a separate branch and merge only when fixture tests show clear improvements.
 
 ## Portability And Vendor Lock-In
 
@@ -119,6 +129,7 @@ Known routing targets:
 - `AGENTS.md` for agents that recognize this convention.
 - `CLAUDE.md` for Claude Code.
 - `GEMINI.md` for Gemini CLI.
+- MCP clients can use `memory-seed-mcp --stdio` for structured local memory retrieval.
 
 The design should remain usable by other file-reading AI coding agents such as IDE agents, terminal agents, and open-source coding assistants.
 
