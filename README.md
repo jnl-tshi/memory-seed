@@ -1,5 +1,10 @@
 # Memory Seed
 
+[![PyPI](https://img.shields.io/pypi/v/memory-seed.svg)](https://pypi.org/project/memory-seed/)
+[![Python](https://img.shields.io/pypi/pyversions/memory-seed.svg)](https://pypi.org/project/memory-seed/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Publish to PyPI](https://github.com/jnl-tshi/memory-seed/actions/workflows/publish.yml/badge.svg)](https://github.com/jnl-tshi/memory-seed/actions/workflows/publish.yml)
+
 Memory Seed is a portable local memory system for AI coding agents. It plants a small Markdown control plane into a project so agents can recover project purpose, conventions, risks, decisions, and recent work without depending on vendor-hosted memory.
 
 It is built first for solo developers who move between Codex, Claude Code, Gemini CLI, and other file-reading agents. Teams can also use it to standardize local agent memory across repositories without introducing a database or hosted memory service.
@@ -45,6 +50,34 @@ Validate the search workflow manually:
 uvx --from memory-seed memory-seed-mcp-validate "bootstrap mode check"
 ```
 
+## See It Work
+
+You can validate the local search workflow without configuring an agent client:
+
+```powershell
+uvx --from memory-seed memory-seed-mcp-validate "bootstrap mode check"
+```
+
+Representative output:
+
+```text
+# MCP Memory Validation
+
+Query: bootstrap mode check
+
+Top results:
+1. .AGENTS/sessions/2026-05-17.md: Bootstrap mode check fix
+   score=...
+   heading=2026-05-17 - Bootstrap mode check fix
+
+Fetched top chunk:
+Source: .AGENTS/sessions/2026-05-17.md:...
+Heading: 2026-05-17 - Bootstrap mode check fix
+...
+```
+
+The validator performs the same search-then-fetch flow an MCP-capable agent uses: rank matching memory chunks, fetch the selected chunk by id, and print the exact source text for human review.
+
 ## Why This Exists
 
 AI coding agents are useful, but their project context is fragile. They forget decisions between sessions, vendor memory is not portable, and stuffing full history into prompts wastes context.
@@ -66,6 +99,16 @@ The result is a lightweight memory workflow you can understand, commit, review, 
 - Route tool-specific entry files into one shared `.AGENTS/` memory core.
 - Generate project-specific `index.md`, `context.md`, `style.md`, and session logs during bootstrap.
 - Archive reusable control-plane versions while keeping generated project memory outside version archives.
+
+## Agent Support
+
+| Agent or client | Support path |
+| --- | --- |
+| Codex | Starts from `AGENTS.md`; can use MCP when the client supports stdio MCP servers. |
+| Claude Code | Starts from `CLAUDE.md`; can register `memory-seed-mcp` through `uvx`. |
+| Gemini CLI | Starts from `GEMINI.md`. |
+| Other file-reading agents | Start from `AGENTS.md` and follow the `.AGENTS/` read order. |
+| MCP-capable clients | Use `memory_search` and `memory_get_chunk` through `memory-seed-mcp --stdio`. |
 
 ## Reusable Seed Files
 
@@ -274,7 +317,7 @@ Install it once, globally:
 claude mcp add semble -s user -- uvx --from "semble[mcp]" semble
 ```
 
-During bootstrap, the agent adds a Code Search section to the project's `AGENTS.md` so all future agents — including sub-agents — can call `semble search` directly. No per-project setup is needed after that.
+During bootstrap, the agent adds a Code Search section to the project's `AGENTS.md` so all future agents, including sub-agents, can call `semble search` directly. No per-project setup is needed after that.
 
 ## Public Memory Hygiene
 
