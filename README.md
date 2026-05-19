@@ -90,6 +90,8 @@ GEMINI.md
 
 It does not copy generated project memory such as `.AGENTS/context.md`, `.AGENTS/index.md`, `.AGENTS/style.md`, `.AGENTS/sessions/`, or `.AGENTS/archive/`.
 
+It also does not copy MCP server code or Python modules into the target project. Commands such as `memory-seed-mcp` and `memory-seed-mcp-validate` run from the installed or `uvx` package. The target project receives only the Markdown seed files; generated operating memory is created later by an agent during bootstrap.
+
 Use `--dry-run` to preview the files `init` would copy without changing files. If any reusable seed file already exists, plain `init` refuses to overwrite it and exits with an error. Use `--force` only when you intentionally want to back up and replace existing seed files.
 
 When `--force` creates backups, Memory Seed adds `.AGENTS/backups/` to the target project's `.gitignore` to reduce the chance of committing replaced local memory files. `init --force` is a reinstall operation: it writes all bundled seed files, including files that were already on the current `memory-system-version`.
