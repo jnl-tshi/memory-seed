@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -8,8 +9,10 @@ from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "1.4"
-BACKUP_IGNORE_ENTRY = ".AGENTS/backups/"
+VERSION = "2.0"
+MEMORY_DIR_NAME = ".memory-seed"
+LEGACY_MEMORY_DIR_NAME = ".AGENTS"
+BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
 
 SESSION_DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.md$")
 HEADING_RE = re.compile(r"^##\s+(.+)$", re.MULTILINE)
@@ -21,19 +24,30 @@ class SeedFile:
     destination: str
 
 
+@dataclass(frozen=True)
+class Runtime:
+    workspace_root: Path
+    memory_dir: Path
+    legacy: bool = False
+
+
 @dataclass
 class InitResult:
     changed: bool
     planned: list[str] = field(default_factory=list)
     created: list[str] = field(default_factory=list)
     backed_up: list[str] = field(default_factory=list)
+    archived: list[str] = field(default_factory=list)
 
 
 @dataclass
 class DoctorResult:
     ok: bool
+    control_plane_ok: bool = False
+    bootstrap_complete: bool = False
     missing: list[str] = field(default_factory=list)
     version_mismatches: list[dict[str, str]] = field(default_factory=list)
+    bootstrap_missing: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -48,16 +62,113 @@ SEED_FILES = [
     SeedFile(SEED_ROOT / "AGENTS.md", "AGENTS.md"),
     SeedFile(SEED_ROOT / "CLAUDE.md", "CLAUDE.md"),
     SeedFile(SEED_ROOT / "GEMINI.md", "GEMINI.md"),
-    SeedFile(SEED_ROOT / ".AGENTS" / "agent-rules.md", ".AGENTS/agent-rules.md"),
     SeedFile(
-        SEED_ROOT / ".AGENTS" / "project-bootstrap.md",
-        ".AGENTS/project-bootstrap.md",
+        SEED_ROOT / MEMORY_DIR_NAME / "agent-rules.md",
+        ".memory-seed/agent-rules.md",
     ),
+    SeedFile(SEED_ROOT / MEMORY_DIR_NAME / "archive" / ".gitkeep", ".memory-seed/archive/.gitkeep"),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "project-bootstrap.md",
+        ".memory-seed/project-bootstrap.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "security_triage.md",
+        ".memory-seed/skills/security_triage.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "code_search.md",
+        ".memory-seed/skills/code_search.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "index.md",
+        ".memory-seed/skills/index.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "data_architecture.md",
+        ".memory-seed/skills/data_architecture.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "local_compilation.md",
+        ".memory-seed/skills/local_compilation.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "memory_consolidation.md",
+        ".memory-seed/skills/memory_consolidation.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "memory_doctor.md",
+        ".memory-seed/skills/memory_doctor.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "release_publishing.md",
+        ".memory-seed/skills/release_publishing.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "sessions" / ".gitkeep",
+        ".memory-seed/sessions/.gitkeep",
+    ),
+]
+
+BOOTSTRAP_GENERATED_FILES = [
+    ".memory-seed/index.md",
+    ".memory-seed/policy.md",
 ]
 
 
 def get_version() -> str:
     return VERSION
+
+
+def generate_session_entry_id(
+    *,
+    timestamp: str,
+    title: str,
+    user_initials: str,
+    agent_type: str,
+    project_path: str,
+    subproject_path: str | None,
+) -> str:
+    metadata = "\n".join(
+        (
+            timestamp.strip(),
+            title.strip(),
+            user_initials.strip(),
+            agent_type.strip(),
+            project_path.strip(),
+            "" if subproject_path is None else subproject_path.strip(),
+        )
+    )
+    return f"ms-{hashlib.sha1(metadata.encode('utf-8')).hexdigest()[:8]}"
+
+
+def resolve_runtime(cwd: str | Path = ".") -> Runtime:
+    start = Path(cwd).resolve()
+    if start.exists() and start.is_file():
+        start = start.parent
+
+    for candidate in (start, *start.parents):
+        memory_dir = candidate / MEMORY_DIR_NAME
+        if memory_dir.is_dir():
+            return Runtime(
+                workspace_root=candidate,
+                memory_dir=memory_dir.resolve(),
+                legacy=False,
+            )
+
+    for candidate in (start, *start.parents):
+        memory_dir = candidate / LEGACY_MEMORY_DIR_NAME
+        if memory_dir.is_dir():
+            return Runtime(
+                workspace_root=candidate,
+                memory_dir=memory_dir.resolve(),
+                legacy=True,
+            )
+
+    return Runtime(
+        workspace_root=start,
+        memory_dir=start / MEMORY_DIR_NAME,
+        legacy=False,
+    )
 
 
 def init_project(cwd: str | Path = ".", dry_run: bool = False, force: bool = False) -> InitResult:
@@ -86,7 +197,7 @@ def init_project(cwd: str | Path = ".", dry_run: bool = False, force: bool = Fal
 
         if destination.exists() and force:
             _ensure_backup_gitignore(target_root)
-            backup_relative = Path(".AGENTS") / "backups" / timestamp / seed_file.destination
+            backup_relative = Path(MEMORY_DIR_NAME) / "backups" / timestamp / seed_file.destination
             backup_path = target_root / backup_relative
             backup_path.parent.mkdir(parents=True, exist_ok=True)
             _copy_text_file(destination, backup_path)
@@ -114,29 +225,42 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     created: list[str] = []
     backed_up: list[str] = []
+    archived: list[str] = []
 
     for seed_file in SEED_FILES:
         destination = target_root / seed_file.destination
+        if _is_runtime_local_file(seed_file.destination) and destination.exists():
+            continue
+
         if destination.exists() and _read_memory_system_version(destination) == VERSION:
             continue
 
         if destination.exists():
             _ensure_backup_gitignore(target_root)
-            backup_relative = Path(".AGENTS") / "backups" / timestamp / seed_file.destination
+            backup_relative = Path(MEMORY_DIR_NAME) / "backups" / timestamp / seed_file.destination
             backup_path = target_root / backup_relative
             backup_path.parent.mkdir(parents=True, exist_ok=True)
             _copy_text_file(destination, backup_path)
             backed_up.append(backup_relative.as_posix())
+            archive_relative = _archive_replaced_control_plane_file(
+                target_root,
+                destination,
+                seed_file.destination,
+                timestamp,
+            )
+            if archive_relative:
+                archived.append(archive_relative)
 
         destination.parent.mkdir(parents=True, exist_ok=True)
         _copy_text_file(seed_file.source, destination)
         created.append(seed_file.destination)
 
     return InitResult(
-        changed=bool(created or backed_up),
+        changed=bool(created or backed_up or archived),
         planned=planned,
         created=created,
         backed_up=backed_up,
+        archived=archived,
     )
 
 
@@ -161,10 +285,22 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
                 }
             )
 
+    bootstrap_missing = [
+        path
+        for path in BOOTSTRAP_GENERATED_FILES
+        if not (target_root / path).exists()
+    ]
+
+    control_plane_ok = not missing and not version_mismatches
+    bootstrap_complete = not bootstrap_missing
+
     return DoctorResult(
-        ok=not missing and not version_mismatches,
+        ok=control_plane_ok and bootstrap_complete,
+        control_plane_ok=control_plane_ok,
+        bootstrap_complete=bootstrap_complete,
         missing=missing,
         version_mismatches=version_mismatches,
+        bootstrap_missing=bootstrap_missing,
     )
 
 
@@ -174,7 +310,7 @@ def compact_sessions(
     scan_all: bool = False,
 ) -> CompactResult:
     target_root = Path(cwd).resolve()
-    sessions_dir = target_root / ".AGENTS" / "sessions"
+    sessions_dir = resolve_runtime(target_root).memory_dir / "sessions"
 
     if not sessions_dir.is_dir():
         return CompactResult(
@@ -235,6 +371,35 @@ def _read_memory_system_version(path: Path) -> str | None:
     if not match:
         return None
     return match.group(1)
+
+
+def _is_runtime_local_file(destination: str) -> bool:
+    reusable_runtime_files = {
+        f"{MEMORY_DIR_NAME}/agent-rules.md",
+        f"{MEMORY_DIR_NAME}/project-bootstrap.md",
+    }
+    return (
+        destination.startswith(f"{MEMORY_DIR_NAME}/")
+        and destination not in reusable_runtime_files
+    )
+
+
+def _archive_replaced_control_plane_file(
+    target_root: Path,
+    source: Path,
+    destination: str,
+    timestamp: str,
+) -> str | None:
+    if _is_runtime_local_file(destination):
+        return None
+
+    old_version = _read_memory_system_version(source)
+    archive_folder = old_version or f"unknown-{timestamp}"
+    archive_relative = Path(MEMORY_DIR_NAME) / "archive" / archive_folder / destination
+    archive_path = target_root / archive_relative
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+    _copy_text_file(source, archive_path)
+    return archive_relative.as_posix()
 
 
 def _copy_text_file(source: Path, destination: Path) -> None:

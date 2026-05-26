@@ -1,5 +1,5 @@
-﻿---
-memory-system-version: 1.4
+---
+memory-system-version: 2.0
 tags:
   - agent-entry
   - ai-memory
@@ -7,45 +7,66 @@ tags:
 
 # Agent Entry Point
 
-This repository uses `.AGENTS/` as its agent memory and onboarding system.
+This repository uses `.memory-seed/` as its agent memory and onboarding system.
 
-Memory Seed is designed for file-reading AI coding agents. Keep the shared memory core in plain Markdown with predictable paths, explicit read order, and minimal vendor-specific assumptions. Tool-specific routing files should point into the same `.AGENTS/` memory core.
+Memory Seed is designed for file-reading AI coding agents. Keep the shared memory core in plain Markdown with predictable paths, explicit read order, and minimal vendor-specific assumptions. Tool-specific routing files should point into the nearest `.memory-seed/` runtime.
+
+## Runtime Discovery
+
+Before planning, editing, reviewing, or running commands, find the active runtime:
+
+1. Start from the current working directory.
+2. Walk upward toward the filesystem root.
+3. Use the nearest ancestor that contains `.memory-seed/`.
+4. If no `.memory-seed/` exists, fall back to legacy `.AGENTS/` only for older projects.
+
+Nested sub-projects may have their own `.memory-seed/` directory. The nearest runtime owns active state and skills for work under that sub-project.
 
 ## Mode Check
 
-Before choosing operating mode, check whether all initialized memory files exist:
+Before choosing operating mode, check whether the active runtime contains:
 
 ```text
-.AGENTS/index.md
-.AGENTS/context.md
-.AGENTS/style.md
-.AGENTS/sessions/
+.memory-seed/agent-rules.md
+.memory-seed/project-bootstrap.md
+.memory-seed/skills/
+.memory-seed/sessions/
+.memory-seed/archive/
 ```
 
-If all of these exist, use operating mode. If any are missing, use bootstrap mode long enough to create the missing initialized memory files.
+If these reusable control files exist but `.memory-seed/index.md` or `.memory-seed/policy.md` is missing, the project has been seeded but not bootstrapped. Use bootstrap mode to inspect the project, ask targeted questions, and generate those project-specific memory files.
+
+If the reusable control files are missing, use bootstrap mode long enough to repair the runtime.
 
 ## Operating Mode
 
 When initialized memory files exist, start here:
 
-1. Read `.AGENTS/agent-rules.md`.
-2. Read `.AGENTS/index.md` for the compact memory index.
-3. Read `.AGENTS/context.md` for project orientation and current state.
-4. Follow the start-of-work and end-of-work routines in `.AGENTS/agent-rules.md`.
+1. Read `.memory-seed/agent-rules.md` for operating-mode rules.
+2. Read the active `.memory-seed/index.md` for topology, active state, and inheritance rules.
+3. Read parent `.memory-seed/policy.md` only when the active index says policy is inherited.
+4. Read the active `.memory-seed/policy.md` for behavioral constraints and local overrides.
+5. Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry.
+6. Load full files from `.memory-seed/skills/` only when the trigger registry matches the task.
 
-Do not read or apply `.AGENTS/project-bootstrap.md` during operating mode.
+Do not read skills preemptively. Skills are lazy-loaded execution runbooks.
 
 ## Bootstrap Mode
 
-Use `.AGENTS/project-bootstrap.md` when initializing a brand-new project or repairing a missing/incomplete `.AGENTS` memory system. The normal bootstrap seed state is:
+When initializing or repairing a project, the seed installs the reusable control plane:
 
 ```text
 AGENTS.md
 CLAUDE.md
 GEMINI.md
-.AGENTS/
+.memory-seed/
   agent-rules.md
   project-bootstrap.md
+  skills/
+  sessions/
+  archive/
 ```
 
-If `.AGENTS/` is missing, partial, or still seed-only, use `.AGENTS/project-bootstrap.md` only long enough to restore the standard structure. Once `.AGENTS/index.md`, `.AGENTS/context.md`, `.AGENTS/style.md`, and `.AGENTS/sessions/` exist, bootstrap mode is complete and future agents must use operating mode.
+Bootstrap mode then generates `.memory-seed/index.md`, `.memory-seed/policy.md`, and the first dated session log after inspecting the project and asking any needed questions.
+
+Sub-projects may define their own `.memory-seed/` directories inside their project folders. A sub-project runtime should keep active state local, use local skills by default, and inherit parent policy unless its `index.md` explicitly says otherwise.

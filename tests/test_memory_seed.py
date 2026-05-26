@@ -4,11 +4,14 @@ import unittest
 from pathlib import Path
 
 from memory_seed.core import (
+    MEMORY_DIR_NAME,
     SEED_FILES,
     compact_sessions,
     doctor,
+    generate_session_entry_id,
     get_version,
     init_project,
+    resolve_runtime,
     update_project,
 )
 
@@ -20,7 +23,7 @@ class MemorySeedTests(unittest.TestCase):
         return path
 
     def test_version_reads_reusable_control_plane_version(self):
-        self.assertEqual(get_version(), "1.4")
+        self.assertEqual(get_version(), "2.0")
 
     def test_init_dry_run_reports_seed_files_without_writing(self):
         cwd = self.make_project()
@@ -34,7 +37,7 @@ class MemorySeedTests(unittest.TestCase):
             sorted(seed_file.destination for seed_file in SEED_FILES),
         )
         self.assertFalse((cwd / "AGENTS.md").exists())
-        self.assertFalse((cwd / ".AGENTS").exists())
+        self.assertFalse((cwd / ".memory-seed").exists())
 
     def test_init_dry_run_does_not_require_force_when_files_exist(self):
         cwd = self.make_project()
@@ -56,10 +59,14 @@ class MemorySeedTests(unittest.TestCase):
                 (cwd / seed_file.destination).exists(),
                 f"{seed_file.destination} should exist",
             )
-        self.assertFalse((cwd / ".AGENTS" / "context.md").exists())
-        self.assertFalse((cwd / ".AGENTS" / "index.md").exists())
-        self.assertFalse((cwd / ".AGENTS" / "style.md").exists())
-        self.assertFalse((cwd / ".AGENTS" / "sessions").exists())
+        self.assertFalse((cwd / ".memory-seed" / "index.md").exists())
+        self.assertFalse((cwd / ".memory-seed" / "policy.md").exists())
+        self.assertTrue((cwd / ".memory-seed" / "agent-rules.md").exists())
+        self.assertTrue((cwd / ".memory-seed" / "project-bootstrap.md").exists())
+        self.assertTrue((cwd / ".memory-seed" / "skills").is_dir())
+        self.assertTrue((cwd / ".memory-seed" / "sessions").is_dir())
+        self.assertTrue((cwd / ".memory-seed" / "archive").is_dir())
+        self.assertFalse((cwd / ".AGENTS").exists())
 
     def test_init_refuses_to_overwrite_existing_files_without_force(self):
         cwd = self.make_project()
@@ -80,13 +87,13 @@ class MemorySeedTests(unittest.TestCase):
 
         self.assertTrue(result.changed)
         self.assertEqual(len(result.backed_up), 1)
-        self.assertTrue(result.backed_up[0].startswith(".AGENTS/backups/"))
+        self.assertTrue(result.backed_up[0].startswith(".memory-seed/backups/"))
         self.assertEqual((cwd / result.backed_up[0]).read_text(encoding="utf-8"), "existing")
         self.assertIn(
-            "memory-system-version: 1.4",
+            "memory-system-version: 2.0",
             (cwd / "AGENTS.md").read_text(encoding="utf-8"),
         )
-        self.assertIn(".AGENTS/backups/", (cwd / ".gitignore").read_text(encoding="utf-8"))
+        self.assertIn(".memory-seed/backups/", (cwd / ".gitignore").read_text(encoding="utf-8"))
 
     def test_init_force_preserves_existing_gitignore_when_adding_backup_ignore(self):
         cwd = self.make_project()
@@ -97,14 +104,14 @@ class MemorySeedTests(unittest.TestCase):
 
         gitignore = (cwd / ".gitignore").read_text(encoding="utf-8")
         self.assertIn("dist/\n", gitignore)
-        self.assertEqual(gitignore.count(".AGENTS/backups/"), 1)
+        self.assertEqual(gitignore.count(".memory-seed/backups/"), 1)
 
     def test_doctor_reports_missing_and_version_mismatched_control_plane_files(self):
         cwd = self.make_project()
         init_project(cwd=cwd)
         gemini = cwd / "GEMINI.md"
         gemini.write_text(
-            gemini.read_text(encoding="utf-8").replace("1.4", "1.1"),
+            gemini.read_text(encoding="utf-8").replace("2.0", "1.1"),
             encoding="utf-8",
         )
         (cwd / "CLAUDE.md").unlink()
@@ -112,18 +119,91 @@ class MemorySeedTests(unittest.TestCase):
         result = doctor(cwd=cwd)
 
         self.assertFalse(result.ok)
+        self.assertFalse(result.control_plane_ok)
+        self.assertFalse(result.bootstrap_complete)
         self.assertEqual(result.missing, ["CLAUDE.md"])
         self.assertEqual(
-            result.version_mismatches,
-            [{"file": "GEMINI.md", "expected": "1.4", "actual": "1.1"}],
+            sorted(result.bootstrap_missing),
+            [".memory-seed/index.md", ".memory-seed/policy.md"],
         )
+        self.assertEqual(
+            result.version_mismatches,
+            [{"file": "GEMINI.md", "expected": "2.0", "actual": "1.1"}],
+        )
+
+    def test_doctor_distinguishes_bootstrap_completeness_from_control_plane_health(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        result = doctor(cwd=cwd)
+
+        self.assertFalse(result.ok)
+        self.assertTrue(result.control_plane_ok)
+        self.assertFalse(result.bootstrap_complete)
+        self.assertEqual(result.missing, [])
+        self.assertEqual(result.version_mismatches, [])
+        self.assertEqual(
+            sorted(result.bootstrap_missing),
+            [".memory-seed/index.md", ".memory-seed/policy.md"],
+        )
+
+        (cwd / ".memory-seed" / "index.md").write_text("# Runtime Index\n", encoding="utf-8")
+        (cwd / ".memory-seed" / "policy.md").write_text("# Runtime Policy\n", encoding="utf-8")
+
+        complete = doctor(cwd=cwd)
+
+        self.assertTrue(complete.ok)
+        self.assertTrue(complete.control_plane_ok)
+        self.assertTrue(complete.bootstrap_complete)
+        self.assertEqual(complete.bootstrap_missing, [])
+
+    def test_session_entry_id_is_short_and_metadata_deterministic(self):
+        first = generate_session_entry_id(
+            timestamp="2026-05-26 18:54",
+            title="Bootstrap-generated memory and semantic MCP",
+            user_initials="JN",
+            agent_type="codex",
+            project_path=".",
+            subproject_path=None,
+        )
+        second = generate_session_entry_id(
+            timestamp="2026-05-26 18:54",
+            title="Bootstrap-generated memory and semantic MCP",
+            user_initials="JN",
+            agent_type="codex",
+            project_path=".",
+            subproject_path=None,
+        )
+
+        self.assertEqual(first, second)
+        self.assertRegex(first, r"^ms-[0-9a-f]{8}$")
+
+    def test_reusable_seed_docs_are_self_contained(self):
+        checked = [
+            Path("AGENTS.md"),
+            Path(".memory-seed/agent-rules.md"),
+            Path(".memory-seed/project-bootstrap.md"),
+            Path("memory_seed/seed/AGENTS.md"),
+            Path("memory_seed/seed/.memory-seed/agent-rules.md"),
+            Path("memory_seed/seed/.memory-seed/project-bootstrap.md"),
+        ]
+        forbidden = ("v1.4", "Memory Seed v1.4", "context.md", "style.md")
+
+        for path in checked:
+            content = path.read_text(encoding="utf-8")
+            for term in forbidden:
+                self.assertNotIn(term, content, f"{path} should not reference {term}")
+            self.assertNotIn(".memory-seed/backups/", content)
 
     def test_update_refreshes_control_plane_and_preserves_generated_memory(self):
         cwd = self.make_project()
         init_project(cwd=cwd)
         (cwd / "AGENTS.md").write_text("old agent entry", encoding="utf-8")
         (cwd / "CLAUDE.md").unlink()
-        (cwd / ".AGENTS" / "context.md").write_text("project facts", encoding="utf-8")
+        (cwd / ".memory-seed" / "index.md").write_text(
+            "project facts",
+            encoding="utf-8",
+        )
 
         result = update_project(cwd=cwd)
 
@@ -131,18 +211,53 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("CLAUDE.md", result.created)
         self.assertTrue(any(path.endswith("/AGENTS.md") for path in result.backed_up))
         self.assertIn(
-            "memory-system-version: 1.4",
+            "memory-system-version: 2.0",
             (cwd / "AGENTS.md").read_text(encoding="utf-8"),
         )
         self.assertIn(
-            "memory-system-version: 1.4",
+            "memory-system-version: 2.0",
             (cwd / "CLAUDE.md").read_text(encoding="utf-8"),
         )
         self.assertEqual(
-            (cwd / ".AGENTS" / "context.md").read_text(encoding="utf-8"),
+            (cwd / ".memory-seed" / "index.md").read_text(encoding="utf-8"),
             "project facts",
         )
-        self.assertIn(".AGENTS/backups/", (cwd / ".gitignore").read_text(encoding="utf-8"))
+        self.assertIn(".memory-seed/backups/", (cwd / ".gitignore").read_text(encoding="utf-8"))
+
+    def test_update_archives_replaced_control_plane_files_by_old_version(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        agents = cwd / "AGENTS.md"
+        agents.write_text(
+            agents.read_text(encoding="utf-8").replace("2.0", "1.4"),
+            encoding="utf-8",
+        )
+
+        result = update_project(cwd=cwd)
+
+        self.assertTrue(result.changed)
+        archived = cwd / ".memory-seed" / "archive" / "1.4" / "AGENTS.md"
+        self.assertIn(".memory-seed/archive/1.4/AGENTS.md", result.archived)
+        self.assertTrue(archived.exists())
+        self.assertIn("memory-system-version: 1.4", archived.read_text(encoding="utf-8"))
+
+    def test_update_archives_unknown_version_control_plane_files_under_timestamped_folder(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        agents = cwd / "AGENTS.md"
+        agents.write_text("old unversioned agent entry", encoding="utf-8")
+
+        result = update_project(cwd=cwd)
+
+        self.assertTrue(result.changed)
+        unknown_archives = list((cwd / ".memory-seed" / "archive").glob("unknown-*/AGENTS.md"))
+        self.assertEqual(len(unknown_archives), 1)
+        self.assertEqual(len(result.archived), 1)
+        self.assertTrue(result.archived[0].startswith(".memory-seed/archive/unknown-"))
+        self.assertEqual(
+            unknown_archives[0].read_text(encoding="utf-8"),
+            "old unversioned agent entry",
+        )
 
     def test_update_dry_run_reports_seed_files_without_writing(self):
         cwd = self.make_project()
@@ -168,7 +283,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertFalse(result.changed)
         self.assertEqual(result.created, [])
         self.assertEqual(result.backed_up, [])
-        self.assertFalse((cwd / ".AGENTS" / "backups").exists())
+        self.assertFalse((cwd / ".memory-seed" / "backups").exists())
 
     def test_update_uses_yaml_version_instead_of_full_file_comparison(self):
         cwd = self.make_project()
@@ -185,15 +300,83 @@ class MemorySeedTests(unittest.TestCase):
         self.assertEqual(result.backed_up, [])
         self.assertIn("Local same-version note.", agents.read_text(encoding="utf-8"))
 
+    def test_update_refreshes_reusable_runtime_procedure_files(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        rules = cwd / ".memory-seed" / "agent-rules.md"
+        rules.write_text("old runtime rules", encoding="utf-8")
+
+        result = update_project(cwd=cwd)
+
+        self.assertTrue(result.changed)
+        self.assertIn(".memory-seed/agent-rules.md", result.created)
+        self.assertTrue(
+            any(path.endswith("/.memory-seed/agent-rules.md") for path in result.backed_up)
+        )
+        self.assertIn("memory-system-version: 2.0", rules.read_text(encoding="utf-8"))
+
     def test_control_plane_files_report_current_version(self):
         for seed_file in SEED_FILES:
             content = seed_file.source.read_text(encoding="utf-8")
-            self.assertIn("memory-system-version: 1.4", content, seed_file.destination)
+            self.assertIn("memory-system-version: 2.0", content, seed_file.destination)
+
+    def test_seed_files_use_memory_seed_runtime(self):
+        destinations = sorted(seed_file.destination for seed_file in SEED_FILES)
+
+        self.assertEqual(
+            destinations,
+            [
+                ".memory-seed/agent-rules.md",
+                ".memory-seed/archive/.gitkeep",
+                ".memory-seed/project-bootstrap.md",
+                ".memory-seed/sessions/.gitkeep",
+                ".memory-seed/skills/code_search.md",
+                ".memory-seed/skills/data_architecture.md",
+                ".memory-seed/skills/index.md",
+                ".memory-seed/skills/local_compilation.md",
+                ".memory-seed/skills/memory_consolidation.md",
+                ".memory-seed/skills/memory_doctor.md",
+                ".memory-seed/skills/release_publishing.md",
+                ".memory-seed/skills/security_triage.md",
+                "AGENTS.md",
+                "CLAUDE.md",
+                "GEMINI.md",
+            ],
+        )
+
+    def test_resolve_runtime_prefers_nearest_memory_seed(self):
+        cwd = self.make_project()
+        root_runtime = cwd / MEMORY_DIR_NAME
+        subproject = cwd / "apps" / "mobile"
+        sub_runtime = subproject / MEMORY_DIR_NAME
+        root_runtime.mkdir(parents=True)
+        sub_runtime.mkdir(parents=True)
+        nested = subproject / "src"
+        nested.mkdir()
+
+        resolved = resolve_runtime(nested)
+
+        self.assertEqual(resolved.workspace_root, subproject.resolve())
+        self.assertEqual(resolved.memory_dir, sub_runtime.resolve())
+        self.assertFalse(resolved.legacy)
+
+    def test_resolve_runtime_falls_back_to_legacy_agents(self):
+        cwd = self.make_project()
+        legacy = cwd / ".AGENTS"
+        legacy.mkdir()
+        nested = cwd / "packages" / "core"
+        nested.mkdir(parents=True)
+
+        resolved = resolve_runtime(nested)
+
+        self.assertEqual(resolved.workspace_root, cwd.resolve())
+        self.assertEqual(resolved.memory_dir, legacy.resolve())
+        self.assertTrue(resolved.legacy)
 
     # --- compact tests ---
 
     def _make_sessions(self, cwd, entries):
-        sessions_dir = cwd / ".AGENTS" / "sessions"
+        sessions_dir = cwd / MEMORY_DIR_NAME / "sessions"
         sessions_dir.mkdir(parents=True, exist_ok=True)
         for filename, content in entries.items():
             (sessions_dir / filename).write_text(content, encoding="utf-8")

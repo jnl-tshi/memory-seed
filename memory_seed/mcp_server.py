@@ -8,7 +8,9 @@ from pathlib import Path
 from typing import Any
 
 from .semantic_cache import (
+    EmbeddingProvider,
     MemoryChunk,
+    Model2VecEmbeddingProvider,
     RankedMemoryChunk,
     extract_memory_chunks,
     rank_session_memory,
@@ -33,6 +35,13 @@ TOOLS: list[dict[str, Any]] = [
                 "lambda_days": {"type": "number", "default": 0.01},
                 "recency_enabled": {"type": "boolean", "default": True},
                 "recency_floor": {"type": "number", "default": 0.15},
+                "semantic_enabled": {"type": "boolean", "default": True},
+                "granularity": {
+                    "type": "string",
+                    "enum": ["entry", "section"],
+                    "default": "entry",
+                    "description": "Return coherent ## entries by default, or narrower ###+ sections when requested.",
+                },
             },
             "required": ["query"],
         },
@@ -58,6 +67,12 @@ def call_tool(name: str, arguments: dict[str, Any] | None = None) -> dict[str, A
         query = _required_str(args, "query")
         cwd = args.get("cwd", ".")
         top_k = int(args.get("top_k", 8))
+        semantic_requested = bool(args.get("semantic_enabled", True))
+        embedding_provider, semantic_provider, fallback_reason = _semantic_provider(
+            query,
+            args.get("_embedding_provider"),
+            enabled=semantic_requested,
+        )
         ranked = rank_session_memory(
             query,
             cwd,
@@ -66,15 +81,25 @@ def call_tool(name: str, arguments: dict[str, Any] | None = None) -> dict[str, A
             lambda_days=float(args.get("lambda_days", 0.01)),
             recency_enabled=bool(args.get("recency_enabled", True)),
             recency_floor=float(args.get("recency_floor", 0.15)),
+            embedding_provider=embedding_provider,
+            granularity=str(args.get("granularity", "entry")),
         )
-        return format_search_results(query, ranked, top_k=top_k)
+        return format_search_results(
+            query,
+            ranked,
+            top_k=top_k,
+            semantic_enabled=embedding_provider is not None,
+            semantic_provider=semantic_provider,
+            semantic_fallback_reason=fallback_reason,
+        )
 
     if name == "memory_get_chunk":
         chunk_id = _required_str(args, "chunk_id")
         cwd = args.get("cwd", ".")
-        for chunk in extract_memory_chunks(cwd):
-            if chunk.chunk_id == chunk_id:
-                return {"chunk": _chunk_to_dict(chunk)}
+        for granularity in ("entry", "section"):
+            for chunk in extract_memory_chunks(cwd, granularity=granularity):
+                if chunk.chunk_id == chunk_id:
+                    return {"chunk": _chunk_to_dict(chunk)}
         raise ValueError(f"chunk_id not found: {chunk_id}")
 
     raise ValueError(f"Unknown tool: {name}")
@@ -85,16 +110,31 @@ def format_search_results(
     ranked: list[RankedMemoryChunk],
     *,
     top_k: int = 8,
+    semantic_enabled: bool | None = None,
+    semantic_provider: str | None = None,
+    semantic_fallback_reason: str | None = None,
 ) -> dict[str, Any]:
     results = [_ranked_to_dict(result) for result in ranked[:top_k]]
+    effective_semantic_enabled = (
+        any(result["semantic_score"] is not None for result in results)
+        if semantic_enabled is None
+        else semantic_enabled
+    )
     return {
         "query": query,
+        "semantic_enabled": effective_semantic_enabled,
+        "semantic_provider": semantic_provider if effective_semantic_enabled else semantic_provider,
+        "semantic_fallback_reason": semantic_fallback_reason,
         "results": results,
         "human_report": _human_report(query, results),
     }
 
 
-def handle_jsonrpc_message(message: dict[str, Any]) -> dict[str, Any] | None:
+def handle_jsonrpc_message(
+    message: dict[str, Any],
+    *,
+    default_semantic_enabled: bool = True,
+) -> dict[str, Any] | None:
     message_id = message.get("id")
     method = message.get("method")
     try:
@@ -113,7 +153,10 @@ def handle_jsonrpc_message(message: dict[str, Any]) -> dict[str, Any] | None:
             return _result(message_id, {"tools": TOOLS})
         if method == "tools/call":
             params = message.get("params") or {}
-            tool_result = call_tool(params.get("name"), params.get("arguments") or {})
+            arguments = params.get("arguments") or {}
+            if params.get("name") == "memory_search" and "semantic_enabled" not in arguments:
+                arguments = {**arguments, "semantic_enabled": default_semantic_enabled}
+            tool_result = call_tool(params.get("name"), arguments)
             return _result(
                 message_id,
                 {
@@ -130,7 +173,7 @@ def handle_jsonrpc_message(message: dict[str, Any]) -> dict[str, Any] | None:
         return _error(message_id, -32603, str(exc))
 
 
-def serve_stdio(input_stream=None, output_stream=None) -> int:
+def serve_stdio(input_stream=None, output_stream=None, *, semantic_enabled: bool = True) -> int:
     input_stream = input_stream or sys.stdin
     output_stream = output_stream or sys.stdout
     for line in input_stream:
@@ -138,7 +181,10 @@ def serve_stdio(input_stream=None, output_stream=None) -> int:
             continue
         try:
             message = json.loads(line)
-            response = handle_jsonrpc_message(message)
+            response = handle_jsonrpc_message(
+                message,
+                default_semantic_enabled=semantic_enabled,
+            )
         except Exception as exc:
             response = _error(None, -32700, str(exc))
         if response is not None:
@@ -154,9 +200,14 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="run the Memory Seed MCP server over newline-delimited stdio JSON-RPC",
     )
+    parser.add_argument(
+        "--no-semantic",
+        action="store_true",
+        help="disable Model2Vec semantic scoring and use lexical metadata ranking only",
+    )
     args = parser.parse_args(argv)
     if args.stdio:
-        return serve_stdio()
+        return serve_stdio(semantic_enabled=not args.no_semantic)
     parser.print_help()
     return 0
 
@@ -183,6 +234,15 @@ def _ranked_to_dict(result: RankedMemoryChunk) -> dict[str, Any]:
         "matched_terms": list(result.matched_terms),
         "matched_fields": list(result.matched_fields),
         "excerpt": _excerpt(chunk.text),
+        "entry_id": chunk.entry_id,
+        "user_initials": chunk.user_initials,
+        "agent_type": chunk.agent_type,
+        "project_path": chunk.project_path,
+        "subproject_path": chunk.subproject_path,
+        "entry_title": chunk.entry_title,
+        "entry_line_range": None if chunk.entry_line_range is None else list(chunk.entry_line_range),
+        "sections": list(chunk.sections),
+        "granularity": chunk.granularity,
     }
 
 
@@ -203,6 +263,15 @@ def _chunk_to_dict(chunk: MemoryChunk) -> dict[str, Any]:
         "tags": list(chunk.tags),
         "contexts": list(chunk.contexts),
         "lexical_terms": list(chunk.lexical_terms),
+        "entry_id": chunk.entry_id,
+        "user_initials": chunk.user_initials,
+        "agent_type": chunk.agent_type,
+        "project_path": chunk.project_path,
+        "subproject_path": chunk.subproject_path,
+        "entry_title": chunk.entry_title,
+        "entry_line_range": None if chunk.entry_line_range is None else list(chunk.entry_line_range),
+        "sections": list(chunk.sections),
+        "granularity": chunk.granularity,
     }
 
 
@@ -232,6 +301,23 @@ def _parse_optional_date(value: Any) -> date | None:
     if isinstance(value, date):
         return value
     return datetime.strptime(str(value), "%Y-%m-%d").date()
+
+
+def _semantic_provider(
+    query: str,
+    override: Any,
+    *,
+    enabled: bool,
+) -> tuple[EmbeddingProvider | None, str | None, str | None]:
+    if not enabled:
+        return None, None, None
+    provider = override or Model2VecEmbeddingProvider()
+    provider_name = getattr(provider, "name", f"model2vec:{Model2VecEmbeddingProvider.default_model_name}")
+    try:
+        provider.embed([query])
+    except Exception as exc:
+        return None, provider_name, str(exc)
+    return provider, provider_name, None
 
 
 def _required_str(arguments: dict[str, Any], key: str) -> str:

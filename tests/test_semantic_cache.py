@@ -34,18 +34,24 @@ class SemanticCacheTests(unittest.TestCase):
         return path
 
     def write_session(self, cwd, filename, content):
-        sessions = cwd / ".AGENTS" / "sessions"
+        sessions = cwd / ".memory-seed" / "sessions"
         sessions.mkdir(parents=True, exist_ok=True)
         (sessions / filename).write_text(content, encoding="utf-8")
 
-    def test_extracts_heading_bounded_chunks_with_temporal_metadata(self):
+    def test_extracts_entry_bounded_chunks_with_yaml_metadata_by_default(self):
         cwd = self.make_project()
         self.write_session(
             cwd,
             "2026-05-18.md",
             "# Session Log - 2026-05-18\n\n"
-            "Top note #root-tag\n\n"
-            "## Context: Ranking Engine\n\n"
+            "## 2026-05-18 10:30 - Ranking Engine\n\n"
+            "```yaml\n"
+            "entry_id: ms-ranking1\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "```\n\n"
             "Build token_harvester around `.AGENTS/context.md` and memory-seed.\n\n"
             "### Target Discovery\n\n"
             "Use #target-discovery for exact matching.\n",
@@ -53,19 +59,59 @@ class SemanticCacheTests(unittest.TestCase):
 
         chunks = extract_memory_chunks(cwd)
 
-        self.assertEqual(len(chunks), 3)
+        self.assertEqual(len(chunks), 1)
         self.assertEqual(chunks[0].source_file, "2026-05-18.md")
         self.assertEqual(chunks[0].session_date, date(2026, 5, 18))
-        self.assertIsNone(chunks[0].entry_datetime)
-        self.assertEqual(chunks[0].heading_path, ("Session Log - 2026-05-18",))
-        self.assertEqual(chunks[1].heading_path, ("Session Log - 2026-05-18", "Context: Ranking Engine"))
-        self.assertEqual(chunks[2].heading_path, ("Session Log - 2026-05-18", "Context: Ranking Engine", "Target Discovery"))
-        self.assertEqual(chunks[1].contexts, ("Ranking Engine",))
-        self.assertIn("target-discovery", chunks[2].tags)
-        self.assertIn("token_harvester", chunks[1].lexical_terms)
-        self.assertIn("memory-seed", chunks[1].lexical_terms)
-        self.assertIn(".AGENTS/context.md", chunks[1].lexical_terms)
-        self.assertGreaterEqual(chunks[2].start_line, chunks[1].end_line)
+        self.assertEqual(chunks[0].entry_datetime, datetime(2026, 5, 18, 10, 30))
+        self.assertEqual(chunks[0].chunk_id, "ms-ranking1")
+        self.assertEqual(chunks[0].entry_id, "ms-ranking1")
+        self.assertEqual(chunks[0].user_initials, "JN")
+        self.assertEqual(chunks[0].agent_type, "codex")
+        self.assertEqual(chunks[0].project_path, ".")
+        self.assertIsNone(chunks[0].subproject_path)
+        self.assertEqual(chunks[0].heading_path, ("2026-05-18 10:30 - Ranking Engine",))
+        self.assertEqual(chunks[0].sections, ("Target Discovery",))
+        self.assertEqual(chunks[0].granularity, "entry")
+        self.assertIn("target-discovery", chunks[0].tags)
+        self.assertIn("token_harvester", chunks[0].lexical_terms)
+        self.assertIn("memory-seed", chunks[0].lexical_terms)
+        self.assertIn(".AGENTS/context.md", chunks[0].lexical_terms)
+
+    def test_extracts_section_chunks_with_entry_id_parent_metadata(self):
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-05-18.md",
+            "## 2026-05-18 10:30 - Ranking Engine\n\n"
+            "```yaml\n"
+            "entry_id: ms-ranking1\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: packages/core\n"
+            "```\n\n"
+            "### Summary\n\n"
+            "Build token_harvester around `.memory-seed/index.md`.\n\n"
+            "### Decisions\n\n"
+            "#### D1 - Preserve entry chunks\n\n"
+            "- D: Use entry chunks by default.\n",
+        )
+
+        chunks = extract_memory_chunks(cwd, granularity="section")
+
+        self.assertEqual(
+            [chunk.chunk_id for chunk in chunks],
+            [
+                "ms-ranking1#summary",
+                "ms-ranking1#decisions",
+                "ms-ranking1#decisions/d1-preserve-entry-chunks",
+            ],
+        )
+        self.assertTrue(all(chunk.entry_id == "ms-ranking1" for chunk in chunks))
+        self.assertTrue(all(chunk.entry_title == "2026-05-18 10:30 - Ranking Engine" for chunk in chunks))
+        self.assertTrue(all(chunk.subproject_path == "packages/core" for chunk in chunks))
+        self.assertEqual(chunks[2].heading_path, ("2026-05-18 10:30 - Ranking Engine", "Decisions", "D1 - Preserve entry chunks"))
+        self.assertEqual(chunks[2].granularity, "section")
 
     def test_extracts_optional_entry_datetime_from_session_heading(self):
         cwd = self.make_project()
@@ -80,6 +126,8 @@ class SemanticCacheTests(unittest.TestCase):
 
         self.assertEqual(chunks[0].entry_datetime, datetime(2026, 5, 19, 20, 42))
         self.assertEqual(chunks[0].title, "2026-05-19 20:42 - Durable memory consolidation")
+        self.assertIsNone(chunks[0].entry_id)
+        self.assertNotEqual(chunks[0].chunk_id, "")
 
     def test_ignores_non_date_session_files(self):
         cwd = self.make_project()
@@ -275,6 +323,43 @@ class SemanticCacheTests(unittest.TestCase):
 
         self.assertEqual(len(ranked), 1)
         self.assertEqual(ranked[0].chunk.contexts, ("CLI",))
+        self.assertEqual(ranked[0].chunk.granularity, "entry")
+
+    def test_extract_memory_chunks_uses_nearest_memory_seed_runtime(self):
+        cwd = self.make_project()
+        root_sessions = cwd / ".memory-seed" / "sessions"
+        root_sessions.mkdir(parents=True, exist_ok=True)
+        (root_sessions / "2026-05-19.md").write_text(
+            "## Root entry\n\nRoot policy work.\n",
+            encoding="utf-8",
+        )
+        subproject = cwd / "packages" / "core"
+        sub_sessions = subproject / ".memory-seed" / "sessions"
+        sub_sessions.mkdir(parents=True, exist_ok=True)
+        (sub_sessions / "2026-05-20.md").write_text(
+            "## Subproject entry\n\nLocal compilation runbook.\n",
+            encoding="utf-8",
+        )
+
+        chunks = extract_memory_chunks(subproject / "src")
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].source_path, ".memory-seed/sessions/2026-05-20.md")
+        self.assertEqual(chunks[0].title, "Subproject entry")
+
+    def test_extract_memory_chunks_falls_back_to_legacy_agents_sessions(self):
+        cwd = self.make_project()
+        sessions = cwd / ".AGENTS" / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / "2026-05-19.md").write_text(
+            "## Legacy entry\n\nOld memory system.\n",
+            encoding="utf-8",
+        )
+
+        chunks = extract_memory_chunks(cwd / "src")
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].source_path, ".AGENTS/sessions/2026-05-19.md")
 
 
 if __name__ == "__main__":

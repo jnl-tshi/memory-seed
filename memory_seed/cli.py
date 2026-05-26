@@ -78,8 +78,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "doctor":
         result = doctor()
+        if result.control_plane_ok:
+            print("Memory Seed reusable control plane looks healthy.")
+        else:
+            print("Memory Seed reusable control plane has issues.")
+        if result.bootstrap_complete:
+            print("Memory Seed bootstrap is complete.")
+        else:
+            print("Memory Seed bootstrap is incomplete.")
         if result.ok:
-            print("Memory Seed control plane looks healthy.")
             return 0
         for missing in result.missing:
             print(f"Missing: {missing}")
@@ -89,6 +96,8 @@ def main(argv: list[str] | None = None) -> int:
                 f"{mismatch['file']} expected {mismatch['expected']} "
                 f"but found {mismatch['actual']}"
             )
+        for missing in result.bootstrap_missing:
+            print(f"Bootstrap incomplete: {missing}")
         return 1
 
     if args.command == "init":
@@ -109,9 +118,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Copied: {created}")
         for backup in result.backed_up:
             print(f"Backed up: {backup}")
+        for archived in result.archived:
+            print(f"Archived: {archived}")
         if result.backed_up:
-            print("Added .AGENTS/backups/ to .gitignore to reduce accidental backup leaks.")
-        print("Next: open AGENTS.md and follow bootstrap mode.")
+            print("Added .memory-seed/backups/ to .gitignore to reduce accidental backup leaks.")
+        print("Next: open AGENTS.md and follow nearest-runtime mode.")
         return 0
 
     if args.command == "update":
@@ -127,10 +138,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Updated: {created}")
         for backup in result.backed_up:
             print(f"Backed up: {backup}")
+        for archived in result.archived:
+            print(f"Archived: {archived}")
         if result.backed_up:
-            print("Added .AGENTS/backups/ to .gitignore to reduce accidental backup leaks.")
+            print("Added .memory-seed/backups/ to .gitignore to reduce accidental backup leaks.")
         if result.changed:
-            print("Project memory files were not changed.")
+            print("Updated missing or stale seed files. Existing .memory-seed runtime files were preserved.")
         else:
             print("Control-plane files are already current. No files changed.")
         return 0

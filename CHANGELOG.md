@@ -2,6 +2,22 @@
 
 All notable changes to Memory Seed are summarized here.
 
+## Unreleased
+
+- Added `.memory-seed/skills/index.md` as a deterministic skill trigger registry for universal lazy-loaded skills.
+- Updated MCP memory retrieval to default to entry-level chunks using session YAML `entry_id`, with optional section granularity for narrower searches.
+- Added control-plane guidance for sub-project runtime creation and parent/root coordination summaries without mirroring sub-project logs.
+- Expanded operating-mode guidance for MCP history retrieval, unresolved history/current-file conflicts, public memory hygiene, and v2 guardrails.
+- Clarified `uvx` one-off usage versus persistent `uv tool install`, project dependencies, and virtual-environment installs.
+
+## 2.0.0 - 2026-05-25
+
+- Promoted `.memory-seed/` as the canonical runtime directory with `agent-rules.md`, `project-bootstrap.md`, `index.md`, `policy.md`, lazy-loaded `skills/`, dated `sessions/`, and `archive/`.
+- Added nearest-runtime discovery so nested sub-project folders can own isolated local memory state.
+- Kept `.AGENTS/` as a code-level legacy fallback for older projects, but removed it from the v2 seed layout.
+- Updated compact and MCP session extraction to use the discovered runtime boundary.
+- Added default skill runbooks for security triage, data architecture, and local compilation.
+
 ## 1.6.1 - 2026-05-19
 
 - Documented `uvx --from memory-seed` as the default way to run CLI and MCP commands without a global install.

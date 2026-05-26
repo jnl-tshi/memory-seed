@@ -4,10 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memory-seed"
-version = "1.6.1"
+version = "2.0.0"
 description = "Portable local memory seed for file-reading AI coding agents"
 readme = "README.md"
 requires-python = ">=3.11"
+dependencies = ["model2vec>=0.8.1"]
 license = { text = "MIT" }
 authors = [{ name = "Jean Nathan Tshibuyi" }]
 keywords = ["ai", "agents", "memory", "markdown", "local-first"]
@@ -35,6 +36,16 @@ memory_seed = [
   "seed/AGENTS.md",
   "seed/CLAUDE.md",
   "seed/GEMINI.md",
-  "seed/.AGENTS/agent-rules.md",
-  "seed/.AGENTS/project-bootstrap.md",
+  "seed/.memory-seed/agent-rules.md",
+  "seed/.memory-seed/archive/.gitkeep",
+  "seed/.memory-seed/project-bootstrap.md",
+  "seed/.memory-seed/skills/security_triage.md",
+  "seed/.memory-seed/skills/code_search.md",
+  "seed/.memory-seed/skills/index.md",
+  "seed/.memory-seed/skills/data_architecture.md",
+  "seed/.memory-seed/skills/local_compilation.md",
+  "seed/.memory-seed/skills/memory_consolidation.md",
+  "seed/.memory-seed/skills/memory_doctor.md",
+  "seed/.memory-seed/skills/release_publishing.md",
+  "seed/.memory-seed/sessions/.gitkeep",
 ]

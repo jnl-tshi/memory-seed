@@ -6,11 +6,14 @@ import re
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
-from typing import Protocol, Sequence
+from functools import lru_cache
+from typing import Any, Callable, Protocol, Sequence
+
+from .core import resolve_runtime
 
 
 SESSION_FILE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.md$")
-HEADING_RE = re.compile(r"^(#{1,3})\s+(.+?)\s*#*\s*$")
+HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 TAG_RE = re.compile(r"(?<![\w/.-])#([A-Za-z][A-Za-z0-9_-]*)")
 IDENTIFIER_RE = re.compile(
     r"(?<![\w/])(?:`?)([A-Za-z0-9_.-]*[A-Za-z_][A-Za-z0-9_.-]*(?:/[A-Za-z0-9_.-]+)*)(?:`?)"
@@ -42,6 +45,15 @@ class MemoryChunk:
     lexical_terms: tuple[str, ...]
     start_line: int
     end_line: int
+    entry_id: str | None = None
+    user_initials: str | None = None
+    agent_type: str | None = None
+    project_path: str | None = None
+    subproject_path: str | None = None
+    entry_title: str | None = None
+    entry_line_range: tuple[int, int] | None = None
+    sections: tuple[str, ...] = ()
+    granularity: str = "legacy"
 
 
 @dataclass(frozen=True)
@@ -62,9 +74,49 @@ class EmbeddingProvider(Protocol):
         ...
 
 
-def extract_memory_chunks(cwd: str | Path = ".") -> list[MemoryChunk]:
-    target_root = Path(cwd).resolve()
-    sessions_dir = target_root / ".AGENTS" / "sessions"
+class Model2VecEmbeddingProvider:
+    default_model_name = "minishlab/potion-base-8M"
+
+    def __init__(
+        self,
+        model_name: str = default_model_name,
+        model_loader: Callable[[str], Any] | None = None,
+    ):
+        self.model_name = model_name
+        self.name = f"model2vec:{model_name}"
+        self._model_loader = model_loader or _load_model2vec_model
+        self._model: Any | None = None
+
+    def embed(self, texts: Sequence[str]) -> Sequence[Sequence[float]]:
+        model = self._get_model()
+        vectors = model.encode(list(texts))
+        return [_vector_to_tuple(vector) for vector in vectors]
+
+    def _get_model(self) -> Any:
+        if self._model is None:
+            self._model = self._model_loader(self.model_name)
+        return self._model
+
+
+@lru_cache(maxsize=2)
+def _load_model2vec_model(model_name: str) -> Any:
+    from model2vec import StaticModel
+
+    return StaticModel.from_pretrained(model_name)
+
+
+def _vector_to_tuple(vector: Any) -> tuple[float, ...]:
+    if hasattr(vector, "tolist"):
+        vector = vector.tolist()
+    return tuple(float(value) for value in vector)
+
+
+def extract_memory_chunks(cwd: str | Path = ".", *, granularity: str = "entry") -> list[MemoryChunk]:
+    if granularity not in ("entry", "section"):
+        raise ValueError("granularity must be 'entry' or 'section'")
+    runtime = resolve_runtime(cwd)
+    target_root = runtime.workspace_root
+    sessions_dir = runtime.memory_dir / "sessions"
     if not sessions_dir.is_dir():
         return []
 
@@ -77,7 +129,7 @@ def extract_memory_chunks(cwd: str | Path = ".") -> list[MemoryChunk]:
             session_date = datetime.strptime(match.group(1), "%Y-%m-%d").date()
         except ValueError:
             continue
-        chunks.extend(_extract_chunks_from_file(target_root, path, session_date))
+        chunks.extend(_extract_chunks_from_file(target_root, path, session_date, granularity=granularity))
     return chunks
 
 
@@ -91,10 +143,11 @@ def rank_session_memory(
     recency_enabled: bool = True,
     recency_floor: float = 0.15,
     embedding_provider: EmbeddingProvider | None = None,
+    granularity: str = "entry",
 ) -> list[RankedMemoryChunk]:
     return rank_memory_chunks(
         query,
-        extract_memory_chunks(cwd),
+        extract_memory_chunks(cwd, granularity=granularity),
         top_k=top_k,
         today=today,
         lambda_days=lambda_days,
@@ -166,8 +219,158 @@ def _extract_chunks_from_file(
     target_root: Path,
     path: Path,
     session_date: date,
+    *,
+    granularity: str,
 ) -> list[MemoryChunk]:
     lines = path.read_text(encoding="utf-8").splitlines()
+    entries = _find_entry_ranges(lines)
+    if entries:
+        return _extract_entry_chunks_from_file(target_root, path, session_date, lines, entries, granularity)
+    return _extract_legacy_chunks_from_file(target_root, path, session_date, lines)
+
+
+def _find_entry_ranges(lines: Sequence[str]) -> list[tuple[int, int, str]]:
+    entries: list[tuple[int, int, str]] = []
+    starts: list[tuple[int, str]] = []
+    for lineno, line in enumerate(lines, start=1):
+        heading = HEADING_RE.match(line)
+        if heading and len(heading.group(1)) == 2:
+            starts.append((lineno, heading.group(2).strip()))
+
+    for index, (start, title) in enumerate(starts):
+        end = starts[index + 1][0] - 1 if index + 1 < len(starts) else len(lines)
+        entries.append((start, end, title))
+    return entries
+
+
+def _extract_entry_chunks_from_file(
+    target_root: Path,
+    path: Path,
+    session_date: date,
+    lines: Sequence[str],
+    entries: Sequence[tuple[int, int, str]],
+    granularity: str,
+) -> list[MemoryChunk]:
+    chunks: list[MemoryChunk] = []
+    source_path = path.relative_to(target_root).as_posix()
+    for start_line, end_line, title in entries:
+        entry_lines = list(lines[start_line:end_line])
+        metadata = _extract_entry_metadata(entry_lines)
+        entry_id = _metadata_value(metadata, "entry_id")
+        sections = _entry_sections(entry_lines)
+        heading_path = (title,)
+        entry_range = (start_line, end_line)
+
+        if granularity == "entry":
+            text = "\n".join(entry_lines).strip()
+            payload = "\n".join((title, text)).strip()
+            chunk_id = entry_id or _chunk_id(path.name, start_line, heading_path, payload)
+            chunks.append(
+                MemoryChunk(
+                    chunk_id=chunk_id,
+                    source_path=source_path,
+                    source_file=path.name,
+                    session_date=session_date,
+                    entry_datetime=_entry_datetime(title),
+                    heading_path=heading_path,
+                    heading_level=2,
+                    title=title,
+                    text=text,
+                    tags=_extract_tags(entry_lines),
+                    contexts=_extract_contexts(heading_path),
+                    lexical_terms=_extract_lexical_terms(payload),
+                    start_line=start_line,
+                    end_line=end_line,
+                    entry_id=entry_id,
+                    user_initials=_metadata_value(metadata, "user_initials"),
+                    agent_type=_metadata_value(metadata, "agent_type"),
+                    project_path=_metadata_value(metadata, "project_path"),
+                    subproject_path=_metadata_value(metadata, "subproject_path"),
+                    entry_title=title,
+                    entry_line_range=entry_range,
+                    sections=sections,
+                    granularity="entry",
+                )
+            )
+            continue
+
+        section_ranges = _find_section_ranges(entry_lines, start_line)
+        if not section_ranges:
+            text = "\n".join(entry_lines).strip()
+            payload = "\n".join((title, text)).strip()
+            chunk_id = entry_id or _chunk_id(path.name, start_line, heading_path, payload)
+            chunks.append(
+                MemoryChunk(
+                    chunk_id=chunk_id,
+                    source_path=source_path,
+                    source_file=path.name,
+                    session_date=session_date,
+                    entry_datetime=_entry_datetime(title),
+                    heading_path=heading_path,
+                    heading_level=2,
+                    title=title,
+                    text=text,
+                    tags=_extract_tags(entry_lines),
+                    contexts=_extract_contexts(heading_path),
+                    lexical_terms=_extract_lexical_terms(payload),
+                    start_line=start_line,
+                    end_line=end_line,
+                    entry_id=entry_id,
+                    user_initials=_metadata_value(metadata, "user_initials"),
+                    agent_type=_metadata_value(metadata, "agent_type"),
+                    project_path=_metadata_value(metadata, "project_path"),
+                    subproject_path=_metadata_value(metadata, "subproject_path"),
+                    entry_title=title,
+                    entry_line_range=entry_range,
+                    sections=sections,
+                    granularity="section",
+                )
+            )
+            continue
+
+        for section_start, section_end, section_title, section_path in section_ranges:
+            section_lines = list(lines[section_start:section_end])
+            heading_path = (title, *section_path)
+            text = "\n".join(section_lines).strip()
+            payload = "\n".join((*heading_path, text)).strip()
+            section_id = "/".join(_slugify(section) for section in section_path)
+            chunk_id = f"{entry_id}#{section_id}" if entry_id else _chunk_id(path.name, section_start, heading_path, payload)
+            chunks.append(
+                MemoryChunk(
+                    chunk_id=chunk_id,
+                    source_path=source_path,
+                    source_file=path.name,
+                    session_date=session_date,
+                    entry_datetime=_entry_datetime(title),
+                    heading_path=heading_path,
+                    heading_level=2 + len(section_path),
+                    title=section_title,
+                    text=text,
+                    tags=_extract_tags(section_lines),
+                    contexts=_extract_contexts(heading_path),
+                    lexical_terms=_extract_lexical_terms(payload),
+                    start_line=section_start,
+                    end_line=section_end,
+                    entry_id=entry_id,
+                    user_initials=_metadata_value(metadata, "user_initials"),
+                    agent_type=_metadata_value(metadata, "agent_type"),
+                    project_path=_metadata_value(metadata, "project_path"),
+                    subproject_path=_metadata_value(metadata, "subproject_path"),
+                    entry_title=title,
+                    entry_line_range=entry_range,
+                    sections=sections,
+                    granularity="section",
+                )
+            )
+    return chunks
+
+
+def _extract_legacy_chunks_from_file(
+    target_root: Path,
+    path: Path,
+    session_date: date,
+    lines: Sequence[str],
+) -> list[MemoryChunk]:
     chunks: list[MemoryChunk] = []
     heading_stack: list[str] = []
     current_title: str | None = None
@@ -228,6 +431,70 @@ def _extract_chunks_from_file(
 
     flush(len(lines))
     return chunks
+
+
+def _extract_entry_metadata(entry_lines: Sequence[str]) -> dict[str, str]:
+    index = 0
+    while index < len(entry_lines) and not entry_lines[index].strip():
+        index += 1
+    if index >= len(entry_lines) or entry_lines[index].strip() not in ("```yaml", "```yml"):
+        return {}
+    metadata: dict[str, str] = {}
+    for line in entry_lines[index + 1 :]:
+        if line.strip() == "```":
+            break
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        key = key.strip()
+        value = value.strip().strip("\"'")
+        if value == "null":
+            value = ""
+        if key:
+            metadata[key] = value
+    return metadata
+
+
+def _metadata_value(metadata: dict[str, str], key: str) -> str | None:
+    value = metadata.get(key)
+    return value or None
+
+
+def _entry_sections(entry_lines: Sequence[str]) -> tuple[str, ...]:
+    sections: list[str] = []
+    for line in entry_lines:
+        heading = HEADING_RE.match(line)
+        if heading and len(heading.group(1)) >= 3:
+            sections.append(heading.group(2).strip())
+    return tuple(sections)
+
+
+def _find_section_ranges(
+    entry_lines: Sequence[str],
+    entry_start_line: int,
+) -> list[tuple[int, int, str, tuple[str, ...]]]:
+    headings: list[tuple[int, int, str, tuple[str, ...]]] = []
+    stack: list[str] = []
+    for offset, line in enumerate(entry_lines, start=entry_start_line + 1):
+        heading = HEADING_RE.match(line)
+        if not heading:
+            continue
+        level = len(heading.group(1))
+        if level < 3:
+            continue
+        title = heading.group(2).strip()
+        stack_index = level - 3
+        if len(stack) <= stack_index:
+            stack.extend([""] * (stack_index + 1 - len(stack)))
+        stack[stack_index] = title
+        del stack[stack_index + 1 :]
+        headings.append((offset, level, title, tuple(value for value in stack if value)))
+
+    ranges: list[tuple[int, int, str, tuple[str, ...]]] = []
+    for index, (start, _level, title, section_path) in enumerate(headings):
+        end = headings[index + 1][0] - 1 if index + 1 < len(headings) else entry_start_line + len(entry_lines)
+        ranges.append((start, end, title, section_path))
+    return ranges
 
 
 def _extract_tags(lines: Sequence[str]) -> tuple[str, ...]:
@@ -396,6 +663,11 @@ def _chunk_id(
     digest = hashlib.sha1(payload.encode("utf-8")).hexdigest()[:10]
     path_slug = "/".join(_normalize(heading) for heading in heading_path)
     return f"{source_file}:{start_line}:{path_slug}:{digest}"
+
+
+def _slugify(value: str) -> str:
+    normalized = "-".join(re.findall(r"[a-z0-9]+", value.lower()))
+    return normalized or "section"
 
 
 def _normalize(value: str) -> str:

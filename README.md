@@ -18,15 +18,18 @@ uvx --from memory-seed memory-seed init --dry-run
 uvx --from memory-seed memory-seed init
 ```
 
-Then ask your coding agent to read `AGENTS.md` and follow the bootstrap instructions. The agent will generate the project-specific operating memory:
+Then ask your coding agent to read `AGENTS.md` and follow nearest-runtime discovery. The project receives a seeded `.memory-seed/` control plane:
 
 ```text
-.AGENTS/
-  index.md
-  context.md
-  style.md
+.memory-seed/
+  agent-rules.md
+  project-bootstrap.md
+  skills/
   sessions/
+  archive/
 ```
+
+The first bootstrap pass generates `.memory-seed/index.md` and `.memory-seed/policy.md` from local inspection and user answers.
 
 For an existing project that already has Memory Seed:
 
@@ -66,12 +69,12 @@ Representative output:
 Query: bootstrap mode check
 
 Top results:
-1. .AGENTS/sessions/2026-05-17.md: Bootstrap mode check fix
+1. .memory-seed/sessions/2026-05-25.md: v2 runtime migration started
    score=...
    heading=2026-05-17 - Bootstrap mode check fix
 
 Fetched top chunk:
-Source: .AGENTS/sessions/2026-05-17.md:...
+Source: .memory-seed/sessions/2026-05-25.md:...
 Heading: 2026-05-17 - Bootstrap mode check fix
 ...
 ```
@@ -85,7 +88,7 @@ AI coding agents are useful, but their project context is fragile. They forget d
 Memory Seed keeps the durable memory layer local, inspectable, and boring on purpose:
 
 - Markdown files live with the project.
-- Tool-specific entry files route into one shared `.AGENTS/` memory core.
+- Tool-specific entry files route into the nearest `.memory-seed/` runtime.
 - Generated project memory stays separate from reusable seed files.
 - Session logs capture what changed and why.
 - MCP search lets agents retrieve precise historical context without reading every log.
@@ -96,8 +99,9 @@ The result is a lightweight memory workflow you can understand, commit, review, 
 
 - Keep project memory local, inspectable, and portable.
 - Support file-reading AI coding agents through predictable Markdown files.
-- Route tool-specific entry files into one shared `.AGENTS/` memory core.
-- Generate project-specific `index.md`, `context.md`, `style.md`, and session logs during bootstrap.
+- Route tool-specific entry files into the nearest `.memory-seed/` runtime.
+- Support nested sub-project runtimes with local active state and local skills.
+- Keep policy separate from functional runbooks.
 - Archive reusable control-plane versions while keeping generated project memory outside version archives.
 
 ## Agent Support
@@ -107,7 +111,7 @@ The result is a lightweight memory workflow you can understand, commit, review, 
 | Codex | Starts from `AGENTS.md`; can use MCP when the client supports stdio MCP servers. |
 | Claude Code | Starts from `CLAUDE.md`; can register `memory-seed-mcp` through `uvx`. |
 | Gemini CLI | Starts from `GEMINI.md`. |
-| Other file-reading agents | Start from `AGENTS.md` and follow the `.AGENTS/` read order. |
+| Other file-reading agents | Start from `AGENTS.md` and follow nearest `.memory-seed/` runtime discovery. |
 | MCP-capable clients | Use `memory_search` and `memory_get_chunk` through `memory-seed-mcp --stdio`. |
 
 ## Reusable Seed Files
@@ -116,32 +120,54 @@ The result is a lightweight memory workflow you can understand, commit, review, 
 AGENTS.md
 CLAUDE.md
 GEMINI.md
-.AGENTS/
+.memory-seed/
   agent-rules.md
   project-bootstrap.md
+  skills/
+    index.md
+    code_search.md
+    data_architecture.md
+    local_compilation.md
+    memory_consolidation.md
+    memory_doctor.md
+    release_publishing.md
+    security_triage.md
+  sessions/
+  archive/
 ```
 
-## Generated Per-Project Files
+## Runtime Files
 
 ```text
-.AGENTS/
+.memory-seed/
+  agent-rules.md
+  project-bootstrap.md
   index.md
-  context.md
-  style.md
+  policy.md
+  skills/
   sessions/
+  archive/
 ```
 
 ## Current Version
 
-The current reusable control-plane version is `1.4`.
+The current reusable control-plane version is `2.0`.
 
-Archived reusable versions are stored under `.AGENTS/archive/<version>/`.
+Legacy `.AGENTS/` projects remain supported as a fallback during migration.
+
+## Skill Trigger Registry
+
+`.memory-seed/skills/index.md` is the deterministic trigger registry for universal skills. Agents read it during startup, evaluate triggers in listed order, and lazy-load only the full skill runbooks that match the task.
+
+Project and sub-project runtimes may override or disable inherited skills in their generated `index.md`. Parent skill registries apply only when inheritance is enabled and not locally overridden.
+
+Sub-project runtimes keep detailed logs local. Parent/root memory should receive only brief coordination summaries when sub-project work changes parent-visible topology, shared design, release behavior, policy inheritance, dependencies, risks, or active priorities.
 
 ## Python CLI
 
 Memory Seed includes a small Python CLI.
 
-Recommended one-off usage uses `uvx` so you do not need a global install and you avoid stale local commands:
+Use `uvx` for one-off execution. It runs Memory Seed in an isolated tool environment, so you do not need a global install and you avoid stale local commands:
 
 ```powershell
 uvx --from memory-seed memory-seed doctor
@@ -150,21 +176,42 @@ uvx --from memory-seed memory-seed update --dry-run
 uvx --from memory-seed memory-seed compact
 ```
 
+Use `uv tool install memory-seed` when you want Memory Seed installed persistently as a local machine tool with console scripts on PATH:
+
+```powershell
+uv tool install memory-seed
+memory-seed doctor
+memory-seed-mcp --stdio
+memory-seed-mcp-validate "bootstrap mode check"
+```
+
+Use `uv add memory-seed` only when the current Python project itself depends on Memory Seed as a package:
+
+```powershell
+uv add memory-seed
+```
+
+Use `uv pip install memory-seed` when installing Memory Seed into the active virtual environment rather than as a standalone tool:
+
+```powershell
+uv pip install memory-seed
+```
+
 For repeatable team or production usage, pin the package version:
 
 ```powershell
-uvx --from memory-seed==1.6.1 memory-seed doctor
-uvx --from memory-seed==1.6.1 memory-seed update --dry-run
+uvx --from memory-seed==2.0.0 memory-seed doctor
+uvx --from memory-seed==2.0.0 memory-seed update --dry-run
 ```
 
-For offline or lower-latency use, install or upgrade the CLI:
+If you are not using uv, install or upgrade the CLI with pip:
 
 ```powershell
 python -m pip install --upgrade memory-seed
 python -m pip show memory-seed
 ```
 
-`python -m pip show memory-seed` reports the installed Python package version, such as `1.6.1`. `memory-seed version` reports the reusable control-plane version, currently `1.4`; it is not the package-version check.
+`python -m pip show memory-seed` reports the installed Python package version, such as `2.0.0`. `memory-seed version` reports the reusable control-plane version, currently `2.0`; it is not the package-version check.
 
 From this repository checkout, run:
 
@@ -182,23 +229,33 @@ The `init` command copies only the reusable seed files into the current folder:
 AGENTS.md
 CLAUDE.md
 GEMINI.md
-.AGENTS/agent-rules.md
-.AGENTS/project-bootstrap.md
+.memory-seed/agent-rules.md
+.memory-seed/project-bootstrap.md
+.memory-seed/archive/.gitkeep
+.memory-seed/skills/index.md
+.memory-seed/skills/code_search.md
+.memory-seed/skills/security_triage.md
+.memory-seed/skills/data_architecture.md
+.memory-seed/skills/local_compilation.md
+.memory-seed/skills/memory_consolidation.md
+.memory-seed/skills/memory_doctor.md
+.memory-seed/skills/release_publishing.md
+.memory-seed/sessions/.gitkeep
 ```
 
-It does not copy generated project memory such as `.AGENTS/context.md`, `.AGENTS/index.md`, `.AGENTS/style.md`, `.AGENTS/sessions/`, or `.AGENTS/archive/`.
+It creates a minimal `.memory-seed/` control plane with reusable procedures, generic skill templates, and empty session/archive anchors. Fresh projects are seeded but not yet bootstrapped. `init` does not create `.memory-seed/index.md` or `.memory-seed/policy.md`; the first agent bootstrap pass generates those files after scanning the project and asking targeted questions. The generated `index.md` is the rich project-orientation manifest, and `policy.md` contains behavioral constraints only.
 
-It also does not copy MCP server code or Python modules into the target project. Commands such as `memory-seed-mcp` and `memory-seed-mcp-validate` run from the installed or `uvx` package. The target project receives only the Markdown seed files; generated operating memory is created later by an agent during bootstrap.
+It does not copy MCP server code or Python modules into the target project. Commands such as `memory-seed-mcp` and `memory-seed-mcp-validate` run from the installed or `uvx` package. The target project receives only the Markdown runtime files.
 
 Use `--dry-run` to preview the files `init` would copy without changing files. If any reusable seed file already exists, plain `init` refuses to overwrite it and exits with an error. Use `--force` only when you intentionally want to back up and replace existing seed files.
 
-When `--force` creates backups, Memory Seed adds `.AGENTS/backups/` to the target project's `.gitignore` to reduce the chance of committing replaced local memory files. `init --force` is a reinstall operation: it writes all bundled seed files, including files that were already on the current `memory-system-version`.
+When `--force` creates backups, Memory Seed adds `.memory-seed/backups/` to the target project's `.gitignore` to reduce the chance of committing replaced local memory files. `init --force` is a reinstall operation: it writes all bundled seed files, including files that were already on the current `memory-system-version`.
 
-The `update` command refreshes only the reusable control-plane files in an existing project. It uses each file's `memory-system-version` YAML field to decide whether that file is current. It backs up replaced control-plane files under `.AGENTS/backups/<timestamp>/`, restores any missing reusable seed files, skips files already on the current control-plane version, and does not change generated project memory such as `.AGENTS/context.md`, `.AGENTS/index.md`, `.AGENTS/style.md`, or `.AGENTS/sessions/`.
+The `update` command refreshes routing files, reusable runtime procedure files, and generic skill templates by version. Before replacing stale reusable control-plane files, it backs them up under `.memory-seed/backups/<timestamp>/` and archives their old version under `.memory-seed/archive/<old-version>/` or `.memory-seed/archive/unknown-<timestamp>/` when the old version is missing. Generated local memory files such as `index.md`, `policy.md`, and sessions are preserved.
 
-Use `update --dry-run` to list the reusable control-plane targets without writing files. Current behavior is conservative but broad: dry-run lists all five control-plane paths rather than calculating which files are missing or version-mismatched. The real `update` command skips files that already have the current `memory-system-version`.
+Use `update --dry-run` to list the reusable control-plane targets without writing files. Current behavior is conservative but broad: dry-run lists bundled seed paths rather than calculating which files are missing or version-mismatched. The real `update` command skips files that already have the current `memory-system-version` and preserves existing `.memory-seed/` runtime files.
 
-The `compact` command summarises recent session activity so an agent can identify durable facts to promote into `context.md`, `index.md`, and `style.md`:
+The `compact` command summarises recent session activity from the nearest runtime so an agent can identify durable facts to promote into `index.md`, `policy.md`, or skills:
 
 ```bash
 memory-seed compact              # last 7 days (default)
@@ -214,12 +271,12 @@ The output is a structured Markdown report with session headings and full entry 
 When run in a project that already has Memory Seed files:
 
 - `memory-seed version` prints the bundled reusable control-plane version. It does not inspect the project.
-- `memory-seed doctor` checks only the five reusable control-plane files and reports missing files or `memory-system-version` mismatches. It does not check generated operating memory files.
-- `memory-seed init --dry-run` lists the five seed files it would copy and changes nothing, even if those files already exist.
+- `memory-seed doctor` checks reusable seed files, reports missing files or `memory-system-version` mismatches, and separately reports incomplete bootstrap when generated `index.md` or `policy.md` is missing.
+- `memory-seed init --dry-run` lists the seed files it would copy and changes nothing, even if those files already exist.
 - `memory-seed init` refuses to overwrite existing seed files unless `--force` is used.
-- `memory-seed init --force` backs up existing seed files and rewrites all five bundled seed files. It does not generate operating memory files.
-- `memory-seed update` skips current-version control-plane files, backs up and replaces stale files, restores missing files, and leaves generated project memory untouched.
-- `memory-seed compact` reads dated session logs and prints a Markdown summary. It writes only when `--output` is provided.
+- `memory-seed init --force` backs up existing seed files and rewrites all bundled seed files.
+- `memory-seed update` refreshes stale routing files, reusable runtime procedure files, and generic skill templates; archives replaced control-plane versions; and preserves generated local memory.
+- `memory-seed compact` reads dated session logs from the nearest `.memory-seed/` runtime, with legacy `.AGENTS/` fallback, and prints a Markdown summary. It writes only when `--output` is provided.
 
 Known behavior to understand: `update --dry-run` currently lists all control-plane targets, not only files that would actually change. `init --force` intentionally rewrites all bundled seed files and should be used as a reinstall command rather than a targeted refresh.
 
@@ -247,7 +304,7 @@ For repeatable team or production usage, pin the package version:
 ```json
 {
   "command": "uvx",
-  "args": ["--from", "memory-seed==1.6.1", "memory-seed-mcp", "--stdio"]
+  "args": ["--from", "memory-seed==2.0.0", "memory-seed-mcp", "--stdio"]
 }
 ```
 
@@ -272,15 +329,17 @@ If the console script is not on `PATH`, use the module form from the active Pyth
 The server exposes:
 
 ```text
-memory_search(query, cwd=".", top_k=8, today=None, lambda_days=0.01, recency_enabled=true, recency_floor=0.15)
+memory_search(query, cwd=".", top_k=8, today=None, lambda_days=0.01, recency_enabled=true, recency_floor=0.15, semantic_enabled=true)
 memory_get_chunk(chunk_id, cwd=".")
 ```
 
-`memory_search` returns JSON with source path, line range, heading path, score fields, matched fields, matched terms, and an excerpt. This is intended to be both agent-efficient and human-validatable.
+`memory_search` also accepts `granularity="entry"` by default or `granularity="section"` for narrower section-level results. Entry granularity returns one coherent chunk per `##` session entry and normally uses the entry YAML `entry_id` as `chunk_id`, such as `ms-db2d715c`. Section granularity returns ids such as `ms-db2d715c#decisions/d1-use-draft-for-compact-decision-records` while preserving the parent `entry_id`.
 
-The ranking engine remains local and dependency-light. It uses deterministic lexical scoring and recency math by default; optional semantic embedding support stays in the importable Python core and is not required to run the MCP server.
+`memory_search` returns JSON with source path, line range, heading path, score fields, matched fields, matched terms, semantic status, entry metadata, granularity, and an excerpt. This is intended to be both agent-efficient and human-validatable.
 
-Session entry headings may include optional minute-level timestamps, such as `## 2026-05-19 20:42 - Durable memory consolidation`. Session filenames stay date-only. Timestamped headings are backward compatible with older untimed headings and are exposed as `entry_datetime` in MCP search results when present.
+The ranking engine stays local and CPU-friendly. MCP search uses a Model2Vec static embedding provider by default with the general-purpose `minishlab/potion-base-8M` model, combines semantic score with lexical and metadata scoring, then applies recency. If Model2Vec or the model cannot load or score a query, the server falls back to lexical, metadata, and recency ranking without failing the request. Use `--no-semantic` on `memory-seed-mcp --stdio` or `semantic_enabled=false` in `memory_search` to force fallback behavior.
+
+Session entries should include a YAML metadata block with `entry_id`, `user_initials`, `agent_type`, `project_path`, and `subproject_path`. Session entry headings may include optional minute-level timestamps, such as `## 2026-05-19 20:42 - Durable memory consolidation`. Session filenames stay date-only. Timestamped headings are backward compatible with older untimed headings and are exposed as `entry_datetime` in MCP search results when present.
 
 For human-validatable search behavior, see the fixture-style tests in `tests/test_mcp_server.py`. They assert that specific queries return expected dated session entries first and include enough evidence for manual review.
 
@@ -293,7 +352,7 @@ uvx --from memory-seed memory-seed-mcp-validate "bootstrap mode check"
 or, with a pinned package:
 
 ```powershell
-uvx --from memory-seed==1.6.1 memory-seed-mcp-validate "bootstrap mode check"
+uvx --from memory-seed==2.0.0 memory-seed-mcp-validate "bootstrap mode check"
 ```
 
 If installed globally or running from this checkout:
@@ -321,7 +380,7 @@ During bootstrap, the agent adds a Code Search section to the project's `AGENTS.
 
 ## Public Memory Hygiene
 
-Memory Seed files are plain Markdown and may be committed with a project. Treat `.AGENTS` files as publishable unless the project is explicitly private.
+Memory Seed files are plain Markdown and may be committed with a project. Treat `.memory-seed` files as publishable unless the project is explicitly private.
 
 Do not put secrets, credentials, tokens, private keys, sensitive account details, client confidential information, or unnecessary personal data into generated memory files or session logs.
 
