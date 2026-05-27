@@ -317,6 +317,8 @@ class MemorySeedTests(unittest.TestCase):
 
     def test_control_plane_files_report_current_version(self):
         for seed_file in SEED_FILES:
+            if not seed_file.source.suffix == ".md":
+                continue
             content = seed_file.source.read_text(encoding="utf-8")
             self.assertIn("memory-system-version: 2.0", content, seed_file.destination)
 
@@ -328,6 +330,7 @@ class MemorySeedTests(unittest.TestCase):
             [
                 ".memory-seed/agent-rules.md",
                 ".memory-seed/archive/.gitkeep",
+                ".memory-seed/hooks/session-log-check.py",
                 ".memory-seed/project-bootstrap.md",
                 ".memory-seed/sessions/.gitkeep",
                 ".memory-seed/skills/code_search.md",
