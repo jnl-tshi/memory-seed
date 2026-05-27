@@ -9,6 +9,16 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .memory-seed/hooks/memory-retrieval-check.py --codex"
+          }
+        ]
+      }
     ]
   }
 }

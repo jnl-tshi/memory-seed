@@ -5,6 +5,11 @@
       {
         "command": "python3 .memory-seed/hooks/session-log-check.py --cursor"
       }
+    ],
+    "sessionStart": [
+      {
+        "command": "python3 .memory-seed/hooks/memory-retrieval-check.py --cursor"
+      }
     ]
   }
 }

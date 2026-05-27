@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +31,6 @@ TOOLS: list[dict[str, Any]] = [
                 "query": {"type": "string"},
                 "cwd": {"type": "string", "default": "."},
                 "top_k": {"type": "integer", "default": 8},
-                "today": {"type": "string", "description": "Optional YYYY-MM-DD date override."},
                 "lambda_days": {"type": "number", "default": 0.01},
                 "recency_enabled": {"type": "boolean", "default": True},
                 "recency_floor": {"type": "number", "default": 0.15},
@@ -61,7 +60,12 @@ TOOLS: list[dict[str, Any]] = [
 ]
 
 
-def call_tool(name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+def call_tool(
+    name: str,
+    arguments: dict[str, Any] | None = None,
+    *,
+    today: date | None = None,
+) -> dict[str, Any]:
     args = arguments or {}
     if name == "memory_search":
         query = _required_str(args, "query")
@@ -77,7 +81,7 @@ def call_tool(name: str, arguments: dict[str, Any] | None = None) -> dict[str, A
             query,
             cwd,
             top_k=top_k,
-            today=_parse_optional_date(args.get("today")),
+            today=today or date.today(),
             lambda_days=float(args.get("lambda_days", 0.01)),
             recency_enabled=bool(args.get("recency_enabled", True)),
             recency_floor=float(args.get("recency_floor", 0.15)),
@@ -293,14 +297,6 @@ def _excerpt(text: str, limit: int = 280) -> str:
     if len(compact) <= limit:
         return compact
     return compact[: limit - 3].rstrip() + "..."
-
-
-def _parse_optional_date(value: Any) -> date | None:
-    if value in (None, ""):
-        return None
-    if isinstance(value, date):
-        return value
-    return datetime.strptime(str(value), "%Y-%m-%d").date()
 
 
 def _semantic_provider(

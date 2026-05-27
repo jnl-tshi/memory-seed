@@ -6,6 +6,10 @@ dist/
 build/
 *.egg-info/
 
+# Memory Seed runtime markers
+.memory-seed/.retrieval-reminder-stamp
+.memory-seed/backups/
+
 # Demo sub-project build artifacts
 demo/node_modules/
 demo/*.mp4

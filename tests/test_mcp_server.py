@@ -117,9 +117,9 @@ class MemoryMcpServerTests(unittest.TestCase):
                 "query": "#compact",
                 "cwd": str(cwd),
                 "top_k": 2,
-                "today": "2026-05-19",
                 "_embedding_provider": StaticEmbeddingProvider(),
             },
+            today=date(2026, 5, 19),
         )
 
         self.assertEqual(payload["results"][0]["source"], ".memory-seed/sessions/2026-05-19.md")
@@ -131,6 +131,35 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertIn("text", payload["results"][0]["matched_fields"])
         self.assertIn("Compact command agent routine", payload["human_report"])
 
+    def test_memory_search_schema_has_no_today_override(self):
+        from memory_seed.mcp_server import TOOLS
+
+        search_tool = next(t for t in TOOLS if t["name"] == "memory_search")
+        self.assertNotIn("today", search_tool["inputSchema"]["properties"])
+
+    def test_call_tool_ignores_caller_supplied_today_in_arguments(self):
+        cwd = self.make_memory_fixture()
+
+        base_args = {
+            "query": "#compact",
+            "cwd": str(cwd),
+            "top_k": 2,
+            "semantic_enabled": False,
+        }
+        without = call_tool("memory_search", dict(base_args))
+        with_bogus = call_tool("memory_search", {**base_args, "today": "1999-01-01"})
+
+        # A caller-supplied "today" must be ignored; recency is anchored to the
+        # system clock at call time, so both queries rank identically.
+        self.assertEqual(
+            [r["chunk_id"] for r in without["results"]],
+            [r["chunk_id"] for r in with_bogus["results"]],
+        )
+        self.assertEqual(
+            [r["recency_multiplier"] for r in without["results"]],
+            [r["recency_multiplier"] for r in with_bogus["results"]],
+        )
+
     def test_call_tool_memory_search_can_disable_semantic_scoring(self):
         cwd = self.make_memory_fixture()
 
@@ -140,9 +169,9 @@ class MemoryMcpServerTests(unittest.TestCase):
                 "query": "#compact",
                 "cwd": str(cwd),
                 "top_k": 2,
-                "today": "2026-05-19",
                 "semantic_enabled": False,
             },
+            today=date(2026, 5, 19),
         )
 
         self.assertFalse(payload["semantic_enabled"])
@@ -158,9 +187,9 @@ class MemoryMcpServerTests(unittest.TestCase):
                 "query": "#compact",
                 "cwd": str(cwd),
                 "top_k": 2,
-                "today": "2026-05-19",
                 "_embedding_provider": FailingModel2VecEmbeddingProvider("model unavailable"),
             },
+            today=date(2026, 5, 19),
         )
 
         self.assertFalse(payload["semantic_enabled"])
@@ -189,8 +218,8 @@ class MemoryMcpServerTests(unittest.TestCase):
                 "query": "Semble code search",
                 "cwd": str(cwd),
                 "top_k": 1,
-                "today": "2026-05-19",
             },
+            today=date(2026, 5, 19),
         )
         chunk_id = search["results"][0]["chunk_id"]
 
@@ -225,9 +254,9 @@ class MemoryMcpServerTests(unittest.TestCase):
                 "query": "preserve rationale",
                 "cwd": str(cwd),
                 "top_k": 3,
-                "today": "2026-05-20",
                 "granularity": "section",
             },
+            today=date(2026, 5, 20),
         )
 
         self.assertIn("ms-granular#decisions/d1-use-entry-chunks", [result["chunk_id"] for result in payload["results"]])
@@ -255,7 +284,7 @@ class MemoryMcpServerTests(unittest.TestCase):
                     "arguments": {
                         "query": "compact behavior",
                         "cwd": str(cwd),
-                        "today": "2026-05-19",
+                        "recency_enabled": False,
                     },
                 },
             }

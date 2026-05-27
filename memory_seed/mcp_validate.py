@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date
 from pathlib import Path
 
 from .mcp_server import call_tool
@@ -18,10 +19,12 @@ def build_validation_report(
         "cwd": str(cwd),
         "top_k": top_k,
     }
-    if today:
-        args["today"] = today
 
-    search = call_tool("memory_search", args)
+    search = call_tool(
+        "memory_search",
+        args,
+        today=date.fromisoformat(today) if today else None,
+    )
     lines = [
         "# MCP Memory Validation",
         "",

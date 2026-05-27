@@ -131,11 +131,12 @@ Useful optional search fields:
 ```json
 {
   "semantic_enabled": true,
-  "today": "YYYY-MM-DD",
   "recency_enabled": true,
   "recency_floor": 0.15
 }
 ```
+
+Recency is anchored to the current date read from the system clock at call time. There is no date-override field; the tool never trusts a caller-supplied "today".
 
 If semantic scoring is unavailable, the tool falls back to lexical, metadata, and recency ranking. Do not treat semantic fallback as a failure unless the task requires semantic search specifically.
 
@@ -286,6 +287,17 @@ After any turn where meaningful work was completed:
 
 Deferring or batching session log writes is a discipline failure, not an acceptable workflow. If the current turn produced anything worth remembering — a decision, a file change, a resolved blocker, a tradeoff — write it now.
 
+### Append-Only Chronology
+
+The session file is strictly append-only and must stay in ascending time order. To guarantee this without ever reordering:
+
+- Append every new entry to the **end** of the day's file. Never insert an entry above an existing one.
+- The entry heading timestamp is the **actual current clock time** at the moment you write it. Read it from the system clock; never reuse a time from your context, memory, or an earlier message, and never backdate it to when the work happened.
+- Because entries are always appended with the current time, file order, write order, and timestamp order are identical. No manual reordering is ever needed or allowed.
+- If you are recording work that completed earlier in the session (you forgot, or you are catching up), still stamp the heading with the current time. If the original work time matters, state it in the entry body — do not move the entry above newer ones and do not rewrite earlier headings.
+
+This is the invariant the "do not rewrite old session entries" rule protects: out-of-order or backdated entries force a human to manually re-sort the log, which is exactly what append-only is meant to prevent.
+
 Detailed work logs belong in the nearest active runtime. Add a parent/root summary only when sub-project work changes parent-visible topology, shared design, release behavior, policy inheritance, cross-project dependencies, risks, or active priorities. Do not mirror sub-project logs into root memory.
 
 Session entries must capture rationale when it matters, without forcing ceremony for small work. Use rationale for durable decisions, architecture changes, policy changes, bootstrap choices, release decisions, non-obvious tradeoffs, or changes likely to confuse a future agent.
@@ -376,7 +388,7 @@ subproject_path: null
 - Note any rerun, review, or unresolved risk.
 ````
 
-Keep session filenames date-only, such as `.memory-seed/sessions/2026-05-02.md`. Prefer minute-level timestamps in entry headings. Generate `entry_id` as a deterministic short hash from metadata only: timestamp, title, user initials, agent type, project path, and subproject path. Use known user initials when available; otherwise ask during bootstrap or use a neutral placeholder until confirmed. Capture meaningful decisions, durable changes, follow-up risk, or handoff context. Do not log every command.
+Keep session filenames date-only, such as `.memory-seed/sessions/2026-05-02.md`. Use minute-level timestamps in entry headings, taken from the current system clock at write time. Entries are appended in clock order and never backdated or reordered (see Append-Only Chronology). Generate `entry_id` as a deterministic short hash from metadata only: timestamp, title, user initials, agent type, project path, and subproject path. Use known user initials when available; otherwise ask during bootstrap or use a neutral placeholder until confirmed. Capture meaningful decisions, durable changes, follow-up risk, or handoff context. Do not log every command.
 
 ### Entry Shapes
 

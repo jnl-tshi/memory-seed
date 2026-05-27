@@ -112,12 +112,21 @@ SEED_FILES = [
         SEED_ROOT / MEMORY_DIR_NAME / "hooks" / "session-log-check.py",
         ".memory-seed/hooks/session-log-check.py",
     ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "hooks" / "memory-retrieval-check.py",
+        ".memory-seed/hooks/memory-retrieval-check.py",
+    ),
 ]
 
 _CLAUDE_HOOK_COMMAND = "python3 .memory-seed/hooks/session-log-check.py"
 _CODEX_HOOK_COMMAND = "python3 .memory-seed/hooks/session-log-check.py --codex"
 _CURSOR_HOOK_COMMAND = "python3 .memory-seed/hooks/session-log-check.py --cursor"
 _GEMINI_HOOK_COMMAND = "python3 .memory-seed/hooks/session-log-check.py --gemini"
+
+_CLAUDE_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py"
+_CODEX_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py --codex"
+_CURSOR_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py --cursor"
+_GEMINI_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py --gemini"
 
 BOOTSTRAP_GENERATED_FILES = [
     ".memory-seed/index.md",
@@ -303,6 +312,94 @@ def _merge_claude_hook(target_root: Path) -> bool:
     return True
 
 
+def _merge_grouped_hook(config_path: Path, event: str, command: str) -> bool:
+    """Add a command hook under hooks.<event> in matcher-group form.
+
+    Used for Claude Code, Codex, and Gemini, which share the
+    hooks.<event>[].hooks[].{type, command} shape. Idempotent.
+    """
+    data: dict = {}
+    if config_path.exists():
+        try:
+            with open(config_path) as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            data = {}
+
+    for group in data.get("hooks", {}).get(event, []):
+        for hook in group.get("hooks", []):
+            if hook.get("command") == command:
+                return False
+
+    data.setdefault("hooks", {}).setdefault(event, []).append(
+        {"hooks": [{"type": "command", "command": command}]}
+    )
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(config_path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+    return True
+
+
+def _merge_cursor_event_hook(config_path: Path, event: str, command: str) -> bool:
+    """Add a command hook under hooks.<event> in Cursor's flat list form."""
+    data: dict = {}
+    if config_path.exists():
+        try:
+            with open(config_path) as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            data = {}
+
+    data.setdefault("version", 1)
+    for entry in data.get("hooks", {}).get(event, []):
+        if entry.get("command") == command:
+            return False
+
+    data.setdefault("hooks", {}).setdefault(event, []).append({"command": command})
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(config_path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+    return True
+
+
+def _merge_claude_retrieval_hook(target_root: Path) -> bool:
+    return _merge_grouped_hook(
+        target_root / ".claude" / "settings.json",
+        "UserPromptSubmit",
+        _CLAUDE_RETRIEVAL_COMMAND,
+    )
+
+
+def _merge_codex_retrieval_hook(target_root: Path) -> bool:
+    return _merge_grouped_hook(
+        target_root / ".codex" / "hooks.json",
+        "UserPromptSubmit",
+        _CODEX_RETRIEVAL_COMMAND,
+    )
+
+
+def _merge_gemini_retrieval_hook(target_root: Path) -> bool:
+    return _merge_grouped_hook(
+        target_root / ".gemini" / "settings.json",
+        "UserPromptSubmit",
+        _GEMINI_RETRIEVAL_COMMAND,
+    )
+
+
+def _merge_cursor_retrieval_hook(target_root: Path) -> bool:
+    return _merge_cursor_event_hook(
+        target_root / ".cursor" / "hooks.json",
+        "sessionStart",
+        _CURSOR_RETRIEVAL_COMMAND,
+    )
+
+
 def init_project(cwd: str | Path = ".", dry_run: bool = False, force: bool = False) -> InitResult:
     target_root = Path(cwd).resolve()
     planned = [seed_file.destination for seed_file in SEED_FILES]
@@ -339,14 +436,19 @@ def init_project(cwd: str | Path = ".", dry_run: bool = False, force: bool = Fal
         _copy_text_file(seed_file.source, destination)
         created.append(seed_file.destination)
 
-    if _merge_claude_hook(target_root):
-        created.append(".claude/settings.json")
-    if _merge_codex_hook(target_root):
-        created.append(".codex/hooks.json")
-    if _merge_cursor_hook(target_root):
-        created.append(".cursor/hooks.json")
-    if _merge_gemini_hook(target_root):
-        created.append(".gemini/settings.json")
+    hook_merges = (
+        (_merge_claude_hook, ".claude/settings.json"),
+        (_merge_codex_hook, ".codex/hooks.json"),
+        (_merge_cursor_hook, ".cursor/hooks.json"),
+        (_merge_gemini_hook, ".gemini/settings.json"),
+        (_merge_claude_retrieval_hook, ".claude/settings.json"),
+        (_merge_codex_retrieval_hook, ".codex/hooks.json"),
+        (_merge_cursor_retrieval_hook, ".cursor/hooks.json"),
+        (_merge_gemini_retrieval_hook, ".gemini/settings.json"),
+    )
+    for merge, destination in hook_merges:
+        if merge(target_root) and destination not in created:
+            created.append(destination)
 
     return InitResult(
         changed=True,
@@ -396,14 +498,19 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
         _copy_text_file(seed_file.source, destination)
         created.append(seed_file.destination)
 
-    if _merge_claude_hook(target_root):
-        created.append(".claude/settings.json")
-    if _merge_codex_hook(target_root):
-        created.append(".codex/hooks.json")
-    if _merge_cursor_hook(target_root):
-        created.append(".cursor/hooks.json")
-    if _merge_gemini_hook(target_root):
-        created.append(".gemini/settings.json")
+    hook_merges = (
+        (_merge_claude_hook, ".claude/settings.json"),
+        (_merge_codex_hook, ".codex/hooks.json"),
+        (_merge_cursor_hook, ".cursor/hooks.json"),
+        (_merge_gemini_hook, ".gemini/settings.json"),
+        (_merge_claude_retrieval_hook, ".claude/settings.json"),
+        (_merge_codex_retrieval_hook, ".codex/hooks.json"),
+        (_merge_cursor_retrieval_hook, ".cursor/hooks.json"),
+        (_merge_gemini_retrieval_hook, ".gemini/settings.json"),
+    )
+    for merge, destination in hook_merges:
+        if merge(target_root) and destination not in created:
+            created.append(destination)
 
     return InitResult(
         changed=bool(created or backed_up or archived),

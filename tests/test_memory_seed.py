@@ -330,6 +330,7 @@ class MemorySeedTests(unittest.TestCase):
             [
                 ".memory-seed/agent-rules.md",
                 ".memory-seed/archive/.gitkeep",
+                ".memory-seed/hooks/memory-retrieval-check.py",
                 ".memory-seed/hooks/session-log-check.py",
                 ".memory-seed/project-bootstrap.md",
                 ".memory-seed/sessions/.gitkeep",
@@ -446,6 +447,94 @@ class MemorySeedTests(unittest.TestCase):
 
         self.assertEqual(result.sessions_scanned, [f"{today}.md"])
         self.assertNotIn("Should be ignored", result.full_text)
+
+
+class HookMergeTests(unittest.TestCase):
+    def make_project(self):
+        path = Path(tempfile.mkdtemp(prefix="memory-seed-hooks-"))
+        self.addCleanup(lambda: shutil.rmtree(path, ignore_errors=True))
+        return path
+
+    def test_init_installs_retrieval_hooks_for_all_agents(self):
+        import json
+
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        claude = json.loads((cwd / ".claude" / "settings.json").read_text())
+        self.assertIn("UserPromptSubmit", claude["hooks"])
+        self.assertIn(
+            "memory-retrieval-check.py",
+            claude["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"],
+        )
+
+        codex = json.loads((cwd / ".codex" / "hooks.json").read_text())
+        self.assertIn("UserPromptSubmit", codex["hooks"])
+
+        gemini = json.loads((cwd / ".gemini" / "settings.json").read_text())
+        self.assertIn("UserPromptSubmit", gemini["hooks"])
+
+        cursor = json.loads((cwd / ".cursor" / "hooks.json").read_text())
+        self.assertIn("sessionStart", cursor["hooks"])
+        self.assertIn(
+            "memory-retrieval-check.py",
+            cursor["hooks"]["sessionStart"][0]["command"],
+        )
+
+    def test_retrieval_hook_merges_are_idempotent(self):
+        from memory_seed.core import (
+            _merge_claude_retrieval_hook,
+            _merge_cursor_retrieval_hook,
+        )
+
+        cwd = self.make_project()
+        self.assertTrue(_merge_claude_retrieval_hook(cwd))
+        self.assertFalse(_merge_claude_retrieval_hook(cwd))
+        self.assertTrue(_merge_cursor_retrieval_hook(cwd))
+        self.assertFalse(_merge_cursor_retrieval_hook(cwd))
+
+
+class SessionLogOrderingHookTests(unittest.TestCase):
+    SCRIPT = Path("memory_seed/seed/.memory-seed/hooks/session-log-check.py").resolve()
+
+    def make_project(self):
+        path = Path(tempfile.mkdtemp(prefix="memory-seed-order-"))
+        self.addCleanup(lambda: shutil.rmtree(path, ignore_errors=True))
+        (path / ".memory-seed" / "sessions").mkdir(parents=True)
+        return path
+
+    def _run(self, cwd):
+        import subprocess
+        import sys
+
+        return subprocess.run(
+            [sys.executable, str(self.SCRIPT)],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    def test_out_of_order_entries_trigger_warning(self):
+        import datetime
+
+        cwd = self.make_project()
+        today = datetime.date.today().isoformat()
+        (cwd / ".memory-seed" / "sessions" / f"{today}.md").write_text(
+            f"## {today} 02:00 - later\n\ntext\n\n## {today} 01:45 - earlier\n\ntext\n",
+            encoding="utf-8",
+        )
+        self.assertIn("ORDER WARNING", self._run(cwd))
+
+    def test_in_order_entries_do_not_trigger_order_warning(self):
+        import datetime
+
+        cwd = self.make_project()
+        today = datetime.date.today().isoformat()
+        (cwd / ".memory-seed" / "sessions" / f"{today}.md").write_text(
+            f"## {today} 01:45 - earlier\n\ntext\n\n## {today} 02:00 - later\n\ntext\n",
+            encoding="utf-8",
+        )
+        self.assertNotIn("ORDER WARNING", self._run(cwd))
 
 
 class CliHelpTests(unittest.TestCase):

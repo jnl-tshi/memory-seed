@@ -361,7 +361,7 @@ If the console script is not on `PATH`, use the module form from the active Pyth
 The server exposes:
 
 ```text
-memory_search(query, cwd=".", top_k=8, today=None, lambda_days=0.01, recency_enabled=true, recency_floor=0.15, semantic_enabled=true)
+memory_search(query, cwd=".", top_k=8, lambda_days=0.01, recency_enabled=true, recency_floor=0.15, semantic_enabled=true)
 memory_get_chunk(chunk_id, cwd=".")
 ```
 
