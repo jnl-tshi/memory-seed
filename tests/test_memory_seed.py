@@ -448,5 +448,30 @@ class MemorySeedTests(unittest.TestCase):
         self.assertNotIn("Should be ignored", result.full_text)
 
 
+class CliHelpTests(unittest.TestCase):
+    def _run(self, argv):
+        import contextlib
+        import io
+
+        from memory_seed.cli import main
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = main(argv)
+        return code, buffer.getvalue()
+
+    def test_help_command_lists_all_commands(self):
+        code, out = self._run(["help"])
+        self.assertEqual(code, 0)
+        for command in ("init", "update", "compact", "doctor", "version", "help"):
+            self.assertIn(command, out)
+        self.assertIn("Keeping Memory Seed current", out)
+
+    def test_no_command_prints_help(self):
+        code, out = self._run([])
+        self.assertEqual(code, 0)
+        self.assertIn("Keeping Memory Seed current", out)
+
+
 if __name__ == "__main__":
     unittest.main()

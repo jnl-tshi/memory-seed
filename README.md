@@ -213,6 +213,8 @@ python -m pip show memory-seed
 
 `python -m pip show memory-seed` reports the installed Python package version, such as `2.0.0`. `memory-seed version` reports the reusable control-plane version, currently `2.0`; it is not the package-version check.
 
+To discover commands and flags, use `memory-seed help` (also shown when you run `memory-seed` with no command), `memory-seed -h`, or `memory-seed <command> -h` for a specific command.
+
 From this repository checkout, run:
 
 ```powershell
@@ -251,7 +253,7 @@ Use `--dry-run` to preview the files `init` would copy without changing files. I
 
 When `--force` creates backups, Memory Seed adds `.memory-seed/backups/` to the target project's `.gitignore` to reduce the chance of committing replaced local memory files. `init --force` is a reinstall operation: it writes all bundled seed files, including files that were already on the current `memory-system-version`.
 
-The `update` command refreshes routing files, reusable runtime procedure files, and generic skill templates by version. Before replacing stale reusable control-plane files, it backs them up under `.memory-seed/backups/<timestamp>/` and archives their old version under `.memory-seed/archive/<old-version>/` or `.memory-seed/archive/unknown-<timestamp>/` when the old version is missing. Generated local memory files such as `index.md`, `policy.md`, and sessions are preserved.
+The `update` command refreshes routing files, reusable runtime procedure files, and generic skill templates by version, sourcing them **from the installed package** rather than from PyPI — upgrade the package first to get newer templates (see [Updating](#updating)). Before replacing stale reusable control-plane files, it backs them up under `.memory-seed/backups/<timestamp>/` and archives their old version under `.memory-seed/archive/<old-version>/` or `.memory-seed/archive/unknown-<timestamp>/` when the old version is missing. Generated local memory files such as `index.md`, `policy.md`, and sessions are preserved.
 
 Use `update --dry-run` to list the reusable control-plane targets without writing files. Current behavior is conservative but broad: dry-run lists bundled seed paths rather than calculating which files are missing or version-mismatched. The real `update` command skips files that already have the current `memory-system-version` and preserves existing `.memory-seed/` runtime files.
 
@@ -279,6 +281,36 @@ When run in a project that already has Memory Seed files:
 - `memory-seed compact` reads dated session logs from the nearest `.memory-seed/` runtime, with legacy `.AGENTS/` fallback, and prints a Markdown summary. It writes only when `--output` is provided.
 
 Known behavior to understand: `update --dry-run` currently lists all control-plane targets, not only files that would actually change. `init --force` intentionally rewrites all bundled seed files and should be used as a reinstall command rather than a targeted refresh.
+
+## Updating
+
+Two separate things stay current, and they are not the same operation:
+
+1. The installed **package** — the CLI, MCP server, and the seed templates bundled inside it.
+2. Each **project's** `.memory-seed/` files — the seed files copied into a given repository.
+
+`memory-seed update` copies seed files **from the package version currently installed or resolved**. It does not fetch from PyPI. So getting newer seed content into a project is a two-step process for persistent installs:
+
+```powershell
+# 1. Upgrade the tool (new code + new bundled seed templates)
+uv tool upgrade memory-seed
+# or, with pip:
+python -m pip install --upgrade memory-seed
+
+# 2. Propagate the new seed files into the project
+memory-seed update --dry-run
+memory-seed update
+```
+
+With `uvx`, pin to the latest to force the newest package before updating a project:
+
+```powershell
+uvx --from memory-seed@latest memory-seed update
+```
+
+A bare `uvx --from memory-seed memory-seed update` may serve a cached package version; use `@latest` to force the newest, or pin `==X.Y.Z` for reproducibility.
+
+For the version distinction (`pip show memory-seed` reports the package version; `memory-seed version` reports the control-plane version), see [Python CLI](#python-cli).
 
 ## MCP Memory Search
 

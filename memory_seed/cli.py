@@ -9,9 +9,37 @@ from pathlib import Path
 from .core import compact_sessions, doctor, get_version, init_project, update_project
 
 
+def _print_help(parser: argparse.ArgumentParser) -> None:
+    print(parser.format_help().rstrip())
+    print()
+    print("Keeping Memory Seed current:")
+    print("  Two separate things stay current, and they are not the same step.")
+    print(
+        "  1. Upgrade the package (code + bundled seed templates):\n"
+        "       uv tool upgrade memory-seed\n"
+        "       python -m pip install --upgrade memory-seed"
+    )
+    print(
+        "  2. Propagate the new seed files into a project:\n"
+        "       memory-seed update"
+    )
+    print(
+        "  'memory-seed update' copies files from the installed package; it does\n"
+        "  not fetch from PyPI. Upgrade the package first, then run update."
+    )
+    print(
+        "  'memory-seed version' reports the control-plane version; "
+        "'pip show memory-seed'\n  reports the package version."
+    )
+    print()
+    print("Run 'memory-seed <command> -h' for flags and details on any command.")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="memory-seed")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest="command", required=False)
+
+    subparsers.add_parser("help", help="list all commands and how they work")
 
     init_parser = subparsers.add_parser("init", help="copy Memory Seed into this project")
     init_parser.add_argument("--dry-run", action="store_true", help="show planned files without writing")
@@ -36,6 +64,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+
+    if args.command in (None, "help"):
+        _print_help(parser)
+        return 0
 
     if args.command == "version":
         print(get_version())
