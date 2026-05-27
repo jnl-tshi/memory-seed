@@ -114,6 +114,24 @@ The result is a lightweight memory workflow you can understand, commit, review, 
 | Other file-reading agents | Start from `AGENTS.md` and follow nearest `.memory-seed/` runtime discovery. |
 | MCP-capable clients | Use `memory_search` and `memory_get_chunk` through `memory-seed-mcp --stdio`. |
 
+## Agent Hooks
+
+`memory-seed init` and `memory-seed update` install lifecycle hooks that keep memory current without relying on the agent to remember. Each hook is merged into the agent's own config file (existing settings are preserved), so it works regardless of which agent opens the project:
+
+| Agent | Config file | Session-log reminder | Memory-retrieval reminder |
+| --- | --- | --- | --- |
+| Claude Code | `.claude/settings.json` | `Stop` | `UserPromptSubmit` |
+| Codex CLI | `.codex/hooks.json` | `Stop` | `UserPromptSubmit` |
+| Gemini CLI | `.gemini/settings.json` | `Stop` | `UserPromptSubmit` |
+| Cursor | `.cursor/hooks.json` | `afterAgentResponse` | `sessionStart` |
+
+Both reminders are cross-platform Python scripts in `.memory-seed/hooks/`:
+
+- `session-log-check.py` — after a turn, reminds the agent to append a session-log entry if none was written in the last 15 minutes, and warns if the day's entries are out of ascending time order.
+- `memory-retrieval-check.py` — before substantive work, reminds the agent to retrieve prior context (`memory_search` or the most recent session files). Gated by an 8-hour marker file so it fires about once per working session.
+
+The hooks nudge; they never block. The scripts use Python 3.11+, which Memory Seed already requires.
+
 ## Reusable Seed Files
 
 ```text
@@ -123,6 +141,9 @@ GEMINI.md
 .memory-seed/
   agent-rules.md
   project-bootstrap.md
+  hooks/
+    session-log-check.py
+    memory-retrieval-check.py
   skills/
     index.md
     code_search.md
@@ -144,6 +165,7 @@ GEMINI.md
   project-bootstrap.md
   index.md
   policy.md
+  hooks/
   skills/
   sessions/
   archive/
