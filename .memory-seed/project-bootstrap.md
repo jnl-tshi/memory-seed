@@ -284,7 +284,7 @@ Include:
 - inheritance choices
 - follow-up gaps
 
-Record rationale for bootstrap choices that shape future behavior:
+Record reason for bootstrap choices that shape future behavior:
 
 - project classification
 - policy and risk posture
@@ -292,7 +292,7 @@ Record rationale for bootstrap choices that shape future behavior:
 - active skill selection
 - major assumptions
 
-Do not require rationale for obvious file discoveries. Do not invent rationale; mark inferred rationale explicitly or write `Rationale not recorded` when unknown.
+Do not require reason for obvious file discoveries. Do not invent reason; mark inferred reason explicitly or write `Reason not recorded` when unknown.
 
 Keep sessions append-only.
 

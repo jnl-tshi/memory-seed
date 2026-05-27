@@ -13,13 +13,13 @@ class SessionSchemaTests(unittest.TestCase):
             "Multi-decision session entry",
             "DRAFT decision record",
             "D = Decision",
-            "R = Rationale",
+            "R = Reason",
             "A = Alternatives considered or rejected",
             "F = Files, artifacts, or behaviors changed",
             "T = Tests or validation",
-            "Do not invent rationale",
-            "Inferred rationale",
-            "Rationale not recorded",
+            "Do not invent reason",
+            "Inferred reason",
+            "Reason not recorded",
             "Alternatives are optional",
         ):
             self.assertIn(phrase, content)
@@ -49,7 +49,7 @@ class SessionSchemaTests(unittest.TestCase):
             "clear supersession criteria",
             "newer dated session entry or current authority file",
             "no later reversal or unresolved disagreement is found",
-            "Session history is evidence and rationale",
+            "Session history is evidence and reason",
             "ask the user before changing durable design",
         ):
             self.assertIn(phrase, content)
@@ -187,7 +187,7 @@ class SessionSchemaTests(unittest.TestCase):
             "active skill selection",
             "major assumptions",
             "DRAFT decision records",
-            "Do not require rationale for obvious file discoveries",
+            "Do not require reason for obvious file discoveries",
         ):
             self.assertIn(phrase, content)
 
@@ -208,11 +208,11 @@ class SessionSchemaTests(unittest.TestCase):
         content = Path(".memory-seed/skills/memory_consolidation.md").read_text(encoding="utf-8")
 
         for phrase in (
-            "sessions preserve rationale and tradeoffs",
+            "sessions preserve reason and tradeoffs",
             "index.md receives only durable current conclusions",
             "policy.md receives only durable behavioral constraints",
             "Preserve DRAFT decision records",
-            "Do not copy full rationale into index.md",
+            "Do not copy full reason into index.md",
         ):
             self.assertIn(phrase, content)
 

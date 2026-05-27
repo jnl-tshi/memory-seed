@@ -89,7 +89,7 @@ Do not read or apply `.memory-seed/project-bootstrap.md` during normal operating
 
 ## History Retrieval And Conflict Resolution
 
-Use MCP history retrieval when prior decisions, rationale, unresolved risks, architecture, policy, bootstrap behavior, release history, or "why was this done" matters. This is a quick-start for agents that can call MCP tools.
+Use MCP history retrieval when prior decisions, reason, unresolved risks, architecture, policy, bootstrap behavior, release history, or "why was this done" matters. This is a quick-start for agents that can call MCP tools.
 
 ### When To Search
 
@@ -155,7 +155,7 @@ Use the fetched chunk text, not just the excerpt, when making or evaluating a co
 
 If MCP tools are unavailable, read recent and relevant `.memory-seed/sessions/YYYY-MM-DD.md` files directly. Start with the last two session files, then search older dated files by keyword if needed. Apply the same authority and conflict rules below.
 
-Current files are the active authority: `.memory-seed/index.md`, `.memory-seed/policy.md`, active `.memory-seed/skills/*.md`, and source/config files for implementation truth. Session history is evidence and rationale, not automatic authority.
+Current files are the active authority: `.memory-seed/index.md`, `.memory-seed/policy.md`, active `.memory-seed/skills/*.md`, and source/config files for implementation truth. Session history is evidence and reason, not automatic authority.
 
 When history conflicts with current authority files, resolve by timeline only when all clear supersession criteria are met:
 
@@ -300,7 +300,7 @@ This is the invariant the "do not rewrite old session entries" rule protects: ou
 
 Detailed work logs belong in the nearest active runtime. Add a parent/root summary only when sub-project work changes parent-visible topology, shared design, release behavior, policy inheritance, cross-project dependencies, risks, or active priorities. Do not mirror sub-project logs into root memory.
 
-Session entries must capture rationale when it matters, without forcing ceremony for small work. Use rationale for durable decisions, architecture changes, policy changes, bootstrap choices, release decisions, non-obvious tradeoffs, or changes likely to confuse a future agent.
+Session entries must capture reason when it matters, without forcing ceremony for small work. Use reason for durable decisions, architecture changes, policy changes, bootstrap choices, release decisions, non-obvious tradeoffs, or changes likely to confuse a future agent.
 
 ## Consolidation Review Triggers
 
@@ -463,18 +463,18 @@ Use one entry when several decisions belong to one coherent task, plan, or user 
 - Residual risks or next actions.
 ```
 
-### Rationale Rules
+### Reason Rules
 
 - A DRAFT decision record uses compact labels:
   - D = Decision
-  - R = Rationale
+  - R = Reason
   - A = Alternatives considered or rejected, with reason
   - F = Files, artifacts, or behaviors changed
   - T = Tests or validation
 - In a DRAFT decision record, `D` and `R` are required for meaningful decisions; `A`, `F`, and `T` are optional when not relevant.
-- Do not invent rationale.
-- If rationale is inferred, label it `Inferred rationale`.
-- If rationale is unknown, write `Rationale not recorded`.
+- Do not invent reason.
+- If reason is inferred, label it `Inferred reason`.
+- If reason is unknown, write `Reason not recorded`.
 - Alternatives are optional unless they affected the decision or tradeoff.
 - Use `D1`, `D2`, and similar labels only inside a multi-decision entry; `entry_id` is the global reference.
 - Do not rewrite old logs solely to match the newest schema unless the user explicitly asks.

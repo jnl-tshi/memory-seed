@@ -20,14 +20,14 @@ Use this skill when compacting session history, reviewing recent work, or promot
 6. Promote reusable procedures into `.memory-seed/skills/*.md`.
 7. Leave one-off debugging traces, temporary hypotheses, superseded experiments, and raw command output in sessions only.
 
-## Rationale Boundary
+## Reason Boundary
 
-- sessions preserve rationale and tradeoffs.
+- sessions preserve reason and tradeoffs.
 - index.md receives only durable current conclusions.
 - policy.md receives only durable behavioral constraints.
 - Preserve DRAFT decision records in sessions.
-- Do not copy full rationale into index.md unless a short rationale note is needed to prevent likely misuse.
-- Preserve alternatives, rejected paths, inferred rationale, and unknown-rationale markers in session history.
+- Do not copy full reason into index.md unless a short reason note is needed to prevent likely misuse.
+- Preserve alternatives, rejected paths, inferred reason, and unknown-reason markers in session history.
 
 ## Commands
 
