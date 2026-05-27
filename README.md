@@ -9,6 +9,12 @@ Memory Seed is a portable local memory system for AI coding agents. It plants a 
 
 It is built first for solo developers who move between Codex, Claude Code, Gemini CLI, and other file-reading agents. Teams can also use it to standardize local agent memory across repositories without introducing a database or hosted memory service.
 
+## Demo
+
+https://github.com/user-attachments/assets/b1c64d9e-4a67-4bc2-a030-d8ba7f17ccfe
+
+[▶ Watch the 30-second demo](https://github.com/jnl-tshi/memory-seed/releases/download/v2.1.3/memory-seed-demo.mp4) if the player above does not load.
+
 ## Quickstart
 
 From the root of a project where you want local agent memory:
