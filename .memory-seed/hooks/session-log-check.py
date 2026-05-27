@@ -35,10 +35,5 @@ if not recent:
         # Gemini CLI: additionalContext injected into model context
         print(json.dumps({"additionalContext": reminder}))
     else:
-        # Claude Code default
-        print(json.dumps({
-            "hookSpecificOutput": {
-                "hookEventName": "Stop",
-                "additionalContext": reminder,
-            }
-        }))
+        # Claude Code Stop hook: systemMessage injects into model context
+        print(json.dumps({"systemMessage": reminder}))
