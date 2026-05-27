@@ -2,8 +2,13 @@
 
 All notable changes to Memory Seed are summarized here.
 
-## Unreleased
+## 2.1.0 - 2026-05-27
 
+- Added multi-agent session log hooks: `memory-seed init` now installs `Stop`/after-response hooks for Claude Code (`.claude/settings.json`), Codex CLI (`.codex/hooks.json`), Cursor (`.cursor/hooks.json`), and Gemini CLI (`.gemini/settings.json`). Hooks remind the active agent to write a session log entry if none has been updated in the last 15 minutes.
+- Added `memory_seed/seed/.memory-seed/hooks/session-log-check.py` — cross-platform Python hook script with `--codex`, `--cursor`, and `--gemini` flags for agent-specific output formats.
+- Agent hook configs are handled as JSON merge targets (not seed file copies) so existing agent configuration is preserved on init and update.
+- Strengthened `agent-rules.md` "End Of Turn" section: all agents (Claude, Codex, Gemini, Cursor) are now explicitly required to write session log entries before the current turn ends, not deferred or batched.
+- Fixed `doctor()` to skip version-check for non-Markdown seed files.
 - Added `.memory-seed/skills/index.md` as a deterministic skill trigger registry for universal lazy-loaded skills.
 - Updated MCP memory retrieval to default to entry-level chunks using session YAML `entry_id`, with optional section granularity for narrower searches.
 - Added control-plane guidance for sub-project runtime creation and parent/root coordination summaries without mirroring sub-project logs.

@@ -40,6 +40,7 @@ This file contains behavioral constraints only. Functional runbooks belong in `.
 - `.memory-seed/skills/*.md` owns task-specific execution runbooks.
 - `.memory-seed/sessions/YYYY-MM-DD.md` owns chronological work history.
 - `.memory-seed/archive/` owns archived prior control-plane states.
+- `.memory-seed/hooks/*.py` owns lifecycle hook scripts (e.g. `session-log-check.py`).
 - `memory_seed/seed/` owns reusable files copied by `memory-seed init`.
 
 ## Security And Privacy
@@ -66,9 +67,9 @@ This file contains behavioral constraints only. Functional runbooks belong in `.
 - Parent policy is inherited by default unless a sub-project index explicitly disables it.
 - Do not read parent active state unless the sub-project index explicitly links to it.
 
-## End Of Work
+## End Of Turn
 
-- Append a concise note to `.memory-seed/sessions/YYYY-MM-DD.md` after meaningful work.
+- Append a concise note to `.memory-seed/sessions/YYYY-MM-DD.md` **before the current turn ends** — not deferred, not batched.
 - Do not fabricate decision rationale; mark rationale as inferred or not recorded when it is not explicitly known.
 - Update `.memory-seed/index.md` only when topology, active state, inheritance, or skill pointers changed.
 - Update `.memory-seed/policy.md` only when durable behavioral constraints changed.

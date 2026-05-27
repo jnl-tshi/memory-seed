@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "hooks": {
+    "afterAgentResponse": [
+      {
+        "command": "python3 .memory-seed/hooks/session-log-check.py --cursor"
+      }
+    ]
+  }
+}

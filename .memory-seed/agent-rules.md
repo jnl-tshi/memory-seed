@@ -267,20 +267,24 @@ For restricted files, the agent must be able to explain why the file's ownership
 
 Routine append:
 
-- `.memory-seed/sessions/YYYY-MM-DD.md`: append concise notes after meaningful work.
+- `.memory-seed/sessions/YYYY-MM-DD.md`: append concise notes after meaningful work, before the current turn ends.
 
 Do not rewrite old session entries unless the user explicitly asks for repair, archival cleanup, or correction.
 
-## End Of Work
+## End Of Turn
 
-After meaningful work:
+This rule applies to all agents equally — Claude, Codex, Gemini, and any other agent reading these instructions.
 
-1. Append a concise note to `.memory-seed/sessions/YYYY-MM-DD.md`.
+After any turn where meaningful work was completed:
+
+1. **Append a concise note to `.memory-seed/sessions/YYYY-MM-DD.md` before this turn ends.** Do not defer it to the next turn. Do not batch multiple turns into one entry later. Write it now.
 2. Review whether `.memory-seed/index.md` needs updated topology, active state, inheritance, or skill pointers.
 3. Review whether `.memory-seed/policy.md` needs durable behavioral-policy changes.
 4. Review whether any `.memory-seed/skills/*.md` runbook changed.
 5. If work occurred in a sub-project runtime, review whether the parent or root runtime needs a brief coordination summary.
 6. Run the smallest verification that proves the work.
+
+Deferring or batching session log writes is a discipline failure, not an acceptable workflow. If the current turn produced anything worth remembering — a decision, a file change, a resolved blocker, a tradeoff — write it now.
 
 Detailed work logs belong in the nearest active runtime. Add a parent/root summary only when sub-project work changes parent-visible topology, shared design, release behavior, policy inheritance, cross-project dependencies, risks, or active priorities. Do not mirror sub-project logs into root memory.
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import hashlib
 from dataclasses import dataclass, field
@@ -9,7 +10,7 @@ from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "2.0"
+VERSION = "2.1"
 MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
@@ -107,7 +108,16 @@ SEED_FILES = [
         SEED_ROOT / MEMORY_DIR_NAME / "sessions" / ".gitkeep",
         ".memory-seed/sessions/.gitkeep",
     ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "hooks" / "session-log-check.py",
+        ".memory-seed/hooks/session-log-check.py",
+    ),
 ]
+
+_CLAUDE_HOOK_COMMAND = "python3 .memory-seed/hooks/session-log-check.py"
+_CODEX_HOOK_COMMAND = "python3 .memory-seed/hooks/session-log-check.py --codex"
+_CURSOR_HOOK_COMMAND = "python3 .memory-seed/hooks/session-log-check.py --cursor"
+_GEMINI_HOOK_COMMAND = "python3 .memory-seed/hooks/session-log-check.py --gemini"
 
 BOOTSTRAP_GENERATED_FILES = [
     ".memory-seed/index.md",
@@ -171,6 +181,128 @@ def resolve_runtime(cwd: str | Path = ".") -> Runtime:
     )
 
 
+def _merge_cursor_hook(target_root: Path) -> bool:
+    """Add the session-log afterAgentResponse hook to .cursor/hooks.json."""
+    hooks_path = target_root / ".cursor" / "hooks.json"
+
+    data: dict = {}
+    if hooks_path.exists():
+        try:
+            with open(hooks_path) as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            data = {}
+
+    data.setdefault("version", 1)
+    for entry in data.get("hooks", {}).get("afterAgentResponse", []):
+        if entry.get("command") == _CURSOR_HOOK_COMMAND:
+            return False
+
+    data.setdefault("hooks", {}).setdefault("afterAgentResponse", []).append(
+        {"command": _CURSOR_HOOK_COMMAND}
+    )
+
+    hooks_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(hooks_path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+    return True
+
+
+def _merge_gemini_hook(target_root: Path) -> bool:
+    """Add the session-log Stop hook to .gemini/settings.json."""
+    settings_path = target_root / ".gemini" / "settings.json"
+
+    data: dict = {}
+    if settings_path.exists():
+        try:
+            with open(settings_path) as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            data = {}
+
+    for group in data.get("hooks", {}).get("Stop", []):
+        for hook in group.get("hooks", []):
+            if hook.get("command") == _GEMINI_HOOK_COMMAND:
+                return False
+
+    data.setdefault("hooks", {}).setdefault("Stop", []).append(
+        {"hooks": [{"type": "command", "command": _GEMINI_HOOK_COMMAND}]}
+    )
+
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(settings_path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+    return True
+
+
+def _merge_codex_hook(target_root: Path) -> bool:
+    """Add the session-log Stop hook to .codex/hooks.json, merging with existing content.
+
+    Returns True if the file was created or modified, False if the hook was already present.
+    """
+    hooks_path = target_root / ".codex" / "hooks.json"
+
+    data: dict = {}
+    if hooks_path.exists():
+        try:
+            with open(hooks_path) as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            data = {}
+
+    for group in data.get("hooks", {}).get("Stop", []):
+        for hook in group.get("hooks", []):
+            if hook.get("command") == _CODEX_HOOK_COMMAND:
+                return False
+
+    data.setdefault("hooks", {}).setdefault("Stop", []).append(
+        {"hooks": [{"type": "command", "command": _CODEX_HOOK_COMMAND}]}
+    )
+
+    hooks_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(hooks_path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+    return True
+
+
+def _merge_claude_hook(target_root: Path) -> bool:
+    """Add the session-log Stop hook to .claude/settings.json, merging with existing content.
+
+    Returns True if the file was created or modified, False if the hook was already present.
+    """
+    settings_path = target_root / ".claude" / "settings.json"
+
+    data: dict = {}
+    if settings_path.exists():
+        try:
+            with open(settings_path) as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            data = {}
+
+    for group in data.get("hooks", {}).get("Stop", []):
+        for hook in group.get("hooks", []):
+            if hook.get("command") == _CLAUDE_HOOK_COMMAND:
+                return False
+
+    data.setdefault("hooks", {}).setdefault("Stop", []).append(
+        {"hooks": [{"type": "command", "command": _CLAUDE_HOOK_COMMAND}]}
+    )
+
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(settings_path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+    return True
+
+
 def init_project(cwd: str | Path = ".", dry_run: bool = False, force: bool = False) -> InitResult:
     target_root = Path(cwd).resolve()
     planned = [seed_file.destination for seed_file in SEED_FILES]
@@ -206,6 +338,15 @@ def init_project(cwd: str | Path = ".", dry_run: bool = False, force: bool = Fal
         destination.parent.mkdir(parents=True, exist_ok=True)
         _copy_text_file(seed_file.source, destination)
         created.append(seed_file.destination)
+
+    if _merge_claude_hook(target_root):
+        created.append(".claude/settings.json")
+    if _merge_codex_hook(target_root):
+        created.append(".codex/hooks.json")
+    if _merge_cursor_hook(target_root):
+        created.append(".cursor/hooks.json")
+    if _merge_gemini_hook(target_root):
+        created.append(".gemini/settings.json")
 
     return InitResult(
         changed=True,
@@ -255,6 +396,15 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
         _copy_text_file(seed_file.source, destination)
         created.append(seed_file.destination)
 
+    if _merge_claude_hook(target_root):
+        created.append(".claude/settings.json")
+    if _merge_codex_hook(target_root):
+        created.append(".codex/hooks.json")
+    if _merge_cursor_hook(target_root):
+        created.append(".cursor/hooks.json")
+    if _merge_gemini_hook(target_root):
+        created.append(".gemini/settings.json")
+
     return InitResult(
         changed=bool(created or backed_up or archived),
         planned=planned,
@@ -275,6 +425,8 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
             missing.append(seed_file.destination)
             continue
 
+        if not candidate.suffix == ".md":
+            continue
         actual = _read_memory_system_version(candidate)
         if actual != VERSION:
             version_mismatches.append(

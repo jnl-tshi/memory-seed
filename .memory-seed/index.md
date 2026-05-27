@@ -58,19 +58,23 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 ## Topology
 
 - Root routing files: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`.
-- Runtime files: `.memory-seed/agent-rules.md`, `.memory-seed/project-bootstrap.md`, bootstrap-generated `.memory-seed/index.md`, bootstrap-generated `.memory-seed/policy.md`, `.memory-seed/skills/`, `.memory-seed/sessions/`, `.memory-seed/archive/`.
+- Runtime files: `.memory-seed/agent-rules.md`, `.memory-seed/project-bootstrap.md`, bootstrap-generated `.memory-seed/index.md`, bootstrap-generated `.memory-seed/policy.md`, `.memory-seed/skills/`, `.memory-seed/sessions/`, `.memory-seed/archive/`, `.memory-seed/hooks/`.
+- Agent hook configs: `.claude/settings.json` (Claude Code Stop hook), `.codex/hooks.json` (Codex CLI Stop hook) — both installed by `memory-seed init` via safe JSON merge.
 - Legacy `.AGENTS/`: supported by code for old projects, but not part of the v2 target shape.
 - Python orchestration: `memory_seed/core.py`, `memory_seed/semantic_cache.py`, `memory_seed/mcp_server.py`, `memory_seed/mcp_validate.py`, `memory_seed/cli.py`.
 - Seed templates: `memory_seed/seed/`.
 - Tests: `tests/`.
 - Public docs: `README.md`, `CHANGELOG.md`, `NEXT_STEPS.md`.
+- **Sub-project: `demo/`** — HyperFrames video composition (30 s product demo, MP4). Has its own `.memory-seed/` runtime; inherits root policy; does not use root AGENTS.md/CLAUDE.md (HyperFrames supplies those).
 
 ## Design Decisions
 
 - `.memory-seed/` is the canonical runtime directory.
 - Runtime discovery walks upward from `cwd` and uses the nearest `.memory-seed/`.
 - `.memory-seed/agent-rules.md` and `.memory-seed/project-bootstrap.md` are reusable procedure files inside the runtime.
-- `memory-seed init` installs reusable control files and generic skill templates only; it does not create generated project memory files.
+- `memory-seed init` installs reusable control files, generic skill templates, and lifecycle hooks; it does not create generated project memory files.
+- `.claude/settings.json` and `.codex/hooks.json` are handled as JSON merge targets during init/update — not seed file copies — so existing agent config is preserved.
+- `session-log-check.py` accepts `--codex` flag: outputs `hookSpecificOutput.additionalContext` for Claude, `systemMessage` for Codex.
 - Bootstrap generates `index.md`, `policy.md`, and the first dated session log after inspecting the project and asking targeted user questions.
 - Sub-projects live as normal folders with their own `.memory-seed/`; they are not nested inside the root `.memory-seed/`.
 - Parent policy and skills are inherited by default for sub-projects unless the sub-project index records a local override; local skills should only duplicate parent skills when overriding behavior or defining genuinely local runbooks.

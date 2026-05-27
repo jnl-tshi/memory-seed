@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .memory-seed/hooks/session-log-check.py --gemini"
+          }
+        ]
+      }
+    ]
+  }
+}

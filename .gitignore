@@ -6,3 +6,7 @@ dist/
 build/
 *.egg-info/
 
+# Demo sub-project build artifacts
+demo/node_modules/
+demo/*.mp4
+

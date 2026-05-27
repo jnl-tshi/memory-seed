@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memory-seed"
-version = "2.0.0"
+version = "2.1.0"
 description = "Portable local memory seed for file-reading AI coding agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -48,4 +48,5 @@ memory_seed = [
   "seed/.memory-seed/skills/memory_doctor.md",
   "seed/.memory-seed/skills/release_publishing.md",
   "seed/.memory-seed/sessions/.gitkeep",
+  "seed/.memory-seed/hooks/session-log-check.py",
 ]
