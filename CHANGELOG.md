@@ -4,6 +4,10 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+## 2.2.1 - 2026-05-29
+
+- Bumped the reusable control-plane version from `2.0` to `2.1`. Existing projects running `memory-seed update` will now receive the updated `agent-rules.md` (DRAFT format improvements from 2.2.0) and `project-bootstrap.md`.
+
 ## 2.2.0 - 2026-05-29
 
 - `memory-seed init` and `update` now register the `memory-seed-mcp --stdio` server in each vendor's MCP config: `.claude/settings.json` (Claude Code), `.cursor/mcp.json` (Cursor), and `.gemini/settings.json` (Gemini CLI). The `memory_search` and `memory_get_chunk` tools are now available to the agent without manual configuration.
