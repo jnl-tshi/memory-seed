@@ -23,7 +23,7 @@ class MemorySeedTests(unittest.TestCase):
         return path
 
     def test_version_reads_reusable_control_plane_version(self):
-        self.assertEqual(get_version(), "2.1")
+        self.assertEqual(get_version(), "2.2")
 
     def test_init_dry_run_reports_seed_files_without_writing(self):
         cwd = self.make_project()
@@ -90,7 +90,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(result.backed_up[0].startswith(".memory-seed/backups/"))
         self.assertEqual((cwd / result.backed_up[0]).read_text(encoding="utf-8"), "existing")
         self.assertIn(
-            "memory-system-version: 2.1",
+            "memory-system-version: 2.2",
             (cwd / "AGENTS.md").read_text(encoding="utf-8"),
         )
         self.assertIn(".memory-seed/backups/", (cwd / ".gitignore").read_text(encoding="utf-8"))
@@ -111,7 +111,7 @@ class MemorySeedTests(unittest.TestCase):
         init_project(cwd=cwd)
         gemini = cwd / "GEMINI.md"
         gemini.write_text(
-            gemini.read_text(encoding="utf-8").replace("2.1", "1.1"),
+            gemini.read_text(encoding="utf-8").replace("2.2", "1.1"),
             encoding="utf-8",
         )
         (cwd / "CLAUDE.md").unlink()
@@ -128,7 +128,7 @@ class MemorySeedTests(unittest.TestCase):
         )
         self.assertEqual(
             result.version_mismatches,
-            [{"file": "GEMINI.md", "expected": "2.1", "actual": "1.1"}],
+            [{"file": "GEMINI.md", "expected": "2.2", "actual": "1.1"}],
         )
 
     def test_doctor_distinguishes_bootstrap_completeness_from_control_plane_health(self):
@@ -211,11 +211,11 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("CLAUDE.md", result.created)
         self.assertTrue(any(path.endswith("/AGENTS.md") for path in result.backed_up))
         self.assertIn(
-            "memory-system-version: 2.1",
+            "memory-system-version: 2.2",
             (cwd / "AGENTS.md").read_text(encoding="utf-8"),
         )
         self.assertIn(
-            "memory-system-version: 2.1",
+            "memory-system-version: 2.2",
             (cwd / "CLAUDE.md").read_text(encoding="utf-8"),
         )
         self.assertEqual(
@@ -229,7 +229,7 @@ class MemorySeedTests(unittest.TestCase):
         init_project(cwd=cwd)
         agents = cwd / "AGENTS.md"
         agents.write_text(
-            agents.read_text(encoding="utf-8").replace("2.1", "1.4"),
+            agents.read_text(encoding="utf-8").replace("2.2", "1.4"),
             encoding="utf-8",
         )
 
@@ -313,14 +313,14 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(
             any(path.endswith("/.memory-seed/agent-rules.md") for path in result.backed_up)
         )
-        self.assertIn("memory-system-version: 2.1", rules.read_text(encoding="utf-8"))
+        self.assertIn("memory-system-version: 2.2", rules.read_text(encoding="utf-8"))
 
     def test_control_plane_files_report_current_version(self):
         for seed_file in SEED_FILES:
             if not seed_file.source.suffix == ".md":
                 continue
             content = seed_file.source.read_text(encoding="utf-8")
-            self.assertIn("memory-system-version: 2.1", content, seed_file.destination)
+            self.assertIn("memory-system-version: 2.2", content, seed_file.destination)
 
     def test_seed_files_use_memory_seed_runtime(self):
         destinations = sorted(seed_file.destination for seed_file in SEED_FILES)
@@ -593,6 +593,51 @@ class SessionLogOrderingHookTests(unittest.TestCase):
         )
         self.assertNotIn("ORDER WARNING", self._run(cwd))
 
+    def test_staleness_fires_when_no_session_file(self):
+        cwd = self.make_project()
+        out = self._run(cwd)
+        self.assertIn("SESSION LOG REMINDER", out)
+
+    def test_staleness_fires_when_last_entry_is_old(self):
+        import datetime
+
+        cwd = self.make_project()
+        today = datetime.date.today().isoformat()
+        (cwd / ".memory-seed" / "sessions" / f"{today}.md").write_text(
+            f"## {today} 01:00 - old entry\n\ntext\n",
+            encoding="utf-8",
+        )
+        self.assertIn("SESSION LOG REMINDER", self._run(cwd))
+
+    def test_staleness_silent_when_recent_entry(self):
+        import datetime
+
+        cwd = self.make_project()
+        now = datetime.datetime.now()
+        today = now.strftime("%Y-%m-%d")
+        recent_time = now.strftime("%H:%M")
+        (cwd / ".memory-seed" / "sessions" / f"{today}.md").write_text(
+            f"## {today} {recent_time} - recent entry\n\ntext\n",
+            encoding="utf-8",
+        )
+        self.assertNotIn("SESSION LOG REMINDER", self._run(cwd))
+
+    def test_staleness_not_defeated_by_file_mtime(self):
+        import datetime
+        import os
+
+        cwd = self.make_project()
+        today = datetime.date.today().isoformat()
+        session_file = cwd / ".memory-seed" / "sessions" / f"{today}.md"
+        session_file.write_text(
+            f"## {today} 01:00 - old entry\n\ntext\n",
+            encoding="utf-8",
+        )
+        # Touch the file to update mtime to now — simulating what git commit does.
+        os.utime(session_file, None)
+        # Staleness check should still fire because the entry heading is old.
+        self.assertIn("SESSION LOG REMINDER", self._run(cwd))
+
 
 class McpMergeTests(unittest.TestCase):
     def make_project(self):
@@ -609,8 +654,8 @@ class McpMergeTests(unittest.TestCase):
         data = json.loads((cwd / ".claude" / "settings.json").read_text())
         self.assertIn("memory-seed", data["mcpServers"])
         entry = data["mcpServers"]["memory-seed"]
-        self.assertEqual(entry["command"], "memory-seed-mcp")
-        self.assertEqual(entry["args"], ["--stdio"])
+        self.assertEqual(entry["command"], "uvx")
+        self.assertEqual(entry["args"], ["--from", "memory-seed", "memory-seed-mcp", "--stdio"])
         self.assertEqual(entry["type"], "stdio")
 
     def test_init_installs_mcp_for_cursor(self):
@@ -622,8 +667,8 @@ class McpMergeTests(unittest.TestCase):
         data = json.loads((cwd / ".cursor" / "mcp.json").read_text())
         self.assertIn("memory-seed", data["mcpServers"])
         entry = data["mcpServers"]["memory-seed"]
-        self.assertEqual(entry["command"], "memory-seed-mcp")
-        self.assertEqual(entry["args"], ["--stdio"])
+        self.assertEqual(entry["command"], "uvx")
+        self.assertEqual(entry["args"], ["--from", "memory-seed", "memory-seed-mcp", "--stdio"])
         self.assertNotIn("type", entry)
 
     def test_init_installs_mcp_for_gemini(self):
@@ -635,8 +680,8 @@ class McpMergeTests(unittest.TestCase):
         data = json.loads((cwd / ".gemini" / "settings.json").read_text())
         self.assertIn("memory-seed", data["mcpServers"])
         entry = data["mcpServers"]["memory-seed"]
-        self.assertEqual(entry["command"], "memory-seed-mcp")
-        self.assertEqual(entry["args"], ["--stdio"])
+        self.assertEqual(entry["command"], "uvx")
+        self.assertEqual(entry["args"], ["--from", "memory-seed", "memory-seed-mcp", "--stdio"])
 
     def test_mcp_merges_are_idempotent(self):
         from memory_seed.core import (
@@ -669,7 +714,9 @@ class McpMergeTests(unittest.TestCase):
         self.assertTrue(result)
 
         data = json.loads(settings.read_text())
-        self.assertEqual(data["mcpServers"]["memory-seed"]["args"], ["--stdio"])
+        entry = data["mcpServers"]["memory-seed"]
+        self.assertEqual(entry["command"], "uvx")
+        self.assertEqual(entry["args"], ["--from", "memory-seed", "memory-seed-mcp", "--stdio"])
 
     def test_mcp_merge_preserves_unrelated_mcp_server(self):
         import json

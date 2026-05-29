@@ -115,7 +115,7 @@ The result is a lightweight memory workflow you can understand, commit, review, 
 | Agent or client | Support path |
 | --- | --- |
 | Codex | Starts from `AGENTS.md`; can use MCP when the client supports stdio MCP servers. |
-| Claude Code | Starts from `CLAUDE.md`; can register `memory-seed-mcp` through `uvx`. |
+| Claude Code | Starts from `CLAUDE.md`; MCP server auto-registered via `uvx --from memory-seed`. |
 | Gemini CLI | Starts from `GEMINI.md`. |
 | Other file-reading agents | Start from `AGENTS.md` and follow nearest `.memory-seed/` runtime discovery. |
 | MCP-capable clients | Use `memory_search` and `memory_get_chunk` through `memory-seed-mcp --stdio`. |
@@ -179,7 +179,7 @@ GEMINI.md
 
 ## Current Version
 
-The current reusable control-plane version is `2.0`.
+The current reusable control-plane version is `2.2`.
 
 Legacy `.AGENTS/` projects remain supported as a fallback during migration.
 
@@ -344,7 +344,7 @@ For the version distinction (`pip show memory-seed` reports the package version;
 
 Memory Seed also includes a lightweight MCP server that lets agents search local session memory through structured tool calls instead of shelling out to broad compact summaries.
 
-**Auto-registration:** `memory-seed init` and `memory-seed update` automatically register `memory-seed-mcp --stdio` in each supported vendor's config — `.claude/settings.json` (Claude Code), `.cursor/mcp.json` (Cursor), and `.gemini/settings.json` (Gemini CLI). No manual config is needed for projects initialised with Memory Seed.
+**Auto-registration:** `memory-seed init` and `memory-seed update` automatically register `uvx --from memory-seed memory-seed-mcp --stdio` in each supported vendor's config — `.claude/settings.json` (Claude Code), `.cursor/mcp.json` (Cursor), and `.gemini/settings.json` (Gemini CLI). No manual config is needed for projects initialised with Memory Seed. The `uvx --from` form is used so the command works regardless of whether `~/.local/bin` is on the agent's PATH.
 
 If you are configuring the server manually, run it over stdio:
 

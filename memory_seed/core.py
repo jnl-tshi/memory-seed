@@ -10,7 +10,7 @@ from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "2.1"
+VERSION = "2.2"
 MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
@@ -128,9 +128,10 @@ _CODEX_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py
 _CURSOR_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py --cursor"
 _GEMINI_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py --gemini"
 
-_MCP_SERVER_COMMAND = "memory-seed-mcp"
-_MCP_SERVER_ARGS = ["--stdio"]
+_MCP_SERVER_COMMAND = "uvx"
+_MCP_SERVER_ARGS = ["--from", "memory-seed", "memory-seed-mcp", "--stdio"]
 _MCP_SERVER_KEY = "memory-seed"
+_OWN_MCP_COMMANDS = {"uvx", "memory-seed-mcp"}
 
 BOOTSTRAP_GENERATED_FILES = [
     ".memory-seed/index.md",
@@ -364,7 +365,8 @@ def _merge_claude_mcp(target_root: Path) -> bool:
     existing = data.get("mcpServers", {}).get(_MCP_SERVER_KEY, {})
     if existing == expected:
         return False
-    if existing and existing.get("command") != _MCP_SERVER_COMMAND:
+    is_ours = existing.get("command") in _OWN_MCP_COMMANDS or "memory-seed-mcp" in existing.get("args", [])
+    if existing and not is_ours:
         return False  # a different server is using this key; don't overwrite
 
     data.setdefault("mcpServers", {})[_MCP_SERVER_KEY] = expected
@@ -393,7 +395,8 @@ def _merge_cursor_mcp(target_root: Path) -> bool:
     existing = data.get("mcpServers", {}).get(_MCP_SERVER_KEY, {})
     if existing == expected:
         return False
-    if existing and existing.get("command") != _MCP_SERVER_COMMAND:
+    is_ours = existing.get("command") in _OWN_MCP_COMMANDS or "memory-seed-mcp" in existing.get("args", [])
+    if existing and not is_ours:
         return False  # a different server is using this key; don't overwrite
 
     data.setdefault("mcpServers", {})[_MCP_SERVER_KEY] = expected
@@ -422,7 +425,8 @@ def _merge_gemini_mcp(target_root: Path) -> bool:
     existing = data.get("mcpServers", {}).get(_MCP_SERVER_KEY, {})
     if existing == expected:
         return False
-    if existing and existing.get("command") != _MCP_SERVER_COMMAND:
+    is_ours = existing.get("command") in _OWN_MCP_COMMANDS or "memory-seed-mcp" in existing.get("args", [])
+    if existing and not is_ours:
         return False  # a different server is using this key; don't overwrite
 
     data.setdefault("mcpServers", {})[_MCP_SERVER_KEY] = expected

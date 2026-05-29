@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.1
+memory-system-version: 2.2
 tags:
   - memory-seed
   - agent-rules
@@ -292,11 +292,12 @@ Deferring or batching session log writes is a discipline failure, not an accepta
 The session file is strictly append-only and must stay in ascending time order. To guarantee this without ever reordering:
 
 - Append every new entry to the **end** of the day's file. Never insert an entry above an existing one.
+- **Use `>>` shell redirection or Python append mode (`open(f, 'a')`) to write entries — do not use an editor replace/insert operation.** Replace/insert requires selecting an anchor line; if a prior edit already added content after that anchor, the new entry lands mid-file instead of at the end. Append mode writes to the physical end of the file unconditionally, with no anchor needed.
 - The entry heading timestamp is the **actual current clock time** at the moment you write it. Read it from the system clock; never reuse a time from your context, memory, or an earlier message, and never backdate it to when the work happened.
 - Because entries are always appended with the current time, file order, write order, and timestamp order are identical. No manual reordering is ever needed or allowed.
 - If you are recording work that completed earlier in the session (you forgot, or you are catching up), still stamp the heading with the current time. If the original work time matters, state it in the entry body — do not move the entry above newer ones and do not rewrite earlier headings.
 
-This is the invariant the "do not rewrite old session entries" rule protects: out-of-order or backdated entries force a human to manually re-sort the log, which is exactly what append-only is meant to prevent.
+This is the invariant the "do not rewrite old session entries" rule protects: out-of-order or backdated entries force a human to manually re-sort the log, which is exactly what append-only is meant to prevent. The `>>` / append-mode discipline makes this invariant mechanical rather than reliant on careful anchor selection.
 
 Detailed work logs belong in the nearest active runtime. Add a parent/root summary only when sub-project work changes parent-visible topology, shared design, release behavior, policy inheritance, cross-project dependencies, risks, or active priorities. Do not mirror sub-project logs into root memory.
 

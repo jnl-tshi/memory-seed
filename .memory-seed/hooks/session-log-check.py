@@ -16,16 +16,34 @@ if not d.exists():
 today = datetime.now().strftime("%Y-%m-%d")
 messages = []
 
-# Staleness check: nudge a session write if nothing was logged recently.
+# Read today's entry timestamps once — used by both checks below.
+# File mtime is intentionally not used: a git commit touching the session
+# file would defeat a mtime-based staleness check.
+heading_re = re.compile(r"^## (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})\b")
+today_file = d / f"{today}.md"
+stamps = []
+if today_file.exists():
+    for line in today_file.read_text(encoding="utf-8").splitlines():
+        m = heading_re.match(line)
+        if m:
+            stamps.append(f"{m.group(1)} {m.group(2)}")
+
+# Staleness check: the most recent timestamped entry heading must be within
+# the last 15 minutes.
 cutoff = datetime.now() - timedelta(minutes=15)
-recent = [
-    f for f in d.glob("*.md")
-    if datetime.fromtimestamp(f.stat().st_mtime) > cutoff
-]
-if not recent:
+latest = None
+for stamp in stamps:
+    try:
+        t = datetime.strptime(stamp, "%Y-%m-%d %H:%M")
+        if latest is None or t > latest:
+            latest = t
+    except ValueError:
+        pass
+
+if latest is None or latest < cutoff:
     messages.append(
         f"SESSION LOG REMINDER: No .memory-seed/sessions/ entry has been "
-        f"updated in the last 15 minutes. If you completed meaningful work "
+        f"written in the last 15 minutes. If you completed meaningful work "
         f"this turn, append an entry to .memory-seed/sessions/{today}.md "
         f"now — before this turn ends. "
         f"For decisions, use DRAFT labels: "
@@ -34,22 +52,16 @@ if not recent:
     )
 
 # Chronology check: today's entry headings must be in non-decreasing time order.
-heading_re = re.compile(r"^## (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})\b")
-today_file = d / f"{today}.md"
-if today_file.exists():
-    stamps = []
-    for line in today_file.read_text(encoding="utf-8").splitlines():
-        m = heading_re.match(line)
-        if m:
-            stamps.append(f"{m.group(1)} {m.group(2)}")
-    if any(stamps[i] < stamps[i - 1] for i in range(1, len(stamps))):
-        messages.append(
-            f"SESSION LOG ORDER WARNING: Entries in "
-            f".memory-seed/sessions/{today}.md are not in ascending time "
-            f"order. The log is append-only: append new entries at the end "
-            f"with the current clock time, never backdated. Do not reorder "
-            f"existing entries unless the user asks for a repair."
-        )
+if any(stamps[i] < stamps[i - 1] for i in range(1, len(stamps))):
+    messages.append(
+        f"SESSION LOG ORDER WARNING: Entries in "
+        f".memory-seed/sessions/{today}.md are not in ascending time "
+        f"order. The log is append-only. To repair: use >> shell "
+        f"redirection or Python append mode (open(f, 'a')) to move the "
+        f"out-of-order entry to the end of the file with the current "
+        f"clock time — do not use an editor replace/insert operation. "
+        f"Do not reorder existing entries unless the user asks for a repair."
+    )
 
 if not messages:
     sys.exit(0)
