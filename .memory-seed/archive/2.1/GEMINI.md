@@ -1,11 +1,11 @@
 ---
-memory-system-version: 2.2
+memory-system-version: 2.1
 tags:
   - agent-entry
   - ai-memory
 ---
 
-# Claude Instructions
+# Gemini Instructions
 
 The canonical agent instructions for this repository are in `AGENTS.md`.
 

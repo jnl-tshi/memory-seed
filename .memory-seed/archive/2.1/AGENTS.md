@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.2
+memory-system-version: 2.1
 tags:
   - agent-entry
   - ai-memory
@@ -46,7 +46,8 @@ When initialized memory files exist, start here:
 2. Read the active `.memory-seed/index.md` for topology, active state, and inheritance rules.
 3. Read parent `.memory-seed/policy.md` only when the active index says policy is inherited.
 4. Read the active `.memory-seed/policy.md` for behavioral constraints and local overrides.
-5. Load files from `.memory-seed/skills/` only when the task matches a listed skill.
+5. Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry.
+6. Load full files from `.memory-seed/skills/` only when the trigger registry matches the task.
 
 Do not read skills preemptively. Skills are lazy-loaded execution runbooks.
 
