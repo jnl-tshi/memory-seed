@@ -344,7 +344,9 @@ For the version distinction (`pip show memory-seed` reports the package version;
 
 Memory Seed also includes a lightweight MCP server that lets agents search local session memory through structured tool calls instead of shelling out to broad compact summaries.
 
-Run it over stdio:
+**Auto-registration:** `memory-seed init` and `memory-seed update` automatically register `memory-seed-mcp --stdio` in each supported vendor's config — `.claude/settings.json` (Claude Code), `.cursor/mcp.json` (Cursor), and `.gemini/settings.json` (Gemini CLI). No manual config is needed for projects initialised with Memory Seed.
+
+If you are configuring the server manually, run it over stdio:
 
 ```powershell
 uvx --from memory-seed memory-seed-mcp --stdio

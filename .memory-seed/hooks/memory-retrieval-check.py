@@ -1,4 +1,5 @@
 import json
+import shutil
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -27,13 +28,28 @@ try:
 except OSError:
     pass
 
-reminder = (
-    "MEMORY RETRIEVAL REMINDER: Before substantive work, retrieve relevant "
-    "prior context. Call the memory_search MCP tool, or if MCP is "
-    "unavailable read the two most recent .memory-seed/sessions/*.md files. "
-    "Do this before editing code or making decisions so you build on past "
-    "work instead of repeating it."
+_draft = (
+    "Record durable decisions using DRAFT labels: "
+    "D (Decision, required), R (Reason, required), "
+    "A (Alternatives, optional), F (Files, optional), T (Tests, optional)."
 )
+
+if shutil.which("memory-seed-mcp") is not None:
+    reminder = (
+        "MEMORY RETRIEVAL REMINDER: Before substantive work, retrieve relevant "
+        "prior context. Call the memory_search MCP tool, or if MCP is "
+        "unavailable read the two most recent .memory-seed/sessions/*.md files. "
+        "Do this before editing code or making decisions so you build on past "
+        f"work instead of repeating it. {_draft}"
+    )
+else:
+    reminder = (
+        "MEMORY RETRIEVAL REMINDER: memory-seed-mcp is not on PATH — the "
+        "memory_search tool is unavailable. To fix: run "
+        "`uv tool install memory-seed` (or `pip install memory-seed`), then "
+        "restart your editor. For now, read the two most recent "
+        f".memory-seed/sessions/*.md files before substantive work. {_draft}"
+    )
 
 if agent == "codex":
     # Codex CLI UserPromptSubmit: systemMessage shown in UI

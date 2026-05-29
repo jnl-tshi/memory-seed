@@ -390,6 +390,27 @@ subproject_path: null
 
 Keep session filenames date-only, such as `.memory-seed/sessions/2026-05-02.md`. Use minute-level timestamps in entry headings, taken from the current system clock at write time. Entries are appended in clock order and never backdated or reordered (see Append-Only Chronology). Generate `entry_id` as a deterministic short hash from metadata only: timestamp, title, user initials, agent type, project path, and subproject path. Use known user initials when available; otherwise ask during bootstrap or use a neutral placeholder until confirmed. Capture meaningful decisions, durable changes, follow-up risk, or handoff context. Do not log every command.
 
+### Reason Rules
+
+**DRAFT** is the compact decision-record format used inside session entries. Use it whenever a meaningful decision was made or implemented.
+
+A DRAFT decision record uses compact labels:
+
+- D = Decision — what was chosen
+- R = Reason — the decisive reason, 1–3 bullets; **required**
+- A = Alternatives considered or rejected, with reason (optional unless it shaped the tradeoff)
+- F = Files, artifacts, or behaviors changed (optional)
+- T = Tests or validation outcome (optional; may appear inline as `- T:` or as a separate `### Validation` section)
+
+`D` and `R` are required for every meaningful decision. `A`, `F`, and `T` are optional when not relevant.
+
+- Do not invent reason.
+- If reason is inferred, label it `Inferred reason`.
+- If reason is unknown, write `Reason not recorded`.
+- Alternatives are optional unless they affected the decision or tradeoff.
+- Use `D1`, `D2`, and similar labels only inside a multi-decision entry; `entry_id` is the global reference.
+- Do not rewrite old logs solely to match the newest schema unless the user explicitly asks.
+
 ### Entry Shapes
 
 Use the lightest entry shape that preserves future usefulness.
@@ -462,22 +483,6 @@ Use one entry when several decisions belong to one coherent task, plan, or user 
 
 - Residual risks or next actions.
 ```
-
-### Reason Rules
-
-- A DRAFT decision record uses compact labels:
-  - D = Decision
-  - R = Reason
-  - A = Alternatives considered or rejected, with reason
-  - F = Files, artifacts, or behaviors changed
-  - T = Tests or validation
-- In a DRAFT decision record, `D` and `R` are required for meaningful decisions; `A`, `F`, and `T` are optional when not relevant.
-- Do not invent reason.
-- If reason is inferred, label it `Inferred reason`.
-- If reason is unknown, write `Reason not recorded`.
-- Alternatives are optional unless they affected the decision or tradeoff.
-- Use `D1`, `D2`, and similar labels only inside a multi-decision entry; `entry_id` is the global reference.
-- Do not rewrite old logs solely to match the newest schema unless the user explicitly asks.
 
 ## Archive Policy
 

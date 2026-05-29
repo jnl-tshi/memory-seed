@@ -27,7 +27,10 @@ if not recent:
         f"SESSION LOG REMINDER: No .memory-seed/sessions/ entry has been "
         f"updated in the last 15 minutes. If you completed meaningful work "
         f"this turn, append an entry to .memory-seed/sessions/{today}.md "
-        f"now — before this turn ends."
+        f"now — before this turn ends. "
+        f"For decisions, use DRAFT labels: "
+        f"D (Decision, required), R (Reason, required), "
+        f"A (Alternatives, optional), F (Files, optional), T (Tests, optional)."
     )
 
 # Chronology check: today's entry headings must be in non-decreasing time order.

@@ -128,6 +128,10 @@ _CODEX_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py
 _CURSOR_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py --cursor"
 _GEMINI_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py --gemini"
 
+_MCP_SERVER_COMMAND = "memory-seed-mcp"
+_MCP_SERVER_ARGS = ["--stdio"]
+_MCP_SERVER_KEY = "memory-seed"
+
 BOOTSTRAP_GENERATED_FILES = [
     ".memory-seed/index.md",
     ".memory-seed/policy.md",
@@ -191,132 +195,54 @@ def resolve_runtime(cwd: str | Path = ".") -> Runtime:
 
 
 def _merge_cursor_hook(target_root: Path) -> bool:
-    """Add the session-log afterAgentResponse hook to .cursor/hooks.json."""
-    hooks_path = target_root / ".cursor" / "hooks.json"
-
-    data: dict = {}
-    if hooks_path.exists():
-        try:
-            with open(hooks_path) as f:
-                data = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            data = {}
-
-    data.setdefault("version", 1)
-    for entry in data.get("hooks", {}).get("afterAgentResponse", []):
-        if entry.get("command") == _CURSOR_HOOK_COMMAND:
-            return False
-
-    data.setdefault("hooks", {}).setdefault("afterAgentResponse", []).append(
-        {"command": _CURSOR_HOOK_COMMAND}
+    """Upsert the session-log afterAgentResponse hook in .cursor/hooks.json."""
+    return _merge_cursor_event_hook(
+        target_root / ".cursor" / "hooks.json",
+        "afterAgentResponse",
+        _CURSOR_HOOK_COMMAND,
+        "session-log-check.py",
     )
-
-    hooks_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(hooks_path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-
-    return True
 
 
 def _merge_gemini_hook(target_root: Path) -> bool:
-    """Add the session-log Stop hook to .gemini/settings.json."""
-    settings_path = target_root / ".gemini" / "settings.json"
-
-    data: dict = {}
-    if settings_path.exists():
-        try:
-            with open(settings_path) as f:
-                data = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            data = {}
-
-    for group in data.get("hooks", {}).get("Stop", []):
-        for hook in group.get("hooks", []):
-            if hook.get("command") == _GEMINI_HOOK_COMMAND:
-                return False
-
-    data.setdefault("hooks", {}).setdefault("Stop", []).append(
-        {"hooks": [{"type": "command", "command": _GEMINI_HOOK_COMMAND}]}
+    """Upsert the session-log Stop hook in .gemini/settings.json."""
+    return _merge_grouped_hook(
+        target_root / ".gemini" / "settings.json",
+        "Stop",
+        _GEMINI_HOOK_COMMAND,
+        "session-log-check.py",
     )
-
-    settings_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(settings_path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-
-    return True
 
 
 def _merge_codex_hook(target_root: Path) -> bool:
-    """Add the session-log Stop hook to .codex/hooks.json, merging with existing content.
-
-    Returns True if the file was created or modified, False if the hook was already present.
-    """
-    hooks_path = target_root / ".codex" / "hooks.json"
-
-    data: dict = {}
-    if hooks_path.exists():
-        try:
-            with open(hooks_path) as f:
-                data = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            data = {}
-
-    for group in data.get("hooks", {}).get("Stop", []):
-        for hook in group.get("hooks", []):
-            if hook.get("command") == _CODEX_HOOK_COMMAND:
-                return False
-
-    data.setdefault("hooks", {}).setdefault("Stop", []).append(
-        {"hooks": [{"type": "command", "command": _CODEX_HOOK_COMMAND}]}
+    """Upsert the session-log Stop hook in .codex/hooks.json."""
+    return _merge_grouped_hook(
+        target_root / ".codex" / "hooks.json",
+        "Stop",
+        _CODEX_HOOK_COMMAND,
+        "session-log-check.py",
     )
-
-    hooks_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(hooks_path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-
-    return True
 
 
 def _merge_claude_hook(target_root: Path) -> bool:
-    """Add the session-log Stop hook to .claude/settings.json, merging with existing content.
-
-    Returns True if the file was created or modified, False if the hook was already present.
-    """
-    settings_path = target_root / ".claude" / "settings.json"
-
-    data: dict = {}
-    if settings_path.exists():
-        try:
-            with open(settings_path) as f:
-                data = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            data = {}
-
-    for group in data.get("hooks", {}).get("Stop", []):
-        for hook in group.get("hooks", []):
-            if hook.get("command") == _CLAUDE_HOOK_COMMAND:
-                return False
-
-    data.setdefault("hooks", {}).setdefault("Stop", []).append(
-        {"hooks": [{"type": "command", "command": _CLAUDE_HOOK_COMMAND}]}
+    """Upsert the session-log Stop hook in .claude/settings.json."""
+    return _merge_grouped_hook(
+        target_root / ".claude" / "settings.json",
+        "Stop",
+        _CLAUDE_HOOK_COMMAND,
+        "session-log-check.py",
     )
 
-    settings_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(settings_path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
 
-    return True
-
-
-def _merge_grouped_hook(config_path: Path, event: str, command: str) -> bool:
-    """Add a command hook under hooks.<event> in matcher-group form.
+def _merge_grouped_hook(config_path: Path, event: str, command: str, script_name: str) -> bool:
+    """Upsert a command hook under hooks.<event> in matcher-group form.
 
     Used for Claude Code, Codex, and Gemini, which share the
-    hooks.<event>[].hooks[].{type, command} shape. Idempotent.
+    hooks.<event>[].hooks[].{type, command} shape.
+
+    Identifies our entry by script_name (the stable filename). If an entry
+    with that script is found with a different command, updates it in place.
+    Returns True if the file was written, False if already current.
     """
     data: dict = {}
     if config_path.exists():
@@ -330,6 +256,13 @@ def _merge_grouped_hook(config_path: Path, event: str, command: str) -> bool:
         for hook in group.get("hooks", []):
             if hook.get("command") == command:
                 return False
+            if script_name in (hook.get("command") or ""):
+                hook["command"] = command
+                config_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(config_path, "w") as f:
+                    json.dump(data, f, indent=2)
+                    f.write("\n")
+                return True
 
     data.setdefault("hooks", {}).setdefault(event, []).append(
         {"hooks": [{"type": "command", "command": command}]}
@@ -343,8 +276,12 @@ def _merge_grouped_hook(config_path: Path, event: str, command: str) -> bool:
     return True
 
 
-def _merge_cursor_event_hook(config_path: Path, event: str, command: str) -> bool:
-    """Add a command hook under hooks.<event> in Cursor's flat list form."""
+def _merge_cursor_event_hook(config_path: Path, event: str, command: str, script_name: str) -> bool:
+    """Upsert a command hook under hooks.<event> in Cursor's flat list form.
+
+    Identifies our entry by script_name. Updates in place if command changed.
+    Returns True if the file was written, False if already current.
+    """
     data: dict = {}
     if config_path.exists():
         try:
@@ -357,6 +294,13 @@ def _merge_cursor_event_hook(config_path: Path, event: str, command: str) -> boo
     for entry in data.get("hooks", {}).get(event, []):
         if entry.get("command") == command:
             return False
+        if script_name in (entry.get("command") or ""):
+            entry["command"] = command
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(config_path, "w") as f:
+                json.dump(data, f, indent=2)
+                f.write("\n")
+            return True
 
     data.setdefault("hooks", {}).setdefault(event, []).append({"command": command})
 
@@ -373,6 +317,7 @@ def _merge_claude_retrieval_hook(target_root: Path) -> bool:
         target_root / ".claude" / "settings.json",
         "UserPromptSubmit",
         _CLAUDE_RETRIEVAL_COMMAND,
+        "memory-retrieval-check.py",
     )
 
 
@@ -381,6 +326,7 @@ def _merge_codex_retrieval_hook(target_root: Path) -> bool:
         target_root / ".codex" / "hooks.json",
         "UserPromptSubmit",
         _CODEX_RETRIEVAL_COMMAND,
+        "memory-retrieval-check.py",
     )
 
 
@@ -389,6 +335,7 @@ def _merge_gemini_retrieval_hook(target_root: Path) -> bool:
         target_root / ".gemini" / "settings.json",
         "UserPromptSubmit",
         _GEMINI_RETRIEVAL_COMMAND,
+        "memory-retrieval-check.py",
     )
 
 
@@ -397,7 +344,95 @@ def _merge_cursor_retrieval_hook(target_root: Path) -> bool:
         target_root / ".cursor" / "hooks.json",
         "sessionStart",
         _CURSOR_RETRIEVAL_COMMAND,
+        "memory-retrieval-check.py",
     )
+
+
+def _merge_claude_mcp(target_root: Path) -> bool:
+    """Upsert the memory-seed-mcp stdio server entry in .claude/settings.json."""
+    settings_path = target_root / ".claude" / "settings.json"
+    expected = {"command": _MCP_SERVER_COMMAND, "args": _MCP_SERVER_ARGS, "type": "stdio"}
+
+    data: dict = {}
+    if settings_path.exists():
+        try:
+            with open(settings_path) as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            data = {}
+
+    existing = data.get("mcpServers", {}).get(_MCP_SERVER_KEY, {})
+    if existing == expected:
+        return False
+    if existing and existing.get("command") != _MCP_SERVER_COMMAND:
+        return False  # a different server is using this key; don't overwrite
+
+    data.setdefault("mcpServers", {})[_MCP_SERVER_KEY] = expected
+
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(settings_path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+    return True
+
+
+def _merge_cursor_mcp(target_root: Path) -> bool:
+    """Upsert the memory-seed-mcp stdio server entry in .cursor/mcp.json."""
+    mcp_path = target_root / ".cursor" / "mcp.json"
+    expected = {"command": _MCP_SERVER_COMMAND, "args": _MCP_SERVER_ARGS}
+
+    data: dict = {}
+    if mcp_path.exists():
+        try:
+            with open(mcp_path) as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            data = {}
+
+    existing = data.get("mcpServers", {}).get(_MCP_SERVER_KEY, {})
+    if existing == expected:
+        return False
+    if existing and existing.get("command") != _MCP_SERVER_COMMAND:
+        return False  # a different server is using this key; don't overwrite
+
+    data.setdefault("mcpServers", {})[_MCP_SERVER_KEY] = expected
+
+    mcp_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(mcp_path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+    return True
+
+
+def _merge_gemini_mcp(target_root: Path) -> bool:
+    """Upsert the memory-seed-mcp stdio server entry in .gemini/settings.json."""
+    settings_path = target_root / ".gemini" / "settings.json"
+    expected = {"command": _MCP_SERVER_COMMAND, "args": _MCP_SERVER_ARGS}
+
+    data: dict = {}
+    if settings_path.exists():
+        try:
+            with open(settings_path) as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            data = {}
+
+    existing = data.get("mcpServers", {}).get(_MCP_SERVER_KEY, {})
+    if existing == expected:
+        return False
+    if existing and existing.get("command") != _MCP_SERVER_COMMAND:
+        return False  # a different server is using this key; don't overwrite
+
+    data.setdefault("mcpServers", {})[_MCP_SERVER_KEY] = expected
+
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(settings_path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+    return True
 
 
 def init_project(cwd: str | Path = ".", dry_run: bool = False, force: bool = False) -> InitResult:
@@ -445,6 +480,9 @@ def init_project(cwd: str | Path = ".", dry_run: bool = False, force: bool = Fal
         (_merge_codex_retrieval_hook, ".codex/hooks.json"),
         (_merge_cursor_retrieval_hook, ".cursor/hooks.json"),
         (_merge_gemini_retrieval_hook, ".gemini/settings.json"),
+        (_merge_claude_mcp, ".claude/settings.json"),
+        (_merge_cursor_mcp, ".cursor/mcp.json"),
+        (_merge_gemini_mcp, ".gemini/settings.json"),
     )
     for merge, destination in hook_merges:
         if merge(target_root) and destination not in created:
@@ -507,6 +545,9 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
         (_merge_codex_retrieval_hook, ".codex/hooks.json"),
         (_merge_cursor_retrieval_hook, ".cursor/hooks.json"),
         (_merge_gemini_retrieval_hook, ".gemini/settings.json"),
+        (_merge_claude_mcp, ".claude/settings.json"),
+        (_merge_cursor_mcp, ".cursor/mcp.json"),
+        (_merge_gemini_mcp, ".gemini/settings.json"),
     )
     for merge, destination in hook_merges:
         if merge(target_root) and destination not in created:

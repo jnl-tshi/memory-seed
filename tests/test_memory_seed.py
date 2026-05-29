@@ -493,6 +493,63 @@ class HookMergeTests(unittest.TestCase):
         self.assertTrue(_merge_cursor_retrieval_hook(cwd))
         self.assertFalse(_merge_cursor_retrieval_hook(cwd))
 
+    def test_grouped_hook_updates_stale_command(self):
+        import json
+        from memory_seed.core import _merge_grouped_hook
+
+        cwd = self.make_project()
+        config = cwd / ".claude" / "settings.json"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text(
+            json.dumps({
+                "hooks": {
+                    "UserPromptSubmit": [
+                        {"hooks": [{"type": "command", "command": "python3 .memory-seed/hooks/memory-retrieval-check.py --old-flag"}]}
+                    ]
+                }
+            }),
+            encoding="utf-8",
+        )
+
+        new_command = "python3 .memory-seed/hooks/memory-retrieval-check.py"
+        result = _merge_grouped_hook(config, "UserPromptSubmit", new_command, "memory-retrieval-check.py")
+        self.assertTrue(result)
+
+        data = json.loads(config.read_text())
+        commands = [
+            h["command"]
+            for g in data["hooks"]["UserPromptSubmit"]
+            for h in g.get("hooks", [])
+        ]
+        self.assertEqual(commands, [new_command])  # updated in place, no duplicate
+
+    def test_cursor_event_hook_updates_stale_command(self):
+        import json
+        from memory_seed.core import _merge_cursor_event_hook
+
+        cwd = self.make_project()
+        config = cwd / ".cursor" / "hooks.json"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text(
+            json.dumps({
+                "version": 1,
+                "hooks": {
+                    "sessionStart": [
+                        {"command": "python3 .memory-seed/hooks/memory-retrieval-check.py --cursor --old-flag"}
+                    ]
+                }
+            }),
+            encoding="utf-8",
+        )
+
+        new_command = "python3 .memory-seed/hooks/memory-retrieval-check.py --cursor"
+        result = _merge_cursor_event_hook(config, "sessionStart", new_command, "memory-retrieval-check.py")
+        self.assertTrue(result)
+
+        data = json.loads(config.read_text())
+        commands = [e["command"] for e in data["hooks"]["sessionStart"]]
+        self.assertEqual(commands, [new_command])  # updated in place, no duplicate
+
 
 class SessionLogOrderingHookTests(unittest.TestCase):
     SCRIPT = Path("memory_seed/seed/.memory-seed/hooks/session-log-check.py").resolve()
@@ -535,6 +592,169 @@ class SessionLogOrderingHookTests(unittest.TestCase):
             encoding="utf-8",
         )
         self.assertNotIn("ORDER WARNING", self._run(cwd))
+
+
+class McpMergeTests(unittest.TestCase):
+    def make_project(self):
+        path = Path(tempfile.mkdtemp(prefix="memory-seed-mcp-"))
+        self.addCleanup(lambda: shutil.rmtree(path, ignore_errors=True))
+        return path
+
+    def test_init_installs_mcp_for_claude(self):
+        import json
+
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        data = json.loads((cwd / ".claude" / "settings.json").read_text())
+        self.assertIn("memory-seed", data["mcpServers"])
+        entry = data["mcpServers"]["memory-seed"]
+        self.assertEqual(entry["command"], "memory-seed-mcp")
+        self.assertEqual(entry["args"], ["--stdio"])
+        self.assertEqual(entry["type"], "stdio")
+
+    def test_init_installs_mcp_for_cursor(self):
+        import json
+
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        data = json.loads((cwd / ".cursor" / "mcp.json").read_text())
+        self.assertIn("memory-seed", data["mcpServers"])
+        entry = data["mcpServers"]["memory-seed"]
+        self.assertEqual(entry["command"], "memory-seed-mcp")
+        self.assertEqual(entry["args"], ["--stdio"])
+        self.assertNotIn("type", entry)
+
+    def test_init_installs_mcp_for_gemini(self):
+        import json
+
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        data = json.loads((cwd / ".gemini" / "settings.json").read_text())
+        self.assertIn("memory-seed", data["mcpServers"])
+        entry = data["mcpServers"]["memory-seed"]
+        self.assertEqual(entry["command"], "memory-seed-mcp")
+        self.assertEqual(entry["args"], ["--stdio"])
+
+    def test_mcp_merges_are_idempotent(self):
+        from memory_seed.core import (
+            _merge_claude_mcp,
+            _merge_cursor_mcp,
+            _merge_gemini_mcp,
+        )
+
+        cwd = self.make_project()
+        self.assertTrue(_merge_claude_mcp(cwd))
+        self.assertFalse(_merge_claude_mcp(cwd))
+        self.assertTrue(_merge_cursor_mcp(cwd))
+        self.assertFalse(_merge_cursor_mcp(cwd))
+        self.assertTrue(_merge_gemini_mcp(cwd))
+        self.assertFalse(_merge_gemini_mcp(cwd))
+
+    def test_mcp_merge_updates_stale_args(self):
+        import json
+
+        cwd = self.make_project()
+        settings = cwd / ".claude" / "settings.json"
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        settings.write_text(
+            json.dumps({"mcpServers": {"memory-seed": {"command": "memory-seed-mcp", "args": ["--old"], "type": "stdio"}}}),
+            encoding="utf-8",
+        )
+
+        from memory_seed.core import _merge_claude_mcp
+        result = _merge_claude_mcp(cwd)
+        self.assertTrue(result)
+
+        data = json.loads(settings.read_text())
+        self.assertEqual(data["mcpServers"]["memory-seed"]["args"], ["--stdio"])
+
+    def test_mcp_merge_preserves_unrelated_mcp_server(self):
+        import json
+
+        cwd = self.make_project()
+        settings = cwd / ".claude" / "settings.json"
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        settings.write_text(
+            json.dumps({"mcpServers": {"other-server": {"command": "other-cmd", "args": []}}}),
+            encoding="utf-8",
+        )
+
+        from memory_seed.core import _merge_claude_mcp
+        _merge_claude_mcp(cwd)
+
+        data = json.loads(settings.read_text())
+        self.assertIn("other-server", data["mcpServers"])
+        self.assertEqual(data["mcpServers"]["other-server"]["command"], "other-cmd")
+
+    def test_gemini_mcp_merge_preserves_existing_hooks(self):
+        import json
+
+        cwd = self.make_project()
+        gemini_path = cwd / ".gemini" / "settings.json"
+        gemini_path.parent.mkdir(parents=True, exist_ok=True)
+        gemini_path.write_text(
+            json.dumps({"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "existing"}]}]}}),
+            encoding="utf-8",
+        )
+
+        from memory_seed.core import _merge_gemini_mcp
+        _merge_gemini_mcp(cwd)
+
+        data = json.loads(gemini_path.read_text())
+        self.assertIn("memory-seed", data["mcpServers"])
+        self.assertIn("Stop", data["hooks"])
+        self.assertEqual(data["hooks"]["Stop"][0]["hooks"][0]["command"], "existing")
+
+
+class RetrievalCheckPathTests(unittest.TestCase):
+    SCRIPT = Path("memory_seed/seed/.memory-seed/hooks/memory-retrieval-check.py").resolve()
+
+    def make_project(self):
+        path = Path(tempfile.mkdtemp(prefix="memory-seed-retrieval-"))
+        self.addCleanup(lambda: shutil.rmtree(path, ignore_errors=True))
+        (path / ".memory-seed").mkdir()
+        return path
+
+    def _run(self, cwd, extra_env=None):
+        import subprocess
+        import sys
+        import os
+
+        env = os.environ.copy()
+        if extra_env:
+            env.update(extra_env)
+        return subprocess.run(
+            [sys.executable, str(self.SCRIPT)],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            env=env,
+        ).stdout
+
+    def test_mcp_found_message_mentions_memory_search(self):
+        import os
+        import stat
+
+        cwd = self.make_project()
+        # Create a dummy memory-seed-mcp binary on PATH
+        bin_dir = cwd / "bin"
+        bin_dir.mkdir()
+        fake_bin = bin_dir / "memory-seed-mcp"
+        fake_bin.write_text("#!/usr/bin/env python3\n")
+        fake_bin.chmod(fake_bin.stat().st_mode | stat.S_IEXEC)
+
+        out = self._run(cwd, extra_env={"PATH": str(bin_dir) + os.pathsep + os.environ.get("PATH", "")})
+        self.assertIn("memory_search", out)
+        self.assertNotIn("uv tool install", out)
+
+    def test_mcp_missing_message_mentions_install(self):
+        cwd = self.make_project()
+        out = self._run(cwd, extra_env={"PATH": ""})
+        self.assertIn("uv tool install", out)
+        self.assertNotIn("memory_search MCP tool", out)
 
 
 class CliHelpTests(unittest.TestCase):
