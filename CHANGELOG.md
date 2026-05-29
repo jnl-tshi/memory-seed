@@ -4,6 +4,13 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+## 2.3.0 - 2026-05-29
+
+- Made `memory-seed update` forward-only: it now skips a control-plane file when the project's local `memory-system-version` is the current version **or newer**, instead of only when it is exactly equal. Previously the equality check was symmetric, so a stale installed tool (older control-plane version) running `update` against a project on a newer control plane would silently overwrite the newer files with its older bundled seed — a downgrade. Version comparison is numeric, so multi-digit versions order correctly (`2.10` > `2.9`).
+- Reframed the session-log append rule in `agent-rules.md` to be vendor-neutral. It now states the invariant ("append each entry at the physical end of the file; never insert above an existing entry") and the anchor hazard, with the mitigation that applies to any agent (confirm the actual last line before appending; never reuse a remembered anchor). `>>` / `open(f, 'a')` is demoted from a mandate to an optional technique for shell-capable agents, with a UTF-8 encoding caveat (some shells, e.g. PowerShell `>>`, default to other encodings, which would corrupt a UTF-8 log). The previous wording mandated a shell-specific mechanism inside a contract meant for any file-reading agent — and its heredoc example was unsafe on Windows. The `session-log-check.py` order-warning was reframed to match.
+- Restored the two-step skill-registry wording in the `AGENTS.md` operating-mode read order ("Read `skills/index.md` as the deterministic skill trigger registry" / "Load full files only when the trigger registry matches"). It had been condensed to a single line that dropped the registry concept, diverging from `agent-rules.md`, `skills/index.md`, and `project-bootstrap.md`, which all describe the same two-step lazy-load contract.
+- Bumped control-plane version from `2.2` to `2.3` so existing projects running `memory-seed update` receive the reframed append rule and the restored `AGENTS.md` wording.
+
 ## 2.2.3 - 2026-05-29
 
 - Hardened session-log append discipline in `agent-rules.md`: added an explicit rule to use `>>` shell redirection or Python append mode (`open(f, 'a')`) when writing session entries, instead of editor replace/insert operations. Replace/insert requires an anchor line; if a prior edit already added content after that anchor, the entry lands mid-file. Append mode writes to the physical end unconditionally.

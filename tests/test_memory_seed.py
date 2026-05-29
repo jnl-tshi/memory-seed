@@ -23,7 +23,17 @@ class MemorySeedTests(unittest.TestCase):
         return path
 
     def test_version_reads_reusable_control_plane_version(self):
-        self.assertEqual(get_version(), "2.2")
+        self.assertEqual(get_version(), "2.3")
+
+    def test_version_at_least_orders_versions_numerically(self):
+        from memory_seed.core import _version_at_least
+
+        self.assertTrue(_version_at_least("2.2", "2.2"))   # equal
+        self.assertTrue(_version_at_least("2.3", "2.2"))   # newer
+        self.assertTrue(_version_at_least("2.10", "2.9"))  # multi-digit, not string compare
+        self.assertFalse(_version_at_least("2.1", "2.2"))  # older
+        self.assertFalse(_version_at_least(None, "2.2"))   # missing -> treat as older
+        self.assertFalse(_version_at_least("garbage", "2.2"))  # unparseable -> older
 
     def test_init_dry_run_reports_seed_files_without_writing(self):
         cwd = self.make_project()
@@ -90,7 +100,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(result.backed_up[0].startswith(".memory-seed/backups/"))
         self.assertEqual((cwd / result.backed_up[0]).read_text(encoding="utf-8"), "existing")
         self.assertIn(
-            "memory-system-version: 2.2",
+            "memory-system-version: 2.3",
             (cwd / "AGENTS.md").read_text(encoding="utf-8"),
         )
         self.assertIn(".memory-seed/backups/", (cwd / ".gitignore").read_text(encoding="utf-8"))
@@ -111,7 +121,7 @@ class MemorySeedTests(unittest.TestCase):
         init_project(cwd=cwd)
         gemini = cwd / "GEMINI.md"
         gemini.write_text(
-            gemini.read_text(encoding="utf-8").replace("2.2", "1.1"),
+            gemini.read_text(encoding="utf-8").replace("2.3", "1.1"),
             encoding="utf-8",
         )
         (cwd / "CLAUDE.md").unlink()
@@ -128,7 +138,7 @@ class MemorySeedTests(unittest.TestCase):
         )
         self.assertEqual(
             result.version_mismatches,
-            [{"file": "GEMINI.md", "expected": "2.2", "actual": "1.1"}],
+            [{"file": "GEMINI.md", "expected": "2.3", "actual": "1.1"}],
         )
 
     def test_doctor_distinguishes_bootstrap_completeness_from_control_plane_health(self):
@@ -211,11 +221,11 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("CLAUDE.md", result.created)
         self.assertTrue(any(path.endswith("/AGENTS.md") for path in result.backed_up))
         self.assertIn(
-            "memory-system-version: 2.2",
+            "memory-system-version: 2.3",
             (cwd / "AGENTS.md").read_text(encoding="utf-8"),
         )
         self.assertIn(
-            "memory-system-version: 2.2",
+            "memory-system-version: 2.3",
             (cwd / "CLAUDE.md").read_text(encoding="utf-8"),
         )
         self.assertEqual(
@@ -229,7 +239,7 @@ class MemorySeedTests(unittest.TestCase):
         init_project(cwd=cwd)
         agents = cwd / "AGENTS.md"
         agents.write_text(
-            agents.read_text(encoding="utf-8").replace("2.2", "1.4"),
+            agents.read_text(encoding="utf-8").replace("2.3", "1.4"),
             encoding="utf-8",
         )
 
@@ -240,6 +250,26 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn(".memory-seed/archive/1.4/AGENTS.md", result.archived)
         self.assertTrue(archived.exists())
         self.assertIn("memory-system-version: 1.4", archived.read_text(encoding="utf-8"))
+
+    def test_update_does_not_downgrade_newer_control_plane_files(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        agents = cwd / "AGENTS.md"
+        # Simulate a project on a newer control plane than this tool ships.
+        agents.write_text(
+            agents.read_text(encoding="utf-8").replace(
+                f"memory-system-version: {get_version()}",
+                "memory-system-version: 9.9",
+            ),
+            encoding="utf-8",
+        )
+
+        result = update_project(cwd=cwd)
+
+        # The newer file must be left untouched: no overwrite, no archive.
+        self.assertIn("memory-system-version: 9.9", agents.read_text(encoding="utf-8"))
+        self.assertNotIn("AGENTS.md", result.created)
+        self.assertFalse(any("AGENTS.md" in archived for archived in result.archived))
 
     def test_update_archives_unknown_version_control_plane_files_under_timestamped_folder(self):
         cwd = self.make_project()
@@ -313,14 +343,14 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(
             any(path.endswith("/.memory-seed/agent-rules.md") for path in result.backed_up)
         )
-        self.assertIn("memory-system-version: 2.2", rules.read_text(encoding="utf-8"))
+        self.assertIn("memory-system-version: 2.3", rules.read_text(encoding="utf-8"))
 
     def test_control_plane_files_report_current_version(self):
         for seed_file in SEED_FILES:
             if not seed_file.source.suffix == ".md":
                 continue
             content = seed_file.source.read_text(encoding="utf-8")
-            self.assertIn("memory-system-version: 2.2", content, seed_file.destination)
+            self.assertIn("memory-system-version: 2.3", content, seed_file.destination)
 
     def test_seed_files_use_memory_seed_runtime(self):
         destinations = sorted(seed_file.destination for seed_file in SEED_FILES)

@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.2
+memory-system-version: 2.3
 tags:
   - memory-seed
   - agent-rules
@@ -292,12 +292,12 @@ Deferring or batching session log writes is a discipline failure, not an accepta
 The session file is strictly append-only and must stay in ascending time order. To guarantee this without ever reordering:
 
 - Append every new entry to the **end** of the day's file. Never insert an entry above an existing one.
-- **Use `>>` shell redirection or Python append mode (`open(f, 'a')`) to write entries — do not use an editor replace/insert operation.** Replace/insert requires selecting an anchor line; if a prior edit already added content after that anchor, the new entry lands mid-file instead of at the end. Append mode writes to the physical end of the file unconditionally, with no anchor needed.
+- **Append each entry at the physical end of the file; never insert above an existing entry.** That is the rule; the mechanism is up to your tools. The common failure is anchor-based edit tools — if you target a line you wrote earlier, a later edit may already sit below it, so the new entry lands mid-file. Avoid it by confirming the *actual* last line immediately before appending (for example, read the file's tail); never reuse an anchor from memory. With a POSIX shell or Python, append mode (`>> file`, `open(f, 'a')`) sidesteps anchors entirely — write UTF-8 (some shells, for example PowerShell `>>`, default to other encodings).
 - The entry heading timestamp is the **actual current clock time** at the moment you write it. Read it from the system clock; never reuse a time from your context, memory, or an earlier message, and never backdate it to when the work happened.
 - Because entries are always appended with the current time, file order, write order, and timestamp order are identical. No manual reordering is ever needed or allowed.
 - If you are recording work that completed earlier in the session (you forgot, or you are catching up), still stamp the heading with the current time. If the original work time matters, state it in the entry body — do not move the entry above newer ones and do not rewrite earlier headings.
 
-This is the invariant the "do not rewrite old session entries" rule protects: out-of-order or backdated entries force a human to manually re-sort the log, which is exactly what append-only is meant to prevent. The `>>` / append-mode discipline makes this invariant mechanical rather than reliant on careful anchor selection.
+This is the invariant the "do not rewrite old session entries" rule protects: out-of-order or backdated entries force a human to manually re-sort the log, which is exactly what append-only is meant to prevent. Confirming the real last line before each append — or using append mode where your environment supports it — makes this invariant mechanical rather than reliant on a remembered anchor.
 
 Detailed work logs belong in the nearest active runtime. Add a parent/root summary only when sub-project work changes parent-visible topology, shared design, release behavior, policy inheritance, cross-project dependencies, risks, or active priorities. Do not mirror sub-project logs into root memory.
 

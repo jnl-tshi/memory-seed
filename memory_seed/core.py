@@ -10,7 +10,7 @@ from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "2.2"
+VERSION = "2.3"
 MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
@@ -517,7 +517,9 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
         if _is_runtime_local_file(seed_file.destination) and destination.exists():
             continue
 
-        if destination.exists() and _read_memory_system_version(destination) == VERSION:
+        if destination.exists() and _version_at_least(
+            _read_memory_system_version(destination), VERSION
+        ):
             continue
 
         if destination.exists():
@@ -675,6 +677,21 @@ def _read_memory_system_version(path: Path) -> str | None:
     if not match:
         return None
     return match.group(1)
+
+
+def _version_tuple(version: str | None) -> tuple[int, ...]:
+    """Dotted version -> int tuple. Missing/unparseable -> (-1,) so it always
+    compares older than any real version and is upgraded forward."""
+    if not version:
+        return (-1,)
+    try:
+        return tuple(int(part) for part in version.strip().split("."))
+    except ValueError:
+        return (-1,)
+
+
+def _version_at_least(actual: str | None, minimum: str) -> bool:
+    return _version_tuple(actual) >= _version_tuple(minimum)
 
 
 def _is_runtime_local_file(destination: str) -> bool:

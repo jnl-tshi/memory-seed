@@ -56,11 +56,12 @@ if any(stamps[i] < stamps[i - 1] for i in range(1, len(stamps))):
     messages.append(
         f"SESSION LOG ORDER WARNING: Entries in "
         f".memory-seed/sessions/{today}.md are not in ascending time "
-        f"order. The log is append-only. To repair: use >> shell "
-        f"redirection or Python append mode (open(f, 'a')) to move the "
-        f"out-of-order entry to the end of the file with the current "
-        f"clock time — do not use an editor replace/insert operation. "
-        f"Do not reorder existing entries unless the user asks for a repair."
+        f"order. The log is append-only. To repair: move the out-of-order "
+        f"entry to the physical end of the file with the current clock "
+        f"time; confirm the actual last line before appending rather than "
+        f"reusing a remembered anchor (append mode like >> or open(f, 'a') "
+        f"avoids the problem where supported). Do not reorder existing "
+        f"entries unless the user asks for a repair."
     )
 
 if not messages:

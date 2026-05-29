@@ -179,7 +179,7 @@ GEMINI.md
 
 ## Current Version
 
-The current reusable control-plane version is `2.2`.
+The current reusable control-plane version is `2.3`.
 
 Legacy `.AGENTS/` projects remain supported as a fallback during migration.
 
@@ -283,7 +283,7 @@ When `--force` creates backups, Memory Seed adds `.memory-seed/backups/` to the 
 
 The `update` command refreshes routing files, reusable runtime procedure files, and generic skill templates by version, sourcing them **from the installed package** rather than from PyPI — upgrade the package first to get newer templates (see [Updating](#updating)). Before replacing stale reusable control-plane files, it backs them up under `.memory-seed/backups/<timestamp>/` and archives their old version under `.memory-seed/archive/<old-version>/` or `.memory-seed/archive/unknown-<timestamp>/` when the old version is missing. Generated local memory files such as `index.md`, `policy.md`, and sessions are preserved.
 
-Use `update --dry-run` to list the reusable control-plane targets without writing files. Current behavior is conservative but broad: dry-run lists bundled seed paths rather than calculating which files are missing or version-mismatched. The real `update` command skips files that already have the current `memory-system-version` and preserves existing `.memory-seed/` runtime files.
+Use `update --dry-run` to list the reusable control-plane targets without writing files. Current behavior is conservative but broad: dry-run lists bundled seed paths rather than calculating which files are missing or version-mismatched. The real `update` command skips files already at the current `memory-system-version` or newer — so a stale installed tool never downgrades a project — and preserves existing `.memory-seed/` runtime files.
 
 The `compact` command summarises recent session activity from the nearest runtime so an agent can identify durable facts to promote into `index.md`, `policy.md`, or skills:
 
