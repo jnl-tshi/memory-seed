@@ -20,17 +20,5 @@
         ]
       }
     ]
-  },
-  "mcpServers": {
-    "memory-seed": {
-      "command": "uvx",
-      "args": [
-        "--from",
-        "memory-seed",
-        "memory-seed-mcp",
-        "--stdio"
-      ],
-      "type": "stdio"
-    }
   }
 }

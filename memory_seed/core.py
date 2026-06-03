@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import hashlib
+import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -10,7 +11,7 @@ from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "2.3"
+VERSION = "2.4"
 MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
@@ -49,6 +50,7 @@ class DoctorResult:
     missing: list[str] = field(default_factory=list)
     version_mismatches: list[dict[str, str]] = field(default_factory=list)
     bootstrap_missing: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -350,14 +352,19 @@ def _merge_cursor_retrieval_hook(target_root: Path) -> bool:
 
 
 def _merge_claude_mcp(target_root: Path) -> bool:
-    """Upsert the memory-seed-mcp stdio server entry in .claude/settings.json."""
-    settings_path = target_root / ".claude" / "settings.json"
-    expected = {"command": _MCP_SERVER_COMMAND, "args": _MCP_SERVER_ARGS, "type": "stdio"}
+    """Upsert the memory-seed-mcp stdio server entry in the project-root .mcp.json.
+
+    Claude Code discovers project-scope MCP servers from .mcp.json, not from
+    .claude/settings.json (that key is silently ignored by Claude Code).
+    _strip_claude_settings_mcp removes the legacy settings.json entry.
+    """
+    mcp_path = target_root / ".mcp.json"
+    expected = {"command": _MCP_SERVER_COMMAND, "args": _MCP_SERVER_ARGS}
 
     data: dict = {}
-    if settings_path.exists():
+    if mcp_path.exists():
         try:
-            with open(settings_path) as f:
+            with open(mcp_path) as f:
                 data = json.load(f)
         except (json.JSONDecodeError, OSError):
             data = {}
@@ -371,7 +378,44 @@ def _merge_claude_mcp(target_root: Path) -> bool:
 
     data.setdefault("mcpServers", {})[_MCP_SERVER_KEY] = expected
 
-    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    mcp_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(mcp_path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+    return True
+
+
+def _strip_claude_settings_mcp(target_root: Path) -> bool:
+    """Remove the legacy memory-seed MCP entry from .claude/settings.json.
+
+    Versions 2.2.0-2.3.0 wrote the server into .claude/settings.json > mcpServers,
+    which Claude Code never reads. Now that the server lives in .mcp.json, drop the
+    dead entry so it does not mislead. Only our own entry is removed; a foreign
+    server under the same key is left untouched.
+    """
+    settings_path = target_root / ".claude" / "settings.json"
+    if not settings_path.exists():
+        return False
+    try:
+        with open(settings_path) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return False
+
+    servers = data.get("mcpServers")
+    if not isinstance(servers, dict) or _MCP_SERVER_KEY not in servers:
+        return False
+
+    existing = servers.get(_MCP_SERVER_KEY, {})
+    is_ours = existing.get("command") in _OWN_MCP_COMMANDS or "memory-seed-mcp" in existing.get("args", [])
+    if not is_ours:
+        return False  # foreign server under the same key; leave it alone
+
+    del servers[_MCP_SERVER_KEY]
+    if not servers:
+        del data["mcpServers"]
+
     with open(settings_path, "w") as f:
         json.dump(data, f, indent=2)
         f.write("\n")
@@ -439,6 +483,120 @@ def _merge_gemini_mcp(target_root: Path) -> bool:
     return True
 
 
+# Header line for our entry in .codex/config.toml. Codex accepts both the bare
+# and quoted single-segment table-key forms; we write the bare form.
+_CODEX_MCP_HEADER_RE = re.compile(
+    r'^\[mcp_servers\.(?:memory-seed|"memory-seed")\]\s*$'
+)
+
+
+def _codex_expected() -> dict:
+    """The MCP table we want present under [mcp_servers.memory-seed]."""
+    return {"command": _MCP_SERVER_COMMAND, "args": _MCP_SERVER_ARGS}
+
+
+def _codex_standard_header_index(lines: list[str]) -> int | None:
+    """Index of the standard ``[mcp_servers.memory-seed]`` header line, or None.
+
+    The in-place stale-update path can only rewrite an entry written with this
+    header form. Shared by _merge_codex_mcp (to decide whether it can migrate)
+    and _codex_mcp_status (to decide stale-fixable vs stale-manual), so the two
+    always agree on what counts as auto-fixable.
+    """
+    return next(
+        (i for i, ln in enumerate(lines) if _CODEX_MCP_HEADER_RE.match(ln)),
+        None,
+    )
+
+
+def _render_codex_mcp_block() -> str:
+    """Render our fixed [mcp_servers.memory-seed] TOML table.
+
+    args is a TOML array of strings, which is JSON-compatible, so json.dumps
+    produces valid TOML for it.
+    """
+    return (
+        f"[mcp_servers.{_MCP_SERVER_KEY}]\n"
+        f'command = "{_MCP_SERVER_COMMAND}"\n'
+        f"args = {json.dumps(_MCP_SERVER_ARGS)}\n"
+    )
+
+
+def _merge_codex_mcp(target_root: Path) -> bool:
+    """Upsert the memory-seed-mcp stdio server in the project .codex/config.toml.
+
+    Codex reads project-scoped MCP servers from .codex/config.toml under
+    [mcp_servers.<name>] (trusted projects only). This is a zero-dependency text
+    upsert: tomllib (stdlib, Python >=3.11) is used only to *inspect* current
+    state; writes are line-based so existing content and comments are preserved.
+
+    Returns True if the file was written, False if already current.
+
+    Known limitation (in-place stale-entry update only): rewriting a present-but-
+    outdated entry while preserving comments relies on finding the standard
+    ``[mcp_servers.memory-seed]`` header line. Detection itself is robust (tomllib
+    parses semantically), but if a user *hand-wrote* the entry in a form that has
+    no such header line — dotted keys (``mcp_servers.memory-seed.command = ...``),
+    an inline subtable under ``[mcp_servers]``, a fully inline
+    ``mcp_servers = { ... }``, or a header with a trailing comment / leading
+    indentation — and the entry is stale, this no-ops (returns False) rather than
+    risk a duplicate-key / invalid-TOML write. The no-op is intentionally not
+    silent: ``doctor`` classifies this case via _codex_mcp_status as a
+    ``stale-manual`` warning telling the user to fix it by hand. Memory Seed only
+    ever writes the standard header form, so this path is only reachable through
+    manual edits.
+    """
+    config_path = target_root / ".codex" / "config.toml"
+    block = _render_codex_mcp_block()
+
+    text = ""
+    parsed: dict = {}
+    if config_path.exists():
+        try:
+            text = config_path.read_text(encoding="utf-8")
+            parsed = tomllib.loads(text)
+        except (tomllib.TOMLDecodeError, OSError):
+            text = ""
+            parsed = {}
+
+    existing = parsed.get("mcp_servers", {}).get(_MCP_SERVER_KEY, {})
+    if existing == _codex_expected():
+        return False
+    if existing:
+        is_ours = (
+            existing.get("command") in _OWN_MCP_COMMANDS
+            or "memory-seed-mcp" in existing.get("args", [])
+        )
+        if not is_ours:
+            return False  # a different server holds this key; don't overwrite
+
+    if not existing:
+        # Append our block, preserving everything above it.
+        new_text = text
+        if new_text and not new_text.endswith("\n"):
+            new_text += "\n"
+        if new_text:
+            new_text += "\n"
+        new_text += block
+    else:
+        # Stale entry: replace just our table's lines (header to next table/EOF).
+        lines = text.splitlines(keepends=True)
+        start = _codex_standard_header_index(lines)
+        if start is None:
+            # No standard header to anchor the rewrite. Don't risk a duplicate
+            # key; leave it for the user. doctor() flags this as stale-manual.
+            return False
+        end = start + 1
+        while end < len(lines) and not lines[end].lstrip().startswith("["):
+            end += 1
+        replacement = block if block.endswith("\n") else block + "\n"
+        new_text = "".join(lines[:start]) + replacement + "".join(lines[end:])
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(new_text, encoding="utf-8")
+    return True
+
+
 def init_project(cwd: str | Path = ".", dry_run: bool = False, force: bool = False) -> InitResult:
     target_root = Path(cwd).resolve()
     planned = [seed_file.destination for seed_file in SEED_FILES]
@@ -484,9 +642,11 @@ def init_project(cwd: str | Path = ".", dry_run: bool = False, force: bool = Fal
         (_merge_codex_retrieval_hook, ".codex/hooks.json"),
         (_merge_cursor_retrieval_hook, ".cursor/hooks.json"),
         (_merge_gemini_retrieval_hook, ".gemini/settings.json"),
-        (_merge_claude_mcp, ".claude/settings.json"),
+        (_merge_claude_mcp, ".mcp.json"),
+        (_strip_claude_settings_mcp, ".claude/settings.json"),
         (_merge_cursor_mcp, ".cursor/mcp.json"),
         (_merge_gemini_mcp, ".gemini/settings.json"),
+        (_merge_codex_mcp, ".codex/config.toml"),
     )
     for merge, destination in hook_merges:
         if merge(target_root) and destination not in created:
@@ -551,9 +711,11 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
         (_merge_codex_retrieval_hook, ".codex/hooks.json"),
         (_merge_cursor_retrieval_hook, ".cursor/hooks.json"),
         (_merge_gemini_retrieval_hook, ".gemini/settings.json"),
-        (_merge_claude_mcp, ".claude/settings.json"),
+        (_merge_claude_mcp, ".mcp.json"),
+        (_strip_claude_settings_mcp, ".claude/settings.json"),
         (_merge_cursor_mcp, ".cursor/mcp.json"),
         (_merge_gemini_mcp, ".gemini/settings.json"),
+        (_merge_codex_mcp, ".codex/config.toml"),
     )
     for merge, destination in hook_merges:
         if merge(target_root) and destination not in created:
@@ -600,6 +762,28 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
     control_plane_ok = not missing and not version_mismatches
     bootstrap_complete = not bootstrap_missing
 
+    warnings: list[str] = []
+    codex_status = _codex_mcp_status(target_root)
+    if (target_root / ".codex" / "hooks.json").exists() and codex_status == "absent":
+        warnings.append(
+            "Codex hooks are installed but .codex/config.toml has no memory-seed MCP "
+            "entry. Run `memory-seed update`, then trust this directory in Codex so it "
+            "loads the project MCP server (memory_search / memory_get_chunk)."
+        )
+    elif codex_status == "stale-fixable":
+        warnings.append(
+            "Codex .codex/config.toml has an outdated memory-seed MCP entry. Run "
+            "`memory-seed update` to migrate it to `uvx --from memory-seed "
+            "memory-seed-mcp --stdio`."
+        )
+    elif codex_status == "stale-manual":
+        warnings.append(
+            "Codex .codex/config.toml has an outdated memory-seed MCP entry written in "
+            "a non-standard TOML form that `memory-seed update` cannot safely auto-fix. "
+            'Set it by hand to: command = "uvx", args = ["--from", "memory-seed", '
+            '"memory-seed-mcp", "--stdio"].'
+        )
+
     return DoctorResult(
         ok=control_plane_ok and bootstrap_complete,
         control_plane_ok=control_plane_ok,
@@ -607,7 +791,45 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
         missing=missing,
         version_mismatches=version_mismatches,
         bootstrap_missing=bootstrap_missing,
+        warnings=warnings,
     )
+
+
+def _codex_mcp_status(target_root: Path) -> str:
+    """Classify our memory-seed entry in .codex/config.toml.
+
+    Returns one of:
+      "absent"        - no entry (or no/unparseable file)
+      "current"       - present and matches the expected uvx command + args
+      "foreign"       - present but owned by a different server
+      "stale-fixable" - ours but outdated, written with a standard header that
+                        `memory-seed update` can auto-migrate
+      "stale-manual"  - ours but outdated, written in a form with no standard
+                        header line, so update no-ops and the user must edit it
+    """
+    config_path = target_root / ".codex" / "config.toml"
+    if not config_path.exists():
+        return "absent"
+    try:
+        text = config_path.read_text(encoding="utf-8")
+        parsed = tomllib.loads(text)
+    except (tomllib.TOMLDecodeError, OSError):
+        return "absent"
+
+    existing = parsed.get("mcp_servers", {}).get(_MCP_SERVER_KEY, {})
+    if not existing:
+        return "absent"
+    if existing == _codex_expected():
+        return "current"
+    is_ours = (
+        existing.get("command") in _OWN_MCP_COMMANDS
+        or "memory-seed-mcp" in existing.get("args", [])
+    )
+    if not is_ours:
+        return "foreign"
+    if _codex_standard_header_index(text.splitlines()) is not None:
+        return "stale-fixable"
+    return "stale-manual"
 
 
 def compact_sessions(

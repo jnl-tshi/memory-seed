@@ -4,6 +4,14 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+## 2.4.0 - 2026-06-04
+
+- Added Codex CLI to MCP auto-registration. `memory-seed init` and `update` now write the `memory-seed-mcp` stdio server into a project-scoped `.codex/config.toml` (`[mcp_servers.memory-seed]`), bringing Codex to parity with Claude Code, Cursor, and Gemini. The merge is a zero-dependency text upsert (stdlib `tomllib` only inspects state; writes are line-based) so existing `.codex/config.toml` content and comments are preserved. Codex loads project MCP config only for **trusted** directories, so the trust step is surfaced in the README, the `--codex` retrieval-hook reminder, and a new `doctor` warning.
+- Fixed Claude Code MCP registration: the server is now written to a project-root `.mcp.json` (the location Claude Code actually reads) instead of `.claude/settings.json > mcpServers`, which Claude Code silently ignored across 2.2.0–2.3.0. `memory-seed update` migrates existing projects by writing `.mcp.json` and stripping the dead `settings.json` block (ours-only; a foreign server squatting the key is left untouched).
+- Added a non-fatal `warnings` channel to `doctor` / `DoctorResult`. It classifies the Codex MCP entry as `absent`, `current`, `foreign`, `stale-fixable`, or `stale-manual`, and warns when Codex hooks are installed without a working MCP registration — including when a hand-written non-standard TOML form is outdated and cannot be auto-migrated, so the no-op is never silent.
+- Reframed the session-log format in `agent-rules.md` so the single-decision **DRAFT** record is the baseline shape, with the bare summary (simpler) and multi-decision (richer) shapes presented as explicit down/up routes. D/R are marked `(mandatory)` and A/F/T `(optional)`.
+- Bumped control-plane version from `2.3` to `2.4` so existing projects running `memory-seed update` receive the reframed `agent-rules.md` and the Codex hook/MCP changes.
+
 ## 2.3.0 - 2026-05-29
 
 - Made `memory-seed update` forward-only: it now skips a control-plane file when the project's local `memory-system-version` is the current version **or newer**, instead of only when it is exactly equal. Previously the equality check was symmetric, so a stale installed tool (older control-plane version) running `update` against a project on a newer control plane would silently overwrite the newer files with its older bundled seed — a downgrade. Version comparison is numeric, so multi-digit versions order correctly (`2.10` > `2.9`).

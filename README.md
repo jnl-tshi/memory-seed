@@ -114,7 +114,7 @@ The result is a lightweight memory workflow you can understand, commit, review, 
 
 | Agent or client | Support path |
 | --- | --- |
-| Codex | Starts from `AGENTS.md`; can use MCP when the client supports stdio MCP servers. |
+| Codex | Starts from `AGENTS.md`; MCP server auto-registered in `.codex/config.toml` (loads once the project directory is trusted). |
 | Claude Code | Starts from `CLAUDE.md`; MCP server auto-registered via `uvx --from memory-seed`. |
 | Gemini CLI | Starts from `GEMINI.md`. |
 | Other file-reading agents | Start from `AGENTS.md` and follow nearest `.memory-seed/` runtime discovery. |
@@ -344,7 +344,11 @@ For the version distinction (`pip show memory-seed` reports the package version;
 
 Memory Seed also includes a lightweight MCP server that lets agents search local session memory through structured tool calls instead of shelling out to broad compact summaries.
 
-**Auto-registration:** `memory-seed init` and `memory-seed update` automatically register `uvx --from memory-seed memory-seed-mcp --stdio` in each supported vendor's config — `.claude/settings.json` (Claude Code), `.cursor/mcp.json` (Cursor), and `.gemini/settings.json` (Gemini CLI). No manual config is needed for projects initialised with Memory Seed. The `uvx --from` form is used so the command works regardless of whether `~/.local/bin` is on the agent's PATH.
+**Auto-registration:** `memory-seed init` and `memory-seed update` automatically register `uvx --from memory-seed memory-seed-mcp --stdio` in each supported vendor's MCP config — `.mcp.json` at the project root (Claude Code), `.cursor/mcp.json` (Cursor), `.gemini/settings.json` (Gemini CLI), and `.codex/config.toml` (Codex CLI). No manual config is needed for projects initialised with Memory Seed. The `uvx --from` form is used so the command works regardless of whether `~/.local/bin` is on the agent's PATH.
+
+> **Claude Code reads project-scope MCP servers from `.mcp.json`, not `.claude/settings.json`** — the latter is for hooks and permissions only. Versions 2.2.0–2.3.0 wrote the server into `.claude/settings.json`, where Claude Code silently ignored it; `memory-seed update` now writes `.mcp.json` and removes the dead entry. Restart Claude Code and approve the project server, then confirm with `claude mcp list`.
+
+> **Codex loads a project `.codex/config.toml` only for *trusted* directories.** Memory Seed writes the `[mcp_servers.memory-seed]` table there, but Codex ignores it until you trust the project (Codex prompts on first use of a directory, or set trust in Codex settings). After trusting, confirm with `codex mcp list`. `memory-seed doctor` warns if Codex hooks are present without this registration. If you hand-wrote the `memory-seed` entry in a non-standard TOML form (dotted keys, an inline table, or a header with a trailing comment) and it is outdated, `memory-seed update` will not auto-migrate it — `memory-seed doctor` flags it as needing a manual fix instead of silently leaving stale settings in place.
 
 If you are configuring the server manually, run it over stdio:
 
@@ -400,6 +404,14 @@ memory_get_chunk(chunk_id, cwd=".")
 `memory_search` returns JSON with source path, line range, heading path, score fields, matched fields, matched terms, semantic status, entry metadata, granularity, and an excerpt. This is intended to be both agent-efficient and human-validatable.
 
 The ranking engine stays local and CPU-friendly. MCP search uses a Model2Vec static embedding provider by default with the general-purpose `minishlab/potion-base-8M` model, combines semantic score with lexical and metadata scoring, then applies recency. If Model2Vec or the model cannot load or score a query, the server falls back to lexical, metadata, and recency ranking without failing the request. Use `--no-semantic` on `memory-seed-mcp --stdio` or `semantic_enabled=false` in `memory_search` to force fallback behavior.
+
+### Performance characteristics
+
+`memory_search` is a relevance-and-recall tool, not a faster `grep`. A plain `grep` will out-scan it on raw exact-match throughput; the search wins instead on *semantic recall* over session history (surfacing relevant entries that lack the literal query words) and on *agent-token efficiency* (returning a small ranked set of self-contained chunks with stable `chunk_id`s, so an agent fetches only the one or two full entries worth reading). The two are complementary: use `memory_search` for "what did we decide and why," and `grep` for exact-string scans across the whole repo.
+
+Per-query latency, measured in-process on this repo (81 chunks across the session logs), is roughly **30 ms**, of which about **22 ms is reading and parsing the session `.md` files** — the search re-reads and re-parses every `sessions/*.md` on each call, with no persistent chunk or vector cache — and the embed + cosine + rank step adds only a few ms on top. Cold start adds a one-time cost on the *first ever* call on a machine: the Model2Vec weights download into the local HuggingFace cache (tens of MB); afterwards the static model loads in a few ms. Because the static model has no transformer forward pass, the dominant cost is file I/O, so per-query time grows linearly with total session-log size rather than with model complexity.
+
+When driving the server through an MCP client (Claude Code, Cursor, Gemini), the latency you actually perceive is dominated by one-time startup, not per-query work: spawning `uvx --from memory-seed memory-seed-mcp` resolves and may install the package into an ephemeral environment the first time the server launches in a session. Once the server is up, each `memory_search` is the ~30 ms compute above plus a small JSON-RPC round-trip. At current log sizes there is no need to optimize; should logs grow large enough that the ~22 ms parse cost becomes noticeable, caching parsed chunks and their vectors keyed by file modification time would remove most of the per-query cost.
 
 Session entries should include a YAML metadata block with `entry_id`, `user_initials`, `agent_type`, `project_path`, and `subproject_path`. Session entry headings may include optional minute-level timestamps, such as `## 2026-05-19 20:42 - Durable memory consolidation`. Session filenames stay date-only. Timestamped headings are backward compatible with older untimed headings and are exposed as `entry_datetime` in MCP search results when present.
 

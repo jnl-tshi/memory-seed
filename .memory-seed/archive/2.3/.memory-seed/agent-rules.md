@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.4
+memory-system-version: 2.3
 tags:
   - memory-seed
   - agent-rules
@@ -366,7 +366,7 @@ tags:
 session_date: 2026-05-02
 ---
 
-## 2026-05-02 14:35 - Switch cache key to content hash
+## 2026-05-02 14:35 - Project setup and workflow update
 
 ```yaml
 entry_id: ms-8charhash
@@ -375,17 +375,14 @@ agent_type: codex
 project_path: .
 subproject_path: null
 ```
+
 ### Summary
 
-- What changed or what was checked.
+- Updated the project workflow or implementation area touched today.
 
-### Decision
+### Validation
 
-- D: State the decision that was made or implemented. (mandatory)
-- R: Explain the decisive reason in 1-3 bullets. (mandatory)
-- A: Alternative considered or rejected, with reason, if it mattered. (optional)
-- F: Files, artifacts, or behaviors changed. (optional)
-- T: Tests or validation outcome. (optional)
+- Ran the smallest relevant verification.
 
 ### Follow-up
 
@@ -396,13 +393,13 @@ Keep session filenames date-only, such as `.memory-seed/sessions/2026-05-02.md`.
 
 ### Reason Rules
 
-**DRAFT** is the baseline decision-record format for session entries: default to it whenever a turn produced a decision or a durable change. Route to a simpler or richer shape only as the exception (see Entry Shapes), and never invent a decision just to fill the baseline.
+**DRAFT** is the compact decision-record format used inside session entries. Use it whenever a meaningful decision was made or implemented.
 
 A DRAFT decision record uses compact labels:
 
-- D = Decision (mandatory) — what was chosen
-- R = Reason (mandatory) — the decisive reason, 1–3 bullets
-- A = Alternatives considered or rejected (optional) — with reason, when it shaped the tradeoff
+- D = Decision — what was chosen
+- R = Reason — the decisive reason, 1–3 bullets; **required**
+- A = Alternatives considered or rejected, with reason (optional unless it shaped the tradeoff)
 - F = Files, artifacts, or behaviors changed (optional)
 - T = Tests or validation outcome (optional; may appear inline as `- T:` or as a separate `### Validation` section)
 
@@ -417,32 +414,11 @@ A DRAFT decision record uses compact labels:
 
 ### Entry Shapes
 
-Default to the **Meaningful decision entry** — a single DRAFT record. Route away from it only when the work does not fit:
-
-- down to the **Small work entry** for routine edits, small fixes, or verification-only work with no real decision (do not invent reason — see Reason Rules);
-- up to the **Multi-decision session entry** when one coherent task produced several decisions.
-
-#### Meaningful decision entry
-
-The baseline shape: use when a turn produced one durable decision.
-
-```markdown
-### Summary
-
-- Summarize the coherent task.
-
-### Decision
-
-- D: State the decision. (mandatory)
-- R: Explain the decisive reason in 1-3 bullets. (mandatory)
-- A: Alternative considered or rejected, with reason, if it mattered. (optional)
-- F: Files, artifacts, or behaviors changed. (optional)
-- T: Tests or validation outcome. (optional)
-```
+Use the lightest entry shape that preserves future usefulness.
 
 #### Small work entry
 
-Simpler alternative — for routine edits, small fixes, or verification-only work with no real decision.
+Use for routine edits, small fixes, or verification-only work.
 
 ```markdown
 ### Summary
@@ -458,9 +434,23 @@ Simpler alternative — for routine edits, small fixes, or verification-only wor
 - Only include if there is residual risk or a next action.
 ```
 
+#### Meaningful decision entry
+
+Use when one durable decision was made or implemented.
+
+```markdown
+### Decision
+
+- D: State the decision.
+- R: Explain the decisive reason in 1-3 bullets.
+- A: Alternative considered or rejected, with reason, if it mattered.
+- F: Files, artifacts, or behaviors changed.
+- T: Tests or validation outcome.
+```
+
 #### Multi-decision session entry
 
-Richer alternative — use one entry when several decisions belong to one coherent task, plan, or user goal. Split entries when decisions affect unrelated subsystems, sub-projects, or goals.
+Use one entry when several decisions belong to one coherent task, plan, or user goal. Split entries when decisions affect unrelated subsystems, sub-projects, or goals.
 
 ```markdown
 ### Summary
@@ -471,16 +461,16 @@ Richer alternative — use one entry when several decisions belong to one cohere
 
 #### D1 - Short decision name
 
-- D: State the choice. (mandatory)
-- R: Explain the decisive reason in 1-3 bullets. (mandatory)
-- A: Alternative considered or rejected, with reason, if it mattered. (optional)
-- F: Files, artifacts, or behaviors changed. (optional)
-- T: Tests or validation outcome. (optional)
+- D: State the choice.
+- R: Explain the decisive reason in 1-3 bullets.
+- A: Alternative considered or rejected, with reason, if it mattered.
+- F: Files, artifacts, or behaviors changed.
+- T: Tests or validation outcome.
 
 #### D2 - Short decision name
 
-- D: State the choice. (mandatory)
-- R: Explain the decisive reason in 1-3 bullets. (mandatory)
+- D: State the choice.
+- R: Explain the decisive reason in 1-3 bullets.
 
 ### Implementation
 

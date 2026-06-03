@@ -118,6 +118,8 @@ def main(argv: list[str] | None = None) -> int:
             print("Memory Seed bootstrap is complete.")
         else:
             print("Memory Seed bootstrap is incomplete.")
+        for warning in result.warnings:
+            print(f"Warning: {warning}")
         if result.ok:
             return 0
         for missing in result.missing:

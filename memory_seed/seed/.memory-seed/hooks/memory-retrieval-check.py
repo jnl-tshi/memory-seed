@@ -52,8 +52,13 @@ else:
     )
 
 if agent == "codex":
-    # Codex CLI UserPromptSubmit: systemMessage shown in UI
-    print(json.dumps({"systemMessage": reminder, "continue": True}))
+    # Codex CLI UserPromptSubmit: systemMessage shown in UI.
+    # Project .codex/config.toml MCP servers load only for trusted directories.
+    codex_reminder = (
+        reminder + " (Codex loads the project memory_search MCP server from "
+        ".codex/config.toml only if this directory is trusted.)"
+    )
+    print(json.dumps({"systemMessage": codex_reminder, "continue": True}))
 elif agent == "cursor":
     # Cursor sessionStart: additional_context (snake_case) injects into the
     # conversation's initial system context. beforeSubmitPrompt cannot inject.

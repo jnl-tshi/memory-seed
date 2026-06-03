@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.4
+memory-system-version: 2.3
 tags:
   - memory-seed
   - project-bootstrap

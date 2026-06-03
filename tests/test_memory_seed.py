@@ -23,7 +23,7 @@ class MemorySeedTests(unittest.TestCase):
         return path
 
     def test_version_reads_reusable_control_plane_version(self):
-        self.assertEqual(get_version(), "2.3")
+        self.assertEqual(get_version(), "2.4")
 
     def test_version_at_least_orders_versions_numerically(self):
         from memory_seed.core import _version_at_least
@@ -100,7 +100,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(result.backed_up[0].startswith(".memory-seed/backups/"))
         self.assertEqual((cwd / result.backed_up[0]).read_text(encoding="utf-8"), "existing")
         self.assertIn(
-            "memory-system-version: 2.3",
+            f"memory-system-version: {get_version()}",
             (cwd / "AGENTS.md").read_text(encoding="utf-8"),
         )
         self.assertIn(".memory-seed/backups/", (cwd / ".gitignore").read_text(encoding="utf-8"))
@@ -121,7 +121,7 @@ class MemorySeedTests(unittest.TestCase):
         init_project(cwd=cwd)
         gemini = cwd / "GEMINI.md"
         gemini.write_text(
-            gemini.read_text(encoding="utf-8").replace("2.3", "1.1"),
+            gemini.read_text(encoding="utf-8").replace(get_version(), "1.1"),
             encoding="utf-8",
         )
         (cwd / "CLAUDE.md").unlink()
@@ -138,7 +138,7 @@ class MemorySeedTests(unittest.TestCase):
         )
         self.assertEqual(
             result.version_mismatches,
-            [{"file": "GEMINI.md", "expected": "2.3", "actual": "1.1"}],
+            [{"file": "GEMINI.md", "expected": get_version(), "actual": "1.1"}],
         )
 
     def test_doctor_distinguishes_bootstrap_completeness_from_control_plane_health(self):
@@ -221,11 +221,11 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("CLAUDE.md", result.created)
         self.assertTrue(any(path.endswith("/AGENTS.md") for path in result.backed_up))
         self.assertIn(
-            "memory-system-version: 2.3",
+            f"memory-system-version: {get_version()}",
             (cwd / "AGENTS.md").read_text(encoding="utf-8"),
         )
         self.assertIn(
-            "memory-system-version: 2.3",
+            f"memory-system-version: {get_version()}",
             (cwd / "CLAUDE.md").read_text(encoding="utf-8"),
         )
         self.assertEqual(
@@ -239,7 +239,7 @@ class MemorySeedTests(unittest.TestCase):
         init_project(cwd=cwd)
         agents = cwd / "AGENTS.md"
         agents.write_text(
-            agents.read_text(encoding="utf-8").replace("2.3", "1.4"),
+            agents.read_text(encoding="utf-8").replace(get_version(), "1.4"),
             encoding="utf-8",
         )
 
@@ -343,14 +343,29 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(
             any(path.endswith("/.memory-seed/agent-rules.md") for path in result.backed_up)
         )
-        self.assertIn("memory-system-version: 2.3", rules.read_text(encoding="utf-8"))
+        self.assertIn(f"memory-system-version: {get_version()}", rules.read_text(encoding="utf-8"))
 
     def test_control_plane_files_report_current_version(self):
         for seed_file in SEED_FILES:
             if not seed_file.source.suffix == ".md":
                 continue
             content = seed_file.source.read_text(encoding="utf-8")
-            self.assertIn("memory-system-version: 2.3", content, seed_file.destination)
+            self.assertIn(f"memory-system-version: {get_version()}", content, seed_file.destination)
+
+    def test_repo_root_control_plane_files_match_version(self):
+        # Guards the recurring release trap: the frontmatter version-bump sed is
+        # scoped to memory_seed/seed/ and .memory-seed/, so it silently skips
+        # this self-hosting repo's own root routing files (AGENTS/CLAUDE/GEMINI.md).
+        # doctor() catches the drift at runtime; this pins it in the suite so a
+        # missed root file fails CI instead of shipping (happened in 2.2.3 / 2.3.0).
+        repo_root = Path(__file__).resolve().parent.parent
+        expected = f"memory-system-version: {get_version()}"
+        for seed_file in SEED_FILES:
+            if not seed_file.source.suffix == ".md":
+                continue
+            live = repo_root / seed_file.destination
+            self.assertTrue(live.exists(), f"missing live control-plane file: {seed_file.destination}")
+            self.assertIn(expected, live.read_text(encoding="utf-8"), seed_file.destination)
 
     def test_seed_files_use_memory_seed_runtime(self):
         destinations = sorted(seed_file.destination for seed_file in SEED_FILES)
@@ -632,9 +647,14 @@ class SessionLogOrderingHookTests(unittest.TestCase):
         import datetime
 
         cwd = self.make_project()
-        today = datetime.date.today().isoformat()
-        (cwd / ".memory-seed" / "sessions" / f"{today}.md").write_text(
-            f"## {today} 01:00 - old entry\n\ntext\n",
+        # Use a timestamp 30 min in the past (> the 15 min staleness threshold)
+        # relative to the actual clock, so the test is not brittle near midnight
+        # where a hardcoded early-morning time would read as a future entry.
+        old = datetime.datetime.now() - datetime.timedelta(minutes=30)
+        day = old.strftime("%Y-%m-%d")
+        stamp = old.strftime("%H:%M")
+        (cwd / ".memory-seed" / "sessions" / f"{day}.md").write_text(
+            f"## {day} {stamp} - old entry\n\ntext\n",
             encoding="utf-8",
         )
         self.assertIn("SESSION LOG REMINDER", self._run(cwd))
@@ -657,10 +677,12 @@ class SessionLogOrderingHookTests(unittest.TestCase):
         import os
 
         cwd = self.make_project()
-        today = datetime.date.today().isoformat()
-        session_file = cwd / ".memory-seed" / "sessions" / f"{today}.md"
+        old = datetime.datetime.now() - datetime.timedelta(minutes=30)
+        day = old.strftime("%Y-%m-%d")
+        stamp = old.strftime("%H:%M")
+        session_file = cwd / ".memory-seed" / "sessions" / f"{day}.md"
         session_file.write_text(
-            f"## {today} 01:00 - old entry\n\ntext\n",
+            f"## {day} {stamp} - old entry\n\ntext\n",
             encoding="utf-8",
         )
         # Touch the file to update mtime to now — simulating what git commit does.
@@ -681,12 +703,17 @@ class McpMergeTests(unittest.TestCase):
         cwd = self.make_project()
         init_project(cwd=cwd)
 
-        data = json.loads((cwd / ".claude" / "settings.json").read_text())
+        # Claude Code reads project-scope MCP servers from .mcp.json, not settings.json.
+        data = json.loads((cwd / ".mcp.json").read_text())
         self.assertIn("memory-seed", data["mcpServers"])
         entry = data["mcpServers"]["memory-seed"]
         self.assertEqual(entry["command"], "uvx")
         self.assertEqual(entry["args"], ["--from", "memory-seed", "memory-seed-mcp", "--stdio"])
-        self.assertEqual(entry["type"], "stdio")
+        self.assertNotIn("type", entry)
+
+        # The dead settings.json mcpServers block must not be created.
+        settings = json.loads((cwd / ".claude" / "settings.json").read_text())
+        self.assertNotIn("mcpServers", settings)
 
     def test_init_installs_mcp_for_cursor(self):
         import json
@@ -718,6 +745,7 @@ class McpMergeTests(unittest.TestCase):
             _merge_claude_mcp,
             _merge_cursor_mcp,
             _merge_gemini_mcp,
+            _merge_codex_mcp,
         )
 
         cwd = self.make_project()
@@ -727,15 +755,17 @@ class McpMergeTests(unittest.TestCase):
         self.assertFalse(_merge_cursor_mcp(cwd))
         self.assertTrue(_merge_gemini_mcp(cwd))
         self.assertFalse(_merge_gemini_mcp(cwd))
+        self.assertTrue(_merge_codex_mcp(cwd))
+        self.assertFalse(_merge_codex_mcp(cwd))
 
     def test_mcp_merge_updates_stale_args(self):
         import json
 
         cwd = self.make_project()
-        settings = cwd / ".claude" / "settings.json"
-        settings.parent.mkdir(parents=True, exist_ok=True)
-        settings.write_text(
-            json.dumps({"mcpServers": {"memory-seed": {"command": "memory-seed-mcp", "args": ["--old"], "type": "stdio"}}}),
+        mcp_path = cwd / ".mcp.json"
+        # Legacy bare-command form (pre-uvx) under our key must migrate forward.
+        mcp_path.write_text(
+            json.dumps({"mcpServers": {"memory-seed": {"command": "memory-seed-mcp", "args": ["--old"]}}}),
             encoding="utf-8",
         )
 
@@ -743,7 +773,7 @@ class McpMergeTests(unittest.TestCase):
         result = _merge_claude_mcp(cwd)
         self.assertTrue(result)
 
-        data = json.loads(settings.read_text())
+        data = json.loads(mcp_path.read_text())
         entry = data["mcpServers"]["memory-seed"]
         self.assertEqual(entry["command"], "uvx")
         self.assertEqual(entry["args"], ["--from", "memory-seed", "memory-seed-mcp", "--stdio"])
@@ -752,9 +782,8 @@ class McpMergeTests(unittest.TestCase):
         import json
 
         cwd = self.make_project()
-        settings = cwd / ".claude" / "settings.json"
-        settings.parent.mkdir(parents=True, exist_ok=True)
-        settings.write_text(
+        mcp_path = cwd / ".mcp.json"
+        mcp_path.write_text(
             json.dumps({"mcpServers": {"other-server": {"command": "other-cmd", "args": []}}}),
             encoding="utf-8",
         )
@@ -762,9 +791,58 @@ class McpMergeTests(unittest.TestCase):
         from memory_seed.core import _merge_claude_mcp
         _merge_claude_mcp(cwd)
 
-        data = json.loads(settings.read_text())
+        data = json.loads(mcp_path.read_text())
         self.assertIn("other-server", data["mcpServers"])
         self.assertEqual(data["mcpServers"]["other-server"]["command"], "other-cmd")
+        self.assertIn("memory-seed", data["mcpServers"])
+
+    def test_strip_removes_legacy_claude_settings_mcp(self):
+        import json
+
+        cwd = self.make_project()
+        settings = cwd / ".claude" / "settings.json"
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        # A project seeded by 2.2.0-2.3.0: dead mcpServers block alongside a real hook.
+        settings.write_text(
+            json.dumps(
+                {
+                    "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "keep-me"}]}]},
+                    "mcpServers": {
+                        "memory-seed": {
+                            "command": "uvx",
+                            "args": ["--from", "memory-seed", "memory-seed-mcp", "--stdio"],
+                            "type": "stdio",
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        from memory_seed.core import _strip_claude_settings_mcp
+        self.assertTrue(_strip_claude_settings_mcp(cwd))
+
+        data = json.loads(settings.read_text())
+        self.assertNotIn("mcpServers", data)  # dead block removed, empty parent pruned
+        self.assertEqual(data["hooks"]["Stop"][0]["hooks"][0]["command"], "keep-me")  # rest preserved
+        self.assertFalse(_strip_claude_settings_mcp(cwd))  # idempotent
+
+    def test_strip_preserves_foreign_settings_mcp(self):
+        import json
+
+        cwd = self.make_project()
+        settings = cwd / ".claude" / "settings.json"
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        # A different server squatting our key must not be deleted.
+        settings.write_text(
+            json.dumps({"mcpServers": {"memory-seed": {"command": "some-other-server", "args": []}}}),
+            encoding="utf-8",
+        )
+
+        from memory_seed.core import _strip_claude_settings_mcp
+        self.assertFalse(_strip_claude_settings_mcp(cwd))
+        data = json.loads(settings.read_text())
+        self.assertEqual(data["mcpServers"]["memory-seed"]["command"], "some-other-server")
 
     def test_gemini_mcp_merge_preserves_existing_hooks(self):
         import json
@@ -784,6 +862,166 @@ class McpMergeTests(unittest.TestCase):
         self.assertIn("memory-seed", data["mcpServers"])
         self.assertIn("Stop", data["hooks"])
         self.assertEqual(data["hooks"]["Stop"][0]["hooks"][0]["command"], "existing")
+
+    def test_init_installs_mcp_for_codex(self):
+        import tomllib
+
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        # Codex reads project-scope MCP servers from .codex/config.toml.
+        data = tomllib.loads((cwd / ".codex" / "config.toml").read_text(encoding="utf-8"))
+        self.assertIn("memory-seed", data["mcp_servers"])
+        entry = data["mcp_servers"]["memory-seed"]
+        self.assertEqual(entry["command"], "uvx")
+        self.assertEqual(entry["args"], ["--from", "memory-seed", "memory-seed-mcp", "--stdio"])
+
+    def test_codex_mcp_merge_updates_stale_args(self):
+        import tomllib
+
+        cwd = self.make_project()
+        config_path = cwd / ".codex" / "config.toml"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        # Legacy bare-command form (pre-uvx) under our key must migrate forward.
+        config_path.write_text(
+            '[mcp_servers.memory-seed]\n'
+            'command = "memory-seed-mcp"\n'
+            'args = ["--old"]\n',
+            encoding="utf-8",
+        )
+
+        from memory_seed.core import _merge_codex_mcp
+        self.assertTrue(_merge_codex_mcp(cwd))
+
+        data = tomllib.loads(config_path.read_text(encoding="utf-8"))
+        entry = data["mcp_servers"]["memory-seed"]
+        self.assertEqual(entry["command"], "uvx")
+        self.assertEqual(entry["args"], ["--from", "memory-seed", "memory-seed-mcp", "--stdio"])
+
+    def test_codex_mcp_merge_preserves_existing_config(self):
+        import tomllib
+
+        cwd = self.make_project()
+        config_path = cwd / ".codex" / "config.toml"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        # Unrelated setting + comment + a foreign MCP server must all survive.
+        config_path.write_text(
+            "# my codex config\n"
+            'model = "gpt-5-codex"\n'
+            "\n"
+            "[mcp_servers.other]\n"
+            'command = "other-cmd"\n'
+            'args = []\n',
+            encoding="utf-8",
+        )
+
+        from memory_seed.core import _merge_codex_mcp
+        self.assertTrue(_merge_codex_mcp(cwd))
+
+        text = config_path.read_text(encoding="utf-8")
+        self.assertIn("# my codex config", text)  # comment preserved
+        data = tomllib.loads(text)
+        self.assertEqual(data["model"], "gpt-5-codex")  # unrelated setting preserved
+        self.assertEqual(data["mcp_servers"]["other"]["command"], "other-cmd")  # foreign server kept
+        self.assertIn("memory-seed", data["mcp_servers"])  # ours appended
+
+    def test_codex_mcp_merge_preserves_foreign_server_on_our_key(self):
+        import tomllib
+
+        cwd = self.make_project()
+        config_path = cwd / ".codex" / "config.toml"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        # A different server squatting our key must not be overwritten.
+        config_path.write_text(
+            "[mcp_servers.memory-seed]\n"
+            'command = "some-other-server"\n'
+            "args = []\n",
+            encoding="utf-8",
+        )
+
+        from memory_seed.core import _merge_codex_mcp
+        self.assertFalse(_merge_codex_mcp(cwd))
+        data = tomllib.loads(config_path.read_text(encoding="utf-8"))
+        self.assertEqual(data["mcp_servers"]["memory-seed"]["command"], "some-other-server")
+
+    def test_doctor_warns_when_codex_hooks_without_mcp(self):
+        from memory_seed.core import doctor, _merge_codex_mcp
+
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        # Simulate a project that has Codex hooks but no MCP registration yet.
+        (cwd / ".codex" / "config.toml").unlink()
+
+        result = doctor(cwd=cwd)
+        self.assertTrue(any("Codex" in w for w in result.warnings))
+        self.assertTrue(result.control_plane_ok)  # warning is non-fatal
+
+        # After re-registering, the warning clears.
+        _merge_codex_mcp(cwd)
+        self.assertFalse(any("Codex" in w for w in doctor(cwd=cwd).warnings))
+
+    def test_doctor_warns_on_stale_manual_codex_mcp(self):
+        from memory_seed.core import doctor, _merge_codex_mcp, _codex_mcp_status
+
+        cwd = self.make_project()
+        init_project(cwd=cwd)  # healthy control plane, so the non-fatal check is meaningful
+        config_path = cwd / ".codex" / "config.toml"
+        # Ours but stale, written as dotted keys -> no standard header to anchor a
+        # rewrite. Update must no-op, and doctor must NOT stay silent about it.
+        config_path.write_text(
+            'mcp_servers.memory-seed.command = "memory-seed-mcp"\n'
+            'mcp_servers.memory-seed.args = ["--old"]\n',
+            encoding="utf-8",
+        )
+
+        self.assertEqual(_codex_mcp_status(cwd), "stale-manual")
+        self.assertFalse(_merge_codex_mcp(cwd))  # safe no-op, not a corruption
+
+        result = doctor(cwd=cwd)
+        self.assertTrue(any("non-standard TOML form" in w for w in result.warnings))
+        self.assertTrue(result.control_plane_ok)  # non-fatal
+
+    def test_doctor_warns_on_stale_fixable_codex_mcp(self):
+        from memory_seed.core import doctor, _merge_codex_mcp, _codex_mcp_status
+
+        cwd = self.make_project()
+        config_path = cwd / ".codex" / "config.toml"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        # Ours but stale, standard header form -> update can migrate it.
+        config_path.write_text(
+            "[mcp_servers.memory-seed]\n"
+            'command = "memory-seed-mcp"\n'
+            'args = ["--old"]\n',
+            encoding="utf-8",
+        )
+
+        self.assertEqual(_codex_mcp_status(cwd), "stale-fixable")
+        result = doctor(cwd=cwd)
+        self.assertTrue(any("outdated memory-seed MCP entry" in w for w in result.warnings))
+
+        # update migrates it; warning then clears and status is current.
+        self.assertTrue(_merge_codex_mcp(cwd))
+        self.assertEqual(_codex_mcp_status(cwd), "current")
+        self.assertFalse(any("Codex" in w for w in doctor(cwd=cwd).warnings))
+
+    def test_codex_mcp_status_current_and_foreign_are_quiet(self):
+        from memory_seed.core import doctor, _merge_codex_mcp, _codex_mcp_status
+
+        cwd = self.make_project()
+        # current
+        _merge_codex_mcp(cwd)
+        self.assertEqual(_codex_mcp_status(cwd), "current")
+        self.assertFalse(any("Codex" in w for w in doctor(cwd=cwd).warnings))
+
+        # foreign: a different server squatting our key
+        (cwd / ".codex" / "config.toml").write_text(
+            "[mcp_servers.memory-seed]\n"
+            'command = "some-other-server"\n'
+            "args = []\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(_codex_mcp_status(cwd), "foreign")
+        self.assertFalse(any("Codex" in w for w in doctor(cwd=cwd).warnings))
 
 
 class RetrievalCheckPathTests(unittest.TestCase):
