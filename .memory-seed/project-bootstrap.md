@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.4
+memory-system-version: 2.5
 tags:
   - memory-seed
   - project-bootstrap
@@ -42,6 +42,13 @@ The reusable seed installed by `memory-seed init` is:
 AGENTS.md
 CLAUDE.md
 GEMINI.md
+.agents/
+  README.md
+  developer.md
+  content-creator.md
+  researcher.md
+  sales-rep.md
+  solo-founder.md
 .memory-seed/
   agent-rules.md
   project-bootstrap.md
@@ -243,7 +250,162 @@ Always include `skills/index.md` as the deterministic trigger registry for unive
 
 For project-specific execution patterns, create a local skill instead of expanding `agent-rules.md` or `policy.md`.
 
-## Step 9: Create First Session Log
+## Step 9: Activate Agent Personas
+
+If `.agents/` does not exist, skip this step.
+
+### 9a. Select personas
+
+List the available persona files from `.agents/`. Ask the user: which persona(s) should be active for this project? Multiple is allowed. None is allowed.
+
+### 9b. Personalize each activated persona
+
+For each activated persona, run the following sub-steps in order. Skip sub-steps where the value is already resolved (i.e., `_registry.yaml` already exists and the persona entry has `entity_name` set).
+
+**Entity name (the persona's identity)**
+
+Ask: "What should I be called as your [role]? Press Enter to let me pick."
+
+If the user provides a name, use it. If skipped, generate a fun single-word name with a pop-culture reference that fits the project domain and the persona's role archetype:
+
+- Dev tool / OSS → hacker/technologist fiction: Neo, Ada, Linus, Turing, Grace
+- Startup / product → builder mythology: Stark, Woz, Palmer, Musk (toned), Rhodes
+- Content / media → writer canon: Gonzo, Ogilvy, Didion, Bernbach
+- Research / academic → scientist fiction: Asimov, Sagan, Feynman, Curie
+- Sales / growth → fictional closers: Ari, Harvey, Boiler (toned)
+
+State the name and the reference so the user can veto: "I'll go by *Stark* — Iron Man's relentless builder energy felt right for a solo dev startup. Want a different one?"
+
+Rules: one word, no title prefix, loosely tied to the role and project vibe.
+
+**User's name**
+
+Try to infer from `git config user.name`. Present as: "I'll address you as [inferred name]. Is that right?" If inference failed, ask: "What should I call you?"
+
+**Business or project name**
+
+Try to infer from `pyproject.toml [project] name`, `package.json name`, the README `# Title`, or the project folder name. Present as: "I'll refer to the project as [inferred name]. Correct?" If inference failed, ask: "What's the business or project name?"
+
+**Substitute placeholders in the persona file**
+
+After confirming all three values, edit `.agents/<file>.md` in-place, replacing:
+- `[YOUR_ENTITY_NAME]` → resolved entity name
+- `[YOUR_NAME]` → resolved user name
+- `[YOUR_BUSINESS_NAME]` → resolved business name
+- `[YOUR_BRAND_NAME]` (content-creator only) → resolved business name, or ask separately if brand differs from product
+
+### 9c. Route skills for each activated persona
+
+For each activated persona, identify which skills from `.memory-seed/skills/` are relevant to its role and populate the `### Mapped Skills` table in the persona file.
+
+Default mappings:
+
+| Persona | Skills to map |
+|---|---|
+| `developer` | code_search, local_compilation, data_architecture, security_triage |
+| `solo-founder` | code_search, local_compilation, release_publishing, security_triage |
+| `content-creator` | code_search |
+| `researcher` | code_search, data_architecture |
+| `sales-rep` | *(no default mapping — likely needs role-specific skills; see gap detection below)* |
+
+For custom personas, map skills based on the persona's role description and operating rules.
+
+**Gap detection and skill generation**
+
+After mapping existing skills, ask: "Does [entity_name] need any workflows that aren't covered by the existing skills?" If yes, for each identified gap:
+
+1. Draft a new skill file in the standard memory-seed format:
+   ```markdown
+   ---
+   tags:
+     - memory-seed
+     - skill
+     - [persona-slug]
+     - [skill-name]
+   ---
+
+   # [Skill Name]
+
+   [One-sentence description of when and why to use this skill.]
+
+   ## Procedure
+
+   1. [Step]
+   2. [Step]
+
+   ## Output
+
+   - [What to produce or record]
+   ```
+2. Show the draft to the user for approval. Do not write until approved.
+3. On approval:
+   - Write to `.memory-seed/skills/<persona-slug>-<skill-name>.md`
+   - Add a trigger entry to the `skills:` list in `.memory-seed/skills/index.md`:
+     ```yaml
+     - skill: <persona-slug>-<skill-name>.md
+       required: false
+       persona: <persona-slug>
+       load_when:
+         - [trigger conditions]
+       do_not_load_when:
+         - [exclusion conditions]
+     ```
+   - Add the filename to the `### Role-Specific Skills` section of the persona file
+
+The `persona:` field in `skills/index.md` entries signals that the skill only loads when that persona is active.
+
+### 9d. Write `_registry.yaml`
+
+Write `.agents/_registry.yaml` with the selections and resolved values. Set unselected personas to `inactive`.
+
+```yaml
+# .agents/_registry.yaml
+# Generated by bootstrap. Edit to activate/deactivate personas.
+# Add new entries here to register custom personas created in this folder.
+
+agents:
+  solo-founder:
+    file: solo-founder.md
+    role: Co-founder / Generalist
+    status: active
+    entity_name: Stark
+    user_name: Jean Nathan
+    business_name: Foundry
+  developer:
+    file: developer.md
+    role: Software Engineer / Staff IC
+    status: active
+    entity_name: Ada
+    user_name: Jean Nathan
+    business_name: Foundry
+  content-creator:
+    file: content-creator.md
+    role: Content Strategist / Writer
+    status: inactive
+    entity_name: null
+    user_name: null
+    business_name: null
+```
+
+`entity_name`, `user_name`, and `business_name` in the registry are informational. The persona file is authoritative — placeholders are already replaced there.
+
+`_registry.yaml` is not a seed file — it is never overwritten by `memory-seed update`. Custom personas and activation choices survive upgrades.
+
+### 9e. Onboard unregistered persona files
+
+After writing `_registry.yaml`, check for `.agents/*.md` files that are not listed in the registry (custom personas the user dropped in). For each unregistered file:
+
+1. Read the file. Check for required YAML frontmatter (`agent_name`, `memory_protocol`, `vendor_neutral`, `tags`). If missing, add it, deriving `agent_name` from the filename slug.
+2. Check if the Memory Protocol section points to `.memory-seed/` paths. If it references a separate `memory/` folder, rewrite it to the standard memory-seed format.
+3. Check for `## Project Adaptations` section at the bottom. If missing, append it.
+4. Check for `## Skills` section. If missing, add it with `### Mapped Skills` and `### Role-Specific Skills` subsections.
+5. Run personalization (sub-steps 9b).
+6. Run skill routing (sub-step 9c).
+7. Add to `_registry.yaml` with `status: active`.
+
+The user only sees the questions; the formatting steps happen silently.
+
+## Step 10: Create First Session Log
 
 Create `.memory-seed/sessions/YYYY-MM-DD.md` with file frontmatter:
 
@@ -296,7 +458,7 @@ Do not require reason for obvious file discoveries. Do not invent reason; mark i
 
 Keep sessions append-only.
 
-## Step 10: Validate Bootstrap
+## Step 11: Validate Bootstrap
 
 Bootstrap is incomplete until all checks pass:
 

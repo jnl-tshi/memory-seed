@@ -1,8 +1,0 @@
----
-memory-system-version: 2.0
-tags:
-  - memory-seed
-  - archive
----
-
-Keep this directory for archived control-plane snapshots.

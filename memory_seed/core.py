@@ -11,7 +11,7 @@ from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "2.4"
+VERSION = "2.5"
 MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
@@ -65,6 +65,13 @@ SEED_FILES = [
     SeedFile(SEED_ROOT / "AGENTS.md", "AGENTS.md"),
     SeedFile(SEED_ROOT / "CLAUDE.md", "CLAUDE.md"),
     SeedFile(SEED_ROOT / "GEMINI.md", "GEMINI.md"),
+    SeedFile(SEED_ROOT / ".agents" / "README.md", ".agents/README.md"),
+    SeedFile(SEED_ROOT / ".agents" / "developer.md", ".agents/developer.md"),
+    SeedFile(SEED_ROOT / ".agents" / "content-creator.md", ".agents/content-creator.md"),
+    SeedFile(SEED_ROOT / ".agents" / "researcher.md", ".agents/researcher.md"),
+    SeedFile(SEED_ROOT / ".agents" / "sales-rep.md", ".agents/sales-rep.md"),
+    SeedFile(SEED_ROOT / ".agents" / "solo-founder.md", ".agents/solo-founder.md"),
+    SeedFile(SEED_ROOT / ".agents" / "copywriter.md", ".agents/copywriter.md"),
     SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "agent-rules.md",
         ".memory-seed/agent-rules.md",
@@ -77,6 +84,10 @@ SEED_FILES = [
     SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "security_triage.md",
         ".memory-seed/skills/security_triage.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "copywriter-conversion.md",
+        ".memory-seed/skills/copywriter-conversion.md",
     ),
     SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "code_search.md",
@@ -743,6 +754,8 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
 
         if not candidate.suffix == ".md":
             continue
+        if seed_file.destination.startswith(".agents/"):
+            continue  # agent personas are project-local; not version-tracked control plane
         actual = _read_memory_system_version(candidate)
         if actual != VERSION:
             version_mismatches.append(
@@ -924,7 +937,7 @@ def _is_runtime_local_file(destination: str) -> bool:
     return (
         destination.startswith(f"{MEMORY_DIR_NAME}/")
         and destination not in reusable_runtime_files
-    )
+    ) or destination.startswith(".agents/")
 
 
 def _archive_replaced_control_plane_file(

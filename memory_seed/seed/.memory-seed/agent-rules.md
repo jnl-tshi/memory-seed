@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.4
+memory-system-version: 2.5
 tags:
   - memory-seed
   - agent-rules
@@ -84,6 +84,9 @@ At the start of work:
 6. Read `.memory-seed/policy.md`.
 7. Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry.
 8. Load full `.memory-seed/skills/*.md` runbooks only when the trigger registry matches the current task.
+9. If `.agents/_registry.yaml` exists at the workspace root, read it and load all persona files with `status: active`. Apply persona rules alongside this agent-rules.md and policy.md. Record `agent_name` (the persona's slug) in every session log entry this turn.
+
+When multiple personas are active, the one most relevant to the current task governs. Default to the first active entry in `_registry.yaml` when ambiguous.
 
 Do not read or apply `.memory-seed/project-bootstrap.md` during normal operating mode unless the runtime is missing or incomplete.
 
@@ -278,12 +281,17 @@ This rule applies to all agents equally — Claude, Codex, Gemini, and any other
 
 After any turn where meaningful work was completed:
 
-1. **Append a concise note to `.memory-seed/sessions/YYYY-MM-DD.md` before this turn ends.** Do not defer it to the next turn. Do not batch multiple turns into one entry later. Write it now.
+1. **Append a concise note to `.memory-seed/sessions/YYYY-MM-DD.md` before this turn ends.** Do not defer it to the next turn. Do not batch multiple turns into one entry later. Write it now. Include `agent_name` in the entry YAML block if a persona is active.
 2. Review whether `.memory-seed/index.md` needs updated topology, active state, inheritance, or skill pointers.
 3. Review whether `.memory-seed/policy.md` needs durable behavioral-policy changes.
 4. Review whether any `.memory-seed/skills/*.md` runbook changed.
 5. If work occurred in a sub-project runtime, review whether the parent or root runtime needs a brief coordination summary.
 6. Run the smallest verification that proves the work.
+7. **Persona evolution check (if a persona is active):** Identify up to 3 patterns from this session that should change how the active persona behaves — new rules, dropped rules, or calibration from evidence. Draft proposed changes (what to add/change/remove in `.agents/<slug>.md` and why) and present them to the user for approval. Do not touch `.agents/<slug>.md` until the user approves. On approval: apply the edit, append a `### YYYY-MM-DD` entry to the `## Project Adaptations` section of the persona file, and add "Signed: user approved YYYY-MM-DD HH:MM" to the session log entry. If no lessons emerged, skip this step silently.
+
+8. **Skill evolution check (if a persona is active):** If a repeating workflow pattern emerged during this session that is not covered by any existing skill in `.memory-seed/skills/`, propose a new role-specific skill. Follow the same draft → approval flow: draft the skill file (YAML frontmatter, `# Skill Name`, Procedure, Output), present to the user, and wait for approval before writing. On approval: write to `.memory-seed/skills/<persona-slug>-<skill-name>.md`, add a trigger entry to `skills/index.md` (with `persona: <slug>` field), update the `### Role-Specific Skills` section of the persona file, and log in the session entry. If no skill gaps emerged, skip silently.
+
+Also check for unregistered `.agents/*.md` files (files present but not in `_registry.yaml`). If any are found, run the persona onboarding flow from project-bootstrap.md Step 9e.
 
 Deferring or batching session log writes is a discipline failure, not an acceptable workflow. If the current turn produced anything worth remembering — a decision, a file change, a resolved blocker, a tradeoff — write it now.
 
@@ -372,9 +380,12 @@ session_date: 2026-05-02
 entry_id: ms-8charhash
 user_initials: USER
 agent_type: codex
+agent_name: null
 project_path: .
 subproject_path: null
 ```
+
+`agent_type` is the LLM model or vendor (e.g., `claude-opus-4-8`, `codex`). `agent_name` is the active `.agents/` persona slug (e.g., `developer`, `solo-founder`), or `null` when no persona is active. Both fields are independently optional.
 ### Summary
 
 - What changed or what was checked.

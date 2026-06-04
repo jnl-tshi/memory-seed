@@ -23,7 +23,7 @@ class MemorySeedTests(unittest.TestCase):
         return path
 
     def test_version_reads_reusable_control_plane_version(self):
-        self.assertEqual(get_version(), "2.4")
+        self.assertEqual(get_version(), "2.5")
 
     def test_version_at_least_orders_versions_numerically(self):
         from memory_seed.core import _version_at_least
@@ -76,7 +76,17 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue((cwd / ".memory-seed" / "skills").is_dir())
         self.assertTrue((cwd / ".memory-seed" / "sessions").is_dir())
         self.assertTrue((cwd / ".memory-seed" / "archive").is_dir())
-        self.assertFalse((cwd / ".AGENTS").exists())
+        # .AGENTS is the legacy directory. On case-insensitive filesystems (Windows),
+        # it resolves to the same path as our new .agents/ folder. Verify via resolve_runtime
+        # that the active runtime is .memory-seed/, not the legacy .AGENTS/ fallback.
+        from memory_seed.core import resolve_runtime
+        runtime = resolve_runtime(cwd)
+        self.assertFalse(runtime.legacy)
+        # .agents/ persona templates are seeded; registry is bootstrap-generated (absent after bare init)
+        self.assertTrue((cwd / ".agents" / "README.md").exists())
+        self.assertTrue((cwd / ".agents" / "developer.md").exists())
+        self.assertTrue((cwd / ".agents" / "solo-founder.md").exists())
+        self.assertFalse((cwd / ".agents" / "_registry.yaml").exists())
 
     def test_init_refuses_to_overwrite_existing_files_without_force(self):
         cwd = self.make_project()
@@ -349,6 +359,8 @@ class MemorySeedTests(unittest.TestCase):
         for seed_file in SEED_FILES:
             if not seed_file.source.suffix == ".md":
                 continue
+            if seed_file.destination.startswith(".agents/"):
+                continue  # agent personas are project-local, not version-tracked control plane
             content = seed_file.source.read_text(encoding="utf-8")
             self.assertIn(f"memory-system-version: {get_version()}", content, seed_file.destination)
 
@@ -363,6 +375,8 @@ class MemorySeedTests(unittest.TestCase):
         for seed_file in SEED_FILES:
             if not seed_file.source.suffix == ".md":
                 continue
+            if seed_file.destination.startswith(".agents/"):
+                continue  # agent personas are project-local, not version-tracked control plane
             live = repo_root / seed_file.destination
             self.assertTrue(live.exists(), f"missing live control-plane file: {seed_file.destination}")
             self.assertIn(expected, live.read_text(encoding="utf-8"), seed_file.destination)
@@ -373,6 +387,13 @@ class MemorySeedTests(unittest.TestCase):
         self.assertEqual(
             destinations,
             [
+                ".agents/README.md",
+                ".agents/content-creator.md",
+                ".agents/copywriter.md",
+                ".agents/developer.md",
+                ".agents/researcher.md",
+                ".agents/sales-rep.md",
+                ".agents/solo-founder.md",
                 ".memory-seed/agent-rules.md",
                 ".memory-seed/archive/.gitkeep",
                 ".memory-seed/hooks/memory-retrieval-check.py",
@@ -380,6 +401,7 @@ class MemorySeedTests(unittest.TestCase):
                 ".memory-seed/project-bootstrap.md",
                 ".memory-seed/sessions/.gitkeep",
                 ".memory-seed/skills/code_search.md",
+                ".memory-seed/skills/copywriter-conversion.md",
                 ".memory-seed/skills/data_architecture.md",
                 ".memory-seed/skills/index.md",
                 ".memory-seed/skills/local_compilation.md",
@@ -392,6 +414,17 @@ class MemorySeedTests(unittest.TestCase):
                 "GEMINI.md",
             ],
         )
+
+    def test_update_does_not_overwrite_customized_agent_persona(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        persona = cwd / ".agents" / "developer.md"
+        persona.write_text(persona.read_text(encoding="utf-8") + "\n## Custom Section\nProject-specific rule.\n", encoding="utf-8")
+
+        result = update_project(cwd=cwd)
+
+        self.assertNotIn(".agents/developer.md", result.created)
+        self.assertIn("Custom Section", persona.read_text(encoding="utf-8"))
 
     def test_resolve_runtime_prefers_nearest_memory_seed(self):
         cwd = self.make_project()

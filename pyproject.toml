@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memory-seed"
-version = "2.4.0"
+version = "2.5.0"
 description = "Portable local memory seed for file-reading AI coding agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -36,10 +36,18 @@ memory_seed = [
   "seed/AGENTS.md",
   "seed/CLAUDE.md",
   "seed/GEMINI.md",
+  "seed/.agents/README.md",
+  "seed/.agents/developer.md",
+  "seed/.agents/content-creator.md",
+  "seed/.agents/researcher.md",
+  "seed/.agents/sales-rep.md",
+  "seed/.agents/solo-founder.md",
+  "seed/.agents/copywriter.md",
   "seed/.memory-seed/agent-rules.md",
   "seed/.memory-seed/archive/.gitkeep",
   "seed/.memory-seed/project-bootstrap.md",
   "seed/.memory-seed/skills/security_triage.md",
+  "seed/.memory-seed/skills/copywriter-conversion.md",
   "seed/.memory-seed/skills/code_search.md",
   "seed/.memory-seed/skills/index.md",
   "seed/.memory-seed/skills/data_architecture.md",
