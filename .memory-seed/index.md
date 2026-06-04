@@ -60,6 +60,7 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Root routing files: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`.
 - Runtime files: `.memory-seed/agent-rules.md`, `.memory-seed/project-bootstrap.md`, bootstrap-generated `.memory-seed/index.md`, bootstrap-generated `.memory-seed/policy.md`, `.memory-seed/skills/`, `.memory-seed/sessions/`, `.memory-seed/archive/`, `.memory-seed/hooks/`.
 - Agent hook configs: `.claude/settings.json` (Claude Code Stop hook), `.codex/hooks.json` (Codex CLI Stop hook) — both installed by `memory-seed init` via safe JSON merge.
+- Agent MCP configs (auto-registered by `init`/`update`): `.mcp.json` (Claude Code, project root), `.cursor/mcp.json` (Cursor), `.gemini/settings.json` (Gemini), `.codex/config.toml` (Codex, trusted directories only).
 - Legacy `.AGENTS/`: supported by code for old projects, but not part of the v2 target shape.
 - Python orchestration: `memory_seed/core.py`, `memory_seed/semantic_cache.py`, `memory_seed/mcp_server.py`, `memory_seed/mcp_validate.py`, `memory_seed/cli.py`.
 - Seed templates: `memory_seed/seed/`.
@@ -85,6 +86,11 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - `.memory-seed/sessions/` is the rationale and audit trail for decisions; `index.md` should store current orientation and durable conclusions, not full decision history.
 - `memory-seed update` archives replaced reusable control-plane files under `.memory-seed/archive/<old-version>/` or `.memory-seed/archive/unknown-<timestamp>/` before refreshing them.
 - MCP memory search uses the Model2Vec static embedding provider `model2vec:minishlab/potion-base-8M` by default and falls back to lexical, metadata, and recency ranking if semantic scoring fails or is disabled.
+- Claude Code reads project-scope MCP servers from a project-root `.mcp.json`, NOT from `.claude/settings.json > mcpServers` (silently ignored). Versions 2.2.0–2.3.0 mis-wrote it to settings.json; `update` now writes `.mcp.json` and strips the dead block (ours-only).
+- Codex reads project MCP from `.codex/config.toml` (`[mcp_servers.<name>]`, trusted directories only). Auto-registered via a zero-dependency TOML text-upsert (stdlib `tomllib` inspects; line-based writes preserve comments). A stale entry in a non-standard TOML form is left as a safe no-op.
+- `doctor` has a non-fatal `warnings` channel (`DoctorResult.warnings`). It classifies the Codex MCP entry as absent/current/foreign/stale-fixable/stale-manual so an un-migratable stale entry is surfaced for manual fix rather than silently ignored.
+- The single-decision DRAFT record is the **baseline** session-entry shape (since 2.4.0); the bare summary (simpler) and multi-decision (richer) shapes are explicit routes off it. D/R are mandatory, A/F/T optional.
+- Release/publish: creating a GitHub Release triggers `.github/workflows/publish.yml`; the `pypi` environment has a **manual-approval gate** (a required reviewer must approve the deployment) before the OIDC PyPI push. The build job runs `tests.test_memory_seed`, so those tests must be clock-robust.
 
 ## Session Memory
 
