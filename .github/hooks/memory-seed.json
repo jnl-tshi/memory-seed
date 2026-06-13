@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "prompt",
+        "prompt": "memory-seed: To establish current project state, read the most recent dated file in .memory-seed/sessions/ (newest YYYY-MM-DD.md) in full, then skim the prior one. Do NOT use memory_search/semantic search to find the most recent work - its ranking can bury the newest entry beneath older topically-similar ones. Use memory_search only for topical 'why was X decided / what do we know about Y' questions."
+      }
+    ]
+  }
+}

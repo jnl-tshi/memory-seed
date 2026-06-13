@@ -1,6 +1,16 @@
 {
   "hooks": {
-    "Stop": [
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .memory-seed/hooks/session-start-context.py --gemini"
+          }
+        ]
+      }
+    ],
+    "AfterAgent": [
       {
         "hooks": [
           {
@@ -10,7 +20,7 @@
         ]
       }
     ],
-    "UserPromptSubmit": [
+    "BeforeAgent": [
       {
         "hooks": [
           {

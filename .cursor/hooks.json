@@ -9,6 +9,9 @@
     "sessionStart": [
       {
         "command": "python3 .memory-seed/hooks/memory-retrieval-check.py --cursor"
+      },
+      {
+        "command": "python3 .memory-seed/hooks/session-start-context.py --cursor"
       }
     ]
   }

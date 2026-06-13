@@ -1,0 +1,14 @@
+{
+  "servers": {
+    "memory-seed": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "memory-seed",
+        "memory-seed-mcp",
+        "--stdio"
+      ]
+    }
+  }
+}
