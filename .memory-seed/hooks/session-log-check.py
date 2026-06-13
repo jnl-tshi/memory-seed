@@ -76,8 +76,8 @@ elif agent == "cursor":
     # Cursor: agentMessage injected into next agent turn
     print(json.dumps({"agentMessage": reminder}))
 elif agent == "gemini":
-    # Gemini CLI: additionalContext injected into model context
-    print(json.dumps({"additionalContext": reminder}))
+    # Gemini CLI AfterAgent: hookSpecificOutput.additionalContext injects context.
+    print(json.dumps({"hookSpecificOutput": {"additionalContext": reminder}}))
 else:
     # Claude Code Stop hook: systemMessage injects into model context
     print(json.dumps({"systemMessage": reminder}))

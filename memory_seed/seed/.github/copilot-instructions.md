@@ -5,7 +5,7 @@ tags:
   - ai-memory
 ---
 
-# Gemini Instructions
+# GitHub Copilot Instructions
 
 The canonical agent instructions for this repository are in `AGENTS.md`.
 

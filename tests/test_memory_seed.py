@@ -23,7 +23,7 @@ class MemorySeedTests(unittest.TestCase):
         return path
 
     def test_version_reads_reusable_control_plane_version(self):
-        self.assertEqual(get_version(), "2.5")
+        self.assertEqual(get_version(), "2.6")
 
     def test_version_at_least_orders_versions_numerically(self):
         from memory_seed.core import _version_at_least
@@ -394,10 +394,12 @@ class MemorySeedTests(unittest.TestCase):
                 ".agents/researcher.md",
                 ".agents/sales-rep.md",
                 ".agents/solo-founder.md",
+                ".github/copilot-instructions.md",
                 ".memory-seed/agent-rules.md",
                 ".memory-seed/archive/.gitkeep",
                 ".memory-seed/hooks/memory-retrieval-check.py",
                 ".memory-seed/hooks/session-log-check.py",
+                ".memory-seed/hooks/session-start-context.py",
                 ".memory-seed/project-bootstrap.md",
                 ".memory-seed/sessions/.gitkeep",
                 ".memory-seed/skills/code_search.md",
@@ -549,8 +551,14 @@ class HookMergeTests(unittest.TestCase):
         codex = json.loads((cwd / ".codex" / "hooks.json").read_text())
         self.assertIn("UserPromptSubmit", codex["hooks"])
 
+        # Gemini's prompt-submit event is BeforeAgent; it has no UserPromptSubmit.
         gemini = json.loads((cwd / ".gemini" / "settings.json").read_text())
-        self.assertIn("UserPromptSubmit", gemini["hooks"])
+        self.assertIn("BeforeAgent", gemini["hooks"])
+        self.assertNotIn("UserPromptSubmit", gemini["hooks"])
+        self.assertIn(
+            "memory-retrieval-check.py",
+            gemini["hooks"]["BeforeAgent"][0]["hooks"][0]["command"],
+        )
 
         cursor = json.loads((cwd / ".cursor" / "hooks.json").read_text())
         self.assertIn("sessionStart", cursor["hooks"])
@@ -558,6 +566,52 @@ class HookMergeTests(unittest.TestCase):
             "memory-retrieval-check.py",
             cursor["hooks"]["sessionStart"][0]["command"],
         )
+
+    def test_gemini_session_log_hook_uses_afteragent_not_stop(self):
+        import json
+
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        gemini = json.loads((cwd / ".gemini" / "settings.json").read_text())
+        self.assertIn("AfterAgent", gemini["hooks"])
+        self.assertNotIn("Stop", gemini["hooks"])
+        self.assertIn(
+            "session-log-check.py",
+            gemini["hooks"]["AfterAgent"][0]["hooks"][0]["command"],
+        )
+
+    def test_strip_gemini_dead_hooks_removes_ours_preserves_foreign(self):
+        import json
+        from memory_seed.core import _strip_gemini_dead_hooks
+
+        cwd = self.make_project()
+        settings = cwd / ".gemini" / "settings.json"
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        settings.write_text(
+            json.dumps({
+                "hooks": {
+                    "Stop": [
+                        {"hooks": [{"type": "command", "command": "python3 .memory-seed/hooks/session-log-check.py --gemini"}]},
+                        {"hooks": [{"type": "command", "command": "some-foreign-tool"}]},
+                    ],
+                    "UserPromptSubmit": [
+                        {"hooks": [{"type": "command", "command": "python3 .memory-seed/hooks/memory-retrieval-check.py --gemini"}]},
+                    ],
+                }
+            }),
+            encoding="utf-8",
+        )
+
+        self.assertTrue(_strip_gemini_dead_hooks(cwd))
+        data = json.loads(settings.read_text())
+        # Our UserPromptSubmit entry was the only one -> event removed entirely.
+        self.assertNotIn("UserPromptSubmit", data["hooks"])
+        # Foreign Stop entry preserved; our Stop entry removed.
+        stop_cmds = [h["command"] for g in data["hooks"]["Stop"] for h in g["hooks"]]
+        self.assertEqual(stop_cmds, ["some-foreign-tool"])
+        # Idempotent: nothing of ours left to strip.
+        self.assertFalse(_strip_gemini_dead_hooks(cwd))
 
     def test_retrieval_hook_merges_are_idempotent(self):
         from memory_seed.core import (
@@ -627,6 +681,108 @@ class HookMergeTests(unittest.TestCase):
         data = json.loads(config.read_text())
         commands = [e["command"] for e in data["hooks"]["sessionStart"]]
         self.assertEqual(commands, [new_command])  # updated in place, no duplicate
+
+    def test_init_installs_session_start_hooks_for_all_agents(self):
+        import json
+
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        claude = json.loads((cwd / ".claude" / "settings.json").read_text())
+        self.assertIn("SessionStart", claude["hooks"])
+        self.assertIn(
+            "session-start-context.py",
+            claude["hooks"]["SessionStart"][0]["hooks"][0]["command"],
+        )
+
+        codex = json.loads((cwd / ".codex" / "hooks.json").read_text())
+        self.assertIn("SessionStart", codex["hooks"])
+        self.assertIn(
+            "--codex",
+            codex["hooks"]["SessionStart"][0]["hooks"][0]["command"],
+        )
+
+        gemini = json.loads((cwd / ".gemini" / "settings.json").read_text())
+        self.assertIn("SessionStart", gemini["hooks"])
+
+        # Cursor fires both reminders at sessionStart; both scripts must be present.
+        cursor = json.loads((cwd / ".cursor" / "hooks.json").read_text())
+        cursor_cmds = [e["command"] for e in cursor["hooks"]["sessionStart"]]
+        self.assertTrue(any("session-start-context.py" in c for c in cursor_cmds))
+        self.assertTrue(any("memory-retrieval-check.py" in c for c in cursor_cmds))
+
+    def test_init_installs_copilot_mcp_and_prompt_hook(self):
+        import json
+
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        mcp = json.loads((cwd / ".github" / "mcp.json").read_text())
+        server = mcp["mcpServers"]["memory-seed"]
+        self.assertEqual(server["type"], "stdio")
+        self.assertEqual(server["command"], "uvx")
+        self.assertIn("memory-seed-mcp", server["args"])
+        self.assertEqual(server["tools"], ["*"])
+
+        hook = json.loads((cwd / ".github" / "hooks" / "memory-seed.json").read_text())
+        self.assertEqual(hook["version"], 1)
+        entry = hook["hooks"]["sessionStart"][0]
+        self.assertEqual(entry["type"], "prompt")
+        self.assertIn("Do NOT use memory_search", entry["prompt"])
+        self.assertIn(".memory-seed/sessions/", entry["prompt"])
+
+    def test_copilot_merges_are_idempotent(self):
+        from memory_seed.core import _merge_copilot_mcp, _merge_copilot_startup_hook
+
+        cwd = self.make_project()
+        self.assertTrue(_merge_copilot_mcp(cwd))
+        self.assertFalse(_merge_copilot_mcp(cwd))
+        self.assertTrue(_merge_copilot_startup_hook(cwd))
+        self.assertFalse(_merge_copilot_startup_hook(cwd))
+
+    def test_copilot_mcp_preserves_foreign_server(self):
+        import json
+        from memory_seed.core import _merge_copilot_mcp
+
+        cwd = self.make_project()
+        mcp_path = cwd / ".github" / "mcp.json"
+        mcp_path.parent.mkdir(parents=True, exist_ok=True)
+        mcp_path.write_text(
+            json.dumps({"mcpServers": {"memory-seed": {"command": "other-tool"}}}),
+            encoding="utf-8",
+        )
+
+        self.assertFalse(_merge_copilot_mcp(cwd))  # foreign entry left untouched
+        data = json.loads(mcp_path.read_text())
+        self.assertEqual(data["mcpServers"]["memory-seed"]["command"], "other-tool")
+
+    def test_init_installs_vscode_mcp_under_servers_key(self):
+        import json
+        from memory_seed.core import _merge_vscode_mcp
+
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        mcp = json.loads((cwd / ".vscode" / "mcp.json").read_text())
+        # VS Code uses the "servers" key, not "mcpServers".
+        self.assertIn("servers", mcp)
+        self.assertNotIn("mcpServers", mcp)
+        server = mcp["servers"]["memory-seed"]
+        self.assertEqual(server["type"], "stdio")
+        self.assertEqual(server["command"], "uvx")
+        self.assertIn("memory-seed-mcp", server["args"])
+        # Idempotent.
+        self.assertFalse(_merge_vscode_mcp(cwd))
+
+    def test_init_installs_copilot_instructions_router(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        router = cwd / ".github" / "copilot-instructions.md"
+        self.assertTrue(router.exists())
+        text = router.read_text(encoding="utf-8")
+        self.assertIn("GitHub Copilot Instructions", text)
+        self.assertIn("AGENTS.md", text)
 
 
 class SessionLogOrderingHookTests(unittest.TestCase):
@@ -1128,6 +1284,305 @@ class CliHelpTests(unittest.TestCase):
         code, out = self._run([])
         self.assertEqual(code, 0)
         self.assertIn("Keeping Memory Seed current", out)
+
+
+class SessionStartContextHookTests(unittest.TestCase):
+    SCRIPT = Path("memory_seed/seed/.memory-seed/hooks/session-start-context.py").resolve()
+
+    def make_project(self, sessions=None):
+        path = Path(tempfile.mkdtemp(prefix="memory-seed-startup-"))
+        self.addCleanup(lambda: shutil.rmtree(path, ignore_errors=True))
+        sdir = path / ".memory-seed" / "sessions"
+        sdir.mkdir(parents=True)
+        for name, body in (sessions or {}).items():
+            (sdir / name).write_text(body, encoding="utf-8")
+        return path
+
+    def _run(self, cwd, *args):
+        import subprocess
+        import sys
+
+        return subprocess.run(
+            [sys.executable, str(self.SCRIPT), *args],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    def test_injects_newest_file_headings_and_latest_entry(self):
+        import json
+
+        cwd = self.make_project({
+            "2026-01-01.md": "## 2026-01-01 09:00 - Older work\n\nbody one\n",
+            "2026-02-02.md": (
+                "## 2026-02-02 10:00 - First entry\n\nbody A\n\n"
+                "## 2026-02-02 14:30 - Latest entry title\n\nthe newest body\n"
+            ),
+        })
+
+        out = self._run(cwd)
+        context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+
+        # Newest file by date is selected, not the older one.
+        self.assertIn("Newest session file: .memory-seed/sessions/2026-02-02.md", context)
+        self.assertIn("Prior session file: .memory-seed/sessions/2026-01-01.md", context)
+        # All headings of the newest file are listed.
+        self.assertIn("2026-02-02 10:00 - First entry", context)
+        self.assertIn("2026-02-02 14:30 - Latest entry title", context)
+        # The most recent entry's body is injected verbatim (self-sufficient).
+        self.assertIn("the newest body", context)
+        # The recency-vs-search rule is present.
+        self.assertIn("do NOT use memory_search", context)
+
+    def test_cursor_uses_additional_context_field(self):
+        import json
+
+        cwd = self.make_project({"2026-02-02.md": "## 2026-02-02 10:00 - X\n\nb\n"})
+        out = self._run(cwd, "--cursor")
+        data = json.loads(out)
+        self.assertIn("additional_context", data)
+        self.assertNotIn("hookSpecificOutput", data)
+
+    def test_caps_long_latest_entry(self):
+        import json
+
+        big = "## 2026-02-02 10:00 - Huge\n\n" + ("x" * 5000) + "\n"
+        cwd = self.make_project({"2026-02-02.md": big})
+        out = self._run(cwd)
+        context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("truncated", context)
+
+    def test_empty_sessions_dir_emits_nothing(self):
+        cwd = self.make_project({})
+        self.assertEqual(self._run(cwd).strip(), "")
+
+    def test_missing_sessions_dir_emits_nothing(self):
+        path = Path(tempfile.mkdtemp(prefix="memory-seed-startup-"))
+        self.addCleanup(lambda: shutil.rmtree(path, ignore_errors=True))
+        self.assertEqual(self._run(path).strip(), "")
+
+    def test_ignores_non_date_filenames(self):
+        import json
+
+        cwd = self.make_project({
+            "2026-02-02.md": "## 2026-02-02 10:00 - Real\n\nb\n",
+            "notes.md": "## Should be ignored\n\nignored\n",
+        })
+        out = self._run(cwd)
+        context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("2026-02-02.md", context)
+        self.assertNotIn("Should be ignored", context)
+
+    def test_markdown_heading_in_body_is_not_an_entry_boundary(self):
+        import json
+
+        # A "## " line inside an entry body (e.g. a quoted heading) must not be
+        # parsed as an entry boundary, or the latest-entry extraction would start
+        # from it and drop the real entry's content above it.
+        cwd = self.make_project({
+            "2026-02-02.md": (
+                "## 2026-02-02 10:00 - Real entry\n\n"
+                "Here is an example heading we quote:\n\n"
+                "## Not A Real Entry Heading\n\n"
+                "real entry trailing content\n"
+            ),
+        })
+        out = self._run(cwd)
+        context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+
+        # Exactly one real entry heading is listed.
+        self.assertIn("- 2026-02-02 10:00 - Real entry", context)
+        self.assertNotIn("- Not A Real Entry Heading", context)
+        # The latest entry includes content from above the stray "## " line.
+        self.assertIn("Here is an example heading we quote", context)
+        self.assertIn("real entry trailing content", context)
+
+    def test_seed_and_live_hook_match(self):
+        live = Path(".memory-seed/hooks/session-start-context.py")
+        seed = Path("memory_seed/seed/.memory-seed/hooks/session-start-context.py")
+        self.assertEqual(
+            live.read_text(encoding="utf-8"),
+            seed.read_text(encoding="utf-8"),
+        )
+
+
+class AgentSelectionTests(unittest.TestCase):
+    def make_project(self):
+        path = Path(tempfile.mkdtemp(prefix="memory-seed-agents-"))
+        self.addCleanup(lambda: shutil.rmtree(path, ignore_errors=True))
+        return path
+
+    # --- resolve_agents ---
+    def test_resolve_agents_flag_parsing_and_validation(self):
+        from memory_seed.core import resolve_agents, KNOWN_AGENTS
+
+        self.assertEqual(resolve_agents("claude,codex", isatty=False), {"claude", "codex"})
+        self.assertEqual(resolve_agents("claude codex", isatty=False), {"claude", "codex"})
+        self.assertEqual(resolve_agents("all", isatty=False), set(KNOWN_AGENTS))
+        # No flag, non-TTY -> all (backward-compatible default).
+        self.assertEqual(resolve_agents(None, isatty=False), set(KNOWN_AGENTS))
+        # Interactive empty response -> all.
+        self.assertEqual(resolve_agents(None, isatty=True, prompt_response=""), set(KNOWN_AGENTS))
+        self.assertEqual(resolve_agents(None, isatty=True, prompt_response="gemini"), {"gemini"})
+        with self.assertRaises(ValueError):
+            resolve_agents("claude,bogus", isatty=False)
+
+    # --- selective init ---
+    def test_init_with_subset_installs_only_selected(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd, agents={"claude", "codex"})
+
+        self.assertTrue((cwd / "AGENTS.md").exists())
+        self.assertTrue((cwd / "CLAUDE.md").exists())
+        self.assertTrue((cwd / ".claude" / "settings.json").exists())
+        self.assertTrue((cwd / ".codex" / "hooks.json").exists())
+        self.assertTrue((cwd / ".mcp.json").exists())
+        # Deselected agents leave no trace.
+        self.assertFalse((cwd / "GEMINI.md").exists())
+        self.assertFalse((cwd / ".gemini").exists())
+        self.assertFalse((cwd / ".github").exists())
+        self.assertFalse((cwd / ".cursor").exists())
+        # Agent-agnostic core always present.
+        self.assertTrue((cwd / ".memory-seed" / "agent-rules.md").exists())
+        self.assertTrue((cwd / ".agents" / "developer.md").exists())
+        # Selection persisted.
+        from memory_seed.core import selected_agents
+        self.assertEqual(selected_agents(cwd), {"claude", "codex"})
+        self.assertTrue((cwd / ".memory-seed" / "project.yaml").exists())
+
+    def test_init_all_agents_writes_no_project_yaml(self):
+        # Default (all) must stay byte-identical to legacy: no project.yaml written.
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        self.assertFalse((cwd / ".memory-seed" / "project.yaml").exists())
+        from memory_seed.core import read_project_agents, KNOWN_AGENTS, selected_agents
+        self.assertIsNone(read_project_agents(cwd))
+        self.assertEqual(selected_agents(cwd), set(KNOWN_AGENTS))
+
+    def test_doctor_ignores_deselected_agent_files(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd, agents={"claude", "codex"})
+        result = doctor(cwd=cwd)
+        # GEMINI.md is intentionally absent; doctor must not flag it.
+        self.assertNotIn("GEMINI.md", result.missing)
+        self.assertEqual(result.missing, [])
+        self.assertFalse(any("Codex" in w for w in result.warnings))
+
+    def test_update_does_not_readd_deselected_agents(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd, agents={"claude", "codex"})
+        update_project(cwd=cwd)
+        self.assertFalse((cwd / "GEMINI.md").exists())
+        self.assertFalse((cwd / ".gemini").exists())
+        self.assertFalse((cwd / ".github").exists())
+
+    # --- add / remove ---
+    def test_add_agent_installs_and_persists(self):
+        from memory_seed.core import add_agent, selected_agents
+
+        cwd = self.make_project()
+        init_project(cwd=cwd, agents={"claude"})
+        res = add_agent(cwd=cwd, agent="gemini")
+        self.assertTrue(res["changed"])
+        self.assertTrue((cwd / "GEMINI.md").exists())
+        self.assertTrue((cwd / ".gemini" / "settings.json").exists())
+        self.assertEqual(selected_agents(cwd), {"claude", "gemini"})
+        # Adding an already-installed agent is a no-op.
+        self.assertFalse(add_agent(cwd=cwd, agent="gemini")["changed"])
+
+    def test_remove_agent_strips_ours_preserves_foreign_and_backs_up(self):
+        import json
+        from memory_seed.core import remove_agent, selected_agents
+
+        cwd = self.make_project()
+        init_project(cwd=cwd, agents={"claude", "codex"})
+        # Inject foreign content into Claude's settings.
+        settings = cwd / ".claude" / "settings.json"
+        data = json.loads(settings.read_text())
+        data["permissions"] = {"allow": ["Bash"]}
+        settings.write_text(json.dumps(data))
+
+        res = remove_agent(cwd=cwd, agent="claude")
+        self.assertTrue(res["changed"])
+        self.assertTrue(res["backed_up"])  # something was backed up
+        # Routing file + ours-only .mcp.json gone.
+        self.assertFalse((cwd / "CLAUDE.md").exists())
+        self.assertFalse((cwd / ".mcp.json").exists())
+        # Foreign content preserved; file NOT deleted.
+        self.assertTrue(settings.exists())
+        self.assertEqual(list(json.loads(settings.read_text()).keys()), ["permissions"])
+        self.assertEqual(selected_agents(cwd), {"codex"})
+
+    def test_remove_not_installed_is_noop(self):
+        from memory_seed.core import remove_agent
+        cwd = self.make_project()
+        init_project(cwd=cwd, agents={"claude"})
+        res = remove_agent(cwd=cwd, agent="gemini")
+        self.assertFalse(res["changed"])
+
+    def test_remove_last_agent_warns_and_is_zero_state(self):
+        from memory_seed.core import remove_agent, selected_agents, read_project_agents
+        cwd = self.make_project()
+        init_project(cwd=cwd, agents={"codex"})
+        res = remove_agent(cwd=cwd, agent="codex")
+        self.assertTrue(res["warning"])
+        # Zero-agents is a real state (empty set), distinct from unconfigured (None).
+        self.assertEqual(read_project_agents(cwd), set())
+        self.assertEqual(selected_agents(cwd), set())
+        # doctor expects no agent files and is clean.
+        self.assertEqual(doctor(cwd=cwd).missing, [])
+
+    def test_remove_codex_preserves_foreign_toml(self):
+        import tomllib
+        from memory_seed.core import remove_agent
+
+        cwd = self.make_project()
+        init_project(cwd=cwd, agents={"codex"})
+        cfg = cwd / ".codex" / "config.toml"
+        # Surround our block with foreign TOML: a top-level key before, a foreign
+        # MCP table after. Exercises the line-based stripper's "delete to next [".
+        cfg.write_text(
+            'model = "gpt-x"\n\n'
+            + cfg.read_text(encoding="utf-8")
+            + '\n[mcp_servers.other]\ncommand = "foo"\nargs = []\n',
+            encoding="utf-8",
+        )
+
+        remove_agent(cwd=cwd, agent="codex")
+
+        self.assertTrue(cfg.exists())
+        text = cfg.read_text(encoding="utf-8")
+        self.assertNotIn("[mcp_servers.memory-seed]", text)
+        self.assertIn('model = "gpt-x"', text)
+        self.assertIn("[mcp_servers.other]", text)
+        parsed = tomllib.loads(text)  # still valid TOML
+        self.assertNotIn("memory-seed", parsed.get("mcp_servers", {}))
+        self.assertIn("other", parsed.get("mcp_servers", {}))
+
+    def test_remove_from_unconfigured_project_writes_remaining(self):
+        from memory_seed.core import remove_agent, selected_agents, KNOWN_AGENTS
+
+        cwd = self.make_project()
+        init_project(cwd=cwd)  # all agents, no project.yaml
+        self.assertFalse((cwd / ".memory-seed" / "project.yaml").exists())
+
+        res = remove_agent(cwd=cwd, agent="gemini")
+        self.assertTrue(res["changed"])
+        self.assertEqual(selected_agents(cwd), set(KNOWN_AGENTS) - {"gemini"})
+        self.assertTrue((cwd / ".memory-seed" / "project.yaml").exists())
+        self.assertFalse((cwd / "GEMINI.md").exists())
+
+    def test_project_yaml_parser_fails_open(self):
+        from memory_seed.core import read_project_agents
+        cwd = self.make_project()
+        (cwd / ".memory-seed").mkdir(parents=True)
+        cfg = cwd / ".memory-seed" / "project.yaml"
+        # Malformed / unrelated content with no agents: key -> None (treated as all).
+        cfg.write_text("schema_version: 1\nusers:\n  - jean\n", encoding="utf-8")
+        self.assertIsNone(read_project_agents(cwd))
+        # Inline list form is parsed; unknown slugs ignored.
+        cfg.write_text("agents: [claude, bogus, codex]\n", encoding="utf-8")
+        self.assertEqual(read_project_agents(cwd), {"claude", "codex"})
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.5
+memory-system-version: 2.6
 tags:
   - memory-seed
   - agent-rules
@@ -82,9 +82,10 @@ At the start of work:
 4. Read `.memory-seed/index.md`, especially `Active State`, `Topology`, `Inheritance`, and `Lazy Skills`.
 5. Read inherited parent policy only when the active index says policy inheritance is enabled.
 6. Read `.memory-seed/policy.md`.
-7. Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry.
-8. Load full `.memory-seed/skills/*.md` runbooks only when the trigger registry matches the current task.
-9. If `.agents/_registry.yaml` exists at the workspace root, read it and load all persona files with `status: active`. Apply persona rules alongside this agent-rules.md and policy.md. Record `agent_name` (the persona's slug) in every session log entry this turn.
+7. Establish current project state: read the newest dated `.memory-seed/sessions/YYYY-MM-DD.md` in full (and skim the one before it), selected by filename date. Read it directly — do not use `memory_search` to find the latest state (see Recency vs. Topical Retrieval). A SessionStart hook injects this automatically where supported; do the read yourself when it is not.
+8. Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry.
+9. Load full `.memory-seed/skills/*.md` runbooks only when the trigger registry matches the current task.
+10. If `.agents/_registry.yaml` exists at the workspace root, read it and load all persona files with `status: active`. Apply persona rules alongside this agent-rules.md and policy.md. Record `agent_name` (the persona's slug) in every session log entry this turn.
 
 When multiple personas are active, the one most relevant to the current task governs. Default to the first active entry in `_registry.yaml` when ambiguous.
 
@@ -93,6 +94,15 @@ Do not read or apply `.memory-seed/project-bootstrap.md` during normal operating
 ## History Retrieval And Conflict Resolution
 
 Use MCP history retrieval when prior decisions, reason, unresolved risks, architecture, policy, bootstrap behavior, release history, or "why was this done" matters. This is a quick-start for agents that can call MCP tools.
+
+### Recency vs. Topical Retrieval
+
+Pick the retrieval method by question type — they are not interchangeable:
+
+- **Current state / "what is the latest"** (session start, catch-up, "what's happening now"): read the newest dated `.memory-seed/sessions/*.md` files directly, selected by filename date, newest first. This is the authority for what most recently happened. Do **not** use `memory_search` for this — semantic and lexical ranking optimize for topical similarity, not recency, and can rank the newest entry below older topically-similar ones or omit it entirely. A SessionStart hook injects the newest entries automatically where supported; when it is not, do the direct read yourself.
+- **Topical / "why was X decided" / "what do we know about Y"**: use `memory_search` (below). Ranked retrieval across all history is the right tool here.
+
+These two reminders coexist by design and do not conflict: the per-prompt retrieval reminder points at `memory_search` for topical recall before substantive work, while the recency rule governs establishing current state. They answer different questions.
 
 ### When To Search
 

@@ -11,7 +11,7 @@ from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "2.5"
+VERSION = "2.6"
 MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
@@ -24,6 +24,9 @@ HEADING_RE = re.compile(r"^##\s+(.+)$", re.MULTILINE)
 class SeedFile:
     source: Path
     destination: str
+    # Agent this file belongs to (e.g. "claude"). None = agent-agnostic, always
+    # installed. Agent-tagged files are installed only when that agent is selected.
+    agent: str | None = None
 
 
 @dataclass(frozen=True)
@@ -63,8 +66,9 @@ class CompactResult:
 
 SEED_FILES = [
     SeedFile(SEED_ROOT / "AGENTS.md", "AGENTS.md"),
-    SeedFile(SEED_ROOT / "CLAUDE.md", "CLAUDE.md"),
-    SeedFile(SEED_ROOT / "GEMINI.md", "GEMINI.md"),
+    SeedFile(SEED_ROOT / "CLAUDE.md", "CLAUDE.md", agent="claude"),
+    SeedFile(SEED_ROOT / "GEMINI.md", "GEMINI.md", agent="gemini"),
+    SeedFile(SEED_ROOT / ".github" / "copilot-instructions.md", ".github/copilot-instructions.md", agent="copilot"),
     SeedFile(SEED_ROOT / ".agents" / "README.md", ".agents/README.md"),
     SeedFile(SEED_ROOT / ".agents" / "developer.md", ".agents/developer.md"),
     SeedFile(SEED_ROOT / ".agents" / "content-creator.md", ".agents/content-creator.md"),
@@ -129,6 +133,10 @@ SEED_FILES = [
         SEED_ROOT / MEMORY_DIR_NAME / "hooks" / "memory-retrieval-check.py",
         ".memory-seed/hooks/memory-retrieval-check.py",
     ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "hooks" / "session-start-context.py",
+        ".memory-seed/hooks/session-start-context.py",
+    ),
 ]
 
 _CLAUDE_HOOK_COMMAND = "python3 .memory-seed/hooks/session-log-check.py"
@@ -141,10 +149,48 @@ _CODEX_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py
 _CURSOR_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py --cursor"
 _GEMINI_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py --gemini"
 
+# SessionStart orientation hook: injects the newest session entries directly so
+# agents do not lean on semantic search (which can bury the newest entry) to
+# establish current state. Fires once per session, unlike the per-prompt reminder.
+_CLAUDE_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py"
+_CODEX_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py --codex"
+_CURSOR_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py --cursor"
+_GEMINI_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py --gemini"
+
 _MCP_SERVER_COMMAND = "uvx"
 _MCP_SERVER_ARGS = ["--from", "memory-seed", "memory-seed-mcp", "--stdio"]
 _MCP_SERVER_KEY = "memory-seed"
 _OWN_MCP_COMMANDS = {"uvx", "memory-seed-mcp"}
+
+# GitHub Copilot CLI integration. Its MCP config is repo-local at .github/mcp.json
+# with a distinct schema (type + tools). Its sessionStart hook cannot inject context
+# from a command hook (stdout is consumed, not processed) — only a "prompt" hook can,
+# so Copilot gets a static directive (it must glob the sessions dir itself) rather
+# than running session-start-context.py.
+# type "stdio" (over the also-valid "local") is the GitHub-documented preferred
+# value for compatibility with VS Code and other MCP clients.
+_COPILOT_MCP_EXPECTED = {
+    "type": "stdio",
+    "command": _MCP_SERVER_COMMAND,
+    "args": _MCP_SERVER_ARGS,
+    "tools": ["*"],
+}
+# VS Code (Copilot Chat / agent mode) reads MCP servers from .vscode/mcp.json under
+# the "servers" key (NOT "mcpServers" like the CLI / Cursor configs).
+_VSCODE_MCP_EXPECTED = {
+    "type": "stdio",
+    "command": _MCP_SERVER_COMMAND,
+    "args": _MCP_SERVER_ARGS,
+}
+_COPILOT_STARTUP_MARKER = "memory-seed:"
+_COPILOT_STARTUP_PROMPT = (
+    "memory-seed: To establish current project state, read the most recent dated "
+    "file in .memory-seed/sessions/ (newest YYYY-MM-DD.md) in full, then skim the "
+    "prior one. Do NOT use memory_search/semantic search to find the most recent "
+    "work - its ranking can bury the newest entry beneath older topically-similar "
+    "ones. Use memory_search only for topical 'why was X decided / what do we know "
+    "about Y' questions."
+)
 
 BOOTSTRAP_GENERATED_FILES = [
     ".memory-seed/index.md",
@@ -219,10 +265,14 @@ def _merge_cursor_hook(target_root: Path) -> bool:
 
 
 def _merge_gemini_hook(target_root: Path) -> bool:
-    """Upsert the session-log Stop hook in .gemini/settings.json."""
+    """Upsert the session-log AfterAgent hook in .gemini/settings.json.
+
+    Gemini's turn-end event is `AfterAgent` (it has no `Stop` event). Earlier
+    versions wrote `Stop`, which never fired; _strip_gemini_dead_hooks removes it.
+    """
     return _merge_grouped_hook(
         target_root / ".gemini" / "settings.json",
-        "Stop",
+        "AfterAgent",
         _GEMINI_HOOK_COMMAND,
         "session-log-check.py",
     )
@@ -345,9 +395,11 @@ def _merge_codex_retrieval_hook(target_root: Path) -> bool:
 
 
 def _merge_gemini_retrieval_hook(target_root: Path) -> bool:
+    # Gemini's prompt-submit event is `BeforeAgent` (fires after the user submits,
+    # before planning). It has no `UserPromptSubmit` event; the old wiring was dead.
     return _merge_grouped_hook(
         target_root / ".gemini" / "settings.json",
-        "UserPromptSubmit",
+        "BeforeAgent",
         _GEMINI_RETRIEVAL_COMMAND,
         "memory-retrieval-check.py",
     )
@@ -359,6 +411,42 @@ def _merge_cursor_retrieval_hook(target_root: Path) -> bool:
         "sessionStart",
         _CURSOR_RETRIEVAL_COMMAND,
         "memory-retrieval-check.py",
+    )
+
+
+def _merge_claude_startup_hook(target_root: Path) -> bool:
+    return _merge_grouped_hook(
+        target_root / ".claude" / "settings.json",
+        "SessionStart",
+        _CLAUDE_STARTUP_COMMAND,
+        "session-start-context.py",
+    )
+
+
+def _merge_codex_startup_hook(target_root: Path) -> bool:
+    return _merge_grouped_hook(
+        target_root / ".codex" / "hooks.json",
+        "SessionStart",
+        _CODEX_STARTUP_COMMAND,
+        "session-start-context.py",
+    )
+
+
+def _merge_gemini_startup_hook(target_root: Path) -> bool:
+    return _merge_grouped_hook(
+        target_root / ".gemini" / "settings.json",
+        "SessionStart",
+        _GEMINI_STARTUP_COMMAND,
+        "session-start-context.py",
+    )
+
+
+def _merge_cursor_startup_hook(target_root: Path) -> bool:
+    return _merge_cursor_event_hook(
+        target_root / ".cursor" / "hooks.json",
+        "sessionStart",
+        _CURSOR_STARTUP_COMMAND,
+        "session-start-context.py",
     )
 
 
@@ -434,6 +522,59 @@ def _strip_claude_settings_mcp(target_root: Path) -> bool:
     return True
 
 
+def _strip_gemini_dead_hooks(target_root: Path) -> bool:
+    """Remove our stale Stop / UserPromptSubmit hook entries from .gemini/settings.json.
+
+    Gemini exposes no `Stop` or `UserPromptSubmit` event, so entries earlier versions
+    wrote there never fired. The merge functions now write the correct events
+    (`AfterAgent` / `BeforeAgent` / `SessionStart`); this strips the dead ones so
+    `update` migrates existing projects. Only our own entries (identified by script
+    filename) are removed; foreign hooks under those events are left untouched.
+    """
+    settings_path = target_root / ".gemini" / "settings.json"
+    if not settings_path.exists():
+        return False
+    try:
+        with open(settings_path) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return False
+
+    hooks = data.get("hooks")
+    if not isinstance(hooks, dict):
+        return False
+
+    our_scripts = ("session-log-check.py", "memory-retrieval-check.py")
+
+    def _group_is_ours(group: dict) -> bool:
+        inner = group.get("hooks", []) if isinstance(group, dict) else []
+        return any(
+            any(s in (h.get("command") or "") for s in our_scripts) for h in inner
+        )
+
+    changed = False
+    for event in ("Stop", "UserPromptSubmit"):
+        groups = hooks.get(event)
+        if not isinstance(groups, list):
+            continue
+        kept = [g for g in groups if not _group_is_ours(g)]
+        if len(kept) == len(groups):
+            continue  # nothing of ours under this event
+        changed = True
+        if kept:
+            hooks[event] = kept
+        else:
+            del hooks[event]
+
+    if not changed:
+        return False
+
+    with open(settings_path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    return True
+
+
 def _merge_cursor_mcp(target_root: Path) -> bool:
     """Upsert the memory-seed-mcp stdio server entry in .cursor/mcp.json."""
     mcp_path = target_root / ".cursor" / "mcp.json"
@@ -488,6 +629,118 @@ def _merge_gemini_mcp(target_root: Path) -> bool:
 
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     with open(settings_path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+    return True
+
+
+def _merge_copilot_mcp(target_root: Path) -> bool:
+    """Upsert the memory-seed-mcp stdio server entry in repo-local .github/mcp.json.
+
+    GitHub Copilot CLI auto-loads MCP servers from a workspace .github/mcp.json.
+    Its schema differs from the other clients (type + tools fields), so it has its
+    own expected dict. Only our own entry is touched; a foreign server under the
+    same key is left alone.
+    """
+    mcp_path = target_root / ".github" / "mcp.json"
+
+    data: dict = {}
+    if mcp_path.exists():
+        try:
+            with open(mcp_path) as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            data = {}
+
+    existing = data.get("mcpServers", {}).get(_MCP_SERVER_KEY, {})
+    if existing == _COPILOT_MCP_EXPECTED:
+        return False
+    is_ours = existing.get("command") in _OWN_MCP_COMMANDS or "memory-seed-mcp" in existing.get("args", [])
+    if existing and not is_ours:
+        return False  # a different server is using this key; don't overwrite
+
+    data.setdefault("mcpServers", {})[_MCP_SERVER_KEY] = dict(_COPILOT_MCP_EXPECTED)
+
+    mcp_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(mcp_path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+    return True
+
+
+def _merge_vscode_mcp(target_root: Path) -> bool:
+    """Upsert the memory-seed-mcp stdio server entry in .vscode/mcp.json.
+
+    VS Code (Copilot agent mode) uses the `servers` key, unlike the `mcpServers`
+    key in .mcp.json / .cursor/mcp.json / .github/mcp.json. Only our own entry is
+    touched; a foreign server under the same key is left alone.
+    """
+    mcp_path = target_root / ".vscode" / "mcp.json"
+
+    data: dict = {}
+    if mcp_path.exists():
+        try:
+            with open(mcp_path) as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            data = {}
+
+    existing = data.get("servers", {}).get(_MCP_SERVER_KEY, {})
+    if existing == _VSCODE_MCP_EXPECTED:
+        return False
+    is_ours = existing.get("command") in _OWN_MCP_COMMANDS or "memory-seed-mcp" in existing.get("args", [])
+    if existing and not is_ours:
+        return False  # a different server is using this key; don't overwrite
+
+    data.setdefault("servers", {})[_MCP_SERVER_KEY] = dict(_VSCODE_MCP_EXPECTED)
+
+    mcp_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(mcp_path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+    return True
+
+
+def _merge_copilot_startup_hook(target_root: Path) -> bool:
+    """Upsert a sessionStart prompt hook in .github/hooks/memory-seed.json.
+
+    Copilot command hooks cannot inject context at sessionStart (stdout is consumed,
+    not processed); only a "prompt" hook injects text. So Copilot gets a static
+    directive instead of running session-start-context.py. Our entry is identified
+    by the _COPILOT_STARTUP_MARKER prefix and updated in place if the text changes.
+    """
+    config_path = target_root / ".github" / "hooks" / "memory-seed.json"
+
+    data: dict = {}
+    if config_path.exists():
+        try:
+            with open(config_path) as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            data = {}
+
+    data.setdefault("version", 1)
+    entries = data.setdefault("hooks", {}).setdefault("sessionStart", [])
+    for entry in entries:
+        if entry.get("type") == "prompt" and entry.get("prompt", "").startswith(
+            _COPILOT_STARTUP_MARKER
+        ):
+            if entry.get("prompt") == _COPILOT_STARTUP_PROMPT:
+                return False
+            entry["prompt"] = _COPILOT_STARTUP_PROMPT
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(config_path, "w") as f:
+                json.dump(data, f, indent=2)
+                f.write("\n")
+            return True
+
+    entries.append({"type": "prompt", "prompt": _COPILOT_STARTUP_PROMPT})
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(config_path, "w") as f:
         json.dump(data, f, indent=2)
         f.write("\n")
 
@@ -608,12 +861,435 @@ def _merge_codex_mcp(target_root: Path) -> bool:
     return True
 
 
-def init_project(cwd: str | Path = ".", dry_run: bool = False, force: bool = False) -> InitResult:
+# ---- Agent registry & selection ------------------------------------------
+
+KNOWN_AGENTS = ("claude", "codex", "cursor", "gemini", "copilot")
+
+# Per-agent hook/MCP merge operations: (merge_fn, destination-for-reporting).
+# init/update run only the operations for selected agents. Order within an agent
+# is independent — each merge is idempotent and targets distinct keys/files.
+_AGENT_MERGES: dict[str, tuple[tuple, ...]] = {
+    "claude": (
+        (_merge_claude_hook, ".claude/settings.json"),
+        (_merge_claude_retrieval_hook, ".claude/settings.json"),
+        (_merge_claude_startup_hook, ".claude/settings.json"),
+        (_merge_claude_mcp, ".mcp.json"),
+        (_strip_claude_settings_mcp, ".claude/settings.json"),
+    ),
+    "codex": (
+        (_merge_codex_hook, ".codex/hooks.json"),
+        (_merge_codex_retrieval_hook, ".codex/hooks.json"),
+        (_merge_codex_startup_hook, ".codex/hooks.json"),
+        (_merge_codex_mcp, ".codex/config.toml"),
+    ),
+    "cursor": (
+        (_merge_cursor_hook, ".cursor/hooks.json"),
+        (_merge_cursor_retrieval_hook, ".cursor/hooks.json"),
+        (_merge_cursor_startup_hook, ".cursor/hooks.json"),
+        (_merge_cursor_mcp, ".cursor/mcp.json"),
+    ),
+    "gemini": (
+        (_merge_gemini_hook, ".gemini/settings.json"),
+        (_merge_gemini_retrieval_hook, ".gemini/settings.json"),
+        (_merge_gemini_startup_hook, ".gemini/settings.json"),
+        (_merge_gemini_mcp, ".gemini/settings.json"),
+        (_strip_gemini_dead_hooks, ".gemini/settings.json"),
+    ),
+    "copilot": (
+        (_merge_copilot_mcp, ".github/mcp.json"),
+        (_merge_copilot_startup_hook, ".github/hooks/memory-seed.json"),
+        (_merge_vscode_mcp, ".vscode/mcp.json"),
+    ),
+}
+
+
+def _agent_merges(selected: set[str]) -> list[tuple]:
+    """Flatten merge ops for the selected agents, in deterministic KNOWN_AGENTS order."""
+    ops: list[tuple] = []
+    for agent in KNOWN_AGENTS:
+        if agent in selected:
+            ops.extend(_AGENT_MERGES[agent])
+    return ops
+
+
+# ---- Uninstall (for `agents remove`) -------------------------------------
+# Strip-in-place is the default: remove only OUR entries (our hook scripts / MCP
+# key) from a config file and leave any foreign content. Delete a config file only
+# when nothing of value remains. Never delete a shared directory (.github, .vscode).
+
+_OUR_HOOK_SCRIPTS = (
+    "session-log-check.py",
+    "memory-retrieval-check.py",
+    "session-start-context.py",
+)
+
+
+def _command_is_ours(command: str | None) -> bool:
+    c = command or ""
+    return any(s in c for s in _OUR_HOOK_SCRIPTS)
+
+
+def _load_json(path: Path) -> dict | None:
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _write_json_or_delete(path: Path, data: dict) -> None:
+    """Write JSON, or delete the file if `data` is empty (it was wholly ours)."""
+    if not data:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        return
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+
+def _strip_grouped_hooks(config_path: Path) -> bool:
+    """Remove our hook groups from a grouped-format config (Claude/Codex/Gemini)."""
+    if not config_path.exists():
+        return False
+    data = _load_json(config_path)
+    if data is None:
+        return False
+    hooks = data.get("hooks")
+    if not isinstance(hooks, dict):
+        return False
+    changed = False
+    for event in list(hooks.keys()):
+        groups = hooks.get(event)
+        if not isinstance(groups, list):
+            continue
+        kept = []
+        for g in groups:
+            inner = g.get("hooks", []) if isinstance(g, dict) else []
+            if any(_command_is_ours(h.get("command")) for h in inner):
+                changed = True
+            else:
+                kept.append(g)
+        if len(kept) != len(groups):
+            if kept:
+                hooks[event] = kept
+            else:
+                del hooks[event]
+    if not changed:
+        return False
+    if not hooks:
+        del data["hooks"]
+    _write_json_or_delete(config_path, data)
+    return True
+
+
+def _strip_cursor_hooks(config_path: Path) -> bool:
+    """Remove our hook entries from Cursor's flat-list config."""
+    if not config_path.exists():
+        return False
+    data = _load_json(config_path)
+    if data is None:
+        return False
+    hooks = data.get("hooks")
+    if not isinstance(hooks, dict):
+        return False
+    changed = False
+    for event in list(hooks.keys()):
+        entries = hooks.get(event)
+        if not isinstance(entries, list):
+            continue
+        kept = [
+            e for e in entries
+            if not (isinstance(e, dict) and _command_is_ours(e.get("command")))
+        ]
+        if len(kept) != len(entries):
+            changed = True
+            if kept:
+                hooks[event] = kept
+            else:
+                del hooks[event]
+    if not changed:
+        return False
+    if not hooks:
+        data.pop("hooks", None)
+    if set(data.keys()) <= {"version"}:
+        data = {}
+    _write_json_or_delete(config_path, data)
+    return True
+
+
+def _strip_mcp_entry(path: Path, container_key: str) -> bool:
+    """Remove our memory-seed server from an MCP config's container (mcpServers/servers)."""
+    if not path.exists():
+        return False
+    data = _load_json(path)
+    if data is None:
+        return False
+    container = data.get(container_key)
+    if not isinstance(container, dict) or _MCP_SERVER_KEY not in container:
+        return False
+    existing = container.get(_MCP_SERVER_KEY, {})
+    is_ours = existing.get("command") in _OWN_MCP_COMMANDS or "memory-seed-mcp" in existing.get("args", [])
+    if not is_ours:
+        return False
+    del container[_MCP_SERVER_KEY]
+    if not container:
+        del data[container_key]
+    if set(data.keys()) <= {"version"}:
+        data = {}
+    _write_json_or_delete(path, data)
+    return True
+
+
+def _strip_copilot_startup(target_root: Path) -> bool:
+    """Remove our sessionStart prompt hook from .github/hooks/memory-seed.json."""
+    path = target_root / ".github" / "hooks" / "memory-seed.json"
+    if not path.exists():
+        return False
+    data = _load_json(path)
+    if data is None:
+        return False
+    hooks = data.get("hooks", {})
+    entries = hooks.get("sessionStart")
+    if not isinstance(entries, list):
+        return False
+    kept = [
+        e for e in entries
+        if not (
+            isinstance(e, dict)
+            and e.get("type") == "prompt"
+            and (e.get("prompt") or "").startswith(_COPILOT_STARTUP_MARKER)
+        )
+    ]
+    if len(kept) == len(entries):
+        return False
+    if kept:
+        hooks["sessionStart"] = kept
+    else:
+        hooks.pop("sessionStart", None)
+    if not hooks:
+        data.pop("hooks", None)
+    if set(data.keys()) <= {"version"}:
+        data = {}
+    _write_json_or_delete(path, data)
+    return True
+
+
+def _strip_codex_mcp(target_root: Path) -> bool:
+    """Remove our [mcp_servers.memory-seed] block from .codex/config.toml."""
+    path = target_root / ".codex" / "config.toml"
+    if not path.exists():
+        return False
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    except OSError:
+        return False
+    idx = _codex_standard_header_index([ln.rstrip("\n") for ln in lines])
+    if idx is None:
+        return False
+    end = idx + 1
+    while end < len(lines) and not lines[end].lstrip().startswith("["):
+        end += 1
+    del lines[idx:end]
+    new_text = "".join(lines)
+    if new_text.strip():
+        path.write_text(new_text, encoding="utf-8")
+    else:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+    return True
+
+
+def _uninstall_claude(root: Path) -> bool:
+    a = _strip_grouped_hooks(root / ".claude" / "settings.json")
+    b = _strip_mcp_entry(root / ".mcp.json", "mcpServers")
+    return a or b
+
+
+def _uninstall_codex(root: Path) -> bool:
+    a = _strip_grouped_hooks(root / ".codex" / "hooks.json")
+    b = _strip_codex_mcp(root)
+    return a or b
+
+
+def _uninstall_cursor(root: Path) -> bool:
+    a = _strip_cursor_hooks(root / ".cursor" / "hooks.json")
+    b = _strip_mcp_entry(root / ".cursor" / "mcp.json", "mcpServers")
+    return a or b
+
+
+def _uninstall_gemini(root: Path) -> bool:
+    a = _strip_grouped_hooks(root / ".gemini" / "settings.json")
+    b = _strip_mcp_entry(root / ".gemini" / "settings.json", "mcpServers")
+    return a or b
+
+
+def _uninstall_copilot(root: Path) -> bool:
+    a = _strip_copilot_startup(root)
+    b = _strip_mcp_entry(root / ".github" / "mcp.json", "mcpServers")
+    c = _strip_mcp_entry(root / ".vscode" / "mcp.json", "servers")
+    return a or b or c
+
+
+_AGENT_UNINSTALLS = {
+    "claude": _uninstall_claude,
+    "codex": _uninstall_codex,
+    "cursor": _uninstall_cursor,
+    "gemini": _uninstall_gemini,
+    "copilot": _uninstall_copilot,
+}
+
+
+def _routing_seedfiles(agent: str) -> list[SeedFile]:
+    return [sf for sf in SEED_FILES if sf.agent == agent]
+
+
+def _project_config_path(target_root: Path) -> Path:
+    return target_root / MEMORY_DIR_NAME / "project.yaml"
+
+
+def read_project_agents(target_root: Path) -> set[str] | None:
+    """Return the configured agent set from .memory-seed/project.yaml, or None.
+
+    None means "no usable config" (absent / empty / malformed / no `agents:`
+    block); callers treat None as ALL agents, so legacy projects and the
+    zero-config default are unchanged. Fail-open: never raises, never returns an
+    empty set from a parse failure. Unknown keys (e.g. a future `users:` block)
+    are ignored.
+    """
+    path = _project_config_path(target_root)
+    if not path.exists():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+    agents: set[str] = set()
+    saw_agents_key = False
+    in_block = False
+    for raw in text.splitlines():
+        line = raw.rstrip()
+        if re.match(r"^agents\s*:", line):
+            saw_agents_key = True
+            inline = line.split(":", 1)[1].strip()
+            if inline.startswith("[") and inline.endswith("]"):
+                for tok in inline[1:-1].split(","):
+                    tok = tok.strip().strip("'\"")
+                    if tok in KNOWN_AGENTS:
+                        agents.add(tok)
+                in_block = False
+            else:
+                in_block = True
+            continue
+        if in_block:
+            m = re.match(r"^\s*-\s*(.+)$", line)
+            if m:
+                tok = m.group(1).strip().strip("'\"")
+                if tok in KNOWN_AGENTS:
+                    agents.add(tok)
+                continue
+            if line and not line[0].isspace():
+                in_block = False  # a new top-level key ends the block
+    # Present-but-empty `agents:` is a real "zero agents" state, distinct from an
+    # absent key (None = unconfigured = all agents).
+    return agents if saw_agents_key else None
+
+
+def selected_agents(target_root: Path) -> set[str]:
+    """Active agent set: the configured subset, or ALL known agents if unconfigured."""
+    configured = read_project_agents(target_root)
+    return configured if configured is not None else set(KNOWN_AGENTS)
+
+
+def write_project_agents(target_root: Path, agents: set[str]) -> None:
+    """Persist the agent selection to .memory-seed/project.yaml.
+
+    Replaces only the `agents:` block, preserving any other content (so a future
+    `users:` block survives). Creates a minimal file if none exists.
+    """
+    path = _project_config_path(target_root)
+    ordered = [a for a in KNOWN_AGENTS if a in agents]
+    new_block = "\n".join(["agents:"] + [f"  - {a}" for a in ordered])
+
+    text = ""
+    if path.exists():
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            text = ""
+
+    if re.search(r"^agents\s*:", text, flags=re.MULTILINE):
+        lines = text.splitlines()
+        out: list[str] = []
+        i = 0
+        while i < len(lines):
+            if re.match(r"^agents\s*:", lines[i]):
+                out.append(new_block)
+                i += 1
+                while i < len(lines) and re.match(r"^\s*-\s+", lines[i]):
+                    i += 1
+                continue
+            out.append(lines[i])
+            i += 1
+        text = "\n".join(out)
+    elif text.strip():
+        text = (text if text.endswith("\n") else text + "\n") + new_block
+    else:
+        text = f"schema_version: 1\nproject_id: {target_root.name}\n" + new_block
+
+    if not text.endswith("\n"):
+        text += "\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8", newline="\n")
+
+
+def _parse_agent_list(value: str) -> set[str]:
+    """Parse a comma/space-separated agent list; raise ValueError on unknown slugs."""
+    tokens = [t.strip().lower() for t in re.split(r"[,\s]+", value) if t.strip()]
+    if not tokens or tokens == ["all"]:
+        return set(KNOWN_AGENTS)
+    unknown = [t for t in tokens if t not in KNOWN_AGENTS]
+    if unknown:
+        raise ValueError(
+            f"Unknown agent(s): {', '.join(unknown)}. "
+            f"Valid agents: {', '.join(KNOWN_AGENTS)}."
+        )
+    return set(tokens)
+
+
+def resolve_agents(cli_value: str | None, *, isatty: bool, prompt_response: str | None = None) -> set[str]:
+    """Resolve the agent set for `init`.
+
+    Precedence: explicit `--agents` value > interactive prompt response (TTY only)
+    > all agents (preserves the zero-arg / non-TTY default). Pure/testable: the CLI
+    reads the prompt and passes the raw string as `prompt_response`.
+    """
+    if cli_value:
+        return _parse_agent_list(cli_value)
+    if isatty and prompt_response is not None and prompt_response.strip():
+        return _parse_agent_list(prompt_response)
+    return set(KNOWN_AGENTS)
+
+
+def init_project(
+    cwd: str | Path = ".",
+    dry_run: bool = False,
+    force: bool = False,
+    agents: set[str] | None = None,
+) -> InitResult:
     target_root = Path(cwd).resolve()
-    planned = [seed_file.destination for seed_file in SEED_FILES]
+    selected = agents if agents is not None else set(KNOWN_AGENTS)
+    seed_files = [sf for sf in SEED_FILES if sf.agent is None or sf.agent in selected]
+    planned = [seed_file.destination for seed_file in seed_files]
     existing = [
         seed_file.destination
-        for seed_file in SEED_FILES
+        for seed_file in seed_files
         if (target_root / seed_file.destination).exists()
     ]
 
@@ -629,7 +1305,7 @@ def init_project(cwd: str | Path = ".", dry_run: bool = False, force: bool = Fal
     created: list[str] = []
     backed_up: list[str] = []
 
-    for seed_file in SEED_FILES:
+    for seed_file in seed_files:
         destination = target_root / seed_file.destination
 
         if destination.exists() and force:
@@ -644,24 +1320,18 @@ def init_project(cwd: str | Path = ".", dry_run: bool = False, force: bool = Fal
         _copy_text_file(seed_file.source, destination)
         created.append(seed_file.destination)
 
-    hook_merges = (
-        (_merge_claude_hook, ".claude/settings.json"),
-        (_merge_codex_hook, ".codex/hooks.json"),
-        (_merge_cursor_hook, ".cursor/hooks.json"),
-        (_merge_gemini_hook, ".gemini/settings.json"),
-        (_merge_claude_retrieval_hook, ".claude/settings.json"),
-        (_merge_codex_retrieval_hook, ".codex/hooks.json"),
-        (_merge_cursor_retrieval_hook, ".cursor/hooks.json"),
-        (_merge_gemini_retrieval_hook, ".gemini/settings.json"),
-        (_merge_claude_mcp, ".mcp.json"),
-        (_strip_claude_settings_mcp, ".claude/settings.json"),
-        (_merge_cursor_mcp, ".cursor/mcp.json"),
-        (_merge_gemini_mcp, ".gemini/settings.json"),
-        (_merge_codex_mcp, ".codex/config.toml"),
-    )
-    for merge, destination in hook_merges:
+    for merge, destination in _agent_merges(selected):
         if merge(target_root) and destination not in created:
             created.append(destination)
+
+    # Persist the selection only when it is a proper subset. The all-agents
+    # default writes no project.yaml, so existing projects (and the file set
+    # asserted by tests) stay byte-identical, and "all" stays dynamic.
+    if selected != set(KNOWN_AGENTS):
+        write_project_agents(target_root, selected)
+        cfg = MEMORY_DIR_NAME + "/project.yaml"
+        if cfg not in created:
+            created.append(cfg)
 
     return InitResult(
         changed=True,
@@ -673,7 +1343,11 @@ def init_project(cwd: str | Path = ".", dry_run: bool = False, force: bool = Fal
 
 def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
     target_root = Path(cwd).resolve()
-    planned = [seed_file.destination for seed_file in SEED_FILES]
+    # Respect the persisted agent selection (ALL when no project.yaml), so update
+    # never re-adds a deselected agent's files.
+    selected = selected_agents(target_root)
+    seed_files = [sf for sf in SEED_FILES if sf.agent is None or sf.agent in selected]
+    planned = [seed_file.destination for seed_file in seed_files]
 
     if dry_run:
         return InitResult(changed=False, planned=planned)
@@ -683,7 +1357,7 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
     backed_up: list[str] = []
     archived: list[str] = []
 
-    for seed_file in SEED_FILES:
+    for seed_file in seed_files:
         destination = target_root / seed_file.destination
         if _is_runtime_local_file(seed_file.destination) and destination.exists():
             continue
@@ -713,22 +1387,7 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
         _copy_text_file(seed_file.source, destination)
         created.append(seed_file.destination)
 
-    hook_merges = (
-        (_merge_claude_hook, ".claude/settings.json"),
-        (_merge_codex_hook, ".codex/hooks.json"),
-        (_merge_cursor_hook, ".cursor/hooks.json"),
-        (_merge_gemini_hook, ".gemini/settings.json"),
-        (_merge_claude_retrieval_hook, ".claude/settings.json"),
-        (_merge_codex_retrieval_hook, ".codex/hooks.json"),
-        (_merge_cursor_retrieval_hook, ".cursor/hooks.json"),
-        (_merge_gemini_retrieval_hook, ".gemini/settings.json"),
-        (_merge_claude_mcp, ".mcp.json"),
-        (_strip_claude_settings_mcp, ".claude/settings.json"),
-        (_merge_cursor_mcp, ".cursor/mcp.json"),
-        (_merge_gemini_mcp, ".gemini/settings.json"),
-        (_merge_codex_mcp, ".codex/config.toml"),
-    )
-    for merge, destination in hook_merges:
+    for merge, destination in _agent_merges(selected):
         if merge(target_root) and destination not in created:
             created.append(destination)
 
@@ -741,12 +1400,95 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
     )
 
 
+def add_agent(cwd: str | Path = ".", agent: str = "") -> dict:
+    """Add an agent to an existing project: install its files + update project.yaml."""
+    if agent not in KNOWN_AGENTS:
+        raise ValueError(f"Unknown agent: {agent}. Valid: {', '.join(KNOWN_AGENTS)}.")
+    target_root = Path(cwd).resolve()
+    selected = selected_agents(target_root)
+    if agent in selected:
+        return {"changed": False, "message": f"Agent '{agent}' is already installed.", "created": [], "backed_up": []}
+
+    created: list[str] = []
+    for sf in _routing_seedfiles(agent):
+        dest = target_root / sf.destination
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        _copy_text_file(sf.source, dest)
+        created.append(sf.destination)
+    for merge, destination in _AGENT_MERGES[agent]:
+        if merge(target_root) and destination not in created:
+            created.append(destination)
+
+    write_project_agents(target_root, selected | {agent})
+    return {"changed": True, "message": f"Added agent '{agent}'.", "created": created, "backed_up": []}
+
+
+def remove_agent(cwd: str | Path = ".", agent: str = "") -> dict:
+    """Remove an agent: strip our entries from its configs, delete its routing file.
+
+    Strip-in-place — foreign content is preserved; config files are deleted only
+    when nothing of value remains. Everything touched is backed up first. Never
+    deletes shared directories.
+    """
+    if agent not in KNOWN_AGENTS:
+        raise ValueError(f"Unknown agent: {agent}. Valid: {', '.join(KNOWN_AGENTS)}.")
+    target_root = Path(cwd).resolve()
+    selected = selected_agents(target_root)
+    if agent not in selected:
+        return {"changed": False, "message": f"Agent '{agent}' is not installed.", "removed": [], "backed_up": [], "warning": None}
+
+    # Back up every file we may touch (config files + routing file) before changes.
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backed_up: list[str] = []
+    rels = list(dict.fromkeys(
+        [dest for (_fn, dest) in _AGENT_MERGES[agent]]
+        + [sf.destination for sf in _routing_seedfiles(agent)]
+    ))
+    for rel in rels:
+        p = target_root / rel
+        if p.exists():
+            _ensure_backup_gitignore(target_root)
+            backup_rel = Path(MEMORY_DIR_NAME) / "backups" / timestamp / rel
+            bp = target_root / backup_rel
+            bp.parent.mkdir(parents=True, exist_ok=True)
+            _copy_text_file(p, bp)
+            backed_up.append(backup_rel.as_posix())
+
+    removed: list[str] = []
+    if _AGENT_UNINSTALLS[agent](target_root):
+        removed.append(f"{agent} config entries")
+    for sf in _routing_seedfiles(agent):
+        dest = target_root / sf.destination
+        if dest.exists():
+            try:
+                dest.unlink()
+                removed.append(sf.destination)
+            except OSError:
+                pass
+
+    new_selected = selected - {agent}
+    write_project_agents(target_root, new_selected)
+    warning = None
+    if not new_selected:
+        warning = (
+            "No agents remain selected. The .memory-seed runtime and AGENTS.md are "
+            "still installed; run `memory-seed agents add <agent>` to re-enable one."
+        )
+    return {"changed": True, "message": f"Removed agent '{agent}'.", "removed": removed, "backed_up": backed_up, "warning": warning}
+
+
 def doctor(cwd: str | Path = ".") -> DoctorResult:
     target_root = Path(cwd).resolve()
     missing: list[str] = []
     version_mismatches: list[dict[str, str]] = []
 
+    # Only check files for the project's selected agents (ALL when unconfigured),
+    # so a deselected agent's intentionally-absent files are not flagged missing.
+    selected = selected_agents(target_root)
+
     for seed_file in SEED_FILES:
+        if seed_file.agent is not None and seed_file.agent not in selected:
+            continue
         candidate = target_root / seed_file.destination
         if not candidate.exists():
             missing.append(seed_file.destination)
@@ -776,8 +1518,8 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
     bootstrap_complete = not bootstrap_missing
 
     warnings: list[str] = []
-    codex_status = _codex_mcp_status(target_root)
-    if (target_root / ".codex" / "hooks.json").exists() and codex_status == "absent":
+    codex_status = _codex_mcp_status(target_root) if "codex" in selected else "absent"
+    if "codex" in selected and (target_root / ".codex" / "hooks.json").exists() and codex_status == "absent":
         warnings.append(
             "Codex hooks are installed but .codex/config.toml has no memory-seed MCP "
             "entry. Run `memory-seed update`, then trust this directory in Codex so it "

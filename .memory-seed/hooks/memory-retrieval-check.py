@@ -37,18 +37,20 @@ _draft = (
 if shutil.which("memory-seed-mcp") is not None:
     reminder = (
         "MEMORY RETRIEVAL REMINDER: Before substantive work, retrieve relevant "
-        "prior context. Call the memory_search MCP tool, or if MCP is "
-        "unavailable read the two most recent .memory-seed/sessions/*.md files. "
-        "Do this before editing code or making decisions so you build on past "
-        f"work instead of repeating it. {_draft}"
+        "prior context. For topical recall (\"why was X decided\", \"what do we "
+        "know about Y\"), call the memory_search MCP tool. To establish the "
+        "current/latest state, read the newest .memory-seed/sessions/*.md file "
+        "directly by date (the SessionStart hook injects this) rather than "
+        "memory_search, whose ranking can bury the newest entry beneath older "
+        f"topically-similar ones. {_draft}"
     )
 else:
     reminder = (
         "MEMORY RETRIEVAL REMINDER: memory-seed-mcp is not on PATH — the "
         "memory_search tool is unavailable. To fix: run "
         "`uv tool install memory-seed` (or `pip install memory-seed`), then "
-        "restart your editor. For now, read the two most recent "
-        f".memory-seed/sessions/*.md files before substantive work. {_draft}"
+        "restart your editor. For now, read the newest "
+        f".memory-seed/sessions/*.md files directly by date before substantive work. {_draft}"
     )
 
 if agent == "codex":
@@ -64,8 +66,8 @@ elif agent == "cursor":
     # conversation's initial system context. beforeSubmitPrompt cannot inject.
     print(json.dumps({"additional_context": reminder}))
 elif agent == "gemini":
-    # Gemini CLI UserPromptSubmit: additionalContext injected into model context
-    print(json.dumps({"additionalContext": reminder}))
+    # Gemini CLI BeforeAgent: hookSpecificOutput.additionalContext injects context.
+    print(json.dumps({"hookSpecificOutput": {"additionalContext": reminder}}))
 else:
     # Claude Code UserPromptSubmit: additionalContext is the valid field
     print(json.dumps({

@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.5
+memory-system-version: 2.6
 tags:
   - memory-seed
   - skill-registry

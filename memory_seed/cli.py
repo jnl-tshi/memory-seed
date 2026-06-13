@@ -6,7 +6,19 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from .core import compact_sessions, doctor, get_version, init_project, update_project
+from .core import (
+    KNOWN_AGENTS,
+    add_agent,
+    compact_sessions,
+    doctor,
+    get_version,
+    init_project,
+    read_project_agents,
+    remove_agent,
+    resolve_agents,
+    selected_agents,
+    update_project,
+)
 
 
 def _print_help(parser: argparse.ArgumentParser) -> None:
@@ -44,6 +56,24 @@ def main(argv: list[str] | None = None) -> int:
     init_parser = subparsers.add_parser("init", help="copy Memory Seed into this project")
     init_parser.add_argument("--dry-run", action="store_true", help="show planned files without writing")
     init_parser.add_argument("--force", action="store_true", help="backup and overwrite existing seed files")
+    init_parser.add_argument(
+        "--agents",
+        type=str,
+        default=None,
+        help=(
+            "comma-separated agents to install ("
+            + ",".join(KNOWN_AGENTS)
+            + "); default: all. Non-selected agents' files are skipped."
+        ),
+    )
+
+    agents_parser = subparsers.add_parser("agents", help="manage which agents are installed")
+    agents_sub = agents_parser.add_subparsers(dest="agents_command", required=True)
+    agents_sub.add_parser("list", help="show the selected agents")
+    agents_add = agents_sub.add_parser("add", help="install an agent's files")
+    agents_add.add_argument("agent", help="agent slug (" + ",".join(KNOWN_AGENTS) + ")")
+    agents_remove = agents_sub.add_parser("remove", help="remove an agent's files")
+    agents_remove.add_argument("agent", help="agent slug (" + ",".join(KNOWN_AGENTS) + ")")
 
     update_parser = subparsers.add_parser("update", help="update reusable control-plane files")
     update_parser.add_argument(
@@ -134,9 +164,60 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Bootstrap incomplete: {missing}")
         return 1
 
+    if args.command == "agents":
+        target = Path(".").resolve()
+        if args.agents_command == "list":
+            print("Selected agents: " + ", ".join(sorted(selected_agents(target))))
+            if read_project_agents(target) is None:
+                print("(no .memory-seed/project.yaml — all agents active by default)")
+            return 0
+        if args.agents_command == "add":
+            try:
+                res = add_agent(agent=args.agent)
+            except ValueError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            print(res["message"])
+            for created in res["created"]:
+                print(f"Installed: {created}")
+            return 0
+        if args.agents_command == "remove":
+            try:
+                res = remove_agent(agent=args.agent)
+            except ValueError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            print(res["message"])
+            for removed in res.get("removed", []):
+                print(f"Removed: {removed}")
+            for backup in res.get("backed_up", []):
+                print(f"Backed up: {backup}")
+            if res.get("warning"):
+                print(f"Warning: {res['warning']}")
+            return 0
+
     if args.command == "init":
+        isatty = sys.stdin.isatty() and not args.dry_run
+        prompt_response = None
+        if not args.agents and isatty:
+            print("Which agents will use this project? (comma-separated; Enter = all)")
+            for slug in KNOWN_AGENTS:
+                print(f"  - {slug}")
+            print(
+                "Always installed: AGENTS.md, the .memory-seed/ runtime, and .agents/ "
+                "personas. 'copilot' covers both the CLI and VS Code."
+            )
+            try:
+                prompt_response = input("agents> ")
+            except EOFError:
+                prompt_response = None
         try:
-            result = init_project(dry_run=args.dry_run, force=args.force)
+            agents = resolve_agents(args.agents, isatty=isatty, prompt_response=prompt_response)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        try:
+            result = init_project(dry_run=args.dry_run, force=args.force, agents=agents)
         except FileExistsError as exc:
             print(str(exc), file=sys.stderr)
             print("Use --force to backup and replace existing seed files.", file=sys.stderr)

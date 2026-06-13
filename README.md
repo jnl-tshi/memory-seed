@@ -116,25 +116,54 @@ The result is a lightweight memory workflow you can understand, commit, review, 
 | --- | --- |
 | Codex | Starts from `AGENTS.md`; MCP server auto-registered in `.codex/config.toml` (loads once the project directory is trusted). |
 | Claude Code | Starts from `CLAUDE.md`; MCP server auto-registered via `uvx --from memory-seed`. |
-| Gemini CLI | Starts from `GEMINI.md`. |
+| Gemini CLI | Starts from `GEMINI.md`; MCP server auto-registered in `.gemini/settings.json`. |
+| Cursor | Starts from `AGENTS.md`; MCP server auto-registered in `.cursor/mcp.json`. |
+| GitHub Copilot | CLI starts from `AGENTS.md`; MCP auto-registered in `.github/mcp.json` (`mcpServers` key). VS Code via `.vscode/mcp.json` (`servers` key) + a thin `.github/copilot-instructions.md` router. The coding agent reads `AGENTS.md`; its MCP is configured in repo/org settings (manual). |
 | Other file-reading agents | Start from `AGENTS.md` and follow nearest `.memory-seed/` runtime discovery. |
 | MCP-capable clients | Use `memory_search` and `memory_get_chunk` through `memory-seed-mcp --stdio`. |
+
+### Choosing which agents to install
+
+By default `memory-seed init` installs files for every supported agent. To keep a repo clean,
+install only the agents you use:
+
+```bash
+memory-seed init --agents claude,codex     # only Claude + Codex artifacts
+memory-seed init                            # interactive prompt on a terminal; all agents otherwise
+```
+
+`AGENTS.md`, the `.memory-seed/` runtime, and `.agents/` personas are always installed (they are
+agent-agnostic). Only the agent-specific routing files (`CLAUDE.md`, `GEMINI.md`,
+`.github/copilot-instructions.md`) and per-agent hook/MCP configs are gated by the selection.
+`codex` and `cursor` have no routing file — they read `AGENTS.md` natively.
+
+The selection is persisted to `.memory-seed/project.yaml` (`agents:` list), which `doctor` and
+`update` respect — so an unselected agent's files are never flagged missing or re-added. A project
+with no `project.yaml` behaves as before (all agents). Reconfigure later:
+
+```bash
+memory-seed agents list           # show the selected agents
+memory-seed agents add gemini     # install an agent's files
+memory-seed agents remove gemini  # back up + remove an agent's files (foreign config preserved)
+```
 
 ## Agent Hooks
 
 `memory-seed init` and `memory-seed update` install lifecycle hooks that keep memory current without relying on the agent to remember. Each hook is merged into the agent's own config file (existing settings are preserved), so it works regardless of which agent opens the project:
 
-| Agent | Config file | Session-log reminder | Memory-retrieval reminder |
-| --- | --- | --- | --- |
-| Claude Code | `.claude/settings.json` | `Stop` | `UserPromptSubmit` |
-| Codex CLI | `.codex/hooks.json` | `Stop` | `UserPromptSubmit` |
-| Gemini CLI | `.gemini/settings.json` | `Stop` | `UserPromptSubmit` |
-| Cursor | `.cursor/hooks.json` | `afterAgentResponse` | `sessionStart` |
+| Agent | Config file | Session-log reminder | Memory-retrieval reminder | Session-start orientation |
+| --- | --- | --- | --- | --- |
+| Claude Code | `.claude/settings.json` | `Stop` | `UserPromptSubmit` | `SessionStart` |
+| Codex CLI | `.codex/hooks.json` | `Stop` | `UserPromptSubmit` | `SessionStart` |
+| Gemini CLI | `.gemini/settings.json` | `AfterAgent` | `BeforeAgent` | `SessionStart` |
+| Cursor | `.cursor/hooks.json` | `afterAgentResponse` | `sessionStart` | `sessionStart` |
+| GitHub Copilot CLI | `.github/hooks/memory-seed.json` | — | — | `sessionStart` (prompt) |
 
 Both reminders are cross-platform Python scripts in `.memory-seed/hooks/`:
 
 - `session-log-check.py` — after a turn, reminds the agent to append a session-log entry if none was written in the last 15 minutes, and warns if the day's entries are out of ascending time order.
-- `memory-retrieval-check.py` — before substantive work, reminds the agent to retrieve prior context (`memory_search` or the most recent session files). Gated by an 8-hour marker file so it fires about once per working session.
+- `memory-retrieval-check.py` — before substantive work, reminds the agent to use `memory_search` for topical recall and to read the newest session file directly for current state. Gated by an 8-hour marker file so it fires about once per working session.
+- `session-start-context.py` — at session start, injects the newest session file's entries (path, all headings, and the most recent entry body) so the agent establishes current state by recency rather than semantic search. Fires once per session. Copilot CLI cannot run command hooks at session start, so it gets a static `prompt` hook with the same directive instead.
 
 The hooks nudge; they never block. The scripts use Python 3.11+, which Memory Seed already requires.
 
