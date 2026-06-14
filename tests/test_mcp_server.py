@@ -41,7 +41,9 @@ class MemoryMcpServerTests(unittest.TestCase):
     def write_session(self, cwd, filename, content):
         sessions = cwd / ".memory-seed" / "sessions"
         sessions.mkdir(parents=True, exist_ok=True)
-        (sessions / filename).write_text(content, encoding="utf-8")
+        path = sessions / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
 
     def make_memory_fixture(self):
         cwd = self.make_project()
@@ -229,6 +231,29 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertEqual(payload["chunk"]["entry_id"], "ms-semble")
         self.assertIsNone(payload["chunk"]["entry_datetime"])
         self.assertIn("Semble guidance", payload["chunk"]["text"])
+
+    def test_call_tool_memory_get_chunk_returns_per_user_chunk(self):
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-06-21/jean.md",
+            "## 2026-06-21 10:00 - Dual-read MCP\n\n"
+            "```yaml\n"
+            "entry_id: ms-jean-mcp\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "```\n\n"
+            "Per-user search text.\n",
+        )
+
+        payload = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": "ms-jean-mcp"})
+
+        self.assertEqual(payload["chunk"]["chunk_id"], "ms-jean-mcp")
+        self.assertEqual(payload["chunk"]["date"], "2026-06-21")
+        self.assertEqual(payload["chunk"]["source"], ".memory-seed/sessions/2026-06-21/jean.md")
+        self.assertIn("Per-user search text.", payload["chunk"]["text"])
 
     def test_call_tool_memory_search_supports_section_granularity(self):
         cwd = self.make_project()

@@ -9,10 +9,9 @@ from pathlib import Path
 from functools import lru_cache
 from typing import Any, Callable, Protocol, Sequence
 
-from .core import resolve_runtime
+from .core import iter_session_documents, resolve_runtime
 
 
-SESSION_FILE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.md$")
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 TAG_RE = re.compile(r"(?<![\w/.-])#([A-Za-z][A-Za-z0-9_-]*)")
 IDENTIFIER_RE = re.compile(
@@ -122,15 +121,12 @@ def extract_memory_chunks(cwd: str | Path = ".", *, granularity: str = "entry") 
         return []
 
     chunks: list[MemoryChunk] = []
-    for path in sorted(sessions_dir.iterdir()):
-        match = SESSION_FILE_RE.match(path.name)
-        if not match:
-            continue
+    for doc in iter_session_documents(sessions_dir):
         try:
-            session_date = datetime.strptime(match.group(1), "%Y-%m-%d").date()
+            session_date = datetime.strptime(doc.session_date, "%Y-%m-%d").date()
         except ValueError:
             continue
-        chunks.extend(_extract_chunks_from_file(target_root, path, session_date, granularity=granularity))
+        chunks.extend(_extract_chunks_from_file(target_root, doc.path, session_date, granularity=granularity))
     return chunks
 
 
@@ -265,7 +261,7 @@ def _extract_entry_chunks_from_file(
         if granularity == "entry":
             text = "\n".join(entry_lines).strip()
             payload = "\n".join((title, text)).strip()
-            chunk_id = entry_id or _chunk_id(path.name, start_line, heading_path, payload)
+            chunk_id = entry_id or _chunk_id(source_path, start_line, heading_path, payload)
             chunks.append(
                 MemoryChunk(
                     chunk_id=chunk_id,
@@ -300,7 +296,7 @@ def _extract_entry_chunks_from_file(
         if not section_ranges:
             text = "\n".join(entry_lines).strip()
             payload = "\n".join((title, text)).strip()
-            chunk_id = entry_id or _chunk_id(path.name, start_line, heading_path, payload)
+            chunk_id = entry_id or _chunk_id(source_path, start_line, heading_path, payload)
             chunks.append(
                 MemoryChunk(
                     chunk_id=chunk_id,
@@ -337,7 +333,7 @@ def _extract_entry_chunks_from_file(
             text = "\n".join(section_lines).strip()
             payload = "\n".join((*heading_path, text)).strip()
             section_id = "/".join(_slugify(section) for section in section_path)
-            chunk_id = f"{entry_id}#{section_id}" if entry_id else _chunk_id(path.name, section_start, heading_path, payload)
+            chunk_id = f"{entry_id}#{section_id}" if entry_id else _chunk_id(source_path, section_start, heading_path, payload)
             chunks.append(
                 MemoryChunk(
                     chunk_id=chunk_id,
@@ -376,6 +372,7 @@ def _extract_legacy_chunks_from_file(
     lines: Sequence[str],
 ) -> list[MemoryChunk]:
     chunks: list[MemoryChunk] = []
+    source_path = path.relative_to(target_root).as_posix()
     heading_stack: list[str] = []
     current_title: str | None = None
     current_level = 0
@@ -391,8 +388,8 @@ def _extract_legacy_chunks_from_file(
         payload = "\n".join((current_title, text)).strip()
         chunks.append(
             MemoryChunk(
-                chunk_id=_chunk_id(path.name, current_start, title_path, payload),
-                source_path=path.relative_to(target_root).as_posix(),
+                chunk_id=_chunk_id(source_path, current_start, title_path, payload),
+                source_path=source_path,
                 source_file=path.name,
                 session_date=session_date,
                 entry_datetime=_entry_datetime(current_title),

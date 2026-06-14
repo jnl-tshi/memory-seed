@@ -36,7 +36,9 @@ class SemanticCacheTests(unittest.TestCase):
     def write_session(self, cwd, filename, content):
         sessions = cwd / ".memory-seed" / "sessions"
         sessions.mkdir(parents=True, exist_ok=True)
-        (sessions / filename).write_text(content, encoding="utf-8")
+        path = sessions / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
 
     def test_extracts_entry_bounded_chunks_with_yaml_metadata_by_default(self):
         cwd = self.make_project()
@@ -137,6 +139,41 @@ class SemanticCacheTests(unittest.TestCase):
         chunks = extract_memory_chunks(cwd)
 
         self.assertEqual([chunk.source_file for chunk in chunks], ["2026-05-18.md"])
+
+    def test_extracts_per_user_session_file_with_date_from_directory(self):
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-06-21/jean.md",
+            "## 2026-06-21 09:30 - Per-user memory\n\n"
+            "```yaml\n"
+            "entry_id: ms-jean1\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "```\n\n"
+            "Dual-read discovery works.\n",
+        )
+
+        chunks = extract_memory_chunks(cwd)
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].chunk_id, "ms-jean1")
+        self.assertEqual(chunks[0].session_date, date(2026, 6, 21))
+        self.assertEqual(chunks[0].source_file, "jean.md")
+        self.assertEqual(chunks[0].source_path, ".memory-seed/sessions/2026-06-21/jean.md")
+
+    def test_fallback_chunk_ids_include_date_qualified_source_path(self):
+        cwd = self.make_project()
+        self.write_session(cwd, "2026-06-21/jean.md", "## Same title\n\nFirst text.\n")
+        self.write_session(cwd, "2026-06-22/jean.md", "## Same title\n\nSecond text.\n")
+
+        chunks = extract_memory_chunks(cwd)
+
+        self.assertEqual(len(chunks), 2)
+        self.assertEqual(len({chunk.chunk_id for chunk in chunks}), 2)
+        self.assertTrue(all(chunk.chunk_id.startswith(".memory-seed/sessions/") for chunk in chunks))
 
     def test_lexical_metadata_match_outranks_body_only_match(self):
         today = date(2026, 5, 19)

@@ -11,6 +11,7 @@ from memory_seed.core import (
     generate_session_entry_id,
     get_version,
     init_project,
+    iter_session_documents,
     resolve_runtime,
     update_project,
 )
@@ -23,7 +24,7 @@ class MemorySeedTests(unittest.TestCase):
         return path
 
     def test_version_reads_reusable_control_plane_version(self):
-        self.assertEqual(get_version(), "2.8")
+        self.assertEqual(get_version(), "2.9")
 
     def test_version_at_least_orders_versions_numerically(self):
         from memory_seed.core import _version_at_least
@@ -553,7 +554,32 @@ class MemorySeedTests(unittest.TestCase):
         sessions_dir = cwd / MEMORY_DIR_NAME / "sessions"
         sessions_dir.mkdir(parents=True, exist_ok=True)
         for filename, content in entries.items():
-            (sessions_dir / filename).write_text(content, encoding="utf-8")
+            path = sessions_dir / filename
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+
+    def test_iter_session_documents_discovers_legacy_and_per_user_sessions(self):
+        cwd = self.make_project()
+        self._make_sessions(cwd, {
+            "2026-06-20.md": "## Legacy\n",
+            "2026-06-21/jean.md": "## Jean\n",
+            "2026-06-21/amina.md": "## Amina\n",
+            "2026-06-21/README.md": "## Not a user\n",
+            "2026-06-21/Bad_User.md": "## Invalid slug\n",
+            "not-a-date/theo.md": "## Invalid date\n",
+            "2026-06-22.md/readme.md": "## Invalid layout\n",
+        })
+
+        docs = list(iter_session_documents(cwd / MEMORY_DIR_NAME / "sessions"))
+
+        self.assertEqual(
+            [(doc.session_date, doc.user, doc.layout, doc.path.name) for doc in docs],
+            [
+                ("2026-06-20", None, "legacy-flat", "2026-06-20.md"),
+                ("2026-06-21", "amina", "per-user-day", "amina.md"),
+                ("2026-06-21", "jean", "per-user-day", "jean.md"),
+            ],
+        )
 
     def test_compact_returns_headings_from_recent_sessions(self):
         cwd = self.make_project()
@@ -593,6 +619,22 @@ class MemorySeedTests(unittest.TestCase):
         self.assertEqual(len(result.sessions_scanned), 2)
         self.assertIn("2020-01-01.md", result.sessions_scanned)
         self.assertIn("2099-12-31.md", result.sessions_scanned)
+
+    def test_compact_all_includes_legacy_and_per_user_sessions(self):
+        cwd = self.make_project()
+        self._make_sessions(cwd, {
+            "2026-06-20.md": "## Legacy entry\n\nLegacy text.\n",
+            "2026-06-21/jean.md": "## Jean entry\n\nJean text.\n",
+        })
+
+        result = compact_sessions(cwd=cwd, scan_all=True)
+
+        self.assertEqual(result.sessions_scanned, ["2026-06-20.md", "2026-06-21/jean.md"])
+        self.assertEqual(result.headings["2026-06-20"], ["Legacy entry"])
+        self.assertEqual(result.headings["2026-06-21/jean.md"], ["Jean entry"])
+        self.assertIn("Legacy text.", result.full_text)
+        self.assertIn("Jean text.", result.full_text)
+        self.assertEqual(result.date_range, ("2026-06-20", "2026-06-21"))
 
     def test_compact_empty_sessions_returns_empty_result(self):
         cwd = self.make_project()

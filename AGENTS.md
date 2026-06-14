@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.8
+memory-system-version: 2.9
 tags:
   - agent-entry
   - ai-memory
@@ -46,7 +46,7 @@ When initialized memory files exist, start here:
 2. Read the active `.memory-seed/index.md` for topology, active state, and inheritance rules.
 3. Read parent `.memory-seed/policy.md` only when the active index says policy is inherited.
 4. Read the active `.memory-seed/policy.md` for behavioral constraints and local overrides.
-5. Establish current project state from the newest session log: read the most recent dated `.memory-seed/sessions/YYYY-MM-DD.md` in full (and skim the one before it), selected by filename date. Read it directly — do not use semantic memory search to find the latest state, because search ranking can bury the newest entry beneath older topically-similar ones. A SessionStart hook injects this automatically where supported; do the read yourself when it is not.
+5. Establish current project state from the newest session log: read the most recent dated `.memory-seed/sessions/YYYY-MM-DD.md` in full (and skim the one before it), selected by filename date. Read it directly â€” do not use semantic memory search to find the latest state, because search ranking can bury the newest entry beneath older topically-similar ones. A SessionStart hook injects this automatically where supported; do the read yourself when it is not.
 6. Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry.
 7. Load full files from `.memory-seed/skills/` only when the trigger registry matches the task.
 

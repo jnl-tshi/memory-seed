@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.8
+memory-system-version: 2.9
 tags:
   - memory-seed
   - skill
@@ -8,14 +8,14 @@ tags:
 
 # Office Document Editing Skill
 
-Use when programmatically editing an Office document that contains **fields or content controls** — citations (reference-manager / Word `CITATION` fields), `SEQ` caption numbering, `REF` cross-references, a `TOC`, or `w:sdt` structured tags. These break easily; edit surgically.
+Use when programmatically editing an Office document that contains **fields or content controls** â€” citations (reference-manager / Word `CITATION` fields), `SEQ` caption numbering, `REF` cross-references, a `TOC`, or `w:sdt` structured tags. These break easily; edit surgically.
 
 ## Rules
 
 1. **Version, don't mutate:** edit a byte-copy as a new version (`vN` then `vN+1`); keep prior versions.
-2. **Edit the XML surgically** (for example `word/document.xml` via lxml), preserving every field, content-control, and hyperlink node. **Avoid full round-trips through high-level libraries** (for example python-docx) on field-heavy files — they can drop or renormalise structure.
+2. **Edit the XML surgically** (for example `word/document.xml` via lxml), preserving every field, content-control, and hyperlink node. **Avoid full round-trips through high-level libraries** (for example python-docx) on field-heavy files â€” they can drop or renormalise structure.
 3. **Never blank-rewrite a field-bearing paragraph** (it orphans the field). To change one, either **delete the whole paragraph** (clean) or do **run-level edits** that leave the field/content-control intact. Check field/SDT counts per paragraph before editing.
-4. **Do not insert literal citation numbers** — add sources via the document's reference manager so numbering stays live; literal numbers will not renumber.
+4. **Do not insert literal citation numbers** â€” add sources via the document's reference manager so numbering stays live; literal numbers will not renumber.
 5. **Locked files:** read a **share-aware** copy of the last-saved bytes when the app holds the file open.
 6. **POC-gate a new edit method:** apply one trivial edit to a throwaway copy, have the user open it in the real app, and only scale up if it opens with no repair prompt.
 7. **Verification split:** the agent can confirm the package/XML is well-formed and report a **field-count delta** (should be 0 unless intended); **only the user** can confirm the app opens it cleanly and must trigger a field/TOC update (for example Word: Ctrl+A then F9).

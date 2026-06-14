@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.8
+memory-system-version: 2.9
 tags:
   - memory-seed
   - skill
@@ -28,7 +28,7 @@ Match the framework to the audience's awareness level:
 | Unaware | AIDA | Hook first; problem reveal second |
 | Problem-aware | PAS | Name the pain, amplify it, then solve |
 | Transformation story | BAB | Before/After/Bridge; strong for launches |
-| Solution-aware | FAB | Feature → Advantage → Benefit |
+| Solution-aware | FAB | Feature â†’ Advantage â†’ Benefit |
 | Skeptical / cold | 4Ps | Lead with proof before the ask |
 | Repositioning | JTBD | What job does the user hire this product to do? |
 
@@ -45,7 +45,7 @@ Match the framework to the audience's awareness level:
    - Is the CTA a specific verb + specific outcome?
    - Is there at least one verifiable proof element?
    - Can it be cut by 20% without losing meaning?
-7. **Log the also-ran headlines** in the session entry — they are future A/B test candidates.
+7. **Log the also-ran headlines** in the session entry â€” they are future A/B test candidates.
 
 ## Developer Tool Objection Map
 
@@ -56,8 +56,8 @@ Pre-empt these before they surface in the copy:
 | "Another tool to learn" | Show the install-to-value time. One command. |
 | "Vendor lock-in" | MIT license. Plain Markdown. You own the files. |
 | "Performance overhead" | Local-first. No network call in the hot path. |
-| "Will it work with my LLM?" | Vendor-neutral. Works with any file-reading agent. |
-| "Will it break my workflow?" | Reads AGENTS.md — plugs into what you already have. |
+| "Will it work with my LLM?" | Vendor-neutral. Tested with Claude, Codex, Gemini. |
+| "Will it break my workflow?" | Reads AGENTS.md â€” plugs into what you already have. |
 
 ## Format Templates
 
@@ -71,7 +71,7 @@ Pre-empt these before they surface in the copy:
 - [Outcome 2]
 - [Outcome 3]
 
-[install command]
+pip install memory-seed   # or: uvx memory-seed init
 ```
 
 ### Product Hunt tagline (< 60 chars)
@@ -83,7 +83,7 @@ Variant B: `[Specific outcome in 5 words]`
 Always write both. Send A first; test B after 500 sends.
 
 ### GitHub description (< 160 chars)
-`[What it does] · [Key differentiator] · [Install hint or link]`
+`[What it does] Â· [Key differentiator] Â· [Install hint or link]`
 
 ## Output
 

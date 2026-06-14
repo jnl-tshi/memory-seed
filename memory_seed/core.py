@@ -7,11 +7,12 @@ import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Iterator, Literal
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "2.8"
+VERSION = "2.9"
 MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
@@ -51,6 +52,9 @@ _ROUTING_STANZA = (
 )
 
 SESSION_DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.md$")
+SESSION_DAY_DIR_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})$")
+SESSION_USER_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+_RESERVED_SESSION_STEMS = {"index", "readme", "policy"}
 HEADING_RE = re.compile(r"^##\s+(.+)$", re.MULTILINE)
 
 
@@ -68,6 +72,14 @@ class Runtime:
     workspace_root: Path
     memory_dir: Path
     legacy: bool = False
+
+
+@dataclass(frozen=True)
+class SessionDocument:
+    path: Path
+    session_date: str
+    user: str | None
+    layout: Literal["legacy-flat", "per-user-day"]
 
 
 @dataclass
@@ -96,6 +108,49 @@ class CompactResult:
     headings: dict[str, list[str]]
     full_text: str
     date_range: tuple[str, str] | None
+
+
+def iter_session_documents(sessions_dir: Path) -> Iterator[SessionDocument]:
+    documents: list[SessionDocument] = []
+    if not sessions_dir.is_dir():
+        return iter(())
+
+    for path in sessions_dir.iterdir():
+        if path.is_file():
+            match = SESSION_DATE_RE.match(path.name)
+            if not match:
+                continue
+            date_str = match.group(1)
+            if not _valid_session_date(date_str):
+                continue
+            documents.append(SessionDocument(path=path, session_date=date_str, user=None, layout="legacy-flat"))
+            continue
+
+        if not path.is_dir():
+            continue
+        day_match = SESSION_DAY_DIR_RE.match(path.name)
+        if not day_match:
+            continue
+        date_str = day_match.group(1)
+        if not _valid_session_date(date_str):
+            continue
+        for child in path.iterdir():
+            if not child.is_file() or child.suffix != ".md":
+                continue
+            user = child.stem
+            if user in _RESERVED_SESSION_STEMS or not SESSION_USER_SLUG_RE.match(user):
+                continue
+            documents.append(SessionDocument(path=child, session_date=date_str, user=user, layout="per-user-day"))
+
+    return iter(sorted(documents, key=lambda doc: (doc.session_date, doc.user or "")))
+
+
+def _valid_session_date(date_str: str) -> bool:
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        return False
+    return True
 
 
 SEED_FILES = [
@@ -1709,12 +1764,9 @@ def compact_sessions(
     today = datetime.now().date()
     cutoff = None if scan_all else today - timedelta(days=days)
 
-    dated_files: list[tuple[str, Path]] = []
-    for path in sorted(sessions_dir.iterdir()):
-        m = SESSION_DATE_RE.match(path.name)
-        if not m:
-            continue
-        date_str = m.group(1)
+    dated_files: list[tuple[str, str, str, Path]] = []
+    for doc in iter_session_documents(sessions_dir):
+        date_str = doc.session_date
         if cutoff is not None:
             try:
                 file_date = datetime.strptime(date_str, "%Y-%m-%d").date()
@@ -1722,7 +1774,9 @@ def compact_sessions(
                 continue
             if file_date < cutoff:
                 continue
-        dated_files.append((date_str, path))
+        display_path = doc.path.relative_to(sessions_dir).as_posix()
+        heading_key = date_str if doc.layout == "legacy-flat" else display_path
+        dated_files.append((date_str, display_path, heading_key, doc.path))
 
     if not dated_files:
         return CompactResult(
@@ -1735,13 +1789,13 @@ def compact_sessions(
     headings: dict[str, list[str]] = {}
     full_parts: list[str] = []
 
-    for date_str, path in dated_files:
+    for date_str, display_path, heading_key, path in dated_files:
         content = path.read_text(encoding="utf-8")
-        headings[date_str] = HEADING_RE.findall(content)
+        headings[heading_key] = HEADING_RE.findall(content)
         full_parts.append(content)
 
     return CompactResult(
-        sessions_scanned=[f.name for _, f in dated_files],
+        sessions_scanned=[display_path for _, display_path, _, _ in dated_files],
         headings=headings,
         full_text="\n".join(full_parts),
         date_range=(dated_files[0][0], dated_files[-1][0]),
