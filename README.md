@@ -161,9 +161,9 @@ memory-seed agents remove gemini  # back up + remove an agent's files (foreign c
 
 Both reminders are cross-platform Python scripts in `.memory-seed/hooks/`:
 
-- `session-log-check.py` â€” after a turn, reminds the agent to append a session-log entry if none was written in the last 15 minutes, and warns if the day's entries are out of ascending time order.
+- `session-log-check.py` - after a turn, reminds the agent to append a session-log entry if none was written in the last 15 minutes, and warns if the day's entries are out of ascending time order. When a local user is configured, it checks only that user's per-day file (`sessions/YYYY-MM-DD/<user>.md`) so another contributor's recent entry does not suppress the reminder.
 - `memory-retrieval-check.py` â€” before substantive work, reminds the agent to use `memory_search` for topical recall and to read the newest session file directly for current state. Gated by an 8-hour marker file so it fires about once per working session.
-- `session-start-context.py` â€” at session start, injects the newest session file's entries (path, all headings, and the most recent entry body) so the agent establishes current state by recency rather than semantic search. Fires once per session. Copilot CLI cannot run command hooks at session start, so it gets a static `prompt` hook with the same directive instead.
+- `session-start-context.py` - at session start, injects the newest relevant session file's entries (path, all headings, and the most recent entry body) so the agent establishes current state by recency rather than semantic search. With a configured user it injects that user's newest entry and lists same-day co-contributor files by path and entry count; without a configured user it preserves legacy flat-file behavior. Fires once per session. Copilot CLI cannot run command hooks at session start, so it gets a static `prompt` hook with the same directive instead.
 
 The hooks nudge; they never block. The scripts use Python 3.11+, which Memory Seed already requires.
 
@@ -212,7 +212,7 @@ GEMINI.md
 
 ## Current Version
 
-The current reusable control-plane version is `2.3`.
+The current reusable control-plane version is `2.10`.
 
 Legacy `.AGENTS/` projects remain supported as a fallback during migration.
 
@@ -272,7 +272,7 @@ python -m pip install --upgrade memory-seed
 python -m pip show memory-seed
 ```
 
-`python -m pip show memory-seed` reports the installed Python package version, such as `2.0.0`. `memory-seed version` reports the reusable control-plane version, currently `2.0`; it is not the package-version check.
+`python -m pip show memory-seed` reports the installed Python package version, such as `2.10.0`. `memory-seed version` reports the reusable control-plane version, currently `2.10`; it is not the package-version check.
 
 To discover commands and flags, use `memory-seed help` (also shown when you run `memory-seed` with no command), `memory-seed -h`, or `memory-seed <command> -h` for a specific command.
 
@@ -318,7 +318,7 @@ The `update` command refreshes routing files, reusable runtime procedure files, 
 
 Use `update --dry-run` to list the reusable control-plane targets without writing files. Current behavior is conservative but broad: dry-run lists bundled seed paths rather than calculating which files are missing or version-mismatched. The real `update` command skips files already at the current `memory-system-version` or newer â€” so a stale installed tool never downgrades a project â€” and preserves existing `.memory-seed/` runtime files.
 
-The `compact` command summarises recent session activity from the nearest runtime so an agent can identify durable facts to promote into `index.md`, `policy.md`, or skills. It reads both the legacy flat layout (`sessions/YYYY-MM-DD.md`) and the per-day/per-user layout (`sessions/YYYY-MM-DD/<user>.md`), while current writes remain flat until a later user-resolution release:
+The `compact` command summarises recent session activity from the nearest runtime so an agent can identify durable facts to promote into `index.md`, `policy.md`, or skills. It reads both the legacy flat layout (`sessions/YYYY-MM-DD.md`) and the per-day/per-user layout (`sessions/YYYY-MM-DD/<user>.md`):
 
 ```bash
 memory-seed compact              # last 7 days (default)
@@ -328,6 +328,18 @@ memory-seed compact --output summary.md  # write to file
 ```
 
 The output is a structured Markdown report with session headings and full entry text. The CLI summarises; the agent (or user) decides what to promote. No files are modified automatically.
+
+To opt into per-user session targets on a clone, configure a local user slug:
+
+```bash
+memory-seed user set jean
+memory-seed user show
+memory-seed session target
+memory-seed session target --create
+memory-seed user clear
+```
+
+The local selection is stored in `.memory-seed/local.yaml`, which Memory Seed adds to `.gitignore`. `MEMORY_SEED_USER` overrides the local file for one shell, and `memory-seed session target --user <slug>` overrides both. With no configured user, session targets remain the legacy flat file (`sessions/YYYY-MM-DD.md`). With a configured user, new targets are `sessions/YYYY-MM-DD/<user>.md` and `--create` initializes file frontmatter with `schema_version: 2`, `session_date`, immutable `hash_id`, `user`, and `created_at`.
 
 ### Existing-Project Command Behavior
 
@@ -340,6 +352,8 @@ When run in a project that already has Memory Seed files:
 - `memory-seed init --force` backs up and rewrites owned seed files. It still does **not** overwrite a foreign entry-point file â€” that is always merged, never clobbered.
 - `memory-seed update` refreshes stale routing files, reusable runtime procedure files, and generic skill templates; archives replaced control-plane versions; and preserves generated local memory. For a **foreign** entry-point file it injects (or re-syncs in place) a marker-delimited `<!-- BEGIN memory-seed -->â€¦<!-- END memory-seed -->` block that routes into `.memory-seed/`, leaving the host's own content untouched.
 - `memory-seed compact` reads dated session logs from the nearest `.memory-seed/` runtime, including both `sessions/YYYY-MM-DD.md` and `sessions/YYYY-MM-DD/<user>.md`, with legacy `.AGENTS/` fallback. It prints a Markdown summary and writes only when `--output` is provided.
+- `memory-seed user set/show/clear` manages a gitignored local user slug for opt-in per-user session files.
+- `memory-seed session target [--create]` prints the active session log path and can create the file if needed.
 
 Known behavior to understand: `update --dry-run` currently lists all control-plane targets, not only files that would actually change. `init --force` intentionally rewrites all bundled seed files and should be used as a reinstall command rather than a targeted refresh.
 
@@ -446,7 +460,7 @@ Per-query latency, measured in-process on this repo (81 chunks across the sessio
 
 When driving the server through an MCP client (Claude Code, Cursor, Gemini), the latency you actually perceive is dominated by one-time startup, not per-query work: spawning `uvx --from memory-seed memory-seed-mcp` resolves and may install the package into an ephemeral environment the first time the server launches in a session. Once the server is up, each `memory_search` is the ~30 ms compute above plus a small JSON-RPC round-trip. At current log sizes there is no need to optimize; should logs grow large enough that the ~22 ms parse cost becomes noticeable, caching parsed chunks and their vectors keyed by file modification time would remove most of the per-query cost.
 
-Session entries should include a YAML metadata block with `entry_id`, `user_initials`, `agent_type`, `project_path`, and `subproject_path`. Session entry headings may include optional minute-level timestamps, such as `## 2026-05-19 20:42 - Durable memory consolidation`. Legacy session filenames stay date-only; the future per-user layout uses a date directory plus a bare user slug (`sessions/YYYY-MM-DD/jean.md`). Timestamped headings are backward compatible with older untimed headings and are exposed as `entry_datetime` in MCP search results when present.
+Session entries should include a YAML metadata block with `entry_id`, `user_initials`, `agent_type`, `project_path`, and `subproject_path`. Session entry headings may include optional minute-level timestamps, such as `## 2026-05-19 20:42 - Durable memory consolidation`. Legacy session filenames stay date-only; the opt-in per-user layout uses a date directory plus a bare user slug (`sessions/YYYY-MM-DD/jean.md`). Timestamped headings are backward compatible with older untimed headings and are exposed as `entry_datetime` in MCP search results when present.
 
 For human-validatable search behavior, see the fixture-style tests in `tests/test_mcp_server.py`. They assert that specific queries return expected dated session entries first and include enough evidence for manual review.
 

@@ -4,6 +4,13 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+## 2.10.0 - 2026-06-14
+
+- Added opt-in user-aware session targets. `memory-seed user set/show/clear` manages a gitignored `.memory-seed/local.yaml`; `MEMORY_SEED_USER` and `memory-seed session target --user <slug>` can override it.
+- Added `memory-seed session target [--create]`. Without a configured user it keeps the legacy flat target (`.memory-seed/sessions/YYYY-MM-DD.md`); with a configured user it targets `.memory-seed/sessions/YYYY-MM-DD/<user>.md` and `--create` initializes per-user frontmatter with `schema_version: 2`, `session_date`, immutable `hash_id`, `user`, and `created_at`.
+- Made session hooks user-aware while preserving legacy behavior. `session-log-check.py` checks only the active user's file, and `session-start-context.py` injects the active user's newest entry plus same-day co-contributor file counts.
+- Bumped control-plane version from `2.9` to `2.10`.
+
 ## 2.9.0 - 2026-06-14
 
 - Added read-only dual discovery for multi-user session logs. `memory_search`, `memory_get_chunk`, and `memory-seed compact` now read both legacy flat files (`.memory-seed/sessions/YYYY-MM-DD.md`) and per-day/per-user files (`.memory-seed/sessions/YYYY-MM-DD/<user>.md`, e.g. `2026-06-21/jean.md`).

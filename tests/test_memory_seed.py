@@ -13,6 +13,7 @@ from memory_seed.core import (
     init_project,
     iter_session_documents,
     resolve_runtime,
+    session_target,
     update_project,
 )
 
@@ -24,7 +25,7 @@ class MemorySeedTests(unittest.TestCase):
         return path
 
     def test_version_reads_reusable_control_plane_version(self):
-        self.assertEqual(get_version(), "2.9")
+        self.assertEqual(get_version(), "2.10")
 
     def test_version_at_least_orders_versions_numerically(self):
         from memory_seed.core import _version_at_least
@@ -581,6 +582,60 @@ class MemorySeedTests(unittest.TestCase):
             ],
         )
 
+    def test_session_target_uses_legacy_path_without_configured_user(self):
+        cwd = self.make_project()
+        (cwd / MEMORY_DIR_NAME / "sessions").mkdir(parents=True)
+
+        target = session_target(cwd=cwd, date_str="2026-06-21")
+
+        self.assertEqual(
+            target.path,
+            cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-21.md",
+        )
+        self.assertIsNone(target.user)
+        self.assertEqual(target.layout, "legacy-flat")
+
+    def test_session_target_uses_environment_user_before_local_config(self):
+        import os
+        from unittest.mock import patch
+
+        cwd = self.make_project()
+        local = cwd / MEMORY_DIR_NAME / "local.yaml"
+        local.parent.mkdir(parents=True)
+        local.write_text("user: amina\n", encoding="utf-8")
+
+        with patch.dict(os.environ, {"MEMORY_SEED_USER": "jean"}):
+            target = session_target(cwd=cwd, date_str="2026-06-21")
+
+        self.assertEqual(target.user, "jean")
+        self.assertEqual(
+            target.path,
+            cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-21" / "jean.md",
+        )
+        self.assertEqual(target.layout, "per-user-day")
+
+    def test_session_target_create_initializes_per_user_file_once(self):
+        cwd = self.make_project()
+
+        target = session_target(cwd=cwd, date_str="2026-06-21", explicit_user="jean", create=True)
+        first = target.path.read_text(encoding="utf-8")
+        target.path.write_text(first + "\n## 2026-06-21 12:00 - Existing\n\nbody\n", encoding="utf-8")
+        session_target(cwd=cwd, date_str="2026-06-21", explicit_user="jean", create=True)
+
+        text = target.path.read_text(encoding="utf-8")
+        self.assertIn("schema_version: 2", text)
+        self.assertIn("session_date: 2026-06-21", text)
+        self.assertIn("hash_id: msm_", text)
+        self.assertIn("user: jean", text)
+        self.assertIn("## 2026-06-21 12:00 - Existing", text)
+        self.assertEqual(text.count("schema_version: 2"), 1)
+
+    def test_session_target_rejects_invalid_user_slug(self):
+        cwd = self.make_project()
+
+        with self.assertRaises(ValueError):
+            session_target(cwd=cwd, date_str="2026-06-21", explicit_user="Bad_User")
+
     def test_compact_returns_headings_from_recent_sessions(self):
         cwd = self.make_project()
         today = __import__("datetime").date.today().isoformat()
@@ -937,6 +992,21 @@ class SessionLogOrderingHookTests(unittest.TestCase):
             text=True,
         ).stdout
 
+    def _run_with_env(self, cwd, extra_env):
+        import os
+        import subprocess
+        import sys
+
+        env = os.environ.copy()
+        env.update(extra_env)
+        return subprocess.run(
+            [sys.executable, str(self.SCRIPT)],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            env=env,
+        ).stdout
+
     def test_out_of_order_entries_trigger_warning(self):
         import datetime
 
@@ -1010,6 +1080,46 @@ class SessionLogOrderingHookTests(unittest.TestCase):
         os.utime(session_file, None)
         # Staleness check should still fire because the entry heading is old.
         self.assertIn("SESSION LOG REMINDER", self._run(cwd))
+
+    def test_user_scoped_staleness_ignores_other_users_recent_entry(self):
+        import datetime
+
+        cwd = self.make_project()
+        now = datetime.datetime.now()
+        today = now.strftime("%Y-%m-%d")
+        user_dir = cwd / ".memory-seed" / "sessions" / today
+        user_dir.mkdir(parents=True)
+        (user_dir / "amina.md").write_text(
+            f"## {today} {now.strftime('%H:%M')} - Amina recent\n\ntext\n",
+            encoding="utf-8",
+        )
+
+        out = self._run_with_env(cwd, {"MEMORY_SEED_USER": "jean"})
+
+        self.assertIn("SESSION LOG REMINDER", out)
+        self.assertIn(f".memory-seed/sessions/{today}/jean.md", out)
+        self.assertNotIn(f".memory-seed/sessions/{today}.md", out)
+
+    def test_user_scoped_order_warning_checks_only_selected_file(self):
+        import datetime
+
+        cwd = self.make_project()
+        today = datetime.date.today().isoformat()
+        user_dir = cwd / ".memory-seed" / "sessions" / today
+        user_dir.mkdir(parents=True)
+        (user_dir / "jean.md").write_text(
+            f"## {today} 02:00 - later\n\ntext\n\n## {today} 01:45 - earlier\n\ntext\n",
+            encoding="utf-8",
+        )
+        (user_dir / "amina.md").write_text(
+            f"## {today} 01:00 - amina\n\ntext\n",
+            encoding="utf-8",
+        )
+
+        out = self._run_with_env(cwd, {"MEMORY_SEED_USER": "jean"})
+
+        self.assertIn("ORDER WARNING", out)
+        self.assertIn(f".memory-seed/sessions/{today}/jean.md", out)
 
 
 class McpMergeTests(unittest.TestCase):
@@ -1477,6 +1587,45 @@ class CliHelpTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("Keeping Memory Seed current", out)
 
+    def test_user_set_show_clear_and_session_target(self):
+        import contextlib
+
+        cwd = Path.cwd()
+        project = Path(tempfile.mkdtemp(prefix="memory-seed-cli-user-"))
+        self.addCleanup(lambda: shutil.rmtree(project, ignore_errors=True))
+        (project / ".memory-seed" / "sessions").mkdir(parents=True)
+
+        try:
+            import os
+
+            os.chdir(project)
+            self.assertEqual(self._run(["user", "set", "jean"])[0], 0)
+            local = project / ".memory-seed" / "local.yaml"
+            self.assertIn("user: jean", local.read_text(encoding="utf-8"))
+            self.assertIn(".memory-seed/local.yaml", (project / ".gitignore").read_text(encoding="utf-8"))
+
+            code, out = self._run(["user", "show"])
+            self.assertEqual(code, 0)
+            self.assertIn("jean", out)
+
+            code, out = self._run(["session", "target"])
+            self.assertEqual(code, 0)
+            self.assertRegex(out.strip(), r"\.memory-seed/sessions/\d{4}-\d{2}-\d{2}/jean\.md$")
+
+            code, out = self._run(["session", "target", "--create"])
+            self.assertEqual(code, 0)
+            target = project / out.strip()
+            self.assertTrue(target.exists())
+            created = target.read_text(encoding="utf-8")
+            self.assertIn("schema_version: 2", created)
+            self.assertIn("user: jean", created)
+            self.assertIn("hash_id: msm_", created)
+
+            self.assertEqual(self._run(["user", "clear"])[0], 0)
+            self.assertFalse(local.exists())
+        finally:
+            os.chdir(cwd)
+
 
 class SessionStartContextHookTests(unittest.TestCase):
     SCRIPT = Path("memory_seed/seed/.memory-seed/hooks/session-start-context.py").resolve()
@@ -1487,7 +1636,9 @@ class SessionStartContextHookTests(unittest.TestCase):
         sdir = path / ".memory-seed" / "sessions"
         sdir.mkdir(parents=True)
         for name, body in (sessions or {}).items():
-            (sdir / name).write_text(body, encoding="utf-8")
+            target = sdir / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(body, encoding="utf-8")
         return path
 
     def _run(self, cwd, *args):
@@ -1499,6 +1650,21 @@ class SessionStartContextHookTests(unittest.TestCase):
             cwd=cwd,
             capture_output=True,
             text=True,
+        ).stdout
+
+    def _run_with_env(self, cwd, extra_env, *args):
+        import os
+        import subprocess
+        import sys
+
+        env = os.environ.copy()
+        env.update(extra_env)
+        return subprocess.run(
+            [sys.executable, str(self.SCRIPT), *args],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            env=env,
         ).stdout
 
     def test_injects_newest_file_headings_and_latest_entry(self):
@@ -1564,6 +1730,27 @@ class SessionStartContextHookTests(unittest.TestCase):
         context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
         self.assertIn("2026-02-02.md", context)
         self.assertNotIn("Should be ignored", context)
+
+    def test_user_context_injects_active_user_and_lists_contributors(self):
+        import json
+
+        cwd = self.make_project({
+            "2026-02-02/jean.md": (
+                "## 2026-02-02 10:00 - Jean first\n\nbody A\n\n"
+                "## 2026-02-02 14:30 - Jean latest\n\njean newest body\n"
+            ),
+            "2026-02-02/amina.md": "## 2026-02-02 11:00 - Amina work\n\namina body\n",
+            "2026-02-01/jean.md": "## 2026-02-01 09:00 - Jean older\n\nold body\n",
+        })
+
+        out = self._run_with_env(cwd, {"MEMORY_SEED_USER": "jean"})
+        context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+
+        self.assertIn("Newest session file: .memory-seed/sessions/2026-02-02/jean.md", context)
+        self.assertIn("jean newest body", context)
+        self.assertIn("Co-contributor session files for 2026-02-02:", context)
+        self.assertIn(".memory-seed/sessions/2026-02-02/amina.md (1 entry)", context)
+        self.assertNotIn("amina body", context)
 
     def test_markdown_heading_in_body_is_not_an_entry_boundary(self):
         import json

@@ -27,13 +27,18 @@ Bundles the already-built-but-uncommitted SessionStart orientation hook (Claude/
 - **Behavior change (done):** versionless entry-point files are merged, not overwritten â€” retires the legacy unversionedâ†’clobber upgrade path.
 - **Doctor route-presence backstop (done):** a `.memory-seed/` runtime whose present entry-point file is foreign-without-block is flagged as orphaned.
 
-### Release 2.9.0 (in progress)
+### Release 2.9.0 (shipped 2026-06-14)
 
-- **Multi-user session dual-read discovery (done in code):** package readers now discover both legacy flat files (`.memory-seed/sessions/YYYY-MM-DD.md`) and per-day/per-user files (`.memory-seed/sessions/YYYY-MM-DD/<user>.md`). This is read-only groundwork for multi-user attribution and Git-merge avoidance; writes, hooks, user resolution, migration, and file-level `hash_id` remain deferred.
+- **Multi-user session dual-read discovery (done):** package readers now discover both legacy flat files (`.memory-seed/sessions/YYYY-MM-DD.md`) and per-day/per-user files (`.memory-seed/sessions/YYYY-MM-DD/<user>.md`). This is read-only groundwork for multi-user attribution and Git-merge avoidance.
+
+### Release 2.10.0 (in progress)
+
+- **User-aware session targets (done in code):** local user identity is opt-in through `.memory-seed/local.yaml`, `MEMORY_SEED_USER`, or `memory-seed session target --user`. `memory-seed session target --create` initializes `.memory-seed/sessions/YYYY-MM-DD/<user>.md` with file frontmatter and an immutable `msm_` hash. With no configured user, legacy flat-file targets remain unchanged.
+- **User-aware hooks (done in code):** `session-log-check.py` checks only the active user's file, and `session-start-context.py` injects the active user's newest entry plus same-day co-contributor file counts.
 
 ### Deferred â€” 3.0 candidate
 
-- **Multi-user per-day session memory remaining phases** (`.memory-seed/sessions/YYYY-MM-DD/<user>.md`). Team-capable direction (attribution + Git-merge avoidance; not privacy/permissions/real-time). Phase 1 dual-read discovery landed in 2.9.0; still deferred are opt-in per-user writes, active-user resolution, hook updates, file-level `hash_id`, and explicit `migrate sessions-layout`. Refined execution-ready spec: [`docs/todo/multi-user-session-memory-proposal.md`](docs/todo/multi-user-session-memory-proposal.md); design rationale in [`docs/todo/multi-user-deep-research-report.md`](docs/todo/multi-user-deep-research-report.md).
+- **Multi-user per-day session memory remaining phases** (`.memory-seed/sessions/YYYY-MM-DD/<user>.md`). Team-capable direction (attribution + Git-merge avoidance; not privacy/permissions/real-time). Phase 1 dual-read discovery landed in 2.9.0 and Phase 2 user-aware targets/hooks landed in 2.10.0; still deferred are graph-link validation, MCP metadata filters, explicit `migrate sessions-layout`, and any future entry-ID widening. Refined execution-ready spec: [`docs/todo/multi-user-session-memory-proposal.md`](docs/todo/multi-user-session-memory-proposal.md); design rationale in [`docs/todo/multi-user-deep-research-report.md`](docs/todo/multi-user-deep-research-report.md).
 
 ## MCP Client Validation
 

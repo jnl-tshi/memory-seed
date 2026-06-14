@@ -9,10 +9,11 @@ tags:
 
 # Multi-user session memory for Memory Seed (refined proposal)
 
-> **Status: PHASE 1 DELIVERED in 2.9.0; remaining phases deferred.** Read-only dual discovery
-> is implemented for package readers. Per-user writes, user resolution, hook behavior, migration,
-> and file-level identity remain deferred. Product intent: **exploring team-capable** (the repo is
-> solo-first today; this opens a multi-user door without harming solo users).
+> **Status: PHASES 1-2 DELIVERED in 2.9.0 and 2.10.0; remaining phases deferred.**
+> Read-only dual discovery is implemented for package readers, and opt-in user-aware session
+> targets/hooks are implemented. Graph validation, MCP metadata filters, and migration remain
+> deferred. Product intent: **exploring team-capable** (the repo is solo-first today; this opens a
+> multi-user door without harming solo users).
 >
 > This is the execution-ready spec. Its design rationale and comparative research are in
 > [`multi-user-deep-research-report.md`](multi-user-deep-research-report.md). Where this doc and
@@ -164,8 +165,7 @@ Resolve the active user in order:
 2. `MEMORY_SEED_USER` environment variable.
 3. Per-clone `.memory-seed/local.yaml` (gitignored; a local selection must NOT become a shared
    default that makes every clone write under the same user).
-4. Legacy flat-file behavior when interacting with an existing legacy session.
-5. Otherwise, emit an actionable configuration warning rather than guessing.
+4. Legacy flat-file behavior when no user is configured.
 
 A shared, tracked `.memory-seed/project.yaml` may hold the `project_id`, the participant registry,
 and the `user_initials â†’ slug` map used by migration.
@@ -188,9 +188,8 @@ def session_path(memory_dir: Path, date: str, user: str) -> Path: ...
 
 `iter_session_documents` must recognize `sessions/YYYY-MM-DD.md` and
 `sessions/YYYY-MM-DD/<user>.md`; return deterministic ordering; ignore malformed paths safely;
-distinguish legacy vs per-user; and expose date + user. Phase 1 shipped only the reader
-abstraction; `session_path` belongs with the later write-behavior phase so the first release does
-not add an unused write-target helper.
+distinguish legacy vs per-user; and expose date + user. Phase 1 shipped the reader abstraction.
+Phase 2 shipped `session_path` and user-aware target resolution.
 
 ### Complete reader inventory (every current session reader must route through the abstraction)
 
@@ -248,12 +247,12 @@ and `compact_sessions` through it; update tests, README, and roadmap docs. Prese
 behavior. **Do not move, rewrite, or newly write session files in this phase.** Hooks and
 `session_path` are deferred to Phase 2 because they require active-user resolution.
 
-### Phase 2 â€” user-aware writes and hooks
-Make `session-log-check.py` (and its seed twin) resolve the active user and check
-`sessions/<today>/<user>.md`: another user's recent entry must not suppress the current
-user's reminder; chronology is checked independently per user file; legacy repos keep their
-fallback; unresolved identity yields a clear setup instruction. New per-user files get valid
-frontmatter and an immutable `hash_id`. Apply the SessionStart orientation rule above.
+### Phase 2 - user-aware writes and hooks
+Delivered in 2.10.0: `memory-seed user set/show/clear` manages a gitignored local user,
+`memory-seed session target [--create]` resolves legacy vs per-user targets, new per-user files
+get valid frontmatter plus immutable `hash_id`, `session-log-check.py` scopes reminders/order
+warnings to the active user file, and `session-start-context.py` applies the multi-user orientation
+rule above. Legacy repositories keep flat-file behavior when no user is configured.
 
 ### Phase 3 â€” graph-link validation
 Validate: duplicate `hash_id`; duplicate `entry_id`; unresolved `related_memories`/

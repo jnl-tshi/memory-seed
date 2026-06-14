@@ -1,21 +1,24 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import hashlib
+import secrets
 import tomllib
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator, Literal
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "2.9"
+VERSION = "2.10"
 MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
+LOCAL_CONFIG_IGNORE_ENTRY = ".memory-seed/local.yaml"
 
 # Entry-point "routing" files share their names with files other tools own
 # (HyperFrames also uses AGENTS.md/CLAUDE.md). When one of these already exists
@@ -76,6 +79,14 @@ class Runtime:
 
 @dataclass(frozen=True)
 class SessionDocument:
+    path: Path
+    session_date: str
+    user: str | None
+    layout: Literal["legacy-flat", "per-user-day"]
+
+
+@dataclass(frozen=True)
+class SessionTarget:
     path: Path
     session_date: str
     user: str | None
@@ -151,6 +162,133 @@ def _valid_session_date(date_str: str) -> bool:
     except ValueError:
         return False
     return True
+
+
+def _validate_session_user(user: str) -> str:
+    if not SESSION_USER_SLUG_RE.match(user):
+        raise ValueError(
+            "User slug must start with a lowercase letter or digit and contain "
+            "only lowercase letters, digits, underscores, or hyphens (max 64 chars)."
+        )
+    if user in _RESERVED_SESSION_STEMS:
+        raise ValueError(f"User slug is reserved: {user}")
+    return user
+
+
+def _local_config_path(target_root: Path) -> Path:
+    return target_root / MEMORY_DIR_NAME / "local.yaml"
+
+
+def read_local_user(target_root: Path) -> str | None:
+    path = _local_config_path(target_root)
+    if not path.exists():
+        return None
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if not stripped.startswith("user:"):
+                continue
+            user = stripped.split(":", 1)[1].strip()
+            if user.startswith(("'", '"')) and user.endswith(("'", '"')) and len(user) >= 2:
+                user = user[1:-1]
+            return _validate_session_user(user)
+    except (OSError, UnicodeDecodeError, ValueError):
+        return None
+    return None
+
+
+def write_local_user(target_root: Path, user: str) -> None:
+    user = _validate_session_user(user)
+    memory_dir = target_root / MEMORY_DIR_NAME
+    memory_dir.mkdir(parents=True, exist_ok=True)
+    _local_config_path(target_root).write_text(f"user: {user}\n", encoding="utf-8")
+    _ensure_gitignore_entry(target_root, LOCAL_CONFIG_IGNORE_ENTRY)
+
+
+def clear_local_user(target_root: Path) -> bool:
+    path = _local_config_path(target_root)
+    if not path.exists():
+        return False
+    path.unlink()
+    return True
+
+
+def resolve_active_user(cwd: Path | str = ".", explicit_user: str | None = None) -> str | None:
+    if explicit_user:
+        return _validate_session_user(explicit_user)
+
+    env_user = os.environ.get("MEMORY_SEED_USER")
+    if env_user:
+        return _validate_session_user(env_user)
+
+    runtime = resolve_runtime(cwd)
+    if runtime.legacy:
+        return None
+    return read_local_user(runtime.workspace_root)
+
+
+def session_path(sessions_dir: Path, date_str: str, user: str) -> Path:
+    if not _valid_session_date(date_str):
+        raise ValueError(f"Invalid session date: {date_str}")
+    user = _validate_session_user(user)
+    return sessions_dir / date_str / f"{user}.md"
+
+
+def _utc_timestamp() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _ensure_per_user_session_file(path: Path, date_str: str, user: str) -> None:
+    if path.exists():
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    hash_id = "msm_" + secrets.token_hex(16)
+    path.write_text(
+        "\n".join(
+            [
+                "---",
+                "schema_version: 2",
+                f"session_date: {date_str}",
+                f"hash_id: {hash_id}",
+                f"user: {user}",
+                f"created_at: {_utc_timestamp()}",
+                "---",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
+def session_target(
+    cwd: Path | str = ".",
+    date_str: str | None = None,
+    explicit_user: str | None = None,
+    create: bool = False,
+) -> SessionTarget:
+    runtime = resolve_runtime(cwd)
+    if runtime.legacy:
+        sessions_dir = runtime.memory_dir / "sessions"
+    else:
+        sessions_dir = runtime.workspace_root / MEMORY_DIR_NAME / "sessions"
+    date_value = date_str or datetime.now().strftime("%Y-%m-%d")
+    if not _valid_session_date(date_value):
+        raise ValueError(f"Invalid session date: {date_value}")
+
+    user = resolve_active_user(cwd, explicit_user=explicit_user)
+    if user is None:
+        path = sessions_dir / f"{date_value}.md"
+        if create:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch(exist_ok=True)
+        return SessionTarget(path=path, session_date=date_value, user=None, layout="legacy-flat")
+
+    path = session_path(sessions_dir, date_value, user)
+    if create:
+        _ensure_per_user_session_file(path, date_value, user)
+    return SessionTarget(path=path, session_date=date_value, user=user, layout="per-user-day")
 
 
 SEED_FILES = [

@@ -41,7 +41,7 @@ class SessionSchemaTests(unittest.TestCase):
             'granularity: "entry"',
             'granularity: "section"',
             "If MCP tools are unavailable",
-            "Start with the last two session files",
+            "Start with the last two session documents",
             "Current files are the active authority",
             "Session history is evidence and reason",
             "ask the user before changing durable design",

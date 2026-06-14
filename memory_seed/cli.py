@@ -9,15 +9,19 @@ from pathlib import Path
 from .core import (
     KNOWN_AGENTS,
     add_agent,
+    clear_local_user,
     compact_sessions,
     doctor,
     get_version,
     init_project,
+    read_local_user,
     read_project_agents,
     remove_agent,
     resolve_agents,
     selected_agents,
+    session_target,
     update_project,
+    write_local_user,
 )
 
 
@@ -75,6 +79,20 @@ def main(argv: list[str] | None = None) -> int:
     agents_remove = agents_sub.add_parser("remove", help="remove an agent's files")
     agents_remove.add_argument("agent", help="agent slug (" + ",".join(KNOWN_AGENTS) + ")")
 
+    user_parser = subparsers.add_parser("user", help="manage the local Memory Seed user")
+    user_sub = user_parser.add_subparsers(dest="user_command", required=True)
+    user_sub.add_parser("show", help="show the configured local user")
+    user_set = user_sub.add_parser("set", help="set the local user slug")
+    user_set.add_argument("slug", help="user slug, e.g. jean")
+    user_sub.add_parser("clear", help="clear the local user slug")
+
+    session_parser = subparsers.add_parser("session", help="inspect session targets")
+    session_sub = session_parser.add_subparsers(dest="session_command", required=True)
+    session_target_parser = session_sub.add_parser("target", help="print the active session log target")
+    session_target_parser.add_argument("--date", default=None, help="target date (YYYY-MM-DD); default: today")
+    session_target_parser.add_argument("--user", default=None, help="override the active user slug")
+    session_target_parser.add_argument("--create", action="store_true", help="create the target file if needed")
+
     update_parser = subparsers.add_parser("update", help="update reusable control-plane files")
     update_parser.add_argument(
         "--dry-run",
@@ -102,6 +120,48 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "version":
         print(get_version())
         return 0
+
+    if args.command == "user":
+        target = Path(".").resolve()
+        if args.user_command == "show":
+            user = read_local_user(target)
+            if user is None:
+                print("No Memory Seed user configured.")
+            else:
+                print(user)
+            return 0
+        if args.user_command == "set":
+            try:
+                write_local_user(target, args.slug)
+            except ValueError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            print(f"Active Memory Seed user set to {args.slug}.")
+            return 0
+        if args.user_command == "clear":
+            if clear_local_user(target):
+                print("Cleared Memory Seed user.")
+            else:
+                print("No Memory Seed user configured.")
+            return 0
+
+    if args.command == "session":
+        if args.session_command == "target":
+            try:
+                target = session_target(
+                    cwd=Path(".").resolve(),
+                    date_str=args.date,
+                    explicit_user=args.user,
+                    create=args.create,
+                )
+            except ValueError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            try:
+                print(target.path.relative_to(Path(".").resolve()).as_posix())
+            except ValueError:
+                print(target.path.as_posix())
+            return 0
 
     if args.command == "compact":
         result = compact_sessions(days=args.days, scan_all=args.scan_all)
