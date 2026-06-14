@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.6
+memory-system-version: 2.7
 tags:
   - memory-seed
   - skill
@@ -20,6 +20,7 @@ Use this skill when validating a Memory Seed runtime, migration, bootstrap repai
 - `.memory-seed/skills/` contains task runbooks.
 - `.memory-seed/sessions/` contains dated append-only logs.
 - `.memory-seed/archive/` contains archived prior control-plane snapshots when versions were replaced.
+- Every `.memory-seed/skills/*.md` runbook is registered in `skills/index.md`; an unregistered file is an orphan skill (warned, non-fatal).
 - No stale `.AGENTS/` paths are presented as the v2 target shape.
 - Legacy `.AGENTS/` fallback remains tested when compatibility is required.
 

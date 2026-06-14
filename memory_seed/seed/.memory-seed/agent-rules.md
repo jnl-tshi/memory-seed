@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.6
+memory-system-version: 2.7
 tags:
   - memory-seed
   - agent-rules
@@ -285,6 +285,14 @@ Routine append:
 
 Do not rewrite old session entries unless the user explicitly asks for repair, archival cleanup, or correction.
 
+## Working Principles
+
+Cross-cutting principles that apply to any agent and any task:
+
+- **POC-gate before scaling a risky or hard-to-verify automated method.** Prove a new editing or transformation pipeline on one throwaway case the user can validate, before applying it broadly.
+- **Verification split.** State plainly what the agent can verify (for example file integrity, structural checks, diffs) versus what only the user can verify (for example an app opens the artifact without error). Never imply you verified the latter.
+- **Read share-aware copies of locked files.** When another application holds a file open, read the last-saved bytes via a shared read handle rather than failing or assuming the content is stale.
+
 ## End Of Turn
 
 This rule applies to all agents equally — Claude, Codex, Gemini, and any other agent reading these instructions.
@@ -297,9 +305,16 @@ After any turn where meaningful work was completed:
 4. Review whether any `.memory-seed/skills/*.md` runbook changed.
 5. If work occurred in a sub-project runtime, review whether the parent or root runtime needs a brief coordination summary.
 6. Run the smallest verification that proves the work.
-7. **Persona evolution check (if a persona is active):** Identify up to 3 patterns from this session that should change how the active persona behaves — new rules, dropped rules, or calibration from evidence. Draft proposed changes (what to add/change/remove in `.agents/<slug>.md` and why) and present them to the user for approval. Do not touch `.agents/<slug>.md` until the user approves. On approval: apply the edit, append a `### YYYY-MM-DD` entry to the `## Project Adaptations` section of the persona file, and add "Signed: user approved YYYY-MM-DD HH:MM" to the session log entry. If no lessons emerged, skip this step silently.
+7. **Orphan & artifact sweep (scoped to this session's changes).** Review only what this turn added, deleted, or renamed (use `git diff`/`git status` if available, otherwise your own change list):
+   - **Additions** — confirm every new file, function, module, skill, persona, route, or config key is referenced somewhere (imported / registered / linked / exported / routed). An unreferenced addition is an orphan: wire it in or remove it.
+   - **Deletions & renames** — search the repo for references to the removed name or path; resolve or flag every dangling reference.
+   - **Scratch & debris** — flag temporary files, commented-out code, debug output, half-removed features, and stray or untracked directories, `*.bak` files, or scratch notes that should not persist.
+   - **Deeper dead-code scan (optional, not required):** if the project already declares a dead-code tool (for example vulture/ruff, knip, ArchUnit, cppcheck), you may run it; otherwise note that one is available. Do not install tools for this. A per-session sweep reliably catches orphan *files and features*; whole-codebase *dead code* is a tool's job, so treat it as periodic, not mandatory.
 
-8. **Skill evolution check (if a persona is active):** If a repeating workflow pattern emerged during this session that is not covered by any existing skill in `.memory-seed/skills/`, propose a new role-specific skill. Follow the same draft → approval flow: draft the skill file (YAML frontmatter, `# Skill Name`, Procedure, Output), present to the user, and wait for approval before writing. On approval: write to `.memory-seed/skills/<persona-slug>-<skill-name>.md`, add a trigger entry to `skills/index.md` (with `persona: <slug>` field), update the `### Role-Specific Skills` section of the persona file, and log in the session entry. If no skill gaps emerged, skip silently.
+   Record anything you cannot resolve as a Follow-up in the session entry. This sweep does not override the File Ownership and Change Permission rules: do not delete a user-owned or pre-existing file on its strength alone — flag it and confirm.
+8. **Persona evolution check (if a persona is active):** Identify up to 3 patterns from this session that should change how the active persona behaves — new rules, dropped rules, or calibration from evidence. Draft proposed changes (what to add/change/remove in `.agents/<slug>.md` and why) and present them to the user for approval. Do not touch `.agents/<slug>.md` until the user approves. On approval: apply the edit, append a `### YYYY-MM-DD` entry to the `## Project Adaptations` section of the persona file, and add "Signed: user approved YYYY-MM-DD HH:MM" to the session log entry. If no lessons emerged, skip this step silently.
+
+9. **Skill evolution check (if a persona is active):** If a repeating workflow pattern emerged during this session that is not covered by any existing skill in `.memory-seed/skills/`, propose a new role-specific skill. Follow the same draft → approval flow: draft the skill file (YAML frontmatter, `# Skill Name`, Procedure, Output), present to the user, and wait for approval before writing. On approval: write to `.memory-seed/skills/<persona-slug>-<skill-name>.md`, add a trigger entry to `skills/index.md` (with `persona: <slug>` field), update the `### Role-Specific Skills` section of the persona file, and log in the session entry. If no skill gaps emerged, skip silently.
 
 Also check for unregistered `.agents/*.md` files (files present but not in `_registry.yaml`). If any are found, run the persona onboarding flow from project-bootstrap.md Step 9e.
 

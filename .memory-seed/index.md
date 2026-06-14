@@ -45,6 +45,8 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - `.memory-seed/skills/memory_consolidation.md`
 - `.memory-seed/skills/memory_doctor.md`
 - `.memory-seed/skills/release_publishing.md`
+- `.memory-seed/skills/document_ingestion.md`
+- `.memory-seed/skills/office_document_editing.md`
 
 ## Active State
 
@@ -52,8 +54,8 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Current priority: use this repository as a meta-test for the all-in-one `.memory-seed/` v2 layout with nearest-runtime sub-project discovery.
 - Main output: plain-file local memory system for AI agents plus Python package `memory-seed`.
 - Current risk: private/local system design work with possible personal notes because this project lives inside a second-brain folder.
-- Control-plane version: `2.6`.
-- Package version: `2.6.0`.
+- Control-plane version: `2.7`.
+- Package version: `2.7.0`.
 
 ## Topology
 
@@ -92,7 +94,8 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - `doctor` has a non-fatal `warnings` channel (`DoctorResult.warnings`). It classifies the Codex MCP entry as absent/current/foreign/stale-fixable/stale-manual so an un-migratable stale entry is surfaced for manual fix rather than silently ignored.
 - The single-decision DRAFT record is the **baseline** session-entry shape (since 2.4.0); the bare summary (simpler) and multi-decision (richer) shapes are explicit routes off it. D/R are mandatory, A/F/T optional.
 - Release/publish: creating a GitHub Release triggers `.github/workflows/publish.yml`; the `pypi` environment has a **manual-approval gate** (a required reviewer must approve the deployment) before the OIDC PyPI push. The build job runs `tests.test_memory_seed`, so those tests must be clock-robust.
-- Agent-selective install (Unreleased): `init` installs only the chosen agents' files; the set is persisted in `.memory-seed/project.yaml` (`agents:` list) and respected by `doctor`/`update`. Driven by the `KNOWN_AGENTS`/`_AGENT_MERGES`/`_AGENT_UNINSTALLS` registries in `core.py` and a per-`SeedFile` `agent` tag. **Absent project.yaml ⇒ ALL agents** (legacy/default unchanged); **present-but-empty `agents:` ⇒ zero agents** (distinct state). `agents add/remove` reconfigure; `remove` strips only our entries (foreign config preserved), never deletes shared dirs, backs up first. `codex`/`cursor` have no routing file (read `AGENTS.md` natively).
+- Orphan/dead-artifact review (2.7.0): the End Of Turn routine (`agent-rules.md` + seed twin, mirrored in `.claude/commands/esr.md`) gained a diff-scoped **orphan & artifact sweep** — confirm new files/features are wired in, grep for references left dangling by deletions/renames, flag scratch debris; an optional declared dead-code tool (vulture/ruff, knip, ArchUnit, cppcheck) may be run but is never installed. The sweep catches orphan *files/features*; whole-codebase *dead code* stays a periodic tool job. Backstopped by a deterministic `doctor` warning: any `.memory-seed/skills/*.md` not registered in `skills/index.md` is flagged as an orphan skill.
+- Agent-selective install (2.6.0): `init` installs only the chosen agents' files; the set is persisted in `.memory-seed/project.yaml` (`agents:` list) and respected by `doctor`/`update`. Driven by the `KNOWN_AGENTS`/`_AGENT_MERGES`/`_AGENT_UNINSTALLS` registries in `core.py` and a per-`SeedFile` `agent` tag. **Absent project.yaml ⇒ ALL agents** (legacy/default unchanged); **present-but-empty `agents:` ⇒ zero agents** (distinct state). `agents add/remove` reconfigure; `remove` strips only our entries (foreign config preserved), never deletes shared dirs, backs up first. `codex`/`cursor` have no routing file (read `AGENTS.md` natively).
 
 ## Session Memory
 

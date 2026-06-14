@@ -167,6 +167,8 @@ Both reminders are cross-platform Python scripts in `.memory-seed/hooks/`:
 
 The hooks nudge; they never block. The scripts use Python 3.11+, which Memory Seed already requires.
 
+Beyond the hooks, the end-of-session routine in `agent-rules.md` ("End Of Turn") includes a diff-scoped **orphan & artifact sweep**: before closing a session the agent reviews what it changed, confirms new files/features are actually wired in, resolves references left dangling by deletions or renames, and flags scratch debris — so half-removed features and stray files are caught as they happen rather than accumulating. It is language-agnostic and never installs tooling; a project's own dead-code tool (vulture/ruff, knip, ArchUnit, cppcheck) can be run for deeper whole-codebase checks when one is already present.
+
 ## Reusable Seed Files
 
 ```text
@@ -188,6 +190,8 @@ GEMINI.md
     memory_doctor.md
     release_publishing.md
     security_triage.md
+    document_ingestion.md
+    office_document_editing.md
   sessions/
   archive/
 ```
@@ -330,7 +334,7 @@ The output is a structured Markdown report with session headings and full entry 
 When run in a project that already has Memory Seed files:
 
 - `memory-seed version` prints the bundled reusable control-plane version. It does not inspect the project.
-- `memory-seed doctor` checks reusable seed files, reports missing files or `memory-system-version` mismatches, and separately reports incomplete bootstrap when generated `index.md` or `policy.md` is missing.
+- `memory-seed doctor` checks reusable seed files, reports missing files or `memory-system-version` mismatches, and separately reports incomplete bootstrap when generated `index.md` or `policy.md` is missing. It also warns (non-fatally) when a `.memory-seed/skills/*.md` runbook is not registered in `skills/index.md` — an orphan skill that agents would never load.
 - `memory-seed init --dry-run` lists the seed files it would copy and changes nothing, even if those files already exist.
 - `memory-seed init` refuses to overwrite existing seed files unless `--force` is used.
 - `memory-seed init --force` backs up existing seed files and rewrites all bundled seed files.

@@ -23,7 +23,7 @@ class MemorySeedTests(unittest.TestCase):
         return path
 
     def test_version_reads_reusable_control_plane_version(self):
-        self.assertEqual(get_version(), "2.6")
+        self.assertEqual(get_version(), "2.7")
 
     def test_version_at_least_orders_versions_numerically(self):
         from memory_seed.core import _version_at_least
@@ -405,10 +405,12 @@ class MemorySeedTests(unittest.TestCase):
                 ".memory-seed/skills/code_search.md",
                 ".memory-seed/skills/copywriter-conversion.md",
                 ".memory-seed/skills/data_architecture.md",
+                ".memory-seed/skills/document_ingestion.md",
                 ".memory-seed/skills/index.md",
                 ".memory-seed/skills/local_compilation.md",
                 ".memory-seed/skills/memory_consolidation.md",
                 ".memory-seed/skills/memory_doctor.md",
+                ".memory-seed/skills/office_document_editing.md",
                 ".memory-seed/skills/release_publishing.md",
                 ".memory-seed/skills/security_triage.md",
                 "AGENTS.md",
@@ -1211,6 +1213,41 @@ class McpMergeTests(unittest.TestCase):
         )
         self.assertEqual(_codex_mcp_status(cwd), "foreign")
         self.assertFalse(any("Codex" in w for w in doctor(cwd=cwd).warnings))
+
+    def test_doctor_warns_on_orphan_skill_not_in_registry(self):
+        from memory_seed.core import doctor
+
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        # A freshly seeded project's skills are all registered: no orphan warning.
+        self.assertFalse(
+            any("orphan skill" in w for w in doctor(cwd=cwd).warnings)
+        )
+
+        # Drop a skill runbook that is not referenced by skills/index.md.
+        orphan = cwd / ".memory-seed" / "skills" / "ghost_skill.md"
+        orphan.write_text(
+            "---\nmemory-system-version: 2.7\n---\n\n# Ghost Skill\n",
+            encoding="utf-8",
+        )
+
+        result = doctor(cwd=cwd)
+        self.assertTrue(
+            any("ghost_skill.md" in w and "orphan skill" in w for w in result.warnings)
+        )
+        self.assertTrue(result.control_plane_ok)  # warning is non-fatal
+
+        # Registering it in the trigger registry clears the warning.
+        registry = cwd / ".memory-seed" / "skills" / "index.md"
+        registry.write_text(
+            registry.read_text(encoding="utf-8")
+            + "\n  - skill: ghost_skill.md\n    required: false\n",
+            encoding="utf-8",
+        )
+        self.assertFalse(
+            any("ghost_skill.md" in w for w in doctor(cwd=cwd).warnings)
+        )
 
 
 class RetrievalCheckPathTests(unittest.TestCase):

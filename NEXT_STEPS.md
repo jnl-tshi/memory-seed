@@ -6,7 +6,7 @@ These items need user judgement, account access, or real-client validation.
 
 Approved 2026-06-13. Incremental release: 2.6.0 now, 2.7.0 later. Source: docs/todo review + the SessionStart-hardening session findings.
 
-### Release 2.6.0 (in progress)
+### Release 2.6.0 (shipped 2026-06-13)
 
 Bundles the already-built-but-uncommitted SessionStart orientation hook (Claude/Codex/Gemini/Cursor) and Copilot CLI support, plus:
 
@@ -15,10 +15,11 @@ Bundles the already-built-but-uncommitted SessionStart orientation hook (Claude/
 - **Hygiene:** fix `index.md` Active State version staleness; trim over-specified doc-substring tests + repoint the frozen-file test; reconcile the per-prompt `memory-retrieval-check.py` wording with the recency-vs-topical rule.
 - **Release mechanics:** version bump 2.5→2.6 / 2.5.0→2.6.0 (incl. repo-root files + index Active State — the version-bump trap), CHANGELOG, README agent list, demo refresh, archive 2.5 snapshot, publish.
 
-### Release 2.7.0 (specified, not started)
+### Release 2.7.0 (in progress)
 
-- **Seed promotions** (from docs/todo): `document_ingestion` skill, `office_document_editing` skill, and the "Working Principles" block (POC-gate / verification-split / share-aware) into `agent-rules.md`.
-- **ESR generalization:** add consolidation→index/policy and baseline-promotion steps to `/esr`, and ship it as a vendor-neutral seeded command (today it is Claude-only). No blocking `Stop` nudge hook.
+- **Orphan & dead-artifact review (done):** diff-scoped orphan/artifact sweep added to the "End Of Turn" routine in `agent-rules.md` (+ seed twin, mirrored in `/esr`); deterministic orphan-skill warning added to `doctor` (any `skills/*.md` not registered in `skills/index.md`). Language-agnostic, never installs tools; whole-codebase dead code stays a periodic tool job.
+- **Seed promotions (done):** `document_ingestion` and `office_document_editing` skills ported into the seed + live runtime with trigger-registry entries; "Working Principles" block (POC-gate / verification-split / share-aware) added to `agent-rules.md`.
+- **ESR generalization** (not started): add consolidation→index/policy and baseline-promotion steps to `/esr`, and ship it as a vendor-neutral seeded command (today it is Claude-only). No blocking `Stop` nudge hook.
 
 ### Deferred — 3.0 candidate
 

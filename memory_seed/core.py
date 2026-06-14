@@ -11,7 +11,7 @@ from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "2.6"
+VERSION = "2.7"
 MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
@@ -120,6 +120,14 @@ SEED_FILES = [
     SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "release_publishing.md",
         ".memory-seed/skills/release_publishing.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "document_ingestion.md",
+        ".memory-seed/skills/document_ingestion.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "office_document_editing.md",
+        ".memory-seed/skills/office_document_editing.md",
     ),
     SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "sessions" / ".gitkeep",
@@ -1538,6 +1546,24 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
             'Set it by hand to: command = "uvx", args = ["--from", "memory-seed", '
             '"memory-seed-mcp", "--stdio"].'
         )
+
+    # Orphan-skill check: every skill runbook must be registered in the trigger
+    # registry, or agents will never load it. index.md references each skill as
+    # `- skill: <filename>`; match that token (not a bare filename) so one skill
+    # name being a substring of another (search.md vs code_search.md) can't mask an orphan.
+    skills_dir = target_root / ".memory-seed" / "skills"
+    registry_path = skills_dir / "index.md"
+    if registry_path.exists():
+        registry_text = registry_path.read_text(encoding="utf-8")
+        for skill_path in sorted(skills_dir.glob("*.md")):
+            if skill_path.name == "index.md":
+                continue
+            if f"skill: {skill_path.name}" not in registry_text:
+                warnings.append(
+                    f"Skill file .memory-seed/skills/{skill_path.name} is not registered "
+                    "in skills/index.md (orphan skill). Add a trigger entry referencing it, "
+                    "or remove the file."
+                )
 
     return DoctorResult(
         ok=control_plane_ok and bootstrap_complete,
