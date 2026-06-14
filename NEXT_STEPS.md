@@ -15,11 +15,17 @@ Bundles the already-built-but-uncommitted SessionStart orientation hook (Claude/
 - **Hygiene:** fix `index.md` Active State version staleness; trim over-specified doc-substring tests + repoint the frozen-file test; reconcile the per-prompt `memory-retrieval-check.py` wording with the recency-vs-topical rule.
 - **Release mechanics:** version bump 2.5→2.6 / 2.5.0→2.6.0 (incl. repo-root files + index Active State — the version-bump trap), CHANGELOG, README agent list, demo refresh, archive 2.5 snapshot, publish.
 
-### Release 2.7.0 (in progress)
+### Release 2.7.0 (shipped 2026-06-14)
 
 - **Orphan & dead-artifact review (done):** diff-scoped orphan/artifact sweep added to the "End Of Turn" routine in `agent-rules.md` (+ seed twin, mirrored in `/esr`); deterministic orphan-skill warning added to `doctor` (any `skills/*.md` not registered in `skills/index.md`). Language-agnostic, never installs tools; whole-codebase dead code stays a periodic tool job.
 - **Seed promotions (done):** `document_ingestion` and `office_document_editing` skills ported into the seed + live runtime with trigger-registry entries; "Working Principles" block (POC-gate / verification-split / share-aware) added to `agent-rules.md`.
 - **ESR generalization** (not started): add consolidation→index/policy and baseline-promotion steps to `/esr`, and ship it as a vendor-neutral seeded command (today it is Claude-only). No blocking `Stop` nudge hook.
+
+### Release 2.8.0 (shipped 2026-06-14)
+
+- **Non-destructive routing into foreign entry-point files (done):** the four routing files (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.github/copilot-instructions.md`) follow a 4-way ownership branch in `init`/`update` — greenfield full-file; owned (frontmatter) → version-gated archive+replace; foreign-with-markers → in-place block re-sync; foreign-without → inject a marker-delimited routing block. A foreign file is never overwritten (even under `--force`); the "second merge" on a version bump is content-equality-gated (no churn). Resolves the demo collision: a project where another tool (HyperFrames) owns `AGENTS.md`/`CLAUDE.md` now routes into the `.memory-seed/` runtime without losing host content.
+- **Behavior change (done):** versionless entry-point files are merged, not overwritten — retires the legacy unversioned→clobber upgrade path.
+- **Doctor route-presence backstop (done):** a `.memory-seed/` runtime whose present entry-point file is foreign-without-block is flagged as orphaned.
 
 ### Deferred — 3.0 candidate
 

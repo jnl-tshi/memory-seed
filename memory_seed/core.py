@@ -11,10 +11,44 @@ from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "2.7"
+VERSION = "2.8"
 MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
+
+# Entry-point "routing" files share their names with files other tools own
+# (HyperFrames also uses AGENTS.md/CLAUDE.md). When one of these already exists
+# and is NOT ours (no memory-system-version frontmatter), we inject a marker-
+# delimited managed block that routes into .memory-seed/ instead of overwriting
+# the host's content, then re-sync that block in place on later updates. Mirrors
+# the JSON config merge philosophy (_merge_grouped_hook / _COPILOT_STARTUP_MARKER).
+ROUTING_DESTINATIONS = {
+    "AGENTS.md",
+    "CLAUDE.md",
+    "GEMINI.md",
+    ".github/copilot-instructions.md",
+}
+_ROUTING_BLOCK_RE = re.compile(
+    r"<!-- BEGIN memory-seed.*?<!-- END memory-seed -->", re.DOTALL
+)
+# The block carries no version stamp: a foreign file is host-owned and not
+# version-tracked (doctor likewise skips it from version-mismatch), so the
+# block is re-synced only when its *body* changes, never on a bare version bump.
+_ROUTING_STANZA = (
+    "<!-- BEGIN memory-seed (managed block — edits inside are overwritten on update) -->\n"
+    "## Memory (Memory Seed runtime)\n"
+    "\n"
+    "This project has a Memory Seed runtime in `.memory-seed/`. Before substantive work, read in order:\n"
+    "\n"
+    "1. `.memory-seed/agent-rules.md` — operating contract (retrieval, session-log discipline, End Of Turn)\n"
+    "2. `.memory-seed/index.md` — orientation, active state, inheritance\n"
+    "3. `.memory-seed/policy.md` — constraints\n"
+    "4. `.memory-seed/skills/index.md` — skill trigger registry\n"
+    "\n"
+    "Append a session entry to `.memory-seed/sessions/YYYY-MM-DD.md` after meaningful work.\n"
+    "Instructions above this block remain authoritative for their own domain.\n"
+    "<!-- END memory-seed -->"
+)
 
 SESSION_DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.md$")
 HEADING_RE = re.compile(r"^##\s+(.+)$", re.MULTILINE)
@@ -1295,10 +1329,13 @@ def init_project(
     selected = agents if agents is not None else set(KNOWN_AGENTS)
     seed_files = [sf for sf in SEED_FILES if sf.agent is None or sf.agent in selected]
     planned = [seed_file.destination for seed_file in seed_files]
+    # Foreign entry-point routing files (a host's own AGENTS.md/CLAUDE.md, no
+    # frontmatter) are merged into, not overwritten, so they don't block init.
     existing = [
         seed_file.destination
         for seed_file in seed_files
         if (target_root / seed_file.destination).exists()
+        and not _is_foreign_routing_file(target_root, seed_file)
     ]
 
     if dry_run:
@@ -1315,6 +1352,14 @@ def init_project(
 
     for seed_file in seed_files:
         destination = target_root / seed_file.destination
+
+        # Foreign routing file: inject/re-sync our managed block, never clobber
+        # (holds even under --force — the point is non-destruction).
+        merged = _maybe_merge_foreign_routing(target_root, seed_file)
+        if merged is not None:
+            if merged:
+                created.append(seed_file.destination)
+            continue
 
         if destination.exists() and force:
             _ensure_backup_gitignore(target_root)
@@ -1368,6 +1413,15 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
     for seed_file in seed_files:
         destination = target_root / seed_file.destination
         if _is_runtime_local_file(seed_file.destination) and destination.exists():
+            continue
+
+        # Foreign routing file: inject/re-sync our managed block in place instead
+        # of archiving + overwriting the host's content (the "second merge" on a
+        # version bump replaces just the block when its text changed).
+        merged = _maybe_merge_foreign_routing(target_root, seed_file)
+        if merged is not None:
+            if merged:
+                created.append(seed_file.destination)
             continue
 
         if destination.exists() and _version_at_least(
@@ -1507,6 +1561,11 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
         if seed_file.destination.startswith(".agents/"):
             continue  # agent personas are project-local; not version-tracked control plane
         actual = _read_memory_system_version(candidate)
+        if actual is None and seed_file.destination in ROUTING_DESTINATIONS:
+            # Foreign host-owned routing file (e.g. HyperFrames AGENTS.md). We only
+            # manage our injected block, not the file's version; the route-presence
+            # check below flags it if our block is missing.
+            continue
         if actual != VERSION:
             version_mismatches.append(
                 {
@@ -1563,6 +1622,24 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
                     f"Skill file .memory-seed/skills/{skill_path.name} is not registered "
                     "in skills/index.md (orphan skill). Add a trigger entry referencing it, "
                     "or remove the file."
+                )
+
+    # Route-presence check: if a .memory-seed/ runtime exists, the present entry-point
+    # files must route into it (be ours, or a foreign file carrying our managed block).
+    # A foreign entry-point file without the block leaves the runtime orphaned — no
+    # agent is ever pointed at it (the demo HyperFrames AGENTS.md before 2.8).
+    if (target_root / MEMORY_DIR_NAME).is_dir():
+        for seed_file in SEED_FILES:
+            if seed_file.destination not in ROUTING_DESTINATIONS:
+                continue
+            if seed_file.agent is not None and seed_file.agent not in selected:
+                continue
+            candidate = target_root / seed_file.destination
+            if candidate.exists() and not _file_routes_into_runtime(candidate):
+                warnings.append(
+                    f"{seed_file.destination} does not route into the .memory-seed/ "
+                    "runtime (foreign file, no memory-seed block). Run "
+                    "`memory-seed update` to inject the routing block."
                 )
 
     return DoctorResult(
@@ -1724,6 +1801,59 @@ def _archive_replaced_control_plane_file(
     archive_path.parent.mkdir(parents=True, exist_ok=True)
     _copy_text_file(source, archive_path)
     return archive_relative.as_posix()
+
+
+def _is_foreign_routing_file(target_root: Path, seed_file: SeedFile) -> bool:
+    """True if this is an entry-point routing file that already exists and is
+    NOT ours (no memory-system-version frontmatter) — i.e. a host-owned file
+    we must merge into rather than overwrite (the demo HyperFrames AGENTS.md)."""
+    if seed_file.destination not in ROUTING_DESTINATIONS:
+        return False
+    destination = target_root / seed_file.destination
+    return destination.exists() and _read_memory_system_version(destination) is None
+
+
+def _file_routes_into_runtime(path: Path) -> bool:
+    """True if an entry-point file routes into the .memory-seed/ runtime: it is
+    either ours (carries our frontmatter) or a foreign file carrying our managed
+    routing block. Used by doctor() to detect an orphaned runtime."""
+    text = path.read_text(encoding="utf-8")
+    if _read_memory_system_version(path) is not None:
+        return True
+    return _ROUTING_BLOCK_RE.search(text) is not None
+
+
+def _merge_routing_stanza(path: Path, stanza: str = _ROUTING_STANZA) -> bool:
+    """Inject or re-sync the memory-seed managed routing block in a foreign
+    entry-point file, never touching the host's own content.
+
+    - No marker present -> append the block at end of file.
+    - Marker present -> replace the marked region in place, but only if the
+      rendered block differs (content-equality gate, like _merge_grouped_hook),
+      so a release bump with unchanged stanza text causes no churn.
+
+    Returns True if the file was written, False if it was already current.
+    """
+    text = path.read_text(encoding="utf-8")
+    match = _ROUTING_BLOCK_RE.search(text)
+    if match:
+        if match.group(0) == stanza:
+            return False
+        new_text = text[: match.start()] + stanza + text[match.end() :]
+        path.write_text(new_text, encoding="utf-8")
+        return True
+    path.write_text(text.rstrip("\n") + "\n\n" + stanza + "\n", encoding="utf-8")
+    return True
+
+
+def _maybe_merge_foreign_routing(target_root: Path, seed_file: SeedFile) -> bool | None:
+    """If this is a foreign (host-owned) entry-point routing file, inject/re-sync
+    our managed routing block and return whether the file was written. Returns
+    None when the file is not a foreign routing file, signalling the caller to
+    fall back to normal full-file copy / version-gate handling."""
+    if not _is_foreign_routing_file(target_root, seed_file):
+        return None
+    return _merge_routing_stanza(target_root / seed_file.destination)
 
 
 def _copy_text_file(source: Path, destination: Path) -> None:

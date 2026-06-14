@@ -23,7 +23,7 @@ class MemorySeedTests(unittest.TestCase):
         return path
 
     def test_version_reads_reusable_control_plane_version(self):
-        self.assertEqual(get_version(), "2.7")
+        self.assertEqual(get_version(), "2.8")
 
     def test_version_at_least_orders_versions_numerically(self):
         from memory_seed.core import _version_at_least
@@ -88,27 +88,50 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue((cwd / ".agents" / "solo-founder.md").exists())
         self.assertFalse((cwd / ".agents" / "_registry.yaml").exists())
 
-    def test_init_refuses_to_overwrite_existing_files_without_force(self):
+    def test_init_merges_into_foreign_routing_file_without_force(self):
+        # A pre-existing foreign entry-point file (no frontmatter, e.g. a host's
+        # own AGENTS.md) no longer blocks init: we inject our routing block and
+        # leave the host's content intact, never overwrite.
         cwd = self.make_project()
-        (cwd / "AGENTS.md").write_text("existing", encoding="utf-8")
+        (cwd / "AGENTS.md").write_text("# Foreign Tool\n\nhost content\n", encoding="utf-8")
 
-        with self.assertRaisesRegex(
-            FileExistsError, r"Refusing to overwrite existing files: AGENTS\.md"
-        ):
-            init_project(cwd=cwd)
+        result = init_project(cwd=cwd)
 
-        self.assertEqual((cwd / "AGENTS.md").read_text(encoding="utf-8"), "existing")
+        self.assertTrue(result.changed)
+        text = (cwd / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("host content", text)
+        self.assertIn("<!-- BEGIN memory-seed", text)
+        self.assertIn("AGENTS.md", result.created)
+        # No backup/overwrite of a foreign file.
+        self.assertEqual(result.backed_up, [])
 
-    def test_init_force_backs_up_existing_files_before_replacement(self):
+    def test_init_force_does_not_clobber_foreign_routing_file(self):
+        # --force does not license destroying host content: a foreign routing
+        # file is still merged, not backed up + overwritten.
         cwd = self.make_project()
-        (cwd / "AGENTS.md").write_text("existing", encoding="utf-8")
+        (cwd / "AGENTS.md").write_text("# Foreign Tool\n\nhost content\n", encoding="utf-8")
+
+        result = init_project(cwd=cwd, force=True)
+
+        text = (cwd / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("host content", text)
+        self.assertIn("<!-- BEGIN memory-seed", text)
+        self.assertEqual(result.backed_up, [])
+
+    def test_init_force_backs_up_existing_owned_files_before_replacement(self):
+        # An owned routing file (carries our frontmatter) is the case --force
+        # backs up + replaces wholesale.
+        cwd = self.make_project()
+        (cwd / "AGENTS.md").write_text(
+            "---\nmemory-system-version: 1.0\n---\n\nold owned entry\n", encoding="utf-8"
+        )
 
         result = init_project(cwd=cwd, force=True)
 
         self.assertTrue(result.changed)
         self.assertEqual(len(result.backed_up), 1)
         self.assertTrue(result.backed_up[0].startswith(".memory-seed/backups/"))
-        self.assertEqual((cwd / result.backed_up[0]).read_text(encoding="utf-8"), "existing")
+        self.assertIn("old owned entry", (cwd / result.backed_up[0]).read_text(encoding="utf-8"))
         self.assertIn(
             f"memory-system-version: {get_version()}",
             (cwd / "AGENTS.md").read_text(encoding="utf-8"),
@@ -117,7 +140,9 @@ class MemorySeedTests(unittest.TestCase):
 
     def test_init_force_preserves_existing_gitignore_when_adding_backup_ignore(self):
         cwd = self.make_project()
-        (cwd / "AGENTS.md").write_text("existing", encoding="utf-8")
+        (cwd / "AGENTS.md").write_text(
+            "---\nmemory-system-version: 1.0\n---\n\nold owned entry\n", encoding="utf-8"
+        )
         (cwd / ".gitignore").write_text("dist/\n", encoding="utf-8")
 
         init_project(cwd=cwd, force=True)
@@ -218,7 +243,10 @@ class MemorySeedTests(unittest.TestCase):
     def test_update_refreshes_control_plane_and_preserves_generated_memory(self):
         cwd = self.make_project()
         init_project(cwd=cwd)
-        (cwd / "AGENTS.md").write_text("old agent entry", encoding="utf-8")
+        # Owned (frontmatter) but old: the case update backs up + replaces wholesale.
+        (cwd / "AGENTS.md").write_text(
+            "---\nmemory-system-version: 1.0\n---\n\nold agent entry\n", encoding="utf-8"
+        )
         (cwd / "CLAUDE.md").unlink()
         (cwd / ".memory-seed" / "index.md").write_text(
             "project facts",
@@ -281,23 +309,83 @@ class MemorySeedTests(unittest.TestCase):
         self.assertNotIn("AGENTS.md", result.created)
         self.assertFalse(any("AGENTS.md" in archived for archived in result.archived))
 
-    def test_update_archives_unknown_version_control_plane_files_under_timestamped_folder(self):
+    def test_update_merges_into_foreign_routing_file_without_clobbering(self):
+        # Replaces the retired "versionless -> archive + overwrite" behavior:
+        # a foreign (host-owned, no-frontmatter) entry-point file is now merged,
+        # never destroyed. This is the fail-safe direction when ownership is
+        # unprovable.
         cwd = self.make_project()
         init_project(cwd=cwd)
         agents = cwd / "AGENTS.md"
-        agents.write_text("old unversioned agent entry", encoding="utf-8")
+        agents.write_text("# HyperFrames Project\n\nhost rules here\n", encoding="utf-8")
 
         result = update_project(cwd=cwd)
 
         self.assertTrue(result.changed)
-        unknown_archives = list((cwd / ".memory-seed" / "archive").glob("unknown-*/AGENTS.md"))
-        self.assertEqual(len(unknown_archives), 1)
-        self.assertEqual(len(result.archived), 1)
-        self.assertTrue(result.archived[0].startswith(".memory-seed/archive/unknown-"))
-        self.assertEqual(
-            unknown_archives[0].read_text(encoding="utf-8"),
-            "old unversioned agent entry",
+        text = agents.read_text(encoding="utf-8")
+        self.assertIn("host rules here", text)
+        self.assertIn("<!-- BEGIN memory-seed", text)
+        self.assertIn("AGENTS.md", result.created)
+        # Foreign file is not archived/overwritten.
+        self.assertEqual(result.archived, [])
+        self.assertFalse(list((cwd / ".memory-seed" / "archive").glob("unknown-*/AGENTS.md")))
+
+    def test_update_resyncs_existing_routing_block_in_place(self):
+        # The "second merge": a foreign file already carrying an old routing block
+        # has only that block replaced in place; host content is untouched and
+        # there is exactly one block.
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        agents = cwd / "AGENTS.md"
+        agents.write_text(
+            "# HyperFrames Project\n\nhost rules here\n\n"
+            "<!-- BEGIN memory-seed v=2.7 (managed block) -->\n"
+            "stale routing text\n"
+            "<!-- END memory-seed -->\n",
+            encoding="utf-8",
         )
+
+        result = update_project(cwd=cwd)
+
+        text = agents.read_text(encoding="utf-8")
+        self.assertIn("host rules here", text)
+        self.assertNotIn("stale routing text", text)
+        self.assertIn("agent-rules.md", text)  # current block body
+        self.assertEqual(text.count("<!-- BEGIN memory-seed"), 1)
+        self.assertEqual(text.count("<!-- END memory-seed -->"), 1)
+        self.assertIn("AGENTS.md", result.created)
+
+    def test_update_foreign_routing_merge_is_idempotent(self):
+        # Once the current block is present, a second update reports no change
+        # for that file (content-equality gate, like the JSON merges).
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        agents = cwd / "AGENTS.md"
+        agents.write_text("# HyperFrames Project\n\nhost rules here\n", encoding="utf-8")
+
+        update_project(cwd=cwd)
+        before = agents.read_text(encoding="utf-8")
+        result = update_project(cwd=cwd)
+
+        self.assertEqual(agents.read_text(encoding="utf-8"), before)
+        self.assertNotIn("AGENTS.md", result.created)
+
+    def test_merge_routing_stanza_resyncs_on_body_change_only(self):
+        # The no-churn guarantee: the block is rewritten only when its body
+        # differs, not on a bare version bump (the block carries no version).
+        from memory_seed.core import _merge_routing_stanza
+
+        cwd = self.make_project()
+        f = cwd / "HOST.md"
+        f.write_text("# Host\n\nhost content\n", encoding="utf-8")
+
+        self.assertTrue(_merge_routing_stanza(f))            # injected
+        self.assertFalse(_merge_routing_stanza(f))           # identical -> no write
+        # A different stanza body forces an in-place re-sync.
+        changed = "<!-- BEGIN memory-seed -->\nnew body\n<!-- END memory-seed -->"
+        self.assertTrue(_merge_routing_stanza(f, changed))
+        self.assertFalse(_merge_routing_stanza(f, changed))
+        self.assertIn("host content", f.read_text(encoding="utf-8"))
 
     def test_update_dry_run_reports_seed_files_without_writing(self):
         cwd = self.make_project()
@@ -1247,6 +1335,31 @@ class McpMergeTests(unittest.TestCase):
         )
         self.assertFalse(
             any("ghost_skill.md" in w for w in doctor(cwd=cwd).warnings)
+        )
+
+    def test_doctor_warns_when_runtime_exists_but_routing_file_is_foreign(self):
+        from memory_seed.core import doctor, _merge_routing_stanza
+
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        # Fresh project: our AGENTS.md routes into the runtime, no route warning.
+        self.assertFalse(any("route into" in w for w in doctor(cwd=cwd).warnings))
+
+        # Replace it with a foreign file: neither our frontmatter nor our block.
+        (cwd / "AGENTS.md").write_text("# Foreign Tool\n\nhost only\n", encoding="utf-8")
+        result = doctor(cwd=cwd)
+        self.assertTrue(
+            any("AGENTS.md" in w and "route into" in w for w in result.warnings)
+        )
+        # Non-fatal, and not counted as a version mismatch (host owns the file).
+        self.assertTrue(result.control_plane_ok)
+        self.assertFalse(any(m["file"] == "AGENTS.md" for m in result.version_mismatches))
+
+        # Injecting our managed block clears the warning.
+        _merge_routing_stanza(cwd / "AGENTS.md")
+        self.assertFalse(
+            any("AGENTS.md" in w and "route into" in w for w in doctor(cwd=cwd).warnings)
         )
 
 

@@ -334,11 +334,11 @@ The output is a structured Markdown report with session headings and full entry 
 When run in a project that already has Memory Seed files:
 
 - `memory-seed version` prints the bundled reusable control-plane version. It does not inspect the project.
-- `memory-seed doctor` checks reusable seed files, reports missing files or `memory-system-version` mismatches, and separately reports incomplete bootstrap when generated `index.md` or `policy.md` is missing. It also warns (non-fatally) when a `.memory-seed/skills/*.md` runbook is not registered in `skills/index.md` — an orphan skill that agents would never load.
+- `memory-seed doctor` checks reusable seed files, reports missing files or `memory-system-version` mismatches, and separately reports incomplete bootstrap when generated `index.md` or `policy.md` is missing. It also warns (non-fatally) when a `.memory-seed/skills/*.md` runbook is not registered in `skills/index.md` (an orphan skill agents would never load), and when a `.memory-seed/` runtime exists but an entry-point file is foreign and carries no routing block (an orphaned runtime nothing points at).
 - `memory-seed init --dry-run` lists the seed files it would copy and changes nothing, even if those files already exist.
-- `memory-seed init` refuses to overwrite existing seed files unless `--force` is used.
-- `memory-seed init --force` backs up existing seed files and rewrites all bundled seed files.
-- `memory-seed update` refreshes stale routing files, reusable runtime procedure files, and generic skill templates; archives replaced control-plane versions; and preserves generated local memory.
+- `memory-seed init` refuses to overwrite existing **owned** seed files unless `--force` is used. A pre-existing **foreign** entry-point file (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.github/copilot-instructions.md` owned by another tool, i.e. no `memory-system-version` frontmatter) no longer blocks `init` — its content is preserved and a routing block is merged in instead.
+- `memory-seed init --force` backs up and rewrites owned seed files. It still does **not** overwrite a foreign entry-point file — that is always merged, never clobbered.
+- `memory-seed update` refreshes stale routing files, reusable runtime procedure files, and generic skill templates; archives replaced control-plane versions; and preserves generated local memory. For a **foreign** entry-point file it injects (or re-syncs in place) a marker-delimited `<!-- BEGIN memory-seed -->…<!-- END memory-seed -->` block that routes into `.memory-seed/`, leaving the host's own content untouched.
 - `memory-seed compact` reads dated session logs from the nearest `.memory-seed/` runtime, with legacy `.AGENTS/` fallback, and prints a Markdown summary. It writes only when `--output` is provided.
 
 Known behavior to understand: `update --dry-run` currently lists all control-plane targets, not only files that would actually change. `init --force` intentionally rewrites all bundled seed files and should be used as a reinstall command rather than a targeted refresh.
