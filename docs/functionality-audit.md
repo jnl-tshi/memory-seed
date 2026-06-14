@@ -80,6 +80,7 @@ graph TD
 - Python package `memory-seed` (`pyproject.toml`, setuptools), Python ≥ 3.11, published to PyPI via GitHub Release → `.github/workflows/publish.yml` with an OIDC **manual-approval `pypi` gate**.
 - Console entry points: `memory-seed` (CLI), `memory-seed-mcp` (MCP stdio server), `memory-seed-mcp-validate` (retrieval validation harness).
 - Seed templates under `memory_seed/seed/` are the source of truth installed into projects; the repo dogfoods its own seed (live `.memory-seed/` must stay in sync with the seed twin — enforced by tests).
+- **Download footprint:** the `memory-seed` artifact itself is small — the **wheel is ~99 KB** (`memory_seed-2.7.0-py3-none-any.whl` = 101,251 bytes; published 2.6.0 wheel = 99,213 B) and the **sdist is ~107 KB** (2.6.0 `tar.gz` = 109,651 B). It is pure Python + Markdown templates (no compiled extensions). A *full install* also resolves the one runtime dependency, `model2vec` (which pulls `numpy`), so the installed on-disk footprint is dominated by those transitive deps (tens of MB), not by Memory Seed's own code.
 
 ### B. CLI surface (`memory_seed/cli.py`)
 | Command | Purpose |
@@ -212,7 +213,126 @@ graph LR
 
 ---
 
-## 5. Upcoming / roadmap features
+## 5. Quality goals & non-functional requirements
+
+The qualities the design optimises for (the "why it is shaped this way"):
+
+- **Local-first / offline.** Core operations (init/update/doctor/compact, retrieval) need no network. Nothing is sent to a remote service.
+- **Minimal dependency.** The CLI and core run on the standard library; the only runtime dependency is `model2vec` (for semantic ranking), and retrieval **degrades to lexical** if semantic scoring is disabled or fails.
+- **Portable / cross-platform.** Windows, macOS, Linux; Python ≥ 3.11; hook output is ASCII-safe so it survives any console encoding.
+- **Vendor-neutral.** One canonical `AGENTS.md` + thin per-agent routers; no agent is privileged. New agents are added via a registry, not scattered special-casing.
+- **Human-readable & durable.** Plain Markdown + YAML, predictable paths, git-friendly diffs; no binary store that could rot or lock.
+- **Deterministic where it matters.** The skill trigger registry, recency-by-filename-date reads, and append-only chronology are deterministic, not model-judgement.
+- **Non-destructive.** `update` is forward-only; replaced files are archived; `remove`/`--force` back up first; foreign agent config is preserved.
+
+## 6. Constraints & assumptions
+
+- **Python ≥ 3.11** (uses `tomllib` and modern typing).
+- **Stdlib-only core; `model2vec>=0.8.1` is the single declared runtime dependency** (it pulls `numpy`). A project that never uses semantic search still installs it.
+- **Markdown + YAML, no database.** All state is files; there is no migration engine beyond `update`'s forward-only archive.
+- **Single-writer session model.** One shared `sessions/YYYY-MM-DD.md` per day assumes one author at a time; concurrent multi-author writes are out of scope until the 3.0 multi-user proposal.
+- **OneDrive-synced repos.** This project lives in a cloud-synced folder, so any future cache **must not** use Drive-synced SQLite (corruption risk) — a hard design constraint on the deferred caching work.
+- **Version lockstep.** `memory-system-version` frontmatter, `core.VERSION`, and `pyproject.version` must move together (guarded by a test).
+- **Agent cooperation assumed.** Agents are expected to honour the `AGENTS.md` read order and the End Of Turn routine; hooks can only *nudge*, not enforce.
+
+## 7. External interfaces & contracts
+
+- **MCP tools (stdio JSON-RPC):**
+  - `memory_search(query, cwd=".", top_k=8, granularity="entry"|"section", semantic_enabled, recency_enabled, lambda_days, recency_floor)` → ranked chunks (`chunk_id`, scores, matched terms/fields) + a `human_report`.
+  - `memory_get_chunk(chunk_id, cwd=".")` → full entry/section text for one id.
+- **CLI exit codes:** `0` success, `1` failure (e.g. nothing to do, invalid agent slug, unhealthy runtime).
+- **File-format contracts:** session-entry YAML keys (`entry_id`, `user_initials`, `agent_type`, `agent_name?`, `project_path`, `subproject_path`); `skills/index.md` trigger schema (`skill`, `required`, `load_when`, `do_not_load_when`, `persona?`); `project.yaml` (`agents:` list); `memory-system-version` frontmatter on control-plane files.
+- **Per-agent config targets:** see the wiring map in §4.4 (each agent's hook + MCP files).
+
+## 8. Deployment view
+
+Memory Seed is a developer tool, not a service — "deployment" means how the CLI and MCP server reach a machine and a project.
+
+- **Install paths:**
+  - `uvx --from memory-seed memory-seed <cmd>` — one-off execution, nothing installed.
+  - `uv tool install memory-seed` / `pipx install memory-seed` — persistent machine-wide CLI.
+  - `pip install memory-seed` / `uv pip install memory-seed` — into the active virtualenv.
+  - `uv add memory-seed` — only when a project itself depends on the package.
+- **Runtime placement:** `init`/`update` write control-plane + routing files **into the target project** (no global state beyond the installed package). The MCP server runs as a **stdio subprocess** the agent spawns (`uvx --from memory-seed memory-seed-mcp --stdio`), registered in each agent's config by `init`/`update`.
+- **Release pipeline:**
+
+```mermaid
+flowchart LR
+  DEV["commit + tag vX.Y.Z on main"] --> REL["GitHub Release"]
+  REL --> WF["publish.yml: build + run tests"]
+  WF --> GATE{"pypi environment\nmanual-approval gate"}
+  GATE -- maintainer approves --> OIDC["OIDC publish to PyPI"]
+  GATE -- not approved --> STOP["held (no push)"]
+  OIDC --> PYPI["memory-seed on PyPI"]
+```
+
+## 9. Cross-cutting concepts
+
+- **Security & privacy.** Public-memory hygiene rule (no secrets, credentials, or unnecessary personal data in memory/logs). PyPI publish uses OIDC with a manual-approval gate. Uninstall strips only Memory Seed's own entries and preserves foreign config. Hooks are read-only and cannot exfiltrate.
+- **Error handling & resilience.** Hooks **degrade to silent** on any error (never block the agent). `project.yaml` parsing **fails open** (absent/malformed/no-`agents:` ⇒ all agents). `update` is forward-only (cannot downgrade a newer project). `remove` and `init --force` back up before touching files. `doctor` separates hard checks from a non-fatal `warnings` channel. **Known gap:** file writes are direct, not atomic temp-then-rename — a crash mid-write could truncate a file (see Risks).
+- **Persistence & concurrency.** Plain files; session logs are strictly append-only with current-clock timestamps so write order == time order. No file locking; the model assumes a single writer per day.
+- **Dependencies.** Runtime: `model2vec>=0.8.1` (+ `numpy` transitively). Tests: stdlib `unittest`. No web framework, no ORM, no message bus.
+
+## 10. Architecture decisions
+
+The living decision log is `.memory-seed/index.md` → **Design Decisions** (terse, append-only). The records below add the *context → decision → consequence* framing for the load-bearing choices.
+
+| # | Context | Decision | Consequence |
+|---|---|---|---|
+| ADR-1 | Memory must be agent-readable, durable, git-friendly, offline | **Plain Markdown + YAML, no database** | No query engine — retrieval is built in Python (`semantic_cache`); no transactions/atomic writes (see Risks) |
+| ADR-2 | Monorepos and sub-projects need isolated memory | **Nearest-runtime discovery** (walk upward to the closest `.memory-seed/`) | `cwd` determines the active runtime; sub-projects can own local memory; legacy `.AGENTS/` kept as fallback |
+| ADR-3 | Ranked search buries the newest entry for "what's current" | **Recency over search for current state** — SessionStart hook + direct newest-file read | Two retrieval modes coexist; per-agent SessionStart hooks must be wired |
+| ADR-4 | The repo ships templates *and* dogfoods them | **Seed/live twins, enforced by tests** | Every control-plane edit must touch both copies; parity is mechanical, not trusted |
+| ADR-5 | Projects already have their own agent config | **Merge (upsert), never copy; preserve foreign entries** | Idempotent per-schema merge helpers; uninstall strips only Memory Seed's own entries, backs up first |
+| ADR-6 | Older projects predate agent-selection | **`project.yaml` fails open** (absent ⇒ all agents; empty ⇒ none) | Backward compatible; a zero-vs-None distinction in the parser |
+| ADR-7 | Semantic search shouldn't add heavy infra | **Static Model2Vec embeddings + lexical fallback** | One runtime dep (`model2vec`); graceful degradation to lexical; recency is clock-sourced, not caller-supplied |
+
+## 11. Performance & quality scenarios
+
+Measured on this repository's own corpus on 2026-06-14 (Windows, Python 3.11). Indicative, not contractual.
+
+- **Corpus:** 103 entry-chunks / 277 section-chunks parsed from `sessions/*.md`.
+- **Extraction:** ~30 ms to parse all session files into typed chunks.
+- **Lexical search (no model):** rank ~27 ms; end-to-end query ~55–60 ms.
+- **Semantic search (Model2Vec `potion-base-8M`):**
+  - First-ever call: ~3.7 s (includes a one-time ~tens-of-MB model download).
+  - Cold per process, model cached: ~1.1 s (model load + embed the corpus once).
+  - Warm per query: ~43 ms (~15 ms over lexical once loaded).
+
+**Quality scenarios (target → result):**
+- *Interactive search feels instant after warm-up* (<100 ms/query) → **met** (~43 ms semantic, ~27 ms lexical).
+- *Cold start within a couple of seconds* → **met** (~1.1 s with the model cached).
+- *Retrieval still works with no model present* → **met** — semantic scores degrade to `None` and ranking falls back to lexical + recency (verified: this benchmark environment had no model installed until explicitly added).
+
+**Scaling note:** parsing and ranking are linear scans over chunks (no index), so cost grows O(entries). At hundreds of entries it is tens of ms; a corpus in the 10k+ range would warrant the deferred cache / Memory Explorer work rather than a per-query full scan.
+
+## 12. Risks & technical debt
+
+| Risk / debt | Impact | Status |
+|---|---|---|
+| Semantic/lexical search buries the newest entry | Agent misreads "current state" | **Mitigated** — SessionStart hook + direct newest-file read rule |
+| 32-bit `ms-` entry IDs (`uuid4` truncated to 8 hex) | Collisions at large history sizes | Noted, deferred (3.0 multi-user proposal flags it) |
+| Drive-synced SQLite corruption | Rules out the obvious cache backend | Constraint recorded; caching deferred |
+| Version-bump trap (root files missed by scoped sed) | Shipping mismatched versions | **Guarded** by `test_repo_root_control_plane_files_match_version` |
+| `update --dry-run` lists all targets, not just changed | Noisy preview | Documented in README |
+| Non-atomic file writes (no temp+rename) | Corruption on crash mid-write | Open — candidate hardening item |
+| Single-writer session model | No concurrent multi-author use | By design until 3.0 multi-user |
+
+## 13. Glossary
+
+- **Control plane** — the reusable runtime files (`agent-rules.md`, `project-bootstrap.md`, skills, hooks) versioned by `memory-system-version`.
+- **Runtime** — the nearest `.memory-seed/` directory found by walking upward from `cwd`.
+- **Seed / live twin** — a template under `memory_seed/seed/` and its byte-identical copy in the repo's own `.memory-seed/` (parity enforced by tests).
+- **Routing file** — a thin per-agent file (`CLAUDE.md`, etc.) that points back to `AGENTS.md`.
+- **Trigger registry** — `skills/index.md`, the deterministic map deciding which skill runbooks to lazy-load.
+- **DRAFT** — the baseline session-entry shape: **D**ecision + **R**eason (mandatory), **A**lternatives / **F**iles / **T**ests (optional).
+- **Chunk** — a `MemoryChunk` parsed from a session entry (`granularity="entry"`) or sub-heading (`"section"`); `chunk_id` is normally the `entry_id`.
+- **Persona** — a vendor-neutral `.agents/*.md` role profile; evolution is approval-gated.
+- **Orphan skill** — a `skills/*.md` runbook not registered in `skills/index.md` (flagged by `doctor`).
+
+---
+
+## 14. Upcoming / roadmap features
 
 Sources: `NEXT_STEPS.md` and `docs/todo/`. Status reflects the current (2.7.0) tree.
 
@@ -250,7 +370,7 @@ graph LR
 
 ---
 
-## 6. Test & verification surface
+## 15. Test & verification surface
 
 - `tests/test_memory_seed.py` (init/update/doctor/agents/hooks/MCP-merge, seed-file list, version lockstep, orphan-skill warning) and `tests/test_session_schema.py` (session frontmatter, seed/live parity, public-docs contract). Current suite: **129 tests**.
 - `memory-seed doctor` is the runtime health gate; `memory-seed-mcp-validate` validates retrieval end-to-end.
