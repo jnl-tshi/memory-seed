@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.10
+memory-system-version: 2.11
 tags:
   - memory-seed
   - skill

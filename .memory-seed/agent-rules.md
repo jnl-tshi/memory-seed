@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.10
+memory-system-version: 2.11
 tags:
   - memory-seed
   - agent-rules
@@ -300,7 +300,7 @@ This rule applies to all agents equally â€” Claude, Codex, Gemini, and any 
 After any turn where meaningful work was completed:
 
 1. **Append a concise note to the active session target (`memory-seed session target`) before this turn ends.** Do not defer it to the next turn. Do not batch multiple turns into one entry later. Write it now. Include `agent_name` in the entry YAML block if a persona is active.
-2. Review whether `.memory-seed/index.md` needs updated topology, active state, inheritance, or skill pointers.
+2. Review whether `.memory-seed/index.md` needs updated topology, active state, inheritance, or skill pointers. When the **Consolidation Review Triggers** (below) apply, promote durable, reusable facts from the session logs into `index.md` / `policy.md` using `.memory-seed/skills/memory_consolidation.md` — promote stable conclusions, not the full decision history.
 3. Review whether `.memory-seed/policy.md` needs durable behavioral-policy changes.
 4. Review whether any `.memory-seed/skills/*.md` runbook changed.
 5. If work occurred in a sub-project runtime, review whether the parent or root runtime needs a brief coordination summary.
@@ -317,6 +317,8 @@ After any turn where meaningful work was completed:
 9. **Skill evolution check (if a persona is active):** If a repeating workflow pattern emerged during this session that is not covered by any existing skill in `.memory-seed/skills/`, propose a new role-specific skill. Follow the same draft â†’ approval flow: draft the skill file (YAML frontmatter, `# Skill Name`, Procedure, Output), present to the user, and wait for approval before writing. On approval: write to `.memory-seed/skills/<persona-slug>-<skill-name>.md`, add a trigger entry to `skills/index.md` (with `persona: <slug>` field), update the `### Role-Specific Skills` section of the persona file, and log in the session entry. If no skill gaps emerged, skip silently.
 
 Also check for unregistered `.agents/*.md` files (files present but not in `_registry.yaml`). If any are found, run the persona onboarding flow from project-bootstrap.md Step 9e.
+
+10. **Baseline-promotion check.** If an approved adaptation from this session — a new rule, skill, or runbook — is general enough to reuse beyond this project, flag it for promotion to a shared or upstream location you maintain: a reusable template, an organization standard, or a seed/package if you keep one. Record the candidate in `.memory-seed/plans/` (create the directory if it does not exist). This only records a candidate for a human to action; it never edits the shared location automatically.
 
 Deferring or batching session log writes is a discipline failure, not an acceptable workflow. If the current turn produced anything worth remembering â€” a decision, a file change, a resolved blocker, a tradeoff â€” write it now.
 

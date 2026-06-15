@@ -1,0 +1,15 @@
+description = "Run the Memory Seed end-of-session routine (log, consolidate, evolve, promote)"
+prompt = """
+Run the End Of Turn routine defined in .memory-seed/agent-rules.md. Execute all steps in order; do not skip the session-log write.
+
+1. Append a session entry to the active target (`memory-seed session target`; today's date from the system clock). Use the multi-decision DRAFT shape for multiple decisions, otherwise the single-decision shape. Include agent_name for any active persona.
+2. Review .memory-seed/index.md (topology, active state, inheritance, skill pointers). When the Consolidation Review Triggers in agent-rules.md apply, promote durable, reusable facts into index.md / policy.md using .memory-seed/skills/memory_consolidation.md — stable conclusions, not the full decision history.
+3. Review .memory-seed/policy.md for durable behavioral-policy changes.
+4. Orphan & artifact sweep scoped to this session's diff (git diff / git status): confirm every addition is referenced; resolve references dangling from deletions/renames; flag scratch/debris. Do not install a dead-code tool; do not delete a pre-existing or user-owned file on this sweep alone — flag and confirm.
+5. Persona evolution check (if a persona is active): draft up to 3 adaptations and get user approval before editing .agents/<slug>.md.
+6. Skill evolution check: if a repeating workflow gap emerged that no skill covers, draft a new skill and get approval before writing.
+7. Onboard any unregistered .agents/*.md (present but not in _registry.yaml) via project-bootstrap.md Step 9e.
+8. Baseline-promotion check: flag any approved adaptation general enough to reuse beyond this project; record the candidate in .memory-seed/plans/ (create the directory if it does not exist). Records only — never auto-applies.
+
+Never edit personas or skills without explicit user approval.
+"""

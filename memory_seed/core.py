@@ -14,7 +14,7 @@ from typing import Iterator, Literal
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "2.10"
+VERSION = "2.11"
 MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
@@ -296,6 +296,12 @@ SEED_FILES = [
     SeedFile(SEED_ROOT / "CLAUDE.md", "CLAUDE.md", agent="claude"),
     SeedFile(SEED_ROOT / "GEMINI.md", "GEMINI.md", agent="gemini"),
     SeedFile(SEED_ROOT / ".github" / "copilot-instructions.md", ".github/copilot-instructions.md", agent="copilot"),
+    # End-of-session routine command shortcuts (the routine itself lives in
+    # agent-rules.md). Seeded only for agents with a verified repo-level custom-
+    # command mechanism: Claude (.claude/commands/*.md) and Gemini
+    # (.gemini/commands/*.toml). Codex/Cursor invoke the routine via agent-rules.md.
+    SeedFile(SEED_ROOT / ".claude" / "commands" / "esr.md", ".claude/commands/esr.md", agent="claude"),
+    SeedFile(SEED_ROOT / ".gemini" / "commands" / "esr.toml", ".gemini/commands/esr.toml", agent="gemini"),
     SeedFile(SEED_ROOT / ".agents" / "README.md", ".agents/README.md"),
     SeedFile(SEED_ROOT / ".agents" / "developer.md", ".agents/developer.md"),
     SeedFile(SEED_ROOT / ".agents" / "content-creator.md", ".agents/content-creator.md"),
@@ -1972,9 +1978,17 @@ def _is_runtime_local_file(destination: str) -> bool:
         f"{MEMORY_DIR_NAME}/project-bootstrap.md",
     }
     return (
-        destination.startswith(f"{MEMORY_DIR_NAME}/")
-        and destination not in reusable_runtime_files
-    ) or destination.startswith(".agents/")
+        (
+            destination.startswith(f"{MEMORY_DIR_NAME}/")
+            and destination not in reusable_runtime_files
+        )
+        or destination.startswith(".agents/")
+        # The Gemini command is TOML and cannot carry a memory-system-version
+        # marker for update gating, so it is deploy-once (the routine it points
+        # to, in agent-rules.md, updates normally). The Claude command is .md
+        # with frontmatter, so it stays version-tracked and refreshes on update.
+        or destination.startswith(".gemini/commands/")
+    )
 
 
 def _archive_replaced_control_plane_file(

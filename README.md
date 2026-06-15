@@ -169,6 +169,8 @@ The hooks nudge; they never block. The scripts use Python 3.11+, which Memory Se
 
 Beyond the hooks, the end-of-session routine in `agent-rules.md` ("End Of Turn") includes a diff-scoped **orphan & artifact sweep**: before closing a session the agent reviews what it changed, confirms new files/features are actually wired in, resolves references left dangling by deletions or renames, and flags scratch debris â€” so half-removed features and stray files are caught as they happen rather than accumulating. It is language-agnostic and never installs tooling; a project's own dead-code tool (vulture/ruff, knip, ArchUnit, cppcheck) can be run for deeper whole-codebase checks when one is already present.
 
+The routine also runs a **consolidation review** (promote durable, reusable facts from the session logs into `index.md`/`policy.md` via the `memory_consolidation` skill) and a **baseline-promotion check** (flag any approved adaptation general enough to reuse beyond this project, recorded in `.memory-seed/plans/`). The whole routine ships as a seeded **`/esr`** command for the agents with a repo-level command mechanism: Claude (`.claude/commands/esr.md`) and Gemini (`.gemini/commands/esr.toml`); Codex, Cursor, and other agents run the same routine directly from `agent-rules.md`. There is intentionally no blocking end-of-turn hook — evolution needs reasoning and user approval, which a hook cannot do.
+
 ## Reusable Seed Files
 
 ```text
@@ -212,7 +214,7 @@ GEMINI.md
 
 ## Current Version
 
-The current reusable control-plane version is `2.10`.
+The current reusable control-plane version is `2.11`.
 
 Legacy `.AGENTS/` projects remain supported as a fallback during migration.
 
@@ -272,7 +274,7 @@ python -m pip install --upgrade memory-seed
 python -m pip show memory-seed
 ```
 
-`python -m pip show memory-seed` reports the installed Python package version, such as `2.10.0`. `memory-seed version` reports the reusable control-plane version, currently `2.10`; it is not the package-version check.
+`python -m pip show memory-seed` reports the installed Python package version, such as `2.11.0`. `memory-seed version` reports the reusable control-plane version, currently `2.11`; it is not the package-version check.
 
 To discover commands and flags, use `memory-seed help` (also shown when you run `memory-seed` with no command), `memory-seed -h`, or `memory-seed <command> -h` for a specific command.
 

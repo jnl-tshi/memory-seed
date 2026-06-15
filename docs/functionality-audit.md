@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.10
+memory-system-version: 2.11
 tags:
   - memory-seed
   - audit
@@ -8,7 +8,7 @@ tags:
 
 # Memory Seed — Functionality Audit
 
-**As of:** 2026-06-14 · control-plane `2.10` · package `2.10.0` (released; tag `v2.10.0`)
+**As of:** 2026-06-15 · control-plane `2.11` · package `2.11.0`
 **Scope:** every current feature, how the subsystems relate, how data flows, plus a roadmap section for upcoming work.
 
 ---
@@ -142,8 +142,9 @@ Per-agent event names differ (Claude/Codex: `SessionStart`/`UserPromptSubmit`/`S
 ### L. `doctor` health + warnings
 - Reports missing files, version mismatches, bootstrap completeness. Non-fatal `warnings` channel covers: Codex MCP status (absent/stale-fixable/stale-manual); **orphan skills** (any `skills/*.md` not registered in `skills/index.md`, since 2.7); and — **new in 2.8** — **orphaned runtime routing** (a `.memory-seed/` runtime exists but a present entry-point file is foreign and carries no routing block). Foreign routing files are not reported as version mismatches (the host owns the file; Memory Seed only manages its injected block).
 
-### M. End-of-turn orphan & artifact sweep (new in 2.7)
-- A diff-scoped step in `agent-rules.md` "End Of Turn" (mirrored in `/esr`): confirm additions are wired in, resolve references dangling from deletions/renames, flag scratch debris; optionally run a project's own dead-code tool (never installs one). Catches orphan *files/features*; whole-codebase dead code stays a periodic tool job.
+### M. End-of-turn routine (`/esr`)
+- The vendor-neutral end-of-session routine lives in `agent-rules.md` "End Of Turn". It runs: session-log append; **consolidation review** (promote durable facts → `index.md`/`policy.md` via `memory_consolidation`, since 2.11); index/policy review; a diff-scoped **orphan & artifact sweep** (new in 2.7 — confirm additions are wired in, resolve references dangling from deletions/renames, flag scratch debris; optionally run a project's own dead-code tool, never installs one); persona/skill evolution (approval-gated); and a **baseline-promotion check** (flag generic adaptations for reuse, record in `.memory-seed/plans/`, since 2.11).
+- Shipped as a seeded **`/esr`** command (new in 2.11) for agents with a repo-level command mechanism: Claude (`.claude/commands/esr.md`, version-tracked) and Gemini (`.gemini/commands/esr.toml`, deploy-once). Codex/Cursor run the routine directly from `agent-rules.md`. **No blocking `Stop` hook** — evolution needs reasoning + user approval a hook cannot provide.
 
 ### N. Release / publish flow
 - GitHub Release → `publish.yml` builds, runs tests, then pauses at the `pypi` manual-approval gate before the OIDC push. Release commits land on `main`.
@@ -339,12 +340,12 @@ Measured on this repository's own corpus on 2026-06-14 (Windows, Python 3.11). I
 
 ## 14. Upcoming / roadmap features
 
-Sources: `NEXT_STEPS.md` and `docs/todo/`. Status reflects the current (2.10.0) tree.
+Sources: `NEXT_STEPS.md` and `docs/todo/`. Status reflects the current (2.11.0) tree.
 
-**Shipped since the 2.7.0 audit:** 2.8.0 non-destructive foreign-routing merge + doctor route-presence backstop (§3E, §3L); 2.9.0 read-only dual-discovery of per-user session files (§3J); 2.10.0 opt-in user-aware session targets/hooks + `user`/`session target` CLI (§3B, §3H, §3J).
+**Shipped since the 2.7.0 audit:** 2.8.0 non-destructive foreign-routing merge + doctor route-presence backstop (§3E, §3L); 2.9.0 read-only dual-discovery of per-user session files (§3J); 2.10.0 opt-in user-aware session targets/hooks + `user`/`session target` CLI (§3B, §3H, §3J); 2.11.0 ESR generalization — consolidation + baseline-promotion in the routine, shipped as a seeded `/esr` command for Claude + Gemini (§3M).
 
 ### Near term — next candidate
-- **ESR generalization** (`docs/todo/baseline-seed-promotions.md` item 4): turn the Claude-only `/esr` into a vendor-neutral seeded **`/end-session`** command that also runs consolidation (promote durable facts → `index.md`/`policy.md`) and a baseline-promotion check. A throttled, reminder-only `Stop` nudge hook was **explicitly decided against** (no blocking hook). *(Still not started.)*
+- **`/esr` command shortcuts for Codex/Cursor** once those tools support repo-level custom commands (Codex project-scoped `.codex/prompts` is an open upstream request; Cursor unverified). Not blocking — the enriched routine in `agent-rules.md` already serves them today.
 
 ### Deferred — 3.0 candidates
 - **Multi-user per-day session memory — remaining phases** (`docs/todo/multi-user-session-memory-proposal.md`): Phase 1 dual-read (2.9) and Phase 2 opt-in per-user write targets/hooks (2.10) have **landed**. Still deferred: graph-link validation, MCP metadata filters by user, an explicit `migrate sessions-layout` command, and widening the 32-bit entry IDs. High blast radius — touches the core session data model.
@@ -371,10 +372,10 @@ graph LR
   V27["2.7.0 — orphan sweep + doctor backstop · 3 seed promotions (shipped)"]
   V28["2.8.0 — non-destructive foreign-routing merge + route backstop (shipped)"]
   V29["2.9.0 — dual-read per-user session discovery (shipped)"]
-  V210["2.10.0 — user-aware session targets/hooks · user CLI (current tree)"]
-  VNEXT["next — ESR generalization (/end-session)"]
+  V210["2.10.0 — user-aware session targets/hooks · user CLI (shipped)"]
+  V211["2.11.0 — ESR generalization · seeded /esr command (current tree)"]
   V30["3.0 — multi-user remaining phases · Memory Explorer UI"]
-  V27 --> V28 --> V29 --> V210 --> VNEXT --> V30
+  V27 --> V28 --> V29 --> V210 --> V211 --> V30
 ```
 
 ---

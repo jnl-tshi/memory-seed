@@ -4,6 +4,13 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+## 2.11.0 - 2026-06-15
+
+- **Generalized the end-of-session routine (ESR) and shipped it as a seeded command.** The "End Of Turn" routine in `agent-rules.md` now also runs a **consolidation review** (promote durable, reusable facts from the session logs into `index.md`/`policy.md` via the `memory_consolidation` skill) and a **baseline-promotion check** (flag any approved adaptation general enough to reuse beyond this project, recorded in `.memory-seed/plans/`, create-if-needed). Both are vendor-neutral and benefit every agent.
+- The routine now ships as a seeded **`/esr`** command for agents with a verified repo-level command mechanism: Claude (`.claude/commands/esr.md`, version-tracked) and Gemini (`.gemini/commands/esr.toml`, deploy-once since TOML can't carry a version marker). Previously `/esr` existed only as a repo-local Claude convenience. Codex, Cursor, and any other agent run the same routine directly from `agent-rules.md` — that's where the canonical, vendor-neutral routine lives. The command is agent-selective (a Claude-only install gets only the Claude command, etc.).
+- **No blocking end-of-turn hook.** A throttled `Stop` nudge hook was specced but deliberately not shipped: evolution needs reasoning and explicit user approval, which a hook cannot do; the command plus the routine cover it without nagging on every turn.
+- Bumped control-plane version from `2.10` to `2.11`.
+
 ## 2.10.0 - 2026-06-14
 
 - Added opt-in user-aware session targets. `memory-seed user set/show/clear` manages a gitignored `.memory-seed/local.yaml`; `MEMORY_SEED_USER` and `memory-seed session target --user <slug>` can override it.

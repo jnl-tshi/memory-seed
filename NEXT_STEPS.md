@@ -19,7 +19,7 @@ Bundles the already-built-but-uncommitted SessionStart orientation hook (Claude/
 
 - **Orphan & dead-artifact review (done):** diff-scoped orphan/artifact sweep added to the "End Of Turn" routine in `agent-rules.md` (+ seed twin, mirrored in `/esr`); deterministic orphan-skill warning added to `doctor` (any `skills/*.md` not registered in `skills/index.md`). Language-agnostic, never installs tools; whole-codebase dead code stays a periodic tool job.
 - **Seed promotions (done):** `document_ingestion` and `office_document_editing` skills ported into the seed + live runtime with trigger-registry entries; "Working Principles" block (POC-gate / verification-split / share-aware) added to `agent-rules.md`.
-- **ESR generalization** (not started): add consolidationâ†’index/policy and baseline-promotion steps to `/esr`, and ship it as a vendor-neutral seeded command (today it is Claude-only). No blocking `Stop` nudge hook.
+- **ESR generalization** (done in 2.11.0): added consolidation and baseline-promotion steps to the routine and shipped `/esr` as a seeded command — see Release 2.11.0 below.
 
 ### Release 2.8.0 (shipped 2026-06-14)
 
@@ -31,12 +31,17 @@ Bundles the already-built-but-uncommitted SessionStart orientation hook (Claude/
 
 - **Multi-user session dual-read discovery (done):** package readers now discover both legacy flat files (`.memory-seed/sessions/YYYY-MM-DD.md`) and per-day/per-user files (`.memory-seed/sessions/YYYY-MM-DD/<user>.md`). This is read-only groundwork for multi-user attribution and Git-merge avoidance.
 
-### Release 2.10.0 (in progress)
+### Release 2.10.0 (shipped 2026-06-15)
 
-- **User-aware session targets (done in code):** local user identity is opt-in through `.memory-seed/local.yaml`, `MEMORY_SEED_USER`, or `memory-seed session target --user`. `memory-seed session target --create` initializes `.memory-seed/sessions/YYYY-MM-DD/<user>.md` with file frontmatter and an immutable `msm_` hash. With no configured user, legacy flat-file targets remain unchanged.
-- **User-aware hooks (done in code):** `session-log-check.py` checks only the active user's file, and `session-start-context.py` injects the active user's newest entry plus same-day co-contributor file counts.
+- **User-aware session targets (done):** local user identity is opt-in through `.memory-seed/local.yaml`, `MEMORY_SEED_USER`, or `memory-seed session target --user`. `memory-seed session target --create` initializes `.memory-seed/sessions/YYYY-MM-DD/<user>.md` with file frontmatter and an immutable `msm_` hash. With no configured user, legacy flat-file targets remain unchanged.
+- **User-aware hooks (done):** `session-log-check.py` checks only the active user's file, and `session-start-context.py` injects the active user's newest entry plus same-day co-contributor file counts.
 
-### Deferred â€” 3.0 candidate
+### Release 2.11.0 (shipped 2026-06-15)
+
+- **ESR generalization (done):** the "End Of Turn" routine in `agent-rules.md` now runs a consolidation review (promote durable facts → `index.md`/`policy.md` via `memory_consolidation`) and a baseline-promotion check (flag generic adaptations, record in `.memory-seed/plans/`). Shipped as a seeded `/esr` command for Claude (`.claude/commands/esr.md`, version-tracked) and Gemini (`.gemini/commands/esr.toml`, deploy-once); Codex/Cursor run the routine from `agent-rules.md`. **No blocking `Stop` nudge hook** (deliberate — evolution needs reasoning + approval a hook can't give).
+- **Remaining (optional):** seeded `/esr` command shortcuts for Codex/Cursor once those tools support repo-level custom commands (Codex project-scoped `.codex/prompts` is an open upstream request; Cursor unverified). Not blocking — the routine already serves them.
+
+### Deferred — 3.0 candidate
 
 - **Multi-user per-day session memory remaining phases** (`.memory-seed/sessions/YYYY-MM-DD/<user>.md`). Team-capable direction (attribution + Git-merge avoidance; not privacy/permissions/real-time). Phase 1 dual-read discovery landed in 2.9.0 and Phase 2 user-aware targets/hooks landed in 2.10.0; still deferred are graph-link validation, MCP metadata filters, explicit `migrate sessions-layout`, and any future entry-ID widening. Refined execution-ready spec: [`docs/todo/multi-user-session-memory-proposal.md`](docs/todo/multi-user-session-memory-proposal.md); design rationale in [`docs/todo/multi-user-deep-research-report.md`](docs/todo/multi-user-deep-research-report.md).
 

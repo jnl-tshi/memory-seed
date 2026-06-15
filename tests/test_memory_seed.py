@@ -25,7 +25,7 @@ class MemorySeedTests(unittest.TestCase):
         return path
 
     def test_version_reads_reusable_control_plane_version(self):
-        self.assertEqual(get_version(), "2.10")
+        self.assertEqual(get_version(), "2.11")
 
     def test_version_at_least_orders_versions_numerically(self):
         from memory_seed.core import _version_at_least
@@ -484,6 +484,8 @@ class MemorySeedTests(unittest.TestCase):
                 ".agents/researcher.md",
                 ".agents/sales-rep.md",
                 ".agents/solo-founder.md",
+                ".claude/commands/esr.md",
+                ".gemini/commands/esr.toml",
                 ".github/copilot-instructions.md",
                 ".memory-seed/agent-rules.md",
                 ".memory-seed/archive/.gitkeep",
@@ -519,6 +521,40 @@ class MemorySeedTests(unittest.TestCase):
 
         self.assertNotIn(".agents/developer.md", result.created)
         self.assertIn("Custom Section", persona.read_text(encoding="utf-8"))
+
+    def test_init_installs_esr_command_for_claude_and_gemini_only(self):
+        # The /esr end-of-session command ships only for agents with a verified
+        # repo-level command mechanism; Codex/Cursor invoke the routine via
+        # agent-rules.md instead.
+        for agents, claude_cmd, gemini_cmd in (
+            ({"claude"}, True, False),
+            ({"gemini"}, False, True),
+            ({"claude", "gemini"}, True, True),
+            ({"codex"}, False, False),
+        ):
+            cwd = self.make_project()
+            init_project(cwd=cwd, agents=agents)
+            self.assertEqual((cwd / ".claude" / "commands" / "esr.md").exists(), claude_cmd, agents)
+            self.assertEqual((cwd / ".gemini" / "commands" / "esr.toml").exists(), gemini_cmd, agents)
+
+    def test_update_keeps_gemini_command_deploy_once_but_refreshes_claude_command(self):
+        # The Gemini TOML command cannot carry a version marker, so it is
+        # deploy-once (never overwritten); the Claude .md command is version-
+        # tracked and refreshes on update.
+        cwd = self.make_project()
+        init_project(cwd=cwd, agents={"claude", "gemini"})
+        gem = cwd / ".gemini" / "commands" / "esr.toml"
+        claude = cwd / ".claude" / "commands" / "esr.md"
+        gem.write_text(gem.read_text(encoding="utf-8") + "\n# local tweak\n", encoding="utf-8")
+        claude.write_text("stale claude command", encoding="utf-8")
+
+        result = update_project(cwd=cwd)
+
+        # Gemini command preserved (deploy-once); Claude command refreshed.
+        self.assertIn("# local tweak", gem.read_text(encoding="utf-8"))
+        self.assertNotIn(".gemini/commands/esr.toml", result.created)
+        self.assertIn(".claude/commands/esr.md", result.created)
+        self.assertIn(f"memory-system-version: {get_version()}", claude.read_text(encoding="utf-8"))
 
     def test_resolve_runtime_prefers_nearest_memory_seed(self):
         cwd = self.make_project()
