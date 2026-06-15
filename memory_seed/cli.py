@@ -9,11 +9,13 @@ from pathlib import Path
 from .core import (
     KNOWN_AGENTS,
     add_agent,
+    check_session_links,
     clear_local_user,
     compact_sessions,
     doctor,
     get_version,
     init_project,
+    migrate_session_layout,
     read_local_user,
     read_project_agents,
     remove_agent,
@@ -93,6 +95,21 @@ def main(argv: list[str] | None = None) -> int:
     session_target_parser.add_argument("--user", default=None, help="override the active user slug")
     session_target_parser.add_argument("--create", action="store_true", help="create the target file if needed")
 
+    links_parser = subparsers.add_parser("links", help="validate session-memory integrity")
+    links_sub = links_parser.add_subparsers(dest="links_command", required=True)
+    links_sub.add_parser(
+        "check",
+        help="report duplicate/dangling IDs and per-user frontmatter problems (exit 1 on any issue)",
+    )
+
+    migrate_parser = subparsers.add_parser("migrate", help="migrate Memory Seed data layouts")
+    migrate_sub = migrate_parser.add_subparsers(dest="migrate_command", required=True)
+    migrate_sessions = migrate_sub.add_parser(
+        "sessions-layout",
+        help="split legacy flat session files into per-day/per-user files",
+    )
+    migrate_sessions.add_argument("--dry-run", action="store_true", help="show planned migrations without writing")
+
     update_parser = subparsers.add_parser("update", help="update reusable control-plane files")
     update_parser.add_argument(
         "--dry-run",
@@ -161,6 +178,44 @@ def main(argv: list[str] | None = None) -> int:
                 print(target.path.relative_to(Path(".").resolve()).as_posix())
             except ValueError:
                 print(target.path.as_posix())
+            return 0
+
+    if args.command == "links":
+        if args.links_command == "check":
+            result = check_session_links(cwd=Path(".").resolve())
+            if result.ok:
+                print(f"Session memory integrity OK ({result.files_checked} file(s) checked).")
+                return 0
+            print(
+                f"Session memory integrity: {len(result.issues)} issue(s) across "
+                f"{result.files_checked} file(s):",
+                file=sys.stderr,
+            )
+            for issue in result.issues:
+                print(f"  [{issue.kind}] {issue.file}: {issue.detail}", file=sys.stderr)
+            return 1
+
+    if args.command == "migrate":
+        if args.migrate_command == "sessions-layout":
+            result = migrate_session_layout(cwd=Path(".").resolve(), dry_run=args.dry_run)
+            if result.issues:
+                print("Session layout migration blocked:", file=sys.stderr)
+                for issue in result.issues:
+                    print(f"  - {issue}", file=sys.stderr)
+                return 1
+            if not result.planned:
+                print("No legacy flat session files need migration.")
+                return 0
+            if args.dry_run:
+                for planned in result.planned:
+                    print(f"Would migrate: {planned}")
+                print("No files changed.")
+                return 0
+            for migrated in result.migrated:
+                print(f"Migrated: {migrated}")
+            for backup in result.backed_up:
+                print(f"Backed up: {backup.as_posix()}")
+            print("Legacy flat session files migrated.")
             return 0
 
     if args.command == "compact":

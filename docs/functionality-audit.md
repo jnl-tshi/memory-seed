@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.11
+memory-system-version: 2.12
 tags:
   - memory-seed
   - audit
@@ -8,7 +8,7 @@ tags:
 
 # Memory Seed — Functionality Audit
 
-**As of:** 2026-06-15 · control-plane `2.11` · package `2.11.0`
+**As of:** 2026-06-15 · control-plane `2.12` · package `2.12.0`
 **Scope:** every current feature, how the subsystems relate, how data flows, plus a roadmap section for upcoming work.
 
 ---
@@ -92,6 +92,7 @@ graph TD
 | `agents list \| add <a> \| remove <a>` | Reconfigure which agents are installed (cleanup-aware removal). |
 | `user set <slug> \| show \| clear` | Manage the local active user in gitignored `.memory-seed/local.yaml` (new in 2.10). |
 | `session target [--create] [--user <slug>] [--date …]` | Print (and optionally create) the active session-log target; flat or per-user depending on the resolved user (new in 2.10). |
+| `links check` | Validate session-memory integrity across both layouts (duplicate/dangling IDs, per-user frontmatter problems); exits non-zero on any issue (new in 2.12). |
 | `version` | Print bundled control-plane version. |
 | `help` (or no args) | Full command reference. |
 
@@ -235,7 +236,7 @@ The qualities the design optimises for (the "why it is shaped this way"):
 - **Python ≥ 3.11** (uses `tomllib` and modern typing).
 - **Stdlib-only core; `model2vec>=0.8.1` is the single declared runtime dependency** (it pulls `numpy`). A project that never uses semantic search still installs it.
 - **Markdown + YAML, no database.** All state is files; there is no migration engine beyond `update`'s forward-only archive.
-- **Session model is migrating to multi-user (phased).** The legacy default is one shared `sessions/YYYY-MM-DD.md` per day (one author at a time). Read-side dual discovery (2.9) and opt-in per-user write targets/hooks (2.10) have landed; the per-user layout (`sessions/YYYY-MM-DD/<user>.md`) avoids concurrent-author Git merge conflicts. Remaining phases (graph-link validation, MCP metadata filters, explicit `migrate sessions-layout`, wider entry IDs) stay deferred to 3.0. With no configured user, behavior is unchanged.
+- **Session model is migrating to multi-user (phased).** The legacy default is one shared `sessions/YYYY-MM-DD.md` per day (one author at a time). Read-side dual discovery (2.9), opt-in per-user write targets/hooks (2.10), integrity validation, wider generated entry IDs, MCP metadata/filter exposure, participant-registry parsing, and explicit `migrate sessions-layout` support have landed in the current worktree. The per-user layout (`sessions/YYYY-MM-DD/<user>.md`) avoids concurrent-author Git merge conflicts. With no configured user, behavior is unchanged.
 - **OneDrive-synced repos.** This project lives in a cloud-synced folder, so any future cache **must not** use Drive-synced SQLite (corruption risk) — a hard design constraint on the deferred caching work.
 - **Version lockstep.** `memory-system-version` frontmatter, `core.VERSION`, and `pyproject.version` must move together (guarded by a test).
 - **Agent cooperation assumed.** Agents are expected to honour the `AGENTS.md` read order and the End Of Turn routine; hooks can only *nudge*, not enforce.
@@ -317,12 +318,12 @@ Measured on this repository's own corpus on 2026-06-14 (Windows, Python 3.11). I
 | Risk / debt | Impact | Status |
 |---|---|---|
 | Semantic/lexical search buries the newest entry | Agent misreads "current state" | **Mitigated** — SessionStart hook + direct newest-file read rule |
-| 32-bit `ms-` entry IDs (`uuid4` truncated to 8 hex) | Collisions at large history sizes | Deferred (3.0). Partly de-risked in 2.9: fallback MCP chunk IDs for entries without `entry_id` are now date-qualified, so same-named per-user files on different dates don't collide |
+| Legacy 32-bit `ms-` entry IDs | Collisions at large history sizes | Mitigated in current worktree for new generated entries: `generate_session_entry_id()` now emits deterministic 80-bit `mse_` IDs while existing `ms-` IDs remain valid and are not rewritten |
 | Drive-synced SQLite corruption | Rules out the obvious cache backend | Constraint recorded; caching deferred |
 | Version-bump trap (root files missed by scoped sed) | Shipping mismatched versions | **Guarded** by `test_repo_root_control_plane_files_match_version` |
 | `update --dry-run` lists all targets, not just changed | Noisy preview | Documented in README |
 | Non-atomic file writes (no temp+rename) | Corruption on crash mid-write | Open — candidate hardening item |
-| Single-writer session model | Concurrent multi-author Git conflicts | **Phased migration underway** — dual-read (2.9) + opt-in per-user write targets/hooks (2.10) shipped; remaining phases (graph-link validation, MCP metadata filters, explicit `migrate sessions-layout`) deferred to 3.0 |
+| Single-writer session model | Concurrent multi-author Git conflicts | **Phased migration underway** — dual-read (2.9), opt-in per-user write targets/hooks (2.10), integrity validation, ID widening, MCP filters, participant registry parsing, and migration support are in the current worktree |
 
 ## 13. Glossary
 
@@ -348,7 +349,7 @@ Sources: `NEXT_STEPS.md` and `docs/todo/`. Status reflects the current (2.11.0) 
 - **`/esr` command shortcuts for Codex/Cursor** once those tools support repo-level custom commands (Codex project-scoped `.codex/prompts` is an open upstream request; Cursor unverified). Not blocking — the enriched routine in `agent-rules.md` already serves them today.
 
 ### Deferred — 3.0 candidates
-- **Multi-user per-day session memory — remaining phases** (`docs/todo/multi-user-session-memory-proposal.md`): Phase 1 dual-read (2.9) and Phase 2 opt-in per-user write targets/hooks (2.10) have **landed**. Still deferred: graph-link validation, MCP metadata filters by user, an explicit `migrate sessions-layout` command, and widening the 32-bit entry IDs. High blast radius — touches the core session data model.
+- **Multi-user per-day session memory — current unreleased stack** (`docs/todo/multi-user-session-memory-proposal.md`): Phase 1 dual-read (2.9), Phase 2 opt-in per-user write targets/hooks (2.10), A-P3 integrity validation, A-ID 80-bit `mse_` generation, A-P4 MCP metadata/filters, S2 participant registry parsing, and the explicit session-layout migration command have landed in the current worktree. Next deferred work is the separate Memory Explorer package. High blast radius — touches the core session data model.
 
   ```mermaid
   flowchart LR

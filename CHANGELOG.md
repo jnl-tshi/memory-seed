@@ -4,6 +4,21 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- _Nothing yet._
+
+## 2.12.0 - 2026-06-15
+
+First batch of multi-user Phase 3 increments from the reviewed 3.0 plan.
+
+- **Added session-memory integrity validation** (`memory-seed links check`) — the first increment of the 3.0 multi-user roadmap (Phase 3). It scans both legacy-flat (`sessions/YYYY-MM-DD.md`) and per-user (`sessions/YYYY-MM-DD/<user>.md`) layouts and reports: duplicate `entry_id`s (the 32-bit-ID collision risk), duplicate file `hash_id`s, dangling `related_entries`/`related_memories` references, and per-user-file frontmatter problems (filename↔frontmatter `user` or `session_date` mismatch, missing/malformed `hash_id`, unsupported `schema_version`, invalid user slug). Each issue names the source file and the offending value; the command **exits non-zero** on any issue so it works as a CI gate. It validates entry-level `related_entries` inside session-entry YAML as well as file-frontmatter related refs, resolving both legacy `ms-` IDs and new `mse_` IDs.
+- `memory-seed doctor` now surfaces a one-line, non-fatal summary when integrity issues exist, pointing at `links check` for the full report (it does not change doctor's pass/fail).
+- New generated session `entry_id` values now use deterministic 80-bit `mse_` IDs encoded as 16 lower-case Base32 characters. Existing `ms-` entry IDs remain valid and are never rewritten.
+- `memory_search` / `memory_get_chunk` now expose `session_date`, `path`, per-user `user`, `file_hash_id`, and entry-level `related_entries`; `memory_search` accepts `user`, `date_from`, and `date_to` filters applied before ranking.
+- `.memory-seed/project.yaml` now supports a `participants:` registry alongside the existing `agents:` selection. `read_project_participants()` parses valid participant entries fail-open, and agent-selection reads/writes preserve the participant block.
+- Added `memory-seed migrate sessions-layout`, a conservative migration command that splits legacy flat `sessions/YYYY-MM-DD.md` files into `sessions/YYYY-MM-DD/<user>.md` files using `.memory-seed/project.yaml` participant initials, supports `--dry-run`, preserves entry IDs, backs up migrated sources, removes migrated flat files to avoid dual-read duplicate IDs, and blocks ambiguous or unsafe merges.
+- Documented the optional entry-level `related_entries` field in the `agent-rules.md` session-log schema so agents can author the graph edges that `memory_search` and `links check` already read and validate.
+- Bumped control-plane version from `2.11` to `2.12`.
+
 ## 2.11.0 - 2026-06-15
 
 - **Generalized the end-of-session routine (ESR) and shipped it as a seeded command.** The "End Of Turn" routine in `agent-rules.md` now also runs a **consolidation review** (promote durable, reusable facts from the session logs into `index.md`/`policy.md` via the `memory_consolidation` skill) and a **baseline-promotion check** (flag any approved adaptation general enough to reuse beyond this project, recorded in `.memory-seed/plans/`, create-if-needed). Both are vendor-neutral and benefit every agent.

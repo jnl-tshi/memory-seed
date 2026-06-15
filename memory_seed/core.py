@@ -14,7 +14,7 @@ from typing import Iterator, Literal
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
-VERSION = "2.11"
+VERSION = "2.12"
 MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
@@ -119,6 +119,43 @@ class CompactResult:
     headings: dict[str, list[str]]
     full_text: str
     date_range: tuple[str, str] | None
+
+
+@dataclass(frozen=True)
+class LinkIssue:
+    file: str
+    kind: str
+    detail: str
+
+
+@dataclass
+class LinksCheckResult:
+    ok: bool
+    files_checked: int
+    issues: list[LinkIssue] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ProjectParticipant:
+    slug: str
+    initials: str
+    display_name: str | None = None
+
+
+@dataclass
+class SessionLayoutMigrationResult:
+    changed: bool
+    planned: list[str] = field(default_factory=list)
+    migrated: list[str] = field(default_factory=list)
+    backed_up: list[Path] = field(default_factory=list)
+    issues: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class _FlatSessionEntry:
+    text: str
+    entry_id: str | None
+    user_initials: str | None
 
 
 def iter_session_documents(sessions_dir: Path) -> Iterator[SessionDocument]:
@@ -236,6 +273,161 @@ def session_path(sessions_dir: Path, date_str: str, user: str) -> Path:
     return sessions_dir / date_str / f"{user}.md"
 
 
+_ENTRY_ID_RE = re.compile(r"^entry_id:\s*(\S+)\s*$", re.MULTILINE)
+_FILE_FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---", re.DOTALL)
+_LEGACY_ENTRY_ID_RE = r"ms-[0-9a-f]{8}"
+_V2_ENTRY_ID_RE = r"mse_[0-9a-hjkmnp-tv-z]{16}"
+_RELATED_ENTRY_REF_RE = re.compile(rf"(?:{_LEGACY_ENTRY_ID_RE}|{_V2_ENTRY_ID_RE})")
+_RELATED_MEMORY_REF_RE = re.compile(r"msm_[0-9a-zA-Z]+")
+_FENCED_YAML_RE = re.compile(r"^```ya?ml\s*\n(.*?)^```\s*$", re.MULTILINE | re.DOTALL)
+_SUPPORTED_SCHEMA_VERSIONS = {"1", "2"}
+_CROCKFORD_BASE32_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz"
+
+
+def _parse_frontmatter_scalars(block: str) -> dict[str, str]:
+    """Parse the top-level ``key: value`` scalars of a frontmatter block.
+
+    Stdlib-only (no YAML dependency): reads unindented ``key: value`` lines and
+    strips matching surrounding quotes. List keys (e.g. related_entries) are
+    ignored here; references inside them are scanned separately by regex.
+    """
+    scalars: dict[str, str] = {}
+    for line in block.splitlines():
+        if not line or line[0] in " \t#-":
+            continue
+        if ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] in "'\"" and value[-1] == value[0]:
+            value = value[1:-1]
+        if key and value:
+            scalars[key] = value
+    return scalars
+
+
+def _frontmatter_list_region(block: str, list_key: str) -> str:
+    """Return the indented region following ``<list_key>:`` within a frontmatter
+    block (the list items), or "" if the key is absent."""
+    lines = block.splitlines()
+    out: list[str] = []
+    collecting = False
+    for line in lines:
+        if collecting:
+            if line[:1] in (" ", "\t"):
+                out.append(line)
+                continue
+            break
+        if line.strip().rstrip().rstrip(":") == list_key and line.strip().endswith(":"):
+            collecting = True
+    return "\n".join(out)
+
+
+def _fenced_yaml_blocks(text: str) -> Iterator[str]:
+    for match in _FENCED_YAML_RE.finditer(text):
+        yield match.group(1)
+
+
+def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
+    """Validate session-memory integrity across both legacy-flat and per-user
+    layouts (multi-user Phase 3). Detects duplicate entry/file IDs, dangling
+    ``related_entries``/``related_memories`` references, and per-user-file
+    frontmatter problems (filename/frontmatter user or date mismatch, missing or
+    malformed ``hash_id``, unsupported ``schema_version``, invalid user slug).
+
+    Each issue names the source file and the offending value. Returns
+    ``ok=False`` when any issue is found so a CLI gate can exit non-zero.
+    """
+    runtime = resolve_runtime(cwd)
+    root = runtime.workspace_root
+    sessions_dir = runtime.memory_dir / "sessions"
+
+    issues: list[LinkIssue] = []
+    entry_id_files: dict[str, list[str]] = {}
+    hash_id_files: dict[str, list[str]] = {}
+    related_entry_refs: list[tuple[str, str]] = []
+    related_memory_refs: list[tuple[str, str]] = []
+    files_checked = 0
+
+    for doc in iter_session_documents(sessions_dir):
+        files_checked += 1
+        try:
+            rel = doc.path.relative_to(root).as_posix()
+        except ValueError:
+            rel = doc.path.as_posix()
+        try:
+            text = doc.path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            issues.append(LinkIssue(rel, "unreadable", str(exc)))
+            continue
+
+        for entry_id in _ENTRY_ID_RE.findall(text):
+            entry_id_files.setdefault(entry_id, []).append(rel)
+
+        if doc.layout != "per-user-day":
+            continue
+
+        if doc.user is not None and (
+            not SESSION_USER_SLUG_RE.match(doc.user) or doc.user in _RESERVED_SESSION_STEMS
+        ):
+            issues.append(LinkIssue(rel, "invalid-user-slug", f"filename slug '{doc.user}'"))
+
+        match = _FILE_FRONTMATTER_RE.match(text)
+        if not match:
+            issues.append(
+                LinkIssue(rel, "missing-frontmatter", "per-user file has no leading --- frontmatter block")
+            )
+            continue
+        block = match.group(1)
+        scalars = _parse_frontmatter_scalars(block)
+
+        fm_user = scalars.get("user")
+        if fm_user is not None and fm_user != doc.user:
+            issues.append(LinkIssue(rel, "user-mismatch", f"frontmatter user '{fm_user}' != filename user '{doc.user}'"))
+        fm_date = scalars.get("session_date")
+        if fm_date is not None and fm_date != doc.session_date:
+            issues.append(LinkIssue(rel, "date-mismatch", f"frontmatter session_date '{fm_date}' != directory date '{doc.session_date}'"))
+        schema_version = scalars.get("schema_version")
+        if schema_version is not None and schema_version not in _SUPPORTED_SCHEMA_VERSIONS:
+            issues.append(LinkIssue(rel, "unsupported-schema-version", f"schema_version '{schema_version}'"))
+        hash_id = scalars.get("hash_id")
+        if not hash_id:
+            issues.append(LinkIssue(rel, "missing-hash-id", "per-user file frontmatter has no hash_id"))
+        else:
+            if not hash_id.startswith("msm_"):
+                issues.append(LinkIssue(rel, "malformed-hash-id", f"hash_id '{hash_id}' lacks the msm_ prefix"))
+            hash_id_files.setdefault(hash_id, []).append(rel)
+
+        for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(block, "related_entries")):
+            related_entry_refs.append((rel, ref))
+        for ref in _RELATED_MEMORY_REF_RE.findall(_frontmatter_list_region(block, "related_memories")):
+            related_memory_refs.append((rel, ref))
+
+        for yaml_block in _fenced_yaml_blocks(text):
+            for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, "related_entries")):
+                related_entry_refs.append((rel, ref))
+
+    for entry_id, files in sorted(entry_id_files.items()):
+        if len(files) > 1:
+            where = ", ".join(sorted(set(files)))
+            issues.append(LinkIssue(files[0], "duplicate-entry-id", f"entry_id {entry_id} appears {len(files)}x ({where})"))
+    for hash_id, files in sorted(hash_id_files.items()):
+        if len(set(files)) > 1:
+            issues.append(LinkIssue(sorted(files)[0], "duplicate-hash-id", f"hash_id {hash_id} in {', '.join(sorted(set(files)))}"))
+
+    known_entries = set(entry_id_files)
+    known_hashes = set(hash_id_files)
+    for rel, ref in related_entry_refs:
+        if ref not in known_entries:
+            issues.append(LinkIssue(rel, "dangling-related-entry", f"related_entries -> {ref} (no such entry_id)"))
+    for rel, ref in related_memory_refs:
+        if ref not in known_hashes:
+            issues.append(LinkIssue(rel, "dangling-related-memory", f"related_memories -> {ref} (no such hash_id)"))
+
+    return LinksCheckResult(ok=not issues, files_checked=files_checked, issues=issues)
+
+
 def _utc_timestamp() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -289,6 +481,154 @@ def session_target(
     if create:
         _ensure_per_user_session_file(path, date_value, user)
     return SessionTarget(path=path, session_date=date_value, user=user, layout="per-user-day")
+
+
+_ENTRY_HEADING_RE = re.compile(r"^##\s+.+$", re.MULTILINE)
+_USER_INITIALS_RE = re.compile(r"^user_initials:\s*(\S+)\s*$", re.MULTILINE)
+
+
+def _flat_session_entries(text: str) -> list[_FlatSessionEntry]:
+    matches = list(_ENTRY_HEADING_RE.finditer(text))
+    entries: list[_FlatSessionEntry] = []
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        entry_text = text[match.start():end].rstrip() + "\n"
+        entry_id_match = _ENTRY_ID_RE.search(entry_text)
+        initials_match = _USER_INITIALS_RE.search(entry_text)
+        entries.append(
+            _FlatSessionEntry(
+                text=entry_text,
+                entry_id=entry_id_match.group(1) if entry_id_match else None,
+                user_initials=initials_match.group(1) if initials_match else None,
+            )
+        )
+    return entries
+
+
+def _participant_slug_by_initials(target_root: Path) -> tuple[dict[str, str], list[str]]:
+    mapping: dict[str, str] = {}
+    issues: list[str] = []
+    for participant in read_project_participants(target_root):
+        key = participant.initials.strip()
+        if not key:
+            continue
+        if key in mapping and mapping[key] != participant.slug:
+            issues.append(f"duplicate participant initials {key}: {mapping[key]}, {participant.slug}")
+        else:
+            mapping[key] = participant.slug
+    return mapping, issues
+
+
+def _append_session_entries(path: Path, entries: list[_FlatSessionEntry]) -> None:
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    prefix = existing
+    if prefix and not prefix.endswith("\n"):
+        prefix += "\n"
+    if prefix and not prefix.endswith("\n\n"):
+        prefix += "\n"
+    body = "\n".join(entry.text.rstrip() for entry in entries).rstrip() + "\n"
+    path.write_text(prefix + body, encoding="utf-8")
+
+
+def migrate_session_layout(cwd: str | Path = ".", dry_run: bool = False) -> SessionLayoutMigrationResult:
+    """Migrate legacy flat session files into per-day/per-user files.
+
+    The migration is deliberately conservative: every legacy entry must carry a
+    ``user_initials`` value that maps to a ``participants:`` entry in
+    ``.memory-seed/project.yaml``. Existing per-user files are appended to only
+    when none of the incoming entry IDs already exist there. On apply, each
+    migrated flat source is backed up and then removed so permanent dual-read
+    compatibility does not create duplicate entry IDs.
+    """
+    runtime = resolve_runtime(cwd)
+    target_root = runtime.workspace_root
+    sessions_dir = runtime.memory_dir / "sessions"
+    initials_to_slug, participant_issues = _participant_slug_by_initials(target_root)
+
+    grouped: dict[Path, list[_FlatSessionEntry]] = {}
+    source_docs: list[SessionDocument] = []
+    issues: list[str] = list(participant_issues)
+
+    for doc in iter_session_documents(sessions_dir):
+        if doc.layout != "legacy-flat":
+            continue
+        try:
+            text = doc.path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            issues.append(f"{doc.path.name}: unreadable ({exc})")
+            continue
+        entries = _flat_session_entries(text)
+        if not entries:
+            continue
+        source_docs.append(doc)
+        for entry in entries:
+            if not entry.user_initials:
+                issues.append(f"{doc.path.name}: entry has no user_initials")
+                continue
+            slug = initials_to_slug.get(entry.user_initials)
+            if slug is None:
+                issues.append(f"{doc.path.name}: no participant slug for user_initials {entry.user_initials}")
+                continue
+            target = session_path(sessions_dir, doc.session_date, slug)
+            grouped.setdefault(target, []).append(entry)
+
+    if issues:
+        return SessionLayoutMigrationResult(changed=False, issues=issues)
+
+    planned = sorted(
+        {
+            f"{doc.session_date}.md -> {target.relative_to(sessions_dir).as_posix()}"
+            for doc in source_docs
+            for target in grouped
+            if target.parent.name == doc.session_date
+        }
+    )
+    if not grouped:
+        return SessionLayoutMigrationResult(changed=False, planned=planned)
+
+    for target, entries in grouped.items():
+        if not target.exists():
+            continue
+        existing = target.read_text(encoding="utf-8")
+        existing_ids = set(_ENTRY_ID_RE.findall(existing))
+        incoming_ids = {entry.entry_id for entry in entries if entry.entry_id}
+        duplicates = sorted(existing_ids & incoming_ids)
+        if duplicates:
+            issues.append(
+                f"{target.relative_to(sessions_dir).as_posix()}: existing entry_id(s) block safe merge: "
+                + ", ".join(duplicates)
+            )
+    if issues:
+        return SessionLayoutMigrationResult(changed=False, planned=planned, issues=issues)
+
+    if dry_run:
+        return SessionLayoutMigrationResult(changed=False, planned=planned)
+
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backed_up: list[Path] = []
+    migrated: list[str] = []
+
+    for target, entries in sorted(grouped.items(), key=lambda item: item[0].relative_to(sessions_dir).as_posix()):
+        user = target.stem
+        date_str = target.parent.name
+        _ensure_per_user_session_file(target, date_str, user)
+        _append_session_entries(target, entries)
+        migrated.append(target.relative_to(sessions_dir).as_posix())
+
+    for doc in source_docs:
+        backup_relative = Path(MEMORY_DIR_NAME) / "backups" / timestamp / "sessions" / doc.path.name
+        backup_path = target_root / backup_relative
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        _copy_text_file(doc.path, backup_path)
+        doc.path.unlink()
+        backed_up.append(backup_relative)
+
+    return SessionLayoutMigrationResult(
+        changed=bool(migrated or backed_up),
+        planned=planned,
+        migrated=migrated,
+        backed_up=backed_up,
+    )
 
 
 SEED_FILES = [
@@ -462,7 +802,17 @@ def generate_session_entry_id(
             "" if subproject_path is None else subproject_path.strip(),
         )
     )
-    return f"ms-{hashlib.sha1(metadata.encode('utf-8')).hexdigest()[:8]}"
+    digest = hashlib.sha256(metadata.encode("utf-8")).digest()[:10]
+    return f"mse_{_base32_crockford(digest)}"
+
+
+def _base32_crockford(data: bytes) -> str:
+    value = int.from_bytes(data, "big")
+    chars: list[str] = []
+    total_chars = (len(data) * 8 + 4) // 5
+    for shift in range((total_chars - 1) * 5, -1, -5):
+        chars.append(_CROCKFORD_BASE32_ALPHABET[(value >> shift) & 0b11111])
+    return "".join(chars)
 
 
 def resolve_runtime(cwd: str | Path = ".") -> Runtime:
@@ -1448,6 +1798,62 @@ def selected_agents(target_root: Path) -> set[str]:
     return configured if configured is not None else set(KNOWN_AGENTS)
 
 
+def read_project_participants(target_root: Path) -> list[ProjectParticipant]:
+    """Return participant registry entries from .memory-seed/project.yaml.
+
+    Fail-open like the agent-selection parser: absent, unreadable, malformed, or
+    invalid participant entries return an empty list instead of breaking init,
+    update, doctor, or migration dry-runs.
+    """
+    path = _project_config_path(target_root)
+    if not path.exists():
+        return []
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+
+    participants: list[ProjectParticipant] = []
+    in_participants = False
+    current: dict[str, str] | None = None
+
+    def flush() -> None:
+        nonlocal current
+        if not current:
+            current = None
+            return
+        slug = current.get("slug", "").strip()
+        initials = current.get("initials", "").strip()
+        display_name = current.get("display_name", "").strip() or None
+        if SESSION_USER_SLUG_RE.match(slug) and initials:
+            participants.append(ProjectParticipant(slug=slug, initials=initials, display_name=display_name))
+        current = None
+
+    for raw in lines:
+        line = raw.rstrip()
+        if re.match(r"^participants\s*:", line):
+            in_participants = True
+            current = None
+            continue
+        if not in_participants:
+            continue
+        if line and not line[0].isspace():
+            flush()
+            break
+        item_match = re.match(r"^\s*-\s*slug\s*:\s*(.+)$", line)
+        if item_match:
+            flush()
+            current = {"slug": item_match.group(1).strip().strip("'\"")}
+            continue
+        field_match = re.match(r"^\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.+)$", line)
+        if field_match and current is not None:
+            current[field_match.group(1)] = field_match.group(2).strip().strip("'\"")
+    else:
+        flush()
+
+    return participants
+
+
 def write_project_agents(target_root: Path, agents: set[str]) -> None:
     """Persist the agent selection to .memory-seed/project.yaml.
 
@@ -1840,6 +2246,17 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
                     "runtime (foreign file, no memory-seed block). Run "
                     "`memory-seed update` to inject the routing block."
                 )
+
+    # Session integrity summary (non-fatal). The full report — with each
+    # offending file and value, and a CI-usable non-zero exit — is
+    # `memory-seed links check`; doctor only surfaces the count.
+    links = check_session_links(target_root)
+    if links.issues:
+        warnings.append(
+            f"Session memory has {len(links.issues)} integrity issue(s) "
+            "(duplicate/dangling IDs or per-user frontmatter problems). Run "
+            "`memory-seed links check` for the full report."
+        )
 
     return DoctorResult(
         ok=control_plane_ok and bootstrap_complete,

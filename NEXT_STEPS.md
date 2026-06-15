@@ -4,46 +4,106 @@ These items need user judgement, account access, or real-client validation.
 
 ## Active Roadmap
 
-Approved 2026-06-13. Incremental release: 2.6.0 now, 2.7.0 later. Source: docs/todo review + the SessionStart-hardening session findings.
+Approved 2026-06-13. Incremental release history has moved from 2.6.0 through the current 2.12.0
+worktree. Source: docs/todo review + session findings.
 
 ### Release 2.6.0 (shipped 2026-06-13)
 
-Bundles the already-built-but-uncommitted SessionStart orientation hook (Claude/Codex/Gemini/Cursor) and Copilot CLI support, plus:
+Bundles the SessionStart orientation hook (Claude/Codex/Gemini/Cursor) and Copilot CLI support, plus:
 
-- **Gemini dead-wiring fix (bug):** the repo wires Gemini hooks to `Stop`/`UserPromptSubmit`, which Gemini does not expose. Correct events are `AfterAgent` (turn-end) and `BeforeAgent` (prompt-submit); `SessionStart` is already correct. Strip the dead entries on `update` and align the `--gemini` hook output to `hookSpecificOutput.additionalContext`.
-- **Copilot VS Code surface:** `.vscode/mcp.json` (uses the `servers` key, not `mcpServers`) + a thin `.github/copilot-instructions.md` router. Document the coding-agent MCP path (repo/org settings, manual). Reconcile docs/todo item 5.
-- **Hygiene:** fix `index.md` Active State version staleness; trim over-specified doc-substring tests + repoint the frozen-file test; reconcile the per-prompt `memory-retrieval-check.py` wording with the recency-vs-topical rule.
-- **Release mechanics:** version bump 2.5â†’2.6 / 2.5.0â†’2.6.0 (incl. repo-root files + index Active State â€” the version-bump trap), CHANGELOG, README agent list, demo refresh, archive 2.5 snapshot, publish.
+- **Gemini dead-wiring fix:** Gemini uses `AfterAgent` / `BeforeAgent`, not Claude-style
+  `Stop` / `UserPromptSubmit`.
+- **Copilot VS Code surface:** `.vscode/mcp.json` plus a thin `.github/copilot-instructions.md`
+  router.
+- **Hygiene:** current-state wording, recency-vs-topical retrieval guidance, and install docs.
+- **Release mechanics:** 2.5 -> 2.6 package/control-plane bump, changelog, README, demo refresh,
+  archive snapshot, and publish.
 
 ### Release 2.7.0 (shipped 2026-06-14)
 
-- **Orphan & dead-artifact review (done):** diff-scoped orphan/artifact sweep added to the "End Of Turn" routine in `agent-rules.md` (+ seed twin, mirrored in `/esr`); deterministic orphan-skill warning added to `doctor` (any `skills/*.md` not registered in `skills/index.md`). Language-agnostic, never installs tools; whole-codebase dead code stays a periodic tool job.
-- **Seed promotions (done):** `document_ingestion` and `office_document_editing` skills ported into the seed + live runtime with trigger-registry entries; "Working Principles" block (POC-gate / verification-split / share-aware) added to `agent-rules.md`.
-- **ESR generalization** (done in 2.11.0): added consolidation and baseline-promotion steps to the routine and shipped `/esr` as a seeded command — see Release 2.11.0 below.
+- **Orphan & dead-artifact review:** diff-scoped orphan/artifact sweep added to the End Of Turn
+  routine and mirrored in `/esr`; deterministic orphan-skill warning added to `doctor`.
+- **Seed promotions:** `document_ingestion` and `office_document_editing` skills ported into the
+  seed + live runtime with trigger-registry entries; Working Principles added to `agent-rules.md`.
+- **ESR generalization:** later completed in 2.11.0.
 
 ### Release 2.8.0 (shipped 2026-06-14)
 
-- **Non-destructive routing into foreign entry-point files (done):** the four routing files (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.github/copilot-instructions.md`) follow a 4-way ownership branch in `init`/`update` â€” greenfield full-file; owned (frontmatter) â†’ version-gated archive+replace; foreign-with-markers â†’ in-place block re-sync; foreign-without â†’ inject a marker-delimited routing block. A foreign file is never overwritten (even under `--force`); the "second merge" on a version bump is content-equality-gated (no churn). Resolves the demo collision: a project where another tool (HyperFrames) owns `AGENTS.md`/`CLAUDE.md` now routes into the `.memory-seed/` runtime without losing host content.
-- **Behavior change (done):** versionless entry-point files are merged, not overwritten â€” retires the legacy unversionedâ†’clobber upgrade path.
-- **Doctor route-presence backstop (done):** a `.memory-seed/` runtime whose present entry-point file is foreign-without-block is flagged as orphaned.
+- **Non-destructive routing into foreign entry-point files:** routing files follow the greenfield /
+  owned / foreign-with-markers / foreign-without-markers ownership branch in `init` and `update`.
+- **Behavior change:** versionless entry-point files are merged, not overwritten.
+- **Doctor route-presence backstop:** a `.memory-seed/` runtime whose present entry-point file is
+  foreign-without-block is flagged as orphaned.
 
 ### Release 2.9.0 (shipped 2026-06-14)
 
-- **Multi-user session dual-read discovery (done):** package readers now discover both legacy flat files (`.memory-seed/sessions/YYYY-MM-DD.md`) and per-day/per-user files (`.memory-seed/sessions/YYYY-MM-DD/<user>.md`). This is read-only groundwork for multi-user attribution and Git-merge avoidance.
+- **Multi-user session dual-read discovery:** package readers discover both legacy flat files
+  (`.memory-seed/sessions/YYYY-MM-DD.md`) and per-day/per-user files
+  (`.memory-seed/sessions/YYYY-MM-DD/<user>.md`).
 
 ### Release 2.10.0 (shipped 2026-06-15)
 
-- **User-aware session targets (done):** local user identity is opt-in through `.memory-seed/local.yaml`, `MEMORY_SEED_USER`, or `memory-seed session target --user`. `memory-seed session target --create` initializes `.memory-seed/sessions/YYYY-MM-DD/<user>.md` with file frontmatter and an immutable `msm_` hash. With no configured user, legacy flat-file targets remain unchanged.
-- **User-aware hooks (done):** `session-log-check.py` checks only the active user's file, and `session-start-context.py` injects the active user's newest entry plus same-day co-contributor file counts.
+- **User-aware session targets:** local user identity is opt-in through `.memory-seed/local.yaml`,
+  `MEMORY_SEED_USER`, or `memory-seed session target --user`. New per-user targets are
+  `.memory-seed/sessions/YYYY-MM-DD/<user>.md`.
+- **User-aware hooks:** `session-log-check.py` checks only the active user's file, and
+  `session-start-context.py` injects the active user's newest entry plus same-day co-contributor file
+  counts.
 
 ### Release 2.11.0 (shipped 2026-06-15)
 
-- **ESR generalization (done):** the "End Of Turn" routine in `agent-rules.md` now runs a consolidation review (promote durable facts → `index.md`/`policy.md` via `memory_consolidation`) and a baseline-promotion check (flag generic adaptations, record in `.memory-seed/plans/`). Shipped as a seeded `/esr` command for Claude (`.claude/commands/esr.md`, version-tracked) and Gemini (`.gemini/commands/esr.toml`, deploy-once); Codex/Cursor run the routine from `agent-rules.md`. **No blocking `Stop` nudge hook** (deliberate — evolution needs reasoning + approval a hook can't give).
-- **Remaining (optional):** seeded `/esr` command shortcuts for Codex/Cursor once those tools support repo-level custom commands (Codex project-scoped `.codex/prompts` is an open upstream request; Cursor unverified). Not blocking — the routine already serves them.
+- **ESR generalization:** the End Of Turn routine now runs consolidation review and baseline-promotion
+  checks. Seeded `/esr` command shortcuts ship for Claude and Gemini; Codex/Cursor use the routine in
+  `agent-rules.md`.
+- **Remaining optional:** seed `/esr` command shortcuts for Codex/Cursor once those tools support
+  repo-level custom commands.
 
-### Deferred — 3.0 candidate
+### Release 2.12.0 (shipped 2026-06-15)
 
-- **Multi-user per-day session memory remaining phases** (`.memory-seed/sessions/YYYY-MM-DD/<user>.md`). Team-capable direction (attribution + Git-merge avoidance; not privacy/permissions/real-time). Phase 1 dual-read discovery landed in 2.9.0 and Phase 2 user-aware targets/hooks landed in 2.10.0; still deferred are graph-link validation, MCP metadata filters, explicit `migrate sessions-layout`, and any future entry-ID widening. Refined execution-ready spec: [`docs/todo/multi-user-session-memory-proposal.md`](docs/todo/multi-user-session-memory-proposal.md); design rationale in [`docs/todo/multi-user-deep-research-report.md`](docs/todo/multi-user-deep-research-report.md).
+First batch of multi-user Phase 3 increments from the reviewed 3.0 plan
+([`docs/todo/3.0-plan.md`](docs/todo/3.0-plan.md)):
+
+- **Session-memory integrity validation (A-P3):** `memory-seed links check` validates both layouts
+  (duplicate `entry_id`/`hash_id`, dangling `related_*` refs incl. entry-level `related_entries`,
+  per-user frontmatter user/date/schema/hash problems), names file + offending value, exits non-zero as
+  a CI gate; `doctor` surfaces a one-line summary.
+- **80-bit entry IDs (A-ID):** new generated `entry_id`s use deterministic `mse_` 80-bit Base32 IDs;
+  legacy `ms-` IDs remain valid and are never rewritten.
+- **MCP metadata + filters (A-P4):** `memory_search` / `memory_get_chunk` expose `session_date`, `path`,
+  `user`, `file_hash_id`, and `related_entries`; `memory_search` filters by `user`, `date_from`, `date_to`.
+- **Participant registry (S2):** `.memory-seed/project.yaml` supports a `participants:` list parsed
+  fail-open and preserved across agent-selection writes.
+- **Session-layout migration (A-P5):** `memory-seed migrate sessions-layout` splits legacy flat files
+  into per-user files (`--dry-run`, ID-preserving, backup-before-remove, blocks ambiguous merges).
+- **Schema doc:** the optional entry-level `related_entries` field is now documented in the
+  `agent-rules.md` session-log schema.
+
+### 3.0 - In Progress
+
+See the reviewed, sequenced plan: [`docs/todo/3.0-plan.md`](docs/todo/3.0-plan.md).
+
+Multi-user Phases 1-2 shipped (2.9/2.10), and the core multi-user increments (A-P3 integrity
+validation, A-ID 80-bit entry IDs, A-P4 MCP metadata/filters, S2 participant registry parsing, and
+A-P5 `migrate sessions-layout`) shipped in 2.12.0. Remaining work:
+
+1. **Related-entries generation - needs scoping and planning.** The `related_entries` graph edges are
+   now read, exposed via MCP (A-P4), and validated by `links check` (A-P3), and the authoring field is
+   documented in the session-log schema (2.12.0) - but nothing *generates* or *assists* the links; they
+   must be hand-authored, so the graph stays empty in practice. Scope a generation mechanism (e.g. a
+   `memory-seed link add` helper and/or suggested edges derived from retrieval) together with its design
+   constraints (append-only chronology, idempotency, manual vs. suggested edges, how `links check`
+   validation interacts) before writing code.
+2. Create Pillar B as a separate companion install: `memory-seed-explorer`.
+
+Pillar B is no longer an undecided extra inside the core package. It should be a separate distribution
+that depends on `memory-seed`, starts as a local read-only web app, and may later gain a desktop shell.
+Obsidian remains a UX inspiration or later integration, not the first implementation target.
+
+Specs:
+
+- [`multi-user-session-memory-proposal.md`](docs/todo/multi-user-session-memory-proposal.md)
+- [`multi-user-deep-research-report.md`](docs/todo/multi-user-deep-research-report.md)
+- [`user-interface-deep-research-report.md`](docs/todo/user-interface-deep-research-report.md)
 
 ## MCP Client Validation
 
@@ -53,25 +113,32 @@ Bundles the already-built-but-uncommitted SessionStart orientation hook (Claude/
 claude mcp add memory-seed -s user -- uvx --from memory-seed memory-seed-mcp --stdio
 ```
 
-- Ask the agent a question that should require historical project memory and confirm it calls `memory_search` before answering.
+- Ask the agent a question that should require historical project memory and confirm it calls
+  `memory_search` before answering.
 - Record any client-specific setup differences so the README can include confirmed examples.
 
 ## Launch Assets
 
-- Capture a real terminal screenshot or short GIF showing `memory-seed init`, `memory-seed-mcp-validate`, and an agent memory lookup.
-- Decide whether to publish a launch note focused on solo developers, teams standardizing agent memory, or both.
+- Capture a real terminal screenshot or short GIF showing `memory-seed init`,
+  `memory-seed-mcp-validate`, and an agent memory lookup.
+- Decide whether to publish a launch note focused on solo developers, teams standardizing agent
+  memory, or both.
 
 ## Ranking Experiments
 
 - Keep ranking behavior stable on `main`.
-- Run ranking experiments on a separate branch and merge only if fixture tests show a clear improvement without degrading current text-ranking behavior.
+- Run ranking experiments on a separate branch and merge only if fixture tests show a clear improvement
+  without degrading current text-ranking behavior.
 
 ## Optional Semantic Dependency
 
-- Decide whether to add an optional package extra such as `memory-seed[semantic]` for Model2Vec-backed embeddings.
+- Decide whether to add an optional package extra such as `memory-seed[semantic]` for Model2Vec-backed
+  embeddings.
 - Keep the default CLI and MCP path dependency-light unless the optional path shows clear value.
 
 ## Community Feedback
 
-- Watch issue reports for agent compatibility gaps across Codex, Claude Code, Gemini CLI, and other MCP clients.
-- Use the issue templates to separate bugs, feature requests, compatibility reports, and memory workflow improvements.
+- Watch issue reports for agent compatibility gaps across Codex, Claude Code, Gemini CLI, and other
+  MCP clients.
+- Use the issue templates to separate bugs, feature requests, compatibility reports, and memory
+  workflow improvements.

@@ -6,12 +6,14 @@ from pathlib import Path
 from memory_seed.core import (
     MEMORY_DIR_NAME,
     SEED_FILES,
+    check_session_links,
     compact_sessions,
     doctor,
     generate_session_entry_id,
     get_version,
     init_project,
     iter_session_documents,
+    migrate_session_layout,
     resolve_runtime,
     session_target,
     update_project,
@@ -25,7 +27,157 @@ class MemorySeedTests(unittest.TestCase):
         return path
 
     def test_version_reads_reusable_control_plane_version(self):
-        self.assertEqual(get_version(), "2.11")
+        self.assertEqual(get_version(), "2.12")
+
+    # --- A-P3 session integrity validation (memory-seed links check) ---
+
+    def _per_user_session(self, cwd, date, user, *, fm_user=None, fm_date=None,
+                          schema="2", hash_id=None, entries=("ms-aaaaaaaa",), extra_fm=""):
+        d = cwd / MEMORY_DIR_NAME / "sessions" / date
+        d.mkdir(parents=True, exist_ok=True)
+        fm = ["---", f"schema_version: {schema}", f"session_date: {fm_date or date}"]
+        if hash_id is not None:
+            fm.append(f"hash_id: {hash_id}")
+        fm += [f"user: {fm_user or user}", "created_at: 2026-06-13T00:00:00Z"]
+        if extra_fm:
+            fm.append(extra_fm)
+        fm.append("---")
+        body = []
+        for eid in entries:
+            body += ["", f"## {date} 09:00 - entry", "", "```yaml", f"entry_id: {eid}", "```", "", "- note"]
+        (d / f"{user}.md").write_text("\n".join(fm + body) + "\n", encoding="utf-8")
+
+    def test_links_check_clean_per_user_repo_is_ok(self):
+        cwd = self.make_project()
+        self._per_user_session(cwd, "2026-06-13", "jean", hash_id="msm_" + "a" * 32, entries=("ms-11111111",))
+        self._per_user_session(cwd, "2026-06-13", "amina", hash_id="msm_" + "b" * 32, entries=("ms-22222222",))
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+        self.assertEqual(result.files_checked, 2)
+
+    def test_links_check_detects_duplicate_entry_id(self):
+        cwd = self.make_project()
+        self._per_user_session(cwd, "2026-06-13", "jean", hash_id="msm_" + "a" * 32, entries=("ms-deadbeef",))
+        self._per_user_session(cwd, "2026-06-13", "amina", hash_id="msm_" + "b" * 32, entries=("ms-deadbeef",))
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertFalse(result.ok)
+        self.assertTrue(any(i.kind == "duplicate-entry-id" and "ms-deadbeef" in i.detail for i in result.issues))
+
+    def test_links_check_detects_frontmatter_user_and_date_mismatch(self):
+        cwd = self.make_project()
+        self._per_user_session(cwd, "2026-06-13", "jean", fm_user="bob", fm_date="2026-06-14",
+                               hash_id="msm_" + "a" * 32, entries=("ms-33333333",))
+
+        kinds = {i.kind for i in check_session_links(cwd=cwd).issues}
+
+        self.assertIn("user-mismatch", kinds)
+        self.assertIn("date-mismatch", kinds)
+
+    def test_links_check_detects_bad_schema_and_missing_hash(self):
+        cwd = self.make_project()
+        self._per_user_session(cwd, "2026-06-13", "jean", schema="9", hash_id=None, entries=("ms-44444444",))
+
+        kinds = {i.kind for i in check_session_links(cwd=cwd).issues}
+
+        self.assertIn("unsupported-schema-version", kinds)
+        self.assertIn("missing-hash-id", kinds)
+
+    def test_links_check_detects_duplicate_hash_id(self):
+        cwd = self.make_project()
+        self._per_user_session(cwd, "2026-06-13", "jean", hash_id="msm_" + "c" * 32, entries=("ms-55555555",))
+        self._per_user_session(cwd, "2026-06-14", "jean", hash_id="msm_" + "c" * 32, entries=("ms-66666666",))
+
+        kinds = {i.kind for i in check_session_links(cwd=cwd).issues}
+
+        self.assertIn("duplicate-hash-id", kinds)
+
+    def test_links_check_detects_dangling_related_refs(self):
+        cwd = self.make_project()
+        self._per_user_session(
+            cwd, "2026-06-13", "jean", hash_id="msm_" + "a" * 32, entries=("ms-77777777",),
+            extra_fm="related_entries:\n  - ms-99999999\nrelated_memories:\n  - msm_" + "f" * 32,
+        )
+
+        kinds = {i.kind for i in check_session_links(cwd=cwd).issues}
+
+        self.assertIn("dangling-related-entry", kinds)
+        self.assertIn("dangling-related-memory", kinds)
+
+    def test_links_check_resolves_valid_related_refs(self):
+        cwd = self.make_project()
+        # jean references amina's entry + file hash, both of which exist.
+        self._per_user_session(cwd, "2026-06-13", "amina", hash_id="msm_" + "b" * 32, entries=("ms-88888888",))
+        self._per_user_session(
+            cwd, "2026-06-13", "jean", hash_id="msm_" + "a" * 32, entries=("ms-77777777",),
+            extra_fm="related_entries:\n  - ms-88888888\nrelated_memories:\n  - msm_" + "b" * 32,
+        )
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+
+    def test_links_check_validates_entry_level_related_entries_for_old_and_new_ids(self):
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-13"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / "jean.md").write_text(
+            "\n".join(
+                [
+                    "---",
+                    "schema_version: 2",
+                    "session_date: 2026-06-13",
+                    "hash_id: msm_" + "a" * 32,
+                    "user: jean",
+                    "created_at: 2026-06-13T00:00:00Z",
+                    "---",
+                    "",
+                    "## 2026-06-13 09:00 - first",
+                    "",
+                    "```yaml",
+                    "entry_id: mse_0123456789abcdef",
+                    "related_entries:",
+                    "  - ms-88888888",
+                    "```",
+                    "",
+                    "- note",
+                    "",
+                    "## 2026-06-13 10:00 - second",
+                    "",
+                    "```yaml",
+                    "entry_id: ms-88888888",
+                    "related_entries:",
+                    "  - mse_ffffffffffffffff",
+                    "```",
+                    "",
+                    "- note",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual(
+            [issue.kind for issue in issues],
+            ["dangling-related-entry"],
+            [issue.__dict__ for issue in issues],
+        )
+        self.assertIn("mse_ffffffffffffffff", issues[0].detail)
+
+    def test_doctor_summarizes_session_integrity_issues(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        self._per_user_session(cwd, "2026-06-13", "jean", fm_user="bob", hash_id="msm_" + "a" * 32, entries=("ms-12121212",))
+
+        result = doctor(cwd=cwd)
+
+        self.assertTrue(any("integrity issue" in w for w in result.warnings))
+        self.assertTrue(result.control_plane_ok)  # non-fatal
 
     def test_version_at_least_orders_versions_numerically(self):
         from memory_seed.core import _version_at_least
@@ -204,7 +356,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(complete.bootstrap_complete)
         self.assertEqual(complete.bootstrap_missing, [])
 
-    def test_session_entry_id_is_short_and_metadata_deterministic(self):
+    def test_session_entry_id_uses_80_bit_mse_format_and_is_metadata_deterministic(self):
         first = generate_session_entry_id(
             timestamp="2026-05-26 18:54",
             title="Bootstrap-generated memory and semantic MCP",
@@ -223,7 +375,8 @@ class MemorySeedTests(unittest.TestCase):
         )
 
         self.assertEqual(first, second)
-        self.assertRegex(first, r"^ms-[0-9a-f]{8}$")
+        self.assertRegex(first, r"^mse_[0-9a-hjkmnp-tv-z]{16}$")
+        self.assertEqual(len(first), len("mse_") + 16)
 
     def test_reusable_seed_docs_are_self_contained(self):
         checked = [
@@ -671,6 +824,160 @@ class MemorySeedTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             session_target(cwd=cwd, date_str="2026-06-21", explicit_user="Bad_User")
+
+    def _write_participants(self, cwd):
+        cfg = cwd / MEMORY_DIR_NAME / "project.yaml"
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        cfg.write_text(
+            "\n".join(
+                [
+                    "schema_version: 1",
+                    "participants:",
+                    "  - slug: jean",
+                    "    initials: JN",
+                    "    display_name: Jean",
+                    "  - slug: amina",
+                    "    initials: AM",
+                    "    display_name: Amina",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+    def _write_flat_session(self, cwd, date_str="2026-06-21"):
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        path = sessions / f"{date_str}.md"
+        path.write_text(
+            "\n".join(
+                [
+                    "# 2026-06-21",
+                    "",
+                    "## 2026-06-21 09:00 - Jean entry",
+                    "",
+                    "```yaml",
+                    "entry_id: ms-11111111",
+                    "user_initials: JN",
+                    "agent_type: codex",
+                    "```",
+                    "",
+                    "- Jean body.",
+                    "",
+                    "## 2026-06-21 10:00 - Amina entry",
+                    "",
+                    "```yaml",
+                    "entry_id: mse_0123456789abcdef",
+                    "user_initials: AM",
+                    "agent_type: codex",
+                    "```",
+                    "",
+                    "- Amina body.",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def test_migrate_sessions_layout_dry_run_plans_without_writing(self):
+        cwd = self.make_project()
+        self._write_participants(cwd)
+        flat = self._write_flat_session(cwd)
+
+        result = migrate_session_layout(cwd=cwd, dry_run=True)
+
+        self.assertFalse(result.changed)
+        self.assertEqual(result.planned, ["2026-06-21.md -> 2026-06-21/amina.md", "2026-06-21.md -> 2026-06-21/jean.md"])
+        self.assertEqual(result.issues, [])
+        self.assertTrue(flat.exists())
+        self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-21" / "jean.md").exists())
+
+    def test_migrate_sessions_layout_apply_splits_entries_and_backs_up_source(self):
+        cwd = self.make_project()
+        self._write_participants(cwd)
+        flat = self._write_flat_session(cwd)
+
+        result = migrate_session_layout(cwd=cwd)
+
+        self.assertTrue(result.changed)
+        self.assertFalse(flat.exists())
+        self.assertEqual(result.migrated, ["2026-06-21/amina.md", "2026-06-21/jean.md"])
+        self.assertEqual(len(result.backed_up), 1)
+        backup = cwd / result.backed_up[0]
+        self.assertTrue(backup.exists())
+        jean = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-21" / "jean.md").read_text(encoding="utf-8")
+        amina = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-21" / "amina.md").read_text(encoding="utf-8")
+        self.assertIn("schema_version: 2", jean)
+        self.assertIn("hash_id: msm_", jean)
+        self.assertIn("user: jean", jean)
+        self.assertIn("entry_id: ms-11111111", jean)
+        self.assertNotIn("entry_id: mse_0123456789abcdef", jean)
+        self.assertIn("entry_id: mse_0123456789abcdef", amina)
+        self.assertTrue(check_session_links(cwd=cwd).ok)
+
+    def test_migrate_sessions_layout_is_idempotent_after_apply(self):
+        cwd = self.make_project()
+        self._write_participants(cwd)
+        self._write_flat_session(cwd)
+
+        migrate_session_layout(cwd=cwd)
+        result = migrate_session_layout(cwd=cwd)
+
+        self.assertFalse(result.changed)
+        self.assertEqual(result.planned, [])
+        self.assertEqual(result.migrated, [])
+        self.assertEqual(result.issues, [])
+
+    def test_migrate_sessions_layout_blocks_unknown_initials_without_writing(self):
+        cwd = self.make_project()
+        self._write_participants(cwd)
+        flat = self._write_flat_session(cwd)
+        text = flat.read_text(encoding="utf-8").replace("user_initials: AM", "user_initials: ZZ")
+        flat.write_text(text, encoding="utf-8")
+
+        result = migrate_session_layout(cwd=cwd)
+
+        self.assertFalse(result.changed)
+        self.assertEqual(result.migrated, [])
+        self.assertTrue(result.issues)
+        self.assertIn("ZZ", result.issues[0])
+        self.assertTrue(flat.exists())
+        self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-21" / "jean.md").exists())
+
+    def test_migrate_sessions_layout_blocks_duplicate_participant_initials(self):
+        cwd = self.make_project()
+        self._write_participants(cwd)
+        cfg = cwd / MEMORY_DIR_NAME / "project.yaml"
+        cfg.write_text(
+            cfg.read_text(encoding="utf-8")
+            + "  - slug: other-jean\n"
+            + "    initials: JN\n",
+            encoding="utf-8",
+        )
+        flat = self._write_flat_session(cwd)
+
+        result = migrate_session_layout(cwd=cwd)
+
+        self.assertFalse(result.changed)
+        self.assertTrue(result.issues)
+        self.assertIn("duplicate participant initials JN", result.issues[0])
+        self.assertTrue(flat.exists())
+
+    def test_migrate_sessions_layout_appends_to_existing_user_file_when_safe(self):
+        cwd = self.make_project()
+        self._write_participants(cwd)
+        self._write_flat_session(cwd)
+        existing = session_target(cwd=cwd, date_str="2026-06-21", explicit_user="jean", create=True).path
+        existing.write_text(existing.read_text(encoding="utf-8") + "## 2026-06-21 08:00 - Existing\n\n- Existing body.\n", encoding="utf-8")
+
+        result = migrate_session_layout(cwd=cwd)
+
+        self.assertTrue(result.changed)
+        jean = existing.read_text(encoding="utf-8")
+        self.assertIn("## 2026-06-21 08:00 - Existing", jean)
+        self.assertIn("entry_id: ms-11111111", jean)
+        self.assertEqual(jean.count("hash_id: msm_"), 1)
 
     def test_compact_returns_headings_from_recent_sessions(self):
         cwd = self.make_project()
@@ -1614,7 +1921,7 @@ class CliHelpTests(unittest.TestCase):
     def test_help_command_lists_all_commands(self):
         code, out = self._run(["help"])
         self.assertEqual(code, 0)
-        for command in ("init", "update", "compact", "doctor", "version", "help"):
+        for command in ("init", "update", "compact", "doctor", "version", "migrate", "help"):
             self.assertIn(command, out)
         self.assertIn("Keeping Memory Seed current", out)
 
@@ -1661,6 +1968,39 @@ class CliHelpTests(unittest.TestCase):
             self.assertFalse(local.exists())
         finally:
             os.chdir(cwd)
+
+    def test_migrate_sessions_layout_cli_dry_run(self):
+        import os
+
+        cwd = Path.cwd()
+        project = Path(tempfile.mkdtemp(prefix="memory-seed-cli-migrate-"))
+        self.addCleanup(lambda: shutil.rmtree(project, ignore_errors=True))
+        (project / ".memory-seed" / "sessions").mkdir(parents=True)
+        (project / ".memory-seed" / "project.yaml").write_text(
+            "participants:\n"
+            "  - slug: jean\n"
+            "    initials: JN\n",
+            encoding="utf-8",
+        )
+        (project / ".memory-seed" / "sessions" / "2026-06-21.md").write_text(
+            "## 2026-06-21 09:00 - Entry\n\n"
+            "```yaml\n"
+            "entry_id: ms-11111111\n"
+            "user_initials: JN\n"
+            "```\n\n"
+            "- Body.\n",
+            encoding="utf-8",
+        )
+
+        try:
+            os.chdir(project)
+            code, out = self._run(["migrate", "sessions-layout", "--dry-run"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 0)
+        self.assertIn("Would migrate: 2026-06-21.md -> 2026-06-21/jean.md", out)
+        self.assertIn("No files changed.", out)
 
 
 class SessionStartContextHookTests(unittest.TestCase):
@@ -1998,6 +2338,76 @@ class AgentSelectionTests(unittest.TestCase):
         # Inline list form is parsed; unknown slugs ignored.
         cfg.write_text("agents: [claude, bogus, codex]\n", encoding="utf-8")
         self.assertEqual(read_project_agents(cwd), {"claude", "codex"})
+
+    def test_project_yaml_participants_coexist_with_agent_selection(self):
+        from memory_seed.core import read_project_participants, selected_agents
+        cwd = self.make_project()
+        (cwd / ".memory-seed").mkdir(parents=True)
+        (cwd / ".memory-seed" / "project.yaml").write_text(
+            "\n".join(
+                [
+                    "schema_version: 1",
+                    "project_id: memory-seed",
+                    "agents:",
+                    "  - claude",
+                    "  - codex",
+                    "participants:",
+                    "  - slug: jean",
+                    "    initials: JN",
+                    "    display_name: Jean",
+                    "  - slug: amina",
+                    "    initials: AM",
+                    "    display_name: Amina",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        participants = read_project_participants(cwd)
+
+        self.assertEqual(selected_agents(cwd), {"claude", "codex"})
+        self.assertEqual([p.slug for p in participants], ["jean", "amina"])
+        self.assertEqual([p.initials for p in participants], ["JN", "AM"])
+        self.assertEqual(participants[0].display_name, "Jean")
+
+    def test_write_project_agents_preserves_participants_block(self):
+        from memory_seed.core import read_project_participants, selected_agents, write_project_agents
+        cwd = self.make_project()
+        (cwd / ".memory-seed").mkdir(parents=True)
+        cfg = cwd / ".memory-seed" / "project.yaml"
+        cfg.write_text(
+            "schema_version: 1\n"
+            "project_id: memory-seed\n"
+            "participants:\n"
+            "  - slug: jean\n"
+            "    initials: JN\n"
+            "    display_name: Jean\n"
+            "agents:\n"
+            "  - claude\n",
+            encoding="utf-8",
+        )
+
+        write_project_agents(cwd, {"codex"})
+
+        self.assertEqual(selected_agents(cwd), {"codex"})
+        self.assertEqual([(p.slug, p.initials, p.display_name) for p in read_project_participants(cwd)], [("jean", "JN", "Jean")])
+        text = cfg.read_text(encoding="utf-8")
+        self.assertIn("participants:\n  - slug: jean\n    initials: JN\n    display_name: Jean", text)
+
+    def test_project_yaml_participants_fail_open(self):
+        from memory_seed.core import read_project_participants
+        cwd = self.make_project()
+        (cwd / ".memory-seed").mkdir(parents=True)
+        (cwd / ".memory-seed" / "project.yaml").write_text(
+            "participants:\n"
+            "  - slug: Jean\n"
+            "    initials: JN\n"
+            "  - initials: AM\n",
+            encoding="utf-8",
+        )
+
+        self.assertEqual(read_project_participants(cwd), [])
 
 
 if __name__ == "__main__":

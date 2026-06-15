@@ -9,7 +9,7 @@ from pathlib import Path
 from functools import lru_cache
 from typing import Any, Callable, Protocol, Sequence
 
-from .core import iter_session_documents, resolve_runtime
+from .core import SessionDocument, iter_session_documents, resolve_runtime
 
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
@@ -50,6 +50,9 @@ class MemoryChunk:
     agent_name: str | None = None
     project_path: str | None = None
     subproject_path: str | None = None
+    user: str | None = None
+    file_hash_id: str | None = None
+    related_entries: tuple[str, ...] = ()
     entry_title: str | None = None
     entry_line_range: tuple[int, int] | None = None
     sections: tuple[str, ...] = ()
@@ -126,7 +129,7 @@ def extract_memory_chunks(cwd: str | Path = ".", *, granularity: str = "entry") 
             session_date = datetime.strptime(doc.session_date, "%Y-%m-%d").date()
         except ValueError:
             continue
-        chunks.extend(_extract_chunks_from_file(target_root, doc.path, session_date, granularity=granularity))
+        chunks.extend(_extract_chunks_from_file(target_root, doc, session_date, granularity=granularity))
     return chunks
 
 
@@ -141,10 +144,15 @@ def rank_session_memory(
     recency_floor: float = 0.15,
     embedding_provider: EmbeddingProvider | None = None,
     granularity: str = "entry",
+    user: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> list[RankedMemoryChunk]:
+    chunks = extract_memory_chunks(cwd, granularity=granularity)
+    chunks = _filter_chunks(chunks, user=user, date_from=date_from, date_to=date_to)
     return rank_memory_chunks(
         query,
-        extract_memory_chunks(cwd, granularity=granularity),
+        chunks,
         top_k=top_k,
         today=today,
         lambda_days=lambda_days,
@@ -152,6 +160,25 @@ def rank_session_memory(
         recency_floor=recency_floor,
         embedding_provider=embedding_provider,
     )
+
+
+def _filter_chunks(
+    chunks: Sequence[MemoryChunk],
+    *,
+    user: str | None,
+    date_from: date | None,
+    date_to: date | None,
+) -> list[MemoryChunk]:
+    filtered: list[MemoryChunk] = []
+    for chunk in chunks:
+        if user is not None and chunk.user != user:
+            continue
+        if date_from is not None and chunk.session_date < date_from:
+            continue
+        if date_to is not None and chunk.session_date > date_to:
+            continue
+        filtered.append(chunk)
+    return filtered
 
 
 def rank_memory_chunks(
@@ -214,16 +241,36 @@ def rank_memory_chunks(
 
 def _extract_chunks_from_file(
     target_root: Path,
-    path: Path,
+    doc: SessionDocument,
     session_date: date,
     *,
     granularity: str,
 ) -> list[MemoryChunk]:
+    path = doc.path
     lines = path.read_text(encoding="utf-8").splitlines()
+    file_metadata = _extract_file_frontmatter(lines)
+    file_hash_id = file_metadata.get("hash_id")
+    file_user = doc.user
     entries = _find_entry_ranges(lines)
     if entries:
-        return _extract_entry_chunks_from_file(target_root, path, session_date, lines, entries, granularity)
-    return _extract_legacy_chunks_from_file(target_root, path, session_date, lines)
+        return _extract_entry_chunks_from_file(
+            target_root,
+            path,
+            session_date,
+            lines,
+            entries,
+            granularity,
+            user=file_user,
+            file_hash_id=file_hash_id,
+        )
+    return _extract_legacy_chunks_from_file(
+        target_root,
+        path,
+        session_date,
+        lines,
+        user=file_user,
+        file_hash_id=file_hash_id,
+    )
 
 
 def _find_entry_ranges(lines: Sequence[str]) -> list[tuple[int, int, str]]:
@@ -247,6 +294,9 @@ def _extract_entry_chunks_from_file(
     lines: Sequence[str],
     entries: Sequence[tuple[int, int, str]],
     granularity: str,
+    *,
+    user: str | None,
+    file_hash_id: str | None,
 ) -> list[MemoryChunk]:
     chunks: list[MemoryChunk] = []
     source_path = path.relative_to(target_root).as_posix()
@@ -254,6 +304,7 @@ def _extract_entry_chunks_from_file(
         entry_lines = list(lines[start_line:end_line])
         metadata = _extract_entry_metadata(entry_lines)
         entry_id = _metadata_value(metadata, "entry_id")
+        related_entries = _metadata_list(metadata, "related_entries")
         sections = _entry_sections(entry_lines)
         heading_path = (title,)
         entry_range = (start_line, end_line)
@@ -284,6 +335,9 @@ def _extract_entry_chunks_from_file(
                     agent_name=_metadata_value(metadata, "agent_name"),
                     project_path=_metadata_value(metadata, "project_path"),
                     subproject_path=_metadata_value(metadata, "subproject_path"),
+                    user=user,
+                    file_hash_id=file_hash_id,
+                    related_entries=related_entries,
                     entry_title=title,
                     entry_line_range=entry_range,
                     sections=sections,
@@ -319,6 +373,9 @@ def _extract_entry_chunks_from_file(
                     agent_name=_metadata_value(metadata, "agent_name"),
                     project_path=_metadata_value(metadata, "project_path"),
                     subproject_path=_metadata_value(metadata, "subproject_path"),
+                    user=user,
+                    file_hash_id=file_hash_id,
+                    related_entries=related_entries,
                     entry_title=title,
                     entry_line_range=entry_range,
                     sections=sections,
@@ -356,6 +413,9 @@ def _extract_entry_chunks_from_file(
                     agent_name=_metadata_value(metadata, "agent_name"),
                     project_path=_metadata_value(metadata, "project_path"),
                     subproject_path=_metadata_value(metadata, "subproject_path"),
+                    user=user,
+                    file_hash_id=file_hash_id,
+                    related_entries=related_entries,
                     entry_title=title,
                     entry_line_range=entry_range,
                     sections=sections,
@@ -370,6 +430,9 @@ def _extract_legacy_chunks_from_file(
     path: Path,
     session_date: date,
     lines: Sequence[str],
+    *,
+    user: str | None = None,
+    file_hash_id: str | None = None,
 ) -> list[MemoryChunk]:
     chunks: list[MemoryChunk] = []
     source_path = path.relative_to(target_root).as_posix()
@@ -402,6 +465,8 @@ def _extract_legacy_chunks_from_file(
                 lexical_terms=_extract_lexical_terms(payload),
                 start_line=current_start,
                 end_line=end_line,
+                user=user,
+                file_hash_id=file_hash_id,
             )
         )
         current_lines = []
@@ -434,31 +499,81 @@ def _extract_legacy_chunks_from_file(
     return chunks
 
 
-def _extract_entry_metadata(entry_lines: Sequence[str]) -> dict[str, str]:
+def _extract_file_frontmatter(lines: Sequence[str]) -> dict[str, str]:
+    if not lines or lines[0].strip() != "---":
+        return {}
+    metadata: dict[str, str] = {}
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        if ":" not in line or line[:1] in (" ", "\t", "-"):
+            continue
+        key, value = line.split(":", 1)
+        key = key.strip()
+        value = value.strip().strip("\"'")
+        if key and value:
+            metadata[key] = value
+    return metadata
+
+
+def _extract_entry_metadata(entry_lines: Sequence[str]) -> dict[str, str | tuple[str, ...]]:
     index = 0
     while index < len(entry_lines) and not entry_lines[index].strip():
         index += 1
     if index >= len(entry_lines) or entry_lines[index].strip() not in ("```yaml", "```yml"):
         return {}
-    metadata: dict[str, str] = {}
+    metadata: dict[str, str | tuple[str, ...]] = {}
+    yaml_lines: list[str] = []
     for line in entry_lines[index + 1 :]:
         if line.strip() == "```":
             break
-        if ":" not in line:
+        yaml_lines.append(line)
+
+    line_index = 0
+    while line_index < len(yaml_lines):
+        line = yaml_lines[line_index]
+        if ":" not in line or line[:1] in (" ", "\t", "-"):
+            line_index += 1
             continue
         key, value = line.split(":", 1)
         key = key.strip()
         value = value.strip().strip("\"'")
+        if not key:
+            line_index += 1
+            continue
+        if not value:
+            items: list[str] = []
+            probe = line_index + 1
+            while probe < len(yaml_lines) and yaml_lines[probe][:1] in (" ", "\t"):
+                stripped = yaml_lines[probe].strip()
+                if stripped.startswith("- "):
+                    items.append(stripped[2:].strip().strip("\"'"))
+                probe += 1
+            if items:
+                metadata[key] = tuple(items)
+            line_index = probe
+            continue
         if value == "null":
             value = ""
-        if key:
-            metadata[key] = value
+        metadata[key] = value
+        line_index += 1
     return metadata
 
 
-def _metadata_value(metadata: dict[str, str], key: str) -> str | None:
+def _metadata_value(metadata: dict[str, str | tuple[str, ...]], key: str) -> str | None:
     value = metadata.get(key)
+    if isinstance(value, tuple):
+        return None
     return value or None
+
+
+def _metadata_list(metadata: dict[str, str | tuple[str, ...]], key: str) -> tuple[str, ...]:
+    value = metadata.get(key)
+    if isinstance(value, tuple):
+        return value
+    if isinstance(value, str) and value:
+        return (value,)
+    return ()
 
 
 def _entry_sections(entry_lines: Sequence[str]) -> tuple[str, ...]:

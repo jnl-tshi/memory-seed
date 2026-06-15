@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.11
+memory-system-version: 2.12
 tags:
   - memory-seed
   - agent-rules
@@ -404,15 +404,17 @@ session_date: 2026-05-02
 ## 2026-05-02 14:35 - Switch cache key to content hash
 
 ```yaml
-entry_id: ms-8charhash
+entry_id: mse_0123456789abcdef
 user_initials: USER
 agent_type: codex
 agent_name: null
 project_path: .
 subproject_path: null
+related_entries:        # optional - links to related prior entries; omit when none
+  - ms-db2d715c
 ```
 
-`agent_type` is the LLM model or vendor (e.g., `claude-opus-4-8`, `codex`). `agent_name` is the active `.agents/` persona slug (e.g., `developer`, `solo-founder`), or `null` when no persona is active. Both fields are independently optional.
+`agent_type` is the LLM model or vendor (e.g., `claude-opus-4-8`, `codex`). `agent_name` is the active `.agents/` persona slug (e.g., `developer`, `solo-founder`), or `null` when no persona is active. Both fields are independently optional. `related_entries` is an optional list of related `entry_id` values (legacy `ms-` or current `mse_`) that link this entry to prior entries; it forms the canonical graph edges surfaced by `memory_search` / `memory_get_chunk` and validated by `memory-seed links check`. Omit it when there is no meaningful link.
 ### Summary
 
 - What changed or what was checked.
@@ -430,7 +432,7 @@ subproject_path: null
 - Note any rerun, review, or unresolved risk.
 ````
 
-Keep session filenames date-only, such as `.memory-seed/sessions/2026-05-02.md`. Use minute-level timestamps in entry headings, taken from the current system clock at write time. Entries are appended in clock order and never backdated or reordered (see Append-Only Chronology). Generate `entry_id` as a deterministic short hash from metadata only: timestamp, title, user initials, agent type, project path, and subproject path. Use known user initials when available; otherwise ask during bootstrap or use a neutral placeholder until confirmed. Capture meaningful decisions, durable changes, follow-up risk, or handoff context. Do not log every command.
+Keep session filenames date-only, such as `.memory-seed/sessions/2026-05-02.md`. Use minute-level timestamps in entry headings, taken from the current system clock at write time. Entries are appended in clock order and never backdated or reordered (see Append-Only Chronology). Generate `entry_id` as a deterministic 80-bit `mse_` ID from metadata only: timestamp, title, user initials, agent type, project path, and subproject path. Legacy `ms-` IDs remain valid and must not be rewritten. Use known user initials when available; otherwise ask during bootstrap or use a neutral placeholder until confirmed. Capture meaningful decisions, durable changes, follow-up risk, or handoff context. Do not log every command.
 
 ### Reason Rules
 

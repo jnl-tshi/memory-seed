@@ -35,6 +35,18 @@ TOOLS: list[dict[str, Any]] = [
                 "recency_enabled": {"type": "boolean", "default": True},
                 "recency_floor": {"type": "number", "default": 0.15},
                 "semantic_enabled": {"type": "boolean", "default": True},
+                "user": {
+                    "type": "string",
+                    "description": "Filter to per-user session files whose filename/user slug matches this value.",
+                },
+                "date_from": {
+                    "type": "string",
+                    "description": "Inclusive session_date lower bound in YYYY-MM-DD format.",
+                },
+                "date_to": {
+                    "type": "string",
+                    "description": "Inclusive session_date upper bound in YYYY-MM-DD format.",
+                },
                 "granularity": {
                     "type": "string",
                     "enum": ["entry", "section"],
@@ -87,6 +99,9 @@ def call_tool(
             recency_floor=float(args.get("recency_floor", 0.15)),
             embedding_provider=embedding_provider,
             granularity=str(args.get("granularity", "entry")),
+            user=_optional_str(args, "user"),
+            date_from=_optional_date(args, "date_from"),
+            date_to=_optional_date(args, "date_to"),
         )
         return format_search_results(
             query,
@@ -229,10 +244,15 @@ def _ranked_to_dict(result: RankedMemoryChunk) -> dict[str, Any]:
         "recency_multiplier": round(result.recency_multiplier, 6),
         "age_days": result.age_days,
         "date": chunk.session_date.isoformat(),
+        "session_date": chunk.session_date.isoformat(),
         "entry_datetime": None
         if chunk.entry_datetime is None
         else chunk.entry_datetime.isoformat(),
         "source": chunk.source_path,
+        "path": chunk.source_path,
+        "user": chunk.user,
+        "file_hash_id": chunk.file_hash_id,
+        "related_entries": list(chunk.related_entries),
         "line_range": [chunk.start_line, chunk.end_line],
         "heading_path": list(chunk.heading_path),
         "matched_terms": list(result.matched_terms),
@@ -255,8 +275,13 @@ def _chunk_to_dict(chunk: MemoryChunk) -> dict[str, Any]:
     return {
         "chunk_id": chunk.chunk_id,
         "source": chunk.source_path,
+        "path": chunk.source_path,
         "source_file": chunk.source_file,
         "date": chunk.session_date.isoformat(),
+        "session_date": chunk.session_date.isoformat(),
+        "user": chunk.user,
+        "file_hash_id": chunk.file_hash_id,
+        "related_entries": list(chunk.related_entries),
         "entry_datetime": None
         if chunk.entry_datetime is None
         else chunk.entry_datetime.isoformat(),
@@ -323,6 +348,27 @@ def _required_str(arguments: dict[str, Any], key: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"Missing required string argument: {key}")
     return value
+
+
+def _optional_str(arguments: dict[str, Any], key: str) -> str | None:
+    value = arguments.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"Invalid string argument: {key}")
+    return value.strip()
+
+
+def _optional_date(arguments: dict[str, Any], key: str) -> date | None:
+    value = arguments.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"Invalid date argument: {key}")
+    try:
+        return date.fromisoformat(value.strip())
+    except ValueError as exc:
+        raise ValueError(f"Invalid {key}; expected YYYY-MM-DD") from exc
 
 
 def _result(message_id: Any, result: dict[str, Any]) -> dict[str, Any]:

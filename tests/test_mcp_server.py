@@ -237,9 +237,18 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.write_session(
             cwd,
             "2026-06-21/jean.md",
+            "---\n"
+            "schema_version: 2\n"
+            "session_date: 2026-06-21\n"
+            "hash_id: msm_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+            "user: jean\n"
+            "created_at: 2026-06-21T00:00:00Z\n"
+            "---\n\n"
             "## 2026-06-21 10:00 - Dual-read MCP\n\n"
             "```yaml\n"
             "entry_id: ms-jean-mcp\n"
+            "related_entries:\n"
+            "  - ms-older-entry\n"
             "user_initials: JN\n"
             "agent_type: codex\n"
             "project_path: .\n"
@@ -252,8 +261,102 @@ class MemoryMcpServerTests(unittest.TestCase):
 
         self.assertEqual(payload["chunk"]["chunk_id"], "ms-jean-mcp")
         self.assertEqual(payload["chunk"]["date"], "2026-06-21")
+        self.assertEqual(payload["chunk"]["session_date"], "2026-06-21")
         self.assertEqual(payload["chunk"]["source"], ".memory-seed/sessions/2026-06-21/jean.md")
+        self.assertEqual(payload["chunk"]["path"], ".memory-seed/sessions/2026-06-21/jean.md")
+        self.assertEqual(payload["chunk"]["user"], "jean")
+        self.assertEqual(payload["chunk"]["file_hash_id"], "msm_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        self.assertEqual(payload["chunk"]["related_entries"], ["ms-older-entry"])
         self.assertIn("Per-user search text.", payload["chunk"]["text"])
+
+    def test_memory_search_schema_accepts_user_and_date_filters(self):
+        from memory_seed.mcp_server import TOOLS
+
+        search_tool = next(t for t in TOOLS if t["name"] == "memory_search")
+        properties = search_tool["inputSchema"]["properties"]
+
+        self.assertIn("user", properties)
+        self.assertIn("date_from", properties)
+        self.assertIn("date_to", properties)
+
+    def test_call_tool_memory_search_filters_by_user_and_date_before_ranking(self):
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-06-20/jean.md",
+            "---\n"
+            "schema_version: 2\n"
+            "session_date: 2026-06-20\n"
+            "hash_id: msm_" + "a" * 32 + "\n"
+            "user: jean\n"
+            "---\n\n"
+            "## 2026-06-20 09:00 - Shared topic\n\n"
+            "```yaml\n"
+            "entry_id: ms-jean-old\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "```\n\n"
+            "shared alpha topic.\n",
+        )
+        self.write_session(
+            cwd,
+            "2026-06-21/jean.md",
+            "---\n"
+            "schema_version: 2\n"
+            "session_date: 2026-06-21\n"
+            "hash_id: msm_" + "b" * 32 + "\n"
+            "user: jean\n"
+            "---\n\n"
+            "## 2026-06-21 09:00 - Shared topic\n\n"
+            "```yaml\n"
+            "entry_id: ms-jean-new\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "```\n\n"
+            "shared alpha topic.\n",
+        )
+        self.write_session(
+            cwd,
+            "2026-06-21/amina.md",
+            "---\n"
+            "schema_version: 2\n"
+            "session_date: 2026-06-21\n"
+            "hash_id: msm_" + "c" * 32 + "\n"
+            "user: amina\n"
+            "---\n\n"
+            "## 2026-06-21 09:00 - Shared topic\n\n"
+            "```yaml\n"
+            "entry_id: ms-amina-new\n"
+            "user_initials: AM\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "```\n\n"
+            "shared alpha topic.\n",
+        )
+
+        payload = call_tool(
+            "memory_search",
+            {
+                "query": "shared alpha",
+                "cwd": str(cwd),
+                "top_k": 10,
+                "semantic_enabled": False,
+                "user": "jean",
+                "date_from": "2026-06-21",
+                "date_to": "2026-06-21",
+            },
+            today=date(2026, 6, 21),
+        )
+
+        self.assertEqual([result["chunk_id"] for result in payload["results"]], ["ms-jean-new"])
+        self.assertEqual(payload["results"][0]["user"], "jean")
+        self.assertEqual(payload["results"][0]["session_date"], "2026-06-21")
+        self.assertEqual(payload["results"][0]["file_hash_id"], "msm_" + "b" * 32)
 
     def test_call_tool_memory_search_supports_section_granularity(self):
         cwd = self.make_project()

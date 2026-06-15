@@ -145,6 +145,13 @@ class SemanticCacheTests(unittest.TestCase):
         self.write_session(
             cwd,
             "2026-06-21/jean.md",
+            "---\n"
+            "schema_version: 2\n"
+            "session_date: 2026-06-21\n"
+            "hash_id: msm_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+            "user: jean\n"
+            "created_at: 2026-06-21T00:00:00Z\n"
+            "---\n\n"
             "## 2026-06-21 09:30 - Per-user memory\n\n"
             "```yaml\n"
             "entry_id: ms-jean1\n"
@@ -163,6 +170,37 @@ class SemanticCacheTests(unittest.TestCase):
         self.assertEqual(chunks[0].session_date, date(2026, 6, 21))
         self.assertEqual(chunks[0].source_file, "jean.md")
         self.assertEqual(chunks[0].source_path, ".memory-seed/sessions/2026-06-21/jean.md")
+        self.assertEqual(chunks[0].user, "jean")
+        self.assertEqual(chunks[0].file_hash_id, "msm_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+
+    def test_extracts_entry_level_related_entries(self):
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-06-21/jean.md",
+            "---\n"
+            "schema_version: 2\n"
+            "session_date: 2026-06-21\n"
+            "hash_id: msm_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+            "user: jean\n"
+            "---\n\n"
+            "## 2026-06-21 09:30 - Linked memory\n\n"
+            "```yaml\n"
+            "entry_id: mse_0123456789abcdef\n"
+            "related_entries:\n"
+            "  - ms-11111111\n"
+            "  - mse_fedcba9876543210\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "```\n\n"
+            "Linked search text.\n",
+        )
+
+        chunks = extract_memory_chunks(cwd)
+
+        self.assertEqual(chunks[0].related_entries, ("ms-11111111", "mse_fedcba9876543210"))
 
     def test_fallback_chunk_ids_include_date_qualified_source_path(self):
         cwd = self.make_project()

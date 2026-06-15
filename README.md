@@ -214,7 +214,7 @@ GEMINI.md
 
 ## Current Version
 
-The current reusable control-plane version is `2.11`.
+The current reusable control-plane version is `2.12`.
 
 Legacy `.AGENTS/` projects remain supported as a fallback during migration.
 
@@ -274,7 +274,7 @@ python -m pip install --upgrade memory-seed
 python -m pip show memory-seed
 ```
 
-`python -m pip show memory-seed` reports the installed Python package version, such as `2.11.0`. `memory-seed version` reports the reusable control-plane version, currently `2.11`; it is not the package-version check.
+`python -m pip show memory-seed` reports the installed Python package version, such as `2.12.0`. `memory-seed version` reports the reusable control-plane version, currently `2.12`; it is not the package-version check.
 
 To discover commands and flags, use `memory-seed help` (also shown when you run `memory-seed` with no command), `memory-seed -h`, or `memory-seed <command> -h` for a specific command.
 
@@ -343,6 +343,30 @@ memory-seed user clear
 
 The local selection is stored in `.memory-seed/local.yaml`, which Memory Seed adds to `.gitignore`. `MEMORY_SEED_USER` overrides the local file for one shell, and `memory-seed session target --user <slug>` overrides both. With no configured user, session targets remain the legacy flat file (`sessions/YYYY-MM-DD.md`). With a configured user, new targets are `sessions/YYYY-MM-DD/<user>.md` and `--create` initializes file frontmatter with `schema_version: 2`, `session_date`, immutable `hash_id`, `user`, and `created_at`.
 
+To migrate existing flat session files into the per-user layout, add a tracked participant registry to
+`.memory-seed/project.yaml`:
+
+```yaml
+participants:
+  - slug: jean
+    initials: JN
+    display_name: Jean
+```
+
+Then preview and apply the migration:
+
+```bash
+memory-seed migrate sessions-layout --dry-run
+memory-seed migrate sessions-layout
+```
+
+The migration parses each legacy `sessions/YYYY-MM-DD.md` entry, maps its `user_initials` to a
+participant slug, appends to `sessions/YYYY-MM-DD/<user>.md`, preserves existing `entry_id` values,
+backs up the flat source under `.memory-seed/backups/<timestamp>/sessions/`, and removes the flat
+source after a successful apply so permanent dual-read support does not create duplicate entry IDs.
+It blocks rather than guessing when initials are missing, unknown, duplicated in the participant
+registry, or when an existing per-user file already contains an incoming `entry_id`.
+
 ### Existing-Project Command Behavior
 
 When run in a project that already has Memory Seed files:
@@ -355,6 +379,8 @@ When run in a project that already has Memory Seed files:
 - `memory-seed update` refreshes stale routing files, reusable runtime procedure files, and generic skill templates; archives replaced control-plane versions; and preserves generated local memory. For a **foreign** entry-point file it injects (or re-syncs in place) a marker-delimited `<!-- BEGIN memory-seed -->â€¦<!-- END memory-seed -->` block that routes into `.memory-seed/`, leaving the host's own content untouched.
 - `memory-seed compact` reads dated session logs from the nearest `.memory-seed/` runtime, including both `sessions/YYYY-MM-DD.md` and `sessions/YYYY-MM-DD/<user>.md`, with legacy `.AGENTS/` fallback. It prints a Markdown summary and writes only when `--output` is provided.
 - `memory-seed user set/show/clear` manages a gitignored local user slug for opt-in per-user session files.
+- `memory-seed links check` validates session-memory integrity across both layouts: duplicate `entry_id`/`hash_id`, dangling `related_entries`/`related_memories` (including entry-level `related_entries` in session-entry YAML), and per-user-file frontmatter problems (filename↔frontmatter user/date mismatch, missing/malformed `hash_id`, unsupported `schema_version`). It names the offending file and value and exits non-zero on any issue, so it doubles as a CI gate; `doctor` surfaces a one-line summary pointing at it.
+- `memory-seed migrate sessions-layout [--dry-run]` splits legacy flat session files into per-user files using `.memory-seed/project.yaml` participants, backs up migrated sources, and refuses ambiguous or unsafe merges.
 - `memory-seed session target [--create]` prints the active session log path and can create the file if needed.
 
 Known behavior to understand: `update --dry-run` currently lists all control-plane targets, not only files that would actually change. `init --force` intentionally rewrites all bundled seed files and should be used as a reinstall command rather than a targeted refresh.
@@ -444,13 +470,13 @@ If the console script is not on `PATH`, use the module form from the active Pyth
 The server exposes:
 
 ```text
-memory_search(query, cwd=".", top_k=8, lambda_days=0.01, recency_enabled=true, recency_floor=0.15, semantic_enabled=true)
+memory_search(query, cwd=".", top_k=8, lambda_days=0.01, recency_enabled=true, recency_floor=0.15, semantic_enabled=true, user=null, date_from=null, date_to=null)
 memory_get_chunk(chunk_id, cwd=".")
 ```
 
-`memory_search` also accepts `granularity="entry"` by default or `granularity="section"` for narrower section-level results. It discovers session entries in both `sessions/YYYY-MM-DD.md` and `sessions/YYYY-MM-DD/<user>.md`. Entry granularity returns one coherent chunk per `##` session entry and normally uses the entry YAML `entry_id` as `chunk_id`, such as `ms-db2d715c`. Section granularity returns ids such as `ms-db2d715c#decisions/d1-use-draft-for-compact-decision-records` while preserving the parent `entry_id`.
+`memory_search` also accepts `granularity="entry"` by default or `granularity="section"` for narrower section-level results. It discovers session entries in both `sessions/YYYY-MM-DD.md` and `sessions/YYYY-MM-DD/<user>.md`. Entry granularity returns one coherent chunk per `##` session entry and normally uses the entry YAML `entry_id` as `chunk_id`, such as `ms-db2d715c` for legacy entries or `mse_0123456789abcdef` for new generated entries. Section granularity returns ids such as `ms-db2d715c#decisions/d1-use-draft-for-compact-decision-records` while preserving the parent `entry_id`.
 
-`memory_search` returns JSON with source path, line range, heading path, score fields, matched fields, matched terms, semantic status, entry metadata, granularity, and an excerpt. This is intended to be both agent-efficient and human-validatable.
+`memory_search` returns JSON with source path, `path`, `session_date`, optional per-user `user`, optional `file_hash_id`, entry-level `related_entries`, line range, heading path, score fields, matched fields, matched terms, semantic status, entry metadata, granularity, and an excerpt. The `user`, `date_from`, and `date_to` filters are applied before ranking so `top_k` is selected from the filtered corpus. This is intended to be both agent-efficient and human-validatable.
 
 The ranking engine stays local and CPU-friendly. MCP search uses a Model2Vec static embedding provider by default with the general-purpose `minishlab/potion-base-8M` model, combines semantic score with lexical and metadata scoring, then applies recency. If Model2Vec or the model cannot load or score a query, the server falls back to lexical, metadata, and recency ranking without failing the request. Use `--no-semantic` on `memory-seed-mcp --stdio` or `semantic_enabled=false` in `memory_search` to force fallback behavior.
 
@@ -462,7 +488,7 @@ Per-query latency, measured in-process on this repo (81 chunks across the sessio
 
 When driving the server through an MCP client (Claude Code, Cursor, Gemini), the latency you actually perceive is dominated by one-time startup, not per-query work: spawning `uvx --from memory-seed memory-seed-mcp` resolves and may install the package into an ephemeral environment the first time the server launches in a session. Once the server is up, each `memory_search` is the ~30 ms compute above plus a small JSON-RPC round-trip. At current log sizes there is no need to optimize; should logs grow large enough that the ~22 ms parse cost becomes noticeable, caching parsed chunks and their vectors keyed by file modification time would remove most of the per-query cost.
 
-Session entries should include a YAML metadata block with `entry_id`, `user_initials`, `agent_type`, `project_path`, and `subproject_path`. Session entry headings may include optional minute-level timestamps, such as `## 2026-05-19 20:42 - Durable memory consolidation`. Legacy session filenames stay date-only; the opt-in per-user layout uses a date directory plus a bare user slug (`sessions/YYYY-MM-DD/jean.md`). Timestamped headings are backward compatible with older untimed headings and are exposed as `entry_datetime` in MCP search results when present.
+Session entries should include a YAML metadata block with `entry_id`, `user_initials`, `agent_type`, `project_path`, and `subproject_path`. New generated `entry_id` values use deterministic 80-bit `mse_` IDs encoded as 16 lower-case Base32 characters; legacy `ms-` IDs remain valid and are not rewritten. Session entry YAML may include entry-level `related_entries` pointing at either old or new entry IDs. Session entry headings may include optional minute-level timestamps, such as `## 2026-05-19 20:42 - Durable memory consolidation`. Legacy session filenames stay date-only; the opt-in per-user layout uses a date directory plus a bare user slug (`sessions/YYYY-MM-DD/jean.md`). Timestamped headings are backward compatible with older untimed headings and are exposed as `entry_datetime` in MCP search results when present.
 
 For human-validatable search behavior, see the fixture-style tests in `tests/test_mcp_server.py`. They assert that specific queries return expected dated session entries first and include enough evidence for manual review.
 

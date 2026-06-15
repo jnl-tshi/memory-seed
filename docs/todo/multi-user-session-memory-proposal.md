@@ -1,4 +1,4 @@
----
+﻿---
 memory-system-version: 2.6
 tags:
   - memory-seed
@@ -17,12 +17,12 @@ tags:
 >
 > This is the execution-ready spec. Its design rationale and comparative research are in
 > [`multi-user-deep-research-report.md`](multi-user-deep-research-report.md). Where this doc and
-> the research report differ, **this doc wins** (it folds in corrections found during review â€”
+> the research report differ, **this doc wins** (it folds in corrections found during review Ã¢â‚¬â€
 > notably the SQLite-cache caution and the complete reader inventory).
 >
 > **What this provides:** multi-user *attribution* and *Git-merge avoidance*.
 > **What it does NOT provide:** privacy, permissions, encryption, or real-time concurrent editing.
-> Per-user filenames are not confidentiality â€” `.memory-seed/` files are plain Markdown and may be
+> Per-user filenames are not confidentiality Ã¢â‚¬â€ `.memory-seed/` files are plain Markdown and may be
 > committed; treat them as publishable unless the repo is explicitly private.
 
 ## Objective
@@ -83,9 +83,10 @@ user's files.**
   the user explicitly opts in. There is no silent switch of write target.
 - Per-user writes activate only after a user is resolved. Converting historical data is the
   **opt-in `migrate sessions-layout`** command (idempotent, `--dry-run`, backups, preserves
-  `entry_id`, adds file `hash_id`). Nothing auto-migrates on upgrade.
+  `entry_id`, adds file `hash_id`, removes migrated flat sources after backup so dual-read does not
+  duplicate IDs). Nothing auto-migrates on upgrade.
 - Existing flat files lack `hash_id`/`schema_version`; readers treat them as legacy (implicit v1)
-  and **never write frontmatter back into them** â€” sessions are append-only user data, not
+  and **never write frontmatter back into them** Ã¢â‚¬â€ sessions are append-only user data, not
   seed-managed. A transient file identity may be derived in-memory for indexing but is never
   persisted into a legacy file.
 - Sub-projects upgrade independently via nearest-runtime resolution.
@@ -115,7 +116,7 @@ related_entries:
 Field standardization (resolves inconsistencies in the original draft):
 
 - `schema_version: 2` denotes the per-user layout. Legacy flat files are implicit/unversioned (v1).
-- The date field is **`session_date`** (matching the existing file-frontmatter convention) â€” not
+- The date field is **`session_date`** (matching the existing file-frontmatter convention) Ã¢â‚¬â€ not
   `date`.
 - The body keeps today's shape: `## YYYY-MM-DD HH:MM - title` headings, a per-entry ```yaml``` block,
   and narrative bullets. This preserves current MCP search and schema-test semantics.
@@ -124,7 +125,7 @@ Field standardization (resolves inconsistencies in the original draft):
 
 Two identity levels.
 
-**File-level identity â€” `hash_id`**
+**File-level identity Ã¢â‚¬â€ `hash_id`**
 
 - Identifies the entire user session file.
 - Immutable; generated once at file creation from an immutable seed (include a random nonce so two
@@ -132,17 +133,17 @@ Two identity levels.
 - At least 128 bits of effective space. Namespace `msm_` (e.g. `msm_` + base32-encoded SHA-256,
   truncated only after generating the full digest).
 
-**Entry-level identity â€” `entry_id`**
+**Entry-level identity Ã¢â‚¬â€ `entry_id`**
 
 - Identifies an individual session entry / MCP chunk.
 - Existing IDs (`ms-` + 8 hex) MUST be preserved and remain resolvable. Do not replace entry IDs
   with the file-level hash. Detect duplicate entry IDs.
-- **Known, deferred limitation:** the current `ms-` + 8-hex format is ~32 bits of visible space.
+- **Known limitation now scheduled for 3.0:** the current `ms-` + 8-hex format is ~32 bits of visible space.
   The research report's birthday-bound analysis shows this is small for a large multi-user corpus
-  (~1% collision near 10k entries). This feature **keeps the 32-bit format for backward
-  compatibility** and does **not** rewrite historic entry IDs (see Non-goals). Widening the
-  entry-ID space (e.g. an `mse_` 128-bit format with backward-compatible aliasing) is a separate,
-  explicitly deferred follow-up â€” flagged here so it is not forgotten.
+  (~1% collision near 10k entries). Existing `ms-` IDs are preserved forever and historic entries are
+  not rewritten, but new generated entry IDs move to the 3.0 `mse_` v2 format documented in
+  `docs/todo/3.0-plan.md`: 80 bits encoded as 16 lower-case Base32 characters. The earlier 128-bit
+  research recommendation is superseded for visible entry IDs by the 80-bit decision.
 
 Links: `related_memories` points to file-level `hash_id` values; `related_entries` points to
 entry-level `entry_id` values. Support both shorthand strings and relation-bearing objects:
@@ -157,7 +158,7 @@ related_memories:
 ## User identity
 
 Canonical user slugs match `^[a-z0-9][a-z0-9_-]{0,63}$`. The filename and frontmatter `user` must
-agree (`sessions/2026-06-13/jean.md` â‡’ `user: jean`).
+agree (`sessions/2026-06-13/jean.md` Ã¢â€¡â€™ `user: jean`).
 
 Resolve the active user in order:
 
@@ -168,7 +169,7 @@ Resolve the active user in order:
 4. Legacy flat-file behavior when no user is configured.
 
 A shared, tracked `.memory-seed/project.yaml` may hold the `project_id`, the participant registry,
-and the `user_initials â†’ slug` map used by migration.
+and the `user_initials Ã¢â€ â€™ slug` map used by migration.
 
 ## Implementation architecture
 
@@ -193,15 +194,15 @@ Phase 2 shipped `session_path` and user-aware target resolution.
 
 ### Complete reader inventory (every current session reader must route through the abstraction)
 
-This list is exhaustive as of 2.6.0 â€” the original draft and the research report omitted the
+This list is exhaustive as of 2.6.0 Ã¢â‚¬â€ the original draft and the research report omitted the
 SessionStart hook because it post-dates them:
 
-- `memory_seed/core.py` â€” `compact_sessions()` and `SESSION_DATE_RE` (currently flat-only).
-- `memory_seed/semantic_cache.py` â€” MCP chunk extraction / ranking (reads each session file).
-- `memory_seed/cli.py` â€” `compact` command output (uses the above).
-- `memory_seed/mcp_validate.py` â€” validation report (uses search/extraction).
-- `.memory-seed/hooks/session-log-check.py` â€” reads today's file (becomes user-aware in Phase 2).
-- **`.memory-seed/hooks/session-start-context.py`** â€” globs `sessions/*.md` by filename date.
+- `memory_seed/core.py` Ã¢â‚¬â€ `compact_sessions()` and `SESSION_DATE_RE` (currently flat-only).
+- `memory_seed/semantic_cache.py` Ã¢â‚¬â€ MCP chunk extraction / ranking (reads each session file).
+- `memory_seed/cli.py` Ã¢â‚¬â€ `compact` command output (uses the above).
+- `memory_seed/mcp_validate.py` Ã¢â‚¬â€ validation report (uses search/extraction).
+- `.memory-seed/hooks/session-log-check.py` Ã¢â‚¬â€ reads today's file (becomes user-aware in Phase 2).
+- **`.memory-seed/hooks/session-start-context.py`** Ã¢â‚¬â€ globs `sessions/*.md` by filename date.
   Its `*.md` glob **silently misses** files under `sessions/YYYY-MM-DD/` today; it must adopt
   `iter_session_documents` and the multi-user orientation rule below.
 - `doctor` session/bootstrap awareness, and the **seed twins** of every hook
@@ -214,7 +215,7 @@ The SessionStart hook (`session-start-context.py`) must define "newest" in a mul
 1. Resolve the active user (same order as above).
 2. Pick the newest `session_date` (newest date directory or newest legacy flat file).
 3. Inject the **active user's** latest entry for that date **in full** (path, headings, latest
-   entry body â€” current behavior, now scoped to that user's file).
+   entry body Ã¢â‚¬â€ current behavior, now scoped to that user's file).
 4. Append a **one-line-per-file listing** of co-contributors' files for that same date (path +
    entry-heading count only) so cross-contributor context is visible without dominating the
    injected payload.
@@ -222,7 +223,7 @@ The SessionStart hook (`session-start-context.py`) must define "newest" in a mul
 
 ### Caching of entry chunks
 
-**Out of scope for the initial implementation â€” and SQLite is the wrong approach for this project.**
+**Out of scope for the initial implementation Ã¢â‚¬â€ and SQLite is the wrong approach for this project.**
 
 - Markdown stays authoritative; `memory_search` keeps reparsing per call. Today there is **no
   chunk cache** to preserve or break: `semantic_cache.py` only `lru_cache`s the embedding model;
@@ -241,7 +242,7 @@ The SessionStart hook (`session-start-context.py`) must define "newest" in a mul
 
 ## Implementation phases
 
-### Phase 1 â€” dual-read session discovery
+### Phase 1 Ã¢â‚¬â€ dual-read session discovery
 Delivered in 2.9.0 for package readers: add `iter_session_documents`; route MCP extraction/search
 and `compact_sessions` through it; update tests, README, and roadmap docs. Preserve nearest-runtime
 behavior. **Do not move, rewrite, or newly write session files in this phase.** Hooks and
@@ -254,23 +255,26 @@ get valid frontmatter plus immutable `hash_id`, `session-log-check.py` scopes re
 warnings to the active user file, and `session-start-context.py` applies the multi-user orientation
 rule above. Legacy repositories keep flat-file behavior when no user is configured.
 
-### Phase 3 â€” graph-link validation
+### Phase 3 Ã¢â‚¬â€ graph-link validation
 Validate: duplicate `hash_id`; duplicate `entry_id`; unresolved `related_memories`/
 `related_entries`; malformed frontmatter; invalid user slugs; filename/frontmatter user mismatch;
 filename/frontmatter date mismatch; unsupported schema versions. Output must identify the source
 file and offending value.
 
-### Phase 4 â€” MCP metadata
+### Phase 4 Ã¢â‚¬â€ MCP metadata
 Keep existing chunk IDs working. Where it fits the existing public interface, include
 `file_hash_id`, `path`, `user`, `session_date` in results, and add `user`/date filters. Recursive
 Markdown parsing is acceptable; no SQLite source of truth.
 
-### Phase 5 â€” migration command
+### Phase 5 Ã¢â‚¬â€ migration command
+Implemented in the current unreleased worktree.
+
 `memory-seed migrate sessions-layout`: `--dry-run`; parse legacy files entry by entry; map
-`user_initials` â†’ canonical users via `project.yaml`; preserve `entry_id`; one file-level hash per
+`user_initials` Ã¢â€ â€™ canonical users via `project.yaml`; preserve `entry_id`; one file-level hash per
 output file; preserve per-user chronological order; follow backup conventions; idempotent; report
 unknown users instead of guessing; never overwrite an existing per-user file incorrectly; handle
-repos with both layouts. Keep legacy reads after migration.
+repos with both layouts; remove migrated flat sources after backup. Keep legacy reads after
+migration.
 
 ## Required tests
 

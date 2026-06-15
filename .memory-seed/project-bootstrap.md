@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.11
+memory-system-version: 2.12
 tags:
   - memory-seed
   - project-bootstrap
@@ -424,7 +424,7 @@ For each entry, use a timestamped heading followed by entry metadata:
 ## YYYY-MM-DD HH:MM - Short title
 
 ```yaml
-entry_id: ms-8charhash
+entry_id: mse_0123456789abcdef
 user_initials: USER
 agent_type: codex
 project_path: .
@@ -432,7 +432,7 @@ subproject_path: null
 ```
 ````
 
-Generate `entry_id` as a deterministic short hash from metadata only: timestamp, title, user initials, agent type, project path, and subproject path. Do not hash the entry body.
+Generate `entry_id` as a deterministic 80-bit `mse_` ID from metadata only: timestamp, title, user initials, agent type, project path, and subproject path. Do not hash the entry body. Legacy `ms-` IDs remain valid and must not be rewritten.
 
 Record the bootstrap entry using DRAFT decision records in the meaningful decision or multi-decision shape from `.memory-seed/agent-rules.md`.
 
