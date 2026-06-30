@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.10
+memory-system-version: 2.7
 tags:
   - memory-seed
   - agent-rules
@@ -82,7 +82,7 @@ At the start of work:
 4. Read `.memory-seed/index.md`, especially `Active State`, `Topology`, `Inheritance`, and `Lazy Skills`.
 5. Read inherited parent policy only when the active index says policy inheritance is enabled.
 6. Read `.memory-seed/policy.md`.
-7. Establish current project state: read the newest session document in full (and skim the one before it), selected by session date across `.memory-seed/sessions/YYYY-MM-DD.md` and `.memory-seed/sessions/YYYY-MM-DD/<user>.md`. Read it directly â€” do not use `memory_search` to find the latest state (see Recency vs. Topical Retrieval). A SessionStart hook injects this automatically where supported; do the read yourself when it is not.
+7. Establish current project state: read the newest dated `.memory-seed/sessions/YYYY-MM-DD.md` in full (and skim the one before it), selected by filename date. Read it directly — do not use `memory_search` to find the latest state (see Recency vs. Topical Retrieval). A SessionStart hook injects this automatically where supported; do the read yourself when it is not.
 8. Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry.
 9. Load full `.memory-seed/skills/*.md` runbooks only when the trigger registry matches the current task.
 10. If `.agents/_registry.yaml` exists at the workspace root, read it and load all persona files with `status: active`. Apply persona rules alongside this agent-rules.md and policy.md. Record `agent_name` (the persona's slug) in every session log entry this turn.
@@ -97,9 +97,9 @@ Use MCP history retrieval when prior decisions, reason, unresolved risks, archit
 
 ### Recency vs. Topical Retrieval
 
-Pick the retrieval method by question type â€” they are not interchangeable:
+Pick the retrieval method by question type — they are not interchangeable:
 
-- **Current state / "what is the latest"** (session start, catch-up, "what's happening now"): read the newest dated `.memory-seed/sessions/*.md` files directly, selected by filename date, newest first. This is the authority for what most recently happened. Do **not** use `memory_search` for this â€” semantic and lexical ranking optimize for topical similarity, not recency, and can rank the newest entry below older topically-similar ones or omit it entirely. A SessionStart hook injects the newest entries automatically where supported; when it is not, do the direct read yourself.
+- **Current state / "what is the latest"** (session start, catch-up, "what's happening now"): read the newest dated `.memory-seed/sessions/*.md` files directly, selected by filename date, newest first. This is the authority for what most recently happened. Do **not** use `memory_search` for this — semantic and lexical ranking optimize for topical similarity, not recency, and can rank the newest entry below older topically-similar ones or omit it entirely. A SessionStart hook injects the newest entries automatically where supported; when it is not, do the direct read yourself.
 - **Topical / "why was X decided" / "what do we know about Y"**: use `memory_search` (below). Ranked retrieval across all history is the right tool here.
 
 These two reminders coexist by design and do not conflict: the per-prompt retrieval reminder points at `memory_search` for topical recall before substantive work, while the recency rule governs establishing current state. They answer different questions.
@@ -166,7 +166,7 @@ Fetch any result that may affect implementation, policy, bootstrap behavior, rel
 
 Use the fetched chunk text, not just the excerpt, when making or evaluating a consequential decision.
 
-If MCP tools are unavailable, read recent and relevant `.memory-seed/sessions/YYYY-MM-DD.md` and `.memory-seed/sessions/YYYY-MM-DD/<user>.md` files directly. Start with the last two session documents, then search older dated files by keyword if needed. Apply the same authority and conflict rules below.
+If MCP tools are unavailable, read recent and relevant `.memory-seed/sessions/YYYY-MM-DD.md` files directly. Start with the last two session files, then search older dated files by keyword if needed. Apply the same authority and conflict rules below.
 
 Current files are the active authority: `.memory-seed/index.md`, `.memory-seed/policy.md`, active `.memory-seed/skills/*.md`, and source/config files for implementation truth. Session history is evidence and reason, not automatic authority.
 
@@ -246,7 +246,7 @@ Use for architecture changes, security-sensitive work, publishing/release change
 - `.memory-seed/index.md`: rich project orientation, current state, topology, inheritance, and skill pointers.
 - `.memory-seed/policy.md`: behavioral constraints only.
 - `.memory-seed/skills/*.md`: task-specific runbooks, loaded on demand.
-- `.memory-seed/sessions/YYYY-MM-DD.md` or `.memory-seed/sessions/YYYY-MM-DD/<user>.md`: append-only chronological work history.
+- `.memory-seed/sessions/YYYY-MM-DD.md`: append-only chronological work history.
 - `.memory-seed/archive/`: archived prior control-plane states.
 
 ## Change Permission Model
@@ -281,7 +281,7 @@ For restricted files, the agent must be able to explain why the file's ownership
 
 Routine append:
 
-- Active session target (`memory-seed session target`): append concise notes after meaningful work, before the current turn ends.
+- `.memory-seed/sessions/YYYY-MM-DD.md`: append concise notes after meaningful work, before the current turn ends.
 
 Do not rewrite old session entries unless the user explicitly asks for repair, archival cleanup, or correction.
 
@@ -295,42 +295,42 @@ Cross-cutting principles that apply to any agent and any task:
 
 ## End Of Turn
 
-This rule applies to all agents equally â€” Claude, Codex, Gemini, and any other agent reading these instructions.
+This rule applies to all agents equally — Claude, Codex, Gemini, and any other agent reading these instructions.
 
 After any turn where meaningful work was completed:
 
-1. **Append a concise note to the active session target (`memory-seed session target`) before this turn ends.** Do not defer it to the next turn. Do not batch multiple turns into one entry later. Write it now. Include `agent_name` in the entry YAML block if a persona is active.
+1. **Append a concise note to `.memory-seed/sessions/YYYY-MM-DD.md` before this turn ends.** Do not defer it to the next turn. Do not batch multiple turns into one entry later. Write it now. Include `agent_name` in the entry YAML block if a persona is active.
 2. Review whether `.memory-seed/index.md` needs updated topology, active state, inheritance, or skill pointers.
 3. Review whether `.memory-seed/policy.md` needs durable behavioral-policy changes.
 4. Review whether any `.memory-seed/skills/*.md` runbook changed.
 5. If work occurred in a sub-project runtime, review whether the parent or root runtime needs a brief coordination summary.
 6. Run the smallest verification that proves the work.
 7. **Orphan & artifact sweep (scoped to this session's changes).** Review only what this turn added, deleted, or renamed (use `git diff`/`git status` if available, otherwise your own change list):
-   - **Additions** â€” confirm every new file, function, module, skill, persona, route, or config key is referenced somewhere (imported / registered / linked / exported / routed). An unreferenced addition is an orphan: wire it in or remove it.
-   - **Deletions & renames** â€” search the repo for references to the removed name or path; resolve or flag every dangling reference.
-   - **Scratch & debris** â€” flag temporary files, commented-out code, debug output, half-removed features, and stray or untracked directories, `*.bak` files, or scratch notes that should not persist.
+   - **Additions** — confirm every new file, function, module, skill, persona, route, or config key is referenced somewhere (imported / registered / linked / exported / routed). An unreferenced addition is an orphan: wire it in or remove it.
+   - **Deletions & renames** — search the repo for references to the removed name or path; resolve or flag every dangling reference.
+   - **Scratch & debris** — flag temporary files, commented-out code, debug output, half-removed features, and stray or untracked directories, `*.bak` files, or scratch notes that should not persist.
    - **Deeper dead-code scan (optional, not required):** if the project already declares a dead-code tool (for example vulture/ruff, knip, ArchUnit, cppcheck), you may run it; otherwise note that one is available. Do not install tools for this. A per-session sweep reliably catches orphan *files and features*; whole-codebase *dead code* is a tool's job, so treat it as periodic, not mandatory.
 
-   Record anything you cannot resolve as a Follow-up in the session entry. This sweep does not override the File Ownership and Change Permission rules: do not delete a user-owned or pre-existing file on its strength alone â€” flag it and confirm.
-8. **Persona evolution check (if a persona is active):** Identify up to 3 patterns from this session that should change how the active persona behaves â€” new rules, dropped rules, or calibration from evidence. Draft proposed changes (what to add/change/remove in `.agents/<slug>.md` and why) and present them to the user for approval. Do not touch `.agents/<slug>.md` until the user approves. On approval: apply the edit, append a `### YYYY-MM-DD` entry to the `## Project Adaptations` section of the persona file, and add "Signed: user approved YYYY-MM-DD HH:MM" to the session log entry. If no lessons emerged, skip this step silently.
+   Record anything you cannot resolve as a Follow-up in the session entry. This sweep does not override the File Ownership and Change Permission rules: do not delete a user-owned or pre-existing file on its strength alone — flag it and confirm.
+8. **Persona evolution check (if a persona is active):** Identify up to 3 patterns from this session that should change how the active persona behaves — new rules, dropped rules, or calibration from evidence. Draft proposed changes (what to add/change/remove in `.agents/<slug>.md` and why) and present them to the user for approval. Do not touch `.agents/<slug>.md` until the user approves. On approval: apply the edit, append a `### YYYY-MM-DD` entry to the `## Project Adaptations` section of the persona file, and add "Signed: user approved YYYY-MM-DD HH:MM" to the session log entry. If no lessons emerged, skip this step silently.
 
-9. **Skill evolution check (if a persona is active):** If a repeating workflow pattern emerged during this session that is not covered by any existing skill in `.memory-seed/skills/`, propose a new role-specific skill. Follow the same draft â†’ approval flow: draft the skill file (YAML frontmatter, `# Skill Name`, Procedure, Output), present to the user, and wait for approval before writing. On approval: write to `.memory-seed/skills/<persona-slug>-<skill-name>.md`, add a trigger entry to `skills/index.md` (with `persona: <slug>` field), update the `### Role-Specific Skills` section of the persona file, and log in the session entry. If no skill gaps emerged, skip silently.
+9. **Skill evolution check (if a persona is active):** If a repeating workflow pattern emerged during this session that is not covered by any existing skill in `.memory-seed/skills/`, propose a new role-specific skill. Follow the same draft → approval flow: draft the skill file (YAML frontmatter, `# Skill Name`, Procedure, Output), present to the user, and wait for approval before writing. On approval: write to `.memory-seed/skills/<persona-slug>-<skill-name>.md`, add a trigger entry to `skills/index.md` (with `persona: <slug>` field), update the `### Role-Specific Skills` section of the persona file, and log in the session entry. If no skill gaps emerged, skip silently.
 
 Also check for unregistered `.agents/*.md` files (files present but not in `_registry.yaml`). If any are found, run the persona onboarding flow from project-bootstrap.md Step 9e.
 
-Deferring or batching session log writes is a discipline failure, not an acceptable workflow. If the current turn produced anything worth remembering â€” a decision, a file change, a resolved blocker, a tradeoff â€” write it now.
+Deferring or batching session log writes is a discipline failure, not an acceptable workflow. If the current turn produced anything worth remembering — a decision, a file change, a resolved blocker, a tradeoff — write it now.
 
 ### Append-Only Chronology
 
 The session file is strictly append-only and must stay in ascending time order. To guarantee this without ever reordering:
 
 - Append every new entry to the **end** of the day's file. Never insert an entry above an existing one.
-- **Append each entry at the physical end of the file; never insert above an existing entry.** That is the rule; the mechanism is up to your tools. The common failure is anchor-based edit tools â€” if you target a line you wrote earlier, a later edit may already sit below it, so the new entry lands mid-file. Avoid it by confirming the *actual* last line immediately before appending (for example, read the file's tail); never reuse an anchor from memory. With a POSIX shell or Python, append mode (`>> file`, `open(f, 'a')`) sidesteps anchors entirely â€” write UTF-8 (some shells, for example PowerShell `>>`, default to other encodings).
+- **Append each entry at the physical end of the file; never insert above an existing entry.** That is the rule; the mechanism is up to your tools. The common failure is anchor-based edit tools — if you target a line you wrote earlier, a later edit may already sit below it, so the new entry lands mid-file. Avoid it by confirming the *actual* last line immediately before appending (for example, read the file's tail); never reuse an anchor from memory. With a POSIX shell or Python, append mode (`>> file`, `open(f, 'a')`) sidesteps anchors entirely — write UTF-8 (some shells, for example PowerShell `>>`, default to other encodings).
 - The entry heading timestamp is the **actual current clock time** at the moment you write it. Read it from the system clock; never reuse a time from your context, memory, or an earlier message, and never backdate it to when the work happened.
 - Because entries are always appended with the current time, file order, write order, and timestamp order are identical. No manual reordering is ever needed or allowed.
-- If you are recording work that completed earlier in the session (you forgot, or you are catching up), still stamp the heading with the current time. If the original work time matters, state it in the entry body â€” do not move the entry above newer ones and do not rewrite earlier headings.
+- If you are recording work that completed earlier in the session (you forgot, or you are catching up), still stamp the heading with the current time. If the original work time matters, state it in the entry body — do not move the entry above newer ones and do not rewrite earlier headings.
 
-This is the invariant the "do not rewrite old session entries" rule protects: out-of-order or backdated entries force a human to manually re-sort the log, which is exactly what append-only is meant to prevent. Confirming the real last line before each append â€” or using append mode where your environment supports it â€” makes this invariant mechanical rather than reliant on a remembered anchor.
+This is the invariant the "do not rewrite old session entries" rule protects: out-of-order or backdated entries force a human to manually re-sort the log, which is exactly what append-only is meant to prevent. Confirming the real last line before each append — or using append mode where your environment supports it — makes this invariant mechanical rather than reliant on a remembered anchor.
 
 Detailed work logs belong in the nearest active runtime. Add a parent/root summary only when sub-project work changes parent-visible topology, shared design, release behavior, policy inheritance, cross-project dependencies, risks, or active priorities. Do not mirror sub-project logs into root memory.
 
@@ -436,9 +436,9 @@ Keep session filenames date-only, such as `.memory-seed/sessions/2026-05-02.md`.
 
 A DRAFT decision record uses compact labels:
 
-- D = Decision (mandatory) â€” what was chosen
-- R = Reason (mandatory) â€” the decisive reason, 1â€“3 bullets
-- A = Alternatives considered or rejected (optional) â€” with reason, when it shaped the tradeoff
+- D = Decision (mandatory) — what was chosen
+- R = Reason (mandatory) — the decisive reason, 1–3 bullets
+- A = Alternatives considered or rejected (optional) — with reason, when it shaped the tradeoff
 - F = Files, artifacts, or behaviors changed (optional)
 - T = Tests or validation outcome (optional; may appear inline as `- T:` or as a separate `### Validation` section)
 
@@ -453,9 +453,9 @@ A DRAFT decision record uses compact labels:
 
 ### Entry Shapes
 
-Default to the **Meaningful decision entry** â€” a single DRAFT record. Route away from it only when the work does not fit:
+Default to the **Meaningful decision entry** — a single DRAFT record. Route away from it only when the work does not fit:
 
-- down to the **Small work entry** for routine edits, small fixes, or verification-only work with no real decision (do not invent reason â€” see Reason Rules);
+- down to the **Small work entry** for routine edits, small fixes, or verification-only work with no real decision (do not invent reason — see Reason Rules);
 - up to the **Multi-decision session entry** when one coherent task produced several decisions.
 
 #### Meaningful decision entry
@@ -478,7 +478,7 @@ The baseline shape: use when a turn produced one durable decision.
 
 #### Small work entry
 
-Simpler alternative â€” for routine edits, small fixes, or verification-only work with no real decision.
+Simpler alternative — for routine edits, small fixes, or verification-only work with no real decision.
 
 ```markdown
 ### Summary
@@ -496,7 +496,7 @@ Simpler alternative â€” for routine edits, small fixes, or verification-onl
 
 #### Multi-decision session entry
 
-Richer alternative â€” use one entry when several decisions belong to one coherent task, plan, or user goal. Split entries when decisions affect unrelated subsystems, sub-projects, or goals.
+Richer alternative — use one entry when several decisions belong to one coherent task, plan, or user goal. Split entries when decisions affect unrelated subsystems, sub-projects, or goals.
 
 ```markdown
 ### Summary

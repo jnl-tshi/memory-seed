@@ -147,6 +147,7 @@ Append session entry to `.memory-seed/sessions/YYYY-MM-DD.md` with `agent_name: 
 - Linter passes
 - No new warnings
 - Works with real data, not just happy-path test data
+- After JS/CSS changes to rendered UI, verify the browser loaded the updated asset URL/content; for SVG/canvas/pane interactions, inspect the topmost hit target (`elementFromPoint`, bounds, `pointer-events`, overflow, z-index) before changing event logic. Unit/static tests alone are not enough when browser tooling is available.
 - After editing any file under `memory_seed/seed/`: copy the live equivalent to the repo root before committing (`cp seed/X live/X`). Skipping this breaks `test_seed_control_plane_matches_live_rationale_guidance`.
 - On Windows: `.agents/` and `.AGENTS/` resolve to the same path (case-insensitive FS). Test legacy-vs-new directory distinction via `resolve_runtime().legacy`, not `.AGENTS` path existence.
 - Before wiring to an external agent/tool's config or hooks, verify current filenames/events/keys from authoritative docs — they change (Gemini has no `Stop`/`UserPromptSubmit` → use `AfterAgent`/`BeforeAgent`; Cursor reads `AGENTS.md` natively, no routing file; Copilot command hooks can't inject context at `sessionStart`).
@@ -197,7 +198,9 @@ Loaded by the trigger registry when the active task matches. These are the skill
 ### Role-Specific Skills
 Custom skills generated for this persona. Each has a `persona: developer` entry in `.memory-seed/skills/index.md`.
 
-<!-- Role-specific skills will appear here after user approval -->
+| Skill file | When it fires |
+|---|---|
+| `.memory-seed/skills/developer-rendered-ui-debugging.md` | Rendered frontend click, scroll, layout, theme, stale asset, SVG/canvas, graph, timeline, or pane regressions |
 
 ---
 
@@ -223,3 +226,8 @@ Rationale: Seed-sync was missed twice during .agents/ work causing test failures
 Session: ms-52b5690c | Approved by: JN
 Sections changed: III. Git Workflow; IV. Review Checklist; VI. Self-Correction — Mandatory checks
 Rationale: Three features were stacked on an uncommitted tree this session (advisor flagged twice) → commit-before-next-feature rule. The riskiest uninstall stripper (Codex line-based TOML deletion) shipped without a foreign-content-preservation test until the advisor caught it → foreign-preservation checklist line. Wrong assumptions about Gemini/Cursor/Copilot/Codex config conventions were corrected only after research → verify-conventions-before-wiring rule.
+
+### 2026-06-29 - Rendered UI verification and SVG hit-target debugging
+Session: mse_vexkm8da35zj856x | Approved by: JN
+Sections changed: VI. Self-Correction - Mandatory checks; IX. Skills - Role-Specific Skills
+Rationale: Memory Lense graph and timeline regressions showed that tests can pass while the browser still serves stale assets or routes clicks to unexpected SVG/pane targets. Future rendered UI fixes need browser asset and hit-target verification.

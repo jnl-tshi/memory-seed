@@ -8,9 +8,11 @@ from pathlib import Path
 
 from memory_seed.semantic_cache import (
     MemoryChunk,
+    build_related_entry_graph,
     extract_memory_chunks,
     rank_memory_chunks,
     rank_session_memory,
+    suggest_related_entries,
 )
 
 
@@ -435,6 +437,122 @@ class SemanticCacheTests(unittest.TestCase):
 
         self.assertEqual(len(chunks), 1)
         self.assertEqual(chunks[0].source_path, ".AGENTS/sessions/2026-05-19.md")
+
+
+def _entry(title, entry_id, body, related=None):
+    lines = [
+        f"## {title}",
+        "",
+        "```yaml",
+        f"entry_id: {entry_id}",
+        "user_initials: JN",
+        "agent_type: codex",
+        "project_path: .",
+        "subproject_path: null",
+    ]
+    if related:
+        lines.append("related_entries:")
+        lines.extend(f"  - {ref}" for ref in related)
+    lines += ["```", "", body, ""]
+    return "\n".join(lines)
+
+
+class RelatedEntryGraphTests(unittest.TestCase):
+    def make_project(self):
+        path = Path(tempfile.mkdtemp(prefix="memory-seed-link-test-"))
+        self.addCleanup(lambda: shutil.rmtree(path, ignore_errors=True))
+        return path
+
+    def write_day(self, cwd, *entries):
+        sessions = cwd / ".memory-seed" / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        # One day file, entries in append (chronological) order: oldest first.
+        (sessions / "2026-05-10.md").write_text(
+            "# Session Log\n\n" + "\n".join(entries),
+            encoding="utf-8",
+        )
+
+    def seed_three(self, cwd):
+        # C (09:00) oldest, B (10:00), A (11:00) newest; A links back to B.
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 09:00 - Oldest C", "ms-c0000000", "caching and ranking notes."),
+            _entry("2026-05-10 10:00 - Middle B", "ms-b0000000", "migration command work."),
+            _entry(
+                "2026-05-10 11:00 - Newest A",
+                "ms-a0000000",
+                "caching and ranking follow-up.",
+                related=["ms-b0000000"],
+            ),
+        )
+
+    def test_graph_computes_inbound_backlinks_from_forward_edges(self):
+        cwd = self.make_project()
+        self.seed_three(cwd)
+
+        graph = build_related_entry_graph(cwd)
+
+        self.assertEqual(graph["ms-a0000000"].outbound, ("ms-b0000000",))
+        self.assertEqual(graph["ms-a0000000"].inbound, ())
+        # B's backlink is computed at read time without B's file being edited.
+        self.assertEqual(graph["ms-b0000000"].inbound, ("ms-a0000000",))
+        self.assertEqual(graph["ms-b0000000"].outbound, ())
+        self.assertEqual(graph["ms-c0000000"].inbound, ())
+
+    def test_graph_ignores_dangling_outbound_for_inbound(self):
+        cwd = self.make_project()
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 09:00 - Only", "ms-only0000", "text.", related=["ms-missing0"]),
+        )
+
+        graph = build_related_entry_graph(cwd)
+
+        # Outbound is reported as stored (links check flags the dangling ref)...
+        self.assertEqual(graph["ms-only0000"].outbound, ("ms-missing0",))
+        # ...but the unresolved target never becomes a node or an inbound edge.
+        self.assertNotIn("ms-missing0", graph)
+
+    def test_suggest_excludes_self_linked_and_newer_entries(self):
+        cwd = self.make_project()
+        self.seed_three(cwd)
+
+        target, ranked = suggest_related_entries(cwd, entry_id="ms-b0000000")
+
+        # Target B: only C is eligible (A is newer -> excluded; B is self).
+        self.assertEqual(target.entry_id, "ms-b0000000")
+        self.assertEqual([item.chunk.entry_id for item in ranked], ["ms-c0000000"])
+
+    def test_suggest_defaults_to_newest_entry_and_drops_already_linked(self):
+        cwd = self.make_project()
+        self.seed_three(cwd)
+
+        target, ranked = suggest_related_entries(cwd)
+
+        # Default target is the newest entry A; B is already linked, leaving C.
+        self.assertEqual(target.entry_id, "ms-a0000000")
+        candidate_ids = [item.chunk.entry_id for item in ranked]
+        self.assertEqual(candidate_ids, ["ms-c0000000"])
+        self.assertNotIn("ms-b0000000", candidate_ids)
+
+    def test_suggest_unknown_entry_raises(self):
+        cwd = self.make_project()
+        self.seed_three(cwd)
+
+        with self.assertRaises(LookupError):
+            suggest_related_entries(cwd, entry_id="ms-99999999")
+
+    def test_graph_accepts_preextracted_chunks(self):
+        cwd = self.make_project()
+        self.seed_three(cwd)
+        chunks = extract_memory_chunks(cwd, granularity="entry")
+
+        # Passing an already-extracted corpus must yield an identical graph
+        # without re-parsing the session files.
+        self.assertEqual(
+            build_related_entry_graph(cwd, chunks=chunks),
+            build_related_entry_graph(cwd),
+        )
 
 
 if __name__ == "__main__":

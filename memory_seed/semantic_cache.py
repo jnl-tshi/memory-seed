@@ -181,6 +181,126 @@ def _filter_chunks(
     return filtered
 
 
+@dataclass(frozen=True)
+class RelatedEntryNode:
+    """One node in the related-entry graph.
+
+    ``outbound`` is the entry's stored ``related_entries`` (the forward edges it
+    declared at write time). ``inbound`` is computed at read time from every
+    other entry that points here - the backlinks that make traversal
+    bidirectional without ever editing a historical entry. Inbound is built only
+    from refs that resolve to a known entry_id; ``outbound`` is reported as
+    stored (run ``links check`` to surface any dangling outbound ref).
+    """
+
+    entry_id: str
+    title: str
+    source_path: str
+    session_date: date
+    outbound: tuple[str, ...]
+    inbound: tuple[str, ...]
+
+
+def _entry_order_key(chunk: MemoryChunk) -> tuple[date, datetime, int]:
+    """Chronological sort key: session date, then within-file append order."""
+    return (chunk.session_date, chunk.entry_datetime or datetime.min, chunk.start_line)
+
+
+def build_related_entry_graph(
+    cwd: str | Path = ".",
+    *,
+    chunks: Sequence[MemoryChunk] | None = None,
+) -> dict[str, RelatedEntryNode]:
+    """Build the bidirectional related-entry graph over all session entries.
+
+    Stored edges are directed (an entry declares ``related_entries`` to prior
+    entries). This inverts them at read time so each node also exposes its
+    backlinks, giving MCP and future UI consumers an old<->new view without rewriting
+    history. Assumes a ``links check``-clean corpus; on a duplicate ``entry_id``
+    the first occurrence wins.
+
+    Pass ``chunks`` to reuse an already-extracted entry-granularity corpus and
+    skip re-parsing (e.g. a caller that already called ``extract_memory_chunks``).
+    """
+    if chunks is None:
+        chunks = extract_memory_chunks(cwd, granularity="entry")
+    by_id: dict[str, MemoryChunk] = {}
+    for chunk in chunks:
+        if chunk.entry_id and chunk.entry_id not in by_id:
+            by_id[chunk.entry_id] = chunk
+
+    inbound: dict[str, list[str]] = {entry_id: [] for entry_id in by_id}
+    for chunk in chunks:
+        if not chunk.entry_id:
+            continue
+        for ref in chunk.related_entries:
+            if ref in by_id and ref != chunk.entry_id:
+                inbound[ref].append(chunk.entry_id)
+
+    graph: dict[str, RelatedEntryNode] = {}
+    for entry_id, chunk in by_id.items():
+        graph[entry_id] = RelatedEntryNode(
+            entry_id=entry_id,
+            title=chunk.title,
+            source_path=chunk.source_path,
+            session_date=chunk.session_date,
+            outbound=tuple(chunk.related_entries),
+            inbound=tuple(dict.fromkeys(inbound[entry_id])),
+        )
+    return graph
+
+
+def suggest_related_entries(
+    cwd: str | Path = ".",
+    *,
+    entry_id: str | None = None,
+    top_k: int = 5,
+    embedding_provider: EmbeddingProvider | None = None,
+) -> tuple[MemoryChunk, list[RankedMemoryChunk]]:
+    """Rank candidate prior entries to link from a target entry.
+
+    Forward-only by construction: candidates are restricted to entries *older*
+    than the target, so acting on a suggestion only ever adds a backward-in-time
+    edge to the target's own ``related_entries`` (the bidirectional model the
+    user chose). Self and already-linked entries are excluded. The default
+    target is the newest entry - "suggest links for the entry I just wrote".
+    Read-only; it never writes. Ranking reuses ``rank_memory_chunks`` with
+    recency disabled so similarity, not age, drives the ordering.
+    """
+    chunks = [chunk for chunk in extract_memory_chunks(cwd, granularity="entry") if chunk.entry_id]
+    if not chunks:
+        raise LookupError("no session entries with an entry_id were found")
+
+    if entry_id is not None:
+        target = next((chunk for chunk in chunks if chunk.entry_id == entry_id), None)
+        if target is None:
+            raise LookupError(f"entry_id {entry_id} not found")
+    else:
+        target = max(chunks, key=_entry_order_key)
+
+    target_key = _entry_order_key(target)
+    linked = set(target.related_entries)
+    candidates = [
+        chunk
+        for chunk in chunks
+        if chunk.entry_id != target.entry_id
+        and chunk.entry_id not in linked
+        and _entry_order_key(chunk) < target_key
+    ]
+    if not candidates:
+        return target, []
+
+    query = f"{target.title}\n{target.text}".strip()
+    ranked = rank_memory_chunks(
+        query,
+        candidates,
+        top_k=top_k,
+        recency_enabled=False,
+        embedding_provider=embedding_provider,
+    )
+    return target, ranked
+
+
 def rank_memory_chunks(
     query: str,
     chunks: Sequence[MemoryChunk],

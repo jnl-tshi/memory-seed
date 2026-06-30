@@ -28,6 +28,9 @@ memory-seed = "memory_seed.cli:main"
 memory-seed-mcp = "memory_seed.mcp_server:main"
 memory-seed-mcp-validate = "memory_seed.mcp_validate:main"
 
+[project.optional-dependencies]
+lense = ["fastapi>=0.110", "uvicorn>=0.27"]
+
 [tool.setuptools]
 packages = ["memory_seed"]
 
@@ -58,4 +61,8 @@ memory_seed = [
   "seed/.memory-seed/sessions/.gitkeep",
   "seed/.memory-seed/hooks/session-log-check.py",
   "seed/.memory-seed/hooks/memory-retrieval-check.py",
+  "lense_static/index.html",
+  "lense_static/app.js",
+  "lense_static/styles.css",
+  "lense_static/manifest.json",
 ]

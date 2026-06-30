@@ -13,4 +13,13 @@ build/
 # Demo sub-project build artifacts
 demo/node_modules/
 demo/*.mp4
+demo/.thumbnails/
 
+# Local browser verification artifacts
+node_modules/
+/package.json
+/package-lock.json
+/%SystemDrive%/
+
+# Local Memory Lense prototype exports kept outside packaged source
+docs/todo/memory lense/

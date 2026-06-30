@@ -1,0 +1,7 @@
+AI coding agents are powerful — but they forget everything between sessions.
+
+Memory Seed fixes this. It plants a portable local control plane in your project that any agent can read.
+
+Run memory-seed init. Your agent bootstraps automatically. Next session, it searches history and retrieves past decisions instantly.
+
+Local-first. No cloud. No lock-in. Works with Claude, Codex, and Gemini. Plain Markdown — commit it, diff it, review it.

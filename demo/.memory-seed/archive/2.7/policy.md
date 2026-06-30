@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.10
+memory-system-version: 2.7
 tags:
   - memory-seed
   - runtime-policy

@@ -4,7 +4,16 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
-- _Nothing yet._
+- Added `memory-seed link suggest [--for <entry_id>] [--top-k N]` - a read-only command that ranks
+  **older** session entries to link from a target entry (default: the newest entry), excludes the
+  target and its already-linked entries, and prints a copy-pasteable `related_entries:` snippet. It
+  reuses the existing ranker with recency disabled so similarity drives the order.
+- Added `memory-seed link show <entry_id>` - prints an entry's stored outbound `related_entries`
+  edges plus its computed inbound backlinks, so the related-entry graph is **bidirectional at read
+  time** without ever editing a historical entry.
+- Added `build_related_entry_graph()` in `semantic_cache.py`, the canonical bidirectional
+  related-entry graph (outbound as stored; inbound computed only from resolvable refs) for MCP and
+  future UI consumers. Scope + decisions in `docs/todo/related-entries-generation-plan.md`.
 
 ## 2.12.0 - 2026-06-15
 

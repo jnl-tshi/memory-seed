@@ -110,6 +110,26 @@ def main(argv: list[str] | None = None) -> int:
     )
     migrate_sessions.add_argument("--dry-run", action="store_true", help="show planned migrations without writing")
 
+    link_parser = subparsers.add_parser("link", help="inspect and suggest related-entry graph edges")
+    link_sub = link_parser.add_subparsers(dest="link_command", required=True)
+    link_suggest = link_sub.add_parser(
+        "suggest",
+        help="rank older entries to link from a target entry (read-only)",
+    )
+    link_suggest.add_argument(
+        "--for",
+        dest="for_entry",
+        metavar="ENTRY_ID",
+        default=None,
+        help="entry to suggest links for (default: the newest entry)",
+    )
+    link_suggest.add_argument("--top-k", type=int, default=5, help="number of candidates to show (default: 5)")
+    link_show = link_sub.add_parser(
+        "show",
+        help="show outbound edges and computed inbound backlinks for an entry",
+    )
+    link_show.add_argument("entry_id", help="entry_id to show edges for")
+
     update_parser = subparsers.add_parser("update", help="update reusable control-plane files")
     update_parser.add_argument(
         "--dry-run",
@@ -121,6 +141,13 @@ def main(argv: list[str] | None = None) -> int:
     compact_parser.add_argument("--days", type=int, default=7, help="number of days to scan (default: 7)")
     compact_parser.add_argument("--all", action="store_true", dest="scan_all", help="scan all sessions")
     compact_parser.add_argument("--output", type=str, default=None, help="write summary to file instead of stdout")
+
+    lense_parser = subparsers.add_parser("lense", help="serve the local Memory Lense browser UI")
+    lense_parser.add_argument("--cwd", default=".", help="project/runtime path to inspect (default: current directory)")
+    lense_parser.add_argument("--host", default="127.0.0.1", help="host to bind (default: 127.0.0.1)")
+    lense_parser.add_argument("--port", type=int, default=0, help="port to bind; 0 chooses a free port")
+    lense_parser.add_argument("--no-open", action="store_true", help="do not open a browser")
+    lense_parser.add_argument("--rebuild-cache", action="store_true", help="rebuild the SQLite cache before serving")
 
     subparsers.add_parser("doctor", help="check Memory Seed control-plane files")
     subparsers.add_parser("version", help="print Memory Seed control-plane version")
@@ -218,6 +245,43 @@ def main(argv: list[str] | None = None) -> int:
             print("Legacy flat session files migrated.")
             return 0
 
+    if args.command == "link":
+        from .semantic_cache import build_related_entry_graph, suggest_related_entries
+
+        cwd = Path(".").resolve()
+        if args.link_command == "suggest":
+            try:
+                target, ranked = suggest_related_entries(
+                    cwd=cwd, entry_id=args.for_entry, top_k=args.top_k
+                )
+            except LookupError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            label = target.entry_id or target.title
+            print(f"Suggested related_entries for {label} ({target.title}):")
+            if not ranked:
+                print("  (no older candidate entries found)")
+                return 0
+            for item in ranked:
+                chunk = item.chunk
+                print(f"  {chunk.entry_id}  {chunk.session_date}  {chunk.title}  (score {item.final_score:.3f})")
+            print()
+            print("Paste into the entry's YAML:")
+            print("related_entries:")
+            for item in ranked:
+                print(f"  - {item.chunk.entry_id}")
+            return 0
+        if args.link_command == "show":
+            graph = build_related_entry_graph(cwd=cwd)
+            node = graph.get(args.entry_id)
+            if node is None:
+                print(f"entry_id {args.entry_id} not found", file=sys.stderr)
+                return 1
+            print(f"{node.entry_id}  {node.title}")
+            print(f"  outbound ({len(node.outbound)}): " + (", ".join(node.outbound) or "-"))
+            print(f"  inbound  ({len(node.inbound)}): " + (", ".join(node.inbound) or "-"))
+            return 0
+
     if args.command == "compact":
         result = compact_sessions(days=args.days, scan_all=args.scan_all)
 
@@ -252,6 +316,11 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(output)
         return 0
+
+    if args.command == "lense":
+        from .lense import run_server
+
+        return run_server(args)
 
     if args.command == "doctor":
         result = doctor()

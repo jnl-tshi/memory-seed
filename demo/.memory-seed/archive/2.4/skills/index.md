@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.10
+memory-system-version: 2.4
 tags:
   - memory-seed
   - skill-registry
@@ -92,41 +92,6 @@ skills:
       - reviewing public-memory hygiene risks
     do_not_load_when:
       - task has no security, privacy, or destructive-operation surface
-
-  - skill: document_ingestion.md
-    required: true
-    load_when:
-      - reading or ingesting a binary document as Markdown
-      - needing the content of a `.docx`, `.pdf`, `.pptx`, or `.xlsx` as text
-      - converting a source document so a file-reading agent can read it
-    do_not_load_when:
-      - the source is already plain text, Markdown, or source code (use code_search)
-      - producing or editing an Office document (use office_document_editing)
-
-  - skill: office_document_editing.md
-    required: true
-    load_when:
-      - creating or editing an Office document (.docx/.pptx/.xlsx) programmatically
-      - the document contains fields (citations, captions, cross-references, TOC) or content controls
-    do_not_load_when:
-      - only reading a document as text (use document_ingestion)
-      - editing plain text, Markdown, or source code
-
-  - skill: copywriter-conversion.md
-    required: false
-    persona: copywriter
-    load_when:
-      - writing or revising landing page copy
-      - writing headlines for README, Product Hunt, or GitHub description
-      - drafting email subject lines or body copy for conversion
-      - writing CTAs, taglines, or product descriptions
-      - preparing launch copy for Product Hunt, Hacker News, or newsletter
-      - persuasion-focused short-form writing for any channel
-    do_not_load_when:
-      - writing long-form educational content
-      - writing code documentation or technical reference
-      - task is SEO strategy or content calendar planning
-      - copywriter persona is not active
 ```
 
 ## Deterministic Use

@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1920, height=1080" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: #090e1a;
+      font-family: 'Inter', Arial, sans-serif;
+    }
+
+    #root { position: relative; width: 1920px; height: 1080px; }
+
+    /* ── Persistent background ── */
+    #bg {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 160% 90% at 50% 110%, #0e1e40 0%, #090e1a 55%);
+    }
+    #grid {
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px);
+      background-size: 64px 64px;
+    }
+
+    /* ── Scene containers ── */
+    .scene {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── Type scale ── */
+    .label {
+      color: rgba(255,255,255,0.35);
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+    }
+    .headline {
+      color: #ffffff;
+      font-size: 90px;
+      font-weight: 900;
+      letter-spacing: -3px;
+      line-height: 1.05;
+    }
+    .subline {
+      color: rgba(255,255,255,0.5);
+      font-size: 38px;
+      font-weight: 400;
+      line-height: 1.55;
+    }
+
+    /* ── Colour accents ── */
+    .green  { color: #22c55e; }
+    .blue   { color: #60a5fa; }
+    .purple { color: #a78bfa; }
+
+    /* ── Terminal block ── */
+    .terminal {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 22px 40px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 30px;
+      color: #22c55e;
+    }
+
+    /* ── Accent bar ── */
+    .accent-bar {
+      width: 64px;
+      height: 5px;
+      background: linear-gradient(90deg, #22c55e, #3b82f6);
+      border-radius: 3px;
+    }
+
+    /* ── File tree ── */
+    .filetree {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 28px;
+      line-height: 2;
+      color: rgba(255,255,255,0.7);
+    }
+    .filetree .dir { color: #60a5fa; font-weight: 500; }
+    .filetree .f   { color: rgba(255,255,255,0.45); padding-left: 40px; font-size: 24px; }
+    .filetree .ff  { color: rgba(255,255,255,0.45); padding-left: 80px; font-size: 24px; }
+
+    /* ── Step cards (How It Works) ── */
+    .step-card { text-align: center; }
+    .step-num  {
+      color: rgba(255,255,255,0.2);
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    .step-label {
+      color: rgba(255,255,255,0.45);
+      font-size: 24px;
+      margin-top: 18px;
+      line-height: 1.55;
+    }
+
+    /* ── MCP result card ── */
+    .result-card {
+      background: rgba(34,197,94,0.06);
+      border: 1px solid rgba(34,197,94,0.2);
+      border-radius: 10px;
+      padding: 20px 28px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 19px;
+      text-align: left;
+      margin-top: 20px;
+    }
+    .result-id    { color: #60a5fa; }
+    .result-score { color: #22c55e; float: right; }
+    .result-text  { color: rgba(255,255,255,0.45); margin-top: 10px; font-size: 17px; line-height: 1.5; }
+
+    /* ── Why cards ── */
+    .why-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 24px;
+      padding: 52px 60px;
+      text-align: center;
+      width: 400px;
+    }
+    .why-icon  { font-size: 64px; margin-bottom: 24px; display: block; }
+    .why-title { color: #ffffff; font-size: 34px; font-weight: 700; }
+    .why-sub   { color: rgba(255,255,255,0.4); font-size: 24px; margin-top: 14px; line-height: 1.5; }
+
+    /* ── CTA ── */
+    .cta-cmd {
+      background: rgba(34,197,94,0.08);
+      border: 1px solid rgba(34,197,94,0.3);
+      border-radius: 16px;
+      padding: 36px 72px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 56px;
+      color: #22c55e;
+      letter-spacing: -1px;
+    }
+    .cta-url {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 28px;
+      color: rgba(255,255,255,0.3);
+    }
+  </style>
+</head>
+<body>
+<div id="root"
+  data-composition-id="memory-seed-demo"
+  data-start="0"
+  data-duration="32"
+  data-width="1920"
+  data-height="1080">
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- NARRATION — Kokoro TTS, af_heart voice                      -->
+  <!-- Main body (0–26.6 s), CTA split for precise timing          -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <audio
+    id="narration"
+    data-start="0"
+    data-duration="26.6"
+    data-track-index="2"
+    data-volume="1"
+    src="./assets/narration.wav">
+  </audio>
+  <audio
+    id="narration-cta-1"
+    data-start="27.0"
+    data-duration="1.0"
+    data-track-index="3"
+    data-volume="1"
+    src="./assets/narration-cta-1.wav">
+  </audio>
+  <audio
+    id="narration-cta-2"
+    data-start="28.5"
+    data-duration="1.5"
+    data-track-index="4"
+    data-volume="1"
+    src="./assets/narration-cta-2.wav">
+  </audio>
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- PERSISTENT — Background (0–30 s)                             -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <div id="bg"   class="clip" data-start="0" data-duration="32" data-track-index="0"></div>
+  <div id="grid" class="clip" data-start="0" data-duration="32" data-track-index="1"></div>
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- SCENE 1 — The Problem (0–5 s)                                -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <div id="s1" class="clip scene" data-start="0" data-duration="5" data-track-index="10">
+    <div style="text-align:center; max-width:1400px;">
+      <div id="s1-label" class="label" style="opacity:0;">The Problem</div>
+      <div style="height:28px"></div>
+      <div id="s1-h" class="headline" style="opacity:0;">
+        AI agents forget<br/>everything between sessions.
+      </div>
+      <div style="height:32px"></div>
+      <div id="s1-sub" class="subline" style="opacity:0;">
+        Context lost. Decisions repeated. Memory&nbsp;=&nbsp;zero.
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- SCENE 2 — The Solution (5–12 s)                              -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <div id="s2" class="clip scene" data-start="5" data-duration="7" data-track-index="10">
+    <div style="display:flex; align-items:center; gap:110px; max-width:1640px; width:100%; padding:0 80px;">
+
+      <!-- Left: logo + tagline -->
+      <div style="flex:1; min-width:560px;">
+        <div id="s2-logo" style="opacity:0; display:flex; align-items:center; gap:24px;">
+          <div style="width:84px; height:84px; background:linear-gradient(135deg,#22c55e,#3b82f6); border-radius:22px; display:flex; align-items:center; justify-content:center; font-size:46px; flex-shrink:0;">🌱</div>
+          <div style="font-size:74px; font-weight:900; letter-spacing:-3px; color:#fff;">Memory Seed</div>
+        </div>
+        <div id="s2-bar" class="accent-bar" style="opacity:0; margin:32px 0;"></div>
+        <div id="s2-sub" class="subline" style="opacity:0; font-size:34px;">
+          A <span class="green">portable local memory system</span><br/>for AI coding agents.
+        </div>
+      </div>
+
+      <!-- Right: .memory-seed/ file tree -->
+      <div style="flex-shrink:0;">
+        <div class="filetree">
+          <div id="t0" style="opacity:0;"><span class="dir">📁 .memory-seed/</span></div>
+          <div id="t1" class="f" style="opacity:0;">├─ agent-rules.md</div>
+          <div id="t2" class="f" style="opacity:0;">├─ index.md</div>
+          <div id="t3" class="f" style="opacity:0;">├─ policy.md</div>
+          <div id="t4" class="f" style="opacity:0;">├─ 📁 skills/</div>
+          <div id="t5" class="ff" style="opacity:0;">└─ index.md</div>
+          <div id="t6" class="f" style="opacity:0;">└─ 📁 sessions/</div>
+          <div id="t7" class="ff" style="opacity:0;">└─ 2026-05-27.md</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- SCENE 3 — How It Works (12–20 s)                             -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <div id="s3" class="clip scene" data-start="12" data-duration="8" data-track-index="10">
+    <div style="text-align:center; max-width:1720px; width:100%; padding:0 60px;">
+      <div id="s3-label" class="label" style="opacity:0;">How It Works</div>
+      <div style="height:56px;"></div>
+      <div style="display:flex; align-items:flex-start; justify-content:center; gap:28px;">
+
+        <!-- Step 1 -->
+        <div id="step1" class="step-card" style="opacity:0; max-width:420px;">
+          <div class="step-num">Step 1</div>
+          <div class="terminal" style="font-size:26px; padding:18px 28px;">$ memory-seed init</div>
+          <div class="step-label">Control plane installed<br/>in your project.</div>
+        </div>
+
+        <div id="arr1" style="opacity:0; color:rgba(255,255,255,0.12); font-size:52px; padding-top:50px; flex-shrink:0;">→</div>
+
+        <!-- Step 2 -->
+        <div id="step2" class="step-card" style="opacity:0; max-width:420px;">
+          <div class="step-num">Step 2</div>
+          <div class="terminal" style="font-size:26px; padding:18px 28px; color:#60a5fa;">agent bootstraps</div>
+          <div class="step-label"><span class="blue">index.md</span> + <span class="blue">policy.md</span><br/>auto-generated.</div>
+        </div>
+
+        <div id="arr2" style="opacity:0; color:rgba(255,255,255,0.12); font-size:52px; padding-top:50px; flex-shrink:0;">→</div>
+
+        <!-- Step 3 -->
+        <div id="step3" class="step-card" style="opacity:0; max-width:500px;">
+          <div class="step-num">Step 3</div>
+          <div class="terminal" style="font-size:22px; padding:16px 24px; color:#a78bfa; line-height:1.5;">
+            memory_search(<br/>&nbsp;&nbsp;"past decisions")
+          </div>
+          <div class="result-card">
+            <span class="result-id">ms-db2d715c</span><span class="result-score">0.94&thinsp;✓</span>
+            <div class="result-text" style="clear:both;">"Use TypeScript strict mode—<br/>decided 2026-03-14"</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- SCENE 4 — Why It Works (20–27 s)                             -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <div id="s4" class="clip scene" data-start="20" data-duration="7" data-track-index="10">
+    <div style="text-align:center; max-width:1600px; width:100%;">
+      <div id="s4-label" class="label" style="opacity:0;">Why It Works</div>
+      <div style="height:60px;"></div>
+      <div style="display:flex; gap:48px; justify-content:center;">
+        <div id="why1" class="why-card" style="opacity:0;">
+          <span class="why-icon">🏠</span>
+          <div class="why-title">Local-First</div>
+          <div class="why-sub">No cloud. No lock-in.<br/>Just plain files.</div>
+        </div>
+        <div id="why2" class="why-card" style="opacity:0;">
+          <span class="why-icon">🤝</span>
+          <div class="why-title">Any Agent</div>
+          <div class="why-sub">Claude · Codex · Gemini<br/>All read Markdown.</div>
+        </div>
+        <div id="why3" class="why-card" style="opacity:0;">
+          <span class="why-icon">📄</span>
+          <div class="why-title">Git-Native</div>
+          <div class="why-sub">Commit your memory.<br/>Diff it. Review it.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- SCENE 5 — CTA (27–30 s)                                      -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <div id="s5" class="clip scene" data-start="27" data-duration="5" data-track-index="10">
+    <div style="text-align:center;">
+      <div id="s5-label" class="label" style="opacity:0;">Get Started</div>
+      <div style="height:36px;"></div>
+      <div id="s5-cmd" class="cta-cmd" style="opacity:0;">pip install memory-seed</div>
+      <div style="height:28px;"></div>
+      <div id="s5-url" class="cta-url" style="opacity:0;">github.com/jnl-tshi/memory-seed</div>
+    </div>
+  </div>
+
+</div><!-- #root -->
+
+<script>
+  window.__timelines = window.__timelines || {};
+  const E = "power2.out";
+  const tl = gsap.timeline({ paused: true });
+
+  // ── Scene 1: The Problem (0–5 s) ─────────────────────────────────────
+  tl.fromTo("#s1-label", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 0.3)
+    .fromTo("#s1-h",     { opacity: 0, y: 36 }, { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" }, 0.7)
+    .fromTo("#s1-sub",   { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 1.6)
+
+  // ── Scene 2: The Solution (5–12 s) ───────────────────────────────────
+  .fromTo("#s2-logo", { opacity: 0, x: -36 }, { opacity: 1, x: 0, duration: 0.6, ease: "power2.out" }, 5.3)
+  .fromTo("#s2-bar",  { opacity: 0, scaleX: 0 }, { opacity: 1, scaleX: 1, duration: 0.5, ease: E, transformOrigin: "left center" }, 5.8)
+  .fromTo("#s2-sub",  { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.5, ease: E }, 6.2)
+  .fromTo("#t0", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 6.9)
+  .fromTo("#t1", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 7.15)
+  .fromTo("#t2", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 7.35)
+  .fromTo("#t3", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 7.55)
+  .fromTo("#t4", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 7.75)
+  .fromTo("#t5", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 7.95)
+  .fromTo("#t6", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 8.15)
+  .fromTo("#t7", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 8.35)
+
+  // ── Scene 3: How It Works (12–20 s) ──────────────────────────────────
+  .fromTo("#s3-label", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 12.3)
+  .fromTo("#step1",    { opacity: 0, y: 32 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 12.9)
+  .fromTo("#arr1",     { opacity: 0 },        { opacity: 1, duration: 0.4 },                           14.1)
+  .fromTo("#step2",    { opacity: 0, y: 32 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 14.4)
+  .fromTo("#arr2",     { opacity: 0 },        { opacity: 1, duration: 0.4 },                           15.7)
+  .fromTo("#step3",    { opacity: 0, y: 32 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 16.0)
+
+  // ── Scene 4: Why It Works (20–27 s) ──────────────────────────────────
+  .fromTo("#s4-label", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 20.3)
+  .fromTo("#why1",     { opacity: 0, y: 48 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 21.0)
+  .fromTo("#why2",     { opacity: 0, y: 48 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 21.7)
+  .fromTo("#why3",     { opacity: 0, y: 48 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 22.4)
+
+  // ── Scene 5: CTA (27–30 s) ───────────────────────────────────────────
+  .fromTo("#s5-label", { opacity: 0, y: 16 },         { opacity: 1, y: 0,     duration: 0.4, ease: E },                       27.2)
+  .fromTo("#s5-cmd",   { opacity: 0, scale: 0.94 },   { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(1.4)" },         28.5)
+  .fromTo("#s5-url",   { opacity: 0, y: 12 },         { opacity: 1, y: 0,     duration: 0.5, ease: E },                       29.1)
+
+  window.__timelines["memory-seed-demo"] = tl;
+</script>
+</body>
+</html>

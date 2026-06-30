@@ -93,6 +93,18 @@ skills:
     do_not_load_when:
       - task has no security, privacy, or destructive-operation surface
 
+  - skill: developer-rendered-ui-debugging.md
+    required: false
+    persona: developer
+    load_when:
+      - debugging local browser UI behavior
+      - rendered frontend click, hover, scroll, layout, theme, or cache regressions
+      - SVG, canvas, graph, timeline, or pane interaction bugs
+    do_not_load_when:
+      - backend-only changes
+      - static documentation changes
+      - no browser-rendered behavior is involved
+
   - skill: document_ingestion.md
     required: true
     load_when:

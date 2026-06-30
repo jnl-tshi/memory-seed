@@ -86,14 +86,15 @@ Multi-user Phases 1-2 shipped (2.9/2.10), and the core multi-user increments (A-
 validation, A-ID 80-bit entry IDs, A-P4 MCP metadata/filters, S2 participant registry parsing, and
 A-P5 `migrate sessions-layout`) shipped in 2.12.0. Remaining work:
 
-1. **Related-entries generation - needs scoping and planning.** The `related_entries` graph edges are
-   now read, exposed via MCP (A-P4), and validated by `links check` (A-P3), and the authoring field is
-   documented in the session-log schema (2.12.0) - but nothing *generates* or *assists* the links; they
-   must be hand-authored, so the graph stays empty in practice. Scope a generation mechanism (e.g. a
-   `memory-seed link add` helper and/or suggested edges derived from retrieval) together with its design
-   constraints (append-only chronology, idempotency, manual vs. suggested edges, how `links check`
-   validation interacts) before writing code.
-2. Create Pillar B as a separate companion install: `memory-seed-explorer`.
+1. **Related-entries generation - P1 implemented (worktree, unreleased).** Decisions resolved and the
+   read-only core shipped: `memory-seed link suggest` + `memory-seed link show` +
+   `build_related_entry_graph()` (bidirectional read-time traversal). Scope, decisions, and the
+   deferred P2 are in
+   [`docs/todo/related-entries-generation-plan.md`](docs/todo/related-entries-generation-plan.md).
+   Deferred (P2, needs sign-off): backfilling edges between two pre-existing entries, and the optional
+   `link add` writer (current-entry-only) if hand-editing YAML proves painful.
+2. Restart Pillar B with a new human-facing UI approach. Any future UI should consume
+   `build_related_entry_graph()` rather than fork graph logic.
 
 Pillar B is no longer an undecided extra inside the core package. It should be a separate distribution
 that depends on `memory-seed`, starts as a local read-only web app, and may later gain a desktop shell.
