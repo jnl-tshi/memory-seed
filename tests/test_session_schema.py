@@ -4,8 +4,8 @@ from pathlib import Path
 
 
 class SessionSchemaTests(unittest.TestCase):
-    def test_agent_rules_document_flexible_rationale_aware_entry_shapes(self):
-        content = Path(".memory-seed/agent-rules.md").read_text(encoding="utf-8")
+    def test_session_logging_skill_documents_flexible_rationale_aware_entry_shapes(self):
+        content = Path(".memory-seed/skills/session_logging.md").read_text(encoding="utf-8")
 
         for phrase in (
             "Small work entry",
@@ -24,12 +24,12 @@ class SessionSchemaTests(unittest.TestCase):
         ):
             self.assertIn(phrase, content)
 
-    def test_agent_rules_document_mcp_history_conflict_resolution(self):
+    def test_history_retrieval_skill_documents_mcp_history_conflict_resolution(self):
         # Guards the load-bearing contract tokens only (section headings, tool
         # names, the recency/topical split, the fallback + authority rules).
         # Incidental JSON-literal snippets and example IDs were intentionally
         # dropped so harmless rewording does not trip the test.
-        content = Path(".memory-seed/agent-rules.md").read_text(encoding="utf-8")
+        content = Path(".memory-seed/skills/history_retrieval.md").read_text(encoding="utf-8")
 
         for phrase in (
             "History Retrieval And Conflict Resolution",
@@ -48,7 +48,7 @@ class SessionSchemaTests(unittest.TestCase):
         ):
             self.assertIn(phrase, content)
 
-    def test_agent_rules_restore_v14_operational_guardrails(self):
+    def test_agent_rules_keep_startup_guardrails_and_lazy_skill_pointers(self):
         content = Path(".memory-seed/agent-rules.md").read_text(encoding="utf-8")
 
         for phrase in (
@@ -67,7 +67,7 @@ class SessionSchemaTests(unittest.TestCase):
             "Public Memory Hygiene",
             "Treat `.memory-seed` files as potentially publishable",
             "Do not write secrets, credentials, tokens, private keys",
-            "Reusable seed files must stay generic",
+            ".memory-seed/skills/memory_hygiene.md",
             "Inside a sub-project runtime, local `index.md`, local `policy.md`, and local skills govern work under that runtime boundary",
             "Bootstrap Boundary",
             "apply bootstrap to that target project or sub-project path",
@@ -76,16 +76,14 @@ class SessionSchemaTests(unittest.TestCase):
 
     def test_agent_rules_define_deterministic_skill_registry_and_subproject_summary(self):
         content = Path(".memory-seed/agent-rules.md").read_text(encoding="utf-8")
+        subproject = Path(".memory-seed/skills/subproject_runtime.md").read_text(encoding="utf-8")
 
         for phrase in (
             "Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry",
             "Load full `.memory-seed/skills/*.md` runbooks only when the trigger registry matches the current task",
             "Sub-Project Runtime Creation",
-            "distinct long-lived context, policy, workflows, risks, outputs, or memory needs",
-            "Do not create a sub-project runtime just because a folder exists",
-            "Record the nested runtime's existence and purpose in the parent or root `index.md`",
+            ".memory-seed/skills/subproject_runtime.md",
             "Detailed work logs belong in the nearest active runtime",
-            "parent-visible topology, shared design, release behavior, policy inheritance, cross-project dependencies, risks, or active priorities",
             "Do not mirror sub-project logs into root memory",
             "`index.md`: deterministic trigger registry",
             "Evaluate registry rules in listed order",
@@ -93,6 +91,14 @@ class SessionSchemaTests(unittest.TestCase):
             "use the nearest runtime's registry first",
         ):
             self.assertIn(phrase, content)
+
+        for phrase in (
+            "distinct long-lived context, policy, workflows, risks, outputs, or memory needs",
+            "Do not create a sub-project runtime just because a folder exists",
+            "Record the nested runtime's existence and purpose in the parent or root `index.md`",
+            "parent-visible topology, shared design, release behavior, policy inheritance, cross-project dependencies, risks, or active priorities",
+        ):
+            self.assertIn(phrase, subproject)
 
     def test_routing_and_bootstrap_reference_skill_registry(self):
         agents = Path("AGENTS.md").read_text(encoding="utf-8")
@@ -173,6 +179,178 @@ class SessionSchemaTests(unittest.TestCase):
             "skill: memory_doctor.md",
             "skill: release_publishing.md",
             "skill: security_triage.md",
+            "skill: history_retrieval.md",
+            "skill: session_logging.md",
+            "skill: end_of_turn.md",
+            "skill: memory_hygiene.md",
+            "skill: subproject_runtime.md",
+        ):
+            self.assertIn(phrase, content)
+
+    def test_extracted_lazy_skills_are_registered_seeded_and_standalone(self):
+        extracted = {
+            "history_retrieval.md": (
+                "Default search payload",
+                "memory_search",
+                "memory_get_chunk",
+                "granularity: \"entry\"",
+                "Current files are the active authority",
+            ),
+            "session_logging.md": (
+                "Session Log Format",
+                "DRAFT decision record",
+                "Append-Only Chronology",
+                "related_entries",
+                "Meaningful decision entry",
+            ),
+            "end_of_turn.md": (
+                "End Of Turn",
+                "orphan & artifact sweep",
+                "Persona evolution check",
+                "Skill evolution check",
+                "Baseline-promotion check",
+            ),
+            "memory_hygiene.md": (
+                "Public Memory Hygiene",
+                "Treat `.memory-seed` files as potentially publishable",
+                "Do not write secrets",
+                "Reusable seed files must stay generic",
+            ),
+            "subproject_runtime.md": (
+                "Sub-Project Runtime Creation",
+                "nested `.memory-seed/` runtime",
+                "Record local inheritance choices",
+                "parent/root summary",
+            ),
+        }
+        live_registry = Path(".memory-seed/skills/index.md").read_text(encoding="utf-8")
+        seed_registry = Path("memory_seed/seed/.memory-seed/skills/index.md").read_text(encoding="utf-8")
+        runtime_index = Path(".memory-seed/index.md").read_text(encoding="utf-8")
+
+        for skill, phrases in extracted.items():
+            live = Path(".memory-seed/skills") / skill
+            seed = Path("memory_seed/seed/.memory-seed/skills") / skill
+            self.assertTrue(live.exists(), f"missing live skill: {skill}")
+            self.assertTrue(seed.exists(), f"missing seed skill: {skill}")
+            self.assertEqual(
+                live.read_text(encoding="utf-8"),
+                seed.read_text(encoding="utf-8"),
+                f"{skill} should match seed twin",
+            )
+            skill_text = live.read_text(encoding="utf-8")
+            for phrase in phrases:
+                self.assertIn(phrase, skill_text, f"{skill} missing {phrase!r}")
+            for registry in (live_registry, seed_registry):
+                self.assertIn(f"skill: {skill}", registry)
+            self.assertIn(f".memory-seed/skills/{skill}", runtime_index)
+
+    def test_agent_rules_points_to_extracted_skills_without_embedded_runbooks(self):
+        content = Path(".memory-seed/agent-rules.md").read_text(encoding="utf-8")
+
+        for phrase in (
+            ".memory-seed/skills/history_retrieval.md",
+            ".memory-seed/skills/session_logging.md",
+            ".memory-seed/skills/end_of_turn.md",
+            ".memory-seed/skills/memory_hygiene.md",
+            ".memory-seed/skills/subproject_runtime.md",
+        ):
+            self.assertIn(phrase, content)
+
+        for moved_detail in (
+            "Default search payload:",
+            "Useful optional search fields:",
+            "Search results include `chunk_id`",
+            "#### Meaningful decision entry",
+            "#### Small work entry",
+            "#### Multi-decision session entry",
+            "Also check for unregistered `.agents/*.md`",
+            "Reusable seed files must stay generic. Do not write project-specific",
+        ):
+            self.assertNotIn(moved_detail, content)
+
+    def test_universal_registry_entries_have_live_and_seed_skill_files(self):
+        live_registry = Path(".memory-seed/skills/index.md").read_text(encoding="utf-8")
+        seed_registry = Path("memory_seed/seed/.memory-seed/skills/index.md").read_text(encoding="utf-8")
+        entry_re = re.compile(r"^  - skill: (?P<skill>[^\n]+)\n(?P<body>.*?)(?=^  - skill: |\Z)", re.MULTILINE | re.DOTALL)
+
+        for registry_text, root in (
+            (live_registry, Path(".memory-seed/skills")),
+            (seed_registry, Path("memory_seed/seed/.memory-seed/skills")),
+        ):
+            for match in entry_re.finditer(registry_text):
+                skill = match.group("skill").strip()
+                body = match.group("body")
+                if "persona:" in body:
+                    continue
+                self.assertTrue((root / skill).exists(), f"{root / skill} is registered but missing")
+
+    def test_esr_commands_point_to_end_of_turn_skill(self):
+        claude_live = Path(".claude/commands/esr.md").read_text(encoding="utf-8")
+        claude_seed = Path("memory_seed/seed/.claude/commands/esr.md").read_text(encoding="utf-8")
+        gemini_seed = Path("memory_seed/seed/.gemini/commands/esr.toml").read_text(encoding="utf-8")
+
+        self.assertEqual(claude_live, claude_seed)
+        for content in (claude_live, claude_seed, gemini_seed):
+            self.assertIn(".memory-seed/skills/end_of_turn.md", content)
+            self.assertIn("Append a session entry", content)
+            self.assertIn("full checklist", content)
+
+    def test_agent_collaboration_skill_is_registered_and_agent_rules_stay_lean(self):
+        live_skill = Path(".memory-seed/skills/agent_collaboration.md")
+        seed_skill = Path("memory_seed/seed/.memory-seed/skills/agent_collaboration.md")
+        live_registry = Path(".memory-seed/skills/index.md").read_text(encoding="utf-8")
+        seed_registry = Path("memory_seed/seed/.memory-seed/skills/index.md").read_text(encoding="utf-8")
+        runtime_index = Path(".memory-seed/index.md").read_text(encoding="utf-8")
+        agent_rules = Path(".memory-seed/agent-rules.md").read_text(encoding="utf-8")
+
+        self.assertTrue(live_skill.exists(), "live collaboration skill missing")
+        self.assertTrue(seed_skill.exists(), "seed collaboration skill missing")
+        self.assertEqual(
+            live_skill.read_text(encoding="utf-8"),
+            seed_skill.read_text(encoding="utf-8"),
+            "seed collaboration skill should match live skill",
+        )
+
+        skill_text = live_skill.read_text(encoding="utf-8")
+        for phrase in (
+            "Git-first collaboration",
+            "<owner>/<kind>/<topic>",
+            "feature|fix|refactor|test|docs",
+            "parallel code-writing agents use separate worktrees",
+            "Task Packet",
+            "allowed_files",
+            "forbidden_files",
+            "Conflict Escalation",
+            "orchestrator owns durable session logging",
+            "per-user session targets",
+        ):
+            self.assertIn(phrase, skill_text)
+
+        for registry in (live_registry, seed_registry):
+            self.assertIn("skill: agent_collaboration.md", registry)
+            self.assertIn("subagents, branch/worktree coordination, or multi-developer agent workflows", registry)
+        self.assertIn(".memory-seed/skills/agent_collaboration.md", runtime_index)
+        self.assertIn("agent_collaboration.md", agent_rules)
+        self.assertNotIn("merge queue is required", agent_rules)
+
+    def test_agent_rules_lazy_loading_recommendations_doc_exists(self):
+        path = Path("docs/todo/agent-rules-lazy-loading-recommendations.md")
+        self.assertTrue(path.exists(), "agent-rules lazy-loading recommendations doc missing")
+        content = path.read_text(encoding="utf-8")
+
+        for phrase in (
+            "# Agent Rules Lazy-Loading Recommendations",
+            "Recommendations only",
+            "keep always-on",
+            "shorten and point to existing skill",
+            "move to proposed future skill",
+            "leave unchanged for now",
+            "History Retrieval And Conflict Resolution",
+            "Session Log Format",
+            "End Of Turn",
+            "Public Memory Hygiene",
+            "Sub-Project Runtime Creation",
+            "Suggested Target Flow",
         ):
             self.assertIn(phrase, content)
 

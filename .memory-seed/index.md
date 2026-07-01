@@ -39,6 +39,12 @@ Memory Seed is a portable local memory system for AI coding agents. This runtime
 Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load the full skill runbooks below only when the registry matches the task:
 
 - `.memory-seed/skills/security_triage.md`
+- `.memory-seed/skills/agent_collaboration.md`
+- `.memory-seed/skills/history_retrieval.md`
+- `.memory-seed/skills/session_logging.md`
+- `.memory-seed/skills/end_of_turn.md`
+- `.memory-seed/skills/memory_hygiene.md`
+- `.memory-seed/skills/subproject_runtime.md`
 - `.memory-seed/skills/data_architecture.md`
 - `.memory-seed/skills/local_compilation.md`
 - `.memory-seed/skills/code_search.md`

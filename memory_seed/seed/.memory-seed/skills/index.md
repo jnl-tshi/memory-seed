@@ -35,6 +35,61 @@ skills:
       - task only touches memory control-plane docs
       - exact file path and required lines are already known
 
+  - skill: agent_collaboration.md
+    required: true
+    load_when:
+      - coordinating subagents, branch/worktree coordination, or multi-developer agent workflows
+      - creating or reviewing feature branches for agent work
+      - using worktrees for parallel code-writing agents
+      - preparing worker, validator, or merge-conflict handoffs
+    do_not_load_when:
+      - direct single-agent edits with no branch, worktree, merge, or handoff implications
+
+  - skill: history_retrieval.md
+    required: true
+    load_when:
+      - prior decisions, rationale, unresolved risks, or release history matter
+      - using memory_search or memory_get_chunk
+      - reconciling current files with older session history
+      - deciding whether older memory conflicts with current authority files
+    do_not_load_when:
+      - task is a small obvious edit and current files plus index.md and policy.md are sufficient
+
+  - skill: session_logging.md
+    required: true
+    load_when:
+      - writing, validating, or repairing session entries
+      - deciding DRAFT labels, entry shapes, related_entries, or append-only chronology
+      - changing session log schema or examples
+    do_not_load_when:
+      - only reading recent session state without writing or repairing logs
+
+  - skill: end_of_turn.md
+    required: true
+    load_when:
+      - running End Of Turn, ESR, or /esr
+      - performing closeout, consolidation review, orphan sweep, persona evolution, skill evolution, or baseline-promotion review
+    do_not_load_when:
+      - ordinary mid-task work before closeout
+
+  - skill: memory_hygiene.md
+    required: true
+    load_when:
+      - secrets, credentials, private identities, client data, publishable memory, or reusable-template hygiene are involved
+      - editing memory content that may later become public
+      - changing seed templates with privacy or portability implications
+    do_not_load_when:
+      - task has no privacy, public-memory, or reusable-template surface
+
+  - skill: subproject_runtime.md
+    required: true
+    load_when:
+      - creating, repairing, or reviewing a nested .memory-seed runtime
+      - deciding parent/root summaries, inheritance choices, or bootstrap target boundaries
+      - work crosses root and sub-project runtime boundaries
+    do_not_load_when:
+      - work stays inside the current runtime and does not affect runtime topology
+
   - skill: data_architecture.md
     required: true
     load_when:

@@ -671,6 +671,30 @@ SEED_FILES = [
         ".memory-seed/skills/code_search.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "agent_collaboration.md",
+        ".memory-seed/skills/agent_collaboration.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "history_retrieval.md",
+        ".memory-seed/skills/history_retrieval.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "session_logging.md",
+        ".memory-seed/skills/session_logging.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "end_of_turn.md",
+        ".memory-seed/skills/end_of_turn.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "memory_hygiene.md",
+        ".memory-seed/skills/memory_hygiene.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "subproject_runtime.md",
+        ".memory-seed/skills/subproject_runtime.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "index.md",
         ".memory-seed/skills/index.md",
     ),

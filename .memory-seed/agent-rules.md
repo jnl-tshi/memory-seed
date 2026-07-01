@@ -1,4 +1,4 @@
----
+﻿---
 memory-system-version: 2.12
 tags:
   - memory-seed
@@ -46,15 +46,7 @@ A nested project folder with its own `.memory-seed/` is a sub-project runtime. W
 
 Create a nested `.memory-seed/` runtime only when a sub-project has distinct long-lived context, policy, workflows, risks, outputs, or memory needs. Do not create a sub-project runtime just because a folder exists.
 
-Ask the user before creating a nested runtime unless they explicitly requested sub-project memory setup. When approved or requested:
-
-1. Confirm the target sub-project path.
-2. Run Memory Seed initialization from that target path.
-3. Bootstrap the sub-project from local evidence and targeted user answers.
-4. Record local inheritance choices in the sub-project `index.md`.
-5. Record the nested runtime's existence and purpose in the parent or root `index.md`.
-
-Sub-project runtimes do not need their own root `AGENTS.md`, `CLAUDE.md`, or `GEMINI.md` unless the sub-project is meant to be opened independently as a repository.
+Ask the user before creating a nested runtime unless they explicitly requested sub-project memory setup. Load `.memory-seed/skills/subproject_runtime.md` for the full creation, inheritance, bootstrap-target, and parent/root summary workflow.
 
 ## Mode Check Routine
 
@@ -93,92 +85,15 @@ Do not read or apply `.memory-seed/project-bootstrap.md` during normal operating
 
 ## History Retrieval And Conflict Resolution
 
-Use MCP history retrieval when prior decisions, reason, unresolved risks, architecture, policy, bootstrap behavior, release history, or "why was this done" matters. This is a quick-start for agents that can call MCP tools.
+Use MCP history retrieval when prior decisions, reason, unresolved risks, architecture, policy, bootstrap behavior, release history, or "why was this done" matters. Load `.memory-seed/skills/history_retrieval.md` for retrieval mechanics, `memory_search` and `memory_get_chunk` payloads, result interpretation, direct-file fallback, and conflict handling.
 
 ### Recency vs. Topical Retrieval
 
-Pick the retrieval method by question type â€” they are not interchangeable:
-
-- **Current state / "what is the latest"** (session start, catch-up, "what's happening now"): read the newest dated `.memory-seed/sessions/*.md` files directly, selected by filename date, newest first. This is the authority for what most recently happened. Do **not** use `memory_search` for this â€” semantic and lexical ranking optimize for topical similarity, not recency, and can rank the newest entry below older topically-similar ones or omit it entirely. A SessionStart hook injects the newest entries automatically where supported; when it is not, do the direct read yourself.
-- **Topical / "why was X decided" / "what do we know about Y"**: use `memory_search` (below). Ranked retrieval across all history is the right tool here.
-
-These two reminders coexist by design and do not conflict: the per-prompt retrieval reminder points at `memory_search` for topical recall before substantive work, while the recency rule governs establishing current state. They answer different questions.
-
-### When To Search
-
-Call `memory_search` before relying on the visible conversation alone when the task asks about or depends on:
-
-- a past design decision, architecture choice, policy change, bootstrap choice, release, migration, or unresolved risk
-- why a file, workflow, or memory structure behaves a certain way
-- whether a current request conflicts with older session history
-- sub-project boundaries, inherited policy, or prior agent handoff context
-
-Skip MCP history lookup for small, obvious edits where current source files and the active `index.md` / `policy.md` are enough.
-
-### Tool Mechanics
-
-The MCP server exposes two tools:
-
-- `memory_search`: ranks session-memory entries or sections.
-- `memory_get_chunk`: fetches the full text for one returned `chunk_id`.
-
-Default search payload:
-
-```json
-{
-  "query": "short natural-language description of what you need to know",
-  "cwd": ".",
-  "top_k": 5,
-  "granularity": "entry"
-}
-```
-
-Use `cwd` as the project or sub-project path you are operating in. The runtime resolver uses the nearest `.memory-seed/` directory from that path.
-
-Use `granularity: "entry"` by default. It returns one coherent chunk for each `##` session entry, and `chunk_id` is normally the entry YAML `entry_id`, such as `ms-db2d715c`.
-
-Use `granularity: "section"` only when entries are long, multi-topic, or the task needs narrower targeting. Section chunk ids append a heading path to the parent entry id, such as `ms-db2d715c#decisions/d1-use-draft-for-compact-decision-records`.
-
-Useful optional search fields:
-
-```json
-{
-  "semantic_enabled": true,
-  "recency_enabled": true,
-  "recency_floor": 0.15
-}
-```
-
-Recency is anchored to the current date read from the system clock at call time. There is no date-override field; the tool never trusts a caller-supplied "today".
-
-If semantic scoring is unavailable, the tool falls back to lexical, metadata, and recency ranking. Do not treat semantic fallback as a failure unless the task requires semantic search specifically.
-
-Search results include `chunk_id`, `entry_id`, `source`, `line_range`, `heading_path`, `excerpt`, matched fields, score fields, entry metadata, and `granularity`. Treat excerpts as previews only.
-
-Fetch any result that may affect implementation, policy, bootstrap behavior, release behavior, or memory structure:
-
-```json
-{
-  "chunk_id": "ms-db2d715c",
-  "cwd": "."
-}
-```
-
-Use the fetched chunk text, not just the excerpt, when making or evaluating a consequential decision.
-
-If MCP tools are unavailable, read recent and relevant `.memory-seed/sessions/YYYY-MM-DD.md` and `.memory-seed/sessions/YYYY-MM-DD/<user>.md` files directly. Start with the last two session documents, then search older dated files by keyword if needed. Apply the same authority and conflict rules below.
+Newest-state questions use direct session-file reads by date. Topical questions use `memory_search`, with consequential results fetched by `memory_get_chunk`. These are different workflows and should not be substituted for each other.
 
 Current files are the active authority: `.memory-seed/index.md`, `.memory-seed/policy.md`, active `.memory-seed/skills/*.md`, and source/config files for implementation truth. Session history is evidence and reason, not automatic authority.
 
-When history conflicts with current authority files, resolve by timeline only when all clear supersession criteria are met:
-
-- the superseding source is a newer dated session entry or current authority file
-- it states an explicit decision boundary
-- it names the affected files, behavior, policy, or design area
-- no later reversal or unresolved disagreement is found
-
 If the conflict remains ambiguous or unresolved, ask the user before changing durable design, policy, bootstrap behavior, memory structure, release behavior, or similarly consequential workflow.
-
 ## Inheritance
 
 Default inheritance for sub-project runtimes:
@@ -220,6 +135,7 @@ Use for large, multi-file, ambiguous, or risky changes where splitting work redu
 - Orchestrator owns scope, sequencing, context budget, and integration.
 - Workers own bounded, non-overlapping subtasks.
 - Validator checks behavior, tests, regressions, and policy fit.
+- Load `.memory-seed/skills/agent_collaboration.md` for subagents, branch/worktree coordination, or multi-developer agent workflows.
 - If the active agent cannot spawn subagents, follow the same phases serially.
 
 ### Level 3: Research And Human Checkpoints
@@ -295,68 +211,29 @@ Cross-cutting principles that apply to any agent and any task:
 
 ## End Of Turn
 
-This rule applies to all agents equally â€” Claude, Codex, Gemini, and any other agent reading these instructions.
+After any turn where meaningful work was completed, append a concise entry to the active session target before the turn ends. Deferring or batching session log writes is a discipline failure.
 
-After any turn where meaningful work was completed:
+Load `.memory-seed/skills/end_of_turn.md` for the full ESR checklist: session entry, consolidation review, policy/index/skill review, verification, orphan and artifact sweep, persona evolution, skill evolution, unregistered persona check, and baseline-promotion review.
 
-1. **Append a concise note to the active session target (`memory-seed session target`) before this turn ends.** Do not defer it to the next turn. Do not batch multiple turns into one entry later. Write it now. Include `agent_name` in the entry YAML block if a persona is active.
-2. Review whether `.memory-seed/index.md` needs updated topology, active state, inheritance, or skill pointers. When the **Consolidation Review Triggers** (below) apply, promote durable, reusable facts from the session logs into `index.md` / `policy.md` using `.memory-seed/skills/memory_consolidation.md` — promote stable conclusions, not the full decision history.
-3. Review whether `.memory-seed/policy.md` needs durable behavioral-policy changes.
-4. Review whether any `.memory-seed/skills/*.md` runbook changed.
-5. If work occurred in a sub-project runtime, review whether the parent or root runtime needs a brief coordination summary.
-6. Run the smallest verification that proves the work.
-7. **Orphan & artifact sweep (scoped to this session's changes).** Review only what this turn added, deleted, or renamed (use `git diff`/`git status` if available, otherwise your own change list):
-   - **Additions** â€” confirm every new file, function, module, skill, persona, route, or config key is referenced somewhere (imported / registered / linked / exported / routed). An unreferenced addition is an orphan: wire it in or remove it.
-   - **Deletions & renames** â€” search the repo for references to the removed name or path; resolve or flag every dangling reference.
-   - **Scratch & debris** â€” flag temporary files, commented-out code, debug output, half-removed features, and stray or untracked directories, `*.bak` files, or scratch notes that should not persist.
-   - **Deeper dead-code scan (optional, not required):** if the project already declares a dead-code tool (for example vulture/ruff, knip, ArchUnit, cppcheck), you may run it; otherwise note that one is available. Do not install tools for this. A per-session sweep reliably catches orphan *files and features*; whole-codebase *dead code* is a tool's job, so treat it as periodic, not mandatory.
+Load `.memory-seed/skills/session_logging.md` for session frontmatter, entry YAML, DRAFT labels, entry shapes, append-only chronology, `related_entries`, and examples.
 
-   Record anything you cannot resolve as a Follow-up in the session entry. This sweep does not override the File Ownership and Change Permission rules: do not delete a user-owned or pre-existing file on its strength alone â€” flag it and confirm.
-8. **Persona evolution check (if a persona is active):** Identify up to 3 patterns from this session that should change how the active persona behaves â€” new rules, dropped rules, or calibration from evidence. Draft proposed changes (what to add/change/remove in `.agents/<slug>.md` and why) and present them to the user for approval. Do not touch `.agents/<slug>.md` until the user approves. On approval: apply the edit, append a `### YYYY-MM-DD` entry to the `## Project Adaptations` section of the persona file, and add "Signed: user approved YYYY-MM-DD HH:MM" to the session log entry. If no lessons emerged, skip this step silently.
+### Consolidation Review Triggers
 
-9. **Skill evolution check (if a persona is active):** If a repeating workflow pattern emerged during this session that is not covered by any existing skill in `.memory-seed/skills/`, propose a new role-specific skill. Follow the same draft â†’ approval flow: draft the skill file (YAML frontmatter, `# Skill Name`, Procedure, Output), present to the user, and wait for approval before writing. On approval: write to `.memory-seed/skills/<persona-slug>-<skill-name>.md`, add a trigger entry to `skills/index.md` (with `persona: <slug>` field), update the `### Role-Specific Skills` section of the persona file, and log in the session entry. If no skill gaps emerged, skip silently.
+Review recent session logs for durable-memory promotion when meaningful session volume, project direction, release behavior, policy, architecture, migration, bootstrap repair, security posture, or reusable workflow state has changed. Use `.memory-seed/skills/memory_consolidation.md` for the detailed compact-and-promote workflow.
 
-Also check for unregistered `.agents/*.md` files (files present but not in `_registry.yaml`). If any are found, run the persona onboarding flow from project-bootstrap.md Step 9e.
-
-10. **Baseline-promotion check.** If an approved adaptation from this session — a new rule, skill, or runbook — is general enough to reuse beyond this project, flag it for promotion to a shared or upstream location you maintain: a reusable template, an organization standard, or a seed/package if you keep one. Record the candidate in `.memory-seed/plans/` (create the directory if it does not exist). This only records a candidate for a human to action; it never edits the shared location automatically.
-
-Deferring or batching session log writes is a discipline failure, not an acceptable workflow. If the current turn produced anything worth remembering â€” a decision, a file change, a resolved blocker, a tradeoff â€” write it now.
-
-### Append-Only Chronology
-
-The session file is strictly append-only and must stay in ascending time order. To guarantee this without ever reordering:
-
-- Append every new entry to the **end** of the day's file. Never insert an entry above an existing one.
-- **Append each entry at the physical end of the file; never insert above an existing entry.** That is the rule; the mechanism is up to your tools. The common failure is anchor-based edit tools â€” if you target a line you wrote earlier, a later edit may already sit below it, so the new entry lands mid-file. Avoid it by confirming the *actual* last line immediately before appending (for example, read the file's tail); never reuse an anchor from memory. With a POSIX shell or Python, append mode (`>> file`, `open(f, 'a')`) sidesteps anchors entirely â€” write UTF-8 (some shells, for example PowerShell `>>`, default to other encodings).
-- The entry heading timestamp is the **actual current clock time** at the moment you write it. Read it from the system clock; never reuse a time from your context, memory, or an earlier message, and never backdate it to when the work happened.
-- Because entries are always appended with the current time, file order, write order, and timestamp order are identical. No manual reordering is ever needed or allowed.
-- If you are recording work that completed earlier in the session (you forgot, or you are catching up), still stamp the heading with the current time. If the original work time matters, state it in the entry body â€” do not move the entry above newer ones and do not rewrite earlier headings.
-
-This is the invariant the "do not rewrite old session entries" rule protects: out-of-order or backdated entries force a human to manually re-sort the log, which is exactly what append-only is meant to prevent. Confirming the real last line before each append â€” or using append mode where your environment supports it â€” makes this invariant mechanical rather than reliant on a remembered anchor.
-
-Detailed work logs belong in the nearest active runtime. Add a parent/root summary only when sub-project work changes parent-visible topology, shared design, release behavior, policy inheritance, cross-project dependencies, risks, or active priorities. Do not mirror sub-project logs into root memory.
-
-Session entries must capture reason when it matters, without forcing ceremony for small work. Use reason for durable decisions, architecture changes, policy changes, bootstrap choices, release decisions, non-obvious tradeoffs, or changes likely to confuse a future agent.
-
-## Consolidation Review Triggers
-
-Review recent session logs for durable-memory promotion when any of these are true:
-
-- More than three meaningful session entries have accumulated since last consolidation.
-- A completed task changed project direction, architecture, release process, CLI behavior, workflow rules, file ownership, or durable risk.
-- A session produced more than roughly 2,000 words / 8,000 tokens of notes or compact output.
-- A release, publish, migration, bootstrap repair, security decision, or major refactor completed.
-- `index.md`, `policy.md`, or a skill no longer reflects current project state.
-
-These triggers require review, not automatic edits. Promote only facts that are stable, reusable, and likely to help a future agent avoid wrong assumptions.
-
-Use `.memory-seed/skills/memory_consolidation.md` for the detailed compact-and-promote workflow.
+These triggers require review, not automatic edits. Promote stable conclusions, not full decision history.
 
 ## Skill Loading
 
 Skills are lazy-loaded runbooks. Read `.memory-seed/skills/index.md` first as the one-stop deterministic trigger registry. Load full skill runbooks only when the registry matches the task.
 
 - `index.md`: deterministic trigger registry; read during startup before loading full skills.
+- `agent_collaboration.md`: coordinating subagents, branch/worktree work, and multi-developer agent workflows.
+- `history_retrieval.md`: MCP retrieval mechanics, topical-vs-recency retrieval, and history/current-authority conflict handling.
+- `session_logging.md`: session log schema, DRAFT labels, examples, `related_entries`, and append-only chronology.
+- `end_of_turn.md`: full ESR checklist, consolidation review, artifact sweep, persona/skill evolution, and baseline-promotion review.
+- `memory_hygiene.md`: publishable-memory posture, secrets minimization, and reusable-template hygiene.
+- `subproject_runtime.md`: nested runtime creation, inheritance choices, bootstrap target boundaries, and parent/root summaries.
 - `code_search.md`: searching source code or repo structure efficiently.
 - `data_architecture.md`: changing durable data structures, indexes, schemas, or retrieval behavior.
 - `local_compilation.md`: validating local build/test/package/run behavior.
@@ -369,11 +246,11 @@ Evaluate registry rules in listed order, load every matching required skill, and
 
 ### Code Search Trigger
 
-For code search, repository exploration, symbol lookup, or broad codebase orientation, load `.memory-seed/skills/code_search.md` before broad grep sweeps or full-file reads. Prefer the skill's search hierarchy for software, library, API, and tooling projects.
+For code search, repository exploration, symbol lookup, or broad codebase orientation, load `.memory-seed/skills/code_search.md` before broad grep sweeps or full-file reads.
 
 ### Memory Doctor Trigger
 
-Load `.memory-seed/skills/memory_doctor.md` when runtime health, migration integrity, missing files, archive state, seed/live sync, or bootstrap completion is uncertain. Use it before repairing memory structure unless the problem is already obvious and narrow.
+Load `.memory-seed/skills/memory_doctor.md` when runtime health, migration integrity, missing files, archive state, seed/live sync, or bootstrap completion is uncertain.
 
 ### Compact And Consolidation Trigger
 
@@ -381,160 +258,17 @@ Load `.memory-seed/skills/memory_consolidation.md` when reviewing compact output
 
 ## Public Memory Hygiene
 
-Treat `.memory-seed` files as potentially publishable unless the user explicitly says the repository will always remain private.
+Treat `.memory-seed` files as potentially publishable unless the user explicitly says the repository will always remain private. Do not write secrets, credentials, tokens, private keys, sensitive account details, client confidential information, or unnecessary personal data into memory files.
 
-Do not write secrets, credentials, tokens, private keys, sensitive account details, client confidential information, or unnecessary personal data into `index.md`, `policy.md`, skills, archive notes, or session logs.
-
-When a project may become public, keep session entries focused on durable technical decisions and omit private local paths, private identities, and sensitive operational details unless the user explicitly asks to preserve them.
-
-Reusable seed files must stay generic. Do not write project-specific private paths, identities, account details, or domain facts into `memory_seed/seed/` templates.
+Load `.memory-seed/skills/memory_hygiene.md` for private/public risk distinctions, reusable-template hygiene, and redaction workflow.
 
 ## Session Log Format
 
-Use dated files under `.memory-seed/sessions/` with file-level frontmatter:
+Session entries use dated files under `.memory-seed/sessions/`. Entries must include the current-time heading and YAML metadata fields needed for auditability: `entry_id`, `user_initials`, `agent_type`, `project_path`, and `subproject_path`; include `agent_name` when a persona is active and `related_entries` when meaningful prior entries are linked.
 
-````markdown
----
-tags:
-  - session-log
-  - memory-seed
-session_date: 2026-05-02
----
+Keep entries concise, reason-aware, and append-only. Load `.memory-seed/skills/session_logging.md` for the full schema, DRAFT decision record, examples, and repair rules.
 
-## 2026-05-02 14:35 - Switch cache key to content hash
-
-```yaml
-entry_id: mse_0123456789abcdef
-user_initials: USER
-agent_type: codex
-agent_name: null
-project_path: .
-subproject_path: null
-related_entries:        # optional - links to related prior entries; omit when none
-  - ms-db2d715c
-```
-
-`agent_type` is the LLM model or vendor (e.g., `claude-opus-4-8`, `codex`). `agent_name` is the active `.agents/` persona slug (e.g., `developer`, `solo-founder`), or `null` when no persona is active. Both fields are independently optional. `related_entries` is an optional list of related `entry_id` values (legacy `ms-` or current `mse_`) that link this entry to prior entries; it forms the canonical graph edges surfaced by `memory_search` / `memory_get_chunk` and validated by `memory-seed links check`. Omit it when there is no meaningful link.
-### Summary
-
-- What changed or what was checked.
-
-### Decision
-
-- D: State the decision that was made or implemented. (mandatory)
-- R: Explain the decisive reason in 1-3 bullets. (mandatory)
-- A: Alternative considered or rejected, with reason, if it mattered. (optional)
-- F: Files, artifacts, or behaviors changed. (optional)
-- T: Tests or validation outcome. (optional)
-
-### Follow-up
-
-- Note any rerun, review, or unresolved risk.
-````
-
-Keep session filenames date-only, such as `.memory-seed/sessions/2026-05-02.md`. Use minute-level timestamps in entry headings, taken from the current system clock at write time. Entries are appended in clock order and never backdated or reordered (see Append-Only Chronology). Generate `entry_id` as a deterministic 80-bit `mse_` ID from metadata only: timestamp, title, user initials, agent type, project path, and subproject path. Legacy `ms-` IDs remain valid and must not be rewritten. Use known user initials when available; otherwise ask during bootstrap or use a neutral placeholder until confirmed. Capture meaningful decisions, durable changes, follow-up risk, or handoff context. Do not log every command.
-
-### Reason Rules
-
-**DRAFT** is the baseline decision-record format for session entries: default to it whenever a turn produced a decision or a durable change. Route to a simpler or richer shape only as the exception (see Entry Shapes), and never invent a decision just to fill the baseline.
-
-A DRAFT decision record uses compact labels:
-
-- D = Decision (mandatory) â€” what was chosen
-- R = Reason (mandatory) â€” the decisive reason, 1â€“3 bullets
-- A = Alternatives considered or rejected (optional) â€” with reason, when it shaped the tradeoff
-- F = Files, artifacts, or behaviors changed (optional)
-- T = Tests or validation outcome (optional; may appear inline as `- T:` or as a separate `### Validation` section)
-
-`D` and `R` are required for every meaningful decision. `A`, `F`, and `T` are optional when not relevant.
-
-- Do not invent reason.
-- If reason is inferred, label it `Inferred reason`.
-- If reason is unknown, write `Reason not recorded`.
-- Alternatives are optional unless they affected the decision or tradeoff.
-- Use `D1`, `D2`, and similar labels only inside a multi-decision entry; `entry_id` is the global reference.
-- Do not rewrite old logs solely to match the newest schema unless the user explicitly asks.
-
-### Entry Shapes
-
-Default to the **Meaningful decision entry** â€” a single DRAFT record. Route away from it only when the work does not fit:
-
-- down to the **Small work entry** for routine edits, small fixes, or verification-only work with no real decision (do not invent reason â€” see Reason Rules);
-- up to the **Multi-decision session entry** when one coherent task produced several decisions.
-
-#### Meaningful decision entry
-
-The baseline shape: use when a turn produced one durable decision.
-
-```markdown
-### Summary
-
-- Summarize the coherent task.
-
-### Decision
-
-- D: State the decision. (mandatory)
-- R: Explain the decisive reason in 1-3 bullets. (mandatory)
-- A: Alternative considered or rejected, with reason, if it mattered. (optional)
-- F: Files, artifacts, or behaviors changed. (optional)
-- T: Tests or validation outcome. (optional)
-```
-
-#### Small work entry
-
-Simpler alternative â€” for routine edits, small fixes, or verification-only work with no real decision.
-
-```markdown
-### Summary
-
-- What changed or what was checked.
-
-### Validation
-
-- Command or check and outcome, if relevant.
-
-### Follow-up
-
-- Only include if there is residual risk or a next action.
-```
-
-#### Multi-decision session entry
-
-Richer alternative â€” use one entry when several decisions belong to one coherent task, plan, or user goal. Split entries when decisions affect unrelated subsystems, sub-projects, or goals.
-
-```markdown
-### Summary
-
-- Summarize the coherent task.
-
-### Decisions
-
-#### D1 - Short decision name
-
-- D: State the choice. (mandatory)
-- R: Explain the decisive reason in 1-3 bullets. (mandatory)
-- A: Alternative considered or rejected, with reason, if it mattered. (optional)
-- F: Files, artifacts, or behaviors changed. (optional)
-- T: Tests or validation outcome. (optional)
-
-#### D2 - Short decision name
-
-- D: State the choice. (mandatory)
-- R: Explain the decisive reason in 1-3 bullets. (mandatory)
-
-### Implementation
-
-- Summarize changed behavior, not every file.
-
-### Validation
-
-- Commands or checks and outcomes, not full output.
-
-### Follow-up
-
-- Residual risks or next actions.
-```
-
+Detailed work logs belong in the nearest active runtime. Do not mirror sub-project logs into root memory.
 ## Archive Policy
 
 Archive prior control-plane snapshots under `.memory-seed/archive/<version>/` before replacing reusable versioned artifacts. Archive snapshots are historical records and may preserve old path names.

@@ -4,6 +4,13 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Added the universal `agent_collaboration.md` skill for Git-first subagent, branch,
+  worktree, merge-conflict, and multi-developer agent workflows.
+- Extracted detailed control-plane procedures from `agent-rules.md` into seeded lazy
+  skills: `history_retrieval.md`, `session_logging.md`, `end_of_turn.md`,
+  `memory_hygiene.md`, and `subproject_runtime.md`. `agent-rules.md` now keeps
+  startup-safe summaries and explicit skill pointers, and seeded ESR commands point
+  to the `end_of_turn.md` checklist.
 - Added `memory-seed link suggest [--for <entry_id>] [--top-k N]` - a read-only command that ranks
   **older** session entries to link from a target entry (default: the newest entry), excludes the
   target and its already-linked entries, and prints a copy-pasteable `related_entries:` snippet. It
