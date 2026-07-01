@@ -1,4 +1,4 @@
-﻿description = "Run the Memory Seed end-of-session routine"
+description = "Run the Memory Seed end-of-session routine"
 prompt = """
 Run the End Of Turn routine from `.memory-seed/skills/end_of_turn.md`.
 

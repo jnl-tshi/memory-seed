@@ -1,5 +1,6 @@
 import shutil
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -669,6 +670,18 @@ class MemorySeedTests(unittest.TestCase):
                 "GEMINI.md",
             ],
         )
+
+    def test_seed_toml_files_parse_without_bom(self):
+        for seed_file in SEED_FILES:
+            if seed_file.source.suffix != ".toml":
+                continue
+            data = seed_file.source.read_bytes()
+            self.assertFalse(
+                data.startswith(b"\xef\xbb\xbf"),
+                f"{seed_file.destination} must be UTF-8 without BOM",
+            )
+            parsed = tomllib.loads(data.decode("utf-8"))
+            self.assertIsInstance(parsed, dict)
 
     def test_update_does_not_overwrite_customized_agent_persona(self):
         cwd = self.make_project()

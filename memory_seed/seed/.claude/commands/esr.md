@@ -1,4 +1,4 @@
-﻿---
+---
 memory-system-version: 2.12
 description: Run the Memory Seed end-of-session routine
 ---

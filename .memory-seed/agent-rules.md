@@ -1,4 +1,4 @@
-﻿---
+---
 memory-system-version: 2.12
 tags:
   - memory-seed
