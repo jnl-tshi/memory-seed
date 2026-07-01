@@ -87,6 +87,23 @@ Heading: 2026-05-17 - Bootstrap mode check fix
 
 The validator performs the same search-then-fetch flow an MCP-capable agent uses: rank matching memory chunks, fetch the selected chunk by id, and print the exact source text for human review.
 
+## Memory Lense
+
+Memory Lense is an optional local browser UI for exploring a project's Memory Seed runtime. It serves read-only search, filters, timeline, graph, and reader/details views from Markdown session files, backed by a rebuildable local SQLite cache outside the repository.
+
+Install the optional web dependencies when you want to use it:
+
+```powershell
+python -m pip install "memory-seed[lense]"
+memory-seed lense --cwd . --host 127.0.0.1 --port 8765 --no-open
+```
+
+Without the extra, the `memory-seed lense` command is still present but prints:
+
+```text
+Install with: pip install "memory-seed[lense]"
+```
+
 ## Why This Exists
 
 AI coding agents are useful, but their project context is fragile. They forget decisions between sessions, vendor memory is not portable, and stuffing full history into prompts wastes context.
@@ -177,23 +194,34 @@ The routine also runs a **consolidation review** (promote durable, reusable fact
 AGENTS.md
 CLAUDE.md
 GEMINI.md
+.claude/commands/esr.md
+.gemini/commands/esr.toml
+.github/copilot-instructions.md
 .memory-seed/
   agent-rules.md
   project-bootstrap.md
   hooks/
     session-log-check.py
     memory-retrieval-check.py
+    session-start-context.py
   skills/
     index.md
+    agent_collaboration.md
     code_search.md
+    copywriter-conversion.md
     data_architecture.md
+    document_ingestion.md
+    end_of_turn.md
+    history_retrieval.md
     local_compilation.md
     memory_consolidation.md
     memory_doctor.md
+    memory_hygiene.md
+    office_document_editing.md
     release_publishing.md
     security_triage.md
-    document_ingestion.md
-    office_document_editing.md
+    session_logging.md
+    subproject_runtime.md
   sessions/
   archive/
 ```
@@ -214,7 +242,7 @@ GEMINI.md
 
 ## Current Version
 
-The current reusable control-plane version is `2.12`.
+The current reusable control-plane version is `2.13`.
 
 Legacy `.AGENTS/` projects remain supported as a fallback during migration.
 
@@ -263,8 +291,8 @@ uv pip install memory-seed
 For repeatable team or production usage, pin the package version:
 
 ```powershell
-uvx --from memory-seed==2.0.0 memory-seed doctor
-uvx --from memory-seed==2.0.0 memory-seed update --dry-run
+uvx --from memory-seed==2.13.0 memory-seed doctor
+uvx --from memory-seed==2.13.0 memory-seed update --dry-run
 ```
 
 If you are not using uv, install or upgrade the CLI with pip:
@@ -274,7 +302,7 @@ python -m pip install --upgrade memory-seed
 python -m pip show memory-seed
 ```
 
-`python -m pip show memory-seed` reports the installed Python package version, such as `2.12.0`. `memory-seed version` reports the reusable control-plane version, currently `2.12`; it is not the package-version check.
+`python -m pip show memory-seed` reports the installed Python package version, such as `2.13.0`. `memory-seed version` reports the reusable control-plane version, currently `2.13`; it is not the package-version check.
 
 To discover commands and flags, use `memory-seed help` (also shown when you run `memory-seed` with no command), `memory-seed -h`, or `memory-seed <command> -h` for a specific command.
 
@@ -297,14 +325,26 @@ GEMINI.md
 .memory-seed/agent-rules.md
 .memory-seed/project-bootstrap.md
 .memory-seed/archive/.gitkeep
+.memory-seed/hooks/session-log-check.py
+.memory-seed/hooks/memory-retrieval-check.py
+.memory-seed/hooks/session-start-context.py
+.memory-seed/skills/agent_collaboration.md
 .memory-seed/skills/index.md
 .memory-seed/skills/code_search.md
+.memory-seed/skills/copywriter-conversion.md
 .memory-seed/skills/security_triage.md
 .memory-seed/skills/data_architecture.md
+.memory-seed/skills/document_ingestion.md
+.memory-seed/skills/end_of_turn.md
+.memory-seed/skills/history_retrieval.md
 .memory-seed/skills/local_compilation.md
 .memory-seed/skills/memory_consolidation.md
 .memory-seed/skills/memory_doctor.md
+.memory-seed/skills/memory_hygiene.md
+.memory-seed/skills/office_document_editing.md
 .memory-seed/skills/release_publishing.md
+.memory-seed/skills/session_logging.md
+.memory-seed/skills/subproject_runtime.md
 .memory-seed/sessions/.gitkeep
 ```
 
@@ -383,6 +423,7 @@ When run in a project that already has Memory Seed files:
 - `memory-seed migrate sessions-layout [--dry-run]` splits legacy flat session files into per-user files using `.memory-seed/project.yaml` participants, backs up migrated sources, and refuses ambiguous or unsafe merges.
 - `memory-seed link suggest [--for <entry_id>] [--top-k N]` ranks older session entries to link from a target entry (default: the newest entry), skips the target and its already-linked entries, and prints a copy-pasteable `related_entries:` snippet. Read-only.
 - `memory-seed link show <entry_id>` prints an entry's stored outbound `related_entries` plus its computed inbound backlinks, so the related-entry graph is bidirectional at read time without editing any historical entry. Read-only.
+- `memory-seed lense` serves the optional local Memory Lense UI when installed with `memory-seed[lense]`; without the extra it prints the install hint.
 - `memory-seed session target [--create]` prints the active session log path and can create the file if needed.
 
 Known behavior to understand: `update --dry-run` currently lists all control-plane targets, not only files that would actually change. `init --force` intentionally rewrites all bundled seed files and should be used as a reinstall command rather than a targeted refresh.

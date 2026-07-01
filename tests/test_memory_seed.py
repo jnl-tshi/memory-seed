@@ -6,6 +6,7 @@ from pathlib import Path
 
 from memory_seed.core import (
     MEMORY_DIR_NAME,
+    PACKAGE_ROOT,
     SEED_FILES,
     check_session_links,
     compact_sessions,
@@ -28,7 +29,7 @@ class MemorySeedTests(unittest.TestCase):
         return path
 
     def test_version_reads_reusable_control_plane_version(self):
-        self.assertEqual(get_version(), "2.12")
+        self.assertEqual(get_version(), "2.13")
 
     # --- A-P3 session integrity validation (memory-seed links check) ---
 
@@ -670,6 +671,16 @@ class MemorySeedTests(unittest.TestCase):
                 "GEMINI.md",
             ],
         )
+
+    def test_package_data_includes_all_seed_files(self):
+        pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+        package_data = set(pyproject["tool"]["setuptools"]["package-data"]["memory_seed"])
+        expected = {
+            seed_file.source.relative_to(PACKAGE_ROOT).as_posix()
+            for seed_file in SEED_FILES
+        }
+
+        self.assertEqual(expected - package_data, set())
 
     def test_seed_toml_files_parse_without_bom(self):
         for seed_file in SEED_FILES:

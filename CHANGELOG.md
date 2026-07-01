@@ -4,6 +4,13 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+## 2.13.0 - 2026-07-01
+
+- Added `memory-seed lense`, an optional local FastAPI/Uvicorn browser UI for
+  searching, filtering, reading, graphing, and timeline-scanning Memory Seed
+  session history. Install with `pip install "memory-seed[lense]"`; without the
+  extra the command prints the install hint.
+- Included the Memory Lense static UI assets in the package distribution.
 - Added the universal `agent_collaboration.md` skill for Git-first subagent, branch,
   worktree, merge-conflict, and multi-developer agent workflows.
 - Extracted detailed control-plane procedures from `agent-rules.md` into seeded lazy
@@ -11,6 +18,9 @@ All notable changes to Memory Seed are summarized here.
   `memory_hygiene.md`, and `subproject_runtime.md`. `agent-rules.md` now keeps
   startup-safe summaries and explicit skill pointers, and seeded ESR commands point
   to the `end_of_turn.md` checklist.
+- Fixed the packaged seed inventory so every `SeedFile` source is included in
+  wheel/sdist package data, including `/esr` command files, lifecycle hooks,
+  document skills, and the new lazy skills.
 - Added `memory-seed link suggest [--for <entry_id>] [--top-k N]` - a read-only command that ranks
   **older** session entries to link from a target entry (default: the newest entry), excludes the
   target and its already-linked entries, and prints a copy-pasteable `related_entries:` snippet. It

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memory-seed"
-version = "2.12.0"
+version = "2.13.0"
 description = "Portable local memory seed for file-reading AI coding agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -46,21 +46,33 @@ memory_seed = [
   "seed/.agents/sales-rep.md",
   "seed/.agents/solo-founder.md",
   "seed/.agents/copywriter.md",
+  "seed/.claude/commands/esr.md",
+  "seed/.gemini/commands/esr.toml",
+  "seed/.github/copilot-instructions.md",
   "seed/.memory-seed/agent-rules.md",
   "seed/.memory-seed/archive/.gitkeep",
   "seed/.memory-seed/project-bootstrap.md",
+  "seed/.memory-seed/skills/agent_collaboration.md",
   "seed/.memory-seed/skills/security_triage.md",
   "seed/.memory-seed/skills/copywriter-conversion.md",
   "seed/.memory-seed/skills/code_search.md",
   "seed/.memory-seed/skills/index.md",
   "seed/.memory-seed/skills/data_architecture.md",
+  "seed/.memory-seed/skills/document_ingestion.md",
+  "seed/.memory-seed/skills/end_of_turn.md",
+  "seed/.memory-seed/skills/history_retrieval.md",
   "seed/.memory-seed/skills/local_compilation.md",
   "seed/.memory-seed/skills/memory_consolidation.md",
   "seed/.memory-seed/skills/memory_doctor.md",
+  "seed/.memory-seed/skills/memory_hygiene.md",
+  "seed/.memory-seed/skills/office_document_editing.md",
   "seed/.memory-seed/skills/release_publishing.md",
+  "seed/.memory-seed/skills/session_logging.md",
+  "seed/.memory-seed/skills/subproject_runtime.md",
   "seed/.memory-seed/sessions/.gitkeep",
   "seed/.memory-seed/hooks/session-log-check.py",
   "seed/.memory-seed/hooks/memory-retrieval-check.py",
+  "seed/.memory-seed/hooks/session-start-context.py",
   "lense_static/index.html",
   "lense_static/app.js",
   "lense_static/styles.css",
