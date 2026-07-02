@@ -75,7 +75,7 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Memory Lense UI assets: `memory_seed/lense_static/` (local read-only browser UI for memory search, timeline, graph, and reader/details).
 - Seed templates: `memory_seed/seed/`.
 - Tests: `tests/`.
-- Public docs: `README.md`, `CHANGELOG.md`, `NEXT_STEPS.md`.
+- Public docs: `README.md`, `CHANGELOG.md`, `docs/todo/NEXT_STEPS.md`.
 - **Sub-project: `demo/`** â€” HyperFrames video composition (30 s product demo, MP4). Has its own `.memory-seed/` runtime; inherits root policy. HyperFrames owns `demo/AGENTS.md` and `demo/CLAUDE.md`; each now carries an injected `<!-- BEGIN memory-seed -->` routing block (2.8) so agents are routed into the demo runtime without clobbering HyperFrames content.
 
 ## Design Decisions

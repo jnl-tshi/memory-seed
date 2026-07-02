@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.12
+memory-system-version: 2.13
 tags:
   - memory-seed
   - audit
@@ -8,7 +8,7 @@ tags:
 
 # Memory Seed — Functionality Audit
 
-**As of:** 2026-06-15 · control-plane `2.12` · package `2.12.0`
+**As of:** 2026-07-02 · control-plane `2.13` · package `2.13.0`
 **Scope:** every current feature, how the subsystems relate, how data flows, plus a roadmap section for upcoming work.
 
 ---
@@ -33,11 +33,17 @@ graph TD
     CLI["cli.py — command surface"]
     CORE["core.py — init/update/doctor/compact + agent registry"]
     MCP["mcp_server.py — stdio JSON-RPC"]
-    CACHE["semantic_cache.py — chunking + ranking"]
+    CACHE["semantic_cache.py — chunking + ranking + related-entry graph"]
     VAL["mcp_validate.py — search/fetch harness"]
+    LENSE["lense.py — optional local browser UI"]
     CLI --> CORE
     MCP --> CACHE
     VAL --> CACHE
+    LENSE --> CACHE
+  end
+
+  subgraph lensecache["Lense cache (outside the repo, optional)"]
+    SQLITE["rebuildable SQLite cache — LOCALAPPDATA/~/.cache"]
   end
 
   subgraph runtime[".memory-seed/ runtime (per project)"]
@@ -66,6 +72,7 @@ graph TD
   CORE -->|write routing| AGENTS
   CORE --> PROJ
   CACHE -->|reads| SESS
+  LENSE -->|rebuild/read| SQLITE
   HOOKS -->|inject context / remind| AGENTS
   AGENTS --> RULES
   PERAGENT --> AGENTS
@@ -80,7 +87,7 @@ graph TD
 - Python package `memory-seed` (`pyproject.toml`, setuptools), Python ≥ 3.11, published to PyPI via GitHub Release → `.github/workflows/publish.yml` with an OIDC **manual-approval `pypi` gate**.
 - Console entry points: `memory-seed` (CLI), `memory-seed-mcp` (MCP stdio server), `memory-seed-mcp-validate` (retrieval validation harness).
 - Seed templates under `memory_seed/seed/` are the source of truth installed into projects; the repo dogfoods its own seed (live `.memory-seed/` must stay in sync with the seed twin — enforced by tests).
-- **Download footprint:** the `memory-seed` artifact itself is small — the **wheel is ~105 KB** (`memory_seed-2.10.0-py3-none-any.whl` = 107,200 bytes; up from 101,251 B at 2.7.0 and 99,213 B at 2.6.0 as the seed and `core.py` grew) and the **sdist is ~110 KB (est.)**. It is pure Python + Markdown templates (no compiled extensions). A *full install* also resolves the one runtime dependency, `model2vec` (which pulls `numpy`), so the installed on-disk footprint is dominated by those transitive deps (tens of MB), not by Memory Seed's own code.
+- **Download footprint:** the `memory-seed` artifact itself is still small — the **wheel is ~150 KB** (`memory_seed-2.13.0-py3-none-any.whl` = 153,801 bytes; up from 107,200 B at 2.10.0 and 99,213 B at 2.6.0, mostly from the Memory Lense static UI assets and the growing skills set) and the **sdist is ~182 KB** (`memory_seed-2.13.0.tar.gz` = 186,147 bytes). It is pure Python + Markdown/HTML/CSS/JS templates (no compiled extensions). A *full install* also resolves the one required runtime dependency, `model2vec` (which pulls `numpy`), so the installed on-disk footprint is dominated by those transitive deps (tens of MB), not by Memory Seed's own code. The optional `memory-seed[lense]` extra additionally pulls `fastapi`/`uvicorn`.
 
 ### B. CLI surface (`memory_seed/cli.py`)
 | Command | Purpose |
@@ -93,6 +100,10 @@ graph TD
 | `user set <slug> \| show \| clear` | Manage the local active user in gitignored `.memory-seed/local.yaml` (new in 2.10). |
 | `session target [--create] [--user <slug>] [--date …]` | Print (and optionally create) the active session-log target; flat or per-user depending on the resolved user (new in 2.10). |
 | `links check` | Validate session-memory integrity across both layouts (duplicate/dangling IDs, per-user frontmatter problems); exits non-zero on any issue (new in 2.12). |
+| `migrate sessions-layout [--dry-run]` | Split legacy flat session files into per-user files using `project.yaml` participants; preserves entry IDs, backs up before removing migrated sources (new in 2.12). |
+| `link suggest [--for <entry_id>] [--top-k N]` | Read-only: rank older candidate entries to link from a target entry; prints a paste-ready `related_entries:` snippet (new in 2.13). |
+| `link show <entry_id>` | Read-only: print an entry's stored outbound `related_entries` edges plus computed inbound backlinks (new in 2.13). |
+| `lense [--cwd] [--host] [--port] [--no-open]` | Serve the optional local Memory Lense browser UI (requires `memory-seed[lense]`); prints an install hint without the extra (new in 2.13). |
 | `version` | Print bundled control-plane version. |
 | `help` (or no args) | Full command reference. |
 
@@ -104,6 +115,7 @@ graph TD
 ### D. Control-plane runtime (`.memory-seed/`)
 - `agent-rules.md` (operating contract: discovery, read order, retrieval rules, **Working Principles**, **End Of Turn** incl. the orphan sweep), `project-bootstrap.md` (bootstrap/repair only), `index.md` (orientation/active state/topology — bootstrap-generated), `policy.md` (constraints only — bootstrap-generated), `skills/`, `sessions/`, `archive/`, `hooks/`.
 - Nearest-runtime discovery (`resolve_runtime`) supports nested sub-project runtimes; legacy `.AGENTS/` remains a code-level fallback.
+- **Lazy-skill extraction (new in 2.13).** Detailed procedures that used to live directly in `agent-rules.md` were moved out into seeded skills — `history_retrieval.md`, `session_logging.md`, `end_of_turn.md`, `memory_hygiene.md`, `subproject_runtime.md` — so `agent-rules.md` now keeps startup-safe summaries plus explicit skill pointers, and seeded ESR commands point at `end_of_turn.md` for the full checklist.
 
 ### E. Routing files
 - Canonical `AGENTS.md` (read by Codex, Cursor, and Copilot coding agent natively). Thin per-agent routers that point back to `AGENTS.md`: `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`.
@@ -111,7 +123,7 @@ graph TD
 
 ### F. Skills system (`skills/`)
 - `index.md` is a **deterministic trigger registry**: each skill listed with `required`, `load_when`, `do_not_load_when`, and an optional `persona:` scope. Agents read it at startup and **lazy-load** only the full runbooks that match the task.
-- Current runbooks: `code_search`, `data_architecture`, `local_compilation`, `memory_consolidation`, `memory_doctor`, `release_publishing`, `security_triage`, `copywriter-conversion` (persona-scoped), and **new in 2.7**: `document_ingestion`, `office_document_editing`.
+- Current runbooks (17 total): `code_search`, `data_architecture`, `local_compilation`, `memory_consolidation`, `memory_doctor`, `release_publishing`, `security_triage`, `document_ingestion`, `office_document_editing` (both since 2.7), plus **new in 2.13**: `agent_collaboration` (Git-first subagent/branch/worktree/merge-conflict workflows), `history_retrieval`, `session_logging`, `end_of_turn`, `memory_hygiene`, `subproject_runtime` (all five extracted out of `agent-rules.md`, see §3D). Persona-scoped: `copywriter-conversion` and `developer-rendered-ui-debugging`.
 
 ### G. Personas (`.agents/`)
 - Vendor-neutral persona templates (developer, content-creator, researcher, sales-rep, solo-founder, copywriter) + `_registry.yaml`. Each defines identity, memory protocol, rules, skill routing, and an append-only `## Project Adaptations` log.
@@ -130,10 +142,14 @@ Per-agent event names differ (Claude/Codex: `SessionStart`/`UserPromptSubmit`/`S
 - `mcp_server.py`: a dependency-light **stdio JSON-RPC** server exposing two tools — `memory_search` (ranked entries/sections) and `memory_get_chunk` (full text for one `chunk_id`).
 - `semantic_cache.py`: `extract_memory_chunks()` parses `sessions/*.md` into typed `MemoryChunk`s (entry- or section-granularity; `session_date` derived from filename; `entry_id` as `chunk_id`). `rank_memory_chunks()` combines **lexical + semantic + recency** signals:
   `final = (lexical_score + 3·max(semantic,0)) · recency_multiplier`, with semantic via Model2Vec (`model2vec:minishlab/potion-base-8M`, lexical fallback) and an exponential recency decay floored at `recency_floor`.
+- **Metadata + filters (new in 2.12).** `memory_search`/`memory_get_chunk` also expose `session_date`, `path`, per-user `user`, `file_hash_id`, and entry-level `related_entries`; `memory_search` accepts `user`, `date_from`, and `date_to` filters applied before ranking.
+- **Related-entry graph (new in 2.13).** `build_related_entry_graph()` computes the bidirectional related-entry graph at read time — each entry's stored outbound `related_entries` plus computed inbound backlinks from every other entry that points at it, without ever editing a historical entry. Exposed read-only via `memory-seed link suggest`/`link show` (§3B) and consumed by MCP/future UI callers so nothing forks the parsing or ranking logic.
 - `mcp_validate.py` + `memory-seed-mcp-validate`: human-validatable search/fetch harness.
 
 ### J. Session log model
-- Append-only dated files `sessions/YYYY-MM-DD.md`; entries carry a YAML block (`entry_id`, `user_initials`, `agent_type`, `agent_name?`, `project_path`, `subproject_path`). The **DRAFT** record is the baseline shape: D (Decision) and R (Reason) mandatory; A (Alternatives), F (Files), T (Tests) optional. Strict ascending-time, append-at-end chronology.
+- Append-only dated files `sessions/YYYY-MM-DD.md`; entries carry a YAML block (`entry_id`, `user_initials`, `agent_type`, `agent_name?`, `project_path`, `subproject_path`, optional `related_entries`). The **DRAFT** record is the baseline shape: D (Decision) and R (Reason) mandatory; A (Alternatives), F (Files), T (Tests) optional. Strict ascending-time, append-at-end chronology.
+- **Entry IDs (widened in 2.12).** New generated `entry_id`s use deterministic 80-bit `mse_` Base32 IDs (`generate_session_entry_id()`); legacy 32-bit `ms-` IDs remain valid and are never rewritten.
+- **Integrity validation (new in 2.12).** `check_session_links()` / `memory-seed links check` scans for duplicate `entry_id`/`hash_id` and dangling `related_entries`/`related_memories` refs, exiting non-zero as a CI gate. **Known gap (found 2026-07-02):** the dangling-`related_entries` scan only runs against per-user-day layout files — it silently skips legacy-flat `sessions/YYYY-MM-DD.md` files (verified empirically with a constructed fixture). This repository uses the legacy-flat layout, so this gate does not currently catch a dangling `related_entries` ref here. See `docs/todo/git-commit-entry-linking-plan.md` and `docs/todo/supersession-edges-plan.md`, both of which depend on this being fixed before they add their own ref types.
 - **Multi-user session memory (phased).** *2.9 — read-only dual discovery:* `memory_search`, `memory_get_chunk`, and `compact` now read **both** legacy flat files (`sessions/YYYY-MM-DD.md`) and per-day/per-user files (`sessions/YYYY-MM-DD/<user>.md`); fallback chunk IDs are date-qualified to avoid collisions between same-named per-user files on different dates. *2.10 — opt-in user-aware targets:* `session_target()` returns the flat path when no user is configured and `sessions/YYYY-MM-DD/<user>.md` when one is, resolved in order **CLI arg → `MEMORY_SEED_USER` → gitignored `.memory-seed/local.yaml` → legacy flat**. `--create` initializes per-user file frontmatter (`schema_version: 2`, `session_date`, immutable `hash_id`, `user`, `created_at`). Writes stay legacy-compatible; no existing logs are moved.
 
 ### K. Versioning, seed/live twins, archiving
@@ -149,6 +165,12 @@ Per-agent event names differ (Claude/Codex: `SessionStart`/`UserPromptSubmit`/`S
 
 ### N. Release / publish flow
 - GitHub Release → `publish.yml` builds, runs tests, then pauses at the `pypi` manual-approval gate before the OIDC push. Release commits land on `main`.
+
+### O. Memory Lense (new in 2.13)
+- `lense.py`: an **optional** local read-only browser UI (`memory-seed lense`), install with `pip install "memory-seed[lense]"` (pulls `fastapi`/`uvicorn`); without the extra the command prints an install hint rather than failing.
+- Serves search, filters, timeline, graph, and reader/details views over the same `semantic_cache` parsing/ranking code MCP uses — no forked retrieval logic.
+- **Cache architecture:** a rebuildable local SQLite cache stored **outside the repository** (`%LOCALAPPDATA%\memory-seed\lense` on Windows, `~/.cache/memory-seed/lense` elsewhere; keyed by a hash of the workspace root, with a `tempfile` fallback if the cache directory isn't writable). `LenseCache.rebuild()` does a full wipe-and-atomic-replace (`os.replace` after a `.tmp` write) whenever session-file mtime/size drift is detected — the cache is never authoritative and Markdown stays the source of truth. Because the cache lives outside the repo by construction, this also satisfies the project's OneDrive-sync-safety constraint (see §6) without needing to gitignore anything.
+- Static UI assets (`memory_seed/lense_static/`: `index.html`, `app.js`, `styles.css`, `manifest.json`) ship inside the wheel/sdist (see §3A footprint note).
 
 ---
 
@@ -236,8 +258,8 @@ The qualities the design optimises for (the "why it is shaped this way"):
 - **Python ≥ 3.11** (uses `tomllib` and modern typing).
 - **Stdlib-only core; `model2vec>=0.8.1` is the single declared runtime dependency** (it pulls `numpy`). A project that never uses semantic search still installs it.
 - **Markdown + YAML, no database.** All state is files; there is no migration engine beyond `update`'s forward-only archive.
-- **Session model is migrating to multi-user (phased).** The legacy default is one shared `sessions/YYYY-MM-DD.md` per day (one author at a time). Read-side dual discovery (2.9), opt-in per-user write targets/hooks (2.10), integrity validation, wider generated entry IDs, MCP metadata/filter exposure, participant-registry parsing, and explicit `migrate sessions-layout` support have landed in the current worktree. The per-user layout (`sessions/YYYY-MM-DD/<user>.md`) avoids concurrent-author Git merge conflicts. With no configured user, behavior is unchanged.
-- **OneDrive-synced repos.** This project lives in a cloud-synced folder, so any future cache **must not** use Drive-synced SQLite (corruption risk) — a hard design constraint on the deferred caching work.
+- **Session model is migrating to multi-user (phased).** The legacy default is one shared `sessions/YYYY-MM-DD.md` per day (one author at a time). Read-side dual discovery (2.9), opt-in per-user write targets/hooks (2.10), integrity validation, wider generated entry IDs, MCP metadata/filter exposure, participant-registry parsing, and explicit `migrate sessions-layout` support have all shipped through 2.12.0. The per-user layout (`sessions/YYYY-MM-DD/<user>.md`) avoids concurrent-author Git merge conflicts. With no configured user, behavior is unchanged. This repository itself still runs the legacy-flat layout (no configured user).
+- **OneDrive-synced repos.** This project lives in a cloud-synced folder, so a cache **must not** use Drive-synced SQLite (corruption risk). The Memory Lense cache (§3O, shipped 2.13) honors this by storing its SQLite file outside the repository entirely (`%LOCALAPPDATA%`/`~/.cache`) rather than gitignoring an in-repo file — no cache file ever sits inside the synced folder.
 - **Version lockstep.** `memory-system-version` frontmatter, `core.VERSION`, and `pyproject.version` must move together (guarded by a test).
 - **Agent cooperation assumed.** Agents are expected to honour the `AGENTS.md` read order and the End Of Turn routine; hooks can only *nudge*, not enforce.
 
@@ -278,7 +300,7 @@ flowchart LR
 - **Security & privacy.** Public-memory hygiene rule (no secrets, credentials, or unnecessary personal data in memory/logs). PyPI publish uses OIDC with a manual-approval gate. Uninstall strips only Memory Seed's own entries and preserves foreign config. Hooks are read-only and cannot exfiltrate.
 - **Error handling & resilience.** Hooks **degrade to silent** on any error (never block the agent). `project.yaml` parsing **fails open** (absent/malformed/no-`agents:` ⇒ all agents). `update` is forward-only (cannot downgrade a newer project). `remove` and `init --force` back up before touching files. `doctor` separates hard checks from a non-fatal `warnings` channel. **Known gap:** file writes are direct, not atomic temp-then-rename — a crash mid-write could truncate a file (see Risks).
 - **Persistence & concurrency.** Plain files; session logs are strictly append-only with current-clock timestamps so write order == time order. No file locking; the model assumes a single writer per day.
-- **Dependencies.** Runtime: `model2vec>=0.8.1` (+ `numpy` transitively). Tests: stdlib `unittest`. No web framework, no ORM, no message bus.
+- **Dependencies.** Runtime (required): `model2vec>=0.8.1` (+ `numpy` transitively). Runtime (optional, `memory-seed[lense]` extra only): `fastapi>=0.110`, `uvicorn>=0.27` — the default CLI/MCP path stays dependency-light; `lense` prints an install hint rather than failing when the extra isn't installed. Tests: stdlib `unittest`. No ORM, no message bus.
 
 ## 10. Architecture decisions
 
@@ -318,12 +340,13 @@ Measured on this repository's own corpus on 2026-06-14 (Windows, Python 3.11). I
 | Risk / debt | Impact | Status |
 |---|---|---|
 | Semantic/lexical search buries the newest entry | Agent misreads "current state" | **Mitigated** — SessionStart hook + direct newest-file read rule |
-| Legacy 32-bit `ms-` entry IDs | Collisions at large history sizes | Mitigated in current worktree for new generated entries: `generate_session_entry_id()` now emits deterministic 80-bit `mse_` IDs while existing `ms-` IDs remain valid and are not rewritten |
-| Drive-synced SQLite corruption | Rules out the obvious cache backend | Constraint recorded; caching deferred |
+| Legacy 32-bit `ms-` entry IDs | Collisions at large history sizes | **Mitigated since 2.12.0** for new generated entries: `generate_session_entry_id()` now emits deterministic 80-bit `mse_` IDs while existing `ms-` IDs remain valid and are not rewritten |
+| Drive-synced SQLite corruption | Rules out the obvious cache backend | **Resolved (2.13.0)** — Memory Lense's cache lives outside the repo entirely (`%LOCALAPPDATA%`/`~/.cache`), so no SQLite file is ever placed inside the synced folder |
+| `links check` skips legacy-flat `related_entries` validation | A dangling `related_entries` ref in this repo's own layout is not caught (verified 2026-07-02 with a constructed fixture) | Open — flagged as a shared prerequisite in `docs/todo/git-commit-entry-linking-plan.md` and `docs/todo/supersession-edges-plan.md` |
 | Version-bump trap (root files missed by scoped sed) | Shipping mismatched versions | **Guarded** by `test_repo_root_control_plane_files_match_version` |
 | `update --dry-run` lists all targets, not just changed | Noisy preview | Documented in README |
-| Non-atomic file writes (no temp+rename) | Corruption on crash mid-write | Open — candidate hardening item |
-| Single-writer session model | Concurrent multi-author Git conflicts | **Phased migration underway** — dual-read (2.9), opt-in per-user write targets/hooks (2.10), integrity validation, ID widening, MCP filters, participant registry parsing, and migration support are in the current worktree |
+| Non-atomic file writes (no temp+rename) | Corruption on crash mid-write | Open — candidate hardening item. Note: Lense's own cache *does* use temp-file + atomic `os.replace`, so this gap is specifically about control-plane/session file writes, not the cache. |
+| Single-writer session model | Concurrent multi-author Git conflicts | **Phased migration underway** — dual-read (2.9), opt-in per-user write targets/hooks (2.10), integrity validation, ID widening, MCP filters, participant registry parsing, and migration support all shipped through 2.12.0 |
 
 ## 13. Glossary
 
@@ -336,20 +359,22 @@ Measured on this repository's own corpus on 2026-06-14 (Windows, Python 3.11). I
 - **Chunk** — a `MemoryChunk` parsed from a session entry (`granularity="entry"`) or sub-heading (`"section"`); `chunk_id` is normally the `entry_id`.
 - **Persona** — a vendor-neutral `.agents/*.md` role profile; evolution is approval-gated.
 - **Orphan skill** — a `skills/*.md` runbook not registered in `skills/index.md` (flagged by `doctor`).
+- **Memory Lense** — the optional local read-only browser UI (`memory-seed lense`, §3O), backed by a rebuildable SQLite cache stored outside the repository.
+- **Related-entry graph** — the bidirectional graph `build_related_entry_graph()` computes at read time from entries' stored `related_entries` (outbound) plus their computed backlinks (inbound), surfaced via `link suggest`/`link show`.
 
 ---
 
 ## 14. Upcoming / roadmap features
 
-Sources: `NEXT_STEPS.md` and `docs/todo/`. Status reflects the current (2.11.0) tree.
+Sources: `docs/todo/NEXT_STEPS.md` and `docs/todo/`. Status reflects the current (2.13.0) tree.
 
-**Shipped since the 2.7.0 audit:** 2.8.0 non-destructive foreign-routing merge + doctor route-presence backstop (§3E, §3L); 2.9.0 read-only dual-discovery of per-user session files (§3J); 2.10.0 opt-in user-aware session targets/hooks + `user`/`session target` CLI (§3B, §3H, §3J); 2.11.0 ESR generalization — consolidation + baseline-promotion in the routine, shipped as a seeded `/esr` command for Claude + Gemini (§3M).
+**Shipped since the 2.7.0 audit:** 2.8.0 non-destructive foreign-routing merge + doctor route-presence backstop (§3E, §3L); 2.9.0 read-only dual-discovery of per-user session files (§3J); 2.10.0 opt-in user-aware session targets/hooks + `user`/`session target` CLI (§3B, §3H, §3J); 2.11.0 ESR generalization — consolidation + baseline-promotion in the routine, shipped as a seeded `/esr` command for Claude + Gemini (§3M); 2.12.0 session-memory integrity validation, 80-bit entry IDs, MCP metadata/filters, participant registry, and `migrate sessions-layout` (§3B, §3I, §3J); 2.13.0 Memory Lense (§3O), related-entries generation P1 (`link suggest`/`link show`, §3B/§3I), and the agent-rules lazy-skill extraction (§3D/§3F).
 
 ### Near term — next candidate
 - **`/esr` command shortcuts for Codex/Cursor** once those tools support repo-level custom commands (Codex project-scoped `.codex/prompts` is an open upstream request; Cursor unverified). Not blocking — the enriched routine in `agent-rules.md` already serves them today.
 
 ### Deferred — 3.0 candidates
-- **Multi-user per-day session memory — current unreleased stack** (`docs/todo/multi-user-session-memory-proposal.md`): Phase 1 dual-read (2.9), Phase 2 opt-in per-user write targets/hooks (2.10), A-P3 integrity validation, A-ID 80-bit `mse_` generation, A-P4 MCP metadata/filters, S2 participant registry parsing, and the explicit session-layout migration command have landed in the current worktree. Next deferred work is the separate Memory Explorer package. High blast radius — touches the core session data model.
+- **Multi-user per-day session memory — completed** (`docs/todo/completed/multi-user-session-memory-proposal.md`): Phase 1 dual-read (2.9), Phase 2 opt-in per-user write targets/hooks (2.10), A-P3 integrity validation, A-ID 80-bit `mse_` generation, A-P4 MCP metadata/filters, S2 participant registry parsing, and the explicit session-layout migration command have landed through 2.12.0. High blast radius — touches the core session data model.
 
   ```mermaid
   flowchart LR
@@ -364,24 +389,26 @@ Sources: `NEXT_STEPS.md` and `docs/todo/`. Status reflects the current (2.11.0) 
     now -. "dual-read (2.9) + user-aware targets (2.10); migrate command deferred" .-> future
   ```
 
-- **Human-facing Memory Explorer** (`docs/todo/user-interface-deep-research-report.md`): a local, read-only web UI (and later a VS Code extension) backed by the **same** `semantic_cache` retrieval code as MCP — search, tags, backlinks, graph, timeline, contributor views. Principle: "same answers as MCP, richer navigation for humans." This doc still carries `citeturn…` citation artifacts to scrub.
+- **Related-entries generation P2 (deferred, needs sign-off)** (`docs/todo/related-entries-generation-plan.md`): P1 (`link suggest`/`link show`/`build_related_entry_graph()`, §3I) shipped in 2.13.0. P2 covers backfilling edges between two pre-existing entries and an optional `link add` writer.
+- **Pillar B separate-distribution decision — still open** (`docs/todo/user-interface-deep-research-report.md`): Memory Lense shipped in 2.13.0 (§3O) as an in-package optional extra, delivering the local read-only web UI, explainability fields, and rebuildable cache the original Pillar B spec called for — but as an **in-package V1**, not the separate `memory-seed-explorer` distribution `docs/todo/3.0-plan.md` originally decided on. Whether to still spin that out, or keep iterating in-package, remains undecided. This research doc still carries `citeturn…` citation artifacts to scrub.
+- **Logic Capture Improvements — proposed, not yet decided or built** (five plan docs, sourced from an external review doc and refined 2026-07-02): [`git-commit-entry-linking-plan.md`](todo/git-commit-entry-linking-plan.md) (link a decision entry to the commit(s) that implemented it), [`supersession-edges-plan.md`](todo/supersession-edges-plan.md) (a typed `supersedes` edge, with a harmony contract against naive importance scoring), [`interaction-frequency-ranking-plan.md`](todo/interaction-frequency-ranking-plan.md) (Option C — derive importance from existing `related_entries` backlinks — now; Option B — real access-frequency telemetry — as the end goal), [`mermaid-usage-guidance-plan.md`](todo/mermaid-usage-guidance-plan.md), and [`failed-approaches-logging-plan.md`](todo/failed-approaches-logging-plan.md). The first two share a discovered dependency: see the `links check` legacy-flat gap noted in §3J and §12.
 
 ### Roadmap at a glance
 
 ```mermaid
 graph LR
-  V27["2.7.0 — orphan sweep + doctor backstop · 3 seed promotions (shipped)"]
-  V28["2.8.0 — non-destructive foreign-routing merge + route backstop (shipped)"]
   V29["2.9.0 — dual-read per-user session discovery (shipped)"]
   V210["2.10.0 — user-aware session targets/hooks · user CLI (shipped)"]
-  V211["2.11.0 — ESR generalization · seeded /esr command (current tree)"]
-  V30["3.0 — multi-user remaining phases · Memory Explorer UI"]
-  V27 --> V28 --> V29 --> V210 --> V211 --> V30
+  V211["2.11.0 — ESR generalization · seeded /esr command (shipped)"]
+  V212["2.12.0 — integrity validation · 80-bit IDs · MCP filters · migrate (shipped)"]
+  V213["2.13.0 — Memory Lense · related-entries P1 · lazy skills (shipped)"]
+  V30["3.0 — related-entries P2 · Pillar B distribution decision · logic-capture proposals"]
+  V29 --> V210 --> V211 --> V212 --> V213 --> V30
 ```
 
 ---
 
 ## 15. Test & verification surface
 
-- `tests/test_memory_seed.py` (init/update/doctor/agents/hooks/MCP-merge, seed-file list, version lockstep, orphan-skill + route-presence warnings, foreign-routing merge, user-aware session targets) and `tests/test_session_schema.py` (session frontmatter, seed/live parity, public-docs contract). Current suite: **147 tests**.
+- `tests/test_memory_seed.py` (init/update/doctor/agents/hooks/MCP-merge, seed-file list, version lockstep, orphan-skill + route-presence warnings, foreign-routing merge, user-aware session targets, links check, migrate sessions-layout, link suggest/show) and `tests/test_session_schema.py` (session frontmatter, seed/live parity, public-docs contract, docs/todo completeness checks). Current suite: **205 tests** (verified 2026-07-02).
 - `memory-seed doctor` is the runtime health gate; `memory-seed-mcp-validate` validates retrieval end-to-end.

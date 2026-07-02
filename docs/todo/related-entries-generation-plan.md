@@ -10,13 +10,13 @@ tags:
 
 # Related-Entries Generation - Scope
 
-> **Status: DECIDED + P1 IMPLEMENTED (2026-06-15).** The four open decisions are resolved (see
-> "Open Decisions" below) and the P1 core has shipped to the worktree: `memory-seed link suggest`
-> and `memory-seed link show` plus the bidirectional read-time graph (`build_related_entry_graph`).
-> Companion to [`3.0-plan.md`](3.0-plan.md) (see "Related Entry Linking" and B3/B5). Pillar B
-> is tracked separately and out of scope here.
+> **Status: DECIDED + P1 SHIPPED (implemented 2026-06-15, released in 2.13.0).** The four open
+> decisions are resolved (see "Open Decisions" below) and the P1 core is released:
+> `memory-seed link suggest` and `memory-seed link show` plus the bidirectional read-time graph
+> (`build_related_entry_graph`). Companion to [`3.0-plan.md`](3.0-plan.md) (see "Related Entry
+> Linking" and B3/B5). Pillar B is tracked separately and out of scope here.
 
-## What Exists Today (2.12.0)
+## What Exists Today (2.13.0)
 
 The `related_entries` edge is **read, exposed, validated, and authorable** - but nothing *assists*
 creating it:
@@ -140,7 +140,7 @@ entry, so it never touches history.
    snippet removes most of the friction. `link add` (current/newest entry only) remains an optional,
    append-only-safe follow-on if hand-editing YAML proves painful in practice.
 
-## P1 - As Shipped (worktree, unreleased)
+## P1 - As Shipped (2.13.0, released 2026-07-01)
 
 - `memory-seed link suggest [--for <entry_id>] [--top-k N]` - read-only; ranks **older** candidate
   entries (forward-only) by similarity to the target (default: newest entry), excludes self and
@@ -151,7 +151,7 @@ entry, so it never touches history.
 - `build_related_entry_graph(cwd)` in `semantic_cache.py` - the canonical bidirectional graph the
   MCP and future UI consumers should consume (don't fork parsing/ranking). Inbound is computed only from resolvable
   refs; outbound is reported as stored (`links check` flags dangling outbound).
-- `links check` unchanged and still green. No package version bump - queued under `## Unreleased`.
+- `links check` unchanged and still green.
 
 ## Definition of Done (P1)
 

@@ -1,0 +1,128 @@
+---
+memory-system-version: 2.13
+tags:
+  - memory-seed
+  - plan
+  - 3.0
+  - ranking
+  - lense
+---
+
+# Interaction-Frequency Ranking - Scope
+
+> **Status: PROPOSED. Option C decided as the first increment; Option B is the stated end goal
+> (deferred).** Source: external review doc `Memory-Seed Logic Capture Improvement.md` (its
+> "ephemeral memory nexus" / attention-weighted retrieval proposal), refined through review.
+> Companion to [`supersession-edges-plan.md`](supersession-edges-plan.md) (defines the harmony
+> contract this plan depends on) and [`related-entries-generation-plan.md`](related-entries-generation-plan.md)
+> (reuses `build_related_entry_graph()`).
+
+## Motivation
+
+`rank_memory_chunks`/`rank_session_memory` (`memory_seed/semantic_cache.py`) combine lexical,
+metadata, optional semantic, and recency signals. None of these capture "how often, or how
+durably, has this entry actually mattered" — a foundational decision with no recent activity and no
+close textual match to a new query can fade below noisy recent entries that happen to share
+vocabulary, even when the foundational decision is the one that actually explains the current
+system.
+
+## Correcting An Earlier Framing
+
+An initial review of this idea wrongly treated it as requiring a new external-database pattern,
+which would conflict with the project's local-first, no-external-DBMS stance. That's incorrect:
+Memory Lense already ships a rebuildable SQLite cache outside the repository
+(`memory_seed/lense.py`, `default_cache_path()` at line 34, `LenseCache.rebuild()` at line 60) —
+gitignore-equivalent by location, rebuildable, keyed by file mtime/size, never authoritative,
+matching `3.0-plan.md`'s B4 cache spec exactly. Extending that infrastructure with an interaction
+signal is not a new architectural pattern; it reuses one already shipped and proven.
+
+## Design - P1 (Option C, ship first): zero-new-infrastructure derived signal
+
+- `importance_score(entry)` = `len(inbound)` from `build_related_entry_graph()`
+  (`memory_seed/semantic_cache.py:209-250`, already shipped in 2.13.0) — how many other entries
+  cite this one via `related_entries`.
+- **Harmony contract (defined in `supersession-edges-plan.md`, binding here):** if the entry has
+  any inbound `supersedes` edge, apply a fixed dampening multiplier to `importance_score` *after*
+  computing it — never fold `supersedes` inbound edges into the same count as `related_entries`
+  inbound edges. Outbound `supersedes` count (cleanup credit) does not add to `importance_score`.
+  This is the concrete failure mode reviewed and resolved before this plan was written: a naive
+  backlink count would otherwise reward a decision for being deprecated.
+- Once `git-commit-entry-linking-plan.md` ships, extend `importance_score` with a second free term:
+  commit-reference count (how many commits carry a `Memory-Entry:` trailer for this entry, or list
+  it in `commits:`).
+- **Exposure before ranking changes.** Surface `importance_score` read-only via
+  `memory-seed link show <entry_id>` / `memory_get_chunk` metadata first. Do **not** blend it into
+  `memory_search`'s default ranking math until real usage shows the derived signal is actually
+  useful — this matches the existing "Ranking Experiments" policy (`docs/todo/NEXT_STEPS.md`:
+  keep ranking behavior stable on `main`; validate ranking changes on a separate branch against
+  fixtures before merging) and `3.0-plan.md` B4's "add only after real usage demonstrates need"
+  principle, applied here to a scoring change instead of a cache.
+
+## Design - P2 (Option B, the stated end goal, deferred): real interaction/access-frequency telemetry
+
+### Write path: append-only JSONL
+
+Every access event appends one line to `interactions.jsonl`, stored in the same cache directory as
+`default_cache_path()` (outside the repo, cloud-sync-safe by construction, no gitignore needed
+since it isn't under the workspace root). Concrete instrumentation points, both already centralized
+single dispatch functions:
+
+- `mcp_server.py`'s `memory_search` dispatch (`memory_seed/mcp_server.py:82`) and
+  `memory_get_chunk` dispatch (`memory_seed/mcp_server.py:115`) — one hook per tool, not per call
+  site.
+- Lense's detail/card-expand API handler in `lense.py`.
+
+Each line: `{"entry_id_or_chunk_id": ..., "ts": ..., "source": "mcp_search" | "mcp_get_chunk" |
+"lense_view"}`. Appends use `O_APPEND` so multiple concurrent processes (Claude Code, Codex, other
+MCP clients, the Lense web server) can write without corrupting the file.
+
+### Read path: fold into a table, not the disposable content cache
+
+**Architectural wrinkle found during research:** `LenseCache.rebuild()` (`lense.py:60-109`) does a
+full wipe-and-atomic-replace of its SQLite file whenever session Markdown content changes
+(`_metadata_matches()` at `lense.py:139-148` triggers this on any mtime/size drift). Interaction
+counts must **not** live in the same tables `rebuild()` replaces, or every session-log edit would
+silently zero out accumulated interaction history.
+
+Design: a **separate** SQLite file (e.g. `<digest>.interactions.sqlite3`, same cache directory),
+independent of the content cache's rebuild cycle. On cache access, fold any JSONL lines appended
+since the last fold into this table — mirroring the existing `ensure_current()` staleness-check
+pattern (`lense.py:111-113`) rather than inventing a new one. WAL mode tolerates concurrent readers
+during a writer's fold.
+
+### Scoring
+
+Same override contract as P1: supersession dampens regardless of hit count; superseded entries are
+deprioritized, never hidden or excluded from lookup.
+
+### Privacy
+
+This is behavioral telemetry about *what was queried*, not project content. It stays in the local
+cache directory (already outside the repo) and must never be promoted into `index.md` or session
+logs. Flag under `memory_hygiene.md` when this gets built in detail.
+
+## Phasing
+
+- **P1 (Option C):** ship now. No schema change, no new dependency, no ranking-default change —
+  pure read-time derivation exposed via `link show`.
+- **P2 (Option B):** the stated end goal. Deferred until (a) `supersession-edges-plan.md` ships
+  (the harmony contract needs real `supersedes` edges to dampen against), and (b) real usage shows
+  P1's derived signal is insufficient on its own.
+
+## Open Decisions
+
+1. Whether `importance_score` ever gets blended into default `memory_search` ranking, or stays a
+   separate, explicitly-requested signal indefinitely.
+2. JSONL retention/compaction policy for P2 (unbounded growth needs a periodic fold-and-truncate
+   step).
+3. Exact dampening multiplier for the supersession harmony contract — needs a concrete number once
+   P1 ships and there's a real score to dampen against.
+
+## Definition of Done (P1)
+
+- `importance_score` computed from `build_related_entry_graph()` inbound counts, with the
+  supersession dampener applied per the harmony contract.
+- Exposed via `memory-seed link show <entry_id>` (or equivalent), not blended into default ranking.
+- Fixture test proving a superseded-but-heavily-cited entry scores below a non-superseded,
+  moderately-cited one.
+- Concise session log entry.
