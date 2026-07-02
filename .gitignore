@@ -8,6 +8,7 @@ build/
 
 # Memory Seed runtime markers
 .memory-seed/.retrieval-reminder-stamp
+.memory-seed/.identity-offer-stamp
 .memory-seed/backups/
 
 # Demo sub-project build artifacts
@@ -23,3 +24,4 @@ node_modules/
 
 # Local Memory Lense prototype exports kept outside packaged source
 docs/todo/memory lense/
+.memory-seed/local.yaml

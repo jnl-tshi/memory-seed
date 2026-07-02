@@ -4,6 +4,11 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Session-log layout now gates on the `participants:` registry, not just a configured user. `session_target()` only switches to per-user files (`sessions/YYYY-MM-DD/<user>.md`) once `.memory-seed/project.yaml` lists 2 or more participants; with 0 or 1, it stays on the shared flat file even with a local user configured, since per-user files exist to avoid concurrent-author conflicts that don't arise until there's a second author. An explicit `--user <slug>` CLI override still bypasses the gate. The SessionStart hook's own user resolution mirrors this so it keeps reading the same file `session_target()` writes to.
+- Added a one-time identity-setup offer to the SessionStart hook: if no local identity is configured (no `MEMORY_SEED_USER`, no `.memory-seed/local.yaml`), it suggests `memory-seed user set <slug>` plus a `participants:` entry, then never repeats (tracked by a gitignored `.memory-seed/.identity-offer-stamp`). Skippable; most projects are solo and don't need it.
+- `memory-seed doctor` now warns (non-fatal) when a configured local user's slug has no matching `participants:` entry in `.memory-seed/project.yaml`, so `user_initials` stays resolvable for multi-user tooling.
+- Documented the identity/layout model in `agent-rules.md` and `skills/session_logging.md`.
+
 ## 2.13.0 - 2026-07-01
 
 - Added `memory-seed lense`, an optional local FastAPI/Uvicorn browser UI for

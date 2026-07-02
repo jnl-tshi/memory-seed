@@ -39,7 +39,38 @@ def valid_user(value):
     return bool(value and user_re.match(value) and value not in RESERVED_USERS)
 
 
+def participant_count():
+    """Count participants: entries in .memory-seed/project.yaml (0 if absent)."""
+    path = Path(".memory-seed/project.yaml")
+    if not path.exists():
+        return 0
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return 0
+    count = 0
+    in_participants = False
+    for raw in lines:
+        line = raw.rstrip()
+        if re.match(r"^participants\s*:", line):
+            in_participants = True
+            continue
+        if not in_participants:
+            continue
+        if line and not line[0].isspace():
+            break
+        if re.match(r"^\s*-\s*slug\s*:", line):
+            count += 1
+    return count
+
+
 def configured_user():
+    """Active user for orienting session-file reads, mirroring
+    core.session_target(): an ambiently-resolved user (env var or
+    local.yaml) only activates the per-user layout once 2+ participants are
+    registered, so this hook looks in the same place session_target() writes
+    to. An explicit --user argument bypasses the gate (a deliberate override).
+    """
     explicit = None
     args = sys.argv[1:]
     for i, arg in enumerate(args):
@@ -49,9 +80,12 @@ def configured_user():
             explicit = args[i + 1]
     if valid_user(explicit):
         return explicit
+
+    two_or_more_participants = participant_count() >= 2
+
     env_user = os.environ.get("MEMORY_SEED_USER")
     if valid_user(env_user):
-        return env_user
+        return env_user if two_or_more_participants else None
     local = Path(".memory-seed/local.yaml")
     if local.exists():
         try:
@@ -60,10 +94,42 @@ def configured_user():
                 if stripped.startswith("user:"):
                     value = stripped.split(":", 1)[1].strip().strip("'\"")
                     if valid_user(value):
-                        return value
+                        return value if two_or_more_participants else None
         except (OSError, UnicodeDecodeError):
             return None
     return None
+
+
+def offer_identity_setup():
+    """One-time nudge to configure a local identity; never repeats.
+
+    Fires only when no identity is configured at all (no env var, no
+    local.yaml) and the offer hasn't already been made. Writes a stamp file
+    on first offer regardless of whether the user accepts, so this is a
+    single ask per project, not a per-session reminder.
+    """
+    if os.environ.get("MEMORY_SEED_USER"):
+        return None
+    if Path(".memory-seed/local.yaml").exists():
+        return None
+    stamp = Path(".memory-seed/.identity-offer-stamp")
+    if stamp.exists():
+        return None
+    try:
+        stamp.touch()
+    except OSError:
+        pass
+    return (
+        "No local Memory Seed identity is configured for this project "
+        "(.memory-seed/local.yaml is absent), so session entries use a generic "
+        "user_initials placeholder instead of your name. This is entirely optional "
+        "and this offer will not repeat: if you'd like entries to reference you, ask "
+        "for a preferred slug/initials/display name, then run `memory-seed user set "
+        "<slug>` and add a participants: entry to .memory-seed/project.yaml with "
+        "those initials. Not needed for solo work, and configuring it alone does not "
+        "split session logs into per-user files - that only happens once a second "
+        "participant is registered."
+    )
 
 
 def heading_count(path):
@@ -114,14 +180,42 @@ def extract_latest_entry(text):
     return headings, latest_entry
 
 
+def emit(text):
+    if agent == "cursor":
+        # Cursor sessionStart: additional_context (snake_case) injects into context.
+        print(json.dumps({"additional_context": text}))
+    elif agent == "gemini":
+        # Gemini CLI SessionStart: hookSpecificOutput.additionalContext.
+        print(json.dumps({"hookSpecificOutput": {"additionalContext": text}}))
+    elif agent == "codex":
+        # Codex CLI SessionStart: hookSpecificOutput.additionalContext.
+        print(json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": text,
+            }
+        }))
+    else:
+        # Claude Code SessionStart: hookSpecificOutput.additionalContext.
+        print(json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": text,
+            }
+        }))
+
+
 docs = session_docs()
 user = configured_user()
+identity_note = offer_identity_setup()
 if user:
     candidates = [doc for doc in docs if doc["user"] == user]
 else:
     candidates = [doc for doc in docs if doc["user"] is None]
 
 if not candidates:
+    if identity_note:
+        emit(identity_note)
     sys.exit(0)
 
 newest = candidates[-1]
@@ -174,27 +268,8 @@ parts.append(
     "topical questions ('why was X decided', 'what do we know about Y')."
 )
 
-context = "\n".join(parts)
+if identity_note:
+    parts.append("")
+    parts.append(identity_note)
 
-if agent == "cursor":
-    # Cursor sessionStart: additional_context (snake_case) injects into context.
-    print(json.dumps({"additional_context": context}))
-elif agent == "gemini":
-    # Gemini CLI SessionStart: hookSpecificOutput.additionalContext.
-    print(json.dumps({"hookSpecificOutput": {"additionalContext": context}}))
-elif agent == "codex":
-    # Codex CLI SessionStart: hookSpecificOutput.additionalContext.
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "SessionStart",
-            "additionalContext": context,
-        }
-    }))
-else:
-    # Claude Code SessionStart: hookSpecificOutput.additionalContext.
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "SessionStart",
-            "additionalContext": context,
-        }
-    }))
+emit("\n".join(parts))

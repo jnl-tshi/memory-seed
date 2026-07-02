@@ -822,6 +822,7 @@ class MemorySeedTests(unittest.TestCase):
         local = cwd / MEMORY_DIR_NAME / "local.yaml"
         local.parent.mkdir(parents=True)
         local.write_text("user: amina\n", encoding="utf-8")
+        self._write_participants(cwd)
 
         with patch.dict(os.environ, {"MEMORY_SEED_USER": "jean"}):
             target = session_target(cwd=cwd, date_str="2026-06-21")
@@ -831,6 +832,47 @@ class MemorySeedTests(unittest.TestCase):
             target.path,
             cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-21" / "jean.md",
         )
+        self.assertEqual(target.layout, "per-user-day")
+
+    def test_session_target_stays_flat_with_fewer_than_two_participants(self):
+        cwd = self.make_project()
+        local = cwd / MEMORY_DIR_NAME / "local.yaml"
+        local.parent.mkdir(parents=True)
+        local.write_text("user: jean\n", encoding="utf-8")
+
+        # No participants: file at all -> flat.
+        target = session_target(cwd=cwd, date_str="2026-06-21")
+        self.assertIsNone(target.user)
+        self.assertEqual(target.layout, "legacy-flat")
+
+        # Exactly one participant -> still flat; a configured user alone isn't
+        # enough to fragment the log, since there's no second author to
+        # collide with yet.
+        (cwd / MEMORY_DIR_NAME / "project.yaml").write_text(
+            "participants:\n  - slug: jean\n    initials: JN\n", encoding="utf-8"
+        )
+        target = session_target(cwd=cwd, date_str="2026-06-21")
+        self.assertIsNone(target.user)
+        self.assertEqual(target.layout, "legacy-flat")
+
+    def test_session_target_switches_to_per_user_with_two_participants(self):
+        cwd = self.make_project()
+        local = cwd / MEMORY_DIR_NAME / "local.yaml"
+        local.parent.mkdir(parents=True)
+        local.write_text("user: jean\n", encoding="utf-8")
+        self._write_participants(cwd)
+
+        target = session_target(cwd=cwd, date_str="2026-06-21")
+
+        self.assertEqual(target.user, "jean")
+        self.assertEqual(target.layout, "per-user-day")
+
+    def test_session_target_explicit_user_bypasses_participant_gate(self):
+        cwd = self.make_project()
+
+        target = session_target(cwd=cwd, date_str="2026-06-21", explicit_user="jean")
+
+        self.assertEqual(target.user, "jean")
         self.assertEqual(target.layout, "per-user-day")
 
     def test_session_target_create_initializes_per_user_file_once(self):
@@ -1862,6 +1904,41 @@ class McpMergeTests(unittest.TestCase):
             any("ghost_skill.md" in w for w in doctor(cwd=cwd).warnings)
         )
 
+    def test_doctor_warns_on_local_user_with_no_matching_participant(self):
+        from memory_seed.core import doctor
+
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        # No local user configured at all: no warning (that's the SessionStart
+        # hook's job, not doctor's).
+        self.assertFalse(any("participants:" in w for w in doctor(cwd=cwd).warnings))
+
+        (cwd / MEMORY_DIR_NAME / "local.yaml").write_text("user: jean\n", encoding="utf-8")
+
+        # Local user configured but project.yaml has no participants: entry
+        # for it at all -> warn.
+        result = doctor(cwd=cwd)
+        self.assertTrue(any("jean" in w and "participants:" in w for w in result.warnings))
+        self.assertTrue(result.control_plane_ok)  # warning is non-fatal
+
+        # A participants: entry for a *different* slug still leaves jean
+        # unmatched -> still warns.
+        (cwd / MEMORY_DIR_NAME / "project.yaml").write_text(
+            "participants:\n  - slug: amina\n    initials: AM\n", encoding="utf-8"
+        )
+        result = doctor(cwd=cwd)
+        self.assertTrue(any("jean" in w and "participants:" in w for w in result.warnings))
+
+        # Adding the matching participant entry clears the warning.
+        (cwd / MEMORY_DIR_NAME / "project.yaml").write_text(
+            "participants:\n"
+            "  - slug: amina\n    initials: AM\n"
+            "  - slug: jean\n    initials: JN\n",
+            encoding="utf-8",
+        )
+        self.assertFalse(any("participants:" in w for w in doctor(cwd=cwd).warnings))
+
     def test_doctor_warns_when_runtime_exists_but_routing_file_is_foreign(self):
         from memory_seed.core import doctor, _merge_routing_stanza
 
@@ -1967,6 +2044,16 @@ class CliHelpTests(unittest.TestCase):
         project = Path(tempfile.mkdtemp(prefix="memory-seed-cli-user-"))
         self.addCleanup(lambda: shutil.rmtree(project, ignore_errors=True))
         (project / ".memory-seed" / "sessions").mkdir(parents=True)
+        # Per-user session targeting only activates with 2+ participants
+        # registered; a lone configured user stays on the flat layout.
+        (project / ".memory-seed" / "project.yaml").write_text(
+            "participants:\n"
+            "  - slug: jean\n"
+            "    initials: JN\n"
+            "  - slug: amina\n"
+            "    initials: AM\n",
+            encoding="utf-8",
+        )
 
         try:
             import os
@@ -2117,7 +2204,11 @@ class SessionStartContextHookTests(unittest.TestCase):
         self.assertIn("truncated", context)
 
     def test_empty_sessions_dir_emits_nothing(self):
+        # With identity already configured (so the one-time identity offer,
+        # tested separately, doesn't interfere), an empty sessions dir has no
+        # candidates to report and should emit nothing.
         cwd = self.make_project({})
+        (cwd / ".memory-seed" / "local.yaml").write_text("user: jean\n", encoding="utf-8")
         self.assertEqual(self._run(cwd).strip(), "")
 
     def test_missing_sessions_dir_emits_nothing(self):
@@ -2137,6 +2228,14 @@ class SessionStartContextHookTests(unittest.TestCase):
         self.assertIn("2026-02-02.md", context)
         self.assertNotIn("Should be ignored", context)
 
+    def _write_participants(self, cwd, count=2):
+        slugs = [("jean", "JN"), ("amina", "AM"), ("theo", "TH")][:count]
+        lines = ["participants:"]
+        for slug, initials in slugs:
+            lines.append(f"  - slug: {slug}")
+            lines.append(f"    initials: {initials}")
+        (cwd / ".memory-seed" / "project.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
     def test_user_context_injects_active_user_and_lists_contributors(self):
         import json
 
@@ -2148,6 +2247,7 @@ class SessionStartContextHookTests(unittest.TestCase):
             "2026-02-02/amina.md": "## 2026-02-02 11:00 - Amina work\n\namina body\n",
             "2026-02-01/jean.md": "## 2026-02-01 09:00 - Jean older\n\nold body\n",
         })
+        self._write_participants(cwd)
 
         out = self._run_with_env(cwd, {"MEMORY_SEED_USER": "jean"})
         context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
@@ -2157,6 +2257,64 @@ class SessionStartContextHookTests(unittest.TestCase):
         self.assertIn("Co-contributor session files for 2026-02-02:", context)
         self.assertIn(".memory-seed/sessions/2026-02-02/amina.md (1 entry)", context)
         self.assertNotIn("amina body", context)
+
+    def test_configured_user_ignored_with_fewer_than_two_participants(self):
+        import json
+
+        # A per-user file exists, but with no participants: registered the
+        # env-var user should be gated back to flat lookup - and since there's
+        # no flat file either, the hook should emit nothing.
+        cwd = self.make_project({
+            "2026-02-02/jean.md": "## 2026-02-02 10:00 - Jean entry\n\nbody\n",
+        })
+        self.assertEqual(self._run_with_env(cwd, {"MEMORY_SEED_USER": "jean"}).strip(), "")
+
+        # With exactly one participant registered, still gated to flat.
+        self._write_participants(cwd, count=1)
+        self.assertEqual(self._run_with_env(cwd, {"MEMORY_SEED_USER": "jean"}).strip(), "")
+
+        # A flat file is found once gated back, even though a per-user file
+        # for the same date also exists.
+        flat = cwd / ".memory-seed" / "sessions" / "2026-02-02.md"
+        flat.write_text("## 2026-02-02 09:00 - Flat entry\n\nflat body\n", encoding="utf-8")
+        out = self._run_with_env(cwd, {"MEMORY_SEED_USER": "jean"})
+        context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Newest session file: .memory-seed/sessions/2026-02-02.md", context)
+        self.assertIn("flat body", context)
+
+    def test_explicit_user_arg_bypasses_participant_gate(self):
+        import json
+
+        cwd = self.make_project({
+            "2026-02-02/jean.md": "## 2026-02-02 10:00 - Jean entry\n\njean body\n",
+        })
+        out = self._run(cwd, "--user=jean")
+        context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("jean body", context)
+
+    def test_identity_offer_fires_once_then_never_again(self):
+        cwd = self.make_project({})
+
+        first = self._run(cwd).strip()
+        self.assertIn("No local Memory Seed identity is configured", first)
+        self.assertTrue((cwd / ".memory-seed" / ".identity-offer-stamp").exists())
+
+        second = self._run(cwd).strip()
+        self.assertEqual(second, "")
+
+    def test_identity_offer_skipped_when_user_already_configured(self):
+        cwd = self.make_project({})
+        (cwd / ".memory-seed" / "local.yaml").write_text("user: jean\n", encoding="utf-8")
+
+        self.assertEqual(self._run(cwd).strip(), "")
+        self.assertFalse((cwd / ".memory-seed" / ".identity-offer-stamp").exists())
+
+    def test_identity_offer_appended_alongside_project_state(self):
+        cwd = self.make_project({"2026-02-02.md": "## 2026-02-02 10:00 - X\n\nb\n"})
+
+        out = self._run(cwd)
+        self.assertIn("No local Memory Seed identity is configured", out)
+        self.assertIn("Newest session file", out)
 
     def test_markdown_heading_in_body_is_not_an_entry_boundary(self):
         import json

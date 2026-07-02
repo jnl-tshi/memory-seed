@@ -266,7 +266,9 @@ Load `.memory-seed/skills/memory_hygiene.md` for private/public risk distinction
 
 Session entries use dated files under `.memory-seed/sessions/`. Entries must include the current-time heading and YAML metadata fields needed for auditability: `entry_id`, `user_initials`, `agent_type`, `project_path`, and `subproject_path`; include `agent_name` when a persona is active and `related_entries` when meaningful prior entries are linked.
 
-Keep entries concise, reason-aware, and append-only. Load `.memory-seed/skills/session_logging.md` for the full schema, DRAFT decision record, examples, and repair rules.
+Keep entries concise, reason-aware, and append-only. Load `.memory-seed/skills/session_logging.md` for the full schema, DRAFT decision record, examples, repair rules, and the local-identity/session-layout model.
+
+Identity is opt-in and decoupled from layout: a configured local user always stamps `user_initials`, but the session log only fragments into per-user files once `.memory-seed/project.yaml` registers 2+ participants — a lone configured user stays on the shared flat file. If no local identity is configured, the SessionStart hook offers once to set one up (skippable, never repeats); `doctor` separately flags a configured user with no matching `participants:` entry.
 
 Detailed work logs belong in the nearest active runtime. Do not mirror sub-project logs into root memory.
 ## Archive Policy

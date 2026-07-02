@@ -470,6 +470,14 @@ def session_target(
         raise ValueError(f"Invalid session date: {date_value}")
 
     user = resolve_active_user(cwd, explicit_user=explicit_user)
+    if user is not None and explicit_user is None:
+        # A configured user alone isn't enough to fragment the log: per-user
+        # files exist to avoid concurrent-author merge conflicts, which isn't a
+        # concern until there is a second participant to conflict with. An
+        # explicit --user override bypasses this (a deliberate one-shot choice,
+        # e.g. testing migration by hand).
+        if len(read_project_participants(runtime.workspace_root)) < 2:
+            user = None
     if user is None:
         path = sessions_dir / f"{date_value}.md"
         if create:
@@ -2270,6 +2278,23 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
                     "runtime (foreign file, no memory-seed block). Run "
                     "`memory-seed update` to inject the routing block."
                 )
+
+    # Local-user / participant-registry consistency (non-fatal). Only checked
+    # when a local user is actually configured — an unconfigured user is not a
+    # problem doctor should nag about (the SessionStart hook offers identity
+    # setup once, separately). A configured user with no matching participants:
+    # entry means user_initials can't be resolved for multi-user tooling
+    # (migrate sessions-layout, links check) even though session_target()
+    # still works.
+    local_user = read_local_user(target_root)
+    if local_user is not None:
+        participant_slugs = {p.slug for p in read_project_participants(target_root)}
+        if local_user not in participant_slugs:
+            warnings.append(
+                f"Local user '{local_user}' (.memory-seed/local.yaml) has no matching "
+                "entry in .memory-seed/project.yaml's participants: list. Add one with "
+                f"slug: {local_user} so multi-user tooling can resolve initials for it."
+            )
 
     # Session integrity summary (non-fatal). The full report — with each
     # offending file and value, and a CI-usable non-zero exit — is
