@@ -5,6 +5,7 @@ import os
 import re
 import hashlib
 import secrets
+import subprocess
 import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -288,6 +289,8 @@ _ENTRY_TS_YAML_RE = re.compile(
     r"^##\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s+-[^\n]*\n\s*```ya?ml\s*\n(.*?)^```\s*$",
     re.MULTILINE | re.DOTALL,
 )
+_COMMIT_TOKEN_RE = re.compile(r"-\s*['\"]?([0-9a-fA-F]+)['\"]?")
+_FULL_COMMIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _SUPPORTED_SCHEMA_VERSIONS = {"1", "2"}
 _CROCKFORD_BASE32_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz"
 
@@ -337,15 +340,61 @@ def _fenced_yaml_blocks(text: str) -> Iterator[str]:
         yield match.group(1)
 
 
+def _commit_exists(root: Path, sha: str) -> bool | None:
+    """Whether ``sha`` names a commit in the repository at ``root``.
+
+    Returns ``None`` when git itself is unavailable or unresponsive - callers
+    skip the existence check in that case rather than failing (matching the
+    no-``.git``-directory behavior).
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "cat-file", "-e", f"{sha}^{{commit}}"],
+            capture_output=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return proc.returncode == 0
+
+
+def find_trailer_commits(root: Path, entry_id: str) -> list[str] | None:
+    """Commits (``<sha> <subject>`` lines) whose message carries a
+    ``Memory-Entry: <entry_id>`` trailer, across all refs.
+
+    The trailer is the write-path half of commit<->entry linking: the
+    ``commits:`` field on an entry can only be backfilled while that entry is
+    still the newest one, so the trailer provides coverage for commits made
+    after the window closed. Returns ``None`` (not an error) when ``root`` is
+    not a git repository or git is unavailable - the package works outside git.
+    """
+    if not (root / ".git").exists():
+        return None
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "log", "--all", f"--grep=Memory-Entry: {entry_id}", "--format=%H %s"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    return [line for line in proc.stdout.splitlines() if line.strip()]
+
+
 def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     """Validate session-memory integrity across both legacy-flat and per-user
     layouts (multi-user Phase 3). Detects duplicate entry/file IDs, dangling
     ``related_entries``/``related_memories``/``supersedes`` references,
     supersession forward-only violations (a ``supersedes`` ref whose target
-    postdates the referencing entry, including self-references and cycles), and
-    per-user-file frontmatter problems (filename/frontmatter user or date
-    mismatch, missing or malformed ``hash_id``, unsupported ``schema_version``,
-    invalid user slug).
+    postdates the referencing entry, including self-references and cycles),
+    malformed or unknown ``commits:`` hashes (existence checked only when a
+    ``.git`` directory is present and git responds), and per-user-file
+    frontmatter problems (filename/frontmatter user or date mismatch, missing
+    or malformed ``hash_id``, unsupported ``schema_version``, invalid user
+    slug).
 
     Each issue names the source file and the offending value. Returns
     ``ok=False`` when any issue is found so a CLI gate can exit non-zero.
@@ -360,6 +409,7 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     related_entry_refs: list[tuple[str, str]] = []
     related_memory_refs: list[tuple[str, str]] = []
     supersedes_refs: list[tuple[str, str]] = []
+    commit_refs: list[tuple[str, str]] = []
     # (rel_path, source_entry_id, ref) for refs attributable to a source entry.
     supersedes_edges: list[tuple[str, str, str]] = []
     entry_timestamps: dict[str, str] = {}
@@ -388,6 +438,8 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                 related_entry_refs.append((rel, ref))
             for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, "supersedes")):
                 supersedes_refs.append((rel, ref))
+            for token in _COMMIT_TOKEN_RE.findall(_frontmatter_list_region(yaml_block, "commits")):
+                commit_refs.append((rel, token))
 
         # Second, heading-anchored pass: attribute each supersedes ref to its
         # source entry and heading timestamp for the forward-only guard.
@@ -458,6 +510,26 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     for rel, ref in supersedes_refs:
         if ref not in known_entries:
             issues.append(LinkIssue(rel, "dangling-supersedes", f"supersedes -> {ref} (no such entry_id)"))
+
+    # commits: entries store full 40-character SHAs (validation stays
+    # unambiguous; display may shorten). Existence is checked only when a .git
+    # directory is present at the runtime root AND git itself answers - the
+    # package works outside git repos, so absence skips, never fails.
+    if commit_refs:
+        git_present = (root / ".git").exists()
+        commit_known: dict[str, bool | None] = {}
+        for rel_path, token in commit_refs:
+            if not _FULL_COMMIT_SHA_RE.match(token):
+                issues.append(
+                    LinkIssue(rel_path, "malformed-commit-hash", f"commits -> {token} (full 40-character lowercase SHA required)")
+                )
+                continue
+            if not git_present:
+                continue
+            if token not in commit_known:
+                commit_known[token] = _commit_exists(root, token)
+            if commit_known[token] is False:
+                issues.append(LinkIssue(rel_path, "unknown-commit", f"commits -> {token} (no such commit in this repository)"))
 
     # Forward-only guard: supersedes may only point at entries that already
     # existed when the referencing entry was written. Acyclicity of the

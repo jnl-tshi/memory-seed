@@ -159,9 +159,10 @@ Source: `Memory-Seed Logic Capture Improvement.md` (external review), evaluated 
 codebase and refined through discussion. Items 4 and 5 shipped 2026-07-03 (unreleased); the rest
 remain **proposed, not yet decided or built** — each has its own fully-specced plan doc.
 
-1. [`git-commit-entry-linking-plan.md`](git-commit-entry-linking-plan.md) — link a decision entry to
-   the commit(s) that implemented it, via a commit-message trailer convention plus an optional
-   `commits:` field on the entry. Trailer key signed off 2026-07-03: `Memory-Entry:`.
+1. [`git-commit-entry-linking-plan.md`](git-commit-entry-linking-plan.md) — **P1 implemented
+   2026-07-03 (unreleased):** the `Memory-Entry:` trailer convention, `commits:` schema field,
+   git-gated `links check` validation, and read-only `memory-seed link commits` are built and
+   tested. Remaining: the deferred P2 reminder-only post-commit hook.
 2. [`supersession-edges-plan.md`](supersession-edges-plan.md) — **P1 core implemented 2026-07-03
    (unreleased):** the typed `supersedes` edge, read-time `superseded_by` inverse, `links check`
    validation (dangling/self/postdates/cycle guard), and `link show`/`memory_get_chunk` exposure are

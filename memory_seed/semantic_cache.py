@@ -54,6 +54,7 @@ class MemoryChunk:
     file_hash_id: str | None = None
     related_entries: tuple[str, ...] = ()
     supersedes: tuple[str, ...] = ()
+    commits: tuple[str, ...] = ()
     entry_title: str | None = None
     entry_line_range: tuple[int, int] | None = None
     sections: tuple[str, ...] = ()
@@ -440,6 +441,7 @@ def _extract_entry_chunks_from_file(
         entry_id = _metadata_value(metadata, "entry_id")
         related_entries = _metadata_list(metadata, "related_entries")
         supersedes = _metadata_list(metadata, "supersedes")
+        commits = _metadata_list(metadata, "commits")
         sections = _entry_sections(entry_lines)
         heading_path = (title,)
         entry_range = (start_line, end_line)
@@ -474,6 +476,7 @@ def _extract_entry_chunks_from_file(
                     file_hash_id=file_hash_id,
                     related_entries=related_entries,
                     supersedes=supersedes,
+                    commits=commits,
                     entry_title=title,
                     entry_line_range=entry_range,
                     sections=sections,
@@ -513,6 +516,7 @@ def _extract_entry_chunks_from_file(
                     file_hash_id=file_hash_id,
                     related_entries=related_entries,
                     supersedes=supersedes,
+                    commits=commits,
                     entry_title=title,
                     entry_line_range=entry_range,
                     sections=sections,
@@ -554,6 +558,7 @@ def _extract_entry_chunks_from_file(
                     file_hash_id=file_hash_id,
                     related_entries=related_entries,
                     supersedes=supersedes,
+                    commits=commits,
                     entry_title=title,
                     entry_line_range=entry_range,
                     sections=sections,

@@ -309,6 +309,84 @@ class MemorySeedTests(unittest.TestCase):
 
         self.assertEqual([i.kind for i in issues], ["self-supersedes"], [i.__dict__ for i in issues])
 
+    def _flat_session_with_commits(self, cwd, *hashes):
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        lines = ["## 2026-06-13 09:00 - entry", "", "```yaml", "entry_id: mse_0123456789abcdef", "commits:"]
+        lines.extend(f"  - {h}" for h in hashes)
+        lines += ["```", "", "- note", ""]
+        (sessions / "2026-06-13.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def _git_repo_with_commit(self, cwd, message="initial"):
+        import subprocess
+
+        subprocess.run(["git", "-C", str(cwd), "init", "-q"], check=True, capture_output=True)
+        (cwd / "README.txt").write_text("x", encoding="utf-8")
+        subprocess.run(["git", "-C", str(cwd), "add", "-A"], check=True, capture_output=True)
+        subprocess.run(
+            [
+                "git", "-C", str(cwd),
+                "-c", "user.name=test", "-c", "user.email=test@example.com",
+                "-c", "commit.gpgsign=false",
+                "commit", "-q", "-m", message,
+            ],
+            check=True,
+            capture_output=True,
+        )
+        head = subprocess.run(
+            ["git", "-C", str(cwd), "rev-parse", "HEAD"], check=True, capture_output=True, text=True
+        ).stdout.strip()
+        return head
+
+    def test_links_check_flags_malformed_commit_hash_without_git(self):
+        # Format validation applies even outside a git repo; existence is skipped.
+        cwd = self.make_project()
+        self._flat_session_with_commits(cwd, "abc123")
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["malformed-commit-hash"], [i.__dict__ for i in issues])
+        self.assertIn("abc123", issues[0].detail)
+
+    def test_links_check_skips_commit_existence_without_git(self):
+        cwd = self.make_project()
+        self._flat_session_with_commits(cwd, "a" * 40)
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+
+    def test_links_check_validates_commit_existence_in_git_repo(self):
+        cwd = self.make_project()
+        head = self._git_repo_with_commit(cwd)
+        self._flat_session_with_commits(cwd, head, "f" * 40)
+
+        issues = check_session_links(cwd=cwd).issues
+
+        # The real HEAD passes; the fabricated hash is flagged.
+        self.assertEqual([i.kind for i in issues], ["unknown-commit"], [i.__dict__ for i in issues])
+        self.assertIn("f" * 40, issues[0].detail)
+
+    def test_find_trailer_commits_scans_memory_entry_trailer(self):
+        from memory_seed.core import find_trailer_commits
+
+        cwd = self.make_project()
+        head = self._git_repo_with_commit(cwd, message="fix thing\n\nMemory-Entry: mse_0123456789abcdef")
+
+        hits = find_trailer_commits(cwd, "mse_0123456789abcdef")
+        misses = find_trailer_commits(cwd, "mse_ffffffffffffffff")
+
+        self.assertEqual(len(hits), 1, hits)
+        self.assertTrue(hits[0].startswith(head))
+        self.assertEqual(misses, [])
+
+    def test_find_trailer_commits_returns_none_outside_git(self):
+        from memory_seed.core import find_trailer_commits
+
+        cwd = self.make_project()
+
+        self.assertIsNone(find_trailer_commits(cwd, "mse_0123456789abcdef"))
+
     def test_links_check_flags_supersedes_cycle_between_same_minute_entries(self):
         # Same-minute entries slip past the postdates comparison; the DFS
         # cycle guard is what catches a mutual supersession there.

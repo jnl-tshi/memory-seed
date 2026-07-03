@@ -129,6 +129,11 @@ def main(argv: list[str] | None = None) -> int:
         help="show outbound edges and computed inbound backlinks for an entry",
     )
     link_show.add_argument("entry_id", help="entry_id to show edges for")
+    link_commits = link_sub.add_parser(
+        "commits",
+        help="show commits linked to an entry (stored commits: field + Memory-Entry trailer scan)",
+    )
+    link_commits.add_argument("entry_id", help="entry_id to show commits for")
 
     update_parser = subparsers.add_parser("update", help="update reusable control-plane files")
     update_parser.add_argument(
@@ -282,6 +287,27 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  inbound  ({len(node.inbound)}): " + (", ".join(node.inbound) or "-"))
             print(f"  supersedes ({len(node.supersedes)}): " + (", ".join(node.supersedes) or "-"))
             print(f"  superseded_by ({len(node.superseded_by)}): " + (", ".join(node.superseded_by) or "-"))
+            return 0
+        if args.link_command == "commits":
+            from .core import find_trailer_commits, resolve_runtime
+            from .semantic_cache import extract_memory_chunks
+
+            chunk = next(
+                (c for c in extract_memory_chunks(cwd, granularity="entry") if c.entry_id == args.entry_id),
+                None,
+            )
+            if chunk is None:
+                print(f"entry_id {args.entry_id} not found", file=sys.stderr)
+                return 1
+            print(f"{chunk.entry_id}  {chunk.title}")
+            print(f"  commits field ({len(chunk.commits)}): " + (", ".join(chunk.commits) or "-"))
+            trailer_hits = find_trailer_commits(resolve_runtime(cwd).workspace_root, args.entry_id)
+            if trailer_hits is None:
+                print("  trailer scan: skipped (not a git repository or git unavailable)")
+            else:
+                print(f"  trailer scan ({len(trailer_hits)}):" + ("" if trailer_hits else " -"))
+                for line in trailer_hits:
+                    print(f"    {line}")
             return 0
 
     if args.command == "compact":

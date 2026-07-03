@@ -4,6 +4,15 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Added git commit <-> decision entry linking (P1): a `Memory-Entry: <entry_id>` commit-message
+  trailer convention (documented as a Working Principles bullet in `agent-rules.md` + seed twin)
+  plus an optional `commits:` entry-YAML field of full 40-character SHAs, backfillable only while
+  the entry is still the newest one (same-turn scoping, no historical edits). New read-only
+  `memory-seed link commits <entry_id>` prints both sources: the stored field and a
+  `git log --all --grep` trailer scan. `links check` rejects short/malformed hashes always
+  (`malformed-commit-hash`) and unknown hashes when a `.git` repository is present
+  (`unknown-commit`); outside a git repo, existence checks skip cleanly. From
+  `docs/todo/git-commit-entry-linking-plan.md`.
 - Added typed supersession edges (P1): an optional `supersedes:` list in entry YAML marks earlier
   decisions an entry replaces, kept strictly separate from `related_entries`. The read-time inverse
   (`superseded_by`) is computed in `build_related_entry_graph()` the same way inbound backlinks are,

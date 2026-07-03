@@ -584,6 +584,25 @@ class RelatedEntryGraphTests(unittest.TestCase):
         self.assertEqual(graph["ms-b0000000"].superseded_by, ())
         self.assertEqual(graph["ms-b0000000"].inbound, ("ms-a0000000",))
 
+    def test_entry_chunks_parse_commits_field(self):
+        cwd = self.make_project()
+        sessions = cwd / ".memory-seed" / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / "2026-05-10.md").write_text(
+            "## 2026-05-10 09:00 - Implemented\n\n"
+            "```yaml\n"
+            "entry_id: ms-implemented\n"
+            "commits:\n"
+            "  - " + "a" * 40 + "\n"
+            "```\n\n"
+            "text.\n",
+            encoding="utf-8",
+        )
+
+        chunks = extract_memory_chunks(cwd, granularity="entry")
+
+        self.assertEqual(chunks[0].commits, ("a" * 40,))
+
     def test_graph_ignores_dangling_supersedes_for_inverse(self):
         cwd = self.make_project()
         self.write_day(

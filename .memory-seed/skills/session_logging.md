@@ -52,6 +52,8 @@ related_entries:
 
 `supersedes` is an optional sibling list of `entry_id` values marking earlier decisions this entry explicitly replaces or deprecates — a typed status edge, kept separate from `related_entries` (relatedness) and never merged with it. Forward-only: reference only entries that already existed when this one was written; `links check` rejects a `supersedes` ref whose target postdates the referencing entry, a self-reference, or a cycle. A superseded entry stays fully retrievable — supersession deprioritizes, never hides. The computed inverse (`superseded_by`) is available read-time via `memory-seed link show` and `memory_get_chunk`; do not hand-write it.
 
+`commits` is an optional list of full 40-character commit SHAs implementing this entry's decision. Backfill it only on the current/newest entry, in the same turn the commit lands — once a later entry exists, adding `commits:` becomes a historical edit requiring explicit user-requested correction. The commit side of the link is the `Memory-Entry: <entry_id>` message trailer (see Working Principles), which needs no backfill window; `memory-seed link commits <entry_id>` reads both sources. `links check` rejects short or malformed hashes always, and unknown hashes when a `.git` repository is present.
+
 Keep session filenames date-only, such as `.memory-seed/sessions/2026-05-02.md`. Generate `entry_id` as a deterministic 80-bit `mse_` ID from metadata only: timestamp, title, user initials, agent type, project path, and subproject path. Legacy `ms-` IDs remain valid and must not be rewritten.
 
 ## Local Identity and Session Layout

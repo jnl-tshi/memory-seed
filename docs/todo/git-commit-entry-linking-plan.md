@@ -10,7 +10,11 @@ tags:
 
 # Git Commit <-> Decision Entry Linking - Scope
 
-> **Status: PROPOSED, not yet decided or built.** Source: external review doc
+> **Status: P1 IMPLEMENTED 2026-07-03 (unreleased).** The `Memory-Entry:` trailer convention
+> (Working Principles bullet), the `commits:` schema field (session_logging.md), git-gated
+> `links check` validation (malformed/unknown hashes), and read-only
+> `memory-seed link commits <entry_id>` (field + trailer-scan) are built and tested. P2
+> (reminder-only post-commit hook) remains deferred. Source: external review doc
 > `Memory-Seed Logic Capture Improvement.md` (the "Version Control Reference" field in its
 > proposed decision schema). Companion to
 > [`related-entries-generation-plan.md`](related-entries-generation-plan.md) (same forward-edge /
