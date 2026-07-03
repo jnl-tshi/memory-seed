@@ -15,8 +15,8 @@ tags:
 > proposed decision schema). Companion to
 > [`related-entries-generation-plan.md`](related-entries-generation-plan.md) (same forward-edge /
 > read-time-traversal design pattern) and
-> [`supersession-edges-plan.md`](supersession-edges-plan.md) (shares the same validation
-> dependency, see "Known Dependency" below).
+> [`supersession-edges-plan.md`](supersession-edges-plan.md) (shared the same validation
+> dependency, see "Known Dependency" below — now resolved).
 
 ## Motivation
 
@@ -75,15 +75,13 @@ is completing the entry that is still being authored this turn.
   unresolvable hash. If no `.git` directory is present (package used outside a git repo), this
   check is skipped, not failed — matches "prefer local deterministic behavior" without assuming git
   is always available.
-- **Known dependency (discovered during research):** `check_session_links()`'s existing
-  `related_entries` dangling-ref scan (`memory_seed/core.py:402-409`) only runs inside the
-  `if doc.layout != "per-user-day": continue` branch — it is **not** applied to legacy-flat
-  `.memory-seed/sessions/YYYY-MM-DD.md` files. Verified empirically: a dangling `related_entries`
-  ref in a legacy-flat file does not fail `links check` today. This repository itself uses the
-  legacy-flat layout, so any new ref-validation logic (`commits:` here, `supersedes` in the
-  companion plan) must not silently inherit this gap. Landing either feature should either (a) fix
-  the legacy-flat scan gap as a prerequisite, or (b) explicitly document the same limitation until
-  it is fixed.
+- **Known dependency — resolved (2026-07-02, unreleased):** `check_session_links()`'s
+  `related_entries` dangling-ref scan used to only run inside the `if doc.layout != "per-user-day":
+  continue` branch, silently skipping legacy-flat `.memory-seed/sessions/YYYY-MM-DD.md` files (this
+  repository's own layout). Fixed by moving the entry-level (fenced `` ```yaml `` block) scan out of
+  the per-user-day gate, since `related_entries` inside an entry's YAML block has the same shape in
+  both layouts. `commits:` validation can now reuse the same, now-correct gate without inheriting
+  the gap.
 
 ## Read-Side Lookup (P1)
 
@@ -110,9 +108,8 @@ is completing the entry that is still being authored this turn.
 
 1. Trailer key name: `Memory-Entry:` vs. something shorter (e.g. `Mem-Entry:`). Needs sign-off
    before documenting it as a convention.
-2. Whether to fix the legacy-flat `links check` gap as part of this work or file it as its own
-   prerequisite fix (see Known Dependency above) — the same question applies to
-   `supersession-edges-plan.md`, so it should be decided once for both.
+2. ~~Whether to fix the legacy-flat `links check` gap as part of this work or file it as its own
+   prerequisite fix~~ — resolved 2026-07-02 (see Known Dependency above); no longer blocking.
 3. Whether `commits:` accepts short hashes or requires full 40-character SHAs (short hashes are
    friendlier to write but can become ambiguous in a large, older repo).
 

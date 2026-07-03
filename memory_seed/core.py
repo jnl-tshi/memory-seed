@@ -365,6 +365,13 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
         for entry_id in _ENTRY_ID_RE.findall(text):
             entry_id_files.setdefault(entry_id, []).append(rel)
 
+        # Entry-level related_entries lives inside each entry's fenced ```yaml
+        # block, the same shape in both layouts - scan it regardless of
+        # layout, unlike the per-user *file*-frontmatter checks below.
+        for yaml_block in _fenced_yaml_blocks(text):
+            for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, "related_entries")):
+                related_entry_refs.append((rel, ref))
+
         if doc.layout != "per-user-day":
             continue
 
@@ -403,10 +410,6 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
             related_entry_refs.append((rel, ref))
         for ref in _RELATED_MEMORY_REF_RE.findall(_frontmatter_list_region(block, "related_memories")):
             related_memory_refs.append((rel, ref))
-
-        for yaml_block in _fenced_yaml_blocks(text):
-            for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, "related_entries")):
-                related_entry_refs.append((rel, ref))
 
     for entry_id, files in sorted(entry_id_files.items()):
         if len(files) > 1:

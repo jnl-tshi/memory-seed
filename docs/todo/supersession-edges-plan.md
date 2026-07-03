@@ -70,13 +70,12 @@ constraint, extended for free.
 `supersedes` refs get the same dangling-ref check as `related_entries`, ideally through the same
 `links check` gate rather than a parallel validator.
 
-**Known dependency (discovered during research, shared with `git-commit-entry-linking-plan.md`):**
-`check_session_links()`'s `related_entries` dangling-ref scan (`memory_seed/core.py:402-409`) is
-scoped inside `if doc.layout != "per-user-day": continue` — it does not run against legacy-flat
-`.memory-seed/sessions/YYYY-MM-DD.md` files. Verified empirically (a dangling `related_entries` ref
-in a legacy-flat file passes `links check` with `ok=True`). This repository uses the legacy-flat
-layout, so `supersedes` validation must not silently inherit the same blind spot. Resolve once,
-shared with the commit-linking plan — see that doc's Open Decisions.
+**Known dependency — resolved (2026-07-02, unreleased, shared with `git-commit-entry-linking-plan.md`):**
+`check_session_links()`'s `related_entries` dangling-ref scan used to be scoped inside
+`if doc.layout != "per-user-day": continue`, so it never ran against legacy-flat
+`.memory-seed/sessions/YYYY-MM-DD.md` files (this repository's own layout). Fixed by moving the
+entry-level scan out of that gate — `supersedes` validation can reuse the same, now-correct `links
+check` path from day one instead of inheriting the blind spot.
 
 ## Harmony Contract With Interaction-Frequency Ranking
 
@@ -120,9 +119,8 @@ Extend `memory-seed link show <entry_id>` and `memory_get_chunk` output to inclu
    `related_entries`-only for now? Leaning toward staying `related_entries`-only in P1 — suggesting
    *what to deprecate* is a much higher-stakes judgment call than suggesting *what's related*, and
    shouldn't be automated without more signal.
-3. The legacy-flat `links check` gap (see Known Dependency) — fix now as a shared prerequisite with
-   `git-commit-entry-linking-plan.md`, or land both features with the limitation explicitly
-   documented and fix it as a separate, dedicated bug-fix item.
+3. ~~The legacy-flat `links check` gap~~ — resolved 2026-07-02 (see Known Dependency above); no
+   longer blocking either this plan or `git-commit-entry-linking-plan.md`.
 4. Exact dampening multiplier value for the harmony contract (item 2 above) — needs a concrete
    number once `interaction-frequency-ranking-plan.md` P1 actually ships and there's a real score to
    dampen.

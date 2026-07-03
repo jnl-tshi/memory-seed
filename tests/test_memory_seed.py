@@ -171,6 +171,78 @@ class MemorySeedTests(unittest.TestCase):
         )
         self.assertIn("mse_ffffffffffffffff", issues[0].detail)
 
+    def test_links_check_validates_entry_level_related_entries_in_legacy_flat_files(self):
+        # Regression test: entry-level related_entries used to only be scanned
+        # for per-user-day files, silently skipping legacy-flat sessions/*.md
+        # (this repo's own layout) - a dangling ref there passed with ok=True.
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / "2026-06-13.md").write_text(
+            "\n".join(
+                [
+                    "---",
+                    "tags: [session-log]",
+                    "session_date: 2026-06-13",
+                    "---",
+                    "",
+                    "## 2026-06-13 09:00 - flat entry",
+                    "",
+                    "```yaml",
+                    "entry_id: mse_0123456789abcdef",
+                    "user_initials: JN",
+                    "related_entries:",
+                    "  - mse_ffffffffffffffff",
+                    "```",
+                    "",
+                    "- note",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual(
+            [issue.kind for issue in issues],
+            ["dangling-related-entry"],
+            [issue.__dict__ for issue in issues],
+        )
+        self.assertIn("mse_ffffffffffffffff", issues[0].detail)
+
+    def test_links_check_resolves_valid_related_entries_in_legacy_flat_files(self):
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / "2026-06-13.md").write_text(
+            "\n".join(
+                [
+                    "## 2026-06-13 09:00 - first",
+                    "",
+                    "```yaml",
+                    "entry_id: mse_0123456789abcdef",
+                    "```",
+                    "",
+                    "## 2026-06-13 10:00 - second",
+                    "",
+                    "```yaml",
+                    "entry_id: mse_ffffffffffffffff",
+                    "related_entries:",
+                    "  - mse_0123456789abcdef",
+                    "```",
+                    "",
+                    "- note",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+
     def test_doctor_summarizes_session_integrity_issues(self):
         cwd = self.make_project()
         init_project(cwd=cwd)

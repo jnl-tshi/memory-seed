@@ -150,10 +150,9 @@ built** — each has its own fully-specced plan doc.
    `session_logging.md`'s Reason Rules requiring a failed/incompatible approach to be logged under
    `A` even when not explicitly asked.
 
-Items 1 and 2 share a discovered dependency: `links check`'s dangling-`related_entries` validation
-currently only runs against per-user-day session files, not this repo's own legacy-flat layout
-(verified empirically — see either plan's "Known Dependency" section). That gap should be resolved
-once, shared across both.
+Items 1 and 2 shared a discovered dependency — `links check`'s dangling-`related_entries` validation
+used to only run against per-user-day session files, not this repo's own legacy-flat layout — fixed
+2026-07-02 (unreleased). Both items are now unblocked; see either plan's "Known Dependency" section.
 
 ## MCP Client Validation
 
