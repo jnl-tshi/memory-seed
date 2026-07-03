@@ -12,6 +12,7 @@ from .semantic_cache import (
     MemoryChunk,
     Model2VecEmbeddingProvider,
     RankedMemoryChunk,
+    build_related_entry_graph,
     extract_memory_chunks,
     rank_session_memory,
 )
@@ -115,11 +116,23 @@ def call_tool(
     if name == "memory_get_chunk":
         chunk_id = _required_str(args, "chunk_id")
         cwd = args.get("cwd", ".")
-        for granularity in ("entry", "section"):
-            for chunk in extract_memory_chunks(cwd, granularity=granularity):
-                if chunk.chunk_id == chunk_id:
-                    return {"chunk": _chunk_to_dict(chunk)}
-        raise ValueError(f"chunk_id not found: {chunk_id}")
+        entry_chunks = extract_memory_chunks(cwd, granularity="entry")
+        found = next((chunk for chunk in entry_chunks if chunk.chunk_id == chunk_id), None)
+        if found is None:
+            found = next(
+                (chunk for chunk in extract_memory_chunks(cwd, granularity="section") if chunk.chunk_id == chunk_id),
+                None,
+            )
+        if found is None:
+            raise ValueError(f"chunk_id not found: {chunk_id}")
+        payload = _chunk_to_dict(found)
+        superseded_by: list[str] = []
+        if found.entry_id:
+            node = build_related_entry_graph(chunks=entry_chunks).get(found.entry_id)
+            if node is not None:
+                superseded_by = list(node.superseded_by)
+        payload["superseded_by"] = superseded_by
+        return {"chunk": payload}
 
     raise ValueError(f"Unknown tool: {name}")
 
@@ -253,6 +266,7 @@ def _ranked_to_dict(result: RankedMemoryChunk) -> dict[str, Any]:
         "user": chunk.user,
         "file_hash_id": chunk.file_hash_id,
         "related_entries": list(chunk.related_entries),
+        "supersedes": list(chunk.supersedes),
         "line_range": [chunk.start_line, chunk.end_line],
         "heading_path": list(chunk.heading_path),
         "matched_terms": list(result.matched_terms),
@@ -282,6 +296,7 @@ def _chunk_to_dict(chunk: MemoryChunk) -> dict[str, Any]:
         "user": chunk.user,
         "file_hash_id": chunk.file_hash_id,
         "related_entries": list(chunk.related_entries),
+        "supersedes": list(chunk.supersedes),
         "entry_datetime": None
         if chunk.entry_datetime is None
         else chunk.entry_datetime.isoformat(),

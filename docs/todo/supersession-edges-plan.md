@@ -10,7 +10,11 @@ tags:
 
 # Typed Supersession Edges - Scope
 
-> **Status: PROPOSED, not yet decided or built.** Source: external review doc
+> **Status: P1 CORE IMPLEMENTED 2026-07-03 (unreleased).** Schema parsing, the read-time
+> `superseded_by` inverse, `links check` validation (dangling/self/postdates/cycle), `link show` +
+> `memory_get_chunk` exposure, and the `session_logging.md` schema doc are built and tested. Still
+> open: the harmony-contract dampening (lands with `interaction-frequency-ranking-plan.md` P1b) and
+> the deferred P2 Lense UI surfacing. Source: external review doc
 > `Memory-Seed Logic Capture Improvement.md` (the "Supersession Pointer" field in its proposed
 > decision schema). Companion to
 > [`related-entries-generation-plan.md`](related-entries-generation-plan.md) (extends the same

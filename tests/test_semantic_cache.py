@@ -439,7 +439,7 @@ class SemanticCacheTests(unittest.TestCase):
         self.assertEqual(chunks[0].source_path, ".AGENTS/sessions/2026-05-19.md")
 
 
-def _entry(title, entry_id, body, related=None):
+def _entry(title, entry_id, body, related=None, supersedes=None):
     lines = [
         f"## {title}",
         "",
@@ -453,6 +453,9 @@ def _entry(title, entry_id, body, related=None):
     if related:
         lines.append("related_entries:")
         lines.extend(f"  - {ref}" for ref in related)
+    if supersedes:
+        lines.append("supersedes:")
+        lines.extend(f"  - {ref}" for ref in supersedes)
     lines += ["```", "", body, ""]
     return "\n".join(lines)
 
@@ -553,6 +556,45 @@ class RelatedEntryGraphTests(unittest.TestCase):
             build_related_entry_graph(cwd, chunks=chunks),
             build_related_entry_graph(cwd),
         )
+
+    def test_graph_computes_superseded_by_inverse_separately_from_inbound(self):
+        cwd = self.make_project()
+        # A (11:00) supersedes C (09:00) and separately relates to B (10:00).
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 09:00 - Oldest C", "ms-c0000000", "original decision."),
+            _entry("2026-05-10 10:00 - Middle B", "ms-b0000000", "adjacent work."),
+            _entry(
+                "2026-05-10 11:00 - Newest A",
+                "ms-a0000000",
+                "replacement decision.",
+                related=["ms-b0000000"],
+                supersedes=["ms-c0000000"],
+            ),
+        )
+
+        graph = build_related_entry_graph(cwd)
+
+        self.assertEqual(graph["ms-a0000000"].supersedes, ("ms-c0000000",))
+        self.assertEqual(graph["ms-c0000000"].superseded_by, ("ms-a0000000",))
+        # The two edge kinds never bleed into each other: superseding C adds
+        # nothing to C's relatedness backlinks, and relating to B adds nothing
+        # to B's supersession status.
+        self.assertEqual(graph["ms-c0000000"].inbound, ())
+        self.assertEqual(graph["ms-b0000000"].superseded_by, ())
+        self.assertEqual(graph["ms-b0000000"].inbound, ("ms-a0000000",))
+
+    def test_graph_ignores_dangling_supersedes_for_inverse(self):
+        cwd = self.make_project()
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 09:00 - Only", "ms-only0000", "text.", supersedes=["ms-missing0"]),
+        )
+
+        graph = build_related_entry_graph(cwd)
+
+        self.assertEqual(graph["ms-only0000"].supersedes, ("ms-missing0",))
+        self.assertNotIn("ms-missing0", graph)
 
 
 if __name__ == "__main__":

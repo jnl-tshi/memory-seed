@@ -243,6 +243,90 @@ class MemorySeedTests(unittest.TestCase):
 
         self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
 
+    def _flat_session(self, cwd, filename, *entry_specs):
+        """Write a flat session file from (heading, entry_id, supersedes) specs."""
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        lines: list[str] = []
+        for heading, entry_id, supersedes in entry_specs:
+            lines += [f"## {heading}", "", "```yaml", f"entry_id: {entry_id}"]
+            if supersedes:
+                lines.append("supersedes:")
+                lines.extend(f"  - {ref}" for ref in supersedes)
+            lines += ["```", "", "- note", ""]
+        (sessions / filename).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def test_links_check_accepts_backward_supersedes(self):
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - original", "mse_0123456789abcdef", ()),
+            ("2026-06-13 10:00 - replacement", "mse_ffffffffffffffff", ("mse_0123456789abcdef",)),
+        )
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+
+    def test_links_check_flags_dangling_supersedes(self):
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - only", "mse_0123456789abcdef", ("mse_zzzzzzzzzzzzzzzz",)),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["dangling-supersedes"], [i.__dict__ for i in issues])
+        self.assertIn("mse_zzzzzzzzzzzzzzzz", issues[0].detail)
+
+    def test_links_check_flags_postdating_supersedes(self):
+        # Forward-only guard: an earlier entry may not supersede a later one.
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - earlier", "mse_0123456789abcdef", ("mse_ffffffffffffffff",)),
+            ("2026-06-13 10:00 - later", "mse_ffffffffffffffff", ()),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["supersedes-postdates"], [i.__dict__ for i in issues])
+        self.assertIn("mse_ffffffffffffffff", issues[0].detail)
+
+    def test_links_check_flags_self_supersedes(self):
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - self", "mse_0123456789abcdef", ("mse_0123456789abcdef",)),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["self-supersedes"], [i.__dict__ for i in issues])
+
+    def test_links_check_flags_supersedes_cycle_between_same_minute_entries(self):
+        # Same-minute entries slip past the postdates comparison; the DFS
+        # cycle guard is what catches a mutual supersession there.
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - first", "mse_0123456789abcdef", ("mse_ffffffffffffffff",)),
+            ("2026-06-13 09:00 - second", "mse_ffffffffffffffff", ("mse_0123456789abcdef",)),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertIn("supersedes-cycle", [i.kind for i in issues], [i.__dict__ for i in issues])
+        cycle_issue = next(i for i in issues if i.kind == "supersedes-cycle")
+        self.assertIn("mse_0123456789abcdef", cycle_issue.detail)
+        self.assertIn("mse_ffffffffffffffff", cycle_issue.detail)
+
     def test_doctor_summarizes_session_integrity_issues(self):
         cwd = self.make_project()
         init_project(cwd=cwd)

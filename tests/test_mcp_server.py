@@ -232,6 +232,41 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertIsNone(payload["chunk"]["entry_datetime"])
         self.assertIn("Semble guidance", payload["chunk"]["text"])
 
+    def test_call_tool_memory_get_chunk_exposes_supersedes_and_superseded_by(self):
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:00 - Original decision\n\n"
+            "```yaml\n"
+            "entry_id: ms-original\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "```\n\n"
+            "The first take on the cache key.\n\n"
+            "## 2026-05-17 10:00 - Replacement decision\n\n"
+            "```yaml\n"
+            "entry_id: ms-replaces\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "supersedes:\n"
+            "  - ms-original\n"
+            "```\n\n"
+            "The corrected take on the cache key.\n",
+        )
+
+        replacing = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": "ms-replaces"})
+        superseded = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": "ms-original"})
+
+        self.assertEqual(replacing["chunk"]["supersedes"], ["ms-original"])
+        self.assertEqual(replacing["chunk"]["superseded_by"], [])
+        self.assertEqual(superseded["chunk"]["supersedes"], [])
+        self.assertEqual(superseded["chunk"]["superseded_by"], ["ms-replaces"])
+
     def test_call_tool_memory_get_chunk_returns_per_user_chunk(self):
         cwd = self.make_project()
         self.write_session(

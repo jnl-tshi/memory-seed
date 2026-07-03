@@ -4,7 +4,15 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
-- _Nothing yet._
+- Added typed supersession edges (P1): an optional `supersedes:` list in entry YAML marks earlier
+  decisions an entry replaces, kept strictly separate from `related_entries`. The read-time inverse
+  (`superseded_by`) is computed in `build_related_entry_graph()` the same way inbound backlinks are,
+  and exposed via `memory-seed link show` and `memory_get_chunk` (search results carry the stored
+  `supersedes` field). `links check` validates the new edge: dangling refs (`dangling-supersedes`),
+  self-references (`self-supersedes`), forward-only violations where the target postdates the
+  referencing entry (`supersedes-postdates`), and same-minute cycles via a DFS (`supersedes-cycle`).
+  Superseded entries stay fully retrievable — supersession deprioritizes, never hides. Schema
+  documented in `skills/session_logging.md` (+ seed twin). From `docs/todo/supersession-edges-plan.md`.
 
 ## 2.14.0 - 2026-07-03
 

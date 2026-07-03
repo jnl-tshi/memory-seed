@@ -162,10 +162,11 @@ remain **proposed, not yet decided or built** — each has its own fully-specced
 1. [`git-commit-entry-linking-plan.md`](git-commit-entry-linking-plan.md) — link a decision entry to
    the commit(s) that implemented it, via a commit-message trailer convention plus an optional
    `commits:` field on the entry. Trailer key signed off 2026-07-03: `Memory-Entry:`.
-2. [`supersession-edges-plan.md`](supersession-edges-plan.md) — a typed `supersedes` edge (separate
-   from `related_entries`) so a decision can mark an earlier one as replaced, plus the harmony
-   contract that keeps this from inflating a superseded entry's importance score. The forward-only/
-   cycle guard in `links check` is in P1 scope (signed off 2026-07-03).
+2. [`supersession-edges-plan.md`](supersession-edges-plan.md) — **P1 core implemented 2026-07-03
+   (unreleased):** the typed `supersedes` edge, read-time `superseded_by` inverse, `links check`
+   validation (dangling/self/postdates/cycle guard), and `link show`/`memory_get_chunk` exposure are
+   built and tested. Remaining: the harmony-contract dampening (lands with ranking P1b) and deferred
+   P2 Lense surfacing.
 3. [`interaction-frequency-ranking-plan.md`](interaction-frequency-ranking-plan.md) - raw
    `related_degree` first; supersession-aware `importance_score` only after `supersedes`; real
    access-frequency telemetry remains the stated later goal.

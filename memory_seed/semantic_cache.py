@@ -53,6 +53,7 @@ class MemoryChunk:
     user: str | None = None
     file_hash_id: str | None = None
     related_entries: tuple[str, ...] = ()
+    supersedes: tuple[str, ...] = ()
     entry_title: str | None = None
     entry_line_range: tuple[int, int] | None = None
     sections: tuple[str, ...] = ()
@@ -191,6 +192,11 @@ class RelatedEntryNode:
     bidirectional without ever editing a historical entry. Inbound is built only
     from refs that resolve to a known entry_id; ``outbound`` is reported as
     stored (run ``links check`` to surface any dangling outbound ref).
+
+    ``supersedes`` is the entry's stored typed edge marking earlier decisions it
+    replaces; ``superseded_by`` is its computed inverse, built the same way as
+    ``inbound``. The two edge kinds are never merged: a supersession is a status
+    signal (this decision is retired), not a relatedness signal.
     """
 
     entry_id: str
@@ -199,6 +205,8 @@ class RelatedEntryNode:
     session_date: date
     outbound: tuple[str, ...]
     inbound: tuple[str, ...]
+    supersedes: tuple[str, ...] = ()
+    superseded_by: tuple[str, ...] = ()
 
 
 def _entry_order_key(chunk: MemoryChunk) -> tuple[date, datetime, int]:
@@ -230,12 +238,16 @@ def build_related_entry_graph(
             by_id[chunk.entry_id] = chunk
 
     inbound: dict[str, list[str]] = {entry_id: [] for entry_id in by_id}
+    superseded_by: dict[str, list[str]] = {entry_id: [] for entry_id in by_id}
     for chunk in chunks:
         if not chunk.entry_id:
             continue
         for ref in chunk.related_entries:
             if ref in by_id and ref != chunk.entry_id:
                 inbound[ref].append(chunk.entry_id)
+        for ref in chunk.supersedes:
+            if ref in by_id and ref != chunk.entry_id:
+                superseded_by[ref].append(chunk.entry_id)
 
     graph: dict[str, RelatedEntryNode] = {}
     for entry_id, chunk in by_id.items():
@@ -246,6 +258,8 @@ def build_related_entry_graph(
             session_date=chunk.session_date,
             outbound=tuple(chunk.related_entries),
             inbound=tuple(dict.fromkeys(inbound[entry_id])),
+            supersedes=tuple(chunk.supersedes),
+            superseded_by=tuple(dict.fromkeys(superseded_by[entry_id])),
         )
     return graph
 
@@ -425,6 +439,7 @@ def _extract_entry_chunks_from_file(
         metadata = _extract_entry_metadata(entry_lines)
         entry_id = _metadata_value(metadata, "entry_id")
         related_entries = _metadata_list(metadata, "related_entries")
+        supersedes = _metadata_list(metadata, "supersedes")
         sections = _entry_sections(entry_lines)
         heading_path = (title,)
         entry_range = (start_line, end_line)
@@ -458,6 +473,7 @@ def _extract_entry_chunks_from_file(
                     user=user,
                     file_hash_id=file_hash_id,
                     related_entries=related_entries,
+                    supersedes=supersedes,
                     entry_title=title,
                     entry_line_range=entry_range,
                     sections=sections,
@@ -496,6 +512,7 @@ def _extract_entry_chunks_from_file(
                     user=user,
                     file_hash_id=file_hash_id,
                     related_entries=related_entries,
+                    supersedes=supersedes,
                     entry_title=title,
                     entry_line_range=entry_range,
                     sections=sections,
@@ -536,6 +553,7 @@ def _extract_entry_chunks_from_file(
                     user=user,
                     file_hash_id=file_hash_id,
                     related_entries=related_entries,
+                    supersedes=supersedes,
                     entry_title=title,
                     entry_line_range=entry_range,
                     sections=sections,

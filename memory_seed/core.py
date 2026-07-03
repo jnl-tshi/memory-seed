@@ -280,6 +280,14 @@ _V2_ENTRY_ID_RE = r"mse_[0-9a-hjkmnp-tv-z]{16}"
 _RELATED_ENTRY_REF_RE = re.compile(rf"(?:{_LEGACY_ENTRY_ID_RE}|{_V2_ENTRY_ID_RE})")
 _RELATED_MEMORY_REF_RE = re.compile(r"msm_[0-9a-zA-Z]+")
 _FENCED_YAML_RE = re.compile(r"^```ya?ml\s*\n(.*?)^```\s*$", re.MULTILINE | re.DOTALL)
+# An entry heading with a parseable timestamp, followed immediately by its
+# fenced yaml block. Used to attribute supersedes refs to a source entry and
+# timestamp for the forward-only guard; blocks whose heading doesn't match
+# still get the plain dangling-ref scan via _FENCED_YAML_RE.
+_ENTRY_TS_YAML_RE = re.compile(
+    r"^##\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s+-[^\n]*\n\s*```ya?ml\s*\n(.*?)^```\s*$",
+    re.MULTILINE | re.DOTALL,
+)
 _SUPPORTED_SCHEMA_VERSIONS = {"1", "2"}
 _CROCKFORD_BASE32_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz"
 
@@ -332,9 +340,12 @@ def _fenced_yaml_blocks(text: str) -> Iterator[str]:
 def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     """Validate session-memory integrity across both legacy-flat and per-user
     layouts (multi-user Phase 3). Detects duplicate entry/file IDs, dangling
-    ``related_entries``/``related_memories`` references, and per-user-file
-    frontmatter problems (filename/frontmatter user or date mismatch, missing or
-    malformed ``hash_id``, unsupported ``schema_version``, invalid user slug).
+    ``related_entries``/``related_memories``/``supersedes`` references,
+    supersession forward-only violations (a ``supersedes`` ref whose target
+    postdates the referencing entry, including self-references and cycles), and
+    per-user-file frontmatter problems (filename/frontmatter user or date
+    mismatch, missing or malformed ``hash_id``, unsupported ``schema_version``,
+    invalid user slug).
 
     Each issue names the source file and the offending value. Returns
     ``ok=False`` when any issue is found so a CLI gate can exit non-zero.
@@ -348,6 +359,10 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     hash_id_files: dict[str, list[str]] = {}
     related_entry_refs: list[tuple[str, str]] = []
     related_memory_refs: list[tuple[str, str]] = []
+    supersedes_refs: list[tuple[str, str]] = []
+    # (rel_path, source_entry_id, ref) for refs attributable to a source entry.
+    supersedes_edges: list[tuple[str, str, str]] = []
+    entry_timestamps: dict[str, str] = {}
     files_checked = 0
 
     for doc in iter_session_documents(sessions_dir):
@@ -365,12 +380,25 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
         for entry_id in _ENTRY_ID_RE.findall(text):
             entry_id_files.setdefault(entry_id, []).append(rel)
 
-        # Entry-level related_entries lives inside each entry's fenced ```yaml
-        # block, the same shape in both layouts - scan it regardless of
-        # layout, unlike the per-user *file*-frontmatter checks below.
+        # Entry-level related_entries/supersedes live inside each entry's fenced
+        # ```yaml block, the same shape in both layouts - scan them regardless
+        # of layout, unlike the per-user *file*-frontmatter checks below.
         for yaml_block in _fenced_yaml_blocks(text):
             for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, "related_entries")):
                 related_entry_refs.append((rel, ref))
+            for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, "supersedes")):
+                supersedes_refs.append((rel, ref))
+
+        # Second, heading-anchored pass: attribute each supersedes ref to its
+        # source entry and heading timestamp for the forward-only guard.
+        for heading_ts, yaml_block in _ENTRY_TS_YAML_RE.findall(text):
+            id_match = _ENTRY_ID_RE.search(yaml_block)
+            source_id = id_match.group(1) if id_match else None
+            if source_id:
+                entry_timestamps.setdefault(source_id, heading_ts)
+            for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, "supersedes")):
+                if source_id:
+                    supersedes_edges.append((rel, source_id, ref))
 
         if doc.layout != "per-user-day":
             continue
@@ -427,6 +455,65 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     for rel, ref in related_memory_refs:
         if ref not in known_hashes:
             issues.append(LinkIssue(rel, "dangling-related-memory", f"related_memories -> {ref} (no such hash_id)"))
+    for rel, ref in supersedes_refs:
+        if ref not in known_entries:
+            issues.append(LinkIssue(rel, "dangling-supersedes", f"supersedes -> {ref} (no such entry_id)"))
+
+    # Forward-only guard: supersedes may only point at entries that already
+    # existed when the referencing entry was written. Acyclicity of the
+    # supersession graph depends on this holding, so violations are errors,
+    # not warnings. Refs without a resolvable source or target timestamp fall
+    # through to the dangling check above rather than failing here.
+    adjacency: dict[str, set[str]] = {}
+    edge_file: dict[str, str] = {}
+    for rel_path, source_id, ref in supersedes_edges:
+        edge_file.setdefault(source_id, rel_path)
+        if ref == source_id:
+            issues.append(LinkIssue(rel_path, "self-supersedes", f"supersedes -> {ref} (entry supersedes itself)"))
+            continue
+        source_ts = entry_timestamps.get(source_id)
+        target_ts = entry_timestamps.get(ref)
+        if source_ts and target_ts and target_ts > source_ts:
+            issues.append(
+                LinkIssue(
+                    rel_path,
+                    "supersedes-postdates",
+                    f"supersedes -> {ref} ({target_ts}) postdates the referencing entry {source_id} ({source_ts})",
+                )
+            )
+        if ref in known_entries:
+            adjacency.setdefault(source_id, set()).add(ref)
+
+    # Cycle guard: the postdates check leaves same-minute entries unordered, so
+    # a cycle is still constructible there; a DFS closes that residual hole.
+    state: dict[str, int] = {}  # absent=unvisited, 1=in-stack, 2=done
+    for start in sorted(adjacency):
+        if state.get(start):
+            continue
+        stack: list[tuple[str, Iterator[str]]] = [(start, iter(sorted(adjacency.get(start, ()))))]
+        state[start] = 1
+        path = [start]
+        while stack:
+            node, neighbours = stack[-1]
+            advanced = False
+            for neighbour in neighbours:
+                if state.get(neighbour) == 1:
+                    cycle = " -> ".join(path[path.index(neighbour):] + [neighbour])
+                    issues.append(
+                        LinkIssue(edge_file.get(neighbour, ""), "supersedes-cycle", f"supersession cycle: {cycle}")
+                    )
+                    continue
+                if state.get(neighbour) == 2:
+                    continue
+                state[neighbour] = 1
+                path.append(neighbour)
+                stack.append((neighbour, iter(sorted(adjacency.get(neighbour, ())))))
+                advanced = True
+                break
+            if not advanced:
+                state[node] = 2
+                path.pop()
+                stack.pop()
 
     return LinksCheckResult(ok=not issues, files_checked=files_checked, issues=issues)
 

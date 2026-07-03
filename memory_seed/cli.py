@@ -280,6 +280,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{node.entry_id}  {node.title}")
             print(f"  outbound ({len(node.outbound)}): " + (", ".join(node.outbound) or "-"))
             print(f"  inbound  ({len(node.inbound)}): " + (", ".join(node.inbound) or "-"))
+            print(f"  supersedes ({len(node.supersedes)}): " + (", ".join(node.supersedes) or "-"))
+            print(f"  superseded_by ({len(node.superseded_by)}): " + (", ".join(node.superseded_by) or "-"))
             return 0
 
     if args.command == "compact":
