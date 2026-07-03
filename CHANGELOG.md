@@ -9,6 +9,7 @@ All notable changes to Memory Seed are summarized here.
 - `memory-seed doctor` now warns (non-fatal) when a configured local user's slug has no matching `participants:` entry in `.memory-seed/project.yaml`, so `user_initials` stays resolvable for multi-user tooling.
 - Documented the identity/layout model in `agent-rules.md` and `skills/session_logging.md`.
 - Fixed `memory-seed links check` silently skipping entry-level `related_entries` validation for legacy-flat session files. The dangling-ref scan was scoped inside a `per-user-day`-only branch; a dangling `related_entries` ref in a `sessions/YYYY-MM-DD.md` file passed with no warning. The entry-level scan (each entry's fenced `` ```yaml `` block, same shape in both layouts) now runs unconditionally, while the genuinely per-user-file-specific checks (frontmatter, `hash_id`, user-slug) remain scoped to per-user files.
+- Added two Working Principles to `agent-rules.md`: a decision-ladder-before-adding-code check with a habit of noting deferrals, and a reminder not to strip terse validation/ownership guards without understanding what they protect against. Also added regression tests for two previously-uncovered guards (`_valid_session_date` and the MCP ownership-preservation check in the `.mcp.json`/`.cursor`/`.gemini` merge functions) so a future simplification pass has a test that fails if either is removed.
 
 ## 2.13.0 - 2026-07-01
 

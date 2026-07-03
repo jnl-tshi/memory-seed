@@ -208,6 +208,8 @@ Cross-cutting principles that apply to any agent and any task:
 - **POC-gate before scaling a risky or hard-to-verify automated method.** Prove a new editing or transformation pipeline on one throwaway case the user can validate, before applying it broadly.
 - **Verification split.** State plainly what the agent can verify (for example file integrity, structural checks, diffs) versus what only the user can verify (for example an app opens the artifact without error). Never imply you verified the latter.
 - **Read share-aware copies of locked files.** When another application holds a file open, read the last-saved bytes via a shared read handle rather than failing or assuming the content is stale.
+- **Decision ladder before adding code.** Before writing new code, ask: does it need to exist, is it already in the codebase, and does stdlib or the native platform already handle it. Note briefly why something was deferred instead of silently dropping it.
+- **Do not strip terse guards without understanding why.** A short validation or ownership check (a date-format guard, an is_ours ownership check, an isinstance guard) can look like boilerplate; read what it protects against before removing or simplifying it.
 
 ## End Of Turn
 

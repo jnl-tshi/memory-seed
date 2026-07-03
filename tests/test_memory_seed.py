@@ -969,6 +969,12 @@ class MemorySeedTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             session_target(cwd=cwd, date_str="2026-06-21", explicit_user="Bad_User")
 
+    def test_session_target_rejects_invalid_session_date(self):
+        cwd = self.make_project()
+
+        with self.assertRaises(ValueError):
+            session_target(cwd=cwd, date_str="2026-13-40")
+
     def _write_participants(self, cwd):
         cfg = cwd / MEMORY_DIR_NAME / "project.yaml"
         cfg.parent.mkdir(parents=True, exist_ok=True)
@@ -1714,6 +1720,37 @@ class McpMergeTests(unittest.TestCase):
         self.assertEqual(data["mcpServers"]["other-server"]["command"], "other-cmd")
         self.assertIn("memory-seed", data["mcpServers"])
 
+    def test_mcp_merge_preserves_foreign_server_on_our_key(self):
+        # Distinct from test_mcp_merge_preserves_unrelated_mcp_server above: here a
+        # *foreign* server squats memory-seed's own key, not an unrelated key. The
+        # is_ours guard must leave it untouched rather than overwriting it -
+        # _merge_vscode_mcp is deliberately not covered here (different container
+        # key, "servers" not "mcpServers"; copilot/codex already prove the pattern
+        # generalizes via their own dedicated tests).
+        import json
+
+        from memory_seed.core import _merge_claude_mcp, _merge_cursor_mcp, _merge_gemini_mcp
+
+        cases = [
+            (_merge_claude_mcp, Path(".mcp.json")),
+            (_merge_cursor_mcp, Path(".cursor/mcp.json")),
+            (_merge_gemini_mcp, Path(".gemini/settings.json")),
+        ]
+        for merge_fn, rel_path in cases:
+            with self.subTest(fn=merge_fn.__name__):
+                cwd = self.make_project()
+                mcp_path = cwd / rel_path
+                mcp_path.parent.mkdir(parents=True, exist_ok=True)
+                mcp_path.write_text(
+                    json.dumps({"mcpServers": {"memory-seed": {"command": "some-other-server", "args": []}}}),
+                    encoding="utf-8",
+                )
+
+                self.assertFalse(merge_fn(cwd))
+
+                data = json.loads(mcp_path.read_text())
+                self.assertEqual(data["mcpServers"]["memory-seed"]["command"], "some-other-server")
+
     def test_strip_removes_legacy_claude_settings_mcp(self):
         import json
 
@@ -2415,6 +2452,14 @@ class SessionStartContextHookTests(unittest.TestCase):
     def test_seed_and_live_hook_match(self):
         live = Path(".memory-seed/hooks/session-start-context.py")
         seed = Path("memory_seed/seed/.memory-seed/hooks/session-start-context.py")
+        self.assertEqual(
+            live.read_text(encoding="utf-8"),
+            seed.read_text(encoding="utf-8"),
+        )
+
+    def test_seed_and_live_agent_rules_match(self):
+        live = Path(".memory-seed/agent-rules.md")
+        seed = Path("memory_seed/seed/.memory-seed/agent-rules.md")
         self.assertEqual(
             live.read_text(encoding="utf-8"),
             seed.read_text(encoding="utf-8"),
