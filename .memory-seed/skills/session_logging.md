@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.13
+memory-system-version: 2.14
 tags:
   - memory-seed
   - skill
@@ -92,6 +92,7 @@ DRAFT is the baseline decision-record format for session entries. A DRAFT decisi
 - If reason is inferred, label it `Inferred reason`.
 - If reason is unknown, write `Reason not recorded`.
 - Alternatives are optional unless they affected the decision or tradeoff.
+- If an approach was **attempted and failed** or proved incompatible during the session, log it under `A` even when not explicitly asked to — this is empirical evidence for future sessions, not an optional nicety. State what was tried and why it failed in one line; that's enough for a future agent to skip it without re-deriving the failure.
 - Use `D1`, `D2`, and similar labels only inside a multi-decision entry.
 - Do not rewrite old logs solely to match the newest schema unless the user explicitly asks.
 

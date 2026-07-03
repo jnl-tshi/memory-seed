@@ -8,7 +8,8 @@ tags:
 
 # Failed-Approaches Logging Nudge - Scope
 
-> **Status: PROPOSED, not yet decided or built.** Source: external review doc
+> **Status: IMPLEMENTED 2026-07-03 (unreleased).** The one-sentence rule below was added to
+> `session_logging.md`'s Reason Rules (live + seed twin) as specced. Source: external review doc
 > `Memory-Seed Logic Capture Improvement.md` (its "Fail-Fast" documentation protocol, credited
 > there to the Basic Memory framework).
 

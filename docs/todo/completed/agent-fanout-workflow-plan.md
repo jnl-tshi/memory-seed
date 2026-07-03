@@ -9,10 +9,13 @@ tags:
 
 # Fan-Out Agent Workflow - Scope
 
-> **Status: PROPOSED, not yet decided or built.** Source: an internal multi-agent fan-out
-> evaluation of a user-uploaded workflow diagram (`docs/inbox/multi-agent-fanout-review-workflow.jpeg`),
-> not the external `Memory-Seed Logic Capture Improvement.md` review that the other `docs/todo/`
-> plan docs derive from.
+> **Status: IMPLEMENTED 2026-07-03 (unreleased).** The named "Fan-Out Recipe: Explore / Plan /
+> Implement / Validate" (9 gates), the task-packet field additions, and the capability-tier guidance
+> below now live in `.memory-seed/skills/agent_collaboration.md` (live + seed twin, byte-identical).
+> The CLI scaffolding sketch remains a future evaluation only. Source: an internal multi-agent
+> fan-out evaluation of a user-uploaded workflow diagram
+> (`docs/inbox/multi-agent-fanout-review-workflow.jpeg`), not the external
+> `Memory-Seed Logic Capture Improvement.md` review that the other plan docs derive from.
 
 Four documents evaluated the same source image independently (two initial evaluations, then two parallel syntheses of those two — one by this agent, one by a concurrent Codex session). All four converged on the same verdict. This is the single, consolidated version: nothing here contradicts any source: it's the union, deduplicated.
 

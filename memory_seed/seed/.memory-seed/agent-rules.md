@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.13
+memory-system-version: 2.14
 tags:
   - memory-seed
   - agent-rules
@@ -210,6 +210,7 @@ Cross-cutting principles that apply to any agent and any task:
 - **Read share-aware copies of locked files.** When another application holds a file open, read the last-saved bytes via a shared read handle rather than failing or assuming the content is stale.
 - **Decision ladder before adding code.** Before writing new code, ask: does it need to exist, is it already in the codebase, and does stdlib or the native platform already handle it. Note briefly why something was deferred instead of silently dropping it.
 - **Do not strip terse guards without understanding why.** A short validation or ownership check (a date-format guard, an is_ours ownership check, an isinstance guard) can look like boilerplate; read what it protects against before removing or simplifying it.
+- **Default to plain text; reserve Mermaid for spatial, temporal, or concurrent structure.** Use a plain sentence or list for a decision's rationale by default. Reach for a Mermaid diagram only when the content is genuinely spatial, temporal, or concurrent — sequence flows across components, entity/schema relationships, or topology — where a diagram is clearly higher-signal than prose. Keep Mermaid blocks small, and double-check bracket/arrow/quote syntax before committing. Also check semantic freshness: roadmap diagrams must be updated when shipped work changes status, not merely kept syntactically valid. A broken or stale block renders as misleading raw text with no fallback.
 
 ## End Of Turn
 

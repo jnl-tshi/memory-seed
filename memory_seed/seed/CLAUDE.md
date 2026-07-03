@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.13
+memory-system-version: 2.14
 tags:
   - agent-entry
   - ai-memory

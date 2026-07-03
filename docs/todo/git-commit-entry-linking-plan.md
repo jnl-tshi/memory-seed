@@ -108,8 +108,8 @@ historical edit and requires explicit user-requested correction.
 
 ## Open Decisions
 
-1. Trailer key name: `Memory-Entry:` vs. something shorter (e.g. `Mem-Entry:`). Needs sign-off
-   before documenting it as a convention.
+1. ~~Trailer key name: `Memory-Entry:` vs. something shorter (e.g. `Mem-Entry:`)~~ — signed off
+   2026-07-03: use `Memory-Entry:`. Explicit, self-describing, and greppable.
 2. ~~Whether to fix the legacy-flat `links check` gap as part of this work or file it as its own
    prerequisite fix~~ — resolved 2026-07-02 (see Known Dependency above); no longer blocking.
 3. Full SHA vs. short hash for `commits:`. Recommendation: require full 40-character SHAs in the

@@ -142,8 +142,9 @@ P0 - **Roadmap hygiene and shared contracts.** Keep the coordinating docs curren
 3.0/UI status, fix audit counts/labels, and define the shared graph/validation contract for
 `related_entries`, future `supersedes`, and future `commits`.
 
-P1 - **Low-risk guidance and graph semantics.** Ship failed-approaches logging and Mermaid usage
-guidance first, then `supersedes` P1, then git commit linking P1.
+P1 - **Low-risk guidance and graph semantics.** Failed-approaches logging, Mermaid usage guidance,
+and the fanout collaboration recipe shipped 2026-07-03 (unreleased). Next: `supersedes` P1, then
+git commit linking P1.
 
 P2 - **Read-only surfacing before behavior changes.** Expose raw `related_degree`, commit metadata,
 and later `importance_score` as inspectable metadata before any default search-ranking changes.
@@ -155,23 +156,26 @@ need and the privacy/retention/single-writer rules are settled.
 ### Logic Capture Improvements - Proposed
 
 Source: `Memory-Seed Logic Capture Improvement.md` (external review), evaluated against the current
-codebase and refined through discussion. All six items below are **proposed, not yet decided or
-built** — each has its own fully-specced plan doc.
+codebase and refined through discussion. Items 4 and 5 shipped 2026-07-03 (unreleased); the rest
+remain **proposed, not yet decided or built** — each has its own fully-specced plan doc.
 
 1. [`git-commit-entry-linking-plan.md`](git-commit-entry-linking-plan.md) — link a decision entry to
    the commit(s) that implemented it, via a commit-message trailer convention plus an optional
-   `commits:` field on the entry.
+   `commits:` field on the entry. Trailer key signed off 2026-07-03: `Memory-Entry:`.
 2. [`supersession-edges-plan.md`](supersession-edges-plan.md) — a typed `supersedes` edge (separate
    from `related_entries`) so a decision can mark an earlier one as replaced, plus the harmony
-   contract that keeps this from inflating a superseded entry's importance score.
+   contract that keeps this from inflating a superseded entry's importance score. The forward-only/
+   cycle guard in `links check` is in P1 scope (signed off 2026-07-03).
 3. [`interaction-frequency-ranking-plan.md`](interaction-frequency-ranking-plan.md) - raw
    `related_degree` first; supersession-aware `importance_score` only after `supersedes`; real
    access-frequency telemetry remains the stated later goal.
-4. [`mermaid-usage-guidance-plan.md`](mermaid-usage-guidance-plan.md) — one Working Principles bullet:
-   default to plain text, reserve Mermaid for spatial/temporal/concurrent structure.
-5. [`failed-approaches-logging-plan.md`](failed-approaches-logging-plan.md) — one sentence in
-   `session_logging.md`'s Reason Rules requiring a failed/incompatible approach to be logged under
-   `A` even when not explicitly asked.
+4. [`mermaid-usage-guidance-plan.md`](completed/mermaid-usage-guidance-plan.md) — **implemented
+   2026-07-03 (unreleased):** the Working Principles bullet (plain text by default, Mermaid only for
+   spatial/temporal/concurrent structure, semantic freshness included) is in `agent-rules.md` + seed
+   twin.
+5. [`failed-approaches-logging-plan.md`](completed/failed-approaches-logging-plan.md) — **implemented
+   2026-07-03 (unreleased):** the attempted-and-failed logging rule is in `session_logging.md`'s
+   Reason Rules + seed twin.
 6. [`exclude-superseded-filter-plan.md`](exclude-superseded-filter-plan.md) — surfaced during the
    2026-07-03 synergy evaluation, not the original external review: an opt-in `memory_search` filter
    to narrow results to non-superseded entries only, never a default and never a hard exclusion
@@ -186,21 +190,22 @@ supersession-aware; keep `related_degree` as a raw read-only signal until then; 
 validated commit metadata before folding commit-backed terms into ranking or retrieval explanations.
 Failed approaches remain session-log evidence under `A`, not a new graph edge type.
 
-### Agent Collaboration Workflow - Proposed
+### Agent Collaboration Workflow - Implemented (unreleased)
 
 Source: a user-uploaded multi-agent fanout/review workflow diagram, evaluated via a fan-out
 research pass (3 subagents) plus an opus-tier critique, with the user resolving the one open
-question raised. **Proposed, not yet decided or built.**
+question raised. **Implemented 2026-07-03 (unreleased).**
 
-1. [`agent-fanout-workflow-plan.md`](agent-fanout-workflow-plan.md) — a named "Fan-Out Explore /
-   Plan / Implement / Validate" recipe for `.memory-seed/skills/agent_collaboration.md`: a 9-gate
-   pipeline (Scope, Exploration, Plan, Worker Identity, Worktree, Pre-Review Validation,
-   Integration, a Bounded Review-to-Rework Loop capped at 2 iterations, Final Handoff), task-packet
-   schema additions (`base_sha`, `expected_pwd`, `capability_tier`, `conflict_owner`,
+1. [`agent-fanout-workflow-plan.md`](completed/agent-fanout-workflow-plan.md) — the named "Fan-Out
+   Recipe: Explore / Plan / Implement / Validate" now lives in
+   `.memory-seed/skills/agent_collaboration.md` (+ seed twin): the 9-gate pipeline (Scope,
+   Exploration, Plan, Worker Identity, Worktree, Pre-Review Validation, Integration, a Bounded
+   Review-to-Rework Loop capped at 2 iterations, Final Handoff), task-packet schema additions
+   (`base_sha`, `expected_pwd`, `capability_tier`, `shared_file_policy`, `conflict_owner`,
    `review_loop`, `preflight`), and vendor-neutral capability-tier guidance (planning and review
    both warrant the top tier, not review alone).
 
-The proposed first increment is documentation and template guidance only. Any later CLI scaffold
+The shipped increment is documentation and template guidance only. Any later CLI scaffold
 must be preview-first/dry-run and emit task packets or checklists; it should not spawn agents,
 coordinate worktrees, mutate branches, or edit shared memory directly. Worker agents contribute via
 handoff summaries while the orchestrator remains the single writer for session logs, policy, index,

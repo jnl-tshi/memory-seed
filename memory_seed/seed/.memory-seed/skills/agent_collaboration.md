@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.13
+memory-system-version: 2.14
 tags:
   - memory-seed
   - skill
@@ -60,25 +60,59 @@ Every worker packet should include:
 owner: "<human-or-agent-slug>"
 role: "worker|validator|researcher"
 base_branch: "<branch to start from>"
+base_sha: "<commit hash the worker must verify before editing>"
 working_branch: "<branch to write to, or read-only>"
 worktree: "<path or 'current tree for read-only work'>"
+expected_pwd: "<worktree path or repository root>"
 objective: "<one concrete outcome>"
+integration_artifact: "pr|merge-request|patch|branch|handoff"
+capability_tier: "economy|standard|frontier"
+shared_file_policy: "orchestrator_only"
+conflict_owner: "<orchestrator|worker|human>"
 allowed_files:
   - "<paths or globs the worker may edit>"
 forbidden_files:
   - "<paths or globs the worker must not edit>"
+preflight:
+  - "pwd"
+  - "git rev-parse --show-toplevel"
+  - "git rev-parse HEAD"
+  - "git status --short"
 validation:
   - "<commands or checks to run>"
 handoff_output:
   - "summary"
   - "files changed"
+  - "commit hashes"
   - "tests run and result"
   - "known risks or conflicts"
 conflict_escalation:
   - "<conditions requiring orchestrator or human review>"
+review_loop:
+  current_iteration: 0
+  max_iterations: 2
+  escalation: "<human-or-orchestrator>"
 ```
 
-Keep packets narrow. Do not hand a worker the whole repository history when a path list, current plan, and a few relevant files are enough.
+Keep packets narrow. Do not hand a worker the whole repository history when a path list, current plan, and a few relevant files are enough. Use capability tiers, never vendor or model names — providers change; roles and capability requirements are durable.
+
+## Fan-Out Recipe: Explore / Plan / Implement / Validate
+
+An optional Level 2/3 pattern for medium-to-large separable work — migrations, feature slices, broad test expansion, refactors with clear module boundaries. Not default behavior: the Scope Gate must state why direct (Level 0/1) work is insufficient. Avoid it for small fixes, tightly-coupled refactors where one coherent design matters more than speed, or work dominated by shared/control-plane files.
+
+Gates, in order:
+
+1. **Scope Gate.** Objective, non-goals, acceptance criteria, base branch/SHA, expected integration artifact, high-risk/shared files, and an explicit call on whether parallel implementation is justified (default: no, unless file ownership is clearly separable and the wall-clock reduction justifies the integration overhead).
+2. **Exploration Gate.** Read-only agents, each given one narrow question, returning evidence — recommendations labeled as such, not stated as fact. Explorers may share the current tree since they never write, but that exemption covers write-collision safety only, not staleness: explorers still run the preflight commands and confirm their tree matches the intended base before their reads or citations are trusted.
+3. **Plan Gate.** A single orchestrator reconciles explorer conflicts, chooses the architecture, assigns file ownership and interfaces, defines validation commands, and names the conflict owner. Use the strongest available capability tier here — same as review, not lighter. A weak plan poisons every downstream worker; review only catches what is already built.
+4. **Worker Identity Gate.** Before a worker touches any file, it reports the packet's `preflight` output; the orchestrator verifies it matches the intended worktree and `base_sha` before the worker proceeds.
+5. **Worktree Gate.** Parallel code-writing workers get separate worktrees, each with a bounded task packet. Workers never touch shared memory/session/control-plane files unless explicitly assigned — those stay orchestrator-owned per `shared_file_policy`.
+6. **Pre-Review Validation Gate.** Each worker commits its own work and reports changed files, checks run, failures, skipped checks and why, and known risks *before* review. No uncommitted worker state gets integrated.
+7. **Integration Gate.** The orchestrator merges worker branches one at a time into an integration branch, inspects the diff after each merge, resolves conflicts only via the named owner, and reruns targeted validation. No octopus merges for code.
+8. **Bounded Review-to-Rework Loop.** An independent validator (same strong tier as planning) reviews the integrated diff against the plan. Findings route back to the Worktree Gate for revision, tracked by `review_loop.current_iteration` and capped at `max_iterations` (default 2) — then automation stops and produces a human decision summary. The loop must not restart exploration or planning automatically.
+9. **Final Handoff Gate.** The orchestrator (never the workers) writes the integration artifact and the handoff session entry: base SHA, worker branches/worktrees, validation evidence, review result, unresolved risks. Workers' reported commit hashes belong in the handoff entry's records.
+
+Capability tier guidance: exploration economy/standard; planning **frontier**; implementation standard; integration frontier or a senior orchestrator; review **frontier**. Planning and review both warrant the top tier — a weak plan is more expensive to catch later than a weak review.
 
 ## Branch And Worktree Defaults
 

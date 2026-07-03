@@ -82,9 +82,9 @@ check` path from day one instead of inheriting the blind spot.
 holds only if every `supersedes` ref actually points at an entry that existed before the referencing
 one — today `links check` only confirms a ref *resolves* to a known `entry_id` (`dangling-related-entry`
 style), not that it's chronologically prior. A hand-edited or buggy-writer YAML block could in
-principle create a cycle undetected. Add a cheap forward-only/cycle guard to `links check` for
-`supersedes` (and ideally `related_entries`) as a P1 candidate: reject or flag a ref whose target
-entry postdates the referencing entry.
+principle create a cycle undetected. A cheap forward-only/cycle guard in `links check` for
+`supersedes` (and ideally `related_entries`) is in P1 scope (signed off 2026-07-03): reject or flag
+a ref whose target entry postdates the referencing entry.
 
 ## Harmony Contract With Interaction-Frequency Ranking
 
@@ -146,8 +146,8 @@ Extend `memory-seed link show <entry_id>` and `memory_get_chunk` output to inclu
 - Read-time `superseded_by` inverse computed and exposed via `link show` / `memory_get_chunk`.
 - `links check` validates `supersedes` refs with the same rigor as `related_entries` (post-fix, not
   inheriting the legacy-flat gap silently).
-- Candidate, not yet committed: a forward-only/cycle guard in `links check` for `supersedes` (see
-  Validation above) — today's acyclicity claim rests on an unenforced authoring convention.
+- A forward-only/cycle guard in `links check` for `supersedes` (see Validation above) — signed off
+  into P1 scope 2026-07-03; today's acyclicity claim rests on an unenforced authoring convention.
 - The harmony-contract dampening rule implemented wherever `importance_score` is computed
   (`interaction-frequency-ranking-plan.md` P1), with a fixture test proving a superseded-but-heavily-
   cited entry ranks below a non-superseded, moderately-cited one.

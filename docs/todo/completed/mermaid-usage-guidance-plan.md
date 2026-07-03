@@ -9,9 +9,10 @@ tags:
 
 # Mermaid Usage Guidance - Scope
 
-> **Status: PROPOSED, not yet decided or built.** Source: external review doc
-> `Memory-Seed Logic Capture Improvement.md` (its polymorphic-rendering / Mermaid-restraint
-> recommendation).
+> **Status: IMPLEMENTED 2026-07-03 (unreleased).** The Working Principles bullet below was added to
+> `agent-rules.md` (live + seed twin) as specced, including the semantic-freshness clause. Source:
+> external review doc `Memory-Seed Logic Capture Improvement.md` (its polymorphic-rendering /
+> Mermaid-restraint recommendation).
 
 ## Motivation
 

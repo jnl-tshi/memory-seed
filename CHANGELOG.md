@@ -4,12 +4,19 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- _Nothing yet._
+
+## 2.14.0 - 2026-07-03
+
 - Session-log layout now gates on the `participants:` registry, not just a configured user. `session_target()` only switches to per-user files (`sessions/YYYY-MM-DD/<user>.md`) once `.memory-seed/project.yaml` lists 2 or more participants; with 0 or 1, it stays on the shared flat file even with a local user configured, since per-user files exist to avoid concurrent-author conflicts that don't arise until there's a second author. An explicit `--user <slug>` CLI override still bypasses the gate. The SessionStart hook's own user resolution mirrors this so it keeps reading the same file `session_target()` writes to.
 - Added a one-time identity-setup offer to the SessionStart hook: if no local identity is configured (no `MEMORY_SEED_USER`, no `.memory-seed/local.yaml`), it suggests `memory-seed user set <slug>` plus a `participants:` entry, then never repeats (tracked by a gitignored `.memory-seed/.identity-offer-stamp`). Skippable; most projects are solo and don't need it.
 - `memory-seed doctor` now warns (non-fatal) when a configured local user's slug has no matching `participants:` entry in `.memory-seed/project.yaml`, so `user_initials` stays resolvable for multi-user tooling.
 - Documented the identity/layout model in `agent-rules.md` and `skills/session_logging.md`.
 - Fixed `memory-seed links check` silently skipping entry-level `related_entries` validation for legacy-flat session files. The dangling-ref scan was scoped inside a `per-user-day`-only branch; a dangling `related_entries` ref in a `sessions/YYYY-MM-DD.md` file passed with no warning. The entry-level scan (each entry's fenced `` ```yaml `` block, same shape in both layouts) now runs unconditionally, while the genuinely per-user-file-specific checks (frontmatter, `hash_id`, user-slug) remain scoped to per-user files.
 - Added two Working Principles to `agent-rules.md`: a decision-ladder-before-adding-code check with a habit of noting deferrals, and a reminder not to strip terse validation/ownership guards without understanding what they protect against. Also added regression tests for two previously-uncovered guards (`_valid_session_date` and the MCP ownership-preservation check in the `.mcp.json`/`.cursor`/`.gemini` merge functions) so a future simplification pass has a test that fails if either is removed.
+- Added a third Working Principles bullet to `agent-rules.md`: default to plain text, reserve Mermaid for genuinely spatial/temporal/concurrent structure, keep blocks small, and check both syntax and semantic freshness (a stale roadmap diagram is as misleading as a broken one). From `docs/todo/completed/mermaid-usage-guidance-plan.md`.
+- Added a failed-approaches rule to `skills/session_logging.md`'s Reason Rules: an approach that was attempted and failed (or proved incompatible) during a session must be logged under `A` even when not asked — one line stating what was tried and why it failed, as empirical evidence for future sessions. From `docs/todo/completed/failed-approaches-logging-plan.md`.
+- Added the named "Fan-Out Recipe: Explore / Plan / Implement / Validate" to `skills/agent_collaboration.md`: a 9-gate pipeline (Scope through Final Handoff) with a bounded review-to-rework loop capped at 2 iterations, preflight identity verification for both writers and read-only explorers, and orchestrator-only shared-file writes. The task packet gained `base_sha`, `expected_pwd`, `integration_artifact`, `capability_tier`, `shared_file_policy`, `conflict_owner`, `preflight`, and `review_loop` fields, plus vendor-neutral capability-tier guidance (planning and review both warrant the top tier). From `docs/todo/completed/agent-fanout-workflow-plan.md`.
 
 ## 2.13.0 - 2026-07-01
 
