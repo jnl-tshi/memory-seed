@@ -43,6 +43,11 @@ Kept as a single unified `A:` bullet (not a new `A-failed:`/`A-considered:` spli
 churn — the existing format already allows multiple `A` bullets in an entry when more than one
 alternative is worth recording, per the current multi-decision entry shape.
 
+This stays as plain session-log evidence, not a new decision-graph edge type. If a later entry needs
+to connect to the failed approach, use existing graph mechanisms (`related_entries` for contextual
+relationship, or `supersedes` once shipped when a later decision explicitly replaces an earlier one)
+rather than inventing a separate "failed" edge.
+
 ## Definition of Done
 
 - One sentence added to `session_logging.md`'s Reason Rules (and seed twin).

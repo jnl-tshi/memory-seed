@@ -102,6 +102,9 @@ See the reviewed, sequenced plan: [`3.0-plan.md`](3.0-plan.md).
 Multi-user Phases 1-2 shipped (2.9/2.10), the core multi-user increments (A-P3 integrity validation,
 A-ID 80-bit entry IDs, A-P4 MCP metadata/filters, S2 participant registry parsing, and A-P5
 `migrate sessions-layout`) shipped in 2.12.0, and related-entries generation P1 shipped in 2.13.0.
+The 3.0 plan is now partly historical: shipped sections are retained for context, while the active
+3.0 decisions are related-entries P2, the Memory Lense/Pillar B distribution choice, and the shared
+graph-edge contract between CLI/MCP/Lense surfaces.
 Remaining work:
 
 1. **Related-entries generation P2 (deferred, needs sign-off).** P1 (`memory-seed link suggest` +
@@ -109,7 +112,9 @@ Remaining work:
    released as of 2.13.0. Scope, decisions, and the deferred P2 are in
    [`related-entries-generation-plan.md`](related-entries-generation-plan.md).
    P2: backfilling edges between two pre-existing entries, and the optional `link add` writer
-   (current-entry-only) if hand-editing YAML proves painful.
+   (current-entry-only) if hand-editing YAML proves painful. This is a convenience increment, not a
+   blocker for graph read paths; existing YAML plus `link suggest`/`link show` already covers
+   discovery and inspection.
 2. **Pillar B separate-distribution decision (still open).** Memory Lense shipped in 2.13.0 as an
    in-package optional extra (`memory-seed[lense]`) — a **V1 delivered inside the core package**, not
    the separate distribution `3.0-plan.md` originally decided on. It already covers B1 (local
@@ -124,14 +129,33 @@ Obsidian remains a UX inspiration or later integration, not the first implementa
 
 Specs:
 
+- [`codex/proposal-synergy-evaluation.md`](codex/proposal-synergy-evaluation.md) (current cross-proposal synthesis; use when deciding sequencing across logic capture, Lense graph work, fanout workflow, and render-verification ideas)
+- [`Claude/proposal-synergy-evaluation.md`](Claude/proposal-synergy-evaluation.md) (independent, concurrent cross-proposal synthesis via 3-subagent fan-out; reconciled against the Codex pass above — see its "Reconciliation" section for what each pass caught that the other didn't)
+
 - [`multi-user-session-memory-proposal.md`](completed/multi-user-session-memory-proposal.md) (completed — full scope shipped through 2.12.0)
 - [`multi-user-deep-research-report.md`](completed/multi-user-deep-research-report.md) (completed — recommendations fully acted on)
 - [`user-interface-deep-research-report.md`](user-interface-deep-research-report.md) (still active — informed the shipped Memory Lense V1; the separate-distribution decision above remains open)
 
+### Proposal Priority Order
+
+P0 - **Roadmap hygiene and shared contracts.** Keep the coordinating docs current, resolve stale
+3.0/UI status, fix audit counts/labels, and define the shared graph/validation contract for
+`related_entries`, future `supersedes`, and future `commits`.
+
+P1 - **Low-risk guidance and graph semantics.** Ship failed-approaches logging and Mermaid usage
+guidance first, then `supersedes` P1, then git commit linking P1.
+
+P2 - **Read-only surfacing before behavior changes.** Expose raw `related_degree`, commit metadata,
+and later `importance_score` as inspectable metadata before any default search-ranking changes.
+
+P3 - **Deferred mutation and automation.** Hold related-entry backfill / `link add`, access-frequency
+telemetry, fanout CLI scaffolding, and render-verification automation until manual use shows clear
+need and the privacy/retention/single-writer rules are settled.
+
 ### Logic Capture Improvements - Proposed
 
 Source: `Memory-Seed Logic Capture Improvement.md` (external review), evaluated against the current
-codebase and refined through discussion. All five items below are **proposed, not yet decided or
+codebase and refined through discussion. All six items below are **proposed, not yet decided or
 built** — each has its own fully-specced plan doc.
 
 1. [`git-commit-entry-linking-plan.md`](git-commit-entry-linking-plan.md) — link a decision entry to
@@ -140,19 +164,57 @@ built** — each has its own fully-specced plan doc.
 2. [`supersession-edges-plan.md`](supersession-edges-plan.md) — a typed `supersedes` edge (separate
    from `related_entries`) so a decision can mark an earlier one as replaced, plus the harmony
    contract that keeps this from inflating a superseded entry's importance score.
-3. [`interaction-frequency-ranking-plan.md`](interaction-frequency-ranking-plan.md) — Option C
-   (derive an importance signal from existing `related_entries` backlinks, supersession-dampened) as
-   the first increment; Option B (real access-frequency telemetry folded into a second SQLite file
-   alongside the existing Lense cache) as the stated end goal.
+3. [`interaction-frequency-ranking-plan.md`](interaction-frequency-ranking-plan.md) - raw
+   `related_degree` first; supersession-aware `importance_score` only after `supersedes`; real
+   access-frequency telemetry remains the stated later goal.
 4. [`mermaid-usage-guidance-plan.md`](mermaid-usage-guidance-plan.md) — one Working Principles bullet:
    default to plain text, reserve Mermaid for spatial/temporal/concurrent structure.
 5. [`failed-approaches-logging-plan.md`](failed-approaches-logging-plan.md) — one sentence in
    `session_logging.md`'s Reason Rules requiring a failed/incompatible approach to be logged under
    `A` even when not explicitly asked.
+6. [`exclude-superseded-filter-plan.md`](exclude-superseded-filter-plan.md) — surfaced during the
+   2026-07-03 synergy evaluation, not the original external review: an opt-in `memory_search` filter
+   to narrow results to non-superseded entries only, never a default and never a hard exclusion
+   unless requested. Blocked on `supersession-edges-plan.md` P1 (`superseded_by` must exist first).
 
 Items 1 and 2 shared a discovered dependency — `links check`'s dangling-`related_entries` validation
 used to only run against per-user-day session files, not this repo's own legacy-flat layout — fixed
 2026-07-02 (unreleased). Both items are now unblocked; see either plan's "Known Dependency" section.
+
+The sequencing dependency is now explicit: ship `supersedes` before any ranking surface claims to be
+supersession-aware; keep `related_degree` as a raw read-only signal until then; treat `commits:` as
+validated commit metadata before folding commit-backed terms into ranking or retrieval explanations.
+Failed approaches remain session-log evidence under `A`, not a new graph edge type.
+
+### Agent Collaboration Workflow - Proposed
+
+Source: a user-uploaded multi-agent fanout/review workflow diagram, evaluated via a fan-out
+research pass (3 subagents) plus an opus-tier critique, with the user resolving the one open
+question raised. **Proposed, not yet decided or built.**
+
+1. [`agent-fanout-workflow-plan.md`](agent-fanout-workflow-plan.md) — a named "Fan-Out Explore /
+   Plan / Implement / Validate" recipe for `.memory-seed/skills/agent_collaboration.md`: a 9-gate
+   pipeline (Scope, Exploration, Plan, Worker Identity, Worktree, Pre-Review Validation,
+   Integration, a Bounded Review-to-Rework Loop capped at 2 iterations, Final Handoff), task-packet
+   schema additions (`base_sha`, `expected_pwd`, `capability_tier`, `conflict_owner`,
+   `review_loop`, `preflight`), and vendor-neutral capability-tier guidance (planning and review
+   both warrant the top tier, not review alone).
+
+The proposed first increment is documentation and template guidance only. Any later CLI scaffold
+must be preview-first/dry-run and emit task packets or checklists; it should not spawn agents,
+coordinate worktrees, mutate branches, or edit shared memory directly. Worker agents contribute via
+handoff summaries while the orchestrator remains the single writer for session logs, policy, index,
+routing files, lockfiles, seed templates, and generated binaries unless explicitly delegated.
+
+### Seed Skill Promotions - Proposed
+
+Source: operational lessons from Windows DOCX rendering and verification work. **Proposed, not yet
+decided or built.**
+
+1. [`docx-render-windows-seed-lessons.md`](docx-render-windows-seed-lessons.md) - promote the
+   Windows-safe DOCX render fallback and artifact hygiene lessons into reusable seed guidance,
+   especially for document-rendering workflows where read-only fanout can inspect outputs but render
+   mutation and cleanup should stay single-writer.
 
 ## MCP Client Validation
 

@@ -25,3 +25,6 @@ node_modules/
 # Local Memory Lense prototype exports kept outside packaged source
 docs/todo/memory lense/
 .memory-seed/local.yaml
+
+# Local editor config
+.vscode/

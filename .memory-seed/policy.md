@@ -29,6 +29,7 @@ This file contains behavioral constraints only. Functional runbooks belong in `.
 - Preserve user changes and unrelated worktree changes.
 - Prefer dry-run, preview, or targeted verification when available.
 - Prefer local deterministic behavior over hosted or vendor-specific assumptions.
+- Before trusting a subagent's file reads, citations, or "this doesn't exist" claims for this repository, verify `pwd` and `git rev-parse HEAD` against the intended base commit — a pinned or frozen worktree can silently diverge from the live tree.
 
 ## File Ownership
 

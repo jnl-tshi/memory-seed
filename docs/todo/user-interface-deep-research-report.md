@@ -1,5 +1,13 @@
 # Human-facing Memory Explorer for Memory Seed
 
+> **Status: HISTORICAL RESEARCH, partially superseded by Memory Lense V1 in 2.13.0.** This report
+> informed the shipped in-package `memory-seed lense` UI. Treat references to "no Explorer," "no
+> persistent cache," package version `2.5`, and a separate Explorer package as historical context.
+> The active follow-up is narrower: decide whether to keep iterating on in-package
+> `memory-seed[lense]` or spin out a separate `memory-seed-explorer` distribution later, and define
+> the shared graph edge contract for future UI and ranking work. The citation artifacts in this file
+> should be scrubbed before treating it as public-facing documentation.
+
 ## Executive summary
 
 Memory Seed already contains most of the hard bits needed for a human-facing explorer: a stable local runtime layout, structured session logs in Markdown, deterministic entry identifiers, a parser that turns session files into typed memory chunks, a ranking pipeline that combines lexical, metadata, semantic, and recency signals, and two MCP tools that expose search and full-chunk retrieval. The main gap is not retrieval logic; it is a human UI and a non-MCP application surface that can reuse the same retrieval contract without forcing users to prompt an LLM first. citeturn16view0turn17view3turn11view0turn13view0turn47view0

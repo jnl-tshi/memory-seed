@@ -1,5 +1,15 @@
 # **Architectural Reimagining of the Memory-Seed Ecosystem: Logic Capture, Retrieval, and the Lense Frontend**
 
+> **Status: SOURCE REPORT, not an active implementation plan.** The actionable recommendations have
+> been split into scoped Memory Seed proposal docs:
+> [`git-commit-entry-linking-plan.md`](git-commit-entry-linking-plan.md),
+> [`supersession-edges-plan.md`](supersession-edges-plan.md),
+> [`interaction-frequency-ranking-plan.md`](interaction-frequency-ranking-plan.md),
+> [`mermaid-usage-guidance-plan.md`](mermaid-usage-guidance-plan.md), and
+> [`failed-approaches-logging-plan.md`](failed-approaches-logging-plan.md). The XML-style decision
+> node schema below is retained as source material only; current plans chose smaller additive changes
+> to existing Markdown/YAML session entries.
+
 ## **Introduction to Cognitive State Persistence in AI Engineering**
 
 The proliferation of file-reading artificial intelligence coding agents has introduced a critical challenge in software engineering: the preservation of cognitive state. While traditional version control systems excel at capturing the chronological evolution of source code, they are fundamentally ill-equipped to document the underlying logic, the rejected alternatives, and the contextual pressures that necessitated specific architectural decisions. The memory-seed repository addresses this void by functioning as a portable, local memory system equipped with Model Context Protocol (MCP) search tooling tailored for AI coding agents1. Developed in Python, the system utilizes a file-based markdown architecture, anchoring its persistence on chronological session documents, architectural indexes, and behavioral directives1.  

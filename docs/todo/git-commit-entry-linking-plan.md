@@ -64,15 +64,17 @@ commits:
 ```
 
 Filled in **after** the commit exists, and only ever on the current/newest entry within the same
-session — the same append-only-safe scoping `related-entries-generation-plan.md` already uses for
-`link add` ("current/newest entry only... no historical rewrite"). This is not editing history; it
-is completing the entry that is still being authored this turn.
+turn, before any later session entry has been appended — the same append-only-safe scoping
+`related-entries-generation-plan.md` reserves for a possible `link add` writer ("current/newest entry
+only... no historical rewrite"). This is not editing history; it is completing the entry that is
+still being authored this turn. Once another entry exists after it, adding `commits:` becomes a
+historical edit and requires explicit user-requested correction.
 
 ## Validation
 
 - **Hash existence (P1):** if `.git` exists at the runtime root, `links check` resolves each
-  `commits:` entry against `git cat-file -e <hash>` (or an equivalent log scan) and flags an
-  unresolvable hash. If no `.git` directory is present (package used outside a git repo), this
+  `commits:` entry against `git cat-file -e <hash>^{commit}` (or an equivalent log scan) and flags an
+  unresolvable or non-commit object. If no `.git` directory is present (package used outside a git repo), this
   check is skipped, not failed — matches "prefer local deterministic behavior" without assuming git
   is always available.
 - **Known dependency — resolved (2026-07-02, unreleased):** `check_session_links()`'s
@@ -110,14 +112,15 @@ is completing the entry that is still being authored this turn.
    before documenting it as a convention.
 2. ~~Whether to fix the legacy-flat `links check` gap as part of this work or file it as its own
    prerequisite fix~~ — resolved 2026-07-02 (see Known Dependency above); no longer blocking.
-3. Whether `commits:` accepts short hashes or requires full 40-character SHAs (short hashes are
-   friendlier to write but can become ambiguous in a large, older repo).
+3. Full SHA vs. short hash for `commits:`. Recommendation: require full 40-character SHAs in the
+   stored field to keep validation unambiguous; display may shorten hashes for humans.
 
 ## Definition of Done (P1)
 
 - Schema documented in `session_logging.md` and the commit-trailer convention documented in
   `agent-rules.md` Working Principles or an equivalent cross-cutting note.
-- `links check` validates `commits:` hashes when `.git` is present; skips cleanly otherwise.
+- `links check` validates `commits:` hashes as commit objects when `.git` is present; skips cleanly
+  otherwise.
 - `memory-seed link commits <entry_id>` ships read-only, with a fixture test covering both the
   field-only and trailer-grep paths.
 - Concise session log entry recording the decision and the legacy-flat dependency resolution.

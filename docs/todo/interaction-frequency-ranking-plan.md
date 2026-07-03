@@ -38,25 +38,37 @@ signal is not a new architectural pattern; it reuses one already shipped and pro
 
 ## Design - P1 (Option C, ship first): zero-new-infrastructure derived signal
 
-- `importance_score(entry)` = `len(inbound)` from `build_related_entry_graph()`
-  (`memory_seed/semantic_cache.py:209-250`, already shipped in 2.13.0) — how many other entries
+Split P1 into two slices so the plan does not claim supersession-aware scoring before the
+`supersedes` schema exists.
+
+### P1a - raw related degree
+
+- `related_degree(entry)` = `len(inbound)` from `build_related_entry_graph()`
+  (`memory_seed/semantic_cache.py:209-250`, already shipped in 2.13.0) - how many other entries
   cite this one via `related_entries`.
+- Expose `related_degree` read-only via `memory-seed link show <entry_id>`, `memory_get_chunk`
+  metadata, and Memory Lense graph node metadata.
+- Do **not** blend it into `memory_search`'s default ranking math.
+
+### P1b - supersession-aware importance score
+
+- `importance_score(entry)` starts from `related_degree(entry)`.
 - **Harmony contract (defined in `supersession-edges-plan.md`, binding here):** if the entry has
   any inbound `supersedes` edge, apply a fixed dampening multiplier to `importance_score` *after*
-  computing it — never fold `supersedes` inbound edges into the same count as `related_entries`
+  computing it - never fold `supersedes` inbound edges into the same count as `related_entries`
   inbound edges. Outbound `supersedes` count (cleanup credit) does not add to `importance_score`.
   This is the concrete failure mode reviewed and resolved before this plan was written: a naive
   backlink count would otherwise reward a decision for being deprecated.
+- P1b depends on `supersession-edges-plan.md` P1. Until then, only raw `related_degree` can ship.
 - Once `git-commit-entry-linking-plan.md` ships, extend `importance_score` with a second free term:
   commit-reference count (how many commits carry a `Memory-Entry:` trailer for this entry, or list
   it in `commits:`).
-- **Exposure before ranking changes.** Surface `importance_score` read-only via
-  `memory-seed link show <entry_id>` / `memory_get_chunk` metadata first. Do **not** blend it into
-  `memory_search`'s default ranking math until real usage shows the derived signal is actually
-  useful — this matches the existing "Ranking Experiments" policy (`docs/todo/NEXT_STEPS.md`:
-  keep ranking behavior stable on `main`; validate ranking changes on a separate branch against
-  fixtures before merging) and `3.0-plan.md` B4's "add only after real usage demonstrates need"
-  principle, applied here to a scoring change instead of a cache.
+- **Exposure before ranking changes.** Surface `related_degree` / `importance_score` read-only first.
+  Do **not** blend either signal into `memory_search`'s default ranking math until real usage shows
+  the derived signal is actually useful - this matches the existing "Ranking Experiments" policy
+  (`docs/todo/NEXT_STEPS.md`: keep ranking behavior stable on `main`; validate ranking changes on a
+  separate branch against fixtures before merging) and `3.0-plan.md` B4's "add only after real usage
+  demonstrates need" principle, applied here to a scoring change instead of a cache.
 
 ## Design - P2 (Option B, the stated end goal, deferred): real interaction/access-frequency telemetry
 
@@ -103,8 +115,10 @@ logs. Flag under `memory_hygiene.md` when this gets built in detail.
 
 ## Phasing
 
-- **P1 (Option C):** ship now. No schema change, no new dependency, no ranking-default change —
-  pure read-time derivation exposed via `link show`.
+- **P1a (Option C):** ship now. No schema change, no new dependency, no ranking-default change -
+  pure raw related-degree derivation exposed via `link show` / metadata.
+- **P1b (supersession-aware score):** ship after `supersession-edges-plan.md` P1, because the harmony
+  contract needs real `supersedes` edges to dampen against.
 - **P2 (Option B):** the stated end goal. Deferred until (a) `supersession-edges-plan.md` ships
   (the harmony contract needs real `supersedes` edges to dampen against), and (b) real usage shows
   P1's derived signal is insufficient on its own.
@@ -115,14 +129,15 @@ logs. Flag under `memory_hygiene.md` when this gets built in detail.
    separate, explicitly-requested signal indefinitely.
 2. JSONL retention/compaction policy for P2 (unbounded growth needs a periodic fold-and-truncate
    step).
-3. Exact dampening multiplier for the supersession harmony contract — needs a concrete number once
-   P1 ships and there's a real score to dampen against.
+3. Exact dampening multiplier for the supersession harmony contract - needs a concrete number once
+   P1b ships and there's a real score to dampen against.
 
 ## Definition of Done (P1)
 
-- `importance_score` computed from `build_related_entry_graph()` inbound counts, with the
-  supersession dampener applied per the harmony contract.
-- Exposed via `memory-seed link show <entry_id>` (or equivalent), not blended into default ranking.
-- Fixture test proving a superseded-but-heavily-cited entry scores below a non-superseded,
+- P1a computes `related_degree` from `build_related_entry_graph()` inbound counts.
+- P1a exposes `related_degree` via `memory-seed link show <entry_id>` (or equivalent), not blended
+  into default ranking.
+- P1b computes `importance_score` with the supersession dampener applied per the harmony contract.
+- P1b fixture proves a superseded-but-heavily-cited entry scores below a non-superseded,
   moderately-cited one.
 - Concise session log entry.

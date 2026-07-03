@@ -16,7 +16,8 @@ tags:
 > [`related-entries-generation-plan.md`](related-entries-generation-plan.md) (extends the same
 > forward-edge / bidirectional-read-time-traversal model) and
 > [`interaction-frequency-ranking-plan.md`](interaction-frequency-ranking-plan.md) (defines the
-> harmony contract below that the ranking plan depends on).
+> harmony contract below that the ranking plan depends on). The field name is `supersedes`; the
+> alternative `deprecates` is rejected for P1 to avoid leaving the schema undecided.
 
 ## Motivation
 
@@ -77,6 +78,14 @@ constraint, extended for free.
 entry-level scan out of that gate — `supersedes` validation can reuse the same, now-correct `links
 check` path from day one instead of inheriting the blind spot.
 
+**Forward-only is a convention, not yet an enforced invariant.** The "provably acyclic" claim above
+holds only if every `supersedes` ref actually points at an entry that existed before the referencing
+one — today `links check` only confirms a ref *resolves* to a known `entry_id` (`dangling-related-entry`
+style), not that it's chronologically prior. A hand-edited or buggy-writer YAML block could in
+principle create a cycle undetected. Add a cheap forward-only/cycle guard to `links check` for
+`supersedes` (and ideally `related_entries`) as a P1 candidate: reject or flag a ref whose target
+entry postdates the referencing entry.
+
 ## Harmony Contract With Interaction-Frequency Ranking
 
 This is the core design constraint this doc exists to pin down, agreed during review:
@@ -99,6 +108,10 @@ This is the core design constraint this doc exists to pin down, agreed during re
    stated end goal of the ranking plan): an access hit on a superseded entry gets the same
    dampening, never suppression.
 
+This means `interaction-frequency-ranking-plan.md` may expose a raw related backlink degree before
+`supersedes` ships, but it must not claim a supersession-aware `importance_score` until this P1 is
+implemented.
+
 ## Exposure
 
 Extend `memory-seed link show <entry_id>` and `memory_get_chunk` output to include `supersedes` /
@@ -114,7 +127,9 @@ Extend `memory-seed link show <entry_id>` and `memory_get_chunk` output to inclu
 
 ## Open Decisions
 
-1. Field name: `supersedes` vs. `deprecates`. No strong reason to prefer one; pick and move on.
+1. ~~Field name: `supersedes` vs. `deprecates`~~ — resolved for P1: use `supersedes`. It is the
+   term already used throughout the plan, matches "this entry replaces that older decision," and
+   avoids a second naming pass across session schema, CLI, MCP, and UI docs.
 2. Should `memory-seed link suggest` also propose supersession candidates, or stay
    `related_entries`-only for now? Leaning toward staying `related_entries`-only in P1 — suggesting
    *what to deprecate* is a much higher-stakes judgment call than suggesting *what's related*, and
@@ -131,6 +146,8 @@ Extend `memory-seed link show <entry_id>` and `memory_get_chunk` output to inclu
 - Read-time `superseded_by` inverse computed and exposed via `link show` / `memory_get_chunk`.
 - `links check` validates `supersedes` refs with the same rigor as `related_entries` (post-fix, not
   inheriting the legacy-flat gap silently).
+- Candidate, not yet committed: a forward-only/cycle guard in `links check` for `supersedes` (see
+  Validation above) — today's acyclicity claim rests on an unenforced authoring convention.
 - The harmony-contract dampening rule implemented wherever `importance_score` is computed
   (`interaction-frequency-ranking-plan.md` P1), with a fixture test proving a superseded-but-heavily-
   cited entry ranks below a non-superseded, moderately-cited one.

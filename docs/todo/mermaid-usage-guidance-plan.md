@@ -37,7 +37,9 @@ Proposed wording:
 > when the content is genuinely spatial, temporal, or concurrent — sequence flows across
 > components, entity/schema relationships, or topology — where a diagram is clearly higher-signal
 > than prose. Keep Mermaid blocks small, and double-check bracket/arrow/quote syntax before
-> committing: a broken block renders as unreadable raw text with no fallback.
+> committing. Also check semantic freshness: roadmap diagrams must be updated when shipped work
+> changes status, not merely kept syntactically valid. A broken or stale block renders as misleading
+> raw text with no fallback.
 
 ## Why Not More
 
@@ -56,3 +58,5 @@ speculative infrastructure for a problem not yet observed, so it's explicitly ou
   `memory_seed/seed/`).
 - No code changes, no new validation tooling, no control-plane version bump beyond the normal one
   that accompanies any `agent-rules.md` content change.
+- Roadmap/audit docs touched in the same change are checked for semantic diagram freshness, not only
+  Mermaid syntax.

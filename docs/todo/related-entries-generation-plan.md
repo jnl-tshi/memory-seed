@@ -29,8 +29,10 @@ creating it:
 - **Authorable** - the optional `related_entries` field is documented in the `agent-rules.md`
   session-log schema (2.12.0), so an agent *can* hand-write edges at entry-creation time.
 
-**The gap:** there is no mechanism to *generate* or *assist* edges. They are 100% hand-authored, so
-in practice the explicit graph stays sparse.
+**The remaining gap:** P1 now assists edge discovery and inspection with read-only suggestions and
+graph display, but there is still no sanctioned writer for adding a link after the entry YAML has
+already been authored. The explicit graph can therefore stay sparse when authors do not paste the
+suggested snippet.
 
 ## Reframe: The Graph Is Not Empty
 
@@ -117,13 +119,14 @@ entry, so it never touches history.
 
 ## Phasing
 
-- **P1 - shippable, no history edits (recommended first increment):** `link suggest` (read-only,
-  reuses the ranker) + `link add` restricted to the current/newest entry + bidirectional read-time
-  traversal documented as the canonical graph-read model. `links check` unchanged. This directly fixes
-  "nothing assists" with zero append-only tension.
-- **P2 - backfill between pre-existing entries (deferred, needs a decision):** only if P1 proves
-  insufficient. Pick option 1/2/3 from "The residual case" - default to "write a new linking entry,"
-  escalate to a sidecar only with explicit sign-off (B5-aligned).
+- **P1 - shippable, no history edits (shipped in 2.13.0):** `link suggest` (read-only, reuses the
+  ranker) + `link show` + bidirectional read-time traversal documented as the canonical graph-read
+  model. `links check` unchanged. This directly fixed "nothing assists" for discovery and inspection
+  with zero append-only tension.
+- **P2 - optional writer/backfill support (deferred, needs a decision):** only if P1 proves
+  insufficient. This includes the held `link add` writer (restricted to the current/newest entry) and
+  any backfill between pre-existing entries. Pick option 1/2/3 from "The residual case" - default to
+  "write a new linking entry," escalate to a sidecar only with explicit sign-off (B5-aligned).
 
 ## Open Decisions (RESOLVED 2026-06-15)
 
@@ -151,11 +154,16 @@ entry, so it never touches history.
 - `build_related_entry_graph(cwd)` in `semantic_cache.py` - the canonical bidirectional graph the
   MCP and future UI consumers should consume (don't fork parsing/ranking). Inbound is computed only from resolvable
   refs; outbound is reported as stored (`links check` flags dangling outbound).
+- Memory Lense already consumes explicit `related` edges and derived `topic`/`agent`/`day` graph
+  edges from the shipped graph API. Future graph work should clarify which derived edges belong in
+  shared backend contracts versus Lense-only presentation.
 - `links check` unchanged and still green.
 
 ## Definition of Done (P1)
 
 - `link suggest` returns ranked prior-entry candidates with parity to MCP ranking; read-only.
-- `link add` writes a deduplicated forward edge to the current entry, fails fast on a dangling target.
+- `link show` exposes outbound `related_entries` and computed inbound backlinks.
+- `build_related_entry_graph()` is available as the canonical graph reader for MCP, CLI, and UI
+  consumers.
 - `links check` still passes; bidirectional read-time traversal documented for future UI consumers.
 - Green tests, `doctor` healthy, docs updated, concise session log entry.
