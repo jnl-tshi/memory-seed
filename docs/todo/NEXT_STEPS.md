@@ -128,8 +128,9 @@ Multi-user Phases 1-2 shipped (2.9/2.10), the core multi-user increments (A-P3 i
 A-ID 80-bit entry IDs, A-P4 MCP metadata/filters, S2 participant registry parsing, and A-P5
 `migrate sessions-layout`) shipped in 2.12.0, and related-entries generation P1 shipped in 2.13.0.
 The 3.0 plan is now partly historical: shipped sections are retained for context, while the active
-3.0 decisions are related-entries P2, the Memory Lense/Pillar B distribution choice, and the shared
-graph-edge contract between CLI/MCP/Lense surfaces.
+3.0 decisions are related-entries P2 and the Memory Lense/Pillar B distribution choice. The shared
+graph-edge contract across CLI/MCP/Lense surfaces is now written up in
+[`../graph-edge-contract.md`](../graph-edge-contract.md).
 Remaining work:
 
 1. **Related-entries generation P2 (deferred, needs sign-off).** P1 (`memory-seed link suggest` +
@@ -203,9 +204,11 @@ exclude-superseded filter.
    implemented (unreleased):** raw `inbound_relation_count` and supersession-aware `importance_score`
    (dampened ×0.25 when superseded) exposed read-only via `link show` and `memory_get_chunk`; default
    ranking untouched. Lense's combined-degree display field renamed to `connectivity` to resolve the
-   name collision. This also completed the supersession harmony contract. Remaining: real
-   access-frequency telemetry (Option B) is the deferred end goal; an optional commit-reference term
-   on `importance_score` is unblocked but out of scope until there's a reason.
+   name collision; Lense graph nodes now also carry `importance_score` with a "Size:" toggle. This
+   also completed the supersession harmony contract. The commit-reference signal shipped 2026-07-04 as
+   a standalone `commit_reference_count` field (not folded into `importance_score` — see
+   `../graph-edge-contract.md`). Remaining: real access-frequency telemetry (Option B) is the deferred
+   end goal.
 4. [`mermaid-usage-guidance-plan.md`](completed/mermaid-usage-guidance-plan.md) — **implemented
    2026-07-03 (shipped 2.14):** the Working Principles bullet (plain text by default, Mermaid only for
    spatial/temporal/concurrent structure, semantic freshness included) is in `agent-rules.md` + seed

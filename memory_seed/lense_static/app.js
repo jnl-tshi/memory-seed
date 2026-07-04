@@ -17,6 +17,7 @@ const state = {
   timelineHideEmpty: localStorage.getItem("ml:timelineHideEmpty") === "1",
   timelineSelectedBucket: "",
   graphScope: "all",
+  graphSizeMode: localStorage.getItem("ml:graphSizeMode") || "links",
   graphEdgeTypes: new Set(["related"]),
   graphTransform: { x: 0, y: 0, scale: 1 },
   graphHover: "",
@@ -283,6 +284,7 @@ function graphView() {
       <div class="segmented">${[["all", "All entries"], ["neighborhood", "Neighborhood"]].map(([scope, label]) => `<button type="button" class="tab ${state.graphScope === scope ? "active" : ""}" data-graph-scope="${scope}">${label}</button>`).join("")}</div>
       <button type="button" class="chip" data-graph-reset>Reset view</button>
       <button type="button" class="chip" data-graph-fit>Fit view</button>
+      <button type="button" class="chip ${state.graphSizeMode === "importance" ? "active" : ""}" data-graph-size title="Toggle node size between link connectivity and importance score">Size: ${state.graphSizeMode === "importance" ? "importance" : "links"}</button>
       ${["related", "topic", "agent", "day"].map((type) => `<button type="button" class="chip ${state.graphEdgeTypes.has(type) ? "active" : ""}" data-edge="${type}">${type}</button>`).join("")}
     </div>
     <div class="graph-stage">
@@ -300,7 +302,8 @@ function graphView() {
         const selected = node.chunk_id === state.selectedId || node.id === state.selected?.entry_id;
         const highlight = state.graphHover && (node.id === state.graphHover || related.has(node.id));
         const dim = state.graphHover && !highlight;
-        const radius = selected ? 18 : Math.min(16, 7 + Number(node.connectivity || 0) * 2.2);
+        const sizeVal = state.graphSizeMode === "importance" ? Number(node.importance_score || 0) : Number(node.connectivity || 0);
+        const radius = selected ? 18 : Math.min(16, 7 + sizeVal * 2.2);
         return `<g class="graph-node ${highlight ? "graph-related" : ""} ${dim ? "graph-dim" : ""}" data-node-id="${escAttr(node.id)}" data-chunk="${escAttr(node.chunk_id)}"><circle class="graph-hit" cx="${p.x}" cy="${p.y}" r="${Math.max(radius + 10, 20)}"></circle><circle cx="${p.x}" cy="${p.y}" r="${radius}" fill="${agentColor(node.agent)}" stroke="${selected ? "var(--accent)" : "var(--bg)"}" stroke-width="3"></circle><text class="graph-label" data-graph-label x="${p.x}" y="${p.y - 15}" text-anchor="middle">${esc(graphTitle(node.title))}</text><title>${esc(node.title)}</title></g>`;
       }).join("")}
       </g>
@@ -316,7 +319,7 @@ function graphLegend(graph) {
     <div class="graph-legend" aria-label="Graph legend">
       <div class="legend-group"><span class="count">Nodes</span>${agents.map((agent) => `<span class="legend-item" title="${escAttr(agent)}"><span class="legend-swatch" style="background:${agentColor(agent)}"></span>${esc(graphLegendLabel(agent))}</span>`).join("")}</div>
       <div class="legend-group"><span class="count">Edges</span>${edgeTypes.map((type) => `<span class="legend-item"><span class="legend-line" style="background:${edgeColor(type)}"></span>${type}</span>`).join("")}</div>
-      <div class="legend-group"><span class="count">Size: links</span><span class="count">Near: links/topics/dates</span></div>
+      <div class="legend-group"><span class="count">Size: ${state.graphSizeMode === "importance" ? "importance" : "links"}</span><span class="count">Near: links/topics/dates</span></div>
     </div>`;
 }
 
@@ -522,6 +525,12 @@ function installDelegatedEvents() {
     }
     if (target.dataset.bucketStart) {
       selectTimelineBucket(target);
+      return;
+    }
+    if (target.dataset.graphSize !== undefined) {
+      state.graphSizeMode = state.graphSizeMode === "importance" ? "links" : "importance";
+      localStorage.setItem("ml:graphSizeMode", state.graphSizeMode);
+      render();
       return;
     }
     if (target.dataset.edge) {

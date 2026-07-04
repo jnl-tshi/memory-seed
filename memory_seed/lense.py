@@ -350,14 +350,21 @@ class LenseService:
         by_id = {node_id(chunk): chunk for chunk in entries if node_id(chunk)}
         edge_type_set = set(edge_types)
         edges = _graph_edges(entries, edge_type_set, node_id=node_id)
-        connectivity = _connectivity_degrees(entries, node_id=node_id)
+        graph = build_related_entry_graph(chunks=entries)
+        connectivity = _connectivity_degrees(entries, node_id=node_id, graph=graph)
+        importance = _importance_scores(entries, node_id=node_id, graph=graph)
         if entry_id and entry_id in by_id:
             visible_ids = _neighborhood(entry_id, edges, depth=max(depth, 1))
         else:
             visible_ids = list(by_id)
         limited_ids = set(visible_ids[: _limit(limit, maximum=1000)])
         nodes = [
-            _graph_node(by_id[item_id], node_id=item_id, connectivity=connectivity.get(item_id, 0))
+            _graph_node(
+                by_id[item_id],
+                node_id=item_id,
+                connectivity=connectivity.get(item_id, 0),
+                importance_score=importance.get(item_id, 0.0),
+            )
             for item_id in visible_ids
             if item_id in limited_ids and item_id in by_id
         ]
@@ -743,17 +750,19 @@ def _connectivity_degrees(
     entries: Sequence[MemoryChunk],
     *,
     node_id: Callable[[MemoryChunk], str | None] | None = None,
+    graph: dict[str, Any] | None = None,
 ) -> dict[str, int]:
     """Undirected connectivity per node: how many distinct other entries it
     touches via a ``related_entries`` edge in *either* direction. This is a
     graph-display weight (bigger node = more connected), deliberately distinct
     from the directional ``inbound_relation_count`` importance signal exposed by
-    the CLI/MCP, which counts inbound backlinks only."""
+    the CLI/MCP, which counts inbound backlinks only. Pass ``graph`` to reuse an
+    already-built related-entry graph."""
     node_id = node_id or (lambda chunk: chunk.entry_id)
     by_entry_id = {chunk.entry_id: chunk for chunk in entries if chunk.entry_id}
     node_ids = {node_id(chunk) for chunk in entries if node_id(chunk)}
     degree = {item_id: 0 for item_id in node_ids if item_id}
-    graph = build_related_entry_graph(chunks=entries)
+    graph = graph if graph is not None else build_related_entry_graph(chunks=entries)
     for graph_node in graph.values():
         source_chunk = by_entry_id.get(graph_node.entry_id)
         source = node_id(source_chunk) if source_chunk else graph_node.entry_id
@@ -765,6 +774,29 @@ def _connectivity_degrees(
             if target in node_ids and target != source:
                 degree[source] = degree.get(source, 0) + 1
     return degree
+
+
+def _importance_scores(
+    entries: Sequence[MemoryChunk],
+    *,
+    node_id: Callable[[MemoryChunk], str | None] | None = None,
+    graph: dict[str, Any] | None = None,
+) -> dict[str, float]:
+    """Per-node ``importance_score`` (inbound relation count, supersession-dampened)
+    from the related-entry graph, keyed by graph node id. This is the same
+    directional importance signal the CLI/MCP expose; it lets the Lense graph
+    optionally size nodes by importance instead of ``connectivity``."""
+    node_id = node_id or (lambda chunk: chunk.entry_id)
+    by_entry_id = {chunk.entry_id: chunk for chunk in entries if chunk.entry_id}
+    node_ids = {node_id(chunk) for chunk in entries if node_id(chunk)}
+    scores = {item_id: 0.0 for item_id in node_ids if item_id}
+    graph = graph if graph is not None else build_related_entry_graph(chunks=entries)
+    for graph_node in graph.values():
+        source_chunk = by_entry_id.get(graph_node.entry_id)
+        source = node_id(source_chunk) if source_chunk else graph_node.entry_id
+        if source in node_ids:
+            scores[source] = graph_node.importance_score
+    return scores
 
 
 def _neighborhood(entry_id: str, edges: Sequence[dict[str, str]], *, depth: int) -> list[str]:
@@ -791,7 +823,13 @@ def _graph_node_id_for(granularity: str) -> Callable[[MemoryChunk], str | None]:
     return lambda chunk: chunk.entry_id
 
 
-def _graph_node(chunk: MemoryChunk, *, node_id: str | None = None, connectivity: int = 0) -> dict[str, Any]:
+def _graph_node(
+    chunk: MemoryChunk,
+    *,
+    node_id: str | None = None,
+    connectivity: int = 0,
+    importance_score: float = 0.0,
+) -> dict[str, Any]:
     return {
         "id": node_id or chunk.entry_id or chunk.chunk_id,
         "chunk_id": chunk.chunk_id,
@@ -802,6 +840,7 @@ def _graph_node(chunk: MemoryChunk, *, node_id: str | None = None, connectivity:
         "topics": _topics(chunk),
         "granularity": chunk.granularity,
         "connectivity": connectivity,
+        "importance_score": round(importance_score, 3),
     }
 
 

@@ -176,6 +176,20 @@ class LenseServiceTests(unittest.TestCase):
         self.assertIn("agent", by_id["mse_ui"])
         self.assertGreaterEqual(len(graph["edges"]), 1)
 
+    def test_graph_reports_importance_score_distinct_from_connectivity(self):
+        service = self.service()
+
+        graph = service.graph(edge_types=("related",), limit=20)
+        by_id = {node["entry_id"]: node for node in graph["nodes"]}
+
+        # mse_ui is cited by mse_graph (inbound 1) and cites mse_bootstrap
+        # (outbound 1): connectivity counts both directions (2), importance_score
+        # counts inbound only (1.0). Same node, two deliberately different numbers.
+        self.assertEqual(by_id["mse_ui"]["connectivity"], 2)
+        self.assertEqual(by_id["mse_ui"]["importance_score"], 1.0)
+        self.assertEqual(by_id["mse_bootstrap"]["importance_score"], 1.0)
+        self.assertEqual(by_id["mse_graph"]["importance_score"], 0.0)
+
     def test_graph_connectivity_ignores_derived_edges(self):
         service = self.service()
 
@@ -317,10 +331,12 @@ class LenseCliTests(unittest.TestCase):
         self.assertIn("Neighborhood", script)
         self.assertIn("graphLegend", script)
         self.assertIn("graphLegendLabel", script)
-        self.assertIn("Size: links", script)
+        self.assertIn("Size: ", script)
         self.assertIn("Near: links/topics/dates", script)
         self.assertIn("graph-stage", script)
         self.assertIn("node.connectivity", script)
+        self.assertIn("node.importance_score", script)
+        self.assertIn("data-graph-size", script)
         self.assertIn("agentColor(node.agent)", script)
         self.assertIn("layoutSimilarityLinks", script)
         self.assertIn("sharedTopicScore", script)

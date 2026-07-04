@@ -356,6 +356,31 @@ class MemoryMcpServerTests(unittest.TestCase):
         # Not superseded: importance_score equals the raw inbound count.
         self.assertEqual(cited["chunk"]["importance_score"], 2.0)
 
+    def test_call_tool_memory_get_chunk_exposes_commit_reference_count(self):
+        cwd = self.make_project()  # no .git: field-only path
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:00 - Implemented decision\n\n"
+            "```yaml\n"
+            "entry_id: ms-withcommit\n"
+            "commits:\n"
+            "  - " + "a" * 40 + "\n"
+            "```\n\n"
+            "A decision with a linked commit.\n\n"
+            "## 2026-05-17 10:00 - Plain decision\n\n"
+            "```yaml\n"
+            "entry_id: ms-nocommit0\n"
+            "```\n\n"
+            "No linked commit.\n",
+        )
+
+        linked = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": "ms-withcommit"})
+        plain = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": "ms-nocommit0"})
+
+        self.assertEqual(linked["chunk"]["commit_reference_count"], 1)
+        self.assertEqual(plain["chunk"]["commit_reference_count"], 0)
+
     def test_call_tool_memory_get_chunk_dampens_importance_score_when_superseded(self):
         cwd = self.make_project()
         self.write_session(

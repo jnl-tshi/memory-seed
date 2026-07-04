@@ -73,10 +73,14 @@ Split P1 into two slices so the plan does not claim supersession-aware scoring b
   `importance_score` is a computed field on `RelatedEntryNode` (`= len(inbound)`, times
   `SUPERSEDED_IMPORTANCE_DAMPING` when `superseded_by` is non-empty), exposed via `link show` and
   `memory_get_chunk`.
-- **Deferred follow-on (not built):** once commit-linking usage justifies it, extend
-  `importance_score` with a second free term — commit-reference count (commits carrying a
-  `Memory-Entry:` trailer for this entry, or listed in `commits:`). Commit-linking P1 shipped
-  2026-07-03, so this is unblocked but intentionally out of P1b scope until there's a reason.
+- **Commit-reference signal (implemented 2026-07-04 as a *separate* field, not folded in).**
+  `commit_reference_count` — distinct commits linking to an entry (`commits:` field ∪ `Memory-Entry:`
+  trailer, deduped) — is now exposed read-only on `link show` and `memory_get_chunk`, computed
+  caller-side via `commit_reference_ids()` so git stays out of the graph's hot path. It is
+  deliberately **not** blended into `importance_score`: folding it in would make the score
+  git-context-dependent and inconsistent across surfaces (the same defect the `connectivity` rename
+  fixed). Composing it into a score is left as a later evidence-gated ranking experiment. See
+  `docs/graph-edge-contract.md`.
 - **Exposure before ranking changes.** Surface `inbound_relation_count` / `importance_score` read-only first.
   Do **not** blend either signal into `memory_search`'s default ranking math until real usage shows
   the derived signal is actually useful - this matches the existing "Ranking Experiments" policy

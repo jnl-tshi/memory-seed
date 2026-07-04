@@ -147,9 +147,17 @@ def call_tool(
                 # inbound_relation_count dampened when this entry is superseded
                 # (read-only; not blended into default search ranking).
                 importance_score = node.importance_score
+        commit_reference_count = 0
+        if found.entry_id:
+            from .core import commit_reference_ids, resolve_runtime
+
+            commit_reference_count = len(
+                commit_reference_ids(resolve_runtime(cwd).workspace_root, found.entry_id, found.commits)
+            )
         payload["superseded_by"] = superseded_by
         payload["inbound_relation_count"] = inbound_relation_count
         payload["importance_score"] = importance_score
+        payload["commit_reference_count"] = commit_reference_count
         return {"chunk": payload}
 
     raise ValueError(f"Unknown tool: {name}")

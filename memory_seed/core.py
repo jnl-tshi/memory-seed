@@ -10,7 +10,7 @@ import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Iterator, Literal
+from typing import Iterator, Literal, Sequence
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
@@ -382,6 +382,27 @@ def find_trailer_commits(root: Path, entry_id: str) -> list[str] | None:
     if proc.returncode != 0:
         return None
     return [line for line in proc.stdout.splitlines() if line.strip()]
+
+
+def commit_reference_ids(root: Path, entry_id: str, commits_field: Sequence[str] = ()) -> set[str]:
+    """Full commit SHAs that link commits to this entry, from both sources:
+    the entry's own ``commits:`` field and any commit carrying a
+    ``Memory-Entry: <entry_id>`` trailer. Union, deduped by SHA - a commit that
+    is both listed and trailered counts once. Outside a git repo the trailer
+    scan is skipped, so this returns the field-only set (never fails).
+
+    This is a caller-side signal deliberately kept out of ``build_related_entry_graph``:
+    the graph reader stays pure (no subprocess) so frequent readers like
+    ``memory_search`` never shell out to git. See docs/graph-edge-contract.md.
+    """
+    ids: set[str] = {sha for sha in commits_field if _FULL_COMMIT_SHA_RE.match(sha)}
+    trailer = find_trailer_commits(root, entry_id)
+    if trailer:
+        for line in trailer:
+            sha = line.split(maxsplit=1)[0].strip()
+            if sha:
+                ids.add(sha)
+    return ids
 
 
 def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:

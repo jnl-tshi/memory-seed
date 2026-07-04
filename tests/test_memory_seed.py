@@ -387,6 +387,28 @@ class MemorySeedTests(unittest.TestCase):
 
         self.assertIsNone(find_trailer_commits(cwd, "mse_0123456789abcdef"))
 
+    def test_commit_reference_ids_unions_field_and_trailer_deduped(self):
+        from memory_seed.core import commit_reference_ids
+
+        cwd = self.make_project()
+        head = self._git_repo_with_commit(
+            cwd, message="do thing\n\nMemory-Entry: mse_0123456789abcdef"
+        )
+        # The field lists the trailered HEAD (dedup case) plus one other SHA.
+        ids = commit_reference_ids(cwd, "mse_0123456789abcdef", (head, "b" * 40))
+
+        # HEAD appears in both the field and the trailer scan but counts once.
+        self.assertEqual(ids, {head, "b" * 40})
+
+    def test_commit_reference_ids_field_only_outside_git(self):
+        from memory_seed.core import commit_reference_ids
+
+        cwd = self.make_project()  # no .git
+        ids = commit_reference_ids(cwd, "mse_0123456789abcdef", ("a" * 40, "notasha"))
+
+        # Trailer scan skips (no git); only the well-formed field SHA survives.
+        self.assertEqual(ids, {"a" * 40})
+
     def test_links_check_flags_supersedes_cycle_between_same_minute_entries(self):
         # Same-minute entries slip past the postdates comparison; the DFS
         # cycle guard is what catches a mutual supersession there.

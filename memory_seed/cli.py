@@ -277,11 +277,21 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  - {item.chunk.entry_id}")
             return 0
         if args.link_command == "show":
-            graph = build_related_entry_graph(cwd=cwd)
+            from .core import commit_reference_ids, resolve_runtime
+            from .semantic_cache import extract_memory_chunks
+
+            entry_chunks = extract_memory_chunks(cwd, granularity="entry")
+            graph = build_related_entry_graph(cwd=cwd, chunks=entry_chunks)
             node = graph.get(args.entry_id)
             if node is None:
                 print(f"entry_id {args.entry_id} not found", file=sys.stderr)
                 return 1
+            chunk = next((c for c in entry_chunks if c.entry_id == args.entry_id), None)
+            commit_refs = commit_reference_ids(
+                resolve_runtime(cwd).workspace_root,
+                args.entry_id,
+                chunk.commits if chunk else (),
+            )
             print(f"{node.entry_id}  {node.title}")
             print(f"  outbound ({len(node.outbound)}): " + (", ".join(node.outbound) or "-"))
             print(f"  inbound  ({len(node.inbound)}): " + (", ".join(node.inbound) or "-"))
@@ -289,6 +299,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  superseded_by ({len(node.superseded_by)}): " + (", ".join(node.superseded_by) or "-"))
             print(f"  inbound_relation_count: {len(node.inbound)}")
             print(f"  importance_score: {node.importance_score:.2f}" + ("  (superseded: dampened)" if node.superseded_by else ""))
+            print(f"  commit_reference_count: {len(commit_refs)}")
             return 0
         if args.link_command == "commits":
             from .core import find_trailer_commits, resolve_runtime

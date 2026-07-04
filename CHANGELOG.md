@@ -4,6 +4,20 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Added `docs/graph-edge-contract.md`: the single reference for how decision-graph edges
+  (`related_entries`, `supersedes`, `commits`) and derived metrics (`inbound_relation_count`,
+  `importance_score`, `connectivity`, `commit_reference_count`) are defined, computed, and read across
+  CLI, MCP, Memory Lense, and `links check`. Codifies the standing rules: read the canonical graph,
+  keep git out of the hot path, expose before you rank, one name one meaning.
+- Exposed `commit_reference_count` on `memory-seed link show` and `memory_get_chunk`: the count of
+  distinct commits linking to an entry (its `commits:` field ∪ `Memory-Entry:` trailer, deduped by
+  SHA). Computed caller-side via `commit_reference_ids()` so the graph reader stays git-free.
+  Deliberately a standalone read-only field, **not** folded into `importance_score` (that would make
+  the score git-context-dependent and inconsistent across surfaces); composing it into a score is a
+  later evidence-gated ranking experiment.
+- Memory Lense graph nodes now carry `importance_score`, and a "Size:" toggle sizes nodes by either
+  link `connectivity` (default) or `importance_score`. The preference persists in local storage; the
+  toggle is client-side (no reload).
 - Added `proposal_lifecycle.md` to the seeded skill set and trigger registry. It formalizes proposal
   movement through `docs/inbox/` -> `docs/todo/` -> `docs/todo/completed/`, including status blocks,
   completed-proposal movement rules, and roadmap/audit update surfaces.
