@@ -157,9 +157,21 @@ def rank_session_memory(
     user: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    exclude_superseded: bool = False,
 ) -> list[RankedMemoryChunk]:
     chunks = extract_memory_chunks(cwd, granularity=granularity)
     chunks = _filter_chunks(chunks, user=user, date_from=date_from, date_to=date_to)
+    if exclude_superseded:
+        # Opt-in narrowing (like date_from/date_to): drop entries that have been
+        # superseded by a later decision. Never a default and never a hard
+        # exclusion unless the caller asks - superseded entries remain fully
+        # retrievable by default (deprioritized via importance_score, not hidden).
+        superseded = {
+            node.entry_id
+            for node in build_related_entry_graph(cwd).values()
+            if node.superseded_by
+        }
+        chunks = [chunk for chunk in chunks if chunk.entry_id not in superseded]
     return rank_memory_chunks(
         query,
         chunks,

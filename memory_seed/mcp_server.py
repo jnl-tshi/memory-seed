@@ -54,6 +54,11 @@ TOOLS: list[dict[str, Any]] = [
                     "default": "entry",
                     "description": "Return coherent ## entries by default, or narrower ###+ sections when requested.",
                 },
+                "exclude_superseded": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "Opt-in: drop entries that a later decision has superseded (non-empty superseded_by). Off by default - superseded entries stay retrievable.",
+                },
             },
             "required": ["query"],
         },
@@ -103,6 +108,7 @@ def call_tool(
             user=_optional_str(args, "user"),
             date_from=_optional_date(args, "date_from"),
             date_to=_optional_date(args, "date_to"),
+            exclude_superseded=bool(args.get("exclude_superseded", False)),
         )
         return format_search_results(
             query,

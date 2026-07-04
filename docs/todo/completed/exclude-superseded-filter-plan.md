@@ -9,12 +9,15 @@ tags:
 
 # Superseded-Entry Retrieval Filter - Scope
 
-> **Status: PROPOSED, not yet decided or built.** Source: surfaced during a 2026-07-03 cross-proposal
-> synergy evaluation of `supersession-edges-plan.md` and `interaction-frequency-ranking-plan.md`
-> against the current MCP filter surface — not the external `Memory-Seed Logic Capture Improvement.md`
-> review the other five logic-capture plans derive from. Companion to
-> [`supersession-edges-plan.md`](completed/supersession-edges-plan.md) (defines `supersedes`/`superseded_by`)
-> and [`interaction-frequency-ranking-plan.md`](completed/interaction-frequency-ranking-plan.md) (defines the
+> **Status: IMPLEMENTED 2026-07-04 (unreleased).** The opt-in `exclude_superseded` parameter is on
+> `memory_search` (default `false`); when set, entries with a non-empty `superseded_by` are dropped
+> from that query's results only. Backend-only; no CLI/UI default. Source: surfaced during a
+> 2026-07-03 cross-proposal synergy evaluation of `supersession-edges-plan.md` and
+> `interaction-frequency-ranking-plan.md` against the current MCP filter surface — not the external
+> `Memory-Seed Logic Capture Improvement.md` review the other five logic-capture plans derive from.
+> Companion to [`supersession-edges-plan.md`](supersession-edges-plan.md) (defines
+> `supersedes`/`superseded_by`) and
+> [`interaction-frequency-ranking-plan.md`](interaction-frequency-ranking-plan.md) (defines the
 > harmony-contract dampening this filter must not duplicate or contradict).
 
 ## Motivation

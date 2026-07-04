@@ -205,10 +205,10 @@ exclude-superseded filter.
 5. [`failed-approaches-logging-plan.md`](completed/failed-approaches-logging-plan.md) — **implemented
    2026-07-03 (shipped 2.14):** the attempted-and-failed logging rule is in `session_logging.md`'s
    Reason Rules + seed twin.
-6. [`exclude-superseded-filter-plan.md`](exclude-superseded-filter-plan.md) — surfaced during the
-   2026-07-03 synergy evaluation, not the original external review: an opt-in `memory_search` filter
-   to narrow results to non-superseded entries only, never a default and never a hard exclusion
-   unless requested. Now unblocked because `superseded_by` exists.
+6. [`exclude-superseded-filter-plan.md`](completed/exclude-superseded-filter-plan.md) — **implemented
+   2026-07-04 (unreleased):** an opt-in `exclude_superseded` parameter on `memory_search` (default
+   off) that drops entries with a non-empty `superseded_by` from that query only. Backend-only; no
+   CLI/UI default. Surfaced during the 2026-07-03 synergy evaluation, not the original external review.
 
 Items 1 and 2 shared a discovered dependency — `links check`'s dangling-`related_entries` validation
 used to only run against per-user-day session files, not this repo's own legacy-flat layout — fixed

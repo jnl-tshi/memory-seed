@@ -4,6 +4,11 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Added an opt-in `exclude_superseded` filter to `memory_search` (default `false`). When set, entries
+  with a non-empty computed `superseded_by` are dropped from that query's results only — an opt-in
+  narrowing like `date_from`/`date_to`, never a default and never a hard exclusion otherwise, so
+  superseded entries stay fully retrievable by default (deprioritized via `importance_score`, not
+  hidden). Backend-only; no CLI or UI default. From `docs/todo/completed/exclude-superseded-filter-plan.md`.
 - Exposed `importance_score` (ranking P1b): `inbound_relation_count` dampened by a fixed multiplier
   (`SUPERSEDED_IMPORTANCE_DAMPING = 0.25`) when the entry has any inbound `supersedes` edge —
   computed on `RelatedEntryNode`, shown by `memory-seed link show` (flagged when dampened) and

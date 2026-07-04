@@ -139,6 +139,60 @@ class MemoryMcpServerTests(unittest.TestCase):
         search_tool = next(t for t in TOOLS if t["name"] == "memory_search")
         self.assertNotIn("today", search_tool["inputSchema"]["properties"])
 
+    def _superseded_search_fixture(self):
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:00 - Old cache decision\n\n"
+            "```yaml\n"
+            "entry_id: ms-oldcache0\n"
+            "```\n\n"
+            "The original cache key design.\n\n"
+            "## 2026-05-17 10:00 - New cache decision\n\n"
+            "```yaml\n"
+            "entry_id: ms-newcache0\n"
+            "supersedes:\n"
+            "  - ms-oldcache0\n"
+            "```\n\n"
+            "The revised cache key design.\n",
+        )
+        return cwd
+
+    def test_memory_search_returns_superseded_entries_by_default(self):
+        cwd = self._superseded_search_fixture()
+
+        payload = call_tool(
+            "memory_search",
+            {"query": "cache design", "cwd": str(cwd), "top_k": 10, "semantic_enabled": False},
+            today=date(2026, 5, 18),
+        )
+        ids = {r["entry_id"] for r in payload["results"]}
+
+        # Default behavior is unchanged: the superseded entry is still returned.
+        self.assertIn("ms-oldcache0", ids)
+        self.assertIn("ms-newcache0", ids)
+
+    def test_memory_search_exclude_superseded_drops_superseded_entries(self):
+        cwd = self._superseded_search_fixture()
+
+        payload = call_tool(
+            "memory_search",
+            {
+                "query": "cache design",
+                "cwd": str(cwd),
+                "top_k": 10,
+                "semantic_enabled": False,
+                "exclude_superseded": True,
+            },
+            today=date(2026, 5, 18),
+        )
+        ids = {r["entry_id"] for r in payload["results"]}
+
+        # Opt-in narrowing: the superseded entry is dropped, the current one kept.
+        self.assertNotIn("ms-oldcache0", ids)
+        self.assertIn("ms-newcache0", ids)
+
     def test_call_tool_ignores_caller_supplied_today_in_arguments(self):
         cwd = self.make_memory_fixture()
 
