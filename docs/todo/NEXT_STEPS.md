@@ -146,8 +146,9 @@ P1 - **Low-risk guidance and graph semantics.** Failed-approaches logging, Merma
 and the fanout collaboration recipe shipped 2026-07-03 (unreleased). Next: `supersedes` P1, then
 git commit linking P1.
 
-P2 - **Read-only surfacing before behavior changes.** Expose raw `related_degree`, commit metadata,
-and later `importance_score` as inspectable metadata before any default search-ranking changes.
+P2 - **Read-only surfacing before behavior changes.** Expose raw `inbound_relation_count`, commit
+metadata, and later `importance_score` as inspectable metadata before any default search-ranking
+changes.
 
 P3 - **Deferred mutation and automation.** Hold related-entry backfill / `link add`, access-frequency
 telemetry, fanout CLI scaffolding, and render-verification automation until manual use shows clear
@@ -169,11 +170,11 @@ remain **proposed, not yet decided or built** — each has its own fully-specced
    built and tested. Remaining: the harmony-contract dampening (lands with ranking P1b) and deferred
    P2 Lense surfacing.
 3. [`interaction-frequency-ranking-plan.md`](interaction-frequency-ranking-plan.md) — **P1a
-   implemented 2026-07-03 (unreleased):** raw `related_degree` (inbound backlink count) exposed
-   read-only via `link show` and `memory_get_chunk`; default ranking untouched. Next: P1b
-   (supersession-aware `importance_score`, now unblocked) after the Lense `related_degree` naming
-   collision is settled (see the plan's P1a note); real access-frequency telemetry remains the
-   stated later goal.
+   implemented 2026-07-03 (unreleased):** raw `inbound_relation_count` (inbound backlink count)
+   exposed read-only via `link show` and `memory_get_chunk`; default ranking untouched. The Lense
+   naming collision is resolved (Lense's combined-degree display field renamed to `connectivity`).
+   Next: P1b (supersession-aware `importance_score`) — now fully unblocked; real access-frequency
+   telemetry remains the stated later goal.
 4. [`mermaid-usage-guidance-plan.md`](completed/mermaid-usage-guidance-plan.md) — **implemented
    2026-07-03 (unreleased):** the Working Principles bullet (plain text by default, Mermaid only for
    spatial/temporal/concurrent structure, semantic freshness included) is in `agent-rules.md` + seed
@@ -191,8 +192,9 @@ used to only run against per-user-day session files, not this repo's own legacy-
 2026-07-02 (unreleased). Both items are now unblocked; see either plan's "Known Dependency" section.
 
 The sequencing dependency is now explicit: ship `supersedes` before any ranking surface claims to be
-supersession-aware; keep `related_degree` as a raw read-only signal until then; treat `commits:` as
-validated commit metadata before folding commit-backed terms into ranking or retrieval explanations.
+supersession-aware; keep `inbound_relation_count` as a raw read-only signal until then; treat
+`commits:` as validated commit metadata before folding commit-backed terms into ranking or retrieval
+explanations.
 Failed approaches remain session-log evidence under `A`, not a new graph edge type.
 
 ### Agent Collaboration Workflow - Implemented (unreleased)

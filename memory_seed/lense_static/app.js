@@ -300,7 +300,7 @@ function graphView() {
         const selected = node.chunk_id === state.selectedId || node.id === state.selected?.entry_id;
         const highlight = state.graphHover && (node.id === state.graphHover || related.has(node.id));
         const dim = state.graphHover && !highlight;
-        const radius = selected ? 18 : Math.min(16, 7 + Number(node.related_degree || 0) * 2.2);
+        const radius = selected ? 18 : Math.min(16, 7 + Number(node.connectivity || 0) * 2.2);
         return `<g class="graph-node ${highlight ? "graph-related" : ""} ${dim ? "graph-dim" : ""}" data-node-id="${escAttr(node.id)}" data-chunk="${escAttr(node.chunk_id)}"><circle class="graph-hit" cx="${p.x}" cy="${p.y}" r="${Math.max(radius + 10, 20)}"></circle><circle cx="${p.x}" cy="${p.y}" r="${radius}" fill="${agentColor(node.agent)}" stroke="${selected ? "var(--accent)" : "var(--bg)"}" stroke-width="3"></circle><text class="graph-label" data-graph-label x="${p.x}" y="${p.y - 15}" text-anchor="middle">${esc(graphTitle(node.title))}</text><title>${esc(node.title)}</title></g>`;
       }).join("")}
       </g>

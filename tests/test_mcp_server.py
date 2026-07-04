@@ -267,7 +267,7 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertEqual(superseded["chunk"]["supersedes"], [])
         self.assertEqual(superseded["chunk"]["superseded_by"], ["ms-replaces"])
 
-    def test_call_tool_memory_get_chunk_exposes_inbound_related_degree(self):
+    def test_call_tool_memory_get_chunk_exposes_inbound_relation_count(self):
         cwd = self.make_project()
         self.write_session(
             cwd,
@@ -297,8 +297,8 @@ class MemoryMcpServerTests(unittest.TestCase):
         citer = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": "ms-citer0001"})
 
         # Inbound backlinks only: citing others earns nothing; being cited does.
-        self.assertEqual(cited["chunk"]["related_degree"], 2)
-        self.assertEqual(citer["chunk"]["related_degree"], 0)
+        self.assertEqual(cited["chunk"]["inbound_relation_count"], 2)
+        self.assertEqual(citer["chunk"]["inbound_relation_count"], 0)
 
     def test_call_tool_memory_get_chunk_returns_per_user_chunk(self):
         cwd = self.make_project()

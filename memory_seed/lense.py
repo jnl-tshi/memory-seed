@@ -348,14 +348,14 @@ class LenseService:
         by_id = {node_id(chunk): chunk for chunk in entries if node_id(chunk)}
         edge_type_set = set(edge_types)
         edges = _graph_edges(entries, edge_type_set, node_id=node_id)
-        related_degree = _related_degrees(entries, node_id=node_id)
+        connectivity = _connectivity_degrees(entries, node_id=node_id)
         if entry_id and entry_id in by_id:
             visible_ids = _neighborhood(entry_id, edges, depth=max(depth, 1))
         else:
             visible_ids = list(by_id)
         limited_ids = set(visible_ids[: _limit(limit, maximum=1000)])
         nodes = [
-            _graph_node(by_id[item_id], node_id=item_id, related_degree=related_degree.get(item_id, 0))
+            _graph_node(by_id[item_id], node_id=item_id, connectivity=connectivity.get(item_id, 0))
             for item_id in visible_ids
             if item_id in limited_ids and item_id in by_id
         ]
@@ -737,11 +737,16 @@ def _graph_edges(
     return edges
 
 
-def _related_degrees(
+def _connectivity_degrees(
     entries: Sequence[MemoryChunk],
     *,
     node_id: Callable[[MemoryChunk], str | None] | None = None,
 ) -> dict[str, int]:
+    """Undirected connectivity per node: how many distinct other entries it
+    touches via a ``related_entries`` edge in *either* direction. This is a
+    graph-display weight (bigger node = more connected), deliberately distinct
+    from the directional ``inbound_relation_count`` importance signal exposed by
+    the CLI/MCP, which counts inbound backlinks only."""
     node_id = node_id or (lambda chunk: chunk.entry_id)
     by_entry_id = {chunk.entry_id: chunk for chunk in entries if chunk.entry_id}
     node_ids = {node_id(chunk) for chunk in entries if node_id(chunk)}
@@ -784,7 +789,7 @@ def _graph_node_id_for(granularity: str) -> Callable[[MemoryChunk], str | None]:
     return lambda chunk: chunk.entry_id
 
 
-def _graph_node(chunk: MemoryChunk, *, node_id: str | None = None, related_degree: int = 0) -> dict[str, Any]:
+def _graph_node(chunk: MemoryChunk, *, node_id: str | None = None, connectivity: int = 0) -> dict[str, Any]:
     return {
         "id": node_id or chunk.entry_id or chunk.chunk_id,
         "chunk_id": chunk.chunk_id,
@@ -794,7 +799,7 @@ def _graph_node(chunk: MemoryChunk, *, node_id: str | None = None, related_degre
         "agent": chunk.agent_type or chunk.agent_name or "unknown",
         "topics": _topics(chunk),
         "granularity": chunk.granularity,
-        "related_degree": related_degree,
+        "connectivity": connectivity,
     }
 
 

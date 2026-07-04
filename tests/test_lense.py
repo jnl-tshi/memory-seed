@@ -150,7 +150,7 @@ class LenseServiceTests(unittest.TestCase):
         self.assertEqual(graph["edges"][0]["target"], "mse_bootstrap")
         self.assertEqual(graph["edges"][0]["type"], "related")
 
-    def test_graph_is_entry_level_and_reports_related_degree(self):
+    def test_graph_is_entry_level_and_reports_connectivity(self):
         self.write_session(
             "2026-06-04.md",
             _entry(
@@ -167,25 +167,25 @@ class LenseServiceTests(unittest.TestCase):
         self.assertEqual(graph["granularity"], "entry")
         self.assertEqual(len(graph["nodes"]), 4)
         self.assertEqual({node["granularity"] for node in graph["nodes"]}, {"entry"})
-        self.assertEqual(by_id["mse_ui"]["related_degree"], 2)
-        self.assertEqual(by_id["mse_bootstrap"]["related_degree"], 1)
-        self.assertEqual(by_id["mse_graph"]["related_degree"], 1)
-        self.assertEqual(by_id["mse_sectioned"]["related_degree"], 0)
+        self.assertEqual(by_id["mse_ui"]["connectivity"], 2)
+        self.assertEqual(by_id["mse_bootstrap"]["connectivity"], 1)
+        self.assertEqual(by_id["mse_graph"]["connectivity"], 1)
+        self.assertEqual(by_id["mse_sectioned"]["connectivity"], 0)
         self.assertIn("topics", by_id["mse_ui"])
         self.assertIn("date", by_id["mse_ui"])
         self.assertIn("agent", by_id["mse_ui"])
         self.assertGreaterEqual(len(graph["edges"]), 1)
 
-    def test_graph_related_degree_ignores_derived_edges(self):
+    def test_graph_connectivity_ignores_derived_edges(self):
         service = self.service()
 
         derived = service.graph(edge_types=("topic", "agent", "day"), limit=20)
         by_id = {node["entry_id"]: node for node in derived["nodes"]}
 
         self.assertGreaterEqual(len(derived["edges"]), 1)
-        self.assertEqual(by_id["mse_bootstrap"]["related_degree"], 1)
-        self.assertEqual(by_id["mse_ui"]["related_degree"], 2)
-        self.assertEqual(by_id["mse_graph"]["related_degree"], 1)
+        self.assertEqual(by_id["mse_bootstrap"]["connectivity"], 1)
+        self.assertEqual(by_id["mse_ui"]["connectivity"], 2)
+        self.assertEqual(by_id["mse_graph"]["connectivity"], 1)
 
     def test_graph_respects_active_filters(self):
         service = self.service()
@@ -320,7 +320,7 @@ class LenseCliTests(unittest.TestCase):
         self.assertIn("Size: links", script)
         self.assertIn("Near: links/topics/dates", script)
         self.assertIn("graph-stage", script)
-        self.assertIn("node.related_degree", script)
+        self.assertIn("node.connectivity", script)
         self.assertIn("agentColor(node.agent)", script)
         self.assertIn("layoutSimilarityLinks", script)
         self.assertIn("sharedTopicScore", script)

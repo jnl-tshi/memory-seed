@@ -4,12 +4,15 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
-- Exposed `related_degree` (ranking P1a): the count of inbound `related_entries` backlinks an entry
-  has accumulated, shown by `memory-seed link show` and returned in `memory_get_chunk` metadata.
-  Read-only — default `memory_search` ranking is untouched, per the exposure-before-ranking-changes
-  policy. Note: this is inbound-only (the importance-signal precursor); Lense graph nodes' existing
-  `related_degree` display field counts combined in+out edges and is intentionally unchanged — the
-  naming reconciliation is tracked in `docs/todo/interaction-frequency-ranking-plan.md`.
+- Exposed `inbound_relation_count` (ranking P1a): the count of inbound `related_entries` backlinks an
+  entry has accumulated (how many other entries reference it), shown by `memory-seed link show` and
+  returned in `memory_get_chunk` metadata. Read-only — default `memory_search` ranking is untouched,
+  per the exposure-before-ranking-changes policy. This is the directional importance-signal precursor.
+- Renamed Memory Lense's graph-node `related_degree` field to `connectivity`. Its computation is
+  unchanged (combined inbound+outbound `related_entries` edges, used for node sizing) — the rename
+  resolves a collision with the new inbound-only `inbound_relation_count` above, since the two count
+  genuinely different things. The two-field split is documented in
+  `docs/todo/interaction-frequency-ranking-plan.md`.
 - Added git commit <-> decision entry linking (P1): a `Memory-Entry: <entry_id>` commit-message
   trailer convention (documented as a Working Principles bullet in `agent-rules.md` + seed twin)
   plus an optional `commits:` entry-YAML field of full 40-character SHAs, backfillable only while

@@ -44,37 +44,35 @@ signal is not a new architectural pattern; it reuses one already shipped and pro
 Split P1 into two slices so the plan does not claim supersession-aware scoring before the
 `supersedes` schema exists.
 
-### P1a - raw related degree
+### P1a - raw inbound relation count
 
-- `related_degree(entry)` = `len(inbound)` from `build_related_entry_graph()`
-  (`memory_seed/semantic_cache.py:209-250`, already shipped in 2.13.0) - how many other entries
-  cite this one via `related_entries`.
-- Expose `related_degree` read-only via `memory-seed link show <entry_id>`, `memory_get_chunk`
-  metadata, and Memory Lense graph node metadata.
-- Do **not** blend it into `memory_search`'s default ranking math.
-- **Naming collision found at implementation time (2026-07-03):** Lense graph nodes already carry a
-  `related_degree` field (`_related_degrees()` in `lense.py`) that counts **inbound + outbound**
-  explicit edges combined - a node-connectivity display metric from Lense V1, not this plan's
-  inbound-only importance precursor. P1a shipped the inbound-only definition on `link show` /
-  `memory_get_chunk` and deliberately left Lense's shipped display metric untouched rather than
-  silently redefining UI behavior under the same name. Reconciling the two (rename one, or align
-  Lense to inbound-only) belongs to the P0 shared graph-contract work and must be settled before
-  P1b exposes `importance_score` in Lense.
+- `inbound_relation_count(entry)` = `len(inbound)` from `build_related_entry_graph()`
+  (`memory_seed/semantic_cache.py`) - how many other entries cite this one via `related_entries`.
+- Exposed read-only via `memory-seed link show <entry_id>` and `memory_get_chunk` metadata. Do
+  **not** blend it into `memory_search`'s default ranking math.
+- **Naming collision found and resolved (2026-07-03/04):** Lense graph nodes shipped a
+  `related_degree` field (Lense V1) counting **inbound + outbound** `related_entries` edges combined
+  - a node-connectivity display metric for graph node sizing, a genuinely different number from this
+  plan's inbound-only importance precursor. Resolution: the backend importance signal is named
+  `inbound_relation_count` (descriptive of the inbound-only count), and Lense's display field was
+  renamed to `connectivity` with its combined-degree computation unchanged. Neither is "the newer
+  version of the other" - they measure different things and now have distinct names. This closes the
+  P0 graph-contract prerequisite for exposing `importance_score` in Lense during P1b.
 
 ### P1b - supersession-aware importance score
 
-- `importance_score(entry)` starts from `related_degree(entry)`.
+- `importance_score(entry)` starts from `inbound_relation_count(entry)`.
 - **Harmony contract (defined in `supersession-edges-plan.md`, binding here):** if the entry has
   any inbound `supersedes` edge, apply a fixed dampening multiplier to `importance_score` *after*
   computing it - never fold `supersedes` inbound edges into the same count as `related_entries`
   inbound edges. Outbound `supersedes` count (cleanup credit) does not add to `importance_score`.
   This is the concrete failure mode reviewed and resolved before this plan was written: a naive
   backlink count would otherwise reward a decision for being deprecated.
-- P1b depends on `supersession-edges-plan.md` P1. Until then, only raw `related_degree` can ship.
+- P1b depends on `supersession-edges-plan.md` P1 (shipped 2026-07-03), which is now satisfied — P1b is unblocked.
 - Once `git-commit-entry-linking-plan.md` ships, extend `importance_score` with a second free term:
   commit-reference count (how many commits carry a `Memory-Entry:` trailer for this entry, or list
   it in `commits:`).
-- **Exposure before ranking changes.** Surface `related_degree` / `importance_score` read-only first.
+- **Exposure before ranking changes.** Surface `inbound_relation_count` / `importance_score` read-only first.
   Do **not** blend either signal into `memory_search`'s default ranking math until real usage shows
   the derived signal is actually useful - this matches the existing "Ranking Experiments" policy
   (`docs/todo/NEXT_STEPS.md`: keep ranking behavior stable on `main`; validate ranking changes on a
@@ -145,10 +143,11 @@ logs. Flag under `memory_hygiene.md` when this gets built in detail.
 
 ## Definition of Done (P1)
 
-- P1a computes `related_degree` from `build_related_entry_graph()` inbound counts.
-- P1a exposes `related_degree` via `memory-seed link show <entry_id>` (or equivalent), not blended
-  into default ranking.
-- P1b computes `importance_score` with the supersession dampener applied per the harmony contract.
-- P1b fixture proves a superseded-but-heavily-cited entry scores below a non-superseded,
+- [x] P1a computes `inbound_relation_count` from `build_related_entry_graph()` inbound counts.
+- [x] P1a exposes `inbound_relation_count` via `memory-seed link show <entry_id>` and
+  `memory_get_chunk`, not blended into default ranking. (Shipped 2026-07-03; Lense's separate
+  `connectivity` display field renamed 2026-07-04.)
+- [ ] P1b computes `importance_score` with the supersession dampener applied per the harmony contract.
+- [ ] P1b fixture proves a superseded-but-heavily-cited entry scores below a non-superseded,
   moderately-cited one.
 - Concise session log entry.
