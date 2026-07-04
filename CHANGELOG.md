@@ -4,7 +4,14 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
-- _Nothing yet._
+- Added `proposal_lifecycle.md` to the seeded skill set and trigger registry. It formalizes proposal
+  movement through `docs/inbox/` -> `docs/todo/` -> `docs/todo/completed/`, including status blocks,
+  completed-proposal movement rules, and roadmap/audit update surfaces.
+- Refined the inbox worktree/tmux/dependency proposal into
+  `docs/todo/worktree-dependency-strategy-plan.md`; retained the raw source in
+  `docs/todo/completed/worktree-dependency-control-plane-source.md`.
+- Kept `MEMORY_SEED_LENSE_CACHE_ROOT` working as a compatibility alias for Lense cache placement;
+  `MEMORY_SEED_CACHE_DIR` remains the preferred generic cache variable.
 
 ## 2.15.0 - 2026-07-04
 
@@ -88,7 +95,7 @@ All notable changes to Memory Seed are summarized here.
   time** without ever editing a historical entry.
 - Added `build_related_entry_graph()` in `semantic_cache.py`, the canonical bidirectional
   related-entry graph (outbound as stored; inbound computed only from resolvable refs) for MCP and
-  future UI consumers. Scope + decisions in `docs/todo/related-entries-generation-plan.md`.
+  future UI consumers. Scope + decisions in `docs/todo/completed/related-entries-generation-plan.md`.
 
 ## 2.12.0 - 2026-06-15
 

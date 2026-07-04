@@ -38,6 +38,8 @@ def default_cache_path(cwd: str | Path = ".", *, cache_root: str | Path | None =
         root = Path(cache_root)
     elif os.environ.get("MEMORY_SEED_CACHE_DIR"):
         root = Path(os.environ["MEMORY_SEED_CACHE_DIR"])
+    elif os.environ.get("MEMORY_SEED_LENSE_CACHE_ROOT"):
+        root = Path(os.environ["MEMORY_SEED_LENSE_CACHE_ROOT"])
     elif os.name == "nt" and os.environ.get("LOCALAPPDATA"):
         root = Path(os.environ["LOCALAPPDATA"]) / "memory-seed" / "lense"
     else:

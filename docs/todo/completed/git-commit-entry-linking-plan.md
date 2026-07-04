@@ -17,7 +17,7 @@ tags:
 > (reminder-only post-commit hook) remains deferred. Source: external review doc
 > `Memory-Seed Logic Capture Improvement.md` (the "Version Control Reference" field in its
 > proposed decision schema). Companion to
-> [`related-entries-generation-plan.md`](../related-entries-generation-plan.md) (same forward-edge /
+> [`related-entries-generation-plan.md`](related-entries-generation-plan.md) (same forward-edge /
 > read-time-traversal design pattern) and
 > [`supersession-edges-plan.md`](supersession-edges-plan.md) (shared the same validation
 > dependency, see "Known Dependency" below — now resolved).

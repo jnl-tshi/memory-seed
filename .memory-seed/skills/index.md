@@ -81,6 +81,18 @@ skills:
     do_not_load_when:
       - task has no privacy, public-memory, or reusable-template surface
 
+  - skill: proposal_lifecycle.md
+    required: true
+    load_when:
+      - triaging proposals, research reports, or task documents in docs/inbox
+      - promoting proposal documents from docs/inbox to docs/todo
+      - moving implemented, rejected, or superseded proposals into docs/todo/completed
+      - reorganizing proposal folders, roadmap docs, or completed-proposal archives
+      - updating NEXT_STEPS or functionality-audit because proposal status changed
+    do_not_load_when:
+      - ordinary documentation edit with no proposal, roadmap, inbox, todo, or completed status change
+      - code-only implementation work where proposal files are not being moved or resolved
+
   - skill: subproject_runtime.md
     required: true
     load_when:

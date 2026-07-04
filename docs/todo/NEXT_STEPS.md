@@ -116,6 +116,9 @@ First batch of multi-user Phase 3 increments from the reviewed 3.0 plan
   validation, and `memory-seed link commits`.
 - **Ranking P1a/P1b:** `inbound_relation_count`, supersession-aware `importance_score`, and the
   Memory Lense graph-node rename from `related_degree` to `connectivity`.
+- **Proposal lifecycle skill:** `proposal_lifecycle.md` now defines the inbox -> todo -> completed
+  document flow, status requirements, completed-proposal movement rules, and required roadmap/audit
+  update surfaces.
 
 ### 3.0 - In Progress
 
@@ -132,7 +135,7 @@ Remaining work:
 1. **Related-entries generation P2 (deferred, needs sign-off).** P1 (`memory-seed link suggest` +
    `memory-seed link show` + `build_related_entry_graph()`, bidirectional read-time traversal) is
    released as of 2.13.0. Scope, decisions, and the deferred P2 are in
-   [`related-entries-generation-plan.md`](related-entries-generation-plan.md).
+   [`related-entries-generation-plan.md`](completed/related-entries-generation-plan.md).
    P2: backfilling edges between two pre-existing entries, and the optional `link add` writer
    (current-entry-only) if hand-editing YAML proves painful. This is a convenience increment, not a
    blocker for graph read paths; existing YAML plus `link suggest`/`link show` already covers
@@ -172,9 +175,14 @@ P2 - **Read-only surfacing before behavior changes.** Expose raw `inbound_relati
 metadata, and later `importance_score` as inspectable metadata before any default search-ranking
 changes.
 
-P3 - **Deferred mutation and automation.** Hold related-entry backfill / `link add`, access-frequency
-telemetry, fanout CLI scaffolding, and render-verification automation until manual use shows clear
-need and the privacy/retention/single-writer rules are settled.
+P3 - **Parallel-work environment policy.** Add worktree dependency tiers, dependency task-packet
+fields, dependency-definition shared-file rules, and optional tmux control-room guidance to the
+collaboration skill before considering any scaffold.
+
+P4 - **Deferred mutation and automation.** Hold related-entry backfill / `link add`, access-frequency
+telemetry, fanout CLI scaffolding, worktree/dependency scaffolding, and render-verification
+automation until manual use shows clear need and the privacy/retention/single-writer rules are
+settled.
 
 ### Logic Capture Improvements - Current
 
@@ -240,6 +248,24 @@ must be preview-first/dry-run and emit task packets or checklists; it should not
 coordinate worktrees, mutate branches, or edit shared memory directly. Worker agents contribute via
 handoff summaries while the orchestrator remains the single writer for session logs, policy, index,
 routing files, lockfiles, seed templates, and generated binaries unless explicitly delegated.
+
+### Worktree Dependency Strategy - Proposed
+
+Source: an inbox proposal on worktrees, tmux, and dependency isolation, refined into
+[`worktree-dependency-strategy-plan.md`](worktree-dependency-strategy-plan.md). **Proposed, not yet
+built.**
+
+Priority: **P2 after the shipped Fan-Out Recipe and graph metadata work.** It directly improves the
+safety of Codex/Claude/other-agent parallel work, but should remain documentation-first until manual
+use proves a scaffold is worth adding.
+
+1. Add dependency tiers (`none`, `isolated`, `dependency-changing`) and dependency task-packet fields
+   to `agent_collaboration.md`.
+2. Make dependency definition files and lockfiles explicit orchestrator-owned shared files.
+3. Add a short optional tmux control-room note while keeping Git branches, worktrees, task packets,
+   validation records, and handoff evidence as the portable contract.
+4. Defer any `memory-seed workflow fanout` scaffold to a preview-only, dry-run command after repeated
+   manual validation.
 
 ### Seed Skill Promotions - Proposed
 

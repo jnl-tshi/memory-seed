@@ -18,7 +18,7 @@ tags:
 > `Memory-Seed Logic Capture Improvement.md` (its "ephemeral memory nexus" / attention-weighted
 > retrieval proposal), refined through review. Companion to
 > [`supersession-edges-plan.md`](supersession-edges-plan.md) (defines the harmony contract; its P1
-> core shipped 2026-07-03) and [`related-entries-generation-plan.md`](../related-entries-generation-plan.md)
+> core shipped 2026-07-03) and [`related-entries-generation-plan.md`](related-entries-generation-plan.md)
 > (reuses `build_related_entry_graph()`).
 
 ## Motivation

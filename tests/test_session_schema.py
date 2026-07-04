@@ -183,6 +183,7 @@ class SessionSchemaTests(unittest.TestCase):
             "skill: session_logging.md",
             "skill: end_of_turn.md",
             "skill: memory_hygiene.md",
+            "skill: proposal_lifecycle.md",
             "skill: subproject_runtime.md",
         ):
             self.assertIn(phrase, content)

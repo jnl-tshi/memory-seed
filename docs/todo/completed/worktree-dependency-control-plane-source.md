@@ -1,6 +1,6 @@
 ---
-title: Memory Seed Worktree, tmux, and Dependency Strategy Proposal
-status: proposal
+title: Memory Seed Worktree, tmux, and Dependency Strategy Source
+status: refined-into-active-plan
 created: 2026-07-04
 repo: jnl-tshi/memory-seed
 scope:
@@ -11,7 +11,11 @@ scope:
   - control-plane-integration
 ---
 
-# Memory Seed Worktree, tmux, and Dependency Strategy Proposal
+# Memory Seed Worktree, tmux, and Dependency Strategy Source
+
+> **Status: RESOLVED SOURCE, refined 2026-07-04.** The active implementation proposal is
+> [`../worktree-dependency-strategy-plan.md`](../worktree-dependency-strategy-plan.md). This file is
+> retained as source context only.
 
 ## Executive summary
 
@@ -1249,4 +1253,3 @@ vendor-neutral
 human-auditable
 safe for gradual adoption
 ```
-

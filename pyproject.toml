@@ -66,6 +66,7 @@ memory_seed = [
   "seed/.memory-seed/skills/memory_doctor.md",
   "seed/.memory-seed/skills/memory_hygiene.md",
   "seed/.memory-seed/skills/office_document_editing.md",
+  "seed/.memory-seed/skills/proposal_lifecycle.md",
   "seed/.memory-seed/skills/release_publishing.md",
   "seed/.memory-seed/skills/session_logging.md",
   "seed/.memory-seed/skills/subproject_runtime.md",
