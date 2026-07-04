@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.14
+memory-system-version: 2.15
 tags:
   - memory-seed
   - audit
@@ -8,7 +8,7 @@ tags:
 
 # Memory Seed — Functionality Audit
 
-**As of:** 2026-07-04 · control-plane `2.14` · package `2.14.0`
+**As of:** 2026-07-04 · control-plane `2.15` · package `2.15.0`
 **Scope:** every current feature, how the subsystems relate, how data flows, plus a roadmap section for upcoming work.
 
 ---

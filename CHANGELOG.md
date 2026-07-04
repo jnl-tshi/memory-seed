@@ -4,6 +4,10 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- _Nothing yet._
+
+## 2.15.0 - 2026-07-04
+
 - Added an opt-in `exclude_superseded` filter to `memory_search` (default `false`). When set, entries
   with a non-empty computed `superseded_by` are dropped from that query's results only — an opt-in
   narrowing like `date_from`/`date_to`, never a default and never a hard exclusion otherwise, so
