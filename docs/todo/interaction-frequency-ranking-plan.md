@@ -10,11 +10,14 @@ tags:
 
 # Interaction-Frequency Ranking - Scope
 
-> **Status: PROPOSED. Option C decided as the first increment; Option B is the stated end goal
-> (deferred).** Source: external review doc `Memory-Seed Logic Capture Improvement.md` (its
+> **Status: P1a IMPLEMENTED 2026-07-03 (unreleased); P1b unblocked, not yet built; Option B remains
+> the deferred end goal.** `related_degree` (inbound backlink count) is exposed read-only via
+> `memory-seed link show` and `memory_get_chunk`; default `memory_search` ranking is untouched.
+> Source: external review doc `Memory-Seed Logic Capture Improvement.md` (its
 > "ephemeral memory nexus" / attention-weighted retrieval proposal), refined through review.
 > Companion to [`supersession-edges-plan.md`](supersession-edges-plan.md) (defines the harmony
-> contract this plan depends on) and [`related-entries-generation-plan.md`](related-entries-generation-plan.md)
+> contract this plan depends on; its P1 core shipped 2026-07-03, so P1b is unblocked) and
+> [`related-entries-generation-plan.md`](related-entries-generation-plan.md)
 > (reuses `build_related_entry_graph()`).
 
 ## Motivation
@@ -49,6 +52,14 @@ Split P1 into two slices so the plan does not claim supersession-aware scoring b
 - Expose `related_degree` read-only via `memory-seed link show <entry_id>`, `memory_get_chunk`
   metadata, and Memory Lense graph node metadata.
 - Do **not** blend it into `memory_search`'s default ranking math.
+- **Naming collision found at implementation time (2026-07-03):** Lense graph nodes already carry a
+  `related_degree` field (`_related_degrees()` in `lense.py`) that counts **inbound + outbound**
+  explicit edges combined - a node-connectivity display metric from Lense V1, not this plan's
+  inbound-only importance precursor. P1a shipped the inbound-only definition on `link show` /
+  `memory_get_chunk` and deliberately left Lense's shipped display metric untouched rather than
+  silently redefining UI behavior under the same name. Reconciling the two (rename one, or align
+  Lense to inbound-only) belongs to the P0 shared graph-contract work and must be settled before
+  P1b exposes `importance_score` in Lense.
 
 ### P1b - supersession-aware importance score
 

@@ -127,11 +127,17 @@ def call_tool(
             raise ValueError(f"chunk_id not found: {chunk_id}")
         payload = _chunk_to_dict(found)
         superseded_by: list[str] = []
+        related_degree = 0
         if found.entry_id:
             node = build_related_entry_graph(chunks=entry_chunks).get(found.entry_id)
             if node is not None:
                 superseded_by = list(node.superseded_by)
+                # Inbound backlink count only - the raw signal the ranking plan
+                # builds importance_score on. Deliberately NOT the combined
+                # in+out degree Lense's graph nodes display under the same name.
+                related_degree = len(node.inbound)
         payload["superseded_by"] = superseded_by
+        payload["related_degree"] = related_degree
         return {"chunk": payload}
 
     raise ValueError(f"Unknown tool: {name}")
