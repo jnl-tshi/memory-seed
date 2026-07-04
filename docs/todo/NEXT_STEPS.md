@@ -4,7 +4,7 @@ These items need user judgement, account access, or real-client validation.
 
 ## Active Roadmap
 
-Approved 2026-06-13. Incremental release history has moved from 2.6.0 through the current 2.13.0
+Approved 2026-06-13. Incremental release history has moved from 2.6.0 through the current 2.14.0
 release. Source: docs/todo review + session findings.
 
 ### Release 2.6.0 (shipped 2026-06-13)
@@ -95,6 +95,28 @@ First batch of multi-user Phase 3 increments from the reviewed 3.0 plan
 - Packaging fix: every seeded file (ESR commands, hooks, document skills, new lazy skills) is now
   included in wheel/sdist package data.
 
+### Release 2.14.0 (shipped 2026-07-03)
+
+- **Participant-count session-layout gate:** configured solo users stay on the shared flat session
+  file until `.memory-seed/project.yaml` lists 2+ participants.
+- **One-time identity setup offer:** SessionStart suggests local identity setup once when none is
+  configured, tracked by a gitignored stamp.
+- **Doctor local-user warning:** `doctor` warns when a configured local user has no matching
+  participant registry entry.
+- **Legacy-flat links-check fix:** entry-level `related_entries` validation now runs for this repo's
+  flat session layout as well as per-user/day files.
+- **Working Principles / skill guidance:** decision-ladder and guard-preservation bullets, Mermaid
+  usage guidance, failed-approach logging, and the Fan-Out Recipe in `agent_collaboration.md`.
+
+### Unreleased after 2.14.0
+
+- **Typed supersession edges P1:** `supersedes`, computed `superseded_by`, links-check guards, CLI
+  and MCP exposure.
+- **Git commit entry linking P1:** `Memory-Entry:` trailer, optional `commits:` field, git-gated
+  validation, and `memory-seed link commits`.
+- **Ranking P1a/P1b:** `inbound_relation_count`, supersession-aware `importance_score`, and the
+  Memory Lense graph-node rename from `related_degree` to `connectivity`.
+
 ### 3.0 - In Progress
 
 See the reviewed, sequenced plan: [`3.0-plan.md`](3.0-plan.md).
@@ -139,12 +161,12 @@ Specs:
 ### Proposal Priority Order
 
 P0 - **Roadmap hygiene and shared contracts.** Keep the coordinating docs current, resolve stale
-3.0/UI status, fix audit counts/labels, and define the shared graph/validation contract for
-`related_entries`, future `supersedes`, and future `commits`.
+3.0/UI status, fix audit counts/labels, and keep the shared graph/validation contract aligned for
+`related_entries`, `supersedes`, `commits`, `inbound_relation_count`, and `importance_score`.
 
 P1 - **Low-risk guidance and graph semantics.** Failed-approaches logging, Mermaid usage guidance,
-and the fanout collaboration recipe shipped 2026-07-03 (unreleased). Next: `supersedes` P1, then
-git commit linking P1.
+the fanout collaboration recipe, `supersedes` P1, git commit linking P1, and ranking P1a/P1b have
+all shipped or are queued in unreleased commits.
 
 P2 - **Read-only surfacing before behavior changes.** Expose raw `inbound_relation_count`, commit
 metadata, and later `importance_score` as inspectable metadata before any default search-ranking
@@ -154,22 +176,22 @@ P3 - **Deferred mutation and automation.** Hold related-entry backfill / `link a
 telemetry, fanout CLI scaffolding, and render-verification automation until manual use shows clear
 need and the privacy/retention/single-writer rules are settled.
 
-### Logic Capture Improvements - Proposed
+### Logic Capture Improvements - Current
 
 Source: `Memory-Seed Logic Capture Improvement.md` (external review), evaluated against the current
-codebase and refined through discussion. Items 4 and 5 shipped 2026-07-03 (unreleased); the rest
-remain **proposed, not yet decided or built** — each has its own fully-specced plan doc.
+codebase and refined through discussion. Five implementation docs now live in
+`docs/todo/completed/`; the only active follow-on from this cluster is the opt-in
+exclude-superseded filter.
 
-1. [`git-commit-entry-linking-plan.md`](git-commit-entry-linking-plan.md) — **P1 implemented
+1. [`git-commit-entry-linking-plan.md`](completed/git-commit-entry-linking-plan.md) — **P1 implemented
    2026-07-03 (unreleased):** the `Memory-Entry:` trailer convention, `commits:` schema field,
    git-gated `links check` validation, and read-only `memory-seed link commits` are built and
    tested. Remaining: the deferred P2 reminder-only post-commit hook.
-2. [`supersession-edges-plan.md`](supersession-edges-plan.md) — **P1 core implemented 2026-07-03
+2. [`supersession-edges-plan.md`](completed/supersession-edges-plan.md) — **P1 fully implemented 2026-07-03/04
    (unreleased):** the typed `supersedes` edge, read-time `superseded_by` inverse, `links check`
-   validation (dangling/self/postdates/cycle guard), and `link show`/`memory_get_chunk` exposure are
-   built and tested. Remaining: the harmony-contract dampening (lands with ranking P1b) and deferred
-   P2 Lense surfacing.
-3. [`interaction-frequency-ranking-plan.md`](interaction-frequency-ranking-plan.md) — **P1a + P1b
+   validation (dangling/self/postdates/cycle guard), `link show`/`memory_get_chunk` exposure, and
+   harmony-contract dampening are built and tested. Remaining: deferred P2 Lense surfacing.
+3. [`interaction-frequency-ranking-plan.md`](completed/interaction-frequency-ranking-plan.md) — **P1a + P1b
    implemented (unreleased):** raw `inbound_relation_count` and supersession-aware `importance_score`
    (dampened ×0.25 when superseded) exposed read-only via `link show` and `memory_get_chunk`; default
    ranking untouched. Lense's combined-degree display field renamed to `connectivity` to resolve the
@@ -177,20 +199,20 @@ remain **proposed, not yet decided or built** — each has its own fully-specced
    access-frequency telemetry (Option B) is the deferred end goal; an optional commit-reference term
    on `importance_score` is unblocked but out of scope until there's a reason.
 4. [`mermaid-usage-guidance-plan.md`](completed/mermaid-usage-guidance-plan.md) — **implemented
-   2026-07-03 (unreleased):** the Working Principles bullet (plain text by default, Mermaid only for
+   2026-07-03 (shipped 2.14):** the Working Principles bullet (plain text by default, Mermaid only for
    spatial/temporal/concurrent structure, semantic freshness included) is in `agent-rules.md` + seed
    twin.
 5. [`failed-approaches-logging-plan.md`](completed/failed-approaches-logging-plan.md) — **implemented
-   2026-07-03 (unreleased):** the attempted-and-failed logging rule is in `session_logging.md`'s
+   2026-07-03 (shipped 2.14):** the attempted-and-failed logging rule is in `session_logging.md`'s
    Reason Rules + seed twin.
 6. [`exclude-superseded-filter-plan.md`](exclude-superseded-filter-plan.md) — surfaced during the
    2026-07-03 synergy evaluation, not the original external review: an opt-in `memory_search` filter
    to narrow results to non-superseded entries only, never a default and never a hard exclusion
-   unless requested. Blocked on `supersession-edges-plan.md` P1 (`superseded_by` must exist first).
+   unless requested. Now unblocked because `superseded_by` exists.
 
 Items 1 and 2 shared a discovered dependency — `links check`'s dangling-`related_entries` validation
 used to only run against per-user-day session files, not this repo's own legacy-flat layout — fixed
-2026-07-02 (unreleased). Both items are now unblocked; see either plan's "Known Dependency" section.
+2026-07-02 and shipped in 2.14. Both items are now unblocked; see either plan's "Known Dependency" section.
 
 The sequencing dependency is now explicit: ship `supersedes` before any ranking surface claims to be
 supersession-aware; keep `inbound_relation_count` as a raw read-only signal until then; treat
@@ -198,11 +220,11 @@ supersession-aware; keep `inbound_relation_count` as a raw read-only signal unti
 explanations.
 Failed approaches remain session-log evidence under `A`, not a new graph edge type.
 
-### Agent Collaboration Workflow - Implemented (unreleased)
+### Agent Collaboration Workflow - Implemented (shipped 2.14)
 
 Source: a user-uploaded multi-agent fanout/review workflow diagram, evaluated via a fan-out
 research pass (3 subagents) plus an opus-tier critique, with the user resolving the one open
-question raised. **Implemented 2026-07-03 (unreleased).**
+question raised. **Implemented 2026-07-03 and shipped in 2.14.**
 
 1. [`agent-fanout-workflow-plan.md`](completed/agent-fanout-workflow-plan.md) — the named "Fan-Out
    Recipe: Explore / Plan / Implement / Validate" now lives in

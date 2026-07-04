@@ -13,13 +13,14 @@ tags:
 > synergy evaluation of `supersession-edges-plan.md` and `interaction-frequency-ranking-plan.md`
 > against the current MCP filter surface — not the external `Memory-Seed Logic Capture Improvement.md`
 > review the other five logic-capture plans derive from. Companion to
-> [`supersession-edges-plan.md`](supersession-edges-plan.md) (defines `supersedes`/`superseded_by`)
-> and [`interaction-frequency-ranking-plan.md`](interaction-frequency-ranking-plan.md) (defines the
+> [`supersession-edges-plan.md`](completed/supersession-edges-plan.md) (defines `supersedes`/`superseded_by`)
+> and [`interaction-frequency-ranking-plan.md`](completed/interaction-frequency-ranking-plan.md) (defines the
 > harmony-contract dampening this filter must not duplicate or contradict).
 
 ## Motivation
 
-Once `supersession-edges-plan.md` ships, every chunk exposes a computed `superseded_by` inverse.
+Since `supersession-edges-plan.md` shipped P1, every chunk exposes a computed `superseded_by`
+inverse.
 Today's `memory_search` metadata filters (`user`, `date_from`, `date_to`) have no way to narrow
 results to only-current (non-superseded) entries. A caller who already understands supersession
 semantics — a future Lense UI toggle, or an agent doing a "what's the current state" query — has no
@@ -39,8 +40,8 @@ unfiltered result set only when the caller supplies it).
 
 ## What Exists Today
 
-Nothing. `superseded_by` doesn't exist yet — blocked on `supersession-edges-plan.md` P1. The
-`user`/`date_from`/`date_to` filters are scalar frontmatter comparisons applied before ranking. A
+`superseded_by` now exists through `supersession-edges-plan.md` P1, so this proposal is unblocked.
+The `user`/`date_from`/`date_to` filters are scalar frontmatter comparisons applied before ranking. A
 superseded filter is qualitatively heavier: it needs the computed graph inverse (`superseded_by`,
 built the same way `inbound` is in `build_related_entry_graph()`), not a flat frontmatter field —
 plausibly why neither companion plan proposed it already, rather than an oversight.
@@ -66,7 +67,7 @@ plausibly why neither companion plan proposed it already, rather than an oversig
 
 ## Definition of Done (P1)
 
-- Blocked on `supersession-edges-plan.md` P1 shipping (`superseded_by` must exist first).
+- `supersession-edges-plan.md` P1 has shipped, so the prerequisite `superseded_by` inverse exists.
 - Filter parameter added to `memory_search`'s input schema, default `false`, documented as opt-in
   narrowing, not a default-behavior change.
 - Fixture test proving: (a) default behavior is unchanged (superseded entries still returned when the
@@ -75,4 +76,5 @@ plausibly why neither companion plan proposed it already, rather than an oversig
 
 ## Phasing
 
-- **Not startable until `supersession-edges-plan.md` P1 ships.** No standalone value before then.
+- **Startable now:** `supersession-edges-plan.md` P1 has shipped. Keep the increment backend-only and
+  opt-in until real client usage shows a UI/CLI default is needed.

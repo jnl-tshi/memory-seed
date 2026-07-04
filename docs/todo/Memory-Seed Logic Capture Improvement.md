@@ -2,11 +2,11 @@
 
 > **Status: SOURCE REPORT, not an active implementation plan.** The actionable recommendations have
 > been split into scoped Memory Seed proposal docs:
-> [`git-commit-entry-linking-plan.md`](git-commit-entry-linking-plan.md),
-> [`supersession-edges-plan.md`](supersession-edges-plan.md),
-> [`interaction-frequency-ranking-plan.md`](interaction-frequency-ranking-plan.md),
-> [`mermaid-usage-guidance-plan.md`](mermaid-usage-guidance-plan.md), and
-> [`failed-approaches-logging-plan.md`](failed-approaches-logging-plan.md). The XML-style decision
+> [`git-commit-entry-linking-plan.md`](completed/git-commit-entry-linking-plan.md),
+> [`supersession-edges-plan.md`](completed/supersession-edges-plan.md),
+> [`interaction-frequency-ranking-plan.md`](completed/interaction-frequency-ranking-plan.md),
+> [`mermaid-usage-guidance-plan.md`](completed/mermaid-usage-guidance-plan.md), and
+> [`failed-approaches-logging-plan.md`](completed/failed-approaches-logging-plan.md). The XML-style decision
 > node schema below is retained as source material only; current plans chose smaller additive changes
 > to existing Markdown/YAML session entries.
 

@@ -72,7 +72,7 @@ DOCX Windows render lessons
 P0 - Roadmap hygiene and shared contracts:
 
 1. Fix stale roadmap/documentation state: stale P1 wording, stale UI status, proposal counts, missing roadmap entries, and stale Mermaid labels.
-2. Define the shared graph/validation contract for `related_entries`, future `supersedes`, and future `commits` so CLI, MCP, Lense, and `links check` do not diverge.
+2. Keep the shared graph/validation contract aligned for `related_entries`, `supersedes`, `commits`, `inbound_relation_count`, and `importance_score` so CLI, MCP, Lense, and `links check` do not diverge.
 
 P1 - Low-risk guidance and graph semantics:
 

@@ -11,7 +11,7 @@ All notable changes to Memory Seed are summarized here.
   well-cited but retired decision ranks below a live, moderately-cited one, while staying fully
   retrievable (never hidden). Supersession edges never inflate the underlying count — the dampener
   is a post-hoc override. Read-only; default `memory_search` ranking is untouched. From
-  `docs/todo/interaction-frequency-ranking-plan.md` (P1b) and `docs/todo/supersession-edges-plan.md`
+  `docs/todo/completed/interaction-frequency-ranking-plan.md` (P1b) and `docs/todo/completed/supersession-edges-plan.md`
   (harmony contract).
 - Exposed `inbound_relation_count` (ranking P1a): the count of inbound `related_entries` backlinks an
   entry has accumulated (how many other entries reference it), shown by `memory-seed link show` and
@@ -21,7 +21,7 @@ All notable changes to Memory Seed are summarized here.
   unchanged (combined inbound+outbound `related_entries` edges, used for node sizing) — the rename
   resolves a collision with the new inbound-only `inbound_relation_count` above, since the two count
   genuinely different things. The two-field split is documented in
-  `docs/todo/interaction-frequency-ranking-plan.md`.
+  `docs/todo/completed/interaction-frequency-ranking-plan.md`.
 - Added git commit <-> decision entry linking (P1): a `Memory-Entry: <entry_id>` commit-message
   trailer convention (documented as a Working Principles bullet in `agent-rules.md` + seed twin)
   plus an optional `commits:` entry-YAML field of full 40-character SHAs, backfillable only while
@@ -30,7 +30,7 @@ All notable changes to Memory Seed are summarized here.
   `git log --all --grep` trailer scan. `links check` rejects short/malformed hashes always
   (`malformed-commit-hash`) and unknown hashes when a `.git` repository is present
   (`unknown-commit`); outside a git repo, existence checks skip cleanly. From
-  `docs/todo/git-commit-entry-linking-plan.md`.
+  `docs/todo/completed/git-commit-entry-linking-plan.md`.
 - Added typed supersession edges (P1): an optional `supersedes:` list in entry YAML marks earlier
   decisions an entry replaces, kept strictly separate from `related_entries`. The read-time inverse
   (`superseded_by`) is computed in `build_related_entry_graph()` the same way inbound backlinks are,
@@ -39,7 +39,7 @@ All notable changes to Memory Seed are summarized here.
   self-references (`self-supersedes`), forward-only violations where the target postdates the
   referencing entry (`supersedes-postdates`), and same-minute cycles via a DFS (`supersedes-cycle`).
   Superseded entries stay fully retrievable — supersession deprioritizes, never hides. Schema
-  documented in `skills/session_logging.md` (+ seed twin). From `docs/todo/supersession-edges-plan.md`.
+  documented in `skills/session_logging.md` (+ seed twin). From `docs/todo/completed/supersession-edges-plan.md`.
 
 ## 2.14.0 - 2026-07-03
 

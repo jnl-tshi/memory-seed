@@ -18,7 +18,7 @@ tags:
 > Lense UI surfacing. Source: external review doc
 > `Memory-Seed Logic Capture Improvement.md` (the "Supersession Pointer" field in its proposed
 > decision schema). Companion to
-> [`related-entries-generation-plan.md`](related-entries-generation-plan.md) (extends the same
+> [`related-entries-generation-plan.md`](../related-entries-generation-plan.md) (extends the same
 > forward-edge / bidirectional-read-time-traversal model) and
 > [`interaction-frequency-ranking-plan.md`](interaction-frequency-ranking-plan.md) (defines the
 > harmony contract below that the ranking plan depends on). The field name is `supersedes`; the
