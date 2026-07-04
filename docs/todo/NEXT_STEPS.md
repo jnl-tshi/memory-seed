@@ -169,12 +169,13 @@ remain **proposed, not yet decided or built** — each has its own fully-specced
    validation (dangling/self/postdates/cycle guard), and `link show`/`memory_get_chunk` exposure are
    built and tested. Remaining: the harmony-contract dampening (lands with ranking P1b) and deferred
    P2 Lense surfacing.
-3. [`interaction-frequency-ranking-plan.md`](interaction-frequency-ranking-plan.md) — **P1a
-   implemented 2026-07-03 (unreleased):** raw `inbound_relation_count` (inbound backlink count)
-   exposed read-only via `link show` and `memory_get_chunk`; default ranking untouched. The Lense
-   naming collision is resolved (Lense's combined-degree display field renamed to `connectivity`).
-   Next: P1b (supersession-aware `importance_score`) — now fully unblocked; real access-frequency
-   telemetry remains the stated later goal.
+3. [`interaction-frequency-ranking-plan.md`](interaction-frequency-ranking-plan.md) — **P1a + P1b
+   implemented (unreleased):** raw `inbound_relation_count` and supersession-aware `importance_score`
+   (dampened ×0.25 when superseded) exposed read-only via `link show` and `memory_get_chunk`; default
+   ranking untouched. Lense's combined-degree display field renamed to `connectivity` to resolve the
+   name collision. This also completed the supersession harmony contract. Remaining: real
+   access-frequency telemetry (Option B) is the deferred end goal; an optional commit-reference term
+   on `importance_score` is unblocked but out of scope until there's a reason.
 4. [`mermaid-usage-guidance-plan.md`](completed/mermaid-usage-guidance-plan.md) — **implemented
    2026-07-03 (unreleased):** the Working Principles bullet (plain text by default, Mermaid only for
    spatial/temporal/concurrent structure, semantic freshness included) is in `agent-rules.md` + seed

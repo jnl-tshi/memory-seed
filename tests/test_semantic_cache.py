@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from memory_seed.semantic_cache import (
+    SUPERSEDED_IMPORTANCE_DAMPING,
     MemoryChunk,
     build_related_entry_graph,
     extract_memory_chunks,
@@ -583,6 +584,49 @@ class RelatedEntryGraphTests(unittest.TestCase):
         self.assertEqual(graph["ms-c0000000"].inbound, ())
         self.assertEqual(graph["ms-b0000000"].superseded_by, ())
         self.assertEqual(graph["ms-b0000000"].inbound, ("ms-a0000000",))
+
+    def test_importance_score_is_inbound_count_undampened_when_not_superseded(self):
+        cwd = self.make_project()
+        # B and C both cite A; A is never superseded.
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 09:00 - Cited A", "ms-a0000000", "the decision."),
+            _entry("2026-05-10 10:00 - Citer B", "ms-b0000000", "cites A.", related=["ms-a0000000"]),
+            _entry("2026-05-10 11:00 - Citer C", "ms-c0000000", "cites A too.", related=["ms-a0000000"]),
+        )
+
+        graph = build_related_entry_graph(cwd)
+
+        self.assertEqual(graph["ms-a0000000"].importance_score, 2.0)
+
+    def test_importance_score_dampened_for_superseded_entry_below_live_entry(self):
+        # The harmony-contract fixture the DoD requires: a heavily-cited but
+        # superseded entry must score below a live, moderately-cited one.
+        # OLD (ms-aaaa0000): cited by 4, superseded. LIVE (ms-bbbb0000): cited by 2.
+        cwd = self.make_project()
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 08:00 - Old heavily-cited", "ms-aaaa0000", "retired but popular."),
+            _entry("2026-05-10 09:00 - Live moderately-cited", "ms-bbbb0000", "current decision."),
+            _entry("2026-05-10 10:00 - c1", "ms-cccc0001", "x", related=["ms-aaaa0000"]),
+            _entry("2026-05-10 10:01 - c2", "ms-cccc0002", "x", related=["ms-aaaa0000"]),
+            _entry("2026-05-10 10:02 - c3", "ms-cccc0003", "x", related=["ms-aaaa0000"]),
+            _entry("2026-05-10 10:03 - c4", "ms-cccc0004", "x", related=["ms-aaaa0000"]),
+            _entry("2026-05-10 10:04 - c5", "ms-cccc0005", "x", related=["ms-bbbb0000"]),
+            _entry("2026-05-10 10:05 - c6", "ms-cccc0006", "x", related=["ms-bbbb0000"]),
+            _entry("2026-05-10 11:00 - Replacement", "ms-dddd0000", "replaces old.", supersedes=["ms-aaaa0000"]),
+        )
+
+        graph = build_related_entry_graph(cwd)
+
+        old_score = graph["ms-aaaa0000"].importance_score
+        live_score = graph["ms-bbbb0000"].importance_score
+        # Raw: old=4 (dampened to 4*0.25=1.0), live=2 (undampened=2.0).
+        self.assertEqual(old_score, 4 * SUPERSEDED_IMPORTANCE_DAMPING)
+        self.assertEqual(live_score, 2.0)
+        self.assertLess(old_score, live_score)
+        # Supersession never inflated the count itself - it's a post-hoc dampener.
+        self.assertEqual(len(graph["ms-aaaa0000"].inbound), 4)
 
     def test_entry_chunks_parse_commits_field(self):
         cwd = self.make_project()

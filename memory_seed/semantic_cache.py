@@ -27,6 +27,14 @@ STRUCTURAL_QUERY_TERMS = (
 )
 ENTRY_DATETIME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s+-\s+.+$")
 
+# Multiplier applied to a superseded entry's importance_score (the harmony
+# contract from supersession-edges-plan.md). A superseded decision drops to a
+# quarter of its raw citation weight - strong enough that a well-cited but
+# retired decision ranks below a live, moderately-cited one, without erasing it
+# (never hide, only deprioritize). Tunable; affects only the read-only
+# importance_score signal, never default memory_search ranking.
+SUPERSEDED_IMPORTANCE_DAMPING = 0.25
+
 
 @dataclass(frozen=True)
 class MemoryChunk:
@@ -198,6 +206,13 @@ class RelatedEntryNode:
     replaces; ``superseded_by`` is its computed inverse, built the same way as
     ``inbound``. The two edge kinds are never merged: a supersession is a status
     signal (this decision is retired), not a relatedness signal.
+
+    ``importance_score`` is the read-only ranking precursor: the inbound
+    ``related_entries`` count (``len(inbound)``), dampened by
+    ``SUPERSEDED_IMPORTANCE_DAMPING`` when the entry has any ``superseded_by``
+    edge. Supersession edges never contribute to the count itself - the
+    dampener is applied after, as a hard override. Not blended into default
+    ``memory_search`` ranking.
     """
 
     entry_id: str
@@ -208,6 +223,7 @@ class RelatedEntryNode:
     inbound: tuple[str, ...]
     supersedes: tuple[str, ...] = ()
     superseded_by: tuple[str, ...] = ()
+    importance_score: float = 0.0
 
 
 def _entry_order_key(chunk: MemoryChunk) -> tuple[date, datetime, int]:
@@ -252,15 +268,21 @@ def build_related_entry_graph(
 
     graph: dict[str, RelatedEntryNode] = {}
     for entry_id, chunk in by_id.items():
+        inbound_ids = tuple(dict.fromkeys(inbound[entry_id]))
+        superseded_by_ids = tuple(dict.fromkeys(superseded_by[entry_id]))
+        importance = float(len(inbound_ids))
+        if superseded_by_ids:
+            importance *= SUPERSEDED_IMPORTANCE_DAMPING
         graph[entry_id] = RelatedEntryNode(
             entry_id=entry_id,
             title=chunk.title,
             source_path=chunk.source_path,
             session_date=chunk.session_date,
             outbound=tuple(chunk.related_entries),
-            inbound=tuple(dict.fromkeys(inbound[entry_id])),
+            inbound=inbound_ids,
             supersedes=tuple(chunk.supersedes),
-            superseded_by=tuple(dict.fromkeys(superseded_by[entry_id])),
+            superseded_by=superseded_by_ids,
+            importance_score=importance,
         )
     return graph
 

@@ -299,6 +299,41 @@ class MemoryMcpServerTests(unittest.TestCase):
         # Inbound backlinks only: citing others earns nothing; being cited does.
         self.assertEqual(cited["chunk"]["inbound_relation_count"], 2)
         self.assertEqual(citer["chunk"]["inbound_relation_count"], 0)
+        # Not superseded: importance_score equals the raw inbound count.
+        self.assertEqual(cited["chunk"]["importance_score"], 2.0)
+
+    def test_call_tool_memory_get_chunk_dampens_importance_score_when_superseded(self):
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:00 - Retired decision\n\n"
+            "```yaml\n"
+            "entry_id: ms-retired00\n"
+            "```\n\n"
+            "Cited but later superseded.\n\n"
+            "## 2026-05-17 10:00 - Citer\n\n"
+            "```yaml\n"
+            "entry_id: ms-citer0001\n"
+            "related_entries:\n"
+            "  - ms-retired00\n"
+            "```\n\n"
+            "Cites the retired decision.\n\n"
+            "## 2026-05-17 11:00 - Replacement\n\n"
+            "```yaml\n"
+            "entry_id: ms-replace00\n"
+            "supersedes:\n"
+            "  - ms-retired00\n"
+            "```\n\n"
+            "Replaces it.\n",
+        )
+
+        retired = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": "ms-retired00"})
+
+        # Raw inbound count is 1, but the superseded dampener applies.
+        self.assertEqual(retired["chunk"]["inbound_relation_count"], 1)
+        self.assertEqual(retired["chunk"]["superseded_by"], ["ms-replace00"])
+        self.assertLess(retired["chunk"]["importance_score"], 1.0)
 
     def test_call_tool_memory_get_chunk_returns_per_user_chunk(self):
         cwd = self.make_project()

@@ -128,6 +128,7 @@ def call_tool(
         payload = _chunk_to_dict(found)
         superseded_by: list[str] = []
         inbound_relation_count = 0
+        importance_score = 0.0
         if found.entry_id:
             node = build_related_entry_graph(chunks=entry_chunks).get(found.entry_id)
             if node is not None:
@@ -137,8 +138,12 @@ def call_tool(
                 # built on. Distinct from Lense's `connectivity`, which counts
                 # combined inbound+outbound edges for node sizing.
                 inbound_relation_count = len(node.inbound)
+                # inbound_relation_count dampened when this entry is superseded
+                # (read-only; not blended into default search ranking).
+                importance_score = node.importance_score
         payload["superseded_by"] = superseded_by
         payload["inbound_relation_count"] = inbound_relation_count
+        payload["importance_score"] = importance_score
         return {"chunk": payload}
 
     raise ValueError(f"Unknown tool: {name}")

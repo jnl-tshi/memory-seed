@@ -288,6 +288,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  supersedes ({len(node.supersedes)}): " + (", ".join(node.supersedes) or "-"))
             print(f"  superseded_by ({len(node.superseded_by)}): " + (", ".join(node.superseded_by) or "-"))
             print(f"  inbound_relation_count: {len(node.inbound)}")
+            print(f"  importance_score: {node.importance_score:.2f}" + ("  (superseded: dampened)" if node.superseded_by else ""))
             return 0
         if args.link_command == "commits":
             from .core import find_trailer_commits, resolve_runtime

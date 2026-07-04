@@ -10,14 +10,15 @@ tags:
 
 # Interaction-Frequency Ranking - Scope
 
-> **Status: P1a IMPLEMENTED 2026-07-03 (unreleased); P1b unblocked, not yet built; Option B remains
-> the deferred end goal.** `related_degree` (inbound backlink count) is exposed read-only via
-> `memory-seed link show` and `memory_get_chunk`; default `memory_search` ranking is untouched.
-> Source: external review doc `Memory-Seed Logic Capture Improvement.md` (its
-> "ephemeral memory nexus" / attention-weighted retrieval proposal), refined through review.
-> Companion to [`supersession-edges-plan.md`](supersession-edges-plan.md) (defines the harmony
-> contract this plan depends on; its P1 core shipped 2026-07-03, so P1b is unblocked) and
-> [`related-entries-generation-plan.md`](related-entries-generation-plan.md)
+> **Status: P1a + P1b IMPLEMENTED (unreleased); Option B (real access-frequency telemetry) remains
+> the deferred end goal.** `inbound_relation_count` (raw inbound backlink count) and
+> `importance_score` (that count, dampened by `SUPERSEDED_IMPORTANCE_DAMPING = 0.25` when the entry
+> is superseded) are both exposed read-only via `memory-seed link show` and `memory_get_chunk`;
+> default `memory_search` ranking is untouched. Source: external review doc
+> `Memory-Seed Logic Capture Improvement.md` (its "ephemeral memory nexus" / attention-weighted
+> retrieval proposal), refined through review. Companion to
+> [`supersession-edges-plan.md`](supersession-edges-plan.md) (defines the harmony contract; its P1
+> core shipped 2026-07-03) and [`related-entries-generation-plan.md`](related-entries-generation-plan.md)
 > (reuses `build_related_entry_graph()`).
 
 ## Motivation
@@ -68,10 +69,14 @@ Split P1 into two slices so the plan does not claim supersession-aware scoring b
   inbound edges. Outbound `supersedes` count (cleanup credit) does not add to `importance_score`.
   This is the concrete failure mode reviewed and resolved before this plan was written: a naive
   backlink count would otherwise reward a decision for being deprecated.
-- P1b depends on `supersession-edges-plan.md` P1 (shipped 2026-07-03), which is now satisfied — P1b is unblocked.
-- Once `git-commit-entry-linking-plan.md` ships, extend `importance_score` with a second free term:
-  commit-reference count (how many commits carry a `Memory-Entry:` trailer for this entry, or list
-  it in `commits:`).
+- P1b depends on `supersession-edges-plan.md` P1 (shipped 2026-07-03) — **implemented 2026-07-04:**
+  `importance_score` is a computed field on `RelatedEntryNode` (`= len(inbound)`, times
+  `SUPERSEDED_IMPORTANCE_DAMPING` when `superseded_by` is non-empty), exposed via `link show` and
+  `memory_get_chunk`.
+- **Deferred follow-on (not built):** once commit-linking usage justifies it, extend
+  `importance_score` with a second free term — commit-reference count (commits carrying a
+  `Memory-Entry:` trailer for this entry, or listed in `commits:`). Commit-linking P1 shipped
+  2026-07-03, so this is unblocked but intentionally out of P1b scope until there's a reason.
 - **Exposure before ranking changes.** Surface `inbound_relation_count` / `importance_score` read-only first.
   Do **not** blend either signal into `memory_search`'s default ranking math until real usage shows
   the derived signal is actually useful - this matches the existing "Ranking Experiments" policy
@@ -138,8 +143,10 @@ logs. Flag under `memory_hygiene.md` when this gets built in detail.
    separate, explicitly-requested signal indefinitely.
 2. JSONL retention/compaction policy for P2 (unbounded growth needs a periodic fold-and-truncate
    step).
-3. Exact dampening multiplier for the supersession harmony contract - needs a concrete number once
-   P1b ships and there's a real score to dampen against.
+3. ~~Exact dampening multiplier for the supersession harmony contract~~ - resolved 2026-07-04:
+   `SUPERSEDED_IMPORTANCE_DAMPING = 0.25` (a superseded entry drops to a quarter of its raw citation
+   weight). Strong enough that a well-cited retired decision ranks below a live, moderately-cited one
+   while staying fully retrievable. Tunable; affects only the read-only `importance_score`.
 
 ## Definition of Done (P1)
 
@@ -147,7 +154,9 @@ logs. Flag under `memory_hygiene.md` when this gets built in detail.
 - [x] P1a exposes `inbound_relation_count` via `memory-seed link show <entry_id>` and
   `memory_get_chunk`, not blended into default ranking. (Shipped 2026-07-03; Lense's separate
   `connectivity` display field renamed 2026-07-04.)
-- [ ] P1b computes `importance_score` with the supersession dampener applied per the harmony contract.
-- [ ] P1b fixture proves a superseded-but-heavily-cited entry scores below a non-superseded,
-  moderately-cited one.
+- [x] P1b computes `importance_score` with the supersession dampener applied per the harmony
+  contract (`SUPERSEDED_IMPORTANCE_DAMPING = 0.25`, computed on `RelatedEntryNode`), exposed
+  read-only via `link show` and `memory_get_chunk`. (Shipped 2026-07-04.)
+- [x] P1b fixture proves a superseded-but-heavily-cited entry (4 inbound → 1.0) scores below a
+  non-superseded, moderately-cited one (2 inbound → 2.0); discrimination-checked.
 - Concise session log entry.

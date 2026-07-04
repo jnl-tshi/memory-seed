@@ -10,11 +10,12 @@ tags:
 
 # Typed Supersession Edges - Scope
 
-> **Status: P1 CORE IMPLEMENTED 2026-07-03 (unreleased).** Schema parsing, the read-time
-> `superseded_by` inverse, `links check` validation (dangling/self/postdates/cycle), `link show` +
-> `memory_get_chunk` exposure, and the `session_logging.md` schema doc are built and tested. Still
-> open: the harmony-contract dampening (lands with `interaction-frequency-ranking-plan.md` P1b) and
-> the deferred P2 Lense UI surfacing. Source: external review doc
+> **Status: P1 IMPLEMENTED (unreleased).** Schema parsing, the read-time `superseded_by` inverse,
+> `links check` validation (dangling/self/postdates/cycle), `link show` + `memory_get_chunk`
+> exposure, and the `session_logging.md` schema doc shipped 2026-07-03; the harmony-contract
+> dampening shipped 2026-07-04 with `interaction-frequency-ranking-plan.md` P1b
+> (`SUPERSEDED_IMPORTANCE_DAMPING = 0.25`, with the required fixture). Still open: the deferred P2
+> Lense UI surfacing. Source: external review doc
 > `Memory-Seed Logic Capture Improvement.md` (the "Supersession Pointer" field in its proposed
 > decision schema). Companion to
 > [`related-entries-generation-plan.md`](related-entries-generation-plan.md) (extends the same
@@ -140,19 +141,18 @@ Extend `memory-seed link show <entry_id>` and `memory_get_chunk` output to inclu
    shouldn't be automated without more signal.
 3. ~~The legacy-flat `links check` gap~~ — resolved 2026-07-02 (see Known Dependency above); no
    longer blocking either this plan or `git-commit-entry-linking-plan.md`.
-4. Exact dampening multiplier value for the harmony contract (item 2 above) — needs a concrete
-   number once `interaction-frequency-ranking-plan.md` P1 actually ships and there's a real score to
-   dampen.
+4. ~~Exact dampening multiplier value for the harmony contract~~ — resolved 2026-07-04:
+   `SUPERSEDED_IMPORTANCE_DAMPING = 0.25`, shipped with `interaction-frequency-ranking-plan.md` P1b.
 
 ## Definition of Done (P1)
 
-- `supersedes` documented in `session_logging.md` alongside `related_entries`.
-- Read-time `superseded_by` inverse computed and exposed via `link show` / `memory_get_chunk`.
-- `links check` validates `supersedes` refs with the same rigor as `related_entries` (post-fix, not
-  inheriting the legacy-flat gap silently).
-- A forward-only/cycle guard in `links check` for `supersedes` (see Validation above) — signed off
-  into P1 scope 2026-07-03; today's acyclicity claim rests on an unenforced authoring convention.
-- The harmony-contract dampening rule implemented wherever `importance_score` is computed
-  (`interaction-frequency-ranking-plan.md` P1), with a fixture test proving a superseded-but-heavily-
-  cited entry ranks below a non-superseded, moderately-cited one.
+- [x] `supersedes` documented in `session_logging.md` alongside `related_entries`.
+- [x] Read-time `superseded_by` inverse computed and exposed via `link show` / `memory_get_chunk`.
+- [x] `links check` validates `supersedes` refs with the same rigor as `related_entries` (post-fix,
+  not inheriting the legacy-flat gap silently).
+- [x] A forward-only/cycle guard in `links check` for `supersedes` (see Validation above) — shipped
+  2026-07-03 (`supersedes-postdates` + `supersedes-cycle`), replacing the unenforced convention.
+- [x] The harmony-contract dampening rule implemented wherever `importance_score` is computed
+  (`interaction-frequency-ranking-plan.md` P1b, shipped 2026-07-04), with a fixture test proving a
+  superseded-but-heavily-cited entry ranks below a non-superseded, moderately-cited one.
 - Concise session log entry.

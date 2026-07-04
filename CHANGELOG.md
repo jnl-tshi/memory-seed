@@ -4,6 +4,15 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Exposed `importance_score` (ranking P1b): `inbound_relation_count` dampened by a fixed multiplier
+  (`SUPERSEDED_IMPORTANCE_DAMPING = 0.25`) when the entry has any inbound `supersedes` edge —
+  computed on `RelatedEntryNode`, shown by `memory-seed link show` (flagged when dampened) and
+  returned in `memory_get_chunk` metadata. This completes the supersession harmony contract: a
+  well-cited but retired decision ranks below a live, moderately-cited one, while staying fully
+  retrievable (never hidden). Supersession edges never inflate the underlying count — the dampener
+  is a post-hoc override. Read-only; default `memory_search` ranking is untouched. From
+  `docs/todo/interaction-frequency-ranking-plan.md` (P1b) and `docs/todo/supersession-edges-plan.md`
+  (harmony contract).
 - Exposed `inbound_relation_count` (ranking P1a): the count of inbound `related_entries` backlinks an
   entry has accumulated (how many other entries reference it), shown by `memory-seed link show` and
   returned in `memory_get_chunk` metadata. Read-only — default `memory_search` ranking is untouched,
