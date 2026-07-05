@@ -131,9 +131,11 @@ Multi-user Phases 1-2 shipped (2.9/2.10), the core multi-user increments (A-P3 i
 A-ID 80-bit entry IDs, A-P4 MCP metadata/filters, S2 participant registry parsing, and A-P5
 `migrate sessions-layout`) shipped in 2.12.0, and related-entries generation P1 shipped in 2.13.0.
 The 3.0 plan is now partly historical: shipped sections are retained for context. The Pillar B
-distribution choice was decided on 2026-07-05 (spin out `memory-seed-explorer`; see
-[`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md)), leaving
-related-entries P2 as the one still-open 3.0 decision. The shared graph-edge contract across
+distribution choice was decided on 2026-07-05 (spin out a companion UI package; see
+[`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md)), and the
+user later chose Memory Trail as the intended product name
+([`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md)), leaving related-entries P2 as
+the one still-open 3.0 decision. The shared graph-edge contract across
 CLI/MCP/Lense surfaces is written up in [`../graph-edge-contract.md`](../graph-edge-contract.md).
 Remaining work:
 
@@ -147,11 +149,13 @@ Remaining work:
    discovery and inspection.
 2. **Pillar B separate-distribution — decided 2026-07-05, plan drafted.** Memory Lense shipped in
    2.13.0 as an in-package optional extra (`memory-seed[lense]`) — a **V1 delivered inside the core
-   package** as a UI prototype vehicle. The decision is now made: spin the Explorer out into a
-   separate `memory-seed-explorer` companion package, with the in-package extra going maintenance-only.
+   package** as a UI prototype vehicle. The decision is now made: spin the UI out into a separate
+   companion package, with the in-package extra going maintenance-only.
    The scoped two-phase plan (freeze a public retrieval service in-package, then extract the
    distribution) is
-   [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md). It is
+   [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md). The
+   intended product name is Memory Trail; package/command naming is governed by
+   [`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md). It is
    P2-priority (after the unreleased ranking/supersession/commit-linking batch releases) and not a
    blocker for any shipped surface. Any future UI work consumes `build_related_entry_graph()` and the
    Phase-1 retrieval service rather than forking graph or ranking logic.
@@ -165,10 +169,12 @@ Specs:
 
 - [`multi-user-session-memory-proposal.md`](completed/multi-user-session-memory-proposal.md) (completed — full scope shipped through 2.12.0)
 - [`multi-user-deep-research-report.md`](completed/multi-user-deep-research-report.md) (completed — recommendations fully acted on)
-- [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md) (**active, canonical** — the decided Pillar B split into a separate `memory-seed-explorer` package; two-phase scoped plan, 2026-07-05)
+- [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md) (**active, canonical** — the decided Pillar B split into a separate companion UI package; two-phase scoped plan, 2026-07-05)
+- [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md) (**active** — two-class diagram model: Class-1 auto-derived structural views + exportable report pack, Class-2 authored `sessions/diagrams/<entry_id>.md` reasoning sidecars validated by `links check`; a no-LLM Explorer can't derive reasoning diagrams from prose, so they're authored at entry time; 2026-07-05)
 - [`user-interface-deep-research-report.md`](completed/user-interface-deep-research-report.md) (completed 2026-07-05 — historical research; its one live tail, the Pillar B decision, was made and split into the distribution plan above; citation artifacts scrubbed 2026-07-05)
 
 - [`memory-explorer-entry-level-ui-results-plan.md`](memory-explorer-entry-level-ui-results-plan.md) (**active** - Explorer UI should present entries as selectable results and highlight subsection matches inside those entries, connected to the UI source-learnings audit principles)
+- [`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md) (**active** - rename the Explorer/Lense UI workstream to Memory Trail before the companion package is published; keep legacy Lense naming as an alias/deprecation path)
 
 ### Proposal Priority Order
 
@@ -183,6 +189,10 @@ all shipped or are queued in unreleased commits.
 P2 - **Read-only surfacing before behavior changes.** Expose raw `inbound_relation_count`, commit
 metadata, and later `importance_score` as inspectable metadata before any default search-ranking
 changes.
+
+P2a - **Memory Trail naming transition.** Apply the Memory Trail product name to the Explorer/Lense
+UI workstream before publishing the companion package, after package-name availability checks and
+with `lense` kept as a deprecated alias for existing users.
 
 P3 - **Parallel-work environment policy.** Worktree dependency tiers, dependency task-packet
 fields, dependency-definition shared-file rules, and optional tmux control-room guidance shipped in

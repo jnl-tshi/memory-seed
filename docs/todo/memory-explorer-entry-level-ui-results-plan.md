@@ -13,15 +13,15 @@ tags:
 > **Status:** ACTIVE - scoped UI proposal, created 2026-07-05.
 > **Priority:** P2 companion to
 > [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md). It should
-> shape the Explorer retrieval-service contract before the UI is extracted into
-> `memory-seed-explorer`.
+> shape the Explorer/Memory Trail retrieval-service contract before the UI is extracted into the
+> companion package.
 > **Source:** User decision 2026-07-05: current Memory Lense can show individual session-entry
 > subsections as selectable frontend chunks, but that granularity is unhelpful for users. A highly
 > relevant subsection should be highlighted inside its parent entry rather than acting as its own
 > selectable result.
 > **Related source learnings:** [`designing-user-interfaces-source-learnings.md`](../inbox/designing-user-interfaces-source-learnings.md)
 > recommends system-level UI coherence, perception/hierarchy, clear navigation, component
-> consistency, microcopy, and UI audits. This proposal applies those principles to Memory Explorer's
+> consistency, microcopy, and UI audits. This proposal applies those principles to the Memory Trail
 > search and reader model.
 
 ## Decision
@@ -141,4 +141,3 @@ Names are illustrative; final names should align with the Phase-1 public retriev
   visible Explorer result.
 - MCP `granularity="section"` remains available and unchanged for callers that explicitly need it.
 - UI copy avoids exposing raw implementation language such as "section chunk" in normal user flows.
-

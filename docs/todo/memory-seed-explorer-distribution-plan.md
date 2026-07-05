@@ -16,13 +16,14 @@ tags:
 > **Priority:** P2 (after the unreleased ranking/supersession/commit-linking batch releases; not a
 > blocker for any shipped surface).
 > **Source:** User decision 2026-07-05 (JNL) that the Explorer should become a separate companion
-> package `memory-seed-explorer` and take over UI development, with clear separation from the core
-> control-plane package. Decision inputs: the Codex synergy evaluation's "Pillar B Distribution
+> package and take over UI development, with clear separation from the core control-plane package.
+> `memory-seed-explorer` remains the working placeholder until the Memory Trail naming transition
+> completes. Decision inputs: the Codex synergy evaluation's "Pillar B Distribution
 > Decision" loop, the shipped `memory-seed[lense]` V1, and `3.0-plan.md`'s original companion-package
 > intent.
 > **Scope:** Two phases — (1) extract a stable public retrieval service inside `memory-seed` that both
-> MCP and Lense consume; (2) extract the Explorer into its own `memory-seed-explorer` distribution that
-> depends on `memory-seed`. Read-only throughout.
+> MCP and Lense consume; (2) extract the UI into its own companion distribution that depends on
+> `memory-seed`, named by the Memory Trail transition. Read-only throughout.
 > **Non-goals:** No write/curation surface (stays post-3.0, B5). No desktop/VS Code shell in this plan
 > (later shells wrap the same web app). No reopening shipped 2.13 Lense retrieval/UI behavior. No
 > forking of the parser/ranker into a second stack. No new default dependencies on core `memory-seed`.
@@ -32,14 +33,17 @@ tags:
 > Explorer UI result granularity is governed by
 > [`memory-explorer-entry-level-ui-results-plan.md`](memory-explorer-entry-level-ui-results-plan.md):
 > entries are the selectable UI object; subsection matches are highlighted inside entries.
+> Naming transition is governed by [`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md):
+> Memory Trail is the intended product name for the companion UI line, with package/command naming
+> checked before publication.
 > **Acceptance criteria:** see the per-phase gates below.
 
 ## Decision
 
-Pillar B ships as a **separate companion distribution, `memory-seed-explorer`**, not as a permanent
-in-package optional extra. The in-package `memory-seed[lense]` V1 (shipped 2.13.0) served its purpose
+Pillar B ships as a **separate companion distribution**, not as a permanent in-package optional
+extra. The in-package `memory-seed[lense]` V1 (shipped 2.13.0) served its purpose
 as a low-friction way to prototype and validate the UI against real session memory; from here, the
-Explorer package takes over UI development so that the core `memory-seed` control plane stays a
+Memory Trail package takes over UI development so that the core `memory-seed` control plane stays a
 lightweight, local-first, file-based package and the UI can iterate on its own cadence.
 
 Why a separate distribution rather than continuing the in-package extra:
@@ -82,6 +86,10 @@ Phase 1 extracts exactly those functions into a public, MCP-independent retrieva
   returning the canonical chunk/result dicts (aligned with `docs/graph-edge-contract.md`);
 - supports an Explorer-facing entry-level result rollup so section-level matches can improve scoring
   and highlighting without becoming separate selectable UI records;
+- surfaces, per entry, any authored decision-diagram sidecar
+  (`.memory-seed/sessions/diagrams/<entry_id>.md`) alongside the Class-1 structural fields, per
+  [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md), so the Explorer can render
+  reasoning diagrams next to their entry without forking a reader;
 - is consumed by `mcp_server.py` (thin wrapper, unchanged external behavior) **and** by the in-package
   Lense today, proving both consumers ride the same contract;
 - is documented as the public retrieval API — the surface `memory-seed-explorer` will import in Phase 2.
@@ -106,7 +114,8 @@ in-package extra.
 
 Once the seam is proven, move the Explorer out.
 
-- New distribution `memory-seed-explorer` with console command `memory-seed-explorer`.
+- New distribution under the final Trail package name if available (working placeholder:
+  `memory-seed-explorer`), with a matching console command.
 - It **depends on** `memory-seed` and imports the Phase-1 retrieval service; it never reimplements
   parsing or ranking.
 - Move the web stack out of core: `fastapi`/`uvicorn` and the `lense_static/*` assets move to the
@@ -118,12 +127,17 @@ Once the seam is proven, move the Explorer out.
 - The Explorer keeps the shipped read-only surface: search / reader / timeline / graph / contributors /
   stats, explainability fields, and the rebuildable outside-repo SQLite cache (never authoritative,
   safe for OneDrive-synced workspaces).
+- The exportable static report / handover pack (Class-1 derived views + embedded Class-2 sidecars) is
+  the paid-tier deliverable scoped in
+  [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md) Phase 3 — an Explorer
+  product feature, gated on this split.
 
 ### Phase 2 acceptance criteria
 
 - `pip install memory-seed` alone installs and imports **no** web framework and no Explorer code.
-- `pip install memory-seed-explorer` exposes the read-only `memory-seed-explorer` command and pulls
-  `memory-seed` as a dependency.
+- The final package/command names follow [`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md)
+  after availability checks; until then, `memory-seed-explorer` remains the working placeholder.
+- The extracted UI command exposes the read-only companion UI and pulls `memory-seed` as a dependency.
 - Explorer API search/fetch matches MCP fixtures (retrieval parity preserved across the package
   boundary).
 - `memory-seed[lense]` remains installable for one deprecation window and routes users to the new
@@ -148,4 +162,5 @@ Once the seam is proven, move the Explorer out.
 - Retrieval-seam analysis: [`3.0-plan.md`](3.0-plan.md) §"Review Correction: Retrieval Is Already
   Mostly Shared".
 - Shared edge/metric contract: [`../graph-edge-contract.md`](../graph-edge-contract.md).
+- Decision-diagram surfacing + paid report pack: [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md).
 - Historical research (now completed): [`user-interface-deep-research-report.md`](completed/user-interface-deep-research-report.md).
