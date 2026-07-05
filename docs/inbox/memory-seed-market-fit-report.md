@@ -275,6 +275,48 @@ The strongest wedge is:
 
 > Use any agent. Keep one memory.
 
+### 8.1 Emerging Adjacent Signal: o11 and Institutional Memory
+
+An emerging company called **o11** appears to be positioning around institutional memory. This should
+not be confused with "o11y" observability. Based on the available screenshot, the public-facing signal
+is:
+
+- Ajay Misra, Founder @ o11 (YC W26).
+- Website listed: `ajaymisra.com`.
+- Recent launch wording: "a new kind of institutional memory."
+
+This report should not cite o11 formally yet. No reliable indexed public company page, YC profile,
+product page, or launch post was available from the evidence reviewed in this session, so o11 should
+be treated as an uncited adjacent market signal until a stable public source exists.
+
+Even with that caveat, the positioning is strategically useful. o11 appears to be aimed at the broad
+enterprise/firm knowledge problem: organizations already have knowledge locked inside models,
+documents, conversations, files, workflows, and people's heads, but it is hard to retrieve, trust, and
+reuse.
+
+That is close to Memory Seed's thesis, but at a different market layer:
+
+| Dimension | o11 | Memory Seed |
+|---|---|---|
+| Apparent category | Institutional memory for firms | Project memory for AI coding agents |
+| Likely buyer | Firms, knowledge teams, analysts, operators, enterprise users | Developers, AI-agent users, engineering teams, PMs |
+| Memory object | Organizational knowledge | Project decisions, session logs, agent context, codebase history |
+| Data shape | Likely documents, models, files, internal systems | Markdown/YAML, Git-tracked project memory |
+| Product surface | Likely SaaS / enterprise knowledge layer | Local-first CLI, MCP, Memory Lense, Git-native files |
+| Core promise | Make firm knowledge reusable | Make AI-assisted development inspectable and portable |
+
+**Strategic read:** o11 is a stronger market signal than the observability angle alone. It suggests
+YC-backed founders are also seeing "memory" as an infrastructure category. Memory Seed should use
+that as category validation, but avoid competing as a generic enterprise memory platform.
+
+The sharper and more defensible framing is:
+
+> Memory Seed is institutional memory for software projects worked on by humans and AI agents.
+
+That connects Memory Seed to the larger institutional-memory trend while keeping the wedge narrow:
+Git-native, local-first memory for AI-assisted software development, where decisions, files, tests,
+agents, commits, and project history need to remain inspectable.
+
 ---
 
 ## 9. Product Gaps and Risks

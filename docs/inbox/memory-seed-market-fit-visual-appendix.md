@@ -160,6 +160,28 @@ flowchart LR
   Own --> Integrate
 ```
 
+### 4.1 Adjacent Institutional-Memory Signal: o11
+
+The emerging o11 signal suggests that "institutional memory" may be becoming a broader startup
+category. Because there is not yet a reliable public source to cite, treat o11 as an uncited adjacent
+signal rather than a formally benchmarked competitor.
+
+```mermaid
+flowchart LR
+  A["Broad trend:<br/>institutional memory"] --> B["o11 signal:<br/>firm knowledge reuse"]
+  A --> C["Memory Seed wedge:<br/>software project memory"]
+
+  B --> B1["Likely data:<br/>documents, models, files,<br/>workflows, people knowledge"]
+  B --> B2["Likely buyer:<br/>firms, analysts,<br/>operators, knowledge teams"]
+
+  C --> C1["Data:<br/>Markdown/YAML session logs,<br/>commits, tests, decisions"]
+  C --> C2["Buyer:<br/>developers, AI-agent users,<br/>engineering teams, PMs"]
+
+  C --> D["Defensible framing:<br/>institutional memory for software projects<br/>worked on by humans and AI agents"]
+
+  B -. "category validation,<br/>not direct wedge" .-> D
+```
+
 ---
 
 ## 5. Pain-to-Solution Fit

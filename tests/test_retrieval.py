@@ -4,8 +4,10 @@ import unittest
 from datetime import date
 from pathlib import Path
 
+from memory_seed.core import check_session_links
 from memory_seed.mcp_server import call_tool
 from memory_seed.retrieval import (
+    entry_diagram_sidecars,
     get_chunk,
     rollup_entry_matches,
     rollup_entry_results,
@@ -206,6 +208,99 @@ class RetrievalServiceParityTests(unittest.TestCase):
             self.assertNotIn("matched_sections", record)
             self.assertNotIn("best_match_chunk_id", record)
             self.assertNotIn("score_source", record)
+
+    def write_diagram(self, cwd, filename, content):
+        diagrams = cwd / ".memory-seed" / "sessions" / "diagrams"
+        diagrams.mkdir(parents=True, exist_ok=True)
+        (diagrams / filename).write_text(content, encoding="utf-8")
+
+    def valid_sidecar(self, entry_id, title="Decision flow"):
+        return (
+            "---\n"
+            f"entry_id: {entry_id}\n"
+            f"title: {title}\n"
+            "---\n\n"
+            "```mermaid\n"
+            "flowchart TD\n"
+            "  A --> B\n"
+            "```\n"
+        )
+
+    def test_diagram_sidecars_surface_through_the_service(self):
+        cwd = self.make_memory_fixture()
+        self.write_diagram(cwd, "ms-bootstrap.md", self.valid_sidecar("ms-bootstrap"))
+
+        sidecars = entry_diagram_sidecars(str(cwd))
+        self.assertIn("ms-bootstrap", sidecars)
+        sidecar = sidecars["ms-bootstrap"]
+        self.assertEqual(sidecar["title"], "Decision flow")
+        self.assertEqual(sidecar["mermaid_block_count"], 1)
+        self.assertTrue(sidecar["path"].endswith(".memory-seed/sessions/diagrams/ms-bootstrap.md"))
+
+        # get_chunk attaches sidecar metadata only when asked - the MCP tool
+        # contract (no include_diagrams) stays byte-identical.
+        enriched = get_chunk("ms-bootstrap", str(cwd), include_diagrams=True)
+        self.assertEqual(len(enriched["diagrams"]), 1)
+        self.assertEqual(enriched["diagrams"][0]["entry_id"], "ms-bootstrap")
+        plain = get_chunk("ms-bootstrap", str(cwd))
+        self.assertNotIn("diagrams", plain)
+        mcp = call_tool("memory_get_chunk", {"chunk_id": "ms-bootstrap", "cwd": str(cwd)})
+        self.assertNotIn("diagrams", mcp["chunk"])
+
+        # Entries without a sidecar surface an empty list when asked.
+        other = get_chunk("ms-semble", str(cwd), include_diagrams=True)
+        self.assertEqual(other["diagrams"], [])
+
+    def test_links_check_validates_diagram_sidecars(self):
+        cwd = self.make_memory_fixture()
+        # Valid sidecar: no issues.
+        self.write_diagram(cwd, "ms-bootstrap.md", self.valid_sidecar("ms-bootstrap"))
+        result = check_session_links(str(cwd))
+        self.assertTrue(result.ok, [i.detail for i in result.issues])
+
+        # orphan-diagram: entry_id resolves to no known entry.
+        self.write_diagram(cwd, "ms-ghost.md", self.valid_sidecar("ms-ghost"))
+        kinds = {i.kind for i in check_session_links(str(cwd)).issues}
+        self.assertIn("orphan-diagram", kinds)
+
+        # diagram-filename-mismatch: stem != frontmatter entry_id.
+        self.write_diagram(cwd, "ms-wrongname.md", self.valid_sidecar("ms-bootstrap"))
+        kinds = {i.kind for i in check_session_links(str(cwd)).issues}
+        self.assertIn("diagram-filename-mismatch", kinds)
+
+    def test_links_check_flags_malformed_diagrams(self):
+        cwd = self.make_memory_fixture()
+        # No frontmatter at all.
+        self.write_diagram(cwd, "ms-bootstrap.md", "```mermaid\nflowchart TD\n  A --> B\n```\n")
+        issues = check_session_links(str(cwd)).issues
+        self.assertIn("malformed-diagram", {i.kind for i in issues})
+
+        # Frontmatter without entry_id.
+        self.write_diagram(
+            cwd, "ms-bootstrap.md", "---\ntitle: no id\n---\n\n```mermaid\nA --> B\n```\n"
+        )
+        self.assertIn("malformed-diagram", {i.kind for i in check_session_links(str(cwd)).issues})
+
+        # No mermaid block.
+        self.write_diagram(
+            cwd, "ms-bootstrap.md", "---\nentry_id: ms-bootstrap\n---\n\nJust prose.\n"
+        )
+        self.assertIn("malformed-diagram", {i.kind for i in check_session_links(str(cwd)).issues})
+
+        # Unbalanced fence.
+        self.write_diagram(
+            cwd,
+            "ms-bootstrap.md",
+            "---\nentry_id: ms-bootstrap\n---\n\n```mermaid\nflowchart TD\n  A --> B\n",
+        )
+        self.assertIn("malformed-diagram", {i.kind for i in check_session_links(str(cwd)).issues})
+
+    def test_links_check_ok_without_diagrams_dir(self):
+        cwd = self.make_memory_fixture()
+        result = check_session_links(str(cwd))
+        self.assertTrue(result.ok)
+        # Sidecars are optional: entries without diagrams are never an issue.
+        self.assertEqual(entry_diagram_sidecars(str(cwd)), {})
 
     def test_service_is_mcp_independent(self):
         # The service must not import the MCP layer: the dependency points

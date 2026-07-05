@@ -109,11 +109,16 @@ def search_memory(
     )
 
 
-def get_chunk(chunk_id: str, cwd: str | Path = ".") -> dict[str, Any]:
+def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = False) -> dict[str, Any]:
     """Fetch one chunk by ``chunk_id`` and return its canonical payload dict,
     enriched with the read-only graph metrics from docs/graph-edge-contract.md
     (`superseded_by`, `inbound_relation_count`, `importance_score`,
     `commit_reference_count`). Raises ``ValueError`` for an unknown id.
+
+    ``include_diagrams=True`` additionally attaches ``diagrams``: authored
+    decision-diagram sidecar metadata for the chunk's entry (see
+    `entry_diagram_sidecars`). Off by default so the MCP tool contract is
+    unchanged; Explorer/Trail consumers opt in.
     """
     entry_chunks = extract_memory_chunks(cwd, granularity="entry")
     found = next((chunk for chunk in entry_chunks if chunk.chunk_id == chunk_id), None)
@@ -151,7 +156,65 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".") -> dict[str, Any]:
     payload["inbound_relation_count"] = inbound_relation_count
     payload["importance_score"] = importance_score
     payload["commit_reference_count"] = commit_reference_count
+    if include_diagrams:
+        sidecar = entry_diagram_sidecars(cwd).get(found.entry_id or "")
+        payload["diagrams"] = [sidecar] if sidecar else []
     return payload
+
+
+def entry_diagram_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
+    """Authored decision-diagram sidecar metadata, keyed by ``entry_id``.
+
+    Sidecars live at ``.memory-seed/sessions/diagrams/<entry_id>.md`` with an
+    ``entry_id`` frontmatter key and fenced ```` ```mermaid ```` block(s) - the
+    Class-2 reasoning diagrams from docs/todo/session-decision-diagrams-plan.md,
+    authored at session-entry time because a no-LLM consumer cannot derive them
+    from prose. This reader is metadata-only and deterministic: it never parses
+    Mermaid semantics, and unreadable or frontmatter-less files are skipped
+    (``links check`` owns reporting them). Sidecars are optional per entry.
+    """
+    from .core import resolve_runtime
+
+    runtime = resolve_runtime(cwd)
+    diagrams_dir = runtime.memory_dir / "sessions" / "diagrams"
+    sidecars: dict[str, dict[str, Any]] = {}
+    if not diagrams_dir.is_dir():
+        return sidecars
+    for path in sorted(diagrams_dir.glob("*.md")):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if not text.startswith("---"):
+            continue
+        end = text.find("\n---", 3)
+        if end == -1:
+            continue
+        frontmatter = text[3:end]
+        scalars: dict[str, str] = {}
+        for line in frontmatter.splitlines():
+            if ":" not in line:
+                continue
+            key, _, value = line.partition(":")
+            scalars[key.strip()] = value.strip().strip("'\"")
+        entry_id = scalars.get("entry_id")
+        if not entry_id:
+            continue
+        body = text[end:]
+        mermaid_block_count = sum(
+            1 for line in body.splitlines() if line.strip().startswith("```mermaid")
+        )
+        try:
+            rel = path.relative_to(runtime.workspace_root).as_posix()
+        except ValueError:
+            rel = path.as_posix()
+        sidecars[entry_id] = {
+            "entry_id": entry_id,
+            "path": rel,
+            "title": scalars.get("title"),
+            "mermaid_block_count": mermaid_block_count,
+        }
+    return sidecars
 
 
 def format_search_results(

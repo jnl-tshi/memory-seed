@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Sequence
 
 from .core import iter_session_documents, resolve_runtime
-from .retrieval import EntryRollup, rollup_entry_matches
+from .retrieval import EntryRollup, entry_diagram_sidecars, rollup_entry_matches
 from .semantic_cache import (
     MemoryChunk,
     build_related_entry_graph,
@@ -297,10 +297,14 @@ class LenseService:
         if selected is None:
             raise KeyError(chunk_id)
         node = graph.get(selected.entry_id or "")
+        sidecar = entry_diagram_sidecars(self.cache.cwd).get(selected.entry_id or "")
         return {
             **_chunk_to_api(selected),
             "backlinks": list(node.inbound if node else ()),
             "related_entries": list(selected.related_entries),
+            # Authored decision-diagram sidecar metadata (Class 2, frozen);
+            # rendering is the Explorer/Trail Phase-2 job - metadata-only here.
+            "diagrams": [sidecar] if sidecar else [],
             "suggestions": self._suggestions(selected),
             "metadata": {
                 "source": selected.source_path,

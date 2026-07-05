@@ -412,10 +412,12 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     supersession forward-only violations (a ``supersedes`` ref whose target
     postdates the referencing entry, including self-references and cycles),
     malformed or unknown ``commits:`` hashes (existence checked only when a
-    ``.git`` directory is present and git responds), and per-user-file
+    ``.git`` directory is present and git responds), per-user-file
     frontmatter problems (filename/frontmatter user or date mismatch, missing
     or malformed ``hash_id``, unsupported ``schema_version``, invalid user
-    slug).
+    slug), and decision-diagram sidecar problems under ``sessions/diagrams/``
+    (``orphan-diagram``, ``diagram-filename-mismatch``, ``malformed-diagram``;
+    sidecars are always optional).
 
     Each issue names the source file and the offending value. Returns
     ``ok=False`` when any issue is found so a CLI gate can exit non-zero.
@@ -522,6 +524,58 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
 
     known_entries = set(entry_id_files)
     known_hashes = set(hash_id_files)
+
+    # Decision-diagram sidecars (.memory-seed/sessions/diagrams/<entry_id>.md):
+    # authored reasoning diagrams keyed to one entry. Optional - an entry
+    # without a sidecar is never an issue. Validation is deterministic only:
+    # frontmatter entry_id resolves (orphan-diagram), filename stem matches the
+    # frontmatter (diagram-filename-mismatch, mirroring the per-user
+    # filename<->frontmatter checks), and at least one balanced ```mermaid
+    # fence exists (malformed-diagram; no Mermaid semantic parsing). See
+    # docs/todo/session-decision-diagrams-plan.md.
+    diagrams_dir = sessions_dir / "diagrams"
+    if diagrams_dir.is_dir():
+        for diagram_path in sorted(diagrams_dir.glob("*.md")):
+            files_checked += 1
+            try:
+                rel = diagram_path.relative_to(root).as_posix()
+            except ValueError:
+                rel = diagram_path.as_posix()
+            try:
+                text = diagram_path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as exc:
+                issues.append(LinkIssue(rel, "unreadable", str(exc)))
+                continue
+            match = _FILE_FRONTMATTER_RE.match(text)
+            if not match:
+                issues.append(
+                    LinkIssue(rel, "malformed-diagram", "sidecar has no leading --- frontmatter block")
+                )
+                continue
+            fm_entry = _parse_frontmatter_scalars(match.group(1)).get("entry_id")
+            if not fm_entry:
+                issues.append(LinkIssue(rel, "malformed-diagram", "sidecar frontmatter has no entry_id"))
+            else:
+                if diagram_path.stem != fm_entry:
+                    issues.append(
+                        LinkIssue(
+                            rel,
+                            "diagram-filename-mismatch",
+                            f"filename stem '{diagram_path.stem}' != frontmatter entry_id '{fm_entry}'",
+                        )
+                    )
+                if fm_entry not in known_entries:
+                    issues.append(
+                        LinkIssue(rel, "orphan-diagram", f"entry_id -> {fm_entry} (no such entry_id)")
+                    )
+            body = text[match.end():]
+            fence_lines = [line.strip() for line in body.splitlines() if line.strip().startswith("```")]
+            mermaid_opens = sum(1 for line in fence_lines if line.startswith("```mermaid"))
+            if mermaid_opens == 0:
+                issues.append(LinkIssue(rel, "malformed-diagram", "sidecar has no ```mermaid block"))
+            elif len(fence_lines) % 2 != 0:
+                issues.append(LinkIssue(rel, "malformed-diagram", "unbalanced code fence in sidecar"))
+
     for rel, ref in related_entry_refs:
         if ref not in known_entries:
             issues.append(LinkIssue(rel, "dangling-related-entry", f"related_entries -> {ref} (no such entry_id)"))

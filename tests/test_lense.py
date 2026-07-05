@@ -146,6 +146,22 @@ class LenseServiceTests(unittest.TestCase):
         self.assertTrue(any(r["chunk_id"].startswith("mse_zanzibar#") for r in raw["results"]))
         self.assertNotIn("matched_sections", raw["results"][0])
 
+    def test_chunk_view_carries_diagram_sidecar_metadata(self):
+        diagrams = self.cwd / ".memory-seed" / "sessions" / "diagrams"
+        diagrams.mkdir(parents=True, exist_ok=True)
+        (diagrams / "mse_bootstrap.md").write_text(
+            "---\nentry_id: mse_bootstrap\ntitle: Bootstrap flow\n---\n\n"
+            "```mermaid\nflowchart TD\n  A --> B\n```\n",
+            encoding="utf-8",
+        )
+        service = self.service()
+
+        with_diagram = service.chunk("mse_bootstrap")
+        self.assertEqual(len(with_diagram["diagrams"]), 1)
+        self.assertEqual(with_diagram["diagrams"][0]["title"], "Bootstrap flow")
+        without_diagram = service.chunk("mse_ui")
+        self.assertEqual(without_diagram["diagrams"], [])
+
     def test_cache_rebuilds_when_session_file_metadata_changes(self):
         cache = LenseCache(self.cwd, cache_root=self.cache_root)
         cache.rebuild()

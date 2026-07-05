@@ -56,6 +56,33 @@ related_entries:
 
 Keep session filenames date-only, such as `.memory-seed/sessions/2026-05-02.md`. Generate `entry_id` as a deterministic 80-bit `mse_` ID from metadata only: timestamp, title, user initials, agent type, project path, and subproject path. Legacy `ms-` IDs remain valid and must not be rewritten.
 
+## Decision Diagram Sidecars
+
+When an entry's decision logic is genuinely **spatial, temporal, or concurrent** — branching alternatives that were weighed, a sequence across components, a topology — you may capture it as a Mermaid diagram in a **sidecar file**, authored in the same turn as the entry:
+
+- Location: `.memory-seed/sessions/diagrams/<entry_id>.md`, using the `entry_id` you just generated.
+- File shape: YAML frontmatter with `entry_id:` (required; must match the filename stem) and optional `title:`, followed by one or more fenced ` ```mermaid ` blocks.
+- Never inline diagrams in the session entry itself — the prose log stays clean, diffable, and append-only. The sidecar is the diagram's home; readers and the Explorer UI render it beside the entry.
+- Sidecars are frozen point-in-time records of the decision **as made**; do not edit them when later decisions supersede the entry (supersession is visible through the live graph, not by rewriting the diagram).
+- Same high bar as the Mermaid Working Principle: prose is the default; **most entries need no sidecar**. Never add one just for coverage.
+- `links check` validates sidecars: `orphan-diagram` (entry_id resolves to no known entry), `diagram-filename-mismatch` (filename stem != frontmatter entry_id), `malformed-diagram` (missing frontmatter/entry_id, no ```mermaid block, or unbalanced fence).
+
+Example sidecar (`.memory-seed/sessions/diagrams/mse_0123456789abcdef.md`):
+
+````markdown
+---
+entry_id: mse_0123456789abcdef
+title: Cache key decision flow
+---
+
+```mermaid
+flowchart TD
+  A[Need stable cache keys] --> B{Collision risk?}
+  B -- high --> C[Adopt zanzibar tokens]
+  B -- low --> D[Keep path hashing]
+```
+````
+
 ## Local Identity and Session Layout
 
 Two related but separate mechanisms:
