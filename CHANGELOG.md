@@ -18,10 +18,12 @@ All notable changes to Memory Seed are summarized here.
   consumes the shared grouping; a strong subsection match can now drive an entry's score without
   appearing as a separate selectable record. `granularity=section|all` and the MCP contract are
   unchanged. Lense UI copy says "entry"/"session entry" and renders "Matched section" chips.
-- **Session decision diagram sidecars, Phase 1:** optional authored reasoning diagrams at
-  `.memory-seed/sessions/diagrams/<entry_id>.md` (frontmatter `entry_id` + fenced ```` ```mermaid ````
-  blocks). `links check` validates them (`orphan-diagram`, `diagram-filename-mismatch`,
-  `malformed-diagram`; deterministic checks only, sidecars always optional).
+- **Session decision diagram sidecars, Phase 1:** optional authored reasoning diagrams appended to
+  `.memory-seed/sessions/diagrams/YYYY-MM-DD.md` — one dated file per day, mirroring the session-log
+  filename convention for filesystem readability; each diagram is a `## <timestamp> - <title>` heading
+  block naming `entry_id` in a fenced yaml block, followed by fenced ```` ```mermaid ```` block(s).
+  `links check` validates them (`malformed-diagram`, `orphan-diagram`, `diagram-date-mismatch`;
+  deterministic checks only, sidecars always optional).
   `retrieval.entry_diagram_sidecars()` surfaces per-entry sidecar metadata; `get_chunk` grows an
   opt-in `include_diagrams` flag the MCP tool never passes; Lense's chunk view carries a `diagrams`
   metadata list. Authoring guidance shipped in `session_logging.md` + `end_of_turn.md` (live + seed).

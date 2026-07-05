@@ -415,9 +415,10 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     ``.git`` directory is present and git responds), per-user-file
     frontmatter problems (filename/frontmatter user or date mismatch, missing
     or malformed ``hash_id``, unsupported ``schema_version``, invalid user
-    slug), and decision-diagram sidecar problems under ``sessions/diagrams/``
-    (``orphan-diagram``, ``diagram-filename-mismatch``, ``malformed-diagram``;
-    sidecars are always optional).
+    slug), and decision-diagram sidecar problems under
+    ``sessions/diagrams/YYYY-MM-DD.md`` (``orphan-diagram``,
+    ``diagram-date-mismatch``, ``malformed-diagram``; sidecars are always
+    optional).
 
     Each issue names the source file and the offending value. Returns
     ``ok=False`` when any issue is found so a CLI gate can exit non-zero.
@@ -525,13 +526,21 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     known_entries = set(entry_id_files)
     known_hashes = set(hash_id_files)
 
-    # Decision-diagram sidecars (.memory-seed/sessions/diagrams/<entry_id>.md):
-    # authored reasoning diagrams keyed to one entry. Optional - an entry
-    # without a sidecar is never an issue. Validation is deterministic only:
-    # frontmatter entry_id resolves (orphan-diagram), filename stem matches the
-    # frontmatter (diagram-filename-mismatch, mirroring the per-user
-    # filename<->frontmatter checks), and at least one balanced ```mermaid
-    # fence exists (malformed-diagram; no Mermaid semantic parsing). See
+    # Decision-diagram sidecars (.memory-seed/sessions/diagrams/YYYY-MM-DD.md):
+    # authored reasoning diagrams, one dated file per day mirroring the
+    # session-log filename convention (so a human browsing the filesystem
+    # without the Explorer can find a day's diagrams next to that day's
+    # session log). Each diagram is a heading block shaped exactly like a
+    # session entry - `## <timestamp> - <title>` followed by a fenced
+    # ```yaml block naming `entry_id`, followed by fenced ```mermaid
+    # block(s) - so multiple diagrams append to the same date file across a
+    # day, same as session logs. Optional throughout - an entry without a
+    # sidecar is never an issue. Validation is deterministic only:
+    # filename is a valid YYYY-MM-DD.md date (malformed-diagram), each block
+    # has an entry_id (malformed-diagram) that resolves to a known entry
+    # (orphan-diagram) and was actually logged on the file's date
+    # (diagram-date-mismatch), and has at least one balanced ```mermaid
+    # fence (malformed-diagram; no Mermaid semantic parsing). See
     # docs/todo/session-decision-diagrams-plan.md.
     diagrams_dir = sessions_dir / "diagrams"
     if diagrams_dir.is_dir():
@@ -541,40 +550,50 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                 rel = diagram_path.relative_to(root).as_posix()
             except ValueError:
                 rel = diagram_path.as_posix()
+            date_match = SESSION_DATE_RE.match(diagram_path.name)
+            if not date_match or not _valid_session_date(date_match.group(1)):
+                issues.append(
+                    LinkIssue(rel, "malformed-diagram", f"filename '{diagram_path.name}' is not a YYYY-MM-DD.md date")
+                )
+                continue
+            file_date = date_match.group(1)
             try:
                 text = diagram_path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError) as exc:
                 issues.append(LinkIssue(rel, "unreadable", str(exc)))
                 continue
-            match = _FILE_FRONTMATTER_RE.match(text)
-            if not match:
+            blocks = list(_ENTRY_TS_YAML_RE.finditer(text))
+            if not blocks:
                 issues.append(
-                    LinkIssue(rel, "malformed-diagram", "sidecar has no leading --- frontmatter block")
+                    LinkIssue(rel, "malformed-diagram", "no '## <timestamp> - <title>' + ```yaml entry_id block found")
                 )
                 continue
-            fm_entry = _parse_frontmatter_scalars(match.group(1)).get("entry_id")
-            if not fm_entry:
-                issues.append(LinkIssue(rel, "malformed-diagram", "sidecar frontmatter has no entry_id"))
-            else:
-                if diagram_path.stem != fm_entry:
+            for index, block in enumerate(blocks):
+                heading_ts, yaml_block = block.groups()
+                entry_id_match = _ENTRY_ID_RE.search(yaml_block)
+                if not entry_id_match:
+                    issues.append(LinkIssue(rel, "malformed-diagram", f"diagram block at '{heading_ts}' has no entry_id"))
+                    continue
+                entry_id = entry_id_match.group(1)
+                if entry_id not in known_entries:
+                    issues.append(LinkIssue(rel, "orphan-diagram", f"entry_id -> {entry_id} (no such entry_id)"))
+                entry_date = entry_timestamps.get(entry_id, "")[:10]
+                if entry_date and entry_date != file_date:
                     issues.append(
                         LinkIssue(
                             rel,
-                            "diagram-filename-mismatch",
-                            f"filename stem '{diagram_path.stem}' != frontmatter entry_id '{fm_entry}'",
+                            "diagram-date-mismatch",
+                            f"entry_id {entry_id} was logged on {entry_date}, but diagram is filed under {file_date}",
                         )
                     )
-                if fm_entry not in known_entries:
-                    issues.append(
-                        LinkIssue(rel, "orphan-diagram", f"entry_id -> {fm_entry} (no such entry_id)")
-                    )
-            body = text[match.end():]
-            fence_lines = [line.strip() for line in body.splitlines() if line.strip().startswith("```")]
-            mermaid_opens = sum(1 for line in fence_lines if line.startswith("```mermaid"))
-            if mermaid_opens == 0:
-                issues.append(LinkIssue(rel, "malformed-diagram", "sidecar has no ```mermaid block"))
-            elif len(fence_lines) % 2 != 0:
-                issues.append(LinkIssue(rel, "malformed-diagram", "unbalanced code fence in sidecar"))
+                section_end = blocks[index + 1].start() if index + 1 < len(blocks) else len(text)
+                section_text = text[block.end():section_end]
+                fence_lines = [line.strip() for line in section_text.splitlines() if line.strip().startswith("```")]
+                mermaid_opens = sum(1 for line in fence_lines if line.startswith("```mermaid"))
+                if mermaid_opens == 0:
+                    issues.append(LinkIssue(rel, "malformed-diagram", f"diagram block for {entry_id} has no ```mermaid block"))
+                elif len(fence_lines) % 2 != 0:
+                    issues.append(LinkIssue(rel, "malformed-diagram", f"diagram block for {entry_id} has an unbalanced code fence"))
 
     for rel, ref in related_entry_refs:
         if ref not in known_entries:

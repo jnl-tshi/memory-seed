@@ -10,13 +10,14 @@ tags:
 
 # Session Decision Diagrams Plan
 
-> **Status:** ACTIVE — scoped 2026-07-05. **Phase 1 implemented 2026-07-05 (unreleased):** the
-> sidecar convention, `links check` validation (`orphan-diagram`/`diagram-filename-mismatch`/
+> **Status:** ACTIVE — scoped 2026-07-05. **Phase 1 implemented 2026-07-05 (unreleased); revised
+> same day to date-named sidecar files** for filesystem readability (see "Storage convention"
+> below): the sidecar convention, `links check` validation (`orphan-diagram`/`diagram-date-mismatch`/
 > `malformed-diagram`), retrieval-service surfacing (`entry_diagram_sidecars()`, opt-in
 > `get_chunk(include_diagrams=True)`, Lense chunk `diagrams` metadata), and the authoring guidance in
 > `session_logging.md` + `end_of_turn.md` (live + seed) are built and tested; a first real sidecar
-> exists (`sessions/diagrams/mse_3n3mp35ekz08t4zb.md`). Phases 2 (Explorer rendering) and 3 (report
-> pack) remain gated as scoped below.
+> exists (`sessions/diagrams/2026-07-05.md`). Phases 2 (Explorer rendering) and 3 (report pack)
+> remain gated as scoped below.
 > **Priority:** P2 for the core convention + validation + authoring guidance (low blast radius,
 > Explorer-independent); P3 for the exportable report/handover pack (paid-tier, gated on the Explorer
 > split). Sequence Phase 1 first. User confirmed 2026-07-05 that decision diagrams should be included
@@ -30,9 +31,10 @@ tags:
 > **Scope:** A two-class diagram model for Memory Seed. **Class 1 (structural, auto-derived, uniform):**
 > provenance/timeline/graph views the Explorer computes deterministically from the graph-edge contract,
 > plus a new exportable static report/handover pack. **Class 2 (reasoning, authored, sporadic):**
-> per-decision flow/sequence/topology diagrams the agent emits at entry time as
-> `.memory-seed/sessions/diagrams/<entry_id>.md` sidecars, validated by `links check` and rendered by
-> the Explorer alongside their entry.
+> per-decision flow/sequence/topology diagrams the agent emits at entry time as heading blocks
+> appended to `.memory-seed/sessions/diagrams/YYYY-MM-DD.md` sidecar files (one file per date,
+> mirroring the session-log filename convention), validated by `links check` and rendered by the
+> Explorer alongside their entry.
 > **Non-goals:** No LLM/NLP in the Explorer or in `links check` (deterministic only). No requirement
 > that any entry have a diagram. No mutation of existing session entries (sidecars point *to* entries,
 > not the reverse). No deterministic extraction of Class-2 diagrams from prose (impossible without an
@@ -100,25 +102,32 @@ trigger** is in scope here, not deferred.
 
 ### Storage convention
 
-- Location: `.memory-seed/sessions/diagrams/<entry_id>.md`. Flat and keyed by the globally-unique
-  `entry_id`, so it is independent of the flat-vs-per-user session layout gate.
-- File shape: YAML frontmatter with `entry_id:` (the single authoritative link) and optional `title:`,
-  followed by one or more fenced ` ```mermaid ` blocks. Markdown-wrapped so the source of truth stays
-  Markdown/text, diffable and git-native; the Explorer extracts the fenced block(s) and renders them
-  client-side (no server render, no LLM).
-- One link source: the sidecar's `entry_id:` frontmatter. The filename stem is a discoverability
-  convention that must match it (validated), not a second link.
+- Location: `.memory-seed/sessions/diagrams/YYYY-MM-DD.md` — **one file per date**, mirroring the
+  session-log filename convention exactly. Revised from an initial `<entry_id>.md`-per-file design:
+  date-named files maximize human readability when visually traversing the raw Markdown without the
+  Explorer — a user can open the day's diagrams file next to that day's session log and match by
+  `entry_id` present inside it, the same way session logs already work.
+- File shape: append a heading block shaped like a session entry — `## <timestamp> - <title>`,
+  followed by a fenced ` ```yaml ` block naming `entry_id:` (the single authoritative link), followed
+  by one or more fenced ` ```mermaid ` blocks. Multiple diagrams authored the same day append to the
+  same date file, in ascending time order, exactly like session logs. Markdown-wrapped so the source
+  of truth stays Markdown/text, diffable and git-native; the Explorer extracts the fenced block(s) and
+  renders them client-side (no server render, no LLM).
+- One link source: each block's `entry_id:` inside its ` ```yaml ` fence. The heading timestamp is a
+  human-matching convenience (ideally mirroring the entry's own heading time), not a validated key.
 
 ### Validation (`check_session_links()` in `core.py`, reusing the entry-YAML scan)
 
 Per the graph-edge contract's rule that a new artifact's validation belongs in the single validator,
 add issue kinds:
 
-- `orphan-diagram` — a sidecar whose `entry_id` resolves to no known entry (error).
-- `diagram-filename-mismatch` — filename stem ≠ frontmatter `entry_id` (error; mirrors the existing
-  per-user filename↔frontmatter check).
-- `malformed-diagram` — unbalanced/absent Mermaid fence (error; deterministic fence check only, no
-  Mermaid semantic parsing).
+- `malformed-diagram` — the filename isn't a valid `YYYY-MM-DD.md` date, no `## <timestamp> - <title>`
+  + ` ```yaml ` block is found, a block's yaml has no `entry_id`, or a block has no/unbalanced
+  ` ```mermaid ` fence (error; deterministic fence check only, no Mermaid semantic parsing).
+- `orphan-diagram` — a block whose `entry_id` resolves to no known entry (error).
+- `diagram-date-mismatch` — a block's `entry_id` resolves to a real entry, but that entry's actual
+  session date differs from the diagrams filename date (error; mirrors the existing per-user
+  filename↔frontmatter date check).
 
 Sidecars are **optional**: `links check` never warns on an entry that lacks one. `doctor` keeps its
 one-line summary pattern.
@@ -127,18 +136,21 @@ one-line summary pattern.
 
 Add to `session_logging.md` and `end_of_turn.md` (+ seed twins): when writing a Decision entry whose
 logic genuinely meets the spatial/temporal/concurrent bar (branching alternatives, a sequence/flow, a
-topology), the agent **may** emit `sessions/diagrams/<entry_id>.md` in the same turn, reusing the
-`entry_id` it just generated. Same high bar as the Working Principle — most entries still get none.
-This is the deliberate, gated trigger; without it the convention stays theoretical.
+topology), the agent **may** append a diagram block to `sessions/diagrams/YYYY-MM-DD.md` (today's
+date) in the same turn, naming the `entry_id` it just generated. Same high bar as the Working
+Principle — most entries still get none. This is the deliberate, gated trigger; without it the
+convention stays theoretical.
 
 ### Phase 1 acceptance criteria
 
-- `links check` validates sidecars (orphan / filename-mismatch / malformed) over both session layouts
-  and stays green when no sidecars exist.
+- `links check` validates sidecars (malformed / orphan / date-mismatch) over both session layouts and
+  stays green when no sidecars exist.
 - No existing session entry is modified by adding a sidecar.
 - The authoring guidance is in the live + seed `session_logging.md` and `end_of_turn.md`.
-- A round-trip test: an authored sidecar for a real entry passes `links check`; a sidecar with a
-  bad/dangling `entry_id` or a mismatched filename fails with the specific issue kind.
+- A round-trip test: an authored sidecar block for a real entry, filed under that entry's real date,
+  passes `links check`; a block with a bad/dangling `entry_id` or filed under the wrong date fails
+  with the specific issue kind. Multiple diagram blocks logged the same day append to and both
+  resolve correctly from one shared date file.
 
 ## Phase 2 — Explorer consumption (wired to the distribution plan)
 

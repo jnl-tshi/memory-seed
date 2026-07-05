@@ -214,12 +214,12 @@ class RetrievalServiceParityTests(unittest.TestCase):
         diagrams.mkdir(parents=True, exist_ok=True)
         (diagrams / filename).write_text(content, encoding="utf-8")
 
-    def valid_sidecar(self, entry_id, title="Decision flow"):
+    def valid_sidecar(self, entry_id, heading_ts, title="Decision flow"):
         return (
-            "---\n"
+            f"## {heading_ts} - {title}\n\n"
+            "```yaml\n"
             f"entry_id: {entry_id}\n"
-            f"title: {title}\n"
-            "---\n\n"
+            "```\n\n"
             "```mermaid\n"
             "flowchart TD\n"
             "  A --> B\n"
@@ -228,14 +228,18 @@ class RetrievalServiceParityTests(unittest.TestCase):
 
     def test_diagram_sidecars_surface_through_the_service(self):
         cwd = self.make_memory_fixture()
-        self.write_diagram(cwd, "ms-bootstrap.md", self.valid_sidecar("ms-bootstrap"))
+        # ms-bootstrap's real entry date (from make_memory_fixture) is
+        # 2026-05-17 - the diagrams file is dated to match, mirroring how a
+        # human would find the day's diagrams next to that day's session log.
+        self.write_diagram(cwd, "2026-05-17.md", self.valid_sidecar("ms-bootstrap", "2026-05-17 09:15"))
 
         sidecars = entry_diagram_sidecars(str(cwd))
         self.assertIn("ms-bootstrap", sidecars)
         sidecar = sidecars["ms-bootstrap"]
         self.assertEqual(sidecar["title"], "Decision flow")
+        self.assertEqual(sidecar["heading_datetime"], "2026-05-17 09:15")
         self.assertEqual(sidecar["mermaid_block_count"], 1)
-        self.assertTrue(sidecar["path"].endswith(".memory-seed/sessions/diagrams/ms-bootstrap.md"))
+        self.assertTrue(sidecar["path"].endswith(".memory-seed/sessions/diagrams/2026-05-17.md"))
 
         # get_chunk attaches sidecar metadata only when asked - the MCP tool
         # contract (no include_diagrams) stays byte-identical.
@@ -251,47 +255,71 @@ class RetrievalServiceParityTests(unittest.TestCase):
         other = get_chunk("ms-semble", str(cwd), include_diagrams=True)
         self.assertEqual(other["diagrams"], [])
 
+    def test_diagram_sidecars_multiple_entries_append_to_one_date_file(self):
+        # Two decisions logged the same day append to the same dated file,
+        # exactly like session logs - each block keyed by its own entry_id.
+        cwd = self.make_memory_fixture()
+        combined = (
+            self.valid_sidecar("ms-bootstrap", "2026-05-17 09:15", title="Bootstrap flow")
+            + "\n"
+            + self.valid_sidecar("ms-semble", "2026-05-18 10:00", title="Semble routing")
+        )
+        # File dated to ms-bootstrap; ms-semble's block will mismatch below.
+        self.write_diagram(cwd, "2026-05-17.md", combined)
+        sidecars = entry_diagram_sidecars(str(cwd))
+        self.assertEqual(sidecars["ms-bootstrap"]["title"], "Bootstrap flow")
+        self.assertEqual(sidecars["ms-semble"]["title"], "Semble routing")
+
     def test_links_check_validates_diagram_sidecars(self):
         cwd = self.make_memory_fixture()
-        # Valid sidecar: no issues.
-        self.write_diagram(cwd, "ms-bootstrap.md", self.valid_sidecar("ms-bootstrap"))
+        # Valid: filed under the entry's actual date, entry_id resolves.
+        self.write_diagram(cwd, "2026-05-17.md", self.valid_sidecar("ms-bootstrap", "2026-05-17 09:15"))
         result = check_session_links(str(cwd))
         self.assertTrue(result.ok, [i.detail for i in result.issues])
 
         # orphan-diagram: entry_id resolves to no known entry.
-        self.write_diagram(cwd, "ms-ghost.md", self.valid_sidecar("ms-ghost"))
+        self.write_diagram(cwd, "2026-05-17.md", self.valid_sidecar("ms-ghost", "2026-05-17 09:15"))
         kinds = {i.kind for i in check_session_links(str(cwd)).issues}
         self.assertIn("orphan-diagram", kinds)
 
-        # diagram-filename-mismatch: stem != frontmatter entry_id.
-        self.write_diagram(cwd, "ms-wrongname.md", self.valid_sidecar("ms-bootstrap"))
+        # diagram-date-mismatch: entry_id is real (ms-semble, logged 2026-05-18)
+        # but filed under the wrong dated file.
+        self.write_diagram(cwd, "2026-05-17.md", self.valid_sidecar("ms-semble", "2026-05-18 10:00"))
         kinds = {i.kind for i in check_session_links(str(cwd)).issues}
-        self.assertIn("diagram-filename-mismatch", kinds)
+        self.assertIn("diagram-date-mismatch", kinds)
 
     def test_links_check_flags_malformed_diagrams(self):
         cwd = self.make_memory_fixture()
-        # No frontmatter at all.
-        self.write_diagram(cwd, "ms-bootstrap.md", "```mermaid\nflowchart TD\n  A --> B\n```\n")
-        issues = check_session_links(str(cwd)).issues
-        self.assertIn("malformed-diagram", {i.kind for i in issues})
+        # Filename isn't a YYYY-MM-DD.md date.
+        self.write_diagram(cwd, "notes.md", "some content\n")
+        self.assertIn("malformed-diagram", {i.kind for i in check_session_links(str(cwd)).issues})
 
-        # Frontmatter without entry_id.
+        # Valid date filename but no '## <ts> - <title>' + yaml block at all.
+        self.write_diagram(cwd, "2026-05-17.md", "```mermaid\nflowchart TD\n  A --> B\n```\n")
+        self.assertIn("malformed-diagram", {i.kind for i in check_session_links(str(cwd)).issues})
+
+        # Heading + yaml block present, but yaml block has no entry_id.
         self.write_diagram(
-            cwd, "ms-bootstrap.md", "---\ntitle: no id\n---\n\n```mermaid\nA --> B\n```\n"
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:15 - No id\n\n```yaml\ntitle: no id\n```\n\n```mermaid\nA --> B\n```\n",
         )
         self.assertIn("malformed-diagram", {i.kind for i in check_session_links(str(cwd)).issues})
 
-        # No mermaid block.
+        # entry_id present but no mermaid block.
         self.write_diagram(
-            cwd, "ms-bootstrap.md", "---\nentry_id: ms-bootstrap\n---\n\nJust prose.\n"
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:15 - No diagram\n\n```yaml\nentry_id: ms-bootstrap\n```\n\nJust prose.\n",
         )
         self.assertIn("malformed-diagram", {i.kind for i in check_session_links(str(cwd)).issues})
 
         # Unbalanced fence.
         self.write_diagram(
             cwd,
-            "ms-bootstrap.md",
-            "---\nentry_id: ms-bootstrap\n---\n\n```mermaid\nflowchart TD\n  A --> B\n",
+            "2026-05-17.md",
+            "## 2026-05-17 09:15 - Unbalanced\n\n```yaml\nentry_id: ms-bootstrap\n```\n\n"
+            "```mermaid\nflowchart TD\n  A --> B\n",
         )
         self.assertIn("malformed-diagram", {i.kind for i in check_session_links(str(cwd)).issues})
 

@@ -147,10 +147,13 @@ class LenseServiceTests(unittest.TestCase):
         self.assertNotIn("matched_sections", raw["results"][0])
 
     def test_chunk_view_carries_diagram_sidecar_metadata(self):
+        # mse_bootstrap's real entry date (from setUp) is 2026-06-01 - the
+        # diagrams file is dated to match, one file per day like session logs.
         diagrams = self.cwd / ".memory-seed" / "sessions" / "diagrams"
         diagrams.mkdir(parents=True, exist_ok=True)
-        (diagrams / "mse_bootstrap.md").write_text(
-            "---\nentry_id: mse_bootstrap\ntitle: Bootstrap flow\n---\n\n"
+        (diagrams / "2026-06-01.md").write_text(
+            "## 2026-06-01 09:00 - Bootstrap flow\n\n"
+            "```yaml\nentry_id: mse_bootstrap\n```\n\n"
             "```mermaid\nflowchart TD\n  A --> B\n```\n",
             encoding="utf-8",
         )

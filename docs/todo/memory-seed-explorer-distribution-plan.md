@@ -95,7 +95,7 @@ Phase 1 extracts exactly those functions into a public, MCP-independent retrieva
 - supports an Explorer-facing entry-level result rollup so section-level matches can improve scoring
   and highlighting without becoming separate selectable UI records;
 - surfaces, per entry, any authored decision-diagram sidecar
-  (`.memory-seed/sessions/diagrams/<entry_id>.md`) alongside the Class-1 structural fields, per
+  (`.memory-seed/sessions/diagrams/YYYY-MM-DD.md`) alongside the Class-1 structural fields, per
   [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md), so the Explorer can render
   reasoning diagrams next to their entry without forking a reader;
 - is consumed by `mcp_server.py` (thin wrapper, unchanged external behavior) **and** by the in-package

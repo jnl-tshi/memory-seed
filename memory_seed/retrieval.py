@@ -16,6 +16,7 @@ docs/graph-edge-contract.md.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -162,16 +163,28 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
     return payload
 
 
+_DIAGRAM_ENTRY_RE = re.compile(
+    r"^##\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s+-\s*([^\n]*)\n\s*```ya?ml\s*\n(.*?)^```\s*$",
+    re.MULTILINE | re.DOTALL,
+)
+
+
 def entry_diagram_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     """Authored decision-diagram sidecar metadata, keyed by ``entry_id``.
 
-    Sidecars live at ``.memory-seed/sessions/diagrams/<entry_id>.md`` with an
-    ``entry_id`` frontmatter key and fenced ```` ```mermaid ```` block(s) - the
-    Class-2 reasoning diagrams from docs/todo/session-decision-diagrams-plan.md,
-    authored at session-entry time because a no-LLM consumer cannot derive them
-    from prose. This reader is metadata-only and deterministic: it never parses
-    Mermaid semantics, and unreadable or frontmatter-less files are skipped
-    (``links check`` owns reporting them). Sidecars are optional per entry.
+    Sidecars live at ``.memory-seed/sessions/diagrams/YYYY-MM-DD.md`` - one
+    dated file per day, mirroring the session-log filename convention so a
+    human browsing the filesystem without the Explorer can find a day's
+    diagrams next to that day's session log. Each diagram is a heading block
+    shaped like a session entry (``## <timestamp> - <title>`` + a fenced
+    ```` ```yaml ```` block naming ``entry_id`` + fenced ```` ```mermaid ````
+    block(s)), so multiple diagrams append to the same date file across a day.
+    These are the Class-2 reasoning diagrams from
+    docs/todo/session-decision-diagrams-plan.md, authored at session-entry
+    time because a no-LLM consumer cannot derive them from prose. This reader
+    is metadata-only and deterministic: it never parses Mermaid semantics, and
+    unreadable or malformed blocks are skipped (``links check`` owns reporting
+    them). Sidecars are optional per entry.
     """
     from .core import resolve_runtime
 
@@ -185,35 +198,33 @@ def entry_diagram_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        if not text.startswith("---"):
-            continue
-        end = text.find("\n---", 3)
-        if end == -1:
-            continue
-        frontmatter = text[3:end]
-        scalars: dict[str, str] = {}
-        for line in frontmatter.splitlines():
-            if ":" not in line:
-                continue
-            key, _, value = line.partition(":")
-            scalars[key.strip()] = value.strip().strip("'\"")
-        entry_id = scalars.get("entry_id")
-        if not entry_id:
-            continue
-        body = text[end:]
-        mermaid_block_count = sum(
-            1 for line in body.splitlines() if line.strip().startswith("```mermaid")
-        )
         try:
             rel = path.relative_to(runtime.workspace_root).as_posix()
         except ValueError:
             rel = path.as_posix()
-        sidecars[entry_id] = {
-            "entry_id": entry_id,
-            "path": rel,
-            "title": scalars.get("title"),
-            "mermaid_block_count": mermaid_block_count,
-        }
+        blocks = list(_DIAGRAM_ENTRY_RE.finditer(text))
+        for index, block in enumerate(blocks):
+            heading_ts, title, yaml_block = block.groups()
+            entry_id = None
+            for line in yaml_block.splitlines():
+                line = line.strip()
+                if line.startswith("entry_id:"):
+                    entry_id = line.split(":", 1)[1].strip().strip("'\"")
+                    break
+            if not entry_id:
+                continue
+            section_end = blocks[index + 1].start() if index + 1 < len(blocks) else len(text)
+            section_text = text[block.end():section_end]
+            mermaid_block_count = sum(
+                1 for line in section_text.splitlines() if line.strip().startswith("```mermaid")
+            )
+            sidecars[entry_id] = {
+                "entry_id": entry_id,
+                "path": rel,
+                "title": title.strip() or None,
+                "heading_datetime": heading_ts,
+                "mermaid_block_count": mermaid_block_count,
+            }
     return sidecars
 
 

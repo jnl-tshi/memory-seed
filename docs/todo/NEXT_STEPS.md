@@ -129,10 +129,11 @@ First batch of multi-user Phase 3 increments from the reviewed 3.0 plan
   selectable entry-level result with `best_match_chunk_id`/`matched_sections`/`score_source`
   highlight metadata; Lense entry-granularity search consumes it; MCP and section/all granularities
   unchanged.
-- **Session decision diagrams Phase 1:** `sessions/diagrams/<entry_id>.md` sidecars validated by
-  `links check` (`orphan-diagram`/`diagram-filename-mismatch`/`malformed-diagram`), surfaced via
-  `entry_diagram_sidecars()` + opt-in `get_chunk(include_diagrams=True)` + Lense chunk metadata, with
-  authoring guidance in `session_logging.md`/`end_of_turn.md` (live + seed).
+- **Session decision diagrams Phase 1:** `sessions/diagrams/YYYY-MM-DD.md` sidecars (one dated file
+  per day, mirroring session-log filenames; each diagram a heading block naming its `entry_id`)
+  validated by `links check` (`malformed-diagram`/`orphan-diagram`/`diagram-date-mismatch`), surfaced
+  via `entry_diagram_sidecars()` + opt-in `get_chunk(include_diagrams=True)` + Lense chunk metadata,
+  with authoring guidance in `session_logging.md`/`end_of_turn.md` (live + seed).
 
 ### 3.0 - In Progress
 

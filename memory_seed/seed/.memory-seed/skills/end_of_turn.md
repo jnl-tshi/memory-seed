@@ -14,7 +14,7 @@ Use this skill when running the Memory Seed end-of-turn routine, `/esr`, or any 
 
 1. Append a session entry to the active session target before doing other closeout work. Use `memory-seed session target` when the target is uncertain.
 2. Use `.memory-seed/skills/session_logging.md` for the exact entry schema, DRAFT labels, `related_entries`, timestamp, and append-only rules.
-3. If the entry's decision logic is genuinely spatial, temporal, or concurrent (branching alternatives, a sequence across components, a topology), consider a decision-diagram sidecar at `.memory-seed/sessions/diagrams/<entry_id>.md` in the same turn - see the "Decision Diagram Sidecars" section of `session_logging.md`. Same high bar as the Mermaid Working Principle: most entries need none, and prose in the entry stays the default.
+3. If the entry's decision logic is genuinely spatial, temporal, or concurrent (branching alternatives, a sequence across components, a topology), consider a decision-diagram sidecar appended to `.memory-seed/sessions/diagrams/YYYY-MM-DD.md` in the same turn - see the "Decision Diagram Sidecars" section of `session_logging.md`. Same high bar as the Mermaid Working Principle: most entries need none, and prose in the entry stays the default.
 4. Review whether `.memory-seed/index.md` needs updated topology, active state, inheritance, current risk, or skill pointers.
 5. Review whether `.memory-seed/policy.md` needs durable behavioral-policy changes.
 6. Review whether any `.memory-seed/skills/*.md` runbook changed.
