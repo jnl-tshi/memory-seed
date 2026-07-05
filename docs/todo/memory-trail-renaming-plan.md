@@ -14,7 +14,9 @@ tags:
 > **Priority:** P2 companion to
 > [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md). Decide and
 > apply the naming transition before the separate UI distribution becomes a public package.
-> **Source:** User decision 2026-07-05: rename the Explorer/Lense workstream to **Memory Trail**.
+> **Source:** User decisions 2026-07-05: rename the Explorer/Lense workstream to **Memory Trail**;
+> use `memory-seed-trail` as the target package/command unless availability checks show a problem;
+> run a light PyPI + web/trademark sanity check before release-facing package rename/extraction.
 > Prior naming discussion favored traceability-oriented names over generic browsing names; "Trail"
 > keeps the traceability cue while feeling shorter and more approachable than "Explorer".
 > **Scope:** User-facing product naming, package/command naming recommendations, docs copy, and
@@ -34,11 +36,11 @@ and prototyped as Memory Lense.
 Recommended naming shape:
 
 - Product/UI name: **Memory Trail**.
-- Python distribution candidate: `memory-seed-trail`.
-- Console command candidate: `memory-seed-trail`.
+- Python distribution target: `memory-seed-trail`, unless availability checks show a problem.
+- Console command target: `memory-seed-trail`, unless availability checks show a problem.
 - Transitional docs language: "Memory Trail, formerly Memory Lense / Memory Explorer."
-- Legacy compatibility: keep `memory-seed lense` as a deprecated alias during the same deprecation
-  window already planned for `memory-seed[lense]`.
+- Legacy compatibility: keep `memory-seed lense` as a deprecated alias for at least one release during
+  the same deprecation window already planned for `memory-seed[lense]`.
 
 The exact package name should be checked against PyPI and trademark/domain availability before
 publication. If `memory-seed-trail` is unavailable or legally risky, keep Memory Trail as the product
@@ -68,7 +70,7 @@ user's task instead of exposing implementation details.
 
 ### Phase 0 - Availability Check
 
-Before any release-facing rename:
+Before any release-facing rename or package extraction:
 
 - check PyPI availability for `memory-seed-trail`, `memory-trail`, and `memoryseed-trail`;
 - do a light trademark/domain search for "Memory Trail" in developer tools, knowledge management,
@@ -91,7 +93,7 @@ retaining historical notes where useful:
 
 When extracting the separate distribution:
 
-- publish the companion UI package under the chosen Trail package name if available;
+- publish the companion UI package as `memory-seed-trail` if available;
 - expose the chosen Trail console command;
 - keep `memory-seed lense` and any `memory-seed-explorer` references as transitional aliases only if
   they have already shipped publicly;
@@ -117,8 +119,11 @@ When extracting the separate distribution:
 ## Acceptance Criteria
 
 - One canonical product name is used in forward-looking UI/package docs: **Memory Trail**.
-- The chosen package and command names are checked for availability before publication.
-- Legacy `lense` naming remains as an alias/deprecation path for existing users.
+- `memory-seed-trail` is used as the target package/command unless PyPI, trademark, or domain checks
+  show a problem.
+- The chosen package and command names are checked for availability before release-facing extraction.
+- Legacy `lense` naming remains as an alias/deprecation path for existing users for at least one
+  release.
 - Docs distinguish shipped Memory Lense V1 from the future Memory Trail package.
 - The rename does not change retrieval contracts, graph semantics, cache location, or read-only scope.
 - Normal UI copy avoids internal implementation terms such as "section chunk".

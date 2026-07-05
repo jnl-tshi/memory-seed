@@ -35,7 +35,9 @@ tags:
 > entries are the selectable UI object; subsection matches are highlighted inside entries.
 > Naming transition is governed by [`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md):
 > Memory Trail is the intended product name for the companion UI line, with package/command naming
-> checked before publication.
+> checked before publication. The next approved implementation goal is Phase 1 only: extract the
+> public retrieval service, entry-level rollup contract, and decision-diagram surfacing; do not create
+> the separate package in that pass.
 > **Acceptance criteria:** see the per-phase gates below.
 
 ## Decision
@@ -92,7 +94,8 @@ Phase 1 extracts exactly those functions into a public, MCP-independent retrieva
   reasoning diagrams next to their entry without forking a reader;
 - is consumed by `mcp_server.py` (thin wrapper, unchanged external behavior) **and** by the in-package
   Lense today, proving both consumers ride the same contract;
-- is documented as the public retrieval API — the surface `memory-seed-explorer` will import in Phase 2.
+- is documented as the public retrieval API — the surface `memory-seed-trail` will import in Phase 2,
+  assuming availability checks pass.
 
 During Phase 1 the in-package Lense goes **maintenance-only**: bug/parity fixes to keep it working, but
 no new UI feature development in-package. New UI development targets the Explorer package once Phase 2
@@ -114,15 +117,15 @@ in-package extra.
 
 Once the seam is proven, move the Explorer out.
 
-- New distribution under the final Trail package name if available (working placeholder:
-  `memory-seed-explorer`), with a matching console command.
+- New distribution under the final Trail package name if available (target: `memory-seed-trail`),
+  with a matching console command.
 - It **depends on** `memory-seed` and imports the Phase-1 retrieval service; it never reimplements
   parsing or ranking.
 - Move the web stack out of core: `fastapi`/`uvicorn` and the `lense_static/*` assets move to the
   Explorer package. Core `pyproject.toml` sheds the `[lense]` extra's web deps and the `lense_static`
   package data.
 - Keep `memory-seed[lense]` working as a **deprecated shim** for at least one release: the extra still
-  installs/points users to `memory-seed-explorer` with a deprecation notice, so existing
+  installs/points users to Memory Trail with a deprecation notice, so existing
   `memory-seed[lense]` users don't hard-break.
 - The Explorer keeps the shipped read-only surface: search / reader / timeline / graph / contributors /
   stats, explainability fields, and the rebuildable outside-repo SQLite cache (never authoritative,
@@ -136,7 +139,8 @@ Once the seam is proven, move the Explorer out.
 
 - `pip install memory-seed` alone installs and imports **no** web framework and no Explorer code.
 - The final package/command names follow [`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md)
-  after availability checks; until then, `memory-seed-explorer` remains the working placeholder.
+  after PyPI + web/trademark sanity checks; target name is `memory-seed-trail` unless those checks
+  show a problem.
 - The extracted UI command exposes the read-only companion UI and pulls `memory-seed` as a dependency.
 - Explorer API search/fetch matches MCP fixtures (retrieval parity preserved across the package
   boundary).

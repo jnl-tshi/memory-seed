@@ -134,15 +134,18 @@ The 3.0 plan is now partly historical: shipped sections are retained for context
 distribution choice was decided on 2026-07-05 (spin out a companion UI package; see
 [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md)), and the
 user later chose Memory Trail as the intended product name
-([`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md)), leaving related-entries P2 as
-the one still-open 3.0 decision. The shared graph-edge contract across
+([`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md)). Related-entries P2 is now approved
+and scoped in [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md), but should
+sequence after the lower-risk retrieval-service and decision-diagram work unless reprioritized. The
+shared graph-edge contract across
 CLI/MCP/Lense surfaces is written up in [`../graph-edge-contract.md`](../graph-edge-contract.md).
 Remaining work:
 
-1. **Related-entries generation P2 (deferred, needs sign-off).** P1 (`memory-seed link suggest` +
+1. **Related-entries generation P2 (approved 2026-07-05; sequence after Phase 1 unless reprioritized).** P1 (`memory-seed link suggest` +
    `memory-seed link show` + `build_related_entry_graph()`, bidirectional read-time traversal) is
    released as of 2.13.0. Scope, decisions, and the deferred P2 are in
-   [`related-entries-generation-plan.md`](completed/related-entries-generation-plan.md).
+   [`related-entries-generation-plan.md`](completed/related-entries-generation-plan.md); the active
+   implementation scope is [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md).
    P2: backfilling edges between two pre-existing entries, and the optional `link add` writer
    (current-entry-only) if hand-editing YAML proves painful. This is a convenience increment, not a
    blocker for graph read paths; existing YAML plus `link suggest`/`link show` already covers
@@ -154,8 +157,9 @@ Remaining work:
    The scoped two-phase plan (freeze a public retrieval service in-package, then extract the
    distribution) is
    [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md). The
-   intended product name is Memory Trail; package/command naming is governed by
-   [`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md). It is
+   intended product name is Memory Trail; target package/command is `memory-seed-trail` unless
+   availability checks show a problem
+   ([`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md)). It is
    P2-priority (after the unreleased ranking/supersession/commit-linking batch releases) and not a
    blocker for any shipped surface. Any future UI work consumes `build_related_entry_graph()` and the
    Phase-1 retrieval service rather than forking graph or ranking logic.
@@ -171,6 +175,7 @@ Specs:
 - [`multi-user-deep-research-report.md`](completed/multi-user-deep-research-report.md) (completed — recommendations fully acted on)
 - [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md) (**active, canonical** — the decided Pillar B split into a separate companion UI package; two-phase scoped plan, 2026-07-05)
 - [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md) (**active** — two-class diagram model: Class-1 auto-derived structural views + exportable report pack, Class-2 authored `sessions/diagrams/<entry_id>.md` reasoning sidecars validated by `links check`; a no-LLM Explorer can't derive reasoning diagrams from prose, so they're authored at entry time; 2026-07-05)
+- [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md) (**active** - approved 2026-07-05; controlled `link add` and explicit historical backfill for curated `related_entries`, sequenced after the lower-risk Memory Trail Phase-1/decision-diagram work unless reprioritized)
 - [`user-interface-deep-research-report.md`](completed/user-interface-deep-research-report.md) (completed 2026-07-05 — historical research; its one live tail, the Pillar B decision, was made and split into the distribution plan above; citation artifacts scrubbed 2026-07-05)
 
 - [`memory-explorer-entry-level-ui-results-plan.md`](memory-explorer-entry-level-ui-results-plan.md) (**active** - Explorer UI should present entries as selectable results and highlight subsection matches inside those entries, connected to the UI source-learnings audit principles)
@@ -194,14 +199,20 @@ P2a - **Memory Trail naming transition.** Apply the Memory Trail product name to
 UI workstream before publishing the companion package, after package-name availability checks and
 with `lense` kept as a deprecated alias for existing users.
 
+P2b - **Memory Trail Phase 1 + decision diagrams.** Next goal-pass scope: extract the public
+retrieval service in-package, keep MCP/Lense parity, add the entry-level result rollup contract,
+surface decision-diagram sidecars through the shared service, and implement the Phase-1
+decision-diagram convention/validation/authoring guidance. Do not create the separate package yet.
+
 P3 - **Parallel-work environment policy.** Worktree dependency tiers, dependency task-packet
 fields, dependency-definition shared-file rules, and optional tmux control-room guidance shipped in
 the collaboration skill 2026-07-05 (unreleased). Any scaffold remains deferred (see P4).
 
-P4 - **Deferred mutation and automation.** Hold related-entry backfill / `link add`, access-frequency
-telemetry, fanout CLI scaffolding, worktree/dependency scaffolding, and render-verification
-automation until manual use shows clear need and the privacy/retention/single-writer rules are
-settled.
+P4 - **Mutation and automation.** Related-entry backfill / `link add` is now approved and scoped in
+[`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md), but remains behind the
+Phase-1 retrieval/diagram work in sequencing. Continue to hold access-frequency telemetry, fanout CLI
+scaffolding, worktree/dependency scaffolding, and render-verification automation until manual use
+shows clear need and the privacy/retention/single-writer rules are settled.
 
 ### Logic Capture Improvements - Cluster fully resolved
 

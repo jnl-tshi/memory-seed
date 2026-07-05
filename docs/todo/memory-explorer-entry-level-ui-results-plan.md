@@ -33,6 +33,7 @@ frontend records.
 In practical terms:
 
 - Search results list entries, not entry subsections.
+- Compact UI copy should say "entry"; use "session entry" only where disambiguation helps.
 - Reader/detail views open the parent entry.
 - Highly relevant subsections are highlighted, scrolled into view, or summarized inside that parent
   entry.
@@ -141,3 +142,5 @@ Names are illustrative; final names should align with the Phase-1 public retriev
   visible Explorer result.
 - MCP `granularity="section"` remains available and unchanged for callers that explicitly need it.
 - UI copy avoids exposing raw implementation language such as "section chunk" in normal user flows.
+- UI copy uses "entry" in compact controls/results and "session entry" where the longer phrase helps
+  clarify that the object is a session-log record.

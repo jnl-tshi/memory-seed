@@ -13,7 +13,8 @@ tags:
 > **Status:** ACTIVE — scoped 2026-07-05.
 > **Priority:** P2 for the core convention + validation + authoring guidance (low blast radius,
 > Explorer-independent); P3 for the exportable report/handover pack (paid-tier, gated on the Explorer
-> split). Sequence Phase 1 first.
+> split). Sequence Phase 1 first. User confirmed 2026-07-05 that decision diagrams should be included
+> in the next goal-pass scope alongside Memory Trail Phase-1 retrieval-service work.
 > **Source:** Conversation 2026-07-05 (JNL). Starting question: have session logs ever used Mermaid to
 > capture decision logic (answer: never, in 25 files), and is that a weak-guidance symptom. Resolution:
 > logic diagrams for non-technical stakeholders are a real need once the Explorer becomes a paid review
