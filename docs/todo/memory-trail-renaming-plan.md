@@ -10,7 +10,11 @@ tags:
 
 # Memory Trail Renaming Plan
 
-> **Status:** ACTIVE - scoped naming proposal, created 2026-07-05.
+> **Status:** ACTIVE - scoped naming proposal, created 2026-07-05. **Phase 0 availability check ran
+> 2026-07-05 and found a problem:** `memory-seed-trail` is free on PyPI, but "Memory Trail" is
+> already an active same-niche product (`memory-trail` on PyPI + LobeHub) — see "Phase 0 findings"
+> below. Phase 1 (docs rename) is paused pending the user's naming call; the distribution plan's
+> retrieval-service work proceeds under the `memory-seed-explorer` placeholder.
 > **Priority:** P2 companion to
 > [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md). Decide and
 > apply the naming transition before the separate UI distribution becomes a public package.
@@ -77,6 +81,43 @@ Before any release-facing rename or package extraction:
   audit, and note-taking categories;
 - confirm no existing Memory Seed docs depend on "Explorer" as a durable architecture term rather
   than a temporary workstream label.
+
+#### Phase 0 findings (checked 2026-07-05)
+
+PyPI (HTTP status of `https://pypi.org/pypi/<name>/json`; 404 = unregistered):
+
+| Name | Status |
+|---|---|
+| `memory-seed-trail` | **available** (404) |
+| `memoryseed-trail` | **available** (404) |
+| `memory-seed-explorer` (current placeholder) | **available** (404) |
+| `memory-trail` | **TAKEN** (200, v0.0.1) |
+
+**Material naming-risk finding, beyond package availability:** the existing `memory-trail` PyPI
+package is not a squatter or an unrelated tool — it is a **direct same-niche product**: "Decision
+memory and session logging for AI-assisted development - track architectural decisions across
+sessions." It also ships as a skill on the LobeHub marketplace (`frmoretto-memory-trail`), with a
+`DECISION_MEMORY.md` constraints file, structured session logs (`SES-YYYY-MM-DD-NNN`), and
+decision records with context/rationale/consequences — i.e., overlapping Memory Seed's own product
+space, not merely its candidate name.
+
+Implications (recorded, not decided — the naming call stays with the user):
+
+- The *package* `memory-seed-trail` is technically claimable, but the *product name* "Memory Trail"
+  is already in active use by a competing product in the same category. Branding the companion UI
+  "Memory Trail" invites confusion with (and free marketing for) that product, and weakens any later
+  trademark position — the light-check equivalent of a failed trademark screen.
+- The plan's own fallback suggestion of `memory-trail` as an alternative package name is void — that
+  exact name is the competitor.
+- Options to weigh: (a) keep the Memory Trail name anyway (shared-prefix `memory-seed-trail`
+  differentiates the package, but not the product name in prose/marketing); (b) pick a different
+  trail-adjacent name and re-run this check; (c) stay with the "Explorer" working name
+  (`memory-seed-explorer` is available) until a name clears the check.
+- Decision needed before Phase 1 (docs rename) proceeds; the distribution plan's Phase 1 (retrieval
+  service) is unaffected and can proceed under the existing placeholder.
+
+Sources: [PyPI memory-trail](https://pypi.org/project/memory-trail/),
+[LobeHub memory-trail skill](https://lobehub.com/skills/frmoretto-memory-trail).
 
 ### Phase 1 - Docs Rename
 
