@@ -27,6 +27,11 @@ All notable changes to Memory Seed are summarized here.
   definition files/lockfiles named as orchestrator-owned shared files, shared-cache-vs-shared-environment
   guidance, and an optional tmux-as-control-room note. Documentation-only; no CLI scaffold. Plan moved
   to `docs/todo/completed/worktree-dependency-strategy-plan.md`.
+- Added `docx_render_windows.md` to the seeded skill set and trigger registry: Windows-safe DOCX
+  render fallback covering the LibreOffice `UserInstallation` profile-URI hang, a bounded two-step
+  DOCX→PDF→PNG render pattern, stale-process cleanup, Word field/TOC refresh before render QA,
+  page-level visual inspection rules, and a single-writer render / read-only validator collaboration
+  boundary. Cross-referenced from `office_document_editing.md`.
 - Kept `MEMORY_SEED_LENSE_CACHE_ROOT` working as a compatibility alias for Lense cache placement;
   `MEMORY_SEED_CACHE_DIR` remains the preferred generic cache variable.
 

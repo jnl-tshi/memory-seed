@@ -918,6 +918,10 @@ SEED_FILES = [
         ".memory-seed/skills/document_ingestion.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "docx_render_windows.md",
+        ".memory-seed/skills/docx_render_windows.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "office_document_editing.md",
         ".memory-seed/skills/office_document_editing.md",
     ),

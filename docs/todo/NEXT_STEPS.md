@@ -270,15 +270,17 @@ Source: an inbox proposal on worktrees, tmux, and dependency isolation, refined 
 4. **Deferred, not blocking:** Phase 2 example task packets, and any `memory-seed workflow fanout`
    scaffold (Phase 3) as a preview-only, dry-run command — both wait on repeated manual validation.
 
-### Seed Skill Promotions - Proposed
+### Seed Skill Promotions - Implemented (2026-07-05, unreleased)
 
-Source: operational lessons from Windows DOCX rendering and verification work. **Proposed, not yet
-decided or built.**
+Source: operational lessons from Windows DOCX rendering and verification work.
 
-1. [`docx-render-windows-seed-lessons.md`](docx-render-windows-seed-lessons.md) - promote the
-   Windows-safe DOCX render fallback and artifact hygiene lessons into reusable seed guidance,
-   especially for document-rendering workflows where read-only fanout can inspect outputs but render
-   mutation and cleanup should stay single-writer.
+1. [`docx-render-windows-seed-lessons.md`](completed/docx-render-windows-seed-lessons.md) -
+   **implemented 2026-07-05:** the universal lazy skill `docx_render_windows.md` ships in the seed
+   (live + twin), registered in the trigger registry, cross-referenced from
+   `office_document_editing.md`, and wired into `SEED_FILES`/package data/tests. Covers the
+   LibreOffice profile-URI failure mode, bounded two-step render pattern, stale-process cleanup,
+   Word field refresh, page-level visual QA, and the single-writer render / read-only validator
+   boundary.
 
 ## MCP Client Validation
 

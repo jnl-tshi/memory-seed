@@ -59,6 +59,7 @@ memory_seed = [
   "seed/.memory-seed/skills/index.md",
   "seed/.memory-seed/skills/data_architecture.md",
   "seed/.memory-seed/skills/document_ingestion.md",
+  "seed/.memory-seed/skills/docx_render_windows.md",
   "seed/.memory-seed/skills/end_of_turn.md",
   "seed/.memory-seed/skills/history_retrieval.md",
   "seed/.memory-seed/skills/local_compilation.md",

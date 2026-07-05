@@ -191,6 +191,18 @@ skills:
       - only reading a document as text (use document_ingestion)
       - editing plain text, Markdown, or source code
 
+  - skill: docx_render_windows.md
+    required: true
+    load_when:
+      - rendering .docx pages to images on Windows
+      - visual QA of a rendered Word document on Windows
+      - LibreOffice conversion hangs or a bundled document renderer is slow or hung
+      - DOCX-to-PNG page verification
+    do_not_load_when:
+      - reading a document as text only (use document_ingestion)
+      - editing document content without render verification (use office_document_editing)
+      - not on Windows and no Windows render target is involved
+
   - skill: copywriter-conversion.md
     required: false
     persona: copywriter

@@ -9,9 +9,15 @@ tags:
 
 # DOCX Render Windows Seed Lessons
 
-> **Status: PROPOSED seed-skill promotion, not yet built in this repository.** This started as a
-> lesson capture from a separate DOCX editing session. It should now be treated as an active
-> Memory Seed proposal for a Windows-safe DOCX render fallback skill, not as completed work.
+> **Status: IMPLEMENTED 2026-07-05 (unreleased).** The universal lazy skill
+> `.memory-seed/skills/docx_render_windows.md` now ships in the seed (live + seed twin), is
+> registered in the skill trigger registry with the deterministic triggers from Lesson 7, is
+> cross-referenced from `office_document_editing.md`, and is wired into `SEED_FILES`,
+> `pyproject.toml` package data, and the seed-inventory test. Content is generic (no project paths):
+> the LibreOffice `UserInstallation` URI failure mode, the two-step bounded-timeout render pattern,
+> stale-process cleanup, Word field/TOC refresh, page-level visual QA rules, and the single-writer
+> render / read-only validator collaboration boundary. This file started as a lesson capture from a
+> separate DOCX editing session and is retained as source context.
 
 ## Summary
 

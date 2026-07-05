@@ -28,3 +28,9 @@ Use when programmatically editing an Office document that contains **fields or c
 ## Output
 
 - Path to the new version plus the field-delta result plus the explicit "open-in-app and update-fields" step left to the user.
+
+## Related Skills
+
+- `docx_render_windows.md` — rendering `.docx` pages for visual QA on Windows, including the
+  LibreOffice profile-URI hang fallback. Load it when render verification is needed or a bundled
+  renderer hangs.

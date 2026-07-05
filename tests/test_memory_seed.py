@@ -910,6 +910,7 @@ class MemorySeedTests(unittest.TestCase):
                 ".memory-seed/skills/copywriter-conversion.md",
                 ".memory-seed/skills/data_architecture.md",
                 ".memory-seed/skills/document_ingestion.md",
+                ".memory-seed/skills/docx_render_windows.md",
                 ".memory-seed/skills/end_of_turn.md",
                 ".memory-seed/skills/history_retrieval.md",
                 ".memory-seed/skills/index.md",
