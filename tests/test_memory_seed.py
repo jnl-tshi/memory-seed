@@ -921,6 +921,7 @@ class MemorySeedTests(unittest.TestCase):
                 ".memory-seed/skills/office_document_editing.md",
                 ".memory-seed/skills/proposal_lifecycle.md",
                 ".memory-seed/skills/release_publishing.md",
+                ".memory-seed/skills/risk_signaling.md",
                 ".memory-seed/skills/security_triage.md",
                 ".memory-seed/skills/session_logging.md",
                 ".memory-seed/skills/subproject_runtime.md",

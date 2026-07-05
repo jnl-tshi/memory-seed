@@ -47,6 +47,11 @@ All notable changes to Memory Seed are summarized here.
 - Added `proposal_lifecycle.md` to the seeded skill set and trigger registry. It formalizes proposal
   movement through `docs/inbox/` -> `docs/todo/` -> `docs/todo/completed/`, including status blocks,
   completed-proposal movement rules, and roadmap/audit update surfaces.
+- Added `risk_signaling.md` to the seeded skill set and trigger registry. It defines qualitative
+  Proceed / Proceed-and-flag / Propose-and-wait / Stop action tiers plus STOP categories for
+  destructive, irreversible, security/trust-boundary, shared/control-plane, external-communication,
+  and financial actions. Cross-referenced from `agent_collaboration.md` and `security_triage.md`;
+  guidance-only, with no new session schema or automated gate.
 - Added a Dependency Strategy to `agent_collaboration.md` (+ seed twin): three dependency tiers
   (`none`/`isolated`/`dependency-changing`), four new task-packet fields (`dependency_tier`,
   `dependency_setup`, `dependency_definition_policy`, `dependency_shared_cache_policy`), dependency

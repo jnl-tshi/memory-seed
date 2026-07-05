@@ -2,15 +2,19 @@
 title: "Proposal: Graded Confidence-Signaling Protocol"
 date: "2026-07-05"
 project: "memory-seed"
-related_to: "docs/inbox/memory-trail-competitor-analysis.md"
+related_to: "docs/inbox/memory-trail-competitor-analysis.md; docs/todo/completed/risk-signaling-and-stop-triggers-plan.md"
 author_context: "Prepared for Jean Nathan Tshibuyi"
 format: "Markdown research proposal"
 ---
 
 # Proposal: Graded Confidence-Signaling Protocol
 
+> **Status:** RESOLVED SOURCE on 2026-07-05. Actionable recommendations were promoted into
+> [`../risk-signaling-and-stop-triggers-plan.md`](../risk-signaling-and-stop-triggers-plan.md).
+> Retained for research provenance and source detail.
+
 > **Origin:** flagged as a genuinely good idea (not a threat) in
-> [`memory-trail-competitor-analysis.md`](memory-trail-competitor-analysis.md) — the `frmoretto/memory-trail`
+> [`memory-trail-competitor-analysis.md`](../../inbox/memory-trail-competitor-analysis.md) — the `frmoretto/memory-trail`
 > skill requires an agent to signal a graded certainty level at the start of every response, with named
 > risk factors that shift the required behavior. This document researches the idea further, adapts it
 > to Memory Seed's own conventions, and proposes where it would live if promoted to `docs/todo/`.
@@ -138,7 +142,7 @@ Memory Seed's own commit-safety rules already work for `--force` pushes and `--n
 
 ## Sources
 
-- [`memory-trail-competitor-analysis.md`](memory-trail-competitor-analysis.md) (this repo, 2026-07-05)
+- [`memory-trail-competitor-analysis.md`](../../inbox/memory-trail-competitor-analysis.md) (this repo, 2026-07-05)
 - [Permit.io: Human-in-the-Loop for AI Agents](https://www.permit.io/blog/human-in-the-loop-for-ai-agents-best-practices-frameworks-use-cases-and-demo)
 - [Galileo: How to Build Human-in-the-Loop Oversight for AI Agents](https://galileo.ai/blog/human-in-the-loop-agent-oversight)
 - [Agentic Confidence Calibration (arXiv 2601.15778)](https://arxiv.org/pdf/2601.15778)

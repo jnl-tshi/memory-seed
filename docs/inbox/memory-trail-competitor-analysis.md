@@ -2,7 +2,7 @@
 title: "Memory Trail (frmoretto) — Competitor Analysis"
 date: "2026-07-05"
 project: "memory-seed"
-related_to: "docs/todo/memory-trail-renaming-plan.md"
+related_to: "docs/todo/completed/memory-trail-renaming-plan.md"
 author_context: "Prepared for Jean Nathan Tshibuyi"
 format: "Markdown research report"
 ---
@@ -10,7 +10,7 @@ format: "Markdown research report"
 # Memory Trail (frmoretto) — Competitor Analysis
 
 > **Purpose:** deeper evidence for the naming decision flagged as open in
-> [`memory-trail-renaming-plan.md`](../todo/memory-trail-renaming-plan.md) (Phase-0 availability
+> [`memory-trail-renaming-plan.md`](../todo/completed/memory-trail-renaming-plan.md) (Phase-0 availability
 > check, 2026-07-05). That check found the name "Memory Trail" already in use and recorded it as a
 > same-niche conflict; this report verifies what that project actually is, how mature it is, and what
 > it does and doesn't do, so the naming call can be made on facts rather than a PyPI summary line.
@@ -160,7 +160,7 @@ job is the competitor evaluation, not new scope.
 ## Implications for the Naming Decision
 
 This does not resolve the decision recorded in
-[`memory-trail-renaming-plan.md`](../todo/memory-trail-renaming-plan.md) — that stays yours — but it
+[`memory-trail-renaming-plan.md`](../todo/completed/memory-trail-renaming-plan.md) — that stays yours — but it
 sharpens the tradeoff:
 
 - **The functional-collision risk is close to zero.** Nobody can `pip install memory-trail` and get

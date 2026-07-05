@@ -122,7 +122,7 @@ First batch of multi-user Phase 3 increments from the reviewed 3.0 plan
 - **Worktree dependency strategy P1:** dependency tiers, task-packet dependency fields,
   orchestrator-owned dependency/lockfile policy, and the tmux control-room note now live in
   `agent_collaboration.md`.
-- **Public retrieval service (Memory Trail distribution Phase 1):** `memory_seed/retrieval.py` owns
+- **Public retrieval service (Memory Trace distribution Phase 1):** `memory_seed/retrieval.py` owns
   search orchestration and the canonical result dicts; MCP is a thin parity-tested wrapper; the
   in-package Lense consumes the same service.
 - **Entry-level result rollup:** the shared `EntryRollup` contract collapses section matches into one
@@ -145,8 +145,7 @@ A-ID 80-bit entry IDs, A-P4 MCP metadata/filters, S2 participant registry parsin
 The 3.0 plan is now partly historical: shipped sections are retained for context. The Pillar B
 distribution choice was decided on 2026-07-05 (spin out a companion UI package; see
 [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md)), and the
-user later chose Memory Trail as the intended product name
-([`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md)). Related-entries P2 is now approved
+user later refined the product architecture to **Memory Trace** as the companion product with **Trail** as an internal evolution view ([`memory-trace-product-and-trail-view-plan.md`](memory-trace-product-and-trail-view-plan.md)). Related-entries P2 is now approved
 and scoped in [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md), but should
 sequence after the lower-risk retrieval-service and decision-diagram work unless reprioritized. The
 shared graph-edge contract across
@@ -171,10 +170,7 @@ Remaining work:
    [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md).
    **Phase 1 is implemented (2026-07-05, unreleased):** the public retrieval service exists, MCP is a
    parity-tested thin wrapper, Lense consumes the service, and the entry-level rollup + diagram
-   surfacing ride the same contract. **Phase 2 (package extraction) is gated on the naming call:**
-   the availability check found `memory-seed-trail` free on PyPI but "Memory Trail" in use by a live
-   same-niche product ([`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md) Phase-0
-   findings) — the user needs to confirm or change the product name before extraction/publication.
+   surfacing ride the same contract. **Phase 2 (package extraction) is gated on the Trace naming check and explicit go:** the old Trail-only product name is superseded; re-run the availability check for `memory-seed-trace`, `memory-trace`, and `memoryseed-trace` before extraction/publication.
    Any future UI work consumes `build_related_entry_graph()` and the Phase-1 retrieval service rather
    than forking graph or ranking logic.
 
@@ -187,13 +183,14 @@ Specs:
 
 - [`multi-user-session-memory-proposal.md`](completed/multi-user-session-memory-proposal.md) (completed — full scope shipped through 2.12.0)
 - [`multi-user-deep-research-report.md`](completed/multi-user-deep-research-report.md) (completed — recommendations fully acted on)
-- [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md) (**active, canonical** — the decided Pillar B split into a separate companion UI package; **Phase 1 implemented 2026-07-05, unreleased**; Phase 2 gated on the naming decision)
+- [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md) (**active, canonical** — the decided Pillar B split into a separate Memory Trace companion UI package; **Phase 1 implemented 2026-07-05, unreleased**; Phase 2 gated on Trace naming availability and explicit go)
 - [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md) (**active** — two-class diagram model; **Phase 1 implemented 2026-07-05, unreleased** (sidecar convention + links-check validation + service surfacing + authoring guidance); Phases 2-3 gated as scoped)
-- [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md) (**active** - approved 2026-07-05; controlled `link add` and explicit historical backfill for curated `related_entries`, sequenced after the lower-risk Memory Trail Phase-1/decision-diagram work unless reprioritized)
+- [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md) (**active** - approved 2026-07-05; controlled `link add` and explicit historical backfill for curated `related_entries`, sequenced after the lower-risk retrieval/diagram/risk-signaling work unless reprioritized)
 - [`user-interface-deep-research-report.md`](completed/user-interface-deep-research-report.md) (completed 2026-07-05 — historical research; its one live tail, the Pillar B decision, was made and split into the distribution plan above; citation artifacts scrubbed 2026-07-05)
 
 - [`memory-explorer-entry-level-ui-results-plan.md`](memory-explorer-entry-level-ui-results-plan.md) (**active** - entries as selectable results with subsection matches highlighted inside them; **core rollup contract implemented 2026-07-05, unreleased** — reader-view deep-highlighting remains for the Trail UI pass)
-- [`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md) (**active, decision needed** - Phase-0 availability check ran 2026-07-05: `memory-seed-trail` is free on PyPI, but "Memory Trail" is a live same-niche product; docs rename paused pending the user's naming call)
+- [`memory-trace-product-and-trail-view-plan.md`](memory-trace-product-and-trail-view-plan.md) (**active** - Memory Trace is the companion product/package direction; Trail is the feature-evolution view; Phase 0 Trace availability check remains before extraction)
+- [`completed/risk-signaling-and-stop-triggers-plan.md`](completed/risk-signaling-and-stop-triggers-plan.md) (**implemented 2026-07-05, unreleased** - consolidates confidence signaling and STOP-trigger guidance into one lazy-loaded risk skill before mutation/automation work)
 
 ### Proposal Priority Order
 
@@ -209,16 +206,17 @@ P2 - **Read-only surfacing before behavior changes.** Expose raw `inbound_relati
 metadata, and later `importance_score` as inspectable metadata before any default search-ranking
 changes.
 
-P2a - **Memory Trail naming transition — decision needed.** The Phase-0 availability check
-(2026-07-05) found `memory-seed-trail` free on PyPI but "Memory Trail" in active use by a same-niche
-competitor product; the docs rename is paused until the user confirms or changes the product name
-(see the renaming plan's Phase-0 findings and options).
+P2a - **Memory Trace product naming + Trail view gate.** The Trail-only product name is superseded;
+Memory Trace is the companion product direction, and Trail is the internal evolution view. Before
+package extraction, run the Trace availability check and then update package/command/docs naming.
 
-P2b - **Memory Trail Phase 1 + decision diagrams — implemented 2026-07-05 (unreleased).** The public
+P2b - **Memory Trace Phase 1 + decision diagrams — implemented 2026-07-05 (unreleased).** The public
 retrieval service is extracted with MCP/Lense parity proven by tests, the entry-level result rollup
 contract ships in the service with Lense consuming it, decision-diagram sidecars surface through the
 shared service, and the Phase-1 diagram convention/validation/authoring guidance is live + seeded.
 The separate package was not created (as scoped).
+
+P2c - **Risk signaling and STOP triggers - implemented 2026-07-05 (unreleased).** Qualitative Proceed/Proceed-and-flag/Propose-and-wait/Stop guidance now lives in the seeded `risk_signaling.md` lazy skill, with cross-references from collaboration and security triage. It remains guidance only: no new session schema and no automated gate.
 
 P3 - **Parallel-work environment policy.** Worktree dependency tiers, dependency task-packet
 fields, dependency-definition shared-file rules, and optional tmux control-room guidance shipped in

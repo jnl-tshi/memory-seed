@@ -24,6 +24,10 @@ Use this skill when reviewing a change, report, dependency, or workflow for secu
 4. Prefer concrete exploit paths over generic best-practice advice.
 5. Recommend minimal fixes and targeted verification.
 
+Security / trust boundary items are a STOP category in `risk_signaling.md`. If a task reaches that
+category, pause unsafe action first, then use this skill to analyze the risk and propose the minimal
+safe path.
+
 ## Output
 
 - Findings first, ordered by severity.

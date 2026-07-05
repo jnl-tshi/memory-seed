@@ -270,12 +270,229 @@ A better positioning map:
 | Observability | LangSmith, Arize, platform traces | Runtime traces/evals | Provide human-readable project timeline and decision memory |
 | Knowledge bases | Copilot Spaces, RAG systems, vector DBs | Searchable context | Provide Git-native memory with decisions, reasons, links, and history |
 | Project management | Jira, Linear, GitHub Issues | Task tracking | Connect tasks to agent decisions and code changes |
+| Memory API / infra | Mem0, Memobase, Supermemory | App/user memory APIs, profiles, context services | Avoid generic API competition; own repo/project memory |
+| Enterprise graph memory | Zep, Cognee, graph-memory platforms | Temporal graphs, provenance, governance, context lakes | Borrow provenance language; keep the local Markdown/Git trust model |
+| Agent learning | Letta / MemGPT lineage | Agents that learn and rewrite memory over time | Position Memory Seed as project memory, not autonomous self-improvement |
+| Developer-local memory | Pieces, Cognee, IDE/OS memory tools | Personal workflow and coding-agent recall | Own explicit project decisions, commits, tests, and handoffs |
 
 The strongest wedge is:
 
 > Use any agent. Keep one memory.
 
-### 8.1 Emerging Adjacent Signal: o11 and Institutional Memory
+Or, more commercially:
+
+> Memory Seed is inspectable project memory for AI coding work.
+
+### 8.1 Agent Memory Market Lanes
+
+The "agent memory" market is now separating into five lanes:
+
+1. **Memory API / infrastructure** - hosted SDKs and APIs that let AI products remember users, facts,
+   events, and previous conversations.
+2. **Graph-based enterprise memory** - temporal knowledge graphs, context lakes, provenance,
+   governance, access control, and auditability.
+3. **Agent learning systems** - agents that revise their own memories, prompts, identities, and
+   capabilities over time.
+4. **Developer/project memory** - memory for coding agents, project decisions, previous fixes,
+   worktrees, commits, pull requests, repo context, and multi-agent handoffs.
+5. **Personal / institutional memory** - second-brain, meeting, workflow, personal assistant, and
+   company-memory systems.
+
+Memory Seed is closest to **lane 4**, with useful adjacency to lanes 2 and 5. Its differentiator is
+not that it remembers more things than the memory-cloud startups. Its differentiator is that it is
+**local-first, Git-native, Markdown-readable, and project-scoped**.
+
+### 8.2 Core Startup Landscape
+
+| Company / project | Category | What they are building | Relevance to Memory Seed |
+|---|---|---|---|
+| Mem0 | Memory API / infrastructure | Drop-in persistent memory for AI agents and apps | Biggest generic "memory infrastructure" comparator |
+| Letta | Agent learning / memory research | Self-improving agents whose memory, identity, and capabilities evolve | Strong conceptual competitor; Git-based memory research validates the direction |
+| Zep | Enterprise graph memory | Temporal context graphs and governed agent memory at scale | Enterprise/governance comparator |
+| Supermemory | Context cloud / memory platform | Memory, RAG, profiles, connectors, graph memory, filesystem interface | Broad infra competitor; overlaps with agent recall and human memory UI |
+| Cognee | Open-source graph memory | Local-to-cloud graph memory for agents, including coding-agent integrations | Very close developer-agent memory overlap |
+| Memobase | User-profile memory | Profile and event-timeline memory for LLM apps | Less project-focused; useful user-memory architecture signal |
+| Pieces | Local developer memory | OS/app-level long-term memory for developers and digital workers | Closest local/dev workflow comparator, less Git/project-decision native |
+| Personal AI | Personal memory / digital mind | User-owned personal memory and personas | Adjacent category signal, not coding-agent specific |
+| Limitless / Rewind | Ambient personal memory | Searchable meeting and conversation memory | Adjacent personal-memory signal |
+| o11 | Institutional memory | Early signal around "a new kind of institutional memory" | Highly relevant watchlist; not enough public source material yet |
+
+### 8.3 Company Notes and Implications
+
+#### Mem0 - memory infrastructure
+
+Mem0 is the clearest memory-infrastructure comparator. It positions around persistent memory for AI
+agents and apps: add, learn, retrieve, compress, and govern memory across sessions and agents. Its
+commercial posture is API-first and production-infrastructure oriented, including enterprise controls
+such as audit logs, governance, and private deployment options.
+
+Commercial validation is strong: funding coverage reported a $24 million round led by Basis Set
+Ventures, with Peak XV Partners, Kindred Ventures, GitHub Fund, and Y Combinator participating.
+
+**Comparison:** Mem0 is a memory layer for app builders. Memory Seed is a memory layer for software
+projects and coding agents.
+
+**Threat level:** high for generic "agent memory"; lower for repo-local project memory.
+
+**Opportunity:** do not compete on hosted memory API. Emphasize Git-native project memory, session
+provenance, coding-agent handoffs, and reviewable Markdown.
+
+#### Letta - agent learning
+
+Letta frames memory as learning, not just storage. Its public positioning emphasizes agents that
+remember, learn continuously, and evolve their memory, identity, and capabilities. The relevant
+strategic signal is Letta's research direction around memory models, context repositories, Git-based
+memory, and sleep-time memory processing.
+
+Press coverage of "sleeptime compute" is useful because it frames memory consolidation as an
+agent-runtime behavior: agents decide what to store long term, what to keep for fast recall, and what
+to revise later.
+
+**Comparison:** Letta's direction is "agents that learn." Memory Seed's direction should be
+"projects that remember."
+
+**Threat level:** high conceptually, medium directly.
+
+**Opportunity:** stay grounded in inspectable project memory. Letta validates the importance of memory
+systems; Memory Seed should avoid over-claiming autonomous learning.
+
+#### Zep - enterprise temporal graph memory
+
+Zep is the enterprise-scale graph-memory comparator. It positions around agent memory for users,
+business data, and work done, with temporal context graphs, governed retrieval, provenance, access
+control, retention, and auditability.
+
+**Comparison:** Zep is stronger on scale, graph structure, enterprise governance, and managed
+deployment. Memory Seed is stronger on local ownership, Git reviewability, Markdown readability, and
+zero-server workflows.
+
+**Threat level:** high for enterprise memory; lower for local developer/project memory.
+
+**Opportunity:** borrow the language of provenance, temporal memory, and audit, but apply it to
+codebase decisions and agentic development.
+
+#### Supermemory - context cloud
+
+Supermemory positions itself as a context cloud for agents, with memory, RAG, profiles, connectors,
+extractors, graph memory, and model-agnostic context infrastructure. Its filesystem/profile ideas are
+especially relevant because they overlap with Memory Seed's file-native instincts.
+
+Funding coverage reported a $3 million seed round and described the project as moving from a
+consumer second-brain app toward infrastructure for AI products.
+
+**Comparison:** Supermemory is broad and platform-like: bring data, synthesize context, serve it to
+agents. Memory Seed is narrower and deterministic: project memory in Markdown plus MCP and human
+inspection.
+
+**Threat level:** medium-high.
+
+**Opportunity:** differentiate on project history, decisions, tests, files, commits, and agent work,
+not generic user profiles and connectors.
+
+#### Cognee - open-source graph memory
+
+Cognee is likely the closest open-source adjacent product. It positions as graph memory for agents,
+with local and cloud paths, MCP alignment, and explicit coding-agent use cases.
+
+**Comparison:** Cognee is graph-memory-first. Memory Seed is Markdown-control-plane-first. Cognee wins
+when users want structured graph memory and cloud scale; Memory Seed wins when users want minimal
+infrastructure, inspectable repo files, local policy, session logs, and Git-native governance.
+
+**Threat level:** high among open-source/developer users.
+
+**Opportunity:** lean into "boring memory you can review in a PR." Cognee's graph is powerful; Memory
+Seed's Markdown is trustworthy.
+
+#### Memobase - user memory
+
+Memobase focuses on user-profile memory for LLM applications: virtual companions, education,
+personalized assistants, and apps that remember a user's preferences, facts, and event timeline.
+
+**Comparison:** Memobase remembers users. Memory Seed remembers projects.
+
+**Threat level:** low direct, medium category influence.
+
+**Opportunity:** use the distinction clearly: Memory Seed is not a personalization profile. It is a
+project memory and decision record.
+
+#### Pieces - local developer memory
+
+Pieces is highly relevant because it is local/private, developer-oriented, and cross-tool. Its
+long-term memory system captures code, docs, chats, tabs, snippets, and workflow context across a
+developer's machine.
+
+**Comparison:** Pieces is closer to automatic personal/workflow memory. Memory Seed is explicit,
+project-scoped, and structured around agent rules, sessions, decisions, files, tests, policies, and
+Git links.
+
+**Threat level:** medium.
+
+**Opportunity:** position as the repo memory, not the user's whole OS memory. Pieces can capture what
+the user did; Memory Seed can record what the project decided.
+
+#### Personal AI and Limitless / Rewind - personal memory signals
+
+Personal AI and Limitless/Rewind are less direct but important category signals. They show that
+"memory" is becoming a product category across personal models, digital minds, conversation capture,
+and searchable life/work context.
+
+Limitless is also a category-validation signal because 2025 coverage reported that Meta acquired the
+AI pendant startup, whose product centered on recording, transcription, and searchable conversation
+history.
+
+**Comparison:** they are personal memory companies. They do not solve developer/project memory.
+
+**Threat level:** low direct.
+
+**Opportunity:** use them as category validation, not as competitors to chase.
+
+### 8.4 Research Trend: Memory Is Becoming Infrastructure, Not a Vector-DB Feature
+
+The underlying research trend supports the market read. Agent memory is no longer just "put
+embeddings in a vector database." Recent systems work increasingly frames long-term memory as a
+data-management workload: ingestion, revision, forgetting, retrieval, compression, governance, and
+audit.
+
+That supports Memory Seed's thesis. Durable agent memory needs structure, provenance, and human
+inspection. But it also means Memory Seed needs a precise wedge. Broad memory infrastructure is
+already crowded. The whitespace is:
+
+> Local-first project memory for AI-assisted software development.
+
+That includes:
+
+- repo-local session logs;
+- project decisions and reasons;
+- links to files, tests, commits, branches, and worktrees;
+- human-readable Markdown/YAML;
+- MCP search/fetch for agents;
+- Memory Trace / Lense for humans;
+- Git reviewability and PR diffability;
+- multi-agent and multi-user development history.
+
+### 8.5 Strategic Implications for Memory Seed
+
+The startup landscape suggests three product moves are especially important:
+
+1. **Make Memory Trace / Lense the visible product.** Most memory infrastructure is invisible. Memory
+   Seed can win trust by making decisions, session history, related entries, files, tests, timelines,
+   supersession, and diagrams visible to humans.
+2. **Add stronger GitHub/PR integration.** The killer use case is: "This PR was produced by agents;
+   show me the memory trail." That means commit trailers, PR summaries from session logs, memory
+   health checks in CI, and links from decisions to changed files.
+3. **Own project provenance.** Zep can own enterprise graph provenance; Mem0 can own auditable memory
+   API reads/writes. Memory Seed can own lightweight, repo-native provenance: what changed, why, by
+   whom/which agent, with what tests, linked to what decision.
+
+The clearest market message is:
+
+> Other tools remember users. Memory Seed remembers the project.
+
+Or:
+
+> The Git-native memory layer for AI coding agents.
+
+### 8.6 Emerging Adjacent Signal: o11 and Institutional Memory
 
 An emerging company called **o11** appears to be positioning around institutional memory. This should
 not be confused with "o11y" observability. Based on the available screenshot, the public-facing signal
@@ -536,6 +753,19 @@ This report draws on the Memory Seed repository and public market references rev
 - Google Agent2Agent announcement: <https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/>
 - Anthropic Model Context Protocol announcement: <https://www.anthropic.com/news/model-context-protocol>
 - LangGraph product page: <https://www.langchain.com/langgraph>
+- Mem0: <https://mem0.ai/>
+- Letta: <https://www.letta.com/>
+- Zep: <https://www.getzep.com/>
+- Supermemory: <https://supermemory.ai/>
+- Cognee: <https://www.cognee.ai/>
+- Memobase repository: <https://github.com/memodb-io/memobase>
+- Pieces: <https://pieces.app/>
+- Personal AI: <https://www.personal.ai/>
+- Limitless: <https://www.limitless.ai/>
+- Economic Times on Mem0 funding: <https://m.economictimes.com/tech/funding/mem0-raises-24-million-from-basis-set-ventures-peak-xv-ventures-others/articleshow/124896884.cms>
+- Wired on Letta sleeptime compute: <https://www.wired.com/story/sleeptime-compute-chatbots-memory>
+- Times of India on Supermemory funding: <https://timesofindia.indiatimes.com/technology/tech-news/sold-a-company-at-16-raised-3-million-at-19-received-us-o-1-visa-how-dhravya-shah-built-ai-startup-supermemory/articleshow/132067382.cms>
+- Financial Times on Meta acquiring Limitless: <https://www.ft.com/content/a1a7adab-506e-4623-8f7a-0b7c94c8d6b4>
 - Agentic coding adoption study: <https://arxiv.org/abs/2601.18341>
 - AIDev agent-authored PR dataset: <https://arxiv.org/abs/2602.09185>
 - Microsoft agentic coding productivity study: <https://arxiv.org/abs/2607.01418>

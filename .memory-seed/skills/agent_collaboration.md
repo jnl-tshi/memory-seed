@@ -168,6 +168,10 @@ orchestrator uses.
 
 Workers may resolve conflicts in files they clearly own for the task.
 
+Shared/control-plane conflicts are the Shared / control-plane STOP category in
+`risk_signaling.md`: do not let a worker resolve them unless the packet explicitly assigns that
+write and names the conflict owner.
+
 Escalate to the orchestrator or human for:
 
 - shared control-plane files such as `AGENTS.md`, `.memory-seed/agent-rules.md`, `.memory-seed/policy.md`, or skill registry files

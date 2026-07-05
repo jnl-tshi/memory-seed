@@ -8,14 +8,14 @@ tags:
   - packaging
 ---
 
-# Memory Seed Explorer — Separate-Distribution Plan (Pillar B)
+# Memory Trace - Separate-Distribution Plan (Pillar B)
 
 > **Status:** ACTIVE — decided 2026-07-05. **Phase 1 implemented 2026-07-05 (unreleased):** the
 > public retrieval service exists (`memory_seed/retrieval.py` — search/fetch orchestration, canonical
 > result dicts, entry-level rollup, diagram-sidecar surfacing), MCP is a thin wrapper with a
 > byte-identical contract (parity-tested), and the in-package Lense consumes the service. Phase 2
 > (package extraction) remains gated on the naming decision in
-> [`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md) and an explicit go.
+> [`memory-trace-product-and-trail-view-plan.md`](memory-trace-product-and-trail-view-plan.md) and an explicit go.
 > This is the canonical plan for Pillar B distribution.
 > Supersedes the "open evaluation" framing in [`3.0-plan.md`](3.0-plan.md) §"Pillar B" and closes the
 > block in [`user-interface-deep-research-report.md`](completed/user-interface-deep-research-report.md).
@@ -23,13 +23,13 @@ tags:
 > blocker for any shipped surface).
 > **Source:** User decision 2026-07-05 (JNL) that the Explorer should become a separate companion
 > package and take over UI development, with clear separation from the core control-plane package.
-> `memory-seed-explorer` remains the working placeholder until the Memory Trail naming transition
+> `memory-seed-explorer` remains the working placeholder until the Memory Trace naming transition
 > completes. Decision inputs: the Codex synergy evaluation's "Pillar B Distribution
 > Decision" loop, the shipped `memory-seed[lense]` V1, and `3.0-plan.md`'s original companion-package
 > intent.
 > **Scope:** Two phases — (1) extract a stable public retrieval service inside `memory-seed` that both
 > MCP and Lense consume; (2) extract the UI into its own companion distribution that depends on
-> `memory-seed`, named by the Memory Trail transition. Read-only throughout.
+> `memory-seed`, named by the Memory Trace transition. Read-only throughout.
 > **Non-goals:** No write/curation surface (stays post-3.0, B5). No desktop/VS Code shell in this plan
 > (later shells wrap the same web app). No reopening shipped 2.13 Lense retrieval/UI behavior. No
 > forking of the parser/ranker into a second stack. No new default dependencies on core `memory-seed`.
@@ -39,8 +39,8 @@ tags:
 > Explorer UI result granularity is governed by
 > [`memory-explorer-entry-level-ui-results-plan.md`](memory-explorer-entry-level-ui-results-plan.md):
 > entries are the selectable UI object; subsection matches are highlighted inside entries.
-> Naming transition is governed by [`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md):
-> Memory Trail is the intended product name for the companion UI line, with package/command naming
+> Naming transition is governed by [`memory-trace-product-and-trail-view-plan.md`](memory-trace-product-and-trail-view-plan.md):
+> Memory Trace is the intended product name for the companion UI line, with package/command naming
 > checked before publication. The next approved implementation goal is Phase 1 only: extract the
 > public retrieval service, entry-level rollup contract, and decision-diagram surfacing; do not create
 > the separate package in that pass.
@@ -51,7 +51,7 @@ tags:
 Pillar B ships as a **separate companion distribution**, not as a permanent in-package optional
 extra. The in-package `memory-seed[lense]` V1 (shipped 2.13.0) served its purpose
 as a low-friction way to prototype and validate the UI against real session memory; from here, the
-Memory Trail package takes over UI development so that the core `memory-seed` control plane stays a
+Memory Trace package takes over UI development so that the core `memory-seed` control plane stays a
 lightweight, local-first, file-based package and the UI can iterate on its own cadence.
 
 Why a separate distribution rather than continuing the in-package extra:
@@ -100,7 +100,7 @@ Phase 1 extracts exactly those functions into a public, MCP-independent retrieva
   reasoning diagrams next to their entry without forking a reader;
 - is consumed by `mcp_server.py` (thin wrapper, unchanged external behavior) **and** by the in-package
   Lense today, proving both consumers ride the same contract;
-- is documented as the public retrieval API — the surface `memory-seed-trail` will import in Phase 2,
+- is documented as the public retrieval API — the surface `memory-seed-trace` will import in Phase 2,
   assuming availability checks pass.
 
 During Phase 1 the in-package Lense goes **maintenance-only**: bug/parity fixes to keep it working, but
@@ -123,7 +123,7 @@ in-package extra.
 
 Once the seam is proven, move the Explorer out.
 
-- New distribution under the final Trail package name if available (target: `memory-seed-trail`),
+- New distribution under the final Trace package name if available (target: `memory-seed-trace`),
   with a matching console command.
 - It **depends on** `memory-seed` and imports the Phase-1 retrieval service; it never reimplements
   parsing or ranking.
@@ -131,7 +131,7 @@ Once the seam is proven, move the Explorer out.
   Explorer package. Core `pyproject.toml` sheds the `[lense]` extra's web deps and the `lense_static`
   package data.
 - Keep `memory-seed[lense]` working as a **deprecated shim** for at least one release: the extra still
-  installs/points users to Memory Trail with a deprecation notice, so existing
+  installs/points users to Memory Trace with a deprecation notice, so existing
   `memory-seed[lense]` users don't hard-break.
 - The Explorer keeps the shipped read-only surface: search / reader / timeline / graph / contributors /
   stats, explainability fields, and the rebuildable outside-repo SQLite cache (never authoritative,
@@ -144,8 +144,8 @@ Once the seam is proven, move the Explorer out.
 ### Phase 2 acceptance criteria
 
 - `pip install memory-seed` alone installs and imports **no** web framework and no Explorer code.
-- The final package/command names follow [`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md)
-  after PyPI + web/trademark sanity checks; target name is `memory-seed-trail` unless those checks
+- The final package/command names follow [`memory-trace-product-and-trail-view-plan.md`](memory-trace-product-and-trail-view-plan.md)
+  after PyPI + web/trademark sanity checks; target name is `memory-seed-trace` unless those checks
   show a problem.
 - The extracted UI command exposes the read-only companion UI and pulls `memory-seed` as a dependency.
 - Explorer API search/fetch matches MCP fixtures (retrieval parity preserved across the package

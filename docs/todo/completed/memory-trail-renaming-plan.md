@@ -10,6 +10,12 @@ tags:
 
 # Memory Trail Renaming Plan
 
+> **Status:** SUPERSEDED on 2026-07-05 by
+> [`../memory-trace-product-and-trail-view-plan.md`](../memory-trace-product-and-trail-view-plan.md).
+> The package/product name moves to **Memory Trace**; **Memory Trail** remains as the internal Trace
+> feature/view for branch and supersession evolution. This file is retained as provenance for the
+> Trail-only naming check and competitor-risk finding.
+
 > **Status:** ACTIVE - scoped naming proposal, created 2026-07-05. **Phase 0 availability check ran
 > 2026-07-05 and found a problem:** `memory-seed-trail` is free on PyPI, but "Memory Trail" is
 > already an active same-niche product (`memory-trail` on PyPI + LobeHub) — see "Phase 0 findings"
@@ -98,7 +104,7 @@ not a squatter or an unrelated tool — the same-niche positioning ("decision me
 logging for AI-assisted development - track architectural decisions across sessions") overlaps
 Memory Seed's own product space, not merely its candidate name.
 
-**Refined 2026-07-05** by [`../inbox/memory-trail-competitor-analysis.md`](../inbox/memory-trail-competitor-analysis.md)
+**Refined 2026-07-05** by [`../inbox/memory-trail-competitor-analysis.md`](../../inbox/memory-trail-competitor-analysis.md)
 (full evaluation): the PyPI package itself is an inert placeholder (`log()`/`recall()` both raise
 `NotImplementedError`; CLI prints "Coming Soon") reserving a name inside a different product line
 (Clarity Gate). The actual functioning artifact is a **separate GitHub repo**

@@ -212,6 +212,7 @@ Cross-cutting principles that apply to any agent and any task:
 - **Do not strip terse guards without understanding why.** A short validation or ownership check (a date-format guard, an is_ours ownership check, an isinstance guard) can look like boilerplate; read what it protects against before removing or simplifying it.
 - **Default to plain text; reserve Mermaid for spatial, temporal, or concurrent structure.** Use a plain sentence or list for a decision's rationale by default. Reach for a Mermaid diagram only when the content is genuinely spatial, temporal, or concurrent — sequence flows across components, entity/schema relationships, or topology — where a diagram is clearly higher-signal than prose. Keep Mermaid blocks small, and double-check bracket/arrow/quote syntax before committing. Also check semantic freshness: roadmap diagrams must be updated when shipped work changes status, not merely kept syntactically valid. A broken or stale block renders as misleading raw text with no fallback.
 - **Link commits to the decision entry that motivated them.** When a commit implements a logged decision, append a `Memory-Entry: <entry_id>` trailer to the commit message. Optionally backfill the entry's `commits:` field with the full 40-character SHA — but only while that entry is still the newest one, in the same turn; after that, the trailer alone carries the link. This is a convention, not an enforced hook.
+- **Use qualitative risk tiers before acting.** For ambiguous, destructive, irreversible, externally visible, financial, security-sensitive, or shared-control-plane actions, load `.memory-seed/skills/risk_signaling.md` and choose Proceed, Proceed-and-flag, Propose-and-wait, or Stop from observable risk rather than numeric confidence.
 
 ## End Of Turn
 
@@ -237,6 +238,7 @@ Skills are lazy-loaded runbooks. Read `.memory-seed/skills/index.md` first as th
 - `session_logging.md`: session log schema, DRAFT labels, examples, `related_entries`, and append-only chronology.
 - `end_of_turn.md`: full ESR checklist, consolidation review, artifact sweep, persona/skill evolution, and baseline-promotion review.
 - `memory_hygiene.md`: publishable-memory posture, secrets minimization, and reusable-template hygiene.
+- `risk_signaling.md`: qualitative risk tiers and STOP categories for ambiguous, destructive, irreversible, security-sensitive, externally visible, financial, or shared-control-plane actions.
 - `subproject_runtime.md`: nested runtime creation, inheritance choices, bootstrap target boundaries, and parent/root summaries.
 - `code_search.md`: searching source code or repo structure efficiently.
 - `data_architecture.md`: changing durable data structures, indexes, schemas, or retrieval behavior.

@@ -183,6 +183,7 @@ class SessionSchemaTests(unittest.TestCase):
             "skill: session_logging.md",
             "skill: end_of_turn.md",
             "skill: memory_hygiene.md",
+            "skill: risk_signaling.md",
             "skill: proposal_lifecycle.md",
             "skill: subproject_runtime.md",
         ):
@@ -223,6 +224,13 @@ class SessionSchemaTests(unittest.TestCase):
                 "Record local inheritance choices",
                 "parent/root summary",
             ),
+            "risk_signaling.md": (
+                "Risk Signaling Skill",
+                "Action Tiers",
+                "STOP Categories",
+                "Proceed-and-flag",
+                "Security / trust boundary",
+            ),
         }
         live_registry = Path(".memory-seed/skills/index.md").read_text(encoding="utf-8")
         seed_registry = Path("memory_seed/seed/.memory-seed/skills/index.md").read_text(encoding="utf-8")
@@ -253,6 +261,7 @@ class SessionSchemaTests(unittest.TestCase):
             ".memory-seed/skills/session_logging.md",
             ".memory-seed/skills/end_of_turn.md",
             ".memory-seed/skills/memory_hygiene.md",
+            ".memory-seed/skills/risk_signaling.md",
             ".memory-seed/skills/subproject_runtime.md",
         ):
             self.assertIn(phrase, content)

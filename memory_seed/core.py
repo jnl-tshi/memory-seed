@@ -955,6 +955,10 @@ SEED_FILES = [
         ".memory-seed/skills/memory_hygiene.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "risk_signaling.md",
+        ".memory-seed/skills/risk_signaling.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "proposal_lifecycle.md",
         ".memory-seed/skills/proposal_lifecycle.md",
     ),

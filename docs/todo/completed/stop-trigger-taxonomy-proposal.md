@@ -2,15 +2,19 @@
 title: "Proposal: Named STOP-Trigger Taxonomy"
 date: "2026-07-05"
 project: "memory-seed"
-related_to: "docs/inbox/memory-trail-competitor-analysis.md"
+related_to: "docs/inbox/memory-trail-competitor-analysis.md; docs/todo/completed/risk-signaling-and-stop-triggers-plan.md"
 author_context: "Prepared for Jean Nathan Tshibuyi"
 format: "Markdown research proposal"
 ---
 
 # Proposal: Named STOP-Trigger Taxonomy
 
+> **Status:** RESOLVED SOURCE on 2026-07-05. Actionable recommendations were promoted into
+> [`../risk-signaling-and-stop-triggers-plan.md`](../risk-signaling-and-stop-triggers-plan.md).
+> Retained for research provenance and source detail.
+
 > **Origin:** flagged as a genuinely good idea (not a threat) in
-> [`memory-trail-competitor-analysis.md`](memory-trail-competitor-analysis.md) — the `frmoretto/memory-trail`
+> [`memory-trail-competitor-analysis.md`](../../inbox/memory-trail-competitor-analysis.md) — the `frmoretto/memory-trail`
 > skill defines a fixed taxonomy (Security, Destructive, Irreversible, Financial) that forces a hard
 > stop: explain the risk, present 2–3 options, wait for a human choice. This document researches the
 > idea, adapts the categories to Memory Seed's own control-plane conventions, and proposes where it
@@ -120,7 +124,7 @@ default guess.
 
 ## Sources
 
-- [`memory-trail-competitor-analysis.md`](memory-trail-competitor-analysis.md) (this repo, 2026-07-05)
+- [`memory-trail-competitor-analysis.md`](../../inbox/memory-trail-competitor-analysis.md) (this repo, 2026-07-05)
 - [Permit.io: Human-in-the-Loop for AI Agents](https://www.permit.io/blog/human-in-the-loop-for-ai-agents-best-practices-frameworks-use-cases-and-demo)
 - [Galileo: How to Build Human-in-the-Loop Oversight for AI Agents](https://galileo.ai/blog/human-in-the-loop-agent-oversight)
 - [DEV Community: Human-in-the-Loop — When AI Agents Should Stop and Ask](https://dev.to/gantz/human-in-the-loop-when-ai-agents-should-stop-and-ask-30gc)

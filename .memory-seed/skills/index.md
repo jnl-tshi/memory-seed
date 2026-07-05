@@ -160,6 +160,16 @@ skills:
     do_not_load_when:
       - task has no security, privacy, or destructive-operation surface
 
+  - skill: risk_signaling.md
+    required: true
+    load_when:
+      - ambiguous, underspecified, broad, or outside-explicit-authorization actions
+      - destructive, irreversible, externally visible, financial, or high-blast-radius actions
+      - shared control-plane state, seed templates, lockfiles, or session/memory files may be changed
+      - deciding whether to proceed, proceed-and-flag, propose-and-wait, or stop
+    do_not_load_when:
+      - routine, reversible work that is explicitly requested and follows established local patterns
+
   - skill: developer-rendered-ui-debugging.md
     required: false
     persona: developer
