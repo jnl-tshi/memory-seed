@@ -21,9 +21,12 @@ All notable changes to Memory Seed are summarized here.
 - Added `proposal_lifecycle.md` to the seeded skill set and trigger registry. It formalizes proposal
   movement through `docs/inbox/` -> `docs/todo/` -> `docs/todo/completed/`, including status blocks,
   completed-proposal movement rules, and roadmap/audit update surfaces.
-- Refined the inbox worktree/tmux/dependency proposal into
-  `docs/todo/worktree-dependency-strategy-plan.md`; retained the raw source in
-  `docs/todo/completed/worktree-dependency-control-plane-source.md`.
+- Added a Dependency Strategy to `agent_collaboration.md` (+ seed twin): three dependency tiers
+  (`none`/`isolated`/`dependency-changing`), four new task-packet fields (`dependency_tier`,
+  `dependency_setup`, `dependency_definition_policy`, `dependency_shared_cache_policy`), dependency
+  definition files/lockfiles named as orchestrator-owned shared files, shared-cache-vs-shared-environment
+  guidance, and an optional tmux-as-control-room note. Documentation-only; no CLI scaffold. Plan moved
+  to `docs/todo/completed/worktree-dependency-strategy-plan.md`.
 - Kept `MEMORY_SEED_LENSE_CACHE_ROOT` working as a compatibility alias for Lense cache placement;
   `MEMORY_SEED_CACHE_DIR` remains the preferred generic cache variable.
 

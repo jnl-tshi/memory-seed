@@ -13,9 +13,9 @@ scope:
 
 # Memory Seed Worktree, tmux, and Dependency Strategy Source
 
-> **Status: RESOLVED SOURCE, refined 2026-07-04.** The active implementation proposal is
-> [`../worktree-dependency-strategy-plan.md`](../worktree-dependency-strategy-plan.md). This file is
-> retained as source context only.
+> **Status: RESOLVED SOURCE, refined 2026-07-04.** The implementation proposal is
+> [`worktree-dependency-strategy-plan.md`](worktree-dependency-strategy-plan.md) (Phase 1 implemented
+> 2026-07-05). This file is retained as source context only.
 
 ## Executive summary
 

@@ -119,6 +119,9 @@ First batch of multi-user Phase 3 increments from the reviewed 3.0 plan
 - **Proposal lifecycle skill:** `proposal_lifecycle.md` now defines the inbox -> todo -> completed
   document flow, status requirements, completed-proposal movement rules, and required roadmap/audit
   update surfaces.
+- **Worktree dependency strategy P1:** dependency tiers, task-packet dependency fields,
+  orchestrator-owned dependency/lockfile policy, and the tmux control-room note now live in
+  `agent_collaboration.md`.
 
 ### 3.0 - In Progress
 
@@ -176,9 +179,9 @@ P2 - **Read-only surfacing before behavior changes.** Expose raw `inbound_relati
 metadata, and later `importance_score` as inspectable metadata before any default search-ranking
 changes.
 
-P3 - **Parallel-work environment policy.** Add worktree dependency tiers, dependency task-packet
-fields, dependency-definition shared-file rules, and optional tmux control-room guidance to the
-collaboration skill before considering any scaffold.
+P3 - **Parallel-work environment policy.** Worktree dependency tiers, dependency task-packet
+fields, dependency-definition shared-file rules, and optional tmux control-room guidance shipped in
+the collaboration skill 2026-07-05 (unreleased). Any scaffold remains deferred (see P4).
 
 P4 - **Deferred mutation and automation.** Hold related-entry backfill / `link add`, access-frequency
 telemetry, fanout CLI scaffolding, worktree/dependency scaffolding, and render-verification
@@ -252,23 +255,20 @@ coordinate worktrees, mutate branches, or edit shared memory directly. Worker ag
 handoff summaries while the orchestrator remains the single writer for session logs, policy, index,
 routing files, lockfiles, seed templates, and generated binaries unless explicitly delegated.
 
-### Worktree Dependency Strategy - Proposed
+### Worktree Dependency Strategy - Phase 1 implemented (2026-07-05, unreleased)
 
 Source: an inbox proposal on worktrees, tmux, and dependency isolation, refined into
-[`worktree-dependency-strategy-plan.md`](worktree-dependency-strategy-plan.md). **Proposed, not yet
-built.**
+[`worktree-dependency-strategy-plan.md`](completed/worktree-dependency-strategy-plan.md).
 
-Priority: **P2 after the shipped Fan-Out Recipe and graph metadata work.** It directly improves the
-safety of Codex/Claude/other-agent parallel work, but should remain documentation-first until manual
-use proves a scaffold is worth adding.
-
-1. Add dependency tiers (`none`, `isolated`, `dependency-changing`) and dependency task-packet fields
-   to `agent_collaboration.md`.
-2. Make dependency definition files and lockfiles explicit orchestrator-owned shared files.
-3. Add a short optional tmux control-room note while keeping Git branches, worktrees, task packets,
-   validation records, and handoff evidence as the portable contract.
-4. Defer any `memory-seed workflow fanout` scaffold to a preview-only, dry-run command after repeated
-   manual validation.
+1. Dependency tiers (`none`, `isolated`, `dependency-changing`) and the four dependency task-packet
+   fields (`dependency_tier`, `dependency_setup`, `dependency_definition_policy`,
+   `dependency_shared_cache_policy`) are in `agent_collaboration.md` (+ seed twin).
+2. Dependency definition files and lockfiles are explicit orchestrator-owned shared files, escalated
+   the same as control-plane files in Conflict Escalation.
+3. A short optional tmux control-room note is in place: Git branches, worktrees, task packets,
+   validation records, and handoff evidence remain the portable contract regardless of terminal tooling.
+4. **Deferred, not blocking:** Phase 2 example task packets, and any `memory-seed workflow fanout`
+   scaffold (Phase 3) as a preview-only, dry-run command — both wait on repeated manual validation.
 
 ### Seed Skill Promotions - Proposed
 

@@ -10,8 +10,12 @@ tags:
 
 # Worktree Dependency Strategy Plan
 
-> **Status: PROPOSED, not yet built.** Refined 2026-07-04 from the inbox proposal
-> `memory-seed-worktree-dependency-control-plane-proposal.md`.
+> **Status: Phase 1 implemented 2026-07-05 (unreleased).** Refined 2026-07-04 from the inbox proposal
+> `memory-seed-worktree-dependency-control-plane-proposal.md`. Dependency tiers, the four task-packet
+> dependency fields, orchestrator-owned dependency/lockfile policy, shared-cache guidance, and the
+> tmux note now live in `.memory-seed/skills/agent_collaboration.md` (+ seed twin). **Remaining
+> (deferred, not blocking):** Phase 2 example task packets, and the Phase 3 preview-only
+> `memory-seed workflow fanout` scaffold — both wait on repeated manual use before further build-out.
 
 ## Summary
 

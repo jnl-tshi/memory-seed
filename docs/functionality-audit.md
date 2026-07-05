@@ -381,9 +381,9 @@ Sources: `docs/todo/NEXT_STEPS.md` and `docs/todo/`. Status reflects the current
 
 **Unreleased, queued under `CHANGELOG.md`'s `## Unreleased`:** typed supersession edges P1; git commit entry linking P1; ranking P1a/P1b (`inbound_relation_count`, `importance_score`); and the Memory Lense `related_degree` → `connectivity` rename.
 Additional unreleased control-plane documentation: `proposal_lifecycle.md` now governs proposal movement
-through inbox -> todo -> completed, and `docs/todo/worktree-dependency-strategy-plan.md` is the active
-proposal for worktree dependency tiers, dependency task-packet fields, and optional tmux control-room
-guidance.
+through inbox -> todo -> completed, and worktree dependency strategy Phase 1 (dependency tiers,
+dependency task-packet fields, and optional tmux control-room guidance) shipped into
+`agent_collaboration.md` — see [`docs/todo/completed/worktree-dependency-strategy-plan.md`](todo/completed/worktree-dependency-strategy-plan.md).
 
 ### Near term — next candidate
 - **`/esr` command shortcuts for Codex/Cursor** once those tools support repo-level custom commands (Codex project-scoped `.codex/prompts` is an open upstream request; Cursor unverified). Not blocking — the enriched routine in `agent-rules.md` already serves them today.
@@ -408,7 +408,7 @@ guidance.
 - **Pillar B separate-distribution decision — still open** (`docs/todo/user-interface-deep-research-report.md`): Memory Lense shipped in 2.13.0 (§3O) as an in-package optional extra, delivering the local read-only web UI, explainability fields, and rebuildable cache the original Pillar B spec called for — but as an **in-package V1**, not the separate `memory-seed-explorer` distribution `docs/todo/3.0-plan.md` originally decided on. Whether to still spin that out, or keep iterating in-package, remains undecided. This research doc still carries `citeturn…` citation artifacts to scrub.
 - **Logic Capture Improvements — all 6 docs implemented (2 shipped in 2.14, 4 unreleased)** (sourced from an external review doc, refined 2026-07-02/03): completed/implemented — [`mermaid-usage-guidance-plan.md`](todo/completed/mermaid-usage-guidance-plan.md) and [`failed-approaches-logging-plan.md`](todo/completed/failed-approaches-logging-plan.md) (shipped 2.14, §3D); [`supersession-edges-plan.md`](todo/completed/supersession-edges-plan.md) P1 (unreleased typed `supersedes`, computed `superseded_by`, links-check guards, `link show`/`memory_get_chunk` exposure, and harmony-contract dampening); [`git-commit-entry-linking-plan.md`](todo/completed/git-commit-entry-linking-plan.md) P1 (unreleased `Memory-Entry:` trailer, `commits:` field, git-gated validation, `memory-seed link commits`); and [`interaction-frequency-ranking-plan.md`](todo/completed/interaction-frequency-ranking-plan.md) P1a + P1b (unreleased `inbound_relation_count`, supersession-aware `importance_score`, and Lense `connectivity` rename; access-frequency telemetry deferred). [`exclude-superseded-filter-plan.md`](todo/completed/exclude-superseded-filter-plan.md) P1 (unreleased opt-in `exclude_superseded` parameter on `memory_search`, default off, drops superseded entries from a single query).
 - **Agent Collaboration Workflow — implemented 2026-07-03 and shipped in 2.14** (`docs/todo/completed/agent-fanout-workflow-plan.md`): the vendor-neutral Fan-Out Recipe now lives in `agent_collaboration.md` (§3F) — explicit Level 2/3 justification, handoff-only worker agents, orchestrator-only shared-file writes by default, preflight identity verification for both writers and read-only explorers, and a bounded review-to-rework loop capped at 2 iterations. Any future CLI scaffold remains an evaluation loop only and must be preview-first/dry-run; it should not spawn agents, mutate branches, or edit shared memory directly.
-- **Worktree dependency strategy — proposed** (`docs/todo/worktree-dependency-strategy-plan.md`): refine the inbox worktree/tmux/dependency proposal into the collaboration skill. Priority is P3 in the proposal order: after shipped collaboration and graph metadata work, before any deferred scaffold. First increment is documentation-only: dependency tiers (`none`, `isolated`, `dependency-changing`), task-packet dependency fields, orchestrator-owned dependency definition files and lockfiles, and tmux as optional operator convenience rather than a Memory Seed dependency.
+- **Worktree dependency strategy — Phase 1 implemented 2026-07-05 (unreleased)** (`docs/todo/completed/worktree-dependency-strategy-plan.md`): dependency tiers (`none`, `isolated`, `dependency-changing`), the four task-packet dependency fields, orchestrator-owned dependency definition files/lockfiles, shared-cache guidance, and tmux as optional operator convenience are now in `agent_collaboration.md` (§3F). Deferred, not blocking: Phase 2 example task packets and a Phase 3 preview-only `memory-seed workflow fanout` scaffold.
 - **Seed skill promotion: Windows DOCX render fallback — proposed** (`docs/todo/docx-render-windows-seed-lessons.md`): capture Windows-safe DOCX rendering, artifact hygiene, and read-only visual QA fanout as reusable seed guidance; keep render mutation and cleanup single-writer.
 - **Ponytail plugin evaluation — completed** (`docs/todo/completed/ponytail-implementation.md`, moved from `docs/inbox/` once resolved): a separate proposal, evaluated via a fan-out research pass (external verification, architecture fit, codebase-grounded risk analysis) plus an opus critique pass. Verdict: reject the third-party plugin — real and accurately described, but redundant with the built-in `code-review`/`simplify` skills and the existing orphan sweep. Its two genuinely useful ideas (decision ladder, guard-preservation) were absorbed as Working Principles bullets instead (§3D), backed by new regression tests, with no new dependency added.
 
@@ -422,8 +422,8 @@ graph LR
   V212["2.12.0 — integrity validation · 80-bit IDs · MCP filters · migrate (shipped)"]
   V213["2.13.0 — Memory Lense · related-entries P1 · lazy skills (shipped)"]
   V214["2.14.0 — layout gate · guidance · fanout recipe (shipped)"]
-  VNext["Unreleased — supersedes · commits · importance_score · proposal lifecycle"]
-  V30["Next — worktree dependency strategy · related P2 · Lense/package decisions"]
+  VNext["Unreleased — supersedes · commits · importance_score · proposal lifecycle · worktree deps P1"]
+  V30["Next — related-entries P2 · Lense/package decisions"]
   V29 --> V210 --> V211 --> V212 --> V213 --> V214 --> VNext --> V30
 ```
 
@@ -434,5 +434,5 @@ graph LR
 - `tests/test_memory_seed.py`, `tests/test_session_schema.py`, `tests/test_semantic_cache.py`,
   `tests/test_mcp_server.py`, and `tests/test_lense.py` cover init/update/doctor, session schema,
   links validation, related/supersession/commit graph metadata, MCP exposure, Memory Lense graph
-  field naming, the `exclude_superseded` search filter, and seed/live parity. Current suite: **239 tests** (verified 2026-07-04).
+  field naming, the `exclude_superseded` search filter, and seed/live parity. Current suite: **243 tests** (verified 2026-07-05).
 - `memory-seed doctor` is the runtime health gate; `memory-seed-mcp-validate` validates retrieval end-to-end.

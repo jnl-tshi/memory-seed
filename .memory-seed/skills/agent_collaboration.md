@@ -68,6 +68,10 @@ objective: "<one concrete outcome>"
 integration_artifact: "pr|merge-request|patch|branch|handoff"
 capability_tier: "economy|standard|frontier"
 shared_file_policy: "orchestrator_only"
+dependency_tier: "none|isolated|dependency-changing"
+dependency_setup: "<none|per-worktree env command|orchestrator-coordinated>"
+dependency_definition_policy: "orchestrator_only"
+dependency_shared_cache_policy: "<shared read-only cache path, or 'none'>"
 conflict_owner: "<orchestrator|worker|human>"
 allowed_files:
   - "<paths or globs the worker may edit>"
@@ -123,6 +127,43 @@ Capability tier guidance: exploration economy/standard; planning **frontier**; i
 - Do not create a worktree inside a tracked directory unless the worktree directory is ignored.
 - Avoid stacking unrelated features in one branch. Commit or park completed work before starting the next feature.
 
+## Dependency Strategy
+
+Worktrees isolate source edits. Local environments isolate runtime state. Shared caches reduce disk
+cost. Dependency definition files are orchestrator-owned shared files.
+
+### Dependency Tiers
+
+Every task packet declares a `dependency_tier`:
+
+- `none` — read-only work; no environment setup required.
+- `isolated` — normal writing work; each worktree gets its own local environment (e.g. `.venv`,
+  `node_modules`), never one live environment shared with another parallel writer.
+- `dependency-changing` — the worker may change dependency definitions or lockfiles. Treat this as a
+  coordination event: the orchestrator decides whether to merge it first, merge it last, or pause and
+  rebase other worker branches before trusting their validation.
+
+### Shared Dependency Files
+
+Dependency definition files and lockfiles are orchestrator-owned shared files, same tier as the
+control-plane files below: `pyproject.toml`, `requirements*.txt`, `uv.lock`, `package.json`,
+`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`. Workers on `none` or `isolated` tiers must not
+edit these files; only a `dependency-changing` worker may, and only within its assigned scope.
+
+### Shared Caches
+
+A read-only shared package/download cache (e.g. pip/uv/npm cache directories) may be shared across
+worktrees to reduce disk cost. Never share one live installed environment or virtualenv across
+parallel writing worktrees — that reintroduces the mutable-shared-state risk worktrees exist to
+prevent.
+
+### Tmux As Optional Control Room
+
+Tmux (or any terminal multiplexer) is an optional operator convenience for watching multiple
+worktrees at once. It is not part of the portable contract: Git branch, worktree, task packets,
+validation records, and handoff evidence remain the contract regardless of which terminal tooling the
+orchestrator uses.
+
 ## Conflict Escalation
 
 Workers may resolve conflicts in files they clearly own for the task.
@@ -130,6 +171,7 @@ Workers may resolve conflicts in files they clearly own for the task.
 Escalate to the orchestrator or human for:
 
 - shared control-plane files such as `AGENTS.md`, `.memory-seed/agent-rules.md`, `.memory-seed/policy.md`, or skill registry files
+- dependency definition files and lockfiles (see Dependency Strategy) unless the worker's packet declares `dependency_tier: dependency-changing`
 - session or memory files unless the worker was assigned that exact write
 - seed templates under `memory_seed/seed/`
 - generated artifacts where the source of truth is unclear
