@@ -40,9 +40,24 @@ format: "Markdown research proposal"
 product ([analyzed here](../inbox/memory-trail-competitor-analysis.md)). This proposal offers a resolution:
 
 - **Product/package name: Memory Trace.** Names the whole thing — durable, cross-agent, human-
-  auditable project memory. No collision found for "Memory Trace" in the same check that flagged
-  "Memory Trail" (worth re-running the same Phase-0 availability check against `memory-trace` /
-  `memory-seed-trace` before treating this as settled — this proposal does not repeat that check).
+  auditable project memory.
+
+  **Phase-0 availability check ran 2026-07-05 — CLEAR.** PyPI (HTTP status of
+  `https://pypi.org/pypi/<name>/json`; 404 = unregistered):
+
+  | Name | Status |
+  |---|---|
+  | `memory-trace` | **available** (404) |
+  | `memory-seed-trace` | **available** (404) |
+  | `memoryseed-trace` | **available** (404) |
+
+  Unlike the Trail check, even the bare `memory-trace` name is unregistered. A light positioning scan
+  found **no product named "Memory Trace"** in the agent-memory space. One connotation note, not a
+  collision: "trace" is an active *generic* term in adjacent products — Memori Labs builds memory
+  from "agent traces" (execution telemetry) and agentmemory emits observability "trace spans" — so
+  the word carries an execution-telemetry connotation in parts of the space. That reads as adjacent
+  vocabulary, arguably even reinforcing (our Trace = decision provenance; their trace = execution
+  logging), rather than a brand conflict with any named product.
 - **"Trail" survives as an internal feature name**, not the product's brand. It stops being the thing
   people search for or compare against a competitor's identically-named product, and becomes the name
   of the specific view described in Part 2 — where the metaphor (following a trail of branches and
@@ -176,8 +191,10 @@ though the decision and commit both still exist.
 
 ## Acceptance Criteria
 
-- Phase-0 availability is re-run for **Memory Trace** and likely package/command names
-  (`memory-seed-trace`, `memory-trace`, `memoryseed-trace`) before public extraction.
+- ~~Phase-0 availability is re-run for **Memory Trace** and likely package/command names
+  (`memory-seed-trace`, `memory-trace`, `memoryseed-trace`) before public extraction.~~
+  **Done 2026-07-05 — all three available on PyPI, no named-product collision found** (see the
+  Phase-0 findings table in Part 1).
 - Forward-looking product docs use **Memory Trace** for the companion package/product and **Trail**
   only for the feature-evolution view inside Trace.
 - The old Trail-only naming proposal remains completed/superseded, with its competitor evidence kept
@@ -208,8 +225,11 @@ though the decision and commit both still exist.
 
 ## Open Questions For Promotion
 
-- **Re-run the Phase-0 availability check against "Memory Trace"** before treating the rename as
-  settled — this proposal assumes it's clear based on the conversation but has not itself verified it.
+- ~~**Re-run the Phase-0 availability check against "Memory Trace"**~~ — resolved 2026-07-05: all
+  three PyPI names available, no named-product collision (Part 1 findings). Which of
+  `memory-seed-trace` vs. `memory-trace` to register remains a packaging-time choice
+  (shared-prefix consistency vs. brevity); registering both and pointing one at the other is also an
+  option at extraction time.
 - **Detached-HEAD / no-branch fallback**: omit the field entirely (current recommendation) versus a
   sentinel value like `null` — likely omit, consistent with how `agent_name` is already `null` when no
   persona is active versus other optional fields simply being absent.

@@ -4,6 +4,8 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+## 2.16.0 - 2026-07-05
+
 - **Public retrieval service (`memory_seed/retrieval.py`), Memory Trail distribution plan Phase 1:**
   the MCP-coupled search orchestration and result-dict contract moved verbatim out of
   `mcp_server.py` into an MCP-independent public service (`search_memory`, `get_chunk`,
