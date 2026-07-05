@@ -10,7 +10,7 @@ answers as MCP, richer navigation for humans.
 The shared substrate (parser + ranker) lives in `memory_seed/semantic_cache.py`;
 this module owns what used to be MCP-coupled: semantic-provider resolution,
 search orchestration, and the canonical result dictionaries. See
-docs/todo/memory-seed-explorer-distribution-plan.md (Phase 1) and
+docs/todo/memory-trace-distribution-plan.md (Phase 1) and
 docs/graph-edge-contract.md.
 """
 

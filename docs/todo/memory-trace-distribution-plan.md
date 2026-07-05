@@ -4,11 +4,11 @@ tags:
   - memory-seed
   - plan
   - 3.0
-  - memory-explorer
+  - memory-trace
   - packaging
 ---
 
-# Memory Trace - Separate-Distribution Plan (Pillar B)
+# Memory Trace - Companion Distribution Plan (Pillar B)
 
 > **Status:** ACTIVE — decided 2026-07-05. **Phase 1 implemented 2026-07-05 (unreleased):** the
 > public retrieval service exists (`memory_seed/retrieval.py` — search/fetch orchestration, canonical
@@ -100,8 +100,7 @@ Phase 1 extracts exactly those functions into a public, MCP-independent retrieva
   reasoning diagrams next to their entry without forking a reader;
 - is consumed by `mcp_server.py` (thin wrapper, unchanged external behavior) **and** by the in-package
   Lense today, proving both consumers ride the same contract;
-- is documented as the public retrieval API — the surface `memory-seed-trace` will import in Phase 2,
-  assuming availability checks pass.
+- is documented as the public retrieval API — the surface `memory-trace` will import in Phase 2.
 
 During Phase 1 the in-package Lense goes **maintenance-only**: bug/parity fixes to keep it working, but
 no new UI feature development in-package. New UI development targets the Explorer package once Phase 2
@@ -123,8 +122,9 @@ in-package extra.
 
 Once the seam is proven, move the Explorer out.
 
-- New distribution under the final Trace package name if available (target: `memory-seed-trace`),
-  with a matching console command.
+- New distribution published as **`memory-trace`** (decided 2026-07-06; PyPI-available, no product
+  collision — see [`memory-trace-product-and-trail-view-plan.md`](memory-trace-product-and-trail-view-plan.md)),
+  with a matching **`memory-trace`** console command.
 - It **depends on** `memory-seed` and imports the Phase-1 retrieval service; it never reimplements
   parsing or ranking.
 - Move the web stack out of core: `fastapi`/`uvicorn` and the `lense_static/*` assets move to the
@@ -144,9 +144,9 @@ Once the seam is proven, move the Explorer out.
 ### Phase 2 acceptance criteria
 
 - `pip install memory-seed` alone installs and imports **no** web framework and no Explorer code.
-- The final package/command names follow [`memory-trace-product-and-trail-view-plan.md`](memory-trace-product-and-trail-view-plan.md)
-  after PyPI + web/trademark sanity checks; target name is `memory-seed-trace` unless those checks
-  show a problem.
+- The package and command are both `memory-trace` per
+  [`memory-trace-product-and-trail-view-plan.md`](memory-trace-product-and-trail-view-plan.md)
+  (PyPI-available, no collision; decided 2026-07-06).
 - The extracted UI command exposes the read-only companion UI and pulls `memory-seed` as a dependency.
 - Explorer API search/fetch matches MCP fixtures (retrieval parity preserved across the package
   boundary).

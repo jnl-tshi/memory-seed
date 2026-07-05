@@ -48,7 +48,7 @@ DOCX Windows render lessons
 
 ## Clashes To Resolve
 
-- `3.0-plan.md` still presents Pillar B as a decided separate `memory-seed-explorer` package, while Memory Lense V1 shipped in 2.13 as `memory-seed[lense]`. The active decision is now whether to keep iterating in-package or spin out a separate distribution later. **Resolved 2026-07-05:** decided to spin out `memory-seed-explorer`; the canonical plan is [`../memory-seed-explorer-distribution-plan.md`](../memory-seed-explorer-distribution-plan.md).
+- `3.0-plan.md` still presents Pillar B as a decided separate `memory-seed-explorer` package, while Memory Lense V1 shipped in 2.13 as `memory-seed[lense]`. The active decision is now whether to keep iterating in-package or spin out a separate distribution later. **Resolved 2026-07-05:** decided to spin out `memory-seed-explorer`; the canonical plan is [`../memory-trace-distribution-plan.md`](../memory-trace-distribution-plan.md).
 - `user-interface-deep-research-report.md` still reads as pre-Lense research and mentions no persistent cache, while shipped Lense has an outside-repo rebuildable SQLite cache and graph/search UI.
 - `related-entries-generation-plan.md` correctly says P1 shipped read-only, but stale P1/Definition-of-Done wording still includes `link add`.
 - `interaction-frequency-ranking-plan.md` claims Option C P1 can ship now while relying on supersession dampening that cannot exist until `supersedes` ships. Split raw related-degree exposure from supersession-aware scoring.
@@ -99,7 +99,7 @@ P3 - Deferred automation and mutation:
 Evaluate whether Memory Lense should remain an in-package optional extra or spin out into `memory-seed-explorer`.
 
 **Outcome:** decided to spin out a separate `memory-seed-explorer` companion package; the scoped
-two-phase plan is [`../memory-seed-explorer-distribution-plan.md`](../memory-seed-explorer-distribution-plan.md).
+two-phase plan is [`../memory-trace-distribution-plan.md`](../memory-trace-distribution-plan.md).
 This evaluation loop is closed.
 
 Inputs (as weighed):

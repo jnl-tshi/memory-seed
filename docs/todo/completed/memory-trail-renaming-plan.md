@@ -22,7 +22,7 @@ tags:
 > below. Phase 1 (docs rename) is paused pending the user's naming call; the distribution plan's
 > retrieval-service work proceeds under the `memory-seed-explorer` placeholder.
 > **Priority:** P2 companion to
-> [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md). Decide and
+> [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md). Decide and
 > apply the naming transition before the separate UI distribution becomes a public package.
 > **Source:** User decisions 2026-07-05: rename the Explorer/Lense workstream to **Memory Trail**;
 > use `memory-seed-trail` as the target package/command unless availability checks show a problem;
@@ -164,7 +164,7 @@ When extracting the separate distribution:
 
 ## Dependencies
 
-- [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md): package
+- [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md): package
   split and deprecation-window mechanics.
 - [`memory-explorer-entry-level-ui-results-plan.md`](memory-explorer-entry-level-ui-results-plan.md):
   user-facing object model for search, graph, timeline, and reader results.
@@ -187,7 +187,7 @@ When extracting the separate distribution:
 
 - User naming decision, 2026-07-05.
 - Companion distribution plan:
-  [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md).
+  [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md).
 - Entry-level result proposal:
   [`memory-explorer-entry-level-ui-results-plan.md`](memory-explorer-entry-level-ui-results-plan.md).
 - UI design source learnings:

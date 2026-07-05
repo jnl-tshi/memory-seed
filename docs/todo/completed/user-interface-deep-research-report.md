@@ -10,7 +10,7 @@
 > remaining follow-up (the Pillar B distribution product call) was decided on 2026-07-05: spin the
 > Explorer out into a separate `memory-seed-explorer` companion package. That decision and its scoped
 > two-phase implementation now live in
-> [`../memory-seed-explorer-distribution-plan.md`](../memory-seed-explorer-distribution-plan.md).
+> [`../memory-trace-distribution-plan.md`](../memory-trace-distribution-plan.md).
 > This report is retained as historical research only; do not treat it as an active proposal.
 
 ## Executive summary

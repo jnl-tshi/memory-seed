@@ -144,7 +144,7 @@ A-ID 80-bit entry IDs, A-P4 MCP metadata/filters, S2 participant registry parsin
 `migrate sessions-layout`) shipped in 2.12.0, and related-entries generation P1 shipped in 2.13.0.
 The 3.0 plan is now partly historical: shipped sections are retained for context. The Pillar B
 distribution choice was decided on 2026-07-05 (spin out a companion UI package; see
-[`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md)), and the
+[`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md)), and the
 user later refined the product architecture to **Memory Trace** as the companion product with **Trail** as an internal evolution view ([`memory-trace-product-and-trail-view-plan.md`](memory-trace-product-and-trail-view-plan.md)). Related-entries P2 is now approved
 and scoped in [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md), but should
 sequence after the lower-risk retrieval-service and decision-diagram work unless reprioritized. The
@@ -167,10 +167,10 @@ Remaining work:
    companion package, with the in-package extra going maintenance-only.
    The scoped two-phase plan (freeze a public retrieval service in-package, then extract the
    distribution) is
-   [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md).
+   [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md).
    **Phase 1 is implemented (2026-07-05, unreleased):** the public retrieval service exists, MCP is a
    parity-tested thin wrapper, Lense consumes the service, and the entry-level rollup + diagram
-   surfacing ride the same contract. **Phase 2 (package extraction) is gated on the Trace naming check and explicit go:** the old Trail-only product name is superseded; re-run the availability check for `memory-seed-trace`, `memory-trace`, and `memoryseed-trace` before extraction/publication.
+   surfacing ride the same contract. **Phase 2 (package extraction) is gated only on an explicit go:** the product name is **Memory Trace** and the package/command are both **`memory-trace`** (decided 2026-07-06; PyPI-available, no collision — the availability check is done).
    Any future UI work consumes `build_related_entry_graph()` and the Phase-1 retrieval service rather
    than forking graph or ranking logic.
 
@@ -183,7 +183,7 @@ Specs:
 
 - [`multi-user-session-memory-proposal.md`](completed/multi-user-session-memory-proposal.md) (completed — full scope shipped through 2.12.0)
 - [`multi-user-deep-research-report.md`](completed/multi-user-deep-research-report.md) (completed — recommendations fully acted on)
-- [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md) (**active, canonical** — the decided Pillar B split into a separate Memory Trace companion UI package; **Phase 1 implemented 2026-07-05, unreleased**; Phase 2 gated on Trace naming availability and explicit go)
+- [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md) (**active, canonical** — the decided Pillar B split into a separate Memory Trace companion UI package; **Phase 1 implemented 2026-07-05, unreleased**; Phase 2 gated on Trace naming availability and explicit go)
 - [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md) (**active** — two-class diagram model; **Phase 1 implemented 2026-07-05, unreleased** (sidecar convention + links-check validation + service surfacing + authoring guidance); Phases 2-3 gated as scoped)
 - [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md) (**active** - approved 2026-07-05; controlled `link add` and explicit historical backfill for curated `related_entries`, sequenced after the lower-risk retrieval/diagram/risk-signaling work unless reprioritized)
 - [`user-interface-deep-research-report.md`](completed/user-interface-deep-research-report.md) (completed 2026-07-05 — historical research; its one live tail, the Pillar B decision, was made and split into the distribution plan above; citation artifacts scrubbed 2026-07-05)

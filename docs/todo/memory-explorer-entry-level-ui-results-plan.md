@@ -18,7 +18,7 @@ tags:
 > uses entry/"session entry" with "Matched section" chips. Remaining for the Explorer/Trail UI pass:
 > reader-view scroll-to/highlight of the best-matching subsection and section anchors.
 > **Priority:** P2 companion to
-> [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md). It should
+> [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md). It should
 > shape the Explorer/Memory Trail retrieval-service contract before the UI is extracted into the
 > companion package.
 > **Source:** User decision 2026-07-05: current Memory Lense can show individual session-entry
@@ -131,7 +131,7 @@ Names are illustrative; final names should align with the Phase-1 public retriev
 
 ## Dependencies
 
-- [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md), Phase 1:
+- [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md), Phase 1:
   public retrieval service contract.
 - [`../graph-edge-contract.md`](../graph-edge-contract.md): graph consumers should not fork edge
   parsing or metric meanings.

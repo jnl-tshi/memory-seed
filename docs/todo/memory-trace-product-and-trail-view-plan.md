@@ -2,7 +2,7 @@
 title: "Proposal: Memory Trace (product) with Trail as a Branch/Supersession Evolution View"
 date: "2026-07-05"
 project: "memory-seed"
-related_to: "docs/todo/completed/memory-trail-renaming-plan.md; docs/todo/memory-seed-explorer-distribution-plan.md"
+related_to: "docs/todo/completed/memory-trail-renaming-plan.md; docs/todo/memory-trace-distribution-plan.md"
 author_context: "Prepared for Jean Nathan Tshibuyi"
 format: "Markdown research proposal"
 ---
@@ -23,7 +23,7 @@ format: "Markdown research proposal"
 > supersession links.
 > **Non-goals:** No immediate package extraction. No rewrite of historical session entries. No
 > branch-existence validation. No write/curation UI. No fork of parser/ranker/retrieval logic.
-> **Dependencies:** [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md),
+> **Dependencies:** [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md),
 > [`memory-explorer-entry-level-ui-results-plan.md`](memory-explorer-entry-level-ui-results-plan.md),
 > [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md), and
 > [`../graph-edge-contract.md`](../graph-edge-contract.md).
@@ -58,6 +58,15 @@ product ([analyzed here](../inbox/memory-trail-competitor-analysis.md)). This pr
   the word carries an execution-telemetry connotation in parts of the space. That reads as adjacent
   vocabulary, arguably even reinforcing (our Trace = decision provenance; their trace = execution
   logging), rather than a brand conflict with any named product.
+
+  **Decided 2026-07-06 (JNL): the package distribution and the console command are both `memory-trace`**
+  (the bare, brand-forward name), not `memory-seed-trace`. Trace is a distinct product line sitting on
+  top of the `memory-seed` engine, so a distinct top-level name is deliberate — it matches the whole
+  point of moving off "Trail" onto its own brand. Accepted tradeoff: the companion command no longer
+  shares the `memory-seed-` prefix, so it won't surface under `memory-seed`+Tab discovery; that is the
+  intended cost of a standalone brand, and core-package docs will cross-link to it. Reserve
+  `memory-seed-trace` as a defensive alias only if a redirect is later wanted; `memory-trace` is the
+  canonical name.
 - **"Trail" survives as an internal feature name**, not the product's brand. It stops being the thing
   people search for or compare against a competitor's identically-named product, and becomes the name
   of the specific view described in Part 2 — where the metaphor (following a trail of branches and
@@ -160,7 +169,7 @@ though the decision and commit both still exist.
   branch, replaced an earlier one) — the actual "branching of features and their evolution" the user
   described, rather than a generic graph with two more edge-type checkboxes buried among four others.
 - This is an **Explorer/Trace product surface**, per the already-decided split in
-  [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md) —
+  [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md) —
   it belongs on the companion package's roadmap (post Phase-1 retrieval-service work, which already
   ships the shared service this view would consume), not as new in-package Lense feature work (Lense
   is maintenance-only per that plan's Phase 1).
@@ -196,7 +205,8 @@ though the decision and commit both still exist.
   **Done 2026-07-05 — all three available on PyPI, no named-product collision found** (see the
   Phase-0 findings table in Part 1).
 - Forward-looking product docs use **Memory Trace** for the companion package/product and **Trail**
-  only for the feature-evolution view inside Trace.
+  only for the feature-evolution view inside Trace. The distribution package and console command are
+  both **`memory-trace`** (decided 2026-07-06), not the shared-prefix `memory-seed-trace`.
 - The old Trail-only naming proposal remains completed/superseded, with its competitor evidence kept
   as provenance rather than active direction.
 - Session-entry guidance documents an optional `branch:` scalar captured at record time, omitted
@@ -226,10 +236,10 @@ though the decision and commit both still exist.
 ## Open Questions For Promotion
 
 - ~~**Re-run the Phase-0 availability check against "Memory Trace"**~~ — resolved 2026-07-05: all
-  three PyPI names available, no named-product collision (Part 1 findings). Which of
-  `memory-seed-trace` vs. `memory-trace` to register remains a packaging-time choice
-  (shared-prefix consistency vs. brevity); registering both and pointing one at the other is also an
-  option at extraction time.
+  three PyPI names available, no named-product collision (Part 1 findings).
+  ~~Which of `memory-seed-trace` vs. `memory-trace` to register~~ — resolved 2026-07-06: **`memory-trace`**
+  is the canonical package and command name; `memory-seed-trace` reserved only as an optional
+  defensive alias.
 - **Detached-HEAD / no-branch fallback**: omit the field entirely (current recommendation) versus a
   sentinel value like `null` — likely omit, consistent with how `agent_name` is already `null` when no
   persona is active versus other optional fields simply being absent.
@@ -248,7 +258,7 @@ though the decision and commit both still exist.
   collision finding this proposal's naming half resolves.
 - [`memory-trail-renaming-plan.md`](completed/memory-trail-renaming-plan.md) — the open naming decision
   this proposal offers a resolution path for, without deciding it here.
-- [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md) —
+- [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md) —
   the product/package split Trail would live inside.
 - [`../graph-edge-contract.md`](../graph-edge-contract.md) — the existing edge-kind contract a new
   `branch` field and rendered `supersedes` edge type would extend.

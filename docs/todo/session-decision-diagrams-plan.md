@@ -42,7 +42,7 @@ tags:
 > Explorer. No new default dependency on core `memory-seed`.
 > **Dependencies:** [`../graph-edge-contract.md`](../graph-edge-contract.md) (Class-1 substrate;
 > `build_related_entry_graph()` is the canonical reader — do not fork edge parsing).
-> [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md) Phase 1 (the
+> [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md) Phase 1 (the
 > public retrieval service must surface sidecar diagrams and structured fields these views consume).
 > [`memory-explorer-entry-level-ui-results-plan.md`](memory-explorer-entry-level-ui-results-plan.md)
 > (the entry is the primary selectable object; diagrams attach to entries, not to section chunks).
@@ -155,7 +155,7 @@ convention stays theoretical.
 ## Phase 2 — Explorer consumption (wired to the distribution plan)
 
 - The Phase-1 public retrieval service in
-  [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md) surfaces,
+  [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md) surfaces,
   per entry: any sidecar diagram(s) and the Class-1 structural fields.
 - The Explorer reader view renders an entry's Class-2 sidecar(s) beside the entry, and overlays the
   live Class-1 provenance (`superseded_by`, inbound/outbound edges, commit links).
@@ -196,5 +196,5 @@ The uniform, non-technical-facing deliverable and the one genuinely new Class-1 
 - Paid handover/report framing: `docs/inbox/memory-seed-market-fit-report.md` (paid tiers) and
   `docs/inbox/memory-seed-market-fit-visual-appendix.md` (Diagram 11, Lense as commercial wedge).
 - Class-1 substrate and canonical reader: [`../graph-edge-contract.md`](../graph-edge-contract.md).
-- Consumers: [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md),
+- Consumers: [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md),
   [`memory-explorer-entry-level-ui-results-plan.md`](memory-explorer-entry-level-ui-results-plan.md).
