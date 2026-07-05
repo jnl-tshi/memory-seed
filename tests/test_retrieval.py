@@ -109,6 +109,61 @@ class RetrievalServiceParityTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             get_chunk("ms-nonexistent", str(cwd))
 
+    def test_branch_field_parses_and_surfaces_read_only(self):
+        """The optional record-time `branch:` scalar flows through the parser and
+        is surfaced read-only by the shared service (and thus MCP), while an entry
+        without it reads as None. `links check` never touches git for it."""
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:15 - Work on a feature branch\n\n"
+            "```yaml\n"
+            "entry_id: ms-branchful\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "branch: feature/trail-view\n"
+            "```\n\n"
+            "Did the branch work.\n",
+        )
+        self.write_session(
+            cwd,
+            "2026-05-18.md",
+            "## 2026-05-18 10:00 - Work with no branch recorded\n\n"
+            "```yaml\n"
+            "entry_id: ms-branchless\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "```\n\n"
+            "Did some work.\n",
+        )
+        by_id = {c.entry_id: c for c in extract_memory_chunks(str(cwd), granularity="entry")}
+        self.assertEqual(by_id["ms-branchful"].branch, "feature/trail-view")
+        self.assertIsNone(by_id["ms-branchless"].branch)
+
+        # Surfaced read-only through the shared service (== MCP get_chunk).
+        with_branch = get_chunk("ms-branchful", str(cwd))
+        self.assertEqual(with_branch["branch"], "feature/trail-view")
+        without_branch = get_chunk("ms-branchless", str(cwd))
+        self.assertIsNone(without_branch["branch"])
+        self.assertEqual(
+            call_tool("memory_get_chunk", {"chunk_id": "ms-branchful", "cwd": str(cwd)}),
+            {"chunk": with_branch},
+        )
+
+        # search_memory result records carry it too.
+        results = search_memory("branch work", str(cwd), semantic_enabled=False, today=date(2026, 5, 20))
+        branches = {r["entry_id"]: r.get("branch") for r in results["results"]}
+        self.assertEqual(branches.get("ms-branchful"), "feature/trail-view")
+
+        # links check stays green and never queries git for branch existence.
+        result = check_session_links(str(cwd))
+        self.assertEqual([i for i in result.issues if "branch" in i.kind], [])
+
     def make_sectioned_fixture(self):
         """One entry with two distinct matching subsections + one unrelated entry."""
         cwd = self.make_project()

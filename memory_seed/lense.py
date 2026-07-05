@@ -624,6 +624,7 @@ def _chunk_to_api(chunk: MemoryChunk) -> dict[str, Any]:
         "agent_type": chunk.agent_type,
         "agent_name": chunk.agent_name,
         "user": chunk.user,
+        "branch": chunk.branch,
         "text": chunk.text,
         "excerpt": _excerpt(chunk.text),
         "granularity": chunk.granularity,

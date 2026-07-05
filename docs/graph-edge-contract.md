@@ -50,6 +50,12 @@ another:
 - **`commits`** — full 40-character SHAs implementing the entry's decision. The commit *side* of the
   link is the `Memory-Entry: <entry_id>` commit-message trailer; the `commits:` field is optional
   same-turn backfill. Read both via `memory-seed link commits`.
+- **`branch`** — an optional single scalar: the git branch the entry's work happened on, captured at
+  record time. A *stored label*, not a relational edge — it never links two entries the way the three
+  edge kinds above do; entries sharing a `branch:` value form a time-ordered *axis* the Trail view
+  chains, the same way `topic`/`agent`/`day` chains are derived. Forward-only, never backfilled, and
+  never validated against live git refs (a deleted feature branch is expected history). There is no
+  `worktree:` field — a worktree is an ephemeral local path with no evolution semantics.
 
 ## Derived metrics — two distinct numbers, distinct names
 

@@ -63,6 +63,10 @@ class MemoryChunk:
     related_entries: tuple[str, ...] = ()
     supersedes: tuple[str, ...] = ()
     commits: tuple[str, ...] = ()
+    # Optional git branch the entry's work happened on, captured at record time
+    # (parallel in spirit to ``commits``). Forward-only, never backfilled, and a
+    # durable historical label - not validated against live git refs.
+    branch: str | None = None
     entry_title: str | None = None
     entry_line_range: tuple[int, int] | None = None
     sections: tuple[str, ...] = ()
@@ -511,6 +515,7 @@ def _extract_entry_chunks_from_file(
                     related_entries=related_entries,
                     supersedes=supersedes,
                     commits=commits,
+                    branch=_metadata_value(metadata, "branch"),
                     entry_title=title,
                     entry_line_range=entry_range,
                     sections=sections,
@@ -551,6 +556,7 @@ def _extract_entry_chunks_from_file(
                     related_entries=related_entries,
                     supersedes=supersedes,
                     commits=commits,
+                    branch=_metadata_value(metadata, "branch"),
                     entry_title=title,
                     entry_line_range=entry_range,
                     sections=sections,
@@ -593,6 +599,7 @@ def _extract_entry_chunks_from_file(
                     related_entries=related_entries,
                     supersedes=supersedes,
                     commits=commits,
+                    branch=_metadata_value(metadata, "branch"),
                     entry_title=title,
                     entry_line_range=entry_range,
                     sections=sections,
