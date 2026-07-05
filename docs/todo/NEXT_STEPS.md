@@ -163,7 +163,7 @@ Specs:
 
 - [`multi-user-session-memory-proposal.md`](completed/multi-user-session-memory-proposal.md) (completed — full scope shipped through 2.12.0)
 - [`multi-user-deep-research-report.md`](completed/multi-user-deep-research-report.md) (completed — recommendations fully acted on)
-- [`user-interface-deep-research-report.md`](user-interface-deep-research-report.md) (still active — informed the shipped Memory Lense V1; the separate-distribution decision above remains open)
+- [`user-interface-deep-research-report.md`](user-interface-deep-research-report.md) (blocked on the Pillar B distribution decision above — the report now carries an explicit decision-needed header with inputs; citation artifacts scrubbed 2026-07-05)
 
 ### Proposal Priority Order
 
@@ -188,12 +188,12 @@ telemetry, fanout CLI scaffolding, worktree/dependency scaffolding, and render-v
 automation until manual use shows clear need and the privacy/retention/single-writer rules are
 settled.
 
-### Logic Capture Improvements - Current
+### Logic Capture Improvements - Cluster fully resolved
 
-Source: `Memory-Seed Logic Capture Improvement.md` (external review), evaluated against the current
-codebase and refined through discussion. Five implementation docs now live in
-`docs/todo/completed/`; the only active follow-on from this cluster is the opt-in
-exclude-superseded filter.
+Source: [`Memory-Seed Logic Capture Improvement.md`](completed/Memory-Seed%20Logic%20Capture%20Improvement.md)
+(external review; moved to completed 2026-07-05 — all its actionable recommendations shipped via the
+six plans below), evaluated against the current codebase and refined through discussion. All six
+implementation docs live in `docs/todo/completed/`; nothing from this cluster remains active.
 
 1. [`git-commit-entry-linking-plan.md`](completed/git-commit-entry-linking-plan.md) — **P1 implemented
    2026-07-03 (unreleased):** the `Memory-Entry:` trailer convention, `commits:` schema field,
