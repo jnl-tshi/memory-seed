@@ -84,6 +84,8 @@ created: 2026-07-04
   current Memory Lense roadmap, but it is not itself a proposal.
 - If promoted, the likely active proposal should be narrow: either "Memory Lense UI audit checklist"
   or "Memory Lense design-token baseline", not a broad redesign.
+- Partially promoted 2026-07-05 into
+  [`../todo/memory-explorer-entry-level-ui-results-plan.md`](../todo/memory-explorer-entry-level-ui-results-plan.md),
+  applying the hierarchy/navigation/component-consistency principles to Explorer result granularity.
 - Any future proposal should avoid importing copyrighted book content; use these extracted principles
   as summarized rationale only.
-

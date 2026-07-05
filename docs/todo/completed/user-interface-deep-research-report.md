@@ -6,14 +6,12 @@
 > The shared graph edge contract it asked for now exists (`docs/graph-edge-contract.md`). Citation
 > artifacts were scrubbed 2026-07-05.
 >
-> **BLOCKED: needs a user decision (Pillar B distribution).** The one remaining follow-up is a
-> product call, not an implementation task: keep iterating on the in-package `memory-seed[lense]`
-> extra, or spin Pillar B out into a separate `memory-seed-explorer` distribution as `3.0-plan.md`
-> originally decided. Decision inputs (per the Codex synergy evaluation): shipped `memory-seed lense`
-> behavior, package footprint and dependency isolation (`fastapi`/`uvicorn` stay behind the optional
-> extra either way), remaining graph/contributor/stats feature gaps, and whether a VS Code or desktop
-> shell is ever wanted. No further work on this report until that call is made; once decided, either
-> retitle the follow-up as in-package Lense V2 scope or draft the separate-distribution plan.
+> **COMPLETED 2026-07-05 — decision made, source material split into a canonical plan.** The one
+> remaining follow-up (the Pillar B distribution product call) was decided on 2026-07-05: spin the
+> Explorer out into a separate `memory-seed-explorer` companion package. That decision and its scoped
+> two-phase implementation now live in
+> [`../memory-seed-explorer-distribution-plan.md`](../memory-seed-explorer-distribution-plan.md).
+> This report is retained as historical research only; do not treat it as an active proposal.
 
 ## Executive summary
 

@@ -130,10 +130,11 @@ See the reviewed, sequenced plan: [`3.0-plan.md`](3.0-plan.md).
 Multi-user Phases 1-2 shipped (2.9/2.10), the core multi-user increments (A-P3 integrity validation,
 A-ID 80-bit entry IDs, A-P4 MCP metadata/filters, S2 participant registry parsing, and A-P5
 `migrate sessions-layout`) shipped in 2.12.0, and related-entries generation P1 shipped in 2.13.0.
-The 3.0 plan is now partly historical: shipped sections are retained for context, while the active
-3.0 decisions are related-entries P2 and the Memory Lense/Pillar B distribution choice. The shared
-graph-edge contract across CLI/MCP/Lense surfaces is now written up in
-[`../graph-edge-contract.md`](../graph-edge-contract.md).
+The 3.0 plan is now partly historical: shipped sections are retained for context. The Pillar B
+distribution choice was decided on 2026-07-05 (spin out `memory-seed-explorer`; see
+[`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md)), leaving
+related-entries P2 as the one still-open 3.0 decision. The shared graph-edge contract across
+CLI/MCP/Lense surfaces is written up in [`../graph-edge-contract.md`](../graph-edge-contract.md).
 Remaining work:
 
 1. **Related-entries generation P2 (deferred, needs sign-off).** P1 (`memory-seed link suggest` +
@@ -144,15 +145,16 @@ Remaining work:
    (current-entry-only) if hand-editing YAML proves painful. This is a convenience increment, not a
    blocker for graph read paths; existing YAML plus `link suggest`/`link show` already covers
    discovery and inspection.
-2. **Pillar B separate-distribution decision (still open).** Memory Lense shipped in 2.13.0 as an
-   in-package optional extra (`memory-seed[lense]`) — a **V1 delivered inside the core package**, not
-   the separate distribution `3.0-plan.md` originally decided on. It already covers B1 (local
-   read-only service logic), B2 (search/filter/timeline/graph/reader UI), B3 (explainability: matched
-   terms/fields, lexical/semantic scores, recency multiplier), and B4 (rebuildable SQLite cache,
-   outside-repo, never authoritative). What remains **undecided**: whether to still spin Pillar B out
-   into its own `memory-seed-explorer` distribution as originally planned, or keep iterating on the
-   in-package extra instead. Any future UI work should consume `build_related_entry_graph()` rather
-   than fork graph logic.
+2. **Pillar B separate-distribution — decided 2026-07-05, plan drafted.** Memory Lense shipped in
+   2.13.0 as an in-package optional extra (`memory-seed[lense]`) — a **V1 delivered inside the core
+   package** as a UI prototype vehicle. The decision is now made: spin the Explorer out into a
+   separate `memory-seed-explorer` companion package, with the in-package extra going maintenance-only.
+   The scoped two-phase plan (freeze a public retrieval service in-package, then extract the
+   distribution) is
+   [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md). It is
+   P2-priority (after the unreleased ranking/supersession/commit-linking batch releases) and not a
+   blocker for any shipped surface. Any future UI work consumes `build_related_entry_graph()` and the
+   Phase-1 retrieval service rather than forking graph or ranking logic.
 
 Obsidian remains a UX inspiration or later integration, not the first implementation target.
 
@@ -163,7 +165,10 @@ Specs:
 
 - [`multi-user-session-memory-proposal.md`](completed/multi-user-session-memory-proposal.md) (completed — full scope shipped through 2.12.0)
 - [`multi-user-deep-research-report.md`](completed/multi-user-deep-research-report.md) (completed — recommendations fully acted on)
-- [`user-interface-deep-research-report.md`](user-interface-deep-research-report.md) (blocked on the Pillar B distribution decision above — the report now carries an explicit decision-needed header with inputs; citation artifacts scrubbed 2026-07-05)
+- [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md) (**active, canonical** — the decided Pillar B split into a separate `memory-seed-explorer` package; two-phase scoped plan, 2026-07-05)
+- [`user-interface-deep-research-report.md`](completed/user-interface-deep-research-report.md) (completed 2026-07-05 — historical research; its one live tail, the Pillar B decision, was made and split into the distribution plan above; citation artifacts scrubbed 2026-07-05)
+
+- [`memory-explorer-entry-level-ui-results-plan.md`](memory-explorer-entry-level-ui-results-plan.md) (**active** - Explorer UI should present entries as selectable results and highlight subsection matches inside those entries, connected to the UI source-learnings audit principles)
 
 ### Proposal Priority Order
 
