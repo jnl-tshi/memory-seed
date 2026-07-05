@@ -10,7 +10,13 @@ tags:
 
 # Memory Explorer Entry-Level UI Results Plan
 
-> **Status:** ACTIVE - scoped UI proposal, created 2026-07-05.
+> **Status:** ACTIVE - scoped UI proposal, created 2026-07-05. **Core contract implemented
+> 2026-07-05 (unreleased):** the shared retrieval service now owns the rollup
+> (`EntryRollup`/`rollup_entry_matches`/`rollup_entry_results` with `best_match_chunk_id`,
+> `matched_sections`, `score_source`), Lense entry-granularity search collapses section matches into
+> one selectable entry-level result, section/all granularities and MCP stay unchanged, and UI copy
+> uses entry/"session entry" with "Matched section" chips. Remaining for the Explorer/Trail UI pass:
+> reader-view scroll-to/highlight of the best-matching subsection and section anchors.
 > **Priority:** P2 companion to
 > [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md). It should
 > shape the Explorer/Memory Trail retrieval-service contract before the UI is extracted into the

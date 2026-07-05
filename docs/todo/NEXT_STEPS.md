@@ -122,6 +122,17 @@ First batch of multi-user Phase 3 increments from the reviewed 3.0 plan
 - **Worktree dependency strategy P1:** dependency tiers, task-packet dependency fields,
   orchestrator-owned dependency/lockfile policy, and the tmux control-room note now live in
   `agent_collaboration.md`.
+- **Public retrieval service (Memory Trail distribution Phase 1):** `memory_seed/retrieval.py` owns
+  search orchestration and the canonical result dicts; MCP is a thin parity-tested wrapper; the
+  in-package Lense consumes the same service.
+- **Entry-level result rollup:** the shared `EntryRollup` contract collapses section matches into one
+  selectable entry-level result with `best_match_chunk_id`/`matched_sections`/`score_source`
+  highlight metadata; Lense entry-granularity search consumes it; MCP and section/all granularities
+  unchanged.
+- **Session decision diagrams Phase 1:** `sessions/diagrams/<entry_id>.md` sidecars validated by
+  `links check` (`orphan-diagram`/`diagram-filename-mismatch`/`malformed-diagram`), surfaced via
+  `entry_diagram_sidecars()` + opt-in `get_chunk(include_diagrams=True)` + Lense chunk metadata, with
+  authoring guidance in `session_logging.md`/`end_of_turn.md` (live + seed).
 
 ### 3.0 - In Progress
 
@@ -156,13 +167,15 @@ Remaining work:
    companion package, with the in-package extra going maintenance-only.
    The scoped two-phase plan (freeze a public retrieval service in-package, then extract the
    distribution) is
-   [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md). The
-   intended product name is Memory Trail; target package/command is `memory-seed-trail` unless
-   availability checks show a problem
-   ([`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md)). It is
-   P2-priority (after the unreleased ranking/supersession/commit-linking batch releases) and not a
-   blocker for any shipped surface. Any future UI work consumes `build_related_entry_graph()` and the
-   Phase-1 retrieval service rather than forking graph or ranking logic.
+   [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md).
+   **Phase 1 is implemented (2026-07-05, unreleased):** the public retrieval service exists, MCP is a
+   parity-tested thin wrapper, Lense consumes the service, and the entry-level rollup + diagram
+   surfacing ride the same contract. **Phase 2 (package extraction) is gated on the naming call:**
+   the availability check found `memory-seed-trail` free on PyPI but "Memory Trail" in use by a live
+   same-niche product ([`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md) Phase-0
+   findings) — the user needs to confirm or change the product name before extraction/publication.
+   Any future UI work consumes `build_related_entry_graph()` and the Phase-1 retrieval service rather
+   than forking graph or ranking logic.
 
 Obsidian remains a UX inspiration or later integration, not the first implementation target.
 
@@ -173,13 +186,13 @@ Specs:
 
 - [`multi-user-session-memory-proposal.md`](completed/multi-user-session-memory-proposal.md) (completed — full scope shipped through 2.12.0)
 - [`multi-user-deep-research-report.md`](completed/multi-user-deep-research-report.md) (completed — recommendations fully acted on)
-- [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md) (**active, canonical** — the decided Pillar B split into a separate companion UI package; two-phase scoped plan, 2026-07-05)
-- [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md) (**active** — two-class diagram model: Class-1 auto-derived structural views + exportable report pack, Class-2 authored `sessions/diagrams/<entry_id>.md` reasoning sidecars validated by `links check`; a no-LLM Explorer can't derive reasoning diagrams from prose, so they're authored at entry time; 2026-07-05)
+- [`memory-seed-explorer-distribution-plan.md`](memory-seed-explorer-distribution-plan.md) (**active, canonical** — the decided Pillar B split into a separate companion UI package; **Phase 1 implemented 2026-07-05, unreleased**; Phase 2 gated on the naming decision)
+- [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md) (**active** — two-class diagram model; **Phase 1 implemented 2026-07-05, unreleased** (sidecar convention + links-check validation + service surfacing + authoring guidance); Phases 2-3 gated as scoped)
 - [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md) (**active** - approved 2026-07-05; controlled `link add` and explicit historical backfill for curated `related_entries`, sequenced after the lower-risk Memory Trail Phase-1/decision-diagram work unless reprioritized)
 - [`user-interface-deep-research-report.md`](completed/user-interface-deep-research-report.md) (completed 2026-07-05 — historical research; its one live tail, the Pillar B decision, was made and split into the distribution plan above; citation artifacts scrubbed 2026-07-05)
 
-- [`memory-explorer-entry-level-ui-results-plan.md`](memory-explorer-entry-level-ui-results-plan.md) (**active** - Explorer UI should present entries as selectable results and highlight subsection matches inside those entries, connected to the UI source-learnings audit principles)
-- [`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md) (**active** - rename the Explorer/Lense UI workstream to Memory Trail before the companion package is published; keep legacy Lense naming as an alias/deprecation path)
+- [`memory-explorer-entry-level-ui-results-plan.md`](memory-explorer-entry-level-ui-results-plan.md) (**active** - entries as selectable results with subsection matches highlighted inside them; **core rollup contract implemented 2026-07-05, unreleased** — reader-view deep-highlighting remains for the Trail UI pass)
+- [`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md) (**active, decision needed** - Phase-0 availability check ran 2026-07-05: `memory-seed-trail` is free on PyPI, but "Memory Trail" is a live same-niche product; docs rename paused pending the user's naming call)
 
 ### Proposal Priority Order
 
@@ -195,14 +208,16 @@ P2 - **Read-only surfacing before behavior changes.** Expose raw `inbound_relati
 metadata, and later `importance_score` as inspectable metadata before any default search-ranking
 changes.
 
-P2a - **Memory Trail naming transition.** Apply the Memory Trail product name to the Explorer/Lense
-UI workstream before publishing the companion package, after package-name availability checks and
-with `lense` kept as a deprecated alias for existing users.
+P2a - **Memory Trail naming transition — decision needed.** The Phase-0 availability check
+(2026-07-05) found `memory-seed-trail` free on PyPI but "Memory Trail" in active use by a same-niche
+competitor product; the docs rename is paused until the user confirms or changes the product name
+(see the renaming plan's Phase-0 findings and options).
 
-P2b - **Memory Trail Phase 1 + decision diagrams.** Next goal-pass scope: extract the public
-retrieval service in-package, keep MCP/Lense parity, add the entry-level result rollup contract,
-surface decision-diagram sidecars through the shared service, and implement the Phase-1
-decision-diagram convention/validation/authoring guidance. Do not create the separate package yet.
+P2b - **Memory Trail Phase 1 + decision diagrams — implemented 2026-07-05 (unreleased).** The public
+retrieval service is extracted with MCP/Lense parity proven by tests, the entry-level result rollup
+contract ships in the service with Lense consuming it, decision-diagram sidecars surface through the
+shared service, and the Phase-1 diagram convention/validation/authoring guidance is live + seeded.
+The separate package was not created (as scoped).
 
 P3 - **Parallel-work environment policy.** Worktree dependency tiers, dependency task-packet
 fields, dependency-definition shared-file rules, and optional tmux control-room guidance shipped in

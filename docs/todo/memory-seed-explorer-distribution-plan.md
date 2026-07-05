@@ -10,7 +10,13 @@ tags:
 
 # Memory Seed Explorer — Separate-Distribution Plan (Pillar B)
 
-> **Status:** ACTIVE — decided 2026-07-05. This is the canonical plan for Pillar B distribution.
+> **Status:** ACTIVE — decided 2026-07-05. **Phase 1 implemented 2026-07-05 (unreleased):** the
+> public retrieval service exists (`memory_seed/retrieval.py` — search/fetch orchestration, canonical
+> result dicts, entry-level rollup, diagram-sidecar surfacing), MCP is a thin wrapper with a
+> byte-identical contract (parity-tested), and the in-package Lense consumes the service. Phase 2
+> (package extraction) remains gated on the naming decision in
+> [`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md) and an explicit go.
+> This is the canonical plan for Pillar B distribution.
 > Supersedes the "open evaluation" framing in [`3.0-plan.md`](3.0-plan.md) §"Pillar B" and closes the
 > block in [`user-interface-deep-research-report.md`](completed/user-interface-deep-research-report.md).
 > **Priority:** P2 (after the unreleased ranking/supersession/commit-linking batch releases; not a

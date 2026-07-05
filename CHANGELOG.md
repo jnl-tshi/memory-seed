@@ -4,6 +4,30 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- **Public retrieval service (`memory_seed/retrieval.py`), Memory Trail distribution plan Phase 1:**
+  the MCP-coupled search orchestration and result-dict contract moved verbatim out of
+  `mcp_server.py` into an MCP-independent public service (`search_memory`, `get_chunk`,
+  `resolve_semantic_provider`, `format_search_results`, `ranked_to_dict`, `chunk_to_dict`). The MCP
+  server is now a thin JSON-RPC wrapper with a byte-identical tool contract (parity tests assert
+  `call_tool` == service output); the in-package Lense consumes the same service. This is the frozen
+  surface the future companion UI package imports.
+- **Entry-level result rollup:** `EntryRollup` / `rollup_entry_matches()` / `rollup_entry_results()`
+  in the retrieval service collapse ranked entry+section matches into one visible entry-level result
+  (entry chunk preferred as representative, matching sections preserved as highlight metadata,
+  `score_source` = `entry`|`section-rollup`, `best_match_chunk_id`). Lense entry-granularity search
+  consumes the shared grouping; a strong subsection match can now drive an entry's score without
+  appearing as a separate selectable record. `granularity=section|all` and the MCP contract are
+  unchanged. Lense UI copy says "entry"/"session entry" and renders "Matched section" chips.
+- **Session decision diagram sidecars, Phase 1:** optional authored reasoning diagrams at
+  `.memory-seed/sessions/diagrams/<entry_id>.md` (frontmatter `entry_id` + fenced ```` ```mermaid ````
+  blocks). `links check` validates them (`orphan-diagram`, `diagram-filename-mismatch`,
+  `malformed-diagram`; deterministic checks only, sidecars always optional).
+  `retrieval.entry_diagram_sidecars()` surfaces per-entry sidecar metadata; `get_chunk` grows an
+  opt-in `include_diagrams` flag the MCP tool never passes; Lense's chunk view carries a `diagrams`
+  metadata list. Authoring guidance shipped in `session_logging.md` + `end_of_turn.md` (live + seed).
+- Recorded the Memory Trail name availability check in `memory-trail-renaming-plan.md`:
+  `memory-seed-trail` is unregistered on PyPI, but `memory-trail` is a live same-niche product —
+  the product-naming call is paused for a user decision (docs-only finding).
 - Added `docs/graph-edge-contract.md`: the single reference for how decision-graph edges
   (`related_entries`, `supersedes`, `commits`) and derived metrics (`inbound_relation_count`,
   `importance_score`, `connectivity`, `commit_reference_count`) are defined, computed, and read across

@@ -10,7 +10,13 @@ tags:
 
 # Session Decision Diagrams Plan
 
-> **Status:** ACTIVE — scoped 2026-07-05.
+> **Status:** ACTIVE — scoped 2026-07-05. **Phase 1 implemented 2026-07-05 (unreleased):** the
+> sidecar convention, `links check` validation (`orphan-diagram`/`diagram-filename-mismatch`/
+> `malformed-diagram`), retrieval-service surfacing (`entry_diagram_sidecars()`, opt-in
+> `get_chunk(include_diagrams=True)`, Lense chunk `diagrams` metadata), and the authoring guidance in
+> `session_logging.md` + `end_of_turn.md` (live + seed) are built and tested; a first real sidecar
+> exists (`sessions/diagrams/mse_3n3mp35ekz08t4zb.md`). Phases 2 (Explorer rendering) and 3 (report
+> pack) remain gated as scoped below.
 > **Priority:** P2 for the core convention + validation + authoring guidance (low blast radius,
 > Explorer-independent); P3 for the exportable report/handover pack (paid-tier, gated on the Explorer
 > split). Sequence Phase 1 first. User confirmed 2026-07-05 that decision diagrams should be included
