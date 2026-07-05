@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Sequence
 
 from .core import iter_session_documents, resolve_runtime
+from .retrieval import EntryRollup, rollup_entry_matches
 from .semantic_cache import (
     MemoryChunk,
     build_related_entry_graph,
@@ -235,9 +236,38 @@ class LenseService:
         topic: str | None = None,
         sort: str = "relevance",
     ) -> dict[str, Any]:
+        query = q.strip()
+        if query and granularity == "entry":
+            # Entry-level rollup (memory-explorer-entry-level-ui-results-plan.md):
+            # rank across entry AND section chunks so a strong subsection match
+            # can drive an entry's score, then collapse to one visible result
+            # per session entry via the shared retrieval-service grouping.
+            pool = _filter_chunks(
+                self.cache.chunks(),
+                agent=agent,
+                user=user,
+                date_from=date_from,
+                date_to=date_to,
+                topic=topic,
+            )
+            ranked_pool = rank_memory_chunks(query, pool, top_k=len(pool), embedding_provider=None)
+            rollups = rollup_entry_matches(ranked_pool)
+            if sort == "newest":
+                rollups.sort(key=lambda r: (_chunk_datetime(r.representative.chunk), r.representative.chunk.start_line), reverse=True)
+            elif sort == "oldest":
+                rollups.sort(key=lambda r: (_chunk_datetime(r.representative.chunk), r.representative.chunk.start_line))
+            offset = _cursor_offset(cursor)
+            page_rollups = rollups[offset : offset + _limit(limit)]
+            return {
+                "query": q,
+                "limit": _limit(limit),
+                "cursor": cursor,
+                "next_cursor": str(offset + len(page_rollups)) if offset + len(page_rollups) < len(rollups) else None,
+                "total": len(rollups),
+                "results": [_rollup_to_api(rollup) for rollup in page_rollups],
+            }
         chunks = self.cache.chunks(granularity=None if granularity == "all" else granularity)
         chunks = _filter_chunks(chunks, agent=agent, user=user, date_from=date_from, date_to=date_to, topic=topic)
-        query = q.strip()
         if query:
             ranked = rank_memory_chunks(query, chunks, top_k=len(chunks), embedding_provider=None)
         else:
@@ -608,6 +638,35 @@ def _ranked_to_api(result: Any) -> dict[str, Any]:
         "matched_terms": list(result.matched_terms),
         "matched_fields": list(result.matched_fields),
         "score_explanation": _score_explanation(result),
+    }
+
+
+def _rollup_to_api(rollup: EntryRollup) -> dict[str, Any]:
+    """One selectable entry-level search result. Section matches ride along as
+    highlight metadata ("Matched section" context in the UI), never as their
+    own selectable records - per the entry-level UI results plan."""
+    best = rollup.best
+    return {
+        **_chunk_to_api(rollup.representative.chunk),
+        "score": round(best.final_score, 6),
+        "match_score": round(best.match_score, 6),
+        "lexical_score": round(best.lexical_score, 6),
+        "semantic_score": best.semantic_score,
+        "recency_multiplier": round(best.recency_multiplier, 6),
+        "matched_terms": list(best.matched_terms),
+        "matched_fields": list(best.matched_fields),
+        "score_explanation": _score_explanation(best),
+        "best_match_chunk_id": best.chunk.chunk_id,
+        "score_source": rollup.score_source,
+        "matched_sections": [
+            {
+                "chunk_id": section.chunk.chunk_id,
+                "heading_path": list(section.chunk.heading_path),
+                "line_range": [section.chunk.start_line, section.chunk.end_line],
+                "excerpt": _excerpt(section.chunk.text),
+            }
+            for section in rollup.sections
+        ],
     }
 
 

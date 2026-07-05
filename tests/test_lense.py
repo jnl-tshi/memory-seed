@@ -94,6 +94,58 @@ class LenseServiceTests(unittest.TestCase):
         self.assertEqual(page["results"][0]["chunk_id"], "mse_ui")
         self.assertIsNotNone(page["next_cursor"])
 
+    def test_entry_search_rolls_up_section_matches(self):
+        # Entry-level UI results plan: one selectable result per session entry,
+        # even when section chunks drive the best score; matched sections ride
+        # along as highlight metadata via the shared retrieval-service rollup.
+        self.write_session(
+            "2026-06-05.md",
+            "\n".join(
+                [
+                    "## 2026-06-05 09:00 - Zanzibar cache keys",
+                    "",
+                    "```yaml",
+                    "entry_id: mse_zanzibar",
+                    "user_initials: JN",
+                    "agent_type: codex",
+                    "project_path: .",
+                    "subproject_path: null",
+                    "```",
+                    "",
+                    "Reworked cache key generation.",
+                    "",
+                    "### Decision",
+                    "",
+                    "- D: Use zanzibar tokens for cache keys.",
+                    "",
+                    "### Tests",
+                    "",
+                    "- T: zanzibar token round-trip coverage added.",
+                    "",
+                ]
+            ),
+        )
+        service = self.service()
+
+        page = service.search(q="zanzibar tokens", granularity="entry")
+
+        top = page["results"][0]
+        self.assertEqual(top["entry_id"], "mse_zanzibar")
+        self.assertEqual(top["granularity"], "entry")
+        self.assertEqual(top["chunk_id"], "mse_zanzibar")
+        # No separate selectable record for any section of the same entry.
+        zanzibar_records = [r for r in page["results"] if r["entry_id"] == "mse_zanzibar"]
+        self.assertEqual(len(zanzibar_records), 1)
+        # Highlight metadata survives the rollup.
+        self.assertIn("matched_sections", top)
+        self.assertIn(top["score_source"], {"entry", "section-rollup"})
+        for section in top["matched_sections"]:
+            self.assertTrue(section["chunk_id"].startswith("mse_zanzibar#"))
+        # Section granularity remains available and un-rolled for debug views.
+        raw = service.search(q="zanzibar tokens", granularity="section")
+        self.assertTrue(any(r["chunk_id"].startswith("mse_zanzibar#") for r in raw["results"]))
+        self.assertNotIn("matched_sections", raw["results"][0])
+
     def test_cache_rebuilds_when_session_file_metadata_changes(self):
         cache = LenseCache(self.cwd, cache_root=self.cache_root)
         cache.rebuild()

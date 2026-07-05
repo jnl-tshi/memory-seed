@@ -219,28 +219,37 @@ function centerPane() {
 function searchView() {
   return `
     <div class="viewbar">
-      <span class="meta"><strong>${state.results.length}</strong> shown ${state.nextCursor ? "of more" : ""}</span>
+      <span class="meta"><strong>${state.results.length}</strong> ${state.granularity === "entry" ? "entries" : "results"} shown ${state.nextCursor ? "of more" : ""}</span>
       <span class="spacer"></span>
       <select id="sort">${["relevance", "newest", "oldest"].map((item) => `<option value="${item}" ${state.sort === item ? "selected" : ""}>${item}</option>`).join("")}</select>
       <div class="segmented">${["comfortable", "compact"].map((item) => `<button type="button" class="tab ${state.density === item ? "active" : ""}" data-density="${item}">${item}</button>`).join("")}</div>
     </div>
     <div class="scroll">
-      ${state.results.length ? resultList() : `<div class="empty">No memories match the current filters.</div>`}
+      ${state.results.length ? resultList() : `<div class="empty">No session entries match the current filters.</div>`}
       ${state.nextCursor ? `<button type="button" class="chip" data-more>Load more</button>` : ""}
     </div>`;
 }
 
 function resultList() {
   if (state.density === "compact") {
-    return `<div class="results">${state.results.map((item) => `<div class="compact-row ${item.chunk_id === state.selectedId ? "selected" : ""}" data-chunk="${escAttr(item.chunk_id)}"><span>${item.date} ${item.time || ""}</span><span>${esc(item.title)}</span><span class="optional-wide">${esc(item.agent_type || "")}</span><span>${Number(item.score || 0).toFixed(1)}</span></div>`).join("")}</div>`;
+    return `<div class="results">${state.results.map((item) => `<div class="compact-row ${item.chunk_id === state.selectedId ? "selected" : ""}" data-chunk="${escAttr(item.chunk_id)}" title="Open entry"><span>${item.date} ${item.time || ""}</span><span>${esc(item.title)}${(item.matched_sections || []).length ? ` <span class="count">· ${(item.matched_sections || []).length} matched section${(item.matched_sections || []).length === 1 ? "" : "s"}</span>` : ""}</span><span class="optional-wide">${esc(item.agent_type || "")}</span><span>${Number(item.score || 0).toFixed(1)}</span></div>`).join("")}</div>`;
   }
   return `<div class="results">${state.results.map((item) => `
     <article class="card ${item.chunk_id === state.selectedId ? "selected" : ""}" data-chunk="${escAttr(item.chunk_id)}">
       <div class="card-head"><span>${item.date} ${item.time || ""}</span><span>${esc(item.agent_type || "")}</span><span class="score">${Number(item.score || 0).toFixed(1)}</span></div>
       <h3>${esc(item.title)}</h3>
       <p class="excerpt">${highlight(item.excerpt || "", state.query)}</p>
+      ${matchedSectionChips(item)}
       <div class="chip-list compact-hide">${(item.topics || []).slice(0, 5).map((topic) => `<span class="chip">#${esc(topic)}</span>`).join("")}<span class="count optional-wide">${esc(item.score_explanation || "")}</span></div>
     </article>`).join("")}</div>`;
+}
+
+function matchedSectionChips(item) {
+  // One selectable result per session entry; matched subsections surface as
+  // highlight context inside it, never as separate selectable records.
+  const sections = item.matched_sections || [];
+  if (!sections.length) return "";
+  return `<div class="chip-list compact-hide">${sections.slice(0, 4).map((section) => `<span class="chip" title="${escAttr(section.excerpt || "")}">Matched section: ${esc((section.heading_path || []).slice(-1)[0] || "(untitled)")}</span>`).join("")}</div>`;
 }
 
 function timelineView() {

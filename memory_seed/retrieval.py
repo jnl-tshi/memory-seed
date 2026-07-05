@@ -16,6 +16,7 @@ docs/graph-edge-contract.md.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -253,6 +254,105 @@ def chunk_to_dict(chunk: MemoryChunk) -> dict[str, Any]:
         "sections": list(chunk.sections),
         "granularity": chunk.granularity,
     }
+
+
+@dataclass(frozen=True)
+class EntryRollup:
+    """One visible entry-level result rolled up from ranked matches.
+
+    The UI-facing object model (memory-explorer-entry-level-ui-results-plan.md):
+    session entries are the selectable result; section-chunk matches influence
+    scoring and highlighting but never appear as separate selectable records.
+
+    - ``representative``: the entry-granularity member when one matched, else
+      the best-scoring section member (its fields still carry the parent
+      entry's identity via ``entry_id``/``entry_title``/``entry_line_range``).
+    - ``best``: the strongest-scoring member; its score/matched-terms drive the
+      rolled-up record.
+    - ``sections``: section-granularity members that actually matched the
+      query, preserved as highlight metadata for the reader view.
+    - ``score_source``: ``"entry"`` when the entry chunk itself is the best
+      match, ``"section-rollup"`` when a section drove the score.
+    """
+
+    entry_key: str
+    representative: RankedMemoryChunk
+    best: RankedMemoryChunk
+    sections: tuple[RankedMemoryChunk, ...]
+    score_source: str
+
+
+def rollup_entry_matches(ranked: list[RankedMemoryChunk]) -> list[EntryRollup]:
+    """Collapse ranked results (any granularity mix) into one rollup per session
+    entry, preserving the ranker's order (an entry ranks where its strongest
+    member ranked). The canonical grouping every Explorer/Trail surface uses -
+    do not fork per consumer. MCP granularity behavior is unaffected: this is a
+    post-ranking view, not a ranking change.
+    """
+    groups: dict[str, list[RankedMemoryChunk]] = {}
+    order: list[str] = []
+    for result in ranked:
+        # Section chunk IDs are `<entry_id>#<section-slug>`; entries without an
+        # entry_id fall back to the chunk_id root so nothing is dropped.
+        key = result.chunk.entry_id or result.chunk.chunk_id.split("#", 1)[0]
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(result)
+    rollups: list[EntryRollup] = []
+    for key in order:
+        members = groups[key]
+        best = members[0]  # ranked order is preserved within each group
+        entry_member = next((m for m in members if m.chunk.granularity == "entry"), None)
+        sections = tuple(
+            m for m in members if m.chunk.granularity != "entry" and m.matched_fields
+        )
+        rollups.append(
+            EntryRollup(
+                entry_key=key,
+                representative=entry_member or best,
+                best=best,
+                sections=sections,
+                score_source="entry" if best.chunk.granularity == "entry" else "section-rollup",
+            )
+        )
+    return rollups
+
+
+def rollup_entry_results(ranked: list[RankedMemoryChunk], *, top_k: int = 8) -> list[dict[str, Any]]:
+    """Entry-level result dicts for Explorer/Trail consumers: the canonical
+    ``ranked_to_dict`` fields of the representative, scored by the strongest
+    member, plus ``best_match_chunk_id``, ``score_source``, and
+    ``matched_sections`` highlight metadata.
+    """
+    records: list[dict[str, Any]] = []
+    for rollup in rollup_entry_matches(ranked)[:top_k]:
+        record = ranked_to_dict(rollup.representative)
+        best = rollup.best
+        record.update(
+            {
+                "score": round(best.final_score, 6),
+                "match_score": round(best.match_score, 6),
+                "lexical_score": round(best.lexical_score, 6),
+                "semantic_score": None if best.semantic_score is None else round(best.semantic_score, 6),
+                "recency_multiplier": round(best.recency_multiplier, 6),
+                "matched_terms": list(best.matched_terms),
+                "matched_fields": list(best.matched_fields),
+            }
+        )
+        record["best_match_chunk_id"] = best.chunk.chunk_id
+        record["score_source"] = rollup.score_source
+        record["matched_sections"] = [
+            {
+                "chunk_id": section.chunk.chunk_id,
+                "heading_path": list(section.chunk.heading_path),
+                "line_range": [section.chunk.start_line, section.chunk.end_line],
+                "excerpt": _excerpt(section.chunk.text),
+            }
+            for section in rollup.sections
+        ]
+        records.append(record)
+    return records
 
 
 def _human_report(query: str, results: list[dict[str, Any]]) -> str:
