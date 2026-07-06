@@ -15,9 +15,12 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, Callable, Iterable, Sequence
 
-from .core import iter_session_documents, resolve_runtime
-from .retrieval import EntryRollup, entry_diagram_sidecars, rollup_entry_matches
-from .semantic_cache import (
+# Memory Trace consumes the core control plane's public API only - it never
+# reimplements parsing, ranking, the graph-edge contract, or diagram-sidecar
+# reading. These are the frozen surfaces the distribution split depends on.
+from memory_seed.core import iter_session_documents, resolve_runtime
+from memory_seed.retrieval import EntryRollup, entry_diagram_sidecars, rollup_entry_matches
+from memory_seed.semantic_cache import (
     MemoryChunk,
     build_related_entry_graph,
     extract_memory_chunks,
@@ -29,7 +32,7 @@ ZOOMS = {"day": 24, "12h": 12, "6h": 6, "3h": 3}
 
 
 def missing_optional_dependency_hint() -> str:
-    return 'Install with: pip install "memory-seed[lense]"'
+    return 'Install with: pip install memory-trace'
 
 
 def default_cache_path(cwd: str | Path = ".", *, cache_root: str | Path | None = None) -> Path:
@@ -450,7 +453,7 @@ def create_app(cwd: str | Path = ".", *, rebuild_cache: bool = False) -> Any:
     def asset(name: str) -> Any:
         if name not in {"app.js", "styles.css"}:
             raise HTTPException(status_code=404, detail="asset not found")
-        path = resources.files("memory_seed").joinpath("lense_static", name)
+        path = resources.files("memory_trace").joinpath("static", name)
         return FileResponse(path)
 
     @app.get("/api/runtime")
@@ -951,7 +954,7 @@ def _excerpt(text: str, *, length: int = 220) -> str:
 
 
 def _static_text(name: str, media_type: str) -> str:
-    return resources.files("memory_seed").joinpath("lense_static", name).read_text(encoding="utf-8")
+    return resources.files("memory_trace").joinpath("static", name).read_text(encoding="utf-8")
 
 
 def _free_port(host: str) -> int:

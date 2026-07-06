@@ -87,22 +87,16 @@ Heading: 2026-05-17 - Bootstrap mode check fix
 
 The validator performs the same search-then-fetch flow an MCP-capable agent uses: rank matching memory chunks, fetch the selected chunk by id, and print the exact source text for human review.
 
-## Memory Lense
+## Memory Trace (companion review UI)
 
-Memory Lense is an optional local browser UI for exploring a project's Memory Seed runtime. It serves read-only search, filters, timeline, graph, and reader/details views from Markdown session files, backed by a rebuildable local SQLite cache outside the repository.
-
-Install the optional web dependencies when you want to use it:
+**Memory Trace** is the optional local browser UI for exploring a project's Memory Seed runtime — read-only search, filters, timeline, graph, and reader/details views over your Markdown session files, backed by a rebuildable local SQLite cache outside the repository. It ships as a **separate distribution** so the core control plane stays lightweight and web-framework-free; Memory Trace depends on `memory-seed` and consumes its public retrieval service.
 
 ```powershell
-python -m pip install "memory-seed[lense]"
-memory-seed lense --cwd . --host 127.0.0.1 --port 8765 --no-open
+python -m pip install memory-trace
+memory-trace --cwd . --host 127.0.0.1 --port 8765 --no-open
 ```
 
-Without the extra, the `memory-seed lense` command is still present but prints:
-
-```text
-Install with: pip install "memory-seed[lense]"
-```
+The former in-package `memory-seed[lense]` extra is now a deprecation shim: it installs `memory-trace`, and the `memory-seed lense` command still runs but prints a notice pointing you to the `memory-trace` command. Without `memory-trace` installed, `memory-seed lense` prints an install hint instead of failing.
 
 ## Why This Exists
 
@@ -423,7 +417,7 @@ When run in a project that already has Memory Seed files:
 - `memory-seed migrate sessions-layout [--dry-run]` splits legacy flat session files into per-user files using `.memory-seed/project.yaml` participants, backs up migrated sources, and refuses ambiguous or unsafe merges.
 - `memory-seed link suggest [--for <entry_id>] [--top-k N]` ranks older session entries to link from a target entry (default: the newest entry), skips the target and its already-linked entries, and prints a copy-pasteable `related_entries:` snippet. Read-only.
 - `memory-seed link show <entry_id>` prints an entry's stored outbound `related_entries` plus its computed inbound backlinks, so the related-entry graph is bidirectional at read time without editing any historical entry. Read-only.
-- `memory-seed lense` serves the optional local Memory Lense UI when installed with `memory-seed[lense]`; without the extra it prints the install hint.
+- `memory-seed lense` is a deprecation shim for the review UI, which now ships as the standalone `memory-trace` package/command; it delegates when `memory-trace` is installed and otherwise prints an install hint.
 - `memory-seed session target [--create]` prints the active session log path and can create the file if needed.
 
 Known behavior to understand: `update --dry-run` currently lists all control-plane targets, not only files that would actually change. `init --force` intentionally rewrites all bundled seed files and should be used as a reinstall command rather than a targeted refresh.

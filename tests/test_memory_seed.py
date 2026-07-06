@@ -2333,6 +2333,22 @@ class CliHelpTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("Keeping Memory Seed current", out)
 
+    def test_lense_command_is_a_deprecation_shim_to_memory_trace(self):
+        # The review UI moved to the standalone `memory-trace` package. When it
+        # is not installed (as in the core-only test env), `memory-seed lense`
+        # points the user there and exits non-zero - core ships no web stack.
+        import contextlib
+        import io
+
+        from memory_seed.cli import main
+
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            code = main(["lense", "--no-open"])
+        self.assertEqual(code, 1)
+        self.assertIn("memory-trace", stderr.getvalue())
+        self.assertIn("moved", stderr.getvalue())
+
     def test_user_set_show_clear_and_session_target(self):
         import contextlib
 

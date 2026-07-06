@@ -29,7 +29,11 @@ memory-seed-mcp = "memory_seed.mcp_server:main"
 memory-seed-mcp-validate = "memory_seed.mcp_validate:main"
 
 [project.optional-dependencies]
-lense = ["fastapi>=0.110", "uvicorn>=0.27"]
+# Deprecated shim: the review UI (formerly the in-package "Lense") is now the
+# standalone `memory-trace` distribution. `pip install memory-seed[lense]` pulls
+# it for one deprecation window so existing users don't hard-break; new users
+# should install `memory-trace` directly. Core itself carries no web framework.
+lense = ["memory-trace>=0.1"]
 
 [tool.setuptools]
 packages = ["memory_seed"]
@@ -76,8 +80,4 @@ memory_seed = [
   "seed/.memory-seed/hooks/session-log-check.py",
   "seed/.memory-seed/hooks/memory-retrieval-check.py",
   "seed/.memory-seed/hooks/session-start-context.py",
-  "lense_static/index.html",
-  "lense_static/app.js",
-  "lense_static/styles.css",
-  "lense_static/manifest.json",
 ]

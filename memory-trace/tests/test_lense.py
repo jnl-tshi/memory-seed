@@ -9,8 +9,8 @@ from pathlib import Path
 from urllib.parse import quote
 from unittest import mock
 
-from memory_seed.cli import main
-from memory_seed.lense import LenseCache, LenseService, create_app, missing_optional_dependency_hint
+from memory_trace.cli import main
+from memory_trace.lense import LenseCache, LenseService, create_app, missing_optional_dependency_hint
 
 
 def _entry(title, entry_id, body, *, agent="codex", related=None):
@@ -315,10 +315,10 @@ class LenseCliTests(unittest.TestCase):
     def test_missing_optional_dependency_hint_is_explicit(self):
         self.assertEqual(
             missing_optional_dependency_hint(),
-            'Install with: pip install "memory-seed[lense]"',
+            'Install with: pip install memory-trace',
         )
 
-    def test_lense_command_prints_install_hint_when_fastapi_missing(self):
+    def test_memory_trace_command_prints_install_hint_when_fastapi_missing(self):
         real_import = __import__
 
         def fake_import(name, *args, **kwargs):
@@ -330,15 +330,15 @@ class LenseCliTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"MEMORY_SEED_LENSE_SKIP_BROWSER": "1"}), mock.patch(
             "builtins.__import__", side_effect=fake_import
         ), redirect_stderr(stderr):
-            code = main(["lense", "--cwd", ".", "--host", "127.0.0.1", "--port", "0", "--no-open"])
+            code = main(["--cwd", ".", "--host", "127.0.0.1", "--port", "0", "--no-open"])
 
         self.assertEqual(code, 1)
-        self.assertIn('Install with: pip install "memory-seed[lense]"', stderr.getvalue())
+        self.assertIn('Install with: pip install memory-trace', stderr.getvalue())
 
     def test_static_manifest_is_packaged(self):
         import importlib.resources as resources
 
-        manifest = resources.files("memory_seed").joinpath("lense_static/manifest.json")
+        manifest = resources.files("memory_trace").joinpath("static/manifest.json")
         data = json.loads(manifest.read_text(encoding="utf-8"))
 
         self.assertEqual(data["name"], "Memory Lense")
@@ -347,7 +347,7 @@ class LenseCliTests(unittest.TestCase):
     def test_frontend_uses_stable_delegated_interaction_handlers(self):
         import importlib.resources as resources
 
-        script = resources.files("memory_seed").joinpath("lense_static/app.js").read_text(encoding="utf-8")
+        script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
 
         self.assertIn("function installDelegatedEvents()", script)
         self.assertIn('app.addEventListener("click"', script)
@@ -360,8 +360,8 @@ class LenseCliTests(unittest.TestCase):
     def test_frontend_graph_defaults_to_all_entries_with_legend_and_layout_forces(self):
         import importlib.resources as resources
 
-        script = resources.files("memory_seed").joinpath("lense_static/app.js").read_text(encoding="utf-8")
-        styles = resources.files("memory_seed").joinpath("lense_static/styles.css").read_text(encoding="utf-8")
+        script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
+        styles = resources.files("memory_trace").joinpath("static/styles.css").read_text(encoding="utf-8")
 
         self.assertIn('graphScope: "all"', script)
         self.assertIn("graphTransform", script)
@@ -432,7 +432,7 @@ class LenseCliTests(unittest.TestCase):
     def test_frontend_preserves_center_scroll_when_selecting_entries(self):
         import importlib.resources as resources
 
-        script = resources.files("memory_seed").joinpath("lense_static/app.js").read_text(encoding="utf-8")
+        script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
 
         self.assertIn("captureCenterScroll", script)
         self.assertIn("restoreCenterScroll", script)
@@ -443,7 +443,7 @@ class LenseCliTests(unittest.TestCase):
     def test_frontend_center_view_bounds_scroll_region(self):
         import importlib.resources as resources
 
-        styles = resources.files("memory_seed").joinpath("lense_static/styles.css").read_text(encoding="utf-8")
+        styles = resources.files("memory_trace").joinpath("static/styles.css").read_text(encoding="utf-8")
 
         self.assertIn(".center > section", styles)
         self.assertIn("grid-template-rows: 44px minmax(0, 1fr);", styles)
@@ -453,8 +453,8 @@ class LenseCliTests(unittest.TestCase):
     def test_timeline_overview_can_scroll_horizontally_at_all_zooms(self):
         import importlib.resources as resources
 
-        script = resources.files("memory_seed").joinpath("lense_static/app.js").read_text(encoding="utf-8")
-        styles = resources.files("memory_seed").joinpath("lense_static/styles.css").read_text(encoding="utf-8")
+        script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
+        styles = resources.files("memory_trace").joinpath("static/styles.css").read_text(encoding="utf-8")
 
         self.assertIn("overview-scroll", script)
         self.assertIn("--bucket-count", script)
@@ -482,8 +482,8 @@ class LenseCliTests(unittest.TestCase):
     def test_timeline_overview_stays_visible_above_stream_and_receives_filters(self):
         import importlib.resources as resources
 
-        script = resources.files("memory_seed").joinpath("lense_static/app.js").read_text(encoding="utf-8")
-        styles = resources.files("memory_seed").joinpath("lense_static/styles.css").read_text(encoding="utf-8")
+        script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
+        styles = resources.files("memory_trace").joinpath("static/styles.css").read_text(encoding="utf-8")
 
         self.assertIn('agent: state.agent', script)
         self.assertIn('user: state.user', script)

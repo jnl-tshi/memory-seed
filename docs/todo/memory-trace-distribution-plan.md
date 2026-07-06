@@ -13,9 +13,14 @@ tags:
 > **Status:** ACTIVE — decided 2026-07-05. **Phase 1 implemented 2026-07-05 (unreleased):** the
 > public retrieval service exists (`memory_seed/retrieval.py` — search/fetch orchestration, canonical
 > result dicts, entry-level rollup, diagram-sidecar surfacing), MCP is a thin wrapper with a
-> byte-identical contract (parity-tested), and the in-package Lense consumes the service. Phase 2
-> (package extraction) remains gated on the naming decision in
-> [`memory-trace-product-and-trail-view-plan.md`](memory-trace-product-and-trail-view-plan.md) and an explicit go.
+> byte-identical contract (parity-tested), and the in-package Lense consumes the service.
+> **Phase 2 implemented 2026-07-06 (unreleased, on branch `claude/refactor/memory-trace-extraction`):**
+> the review UI is extracted into the standalone **`memory-trace`** distribution (`memory-trace/` — its
+> own `pyproject.toml`, `memory_trace` package, `memory-trace` console command, `static/` assets). It
+> depends on `memory-seed` and imports only the public retrieval/parse/rank/graph surface; core sheds
+> `fastapi`/`uvicorn` and `lense_static`; `memory-seed[lense]` + `memory-seed lense` are deprecation
+> shims to `memory-trace`; cross-package parity with MCP is tested. `pip install memory-seed` imports
+> no web framework and no UI code.
 > This is the canonical plan for Pillar B distribution.
 > Supersedes the "open evaluation" framing in [`3.0-plan.md`](3.0-plan.md) §"Pillar B" and closes the
 > block in [`user-interface-deep-research-report.md`](completed/user-interface-deep-research-report.md).

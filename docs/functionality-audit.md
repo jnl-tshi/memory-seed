@@ -90,8 +90,9 @@ graph TD
 - **Download footprint:** the `memory-seed` artifact itself remains small and pure Python +
   Markdown/HTML/CSS/JS templates (no compiled extensions). A full install also resolves the required
   runtime dependency, `model2vec` (which pulls `numpy`), so the installed on-disk footprint is
-  dominated by transitive deps, not Memory Seed's own code. The optional `memory-seed[lense]` extra
-  additionally pulls `fastapi`/`uvicorn`.
+  dominated by transitive deps, not Memory Seed's own code. The review UI and its web stack
+  (`fastapi`/`uvicorn`) now live in the separate `memory-trace` distribution; the deprecated
+  `memory-seed[lense]` extra installs `memory-trace` rather than bundling web deps in core.
 
 ### B. CLI surface (`memory_seed/cli.py`)
 | Command | Purpose |
@@ -108,7 +109,7 @@ graph TD
 | `link suggest [--for <entry_id>] [--top-k N]` | Read-only: rank older candidate entries to link from a target entry; prints a paste-ready `related_entries:` snippet (new in 2.13). |
 | `link show <entry_id>` | Read-only: print an entry's stored outbound `related_entries`, computed inbound backlinks, `supersedes`/`superseded_by`, `inbound_relation_count`, and `importance_score`. |
 | `link commits <entry_id>` | Read-only: print commit links from the entry's `commits:` field plus commits carrying the `Memory-Entry:` trailer. |
-| `lense [--cwd] [--host] [--port] [--no-open]` | Serve the optional local Memory Lense browser UI (requires `memory-seed[lense]`); prints an install hint without the extra (new in 2.13). |
+| `lense [--cwd] [--host] [--port] [--no-open]` | **Deprecated shim** (new in 2.13, extracted post-2.16): the review UI moved to the standalone `memory-trace` package/command. Delegates to it when installed, else prints an install hint. |
 | `version` | Print bundled control-plane version. |
 | `help` (or no args) | Full command reference. |
 
@@ -177,11 +178,11 @@ Per-agent event names differ (Claude/Codex: `SessionStart`/`UserPromptSubmit`/`S
 ### N. Release / publish flow
 - GitHub Release → `publish.yml` builds, runs tests, then pauses at the `pypi` manual-approval gate before the OIDC push. Release commits land on `main`.
 
-### O. Memory Lense (new in 2.13)
-- `lense.py`: an **optional** local read-only browser UI (`memory-seed lense`), install with `pip install "memory-seed[lense]"` (pulls `fastapi`/`uvicorn`); without the extra the command prints an install hint rather than failing.
-- Serves search, filters, timeline, graph, and reader/details views over the same `semantic_cache` parsing/ranking code MCP uses — no forked retrieval logic.
+### O. Memory Trace / Lense (review UI — new in 2.13; extracted to `memory-trace` post-2.16)
+- The review UI shipped in 2.13 as the in-package `memory-seed[lense]` extra ("Memory Lense") and was **extracted** into the standalone **`memory-trace`** distribution (Arc 1 of the Memory Trace roadmap): its own package/command depending on `memory-seed`, importing the public retrieval service (`memory_seed/retrieval.py`). `memory-seed[lense]` is now a deprecation shim, and `memory-seed lense` delegates to `memory-trace` when installed. Core ships **no** web framework.
+- Serves search, filters, timeline, graph, and reader/details views over the same `semantic_cache` parsing/ranking + `retrieval` service MCP uses — no forked retrieval logic (parity tested across the package boundary).
 - **Cache architecture:** a rebuildable local SQLite cache stored **outside the repository** (`%LOCALAPPDATA%\memory-seed\lense` on Windows, `~/.cache/memory-seed/lense` elsewhere; keyed by a hash of the workspace root, with a `tempfile` fallback if the cache directory isn't writable). `LenseCache.rebuild()` does a full wipe-and-atomic-replace (`os.replace` after a `.tmp` write) whenever session-file mtime/size drift is detected — the cache is never authoritative and Markdown stays the source of truth. Because the cache lives outside the repo by construction, this also satisfies the project's OneDrive-sync-safety constraint (see §6) without needing to gitignore anything.
-- Static UI assets (`memory_seed/lense_static/`: `index.html`, `app.js`, `styles.css`, `manifest.json`) ship inside the wheel/sdist (see §3A footprint note).
+- Static UI assets (`memory-trace/memory_trace/static/`: `index.html`, `app.js`, `styles.css`, `manifest.json`) ship inside the `memory-trace` wheel/sdist.
 
 ---
 

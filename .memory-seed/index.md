@@ -74,8 +74,8 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Agent hook configs (auto-merged by `init`/`update`): `.claude/settings.json`, `.codex/hooks.json`, `.gemini/settings.json`, `.cursor/hooks.json`, plus Copilot CLI `.github/hooks/memory-seed.json` (sessionStart prompt hook).
 - Agent MCP configs (auto-registered by `init`/`update`): `.mcp.json` (Claude Code, project root), `.cursor/mcp.json` (Cursor), `.gemini/settings.json` (Gemini), `.codex/config.toml` (Codex, trusted directories only), `.github/mcp.json` (Copilot CLI, `mcpServers` key), `.vscode/mcp.json` (VS Code Copilot, `servers` key).
 - Legacy `.AGENTS/`: supported by code for old projects, but not part of the v2 target shape.
-- Python orchestration: `memory_seed/core.py`, `memory_seed/semantic_cache.py`, `memory_seed/mcp_server.py`, `memory_seed/mcp_validate.py`, `memory_seed/cli.py`, `memory_seed/lense.py`.
-- Memory Lense UI assets: `memory_seed/lense_static/` (local read-only browser UI for memory search, timeline, graph, and reader/details).
+- Python orchestration: `memory_seed/core.py`, `memory_seed/semantic_cache.py`, `memory_seed/mcp_server.py`, `memory_seed/mcp_validate.py`, `memory_seed/cli.py`, `memory_seed/retrieval.py` (the public retrieval service the UI consumes).
+- Companion review UI (separate distribution): `memory-trace/` — the `memory-trace` package/command (formerly the in-package Memory Lense). Depends on `memory-seed`, consumes `memory_seed/retrieval.py`, and owns the web stack (`fastapi`/`uvicorn`) + static assets (`memory-trace/memory_trace/static/`). Core ships no web framework; `memory-seed lense` is a deprecation shim pointing here.
 - Seed templates: `memory_seed/seed/`.
 - Tests: `tests/`.
 - Public docs: `README.md`, `CHANGELOG.md`, `docs/todo/NEXT_STEPS.md`.
