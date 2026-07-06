@@ -28,6 +28,11 @@ const state = {
   selectedId: null,
   nextCursor: null,
   loadSeq: 0,
+  // Entry-level UI results plan: when a search result's best match came from a
+  // subsection, remember which heading to highlight/scroll-to inside the parent
+  // entry reader (never a separate selectable record).
+  matchHint: null,
+  pendingMatchScroll: false,
 };
 
 const app = document.getElementById("app");
@@ -155,6 +160,7 @@ function render() {
   bindResizers();
   observePanes();
   restoreCenterScroll(scrollState);
+  applyMatchHighlight();
 }
 
 function topbar() {
@@ -346,7 +352,7 @@ function rightPane() {
       <div class="count">${esc(selected.chunk_id)}</div>
     </div>
     <section class="detail-section">
-      <h4>Entry</h4>
+      <h4>Entry${matchNote(selected)}</h4>
       <div class="chip-list">${(selected.sections || []).map((section) => `<span class="chip">${esc(section)}</span>`).join("")}</div>
       <div class="markdown">${markdown(selected.text || "")}</div>
     </section>
@@ -560,10 +566,57 @@ function installDelegatedEvents() {
       return;
     }
     if (target.dataset.chunk) {
+      const hint = matchHintFor(target.dataset.chunk);
+      state.matchHint = hint;
+      state.pendingMatchScroll = Boolean(hint);
       const token = ++state.loadSeq;
       await selectChunk(target.dataset.chunk, true, token);
     }
   });
+}
+
+// Entry-level UI results: derive the best-matching subsection heading for a
+// search result so the reader can scroll to and highlight it inside the parent
+// entry. Returns null for entry-level matches or non-search selections (e.g.
+// suggestions/graph nodes whose chunk_id is not in the current results).
+function matchHintFor(chunkId) {
+  const item = (state.results || []).find((result) => result.chunk_id === chunkId);
+  const sections = item && item.matched_sections ? item.matched_sections : [];
+  if (!item || !sections.length) return null;
+  const best = sections.find((section) => section.chunk_id === item.best_match_chunk_id) || sections[0];
+  const heading = (best.heading_path || []).slice(-1)[0];
+  return heading ? { entryId: item.entry_id, heading } : null;
+}
+
+// Post-render: mark the matched subsection inside the reader and, once per
+// selection, scroll it into view. Idempotent - safe to call on every render.
+function applyMatchHighlight() {
+  const hint = state.matchHint;
+  if (!hint || !state.selected || state.selected.entry_id !== hint.entryId) return;
+  const container = document.querySelector(".pane.right .markdown");
+  if (!container) return;
+  const target = [...container.querySelectorAll("h4")].find(
+    (node) => node.textContent.trim() === hint.heading,
+  );
+  if (!target) return;
+  target.classList.add("match-highlight");
+  let node = target.nextElementSibling;
+  while (node && node.tagName !== "H4") {
+    node.classList.add("match-highlight-body");
+    node = node.nextElementSibling;
+  }
+  if (state.pendingMatchScroll) {
+    target.scrollIntoView({ block: "center" });
+    state.pendingMatchScroll = false;
+  }
+}
+
+// Small reader-header note naming the matched subsection, when one is active for
+// the open entry. Consistent "Best match" microcopy - never raw chunk language.
+function matchNote(selected) {
+  const hint = state.matchHint;
+  if (!hint || !selected || selected.entry_id !== hint.entryId) return "";
+  return ` · <span class="match-note">Best match: ${esc(hint.heading)}</span>`;
 }
 
 async function setView(view) {

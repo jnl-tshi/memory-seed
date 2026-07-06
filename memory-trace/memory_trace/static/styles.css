@@ -688,3 +688,21 @@ select, input[type="date"] {
   .compact-row { grid-template-columns: 82px minmax(0, 1fr) 40px; }
   .compact-row .optional-wide { display: none; }
 }
+
+/* Entry-level UI results: highlight the matched subsection inside the reader. */
+.markdown h4.match-highlight {
+  background: var(--accent-weak);
+  border-left: 3px solid var(--accent);
+  padding-left: 8px;
+  border-radius: 4px;
+  scroll-margin-top: 16px;
+}
+.markdown .match-highlight-body {
+  border-left: 3px solid var(--accent-weak);
+  padding-left: 8px;
+  margin-left: -1px;
+}
+.match-note {
+  color: var(--accent-strong);
+  font-weight: 500;
+}

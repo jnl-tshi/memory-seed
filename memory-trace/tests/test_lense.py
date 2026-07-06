@@ -440,6 +440,25 @@ class LenseCliTests(unittest.TestCase):
         self.assertIn("restoreCenterScroll(scrollState);", script)
         self.assertIn('[".scroll", ".timeline-stream", ".overview-scroll"]', script)
 
+    def test_frontend_highlights_and_scrolls_to_matched_subsection(self):
+        # Entry-level UI results plan (Arc 2a): a subsection match highlights and
+        # scrolls inside the parent entry reader, never as a separate record.
+        import importlib.resources as resources
+
+        script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
+        styles = resources.files("memory_trace").joinpath("static/styles.css").read_text(encoding="utf-8")
+
+        self.assertIn("function matchHintFor(", script)
+        self.assertIn("function applyMatchHighlight(", script)
+        self.assertIn("best_match_chunk_id", script)
+        self.assertIn("matched_sections", script)
+        self.assertIn('scrollIntoView({ block: "center" })', script)
+        self.assertIn("match-highlight", script)
+        self.assertIn("applyMatchHighlight();", script)  # wired into render()
+        self.assertIn("Best match:", script)  # consistent microcopy
+        self.assertIn(".markdown h4.match-highlight", styles)
+        self.assertIn(".match-note", styles)
+
     def test_frontend_center_view_bounds_scroll_region(self):
         import importlib.resources as resources
 
@@ -464,7 +483,10 @@ class LenseCliTests(unittest.TestCase):
         self.assertIn("findTimelineBucketTarget", script)
         self.assertIn("timelineItemDatetime", script)
         self.assertIn("data-entry-datetime", script)
-        self.assertNotIn("scrollIntoView", script)
+        # Timeline scrolls via its own bucket mechanism (scrollTimelineToBucket,
+        # asserted above). scrollIntoView now exists in app.js but only for the
+        # reader's matched-subsection jump - it is never wired to the timeline.
+        self.assertIn("scrollTimelineToBucket", script)
         self.assertIn(".overview-scroll", styles)
         self.assertIn("overflow-x: scroll;", styles)
         self.assertIn("grid-template-columns: repeat(var(--bucket-count, 1), minmax(var(--bucket-min, 12px), 1fr));", styles)
