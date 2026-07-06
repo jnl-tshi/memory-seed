@@ -783,13 +783,22 @@ def _graph_edges(
             seen.add(key)
             edges.append({"source": source, "target": target, "type": edge_type})
 
-    if "related" in edge_types:
+    if "related" in edge_types or "supersedes" in edge_types:
         graph = build_related_entry_graph(chunks=entries)
         for node in graph.values():
-            for target in node.outbound:
-                source_chunk = by_id.get(node.entry_id)
-                target_chunk = by_id.get(target)
-                add(node_id(source_chunk) if source_chunk else node.entry_id, node_id(target_chunk) if target_chunk else target, "related")
+            source_chunk = by_id.get(node.entry_id)
+            source = node_id(source_chunk) if source_chunk else node.entry_id
+            if "related" in edge_types:
+                for target in node.outbound:
+                    target_chunk = by_id.get(target)
+                    add(source, node_id(target_chunk) if target_chunk else target, "related")
+            # Trail view: supersession is a directed, typed *status* edge
+            # ("this decision replaced that one"), rendered distinctly from plain
+            # relatedness per docs/graph-edge-contract.md - never conflated.
+            if "supersedes" in edge_types:
+                for target in node.supersedes:
+                    target_chunk = by_id.get(target)
+                    add(source, node_id(target_chunk) if target_chunk else target, "supersedes")
 
     def chain(grouped: dict[str, list[MemoryChunk]], edge_type: str) -> None:
         if edge_type not in edge_types:
@@ -802,14 +811,21 @@ def _graph_edges(
     topic_groups: dict[str, list[MemoryChunk]] = {}
     agent_groups: dict[str, list[MemoryChunk]] = {}
     day_groups: dict[str, list[MemoryChunk]] = {}
+    branch_groups: dict[str, list[MemoryChunk]] = {}
     for chunk in entries:
         for topic in _topics(chunk):
             topic_groups.setdefault(topic, []).append(chunk)
         agent_groups.setdefault(chunk.agent_type or chunk.agent_name or "unknown", []).append(chunk)
         day_groups.setdefault(chunk.session_date.isoformat(), []).append(chunk)
+        # Trail view: entries sharing a recorded `branch:` value form a
+        # time-ordered intra-branch lineage thread (same shape as topic/agent/day
+        # chains). Entries with no branch recorded simply don't participate.
+        if chunk.branch:
+            branch_groups.setdefault(chunk.branch, []).append(chunk)
     chain(topic_groups, "topic")
     chain(agent_groups, "agent")
     chain(day_groups, "day")
+    chain(branch_groups, "branch")
     return edges
 
 

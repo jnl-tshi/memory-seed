@@ -13,7 +13,7 @@ from memory_trace.cli import main
 from memory_trace.lense import LenseCache, LenseService, create_app, missing_optional_dependency_hint
 
 
-def _entry(title, entry_id, body, *, agent="codex", related=None):
+def _entry(title, entry_id, body, *, agent="codex", related=None, branch=None, supersedes=None):
     lines = [
         f"## {title}",
         "",
@@ -24,9 +24,14 @@ def _entry(title, entry_id, body, *, agent="codex", related=None):
         "project_path: .",
         "subproject_path: null",
     ]
+    if branch:
+        lines.append(f"branch: {branch}")
     if related:
         lines.append("related_entries:")
         lines.extend(f"  - {ref}" for ref in related)
+    if supersedes:
+        lines.append("supersedes:")
+        lines.extend(f"  - {ref}" for ref in supersedes)
     lines += ["```", "", body, ""]
     return "\n".join(lines)
 
@@ -220,6 +225,35 @@ class LenseServiceTests(unittest.TestCase):
         self.assertEqual(graph["edges"][0]["source"], "mse_ui")
         self.assertEqual(graph["edges"][0]["target"], "mse_bootstrap")
         self.assertEqual(graph["edges"][0]["type"], "related")
+
+    def test_trail_view_renders_supersedes_edge_and_branch_axis(self):
+        # Trail view (Arc 2c): a later decision supersedes an earlier one on the
+        # same branch. supersedes is a directed status edge; branch is a
+        # time-ordered lineage axis. Both are additive to the same graph engine.
+        self.write_session(
+            "2026-06-10.md",
+            "\n".join(
+                [
+                    _entry("2026-06-10 09:00 - First take", "mse_old", "First.", branch="feature/x"),
+                    _entry("2026-06-10 12:00 - Revised take", "mse_revised", "Revised.",
+                           branch="feature/x", supersedes=["mse_old"]),
+                ]
+            ),
+        )
+        service = self.service()
+
+        graph = service.graph(edge_types=("branch", "supersedes", "related"))
+        by_type = {}
+        for edge in graph["edges"]:
+            by_type.setdefault(edge["type"], []).append((edge["source"], edge["target"]))
+        # Directed supersession: the newer decision points at the one it replaced.
+        self.assertIn(("mse_revised", "mse_old"), by_type.get("supersedes", []))
+        # Intra-branch lineage runs in time order along the shared branch.
+        self.assertIn(("mse_old", "mse_revised"), by_type.get("branch", []))
+        # Asking for only related must not surface the trail edge types.
+        related_only = service.graph(edge_types=("related",))
+        self.assertNotIn("supersedes", {edge["type"] for edge in related_only["edges"]})
+        self.assertNotIn("branch", {edge["type"] for edge in related_only["edges"]})
 
     def test_graph_is_entry_level_and_reports_connectivity(self):
         self.write_session(
@@ -458,6 +492,23 @@ class LenseCliTests(unittest.TestCase):
         self.assertIn("Best match:", script)  # consistent microcopy
         self.assertIn(".markdown h4.match-highlight", styles)
         self.assertIn(".match-note", styles)
+
+    def test_frontend_has_trail_view_with_distinct_supersedes_and_branch_edges(self):
+        # Trail view (Arc 2c): a dedicated tab rendering the branch + supersedes
+        # axes with distinct color semantics and a directed supersession edge.
+        import importlib.resources as resources
+
+        script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
+
+        self.assertIn('["trail", "Trail"]', script)
+        self.assertIn('state.view === "trail"', script)
+        self.assertIn('TRAIL_EDGE_TYPES = "branch,supersedes,related"', script)
+        # Distinct edge-type color semantics (supersedes never == related).
+        self.assertIn("supersedes:", script)
+        self.assertIn("branch:", script)
+        # Directed, dashed supersession edge with an arrow marker.
+        self.assertIn("arrow-supersedes", script)
+        self.assertIn('stroke-dasharray="6 4"', script)
 
     def test_frontend_center_view_bounds_scroll_region(self):
         import importlib.resources as resources

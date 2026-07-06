@@ -74,8 +74,13 @@ function seedDates() {
 async function loadView() {
   if (state.view === "search") await loadSearch();
   if (state.view === "timeline") await loadTimeline();
-  if (state.view === "graph") await loadGraph();
+  if (state.view === "graph" || state.view === "trail") await loadGraph();
 }
+
+// The Trail view is the graph engine focused on feature evolution: intra-branch
+// lineage (branch axis) plus cross-branch supersession, with plain relatedness
+// as light context. Fixed edge set - not the graph view's toggleable chips.
+const TRAIL_EDGE_TYPES = "branch,supersedes,related";
 
 async function loadSearch(cursor = null, append = false, token = state.loadSeq) {
   const params = qs({
@@ -125,7 +130,7 @@ async function loadGraph(token = state.loadSeq) {
     date_from: state.dateFrom,
     date_to: state.dateTo,
     depth: 1,
-    edge_types: [...state.graphEdgeTypes].join(","),
+    edge_types: state.view === "trail" ? TRAIL_EDGE_TYPES : [...state.graphEdgeTypes].join(","),
     limit: state.graphScope === "all" ? 500 : 90,
   });
   state.graph = await api(`/api/graph?${params}`);
@@ -137,7 +142,7 @@ async function selectChunk(chunkId, rerender = true, token = state.loadSeq) {
   const selected = await api(`/api/chunks/${encodeURIComponent(chunkId)}`);
   if (token !== state.loadSeq) return false;
   state.selected = selected;
-  if (state.view === "graph") await loadGraph(token);
+  if (state.view === "graph" || state.view === "trail") await loadGraph(token);
   if (rerender) render();
   return true;
 }
@@ -164,7 +169,7 @@ function render() {
 }
 
 function topbar() {
-  const tabs = [["search", "Search"], ["timeline", "Timeline"], ["graph", "Graph"]]
+  const tabs = [["search", "Search"], ["timeline", "Timeline"], ["graph", "Graph"], ["trail", "Trail"]]
     .map(([key, label]) => `<button type="button" class="tab ${state.view === key ? "active" : ""}" data-view="${key}">${label}</button>`)
     .join("");
   return `
@@ -218,7 +223,7 @@ function filterRows(values, kind, active) {
 function centerPane() {
   const densityClass = `density-${state.density}`;
   if (state.view === "timeline") return `<section class="${densityClass} timeline-view">${timelineView()}</section>`;
-  if (state.view === "graph") return `<section class="${densityClass}">${graphView()}</section>`;
+  if (state.view === "graph" || state.view === "trail") return `<section class="${densityClass}">${graphView()}</section>`;
   return `<section class="${densityClass}">${searchView()}</section>`;
 }
 
@@ -294,23 +299,32 @@ function graphView() {
   const related = graphRelatedIds(graph, state.graphHover);
   return `
     <div class="viewbar">
-      <span class="meta">${graph.nodes.length} nodes · ${graph.edges.length} edges</span>
+      <span class="meta">${state.view === "trail" ? "Trail · how features evolved · " : ""}${graph.nodes.length} nodes · ${graph.edges.length} edges</span>
       <span class="spacer"></span>
       <div class="segmented">${[["all", "All entries"], ["neighborhood", "Neighborhood"]].map(([scope, label]) => `<button type="button" class="tab ${state.graphScope === scope ? "active" : ""}" data-graph-scope="${scope}">${label}</button>`).join("")}</div>
       <button type="button" class="chip" data-graph-reset>Reset view</button>
       <button type="button" class="chip" data-graph-fit>Fit view</button>
       <button type="button" class="chip ${state.graphSizeMode === "importance" ? "active" : ""}" data-graph-size title="Toggle node size between link connectivity and importance score">Size: ${state.graphSizeMode === "importance" ? "importance" : "links"}</button>
-      ${["related", "topic", "agent", "day"].map((type) => `<button type="button" class="chip ${state.graphEdgeTypes.has(type) ? "active" : ""}" data-edge="${type}">${type}</button>`).join("")}
+      ${state.view === "trail" ? "" : ["related", "topic", "agent", "day"].map((type) => `<button type="button" class="chip ${state.graphEdgeTypes.has(type) ? "active" : ""}" data-edge="${type}">${type}</button>`).join("")}
     </div>
     <div class="graph-stage">
       <svg class="graph-canvas" data-graph-canvas viewBox="0 0 1000 620" role="img">
+      <defs>
+        <marker id="arrow-supersedes" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("supersedes")}"></path>
+        </marker>
+      </defs>
       <g class="graph-layer" transform="translate(${state.graphTransform.x} ${state.graphTransform.y}) scale(${state.graphTransform.scale})">
       ${graph.edges.map((edge) => {
         const a = positions[edge.source], b = positions[edge.target];
         if (!a || !b) return "";
         const highlight = state.graphHover && (edge.source === state.graphHover || edge.target === state.graphHover);
         const dim = state.graphHover && !highlight;
-        return `<line class="graph-edge ${highlight ? "graph-related" : ""} ${dim ? "graph-dim" : ""}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${edgeColor(edge.type)}" stroke-width="${edge.type === "related" ? 2 : 1}"></line>`;
+        // supersedes: directed + dashed status edge, never conflated with related.
+        const width = edge.type === "supersedes" ? 2.2 : edge.type === "branch" ? 1.6 : edge.type === "related" ? 2 : 1;
+        const dash = edge.type === "supersedes" ? ' stroke-dasharray="6 4"' : "";
+        const marker = edge.type === "supersedes" ? ' marker-end="url(#arrow-supersedes)"' : "";
+        return `<line class="graph-edge graph-edge-${edge.type} ${highlight ? "graph-related" : ""} ${dim ? "graph-dim" : ""}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${edgeColor(edge.type)}" stroke-width="${width}"${dash}${marker}></line>`;
       }).join("")}
       ${graph.nodes.map((node, index) => {
         const p = positions[node.id];
@@ -329,12 +343,16 @@ function graphView() {
 
 function graphLegend(graph) {
   const agents = [...new Set((graph.nodes || []).map((node) => node.agent || "unknown"))].sort();
-  const edgeTypes = ["related", "topic", "agent", "day"];
+  // Trail names its two axes with plain-language meaning; the graph view lists
+  // its generic edge types. Consistent "one color, one job" labelling.
+  const edgeItems = state.view === "trail"
+    ? [["branch", "same branch"], ["supersedes", "replaced by"], ["related", "related"]]
+    : [["related", "related"], ["topic", "topic"], ["agent", "agent"], ["day", "day"]];
   return `
     <div class="graph-legend" aria-label="Graph legend">
       <div class="legend-group"><span class="count">Nodes</span>${agents.map((agent) => `<span class="legend-item" title="${escAttr(agent)}"><span class="legend-swatch" style="background:${agentColor(agent)}"></span>${esc(graphLegendLabel(agent))}</span>`).join("")}</div>
-      <div class="legend-group"><span class="count">Edges</span>${edgeTypes.map((type) => `<span class="legend-item"><span class="legend-line" style="background:${edgeColor(type)}"></span>${type}</span>`).join("")}</div>
-      <div class="legend-group"><span class="count">Size: ${state.graphSizeMode === "importance" ? "importance" : "links"}</span><span class="count">Near: links/topics/dates</span></div>
+      <div class="legend-group"><span class="count">Edges</span>${edgeItems.map(([type, label]) => `<span class="legend-item"><span class="legend-line" style="background:${edgeColor(type)}"></span>${esc(label)}</span>`).join("")}</div>
+      <div class="legend-group"><span class="count">Size: ${state.graphSizeMode === "importance" ? "importance" : "links"}</span><span class="count">${state.view === "trail" ? "Dashed → supersession" : "Near: links/topics/dates"}</span></div>
     </div>`;
 }
 
@@ -952,7 +970,17 @@ function hashString(value) {
 }
 
 function edgeColor(type) {
-  return { related: "var(--accent)", topic: "#8f63e8", agent: "#18a999", day: "#d9941a" }[type] || "var(--muted)";
+  // Edge-type color semantics (one defined job per color, per the UI source
+  // learnings). supersedes is a status edge (ruby) and must never read as plain
+  // relatedness; branch is a lineage axis (green). Consolidated into tokens in 2b.
+  return {
+    related: "var(--accent)",
+    topic: "#8f63e8",
+    agent: "#18a999",
+    day: "#d9941a",
+    supersedes: "#d94b63",
+    branch: "#3fa66a",
+  }[type] || "var(--muted)";
 }
 
 function agentColor(agent) {
