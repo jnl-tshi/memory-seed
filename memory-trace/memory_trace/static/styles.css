@@ -733,3 +733,30 @@ select, input[type="date"] {
   color: var(--accent-strong);
   font-weight: 500;
 }
+
+/* Arc 2d: built-in decision-diagram rendering (flowchart/sequence subset). */
+.diagram {
+  margin: 0 0 var(--space-md, 12px);
+  padding: var(--space-sm, 8px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--surface);
+  overflow-x: auto;
+}
+.diagram figcaption { margin-bottom: var(--space-xs, 4px); }
+.diagram-svg { max-width: 100%; height: auto; font-size: var(--fs-meta, 12px); }
+.diagram-node rect { fill: var(--panel-2); stroke: var(--border); stroke-width: 1; }
+.diagram-node text { fill: var(--text); font-size: var(--fs-meta, 12px); }
+.diagram-edge-label { fill: var(--muted); font-size: var(--fs-label, 11px); }
+.diagram-lifeline { stroke: var(--border); }
+.diagram-source {
+  margin: 0;
+  padding: var(--space-sm, 8px);
+  background: var(--panel-2);
+  border-radius: var(--radius-sm, 6px);
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: var(--fs-meta, 12px);
+  color: var(--muted);
+  white-space: pre;
+}

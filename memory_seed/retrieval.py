@@ -168,6 +168,11 @@ _DIAGRAM_ENTRY_RE = re.compile(
     re.MULTILINE | re.DOTALL,
 )
 
+# A balanced fenced ```mermaid ... ``` block. Used to surface the raw diagram
+# source (not just a count) so a consumer can render it client-side. Still no
+# Mermaid *semantics* are parsed here - this only extracts the fenced text.
+_MERMAID_BLOCK_RE = re.compile(r"^```mermaid\s*\n(.*?)^```\s*$", re.MULTILINE | re.DOTALL)
+
 
 def entry_diagram_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     """Authored decision-diagram sidecar metadata, keyed by ``entry_id``.
@@ -215,6 +220,7 @@ def entry_diagram_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                 continue
             section_end = blocks[index + 1].start() if index + 1 < len(blocks) else len(text)
             section_text = text[block.end():section_end]
+            mermaid_blocks = [match.group(1).rstrip("\n") for match in _MERMAID_BLOCK_RE.finditer(section_text)]
             mermaid_block_count = sum(
                 1 for line in section_text.splitlines() if line.strip().startswith("```mermaid")
             )
@@ -224,6 +230,9 @@ def entry_diagram_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                 "title": title.strip() or None,
                 "heading_datetime": heading_ts,
                 "mermaid_block_count": mermaid_block_count,
+                # Raw fenced Mermaid source(s), for client-side rendering. Balanced
+                # blocks only; malformed fences are left to `links check`.
+                "mermaid_blocks": mermaid_blocks,
             }
     return sidecars
 

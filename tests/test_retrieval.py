@@ -294,6 +294,9 @@ class RetrievalServiceParityTests(unittest.TestCase):
         self.assertEqual(sidecar["title"], "Decision flow")
         self.assertEqual(sidecar["heading_datetime"], "2026-05-17 09:15")
         self.assertEqual(sidecar["mermaid_block_count"], 1)
+        # Raw Mermaid source is surfaced for client-side rendering (Arc 2d),
+        # fenced text only - no Mermaid semantics parsed here.
+        self.assertEqual(sidecar["mermaid_blocks"], ["flowchart TD\n  A --> B"])
         self.assertTrue(sidecar["path"].endswith(".memory-seed/sessions/diagrams/2026-05-17.md"))
 
         # get_chunk attaches sidecar metadata only when asked - the MCP tool

@@ -393,6 +393,23 @@ class LenseCliTests(unittest.TestCase):
         self.assertIn("var(--edge-branch)", script)
         self.assertNotIn('supersedes: "#d94b63"', script)
 
+    def test_frontend_has_builtin_diagram_renderer_with_source_fallback(self):
+        # Arc 2d: a minimal offline renderer for the flowchart/sequence subset,
+        # degrading unsupported diagrams to their raw source (never a blank frame).
+        import importlib.resources as resources
+
+        script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
+        styles = resources.files("memory_trace").joinpath("static/styles.css").read_text(encoding="utf-8")
+
+        self.assertIn("function renderDiagramBlock(", script)
+        self.assertIn("function renderFlowchart(", script)
+        self.assertIn("function renderSequenceDiagram(", script)
+        self.assertIn("function diagramsSection(", script)
+        self.assertIn("mermaid_blocks", script)
+        self.assertIn("diagram-source", script)  # source fallback
+        self.assertIn("Decision diagrams", script)  # reader section
+        self.assertIn(".diagram-svg", styles)
+
     def test_frontend_brands_as_memory_trace(self):
         # Arc 2b microcopy: the UI self-identifies as Memory Trace, not the old
         # in-package "Lense" name.

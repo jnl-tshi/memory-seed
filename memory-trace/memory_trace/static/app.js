@@ -374,6 +374,7 @@ function rightPane() {
       <div class="chip-list">${(selected.sections || []).map((section) => `<span class="chip">${esc(section)}</span>`).join("")}</div>
       <div class="markdown">${markdown(selected.text || "")}</div>
     </section>
+    ${diagramsSection(selected)}
     <section class="detail-section">
       <h4>Linked Memories</h4>
       ${linkGroups.map(([label, ids]) => `<div><div class="count">${label} · ${ids.length}</div>${ids.map((id) => `<button type="button" class="link-card" data-entry="${escAttr(id)}">${esc(id)}</button>`).join("")}</div>`).join("")}
@@ -627,6 +628,21 @@ function applyMatchHighlight() {
     target.scrollIntoView({ block: "center" });
     state.pendingMatchScroll = false;
   }
+}
+
+// Reader section for authored Class-2 decision diagrams (Arc 2d). Frozen,
+// point-in-time reasoning diagrams rendered client-side beside their entry;
+// nothing shows when an entry has no sidecar (no empty frame).
+function diagramsSection(selected) {
+  const blocks = (selected.diagrams || []).flatMap((sidecar) =>
+    (sidecar.mermaid_blocks || []).map((source) => ({ source, title: sidecar.title })),
+  );
+  if (!blocks.length) return "";
+  return `
+    <section class="detail-section">
+      <h4>Decision diagrams</h4>
+      ${blocks.map((block) => `<figure class="diagram">${block.title ? `<figcaption class="count">${esc(block.title)}</figcaption>` : ""}${renderDiagramBlock(block.source)}</figure>`).join("")}
+    </section>`;
 }
 
 // Small reader-header note naming the matched subsection, when one is active for
@@ -986,6 +1002,130 @@ function edgeColor(type) {
 function agentColor(agent) {
   const value = agent || "unknown";
   return agentColors[hashString(value) % agentColors.length];
+}
+
+// --- Arc 2d: minimal, offline, built-in diagram renderer ---------------------
+// Renders the flowchart/sequence subset agents actually author in Class-2
+// decision-diagram sidecars. No third-party library, no network, no LLM. Any
+// diagram type we don't handle (or any parse failure) degrades to the raw
+// Mermaid source in a <pre> - never a blank frame.
+function renderDiagramBlock(source) {
+  const text = String(source || "").trim();
+  try {
+    const first = text.split("\n")[0].trim().toLowerCase();
+    if (first.startsWith("sequencediagram")) return renderSequenceDiagram(text);
+    if (first.startsWith("flowchart") || first.startsWith("graph")) return renderFlowchart(text);
+  } catch (error) {
+    /* fall through to source */
+  }
+  return `<pre class="diagram-source">${esc(text)}</pre>`;
+}
+
+function _diagramNode(token) {
+  const match = String(token).trim().match(/^([A-Za-z0-9_-]+)\s*(?:\[([^\]]*)\]|\(([^)]*)\)|\{([^}]*)\})?/);
+  if (!match) return null;
+  return { id: match[1], label: (match[2] || match[3] || match[4] || match[1]).trim() };
+}
+
+function renderFlowchart(text) {
+  const lines = text.split("\n").slice(1).map((line) => line.trim()).filter(Boolean);
+  const horizontal = /^(flowchart|graph)\s+(lr|rl)/i.test(text.split("\n")[0]);
+  const nodes = new Map();
+  const edges = [];
+  const note = (node) => { if (node && !nodes.has(node.id)) nodes.set(node.id, node.label); };
+  for (const line of lines) {
+    if (!line.includes("-->")) {
+      const solo = _diagramNode(line);
+      note(solo);
+      continue;
+    }
+    const [lhs, rhsRaw] = line.split(/-->/);
+    let rhs = rhsRaw, label = "";
+    const labelled = rhs.match(/^\s*\|([^|]*)\|\s*(.*)$/);
+    if (labelled) { label = labelled[1].trim(); rhs = labelled[2]; }
+    const a = _diagramNode(lhs), b = _diagramNode(rhs);
+    note(a); note(b);
+    if (a && b) edges.push({ from: a.id, to: b.id, label });
+  }
+  if (!nodes.size) throw new Error("no nodes");
+  // Longest-path layering from roots (nodes with no incoming edge).
+  const indeg = new Map([...nodes.keys()].map((id) => [id, 0]));
+  edges.forEach((edge) => indeg.set(edge.to, (indeg.get(edge.to) || 0) + 1));
+  const layer = new Map([...nodes.keys()].map((id) => [id, 0]));
+  for (let pass = 0; pass < nodes.size; pass += 1) {
+    let changed = false;
+    edges.forEach((edge) => {
+      const next = layer.get(edge.from) + 1;
+      if (next > layer.get(edge.to)) { layer.set(edge.to, next); changed = true; }
+    });
+    if (!changed) break;
+  }
+  const byLayer = new Map();
+  [...nodes.keys()].forEach((id) => {
+    const key = layer.get(id);
+    if (!byLayer.has(key)) byLayer.set(key, []);
+    byLayer.get(key).push(id);
+  });
+  const boxW = 130, boxH = 40, gapMain = 78, gapCross = 26;
+  const pos = new Map();
+  let maxCross = 0;
+  [...byLayer.entries()].sort((a, b) => a[0] - b[0]).forEach(([lyr, ids]) => {
+    ids.forEach((id, i) => {
+      const main = 24 + lyr * (boxH + gapMain);
+      const cross = 24 + i * (boxW + gapCross);
+      pos.set(id, horizontal ? { x: main, y: cross } : { x: cross, y: main });
+    });
+    maxCross = Math.max(maxCross, ids.length);
+  });
+  const layers = byLayer.size;
+  const width = horizontal ? 48 + layers * (boxH + gapMain) : 48 + maxCross * (boxW + gapCross);
+  const height = horizontal ? 48 + maxCross * (boxW + gapCross) : 48 + layers * (boxH + gapMain);
+  const edgeSvg = edges.map((edge) => {
+    const a = pos.get(edge.from), b = pos.get(edge.to);
+    if (!a || !b) return "";
+    const x1 = a.x + boxW / 2, y1 = a.y + boxH, x2 = b.x + boxW / 2, y2 = b.y;
+    const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--edge-related)" stroke-width="1.5" marker-end="url(#diagram-arrow)"></line>${edge.label ? `<text class="diagram-edge-label" x="${midX}" y="${midY}" text-anchor="middle">${esc(edge.label)}</text>` : ""}`;
+  }).join("");
+  const nodeSvg = [...nodes.entries()].map(([id, label]) => {
+    const p = pos.get(id);
+    return `<g class="diagram-node"><rect x="${p.x}" y="${p.y}" width="${boxW}" height="${boxH}" rx="6"></rect><text x="${p.x + boxW / 2}" y="${p.y + boxH / 2 + 4}" text-anchor="middle">${esc(label)}</text></g>`;
+  }).join("");
+  return `<svg class="diagram-svg" viewBox="0 0 ${width} ${height}" role="img" preserveAspectRatio="xMidYMid meet">${_diagramArrowDefs()}${edgeSvg}${nodeSvg}</svg>`;
+}
+
+function renderSequenceDiagram(text) {
+  const lines = text.split("\n").slice(1).map((line) => line.trim()).filter(Boolean);
+  const order = [];
+  const seen = new Set();
+  const messages = [];
+  const add = (name) => { if (name && !seen.has(name)) { seen.add(name); order.push(name); } };
+  for (const line of lines) {
+    const participant = line.match(/^participant\s+(.+)$/i);
+    if (participant) { add(participant[1].trim()); continue; }
+    const msg = line.match(/^(\w[\w -]*?)\s*(--?>>?|--?>)\s*(\w[\w -]*?)\s*:\s*(.*)$/);
+    if (msg) { add(msg[1].trim()); add(msg[3].trim()); messages.push({ from: msg[1].trim(), to: msg[3].trim(), text: msg[4].trim(), dashed: msg[2].includes("--") }); }
+  }
+  if (!order.length) throw new Error("no participants");
+  const colW = 150, topH = 40, rowH = 46;
+  const width = 24 + order.length * colW;
+  const height = topH + 30 + messages.length * rowH + 20;
+  const colX = (name) => 24 + order.indexOf(name) * colW + colW / 2 - 24;
+  const heads = order.map((name) => {
+    const x = colX(name);
+    return `<g class="diagram-node"><rect x="${x - 55}" y="12" width="110" height="${topH}" rx="6"></rect><text x="${x}" y="${12 + topH / 2 + 4}" text-anchor="middle">${esc(name)}</text></g><line class="diagram-lifeline" x1="${x}" y1="${12 + topH}" x2="${x}" y2="${height - 12}" stroke-dasharray="4 4"></line>`;
+  }).join("");
+  const arrows = messages.map((message, index) => {
+    const x1 = colX(message.from), x2 = colX(message.to);
+    const y = topH + 40 + index * rowH;
+    const dash = message.dashed ? ' stroke-dasharray="5 4"' : "";
+    return `<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="var(--edge-agent)" stroke-width="1.5"${dash} marker-end="url(#diagram-arrow)"></line><text class="diagram-edge-label" x="${(x1 + x2) / 2}" y="${y - 6}" text-anchor="middle">${esc(message.text)}</text>`;
+  }).join("");
+  return `<svg class="diagram-svg" viewBox="0 0 ${width} ${height}" role="img" preserveAspectRatio="xMidYMid meet">${_diagramArrowDefs()}${heads}${arrows}</svg>`;
+}
+
+function _diagramArrowDefs() {
+  return `<defs><marker id="diagram-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"></path></marker></defs>`;
 }
 
 function markdown(text) {
