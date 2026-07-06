@@ -21,6 +21,10 @@ tags:
 > `fastapi`/`uvicorn` and `lense_static`; `memory-seed[lense]` + `memory-seed lense` are deprecation
 > shims to `memory-trace`; cross-package parity with MCP is tested. `pip install memory-seed` imports
 > no web framework and no UI code.
+> **Release-ordering coupling:** the UI renders the `branch` field, so `memory-trace` declares
+> `memory-seed>=2.17` — **memory-trace 0.1.0 cannot publish until the core 2.17 release (the Phase-0
+> `branch:` field) ships first.** The held 2.17 core release is therefore a hard prerequisite for
+> publishing the companion package, not an optional bundle.
 > This is the canonical plan for Pillar B distribution.
 > Supersedes the "open evaluation" framing in [`3.0-plan.md`](3.0-plan.md) §"Pillar B" and closes the
 > block in [`user-interface-deep-research-report.md`](completed/user-interface-deep-research-report.md).

@@ -11,7 +11,10 @@ requires-python = ">=3.11"
 # Depends on the core control plane and consumes its public retrieval service.
 # The web stack lives here, never in core: `pip install memory-seed` alone pulls
 # no web framework.
-dependencies = ["memory-seed>=2.16", "fastapi>=0.110", "uvicorn>=0.27"]
+# Floor is >=2.17, not 2.16: the UI renders the `branch` field (MemoryChunk.branch),
+# which core added in 2.17. This hard-couples memory-trace 0.1.0 to memory-seed 2.17
+# shipping first - it is not an optional bundle. Do not lower this floor.
+dependencies = ["memory-seed>=2.17", "fastapi>=0.110", "uvicorn>=0.27"]
 license = { text = "MIT" }
 authors = [{ name = "Jean Nathan Tshibuyi" }]
 keywords = ["ai", "agents", "memory", "review", "ui", "local-first"]
