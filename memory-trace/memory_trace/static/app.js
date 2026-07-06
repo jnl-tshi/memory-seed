@@ -345,8 +345,11 @@ function graphLegend(graph) {
   const agents = [...new Set((graph.nodes || []).map((node) => node.agent || "unknown"))].sort();
   // Trail names its two axes with plain-language meaning; the graph view lists
   // its generic edge types. Consistent "one color, one job" labelling.
+  // Label must agree with edge direction: the arrow runs source -> target where
+  // source supersedes target, so the active-voice "replaces" reads correctly
+  // ("New --replaces-> Old"). A passive label would invert the arrow's meaning.
   const edgeItems = state.view === "trail"
-    ? [["branch", "same branch"], ["supersedes", "replaced by"], ["related", "related"]]
+    ? [["branch", "same branch"], ["supersedes", "replaces"], ["related", "related"]]
     : [["related", "related"], ["topic", "topic"], ["agent", "agent"], ["day", "day"]];
   return `
     <div class="graph-legend" aria-label="Graph legend">

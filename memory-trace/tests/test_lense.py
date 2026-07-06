@@ -246,8 +246,12 @@ class LenseServiceTests(unittest.TestCase):
         by_type = {}
         for edge in graph["edges"]:
             by_type.setdefault(edge["type"], []).append((edge["source"], edge["target"]))
-        # Directed supersession: the newer decision points at the one it replaced.
+        # Directed supersession: the edge runs source -> target where source
+        # supersedes (replaces) target. mse_revised (newer, carries supersedes:)
+        # points at mse_old (older) - and never the reverse, which would tell a
+        # reader the stale decision is the current one.
         self.assertIn(("mse_revised", "mse_old"), by_type.get("supersedes", []))
+        self.assertNotIn(("mse_old", "mse_revised"), by_type.get("supersedes", []))
         # Intra-branch lineage runs in time order along the shared branch.
         self.assertIn(("mse_old", "mse_revised"), by_type.get("branch", []))
         # Asking for only related must not surface the trail edge types.
@@ -553,6 +557,10 @@ class LenseCliTests(unittest.TestCase):
         # Directed, dashed supersession edge with an arrow marker.
         self.assertIn("arrow-supersedes", script)
         self.assertIn('stroke-dasharray="6 4"', script)
+        # Legend label must agree with edge direction (source replaces target).
+        # "replaced by" would invert the meaning of the arrow.
+        self.assertIn('["supersedes", "replaces"]', script)
+        self.assertNotIn("replaced by", script)
 
     def test_frontend_center_view_bounds_scroll_region(self):
         import importlib.resources as resources
