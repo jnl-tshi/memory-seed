@@ -443,7 +443,7 @@ def create_app(cwd: str | Path = ".", *, rebuild_cache: bool = False) -> Any:
     if rebuild_cache:
         cache.rebuild()
     service = LenseService(cache)
-    app = FastAPI(title="Memory Lense", version="1.0")
+    app = FastAPI(title="Memory Trace", version="1.0")
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> Any:
@@ -571,7 +571,7 @@ def run_server(args: argparse.Namespace) -> int:
     url = f"http://{args.host}:{port}"
     if not args.no_open and not os.environ.get("MEMORY_SEED_LENSE_SKIP_BROWSER"):
         webbrowser.open(url)
-    print(f"Memory Lense serving {Path(args.cwd).resolve()} at {url}")
+    print(f"Memory Trace serving {Path(args.cwd).resolve()} at {url}")
     uvicorn.run(app, host=args.host, port=port, log_level="info")
     return 0
 

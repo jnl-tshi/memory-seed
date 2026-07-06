@@ -375,8 +375,35 @@ class LenseCliTests(unittest.TestCase):
         manifest = resources.files("memory_trace").joinpath("static/manifest.json")
         data = json.loads(manifest.read_text(encoding="utf-8"))
 
-        self.assertEqual(data["name"], "Memory Lense")
+        self.assertEqual(data["name"], "Memory Trace")
         self.assertIn("index.html", data["files"])
+
+    def test_frontend_defines_design_token_baseline_and_uses_color_tokens(self):
+        # Arc 2b: a small reusable token set (spacing/type/color roles), with the
+        # graph edge-type + status color semantics as tokens - one job per color.
+        import importlib.resources as resources
+
+        script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
+        styles = resources.files("memory_trace").joinpath("static/styles.css").read_text(encoding="utf-8")
+
+        for token in ("--space-md:", "--fs-body:", "--radius-md:", "--edge-supersedes:", "--edge-branch:", "--status-superseded:"):
+            self.assertIn(token, styles)
+        # edgeColor() is the single JS reference and reads the tokens, not hex.
+        self.assertIn("var(--edge-supersedes)", script)
+        self.assertIn("var(--edge-branch)", script)
+        self.assertNotIn('supersedes: "#d94b63"', script)
+
+    def test_frontend_brands_as_memory_trace(self):
+        # Arc 2b microcopy: the UI self-identifies as Memory Trace, not the old
+        # in-package "Lense" name.
+        import importlib.resources as resources
+
+        script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
+        index = resources.files("memory_trace").joinpath("static/index.html").read_text(encoding="utf-8")
+
+        self.assertIn("Memory Trace", script)
+        self.assertNotIn("Memory Lense", script)
+        self.assertIn("<title>Memory Trace</title>", index)
 
     def test_frontend_uses_stable_delegated_interaction_handlers(self):
         import importlib.resources as resources

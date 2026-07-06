@@ -15,6 +15,33 @@
   --radius: 8px;
   --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  /* --- Design-token baseline (Arc 2b, per designing-user-interfaces source
+     learnings): a small reusable set so hierarchy and scanning stay reliable
+     and each color has one defined job. --- */
+  /* Spacing scale */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  /* Typography roles */
+  --fs-title: 15px;
+  --fs-body: 13px;
+  --fs-meta: 12px;
+  --fs-label: 11px;
+  /* Edge-type + status color semantics (source learnings #5: color carries
+     purpose, not drift). The graph/Trail views, legend, and status badges read
+     ONLY these - supersession (a status edge) must never reuse relatedness. */
+  --edge-related: var(--accent);
+  --edge-topic: #8f63e8;
+  --edge-agent: #18a999;
+  --edge-day: #d9941a;
+  --edge-supersedes: #d94b63;
+  --edge-branch: #3fa66a;
+  --status-superseded: #d94b63;
 }
 
 [data-theme="light"] {

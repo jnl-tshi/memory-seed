@@ -174,7 +174,7 @@ function topbar() {
     .join("");
   return `
     <header class="topbar">
-      <div class="brand"><span class="brand-mark"></span><span>Memory Lense</span></div>
+      <div class="brand"><span class="brand-mark"></span><span>Memory Trace</span></div>
       <div class="runtime-chip"><span class="runtime-dot"></span><span>${esc(state.runtime?.label || "runtime")}</span><span>${state.runtime?.entry_count || 0} entries</span></div>
       <div class="searchbox"><span>⌕</span><input id="query" value="${escAttr(state.query)}" placeholder="Search memory, tags, files, decisions" spellcheck="false"></div>
       <div class="segmented">${tabs}</div>
@@ -970,16 +970,16 @@ function hashString(value) {
 }
 
 function edgeColor(type) {
-  // Edge-type color semantics (one defined job per color, per the UI source
-  // learnings). supersedes is a status edge (ruby) and must never read as plain
-  // relatedness; branch is a lineage axis (green). Consolidated into tokens in 2b.
+  // Edge-type color semantics live as design tokens in styles.css (one defined
+  // job per color). supersedes is a status edge and must never read as plain
+  // relatedness; branch is a lineage axis. This is the single JS reference.
   return {
-    related: "var(--accent)",
-    topic: "#8f63e8",
-    agent: "#18a999",
-    day: "#d9941a",
-    supersedes: "#d94b63",
-    branch: "#3fa66a",
+    related: "var(--edge-related)",
+    topic: "var(--edge-topic)",
+    agent: "var(--edge-agent)",
+    day: "var(--edge-day)",
+    supersedes: "var(--edge-supersedes)",
+    branch: "var(--edge-branch)",
   }[type] || "var(--muted)";
 }
 
@@ -1050,5 +1050,5 @@ function escapeRegExp(value) {
 }
 
 boot().catch((error) => {
-  app.innerHTML = `<div class="boot">Memory Lense failed to load: ${esc(error.message)}</div>`;
+  app.innerHTML = `<div class="boot">Memory Trace failed to load: ${esc(error.message)}</div>`;
 });
