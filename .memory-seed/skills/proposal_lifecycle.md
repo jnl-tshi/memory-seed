@@ -9,7 +9,7 @@ tags:
 # Proposal Lifecycle Skill
 
 Use this skill when triaging proposal, research, or task documents through `docs/inbox/`,
-`docs/todo/`, and `docs/todo/completed/`.
+`docs/todo/`, `docs/todo/completed/`, and `docs/reference/`.
 
 ## Purpose
 
@@ -17,10 +17,13 @@ Keep planning material in a simple lifecycle:
 
 ```text
 inbox -> todo -> completed
+inbox -> reference
 ```
 
 `docs/inbox/` is for unassessed source material. `docs/todo/` is for refined active plans.
 `docs/todo/completed/` is for implemented, rejected, superseded, or otherwise resolved plans.
+`docs/reference/` is for source research, audits, market scans, extracted learnings, and other
+reference material that informs proposals but is not itself an actionable proposal.
 
 ## Lifecycle Rules
 
@@ -34,7 +37,7 @@ inbox -> todo -> completed
 4. Do not create nested lifecycle folders such as `docs/inbox/todo/` or `docs/todo/completed/todo/`.
    Repair those by restoring the top-level lifecycle path.
 5. Preserve source context when refining: either include the important evidence in the refined plan
-   or keep the raw artifact only when it is clearly marked as source-only.
+   or move source-only material to `docs/reference/` with clear provenance.
 6. Prefer one canonical active proposal per workstream. Companion research or synthesis documents
    can remain in `docs/todo/` only when they still inform an open decision.
 
@@ -59,7 +62,7 @@ Use explicit dates when marking shipped, rejected, or superseded work.
 When moving or resolving proposals, check whether these need updates:
 
 - `docs/todo/NEXT_STEPS.md`
-- `docs/functionality-audit.md`
+- `docs/spec/functionality-audit.md`
 - `CHANGELOG.md` when release-facing behavior changed
 - `.memory-seed/index.md` when active architecture or project state changed
 - `.memory-seed/sessions/YYYY-MM-DD.md` for the durable decision log
@@ -89,4 +92,3 @@ python -m memory_seed.cli doctor
 
 For seed or registry changes, also run the relevant unit tests that cover seed inventory and live/seed
 parity.
-

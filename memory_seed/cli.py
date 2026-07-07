@@ -9,6 +9,7 @@ from pathlib import Path
 from .core import (
     KNOWN_AGENTS,
     add_agent,
+    add_skill,
     check_session_links,
     clear_local_user,
     compact_sessions,
@@ -19,12 +20,15 @@ from .core import (
     read_local_user,
     read_project_agents,
     remove_agent,
+    remove_skill,
     resolve_agents,
     selected_agents,
     session_target,
+    skill_status,
     update_project,
     write_local_user,
 )
+from .text_files import write_text_file
 
 
 def _print_help(parser: argparse.ArgumentParser) -> None:
@@ -53,6 +57,42 @@ def _print_help(parser: argparse.ArgumentParser) -> None:
     print("Run 'memory-seed <command> -h' for flags and details on any command.")
 
 
+def _split_csv(value: str | None) -> set[str]:
+    if not value:
+        return set()
+    return {part.strip() for part in value.split(",") if part.strip()}
+
+
+def _print_skill_status(status) -> None:
+    print("Core skills:")
+    for skill in status.core:
+        print(f"  - {skill}")
+    print("Installed optional skills:")
+    if status.installed_optional:
+        for skill in status.installed_optional:
+            print(f"  - {skill}: {status.descriptions.get(skill, '')}")
+    else:
+        print("  (none)")
+    print("Selected optional skills:")
+    if status.selected_optional:
+        for skill in status.selected_optional:
+            print(f"  - {skill}")
+    else:
+        print("  (none)")
+    print("Ignored optional skills:")
+    if status.ignored:
+        for skill in status.ignored:
+            print(f"  - {skill}: {status.descriptions.get(skill, '')}")
+    else:
+        print("  (none)")
+    print("Profiles:")
+    for name, skills in status.profiles.items():
+        description = status.profile_descriptions.get(name, "")
+        print(f"  - {name}: {', '.join(skills)}")
+        if description:
+            print(f"    {description}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="memory-seed")
     subparsers = parser.add_subparsers(dest="command", required=False)
@@ -72,6 +112,30 @@ def main(argv: list[str] | None = None) -> int:
             + "); default: all. Non-selected agents' files are skipped."
         ),
     )
+    init_parser.add_argument("--profile", type=str, default=None, help="comma-separated skill profiles to install")
+    init_parser.add_argument("--skills", type=str, default=None, help="comma-separated optional skill files to install")
+    init_parser.add_argument(
+        "--exclude-skills",
+        type=str,
+        default=None,
+        help="comma-separated optional skill files to omit from the selected set",
+    )
+    init_parser.add_argument("--all-skills", action="store_true", help="install every optional skill")
+    init_parser.add_argument("--manual-skills", action="store_true", help="prompt for individual optional skills")
+    init_parser.add_argument(
+        "--no-skill-prompt",
+        action="store_true",
+        help="skip interactive skill selection and install the minimal core unless flags are supplied",
+    )
+
+    skills_parser = subparsers.add_parser("skills", help="manage optional Memory Seed skills")
+    skills_sub = skills_parser.add_subparsers(dest="skills_command", required=True)
+    skills_sub.add_parser("list", help="show installed, ignored, available skills and profiles")
+    skills_sub.add_parser("ignored", help="show optional skills that are not installed")
+    skills_add = skills_sub.add_parser("add", help="install a skill or profile")
+    skills_add.add_argument("name", help="skill filename or profile name")
+    skills_remove = skills_sub.add_parser("remove", help="remove an optional skill")
+    skills_remove.add_argument("skill", help="optional skill filename")
 
     agents_parser = subparsers.add_parser("agents", help="manage which agents are installed")
     agents_sub = agents_parser.add_subparsers(dest="agents_command", required=True)
@@ -352,7 +416,7 @@ def main(argv: list[str] | None = None) -> int:
         output = "\n".join(lines)
 
         if args.output:
-            Path(args.output).write_text(output, encoding="utf-8")
+            write_text_file(Path(args.output), output)
             print(f"Summary written to {args.output}")
         else:
             print(output)
@@ -436,6 +500,45 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"Warning: {res['warning']}")
             return 0
 
+    if args.command == "skills":
+        target = Path(".").resolve()
+        if args.skills_command == "list":
+            _print_skill_status(skill_status(target))
+            return 0
+        if args.skills_command == "ignored":
+            status = skill_status(target)
+            if not status.ignored:
+                print("No ignored optional skills.")
+                return 0
+            print("Ignored optional skills:")
+            for skill in status.ignored:
+                profiles = [name for name, skills in status.profiles.items() if skill in skills]
+                suffix = f" (profiles: {', '.join(profiles)})" if profiles else ""
+                print(f"  - {skill}{suffix}: {status.descriptions.get(skill, '')}")
+            return 0
+        if args.skills_command == "add":
+            try:
+                res = add_skill(target, name=args.name)
+            except ValueError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            print(res["message"])
+            for created in res.get("created", []):
+                print(f"Installed: {created}")
+            return 0
+        if args.skills_command == "remove":
+            try:
+                res = remove_skill(target, skill=args.skill)
+            except ValueError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            print(res["message"])
+            for removed in res.get("removed", []):
+                print(f"Removed: {removed}")
+            for backup in res.get("backed_up", []):
+                print(f"Backed up: {backup}")
+            return 0
+
     if args.command == "init":
         isatty = sys.stdin.isatty() and not args.dry_run
         prompt_response = None
@@ -456,11 +559,57 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 1
+        skill_profiles = _split_csv(args.profile)
+        skills = _split_csv(args.skills)
+        exclude_skills = _split_csv(args.exclude_skills)
+        if (
+            isatty
+            and not args.no_skill_prompt
+            and not args.manual_skills
+            and not args.all_skills
+            and not skill_profiles
+            and not skills
+            and not exclude_skills
+        ):
+            recommended = "coding,planning"
+            print("Which optional skill profiles should be installed? (comma-separated)")
+            for name, profile_skills in skill_status(Path(".").resolve()).profiles.items():
+                print(f"  - {name}: {', '.join(profile_skills)}")
+            print(f"Recommended default: {recommended}. Enter 'none' for core skills only.")
+            try:
+                response = input(f"profiles [{recommended}]> ")
+            except EOFError:
+                response = ""
+            if response.strip().lower() == "none":
+                skill_profiles = set()
+            elif response.strip():
+                skill_profiles = _split_csv(response)
+            else:
+                skill_profiles = _split_csv(recommended)
+        if args.manual_skills and isatty and not args.skills:
+            print("Optional skills available. Enter skill filenames to install, comma-separated; Enter = none.")
+            for skill in skill_status(Path(".").resolve()).available_optional:
+                print(f"  - {skill}")
+            try:
+                skills = _split_csv(input("skills> "))
+            except EOFError:
+                skills = set()
         try:
-            result = init_project(dry_run=args.dry_run, force=args.force, agents=agents)
+            result = init_project(
+                dry_run=args.dry_run,
+                force=args.force,
+                agents=agents,
+                skill_profiles=skill_profiles,
+                skills=skills,
+                exclude_skills=exclude_skills,
+                all_skills=args.all_skills,
+            )
         except FileExistsError as exc:
             print(str(exc), file=sys.stderr)
             print("Use --force to backup and replace existing seed files.", file=sys.stderr)
+            return 1
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
             return 1
 
         if args.dry_run:
@@ -477,6 +626,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Archived: {archived}")
         if result.backed_up:
             print("Added .memory-seed/backups/ to .gitignore to reduce accidental backup leaks.")
+        status = skill_status(Path(".").resolve())
+        print("Installed core skills: " + ", ".join(status.core))
+        if status.installed_optional:
+            print("Selected optional skills: " + ", ".join(status.installed_optional))
+        else:
+            print("Selected optional skills: (none)")
+        if status.ignored:
+            print("Ignored optional skills: " + ", ".join(status.ignored))
         print("Next: open AGENTS.md and follow nearest-runtime mode.")
         return 0
 

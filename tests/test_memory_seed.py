@@ -8,6 +8,10 @@ from memory_seed.core import (
     MEMORY_DIR_NAME,
     PACKAGE_ROOT,
     SEED_FILES,
+    CORE_SKILL_NAMES,
+    OPTIONAL_SKILL_NAMES,
+    SKILL_PROFILES,
+    add_skill,
     check_session_links,
     compact_sessions,
     doctor,
@@ -17,7 +21,9 @@ from memory_seed.core import (
     iter_session_documents,
     migrate_session_layout,
     resolve_runtime,
+    remove_skill,
     session_target,
+    skill_status,
     update_project,
 )
 
@@ -454,9 +460,15 @@ class MemorySeedTests(unittest.TestCase):
 
         self.assertFalse(result.changed)
         self.assertEqual(result.created, [])
+        expected = [
+            seed_file.destination
+            for seed_file in SEED_FILES
+            if not seed_file.destination.startswith(".memory-seed/skills/")
+            or Path(seed_file.destination).name in set(CORE_SKILL_NAMES) | {"index.md"}
+        ]
         self.assertEqual(
             sorted(result.planned),
-            sorted(seed_file.destination for seed_file in SEED_FILES),
+            sorted(expected),
         )
         self.assertFalse((cwd / "AGENTS.md").exists())
         self.assertFalse((cwd / ".memory-seed").exists())
@@ -477,6 +489,11 @@ class MemorySeedTests(unittest.TestCase):
 
         self.assertTrue(result.changed)
         for seed_file in SEED_FILES:
+            if (
+                seed_file.destination.startswith(".memory-seed/skills/")
+                and Path(seed_file.destination).name in OPTIONAL_SKILL_NAMES
+            ):
+                continue
             self.assertTrue(
                 (cwd / seed_file.destination).exists(),
                 f"{seed_file.destination} should exist",
@@ -809,11 +826,116 @@ class MemorySeedTests(unittest.TestCase):
         self.assertFalse(result.changed)
         self.assertEqual(result.created, [])
         self.assertEqual(result.backed_up, [])
+        expected = [
+            seed_file.destination
+            for seed_file in SEED_FILES
+            if not seed_file.destination.startswith(".memory-seed/skills/")
+            or Path(seed_file.destination).name in set(CORE_SKILL_NAMES) | {"index.md"}
+        ]
         self.assertEqual(
             sorted(result.planned),
-            sorted(seed_file.destination for seed_file in SEED_FILES),
+            sorted(expected),
         )
         self.assertEqual((cwd / "AGENTS.md").read_text(encoding="utf-8"), "old agent entry")
+
+    def test_init_installs_minimal_core_skills_and_records_ignored_optionals(self):
+        cwd = self.make_project()
+
+        result = init_project(cwd=cwd)
+
+        installed = {p.name for p in (cwd / ".memory-seed" / "skills").glob("*.md")}
+        self.assertIn("session_logging.md", installed)
+        self.assertIn("history_retrieval.md", installed)
+        self.assertIn("memory_doctor.md", installed)
+        self.assertNotIn("code_search.md", installed)
+        self.assertNotIn("proposal_lifecycle.md", installed)
+        self.assertNotIn("docs/inbox/.gitkeep", result.created)
+        self.assertNotIn("docs/reference/.gitkeep", result.created)
+        project_yaml = (cwd / ".memory-seed" / "project.yaml").read_text(encoding="utf-8")
+        self.assertIn("skills:", project_yaml)
+        self.assertIn("selected:", project_yaml)
+        self.assertIn("ignored:", project_yaml)
+        self.assertIn("code_search.md", project_yaml)
+        self.assertTrue(doctor(cwd=cwd).control_plane_ok)
+
+    def test_init_profile_installs_profile_skills_and_docs_lifecycle(self):
+        cwd = self.make_project()
+
+        result = init_project(cwd=cwd, skill_profiles={"coding", "planning"})
+
+        installed = {p.name for p in (cwd / ".memory-seed" / "skills").glob("*.md")}
+        self.assertIn("code_search.md", installed)
+        self.assertIn("local_compilation.md", installed)
+        self.assertIn("data_architecture.md", installed)
+        self.assertIn("proposal_lifecycle.md", installed)
+        self.assertTrue((cwd / "docs" / "inbox" / ".gitkeep").exists())
+        self.assertTrue((cwd / "docs" / "todo" / ".gitkeep").exists())
+        self.assertTrue((cwd / "docs" / "todo" / "completed" / ".gitkeep").exists())
+        self.assertTrue((cwd / "docs" / "reference" / ".gitkeep").exists())
+        self.assertIn("docs/inbox/.gitkeep", result.created)
+        self.assertIn("docs/reference/.gitkeep", result.created)
+        project_yaml = (cwd / ".memory-seed" / "project.yaml").read_text(encoding="utf-8")
+        self.assertIn("coding", project_yaml)
+        self.assertIn("planning", project_yaml)
+
+    def test_update_respects_ignored_optional_skills(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        self.assertFalse((cwd / ".memory-seed" / "skills" / "code_search.md").exists())
+
+        result = update_project(cwd=cwd)
+
+        self.assertFalse((cwd / ".memory-seed" / "skills" / "code_search.md").exists())
+        self.assertNotIn(".memory-seed/skills/code_search.md", result.created)
+        self.assertTrue(doctor(cwd=cwd).control_plane_ok)
+
+    def test_legacy_project_without_skills_block_preserves_installed_optionals(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd, skill_profiles=set(SKILL_PROFILES))
+        project_yaml = cwd / ".memory-seed" / "project.yaml"
+        project_yaml.write_text("agents:\n  - codex\n", encoding="utf-8")
+        self.assertTrue((cwd / ".memory-seed" / "skills" / "code_search.md").exists())
+
+        result = update_project(cwd=cwd)
+
+        self.assertTrue((cwd / ".memory-seed" / "skills" / "code_search.md").exists())
+        self.assertNotIn(".memory-seed/skills/code_search.md", result.created)
+
+    def test_skill_add_and_remove_update_files_registry_and_state(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+
+        added = add_skill(cwd=cwd, name="planning")
+
+        self.assertTrue(added["changed"])
+        self.assertTrue((cwd / ".memory-seed" / "skills" / "proposal_lifecycle.md").exists())
+        self.assertTrue((cwd / "docs" / "inbox" / ".gitkeep").exists())
+        self.assertTrue((cwd / "docs" / "reference" / ".gitkeep").exists())
+        registry = (cwd / ".memory-seed" / "skills" / "index.md").read_text(encoding="utf-8")
+        self.assertIn("skill: proposal_lifecycle.md", registry)
+        self.assertIn("planning", (cwd / ".memory-seed" / "project.yaml").read_text(encoding="utf-8"))
+
+        removed = remove_skill(cwd=cwd, skill="proposal_lifecycle.md")
+
+        self.assertTrue(removed["changed"])
+        self.assertFalse((cwd / ".memory-seed" / "skills" / "proposal_lifecycle.md").exists())
+        self.assertFalse((cwd / "docs" / "reference" / ".gitkeep").exists())
+        registry = (cwd / ".memory-seed" / "skills" / "index.md").read_text(encoding="utf-8")
+        self.assertNotIn("skill: proposal_lifecycle.md", registry)
+        self.assertTrue(any(path.endswith("proposal_lifecycle.md") for path in removed["backed_up"]))
+        self.assertFalse(any("proposal_lifecycle.md" in w for w in doctor(cwd=cwd).warnings))
+
+    def test_skill_status_reports_profiles_installed_and_ignored(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd, skill_profiles={"coding"})
+
+        status = skill_status(cwd=cwd)
+
+        self.assertIn("session_logging.md", status["core"])
+        self.assertIn("code_search.md", status["installed_optional"])
+        self.assertIn("proposal_lifecycle.md", status["ignored"])
+        self.assertEqual(status["profiles"]["coding"], list(SKILL_PROFILES["coding"].skills))
+        self.assertEqual(set(status["available_optional"]), set(OPTIONAL_SKILL_NAMES))
 
     def test_update_does_nothing_when_control_plane_is_current(self):
         cwd = self.make_project()
@@ -907,6 +1029,7 @@ class MemorySeedTests(unittest.TestCase):
                 ".memory-seed/sessions/.gitkeep",
                 ".memory-seed/skills/agent_collaboration.md",
                 ".memory-seed/skills/code_search.md",
+                ".memory-seed/skills/compact_mermaid_diagrams.md",
                 ".memory-seed/skills/copywriter-conversion.md",
                 ".memory-seed/skills/data_architecture.md",
                 ".memory-seed/skills/document_ingestion.md",
@@ -2310,6 +2433,11 @@ class RetrievalCheckPathTests(unittest.TestCase):
 
 
 class CliHelpTests(unittest.TestCase):
+    def make_project(self):
+        path = Path(tempfile.mkdtemp(prefix="memory-seed-cli-test-"))
+        self.addCleanup(lambda: shutil.rmtree(path, ignore_errors=True))
+        return path
+
     def _run(self, argv):
         import contextlib
         import io
@@ -2348,6 +2476,67 @@ class CliHelpTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("memory-trace", stderr.getvalue())
         self.assertIn("moved", stderr.getvalue())
+
+    def test_skills_list_shows_profiles_and_current_state(self):
+        import os
+
+        project = self.make_project()
+        cwd = Path.cwd()
+        try:
+            os.chdir(project)
+            self.assertEqual(self._run(["init", "--agents", "codex", "--profile", "coding"])[0], 0)
+            code, out = self._run(["skills", "list"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 0)
+        self.assertIn("Core skills:", out)
+        self.assertIn("Installed optional skills:", out)
+        self.assertIn("Ignored optional skills:", out)
+        self.assertIn("Profiles:", out)
+        self.assertIn("coding:", out)
+        self.assertIn("code_search.md", out)
+        self.assertIn("proposal_lifecycle.md", out)
+
+    def test_skills_add_remove_and_ignored_cli(self):
+        import os
+
+        project = self.make_project()
+        cwd = Path.cwd()
+        try:
+            os.chdir(project)
+            self.assertEqual(self._run(["init", "--agents", "codex", "--no-skill-prompt"])[0], 0)
+            self.assertEqual(self._run(["skills", "add", "proposal_lifecycle.md"])[0], 0)
+            self.assertTrue((project / ".memory-seed" / "skills" / "proposal_lifecycle.md").exists())
+            self.assertEqual(self._run(["skills", "remove", "proposal_lifecycle.md"])[0], 0)
+            self.assertFalse((project / ".memory-seed" / "skills" / "proposal_lifecycle.md").exists())
+            code, out = self._run(["skills", "ignored"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 0)
+        self.assertIn("proposal_lifecycle.md", out)
+
+    def test_skills_add_rejects_unknown_name(self):
+        import contextlib
+        import io
+        import os
+
+        from memory_seed.cli import main
+
+        project = self.make_project()
+        cwd = Path.cwd()
+        try:
+            os.chdir(project)
+            self.assertEqual(self._run(["init", "--agents", "codex", "--no-skill-prompt"])[0], 0)
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                code = main(["skills", "add", "not-a-skill"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 1)
+        self.assertIn("Unknown skill or profile", stderr.getvalue())
 
     def test_user_set_show_clear_and_session_target(self):
         import contextlib
@@ -2713,11 +2902,12 @@ class AgentSelectionTests(unittest.TestCase):
         self.assertEqual(selected_agents(cwd), {"claude", "codex"})
         self.assertTrue((cwd / ".memory-seed" / "project.yaml").exists())
 
-    def test_init_all_agents_writes_no_project_yaml(self):
-        # Default (all) must stay byte-identical to legacy: no project.yaml written.
+    def test_init_all_agents_writes_skill_state_project_yaml(self):
+        # Default all-agent selection stays dynamic, but new init writes skill
+        # selection state so ignored optional skills are not re-added on update.
         cwd = self.make_project()
         init_project(cwd=cwd)
-        self.assertFalse((cwd / ".memory-seed" / "project.yaml").exists())
+        self.assertTrue((cwd / ".memory-seed" / "project.yaml").exists())
         from memory_seed.core import read_project_agents, KNOWN_AGENTS, selected_agents
         self.assertIsNone(read_project_agents(cwd))
         self.assertEqual(selected_agents(cwd), set(KNOWN_AGENTS))
@@ -2826,8 +3016,8 @@ class AgentSelectionTests(unittest.TestCase):
         from memory_seed.core import remove_agent, selected_agents, KNOWN_AGENTS
 
         cwd = self.make_project()
-        init_project(cwd=cwd)  # all agents, no project.yaml
-        self.assertFalse((cwd / ".memory-seed" / "project.yaml").exists())
+        init_project(cwd=cwd)  # all agents, project.yaml contains skill state only
+        self.assertTrue((cwd / ".memory-seed" / "project.yaml").exists())
 
         res = remove_agent(cwd=cwd, agent="gemini")
         self.assertTrue(res["changed"])

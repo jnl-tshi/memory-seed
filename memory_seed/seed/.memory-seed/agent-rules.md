@@ -236,6 +236,7 @@ Skills are lazy-loaded runbooks. Read `.memory-seed/skills/index.md` first as th
 - `agent_collaboration.md`: coordinating subagents, branch/worktree work, and multi-developer agent workflows.
 - `history_retrieval.md`: MCP retrieval mechanics, topical-vs-recency retrieval, and history/current-authority conflict handling.
 - `session_logging.md`: session log schema, DRAFT labels, examples, `related_entries`, and append-only chronology.
+- `compact_mermaid_diagrams.md`: compact rectangular Mermaid graph/flowchart layout using tiers, grids, subgraphs, and invisible links.
 - `end_of_turn.md`: full ESR checklist, consolidation review, artifact sweep, persona/skill evolution, and baseline-promotion review.
 - `memory_hygiene.md`: publishable-memory posture, secrets minimization, and reusable-template hygiene.
 - `risk_signaling.md`: qualitative risk tiers and STOP categories for ambiguous, destructive, irreversible, security-sensitive, externally visible, financial, or shared-control-plane actions.

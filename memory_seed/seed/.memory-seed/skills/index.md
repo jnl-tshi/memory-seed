@@ -64,6 +64,20 @@ skills:
     do_not_load_when:
       - only reading recent session state without writing or repairing logs
 
+  - skill: compact_mermaid_diagrams.md
+    required: true
+    load_when:
+      - authoring or revising Mermaid graph or flowchart diagrams
+      - choosing between Mermaid and D2 for documentation diagrams
+      - authoring or reviewing D2 only for dense architecture or nested system diagrams
+      - Mermaid diagram layout is too wide, too tall, stretched, or sparse
+      - preventing isolated single nodes, orphan baselines, or runaway horizontal rows
+      - needing compact rectangular Mermaid layout with tiers, grids, subgraphs, or invisible links
+    do_not_load_when:
+      - prose or lists communicate the structure as well as a diagram
+      - the task has no Mermaid, D2, or diagram layout concern
+      - editing sequence diagrams without graph or flowchart layout pressure
+
   - skill: end_of_turn.md
     required: true
     load_when:
@@ -86,11 +100,12 @@ skills:
     load_when:
       - triaging proposals, research reports, or task documents in docs/inbox
       - promoting proposal documents from docs/inbox to docs/todo
+      - moving source-only research or reference material into docs/reference
       - moving implemented, rejected, or superseded proposals into docs/todo/completed
       - reorganizing proposal folders, roadmap docs, or completed-proposal archives
       - updating NEXT_STEPS or functionality-audit because proposal status changed
     do_not_load_when:
-      - ordinary documentation edit with no proposal, roadmap, inbox, todo, or completed status change
+      - ordinary documentation edit with no proposal, roadmap, inbox, todo, reference, or completed status change
       - code-only implementation work where proposal files are not being moved or resolved
 
   - skill: subproject_runtime.md

@@ -1033,6 +1033,7 @@ function _diagramNode(token) {
 function renderFlowchart(text) {
   const lines = text.split("\n").slice(1).map((line) => line.trim()).filter(Boolean);
   const horizontal = /^(flowchart|graph)\s+(lr|rl)/i.test(text.split("\n")[0]);
+  const rightToLeft = /^(flowchart|graph)\s+rl/i.test(text.split("\n")[0]);
   const nodes = new Map();
   const edges = [];
   const note = (node) => { if (node && !nodes.has(node.id)) nodes.set(node.id, node.label); };
@@ -1074,19 +1075,25 @@ function renderFlowchart(text) {
   let maxCross = 0;
   [...byLayer.entries()].sort((a, b) => a[0] - b[0]).forEach(([lyr, ids]) => {
     ids.forEach((id, i) => {
-      const main = 24 + lyr * (boxH + gapMain);
-      const cross = 24 + i * (boxW + gapCross);
+      const mainSize = horizontal ? boxW : boxH;
+      const crossSize = horizontal ? boxH : boxW;
+      const effectiveLayer = horizontal && rightToLeft ? byLayer.size - 1 - lyr : lyr;
+      const main = 24 + effectiveLayer * (mainSize + gapMain);
+      const cross = 24 + i * (crossSize + gapCross);
       pos.set(id, horizontal ? { x: main, y: cross } : { x: cross, y: main });
     });
     maxCross = Math.max(maxCross, ids.length);
   });
   const layers = byLayer.size;
-  const width = horizontal ? 48 + layers * (boxH + gapMain) : 48 + maxCross * (boxW + gapCross);
-  const height = horizontal ? 48 + maxCross * (boxW + gapCross) : 48 + layers * (boxH + gapMain);
+  const width = horizontal ? 48 + layers * boxW + Math.max(0, layers - 1) * gapMain : 48 + maxCross * boxW + Math.max(0, maxCross - 1) * gapCross;
+  const height = horizontal ? 48 + maxCross * boxH + Math.max(0, maxCross - 1) * gapCross : 48 + layers * boxH + Math.max(0, layers - 1) * gapMain;
   const edgeSvg = edges.map((edge) => {
     const a = pos.get(edge.from), b = pos.get(edge.to);
     if (!a || !b) return "";
-    const x1 = a.x + boxW / 2, y1 = a.y + boxH, x2 = b.x + boxW / 2, y2 = b.y;
+    const x1 = horizontal ? (rightToLeft ? a.x : a.x + boxW) : a.x + boxW / 2;
+    const y1 = horizontal ? a.y + boxH / 2 : a.y + boxH;
+    const x2 = horizontal ? (rightToLeft ? b.x + boxW : b.x) : b.x + boxW / 2;
+    const y2 = horizontal ? b.y + boxH / 2 : b.y;
     const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
     return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--edge-related)" stroke-width="1.5" marker-end="url(#diagram-arrow)"></line>${edge.label ? `<text class="diagram-edge-label" x="${midX}" y="${midY}" text-anchor="middle">${esc(edge.label)}</text>` : ""}`;
   }).join("");

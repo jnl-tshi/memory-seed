@@ -52,18 +52,38 @@ GEMINI.md
 .memory-seed/
   agent-rules.md
   project-bootstrap.md
+  project.yaml
   skills/
     index.md
-    code_search.md
-    data_architecture.md
-    local_compilation.md
+    session_logging.md
+    history_retrieval.md
+    end_of_turn.md
+    memory_hygiene.md
+    risk_signaling.md
     memory_consolidation.md
     memory_doctor.md
-    release_publishing.md
-    security_triage.md
+    subproject_runtime.md
   sessions/
   archive/
 ```
+
+New projects install this minimal core by default. Optional skills are selected
+through `memory-seed init --profile ...`, `memory-seed init --skills ...`,
+`memory-seed init --all-skills`, or later with `memory-seed skills add ...`.
+The selected and ignored optional skills are recorded in `.memory-seed/project.yaml`
+under `skills.profiles`, `skills.selected`, and `skills.ignored`; ignored optional
+skills are not re-added by `memory-seed update`.
+
+Available optional profiles:
+
+- `coding`: `code_search.md`, `local_compilation.md`, `data_architecture.md`
+- `security`: `security_triage.md`
+- `collaboration`: `agent_collaboration.md`
+- `planning`: `proposal_lifecycle.md` plus `docs/inbox/.gitkeep`, `docs/todo/.gitkeep`, `docs/todo/completed/.gitkeep`
+- `release`: `release_publishing.md`
+- `documents`: `document_ingestion.md`, `office_document_editing.md`, `docx_render_windows.md`
+- `marketing`: `copywriter-conversion.md`
+- `diagramming`: `compact_mermaid_diagrams.md`
 
 Bootstrap is incomplete until these generated files also exist:
 
@@ -229,20 +249,27 @@ Security must be proportional:
 
 ## Step 8: Create Skills
 
-The seed may provide generic skill templates, but bootstrap decides which skills are active for this project.
+`memory-seed init` installs the minimal core skills and records optional skill
+state in `.memory-seed/project.yaml`. Bootstrap should not assume every bundled
+skill file is present.
 
-Consider the default skill set:
+Core skills are always installed and registry-wired:
 
-- `security_triage.md`
-- `index.md`
-- `data_architecture.md`
-- `local_compilation.md`
-- `code_search.md`
-- `memory_consolidation.md`
+- `session_logging.md`
+- `history_retrieval.md`
+- `end_of_turn.md`
+- `memory_hygiene.md`
+- `risk_signaling.md`
 - `memory_doctor.md`
-- `release_publishing.md`
+- `memory_consolidation.md`
+- `subproject_runtime.md`
 
-For code projects, include `code_search.md` and prefer Semble before grep/full-file reads. If `semble` is not on `PATH`, use `uvx --from "semble[mcp]" semble`.
+Optional skills are installed by profile or individual selection. For code
+projects, prefer the `coding` profile; for proposal workflows, prefer the
+`planning` profile so the docs lifecycle folders exist. Use
+`memory-seed skills list` to show installed, ignored, and profile-grouped
+skills; use `memory-seed skills add <skill-or-profile>` and
+`memory-seed skills remove <skill>` to change the project later.
 
 For sub-projects, inherit parent skills by default and create local skill files only when the sub-project needs an override or a genuinely local runbook. Record local, inherited, and disabled skills in `index.md`.
 

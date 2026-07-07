@@ -60,6 +60,7 @@ memory_seed = [
   "seed/.memory-seed/skills/security_triage.md",
   "seed/.memory-seed/skills/copywriter-conversion.md",
   "seed/.memory-seed/skills/code_search.md",
+  "seed/.memory-seed/skills/compact_mermaid_diagrams.md",
   "seed/.memory-seed/skills/index.md",
   "seed/.memory-seed/skills/data_architecture.md",
   "seed/.memory-seed/skills/document_ingestion.md",

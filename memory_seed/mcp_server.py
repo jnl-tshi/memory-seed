@@ -143,7 +143,7 @@ def handle_jsonrpc_message(
                     "content": [
                         {
                             "type": "text",
-                            "text": json.dumps(tool_result, indent=2, sort_keys=True),
+                            "text": json.dumps(tool_result, indent=2, sort_keys=True, ensure_ascii=False),
                         }
                     ]
                 },
@@ -168,12 +168,19 @@ def serve_stdio(input_stream=None, output_stream=None, *, semantic_enabled: bool
         except Exception as exc:
             response = _error(None, -32700, str(exc))
         if response is not None:
-            output_stream.write(json.dumps(response, separators=(",", ":")) + "\n")
+            output_stream.write(json.dumps(response, separators=(",", ":"), ensure_ascii=False) + "\n")
             output_stream.flush()
     return 0
 
 
+def _configure_utf8_stdio() -> None:
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv: list[str] | None = None) -> int:
+    _configure_utf8_stdio()
     parser = argparse.ArgumentParser(prog="memory-seed-mcp")
     parser.add_argument(
         "--stdio",

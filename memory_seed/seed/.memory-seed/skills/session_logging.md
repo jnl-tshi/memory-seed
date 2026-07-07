@@ -137,6 +137,10 @@ DRAFT is the baseline decision-record format for session entries. A DRAFT decisi
 - Use `D1`, `D2`, and similar labels only inside a multi-decision entry.
 - Do not rewrite old logs solely to match the newest schema unless the user explicitly asks.
 
+`F` fields should support later lexical search. Prefer exact changed file paths and filenames as
+standalone tokens. Avoid ellipses (`...`), brace groups (`{app.js,styles.css}`), or folder-only
+shorthand when specific files matter; use prose grouping only after the exact paths are present.
+
 ## Entry Shapes
 
 ### Meaningful decision entry

@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import subprocess
 import shutil
 import tempfile
 import unittest
@@ -98,6 +99,18 @@ class LenseServiceTests(unittest.TestCase):
         self.assertEqual(len(page["results"]), 1)
         self.assertEqual(page["results"][0]["chunk_id"], "mse_ui")
         self.assertIsNotNone(page["next_cursor"])
+
+    def test_empty_entry_search_returns_recent_entries(self):
+        service = self.service()
+
+        page = service.search(q="", granularity="entry", limit=10)
+
+        self.assertEqual(page["total"], 3)
+        self.assertEqual(
+            [item["entry_id"] for item in page["results"]],
+            ["mse_graph", "mse_ui", "mse_bootstrap"],
+        )
+        self.assertTrue(all(item["score"] == 0.0 for item in page["results"]))
 
     def test_entry_search_rolls_up_section_matches(self):
         # Entry-level UI results plan: one selectable result per session entry,
@@ -413,6 +426,48 @@ class LenseCliTests(unittest.TestCase):
         self.assertIn("diagram-source", script)  # source fallback
         self.assertIn("Decision diagrams", script)  # reader section
         self.assertIn(".diagram-svg", styles)
+
+    def test_frontend_flowchart_lr_renderer_uses_horizontal_geometry(self):
+        import importlib.resources as resources
+
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("node is not available")
+        script_path = resources.files("memory_trace").joinpath("static/app.js")
+        probe = r"""
+const fs = require("fs");
+const src = fs.readFileSync(process.argv[1], "utf8");
+function pick(name, nextName) {
+  const start = src.indexOf(`function ${name}(`);
+  const end = src.indexOf(`\nfunction ${nextName}`, start);
+  if (start < 0 || end < 0) throw new Error(`missing ${name}`);
+  return src.slice(start, end);
+}
+eval([
+  pick("_diagramNode", "renderFlowchart"),
+  pick("renderFlowchart", "renderSequenceDiagram"),
+  pick("_diagramArrowDefs", "markdown"),
+  pick("esc", "escAttr"),
+].join("\n"));
+const svg = renderFlowchart("flowchart LR\n  A[Alpha] --> B[Beta]");
+const rects = [...svg.matchAll(/<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"/g)]
+  .map((match) => match.slice(1).map(Number));
+const line = svg.match(/<line x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)"/);
+if (rects.length !== 2 || !line) throw new Error(svg);
+const [a, b] = rects;
+const coords = line.slice(1).map(Number);
+const horizontalOverlap = Math.max(0, Math.min(a[0] + a[2], b[0] + b[2]) - Math.max(a[0], b[0]));
+if (horizontalOverlap > 0) {
+  throw new Error(`LR nodes overlap by ${horizontalOverlap}px`);
+}
+const expected = [a[0] + a[2], a[1] + a[3] / 2, b[0], b[1] + b[3] / 2];
+if (coords.some((value, index) => value !== expected[index])) {
+  throw new Error(`LR edge ${coords.join(",")} should be ${expected.join(",")}`);
+}
+"""
+        result = subprocess.run([node, "-e", probe, str(script_path)], capture_output=True, text=True)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_frontend_brands_as_memory_trace(self):
         # Arc 2b microcopy: the UI self-identifies as Memory Trace, not the old

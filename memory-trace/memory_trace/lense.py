@@ -22,6 +22,7 @@ from memory_seed.core import iter_session_documents, resolve_runtime
 from memory_seed.retrieval import EntryRollup, entry_diagram_sidecars, rollup_entry_matches
 from memory_seed.semantic_cache import (
     MemoryChunk,
+    RankedMemoryChunk,
     build_related_entry_graph,
     extract_memory_chunks,
     rank_memory_chunks,
@@ -679,8 +680,6 @@ def _rollup_to_api(rollup: EntryRollup) -> dict[str, Any]:
 
 
 def _unscored(chunk: MemoryChunk) -> Any:
-    from .semantic_cache import RankedMemoryChunk
-
     return RankedMemoryChunk(
         chunk=chunk,
         final_score=0.0,
@@ -794,7 +793,7 @@ def _graph_edges(
                     add(source, node_id(target_chunk) if target_chunk else target, "related")
             # Trail view: supersession is a directed, typed *status* edge
             # ("this decision replaced that one"), rendered distinctly from plain
-            # relatedness per docs/graph-edge-contract.md - never conflated.
+            # relatedness per docs/3_Spec/graph-edge-contract.md - never conflated.
             if "supersedes" in edge_types:
                 for target in node.supersedes:
                     target_chunk = by_id.get(target)
@@ -966,7 +965,7 @@ def _limit(limit: int, *, maximum: int = 100) -> int:
 
 def _excerpt(text: str, *, length: int = 220) -> str:
     cleaned = " ".join(line.strip() for line in text.splitlines() if line.strip() and not line.strip().startswith("```"))
-    return cleaned[: length - 1] + "…" if len(cleaned) > length else cleaned
+    return cleaned[: length - 1] + "â€¦" if len(cleaned) > length else cleaned
 
 
 def _static_text(name: str, media_type: str) -> str:

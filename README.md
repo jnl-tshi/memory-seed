@@ -158,6 +158,29 @@ memory-seed agents add gemini     # install an agent's files
 memory-seed agents remove gemini  # back up + remove an agent's files (foreign config preserved)
 ```
 
+### Choosing skill profiles
+
+New projects install a minimal core skill set by default: session logging, history
+retrieval, end-of-turn closeout, hygiene, risk signaling, doctor, consolidation,
+and sub-project runtime guidance. Optional skills are installed by profile or
+individual filename and are still lazy-loaded through `.memory-seed/skills/index.md`.
+
+```bash
+memory-seed init --profile coding,planning
+memory-seed init --skills compact_mermaid_diagrams.md
+memory-seed init --all-skills
+memory-seed skills list
+memory-seed skills ignored
+memory-seed skills add planning
+memory-seed skills remove proposal_lifecycle.md
+```
+
+The selection is stored in `.memory-seed/project.yaml` under `skills.profiles`,
+`skills.selected`, and `skills.ignored`. `memory-seed update` respects that state
+and does not re-add ignored optional skills. The `planning` profile also creates
+`docs/inbox/`, `docs/todo/`, `docs/todo/completed/`, and `docs/reference/`
+`.gitkeep` anchors for the proposal workflow and its source/reference material.
+
 ## Agent Hooks
 
 `memory-seed init` and `memory-seed update` install lifecycle hooks that keep memory current without relying on the agent to remember. Each hook is merged into the agent's own config file (existing settings are preserved), so it works regardless of which agent opens the project:
@@ -322,33 +345,25 @@ GEMINI.md
 .memory-seed/hooks/session-log-check.py
 .memory-seed/hooks/memory-retrieval-check.py
 .memory-seed/hooks/session-start-context.py
-.memory-seed/skills/agent_collaboration.md
 .memory-seed/skills/index.md
-.memory-seed/skills/code_search.md
-.memory-seed/skills/copywriter-conversion.md
-.memory-seed/skills/security_triage.md
-.memory-seed/skills/data_architecture.md
-.memory-seed/skills/document_ingestion.md
 .memory-seed/skills/end_of_turn.md
 .memory-seed/skills/history_retrieval.md
-.memory-seed/skills/local_compilation.md
 .memory-seed/skills/memory_consolidation.md
 .memory-seed/skills/memory_doctor.md
 .memory-seed/skills/memory_hygiene.md
-.memory-seed/skills/office_document_editing.md
-.memory-seed/skills/release_publishing.md
+.memory-seed/skills/risk_signaling.md
 .memory-seed/skills/session_logging.md
 .memory-seed/skills/subproject_runtime.md
 .memory-seed/sessions/.gitkeep
 ```
 
-It creates a minimal `.memory-seed/` control plane with reusable procedures, generic skill templates, and empty session/archive anchors. Fresh projects are seeded but not yet bootstrapped. `init` does not create `.memory-seed/index.md` or `.memory-seed/policy.md`; the first agent bootstrap pass generates those files after scanning the project and asking targeted questions. The generated `index.md` is the rich project-orientation manifest, and `policy.md` contains behavioral constraints only.
+Optional profile skills are copied only when selected. It creates a minimal `.memory-seed/` control plane with reusable procedures, core skill templates, skill selection state, and empty session/archive anchors. Fresh projects are seeded but not yet bootstrapped. `init` does not create `.memory-seed/index.md` or `.memory-seed/policy.md`; the first agent bootstrap pass generates those files after scanning the project and asking targeted questions. The generated `index.md` is the rich project-orientation manifest, and `policy.md` contains behavioral constraints only.
 
 It does not copy MCP server code or Python modules into the target project. Commands such as `memory-seed-mcp` and `memory-seed-mcp-validate` run from the installed or `uvx` package. The target project receives only the Markdown runtime files.
 
 Use `--dry-run` to preview the files `init` would copy without changing files. If any reusable seed file already exists, plain `init` refuses to overwrite it and exits with an error. Use `--force` only when you intentionally want to back up and replace existing seed files.
 
-When `--force` creates backups, Memory Seed adds `.memory-seed/backups/` to the target project's `.gitignore` to reduce the chance of committing replaced local memory files. `init --force` is a reinstall operation: it writes all bundled seed files, including files that were already on the current `memory-system-version`.
+When `--force` creates backups, Memory Seed adds `.memory-seed/backups/` to the target project's `.gitignore` to reduce the chance of committing replaced local memory files. `init --force` is a reinstall operation for the selected seed-file set, including files that were already on the current `memory-system-version`.
 
 The `update` command refreshes routing files, reusable runtime procedure files, and generic skill templates by version, sourcing them **from the installed package** rather than from PyPI â€” upgrade the package first to get newer templates (see [Updating](#updating)). Before replacing stale reusable control-plane files, it backs them up under `.memory-seed/backups/<timestamp>/` and archives their old version under `.memory-seed/archive/<old-version>/` or `.memory-seed/archive/unknown-<timestamp>/` when the old version is missing. Generated local memory files such as `index.md`, `policy.md`, and sessions are preserved.
 
@@ -451,6 +466,12 @@ uvx --from memory-seed@latest memory-seed update
 A bare `uvx --from memory-seed memory-seed update` may serve a cached package version; use `@latest` to force the newest, or pin `==X.Y.Z` for reproducibility.
 
 For the version distinction (`pip show memory-seed` reports the package version; `memory-seed version` reports the control-plane version), see [Python CLI](#python-cli).
+
+## Text Encoding
+
+Memory Seed writes project-owned text files as UTF-8 without BOM, with LF line endings and NFC Unicode normalization. `.editorconfig` and `.gitattributes` declare the repository defaults. Markdown memory files, YAML/TOML configuration, JSON metadata, logs, and generated text outputs should use explicit UTF-8 file I/O rather than platform defaults.
+
+Use the shared `memory_seed.text_files` helpers for project-owned text and JSON writes. Important CLI and MCP output should remain understandable as plain text even when a terminal cannot render decorative Unicode.
 
 ## MCP Memory Search
 

@@ -2,16 +2,16 @@
 
 This module is the canonical search-orchestration and result-dict contract for
 every consumer: the MCP server (`memory_seed/mcp_server.py`) wraps it, the
-in-package Memory Lense consumes it, and the future companion UI distribution
-(Memory Trail, working placeholder `memory-seed-explorer`) will import it as
-its frozen public API. Do not fork result-dict shapes per consumer - same
+deprecated in-package Memory Lense shim routes users to Memory Trace, and the
+standalone `memory-trace` companion UI imports it as its frozen public API. Do
+not fork result-dict shapes per consumer - same
 answers as MCP, richer navigation for humans.
 
 The shared substrate (parser + ranker) lives in `memory_seed/semantic_cache.py`;
 this module owns what used to be MCP-coupled: semantic-provider resolution,
 search orchestration, and the canonical result dictionaries. See
-docs/todo/memory-trace-distribution-plan.md (Phase 1) and
-docs/graph-edge-contract.md.
+docs/2_Todo/memory-trace-distribution-plan.md (Phase 1) and
+docs/3_Spec/graph-edge-contract.md.
 """
 
 from __future__ import annotations
@@ -112,7 +112,7 @@ def search_memory(
 
 def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = False) -> dict[str, Any]:
     """Fetch one chunk by ``chunk_id`` and return its canonical payload dict,
-    enriched with the read-only graph metrics from docs/graph-edge-contract.md
+    enriched with the read-only graph metrics from docs/3_Spec/graph-edge-contract.md
     (`superseded_by`, `inbound_relation_count`, `importance_score`,
     `commit_reference_count`). Raises ``ValueError`` for an unknown id.
 
@@ -185,7 +185,7 @@ def entry_diagram_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     ```` ```yaml ```` block naming ``entry_id`` + fenced ```` ```mermaid ````
     block(s)), so multiple diagrams append to the same date file across a day.
     These are the Class-2 reasoning diagrams from
-    docs/todo/session-decision-diagrams-plan.md, authored at session-entry
+    docs/2_Todo/session-decision-diagrams-plan.md, authored at session-entry
     time because a no-LLM consumer cannot derive them from prose. This reader
     is metadata-only and deterministic: it never parses Mermaid semantics, and
     unreadable or malformed blocks are skipped (``links check`` owns reporting

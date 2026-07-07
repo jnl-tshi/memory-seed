@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator, Literal, Sequence
 
+from .text_files import read_json_file, read_text_file, write_json_file, write_text_file
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
@@ -40,15 +41,15 @@ _ROUTING_BLOCK_RE = re.compile(
 # version-tracked (doctor likewise skips it from version-mismatch), so the
 # block is re-synced only when its *body* changes, never on a bare version bump.
 _ROUTING_STANZA = (
-    "<!-- BEGIN memory-seed (managed block — edits inside are overwritten on update) -->\n"
+    "<!-- BEGIN memory-seed (managed block â€” edits inside are overwritten on update) -->\n"
     "## Memory (Memory Seed runtime)\n"
     "\n"
     "This project has a Memory Seed runtime in `.memory-seed/`. Before substantive work, read in order:\n"
     "\n"
-    "1. `.memory-seed/agent-rules.md` — operating contract (retrieval, session-log discipline, End Of Turn)\n"
-    "2. `.memory-seed/index.md` — orientation, active state, inheritance\n"
-    "3. `.memory-seed/policy.md` — constraints\n"
-    "4. `.memory-seed/skills/index.md` — skill trigger registry\n"
+    "1. `.memory-seed/agent-rules.md` â€” operating contract (retrieval, session-log discipline, End Of Turn)\n"
+    "2. `.memory-seed/index.md` â€” orientation, active state, inheritance\n"
+    "3. `.memory-seed/policy.md` â€” constraints\n"
+    "4. `.memory-seed/skills/index.md` â€” skill trigger registry\n"
     "\n"
     "Append a session entry to `.memory-seed/sessions/YYYY-MM-DD.md` after meaningful work.\n"
     "Instructions above this block remain authoritative for their own domain.\n"
@@ -69,6 +70,35 @@ class SeedFile:
     # Agent this file belongs to (e.g. "claude"). None = agent-agnostic, always
     # installed. Agent-tagged files are installed only when that agent is selected.
     agent: str | None = None
+
+
+@dataclass(frozen=True)
+class SkillProfile:
+    description: str
+    skills: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class SkillSelection:
+    profiles: set[str]
+    selected: set[str]
+    ignored: set[str]
+    explicit: bool
+
+
+@dataclass(frozen=True)
+class SkillStatus:
+    core: list[str]
+    installed_optional: list[str]
+    selected_optional: list[str]
+    ignored: list[str]
+    available_optional: list[str]
+    profiles: dict[str, list[str]]
+    profile_descriptions: dict[str, str]
+    descriptions: dict[str, str]
+
+    def __getitem__(self, key: str):
+        return getattr(self, key)
 
 
 @dataclass(frozen=True)
@@ -222,7 +252,7 @@ def read_local_user(target_root: Path) -> str | None:
     if not path.exists():
         return None
     try:
-        for line in path.read_text(encoding="utf-8").splitlines():
+        for line in read_text_file(path).splitlines():
             stripped = line.strip()
             if not stripped or stripped.startswith("#"):
                 continue
@@ -241,7 +271,7 @@ def write_local_user(target_root: Path, user: str) -> None:
     user = _validate_session_user(user)
     memory_dir = target_root / MEMORY_DIR_NAME
     memory_dir.mkdir(parents=True, exist_ok=True)
-    _local_config_path(target_root).write_text(f"user: {user}\n", encoding="utf-8")
+    write_text_file(_local_config_path(target_root), f"user: {user}\n")
     _ensure_gitignore_entry(target_root, LOCAL_CONFIG_IGNORE_ENTRY)
 
 
@@ -393,7 +423,7 @@ def commit_reference_ids(root: Path, entry_id: str, commits_field: Sequence[str]
 
     This is a caller-side signal deliberately kept out of ``build_related_entry_graph``:
     the graph reader stays pure (no subprocess) so frequent readers like
-    ``memory_search`` never shell out to git. See docs/graph-edge-contract.md.
+    ``memory_search`` never shell out to git. See docs/3_Spec/graph-edge-contract.md.
     """
     ids: set[str] = {sha for sha in commits_field if _FULL_COMMIT_SHA_RE.match(sha)}
     trailer = find_trailer_commits(root, entry_id)
@@ -541,7 +571,7 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     # (orphan-diagram) and was actually logged on the file's date
     # (diagram-date-mismatch), and has at least one balanced ```mermaid
     # fence (malformed-diagram; no Mermaid semantic parsing). See
-    # docs/todo/session-decision-diagrams-plan.md.
+    # docs/2_Todo/session-decision-diagrams-plan.md.
     diagrams_dir = sessions_dir / "diagrams"
     if diagrams_dir.is_dir():
         for diagram_path in sorted(diagrams_dir.glob("*.md")):
@@ -693,7 +723,8 @@ def _ensure_per_user_session_file(path: Path, date_str: str, user: str) -> None:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     hash_id = "msm_" + secrets.token_hex(16)
-    path.write_text(
+    write_text_file(
+        path,
         "\n".join(
             [
                 "---",
@@ -706,7 +737,6 @@ def _ensure_per_user_session_file(path: Path, date_str: str, user: str) -> None:
                 "",
             ]
         ),
-        encoding="utf-8",
     )
 
 
@@ -784,14 +814,14 @@ def _participant_slug_by_initials(target_root: Path) -> tuple[dict[str, str], li
 
 
 def _append_session_entries(path: Path, entries: list[_FlatSessionEntry]) -> None:
-    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    existing = read_text_file(path) if path.exists() else ""
     prefix = existing
     if prefix and not prefix.endswith("\n"):
         prefix += "\n"
     if prefix and not prefix.endswith("\n\n"):
         prefix += "\n"
     body = "\n".join(entry.text.rstrip() for entry in entries).rstrip() + "\n"
-    path.write_text(prefix + body, encoding="utf-8")
+    write_text_file(path, prefix + body)
 
 
 def migrate_session_layout(cwd: str | Path = ".", dry_run: bool = False) -> SessionLayoutMigrationResult:
@@ -947,6 +977,10 @@ SEED_FILES = [
         ".memory-seed/skills/session_logging.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "compact_mermaid_diagrams.md",
+        ".memory-seed/skills/compact_mermaid_diagrams.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "end_of_turn.md",
         ".memory-seed/skills/end_of_turn.md",
     ),
@@ -1020,6 +1054,78 @@ SEED_FILES = [
     ),
 ]
 
+CORE_SKILL_NAMES = (
+    "session_logging.md",
+    "history_retrieval.md",
+    "end_of_turn.md",
+    "memory_hygiene.md",
+    "risk_signaling.md",
+    "memory_doctor.md",
+    "memory_consolidation.md",
+    "subproject_runtime.md",
+)
+
+SKILL_PROFILES: dict[str, SkillProfile] = {
+    "coding": SkillProfile(
+        "Source exploration, local validation, and durable data-structure work.",
+        ("code_search.md", "local_compilation.md", "data_architecture.md"),
+    ),
+    "security": SkillProfile(
+        "Security-sensitive review, secret handling, and permission-risk triage.",
+        ("security_triage.md",),
+    ),
+    "collaboration": SkillProfile(
+        "Multi-agent, worktree, branch, and handoff coordination.",
+        ("agent_collaboration.md",),
+    ),
+    "planning": SkillProfile(
+        "Proposal inbox, todo, completed, and reference lifecycle management.",
+        ("proposal_lifecycle.md",),
+    ),
+    "release": SkillProfile(
+        "Package publishing, tags, changelog, and release verification.",
+        ("release_publishing.md",),
+    ),
+    "documents": SkillProfile(
+        "Document ingestion, Office editing, and Windows DOCX render QA.",
+        ("document_ingestion.md", "office_document_editing.md", "docx_render_windows.md"),
+    ),
+    "marketing": SkillProfile(
+        "Conversion copy, launch copy, CTAs, and product-positioning text.",
+        ("copywriter-conversion.md",),
+    ),
+    "diagramming": SkillProfile(
+        "Compact Mermaid layout plus Mermaid-first D2 selection guidance.",
+        ("compact_mermaid_diagrams.md",),
+    ),
+}
+
+OPTIONAL_SKILL_NAMES = tuple(
+    sorted({skill for profile in SKILL_PROFILES.values() for skill in profile.skills})
+)
+
+SKILL_DESCRIPTIONS = {
+    "agent_collaboration.md": "Coordinate branch, worktree, and multi-agent handoff workflows.",
+    "code_search.md": "Use precise repository search and symbol lookup before broad reads.",
+    "compact_mermaid_diagrams.md": "Produce compact Mermaid diagrams and decide when D2 is justified.",
+    "copywriter-conversion.md": "Write conversion-focused product and launch copy.",
+    "data_architecture.md": "Handle durable schema, cache, ranking, and retrieval-contract changes.",
+    "docx_render_windows.md": "Render DOCX pages to images for Windows visual QA.",
+    "document_ingestion.md": "Convert binary documents into readable Markdown/text.",
+    "local_compilation.md": "Validate local build, test, package, and CLI behavior.",
+    "office_document_editing.md": "Create or edit Office documents programmatically.",
+    "proposal_lifecycle.md": "Move proposal docs through inbox, todo, completed, and reference states.",
+    "release_publishing.md": "Prepare and verify package releases.",
+    "security_triage.md": "Triage security, privacy, and destructive-operation risks.",
+}
+
+PROPOSAL_LIFECYCLE_ARTIFACTS = (
+    "docs/inbox/.gitkeep",
+    "docs/todo/.gitkeep",
+    "docs/todo/completed/.gitkeep",
+    "docs/reference/.gitkeep",
+)
+
 _CLAUDE_HOOK_COMMAND = "python3 .memory-seed/hooks/session-log-check.py"
 _CODEX_HOOK_COMMAND = "python3 .memory-seed/hooks/session-log-check.py --codex"
 _CURSOR_HOOK_COMMAND = "python3 .memory-seed/hooks/session-log-check.py --cursor"
@@ -1045,7 +1151,7 @@ _OWN_MCP_COMMANDS = {"uvx", "memory-seed-mcp"}
 
 # GitHub Copilot CLI integration. Its MCP config is repo-local at .github/mcp.json
 # with a distinct schema (type + tools). Its sessionStart hook cannot inject context
-# from a command hook (stdout is consumed, not processed) — only a "prompt" hook can,
+# from a command hook (stdout is consumed, not processed) â€” only a "prompt" hook can,
 # so Copilot gets a static directive (it must glob the sessions dir itself) rather
 # than running session-start-context.py.
 # type "stdio" (over the also-valid "local") is the GitHub-documented preferred
@@ -1202,8 +1308,7 @@ def _merge_grouped_hook(config_path: Path, event: str, command: str, script_name
     data: dict = {}
     if config_path.exists():
         try:
-            with open(config_path) as f:
-                data = json.load(f)
+            data = read_json_file(config_path)
         except (json.JSONDecodeError, OSError):
             data = {}
 
@@ -1213,20 +1318,14 @@ def _merge_grouped_hook(config_path: Path, event: str, command: str, script_name
                 return False
             if script_name in (hook.get("command") or ""):
                 hook["command"] = command
-                config_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(config_path, "w") as f:
-                    json.dump(data, f, indent=2)
-                    f.write("\n")
+                write_json_file(config_path, data)
                 return True
 
     data.setdefault("hooks", {}).setdefault(event, []).append(
         {"hooks": [{"type": "command", "command": command}]}
     )
 
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(config_path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
+    write_json_file(config_path, data)
 
     return True
 
@@ -1240,8 +1339,7 @@ def _merge_cursor_event_hook(config_path: Path, event: str, command: str, script
     data: dict = {}
     if config_path.exists():
         try:
-            with open(config_path) as f:
-                data = json.load(f)
+            data = read_json_file(config_path)
         except (json.JSONDecodeError, OSError):
             data = {}
 
@@ -1251,18 +1349,12 @@ def _merge_cursor_event_hook(config_path: Path, event: str, command: str, script
             return False
         if script_name in (entry.get("command") or ""):
             entry["command"] = command
-            config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(config_path, "w") as f:
-                json.dump(data, f, indent=2)
-                f.write("\n")
+            write_json_file(config_path, data)
             return True
 
     data.setdefault("hooks", {}).setdefault(event, []).append({"command": command})
 
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(config_path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
+    write_json_file(config_path, data)
 
     return True
 
@@ -1354,8 +1446,7 @@ def _merge_claude_mcp(target_root: Path) -> bool:
     data: dict = {}
     if mcp_path.exists():
         try:
-            with open(mcp_path) as f:
-                data = json.load(f)
+            data = read_json_file(mcp_path)
         except (json.JSONDecodeError, OSError):
             data = {}
 
@@ -1368,10 +1459,7 @@ def _merge_claude_mcp(target_root: Path) -> bool:
 
     data.setdefault("mcpServers", {})[_MCP_SERVER_KEY] = expected
 
-    mcp_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(mcp_path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
+    write_json_file(mcp_path, data)
 
     return True
 
@@ -1388,8 +1476,7 @@ def _strip_claude_settings_mcp(target_root: Path) -> bool:
     if not settings_path.exists():
         return False
     try:
-        with open(settings_path) as f:
-            data = json.load(f)
+        data = read_json_file(settings_path)
     except (json.JSONDecodeError, OSError):
         return False
 
@@ -1406,9 +1493,7 @@ def _strip_claude_settings_mcp(target_root: Path) -> bool:
     if not servers:
         del data["mcpServers"]
 
-    with open(settings_path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
+    write_json_file(settings_path, data)
 
     return True
 
@@ -1426,8 +1511,7 @@ def _strip_gemini_dead_hooks(target_root: Path) -> bool:
     if not settings_path.exists():
         return False
     try:
-        with open(settings_path) as f:
-            data = json.load(f)
+        data = read_json_file(settings_path)
     except (json.JSONDecodeError, OSError):
         return False
 
@@ -1460,9 +1544,7 @@ def _strip_gemini_dead_hooks(target_root: Path) -> bool:
     if not changed:
         return False
 
-    with open(settings_path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
+    write_json_file(settings_path, data)
     return True
 
 
@@ -1474,8 +1556,7 @@ def _merge_cursor_mcp(target_root: Path) -> bool:
     data: dict = {}
     if mcp_path.exists():
         try:
-            with open(mcp_path) as f:
-                data = json.load(f)
+            data = read_json_file(mcp_path)
         except (json.JSONDecodeError, OSError):
             data = {}
 
@@ -1488,10 +1569,7 @@ def _merge_cursor_mcp(target_root: Path) -> bool:
 
     data.setdefault("mcpServers", {})[_MCP_SERVER_KEY] = expected
 
-    mcp_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(mcp_path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
+    write_json_file(mcp_path, data)
 
     return True
 
@@ -1504,8 +1582,7 @@ def _merge_gemini_mcp(target_root: Path) -> bool:
     data: dict = {}
     if settings_path.exists():
         try:
-            with open(settings_path) as f:
-                data = json.load(f)
+            data = read_json_file(settings_path)
         except (json.JSONDecodeError, OSError):
             data = {}
 
@@ -1518,10 +1595,7 @@ def _merge_gemini_mcp(target_root: Path) -> bool:
 
     data.setdefault("mcpServers", {})[_MCP_SERVER_KEY] = expected
 
-    settings_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(settings_path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
+    write_json_file(settings_path, data)
 
     return True
 
@@ -1539,8 +1613,7 @@ def _merge_copilot_mcp(target_root: Path) -> bool:
     data: dict = {}
     if mcp_path.exists():
         try:
-            with open(mcp_path) as f:
-                data = json.load(f)
+            data = read_json_file(mcp_path)
         except (json.JSONDecodeError, OSError):
             data = {}
 
@@ -1553,10 +1626,7 @@ def _merge_copilot_mcp(target_root: Path) -> bool:
 
     data.setdefault("mcpServers", {})[_MCP_SERVER_KEY] = dict(_COPILOT_MCP_EXPECTED)
 
-    mcp_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(mcp_path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
+    write_json_file(mcp_path, data)
 
     return True
 
@@ -1573,8 +1643,7 @@ def _merge_vscode_mcp(target_root: Path) -> bool:
     data: dict = {}
     if mcp_path.exists():
         try:
-            with open(mcp_path) as f:
-                data = json.load(f)
+            data = read_json_file(mcp_path)
         except (json.JSONDecodeError, OSError):
             data = {}
 
@@ -1587,10 +1656,7 @@ def _merge_vscode_mcp(target_root: Path) -> bool:
 
     data.setdefault("servers", {})[_MCP_SERVER_KEY] = dict(_VSCODE_MCP_EXPECTED)
 
-    mcp_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(mcp_path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
+    write_json_file(mcp_path, data)
 
     return True
 
@@ -1608,8 +1674,7 @@ def _merge_copilot_startup_hook(target_root: Path) -> bool:
     data: dict = {}
     if config_path.exists():
         try:
-            with open(config_path) as f:
-                data = json.load(f)
+            data = read_json_file(config_path)
         except (json.JSONDecodeError, OSError):
             data = {}
 
@@ -1622,18 +1687,12 @@ def _merge_copilot_startup_hook(target_root: Path) -> bool:
             if entry.get("prompt") == _COPILOT_STARTUP_PROMPT:
                 return False
             entry["prompt"] = _COPILOT_STARTUP_PROMPT
-            config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(config_path, "w") as f:
-                json.dump(data, f, indent=2)
-                f.write("\n")
+            write_json_file(config_path, data)
             return True
 
     entries.append({"type": "prompt", "prompt": _COPILOT_STARTUP_PROMPT})
 
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(config_path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
+    write_json_file(config_path, data)
 
     return True
 
@@ -1691,10 +1750,10 @@ def _merge_codex_mcp(target_root: Path) -> bool:
     outdated entry while preserving comments relies on finding the standard
     ``[mcp_servers.memory-seed]`` header line. Detection itself is robust (tomllib
     parses semantically), but if a user *hand-wrote* the entry in a form that has
-    no such header line — dotted keys (``mcp_servers.memory-seed.command = ...``),
+    no such header line â€” dotted keys (``mcp_servers.memory-seed.command = ...``),
     an inline subtable under ``[mcp_servers]``, a fully inline
     ``mcp_servers = { ... }``, or a header with a trailing comment / leading
-    indentation — and the entry is stale, this no-ops (returns False) rather than
+    indentation â€” and the entry is stale, this no-ops (returns False) rather than
     risk a duplicate-key / invalid-TOML write. The no-op is intentionally not
     silent: ``doctor`` classifies this case via _codex_mcp_status as a
     ``stale-manual`` warning telling the user to fix it by hand. Memory Seed only
@@ -1747,8 +1806,7 @@ def _merge_codex_mcp(target_root: Path) -> bool:
         replacement = block if block.endswith("\n") else block + "\n"
         new_text = "".join(lines[:start]) + replacement + "".join(lines[end:])
 
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(new_text, encoding="utf-8")
+    write_text_file(config_path, new_text)
     return True
 
 
@@ -1758,7 +1816,7 @@ KNOWN_AGENTS = ("claude", "codex", "cursor", "gemini", "copilot")
 
 # Per-agent hook/MCP merge operations: (merge_fn, destination-for-reporting).
 # init/update run only the operations for selected agents. Order within an agent
-# is independent — each merge is idempotent and targets distinct keys/files.
+# is independent â€” each merge is idempotent and targets distinct keys/files.
 _AGENT_MERGES: dict[str, tuple[tuple, ...]] = {
     "claude": (
         (_merge_claude_hook, ".claude/settings.json"),
@@ -1822,8 +1880,7 @@ def _command_is_ours(command: str | None) -> bool:
 
 def _load_json(path: Path) -> dict | None:
     try:
-        with open(path) as f:
-            data = json.load(f)
+        data = read_json_file(path)
     except (json.JSONDecodeError, OSError):
         return None
     return data if isinstance(data, dict) else None
@@ -1837,9 +1894,7 @@ def _write_json_or_delete(path: Path, data: dict) -> None:
         except OSError:
             pass
         return
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
+    write_json_file(path, data)
 
 
 def _strip_grouped_hooks(config_path: Path) -> bool:
@@ -1975,7 +2030,7 @@ def _strip_codex_mcp(target_root: Path) -> bool:
     if not path.exists():
         return False
     try:
-        lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+        lines = read_text_file(path).splitlines(keepends=True)
     except OSError:
         return False
     idx = _codex_standard_header_index([ln.rstrip("\n") for ln in lines])
@@ -1987,7 +2042,7 @@ def _strip_codex_mcp(target_root: Path) -> bool:
     del lines[idx:end]
     new_text = "".join(lines)
     if new_text.strip():
-        path.write_text(new_text, encoding="utf-8")
+        write_text_file(path, new_text)
     else:
         try:
             path.unlink()
@@ -2079,6 +2134,9 @@ def read_project_agents(target_root: Path) -> set[str] | None:
                 in_block = True
             continue
         if in_block:
+            if re.match(r"^\s*[A-Za-z_][A-Za-z0-9_-]*\s*:", line):
+                in_block = False
+                continue
             m = re.match(r"^\s*-\s*(.+)$", line)
             if m:
                 tok = m.group(1).strip().strip("'\"")
@@ -2192,8 +2250,7 @@ def write_project_agents(target_root: Path, agents: set[str]) -> None:
 
     if not text.endswith("\n"):
         text += "\n"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8", newline="\n")
+    write_text_file(path, text)
 
 
 def _parse_agent_list(value: str) -> set[str]:
@@ -2224,16 +2281,320 @@ def resolve_agents(cli_value: str | None, *, isatty: bool, prompt_response: str 
     return set(KNOWN_AGENTS)
 
 
+def _skill_seed_file_map() -> dict[str, SeedFile]:
+    prefix = f"{MEMORY_DIR_NAME}/skills/"
+    return {
+        Path(seed_file.destination).name: seed_file
+        for seed_file in SEED_FILES
+        if seed_file.destination.startswith(prefix) and Path(seed_file.destination).name != "index.md"
+    }
+
+
+def _normalise_skill_name(value: str) -> str:
+    token = value.strip().replace("\\", "/")
+    if not token:
+        raise ValueError("Skill name cannot be empty.")
+    token = token.rsplit("/", 1)[-1]
+    if not token.endswith(".md"):
+        token += ".md"
+    valid = set(CORE_SKILL_NAMES) | set(OPTIONAL_SKILL_NAMES)
+    if token not in valid:
+        raise ValueError(
+            f"Unknown skill: {value}. Valid skills: {', '.join(sorted(valid))}."
+        )
+    return token
+
+
+def _normalise_profile_names(values: set[str] | Sequence[str] | None) -> set[str]:
+    if not values:
+        return set()
+    profiles = {value.strip().lower() for value in values if value.strip()}
+    unknown = sorted(profiles - set(SKILL_PROFILES))
+    if unknown:
+        raise ValueError(
+            f"Unknown skill profile(s): {', '.join(unknown)}. "
+            f"Valid profiles: {', '.join(sorted(SKILL_PROFILES))}."
+        )
+    return profiles
+
+
+def _skills_from_profiles(profiles: set[str]) -> set[str]:
+    selected: set[str] = set()
+    for profile in profiles:
+        selected.update(SKILL_PROFILES[profile].skills)
+    return selected
+
+
+def _resolve_requested_optional_skills(
+    *,
+    skill_profiles: set[str] | Sequence[str] | None = None,
+    skills: set[str] | Sequence[str] | None = None,
+    exclude_skills: set[str] | Sequence[str] | None = None,
+    all_skills: bool = False,
+) -> tuple[set[str], set[str], set[str]]:
+    profiles = _normalise_profile_names(skill_profiles)
+    selected = set(OPTIONAL_SKILL_NAMES) if all_skills else _skills_from_profiles(profiles)
+    for skill in skills or ():
+        selected.add(_normalise_skill_name(skill))
+    for skill in exclude_skills or ():
+        selected.discard(_normalise_skill_name(skill))
+    selected &= set(OPTIONAL_SKILL_NAMES)
+    ignored = set(OPTIONAL_SKILL_NAMES) - selected
+    return profiles, selected, ignored
+
+
+def _read_top_level_list(text: str, key: str, valid: set[str] | None = None) -> tuple[bool, set[str]]:
+    values: set[str] = set()
+    saw_key = False
+    in_block = False
+    for raw in text.splitlines():
+        line = raw.rstrip()
+        if re.match(rf"^\s*{re.escape(key)}\s*:", line):
+            saw_key = True
+            inline = line.split(":", 1)[1].strip()
+            if inline.startswith("[") and inline.endswith("]"):
+                for tok in inline[1:-1].split(","):
+                    value = tok.strip().strip("'\"")
+                    if value and (valid is None or value in valid):
+                        values.add(value)
+                in_block = False
+            else:
+                in_block = True
+            continue
+        if in_block:
+            if re.match(r"^\s*[A-Za-z_][A-Za-z0-9_-]*\s*:", line):
+                in_block = False
+                continue
+            m = re.match(r"^\s*-\s*(.+)$", line)
+            if m:
+                value = m.group(1).strip().strip("'\"")
+                if value and (valid is None or value in valid):
+                    values.add(value)
+                continue
+            if line and not line[0].isspace():
+                in_block = False
+    return saw_key, values
+
+
+def _extract_yaml_block(text: str, key: str) -> str | None:
+    lines = text.splitlines()
+    for idx, line in enumerate(lines):
+        if re.match(rf"^{re.escape(key)}\s*:", line):
+            end = idx + 1
+            while end < len(lines):
+                candidate = lines[end]
+                if candidate and not candidate[0].isspace():
+                    break
+                end += 1
+            return "\n".join(lines[idx:end])
+    return None
+
+
+def read_project_skill_selection(target_root: Path) -> SkillSelection:
+    path = _project_config_path(target_root)
+    text = ""
+    if path.exists():
+        try:
+            text = read_text_file(path)
+        except OSError:
+            text = ""
+
+    skills_block = _extract_yaml_block(text, "skills") if text else None
+    if skills_block is not None:
+        _saw_profiles, profiles = _read_top_level_list(skills_block, "profiles", set(SKILL_PROFILES))
+        _saw_selected, selected = _read_top_level_list(skills_block, "selected", set(OPTIONAL_SKILL_NAMES))
+        _saw_ignored, ignored = _read_top_level_list(skills_block, "ignored", set(OPTIONAL_SKILL_NAMES))
+        selected.update(_skills_from_profiles(profiles))
+        ignored = (set(OPTIONAL_SKILL_NAMES) - selected) if not ignored else ignored
+        ignored -= selected
+        return SkillSelection(profiles=profiles, selected=selected, ignored=ignored, explicit=True)
+
+    installed = _installed_optional_skills(target_root)
+    return SkillSelection(
+        profiles=set(),
+        selected=installed,
+        ignored=set(OPTIONAL_SKILL_NAMES) - installed,
+        explicit=False,
+    )
+
+
+def _replace_top_level_block(text: str, key: str, block: str) -> str:
+    lines = text.splitlines()
+    out: list[str] = []
+    i = 0
+    replaced = False
+    while i < len(lines):
+        if re.match(rf"^{re.escape(key)}\s*:", lines[i]):
+            out.extend(block.splitlines())
+            replaced = True
+            i += 1
+            while i < len(lines):
+                candidate = lines[i]
+                if candidate and not candidate[0].isspace():
+                    break
+                i += 1
+            continue
+        out.append(lines[i])
+        i += 1
+    if not replaced:
+        if out and out[-1].strip():
+            out.append("")
+        out.extend(block.splitlines())
+    return "\n".join(out).rstrip() + "\n"
+
+
+def _write_project_skills(
+    target_root: Path,
+    *,
+    profiles: set[str],
+    selected: set[str],
+    ignored: set[str] | None = None,
+) -> None:
+    path = _project_config_path(target_root)
+    ignored = (set(OPTIONAL_SKILL_NAMES) - selected) if ignored is None else set(ignored)
+    ignored -= selected
+    block_lines = ["skills:", "  profiles:"]
+    block_lines.extend(f"    - {profile}" for profile in sorted(profiles))
+    block_lines.append("  selected:")
+    block_lines.extend(f"    - {skill}" for skill in sorted(selected))
+    block_lines.append("  ignored:")
+    block_lines.extend(f"    - {skill}" for skill in sorted(ignored))
+    block = "\n".join(block_lines)
+
+    text = ""
+    if path.exists():
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            text = ""
+    if not text.strip():
+        text = f"schema_version: 1\nproject_id: {target_root.name}\n"
+    text = _replace_top_level_block(text, "skills", block)
+    write_text_file(path, text)
+
+
+def _installed_optional_skills(target_root: Path) -> set[str]:
+    skills_dir = target_root / MEMORY_DIR_NAME / "skills"
+    return {
+        skill
+        for skill in OPTIONAL_SKILL_NAMES
+        if (skills_dir / skill).exists()
+    }
+
+
+def _selected_seed_files(
+    target_root: Path,
+    selected_agents_set: set[str],
+    selected_optional: set[str],
+) -> list[SeedFile]:
+    wanted_skills = set(CORE_SKILL_NAMES) | set(selected_optional) | {"index.md"}
+    selected: list[SeedFile] = []
+    for seed_file in SEED_FILES:
+        if seed_file.agent is not None and seed_file.agent not in selected_agents_set:
+            continue
+        if seed_file.destination.startswith(f"{MEMORY_DIR_NAME}/skills/"):
+            if Path(seed_file.destination).name not in wanted_skills:
+                continue
+        selected.append(seed_file)
+    return selected
+
+
+def _registry_blocks_from_seed() -> tuple[list[str], dict[str, list[str]], list[str]]:
+    registry_path = SEED_ROOT / MEMORY_DIR_NAME / "skills" / "index.md"
+    lines = read_text_file(registry_path).splitlines()
+    header: list[str] = []
+    footer: list[str] = []
+    blocks: dict[str, list[str]] = {}
+    i = 0
+    while i < len(lines):
+        if lines[i].strip() == "skills:":
+            header = lines[: i + 1]
+            i += 1
+            break
+        i += 1
+    while i < len(lines):
+        match = re.match(r"^\s*-\s*skill:\s*(\S+)\s*$", lines[i])
+        if not match:
+            footer = lines[i:]
+            break
+        skill = match.group(1)
+        block = [lines[i]]
+        i += 1
+        while i < len(lines) and not re.match(r"^\s*-\s*skill:\s*(\S+)\s*$", lines[i]):
+            if lines[i].startswith("```"):
+                footer = lines[i:]
+                i = len(lines)
+                break
+            block.append(lines[i])
+            i += 1
+        blocks[skill] = block
+    return header, blocks, footer
+
+
+def _rewrite_skill_registry(target_root: Path, installed_skills: set[str]) -> None:
+    header, blocks, footer = _registry_blocks_from_seed()
+    ordered = [
+        Path(seed_file.destination).name
+        for seed_file in SEED_FILES
+        if seed_file.destination.startswith(f"{MEMORY_DIR_NAME}/skills/")
+        and Path(seed_file.destination).name in installed_skills
+    ]
+    lines = list(header)
+    for skill in ordered:
+        block = blocks.get(skill)
+        if block:
+            lines.extend(block)
+    lines.extend(footer)
+    registry = target_root / MEMORY_DIR_NAME / "skills" / "index.md"
+    write_text_file(registry, "\n".join(lines).rstrip() + "\n")
+
+
+def _create_skill_artifacts(target_root: Path, selected_optional: set[str]) -> list[str]:
+    created: list[str] = []
+    if "proposal_lifecycle.md" not in selected_optional:
+        return created
+    for rel in PROPOSAL_LIFECYCLE_ARTIFACTS:
+        path = target_root / rel
+        if not path.exists():
+            write_text_file(path, "")
+            created.append(rel)
+    return created
+
+
+def _remove_empty_skill_artifacts(target_root: Path, skill: str) -> list[str]:
+    removed: list[str] = []
+    if skill != "proposal_lifecycle.md":
+        return removed
+    for rel in PROPOSAL_LIFECYCLE_ARTIFACTS:
+        path = target_root / rel
+        if path.exists() and path.is_file() and path.stat().st_size == 0:
+            path.unlink()
+            removed.append(rel)
+    return removed
+
+
 def init_project(
     cwd: str | Path = ".",
     dry_run: bool = False,
     force: bool = False,
     agents: set[str] | None = None,
+    skill_profiles: set[str] | Sequence[str] | None = None,
+    skills: set[str] | Sequence[str] | None = None,
+    exclude_skills: set[str] | Sequence[str] | None = None,
+    all_skills: bool = False,
 ) -> InitResult:
     target_root = Path(cwd).resolve()
     selected = agents if agents is not None else set(KNOWN_AGENTS)
-    seed_files = [sf for sf in SEED_FILES if sf.agent is None or sf.agent in selected]
+    profiles, selected_optional, ignored_optional = _resolve_requested_optional_skills(
+        skill_profiles=skill_profiles,
+        skills=skills,
+        exclude_skills=exclude_skills,
+        all_skills=all_skills,
+    )
+    seed_files = _selected_seed_files(target_root, selected, selected_optional)
     planned = [seed_file.destination for seed_file in seed_files]
+    if "proposal_lifecycle.md" in selected_optional:
+        planned.extend(PROPOSAL_LIFECYCLE_ARTIFACTS)
     # Foreign entry-point routing files (a host's own AGENTS.md/CLAUDE.md, no
     # frontmatter) are merged into, not overwritten, so they don't block init.
     existing = [
@@ -2259,7 +2620,7 @@ def init_project(
         destination = target_root / seed_file.destination
 
         # Foreign routing file: inject/re-sync our managed block, never clobber
-        # (holds even under --force — the point is non-destruction).
+        # (holds even under --force â€” the point is non-destruction).
         merged = _maybe_merge_foreign_routing(target_root, seed_file)
         if merged is not None:
             if merged:
@@ -2282,14 +2643,25 @@ def init_project(
         if merge(target_root) and destination not in created:
             created.append(destination)
 
-    # Persist the selection only when it is a proper subset. The all-agents
-    # default writes no project.yaml, so existing projects (and the file set
-    # asserted by tests) stay byte-identical, and "all" stays dynamic.
     if selected != set(KNOWN_AGENTS):
         write_project_agents(target_root, selected)
         cfg = MEMORY_DIR_NAME + "/project.yaml"
         if cfg not in created:
             created.append(cfg)
+    _write_project_skills(
+        target_root,
+        profiles=profiles,
+        selected=selected_optional,
+        ignored=ignored_optional,
+    )
+    cfg = MEMORY_DIR_NAME + "/project.yaml"
+    if cfg not in created:
+        created.append(cfg)
+
+    _rewrite_skill_registry(target_root, set(CORE_SKILL_NAMES) | selected_optional)
+    for artifact in _create_skill_artifacts(target_root, selected_optional):
+        if artifact not in created:
+            created.append(artifact)
 
     return InitResult(
         changed=True,
@@ -2304,8 +2676,11 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
     # Respect the persisted agent selection (ALL when no project.yaml), so update
     # never re-adds a deselected agent's files.
     selected = selected_agents(target_root)
-    seed_files = [sf for sf in SEED_FILES if sf.agent is None or sf.agent in selected]
+    skill_selection = read_project_skill_selection(target_root)
+    seed_files = _selected_seed_files(target_root, selected, skill_selection.selected)
     planned = [seed_file.destination for seed_file in seed_files]
+    if "proposal_lifecycle.md" in skill_selection.selected:
+        planned.extend(PROPOSAL_LIFECYCLE_ARTIFACTS)
 
     if dry_run:
         return InitResult(changed=False, planned=planned)
@@ -2358,6 +2733,11 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
         if merge(target_root) and destination not in created:
             created.append(destination)
 
+    _rewrite_skill_registry(target_root, set(CORE_SKILL_NAMES) | skill_selection.selected)
+    for artifact in _create_skill_artifacts(target_root, skill_selection.selected):
+        if artifact not in created:
+            created.append(artifact)
+
     return InitResult(
         changed=bool(created or backed_up or archived),
         planned=planned,
@@ -2393,7 +2773,7 @@ def add_agent(cwd: str | Path = ".", agent: str = "") -> dict:
 def remove_agent(cwd: str | Path = ".", agent: str = "") -> dict:
     """Remove an agent: strip our entries from its configs, delete its routing file.
 
-    Strip-in-place — foreign content is preserved; config files are deleted only
+    Strip-in-place â€” foreign content is preserved; config files are deleted only
     when nothing of value remains. Everything touched is backed up first. Never
     deletes shared directories.
     """
@@ -2444,6 +2824,117 @@ def remove_agent(cwd: str | Path = ".", agent: str = "") -> dict:
     return {"changed": True, "message": f"Removed agent '{agent}'.", "removed": removed, "backed_up": backed_up, "warning": warning}
 
 
+def skill_status(cwd: str | Path = ".") -> SkillStatus:
+    target_root = Path(cwd).resolve()
+    selection = read_project_skill_selection(target_root)
+    installed = _installed_optional_skills(target_root)
+    return SkillStatus(
+        core=sorted(CORE_SKILL_NAMES),
+        installed_optional=sorted(installed),
+        selected_optional=sorted(selection.selected),
+        ignored=sorted(set(OPTIONAL_SKILL_NAMES) - installed),
+        available_optional=sorted(OPTIONAL_SKILL_NAMES),
+        profiles={name: list(profile.skills) for name, profile in sorted(SKILL_PROFILES.items())},
+        profile_descriptions={name: profile.description for name, profile in sorted(SKILL_PROFILES.items())},
+        descriptions={skill: SKILL_DESCRIPTIONS[skill] for skill in sorted(SKILL_DESCRIPTIONS)},
+    )
+
+
+def add_skill(cwd: str | Path = ".", name: str = "") -> dict:
+    target_root = Path(cwd).resolve()
+    profile_name = name.strip().lower()
+    selection = read_project_skill_selection(target_root)
+    profiles = set(selection.profiles)
+    if profile_name in SKILL_PROFILES:
+        profiles.add(profile_name)
+        to_add = set(SKILL_PROFILES[profile_name].skills)
+    else:
+        try:
+            skill = _normalise_skill_name(name)
+        except ValueError as exc:
+            valid = sorted(set(SKILL_PROFILES) | set(OPTIONAL_SKILL_NAMES))
+            raise ValueError(
+                f"Unknown skill or profile: {name}. Valid options: {', '.join(valid)}."
+            ) from exc
+        if skill in CORE_SKILL_NAMES:
+            return {"changed": False, "message": f"Core skill '{skill}' is always installed.", "created": []}
+        to_add = {skill}
+
+    seed_map = _skill_seed_file_map()
+    created: list[str] = []
+    for skill in sorted(to_add):
+        seed_file = seed_map[skill]
+        destination = target_root / seed_file.destination
+        if not destination.exists():
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            _copy_text_file(seed_file.source, destination)
+            created.append(seed_file.destination)
+
+    selected_optional = selection.selected | to_add
+    ignored = set(OPTIONAL_SKILL_NAMES) - selected_optional
+    _write_project_skills(target_root, profiles=profiles, selected=selected_optional, ignored=ignored)
+    _rewrite_skill_registry(target_root, set(CORE_SKILL_NAMES) | selected_optional)
+    for artifact in _create_skill_artifacts(target_root, selected_optional):
+        created.append(artifact)
+
+    changed = bool(created) or bool(to_add - selection.selected) or profiles != selection.profiles
+    label = profile_name if profile_name in SKILL_PROFILES else next(iter(to_add))
+    return {"changed": changed, "message": f"Added skill/profile '{label}'.", "created": created}
+
+
+def remove_skill(cwd: str | Path = ".", skill: str = "") -> dict:
+    target_root = Path(cwd).resolve()
+    skill_name = _normalise_skill_name(skill)
+    if skill_name in CORE_SKILL_NAMES:
+        raise ValueError(f"Cannot remove core skill: {skill_name}.")
+    if skill_name not in OPTIONAL_SKILL_NAMES:
+        raise ValueError(f"Unknown optional skill: {skill_name}.")
+
+    selection = read_project_skill_selection(target_root)
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backed_up: list[str] = []
+    removed: list[str] = []
+
+    paths_to_backup = [
+        target_root / MEMORY_DIR_NAME / "skills" / skill_name,
+        target_root / MEMORY_DIR_NAME / "skills" / "index.md",
+    ]
+    for path in paths_to_backup:
+        if path.exists():
+            _ensure_backup_gitignore(target_root)
+            rel = path.relative_to(target_root)
+            backup_relative = Path(MEMORY_DIR_NAME) / "backups" / timestamp / rel
+            backup_path = target_root / backup_relative
+            backup_path.parent.mkdir(parents=True, exist_ok=True)
+            _copy_text_file(path, backup_path)
+            backed_up.append(backup_relative.as_posix())
+
+    skill_path = target_root / MEMORY_DIR_NAME / "skills" / skill_name
+    if skill_path.exists():
+        skill_path.unlink()
+        removed.append(f"{MEMORY_DIR_NAME}/skills/{skill_name}")
+
+    selected_optional = set(selection.selected)
+    selected_optional.discard(skill_name)
+    profiles = {
+        profile
+        for profile in selection.profiles
+        if skill_name not in SKILL_PROFILES[profile].skills
+    }
+    ignored = set(OPTIONAL_SKILL_NAMES) - selected_optional
+    _write_project_skills(target_root, profiles=profiles, selected=selected_optional, ignored=ignored)
+    _rewrite_skill_registry(target_root, set(CORE_SKILL_NAMES) | selected_optional)
+    for artifact in _remove_empty_skill_artifacts(target_root, skill_name):
+        removed.append(artifact)
+
+    return {
+        "changed": bool(removed) or skill_name in selection.selected,
+        "message": f"Removed skill '{skill_name}'.",
+        "removed": removed,
+        "backed_up": backed_up,
+    }
+
+
 def doctor(cwd: str | Path = ".") -> DoctorResult:
     target_root = Path(cwd).resolve()
     missing: list[str] = []
@@ -2452,10 +2943,10 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
     # Only check files for the project's selected agents (ALL when unconfigured),
     # so a deselected agent's intentionally-absent files are not flagged missing.
     selected = selected_agents(target_root)
+    skill_selection = read_project_skill_selection(target_root)
+    seed_files = _selected_seed_files(target_root, selected, skill_selection.selected)
 
-    for seed_file in SEED_FILES:
-        if seed_file.agent is not None and seed_file.agent not in selected:
-            continue
+    for seed_file in seed_files:
         candidate = target_root / seed_file.destination
         if not candidate.exists():
             missing.append(seed_file.destination)
@@ -2531,7 +3022,7 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
 
     # Route-presence check: if a .memory-seed/ runtime exists, the present entry-point
     # files must route into it (be ours, or a foreign file carrying our managed block).
-    # A foreign entry-point file without the block leaves the runtime orphaned — no
+    # A foreign entry-point file without the block leaves the runtime orphaned â€” no
     # agent is ever pointed at it (the demo HyperFrames AGENTS.md before 2.8).
     if (target_root / MEMORY_DIR_NAME).is_dir():
         for seed_file in SEED_FILES:
@@ -2548,7 +3039,7 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
                 )
 
     # Local-user / participant-registry consistency (non-fatal). Only checked
-    # when a local user is actually configured — an unconfigured user is not a
+    # when a local user is actually configured â€” an unconfigured user is not a
     # problem doctor should nag about (the SessionStart hook offers identity
     # setup once, separately). A configured user with no matching participants:
     # entry means user_initials can't be resolved for multi-user tooling
@@ -2564,8 +3055,8 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
                 f"slug: {local_user} so multi-user tooling can resolve initials for it."
             )
 
-    # Session integrity summary (non-fatal). The full report — with each
-    # offending file and value, and a CI-usable non-zero exit — is
+    # Session integrity summary (non-fatal). The full report â€” with each
+    # offending file and value, and a CI-usable non-zero exit â€” is
     # `memory-seed links check`; doctor only surfaces the count.
     links = check_session_links(target_root)
     if links.issues:
@@ -2745,7 +3236,7 @@ def _archive_replaced_control_plane_file(
 
 def _is_foreign_routing_file(target_root: Path, seed_file: SeedFile) -> bool:
     """True if this is an entry-point routing file that already exists and is
-    NOT ours (no memory-system-version frontmatter) — i.e. a host-owned file
+    NOT ours (no memory-system-version frontmatter) â€” i.e. a host-owned file
     we must merge into rather than overwrite (the demo HyperFrames AGENTS.md)."""
     if seed_file.destination not in ROUTING_DESTINATIONS:
         return False
@@ -2757,7 +3248,7 @@ def _file_routes_into_runtime(path: Path) -> bool:
     """True if an entry-point file routes into the .memory-seed/ runtime: it is
     either ours (carries our frontmatter) or a foreign file carrying our managed
     routing block. Used by doctor() to detect an orphaned runtime."""
-    text = path.read_text(encoding="utf-8")
+    text = read_text_file(path)
     if _read_memory_system_version(path) is not None:
         return True
     return _ROUTING_BLOCK_RE.search(text) is not None
@@ -2780,9 +3271,9 @@ def _merge_routing_stanza(path: Path, stanza: str = _ROUTING_STANZA) -> bool:
         if match.group(0) == stanza:
             return False
         new_text = text[: match.start()] + stanza + text[match.end() :]
-        path.write_text(new_text, encoding="utf-8")
+        write_text_file(path, new_text)
         return True
-    path.write_text(text.rstrip("\n") + "\n\n" + stanza + "\n", encoding="utf-8")
+    write_text_file(path, text.rstrip("\n") + "\n\n" + stanza + "\n")
     return True
 
 
@@ -2797,7 +3288,7 @@ def _maybe_merge_foreign_routing(target_root: Path, seed_file: SeedFile) -> bool
 
 
 def _copy_text_file(source: Path, destination: Path) -> None:
-    destination.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    write_text_file(destination, read_text_file(source))
 
 
 def _ensure_backup_gitignore(target_root: Path) -> None:
@@ -2807,7 +3298,7 @@ def _ensure_backup_gitignore(target_root: Path) -> None:
 def _ensure_gitignore_entry(target_root: Path, entry: str) -> None:
     gitignore = target_root / ".gitignore"
     if gitignore.exists():
-        content = gitignore.read_text(encoding="utf-8")
+        content = read_text_file(gitignore)
     else:
         content = ""
 
@@ -2818,4 +3309,4 @@ def _ensure_gitignore_entry(target_root: Path, entry: str) -> None:
     prefix = content
     if prefix and not prefix.endswith(("\n", "\r\n")):
         prefix += "\n"
-    gitignore.write_text(prefix + entry + "\n", encoding="utf-8")
+    write_text_file(gitignore, prefix + entry + "\n")
