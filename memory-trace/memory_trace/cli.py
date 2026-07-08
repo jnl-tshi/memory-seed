@@ -11,6 +11,8 @@ import argparse
 import sys
 from typing import Sequence
 
+from memory_seed import processes as process_tools
+
 from . import __version__
 from .lense import run_server
 
@@ -30,6 +32,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    argv = list(argv or sys.argv[1:])
+    if argv and argv[0] in process_tools.PACKAGE_COMMANDS:
+        return process_tools.run_package_process_argv("memory-trace", argv, prog="memory-trace")
     args = build_parser().parse_args(argv)
     return run_server(args)
 

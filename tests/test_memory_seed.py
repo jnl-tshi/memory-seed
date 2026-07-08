@@ -2538,6 +2538,91 @@ class CliHelpTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("Unknown skill or profile", stderr.getvalue())
 
+    def test_init_reports_selected_and_ignored_agents(self):
+        import os
+
+        project = self.make_project()
+        cwd = Path.cwd()
+        try:
+            os.chdir(project)
+            code, out = self._run(["init", "--agents", "codex", "--no-skill-prompt"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 0)
+        self.assertIn("Installed agents: codex", out)
+        self.assertIn("Ignored agents:", out)
+        self.assertIn("claude", out)
+        self.assertIn("gemini", out)
+        self.assertNotIn("Ignored agents: (none)", out)
+
+    def test_init_accepts_no_agent_prompt_flag(self):
+        import os
+
+        project = self.make_project()
+        cwd = Path.cwd()
+        try:
+            os.chdir(project)
+            code, out = self._run(["init", "--no-agent-prompt", "--no-skill-prompt"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 0)
+        self.assertIn("Installed agents:", out)
+        self.assertIn("Ignored agents: (none)", out)
+
+    def test_init_can_opt_out_of_all_agents(self):
+        import os
+
+        project = self.make_project()
+        cwd = Path.cwd()
+        try:
+            os.chdir(project)
+            code, out = self._run(["init", "--agents", "none", "--no-skill-prompt"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 0)
+        self.assertIn("Installed agents: (none)", out)
+        self.assertIn("Ignored agents:", out)
+        self.assertFalse((project / "CLAUDE.md").exists())
+        self.assertFalse((project / "GEMINI.md").exists())
+        self.assertFalse((project / ".codex").exists())
+        self.assertTrue((project / "AGENTS.md").exists())
+        self.assertTrue((project / ".memory-seed" / "agent-rules.md").exists())
+        self.assertIn("agents:\n", (project / ".memory-seed" / "project.yaml").read_text(encoding="utf-8"))
+
+    def test_interactive_init_prompts_for_agent_opt_out(self):
+        import contextlib
+        import io
+        import os
+        import unittest.mock
+
+        from memory_seed.cli import main
+
+        class TtyInput(io.StringIO):
+            def isatty(self):
+                return True
+
+        project = self.make_project()
+        cwd = Path.cwd()
+        stdout = io.StringIO()
+        try:
+            os.chdir(project)
+            with contextlib.redirect_stdout(stdout), unittest.mock.patch(
+                "sys.stdin", TtyInput("none\nnone\n")
+            ):
+                code = main(["init"])
+        finally:
+            os.chdir(cwd)
+
+        out = stdout.getvalue()
+        self.assertEqual(code, 0)
+        self.assertIn("Which agent integrations should be installed?", out)
+        self.assertIn("Recommended default: all", out)
+        self.assertIn("Installed agents: (none)", out)
+        self.assertIn("Selected optional skills: (none)", out)
+
     def test_user_set_show_clear_and_session_target(self):
         import contextlib
 
@@ -2871,10 +2956,12 @@ class AgentSelectionTests(unittest.TestCase):
         self.assertEqual(resolve_agents("claude,codex", isatty=False), {"claude", "codex"})
         self.assertEqual(resolve_agents("claude codex", isatty=False), {"claude", "codex"})
         self.assertEqual(resolve_agents("all", isatty=False), set(KNOWN_AGENTS))
+        self.assertEqual(resolve_agents("none", isatty=False), set())
         # No flag, non-TTY -> all (backward-compatible default).
         self.assertEqual(resolve_agents(None, isatty=False), set(KNOWN_AGENTS))
         # Interactive empty response -> all.
         self.assertEqual(resolve_agents(None, isatty=True, prompt_response=""), set(KNOWN_AGENTS))
+        self.assertEqual(resolve_agents(None, isatty=True, prompt_response="none"), set())
         self.assertEqual(resolve_agents(None, isatty=True, prompt_response="gemini"), {"gemini"})
         with self.assertRaises(ValueError):
             resolve_agents("claude,bogus", isatty=False)

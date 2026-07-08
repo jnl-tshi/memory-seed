@@ -40,6 +40,26 @@ written back to your session files; every deep link targets a stable
 
 Options: `--cwd`, `--host`, `--port`, `--no-open`, `--rebuild-cache`.
 
+## Upgrade preparation
+
+Memory Trace delegates the same safe process-management workflow as Memory Seed:
+
+```bash
+memory-trace processes
+memory-trace processes --json
+memory-trace shutdown --dry-run
+memory-trace shutdown
+memory-trace shutdown --yes
+memory-trace upgrade --dry-run --manager uv
+memory-trace upgrade --manager uv
+memory-trace upgrade --yes --manager uv
+```
+
+Shutdown defaults to `No` unless confirmed or run with `--yes`. Matching is conservative: generic
+`python`, `uv`, `uvx`, and `pipx` processes are stopped only when their executable path or command
+line clearly belongs to `memory-trace`. `upgrade` supports `--manager uv`, `--manager pipx`, and
+`--manager pip`.
+
 ## Migrating from `memory-seed[lense]`
 
 Memory Trace replaces the in-package `memory-seed[lense]` extra (the "Memory

@@ -98,12 +98,12 @@ skills:
   - skill: proposal_lifecycle.md
     required: true
     load_when:
-      - triaging proposals, research reports, or task documents in docs/inbox
-      - promoting proposal documents from docs/inbox to docs/todo
-      - moving source-only research or reference material into docs/reference
-      - moving implemented, rejected, or superseded proposals into docs/todo/completed
+      - triaging proposals, research reports, or task documents in docs/1_Inbox or docs/inbox
+      - promoting proposal documents from docs/1_Inbox to docs/2_Todo or from docs/inbox to docs/todo
+      - moving source-only research or reference material into docs/4_Reference or docs/reference
+      - moving implemented, rejected, or superseded proposals into docs/2_Todo/completed or docs/todo/completed
       - reorganizing proposal folders, roadmap docs, or completed-proposal archives
-      - updating NEXT_STEPS or functionality-audit because proposal status changed
+      - updating NEXT_STEPS, 0_NEXT_STEPS, or functionality-audit because proposal status changed
     do_not_load_when:
       - ordinary documentation edit with no proposal, roadmap, inbox, todo, reference, or completed status change
       - code-only implementation work where proposal files are not being moved or resolved

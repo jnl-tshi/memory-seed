@@ -1,5 +1,45 @@
 # Next Steps
 
+Status: Active implementation-run brief
+Updated: 2026-07-08
+Source: `docs/2_Todo/` active proposals, `docs/2_Todo/completed/` completed proposals,
+`docs/3_Spec/functionality-audit.md`, the 2026-07-07/2026-07-08 session entries, and the
+2026-07-08 inbox triage.
+
+## Next Implementation Run Brief
+
+This section is the current source of truth for the next implementation run. Keep it small; older
+release history below is retained for context only.
+
+| Priority | Proposal | Why This Order |
+|---|---|---|
+| P0 | `utf8-encoding-doctor-and-static-check-plan.md` | Add repair + static implicit-I/O enforcement after the read-only `encoding check` scanner and active-tree mojibake repair. |
+| P1 | `memory-trace-distribution-plan.md` | Finish release-ordering/publication follow-through: core 2.17 before `memory-trace 0.1.0`. |
+| P2 | `memory-trace-topic-neighbourhoods-plan.md` | Implement core per-project topic indexes and 1-3 indexed `topics:` per meaningful entry, while keeping Trace's tag/context topics as fallback for old entries. |
+| P3 | `readme-front-door-refresh-plan.md` | Polish launch-facing docs once the release-safety and Trace packaging blockers are settled. |
+
+Immediate implementation target:
+
+1. Complete P0 if the goal is hardening before release.
+2. Complete P1 if release ordering/publication is the next blocker.
+3. P2 is now clarified and implementation-ready, but should still follow P0-P1 unless graph/topic
+   memory becomes the immediate blocker.
+
+Active but not in the next small run unless reprioritized:
+
+- `session-decision-diagrams-plan.md` Phase 3 export packs.
+- `related-entries-p2-mutation-plan.md` historical curation writers.
+- `memory-trace-ai-timeline-summarisation-plan.md` AI-assisted evidence-pack summaries.
+- `readme-front-door-refresh-plan.md` launch-documentation polish.
+
+Continuity naming for new work:
+
+- **Memory Seed**: core runtime, CLI, MCP, retrieval, validation, and session files.
+- **Memory Trace**: companion package and human review UI.
+- **Trail**: Memory Trace view for branch/supersession evolution.
+- **Lense**: legacy compatibility name only.
+- **Explorer**: historical working name only.
+
 These items need user judgement, account access, or real-client validation.
 
 ## Active Roadmap
@@ -80,7 +120,8 @@ First batch of multi-user Phase 3 increments from the reviewed 3.0 plan
 
 ### Release 2.13.0 (shipped 2026-07-01)
 
-- **Memory Lense (in-package V1):** `memory-seed lense` serves a local FastAPI/Uvicorn browser UI
+- **Memory Trace UI baseline (legacy Lense V1):** `memory-seed lense` serves as a deprecated
+  compatibility route to the Memory Trace browser UI
   (search, filters, timeline, graph, reader/details) backed by a rebuildable SQLite cache outside the
   repo. Install with `memory-seed[lense]`; without the extra the command prints an install hint. See
   the Pillar B note under 3.0 below for how this relates to the originally-planned separate
@@ -115,24 +156,24 @@ First batch of multi-user Phase 3 increments from the reviewed 3.0 plan
 - **Git commit entry linking P1:** `Memory-Entry:` trailer, optional `commits:` field, git-gated
   validation, and `memory-seed link commits`.
 - **Ranking P1a/P1b:** `inbound_relation_count`, supersession-aware `importance_score`, and the
-  Memory Lense graph-node rename from `related_degree` to `connectivity`.
-- **Proposal lifecycle skill:** `proposal_lifecycle.md` now defines the inbox -> todo -> completed
-  document flow, status requirements, completed-proposal movement rules, and required roadmap/audit
-  update surfaces.
+  Memory Trace graph-node naming from `related_degree` to `connectivity`.
+- **Proposal lifecycle skill:** `proposal_lifecycle.md` now defines inbox -> todo -> completed
+  movement, reference/spec lanes, status requirements, completed-proposal movement rules, and required
+  roadmap/audit update surfaces.
 - **Worktree dependency strategy P1:** dependency tiers, task-packet dependency fields,
   orchestrator-owned dependency/lockfile policy, and the tmux control-room note now live in
   `agent_collaboration.md`.
 - **Public retrieval service (Memory Trace distribution Phase 1):** `memory_seed/retrieval.py` owns
   search orchestration and the canonical result dicts; MCP is a thin parity-tested wrapper; the
-  in-package Lense consumes the same service.
+  Trace consumes the same service.
 - **Entry-level result rollup:** the shared `EntryRollup` contract collapses section matches into one
   selectable entry-level result with `best_match_chunk_id`/`matched_sections`/`score_source`
-  highlight metadata; Lense entry-granularity search consumes it; MCP and section/all granularities
+  highlight metadata; Memory Trace entry-granularity search consumes it; MCP and section/all granularities
   unchanged.
 - **Session decision diagrams Phase 1:** `sessions/diagrams/YYYY-MM-DD.md` sidecars (one dated file
   per day, mirroring session-log filenames; each diagram a heading block naming its `entry_id`)
   validated by `links check` (`malformed-diagram`/`orphan-diagram`/`diagram-date-mismatch`), surfaced
-  via `entry_diagram_sidecars()` + opt-in `get_chunk(include_diagrams=True)` + Lense chunk metadata,
+  via `entry_diagram_sidecars()` + opt-in `get_chunk(include_diagrams=True)` + Memory Trace chunk metadata,
   with authoring guidance in `session_logging.md`/`end_of_turn.md` (live + seed).
 - **Memory Trace extraction and Arc 2 UI work:** the review UI has been extracted into the standalone
   `memory-trace/` distribution, with `memory-seed lense` now a shim. Memory Trace includes reader
@@ -147,13 +188,14 @@ First batch of multi-user Phase 3 increments from the reviewed 3.0 plan
   `docs/reference/` for newly initialized projects.
 - **Compact diagramming skill:** `compact_mermaid_diagrams.md` is seeded and registered, covering
   compact rectangular Mermaid layout plus Mermaid-first/D2-specialist selection guidance.
-- **UTF-8 encoding policy Phase 1:** `.editorconfig`, `.gitattributes`, `memory_seed.text_files`, README policy,
-  obvious generated config/session/routing writes, MCP Unicode-preserving output, and non-ASCII
-  round-trip tests are implemented. Follow-up remains active for `encoding check/repair` and static
-  implicit-I/O enforcement.
-- **Safe shutdown/upgrade workflow proposal:** active for `memory-seed` and `memory-trace`; process
-  discovery and dry-run are a plausible MVP, but full shutdown/upgrade execution needs conservative
-  process matching, confirmation, and package-manager detection tests.
+- **UTF-8 encoding policy Phase 1 + checker slice:** `.editorconfig`, `.gitattributes`,
+  `memory_seed.text_files`, README policy, generated-write hardening, MCP Unicode output, non-ASCII
+  round-trip tests, and `memory-seed encoding check` are implemented. Follow-up remains active for
+  `encoding repair` and static implicit-I/O enforcement.
+- **Safe shutdown/upgrade workflow proposal:** completed for `memory-seed` and `memory-trace`;
+  process discovery, dry-run previews, JSON output, confirmation-gated shutdown, failed-shutdown
+  upgrade blocking, manager selection/detection, and `uv`/`pipx`/`pip` upgrade command execution are
+  implemented.
 
 ### 3.0 - In Progress
 
@@ -196,7 +238,7 @@ Obsidian remains a UX inspiration or later integration, not the first implementa
 
 Specs:
 
-- [`codex/proposal-synergy-evaluation.md`](codex/proposal-synergy-evaluation.md) (current cross-proposal synthesis; use when deciding sequencing across logic capture, Lense graph work, fanout workflow, and render-verification ideas)
+- [`codex/proposal-synergy-evaluation.md`](codex/proposal-synergy-evaluation.md) (current cross-proposal synthesis; use when deciding sequencing across logic capture, Trace graph work, fanout workflow, and render-verification ideas)
 - [`Claude/proposal-synergy-evaluation.md`](Claude/proposal-synergy-evaluation.md) (independent, concurrent cross-proposal synthesis via 3-subagent fan-out; reconciled against the Codex pass above - see its "Reconciliation" section for what each pass caught that the other didn't)
 
 - [`multi-user-session-memory-proposal.md`](completed/multi-user-session-memory-proposal.md) (completed - full scope shipped through 2.12.0)
@@ -204,6 +246,8 @@ Specs:
 - [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md) (**active, canonical** - Phase 1 retrieval service and Phase 2 package extraction are implemented in the unpushed tree; active only for release-ordering/publication follow-through)
 - [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md) (**active** - Phases 1-2 implemented in the unpushed tree; Phase 3 report/handover pack remains gated)
 - [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md) (**active** - approved 2026-07-05; controlled `link add` and explicit historical backfill for curated `related_entries`, sequenced after the lower-risk retrieval/diagram/risk-signaling work unless reprioritized)
+- [`memory-trace-topic-neighbourhoods-plan.md`](memory-trace-topic-neighbourhoods-plan.md) (**active** - clarified 2026-07-08; `topics:` becomes the normal 1-3-topic field for meaningful entries, backed by project-local `.memory-seed/topics.yaml`)
+- [`readme-front-door-refresh-plan.md`](readme-front-door-refresh-plan.md) (**active** - clarified 2026-07-08; README refresh should include real screenshots/GIFs or placeholders)
 - [`user-interface-deep-research-report.md`](completed/user-interface-deep-research-report.md) (completed 2026-07-05 - historical research; its one live tail, the Pillar B decision, was made and split into the distribution plan above; citation artifacts scrubbed 2026-07-05)
 
 - [`completed/memory-explorer-entry-level-ui-results-plan.md`](completed/memory-explorer-entry-level-ui-results-plan.md) (**completed 2026-07-06** - entries are selectable results; subsection matches are highlighted inside the parent entry)
@@ -211,7 +255,7 @@ Specs:
 - [`completed/risk-signaling-and-stop-triggers-plan.md`](completed/risk-signaling-and-stop-triggers-plan.md) (**implemented 2026-07-05, unreleased** - consolidates confidence signaling and STOP-trigger guidance into one lazy-loaded risk skill before mutation/automation work)
 - [`completed/memory-seed-utf8-encoding-policy-phase-1.md`](completed/memory-seed-utf8-encoding-policy-phase-1.md) (**completed 2026-07-07, unreleased** - UTF-8/LF/NFC policy, repo config, helper, docs, MCP Unicode output, and regression tests)
 - [`utf8-encoding-doctor-and-static-check-plan.md`](utf8-encoding-doctor-and-static-check-plan.md) (**active** - checker/repair/static enforcement follow-up split from the completed Phase 1 work)
-- [`memory-seed-trace-upgrade-shutdown-plan.md`](memory-seed-trace-upgrade-shutdown-plan.md) (**active** - conservative process shutdown and package-manager-aware upgrade workflow for Memory Seed and Memory Trace)
+- [`completed/memory-seed-trace-upgrade-shutdown-plan.md`](completed/memory-seed-trace-upgrade-shutdown-plan.md) (**completed 2026-07-08, unreleased** - conservative process shutdown and package-manager-aware upgrade workflow for Memory Seed and Memory Trace)
 
 ### Proposal Priority Order
 
@@ -271,12 +315,12 @@ implementation docs live in `docs/2_Todo/completed/`; nothing from this cluster 
 2. [`supersession-edges-plan.md`](completed/supersession-edges-plan.md) - **P1 fully implemented 2026-07-03/04
    (unreleased):** the typed `supersedes` edge, read-time `superseded_by` inverse, `links check`
    validation (dangling/self/postdates/cycle guard), `link show`/`memory_get_chunk` exposure, and
-   harmony-contract dampening are built and tested. Remaining: deferred P2 Lense surfacing.
+   harmony-contract dampening are built and tested. Remaining: deferred P2 Memory Trace surfacing.
 3. [`interaction-frequency-ranking-plan.md`](completed/interaction-frequency-ranking-plan.md) - **P1a + P1b
    implemented (unreleased):** raw `inbound_relation_count` and supersession-aware `importance_score`
    (dampened ×0.25 when superseded) exposed read-only via `link show` and `memory_get_chunk`; default
-   ranking untouched. Lense's combined-degree display field renamed to `connectivity` to resolve the
-   name collision; Lense graph nodes now also carry `importance_score` with a "Size:" toggle. This
+   ranking untouched. The Trace graph's combined-degree display field renamed to `connectivity` to resolve the
+   name collision; Trace graph nodes now also carry `importance_score` with a "Size:" toggle. This
    also completed the supersession harmony contract. The commit-reference signal shipped 2026-07-04 as
    a standalone `commit_reference_count` field (not folded into `importance_score` - see
    `../3_Spec/graph-edge-contract.md`). Remaining: real access-frequency telemetry (Option B) is the deferred

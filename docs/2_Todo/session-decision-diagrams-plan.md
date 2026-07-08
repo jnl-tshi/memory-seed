@@ -14,7 +14,7 @@ tags:
 > same day to date-named sidecar files** for filesystem readability (see "Storage convention"
 > below): the sidecar convention, `links check` validation (`orphan-diagram`/`diagram-date-mismatch`/
 > `malformed-diagram`), retrieval-service surfacing (`entry_diagram_sidecars()`, opt-in
-> `get_chunk(include_diagrams=True)`, Lense chunk `diagrams` metadata), and the authoring guidance in
+> `get_chunk(include_diagrams=True)`, Memory Trace chunk `diagrams` metadata), and the authoring guidance in
 > `session_logging.md` + `end_of_turn.md` (live + seed) are built and tested; a first real sidecar
 > exists (`sessions/diagrams/2026-07-05.md`). **Phase 2 implemented 2026-07-06 (unreleased):**
 > Memory Trace renders supported Mermaid sidecars client-side with a source fallback. Phase 3
@@ -22,7 +22,7 @@ tags:
 > **Priority:** P2 for the core convention + validation + authoring guidance (low blast radius,
 > Trace-independent); P3 for the exportable report/handover pack (paid-tier, gated on the Memory Trace
 > split). Sequence Phase 1 first. User confirmed 2026-07-05 that decision diagrams should be included
-> in the next goal-pass scope alongside Memory Trail Phase-1 retrieval-service work.
+> in the next goal-pass scope alongside Memory Trace retrieval-service work.
 > **Source:** Conversation 2026-07-05 (JNL). Starting question: have session logs ever used Mermaid to
 > capture decision logic (answer: never, in 25 files), and is that a weak-guidance symptom. Resolution:
 > logic diagrams for non-technical stakeholders are a real need once Memory Trace becomes a paid review

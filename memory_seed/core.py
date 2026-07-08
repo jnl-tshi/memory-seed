@@ -41,15 +41,15 @@ _ROUTING_BLOCK_RE = re.compile(
 # version-tracked (doctor likewise skips it from version-mismatch), so the
 # block is re-synced only when its *body* changes, never on a bare version bump.
 _ROUTING_STANZA = (
-    "<!-- BEGIN memory-seed (managed block â€” edits inside are overwritten on update) -->\n"
+    "<!-- BEGIN memory-seed (managed block — edits inside are overwritten on update) -->\n"
     "## Memory (Memory Seed runtime)\n"
     "\n"
     "This project has a Memory Seed runtime in `.memory-seed/`. Before substantive work, read in order:\n"
     "\n"
-    "1. `.memory-seed/agent-rules.md` â€” operating contract (retrieval, session-log discipline, End Of Turn)\n"
-    "2. `.memory-seed/index.md` â€” orientation, active state, inheritance\n"
-    "3. `.memory-seed/policy.md` â€” constraints\n"
-    "4. `.memory-seed/skills/index.md` â€” skill trigger registry\n"
+    "1. `.memory-seed/agent-rules.md` — operating contract (retrieval, session-log discipline, End Of Turn)\n"
+    "2. `.memory-seed/index.md` — orientation, active state, inheritance\n"
+    "3. `.memory-seed/policy.md` — constraints\n"
+    "4. `.memory-seed/skills/index.md` — skill trigger registry\n"
     "\n"
     "Append a session entry to `.memory-seed/sessions/YYYY-MM-DD.md` after meaningful work.\n"
     "Instructions above this block remain authoritative for their own domain.\n"
@@ -1151,7 +1151,7 @@ _OWN_MCP_COMMANDS = {"uvx", "memory-seed-mcp"}
 
 # GitHub Copilot CLI integration. Its MCP config is repo-local at .github/mcp.json
 # with a distinct schema (type + tools). Its sessionStart hook cannot inject context
-# from a command hook (stdout is consumed, not processed) â€” only a "prompt" hook can,
+# from a command hook (stdout is consumed, not processed) — only a "prompt" hook can,
 # so Copilot gets a static directive (it must glob the sessions dir itself) rather
 # than running session-start-context.py.
 # type "stdio" (over the also-valid "local") is the GitHub-documented preferred
@@ -1750,10 +1750,10 @@ def _merge_codex_mcp(target_root: Path) -> bool:
     outdated entry while preserving comments relies on finding the standard
     ``[mcp_servers.memory-seed]`` header line. Detection itself is robust (tomllib
     parses semantically), but if a user *hand-wrote* the entry in a form that has
-    no such header line â€” dotted keys (``mcp_servers.memory-seed.command = ...``),
+    no such header line — dotted keys (``mcp_servers.memory-seed.command = ...``),
     an inline subtable under ``[mcp_servers]``, a fully inline
     ``mcp_servers = { ... }``, or a header with a trailing comment / leading
-    indentation â€” and the entry is stale, this no-ops (returns False) rather than
+    indentation — and the entry is stale, this no-ops (returns False) rather than
     risk a duplicate-key / invalid-TOML write. The no-op is intentionally not
     silent: ``doctor`` classifies this case via _codex_mcp_status as a
     ``stale-manual`` warning telling the user to fix it by hand. Memory Seed only
@@ -1816,7 +1816,7 @@ KNOWN_AGENTS = ("claude", "codex", "cursor", "gemini", "copilot")
 
 # Per-agent hook/MCP merge operations: (merge_fn, destination-for-reporting).
 # init/update run only the operations for selected agents. Order within an agent
-# is independent â€” each merge is idempotent and targets distinct keys/files.
+# is independent — each merge is idempotent and targets distinct keys/files.
 _AGENT_MERGES: dict[str, tuple[tuple, ...]] = {
     "claude": (
         (_merge_claude_hook, ".claude/settings.json"),
@@ -2258,6 +2258,10 @@ def _parse_agent_list(value: str) -> set[str]:
     tokens = [t.strip().lower() for t in re.split(r"[,\s]+", value) if t.strip()]
     if not tokens or tokens == ["all"]:
         return set(KNOWN_AGENTS)
+    if "none" in tokens:
+        if tokens == ["none"]:
+            return set()
+        raise ValueError("Agent selection 'none' cannot be combined with agent names.")
     unknown = [t for t in tokens if t not in KNOWN_AGENTS]
     if unknown:
         raise ValueError(
@@ -2271,8 +2275,9 @@ def resolve_agents(cli_value: str | None, *, isatty: bool, prompt_response: str 
     """Resolve the agent set for `init`.
 
     Precedence: explicit `--agents` value > interactive prompt response (TTY only)
-    > all agents (preserves the zero-arg / non-TTY default). Pure/testable: the CLI
-    reads the prompt and passes the raw string as `prompt_response`.
+    > all agents (preserves the zero-arg / non-TTY default). `none` is an explicit
+    opt-out to the zero-agent state. Pure/testable: the CLI reads the prompt and
+    passes the raw string as `prompt_response`.
     """
     if cli_value:
         return _parse_agent_list(cli_value)
@@ -2620,7 +2625,7 @@ def init_project(
         destination = target_root / seed_file.destination
 
         # Foreign routing file: inject/re-sync our managed block, never clobber
-        # (holds even under --force â€” the point is non-destruction).
+        # (holds even under --force — the point is non-destruction).
         merged = _maybe_merge_foreign_routing(target_root, seed_file)
         if merged is not None:
             if merged:
@@ -2773,7 +2778,7 @@ def add_agent(cwd: str | Path = ".", agent: str = "") -> dict:
 def remove_agent(cwd: str | Path = ".", agent: str = "") -> dict:
     """Remove an agent: strip our entries from its configs, delete its routing file.
 
-    Strip-in-place â€” foreign content is preserved; config files are deleted only
+    Strip-in-place — foreign content is preserved; config files are deleted only
     when nothing of value remains. Everything touched is backed up first. Never
     deletes shared directories.
     """
@@ -3022,7 +3027,7 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
 
     # Route-presence check: if a .memory-seed/ runtime exists, the present entry-point
     # files must route into it (be ours, or a foreign file carrying our managed block).
-    # A foreign entry-point file without the block leaves the runtime orphaned â€” no
+    # A foreign entry-point file without the block leaves the runtime orphaned — no
     # agent is ever pointed at it (the demo HyperFrames AGENTS.md before 2.8).
     if (target_root / MEMORY_DIR_NAME).is_dir():
         for seed_file in SEED_FILES:
@@ -3039,7 +3044,7 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
                 )
 
     # Local-user / participant-registry consistency (non-fatal). Only checked
-    # when a local user is actually configured â€” an unconfigured user is not a
+    # when a local user is actually configured — an unconfigured user is not a
     # problem doctor should nag about (the SessionStart hook offers identity
     # setup once, separately). A configured user with no matching participants:
     # entry means user_initials can't be resolved for multi-user tooling
@@ -3055,8 +3060,8 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
                 f"slug: {local_user} so multi-user tooling can resolve initials for it."
             )
 
-    # Session integrity summary (non-fatal). The full report â€” with each
-    # offending file and value, and a CI-usable non-zero exit â€” is
+    # Session integrity summary (non-fatal). The full report — with each
+    # offending file and value, and a CI-usable non-zero exit — is
     # `memory-seed links check`; doctor only surfaces the count.
     links = check_session_links(target_root)
     if links.issues:
@@ -3236,7 +3241,7 @@ def _archive_replaced_control_plane_file(
 
 def _is_foreign_routing_file(target_root: Path, seed_file: SeedFile) -> bool:
     """True if this is an entry-point routing file that already exists and is
-    NOT ours (no memory-system-version frontmatter) â€” i.e. a host-owned file
+    NOT ours (no memory-system-version frontmatter) — i.e. a host-owned file
     we must merge into rather than overwrite (the demo HyperFrames AGENTS.md)."""
     if seed_file.destination not in ROUTING_DESTINATIONS:
         return False

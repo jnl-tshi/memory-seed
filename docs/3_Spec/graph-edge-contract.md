@@ -12,7 +12,7 @@ tags:
 **As of:** 2026-07-04 - control-plane `2.15`
 
 This is the single reference for how Memory Seed's decision-graph edges and derived metrics are
-defined, computed, and read across every surface (CLI, MCP, Memory Lense, `links check`). It exists
+defined, computed, and read across every surface (CLI, MCP, Memory Trace, `links check`). It exists
 so those surfaces stay consistent instead of each re-deriving graph semantics. If you add a new
 consumer or a new edge kind, update this doc and make the consumer read the canonical graph rather
 than fork parsing.
@@ -57,6 +57,13 @@ another:
   never validated against live git refs (a deleted feature branch is expected history). There is no
   `worktree:` field - a worktree is an ephemeral local path with no evolution semantics.
 
+Current Memory Trace `topic` chains are display-only derived axes from chunk hashtags and heading
+contexts, not authored entry-YAML topic metadata. The accepted but unimplemented indexed topic
+contract will add `topics:` as normal entry metadata and `.memory-seed/topics.yaml` as the
+project-local vocabulary; that implementation is tracked in
+`docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md`. Until it ships, consumers must treat indexed
+topics as planned contract, not current parser/retrieval truth.
+
 ## Derived metrics - two distinct numbers, distinct names
 
 Two node-degree metrics exist. They measure different things and must keep distinct names:
@@ -64,7 +71,7 @@ Two node-degree metrics exist. They measure different things and must keep disti
 - **`inbound_relation_count`** = `len(inbound)` - inbound `related_entries` backlinks only. The
   directional "how many entries cite this one" importance precursor. Surfaced by `link show` and
   `memory_get_chunk`.
-- **`connectivity`** (Memory Lense graph nodes only) = distinct neighbors via a `related_entries`
+- **`connectivity`** (Memory Trace graph nodes only) = distinct neighbors via a `related_entries`
   edge in *either* direction (inbound ∪ outbound). An undirected node-sizing weight for the graph
   view. Computed by `_connectivity_degrees()` in `lense.py`. Never conflate with
   `inbound_relation_count`.
@@ -114,7 +121,7 @@ A new edge kind's validation belongs here, reusing the entry-YAML scan, not a pa
 | `memory-seed link suggest` | ranked older candidates to link (read-only) |
 | MCP `memory_get_chunk` | `superseded_by`, `inbound_relation_count`, `importance_score`, `commit_reference_count` (+ stored fields) |
 | MCP `memory_search` | results carry stored `supersedes`; opt-in `exclude_superseded` filter |
-| Memory Lense graph | `connectivity` (its own metric) and `importance_score` per node; a "Size:" toggle sizes nodes by either |
+| Memory Trace graph | `connectivity` (its own metric) and `importance_score` per node; a "Size:" toggle sizes nodes by either |
 
 ## Standing rules for new work
 

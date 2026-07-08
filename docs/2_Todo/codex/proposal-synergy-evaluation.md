@@ -12,9 +12,9 @@ status: draft
 
 ## Summary
 
-Codex reviewed the active `docs/2_Todo/` proposals against `docs/3_Spec/functionality-audit.md`, `docs/2_Todo/NEXT_STEPS.md`, shipped 2.12/2.13 behavior, and the existing Memory Seed runtime model.
+Codex reviewed the active `docs/2_Todo/` proposals against `docs/3_Spec/functionality-audit.md`, `docs/2_Todo/0_NEXT_STEPS.md`, shipped 2.12/2.13 behavior, and the existing Memory Seed runtime model.
 
-The roadmap is directionally coherent, but several proposals were written before later shipped work and now need reconciliation. The main theme is that Memory Seed already has more of the substrate than some plans assume: Memory Lense V1 exists in-package, `build_related_entry_graph()` is shipped, `link suggest`/`link show` are read-only graph surfaces, `links check` validates entry YAML in both layouts, and `agent_collaboration.md` already owns Git-first fanout patterns.
+The roadmap is directionally coherent, but several proposals were written before later shipped work and now need reconciliation. The main theme is that Memory Seed already has more of the substrate than some plans assume: the legacy Lense baseline and Memory Trace extraction exist in the unpushed tree, `build_related_entry_graph()` is shipped, `link suggest`/`link show` are read-only graph surfaces, `links check` validates entry YAML in both layouts, and `agent_collaboration.md` already owns Git-first fanout patterns.
 
 ## Cross-Proposal Dependency Graph
 
@@ -33,7 +33,7 @@ failed-approaches logging
 Mermaid guidance
   -> roadmap diagrams checked for semantic freshness
 
-Memory Lense V1 shipped
+Legacy Lense baseline shipped; Memory Trace is the forward UI
   -> Pillar B distribution decision narrowed
   -> graph edge contract needed before more UI/ranking work
 
@@ -48,8 +48,8 @@ DOCX Windows render lessons
 
 ## Clashes To Resolve
 
-- `3.0-plan.md` still presents Pillar B as a decided separate UI package, while Memory Lense V1 shipped in 2.13 as `memory-seed[lense]`. The active decision is now resolved: the UI has been extracted as `memory-trace`; the canonical plan is [`../memory-trace-distribution-plan.md`](../memory-trace-distribution-plan.md).
-- `user-interface-deep-research-report.md` still reads as pre-Lense research and mentions no persistent cache, while shipped Lense has an outside-repo rebuildable SQLite cache and graph/search UI.
+- `3.0-plan.md` still needs to be read as historical context, not the active queue. The active decision is resolved: the UI has been extracted as `memory-trace`; the canonical plan is [`../memory-trace-distribution-plan.md`](../memory-trace-distribution-plan.md).
+- `user-interface-deep-research-report.md` is historical pre-Trace research and mentions no persistent cache, while the shipped baseline has an outside-repo rebuildable SQLite cache and graph/search UI.
 - `related-entries-generation-plan.md` correctly says P1 shipped read-only, but stale P1/Definition-of-Done wording still includes `link add`.
 - `interaction-frequency-ranking-plan.md` claims Option C P1 can ship now while relying on supersession dampening that cannot exist until `supersedes` ships. Split raw related-degree exposure from supersession-aware scoring.
 - `functionality-audit.md` previously said "4 of 5" logic-capture proposals remained proposed while listing all five; the audit should say "5 of 5" until any one ships or is rejected.
@@ -63,7 +63,7 @@ DOCX Windows render lessons
 - `link show` should become the read surface for decision-graph metadata: `related_entries`, `supersedes` / `superseded_by`, `commits`, `related_degree`, and eventually `importance_score`.
 - `links check` should use one entry-YAML validation path for `related_entries`, `supersedes`, and `commits` rather than growing parallel validators.
 - `importance_score` should be exposed before it influences default search ranking. Ranking behavior stays stable until fixture-backed ranking experiments prove value.
-- `build_related_entry_graph()` is the canonical source for explicit curated edges and backlinks. Memory Lense can layer derived `topic`, `agent`, and `day` edges over it without forking explicit-edge parsing.
+- `build_related_entry_graph()` is the canonical source for explicit curated edges and backlinks. Memory Trace can layer derived `topic`, `agent`, and `day` edges over it without forking explicit-edge parsing.
 - Failed-approach logging strengthens future supersession decisions: failed attempts recorded under `A` are empirical evidence, not a new graph edge type.
 - The DOCX Windows render lessons reinforce the fanout workflow's bounded automation and verification-split rules: one writer should own mutation/render cleanup, while separate read-only validators can inspect rendered pages.
 
@@ -72,7 +72,7 @@ DOCX Windows render lessons
 P0 - Roadmap hygiene and shared contracts:
 
 1. Fix stale roadmap/documentation state: stale P1 wording, stale UI status, proposal counts, missing roadmap entries, and stale Mermaid labels.
-2. Keep the shared graph/validation contract aligned for `related_entries`, `supersedes`, `commits`, `inbound_relation_count`, and `importance_score` so CLI, MCP, Lense, and `links check` do not diverge.
+2. Keep the shared graph/validation contract aligned for `related_entries`, `supersedes`, `commits`, `inbound_relation_count`, and `importance_score` so CLI, MCP, Memory Trace, and `links check` do not diverge.
 
 P1 - Low-risk guidance and graph semantics:
 
@@ -96,7 +96,7 @@ P3 - Deferred automation and mutation:
 
 ### Pillar B Distribution Decision - RESOLVED 2026-07-05
 
-Evaluate whether Memory Lense should remain an in-package optional extra or spin out into a separate companion package.
+Evaluate whether the human review UI should remain an in-package optional extra or spin out into a separate companion package.
 
 **Outcome:** decided to spin out a separate companion package, now named `memory-trace`; the scoped
 plan is [`../memory-trace-distribution-plan.md`](../memory-trace-distribution-plan.md).
@@ -127,7 +127,7 @@ Evaluate whether a future Windows DOCX render skill should include an agent-coll
 ## Proposed Document Updates
 
 - Update `3.0-plan.md` to mark shipped 2.12/2.13 increments and reopen Pillar B distribution.
-- Update `user-interface-deep-research-report.md` as historical research partially superseded by Memory Lense V1.
+- Update `user-interface-deep-research-report.md` as historical research partially superseded by the legacy Lense baseline and Memory Trace extraction.
 - Update `related-entries-generation-plan.md` so P1 is read-only and `link add` is deferred.
 - Update `supersession-edges-plan.md` to choose `supersedes` and state it gates supersession-aware scoring.
 - Update `interaction-frequency-ranking-plan.md` into raw related-degree first, supersession-aware score second, ranking experiments later.

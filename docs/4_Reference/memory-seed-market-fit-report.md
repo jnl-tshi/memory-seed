@@ -20,7 +20,7 @@ The market is clearly moving toward agentic software development. Claude Code, C
 
 That trend creates the exact problem Memory Seed addresses: **agents need durable context, but vendor memory is fragmented, opaque, non-portable, and often not reviewable as part of the repository**.
 
-Memory Seed's current design is well aligned with this gap. It installs a local `.memory-seed/` control plane, stores memory as Markdown/YAML, supports multiple coding agents, exposes MCP retrieval, maintains dated session logs, provides hooks to nudge memory retrieval/session logging, and includes Memory Lense for local search, filters, timeline, graph, and reader views.
+Memory Seed's current design is well aligned with this gap. It installs a local `.memory-seed/` control plane, stores memory as Markdown/YAML, supports multiple coding agents, exposes MCP retrieval, maintains dated session logs, provides hooks to nudge memory retrieval/session logging, and includes Memory Trace for local search, filters, timeline, graph, Trail, and reader views.
 
 **Recommended positioning:**
 
@@ -62,7 +62,7 @@ The functionality audit describes Memory Seed as a **Markdown-first memory and c
 | Hooks | Nudges agents to retrieve context and write memory |
 | `doctor`, `links check`, migration tools | Moves from notes into maintainable infrastructure |
 | Multi-user session layout | Supports real teams and parallel contributors |
-| Memory Lense | Turns memory into a human-inspectable product surface |
+| Memory Trace | Turns memory into a human-inspectable product surface |
 | Agent collaboration/worktree workflow | Aligns with the multi-agent coding direction |
 
 The project already includes search ranking over memory chunks using lexical, semantic, and recency signals. It exposes metadata such as session date, path, user, file hash ID, and related entries. It is also developing a related-entry graph with backlinks, supersession, and importance scoring.
@@ -197,7 +197,7 @@ Memory Seed's DRAFT-style session entry model - decision, reason, alternatives, 
 
 ### Pain 4: Humans Need to Inspect Agent Memory, Not Just Agents
 
-Memory Lense is highly important. It turns Memory Seed from a background agent utility into a human-facing product: local browser UI, read-only search, filters, timeline, graph, and reader/details views over session files.
+Memory Trace is highly important. It turns Memory Seed from a background agent utility into a human-facing product: local browser UI, read-only search, filters, timeline, graph, Trail, and reader/details views over session files.
 
 That enables project managers, tech leads, reviewers, and consultants to ask:
 
@@ -225,7 +225,7 @@ This is the current strongest fit. These users switch between Claude Code, Codex
 Memory Seed's zero-server, Markdown-first, `uvx`-installable model is ideal.
 
 **Likely willingness to pay:** low individually, but high adoption potential.
-**Best offer:** free OSS core, paid Memory Lense Pro, templates, sync/export, personal dashboard.
+**Best offer:** free OSS core, paid Memory Trace Pro, templates, sync/export, personal dashboard.
 
 ### Segment B: Small Engineering Teams Using Multiple Coding Agents
 
@@ -234,7 +234,7 @@ This is the highest near-term commercial fit. Teams adopting multiple agents nee
 Memory Seed's multi-user session layout and link validation are directly relevant.
 
 **Likely willingness to pay:** moderate.
-**Best offer:** team plan around Memory Lense, GitHub Actions checks, PR summaries, multi-user attribution, and cross-repo search.
+**Best offer:** team plan around Memory Trace, GitHub Actions checks, PR summaries, multi-user attribution, and cross-repo search.
 
 ### Segment C: AI-Forward Agencies and Consultancies
 
@@ -243,7 +243,7 @@ Agencies constantly onboard to new codebases and must explain work to clients.
 Memory Seed can become a client-facing project intelligence artifact: dated timelines, decisions, linked files, and "what changed this sprint" reports.
 
 **Likely willingness to pay:** strong if packaged as reporting and audit.
-**Best offer:** branded Memory Lense reports, exportable timelines, project handover packs.
+**Best offer:** branded Memory Trace reports, exportable timelines, project handover packs.
 
 ### Segment D: Regulated or Security-Sensitive Teams
 
@@ -466,7 +466,7 @@ That includes:
 - links to files, tests, commits, branches, and worktrees;
 - human-readable Markdown/YAML;
 - MCP search/fetch for agents;
-- Memory Trace / Lense for humans;
+- Memory Trace for humans;
 - Git reviewability and PR diffability;
 - multi-agent and multi-user development history.
 
@@ -474,7 +474,7 @@ That includes:
 
 The startup landscape suggests three product moves are especially important:
 
-1. **Make Memory Trace / Lense the visible product.** Most memory infrastructure is invisible. Memory
+1. **Make Memory Trace the visible product.** Most memory infrastructure is invisible. Memory
    Seed can win trust by making decisions, session history, related entries, files, tests, timelines,
    supersession, and diagrams visible to humans.
 2. **Add stronger GitHub/PR integration.** The killer use case is: "This PR was produced by agents;
@@ -519,7 +519,7 @@ That is close to Memory Seed's thesis, but at a different market layer:
 | Likely buyer | Firms, knowledge teams, analysts, operators, enterprise users | Developers, AI-agent users, engineering teams, PMs |
 | Memory object | Organizational knowledge | Project decisions, session logs, agent context, codebase history |
 | Data shape | Likely documents, models, files, internal systems | Markdown/YAML, Git-tracked project memory |
-| Product surface | Likely SaaS / enterprise knowledge layer | Local-first CLI, MCP, Memory Lense, Git-native files |
+| Product surface | Likely SaaS / enterprise knowledge layer | Local-first CLI, MCP, Memory Trace, Git-native files |
 | Core promise | Make firm knowledge reusable | Make AI-assisted development inspectable and portable |
 
 **Strategic read:** o11 is a stronger market signal than the observability angle alone. It suggests
@@ -550,7 +550,7 @@ If Memory Seed is just "a place to store agent notes," vendors can outcompete it
 
 Plain Markdown is a strength for trust and adoption, but session logs can become noisy, duplicated, stale, or inconsistent.
 
-**Mitigation:** continue investing in `doctor`, `links check`, supersession, compaction, Memory Lense graph/timeline, and CI validation. Memory Seed should become opinionated about memory hygiene.
+**Mitigation:** continue investing in `doctor`, `links check`, supersession, compaction, Memory Trace graph/timeline, and CI validation. Memory Seed should become opinionated about memory hygiene.
 
 ### Risk 3: MCP Security Concerns Could Affect Trust
 
@@ -566,7 +566,7 @@ Memory Seed touches memory, agent instructions, hooks, MCP, UI, worktrees, team 
 
 1. **Seed:** install shared agent instructions and memory.
 2. **Recall:** agents retrieve project history through MCP.
-3. **Inspect:** humans browse timeline/graph/search in Memory Lense.
+3. **Inspect:** humans browse timeline/graph/search in Memory Trace.
 
 ### Risk 5: Commercial Buyer Is Not Obvious Yet
 
@@ -588,7 +588,7 @@ The OSS core should remain the adoption engine:
 - `links check`
 - basic MCP search/fetch
 - basic session logging
-- basic Memory Lense local mode
+- basic Memory Trace local mode
 
 This builds trust and makes Memory Seed a default tool in AI-native repositories.
 
@@ -596,7 +596,7 @@ This builds trust and makes Memory Seed a default tool in AI-native repositories
 
 Sell to heavy AI-agent users:
 
-- Memory Lense Pro
+- Memory Trace Pro
 - cross-project search
 - richer graph/timeline
 - exportable weekly summaries
@@ -628,11 +628,11 @@ Sell governance:
 - signed session logs
 - audit exports
 - compliance presets
-- self-hosted Memory Lense server
+- self-hosted Memory Trace server
 - configurable retention
 - integration with GitHub Enterprise, GitLab, Azure DevOps
 
-The most commercially attractive feature is likely **Memory Lense for teams**, because it turns hidden agent memory into a visible management surface.
+The most commercially attractive feature is likely **Memory Trace for teams**, because it turns hidden agent memory into a visible management surface.
 
 ---
 
@@ -646,9 +646,9 @@ Suggested line:
 
 > Memory Seed gives every AI coding agent the same durable project memory - local Markdown, MCP-searchable, Git-reviewable, and human-readable.
 
-### Phase 2: Make Memory Lense the Showcase
+### Phase 2: Make Memory Trace the Showcase
 
-Memory Lense should become the product demo, not just an optional extra. It should answer:
+Memory Trace should become the product demo, not just an optional extra. It should answer:
 
 - What happened today?
 - What changed this week?
@@ -722,7 +722,7 @@ That is Memory Seed's lane.
 
 Memory Seed should evolve as an **open-core local memory standard for AI coding work**.
 
-The core should stay boring, durable, and Git-native. The paid product should be the insight layer: Memory Lense, team timelines, decision graphs, audit exports, PR integration, and governance checks.
+The core should stay boring, durable, and Git-native. The paid product should be the insight layer: Memory Trace, team timelines, decision graphs, audit exports, PR integration, and governance checks.
 
 The strongest market message is:
 
@@ -738,8 +738,8 @@ This report draws on the Memory Seed repository and public market references rev
 
 ### Memory Seed repository sources
 
-- `README.md` - Memory Seed project description, quickstart, Memory Lense, agent support, hooks, and goals.
-- `docs/3_Spec/functionality-audit.md` - architecture, feature inventory, retrieval pipeline, session log model, Memory Lense, quality goals, and roadmap-facing system map.
+- `README.md` - Memory Seed project description, quickstart, Memory Trace, agent support, hooks, and goals.
+- `docs/3_Spec/functionality-audit.md` - architecture, feature inventory, retrieval pipeline, session log model, Memory Trace, quality goals, and roadmap-facing system map.
 
 ### Public market references
 

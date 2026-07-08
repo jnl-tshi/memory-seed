@@ -12,7 +12,7 @@ tags:
 
 > **Status:** ACTIVE - approved 2026-07-05.
 > **Priority:** P4 mutation/convenience work. It is unblocked by user sign-off, but should run after
-> the lower-risk Memory Trail Phase-1 retrieval-service extraction and decision-diagram convention
+> the lower-risk Memory Trace retrieval-service extraction and decision-diagram convention
 > work unless the user explicitly reprioritizes graph curation.
 > **Source:** User decision 2026-07-05: implement Related-entries P2, including backfill between older
 > entries and the optional `memory-seed link add` helper.

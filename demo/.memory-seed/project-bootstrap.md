@@ -268,13 +268,13 @@ Ask: "What should I be called as your [role]? Press Enter to let me pick."
 
 If the user provides a name, use it. If skipped, generate a fun single-word name with a pop-culture reference that fits the project domain and the persona's role archetype:
 
-- Dev tool / OSS â†’ hacker/technologist fiction: Neo, Ada, Linus, Turing, Grace
-- Startup / product â†’ builder mythology: Stark, Woz, Palmer, Musk (toned), Rhodes
-- Content / media â†’ writer canon: Gonzo, Ogilvy, Didion, Bernbach
-- Research / academic â†’ scientist fiction: Asimov, Sagan, Feynman, Curie
-- Sales / growth â†’ fictional closers: Ari, Harvey, Boiler (toned)
+- Dev tool / OSS → hacker/technologist fiction: Neo, Ada, Linus, Turing, Grace
+- Startup / product → builder mythology: Stark, Woz, Palmer, Musk (toned), Rhodes
+- Content / media → writer canon: Gonzo, Ogilvy, Didion, Bernbach
+- Research / academic → scientist fiction: Asimov, Sagan, Feynman, Curie
+- Sales / growth → fictional closers: Ari, Harvey, Boiler (toned)
 
-State the name and the reference so the user can veto: "I'll go by *Stark* â€” Iron Man's relentless builder energy felt right for a solo dev startup. Want a different one?"
+State the name and the reference so the user can veto: "I'll go by *Stark* — Iron Man's relentless builder energy felt right for a solo dev startup. Want a different one?"
 
 Rules: one word, no title prefix, loosely tied to the role and project vibe.
 
@@ -289,10 +289,10 @@ Try to infer from `pyproject.toml [project] name`, `package.json name`, the READ
 **Substitute placeholders in the persona file**
 
 After confirming all three values, edit `.agents/<file>.md` in-place, replacing:
-- `[YOUR_ENTITY_NAME]` â†’ resolved entity name
-- `[YOUR_NAME]` â†’ resolved user name
-- `[YOUR_BUSINESS_NAME]` â†’ resolved business name
-- `[YOUR_BRAND_NAME]` (content-creator only) â†’ resolved business name, or ask separately if brand differs from product
+- `[YOUR_ENTITY_NAME]` → resolved entity name
+- `[YOUR_NAME]` → resolved user name
+- `[YOUR_BUSINESS_NAME]` → resolved business name
+- `[YOUR_BRAND_NAME]` (content-creator only) → resolved business name, or ask separately if brand differs from product
 
 ### 9c. Route skills for each activated persona
 
@@ -306,7 +306,7 @@ Default mappings:
 | `solo-founder` | code_search, local_compilation, release_publishing, security_triage |
 | `content-creator` | code_search |
 | `researcher` | code_search, data_architecture |
-| `sales-rep` | *(no default mapping â€” likely needs role-specific skills; see gap detection below)* |
+| `sales-rep` | *(no default mapping — likely needs role-specific skills; see gap detection below)* |
 
 For custom personas, map skills based on the persona's role description and operating rules.
 
@@ -387,9 +387,9 @@ agents:
     business_name: null
 ```
 
-`entity_name`, `user_name`, and `business_name` in the registry are informational. The persona file is authoritative â€” placeholders are already replaced there.
+`entity_name`, `user_name`, and `business_name` in the registry are informational. The persona file is authoritative — placeholders are already replaced there.
 
-`_registry.yaml` is not a seed file â€” it is never overwritten by `memory-seed update`. Custom personas and activation choices survive upgrades.
+`_registry.yaml` is not a seed file — it is never overwritten by `memory-seed update`. Custom personas and activation choices survive upgrades.
 
 ### 9e. Onboard unregistered persona files
 

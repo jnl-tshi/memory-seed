@@ -1,17 +1,25 @@
 # Proposal: Installer-Agnostic Process Shutdown and Safe Upgrade Workflow for MemorySeed and MemoryTrace
 
-Status: Moved to completed 2026-07-08. Canonical file:
-`docs/2_Todo/completed/memory-seed-trace-upgrade-shutdown-plan.md`.
-This source placeholder remains only because OneDrive currently exposes it as a reparse point and
-denied removal from the shell.
+Status: Completed 2026-07-08 (unreleased) - safe discovery, confirmation-gated shutdown,
+package-manager-aware upgrade execution, dry-run previews, and JSON outputs are implemented for
+Memory Seed and Memory Trace.
 Priority: Medium-High
 Source: Promoted from `docs/1_Inbox/memory_seed_trace_upgrade_shutdown_proposal.md` on 2026-07-07.
 Scope: Add safe process listing/shutdown and package-manager-aware upgrade commands for `memory-seed` and `memory-trace`.
 Non-goals: Do not intercept native package-manager commands; do not kill unrelated Python, shell, editor, browser, or MCP processes.
-Dependencies: Decide whether to add `psutil` as a runtime dependency or implement a narrower stdlib/platform-specific process layer first.
+Dependencies: Resolved in implementation - keep stdlib/platform-specific termination, use `psutil`
+only opportunistically for process discovery when already installed, and do not add a new runtime
+dependency.
 Acceptance criteria: `memory-seed processes|shutdown|upgrade` and `memory-trace processes|shutdown|upgrade` expose dry-run, JSON, confirmation, and manager-specific upgrade behavior with tests for process matching and non-matches.
 
-Implementation note: See the completed copy for the final implementation note and validation record.
+Implementation note: The first pass shipped process discovery, `--json`, `shutdown --dry-run`, and
+`upgrade --dry-run` for both packages. The completion pass added conservative current-command
+exclusion, interactive/default-no confirmation, `--yes` execution, failed-shutdown blocking, install
+manager selection/detection, and package-manager command execution.
+
+Validation record: targeted process tests cover conservative matching/non-matching, current control
+command exclusion, shutdown decline, confirmed shutdown, failed-shutdown upgrade blocking,
+non-interactive unknown-manager failure, and interactive manager selection.
 
 ## Summary
 

@@ -40,9 +40,11 @@ graph TD
       direction TB
       CLI["cli.py<br>commands"]
       CORE["core.py<br>init/update/doctor"]
-      TEXT["text_files.py<br>UTF-8 helpers"]
+      TEXT["text_files.py<br>UTF-8 helpers + scanner"]
+      PROC["processes.py<br>safe process control"]
       CLI --> CORE
-      CORE ~~~ TEXT
+      CLI --> PROC
+      CORE ~~~ TEXT ~~~ PROC
     end
     subgraph Retrieval["retrieval layer"]
       direction TB
@@ -113,11 +115,11 @@ graph TD
 ### B. CLI surface (`memory_seed/cli.py`)
 | Command | Purpose |
 |---|---|
-| `init [--agents ...] [--dry-run] [--force]` | Copy control plane + routing into a project; prompts on a TTY for which agents to install. |
+| `init [--agents ...] [--no-agent-prompt] [--dry-run] [--force]` | Copy control plane + routing into a project; prompts on a TTY for opt-out agent integration selection unless skipped. |
 | `update [--dry-run]` | Forward-only refresh of control-plane files; archives replaced versions; preserves generated/local memory. |
 | `doctor` | Health check: missing files, version mismatches, bootstrap completeness, non-fatal warnings. |
 | `compact [--days N] [--output]` | Summarise recent session activity; writes only with `--output`. |
-| `agents list \| add <a> \| remove <a>` | Reconfigure which agents are installed (cleanup-aware removal). |
+| `agents list \| add <a> \| remove <a>` | Show selected/ignored agents or reconfigure installed agent integrations (cleanup-aware removal). |
 | `user set <slug> \| show \| clear` | Manage the local active user in gitignored `.memory-seed/local.yaml` (new in 2.10). |
 | `session target [--create] [--user <slug>] [--date ...]` | Print (and optionally create) the active session-log target; flat or per-user depending on the resolved user (new in 2.10). |
 | `links check` | Validate session-memory integrity across both layouts (duplicate/dangling IDs, per-user frontmatter problems); exits non-zero on any issue (new in 2.12). |
@@ -125,6 +127,10 @@ graph TD
 | `link suggest [--for <entry_id>] [--top-k N]` | Read-only: rank older candidate entries to link from a target entry; prints a paste-ready `related_entries:` snippet (new in 2.13). |
 | `link show <entry_id>` | Read-only: print an entry's stored outbound `related_entries`, computed inbound backlinks, `supersedes`/`superseded_by`, `inbound_relation_count`, and `importance_score`. |
 | `link commits <entry_id>` | Read-only: print commit links from the entry's `commits:` field plus commits carrying the `Memory-Entry:` trailer. |
+| `processes [--json]` | Read-only: list active package-owned Memory Seed processes. |
+| `shutdown [--dry-run] [--yes] [--json]` | Preview or stop only matching package-owned Memory Seed processes after confirmation; default answer is no. |
+| `upgrade [--dry-run] [--yes] [--manager uv\|pipx\|pip] [--json]` | Handle active package-owned processes, then run the selected package-manager upgrade command; failed shutdown blocks upgrade. |
+| `encoding check [path] [--json]` | Read-only: report invalid UTF-8, UTF-8 BOMs, CRLF line endings, and likely mojibake markers in project-owned text files. |
 | `lense [--cwd] [--host] [--port] [--no-open]` | **Deprecated shim** (new in 2.13, extracted post-2.16): the review UI moved to the standalone `memory-trace` package/command. Delegates to it when installed, else prints an install hint. |
 | `version` | Print bundled control-plane version. |
 | `help` (or no args) | Full command reference. |
@@ -132,7 +138,8 @@ graph TD
 ### C. Agent-selective install (`core.py`)
 - `init` installs only the chosen agents' files; the set persists in `.memory-seed/project.yaml` (`agents:` list).
 - Backed by registries: `KNOWN_AGENTS = (claude, codex, cursor, gemini, copilot)`, `_AGENT_MERGES`, `_AGENT_UNINSTALLS`, and a per-`SeedFile` `agent` tag.
-- **Absent `project.yaml` => all agents** (legacy default unchanged); **present-but-empty `agents:` => zero agents** (distinct state). `doctor`/`update` respect the selection. `remove` strips only Memory Seed's own entries (foreign config preserved), backs up first, never deletes shared dirs. `codex`/`cursor` get no routing file (they read `AGENTS.md` natively).
+- Interactive init presents agent integrations as an opt-out selection step with all agents selected by default; `--no-agent-prompt` skips that prompt, and `--agents none` writes the explicit zero-agent state.
+- **Absent `project.yaml` => all agents** (legacy default unchanged); **present-but-empty `agents:` => zero agents** (distinct state). `doctor`/`update` respect the selection. Init and `agents list` report both selected and ignored agents. `remove` strips only Memory Seed's own entries (foreign config preserved), backs up first, never deletes shared dirs. `codex`/`cursor` get no routing file (they read `AGENTS.md` natively).
 
 ### D. Control-plane runtime (`.memory-seed/`)
 - `agent-rules.md` (operating contract: discovery, read order, retrieval rules, **Working Principles**, **End Of Turn** incl. the orphan sweep), `project-bootstrap.md` (bootstrap/repair only), `index.md` (orientation/active state/topology - bootstrap-generated), `policy.md` (constraints only - bootstrap-generated), `skills/`, `sessions/`, `archive/`, `hooks/`.
@@ -147,7 +154,16 @@ graph TD
 
 ### F. Skills system (`skills/`)
 - `index.md` is a **deterministic trigger registry**: each skill listed with `required`, `load_when`, `do_not_load_when`, and an optional `persona:` scope. Agents read it at startup and **lazy-load** only the full runbooks that match the task.
-- Current runbooks (19 total): `code_search`, `data_architecture`, `local_compilation`, `memory_consolidation`, `memory_doctor`, `release_publishing`, `security_triage`, `document_ingestion`, `office_document_editing` (both since 2.7), `proposal_lifecycle` (unreleased proposal movement through `docs/1_Inbox/` -> `docs/2_Todo/` -> `docs/2_Todo/completed/`), `risk_signaling` (unreleased qualitative Proceed/Proceed-and-flag/Propose-and-wait/Stop tiers plus STOP categories), plus **new in 2.13**: `agent_collaboration` (Git-first subagent/branch/worktree/merge-conflict workflows), `history_retrieval`, `session_logging`, `end_of_turn`, `memory_hygiene`, `subproject_runtime` (all five extracted out of `agent-rules.md`, see Section 3D). Persona-scoped: `copywriter-conversion` and `developer-rendered-ui-debugging`.
+- Current runbooks (21 total): `agent_collaboration`, `code_search`, `compact_mermaid_diagrams`,
+  `data_architecture`, `docx_render_windows`, `document_ingestion`, `end_of_turn`,
+  `history_retrieval`, `local_compilation`, `memory_consolidation`, `memory_doctor`,
+  `memory_hygiene`, `office_document_editing`, `proposal_lifecycle`, `release_publishing`,
+  `risk_signaling`, `security_triage`, `session_logging`, and `subproject_runtime`, plus
+  persona-scoped `copywriter-conversion` and `developer-rendered-ui-debugging`.
+- `proposal_lifecycle` is path-aware: this repository uses `docs/1_Inbox/` -> `docs/2_Todo/` ->
+  `docs/2_Todo/completed/` with `docs/3_Spec/` and `docs/4_Reference/`; newly initialized projects
+  can still use the generic bootstrap anchors `docs/inbox/`, `docs/todo/`, `docs/todo/completed/`,
+  and `docs/reference/`.
 - **Fan-Out Recipe in `agent_collaboration` (new in 2.14).** A named "Explore / Plan / Implement / Validate" 9-gate pipeline (Scope, Exploration, Plan, Worker Identity, Worktree, Pre-Review Validation, Integration, Bounded Review-to-Rework Loop capped at 2 iterations, Final Handoff), new task-packet fields (`base_sha`, `expected_pwd`, `integration_artifact`, `capability_tier`, `shared_file_policy`, `conflict_owner`, `preflight`, `review_loop`), and vendor-neutral capability-tier guidance (planning and review both frontier-tier). From `docs/2_Todo/completed/agent-fanout-workflow-plan.md`.
 
 ### G. Personas (`.agents/`)
@@ -165,18 +181,18 @@ Per-agent event names differ (Claude/Codex: `SessionStart`/`UserPromptSubmit`/`S
 
 ### I. MCP memory retrieval
 - `mcp_server.py`: a dependency-light **stdio JSON-RPC** server exposing two tools - `memory_search` (ranked entries/sections) and `memory_get_chunk` (full text for one `chunk_id`). Unreleased after 2.15: it is now a **thin wrapper over `retrieval.py`** with a byte-identical tool contract (parity-tested).
-- `retrieval.py` (**new, unreleased - Memory Trace distribution Phase 1**): the public, MCP-independent retrieval service every consumer rides - `search_memory()`, `get_chunk()` (opt-in `include_diagrams`), `resolve_semantic_provider()`, the canonical `ranked_to_dict`/`chunk_to_dict` result dicts, the `EntryRollup`/`rollup_entry_matches()`/`rollup_entry_results()` entry-level rollup contract (one visible result per session entry; `best_match_chunk_id`, `matched_sections`, `score_source`), and `entry_diagram_sidecars()`. MCP wraps it; the in-package Lense consumes it; the future companion UI package imports it as its frozen surface.
+- `retrieval.py` (**new, unreleased - Memory Trace distribution Phase 1**): the public, MCP-independent retrieval service every consumer rides - `search_memory()`, `get_chunk()` (opt-in `include_diagrams`), `resolve_semantic_provider()`, the canonical `ranked_to_dict`/`chunk_to_dict` result dicts, the `EntryRollup`/`rollup_entry_matches()`/`rollup_entry_results()` entry-level rollup contract (one visible result per session entry; `best_match_chunk_id`, `matched_sections`, `score_source`), and `entry_diagram_sidecars()`. MCP wraps it; Memory Trace imports it as its frozen surface.
 - `semantic_cache.py`: `extract_memory_chunks()` parses `sessions/*.md` into typed `MemoryChunk`s (entry- or section-granularity; `session_date` derived from filename; `entry_id` as `chunk_id`). `rank_memory_chunks()` combines **lexical + semantic + recency** signals:
   `final = (lexical_score + 3-max(semantic,0)) - recency_multiplier`, with semantic via Model2Vec (`model2vec:minishlab/potion-base-8M`, lexical fallback) and an exponential recency decay floored at `recency_floor`.
 - **Metadata + filters.** `memory_search`/`memory_get_chunk` expose `session_date`, `path`, per-user `user`, `file_hash_id`, and entry-level `related_entries` (2.12); `memory_search` accepts `user`, `date_from`, and `date_to` filters applied before ranking. Unreleased after 2.14: `memory_get_chunk` also exposes `superseded_by`, `inbound_relation_count`, and `importance_score`; `memory_search` results carry stored `supersedes` and accept an opt-in `exclude_superseded` filter (default off) that drops superseded entries from a single query.
-- **Related-entry graph (new in 2.13, extended unreleased).** `build_related_entry_graph()` computes the bidirectional related-entry graph at read time - each entry's stored outbound `related_entries` plus computed inbound backlinks from every other entry that points at it, without ever editing a historical entry. Unreleased extensions add typed `supersedes` edges, computed `superseded_by`, raw `inbound_relation_count`, and supersession-aware `importance_score`; Memory Lense's combined graph-node degree was renamed to `connectivity` to avoid colliding with the inbound-only metric.
+- **Related-entry graph (new in 2.13, extended unreleased).** `build_related_entry_graph()` computes the bidirectional related-entry graph at read time - each entry's stored outbound `related_entries` plus computed inbound backlinks from every other entry that points at it, without ever editing a historical entry. Unreleased extensions add typed `supersedes` edges, computed `superseded_by`, raw `inbound_relation_count`, and supersession-aware `importance_score`; the Trace graph's combined node-degree field is named `connectivity` to avoid colliding with the inbound-only metric.
 - `mcp_validate.py` + `memory-seed-mcp-validate`: human-validatable search/fetch harness.
 
 ### J. Session log model
 - Append-only dated files `sessions/YYYY-MM-DD.md`; entries carry a YAML block (`entry_id`, `user_initials`, `agent_type`, `agent_name?`, `project_path`, `subproject_path`, optional `related_entries`). The **DRAFT** record is the baseline shape: D (Decision) and R (Reason) mandatory; A (Alternatives), F (Files), T (Tests) optional. Strict ascending-time, append-at-end chronology.
 - **Entry IDs (widened in 2.12).** New generated `entry_id`s use deterministic 80-bit `mse_` Base32 IDs (`generate_session_entry_id()`); legacy 32-bit `ms-` IDs remain valid and are never rewritten.
 - **Integrity validation (new in 2.12).** `check_session_links()` / `memory-seed links check` scans for duplicate `entry_id`/`hash_id` and dangling refs, exiting non-zero as a CI gate. The legacy-flat `related_entries` scan gap was fixed in 2.14. Unreleased after 2.14: `links check` also validates `supersedes` refs (dangling/self/postdates/cycle) and `commits:` hashes (malformed/unknown when git is present). Unreleased after 2.15: it also validates decision-diagram sidecars under `sessions/diagrams/YYYY-MM-DD.md` (`malformed-diagram`, `orphan-diagram`, `diagram-date-mismatch`; sidecars always optional).
-- **Decision diagram sidecars (new, unreleased - diagrams plan Phase 1).** Optional authored reasoning diagrams appended to `sessions/diagrams/YYYY-MM-DD.md` - one dated file per day, mirroring the session-log filename convention for filesystem readability; each diagram is a `## <timestamp> - <title>` heading block naming its `entry_id` in a fenced yaml block, followed by fenced mermaid block(s), never inlined in the append-only session log itself. Authoring guidance (same spatial/temporal/concurrent bar as the Mermaid Working Principle) lives in `session_logging.md` + `end_of_turn.md` (live + seed); metadata surfaces through `retrieval.entry_diagram_sidecars()` and Lense's chunk view.
+- **Decision diagram sidecars (new, unreleased - diagrams plan Phase 1).** Optional authored reasoning diagrams appended to `sessions/diagrams/YYYY-MM-DD.md` - one dated file per day, mirroring the session-log filename convention for filesystem readability; each diagram is a `## <timestamp> - <title>` heading block naming its `entry_id` in a fenced yaml block, followed by fenced mermaid block(s), never inlined in the append-only session log itself. Authoring guidance (same spatial/temporal/concurrent bar as the Mermaid Working Principle) lives in `session_logging.md` + `end_of_turn.md` (live + seed); metadata surfaces through `retrieval.entry_diagram_sidecars()` and the Memory Trace chunk view.
 - **Multi-user session memory (phased).** *2.9 - read-only dual discovery:* `memory_search`, `memory_get_chunk`, and `compact` now read **both** legacy flat files (`sessions/YYYY-MM-DD.md`) and per-day/per-user files (`sessions/YYYY-MM-DD/<user>.md`); fallback chunk IDs are date-qualified to avoid collisions between same-named per-user files on different dates. *2.10 - opt-in user-aware targets:* `session_target()` returns the flat path when no user is configured and `sessions/YYYY-MM-DD/<user>.md` when one is, resolved in order **CLI arg -> `MEMORY_SEED_USER` -> gitignored `.memory-seed/local.yaml` -> legacy flat**. `--create` initializes per-user file frontmatter (`schema_version: 2`, `session_date`, immutable `hash_id`, `user`, `created_at`). Writes stay legacy-compatible; no existing logs are moved.
 - **Participant-count layout gating (new in 2.14).** A configured user alone no longer fragments the log: `session_target()` only honors an *ambiently*-resolved user (env var or `local.yaml`) once `.memory-seed/project.yaml`'s `participants:` list has 2 or more entries - with 0 or 1, it stays on the shared flat file, since per-user files exist to avoid concurrent-author conflicts that don't arise until there's a second author. An explicit `--user <slug>` CLI override still bypasses the gate (a deliberate one-shot choice). `doctor` separately warns (non-fatal) when a configured local user has no matching `participants:` entry. This repository has one participant registered (`jean`, initials `JNL`), so it correctly stays on the legacy-flat layout.
 
@@ -194,9 +210,9 @@ Per-agent event names differ (Claude/Codex: `SessionStart`/`UserPromptSubmit`/`S
 ### N. Release / publish flow
 - GitHub Release -> `publish.yml` builds, runs tests, then pauses at the `pypi` manual-approval gate before the OIDC push. Release commits land on `main`.
 
-### O. Memory Trace / Lense (review UI - new in 2.13; extracted to `memory-trace` post-2.16)
+### O. Memory Trace (review UI; legacy Lense shim)
 - The review UI shipped in 2.13 as the in-package `memory-seed[lense]` extra ("Memory Lense") and was **extracted** into the standalone **`memory-trace`** distribution (Arc 1 of the Memory Trace roadmap): its own package/command depending on `memory-seed`, importing the public retrieval service (`memory_seed/retrieval.py`). `memory-seed[lense]` is now a deprecation shim, and `memory-seed lense` delegates to `memory-trace` when installed. Core ships **no** web framework.
-- Serves search, filters, timeline, graph, and reader/details views over the same `semantic_cache` parsing/ranking + `retrieval` service MCP uses - no forked retrieval logic (parity tested across the package boundary).
+- Serves search, filters, timeline, graph, and reader/details views over the same `semantic_cache` parsing/ranking + `retrieval` service MCP uses - no forked retrieval logic (parity tested across the package boundary). Current Trace topic facets/edges are display topics derived from Markdown hashtags plus heading contexts. Controlled entry-YAML `topics:` and project-local `.memory-seed/topics.yaml` are now accepted future core contract in `docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md`, but are not yet implemented in the parser, retrieval service, CLI, MCP, or Trace fallback logic.
 - **Cache architecture:** a rebuildable local SQLite cache stored **outside the repository** (`%LOCALAPPDATA%\memory-seed\lense` on Windows, `~/.cache/memory-seed/lense` elsewhere; keyed by a hash of the workspace root, with a `tempfile` fallback if the cache directory isn't writable). `LenseCache.rebuild()` does a full wipe-and-atomic-replace (`os.replace` after a `.tmp` write) whenever session-file mtime/size drift is detected - the cache is never authoritative and Markdown stays the source of truth. Because the cache lives outside the repo by construction, this also satisfies the project's OneDrive-sync-safety constraint (see section 6) without needing to gitignore anything.
 - Static UI assets (`memory-trace/memory_trace/static/`: `index.html`, `app.js`, `styles.css`, `manifest.json`) ship inside the `memory-trace` wheel/sdist.
 
@@ -331,7 +347,7 @@ The qualities the design optimises for (the "why it is shaped this way"):
 - **Stdlib-only core; `model2vec>=0.8.1` is the single declared runtime dependency** (it pulls `numpy`). A project that never uses semantic search still installs it.
 - **Markdown + YAML, no database.** All state is files; there is no migration engine beyond `update`'s forward-only archive.
 - **Session model is migrating to multi-user (phased).** The legacy default is one shared `sessions/YYYY-MM-DD.md` per day (one author at a time). Read-side dual discovery (2.9), opt-in per-user write targets/hooks (2.10), integrity validation, wider generated entry IDs, MCP metadata/filter exposure, participant-registry parsing, and explicit `migrate sessions-layout` support have all shipped through 2.12.0. The per-user layout (`sessions/YYYY-MM-DD/<user>.md`) avoids concurrent-author Git merge conflicts. With no configured user, behavior is unchanged. **Per-user layout additionally requires 2+ registered `participants:`** (new in 2.14) - a lone configured user stays on the flat file regardless, since per-user files exist to avoid concurrent-author conflicts that don't arise with a single author. This repository has a local user configured (`jean`, participant registry entry with initials `JNL`) but only that one participant registered, so it correctly stays on the legacy-flat layout; entries only fragment into `sessions/YYYY-MM-DD/<user>.md` once a second participant is added.
-- **OneDrive-synced repos.** This project lives in a cloud-synced folder, so a cache **must not** use Drive-synced SQLite (corruption risk). The Memory Lense cache (section 3O, shipped 2.13) honors this by storing its SQLite file outside the repository entirely (`%LOCALAPPDATA%`/`~/.cache`) rather than gitignoring an in-repo file - no cache file ever sits inside the synced folder.
+- **OneDrive-synced repos.** This project lives in a cloud-synced folder, so a cache **must not** use Drive-synced SQLite (corruption risk). The Memory Trace cache (section 3O, originally shipped under the Lense name in 2.13) honors this by storing its SQLite file outside the repository entirely (`%LOCALAPPDATA%`/`~/.cache`) rather than gitignoring an in-repo file - no cache file ever sits inside the synced folder.
 - **Version lockstep.** `memory-system-version` frontmatter, `core.VERSION`, and `pyproject.version` must move together (guarded by a test).
 - **Agent cooperation assumed.** Agents are expected to honour the `AGENTS.md` read order and the End Of Turn routine; hooks can only *nudge*, not enforce.
 
@@ -341,7 +357,7 @@ The qualities the design optimises for (the "why it is shaped this way"):
   - `memory_search(query, cwd=".", top_k=8, granularity="entry"|"section", semantic_enabled, recency_enabled, lambda_days, recency_floor)` -> ranked chunks (`chunk_id`, scores, matched terms/fields) + a `human_report`.
   - `memory_get_chunk(chunk_id, cwd=".")` -> full entry/section text for one id.
 - **CLI exit codes:** `0` success, `1` failure (e.g. nothing to do, invalid agent slug, unhealthy runtime).
-- **File-format contracts:** session-entry YAML keys (`entry_id`, `user_initials`, `agent_type`, `agent_name?`, `project_path`, `subproject_path`); per-user session **file** frontmatter (`schema_version: 2`, `session_date`, `hash_id`, `user`, `created_at`, since 2.10); `skills/index.md` trigger schema (`skill`, `required`, `load_when`, `do_not_load_when`, `persona?`); `project.yaml` (`agents:` list); `memory-system-version` frontmatter on control-plane files; the routing managed block delimited by `<!-- BEGIN memory-seed -->` / `<!-- END memory-seed -->` in foreign entry-point files.
+- **File-format contracts:** session-entry YAML keys (`entry_id`, `user_initials`, `agent_type`, `agent_name?`, `project_path`, `subproject_path`); per-user session **file** frontmatter (`schema_version: 2`, `session_date`, `hash_id`, `user`, `created_at`, since 2.10); `skills/index.md` trigger schema (`skill`, `required`, `load_when`, `do_not_load_when`, `persona?`); `project.yaml` (`agents:`, `skills:`, `participants:`); `memory-system-version` frontmatter on control-plane files; the routing managed block delimited by `<!-- BEGIN memory-seed -->` / `<!-- END memory-seed -->` in foreign entry-point files.
 - **Local user identity:** gitignored `.memory-seed/local.yaml` (`user:` slug) and the `MEMORY_SEED_USER` environment variable select the active user for session targeting and the user-aware hooks (since 2.10).
 - **Per-agent config targets:** see the wiring map in section 4.4 (each agent's hook + MCP files).
 
@@ -373,7 +389,7 @@ graph TD
 - **Security & privacy.** Public-memory hygiene rule (no secrets, credentials, or unnecessary personal data in memory/logs). PyPI publish uses OIDC with a manual-approval gate. Uninstall strips only Memory Seed's own entries and preserves foreign config. Hooks are read-only and cannot exfiltrate.
 - **Error handling & resilience.** Hooks **degrade to silent** on any error (never block the agent). `project.yaml` parsing **fails open** (absent/malformed/no-`agents:` => all agents). `update` is forward-only (cannot downgrade a newer project). `remove` and `init --force` back up before touching files. `doctor` separates hard checks from a non-fatal `warnings` channel. Project-owned text writes now have an explicit UTF-8/LF/NFC helper plus repository `.editorconfig`/`.gitattributes`; **known gap:** file writes are direct, not atomic temp-then-rename - a crash mid-write could truncate a file (see Risks).
 - **Persistence & concurrency.** Plain files; session logs are strictly append-only with current-clock timestamps so write order == time order. No file locking; the model assumes a single writer per day.
-- **Encoding contract.** Project-owned text artifacts are UTF-8 without BOM, LF line endings, and NFC-normalized. `memory_seed.text_files` is the shared helper for generated text/JSON reads and writes; JSON helpers preserve readable Unicode (`ensure_ascii=False`). MCP stdio output is explicitly Unicode-preserving.
+- **Encoding contract.** Project-owned text artifacts are UTF-8 without BOM, LF line endings, and NFC-normalized. `memory_seed.text_files` is the shared helper for generated text/JSON reads and writes; JSON helpers preserve readable Unicode (`ensure_ascii=False`). MCP stdio output is explicitly Unicode-preserving. `memory-seed encoding check` now reports invalid UTF-8, UTF-8 BOMs, CRLF line endings, and likely mojibake markers without rewriting files.
 - **Dependencies.** Runtime (required): `model2vec>=0.8.1` (+ `numpy` transitively). Runtime (optional, `memory-seed[lense]` extra only): `fastapi>=0.110`, `uvicorn>=0.27` - the default CLI/MCP path stays dependency-light; `lense` prints an install hint rather than failing when the extra isn't installed. Tests: stdlib `unittest`. No ORM, no message bus.
 
 ## 10. Architecture decisions
@@ -407,7 +423,7 @@ Measured on this repository's own corpus on 2026-06-14 (Windows, Python 3.11). I
 - *Cold start within a couple of seconds* -> **met** (~1.1 s with the model cached).
 - *Retrieval still works with no model present* -> **met** - semantic scores degrade to `None` and ranking falls back to lexical + recency (verified: this benchmark environment had no model installed until explicitly added).
 
-**Scaling note:** parsing and ranking are linear scans over chunks (no index), so cost grows O(entries). At hundreds of entries it is tens of ms; a corpus in the 10k+ range would warrant the deferred cache / Memory Explorer work rather than a per-query full scan.
+**Scaling note:** parsing and ranking are linear scans over chunks (no index), so cost grows O(entries). At hundreds of entries it is tens of ms; a corpus in the 10k+ range would warrant Memory Trace cache/index work rather than a per-query full scan.
 
 ## 12. Risks & technical debt
 
@@ -415,12 +431,12 @@ Measured on this repository's own corpus on 2026-06-14 (Windows, Python 3.11). I
 |---|---|---|
 | Semantic/lexical search buries the newest entry | Agent misreads "current state" | **Mitigated** - SessionStart hook + direct newest-file read rule |
 | Legacy 32-bit `ms-` entry IDs | Collisions at large history sizes | **Mitigated since 2.12.0** for new generated entries: `generate_session_entry_id()` now emits deterministic 80-bit `mse_` IDs while existing `ms-` IDs remain valid and are not rewritten |
-| Drive-synced SQLite corruption | Rules out the obvious cache backend | **Resolved (2.13.0)** - Memory Lense's cache lives outside the repo entirely (`%LOCALAPPDATA%`/`~/.cache`), so no SQLite file is ever placed inside the synced folder |
+| Drive-synced SQLite corruption | Rules out the obvious cache backend | **Resolved (2.13.0)** - the Memory Trace cache, originally shipped as Memory Lense, lives outside the repo entirely (`%LOCALAPPDATA%`/`~/.cache`), so no SQLite file is ever placed inside the synced folder |
 | `links check` skipped legacy-flat `related_entries` validation | A dangling `related_entries` ref in this repo's own layout wasn't caught | **Fixed in 2.14.0** - entry-level scan moved out of the per-user-day-only gate; regression-tested |
 | Version-bump trap (root files missed by scoped sed) | Shipping mismatched versions | **Guarded** by `test_repo_root_control_plane_files_match_version` |
 | `update --dry-run` lists all targets, not just changed | Noisy preview | Documented in README |
-| Non-atomic file writes (no temp+rename) | Corruption on crash mid-write | Open - candidate hardening item. Note: Lense's own cache *does* use temp-file + atomic `os.replace`, so this gap is specifically about control-plane/session file writes, not the cache. |
-| Encoding drift / mojibake on Windows defaults | Corrupted Markdown, JSON, logs, or MCP payload readability | **Partly mitigated 2026-07-07** - `.editorconfig`, `.gitattributes`, UTF-8/LF/NFC helper, README policy, MCP Unicode output, and helper tests added; follow-up active for `encoding check/repair` and static implicit-I/O checks. |
+| Non-atomic file writes (no temp+rename) | Corruption on crash mid-write | Open - candidate hardening item. Note: Memory Trace's cache *does* use temp-file + atomic `os.replace`, so this gap is specifically about control-plane/session file writes, not the cache. |
+| Encoding drift / mojibake on Windows defaults | Corrupted Markdown, JSON, logs, or MCP payload readability | **Partly mitigated 2026-07-08** - `.editorconfig`, `.gitattributes`, UTF-8/LF/NFC helper, README policy, MCP Unicode output, helper tests, and `memory-seed encoding check` added; follow-up active for repair and static implicit-I/O checks. |
 | Single-writer session model | Concurrent multi-author Git conflicts | **Phased migration underway** - dual-read (2.9), opt-in per-user write targets/hooks (2.10), integrity validation, ID widening, MCP filters, participant registry parsing, and migration support all shipped through 2.12.0 |
 
 ## 13. Glossary
@@ -434,25 +450,27 @@ Measured on this repository's own corpus on 2026-06-14 (Windows, Python 3.11). I
 - **Chunk** - a `MemoryChunk` parsed from a session entry (`granularity="entry"`) or sub-heading (`"section"`); `chunk_id` is normally the `entry_id`.
 - **Persona** - a vendor-neutral `.agents/*.md` role profile; evolution is approval-gated.
 - **Orphan skill** - a `skills/*.md` runbook not registered in `skills/index.md` (flagged by `doctor`).
-- **Memory Lense** - the optional local read-only browser UI (`memory-seed lense`, section 3O), backed by a rebuildable SQLite cache stored outside the repository.
+- **Memory Trace** - the companion local read-only browser UI (`memory-trace`; legacy `memory-seed lense` shim, section 3O), backed by a rebuildable SQLite cache stored outside the repository.
 - **Related-entry graph** - the graph `build_related_entry_graph()` computes at read time from entries' stored `related_entries` (outbound), computed backlinks (inbound), typed `supersedes`, computed `superseded_by`, `inbound_relation_count`, and `importance_score`; surfaced via `link suggest`/`link show` and MCP metadata.
 
 ---
 
 ## 14. Upcoming / roadmap features
 
-Sources: `docs/2_Todo/NEXT_STEPS.md` and `docs/2_Todo/`. Status reflects the current 2.14.0 release plus unreleased commits through `a72ffc3`.
+Sources: `docs/2_Todo/0_NEXT_STEPS.md` and `docs/2_Todo/`. Status reflects the current 2.14.0 release plus unreleased commits through `a72ffc3`.
 
 **Shipped since the 2.7.0 audit:** 2.8.0 non-destructive foreign-routing merge + doctor route-presence backstop (section 3E, section 3L); 2.9.0 read-only dual-discovery of per-user session files (section 3J); 2.10.0 opt-in user-aware session targets/hooks + `user`/`session target` CLI (section 3B, section 3H, section 3J); 2.11.0 ESR generalization; 2.12.0 session-memory integrity validation, 80-bit entry IDs, MCP metadata/filters, participant registry, and `migrate sessions-layout`; 2.13.0 Memory Lense, related-entries generation P1, and lazy-skill extraction; 2.14.0 participant-count layout gating, one-time identity offer, doctor local-user warning, legacy-flat links-check fix, Working Principles additions, failed-approach logging, Mermaid guidance, and the Fan-Out Recipe.
 
-**Unreleased, queued under `CHANGELOG.md`'s `## Unreleased`:** typed supersession edges P1; git commit entry linking P1; ranking P1a/P1b (`inbound_relation_count`, `importance_score`); Memory Lense `related_degree` -> `connectivity` rename; and UTF-8 encoding policy Phase 1.
+**Unreleased, queued under `CHANGELOG.md`'s `## Unreleased`:** typed supersession edges P1; git commit entry linking P1; ranking P1a/P1b (`inbound_relation_count`, `importance_score`); Trace graph `related_degree` -> `connectivity` rename; UTF-8 encoding policy Phase 1 plus `encoding check`; and safe process shutdown / package-manager-aware upgrade execution for Memory Seed and Memory Trace.
 Additional unreleased control-plane documentation: `proposal_lifecycle.md` now governs proposal movement
-through inbox -> todo -> completed; worktree dependency strategy Phase 1 (dependency tiers,
+through inbox -> todo -> completed -> reference/spec lanes, with repo-numbered and generic bootstrap
+path conventions; worktree dependency strategy Phase 1 (dependency tiers,
 dependency task-packet fields, and optional tmux control-room guidance) shipped into
 `agent_collaboration.md` - see [docs/2_Todo/completed/worktree-dependency-strategy-plan.md](../2_Todo/completed/worktree-dependency-strategy-plan.md);
 `risk_signaling.md` now provides qualitative risk tiers and STOP categories; and the seeded
 `docx_render_windows.md` skill (Windows DOCX render fallback) joined the seed inventory and trigger
-registry.
+registry. The accepted topic-neighbourhood plan will make `topics:` a normal 1-3-topic field on new
+meaningful entries and `.memory-seed/topics.yaml` a project-local core index once implemented.
 
 ### Near term - next candidate
 - **`/esr` command shortcuts for Codex/Cursor** once those tools support repo-level custom commands
@@ -509,9 +527,11 @@ graph TD
 ## 15. Test & verification surface
 
 - `tests/test_memory_seed.py`, `tests/test_session_schema.py`, `tests/test_semantic_cache.py`,
-  `tests/test_mcp_server.py`, `tests/test_retrieval.py`, and `tests/test_lense.py` cover
+  `tests/test_mcp_server.py`, `tests/test_retrieval.py`, `tests/test_processes.py`,
+  `tests/test_text_files.py`, and `memory-trace/tests/` cover
   init/update/doctor, session schema, links validation (incl. diagram sidecars),
   related/supersession/commit graph metadata, MCP exposure, MCP/retrieval-service parity and one-way
-  dependency, entry-level rollup, Memory Lense graph field naming, the `exclude_superseded` search
-  filter, and seed/live parity. Current suite: **256 tests** (verified 2026-07-05).
+  dependency, entry-level rollup, Memory Trace graph field naming, the `exclude_superseded` search
+  filter, process shutdown/upgrade flows, encoding checks, and seed/live parity. Current suite:
+  **269 core tests + 35 Memory Trace tests** (verified 2026-07-08).
 - `memory-seed doctor` is the runtime health gate; `memory-seed-mcp-validate` validates retrieval end-to-end.

@@ -79,7 +79,7 @@ Memory Seed is currently a local-first, Markdown-first control plane for AI codi
 
 Memory Trace already provides a browser UI for search, filters, timeline, graph, Trail, and reader/detail views over Markdown session files, backed by a rebuildable SQLite cache outside the repository. The current architecture deliberately keeps the cache non-authoritative: Markdown remains the source of truth.
 
-The companion UI split is already decided. The active distribution plan says the future Memory Trace package should depend on `memory-seed`, import the public retrieval service, and never fork parsing or ranking. Phase 1 already created `memory_seed/retrieval.py` as the public retrieval service, with MCP and Lense consuming the same contract.
+The companion UI split is already decided. The active distribution plan says the Memory Trace package should depend on `memory-seed`, import the public retrieval service, and never fork parsing or ranking. Phase 1 already created `memory_seed/retrieval.py` as the public retrieval service, with MCP and Memory Trace consuming the same contract; legacy Lense naming remains only for compatibility shims and internal class names that have not been worth renaming.
 
 The current Memory Trace/Trail plan says Trace is the product/package direction, while Trail is the internal feature-evolution view combining supersession chains and branch lineage. It also states that Trace should continue using the shared retrieval service and must not fork parsing, ranking, graph, or diagram-sidecar logic.
 
@@ -409,7 +409,7 @@ This should be generated from the existing retrieval and graph surfaces:
 - `search_memory()`;
 - `get_chunk(include_diagrams=True)`;
 - `build_related_entry_graph()`;
-- existing Lense timeline and graph service methods;
+- existing Memory Trace timeline and graph service methods;
 - future `branch:` and `supersedes` rendering once Trail work lands.
 
 The retrieval service already exposes canonical result dictionaries, graph metadata, commit reference count, and optional diagram sidecar metadata.
@@ -698,7 +698,7 @@ Document-generation integrations should be treated as export surfaces, not as pa
 ## Open Questions
 
 1. Should generated summaries be ephemeral only, or should Memory Trace support a `.memory-seed/reports/` or `.memory-trace/reports/` export location?
-2. Should summaries be cached outside the repo like Lense's SQLite cache, or regenerated on demand?
+2. Should summaries be cached outside the repo like the current Memory Trace SQLite cache, or regenerated on demand?
 3. Should terminal-agent adapters be allowed to use MCP, or should they receive only static JSON evidence packs?
 4. Should the first local backend target Ollama-compatible APIs, llama.cpp subprocesses, or a generic OpenAI-compatible local endpoint?
 5. Should the handover pack include generated prose, or should AI summaries remain a separate optional layer?

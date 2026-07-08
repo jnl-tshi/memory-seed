@@ -1,12 +1,17 @@
 # UTF-8 Encoding Doctor And Static Check Plan
 
-Status: Active proposal
+Status: Active proposal - `memory-seed encoding check` implemented 2026-07-08; repair and static
+implicit-I/O checks remain active.
 Priority: Medium
 Source: Split from `docs/2_Todo/completed/memory-seed-utf8-encoding-policy-phase-1.md` on 2026-07-07.
 Scope: Add explicit validation and repair tooling for the UTF-8/LF/NFC text contract after the Phase 1 helper and documentation work.
 Non-goals: Do not silently rewrite user files; do not repair suspected mojibake without an explicit command and backup path.
 Dependencies: Phase 1 helper module `memory_seed.text_files`; final decision on whether mirrored `memory-trace encoding ...` commands should live in Trace or delegate to Memory Seed.
 Acceptance criteria: `memory-seed encoding check` reports invalid UTF-8, UTF-8 BOM, CRLF line endings, and likely mojibake indicators; `memory-seed encoding repair --dry-run` previews changes; repair creates backups or requires a clean Git worktree; tests cover Markdown, JSON, YAML/TOML-like text, and append/repair cases.
+
+Current implementation: the read-only `encoding check` slice is complete, including JSON output and
+tests for invalid UTF-8, BOM, CRLF, and likely mojibake markers. Repair and static implicit-I/O
+enforcement remain open.
 
 ## Rationale
 

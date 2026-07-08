@@ -13,7 +13,7 @@ tags:
 > **Status:** ACTIVE - decided 2026-07-05. **Phase 1 implemented 2026-07-05 (unreleased):** the
 > public retrieval service exists (`memory_seed/retrieval.py` - search/fetch orchestration, canonical
 > result dicts, entry-level rollup, diagram-sidecar surfacing), MCP is a thin wrapper with a
-> byte-identical contract (parity-tested), and the in-package Lense consumes the service.
+> byte-identical contract (parity-tested), and Memory Trace consumes the service.
 > **Phase 2 implemented 2026-07-06 (unreleased, on branch `claude/refactor/memory-trace-extraction`):**
 > the review UI is extracted into the standalone **`memory-trace`** distribution (`memory-trace/` - its
 > own `pyproject.toml`, `memory_trace` package, `memory-trace` console command, `static/` assets). It
@@ -37,10 +37,10 @@ tags:
 > Decision" loop, the shipped `memory-seed[lense]` V1, and `3.0-plan.md`'s original companion-package
 > intent.
 > **Scope:** Two phases - (1) extract a stable public retrieval service inside `memory-seed` that both
-> MCP and Lense consume; (2) extract the UI into its own companion distribution that depends on
+> MCP and Memory Trace consume; (2) extract the UI into its own companion distribution that depends on
 > `memory-seed`, named by the Memory Trace transition. Read-only throughout.
 > **Non-goals:** No write/curation surface (stays post-3.0, B5). No desktop/VS Code shell in this plan
-> (later shells wrap the same web app). No reopening shipped 2.13 Lense retrieval/UI behavior. No
+> (later shells wrap the same web app). No reopening shipped 2.13 legacy Lense retrieval/UI behavior. No
 > forking of the parser/ranker into a second stack. No new default dependencies on core `memory-seed`.
 > **Dependencies:** Graph-edge contract ([`../3_Spec/graph-edge-contract.md`](../3_Spec/graph-edge-contract.md),
 > done 2026-07-04) - Memory Trace builds on the same edge/metric contract. Phase 2 followed Phase 1
@@ -106,11 +106,11 @@ Phase 1 extracts exactly those functions into a public, MCP-independent retrieva
   (`.memory-seed/sessions/diagrams/YYYY-MM-DD.md`) alongside the Class-1 structural fields, per
   [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md), so Trace can render
   reasoning diagrams next to their entry without forking a reader;
-- is consumed by `mcp_server.py` (thin wrapper, unchanged external behavior) **and** by the in-package
-  Lense today, proving both consumers ride the same contract;
+- is consumed by `mcp_server.py` (thin wrapper, unchanged external behavior) **and** by Memory Trace,
+  proving both consumers ride the same contract;
 - is documented as the public retrieval API - the surface `memory-trace` will import in Phase 2.
 
-During Phase 1 the in-package Lense goes **maintenance-only**: bug/parity fixes to keep it working, but
+During Phase 1 the in-package Lense route goes **maintenance-only**: bug/parity fixes to keep it working, but
 no new UI feature development in-package. New UI development targets the Memory Trace package once Phase 2
 lands. Phase 1 is a fast prerequisite on the path to the split, **not** a reason to keep growing the
 in-package extra.
@@ -120,7 +120,7 @@ in-package extra.
 - MCP tool behavior (`memory_search`, `memory_get_chunk`) is byte-for-byte unchanged against existing
   fixtures - the extraction is a refactor, not a behavior change.
 - The retrieval service has no import dependency on `mcp_server.py`; `mcp_server.py` imports it.
-- The in-package Lense consumes the service (no private reach-through into `mcp_server` internals).
+- Memory Trace consumes the service (no private reach-through into `mcp_server` internals).
 - The public retrieval API is named in a doc as the frozen surface Phase 2 depends on.
 - Parity tests assert MCP results and service results are identical for the same query.
 - Trace-facing tests prove section matches collapse into one visible entry-level result while

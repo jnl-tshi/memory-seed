@@ -965,7 +965,7 @@ def _limit(limit: int, *, maximum: int = 100) -> int:
 
 def _excerpt(text: str, *, length: int = 220) -> str:
     cleaned = " ".join(line.strip() for line in text.splitlines() if line.strip() and not line.strip().startswith("```"))
-    return cleaned[: length - 1] + "â€¦" if len(cleaned) > length else cleaned
+    return cleaned[: length - 1] + "…" if len(cleaned) > length else cleaned
 
 
 def _static_text(name: str, media_type: str) -> str:

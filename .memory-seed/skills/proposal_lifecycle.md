@@ -8,8 +8,8 @@ tags:
 
 # Proposal Lifecycle Skill
 
-Use this skill when triaging proposal, research, or task documents through `docs/inbox/`,
-`docs/todo/`, `docs/todo/completed/`, and `docs/reference/`.
+Use this skill when triaging proposal, research, or task documents through a project's docs
+lifecycle folders.
 
 ## Purpose
 
@@ -20,26 +20,35 @@ inbox -> todo -> completed
 inbox -> reference
 ```
 
-`docs/inbox/` is for unassessed source material. `docs/todo/` is for refined active plans.
-`docs/todo/completed/` is for implemented, rejected, superseded, or otherwise resolved plans.
-`docs/reference/` is for source research, audits, market scans, extracted learnings, and other
-reference material that informs proposals but is not itself an actionable proposal.
+Path conventions are project-local:
+
+- This repository uses the numbered taxonomy: `docs/1_Inbox/`, `docs/2_Todo/`,
+  `docs/2_Todo/completed/`, `docs/3_Spec/`, and `docs/4_Reference/`.
+- Fresh projects created by the planning profile may use the generic bootstrap taxonomy:
+  `docs/inbox/`, `docs/todo/`, `docs/todo/completed/`, and `docs/reference/`.
+
+In either taxonomy, the inbox is for unassessed source material, todo is for refined active plans,
+completed is for implemented/rejected/superseded/resolved plans, spec is for live normative
+contracts, and reference is for source research, audits, market scans, extracted learnings, and
+other material that informs proposals but is not itself an actionable proposal.
 
 ## Lifecycle Rules
 
-1. Do not leave an accepted actionable proposal in `docs/inbox/`. Promote it into a refined
-   `docs/todo/*.md` plan with status, priority, scope, non-goals, dependencies, acceptance criteria,
-   and provenance.
-2. Move completed, rejected, or superseded proposal files into `docs/todo/completed/`. Keep the
+1. Resolve the active project's lifecycle paths before moving files. Prefer numbered paths when the
+   project already has `docs/1_Inbox/`; otherwise use the generic bootstrap paths.
+2. Do not leave an accepted actionable proposal in the inbox. Promote it into a refined todo plan
+   with status, priority, scope, non-goals, dependencies, acceptance criteria, and provenance.
+3. Move completed, rejected, or superseded proposal files into the completed folder. Keep the
    final disposition near the top of the file.
-3. Do not move a partially complete plan to completed unless the remaining work is explicitly split
+4. Do not move a partially complete plan to completed unless the remaining work is explicitly split
    into a new active proposal or recorded as a deferred follow-up.
-4. Do not create nested lifecycle folders such as `docs/inbox/todo/` or `docs/todo/completed/todo/`.
-   Repair those by restoring the top-level lifecycle path.
-5. Preserve source context when refining: either include the important evidence in the refined plan
-   or move source-only material to `docs/reference/` with clear provenance.
-6. Prefer one canonical active proposal per workstream. Companion research or synthesis documents
-   can remain in `docs/todo/` only when they still inform an open decision.
+5. Do not create nested lifecycle folders such as `docs/inbox/todo/`,
+   `docs/todo/completed/todo/`, or `docs/1_Inbox/2_Todo/`. Repair those by restoring the top-level
+   lifecycle path.
+6. Preserve source context when refining: either include the important evidence in the refined plan
+   or move source-only material to the reference folder with clear provenance.
+7. Prefer one canonical active proposal per workstream. Companion research or synthesis documents
+   can remain in todo only when they still inform an open decision.
 
 ## Required Status Block
 
@@ -61,8 +70,8 @@ Use explicit dates when marking shipped, rejected, or superseded work.
 
 When moving or resolving proposals, check whether these need updates:
 
-- `docs/todo/NEXT_STEPS.md`
-- `docs/spec/functionality-audit.md`
+- `docs/2_Todo/0_NEXT_STEPS.md` or `docs/todo/NEXT_STEPS.md`
+- `docs/3_Spec/functionality-audit.md` or `docs/spec/functionality-audit.md`
 - `CHANGELOG.md` when release-facing behavior changed
 - `.memory-seed/index.md` when active architecture or project state changed
 - `.memory-seed/sessions/YYYY-MM-DD.md` for the durable decision log
@@ -70,7 +79,7 @@ When moving or resolving proposals, check whether these need updates:
 
 ## Completion Criteria
 
-A proposal can move to `docs/todo/completed/` when one of these is true:
+A proposal can move to the completed folder when one of these is true:
 
 - the planned implementation shipped or is fully present in unreleased changes;
 - the proposal was explicitly rejected, with rationale;

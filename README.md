@@ -135,25 +135,30 @@ The result is a lightweight memory workflow you can understand, commit, review, 
 
 ### Choosing which agents to install
 
-By default `memory-seed init` installs files for every supported agent. To keep a repo clean,
-install only the agents you use:
+Interactive `memory-seed init` asks which agent integrations should be installed, with every
+supported agent selected by default so unused integrations can be opted out. Non-interactive init
+keeps the backward-compatible default of all agents unless flags say otherwise:
 
 ```bash
 memory-seed init --agents claude,codex     # only Claude + Codex artifacts
-memory-seed init                            # interactive prompt on a terminal; all agents otherwise
+memory-seed init --agents none             # shared runtime only, no agent-specific configs
+memory-seed init --no-agent-prompt          # skip the interactive agent prompt
+memory-seed init                            # prompts on a terminal; all agents otherwise
 ```
 
 `AGENTS.md`, the `.memory-seed/` runtime, and `.agents/` personas are always installed (they are
 agent-agnostic). Only the agent-specific routing files (`CLAUDE.md`, `GEMINI.md`,
 `.github/copilot-instructions.md`) and per-agent hook/MCP configs are gated by the selection.
-`codex` and `cursor` have no routing file â€” they read `AGENTS.md` natively.
+`codex` and `cursor` have no routing file - they read `AGENTS.md` natively.
 
 The selection is persisted to `.memory-seed/project.yaml` (`agents:` list), which `doctor` and
-`update` respect â€” so an unselected agent's files are never flagged missing or re-added. A project
-with no `project.yaml` behaves as before (all agents). Reconfigure later:
+`update` respect, so an unselected agent's files are never flagged missing or re-added. A
+present-but-empty `agents:` block is the explicit zero-agent state; a project with no `project.yaml`
+behaves as before (all agents). Init and `agents list` report both installed and ignored agents.
+Reconfigure later:
 
 ```bash
-memory-seed agents list           # show the selected agents
+memory-seed agents list           # show selected and ignored agents
 memory-seed agents add gemini     # install an agent's files
 memory-seed agents remove gemini  # back up + remove an agent's files (foreign config preserved)
 ```
@@ -191,17 +196,17 @@ and does not re-add ignored optional skills. The `planning` profile also creates
 | Codex CLI | `.codex/hooks.json` | `Stop` | `UserPromptSubmit` | `SessionStart` |
 | Gemini CLI | `.gemini/settings.json` | `AfterAgent` | `BeforeAgent` | `SessionStart` |
 | Cursor | `.cursor/hooks.json` | `afterAgentResponse` | `sessionStart` | `sessionStart` |
-| GitHub Copilot CLI | `.github/hooks/memory-seed.json` | â€” | â€” | `sessionStart` (prompt) |
+| GitHub Copilot CLI | `.github/hooks/memory-seed.json` | — | — | `sessionStart` (prompt) |
 
 Both reminders are cross-platform Python scripts in `.memory-seed/hooks/`:
 
 - `session-log-check.py` - after a turn, reminds the agent to append a session-log entry if none was written in the last 15 minutes, and warns if the day's entries are out of ascending time order. When a local user is configured, it checks only that user's per-day file (`sessions/YYYY-MM-DD/<user>.md`) so another contributor's recent entry does not suppress the reminder.
-- `memory-retrieval-check.py` â€” before substantive work, reminds the agent to use `memory_search` for topical recall and to read the newest session file directly for current state. Gated by an 8-hour marker file so it fires about once per working session.
+- `memory-retrieval-check.py` — before substantive work, reminds the agent to use `memory_search` for topical recall and to read the newest session file directly for current state. Gated by an 8-hour marker file so it fires about once per working session.
 - `session-start-context.py` - at session start, injects the newest relevant session file's entries (path, all headings, and the most recent entry body) so the agent establishes current state by recency rather than semantic search. With a configured user it injects that user's newest entry and lists same-day co-contributor files by path and entry count; without a configured user it preserves legacy flat-file behavior. Fires once per session. Copilot CLI cannot run command hooks at session start, so it gets a static `prompt` hook with the same directive instead.
 
 The hooks nudge; they never block. The scripts use Python 3.11+, which Memory Seed already requires.
 
-Beyond the hooks, the end-of-session routine in `agent-rules.md` ("End Of Turn") includes a diff-scoped **orphan & artifact sweep**: before closing a session the agent reviews what it changed, confirms new files/features are actually wired in, resolves references left dangling by deletions or renames, and flags scratch debris â€” so half-removed features and stray files are caught as they happen rather than accumulating. It is language-agnostic and never installs tooling; a project's own dead-code tool (vulture/ruff, knip, ArchUnit, cppcheck) can be run for deeper whole-codebase checks when one is already present.
+Beyond the hooks, the end-of-session routine in `agent-rules.md` ("End Of Turn") includes a diff-scoped **orphan & artifact sweep**: before closing a session the agent reviews what it changed, confirms new files/features are actually wired in, resolves references left dangling by deletions or renames, and flags scratch debris — so half-removed features and stray files are caught as they happen rather than accumulating. It is language-agnostic and never installs tooling; a project's own dead-code tool (vulture/ruff, knip, ArchUnit, cppcheck) can be run for deeper whole-codebase checks when one is already present.
 
 The routine also runs a **consolidation review** (promote durable, reusable facts from the session logs into `index.md`/`policy.md` via the `memory_consolidation` skill) and a **baseline-promotion check** (flag any approved adaptation general enough to reuse beyond this project, recorded in `.memory-seed/plans/`). The whole routine ships as a seeded **`/esr`** command for the agents with a repo-level command mechanism: Claude (`.claude/commands/esr.md`) and Gemini (`.gemini/commands/esr.toml`); Codex, Cursor, and other agents run the same routine directly from `agent-rules.md`. There is intentionally no blocking end-of-turn hook — evolution needs reasoning and user approval, which a hook cannot do.
 
@@ -328,6 +333,10 @@ From this repository checkout, run:
 ```powershell
 python -m memory_seed.cli version
 python -m memory_seed.cli doctor
+python -m memory_seed.cli processes --json
+python -m memory_seed.cli shutdown --dry-run
+python -m memory_seed.cli upgrade --dry-run --manager uv
+python -m memory_seed.cli encoding check
 python -m memory_seed.cli init --dry-run
 python -m memory_seed.cli update --dry-run
 python -m memory_seed.cli compact
@@ -365,9 +374,9 @@ Use `--dry-run` to preview the files `init` would copy without changing files. I
 
 When `--force` creates backups, Memory Seed adds `.memory-seed/backups/` to the target project's `.gitignore` to reduce the chance of committing replaced local memory files. `init --force` is a reinstall operation for the selected seed-file set, including files that were already on the current `memory-system-version`.
 
-The `update` command refreshes routing files, reusable runtime procedure files, and generic skill templates by version, sourcing them **from the installed package** rather than from PyPI â€” upgrade the package first to get newer templates (see [Updating](#updating)). Before replacing stale reusable control-plane files, it backs them up under `.memory-seed/backups/<timestamp>/` and archives their old version under `.memory-seed/archive/<old-version>/` or `.memory-seed/archive/unknown-<timestamp>/` when the old version is missing. Generated local memory files such as `index.md`, `policy.md`, and sessions are preserved.
+The `update` command refreshes routing files, reusable runtime procedure files, and generic skill templates by version, sourcing them **from the installed package** rather than from PyPI — upgrade the package first to get newer templates (see [Updating](#updating)). Before replacing stale reusable control-plane files, it backs them up under `.memory-seed/backups/<timestamp>/` and archives their old version under `.memory-seed/archive/<old-version>/` or `.memory-seed/archive/unknown-<timestamp>/` when the old version is missing. Generated local memory files such as `index.md`, `policy.md`, and sessions are preserved.
 
-Use `update --dry-run` to list the reusable control-plane targets without writing files. Current behavior is conservative but broad: dry-run lists bundled seed paths rather than calculating which files are missing or version-mismatched. The real `update` command skips files already at the current `memory-system-version` or newer â€” so a stale installed tool never downgrades a project â€” and preserves existing `.memory-seed/` runtime files.
+Use `update --dry-run` to list the reusable control-plane targets without writing files. Current behavior is conservative but broad: dry-run lists bundled seed paths rather than calculating which files are missing or version-mismatched. The real `update` command skips files already at the current `memory-system-version` or newer — so a stale installed tool never downgrades a project — and preserves existing `.memory-seed/` runtime files.
 
 The `compact` command summarises recent session activity from the nearest runtime so an agent can identify durable facts to promote into `index.md`, `policy.md`, or skills. It reads both the legacy flat layout (`sessions/YYYY-MM-DD.md`) and the per-day/per-user layout (`sessions/YYYY-MM-DD/<user>.md`):
 
@@ -379,6 +388,27 @@ memory-seed compact --output summary.md  # write to file
 ```
 
 The output is a structured Markdown report with session headings and full entry text. The CLI summarises; the agent (or user) decides what to promote. No files are modified automatically.
+
+For upgrade preparation and safe package upgrades, Memory Seed can inspect package-owned processes,
+shut down only matching processes after confirmation, and run the selected package-manager upgrade:
+
+```bash
+memory-seed processes
+memory-seed processes --json
+memory-seed shutdown --dry-run
+memory-seed shutdown --dry-run --json
+memory-seed shutdown
+memory-seed shutdown --yes
+memory-seed upgrade --dry-run --manager uv
+memory-seed upgrade --manager uv
+memory-seed upgrade --yes --manager uv
+```
+
+Shutdown defaults to `No` unless you confirm or pass `--yes`. Matching is conservative: generic
+`python`, `uv`, `uvx`, and `pipx` processes are stopped only when their executable path or command
+line clearly belongs to the target package. `upgrade` supports `--manager uv`, `--manager pipx`, and
+`--manager pip`; if the manager cannot be detected safely in non-interactive mode, rerun with an
+explicit `--manager`.
 
 To opt into per-user session targets on a clone, configure a local user slug:
 
@@ -423,15 +453,19 @@ When run in a project that already has Memory Seed files:
 - `memory-seed version` prints the bundled reusable control-plane version. It does not inspect the project.
 - `memory-seed doctor` checks reusable seed files, reports missing files or `memory-system-version` mismatches, and separately reports incomplete bootstrap when generated `index.md` or `policy.md` is missing. It also warns (non-fatally) when a `.memory-seed/skills/*.md` runbook is not registered in `skills/index.md` (an orphan skill agents would never load), and when a `.memory-seed/` runtime exists but an entry-point file is foreign and carries no routing block (an orphaned runtime nothing points at).
 - `memory-seed init --dry-run` lists the seed files it would copy and changes nothing, even if those files already exist.
-- `memory-seed init` refuses to overwrite existing **owned** seed files unless `--force` is used. A pre-existing **foreign** entry-point file (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.github/copilot-instructions.md` owned by another tool, i.e. no `memory-system-version` frontmatter) no longer blocks `init` â€” its content is preserved and a routing block is merged in instead.
-- `memory-seed init --force` backs up and rewrites owned seed files. It still does **not** overwrite a foreign entry-point file â€” that is always merged, never clobbered.
-- `memory-seed update` refreshes stale routing files, reusable runtime procedure files, and generic skill templates; archives replaced control-plane versions; and preserves generated local memory. For a **foreign** entry-point file it injects (or re-syncs in place) a marker-delimited `<!-- BEGIN memory-seed -->â€¦<!-- END memory-seed -->` block that routes into `.memory-seed/`, leaving the host's own content untouched.
+- `memory-seed init` refuses to overwrite existing **owned** seed files unless `--force` is used. A pre-existing **foreign** entry-point file (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.github/copilot-instructions.md` owned by another tool, i.e. no `memory-system-version` frontmatter) no longer blocks `init` — its content is preserved and a routing block is merged in instead.
+- `memory-seed init --force` backs up and rewrites owned seed files. It still does **not** overwrite a foreign entry-point file — that is always merged, never clobbered.
+- `memory-seed update` refreshes stale routing files, reusable runtime procedure files, and generic skill templates; archives replaced control-plane versions; and preserves generated local memory. For a **foreign** entry-point file it injects (or re-syncs in place) a marker-delimited `<!-- BEGIN memory-seed -->…<!-- END memory-seed -->` block that routes into `.memory-seed/`, leaving the host's own content untouched.
 - `memory-seed compact` reads dated session logs from the nearest `.memory-seed/` runtime, including both `sessions/YYYY-MM-DD.md` and `sessions/YYYY-MM-DD/<user>.md`, with legacy `.AGENTS/` fallback. It prints a Markdown summary and writes only when `--output` is provided.
 - `memory-seed user set/show/clear` manages a gitignored local user slug for opt-in per-user session files.
 - `memory-seed links check` validates session-memory integrity across both layouts: duplicate `entry_id`/`hash_id`, dangling `related_entries`/`related_memories` (including entry-level `related_entries` in session-entry YAML), and per-user-file frontmatter problems (filename↔frontmatter user/date mismatch, missing/malformed `hash_id`, unsupported `schema_version`). It names the offending file and value and exits non-zero on any issue, so it doubles as a CI gate; `doctor` surfaces a one-line summary pointing at it.
 - `memory-seed migrate sessions-layout [--dry-run]` splits legacy flat session files into per-user files using `.memory-seed/project.yaml` participants, backs up migrated sources, and refuses ambiguous or unsafe merges.
 - `memory-seed link suggest [--for <entry_id>] [--top-k N]` ranks older session entries to link from a target entry (default: the newest entry), skips the target and its already-linked entries, and prints a copy-pasteable `related_entries:` snippet. Read-only.
 - `memory-seed link show <entry_id>` prints an entry's stored outbound `related_entries` plus its computed inbound backlinks, so the related-entry graph is bidirectional at read time without editing any historical entry. Read-only.
+- `memory-seed processes [--json]` lists active package-owned Memory Seed processes.
+- `memory-seed shutdown [--dry-run] [--yes] [--json]` previews or stops only matching package-owned Memory Seed processes after confirmation.
+- `memory-seed upgrade [--dry-run] [--yes] [--manager uv|pipx|pip] [--json]` handles active package-owned processes, then runs the selected package-manager upgrade command.
+- `memory-seed encoding check [path] [--json]` reports invalid UTF-8, UTF-8 BOMs, CRLF line endings, and likely mojibake markers in project-owned text files.
 - `memory-seed lense` is a deprecation shim for the review UI, which now ships as the standalone `memory-trace` package/command; it delegates when `memory-trace` is installed and otherwise prints an install hint.
 - `memory-seed session target [--create]` prints the active session log path and can create the file if needed.
 
@@ -441,8 +475,8 @@ Known behavior to understand: `update --dry-run` currently lists all control-pla
 
 Two separate things stay current, and they are not the same operation:
 
-1. The installed **package** â€” the CLI, MCP server, and the seed templates bundled inside it.
-2. Each **project's** `.memory-seed/` files â€” the seed files copied into a given repository.
+1. The installed **package** — the CLI, MCP server, and the seed templates bundled inside it.
+2. Each **project's** `.memory-seed/` files — the seed files copied into a given repository.
 
 `memory-seed update` copies seed files **from the package version currently installed or resolved**. It does not fetch from PyPI. So getting newer seed content into a project is a two-step process for persistent installs:
 
@@ -473,15 +507,25 @@ Memory Seed writes project-owned text files as UTF-8 without BOM, with LF line e
 
 Use the shared `memory_seed.text_files` helpers for project-owned text and JSON writes. Important CLI and MCP output should remain understandable as plain text even when a terminal cannot render decorative Unicode.
 
+Run the read-only checker before release or after broad documentation edits:
+
+```bash
+memory-seed encoding check
+memory-seed encoding check --json
+```
+
+It reports invalid UTF-8, UTF-8 BOMs, CRLF line endings, and likely mojibake markers. It does not
+rewrite files; repair remains a separate guarded follow-up.
+
 ## MCP Memory Search
 
 Memory Seed also includes a lightweight MCP server that lets agents search local session memory through structured tool calls instead of shelling out to broad compact summaries.
 
-**Auto-registration:** `memory-seed init` and `memory-seed update` automatically register `uvx --from memory-seed memory-seed-mcp --stdio` in each supported vendor's MCP config â€” `.mcp.json` at the project root (Claude Code), `.cursor/mcp.json` (Cursor), `.gemini/settings.json` (Gemini CLI), and `.codex/config.toml` (Codex CLI). No manual config is needed for projects initialised with Memory Seed. The `uvx --from` form is used so the command works regardless of whether `~/.local/bin` is on the agent's PATH.
+**Auto-registration:** `memory-seed init` and `memory-seed update` automatically register `uvx --from memory-seed memory-seed-mcp --stdio` in each supported vendor's MCP config — `.mcp.json` at the project root (Claude Code), `.cursor/mcp.json` (Cursor), `.gemini/settings.json` (Gemini CLI), and `.codex/config.toml` (Codex CLI). No manual config is needed for projects initialised with Memory Seed. The `uvx --from` form is used so the command works regardless of whether `~/.local/bin` is on the agent's PATH.
 
-> **Claude Code reads project-scope MCP servers from `.mcp.json`, not `.claude/settings.json`** â€” the latter is for hooks and permissions only. Versions 2.2.0â€“2.3.0 wrote the server into `.claude/settings.json`, where Claude Code silently ignored it; `memory-seed update` now writes `.mcp.json` and removes the dead entry. Restart Claude Code and approve the project server, then confirm with `claude mcp list`.
+> **Claude Code reads project-scope MCP servers from `.mcp.json`, not `.claude/settings.json`** — the latter is for hooks and permissions only. Versions 2.2.0–2.3.0 wrote the server into `.claude/settings.json`, where Claude Code silently ignored it; `memory-seed update` now writes `.mcp.json` and removes the dead entry. Restart Claude Code and approve the project server, then confirm with `claude mcp list`.
 
-> **Codex loads a project `.codex/config.toml` only for *trusted* directories.** Memory Seed writes the `[mcp_servers.memory-seed]` table there, but Codex ignores it until you trust the project (Codex prompts on first use of a directory, or set trust in Codex settings). After trusting, confirm with `codex mcp list`. `memory-seed doctor` warns if Codex hooks are present without this registration. If you hand-wrote the `memory-seed` entry in a non-standard TOML form (dotted keys, an inline table, or a header with a trailing comment) and it is outdated, `memory-seed update` will not auto-migrate it â€” `memory-seed doctor` flags it as needing a manual fix instead of silently leaving stale settings in place.
+> **Codex loads a project `.codex/config.toml` only for *trusted* directories.** Memory Seed writes the `[mcp_servers.memory-seed]` table there, but Codex ignores it until you trust the project (Codex prompts on first use of a directory, or set trust in Codex settings). After trusting, confirm with `codex mcp list`. `memory-seed doctor` warns if Codex hooks are present without this registration. If you hand-wrote the `memory-seed` entry in a non-standard TOML form (dotted keys, an inline table, or a header with a trailing comment) and it is outdated, `memory-seed update` will not auto-migrate it — `memory-seed doctor` flags it as needing a manual fix instead of silently leaving stale settings in place.
 
 If you are configuring the server manually, run it over stdio:
 
@@ -542,7 +586,7 @@ The ranking engine stays local and CPU-friendly. MCP search uses a Model2Vec sta
 
 `memory_search` is a relevance-and-recall tool, not a faster `grep`. A plain `grep` will out-scan it on raw exact-match throughput; the search wins instead on *semantic recall* over session history (surfacing relevant entries that lack the literal query words) and on *agent-token efficiency* (returning a small ranked set of self-contained chunks with stable `chunk_id`s, so an agent fetches only the one or two full entries worth reading). The two are complementary: use `memory_search` for "what did we decide and why," and `grep` for exact-string scans across the whole repo.
 
-Per-query latency, measured in-process on this repo (81 chunks across the session logs), is roughly **30 ms**, of which about **22 ms is reading and parsing the session `.md` files** â€” the search re-reads and re-parses every discovered session document on each call, with no persistent chunk or vector cache â€” and the embed + cosine + rank step adds only a few ms on top. Cold start adds a one-time cost on the *first ever* call on a machine: the Model2Vec weights download into the local HuggingFace cache (tens of MB); afterwards the static model loads in a few ms. Because the static model has no transformer forward pass, the dominant cost is file I/O, so per-query time grows linearly with total session-log size rather than with model complexity.
+Per-query latency, measured in-process on this repo (81 chunks across the session logs), is roughly **30 ms**, of which about **22 ms is reading and parsing the session `.md` files** — the search re-reads and re-parses every discovered session document on each call, with no persistent chunk or vector cache — and the embed + cosine + rank step adds only a few ms on top. Cold start adds a one-time cost on the *first ever* call on a machine: the Model2Vec weights download into the local HuggingFace cache (tens of MB); afterwards the static model loads in a few ms. Because the static model has no transformer forward pass, the dominant cost is file I/O, so per-query time grows linearly with total session-log size rather than with model complexity.
 
 When driving the server through an MCP client (Claude Code, Cursor, Gemini), the latency you actually perceive is dominated by one-time startup, not per-query work: spawning `uvx --from memory-seed memory-seed-mcp` resolves and may install the package into an ephemeral environment the first time the server launches in a session. Once the server is up, each `memory_search` is the ~30 ms compute above plus a small JSON-RPC round-trip. At current log sizes there is no need to optimize; should logs grow large enough that the ~22 ms parse cost becomes noticeable, caching parsed chunks and their vectors keyed by file modification time would remove most of the per-query cost.
 

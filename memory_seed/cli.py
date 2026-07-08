@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import sys
 from datetime import date
 from pathlib import Path
 
+from . import processes as process_tools
 from .core import (
     KNOWN_AGENTS,
     add_agent,
@@ -29,6 +31,7 @@ from .core import (
     write_local_user,
 )
 from .text_files import write_text_file
+from .text_files import encoding_issue_to_dict, scan_text_encoding
 
 
 def _print_help(parser: argparse.ArgumentParser) -> None:
@@ -61,6 +64,11 @@ def _split_csv(value: str | None) -> set[str]:
     if not value:
         return set()
     return {part.strip() for part in value.split(",") if part.strip()}
+
+
+def _format_agents(agents: set[str]) -> str:
+    ordered = [agent for agent in KNOWN_AGENTS if agent in agents]
+    return ", ".join(ordered) if ordered else "(none)"
 
 
 def _print_skill_status(status) -> None:
@@ -98,6 +106,7 @@ def main(argv: list[str] | None = None) -> int:
     subparsers = parser.add_subparsers(dest="command", required=False)
 
     subparsers.add_parser("help", help="list all commands and how they work")
+    process_tools.add_package_process_parsers(subparsers)
 
     init_parser = subparsers.add_parser("init", help="copy Memory Seed into this project")
     init_parser.add_argument("--dry-run", action="store_true", help="show planned files without writing")
@@ -109,8 +118,13 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "comma-separated agents to install ("
             + ",".join(KNOWN_AGENTS)
-            + "); default: all. Non-selected agents' files are skipped."
+            + ",none); default: all. Non-selected agents' files are skipped."
         ),
+    )
+    init_parser.add_argument(
+        "--no-agent-prompt",
+        action="store_true",
+        help="skip interactive agent selection and install all agents unless --agents is supplied",
     )
     init_parser.add_argument("--profile", type=str, default=None, help="comma-separated skill profiles to install")
     init_parser.add_argument("--skills", type=str, default=None, help="comma-separated optional skill files to install")
@@ -137,9 +151,15 @@ def main(argv: list[str] | None = None) -> int:
     skills_remove = skills_sub.add_parser("remove", help="remove an optional skill")
     skills_remove.add_argument("skill", help="optional skill filename")
 
+    encoding_parser = subparsers.add_parser("encoding", help="check project text-file encoding")
+    encoding_sub = encoding_parser.add_subparsers(dest="encoding_command", required=True)
+    encoding_check = encoding_sub.add_parser("check", help="report invalid UTF-8, BOMs, CRLF, and mojibake markers")
+    encoding_check.add_argument("path", nargs="?", default=".", help="file or directory to scan (default: current directory)")
+    encoding_check.add_argument("--json", action="store_true", help="emit machine-readable issue data")
+
     agents_parser = subparsers.add_parser("agents", help="manage which agents are installed")
     agents_sub = agents_parser.add_subparsers(dest="agents_command", required=True)
-    agents_sub.add_parser("list", help="show the selected agents")
+    agents_sub.add_parser("list", help="show selected and ignored agents")
     agents_add = agents_sub.add_parser("add", help="install an agent's files")
     agents_add.add_argument("agent", help="agent slug (" + ",".join(KNOWN_AGENTS) + ")")
     agents_remove = agents_sub.add_parser("remove", help="remove an agent's files")
@@ -230,6 +250,9 @@ def main(argv: list[str] | None = None) -> int:
         _print_help(parser)
         return 0
 
+    if args.command in process_tools.PACKAGE_COMMANDS:
+        return process_tools.run_package_process_command("memory-seed", args)
+
     if args.command == "version":
         print(get_version())
         return 0
@@ -275,6 +298,33 @@ def main(argv: list[str] | None = None) -> int:
             except ValueError:
                 print(target.path.as_posix())
             return 0
+
+    if args.command == "encoding":
+        if args.encoding_command == "check":
+            root = Path(args.path).resolve()
+            display_root = root if root.is_dir() else root.parent
+            issues = scan_text_encoding(root)
+            if args.json:
+                print(
+                    json.dumps(
+                        {
+                            "path": root.as_posix(),
+                            "issue_count": len(issues),
+                            "issues": [encoding_issue_to_dict(issue, root=display_root) for issue in issues],
+                        },
+                        indent=2,
+                        ensure_ascii=False,
+                    )
+                )
+                return 1 if issues else 0
+            if not issues:
+                print("Encoding check OK.")
+                return 0
+            print(f"Encoding check found {len(issues)} issue(s):", file=sys.stderr)
+            for issue in issues:
+                data = encoding_issue_to_dict(issue, root=display_root)
+                print(f"  [{data['kind']}] {data['path']}: {data['detail']}", file=sys.stderr)
+            return 1
 
     if args.command == "links":
         if args.links_command == "check":
@@ -471,9 +521,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "agents":
         target = Path(".").resolve()
         if args.agents_command == "list":
-            print("Selected agents: " + ", ".join(sorted(selected_agents(target))))
+            agent_selection = selected_agents(target)
+            print("Selected agents: " + _format_agents(agent_selection))
+            print("Ignored agents: " + _format_agents(set(KNOWN_AGENTS) - agent_selection))
             if read_project_agents(target) is None:
-                print("(no .memory-seed/project.yaml — all agents active by default)")
+                print("(no .memory-seed/project.yaml - all agents active by default)")
             return 0
         if args.agents_command == "add":
             try:
@@ -542,16 +594,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "init":
         isatty = sys.stdin.isatty() and not args.dry_run
         prompt_response = None
-        if not args.agents and isatty:
-            print("Which agents will use this project? (comma-separated; Enter = all)")
+        if not args.agents and isatty and not args.no_agent_prompt:
+            print("Which agent integrations should be installed? (comma-separated)")
             for slug in KNOWN_AGENTS:
                 print(f"  - {slug}")
             print(
                 "Always installed: AGENTS.md, the .memory-seed/ runtime, and .agents/ "
                 "personas. 'copilot' covers both the CLI and VS Code."
             )
+            print("Recommended default: all. Enter 'none' for shared runtime only.")
             try:
-                prompt_response = input("agents> ")
+                prompt_response = input("agents [all]> ")
             except EOFError:
                 prompt_response = None
         try:
@@ -626,6 +679,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Archived: {archived}")
         if result.backed_up:
             print("Added .memory-seed/backups/ to .gitignore to reduce accidental backup leaks.")
+        agent_selection = selected_agents(Path(".").resolve())
+        ignored_agents = set(KNOWN_AGENTS) - agent_selection
+        print("Installed agents: " + _format_agents(agent_selection))
+        print("Ignored agents: " + _format_agents(ignored_agents))
+        print("Always installed: AGENTS.md, .memory-seed/, and .agents/ personas.")
         status = skill_status(Path(".").resolve())
         print("Installed core skills: " + ", ".join(status.core))
         if status.installed_optional:
