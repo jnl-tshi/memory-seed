@@ -12,7 +12,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator, Literal, Sequence
 
-from .text_files import read_json_file, read_text_file, write_json_file, write_text_file
+from .text_files import (
+    read_json_file,
+    read_text_file,
+    scan_implicit_text_io,
+    scan_text_encoding,
+    write_json_file,
+    write_text_file,
+)
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 SEED_ROOT = PACKAGE_ROOT / "seed"
@@ -3069,6 +3076,14 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
             f"Session memory has {len(links.issues)} integrity issue(s) "
             "(duplicate/dangling IDs or per-user frontmatter problems). Run "
             "`memory-seed links check` for the full report."
+        )
+
+    encoding_issues = scan_text_encoding(target_root) + scan_implicit_text_io(target_root)
+    if encoding_issues:
+        warnings.append(
+            f"Project text has {len(encoding_issues)} encoding issue(s) "
+            "(UTF-8/LF/NFC drift, likely mojibake, or implicit Python text I/O). Run "
+            "`memory-seed encoding check` for the full report."
         )
 
     return DoctorResult(

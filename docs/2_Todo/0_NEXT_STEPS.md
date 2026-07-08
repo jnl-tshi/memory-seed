@@ -13,24 +13,21 @@ release history below is retained for context only.
 
 | Priority | Proposal | Why This Order |
 |---|---|---|
-| P0 | `utf8-encoding-doctor-and-static-check-plan.md` | Add repair + static implicit-I/O enforcement after the read-only `encoding check` scanner and active-tree mojibake repair. |
-| P1 | `memory-trace-distribution-plan.md` | Finish release-ordering/publication follow-through: core 2.17 before `memory-trace 0.1.0`. |
-| P2 | `memory-trace-topic-neighbourhoods-plan.md` | Implement core per-project topic indexes and 1-3 indexed `topics:` per meaningful entry, while keeping Trace's tag/context topics as fallback for old entries. |
-| P3 | `readme-front-door-refresh-plan.md` | Polish launch-facing docs once the release-safety and Trace packaging blockers are settled. |
+| P0 | `memory-trace-distribution-plan.md` | Finish release-ordering/publication follow-through: core 2.17 before `memory-trace 0.1.0`. |
+| P1 | `memory-trace-topic-neighbourhoods-plan.md` | Implement core per-project topic indexes and 1-3 indexed `topics:` per meaningful entry, while keeping Trace's tag/context topics as fallback for old entries. |
+| P2 | `readme-front-door-refresh-plan.md` | Polish launch-facing docs once the release-safety and Trace packaging blockers are settled. |
 
 Immediate implementation target:
 
-1. Complete P0 if the goal is hardening before release.
-2. Complete P1 if release ordering/publication is the next blocker.
-3. P2 is now clarified and implementation-ready, but should still follow P0-P1 unless graph/topic
-   memory becomes the immediate blocker.
+1. Complete P0 release ordering: publish Memory Seed 2.17 before Memory Trace 0.1.0.
+2. Implement P1 after package boundaries are available to test against released core behavior.
+3. Complete P2 with real screenshots/GIFs where available and explicit placeholders otherwise.
 
 Active but not in the next small run unless reprioritized:
 
 - `session-decision-diagrams-plan.md` Phase 3 export packs.
 - `related-entries-p2-mutation-plan.md` historical curation writers.
 - `memory-trace-ai-timeline-summarisation-plan.md` AI-assisted evidence-pack summaries.
-- `readme-front-door-refresh-plan.md` launch-documentation polish.
 
 Continuity naming for new work:
 
@@ -188,10 +185,9 @@ First batch of multi-user Phase 3 increments from the reviewed 3.0 plan
   `docs/reference/` for newly initialized projects.
 - **Compact diagramming skill:** `compact_mermaid_diagrams.md` is seeded and registered, covering
   compact rectangular Mermaid layout plus Mermaid-first/D2-specialist selection guidance.
-- **UTF-8 encoding policy Phase 1 + checker slice:** `.editorconfig`, `.gitattributes`,
-  `memory_seed.text_files`, README policy, generated-write hardening, MCP Unicode output, non-ASCII
-  round-trip tests, and `memory-seed encoding check` are implemented. Follow-up remains active for
-  `encoding repair` and static implicit-I/O enforcement.
+- **UTF-8 encoding hardening:** `.editorconfig`, `.gitattributes`, `memory_seed.text_files`, README
+  policy, generated-write hardening, MCP Unicode output, `encoding check`, backup-first atomic
+  `encoding repair`, production implicit-I/O enforcement, and doctor summaries are implemented.
 - **Safe shutdown/upgrade workflow proposal:** completed for `memory-seed` and `memory-trace`;
   process discovery, dry-run previews, JSON output, confirmation-gated shutdown, failed-shutdown
   upgrade blocking, manager selection/detection, and `uv`/`pipx`/`pip` upgrade command execution are
@@ -254,7 +250,7 @@ Specs:
 - [`completed/memory-trace-product-and-trail-view-plan.md`](completed/memory-trace-product-and-trail-view-plan.md) (**completed 2026-07-06** - Memory Trace is the package/product, Trail is the branch/supersession evolution view)
 - [`completed/risk-signaling-and-stop-triggers-plan.md`](completed/risk-signaling-and-stop-triggers-plan.md) (**implemented 2026-07-05, unreleased** - consolidates confidence signaling and STOP-trigger guidance into one lazy-loaded risk skill before mutation/automation work)
 - [`completed/memory-seed-utf8-encoding-policy-phase-1.md`](completed/memory-seed-utf8-encoding-policy-phase-1.md) (**completed 2026-07-07, unreleased** - UTF-8/LF/NFC policy, repo config, helper, docs, MCP Unicode output, and regression tests)
-- [`utf8-encoding-doctor-and-static-check-plan.md`](utf8-encoding-doctor-and-static-check-plan.md) (**active** - checker/repair/static enforcement follow-up split from the completed Phase 1 work)
+- [`completed/utf8-encoding-doctor-and-static-check-plan.md`](completed/utf8-encoding-doctor-and-static-check-plan.md) (**completed 2026-07-08, unreleased** - checker/repair/static enforcement follow-up split from the completed Phase 1 work)
 - [`completed/memory-seed-trace-upgrade-shutdown-plan.md`](completed/memory-seed-trace-upgrade-shutdown-plan.md) (**completed 2026-07-08, unreleased** - conservative process shutdown and package-manager-aware upgrade workflow for Memory Seed and Memory Trace)
 
 ### Proposal Priority Order
@@ -271,9 +267,9 @@ P2 - **Read-only surfacing before behavior changes.** Expose raw `inbound_relati
 metadata, and later `importance_score` as inspectable metadata before any default search-ranking
 changes.
 
-P2a - **Encoding hardening follow-up.** Phase 1 shipped the policy/helper layer. The remaining
-`encoding check/repair` and static implicit-I/O enforcement should land before broad user-facing
-release if time allows, but it is not a blocker for the Trace extraction.
+P2a - **Encoding hardening follow-up - implemented 2026-07-08 (unreleased).** Phase 1's
+policy/helper layer now has check/repair commands, static implicit-I/O enforcement, backup-first
+atomic safe repair, and non-fatal doctor integration.
 
 P2b - **Memory Trace product naming + Trail view gate - implemented 2026-07-06 (unreleased).** The
 Trail-only product name is superseded; Memory Trace is the companion product/package/command, and

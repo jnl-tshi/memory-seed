@@ -337,6 +337,7 @@ python -m memory_seed.cli processes --json
 python -m memory_seed.cli shutdown --dry-run
 python -m memory_seed.cli upgrade --dry-run --manager uv
 python -m memory_seed.cli encoding check
+python -m memory_seed.cli encoding repair --dry-run
 python -m memory_seed.cli init --dry-run
 python -m memory_seed.cli update --dry-run
 python -m memory_seed.cli compact
@@ -465,7 +466,8 @@ When run in a project that already has Memory Seed files:
 - `memory-seed processes [--json]` lists active package-owned Memory Seed processes.
 - `memory-seed shutdown [--dry-run] [--yes] [--json]` previews or stops only matching package-owned Memory Seed processes after confirmation.
 - `memory-seed upgrade [--dry-run] [--yes] [--manager uv|pipx|pip] [--json]` handles active package-owned processes, then runs the selected package-manager upgrade command.
-- `memory-seed encoding check [path] [--json]` reports invalid UTF-8, UTF-8 BOMs, CRLF line endings, and likely mojibake markers in project-owned text files.
+- `memory-seed encoding check [path] [--json]` reports invalid UTF-8, UTF-8 BOMs, CRLF line endings, non-NFC text, likely mojibake markers, and implicit text-mode Python I/O in project-owned files.
+- `memory-seed encoding repair [path] [--dry-run] [--json]` previews or repairs BOM, newline, and NFC drift with atomic writes and timestamped backups. Invalid UTF-8 and likely mojibake are blocked for manual review.
 - `memory-seed lense` is a deprecation shim for the review UI, which now ships as the standalone `memory-trace` package/command; it delegates when `memory-trace` is installed and otherwise prints an install hint.
 - `memory-seed session target [--create]` prints the active session log path and can create the file if needed.
 
@@ -507,15 +509,25 @@ Memory Seed writes project-owned text files as UTF-8 without BOM, with LF line e
 
 Use the shared `memory_seed.text_files` helpers for project-owned text and JSON writes. Important CLI and MCP output should remain understandable as plain text even when a terminal cannot render decorative Unicode.
 
-Run the read-only checker before release or after broad documentation edits:
+Run the checker before release or after broad documentation edits:
 
 ```bash
 memory-seed encoding check
 memory-seed encoding check --json
+memory-seed encoding repair --dry-run
 ```
 
-It reports invalid UTF-8, UTF-8 BOMs, CRLF line endings, and likely mojibake markers. It does not
-rewrite files; repair remains a separate guarded follow-up.
+The checker also flags non-NFC text and production Python calls that use text mode without an
+explicit encoding. Tests, nested `.claude/worktrees/`, `.memory-seed/archive/`, and backup snapshots
+are excluded from static or repair scope. Use
+`# memory-seed: allow-implicit-text-io` only for a reviewed line where the platform default is
+intentional.
+
+`encoding repair` is explicit and backup-first. `--dry-run` previews changes. Applying it removes
+UTF-8 BOMs, converts CRLF/bare-CR to LF, and normalizes Unicode to NFC using atomic replacement,
+while preserving the original bytes under
+`.memory-seed/backups/encoding/<timestamp>/`. Invalid UTF-8 and likely mojibake are never guessed at
+or rewritten; the command reports them as blocked and exits non-zero.
 
 ## MCP Memory Search
 

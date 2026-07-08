@@ -1,5 +1,6 @@
-> Status: PROMOTED 2026-07-08. Source copy retained in inbox because the OneDrive reparse-point
-> file could not be deleted by PowerShell or apply_patch. Canonical active plan:
+> Status: SOURCE RESOLVED 2026-07-08. Canonical source archive:
+> `docs/2_Todo/completed/memory-trail-graph-and-topic-neighbourhoods.md`. This todo-path copy remains
+> only because OneDrive denied removal of the reparse-point file. Canonical active plan:
 > `docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md`.
 
 # Proposal: Minimal Memory Trail Graph and Topic Neighbourhood Model for Memory Seed

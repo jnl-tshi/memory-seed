@@ -5,7 +5,8 @@ Priority: High
 Source: Promoted from `docs/1_Inbox/memory_seed_utf8_encoding_policy.md`.
 Scope: Establish the UTF-8/LF/NFC repository policy, add shared text/JSON helpers, patch obvious Memory Seed text-write gaps, document the contract, and add regression tests.
 Non-goals: Phase 1 does not implement `memory-seed encoding check`, `memory-seed encoding repair`, CI/static implicit-encoding enforcement, or mirrored Memory Trace repair commands.
-Dependencies: Follow-up plan `docs/2_Todo/utf8-encoding-doctor-and-static-check-plan.md`.
+Dependencies: Completed follow-up plan
+`docs/2_Todo/completed/utf8-encoding-doctor-and-static-check-plan.md`.
 Acceptance criteria: `.editorconfig`, `.gitattributes`, README encoding policy, shared helper tests, explicit JSON/text writes in core generated config paths, and MCP Unicode-preserving output are present.
 
 Completion summary: Phase 1 shipped a shared `memory_seed.text_files` helper for UTF-8/LF/NFC text and Unicode-preserving JSON, added `.editorconfig` and `.gitattributes`, documented the policy, patched obvious generated config/session/routing writes, and added non-ASCII round-trip tests. The original source proposal is retained below for provenance.

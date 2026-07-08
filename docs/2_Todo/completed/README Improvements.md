@@ -1,5 +1,5 @@
-> Status: PROMOTED 2026-07-08. Source copy retained in inbox because the OneDrive reparse-point
-> file could not be deleted by PowerShell or apply_patch. Canonical active plan:
+> Status: SOURCE RESOLVED 2026-07-08. Actionable recommendations were refined into the canonical
+> active plan:
 > `docs/2_Todo/readme-front-door-refresh-plan.md`.
 
 this document is intended as a suggested new format for the root level readme doc. it follows the following principles:

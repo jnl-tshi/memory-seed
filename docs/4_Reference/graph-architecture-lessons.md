@@ -10,7 +10,7 @@ tags:
 # Graph Architecture Lessons
 
 Status: Reference
-Source: Moved from `docs/1_Inbox/graph recommendations.md` on 2026-07-08.
+Source: Refined from `docs/2_Todo/completed/graph recommendations.md` on 2026-07-08.
 Used by: `docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md`
 
 ## Summary

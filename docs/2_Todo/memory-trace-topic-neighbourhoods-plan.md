@@ -15,8 +15,9 @@ Status: ACTIVE - accepted for implementation; implementation not started.
 Priority: P3 after release-safety, encoding hardening, and Memory Trace package release ordering. It
 should run before AI timeline summarisation because topic filters become part of the evidence-pack
 contract.
-Source: Promoted from `docs/1_Inbox/memory-trail-graph-and-topic-neighbourhoods.md` and folded with
-`docs/1_Inbox/graph recommendations.md` on 2026-07-08. Clarified by user decision on 2026-07-08:
+Source: Promoted from `docs/2_Todo/completed/memory-trail-graph-and-topic-neighbourhoods.md` and
+folded with `docs/2_Todo/completed/graph recommendations.md` on 2026-07-08. Clarified by user
+decision on 2026-07-08:
 indexed topics should become the normal session-entry model, with 1-3 topics per entry and a unique
 topic index per project.
 Scope: Define and implement controlled topic neighbourhoods as a core Memory Seed session-entry

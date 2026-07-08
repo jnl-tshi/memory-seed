@@ -443,6 +443,21 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(any("integrity issue" in w for w in result.warnings))
         self.assertTrue(result.control_plane_ok)  # non-fatal
 
+    def test_doctor_summarizes_encoding_and_static_text_io_issues(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        (cwd / "bad.md").write_bytes(b"alpha\r\n")
+        package = cwd / "package"
+        package.mkdir()
+        (package / "bad.py").write_bytes(b"open('notes.md')\n")
+
+        result = doctor(cwd=cwd)
+
+        warning = next(w for w in result.warnings if "encoding issue" in w)
+        self.assertIn("2 encoding issue(s)", warning)
+        self.assertIn("memory-seed encoding check", warning)
+        self.assertTrue(result.control_plane_ok)
+
     def test_version_at_least_orders_versions_numerically(self):
         from memory_seed.core import _version_at_least
 

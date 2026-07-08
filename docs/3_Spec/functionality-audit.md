@@ -130,7 +130,8 @@ graph TD
 | `processes [--json]` | Read-only: list active package-owned Memory Seed processes. |
 | `shutdown [--dry-run] [--yes] [--json]` | Preview or stop only matching package-owned Memory Seed processes after confirmation; default answer is no. |
 | `upgrade [--dry-run] [--yes] [--manager uv\|pipx\|pip] [--json]` | Handle active package-owned processes, then run the selected package-manager upgrade command; failed shutdown blocks upgrade. |
-| `encoding check [path] [--json]` | Read-only: report invalid UTF-8, UTF-8 BOMs, CRLF line endings, and likely mojibake markers in project-owned text files. |
+| `encoding check [path] [--json]` | Read-only: report invalid UTF-8, UTF-8 BOMs, CRLF line endings, non-NFC text, likely mojibake, and implicit text-mode Python I/O. |
+| `encoding repair [path] [--dry-run] [--json]` | Preview or atomically repair safe BOM/newline/NFC drift after timestamped backup; block invalid UTF-8 and likely mojibake for manual review. |
 | `lense [--cwd] [--host] [--port] [--no-open]` | **Deprecated shim** (new in 2.13, extracted post-2.16): the review UI moved to the standalone `memory-trace` package/command. Delegates to it when installed, else prints an install hint. |
 | `version` | Print bundled control-plane version. |
 | `help` (or no args) | Full command reference. |
@@ -389,7 +390,7 @@ graph TD
 - **Security & privacy.** Public-memory hygiene rule (no secrets, credentials, or unnecessary personal data in memory/logs). PyPI publish uses OIDC with a manual-approval gate. Uninstall strips only Memory Seed's own entries and preserves foreign config. Hooks are read-only and cannot exfiltrate.
 - **Error handling & resilience.** Hooks **degrade to silent** on any error (never block the agent). `project.yaml` parsing **fails open** (absent/malformed/no-`agents:` => all agents). `update` is forward-only (cannot downgrade a newer project). `remove` and `init --force` back up before touching files. `doctor` separates hard checks from a non-fatal `warnings` channel. Project-owned text writes now have an explicit UTF-8/LF/NFC helper plus repository `.editorconfig`/`.gitattributes`; **known gap:** file writes are direct, not atomic temp-then-rename - a crash mid-write could truncate a file (see Risks).
 - **Persistence & concurrency.** Plain files; session logs are strictly append-only with current-clock timestamps so write order == time order. No file locking; the model assumes a single writer per day.
-- **Encoding contract.** Project-owned text artifacts are UTF-8 without BOM, LF line endings, and NFC-normalized. `memory_seed.text_files` is the shared helper for generated text/JSON reads and writes; JSON helpers preserve readable Unicode (`ensure_ascii=False`). MCP stdio output is explicitly Unicode-preserving. `memory-seed encoding check` now reports invalid UTF-8, UTF-8 BOMs, CRLF line endings, and likely mojibake markers without rewriting files.
+- **Encoding contract.** Project-owned text artifacts are UTF-8 without BOM, LF line endings, and NFC-normalized. `memory_seed.text_files` is the shared helper for generated text/JSON reads and writes; JSON helpers preserve readable Unicode (`ensure_ascii=False`). MCP stdio output is explicitly Unicode-preserving. `memory-seed encoding check` reports byte/normalization drift, likely mojibake, and implicit production Python text I/O. `encoding repair` uses atomic replacement and timestamped backups for mechanically safe BOM/newline/NFC fixes; invalid UTF-8 and likely mojibake remain manual.
 - **Dependencies.** Runtime (required): `model2vec>=0.8.1` (+ `numpy` transitively). Runtime (optional, `memory-seed[lense]` extra only): `fastapi>=0.110`, `uvicorn>=0.27` - the default CLI/MCP path stays dependency-light; `lense` prints an install hint rather than failing when the extra isn't installed. Tests: stdlib `unittest`. No ORM, no message bus.
 
 ## 10. Architecture decisions
@@ -436,7 +437,7 @@ Measured on this repository's own corpus on 2026-06-14 (Windows, Python 3.11). I
 | Version-bump trap (root files missed by scoped sed) | Shipping mismatched versions | **Guarded** by `test_repo_root_control_plane_files_match_version` |
 | `update --dry-run` lists all targets, not just changed | Noisy preview | Documented in README |
 | Non-atomic file writes (no temp+rename) | Corruption on crash mid-write | Open - candidate hardening item. Note: Memory Trace's cache *does* use temp-file + atomic `os.replace`, so this gap is specifically about control-plane/session file writes, not the cache. |
-| Encoding drift / mojibake on Windows defaults | Corrupted Markdown, JSON, logs, or MCP payload readability | **Partly mitigated 2026-07-08** - `.editorconfig`, `.gitattributes`, UTF-8/LF/NFC helper, README policy, MCP Unicode output, helper tests, and `memory-seed encoding check` added; follow-up active for repair and static implicit-I/O checks. |
+| Encoding drift / mojibake on Windows defaults | Corrupted Markdown, JSON, logs, or MCP payload readability | **Mitigated 2026-07-08** - `.editorconfig`, `.gitattributes`, UTF-8/LF/NFC helpers, MCP Unicode output, read-only checks, backup-first atomic repair for safe drift, production implicit-I/O checks, and non-fatal doctor summaries are implemented. Suspected mojibake remains intentionally manual. |
 | Single-writer session model | Concurrent multi-author Git conflicts | **Phased migration underway** - dual-read (2.9), opt-in per-user write targets/hooks (2.10), integrity validation, ID widening, MCP filters, participant registry parsing, and migration support all shipped through 2.12.0 |
 
 ## 13. Glossary
@@ -461,7 +462,7 @@ Sources: `docs/2_Todo/0_NEXT_STEPS.md` and `docs/2_Todo/`. Status reflects the c
 
 **Shipped since the 2.7.0 audit:** 2.8.0 non-destructive foreign-routing merge + doctor route-presence backstop (section 3E, section 3L); 2.9.0 read-only dual-discovery of per-user session files (section 3J); 2.10.0 opt-in user-aware session targets/hooks + `user`/`session target` CLI (section 3B, section 3H, section 3J); 2.11.0 ESR generalization; 2.12.0 session-memory integrity validation, 80-bit entry IDs, MCP metadata/filters, participant registry, and `migrate sessions-layout`; 2.13.0 Memory Lense, related-entries generation P1, and lazy-skill extraction; 2.14.0 participant-count layout gating, one-time identity offer, doctor local-user warning, legacy-flat links-check fix, Working Principles additions, failed-approach logging, Mermaid guidance, and the Fan-Out Recipe.
 
-**Unreleased, queued under `CHANGELOG.md`'s `## Unreleased`:** typed supersession edges P1; git commit entry linking P1; ranking P1a/P1b (`inbound_relation_count`, `importance_score`); Trace graph `related_degree` -> `connectivity` rename; UTF-8 encoding policy Phase 1 plus `encoding check`; and safe process shutdown / package-manager-aware upgrade execution for Memory Seed and Memory Trace.
+**Unreleased, queued under `CHANGELOG.md`'s `## Unreleased`:** typed supersession edges P1; git commit entry linking P1; ranking P1a/P1b (`inbound_relation_count`, `importance_score`); Trace graph `related_degree` -> `connectivity` rename; UTF-8 encoding policy plus check/repair/static enforcement; and safe process shutdown / package-manager-aware upgrade execution for Memory Seed and Memory Trace.
 Additional unreleased control-plane documentation: `proposal_lifecycle.md` now governs proposal movement
 through inbox -> todo -> completed -> reference/spec lanes, with repo-numbered and generic bootstrap
 path conventions; worktree dependency strategy Phase 1 (dependency tiers,
@@ -533,5 +534,5 @@ graph TD
   related/supersession/commit graph metadata, MCP exposure, MCP/retrieval-service parity and one-way
   dependency, entry-level rollup, Memory Trace graph field naming, the `exclude_superseded` search
   filter, process shutdown/upgrade flows, encoding checks, and seed/live parity. Current suite:
-  **269 core tests + 35 Memory Trace tests** (verified 2026-07-08).
+  **276 core tests + 35 Memory Trace tests** (verified 2026-07-08).
 - `memory-seed doctor` is the runtime health gate; `memory-seed-mcp-validate` validates retrieval end-to-end.

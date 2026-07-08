@@ -30,8 +30,13 @@ from .core import (
     update_project,
     write_local_user,
 )
-from .text_files import write_text_file
-from .text_files import encoding_issue_to_dict, scan_text_encoding
+from .text_files import (
+    encoding_issue_to_dict,
+    repair_text_encoding,
+    scan_implicit_text_io,
+    scan_text_encoding,
+    write_text_file,
+)
 
 
 def _print_help(parser: argparse.ArgumentParser) -> None:
@@ -151,11 +156,26 @@ def main(argv: list[str] | None = None) -> int:
     skills_remove = skills_sub.add_parser("remove", help="remove an optional skill")
     skills_remove.add_argument("skill", help="optional skill filename")
 
-    encoding_parser = subparsers.add_parser("encoding", help="check project text-file encoding")
+    encoding_parser = subparsers.add_parser("encoding", help="check or repair project text-file encoding")
     encoding_sub = encoding_parser.add_subparsers(dest="encoding_command", required=True)
-    encoding_check = encoding_sub.add_parser("check", help="report invalid UTF-8, BOMs, CRLF, and mojibake markers")
+    encoding_check = encoding_sub.add_parser(
+        "check",
+        help="report encoding drift and implicit text I/O",
+    )
     encoding_check.add_argument("path", nargs="?", default=".", help="file or directory to scan (default: current directory)")
     encoding_check.add_argument("--json", action="store_true", help="emit machine-readable issue data")
+    encoding_repair = encoding_sub.add_parser(
+        "repair",
+        help="back up and repair BOM, newline, and NFC drift; mojibake remains manual",
+    )
+    encoding_repair.add_argument(
+        "path",
+        nargs="?",
+        default=".",
+        help="file or directory to repair (default: current directory)",
+    )
+    encoding_repair.add_argument("--dry-run", action="store_true", help="preview repairs without writing")
+    encoding_repair.add_argument("--json", action="store_true", help="emit machine-readable result data")
 
     agents_parser = subparsers.add_parser("agents", help="manage which agents are installed")
     agents_sub = agents_parser.add_subparsers(dest="agents_command", required=True)
@@ -303,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.encoding_command == "check":
             root = Path(args.path).resolve()
             display_root = root if root.is_dir() else root.parent
-            issues = scan_text_encoding(root)
+            issues = scan_text_encoding(root) + scan_implicit_text_io(root)
             if args.json:
                 print(
                     json.dumps(
@@ -323,8 +343,63 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Encoding check found {len(issues)} issue(s):", file=sys.stderr)
             for issue in issues:
                 data = encoding_issue_to_dict(issue, root=display_root)
-                print(f"  [{data['kind']}] {data['path']}: {data['detail']}", file=sys.stderr)
+                location = f"{data['path']}:{data['line']}" if "line" in data else data["path"]
+                print(f"  [{data['kind']}] {location}: {data['detail']}", file=sys.stderr)
             return 1
+        if args.encoding_command == "repair":
+            root = Path(args.path).resolve()
+            display_root = root if root.is_dir() else root.parent
+            result = repair_text_encoding(root, dry_run=args.dry_run)
+
+            def display_path(path: Path) -> str:
+                try:
+                    return path.relative_to(display_root).as_posix()
+                except ValueError:
+                    return path.as_posix()
+
+            if args.json:
+                print(
+                    json.dumps(
+                        {
+                            "path": root.as_posix(),
+                            "dry_run": args.dry_run,
+                            "planned_count": len(result.planned),
+                            "repaired_count": len(result.repaired),
+                            "backed_up_count": len(result.backed_up),
+                            "blocked_count": len(result.blocked),
+                            "planned": [
+                                {
+                                    "path": display_path(item.path),
+                                    "issue_kinds": list(item.issue_kinds),
+                                }
+                                for item in result.planned
+                            ],
+                            "repaired": [display_path(item.path) for item in result.repaired],
+                            "backed_up": [path.as_posix() for path in result.backed_up],
+                            "blocked": [
+                                encoding_issue_to_dict(issue, root=display_root)
+                                for issue in result.blocked
+                            ],
+                        },
+                        indent=2,
+                        ensure_ascii=False,
+                    )
+                )
+                return 1 if result.blocked else 0
+            action = "Would repair" if args.dry_run else "Repaired"
+            items = result.planned if args.dry_run else result.repaired
+            for item in items:
+                print(f"{action}: {display_path(item.path)} ({', '.join(item.issue_kinds)})")
+            for backup in result.backed_up:
+                print(f"Backed up: {backup.as_posix()}")
+            for issue in result.blocked:
+                data = encoding_issue_to_dict(issue, root=display_root)
+                print(f"Blocked [{data['kind']}] {data['path']}: {data['detail']}", file=sys.stderr)
+            if not items and not result.blocked:
+                print("Encoding repair found no changes.")
+            elif args.dry_run:
+                print("No files changed.")
+            return 1 if result.blocked else 0
 
     if args.command == "links":
         if args.links_command == "check":

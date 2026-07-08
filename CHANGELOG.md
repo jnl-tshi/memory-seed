@@ -7,9 +7,11 @@ All notable changes to Memory Seed are summarized here.
 - Added the Phase 1 UTF-8 text contract: `.editorconfig`, `.gitattributes`, `memory_seed.text_files`
   helpers for UTF-8/LF/NFC text and Unicode-preserving JSON, README documentation, MCP
   Unicode-preserving JSON output, and regression tests for non-ASCII round trips.
-- Added `memory-seed encoding check`: a read-only scanner for project-owned text files that reports
-  invalid UTF-8, UTF-8 BOMs, CRLF line endings, and likely mojibake markers. Repair and static
-  implicit-I/O enforcement remain active follow-ups.
+- Completed encoding hardening: `memory-seed encoding check` reports invalid UTF-8, UTF-8 BOMs,
+  CRLF line endings, non-NFC text, likely mojibake, and implicit text-mode Python I/O. The new
+  `memory-seed encoding repair [--dry-run]` command atomically repairs safe BOM/newline/NFC drift
+  after writing timestamped backups, while invalid UTF-8 and likely mojibake remain blocked for
+  manual review. `doctor` now summarizes encoding findings non-fatally.
 - Added safe process-management and upgrade commands for both packages: `memory-seed processes`,
   `memory-seed shutdown`, and `memory-seed upgrade`, plus matching delegated commands for
   `memory-trace`. Shutdown is confirmation-gated by default, supports `--dry-run`, `--yes`, and JSON
