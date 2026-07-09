@@ -58,13 +58,15 @@ _ROUTING_STANZA = (
     "3. `.memory-seed/policy.md` — constraints\n"
     "4. `.memory-seed/skills/index.md` — skill trigger registry\n"
     "\n"
-    "Append a session entry to `.memory-seed/sessions/YYYY-MM-DD.md` after meaningful work.\n"
+    "Append a session entry to the active grouped session target "
+    "(`.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md` by default) after meaningful work.\n"
     "Instructions above this block remain authoritative for their own domain.\n"
     "<!-- END memory-seed -->"
 )
 
 SESSION_DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.md$")
 SESSION_DAY_DIR_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})$")
+SESSION_MONTH_DIR_RE = re.compile(r"^(\d{4}-\d{2})$")
 SESSION_USER_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 _RESERVED_SESSION_STEMS = {"index", "readme", "policy"}
 HEADING_RE = re.compile(r"^##\s+(.+)$", re.MULTILINE)
@@ -150,7 +152,7 @@ class SessionDocument:
     path: Path
     session_date: str
     user: str | None
-    layout: Literal["legacy-flat", "per-user-day"]
+    layout: Literal["legacy-flat", "per-user-day", "month-flat", "month-user"]
 
 
 @dataclass(frozen=True)
@@ -158,7 +160,15 @@ class SessionTarget:
     path: Path
     session_date: str
     user: str | None
-    layout: Literal["legacy-flat", "per-user-day"]
+    layout: Literal["legacy-flat", "per-user-day", "month-flat", "month-user"]
+
+
+@dataclass(frozen=True)
+class DiagramSidecarDocument:
+    path: Path
+    diagram_date: str | None
+    layout: Literal["legacy-diagram", "month-diagram"]
+    malformed_reason: str | None = None
 
 
 @dataclass
@@ -245,20 +255,108 @@ def iter_session_documents(sessions_dir: Path) -> Iterator[SessionDocument]:
         if not path.is_dir():
             continue
         day_match = SESSION_DAY_DIR_RE.match(path.name)
-        if not day_match:
+        if day_match:
+            date_str = day_match.group(1)
+            if not _valid_session_date(date_str):
+                continue
+            for child in path.iterdir():
+                if not child.is_file() or child.suffix != ".md":
+                    continue
+                user = child.stem
+                if user in _RESERVED_SESSION_STEMS or not SESSION_USER_SLUG_RE.match(user):
+                    continue
+                documents.append(SessionDocument(path=child, session_date=date_str, user=user, layout="per-user-day"))
             continue
-        date_str = day_match.group(1)
-        if not _valid_session_date(date_str):
+
+        month_match = SESSION_MONTH_DIR_RE.match(path.name)
+        if not month_match:
             continue
+        month_str = month_match.group(1)
+        for child in path.iterdir():
+            if child.is_file():
+                date_match = SESSION_DATE_RE.match(child.name)
+                if not date_match:
+                    continue
+                date_str = date_match.group(1)
+                if not _valid_session_date(date_str) or not date_str.startswith(month_str + "-"):
+                    continue
+                documents.append(SessionDocument(path=child, session_date=date_str, user=None, layout="month-flat"))
+                continue
+            if not child.is_dir():
+                continue
+            day_match = SESSION_DAY_DIR_RE.match(child.name)
+            if not day_match:
+                continue
+            date_str = day_match.group(1)
+            if not _valid_session_date(date_str) or not date_str.startswith(month_str + "-"):
+                continue
+            for user_file in child.iterdir():
+                if not user_file.is_file() or user_file.suffix != ".md":
+                    continue
+                user = user_file.stem
+                if user in _RESERVED_SESSION_STEMS or not SESSION_USER_SLUG_RE.match(user):
+                    continue
+                documents.append(SessionDocument(path=user_file, session_date=date_str, user=user, layout="month-user"))
+
+    return iter(sorted(documents, key=lambda doc: (doc.session_date, doc.user or "", doc.path.as_posix())))
+
+
+def iter_diagram_sidecar_documents(sessions_dir: Path) -> Iterator[DiagramSidecarDocument]:
+    documents: list[DiagramSidecarDocument] = []
+    diagrams_dir = sessions_dir / "diagrams"
+    if not diagrams_dir.is_dir():
+        return iter(())
+
+    for path in diagrams_dir.iterdir():
+        if path.is_file():
+            date_match = SESSION_DATE_RE.match(path.name)
+            if not date_match or not _valid_session_date(date_match.group(1)):
+                documents.append(
+                    DiagramSidecarDocument(
+                        path=path,
+                        diagram_date=None,
+                        layout="legacy-diagram",
+                        malformed_reason=f"filename '{path.name}' is not a YYYY-MM-DD.md date",
+                    )
+                )
+                continue
+            documents.append(DiagramSidecarDocument(path=path, diagram_date=date_match.group(1), layout="legacy-diagram"))
+            continue
+
+        if not path.is_dir():
+            continue
+        month_match = SESSION_MONTH_DIR_RE.match(path.name)
+        if not month_match:
+            continue
+        month_str = month_match.group(1)
         for child in path.iterdir():
             if not child.is_file() or child.suffix != ".md":
                 continue
-            user = child.stem
-            if user in _RESERVED_SESSION_STEMS or not SESSION_USER_SLUG_RE.match(user):
+            date_match = SESSION_DATE_RE.match(child.name)
+            if not date_match or not _valid_session_date(date_match.group(1)):
+                documents.append(
+                    DiagramSidecarDocument(
+                        path=child,
+                        diagram_date=None,
+                        layout="month-diagram",
+                        malformed_reason=f"filename '{child.name}' is not a YYYY-MM-DD.md date",
+                    )
+                )
                 continue
-            documents.append(SessionDocument(path=child, session_date=date_str, user=user, layout="per-user-day"))
+            date_str = date_match.group(1)
+            if not date_str.startswith(month_str + "-"):
+                documents.append(
+                    DiagramSidecarDocument(
+                        path=child,
+                        diagram_date=date_str,
+                        layout="month-diagram",
+                        malformed_reason=f"date '{date_str}' does not match month folder '{month_str}'",
+                    )
+                )
+                continue
+            documents.append(DiagramSidecarDocument(path=child, diagram_date=date_str, layout="month-diagram"))
 
-    return iter(sorted(documents, key=lambda doc: (doc.session_date, doc.user or "")))
+    return iter(sorted(documents, key=lambda doc: doc.path.as_posix()))
 
 
 def _valid_session_date(date_str: str) -> bool:
@@ -338,7 +436,13 @@ def session_path(sessions_dir: Path, date_str: str, user: str) -> Path:
     if not _valid_session_date(date_str):
         raise ValueError(f"Invalid session date: {date_str}")
     user = _validate_session_user(user)
-    return sessions_dir / date_str / f"{user}.md"
+    return sessions_dir / date_str[:7] / date_str / f"{user}.md"
+
+
+def _session_flat_path(sessions_dir: Path, date_str: str) -> Path:
+    if not _valid_session_date(date_str):
+        raise ValueError(f"Invalid session date: {date_str}")
+    return sessions_dir / date_str[:7] / f"{date_str}.md"
 
 
 _ENTRY_ID_RE = re.compile(r"^entry_id:\s*(\S+)\s*$", re.MULTILINE)
@@ -581,7 +685,8 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     frontmatter problems (filename/frontmatter user or date mismatch, missing
     or malformed ``hash_id``, unsupported ``schema_version``, invalid user
     slug), and decision-diagram sidecar problems under
-    ``sessions/diagrams/YYYY-MM-DD.md`` (``orphan-diagram``,
+    ``sessions/diagrams/YYYY-MM-DD.md`` and
+    ``sessions/diagrams/YYYY-MM/YYYY-MM-DD.md`` (``orphan-diagram``,
     ``diagram-date-mismatch``, ``malformed-diagram``; sidecars are always
     optional).
 
@@ -641,7 +746,7 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                 if source_id:
                     supersedes_edges.append((rel, source_id, ref))
 
-        if doc.layout != "per-user-day":
+        if doc.layout not in {"per-user-day", "month-user"}:
             continue
 
         if doc.user is not None and (
@@ -691,74 +796,56 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     known_entries = set(entry_id_files)
     known_hashes = set(hash_id_files)
 
-    # Decision-diagram sidecars (.memory-seed/sessions/diagrams/YYYY-MM-DD.md):
-    # authored reasoning diagrams, one dated file per day mirroring the
-    # session-log filename convention (so a human browsing the filesystem
-    # without the Explorer can find a day's diagrams next to that day's
-    # session log). Each diagram is a heading block shaped exactly like a
-    # session entry - `## <timestamp> - <title>` followed by a fenced
-    # ```yaml block naming `entry_id`, followed by fenced ```mermaid
-    # block(s) - so multiple diagrams append to the same date file across a
-    # day, same as session logs. Optional throughout - an entry without a
-    # sidecar is never an issue. Validation is deterministic only:
-    # filename is a valid YYYY-MM-DD.md date (malformed-diagram), each block
-    # has an entry_id (malformed-diagram) that resolves to a known entry
-    # (orphan-diagram) and was actually logged on the file's date
-    # (diagram-date-mismatch), and has at least one balanced ```mermaid
-    # fence (malformed-diagram; no Mermaid semantic parsing). See
-    # docs/2_Todo/session-decision-diagrams-plan.md.
-    diagrams_dir = sessions_dir / "diagrams"
-    if diagrams_dir.is_dir():
-        for diagram_path in sorted(diagrams_dir.glob("*.md")):
-            files_checked += 1
-            try:
-                rel = diagram_path.relative_to(root).as_posix()
-            except ValueError:
-                rel = diagram_path.as_posix()
-            date_match = SESSION_DATE_RE.match(diagram_path.name)
-            if not date_match or not _valid_session_date(date_match.group(1)):
+    # Decision-diagram sidecars: old flat and new month-grouped sidecar files.
+    # Optional throughout - an entry without a sidecar is never an issue.
+    for diagram_doc in iter_diagram_sidecar_documents(sessions_dir):
+        files_checked += 1
+        diagram_path = diagram_doc.path
+        try:
+            rel = diagram_path.relative_to(root).as_posix()
+        except ValueError:
+            rel = diagram_path.as_posix()
+        if diagram_doc.malformed_reason:
+            issues.append(LinkIssue(rel, "malformed-diagram", diagram_doc.malformed_reason))
+            continue
+        file_date = diagram_doc.diagram_date or ""
+        try:
+            text = diagram_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            issues.append(LinkIssue(rel, "unreadable", str(exc)))
+            continue
+        blocks = list(_ENTRY_TS_YAML_RE.finditer(text))
+        if not blocks:
+            issues.append(
+                LinkIssue(rel, "malformed-diagram", "no '## <timestamp> - <title>' + ```yaml entry_id block found")
+            )
+            continue
+        for index, block in enumerate(blocks):
+            heading_ts, yaml_block = block.groups()
+            entry_id_match = _ENTRY_ID_RE.search(yaml_block)
+            if not entry_id_match:
+                issues.append(LinkIssue(rel, "malformed-diagram", f"diagram block at '{heading_ts}' has no entry_id"))
+                continue
+            entry_id = entry_id_match.group(1)
+            if entry_id not in known_entries:
+                issues.append(LinkIssue(rel, "orphan-diagram", f"entry_id -> {entry_id} (no such entry_id)"))
+            entry_date = entry_timestamps.get(entry_id, "")[:10]
+            if entry_date and entry_date != file_date:
                 issues.append(
-                    LinkIssue(rel, "malformed-diagram", f"filename '{diagram_path.name}' is not a YYYY-MM-DD.md date")
-                )
-                continue
-            file_date = date_match.group(1)
-            try:
-                text = diagram_path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError) as exc:
-                issues.append(LinkIssue(rel, "unreadable", str(exc)))
-                continue
-            blocks = list(_ENTRY_TS_YAML_RE.finditer(text))
-            if not blocks:
-                issues.append(
-                    LinkIssue(rel, "malformed-diagram", "no '## <timestamp> - <title>' + ```yaml entry_id block found")
-                )
-                continue
-            for index, block in enumerate(blocks):
-                heading_ts, yaml_block = block.groups()
-                entry_id_match = _ENTRY_ID_RE.search(yaml_block)
-                if not entry_id_match:
-                    issues.append(LinkIssue(rel, "malformed-diagram", f"diagram block at '{heading_ts}' has no entry_id"))
-                    continue
-                entry_id = entry_id_match.group(1)
-                if entry_id not in known_entries:
-                    issues.append(LinkIssue(rel, "orphan-diagram", f"entry_id -> {entry_id} (no such entry_id)"))
-                entry_date = entry_timestamps.get(entry_id, "")[:10]
-                if entry_date and entry_date != file_date:
-                    issues.append(
-                        LinkIssue(
-                            rel,
-                            "diagram-date-mismatch",
-                            f"entry_id {entry_id} was logged on {entry_date}, but diagram is filed under {file_date}",
-                        )
+                    LinkIssue(
+                        rel,
+                        "diagram-date-mismatch",
+                        f"entry_id {entry_id} was logged on {entry_date}, but diagram is filed under {file_date}",
                     )
-                section_end = blocks[index + 1].start() if index + 1 < len(blocks) else len(text)
-                section_text = text[block.end():section_end]
-                fence_lines = [line.strip() for line in section_text.splitlines() if line.strip().startswith("```")]
-                mermaid_opens = sum(1 for line in fence_lines if line.startswith("```mermaid"))
-                if mermaid_opens == 0:
-                    issues.append(LinkIssue(rel, "malformed-diagram", f"diagram block for {entry_id} has no ```mermaid block"))
-                elif len(fence_lines) % 2 != 0:
-                    issues.append(LinkIssue(rel, "malformed-diagram", f"diagram block for {entry_id} has an unbalanced code fence"))
+                )
+            section_end = blocks[index + 1].start() if index + 1 < len(blocks) else len(text)
+            section_text = text[block.end():section_end]
+            fence_lines = [line.strip() for line in section_text.splitlines() if line.strip().startswith("```")]
+            mermaid_opens = sum(1 for line in fence_lines if line.startswith("```mermaid"))
+            if mermaid_opens == 0:
+                issues.append(LinkIssue(rel, "malformed-diagram", f"diagram block for {entry_id} has no ```mermaid block"))
+            elif len(fence_lines) % 2 != 0:
+                issues.append(LinkIssue(rel, "malformed-diagram", f"diagram block for {entry_id} has an unbalanced code fence"))
 
     for rel, ref in related_entry_refs:
         if ref not in known_entries:
@@ -900,16 +987,16 @@ def session_target(
         if len(read_project_participants(runtime.workspace_root)) < 2:
             user = None
     if user is None:
-        path = sessions_dir / f"{date_value}.md"
+        path = _session_flat_path(sessions_dir, date_value)
         if create:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.touch(exist_ok=True)
-        return SessionTarget(path=path, session_date=date_value, user=None, layout="legacy-flat")
+        return SessionTarget(path=path, session_date=date_value, user=None, layout="month-flat")
 
     path = session_path(sessions_dir, date_value, user)
     if create:
         _ensure_per_user_session_file(path, date_value, user)
-    return SessionTarget(path=path, session_date=date_value, user=user, layout="per-user-day")
+    return SessionTarget(path=path, session_date=date_value, user=user, layout="month-user")
 
 
 _ENTRY_HEADING_RE = re.compile(r"^##\s+.+$", re.MULTILINE)
@@ -1051,6 +1138,145 @@ def migrate_session_layout(cwd: str | Path = ".", dry_run: bool = False) -> Sess
         _copy_text_file(doc.path, backup_path)
         doc.path.unlink()
         backed_up.append(backup_relative)
+
+    return SessionLayoutMigrationResult(
+        changed=bool(migrated or backed_up),
+        planned=planned,
+        migrated=migrated,
+        backed_up=backed_up,
+    )
+
+
+def _backup_session_source(target_root: Path, sessions_dir: Path, source: Path, timestamp: str) -> Path:
+    source_rel = source.relative_to(sessions_dir)
+    backup_relative = Path(MEMORY_DIR_NAME) / "backups" / timestamp / "sessions" / source_rel
+    backup_path = target_root / backup_relative
+    backup_path.parent.mkdir(parents=True, exist_ok=True)
+    _copy_text_file(source, backup_path)
+    return backup_relative
+
+
+def _source_entries_for_append(path: Path) -> list[_FlatSessionEntry]:
+    return _flat_session_entries(path.read_text(encoding="utf-8"))
+
+
+def _hash_id_from_file_frontmatter(text: str) -> str | None:
+    match = _FILE_FRONTMATTER_RE.match(text)
+    if not match:
+        return None
+    return _parse_frontmatter_scalars(match.group(1)).get("hash_id")
+
+
+def migrate_session_month_layout(cwd: str | Path = ".", dry_run: bool = False) -> SessionLayoutMigrationResult:
+    """Migrate old flat/day session paths into the month-grouped layout.
+
+    This is separate from ``migrate sessions-layout``: it preserves whether a
+    source was flat or per-user and only changes the filesystem grouping. It is
+    explicit, idempotent, backs up sources before removal, and blocks unsafe
+    target merges with duplicate ``entry_id`` or per-user ``hash_id`` values.
+    """
+    runtime = resolve_runtime(cwd)
+    target_root = runtime.workspace_root
+    sessions_dir = runtime.memory_dir / "sessions"
+    if not sessions_dir.is_dir():
+        return SessionLayoutMigrationResult(changed=False)
+
+    participant_slugs = {participant.slug for participant in read_project_participants(target_root)}
+    sources: list[tuple[Path, Path, str]] = []
+    issues: list[str] = []
+
+    for doc in iter_session_documents(sessions_dir):
+        if doc.layout == "legacy-flat":
+            target = _session_flat_path(sessions_dir, doc.session_date)
+        elif doc.layout == "per-user-day" and doc.user is not None:
+            if participant_slugs and doc.user not in participant_slugs:
+                issues.append(f"{doc.path.relative_to(sessions_dir).as_posix()}: unknown user '{doc.user}'")
+                continue
+            target = session_path(sessions_dir, doc.session_date, doc.user)
+        else:
+            continue
+        if doc.path == target:
+            continue
+        sources.append((doc.path, target, "session"))
+
+    for diagram_doc in iter_diagram_sidecar_documents(sessions_dir):
+        if diagram_doc.layout != "legacy-diagram":
+            if diagram_doc.malformed_reason:
+                issues.append(f"{diagram_doc.path.relative_to(sessions_dir).as_posix()}: {diagram_doc.malformed_reason}")
+            continue
+        if diagram_doc.malformed_reason or not diagram_doc.diagram_date:
+            issues.append(f"{diagram_doc.path.relative_to(sessions_dir).as_posix()}: {diagram_doc.malformed_reason}")
+            continue
+        target = sessions_dir / "diagrams" / diagram_doc.diagram_date[:7] / f"{diagram_doc.diagram_date}.md"
+        if diagram_doc.path != target:
+            sources.append((diagram_doc.path, target, "diagram"))
+
+    planned = sorted(
+        f"{source.relative_to(sessions_dir).as_posix()} -> {target.relative_to(sessions_dir).as_posix()}"
+        for source, target, _ in sources
+    )
+    if issues:
+        return SessionLayoutMigrationResult(changed=False, planned=planned, issues=issues)
+    if not sources:
+        return SessionLayoutMigrationResult(changed=False, planned=planned)
+
+    for source, target, kind in sources:
+        try:
+            source_text = source.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            issues.append(f"{source.relative_to(sessions_dir).as_posix()}: unreadable ({exc})")
+            continue
+        if not target.exists():
+            continue
+        try:
+            target_text = target.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            issues.append(f"{target.relative_to(sessions_dir).as_posix()}: unreadable ({exc})")
+            continue
+        source_ids = set(_ENTRY_ID_RE.findall(source_text))
+        target_ids = set(_ENTRY_ID_RE.findall(target_text))
+        duplicates = sorted(source_ids & target_ids)
+        if duplicates:
+            issues.append(
+                f"{target.relative_to(sessions_dir).as_posix()}: duplicate entry_id(s) block safe merge: "
+                + ", ".join(duplicates)
+            )
+        if kind == "session":
+            source_hash = _hash_id_from_file_frontmatter(source_text)
+            target_hash = _hash_id_from_file_frontmatter(target_text)
+            if source_hash and target_hash and source_hash == target_hash:
+                issues.append(
+                    f"{target.relative_to(sessions_dir).as_posix()}: duplicate hash_id blocks safe merge: {source_hash}"
+                )
+        if kind == "session" and target.exists() and not _flat_session_entries(source_text):
+            issues.append(f"{source.relative_to(sessions_dir).as_posix()}: no session entry headings to append")
+
+    if issues:
+        return SessionLayoutMigrationResult(changed=False, planned=planned, issues=issues)
+    if dry_run:
+        return SessionLayoutMigrationResult(changed=False, planned=planned)
+
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backed_up: list[Path] = []
+    migrated: list[str] = []
+
+    for source, _, _ in sources:
+        backed_up.append(_backup_session_source(target_root, sessions_dir, source, timestamp))
+
+    for source, target, kind in sorted(sources, key=lambda item: item[1].relative_to(sessions_dir).as_posix()):
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            if kind == "session":
+                _append_session_entries(target, _source_entries_for_append(source))
+            else:
+                existing = target.read_text(encoding="utf-8")
+                addition = source.read_text(encoding="utf-8").rstrip()
+                separator = "\n\n" if existing and not existing.endswith("\n\n") else ""
+                write_text_file(target, existing + separator + addition + "\n")
+        else:
+            _copy_text_file(source, target)
+        source.unlink()
+        migrated.append(target.relative_to(sessions_dir).as_posix())
 
     return SessionLayoutMigrationResult(
         changed=bool(migrated or backed_up),

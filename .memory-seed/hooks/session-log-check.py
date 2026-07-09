@@ -26,6 +26,30 @@ def valid_user(value):
     return bool(value and user_re.match(value) and value not in reserved_users)
 
 
+def participant_count():
+    path = Path(".memory-seed/project.yaml")
+    if not path.exists():
+        return 0
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return 0
+    count = 0
+    in_participants = False
+    for raw in lines:
+        line = raw.rstrip()
+        if re.match(r"^participants\s*:", line):
+            in_participants = True
+            continue
+        if not in_participants:
+            continue
+        if line and not line[0].isspace():
+            break
+        if re.match(r"^\s*-\s*slug\s*:", line):
+            count += 1
+    return count
+
+
 def configured_user():
     explicit = None
     args = sys.argv[1:]
@@ -36,9 +60,10 @@ def configured_user():
             explicit = args[i + 1]
     if valid_user(explicit):
         return explicit
+    two_or_more_participants = participant_count() >= 2
     env_user = os.environ.get("MEMORY_SEED_USER")
     if valid_user(env_user):
-        return env_user
+        return env_user if two_or_more_participants else None
     local = Path(".memory-seed/local.yaml")
     if local.exists():
         try:
@@ -47,7 +72,7 @@ def configured_user():
                 if stripped.startswith("user:"):
                     value = stripped.split(":", 1)[1].strip().strip("'\"")
                     if valid_user(value):
-                        return value
+                        return value if two_or_more_participants else None
         except (OSError, UnicodeDecodeError):
             return None
     return None
@@ -55,11 +80,11 @@ def configured_user():
 
 user = configured_user()
 if user:
-    today_file = d / today / f"{user}.md"
-    target_label = f".memory-seed/sessions/{today}/{user}.md"
+    today_file = d / today[:7] / today / f"{user}.md"
+    target_label = f".memory-seed/sessions/{today[:7]}/{today}/{user}.md"
 else:
-    today_file = d / f"{today}.md"
-    target_label = f".memory-seed/sessions/{today}.md"
+    today_file = d / today[:7] / f"{today}.md"
+    target_label = f".memory-seed/sessions/{today[:7]}/{today}.md"
 
 # Read today's entry timestamps once — used by both checks below.
 # File mtime is intentionally not used: a git commit touching the session

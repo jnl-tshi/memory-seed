@@ -267,7 +267,9 @@ class RetrievalServiceParityTests(unittest.TestCase):
     def write_diagram(self, cwd, filename, content):
         diagrams = cwd / ".memory-seed" / "sessions" / "diagrams"
         diagrams.mkdir(parents=True, exist_ok=True)
-        (diagrams / filename).write_text(content, encoding="utf-8")
+        path = diagrams / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
 
     def valid_sidecar(self, entry_id, heading_ts, title="Decision flow"):
         return (
@@ -313,6 +315,17 @@ class RetrievalServiceParityTests(unittest.TestCase):
         other = get_chunk("ms-semble", str(cwd), include_diagrams=True)
         self.assertEqual(other["diagrams"], [])
 
+    def test_grouped_diagram_sidecars_surface_through_the_service(self):
+        cwd = self.make_memory_fixture()
+        self.write_diagram(cwd, "2026-05/2026-05-17.md", self.valid_sidecar("ms-bootstrap", "2026-05-17 09:15"))
+
+        sidecars = entry_diagram_sidecars(str(cwd))
+
+        self.assertIn("ms-bootstrap", sidecars)
+        self.assertTrue(sidecars["ms-bootstrap"]["path"].endswith(".memory-seed/sessions/diagrams/2026-05/2026-05-17.md"))
+        enriched = get_chunk("ms-bootstrap", str(cwd), include_diagrams=True)
+        self.assertEqual(enriched["diagrams"][0]["entry_id"], "ms-bootstrap")
+
     def test_diagram_sidecars_multiple_entries_append_to_one_date_file(self):
         # Two decisions logged the same day append to the same dated file,
         # exactly like session logs - each block keyed by its own entry_id.
@@ -346,10 +359,22 @@ class RetrievalServiceParityTests(unittest.TestCase):
         kinds = {i.kind for i in check_session_links(str(cwd)).issues}
         self.assertIn("diagram-date-mismatch", kinds)
 
+        # The same validation contract applies to grouped sidecars.
+        grouped_cwd = self.make_memory_fixture()
+        self.write_diagram(grouped_cwd, "2026-05/2026-05-17.md", self.valid_sidecar("ms-bootstrap", "2026-05-17 09:15"))
+        self.assertTrue(check_session_links(str(grouped_cwd)).ok)
+        self.write_diagram(grouped_cwd, "2026-05/2026-05-17.md", self.valid_sidecar("ms-semble", "2026-05-18 10:00"))
+        kinds = {i.kind for i in check_session_links(str(grouped_cwd)).issues}
+        self.assertIn("diagram-date-mismatch", kinds)
+
     def test_links_check_flags_malformed_diagrams(self):
         cwd = self.make_memory_fixture()
         # Filename isn't a YYYY-MM-DD.md date.
         self.write_diagram(cwd, "notes.md", "some content\n")
+        self.assertIn("malformed-diagram", {i.kind for i in check_session_links(str(cwd)).issues})
+
+        # Grouped filename must live under the matching YYYY-MM month folder.
+        self.write_diagram(cwd, "2026-06/2026-05-17.md", self.valid_sidecar("ms-bootstrap", "2026-05-17 09:15"))
         self.assertIn("malformed-diagram", {i.kind for i in check_session_links(str(cwd)).issues})
 
         # Valid date filename but no '## <ts> - <title>' + yaml block at all.

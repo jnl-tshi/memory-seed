@@ -203,7 +203,7 @@ Memory Seed skills, trigger registries, profile boundaries, or seed/live control
 
 Both reminders are cross-platform Python scripts in `.memory-seed/hooks/`:
 
-- `session-log-check.py` - after a turn, reminds the agent to append a session-log entry if none was written in the last 15 minutes, and warns if the day's entries are out of ascending time order. When a local user is configured, it checks only that user's per-day file (`sessions/YYYY-MM-DD/<user>.md`) so another contributor's recent entry does not suppress the reminder.
+- `session-log-check.py` - after a turn, reminds the agent to append a session-log entry if none was written in the last 15 minutes, and warns if the day's entries are out of ascending time order. When the per-user participant gate selects a user file, it checks only that user's grouped file (`sessions/YYYY-MM/YYYY-MM-DD/<user>.md`) so another contributor's recent entry does not suppress the reminder.
 - `memory-retrieval-check.py` — before substantive work, reminds the agent to use `memory_search` for topical recall and to read the newest session file directly for current state. Gated by an 8-hour marker file so it fires about once per working session.
 - `session-start-context.py` - at session start, injects the newest relevant session file's entries (path, all headings, and the most recent entry body) so the agent establishes current state by recency rather than semantic search. With a configured user it injects that user's newest entry and lists same-day co-contributor files by path and entry count; without a configured user it preserves legacy flat-file behavior. Fires once per session. Copilot CLI cannot run command hooks at session start, so it gets a static `prompt` hook with the same directive instead.
 
@@ -391,7 +391,7 @@ The `update` command refreshes routing files, reusable runtime procedure files, 
 
 Use `update --dry-run` to list the reusable control-plane targets without writing files. Current behavior is conservative but broad: dry-run lists bundled seed paths rather than calculating which files are missing or version-mismatched. The real `update` command skips files already at the current `memory-system-version` or newer — so a stale installed tool never downgrades a project — and preserves existing `.memory-seed/` runtime files.
 
-The `compact` command summarises recent session activity from the nearest runtime so an agent can identify durable facts to promote into `index.md`, `policy.md`, or skills. It reads both the legacy flat layout (`sessions/YYYY-MM-DD.md`) and the per-day/per-user layout (`sessions/YYYY-MM-DD/<user>.md`):
+The `compact` command summarises recent session activity from the nearest runtime so an agent can identify durable facts to promote into `index.md`, `policy.md`, or skills. It reads the new month-grouped layout (`sessions/YYYY-MM/YYYY-MM-DD.md`, `sessions/YYYY-MM/YYYY-MM-DD/<user>.md`) and the legacy flat/day layouts (`sessions/YYYY-MM-DD.md`, `sessions/YYYY-MM-DD/<user>.md`):
 
 ```bash
 memory-seed compact              # last 7 days (default)
@@ -433,7 +433,7 @@ memory-seed session target --create
 memory-seed user clear
 ```
 
-The local selection is stored in `.memory-seed/local.yaml`, which Memory Seed adds to `.gitignore`. `MEMORY_SEED_USER` overrides the local file for one shell, and `memory-seed session target --user <slug>` overrides both. With no configured user, session targets remain the legacy flat file (`sessions/YYYY-MM-DD.md`). With a configured user, new targets are `sessions/YYYY-MM-DD/<user>.md` and `--create` initializes file frontmatter with `schema_version: 2`, `session_date`, immutable `hash_id`, `user`, and `created_at`.
+The local selection is stored in `.memory-seed/local.yaml`, which Memory Seed adds to `.gitignore`. `MEMORY_SEED_USER` overrides the local file for one shell, and `memory-seed session target --user <slug>` overrides both. With no configured user, or with fewer than two registered participants, session targets use the grouped shared file (`sessions/YYYY-MM/YYYY-MM-DD.md`). With a configured user and at least two registered participants, new targets are `sessions/YYYY-MM/YYYY-MM-DD/<user>.md` and `--create` initializes file frontmatter with `schema_version: 2`, `session_date`, immutable `hash_id`, `user`, and `created_at`. An explicit `--user <slug>` override bypasses the participant gate for that command.
 
 To migrate existing flat session files into the per-user layout, add a tracked participant registry to
 `.memory-seed/project.yaml`:
@@ -453,11 +453,24 @@ memory-seed migrate sessions-layout
 ```
 
 The migration parses each legacy `sessions/YYYY-MM-DD.md` entry, maps its `user_initials` to a
-participant slug, appends to `sessions/YYYY-MM-DD/<user>.md`, preserves existing `entry_id` values,
+participant slug, appends to `sessions/YYYY-MM/YYYY-MM-DD/<user>.md`, preserves existing `entry_id` values,
 backs up the flat source under `.memory-seed/backups/<timestamp>/sessions/`, and removes the flat
 source after a successful apply so permanent dual-read support does not create duplicate entry IDs.
 It blocks rather than guessing when initials are missing, unknown, duplicated in the participant
 registry, or when an existing per-user file already contains an incoming `entry_id`.
+
+To reorganize historical flat/day files into the month-grouped layout, use the separate month-layout
+migration:
+
+```bash
+memory-seed migrate sessions-month-layout --dry-run
+memory-seed migrate sessions-month-layout
+```
+
+This preserves whether each source is shared-flat or per-user, moves old diagram sidecars from
+`sessions/diagrams/YYYY-MM-DD.md` to `sessions/diagrams/YYYY-MM/YYYY-MM-DD.md`, backs up originals
+before removal, and blocks duplicate `entry_id`/`hash_id` merges. It never runs during `init`,
+`update`, hooks, MCP startup, or Memory Trace startup.
 
 ### Existing-Project Command Behavior
 
@@ -469,10 +482,11 @@ When run in a project that already has Memory Seed files:
 - `memory-seed init` refuses to overwrite existing **owned** seed files unless `--force` is used. A pre-existing **foreign** entry-point file (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.github/copilot-instructions.md` owned by another tool, i.e. no `memory-system-version` frontmatter) no longer blocks `init` — its content is preserved and a routing block is merged in instead.
 - `memory-seed init --force` backs up and rewrites owned seed files. It still does **not** overwrite a foreign entry-point file — that is always merged, never clobbered.
 - `memory-seed update` refreshes stale routing files, reusable runtime procedure files, and generic skill templates; archives replaced control-plane versions; and preserves generated local memory. For a **foreign** entry-point file it injects (or re-syncs in place) a marker-delimited `<!-- BEGIN memory-seed -->…<!-- END memory-seed -->` block that routes into `.memory-seed/`, leaving the host's own content untouched.
-- `memory-seed compact` reads dated session logs from the nearest `.memory-seed/` runtime, including both `sessions/YYYY-MM-DD.md` and `sessions/YYYY-MM-DD/<user>.md`, with legacy `.AGENTS/` fallback. It prints a Markdown summary and writes only when `--output` is provided.
+- `memory-seed compact` reads dated session logs from the nearest `.memory-seed/` runtime, including month-grouped and legacy flat/day layouts, with legacy `.AGENTS/` fallback. It prints a Markdown summary and writes only when `--output` is provided.
 - `memory-seed user set/show/clear` manages a gitignored local user slug for opt-in per-user session files.
 - `memory-seed links check` validates session-memory integrity across both layouts: duplicate `entry_id`/`hash_id`, dangling `related_entries`/`related_memories` (including entry-level `related_entries` in session-entry YAML), and per-user-file frontmatter problems (filename↔frontmatter user/date mismatch, missing/malformed `hash_id`, unsupported `schema_version`). It names the offending file and value and exits non-zero on any issue, so it doubles as a CI gate; `doctor` surfaces a one-line summary pointing at it.
-- `memory-seed migrate sessions-layout [--dry-run]` splits legacy flat session files into per-user files using `.memory-seed/project.yaml` participants, backs up migrated sources, and refuses ambiguous or unsafe merges.
+- `memory-seed migrate sessions-layout [--dry-run]` splits legacy flat session files into grouped per-user files using `.memory-seed/project.yaml` participants, backs up migrated sources, and refuses ambiguous or unsafe merges.
+- `memory-seed migrate sessions-month-layout [--dry-run]` moves old flat/day session files and old diagram sidecars into grouped `YYYY-MM/` folders. It backs up sources, removes migrated originals after successful writes, and is never automatic.
 - `memory-seed link suggest [--for <entry_id>] [--top-k N]` ranks older session entries to link from a target entry (default: the newest entry), skips the target and its already-linked entries, and prints a copy-pasteable `related_entries:` snippet. Read-only.
 - `memory-seed link show <entry_id>` prints an entry's stored outbound `related_entries` plus its computed inbound backlinks, so the related-entry graph is bidirectional at read time without editing any historical entry. Read-only.
 - `memory-seed processes [--json]` lists active package-owned Memory Seed processes.
@@ -600,7 +614,7 @@ memory_search(query, cwd=".", top_k=8, lambda_days=0.01, recency_enabled=true, r
 memory_get_chunk(chunk_id, cwd=".")
 ```
 
-`memory_search` also accepts `granularity="entry"` by default or `granularity="section"` for narrower section-level results. It discovers session entries in both `sessions/YYYY-MM-DD.md` and `sessions/YYYY-MM-DD/<user>.md`. Entry granularity returns one coherent chunk per `##` session entry and normally uses the entry YAML `entry_id` as `chunk_id`, such as `ms-db2d715c` for legacy entries or `mse_0123456789abcdef` for new generated entries. Section granularity returns ids such as `ms-db2d715c#decisions/d1-use-draft-for-compact-decision-records` while preserving the parent `entry_id`.
+`memory_search` also accepts `granularity="entry"` by default or `granularity="section"` for narrower section-level results. It discovers session entries in `sessions/YYYY-MM/YYYY-MM-DD.md`, `sessions/YYYY-MM/YYYY-MM-DD/<user>.md`, and the legacy flat/day layouts. Entry granularity returns one coherent chunk per `##` session entry and normally uses the entry YAML `entry_id` as `chunk_id`, such as `ms-db2d715c` for legacy entries or `mse_0123456789abcdef` for new generated entries. Section granularity returns ids such as `ms-db2d715c#decisions/d1-use-draft-for-compact-decision-records` while preserving the parent `entry_id`.
 
 `memory_search` returns JSON with source path, `path`, `session_date`, optional per-user `user`, optional `file_hash_id`, entry-level `related_entries`, line range, heading path, score fields, matched fields, matched terms, semantic status, entry metadata, granularity, and an excerpt. The `user`, `date_from`, and `date_to` filters are applied before ranking so `top_k` is selected from the filtered corpus. This is intended to be both agent-efficient and human-validatable.
 
@@ -614,7 +628,7 @@ Per-query latency, measured in-process on this repo (81 chunks across the sessio
 
 When driving the server through an MCP client (Claude Code, Cursor, Gemini), the latency you actually perceive is dominated by one-time startup, not per-query work: spawning `uvx --from memory-seed memory-seed-mcp` resolves and may install the package into an ephemeral environment the first time the server launches in a session. Once the server is up, each `memory_search` is the ~30 ms compute above plus a small JSON-RPC round-trip. At current log sizes there is no need to optimize; should logs grow large enough that the ~22 ms parse cost becomes noticeable, caching parsed chunks and their vectors keyed by file modification time would remove most of the per-query cost.
 
-Session entries should include a YAML metadata block with `entry_id`, `user_initials`, `agent_type`, `project_path`, and `subproject_path`. New generated `entry_id` values use deterministic 80-bit `mse_` IDs encoded as 16 lower-case Base32 characters; legacy `ms-` IDs remain valid and are not rewritten. Session entry YAML may include entry-level `related_entries` pointing at either old or new entry IDs. Session entry headings may include optional minute-level timestamps, such as `## 2026-05-19 20:42 - Durable memory consolidation`. Legacy session filenames stay date-only; the opt-in per-user layout uses a date directory plus a bare user slug (`sessions/YYYY-MM-DD/jean.md`). Timestamped headings are backward compatible with older untimed headings and are exposed as `entry_datetime` in MCP search results when present.
+Session entries should include a YAML metadata block with `entry_id`, `user_initials`, `agent_type`, `project_path`, and `subproject_path`. New generated `entry_id` values use deterministic 80-bit `mse_` IDs encoded as 16 lower-case Base32 characters; legacy `ms-` IDs remain valid and are not rewritten. Session entry YAML may include entry-level `related_entries` pointing at either old or new entry IDs. Session entry headings may include optional minute-level timestamps, such as `## 2026-05-19 20:42 - Durable memory consolidation`. New session filenames stay date-only inside their month folder; the opt-in per-user layout uses a month folder, date directory, and bare user slug (`sessions/YYYY-MM/YYYY-MM-DD/jean.md`). Timestamped headings are backward compatible with older untimed headings and are exposed as `entry_datetime` in MCP search results when present.
 
 For human-validatable search behavior, see the fixture-style tests in `tests/test_mcp_server.py`. They assert that specific queries return expected dated session entries first and include enough evidence for manual review.
 
