@@ -177,6 +177,7 @@ memory-seed init --all-skills
 memory-seed skills list
 memory-seed skills ignored
 memory-seed skills add planning
+memory-seed skills add governance
 memory-seed skills remove proposal_lifecycle.md
 ```
 
@@ -185,6 +186,8 @@ The selection is stored in `.memory-seed/project.yaml` under `skills.profiles`,
 and does not re-add ignored optional skills. The `planning` profile also creates
 `docs/inbox/`, `docs/todo/`, `docs/todo/completed/`, and `docs/reference/`
 `.gitkeep` anchors for the proposal workflow and its source/reference material.
+The `governance` profile installs `skill_architecture.md` for projects that maintain
+Memory Seed skills, trigger registries, profile boundaries, or seed/live control-plane parity.
 
 ## Agent Hooks
 

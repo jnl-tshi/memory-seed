@@ -999,6 +999,19 @@ class MemorySeedTests(unittest.TestCase):
         self.assertEqual(status["profiles"]["coding"], list(SKILL_PROFILES["coding"].skills))
         self.assertEqual(set(status["available_optional"]), set(OPTIONAL_SKILL_NAMES))
 
+    def test_skill_architecture_is_optional_governance_profile_skill(self):
+        cwd = self.make_project()
+
+        init_project(cwd=cwd, skill_profiles={"governance"})
+
+        self.assertNotIn("skill_architecture.md", CORE_SKILL_NAMES)
+        self.assertIn("skill_architecture.md", OPTIONAL_SKILL_NAMES)
+        self.assertEqual(SKILL_PROFILES["governance"].skills, ("skill_architecture.md",))
+        self.assertTrue((cwd / ".memory-seed" / "skills" / "skill_architecture.md").exists())
+        registry = (cwd / ".memory-seed" / "skills" / "index.md").read_text(encoding="utf-8")
+        self.assertIn("skill: skill_architecture.md", registry)
+        self.assertIn("governance", (cwd / ".memory-seed" / "project.yaml").read_text(encoding="utf-8"))
+
     def test_update_does_nothing_when_control_plane_is_current(self):
         cwd = self.make_project()
         init_project(cwd=cwd)
@@ -1109,6 +1122,7 @@ class MemorySeedTests(unittest.TestCase):
                 ".memory-seed/skills/risk_signaling.md",
                 ".memory-seed/skills/security_triage.md",
                 ".memory-seed/skills/session_logging.md",
+                ".memory-seed/skills/skill_architecture.md",
                 ".memory-seed/skills/subproject_runtime.md",
                 "AGENTS.md",
                 "CLAUDE.md",

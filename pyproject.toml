@@ -75,6 +75,7 @@ memory_seed = [
   "seed/.memory-seed/skills/proposal_lifecycle.md",
   "seed/.memory-seed/skills/release_publishing.md",
   "seed/.memory-seed/skills/risk_signaling.md",
+  "seed/.memory-seed/skills/skill_architecture.md",
   "seed/.memory-seed/skills/session_logging.md",
   "seed/.memory-seed/skills/subproject_runtime.md",
   "seed/.memory-seed/sessions/.gitkeep",
