@@ -1128,6 +1128,10 @@ SEED_FILES = [
         ".memory-seed/skills/risk_signaling.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "skill_architecture.md",
+        ".memory-seed/skills/skill_architecture.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "proposal_lifecycle.md",
         ".memory-seed/skills/proposal_lifecycle.md",
     ),
@@ -1233,6 +1237,10 @@ SKILL_PROFILES: dict[str, SkillProfile] = {
         "Compact Mermaid layout plus Mermaid-first D2 selection guidance.",
         ("compact_mermaid_diagrams.md",),
     ),
+    "governance": SkillProfile(
+        "Skill architecture, trigger registry, profile, and seed/live parity maintenance.",
+        ("skill_architecture.md",),
+    ),
 }
 
 OPTIONAL_SKILL_NAMES = tuple(
@@ -1252,6 +1260,7 @@ SKILL_DESCRIPTIONS = {
     "proposal_lifecycle.md": "Move proposal docs through inbox, todo, completed, and reference states.",
     "release_publishing.md": "Prepare and verify package releases.",
     "security_triage.md": "Triage security, privacy, and destructive-operation risks.",
+    "skill_architecture.md": "Design and maintain skill/profile boundaries and trigger registry entries.",
 }
 
 PROPOSAL_LIFECYCLE_ARTIFACTS = (

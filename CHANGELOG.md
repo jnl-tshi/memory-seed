@@ -25,6 +25,10 @@ All notable changes to Memory Seed are summarized here.
 - Aligned `proposal_lifecycle.md` with the repository's numbered docs taxonomy
   (`docs/1_Inbox`, `docs/2_Todo`, `docs/3_Spec`, `docs/4_Reference`) while preserving the generic
   bootstrap taxonomy (`docs/inbox`, `docs/todo`, `docs/reference`) for newly initialized projects.
+- Slimmed `agent-rules.md` further into a startup contract and added optional
+  `skill_architecture.md` under the new `governance` skill profile. The new skill owns guidance for
+  skill/profile boundaries, concise trigger-registry entries, and seed/live parity; `agent-rules.md`
+  now points to it before agents move procedural guidance between rules, policy, and skills.
 
 ## 2.16.0 - 2026-07-05
 

@@ -238,6 +238,13 @@ class SessionSchemaTests(unittest.TestCase):
                 "Proceed-and-flag",
                 "Security / trust boundary",
             ),
+            "skill_architecture.md": (
+                "Skill Architecture",
+                "Startup Contract Boundary",
+                "Existing Skill Homes",
+                "Trigger Registry Discipline",
+                "Seed / Live Parity",
+            ),
         }
         live_registry = Path(".memory-seed/skills/index.md").read_text(encoding="utf-8")
         seed_registry = Path("memory_seed/seed/.memory-seed/skills/index.md").read_text(encoding="utf-8")
@@ -270,6 +277,7 @@ class SessionSchemaTests(unittest.TestCase):
             ".memory-seed/skills/memory_hygiene.md",
             ".memory-seed/skills/risk_signaling.md",
             ".memory-seed/skills/subproject_runtime.md",
+            ".memory-seed/skills/skill_architecture.md",
         ):
             self.assertIn(phrase, content)
 
@@ -284,6 +292,25 @@ class SessionSchemaTests(unittest.TestCase):
             "Reusable seed files must stay generic. Do not write project-specific",
         ):
             self.assertNotIn(moved_detail, content)
+
+    def test_agent_rules_remain_a_startup_contract_not_an_embedded_runbook(self):
+        content = Path(".memory-seed/agent-rules.md").read_text(encoding="utf-8")
+
+        self.assertLessEqual(
+            len(content.splitlines()),
+            260,
+            "agent-rules.md should stay compact enough for startup loading",
+        )
+        for phrase in (
+            "non-deferrable startup contract",
+            "Keep procedural details in skills",
+            "Change Permission Model",
+            "Use the lowest orchestration level",
+            "Load `.memory-seed/skills/agent_collaboration.md` for the detailed workflow",
+            "Load `.memory-seed/skills/risk_signaling.md` for STOP categories",
+            "Load `.memory-seed/skills/skill_architecture.md`",
+        ):
+            self.assertIn(phrase, content)
 
     def test_universal_registry_entries_have_live_and_seed_skill_files(self):
         live_registry = Path(".memory-seed/skills/index.md").read_text(encoding="utf-8")

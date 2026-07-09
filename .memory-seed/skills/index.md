@@ -185,6 +185,18 @@ skills:
     do_not_load_when:
       - routine, reversible work that is explicitly requested and follows established local patterns
 
+  - skill: skill_architecture.md
+    required: true
+    load_when:
+      - adding, removing, renaming, splitting, or refactoring Memory Seed skills
+      - editing .memory-seed/skills/index.md trigger entries
+      - changing core skill names, optional profiles, or skill selection behavior
+      - moving procedural guidance from agent-rules.md into a lazy-loaded skill
+      - deciding whether behavior belongs in agent-rules.md, policy.md, a skill, or a profile
+    do_not_load_when:
+      - merely using an existing skill for its normal task
+      - ordinary documentation edits with no skill, profile, registry, or control-plane boundary impact
+
   - skill: developer-rendered-ui-debugging.md
     required: false
     persona: developer

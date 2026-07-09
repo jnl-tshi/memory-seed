@@ -8,7 +8,7 @@ tags:
 
 # Agent Rules
 
-These rules define how AI agents use the nearest `.memory-seed/` runtime.
+These rules define the non-deferrable startup contract for how AI agents use the nearest `.memory-seed/` runtime. Keep procedural details in skills and leave `agent-rules.md` focused on discovery, authority, safety gates, and lazy-skill routing.
 
 ## Core Principle
 
@@ -111,48 +111,12 @@ Inside a sub-project runtime, local `index.md`, local `policy.md`, and local ski
 
 Use the lowest orchestration level that can complete the work safely. Higher levels trade more tokens and coordination cost for better coverage, validation, and risk control.
 
-### Level 0: Direct Work
+- Level 0: direct, simple, low-risk work.
+- Level 1: inspect, implement, and run targeted verification.
+- Level 2: orchestrator, bounded workers, and validator for large, multi-file, ambiguous, risky, or parallelizable work.
+- Level 3: research and human checkpoints for architecture, security, release, destructive, or changing-best-practice decisions.
 
-Use for simple, low-risk changes with clear scope.
-
-- One agent works directly.
-- Keep context loading minimal.
-- Verify with the smallest relevant check.
-
-### Level 1: Plan, Implement, Verify
-
-Use for normal project work.
-
-- Inspect relevant files first.
-- State the approach briefly when useful.
-- Implement the change.
-- Run targeted verification before reporting completion.
-
-### Level 2: Orchestrator, Worker, Validator
-
-Use for large, multi-file, ambiguous, or risky changes where splitting work reduces risk or improves throughput.
-
-- Orchestrator owns scope, sequencing, context budget, and integration.
-- Workers own bounded, non-overlapping subtasks.
-- Validator checks behavior, tests, regressions, and policy fit.
-- Load `.memory-seed/skills/agent_collaboration.md` for subagents, branch/worktree coordination, or multi-developer agent workflows.
-- If the active agent cannot spawn subagents, follow the same phases serially.
-
-### Level 3: Research And Human Checkpoints
-
-Use for architecture changes, security-sensitive work, publishing/release changes, destructive operations, or decisions where current best practice may matter.
-
-- Research first when the answer may have changed or external standards matter.
-- Summarize evidence and tradeoffs before implementation.
-- Ask for human approval at meaningful checkpoints.
-- Keep validation records explicit enough for future agents to audit the decision.
-
-## Token And Model Budget Policy
-
-- Default to the least expensive level that can safely handle the task.
-- Use worker/validator splits only when they reduce risk, reduce wall-clock time, or improve review quality enough to justify the extra context.
-- Treat model choice as capability tiers: economy for simple extraction or formatting, standard for routine implementation, and frontier for architecture, security, ambiguous debugging, or high-impact validation.
-- Prefer narrow context packets for workers and validators instead of handing them the whole repository history.
+Default to the least expensive level and smallest context set that can safely handle the task. Load `.memory-seed/skills/agent_collaboration.md` for the detailed workflow, including subagents, branch/worktree coordination, task packets, capability tiers, review loops, and merge handoffs. Load `.memory-seed/skills/risk_signaling.md` for STOP categories before ambiguous, destructive, irreversible, security-sensitive, externally visible, financial, or shared-control-plane actions.
 
 ## File Ownership
 
@@ -205,20 +169,15 @@ Do not rewrite old session entries unless the user explicitly asks for repair, a
 
 Cross-cutting principles that apply to any agent and any task:
 
-- **POC-gate before scaling a risky or hard-to-verify automated method.** Prove a new editing or transformation pipeline on one throwaway case the user can validate, before applying it broadly.
-- **Verification split.** State plainly what the agent can verify (for example file integrity, structural checks, diffs) versus what only the user can verify (for example an app opens the artifact without error). Never imply you verified the latter.
-- **Read share-aware copies of locked files.** When another application holds a file open, read the last-saved bytes via a shared read handle rather than failing or assuming the content is stale.
-- **Decision ladder before adding code.** Before writing new code, ask: does it need to exist, is it already in the codebase, and does stdlib or the native platform already handle it. Note briefly why something was deferred instead of silently dropping it.
-- **Do not strip terse guards without understanding why.** A short validation or ownership check (a date-format guard, an is_ours ownership check, an isinstance guard) can look like boilerplate; read what it protects against before removing or simplifying it.
-- **Default to plain text; reserve Mermaid for spatial, temporal, or concurrent structure.** Use a plain sentence or list for a decision's rationale by default. Reach for a Mermaid diagram only when the content is genuinely spatial, temporal, or concurrent — sequence flows across components, entity/schema relationships, or topology — where a diagram is clearly higher-signal than prose. Keep Mermaid blocks small, and double-check bracket/arrow/quote syntax before committing. Also check semantic freshness: roadmap diagrams must be updated when shipped work changes status, not merely kept syntactically valid. A broken or stale block renders as misleading raw text with no fallback.
-- **Link commits to the decision entry that motivated them.** When a commit implements a logged decision, append a `Memory-Entry: <entry_id>` trailer to the commit message. Optionally backfill the entry's `commits:` field with the full 40-character SHA — but only while that entry is still the newest one, in the same turn; after that, the trailer alone carries the link. This is a convention, not an enforced hook.
-- **Preserve visible branch history for distinct feature work.** If a task is a distinct feature,
-  proposal implementation, fix, refactor, test, or documentation change where the user expects Git
-  history to show the work as a branch, load `agent_collaboration.md` before editing. Use a task
-  branch/worktree and integrate with `git merge --no-ff` unless the user explicitly chooses linear
-  history, squash, rebase, or direct `main` work.
-- **Use qualitative risk tiers before acting.** For ambiguous, destructive, irreversible, externally visible, financial, security-sensitive, or shared-control-plane actions, load `.memory-seed/skills/risk_signaling.md` and choose Proceed, Proceed-and-flag, Propose-and-wait, or Stop from observable risk rather than numeric confidence.
-
+- Prove risky or hard-to-verify automation on a small case before applying it broadly.
+- State what the agent verified versus what only the user can verify.
+- Before adding code, check whether it needs to exist, already exists, or is already covered by stdlib/platform behavior.
+- Do not remove terse guards without understanding what they protect.
+- Default to plain text; use Mermaid only for spatial, temporal, or concurrent structure, and load `compact_mermaid_diagrams.md` when authoring diagrams.
+- Link commits to motivating decision entries with `Memory-Entry: <entry_id>` when applicable.
+- Preserve visible branch history for distinct feature work by loading `agent_collaboration.md` before editing and using a task branch/worktree unless the user chooses another history model.
+- Use qualitative risk tiers before acting by loading `.memory-seed/skills/risk_signaling.md` for ambiguous, destructive, irreversible, externally visible, financial, security-sensitive, or shared-control-plane work.
+- Load `.memory-seed/skills/skill_architecture.md` before adding, removing, renaming, splitting, or refactoring skills, editing `skills/index.md`, changing profiles, or moving procedural guidance between this file, `policy.md`, and skills.
 ## End Of Turn
 
 After any turn where meaningful work was completed, append a concise entry to the active session target before the turn ends. Deferring or batching session log writes is a discipline failure.
@@ -251,6 +210,7 @@ Skills are lazy-loaded runbooks. Read `.memory-seed/skills/index.md` first as th
 - `local_compilation.md`: validating local build/test/package/run behavior.
 - `memory_consolidation.md`: compacting session memory and promoting durable facts.
 - `memory_doctor.md`: validating runtime health and migration integrity.
+- `skill_architecture.md`: maintaining skill/profile boundaries, trigger registry entries, and seed/live parity.
 - `release_publishing.md`: preparing or publishing package releases.
 - `security_triage.md`: reviewing security-sensitive changes.
 
@@ -276,13 +236,12 @@ Load `.memory-seed/skills/memory_hygiene.md` for private/public risk distinction
 
 ## Session Log Format
 
-Session entries use dated files under `.memory-seed/sessions/`. Entries must include the current-time heading and YAML metadata fields needed for auditability: `entry_id`, `user_initials`, `agent_type`, `project_path`, and `subproject_path`; include `agent_name` when a persona is active and `related_entries` when meaningful prior entries are linked.
+Session entries use dated files under `.memory-seed/sessions/`. Entries include a current-time heading plus YAML fields for auditability: `entry_id`, `user_initials`, `agent_type`, `project_path`, and `subproject_path`; include `agent_name` when a persona is active and `related_entries` when meaningful prior entries are linked.
 
-Keep entries concise, reason-aware, and append-only. Load `.memory-seed/skills/session_logging.md` for the full schema, DRAFT decision record, examples, repair rules, and the local-identity/session-layout model.
-
-Identity is opt-in and decoupled from layout: a configured local user always stamps `user_initials`, but the session log only fragments into per-user files once `.memory-seed/project.yaml` registers 2+ participants — a lone configured user stays on the shared flat file. If no local identity is configured, the SessionStart hook offers once to set one up (skippable, never repeats); `doctor` separately flags a configured user with no matching `participants:` entry.
+Keep entries concise, reason-aware, and append-only. Load `.memory-seed/skills/session_logging.md` for the full schema, DRAFT decision record, branch/commit/supersession fields, examples, repair rules, and the local-identity/session-layout model.
 
 Detailed work logs belong in the nearest active runtime. Do not mirror sub-project logs into root memory.
+
 ## Archive Policy
 
 Archive prior control-plane snapshots under `.memory-seed/archive/<version>/` before replacing reusable versioned artifacts. Archive snapshots are historical records and may preserve old path names.

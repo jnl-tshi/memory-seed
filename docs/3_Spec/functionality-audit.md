@@ -253,7 +253,7 @@ graph TD
 ```
 
 ### D. Control-plane runtime (`.memory-seed/`)
-- `agent-rules.md` (operating contract: discovery, read order, retrieval rules, **Working Principles**, **End Of Turn** incl. the orphan sweep), `project-bootstrap.md` (bootstrap/repair only), `index.md` (orientation/active state/topology - bootstrap-generated), `policy.md` (constraints only - bootstrap-generated), `skills/`, `sessions/`, `archive/`, `hooks/`.
+- `agent-rules.md` (compact startup contract: discovery, read order, authority rules, change gates, **Working Principles**, **End Of Turn** pointers), `project-bootstrap.md` (bootstrap/repair only), `index.md` (orientation/active state/topology - bootstrap-generated), `policy.md` (constraints only - bootstrap-generated), `skills/`, `sessions/`, `archive/`, `hooks/`.
 - Nearest-runtime discovery (`resolve_runtime`) supports nested sub-project runtimes; legacy `.AGENTS/` remains a code-level fallback.
 - **Lazy-skill extraction (new in 2.13).** Detailed procedures that used to live directly in `agent-rules.md` were moved out into seeded skills - `history_retrieval.md`, `session_logging.md`, `end_of_turn.md`, `memory_hygiene.md`, `subproject_runtime.md` - so `agent-rules.md` now keeps startup-safe summaries plus explicit skill pointers, and seeded ESR commands point at `end_of_turn.md` for the full checklist.
 - **Working Principles gained guard-preservation bullets (new in 2.14).** Follow-up to a fan-out evaluation of a third-party code-simplification plugin proposal (rejected as redundant with the built-in `code-review`/`simplify` skills and the existing orphan sweep): a decision-ladder-before-adding-code habit, and a reminder not to strip terse validation/ownership guards (a date-format check, an `is_ours` MCP-ownership check, an `isinstance` guard) without understanding what they protect against. Landed in Working Principles rather than a new skill file, since the risk applies to any incidental edit, not just tasks that self-identify as "code simplification." Backed by new regression tests for the two guards a codebase audit found genuinely untested (`_valid_session_date`; the `is_ours` check in the claude/cursor/gemini MCP-merge functions).
@@ -263,6 +263,11 @@ graph TD
   user expects the Git graph to show branch evolution. The default is task branch/worktree plus
   `git merge --no-ff`, unless the user explicitly chooses linear history, squash, rebase, or direct
   `main` work.
+- **Skill architecture governance (unreleased).** `agent-rules.md` was trimmed further into a
+  startup-safe contract, while optional `skill_architecture.md` now owns skill/profile boundary
+  guidance, trigger-registry discipline, and seed/live parity workflow. It belongs to the
+  `governance` skill profile so normal projects do not install it unless they maintain Memory Seed
+  control-plane behavior.
 
 ```mermaid
 graph TD
@@ -337,11 +342,12 @@ graph TD
 
 ### F. Skills system (`skills/`)
 - `index.md` is a **deterministic trigger registry**: each skill listed with `required`, `load_when`, `do_not_load_when`, and an optional `persona:` scope. Agents read it at startup and **lazy-load** only the full runbooks that match the task.
-- Current runbooks (21 total): `agent_collaboration`, `code_search`, `compact_mermaid_diagrams`,
+- Current runbooks (22 total): `agent_collaboration`, `code_search`, `compact_mermaid_diagrams`,
   `data_architecture`, `docx_render_windows`, `document_ingestion`, `end_of_turn`,
   `history_retrieval`, `local_compilation`, `memory_consolidation`, `memory_doctor`,
   `memory_hygiene`, `office_document_editing`, `proposal_lifecycle`, `release_publishing`,
-  `risk_signaling`, `security_triage`, `session_logging`, and `subproject_runtime`, plus
+  `risk_signaling`, `security_triage`, `session_logging`, `skill_architecture`, and
+  `subproject_runtime`, plus
   persona-scoped `copywriter-conversion` and `developer-rendered-ui-debugging`.
 - `proposal_lifecycle` is path-aware: this repository uses `docs/1_Inbox/` -> `docs/2_Todo/` ->
   `docs/2_Todo/completed/` with `docs/3_Spec/` and `docs/4_Reference/`; newly initialized projects
