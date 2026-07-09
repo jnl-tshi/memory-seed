@@ -127,6 +127,28 @@ Capability tier guidance: exploration economy/standard; planning **frontier**; i
 - Do not create a worktree inside a tracked directory unless the worktree directory is ignored.
 - Avoid stacking unrelated features in one branch. Commit or park completed work before starting the next feature.
 
+## Branch History Preservation
+
+Use this when the user expects Git history to show discrete feature branches and merges, or when
+multiple writing agents work on different features at the same time.
+
+- A worktree only isolates the working directory; it does not by itself create a visible branch in
+  the Git graph. Visible topology requires commits on a task branch plus an integration merge commit.
+- Distinct feature, proposal-implementation, fix, refactor, test, or documentation tasks should use
+  their own task branch unless the user explicitly chooses direct `main` work for that task.
+- Parallel writing agents get one task branch and one worktree each. Read-only researchers,
+  reviewers, and validators may share the current tree because they do not write commits.
+- Integrate completed task branches one at a time with `git merge --no-ff <branch>` when the desired
+  outcome is a visible branch-and-merge graph. Avoid squash, rebase, or fast-forward integration when
+  preserving branch shape matters.
+- Do not delete task branches before the final handoff if the user wants the branch labels visible in
+  local tools. If branches are later deleted, merge commits still preserve topology, but branch labels
+  disappear.
+- Before feature work starts, run `memory-seed branch status` when available. Treat warnings as a
+  prompt to create or switch to a task branch, not as a hard block.
+- Final handoff records the base SHA, task branch, worktree path, merge method (`--no-ff` when used),
+  merge commit if available, validation, and unresolved risks.
+
 ## Dependency Strategy
 
 Worktrees isolate source edits. Local environments isolate runtime state. Shared caches reduce disk

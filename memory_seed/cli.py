@@ -12,6 +12,7 @@ from .core import (
     KNOWN_AGENTS,
     add_agent,
     add_skill,
+    branch_status,
     check_session_links,
     clear_local_user,
     compact_sessions,
@@ -199,6 +200,14 @@ def main(argv: list[str] | None = None) -> int:
     session_target_parser.add_argument("--user", default=None, help="override the active user slug")
     session_target_parser.add_argument("--create", action="store_true", help="create the target file if needed")
 
+    branch_parser = subparsers.add_parser("branch", help="inspect Git branch/worktree posture")
+    branch_sub = branch_parser.add_subparsers(dest="branch_command", required=True)
+    branch_status_parser = branch_sub.add_parser(
+        "status",
+        help="show read-only branch guardrails for feature work",
+    )
+    branch_status_parser.add_argument("--json", action="store_true", help="emit machine-readable status")
+
     links_parser = subparsers.add_parser("links", help="validate session-memory integrity")
     links_sub = links_parser.add_subparsers(dest="links_command", required=True)
     links_sub.add_parser(
@@ -317,6 +326,32 @@ def main(argv: list[str] | None = None) -> int:
                 print(target.path.relative_to(Path(".").resolve()).as_posix())
             except ValueError:
                 print(target.path.as_posix())
+            return 0
+
+    if args.command == "branch":
+        if args.branch_command == "status":
+            status = branch_status(cwd=Path(".").resolve())
+            if args.json:
+                print(json.dumps(status.to_dict(), indent=2, ensure_ascii=False))
+                return 0 if status.is_git_repo else 1
+            if not status.is_git_repo:
+                print(status.recommendation)
+                return 1
+            print(f"Branch: {status.branch or '(detached)'}")
+            print(f"Integration branch: {'yes' if status.is_integration_branch else 'no'}")
+            print(f"Dirty: {'yes' if status.dirty else 'no'}")
+            print(f"Upstream: {status.upstream or '(none)'}")
+            if status.ahead is not None and status.behind is not None:
+                print(f"Ahead/behind: {status.ahead}/{status.behind}")
+            else:
+                print("Ahead/behind: (unavailable)")
+            print(f"Worktrees: {status.worktree_count}")
+            print(f"Recent merge commit: {status.recent_merge_commit or '(none)'}")
+            if status.warnings:
+                print("Warnings:")
+                for warning in status.warnings:
+                    print(f"  - {warning}")
+            print(f"Recommendation: {status.recommendation}")
             return 0
 
     if args.command == "encoding":

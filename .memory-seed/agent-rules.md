@@ -212,6 +212,11 @@ Cross-cutting principles that apply to any agent and any task:
 - **Do not strip terse guards without understanding why.** A short validation or ownership check (a date-format guard, an is_ours ownership check, an isinstance guard) can look like boilerplate; read what it protects against before removing or simplifying it.
 - **Default to plain text; reserve Mermaid for spatial, temporal, or concurrent structure.** Use a plain sentence or list for a decision's rationale by default. Reach for a Mermaid diagram only when the content is genuinely spatial, temporal, or concurrent — sequence flows across components, entity/schema relationships, or topology — where a diagram is clearly higher-signal than prose. Keep Mermaid blocks small, and double-check bracket/arrow/quote syntax before committing. Also check semantic freshness: roadmap diagrams must be updated when shipped work changes status, not merely kept syntactically valid. A broken or stale block renders as misleading raw text with no fallback.
 - **Link commits to the decision entry that motivated them.** When a commit implements a logged decision, append a `Memory-Entry: <entry_id>` trailer to the commit message. Optionally backfill the entry's `commits:` field with the full 40-character SHA — but only while that entry is still the newest one, in the same turn; after that, the trailer alone carries the link. This is a convention, not an enforced hook.
+- **Preserve visible branch history for distinct feature work.** If a task is a distinct feature,
+  proposal implementation, fix, refactor, test, or documentation change where the user expects Git
+  history to show the work as a branch, load `agent_collaboration.md` before editing. Use a task
+  branch/worktree and integrate with `git merge --no-ff` unless the user explicitly chooses linear
+  history, squash, rebase, or direct `main` work.
 - **Use qualitative risk tiers before acting.** For ambiguous, destructive, irreversible, externally visible, financial, security-sensitive, or shared-control-plane actions, load `.memory-seed/skills/risk_signaling.md` and choose Proceed, Proceed-and-flag, Propose-and-wait, or Stop from observable risk rather than numeric confidence.
 
 ## End Of Turn
