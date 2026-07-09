@@ -339,6 +339,7 @@ class MemorySeedTests(unittest.TestCase):
             check=True,
             capture_output=True,
         )
+        subprocess.run(["git", "-C", str(cwd), "branch", "-M", "main"], check=True, capture_output=True)
         head = subprocess.run(
             ["git", "-C", str(cwd), "rev-parse", "HEAD"], check=True, capture_output=True, text=True
         ).stdout.strip()
@@ -414,6 +415,52 @@ class MemorySeedTests(unittest.TestCase):
 
         # Trailer scan skips (no git); only the well-formed field SHA survives.
         self.assertEqual(ids, {"a" * 40})
+
+    def test_branch_status_warns_on_dirty_main(self):
+        from memory_seed.core import branch_status
+
+        cwd = self.make_project()
+        self._git_repo_with_commit(cwd)
+        (cwd / "README.txt").write_text("changed", encoding="utf-8")
+
+        status = branch_status(cwd=cwd)
+
+        self.assertTrue(status.is_git_repo)
+        self.assertEqual(status.branch, "main")
+        self.assertTrue(status.is_integration_branch)
+        self.assertTrue(status.dirty)
+        self.assertTrue(any("task branch" in warning for warning in status.warnings))
+        self.assertIn("--no-ff", status.recommendation)
+
+    def test_branch_status_recognizes_feature_branch(self):
+        import subprocess
+        from memory_seed.core import branch_status
+
+        cwd = self.make_project()
+        self._git_repo_with_commit(cwd)
+        subprocess.run(
+            ["git", "-C", str(cwd), "switch", "-c", "feature-topic"],
+            check=True,
+            capture_output=True,
+        )
+
+        status = branch_status(cwd=cwd)
+
+        self.assertTrue(status.is_git_repo)
+        self.assertEqual(status.branch, "feature-topic")
+        self.assertFalse(status.is_integration_branch)
+        self.assertFalse(status.dirty)
+        self.assertIn("merge --no-ff", status.recommendation)
+
+    def test_branch_status_handles_non_git_directory(self):
+        from memory_seed.core import branch_status
+
+        cwd = self.make_project()
+
+        status = branch_status(cwd=cwd)
+
+        self.assertFalse(status.is_git_repo)
+        self.assertIn("Not a Git repository", status.recommendation)
 
     def test_links_check_flags_supersedes_cycle_between_same_minute_entries(self):
         # Same-minute entries slip past the postdates comparison; the DFS
@@ -2606,6 +2653,69 @@ class CliHelpTests(unittest.TestCase):
         self.assertTrue((project / "AGENTS.md").exists())
         self.assertTrue((project / ".memory-seed" / "agent-rules.md").exists())
         self.assertIn("agents:\n", (project / ".memory-seed" / "project.yaml").read_text(encoding="utf-8"))
+
+    def test_branch_status_cli_warns_on_dirty_main(self):
+        import os
+        import subprocess
+
+        project = self.make_project()
+        cwd = Path.cwd()
+        try:
+            os.chdir(project)
+            subprocess.run(["git", "init", "-q"], check=True, capture_output=True)
+            (project / "README.txt").write_text("x", encoding="utf-8")
+            subprocess.run(["git", "add", "-A"], check=True, capture_output=True)
+            subprocess.run(
+                [
+                    "git", "-c", "user.name=test", "-c", "user.email=test@example.com",
+                    "-c", "commit.gpgsign=false", "commit", "-q", "-m", "initial",
+                ],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(["git", "branch", "-M", "main"], check=True, capture_output=True)
+            (project / "README.txt").write_text("changed", encoding="utf-8")
+            code, out = self._run(["branch", "status"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 0)
+        self.assertIn("Branch: main", out)
+        self.assertIn("Dirty: yes", out)
+        self.assertIn("task branch", out)
+        self.assertIn("--no-ff", out)
+
+    def test_branch_status_cli_json_reports_feature_branch(self):
+        import json
+        import os
+        import subprocess
+
+        project = self.make_project()
+        cwd = Path.cwd()
+        try:
+            os.chdir(project)
+            subprocess.run(["git", "init", "-q"], check=True, capture_output=True)
+            (project / "README.txt").write_text("x", encoding="utf-8")
+            subprocess.run(["git", "add", "-A"], check=True, capture_output=True)
+            subprocess.run(
+                [
+                    "git", "-c", "user.name=test", "-c", "user.email=test@example.com",
+                    "-c", "commit.gpgsign=false", "commit", "-q", "-m", "initial",
+                ],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(["git", "branch", "-M", "main"], check=True, capture_output=True)
+            subprocess.run(["git", "switch", "-c", "feature-topic"], check=True, capture_output=True)
+            code, out = self._run(["branch", "status", "--json"])
+        finally:
+            os.chdir(cwd)
+
+        data = json.loads(out)
+        self.assertEqual(code, 0)
+        self.assertEqual(data["branch"], "feature-topic")
+        self.assertFalse(data["is_integration_branch"])
+        self.assertIn("merge --no-ff", data["recommendation"])
 
     def test_interactive_init_prompts_for_agent_opt_out(self):
         import contextlib

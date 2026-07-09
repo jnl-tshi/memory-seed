@@ -287,6 +287,7 @@ uvx --from memory-seed memory-seed doctor
 uvx --from memory-seed memory-seed init --dry-run
 uvx --from memory-seed memory-seed update --dry-run
 uvx --from memory-seed memory-seed compact
+uvx --from memory-seed memory-seed branch status
 ```
 
 Use `uv tool install memory-seed` when you want Memory Seed installed persistently as a local machine tool with console scripts on PATH:
@@ -328,12 +329,20 @@ python -m pip show memory-seed
 
 To discover commands and flags, use `memory-seed help` (also shown when you run `memory-seed` with no command), `memory-seed -h`, or `memory-seed <command> -h` for a specific command.
 
+Use `memory-seed branch status` before distinct feature or proposal work when you want Git history
+to show clear branch-and-merge structure. It is read-only: it reports the current branch, dirty
+state, upstream status, linked worktree count, recent merge-commit presence, and a recommendation.
+It warns when feature-like work appears to be happening on an integration branch, but it never blocks
+or creates branches automatically. For visible topology, work on a task branch/worktree and merge
+back with `git merge --no-ff`.
+
 From this repository checkout, run:
 
 ```powershell
 python -m memory_seed.cli version
 python -m memory_seed.cli doctor
 python -m memory_seed.cli processes --json
+python -m memory_seed.cli branch status
 python -m memory_seed.cli shutdown --dry-run
 python -m memory_seed.cli upgrade --dry-run --manager uv
 python -m memory_seed.cli encoding check

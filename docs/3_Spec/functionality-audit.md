@@ -112,6 +112,39 @@ graph TD
   (`fastapi`/`uvicorn`) now live in the separate `memory-trace` distribution; the deprecated
   `memory-seed[lense]` extra installs `memory-trace` rather than bundling web deps in core.
 
+```mermaid
+graph TD
+  subgraph SourceTier["Source and release"]
+    direction LR
+    REPO["Repository<br>source"] ~~~ RELEASE["GitHub Release<br>publish.yml"]
+    PYPI["PyPI<br>memory-seed"]
+  end
+
+  subgraph PackageTier["Installed packages"]
+    direction LR
+    CORE["memory-seed<br>CLI / MCP / seed"] ~~~ MODEL["model2vec<br>runtime dep"]
+    TRACE["memory-trace<br>review UI"]
+  end
+
+  subgraph UserTier["User entrypoints"]
+    direction LR
+    CLI["memory-seed"] ~~~ MCP["memory-seed-mcp"]
+    SHIM["memory-seed lense<br>deprecated shim"] ~~~ TRACECLI["memory-trace"]
+  end
+
+  SourceTier ~~~ PackageTier
+  PackageTier ~~~ UserTier
+
+  REPO --> RELEASE
+  RELEASE --> PYPI
+  PYPI --> CORE
+  CORE --> MODEL
+  CORE --> CLI
+  CORE --> MCP
+  SHIM --> TRACE
+  TRACE --> TRACECLI
+```
+
 ### B. CLI surface (`memory_seed/cli.py`)
 | Command | Purpose |
 |---|---|
@@ -122,6 +155,7 @@ graph TD
 | `agents list \| add <a> \| remove <a>` | Show selected/ignored agents or reconfigure installed agent integrations (cleanup-aware removal). |
 | `user set <slug> \| show \| clear` | Manage the local active user in gitignored `.memory-seed/local.yaml` (new in 2.10). |
 | `session target [--create] [--user <slug>] [--date ...]` | Print (and optionally create) the active session-log target; flat or per-user depending on the resolved user (new in 2.10). |
+| `branch status [--json]` | Read-only: report current Git branch/worktree posture and warn when distinct feature work should move to a task branch with `--no-ff` integration. |
 | `links check` | Validate session-memory integrity across both layouts (duplicate/dangling IDs, per-user frontmatter problems); exits non-zero on any issue (new in 2.12). |
 | `migrate sessions-layout [--dry-run]` | Split legacy flat session files into per-user files using `project.yaml` participants; preserves entry IDs, backs up before removing migrated sources (new in 2.12). |
 | `link suggest [--for <entry_id>] [--top-k N]` | Read-only: rank older candidate entries to link from a target entry; prints a paste-ready `related_entries:` snippet (new in 2.13). |
@@ -136,11 +170,87 @@ graph TD
 | `version` | Print bundled control-plane version. |
 | `help` (or no args) | Full command reference. |
 
+```mermaid
+graph TD
+  subgraph SetupTier["Project setup"]
+    direction LR
+    INIT["init"] ~~~ UPDATE["update"]
+    DOCTOR["doctor"] ~~~ VERSION["version / help"]
+  end
+
+  subgraph MemoryTier["Memory operations"]
+    direction LR
+    USER["user"] ~~~ SESSION["session target"]
+    COMPACT["compact"] ~~~ LINKS["links / link"]
+  end
+
+  subgraph GitTier["Git guardrails"]
+    direction LR
+    BRANCH["branch status"] ~~~ AGENTS["agents"]
+  end
+
+  subgraph OpsTier["Operational safety"]
+    direction LR
+    PROCESSES["processes"] ~~~ SHUTDOWN["shutdown"]
+    UPGRADE["upgrade"] ~~~ ENCODING["encoding"]
+  end
+
+  subgraph UiTier["UI bridge"]
+    direction LR
+    LENSE["lense shim"] ~~~ TRACE["memory-trace<br>separate command"]
+  end
+
+  SetupTier ~~~ MemoryTier
+  MemoryTier ~~~ GitTier
+  OpsTier ~~~ UiTier
+
+  INIT --> DOCTOR
+  UPDATE --> DOCTOR
+  SESSION --> LINKS
+  LINKS --> COMPACT
+  BRANCH --> AGENTS
+  PROCESSES --> SHUTDOWN
+  SHUTDOWN --> UPGRADE
+  LENSE --> TRACE
+```
+
 ### C. Agent-selective install (`core.py`)
 - `init` installs only the chosen agents' files; the set persists in `.memory-seed/project.yaml` (`agents:` list).
 - Backed by registries: `KNOWN_AGENTS = (claude, codex, cursor, gemini, copilot)`, `_AGENT_MERGES`, `_AGENT_UNINSTALLS`, and a per-`SeedFile` `agent` tag.
 - Interactive init presents agent integrations as an opt-out selection step with all agents selected by default; `--no-agent-prompt` skips that prompt, and `--agents none` writes the explicit zero-agent state.
 - **Absent `project.yaml` => all agents** (legacy default unchanged); **present-but-empty `agents:` => zero agents** (distinct state). `doctor`/`update` respect the selection. Init and `agents list` report both selected and ignored agents. `remove` strips only Memory Seed's own entries (foreign config preserved), backs up first, never deletes shared dirs. `codex`/`cursor` get no routing file (they read `AGENTS.md` natively).
+
+```mermaid
+graph TD
+  subgraph InputTier["Selection inputs"]
+    direction LR
+    LEGACY["No project.yaml<br>legacy all"] ~~~ FLAGS["--agents / none"]
+    PROMPT["TTY opt-out<br>selection"] ~~~ LISTCMD["agents add/remove"]
+  end
+
+  subgraph StateTier["Persisted state"]
+    direction LR
+    SELECTED["project.yaml<br>agents"] ~~~ IGNORED["Ignored<br>integrations"]
+  end
+
+  subgraph ApplyTier["Managed outputs"]
+    direction LR
+    ROUTERS["Routing files"] ~~~ MCP["MCP configs"]
+    HOOKS["Hook configs"] ~~~ CLEANUP["Cleanup-aware<br>remove"]
+  end
+
+  InputTier ~~~ StateTier
+  StateTier ~~~ ApplyTier
+
+  LEGACY --> SELECTED
+  FLAGS --> SELECTED
+  PROMPT --> SELECTED
+  LISTCMD --> SELECTED
+  SELECTED --> ROUTERS
+  SELECTED --> MCP
+  SELECTED --> HOOKS
+  IGNORED --> CLEANUP
+```
 
 ### D. Control-plane runtime (`.memory-seed/`)
 - `agent-rules.md` (operating contract: discovery, read order, retrieval rules, **Working Principles**, **End Of Turn** incl. the orphan sweep), `project-bootstrap.md` (bootstrap/repair only), `index.md` (orientation/active state/topology - bootstrap-generated), `policy.md` (constraints only - bootstrap-generated), `skills/`, `sessions/`, `archive/`, `hooks/`.
@@ -148,10 +258,82 @@ graph TD
 - **Lazy-skill extraction (new in 2.13).** Detailed procedures that used to live directly in `agent-rules.md` were moved out into seeded skills - `history_retrieval.md`, `session_logging.md`, `end_of_turn.md`, `memory_hygiene.md`, `subproject_runtime.md` - so `agent-rules.md` now keeps startup-safe summaries plus explicit skill pointers, and seeded ESR commands point at `end_of_turn.md` for the full checklist.
 - **Working Principles gained guard-preservation bullets (new in 2.14).** Follow-up to a fan-out evaluation of a third-party code-simplification plugin proposal (rejected as redundant with the built-in `code-review`/`simplify` skills and the existing orphan sweep): a decision-ladder-before-adding-code habit, and a reminder not to strip terse validation/ownership guards (a date-format check, an `is_ours` MCP-ownership check, an `isinstance` guard) without understanding what they protect against. Landed in Working Principles rather than a new skill file, since the risk applies to any incidental edit, not just tasks that self-identify as "code simplification." Backed by new regression tests for the two guards a codebase audit found genuinely untested (`_valid_session_date`; the `is_ours` check in the claude/cursor/gemini MCP-merge functions).
 - **Mermaid usage guidance bullet (new in 2.14).** A third new Working Principles bullet: default to plain text; reserve Mermaid for genuinely spatial, temporal, or concurrent structure; keep blocks small; check syntax *and* semantic freshness (roadmap diagrams must be updated when shipped work changes status). From `docs/2_Todo/completed/mermaid-usage-guidance-plan.md`. `session_logging.md`'s Reason Rules simultaneously gained the failed-approaches rule: an attempted-and-failed or incompatible approach must be logged under `A` even unprompted (`docs/2_Todo/completed/failed-approaches-logging-plan.md`).
+- **Visible branch history guidance (unreleased).** Working Principles now tell agents to load
+  `agent_collaboration.md` before distinct feature/proposal/fix/refactor/test/docs work where the
+  user expects the Git graph to show branch evolution. The default is task branch/worktree plus
+  `git merge --no-ff`, unless the user explicitly chooses linear history, squash, rebase, or direct
+  `main` work.
+
+```mermaid
+graph TD
+  subgraph DiscoveryTier["Runtime discovery"]
+    direction LR
+    CWD["Current path"] ~~~ NEAREST["Nearest<br>.memory-seed"]
+    LEGACY["Legacy<br>.AGENTS fallback"]
+  end
+
+  subgraph ControlTier["Control plane"]
+    direction LR
+    RULES["agent-rules.md"] ~~~ BOOT["project-bootstrap.md"]
+    INDEX["index.md"] ~~~ POLICY["policy.md"]
+  end
+
+  subgraph StateTier["Runtime state"]
+    direction LR
+    SKILLS["skills/"] ~~~ SESSIONS["sessions/"]
+    HOOKS["hooks/"] ~~~ ARCHIVE["archive/"]
+  end
+
+  DiscoveryTier ~~~ ControlTier
+  ControlTier ~~~ StateTier
+
+  CWD --> NEAREST
+  NEAREST --> RULES
+  NEAREST --> INDEX
+  RULES --> SKILLS
+  INDEX --> SESSIONS
+  POLICY --> HOOKS
+  BOOT --> ARCHIVE
+  LEGACY --> NEAREST
+```
 
 ### E. Routing files
 - Canonical `AGENTS.md` (read by Codex, Cursor, and Copilot coding agent natively). Thin per-agent routers that point back to `AGENTS.md`: `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`.
 - **Non-destructive routing into pre-existing files (new in 2.8).** Because these names collide with files other tools own (e.g. HyperFrames also uses `AGENTS.md`/`CLAUDE.md`), `init`/`update` decide per file by a 4-way ownership branch (`ROUTING_DESTINATIONS` in `core.py`): absent -> write full seed file; **ours** (carries `memory-system-version` frontmatter) -> version-gated archive+replace; **foreign with our markers** -> re-sync the managed block in place; **foreign without markers** -> inject a marker-delimited routing block (`<!-- BEGIN memory-seed -->...<!-- END memory-seed -->` pointing into `.memory-seed/`) appended at end. A foreign file is **never overwritten** - even under `init --force`. The in-place re-sync is gated on block-body equality (`_merge_routing_stanza`, mirroring `_merge_grouped_hook`), so a bare version bump causes no churn (the block carries no version stamp). Retired the legacy "versionless -> clobber" path: an unprovable-ownership file is merged, not destroyed.
+
+```mermaid
+graph TD
+  subgraph FileTier["Entry-point file"]
+    direction LR
+    ABSENT["Absent"] ~~~ OURS["Ours<br>frontmatter"]
+    MARKED["Foreign<br>with markers"] ~~~ FOREIGN["Foreign<br>unmarked"]
+  end
+
+  subgraph ActionTier["Merge action"]
+    direction LR
+    WRITE["Write seed file"] ~~~ REPLACE["Archive + replace"]
+    RESYNC["Resync block"] ~~~ INJECT["Inject block"]
+  end
+
+  subgraph ResultTier["Routing result"]
+    direction LR
+    AGENTS["AGENTS.md"] ~~~ THIN["Thin routers"]
+    SAFE["Foreign content<br>preserved"]
+  end
+
+  FileTier ~~~ ActionTier
+  ActionTier ~~~ ResultTier
+
+  ABSENT --> WRITE
+  OURS --> REPLACE
+  MARKED --> RESYNC
+  FOREIGN --> INJECT
+  WRITE --> AGENTS
+  REPLACE --> AGENTS
+  RESYNC --> SAFE
+  INJECT --> SAFE
+  AGENTS --> THIN
+```
 
 ### F. Skills system (`skills/`)
 - `index.md` is a **deterministic trigger registry**: each skill listed with `required`, `load_when`, `do_not_load_when`, and an optional `persona:` scope. Agents read it at startup and **lazy-load** only the full runbooks that match the task.
@@ -166,10 +348,80 @@ graph TD
   can still use the generic bootstrap anchors `docs/inbox/`, `docs/todo/`, `docs/todo/completed/`,
   and `docs/reference/`.
 - **Fan-Out Recipe in `agent_collaboration` (new in 2.14).** A named "Explore / Plan / Implement / Validate" 9-gate pipeline (Scope, Exploration, Plan, Worker Identity, Worktree, Pre-Review Validation, Integration, Bounded Review-to-Rework Loop capped at 2 iterations, Final Handoff), new task-packet fields (`base_sha`, `expected_pwd`, `integration_artifact`, `capability_tier`, `shared_file_policy`, `conflict_owner`, `preflight`, `review_loop`), and vendor-neutral capability-tier guidance (planning and review both frontier-tier). From `docs/2_Todo/completed/agent-fanout-workflow-plan.md`.
+- **Branch history preservation (unreleased).** `agent_collaboration.md` now distinguishes worktree
+  isolation from visible Git topology: a worktree alone does not create a branch in the graph.
+  Distinct parallel writing tasks get separate branches/worktrees, and integration uses
+  `git merge --no-ff` when branch-and-merge shape matters. The read-only `branch status` command
+  surfaces this as a warning/guidance check for all agent types.
+
+```mermaid
+graph TD
+  subgraph StartupTier["Startup"]
+    direction LR
+    READ["Read<br>skills/index.md"] ~~~ TASK["Current task"]
+  end
+
+  subgraph MatchTier["Trigger evaluation"]
+    direction LR
+    LOADWHEN["load_when"] ~~~ DONT["do_not_load_when"]
+    PERSONA["persona scope"] ~~~ REQUIRED["required flag"]
+  end
+
+  subgraph RuntimeTier["Lazy execution"]
+    direction LR
+    SKILL["Load full<br>skill file"] ~~~ RUN["Apply runbook"]
+    SKIP["Skip<br>unmatched skill"]
+  end
+
+  StartupTier ~~~ MatchTier
+  MatchTier ~~~ RuntimeTier
+
+  READ --> LOADWHEN
+  TASK --> LOADWHEN
+  LOADWHEN --> REQUIRED
+  DONT --> SKIP
+  PERSONA --> SKILL
+  REQUIRED --> SKILL
+  SKILL --> RUN
+```
 
 ### G. Personas (`.agents/`)
 - Vendor-neutral persona templates (developer, content-creator, researcher, sales-rep, solo-founder, copywriter) + `_registry.yaml`. Each defines identity, memory protocol, rules, skill routing, and an append-only `## Project Adaptations` log.
 - **Persona evolution** is approval-gated: at session end an agent may draft <=3 adaptations and must get user approval before editing the persona file. `agent_name` is recorded in session entries when a persona is active.
+
+```mermaid
+graph TD
+  subgraph RegistryTier["Persona registry"]
+    direction LR
+    REG["_registry.yaml"] ~~~ ACTIVE["status: active"]
+    INACTIVE["status: inactive"]
+  end
+
+  subgraph PersonaTier["Active persona files"]
+    direction LR
+    IDENTITY["Identity / role"] ~~~ RULES["Operating rules"]
+    SKILLMAP["Skill mapping"] ~~~ ADAPT["Project adaptations"]
+  end
+
+  subgraph SessionTier["Session effects"]
+    direction LR
+    NAME["agent_name<br>in log"] ~~~ DRAFT["Draft adaptations"]
+    APPROVAL["User approval"] ~~~ EDIT["Edit persona"]
+  end
+
+  RegistryTier ~~~ PersonaTier
+  PersonaTier ~~~ SessionTier
+
+  REG --> ACTIVE
+  ACTIVE --> IDENTITY
+  ACTIVE --> RULES
+  ACTIVE --> SKILLMAP
+  RULES --> NAME
+  ADAPT --> DRAFT
+  DRAFT --> APPROVAL
+  APPROVAL --> EDIT
+  INACTIVE --> REG
+```
 
 ### H. Lifecycle hooks (`.memory-seed/hooks/`, auto-merged per agent)
 | Script | Fires | Does |
@@ -180,6 +432,38 @@ graph TD
 
 Per-agent event names differ (Claude/Codex: `SessionStart`/`UserPromptSubmit`/`Stop`; Gemini: `SessionStart`/`BeforeAgent`/`AfterAgent`; Cursor: `sessionStart`/`afterAgentResponse`; Copilot CLI: `sessionStart` prompt hook only). Hooks **nudge, never block**. The user-aware paths fall back to legacy flat-file behavior when no user is configured.
 
+```mermaid
+graph TD
+  subgraph EventTier["Agent events"]
+    direction LR
+    START["SessionStart"] ~~~ PROMPT["Prompt event"]
+    END["Turn-end event"] ~~~ COPILOT["Copilot<br>sessionStart only"]
+  end
+
+  subgraph HookTier["Hook scripts"]
+    direction LR
+    CONTEXT["session-start-context.py"] ~~~ RETRIEVAL["memory-retrieval-check.py"]
+    LOGCHECK["session-log-check.py"]
+  end
+
+  subgraph OutputTier["Nudges"]
+    direction LR
+    LATEST["Latest memory<br>injected"] ~~~ TOPICAL["Topical recall<br>reminder"]
+    LOGNUDGE["Session log<br>reminder"]
+  end
+
+  EventTier ~~~ HookTier
+  HookTier ~~~ OutputTier
+
+  START --> CONTEXT
+  PROMPT --> RETRIEVAL
+  END --> LOGCHECK
+  COPILOT --> CONTEXT
+  CONTEXT --> LATEST
+  RETRIEVAL --> TOPICAL
+  LOGCHECK --> LOGNUDGE
+```
+
 ### I. MCP memory retrieval
 - `mcp_server.py`: a dependency-light **stdio JSON-RPC** server exposing two tools - `memory_search` (ranked entries/sections) and `memory_get_chunk` (full text for one `chunk_id`). Unreleased after 2.15: it is now a **thin wrapper over `retrieval.py`** with a byte-identical tool contract (parity-tested).
 - `retrieval.py` (**new, unreleased - Memory Trace distribution Phase 1**): the public, MCP-independent retrieval service every consumer rides - `search_memory()`, `get_chunk()` (opt-in `include_diagrams`), `resolve_semantic_provider()`, the canonical `ranked_to_dict`/`chunk_to_dict` result dicts, the `EntryRollup`/`rollup_entry_matches()`/`rollup_entry_results()` entry-level rollup contract (one visible result per session entry; `best_match_chunk_id`, `matched_sections`, `score_source`), and `entry_diagram_sidecars()`. MCP wraps it; Memory Trace imports it as its frozen surface.
@@ -189,6 +473,40 @@ Per-agent event names differ (Claude/Codex: `SessionStart`/`UserPromptSubmit`/`S
 - **Related-entry graph (new in 2.13, extended unreleased).** `build_related_entry_graph()` computes the bidirectional related-entry graph at read time - each entry's stored outbound `related_entries` plus computed inbound backlinks from every other entry that points at it, without ever editing a historical entry. Unreleased extensions add typed `supersedes` edges, computed `superseded_by`, raw `inbound_relation_count`, and supersession-aware `importance_score`; the Trace graph's combined node-degree field is named `connectivity` to avoid colliding with the inbound-only metric.
 - `mcp_validate.py` + `memory-seed-mcp-validate`: human-validatable search/fetch harness.
 
+```mermaid
+graph TD
+  subgraph SourceTier["Memory sources"]
+    direction LR
+    FLAT["Flat sessions"] ~~~ USER["Per-user sessions"]
+    DIAGRAMS["Diagram sidecars"]
+  end
+
+  subgraph ServiceTier["Retrieval service"]
+    direction LR
+    CHUNKS["extract_memory_chunks"] ~~~ RANK["rank_memory_chunks"]
+    GRAPH["related-entry graph"] ~~~ ROLLUP["entry rollup"]
+  end
+
+  subgraph ConsumerTier["Consumers"]
+    direction LR
+    MCP["MCP server"] ~~~ TRACE["Memory Trace"]
+    VALIDATE["mcp_validate"]
+  end
+
+  SourceTier ~~~ ServiceTier
+  ServiceTier ~~~ ConsumerTier
+
+  FLAT --> CHUNKS
+  USER --> CHUNKS
+  DIAGRAMS --> ROLLUP
+  CHUNKS --> RANK
+  CHUNKS --> GRAPH
+  RANK --> ROLLUP
+  ROLLUP --> MCP
+  ROLLUP --> TRACE
+  MCP --> VALIDATE
+```
+
 ### J. Session log model
 - Append-only dated files `sessions/YYYY-MM-DD.md`; entries carry a YAML block (`entry_id`, `user_initials`, `agent_type`, `agent_name?`, `project_path`, `subproject_path`, optional `related_entries`). The **DRAFT** record is the baseline shape: D (Decision) and R (Reason) mandatory; A (Alternatives), F (Files), T (Tests) optional. Strict ascending-time, append-at-end chronology.
 - **Entry IDs (widened in 2.12).** New generated `entry_id`s use deterministic 80-bit `mse_` Base32 IDs (`generate_session_entry_id()`); legacy 32-bit `ms-` IDs remain valid and are never rewritten.
@@ -197,25 +515,239 @@ Per-agent event names differ (Claude/Codex: `SessionStart`/`UserPromptSubmit`/`S
 - **Multi-user session memory (phased).** *2.9 - read-only dual discovery:* `memory_search`, `memory_get_chunk`, and `compact` now read **both** legacy flat files (`sessions/YYYY-MM-DD.md`) and per-day/per-user files (`sessions/YYYY-MM-DD/<user>.md`); fallback chunk IDs are date-qualified to avoid collisions between same-named per-user files on different dates. *2.10 - opt-in user-aware targets:* `session_target()` returns the flat path when no user is configured and `sessions/YYYY-MM-DD/<user>.md` when one is, resolved in order **CLI arg -> `MEMORY_SEED_USER` -> gitignored `.memory-seed/local.yaml` -> legacy flat**. `--create` initializes per-user file frontmatter (`schema_version: 2`, `session_date`, immutable `hash_id`, `user`, `created_at`). Writes stay legacy-compatible; no existing logs are moved.
 - **Participant-count layout gating (new in 2.14).** A configured user alone no longer fragments the log: `session_target()` only honors an *ambiently*-resolved user (env var or `local.yaml`) once `.memory-seed/project.yaml`'s `participants:` list has 2 or more entries - with 0 or 1, it stays on the shared flat file, since per-user files exist to avoid concurrent-author conflicts that don't arise until there's a second author. An explicit `--user <slug>` CLI override still bypasses the gate (a deliberate one-shot choice). `doctor` separately warns (non-fatal) when a configured local user has no matching `participants:` entry. This repository has one participant registered (`jean`, initials `JNL`), so it correctly stays on the legacy-flat layout.
 
+```mermaid
+graph TD
+  subgraph IdentityTier["User resolution"]
+    direction LR
+    CLI["Explicit<br>--user"] ~~~ ENV["MEMORY_SEED_USER"]
+    LOCAL["local.yaml"] ~~~ NONE["No user"]
+  end
+
+  subgraph RoutingTier["Target selection"]
+    direction LR
+    EXPLICIT["Explicit override"]
+    AMBIENT["Ambient identity"]
+    GATE{"Two or more<br>participants?"}
+    EXPLICIT ~~~ AMBIENT ~~~ GATE
+  end
+
+  subgraph StorageTier["Session storage"]
+    direction LR
+    FLAT["Shared daily file<br>sessions/YYYY-MM-DD.md"]
+    SPLIT["Per-user/day file<br>sessions/YYYY-MM-DD/user.md"]
+  end
+
+  subgraph ReaderTier["Dual-layout consumers"]
+    direction LR
+    RETRIEVAL["Search / fetch / compact"]
+    OPERATIONS["Hooks / links check"]
+  end
+
+  IdentityTier ~~~ RoutingTier
+  RoutingTier ~~~ StorageTier
+  StorageTier ~~~ ReaderTier
+
+  CLI --> EXPLICIT
+  EXPLICIT --> SPLIT
+  ENV --> AMBIENT
+  LOCAL --> AMBIENT
+  AMBIENT --> GATE
+  NONE --> FLAT
+  GATE -- No --> FLAT
+  GATE -- Yes --> SPLIT
+  FLAT --> RETRIEVAL
+  FLAT --> OPERATIONS
+  SPLIT --> RETRIEVAL
+  SPLIT --> OPERATIONS
+```
+
 ### K. Versioning, seed/live twins, archiving
 - `memory-system-version` frontmatter + `core.py VERSION` + `pyproject.toml version` must stay in lockstep (the "version-bump trap", guarded by `test_repo_root_control_plane_files_match_version`).
 - Seed templates and the repo's own live runtime are **twins** (parity enforced by tests). `update` is **forward-only** and archives replaced files under `archive/<old-version>/`.
 
+```mermaid
+graph TD
+  subgraph VersionTier["Version lockstep"]
+    direction LR
+    FRONT["Frontmatter<br>memory-system-version"] ~~~ CORE["core.py<br>VERSION"]
+    PACKAGE["pyproject.toml<br>version"]
+  end
+
+  subgraph TwinTier["Seed/live twins"]
+    direction LR
+    SEED["memory_seed/seed"] ~~~ LIVE["Live<br>.memory-seed"]
+    TEST["Parity tests"]
+  end
+
+  subgraph UpdateTier["Forward update"]
+    direction LR
+    OLD["Existing file"] ~~~ ARCHIVE["archive/old-version"]
+    NEW["Refreshed seed file"]
+  end
+
+  VersionTier ~~~ TwinTier
+  TwinTier ~~~ UpdateTier
+
+  FRONT --> TEST
+  CORE --> TEST
+  PACKAGE --> TEST
+  SEED --> TEST
+  LIVE --> TEST
+  OLD --> ARCHIVE
+  NEW --> LIVE
+```
+
 ### L. `doctor` health + warnings
 - Reports missing files, version mismatches, bootstrap completeness. Non-fatal `warnings` channel covers: Codex MCP status (absent/stale-fixable/stale-manual); **orphan skills** (any `skills/*.md` not registered in `skills/index.md`, since 2.7); **orphaned runtime routing** (new in 2.8 - a `.memory-seed/` runtime exists but a present entry-point file is foreign and carries no routing block); a session-integrity summary pointing at `links check` (since 2.12); and a **local-user/participant mismatch** (new in 2.14; a configured `.memory-seed/local.yaml` user whose slug has no matching `participants:` entry in `.memory-seed/project.yaml`). Foreign routing files are not reported as version mismatches (the host owns the file; Memory Seed only manages its injected block).
+
+```mermaid
+graph TD
+  subgraph InputsTier["Doctor checks"]
+    direction LR
+    FILES["Required files"] ~~~ VERSION["Version sync"]
+    BOOT["Bootstrap state"] ~~~ ROUTING["Routing ownership"]
+  end
+
+  subgraph WarningTier["Warnings channel"]
+    direction LR
+    MCP["Codex MCP status"] ~~~ SKILLS["Orphan skills"]
+    SESSIONS["Session integrity"] ~~~ USERS["User/participant<br>mismatch"]
+  end
+
+  subgraph ResultTier["Result"]
+    direction LR
+    ERRORS["Errors<br>non-zero"] ~~~ WARNINGS["Warnings<br>non-fatal"]
+    NEXT["Follow-up<br>command hints"]
+  end
+
+  InputsTier ~~~ WarningTier
+  WarningTier ~~~ ResultTier
+
+  FILES --> ERRORS
+  VERSION --> ERRORS
+  BOOT --> ERRORS
+  ROUTING --> WARNINGS
+  MCP --> WARNINGS
+  SKILLS --> WARNINGS
+  SESSIONS --> NEXT
+  USERS --> WARNINGS
+```
 
 ### M. End-of-turn routine (`/esr`)
 - The vendor-neutral end-of-session routine lives in `agent-rules.md` "End Of Turn". It runs: session-log append; **consolidation review** (promote durable facts -> `index.md`/`policy.md` via `memory_consolidation`, since 2.11); index/policy review; a diff-scoped **orphan & artifact sweep** (new in 2.7 - confirm additions are wired in, resolve references dangling from deletions/renames, flag scratch debris; optionally run a project's own dead-code tool, never installs one); persona/skill evolution (approval-gated); and a **baseline-promotion check** (flag generic adaptations for reuse, record in `.memory-seed/plans/`, since 2.11).
 - Shipped as a seeded **`/esr`** command (new in 2.11) for agents with a repo-level command mechanism: Claude (`.claude/commands/esr.md`, version-tracked) and Gemini (`.gemini/commands/esr.toml`, deploy-once). Codex/Cursor run the routine directly from `agent-rules.md`. **No blocking `Stop` hook** - evolution needs reasoning + user approval a hook cannot provide.
 
+```mermaid
+graph TD
+  subgraph CloseoutTier["End-of-turn flow"]
+    direction LR
+    LOG["Append session<br>entry"] ~~~ CONSOLIDATE["Consolidation<br>review"]
+    REVIEW["Index/policy<br>review"] ~~~ SWEEP["Orphan sweep"]
+  end
+
+  subgraph EvolutionTier["Evolution gates"]
+    direction LR
+    PERSONA["Persona changes"] ~~~ SKILL["Skill changes"]
+    BASELINE["Baseline<br>promotion"]
+  end
+
+  subgraph DeliveryTier["Agent surfaces"]
+    direction LR
+    CLAUDE["Claude /esr"] ~~~ GEMINI["Gemini /esr"]
+    CODEX["Codex/Cursor<br>read rules"]
+  end
+
+  CloseoutTier ~~~ EvolutionTier
+  EvolutionTier ~~~ DeliveryTier
+
+  LOG --> CONSOLIDATE
+  CONSOLIDATE --> REVIEW
+  REVIEW --> SWEEP
+  SWEEP --> PERSONA
+  SWEEP --> SKILL
+  PERSONA --> BASELINE
+  SKILL --> BASELINE
+  BASELINE --> CODEX
+  BASELINE --> CLAUDE
+  BASELINE --> GEMINI
+```
+
 ### N. Release / publish flow
 - GitHub Release -> `publish.yml` builds, runs tests, then pauses at the `pypi` manual-approval gate before the OIDC push. Release commits land on `main`.
+
+```mermaid
+graph TD
+  subgraph PrepTier["Release prep"]
+    direction LR
+    VERSION["Version bump"] ~~~ CHANGELOG["CHANGELOG"]
+    COMMIT["Release commit"] ~~~ TAG["Git tag"]
+  end
+
+  subgraph GitHubTier["GitHub release"]
+    direction LR
+    RELEASE["Create Release"] ~~~ WORKFLOW["publish.yml"]
+    TESTS["Build + tests"]
+  end
+
+  subgraph PublishTier["PyPI gate"]
+    direction LR
+    APPROVAL["Manual pypi<br>approval"] ~~~ OIDC["OIDC publish"]
+    PYPI["PyPI package"]
+  end
+
+  PrepTier ~~~ GitHubTier
+  GitHubTier ~~~ PublishTier
+
+  VERSION --> COMMIT
+  CHANGELOG --> COMMIT
+  COMMIT --> TAG
+  TAG --> RELEASE
+  RELEASE --> WORKFLOW
+  WORKFLOW --> TESTS
+  TESTS --> APPROVAL
+  APPROVAL --> OIDC
+  OIDC --> PYPI
+```
 
 ### O. Memory Trace (review UI; legacy Lense shim)
 - The review UI shipped in 2.13 as the in-package `memory-seed[lense]` extra ("Memory Lense") and was **extracted** into the standalone **`memory-trace`** distribution (Arc 1 of the Memory Trace roadmap): its own package/command depending on `memory-seed`, importing the public retrieval service (`memory_seed/retrieval.py`). `memory-seed[lense]` is now a deprecation shim, and `memory-seed lense` delegates to `memory-trace` when installed. Core ships **no** web framework.
 - Serves search, filters, timeline, graph, and reader/details views over the same `semantic_cache` parsing/ranking + `retrieval` service MCP uses - no forked retrieval logic (parity tested across the package boundary). Current Trace topic facets/edges are display topics derived from Markdown hashtags plus heading contexts. Controlled entry-YAML `topics:` and project-local `.memory-seed/topics.yaml` are now accepted future core contract in `docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md`, but are not yet implemented in the parser, retrieval service, CLI, MCP, or Trace fallback logic.
 - **Cache architecture:** a rebuildable local SQLite cache stored **outside the repository** (`%LOCALAPPDATA%\memory-seed\lense` on Windows, `~/.cache/memory-seed/lense` elsewhere; keyed by a hash of the workspace root, with a `tempfile` fallback if the cache directory isn't writable). `LenseCache.rebuild()` does a full wipe-and-atomic-replace (`os.replace` after a `.tmp` write) whenever session-file mtime/size drift is detected - the cache is never authoritative and Markdown stays the source of truth. Because the cache lives outside the repo by construction, this also satisfies the project's OneDrive-sync-safety constraint (see section 6) without needing to gitignore anything.
 - Static UI assets (`memory-trace/memory_trace/static/`: `index.html`, `app.js`, `styles.css`, `manifest.json`) ship inside the `memory-trace` wheel/sdist.
+
+```mermaid
+graph TD
+  subgraph SourceTier["Source of truth"]
+    direction LR
+    MARKDOWN["Markdown sessions"] ~~~ SIDECARS["Diagram sidecars"]
+    TOPICS["Future<br>topics.yaml"]
+  end
+
+  subgraph CoreTier["Shared core"]
+    direction LR
+    RETRIEVAL["memory_seed.retrieval"] ~~~ CACHE["External SQLite<br>cache"]
+    SHIM["memory-seed lense<br>shim"]
+  end
+
+  subgraph TraceTier["Memory Trace UI"]
+    direction LR
+    SEARCH["Search / filters"] ~~~ TIMELINE["Timeline / Trail"]
+    GRAPH["Graph"] ~~~ READER["Reader details"]
+  end
+
+  SourceTier ~~~ CoreTier
+  CoreTier ~~~ TraceTier
+
+  MARKDOWN --> RETRIEVAL
+  SIDECARS --> RETRIEVAL
+  TOPICS --> RETRIEVAL
+  RETRIEVAL --> CACHE
+  SHIM --> RETRIEVAL
+  CACHE --> SEARCH
+  CACHE --> TIMELINE
+  CACHE --> GRAPH
+  CACHE --> READER
+```
 
 ---
 
@@ -458,7 +990,8 @@ Measured on this repository's own corpus on 2026-06-14 (Windows, Python 3.11). I
 
 ## 14. Upcoming / roadmap features
 
-Sources: `docs/2_Todo/0_NEXT_STEPS.md` and `docs/2_Todo/`. Status reflects the current 2.14.0 release plus unreleased commits through `a72ffc3`.
+Sources: `docs/2_Todo/0_NEXT_STEPS.md` and `docs/2_Todo/`. Status reflects package `2.16.0`
+plus verified unreleased work through `5daa3d6`.
 
 **Shipped since the 2.7.0 audit:** 2.8.0 non-destructive foreign-routing merge + doctor route-presence backstop (section 3E, section 3L); 2.9.0 read-only dual-discovery of per-user session files (section 3J); 2.10.0 opt-in user-aware session targets/hooks + `user`/`session target` CLI (section 3B, section 3H, section 3J); 2.11.0 ESR generalization; 2.12.0 session-memory integrity validation, 80-bit entry IDs, MCP metadata/filters, participant registry, and `migrate sessions-layout`; 2.13.0 Memory Lense, related-entries generation P1, and lazy-skill extraction; 2.14.0 participant-count layout gating, one-time identity offer, doctor local-user warning, legacy-flat links-check fix, Working Principles additions, failed-approach logging, Mermaid guidance, and the Fan-Out Recipe.
 
@@ -478,49 +1011,63 @@ meaningful entries and `.memory-seed/topics.yaml` a project-local core index onc
   (Codex project-scoped `.codex/prompts` is an open upstream request; Cursor unverified). Not
   blocking - the enriched routine in `agent-rules.md` already serves them today.
 
-### Deferred - 3.0 candidates
-- **Multi-user per-day session memory - completed** (`docs/2_Todo/completed/multi-user-session-memory-proposal.md`):
-  Phase 1 dual-read (2.9), Phase 2 opt-in per-user write targets/hooks (2.10), A-P3 integrity
-  validation, A-ID 80-bit `mse_` generation, A-P4 MCP metadata/filters, S2 participant registry
-  parsing, and the explicit session-layout migration command have landed through 2.12.0. High blast
-  radius - touches the core session data model.
+### Completed 3.0 foundation
 
-  ```mermaid
-graph TD
-  subgraph Legacy["Legacy default"]
-    A["sessions/YYYY-MM-DD.md"]
-  end
-
-  subgraph PerUser["Per-user/day"]
-    direction TB
-    B["sessions/YYYY-MM-DD/"]
-    B --> B1["jean.md"]
-    B --> B2["alex.md"]
-  end
-
-  A -. "dual-read + migration" .-> B
-```
+**Multi-user per-day session memory** is complete
+(`docs/2_Todo/completed/multi-user-session-memory-proposal.md`). Phase 1 dual-read (2.9), Phase 2
+opt-in user-aware targets and hooks (2.10), integrity validation, 80-bit `mse_` IDs, MCP
+metadata/filters, participant parsing, and explicit session-layout migration all landed through
+2.12. The participant-count gate keeps a one-person project on the simpler shared file.
 
 ```mermaid
 graph TD
-  subgraph ShippedA["Shipped foundations"]
+  subgraph InputTier["Session target input"]
     direction LR
-    V29["2.9 dual-read"] --> V210["2.10 user targets"] --> V211["2.11 ESR"]
+    A["Project participants"] ~~~ B["Configured local user"]
   end
 
-  subgraph ShippedB["Shipped graph/UI"]
-    direction LR
-    V212["2.12 integrity + filters"] --> V213["2.13 Lense + links"] --> V214["2.14 layout gate"]
+  subgraph GateTier["Layout gate"]
+    G{"Two or more<br>participants?"}
   end
 
-  subgraph Next["Unreleased / next"]
+  subgraph OutputTier["Write target"]
     direction LR
-    VNext["supersedes + commits<br>importance + lifecycle"] --> V30["related P2<br>Trace + risk"]
+    FLAT["No: shared file<br>sessions/YYYY-MM-DD.md"]
+    SPLIT["Yes: per-user/day<br>sessions/YYYY-MM-DD/user.md"]
   end
 
-  ShippedA --> ShippedB
-  ShippedB --> Next
+  InputTier ~~~ GateTier
+  GateTier ~~~ OutputTier
+  A --> G
+  B --> G
+  G -- No --> FLAT
+  G -- Yes --> SPLIT
+```
 
+### Current implementation order
+
+```mermaid
+graph TD
+  subgraph ReleaseTier["P0 - release order"]
+    direction LR
+    CORE["Publish Memory Seed 2.17"] --> TRACE["Publish Memory Trace 0.1.0"]
+  end
+
+  subgraph NextTier["Next small implementation run"]
+    direction LR
+    TOPICS["P1 - topic neighbourhoods"] --> README["P2 - README front door"]
+  end
+
+  subgraph LaterTier["Active later"]
+    direction LR
+    DIAGRAMS["Decision diagram<br>export packs"]
+    LINKS["Related-entry<br>curation writers"]
+    SUMMARIES["AI timeline<br>summaries"]
+    DIAGRAMS ~~~ LINKS ~~~ SUMMARIES
+  end
+
+  ReleaseTier --> NextTier
+  NextTier --> LaterTier
 ```
 
 ---

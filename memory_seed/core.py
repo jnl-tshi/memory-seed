@@ -80,6 +80,36 @@ class SeedFile:
 
 
 @dataclass(frozen=True)
+class BranchStatus:
+    is_git_repo: bool
+    branch: str | None
+    is_integration_branch: bool
+    dirty: bool
+    upstream: str | None
+    ahead: int | None
+    behind: int | None
+    worktree_count: int
+    recent_merge_commit: str | None
+    warnings: tuple[str, ...]
+    recommendation: str
+
+    def to_dict(self) -> dict:
+        return {
+            "is_git_repo": self.is_git_repo,
+            "branch": self.branch,
+            "is_integration_branch": self.is_integration_branch,
+            "dirty": self.dirty,
+            "upstream": self.upstream,
+            "ahead": self.ahead,
+            "behind": self.behind,
+            "worktree_count": self.worktree_count,
+            "recent_merge_commit": self.recent_merge_commit,
+            "warnings": list(self.warnings),
+            "recommendation": self.recommendation,
+        }
+
+
+@dataclass(frozen=True)
 class SkillProfile:
     description: str
     skills: tuple[str, ...]
@@ -440,6 +470,104 @@ def commit_reference_ids(root: Path, entry_id: str, commits_field: Sequence[str]
             if sha:
                 ids.add(sha)
     return ids
+
+
+def _git_text(root: Path, args: Sequence[str]) -> tuple[int, str]:
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), *args],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return 1, ""
+    return proc.returncode, proc.stdout.strip()
+
+
+def branch_status(cwd: str | Path = ".") -> BranchStatus:
+    """Read-only Git branch posture check for feature-branch guardrails."""
+    root = Path(cwd).resolve()
+    code, top = _git_text(root, ("rev-parse", "--show-toplevel"))
+    if code != 0 or not top:
+        return BranchStatus(
+            is_git_repo=False,
+            branch=None,
+            is_integration_branch=False,
+            dirty=False,
+            upstream=None,
+            ahead=None,
+            behind=None,
+            worktree_count=0,
+            recent_merge_commit=None,
+            warnings=("Not a Git repository.",),
+            recommendation="Not a Git repository; branch-history guidance is unavailable.",
+        )
+
+    repo = Path(top)
+    _, branch = _git_text(repo, ("branch", "--show-current"))
+    branch = branch or None
+    is_integration = branch in {"main", "master"}
+
+    _, status_out = _git_text(repo, ("status", "--short"))
+    dirty = bool(status_out.strip())
+
+    upstream = None
+    ahead = behind = None
+    code, upstream_out = _git_text(repo, ("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"))
+    if code == 0 and upstream_out:
+        upstream = upstream_out
+        code, counts = _git_text(repo, ("rev-list", "--left-right", "--count", "HEAD...@{u}"))
+        if code == 0:
+            parts = counts.split()
+            if len(parts) == 2 and all(part.isdigit() for part in parts):
+                ahead, behind = int(parts[0]), int(parts[1])
+
+    code, worktrees = _git_text(repo, ("worktree", "list", "--porcelain"))
+    worktree_count = 0
+    if code == 0 and worktrees:
+        worktree_count = sum(1 for line in worktrees.splitlines() if line.startswith("worktree "))
+
+    code, merge_commit = _git_text(repo, ("log", "--merges", "-n", "1", "--format=%H"))
+    if code != 0 or not merge_commit:
+        merge_commit = None
+
+    warnings: list[str] = []
+    if is_integration and dirty:
+        warnings.append(
+            "Current integration branch has uncommitted changes; use a task branch/worktree for distinct feature work."
+        )
+    elif is_integration:
+        warnings.append("On integration branch; create a task branch before distinct feature/proposal work.")
+    if merge_commit is None:
+        warnings.append("No recent merge commit found; fast-forward or direct commits produce a linear graph.")
+
+    if not branch:
+        recommendation = "Detached HEAD; create or switch to a task branch before writing feature work."
+    elif is_integration:
+        recommendation = (
+            "For distinct feature/proposal work, create a task branch and integrate with "
+            "git merge --no-ff to preserve visible branch topology."
+        )
+    else:
+        recommendation = (
+            f"Task branch '{branch}' detected; integrate into the base branch with "
+            "git merge --no-ff when the work is complete."
+        )
+
+    return BranchStatus(
+        is_git_repo=True,
+        branch=branch,
+        is_integration_branch=is_integration,
+        dirty=dirty,
+        upstream=upstream,
+        ahead=ahead,
+        behind=behind,
+        worktree_count=worktree_count,
+        recent_merge_commit=merge_commit,
+        warnings=tuple(warnings),
+        recommendation=recommendation,
+    )
 
 
 def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
