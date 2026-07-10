@@ -51,6 +51,7 @@ skills:
     load_when:
       - prior decisions, rationale, unresolved risks, or release history matter
       - using memory_search or memory_get_chunk
+      - filling an entry's related_entries or resolving the session-log append target via memory_link_suggest, memory_link_show, or memory_session_target
       - reconciling current files with older session history
       - deciding whether older memory conflicts with current authority files
     do_not_load_when:
