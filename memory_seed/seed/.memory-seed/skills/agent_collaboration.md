@@ -112,7 +112,7 @@ Gates, in order:
 4. **Worker Identity Gate.** Before a worker touches any file, it reports the packet's `preflight` output; the orchestrator verifies it matches the intended worktree and `base_sha` before the worker proceeds.
 5. **Worktree Gate.** Parallel code-writing workers get separate worktrees, each with a bounded task packet. Workers never touch shared memory/session/control-plane files unless explicitly assigned — those stay orchestrator-owned per `shared_file_policy`.
 6. **Pre-Review Validation Gate.** Each worker commits its own work and reports changed files, checks run, failures, skipped checks and why, and known risks *before* review. No uncommitted worker state gets integrated.
-7. **Integration Gate.** The orchestrator merges worker branches one at a time into an integration branch, inspects the diff after each merge, resolves conflicts only via the named owner, and reruns targeted validation. No octopus merges for code.
+7. **Integration Gate.** The orchestrator merges worker branches one at a time into an integration branch, inspects the diff after each merge, resolves conflicts only via the named owner, and reruns targeted validation. No octopus merges for code. When branch-local session entries or diagram sidecars exist, dry-run `memory-seed session fuse --branch <branch>` before promotion; apply it only during the inspected merge.
 8. **Bounded Review-to-Rework Loop.** An independent validator (same strong tier as planning) reviews the integrated diff against the plan. Findings route back to the Worktree Gate for revision, tracked by `review_loop.current_iteration` and capped at `max_iterations` (default 2) — then automation stops and produces a human decision summary. The loop must not restart exploration or planning automatically.
 9. **Final Handoff Gate.** The orchestrator (never the workers) writes the integration artifact and the handoff session entry: base SHA, worker branches/worktrees, validation evidence, review result, unresolved risks. Workers' reported commit hashes belong in the handoff entry's records. Set the entry's optional `branch:` field (see `session_logging.md`) from the Task Packet's `working_branch` — a durable record-time label, not a worktree path.
 
@@ -146,8 +146,34 @@ multiple writing agents work on different features at the same time.
   disappear.
 - Before feature work starts, run `memory-seed branch status` when available. Treat warnings as a
   prompt to create or switch to a task branch, not as a hard block.
+- Before promoting branch-local memory, run `memory-seed session fuse --branch <branch>` from the
+  integration tree. The dry-run reports entries, sidecars, and source paths that would be normalized.
+  `--apply` requires an in-progress `git merge --no-ff --no-commit <branch>`.
 - Final handoff records the base SHA, task branch, worktree path, merge method (`--no-ff` when used),
   merge commit if available, validation, and unresolved risks.
+
+## MCP Control Surface
+
+When the Memory Seed MCP server is available, use it as the read-oriented coordination surface before
+falling back to shell commands:
+
+- `memory_branch_status` replaces the read-only CLI posture check for agents that can call MCP. Use
+  it before distinct feature work, before assigning branch/worktree packets, and before explaining
+  why a task should move off `main`.
+- `memory_session_fuse_preview` replaces the dry-run CLI preview for agents that can call MCP. Use it
+  before promoting a task branch that may contain branch-local session entries or diagram sidecars.
+  Treat `ok: false` or any `issues` as a merge blocker until the orchestrator or user resolves them.
+- MCP remains read-only for this workflow. Do not expect it to apply a fuse, delete source files, or
+  complete a merge. Use the returned `merge_checkpoint_command` and `apply_command` as operator
+  guidance, then apply through the CLI only during an in-progress inspected merge.
+- A previewed diagram sidecar is valid only when its parent entry already exists on the base/main tree
+  or the parent branch entry is accepted for promotion in the same preview. Orphan or malformed
+  sidecars must block promotion.
+
+If MCP tools are unavailable, run `memory-seed branch status` and
+`memory-seed session fuse --branch <branch>` directly from the integration tree and report the same
+fields: warnings/issues, planned entries, planned sidecars, source removals, and the gated apply
+command.
 
 ## Dependency Strategy
 
@@ -211,6 +237,9 @@ When a conflict is resolved, the handoff must state which side won, why, and wha
 
 - For subagent work, the orchestrator owns durable session logging and summarizes worker results.
 - Workers should return handoff evidence instead of writing session logs unless the orchestrator explicitly delegates memory updates.
+- If a worker branch does write session memory, each new entry must carry `branch: <task-branch>`.
+  Existing entries are immutable. Branch diagram sidecars may be fused only when the parent entry is
+  already on the base/main tree or is accepted for promotion in the same fuse.
 - In multi-developer workflows, use per-user session targets when configured so human contributors avoid same-file session conflicts.
 - Do not rewrite old session entries to resolve conflicts. Append a new clarification entry when needed.
 

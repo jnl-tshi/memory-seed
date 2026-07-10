@@ -173,7 +173,7 @@ Cross-cutting principles that apply to any agent and any task:
 - State what the agent verified versus what only the user can verify.
 - Before adding code, check whether it needs to exist, already exists, or is already covered by stdlib/platform behavior.
 - Do not remove terse guards without understanding what they protect.
-- Default to plain text; use Mermaid only for spatial, temporal, or concurrent structure, and load `compact_mermaid_diagrams.md` when authoring diagrams.
+- Default to plain text for ordinary explanations; when a session decision has spatial, temporal, topology, migration, compatibility, or concurrent structure, follow the decision-diagram sidecar triggers in `session_logging.md` and load `compact_mermaid_diagrams.md` before authoring Mermaid.
 - Link commits to motivating decision entries with `Memory-Entry: <entry_id>` when applicable.
 - Preserve visible branch history for distinct feature work by loading `agent_collaboration.md` before editing and using a task branch/worktree unless the user chooses another history model.
 - Use qualitative risk tiers before acting by loading `.memory-seed/skills/risk_signaling.md` for ambiguous, destructive, irreversible, externally visible, financial, security-sensitive, or shared-control-plane work.

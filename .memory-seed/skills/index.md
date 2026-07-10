@@ -42,6 +42,7 @@ skills:
       - creating or reviewing feature branches for agent work
       - using worktrees for parallel code-writing agents
       - preparing worker, validator, or merge-conflict handoffs
+      - using memory_branch_status or memory_session_fuse_preview MCP tools
     do_not_load_when:
       - direct single-agent edits with no branch, worktree, merge, or handoff implications
 

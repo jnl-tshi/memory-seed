@@ -12,19 +12,29 @@ Use this skill when running the Memory Seed end-of-turn routine, `/esr`, or any 
 
 ## Procedure
 
-1. Append a session entry to the active session target before doing other closeout work. Use `memory-seed session target` when the target is uncertain.
-2. Use `.memory-seed/skills/session_logging.md` for the exact entry schema, DRAFT labels, `related_entries`, timestamp, and append-only rules.
-3. If the entry's decision logic is genuinely spatial, temporal, or concurrent (branching alternatives, a sequence across components, a topology), consider a decision-diagram sidecar appended to `.memory-seed/sessions/diagrams/YYYY-MM/YYYY-MM-DD.md` in the same turn - see the "Decision Diagram Sidecars" section of `session_logging.md`. Same high bar as the Mermaid Working Principle: most entries need none, and prose in the entry stays the default.
-4. Review whether `.memory-seed/index.md` needs updated topology, active state, inheritance, current risk, or skill pointers.
-5. Review whether `.memory-seed/policy.md` needs durable behavioral-policy changes.
-6. Review whether any `.memory-seed/skills/*.md` runbook changed.
-7. If work occurred in a sub-project runtime, review whether the parent or root runtime needs a brief coordination summary.
-8. Run the smallest verification that proves the work.
-9. Run the orphan & artifact sweep for files, features, commands, generated artifacts, and scratch output touched by this session.
-10. Run the Persona evolution check when a persona is active.
-11. Run the Skill evolution check when a persona is active.
-12. Check for unregistered persona files and escalate to persona onboarding when files exist without registry entries.
-13. Run the Baseline-promotion check for general rules, skills, or runbooks worth promoting beyond this project.
+1. Resolve the active session target with `memory-seed session target` when the target is uncertain.
+2. Run the Decision Harvest from `.memory-seed/skills/session_logging.md` before composing the entry:
+   identify every durable accepted choice, then choose single-decision, multi-decision, or separate
+   entries from that list.
+3. Append the session entry to the active session target before doing other closeout work. Use
+   `.memory-seed/skills/session_logging.md` for the exact entry schema, DRAFT labels,
+   `related_entries`, timestamp, and append-only rules.
+4. If the entry has a decision-diagram positive trigger from `session_logging.md` (branch or merge
+   topology, migration, schema/layout compatibility flow, multi-agent concurrency, command lifecycle,
+   or retrieval/data pipeline), create a Mermaid sidecar in
+   `.memory-seed/sessions/diagrams/YYYY-MM/YYYY-MM-DD.md` in the same turn unless the diagram would
+   add no structure beyond prose. If a positive trigger is present and no sidecar is written, record
+   the reason in the session entry.
+5. Review whether `.memory-seed/index.md` needs updated topology, active state, inheritance, current risk, or skill pointers.
+6. Review whether `.memory-seed/policy.md` needs durable behavioral-policy changes.
+7. Review whether any `.memory-seed/skills/*.md` runbook changed.
+8. If work occurred in a sub-project runtime, review whether the parent or root runtime needs a brief coordination summary.
+9. Run the smallest verification that proves the work.
+10. Run the orphan & artifact sweep for files, features, commands, generated artifacts, and scratch output touched by this session.
+11. Run the Persona evolution check when a persona is active.
+12. Run the Skill evolution check when a persona is active.
+13. Check for unregistered persona files and escalate to persona onboarding when files exist without registry entries.
+14. Run the Baseline-promotion check for general rules, skills, or runbooks worth promoting beyond this project.
 
 ## Consolidation Review
 

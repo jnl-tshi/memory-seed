@@ -28,9 +28,9 @@ Call `memory_search` before relying on the visible conversation alone when the t
 
 Skip MCP history lookup for small, obvious edits where current source files and the active `index.md` / `policy.md` are enough.
 
-## Tool Mechanics
+## Retrieval Tool Mechanics
 
-The MCP server exposes two tools:
+Use the retrieval tools on the MCP server for history lookup:
 
 - `memory_search`: ranks session-memory entries or sections.
 - `memory_get_chunk`: fetches the full text for one returned `chunk_id`.

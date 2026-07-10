@@ -2,6 +2,8 @@ import re
 import unittest
 from pathlib import Path
 
+from memory_seed.core import iter_session_documents
+
 
 class SessionSchemaTests(unittest.TestCase):
     def test_session_logging_skill_documents_flexible_rationale_aware_entry_shapes(self):
@@ -467,7 +469,7 @@ class SessionSchemaTests(unittest.TestCase):
         # Validate EVERY schema-era session file (those with frontmatter), so a
         # malformed new entry fails CI. Pre-schema legacy logs (no frontmatter)
         # are skipped rather than pinning two frozen dates.
-        session_files = sorted(Path(".memory-seed/sessions").glob("*.md"))
+        session_files = [doc.path for doc in iter_session_documents(Path(".memory-seed/sessions"))]
         self.assertTrue(session_files, "no session files found")
 
         checked = 0

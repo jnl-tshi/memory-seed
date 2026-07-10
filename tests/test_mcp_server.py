@@ -1,5 +1,6 @@
 import json
 import shutil
+import subprocess
 import tempfile
 import unittest
 from datetime import date
@@ -38,12 +39,90 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.addCleanup(lambda: shutil.rmtree(path, ignore_errors=True))
         return path
 
+    def git(self, cwd, *args):
+        proc = subprocess.run(
+            ["git", "-C", str(cwd), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return proc.stdout.strip()
+
+    def init_git_project(self, cwd):
+        self.git(cwd, "init", "-q")
+        self.git(cwd, "config", "user.name", "Test User")
+        self.git(cwd, "config", "user.email", "test@example.com")
+        self.git(cwd, "config", "commit.gpgsign", "false")
+        self.git(cwd, "branch", "-M", "main")
+
+    def commit_all(self, cwd, message):
+        self.git(cwd, "add", "-A")
+        self.git(cwd, "commit", "-q", "-m", message)
+
     def write_session(self, cwd, filename, content):
         sessions = cwd / ".memory-seed" / "sessions"
         sessions.mkdir(parents=True, exist_ok=True)
         path = sessions / filename
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
+
+    def write_grouped_session(self, cwd, date_str, entry_id, *, branch):
+        self.write_session(
+            cwd,
+            f"{date_str[:7]}/{date_str}.md",
+            "\n".join(
+                [
+                    "---",
+                    "tags:",
+                    "  - session-log",
+                    "  - memory-seed",
+                    f"session_date: {date_str}",
+                    "---",
+                    "",
+                    f"## {date_str} 09:00 - Entry",
+                    "",
+                    "```yaml",
+                    f"entry_id: {entry_id}",
+                    "user_initials: JN",
+                    "agent_type: codex",
+                    f"branch: {branch}",
+                    "```",
+                    "",
+                    "- Body.",
+                    "",
+                ]
+            ),
+        )
+
+    def write_legacy_diagram(self, cwd, date_str, entry_id):
+        diagrams = cwd / ".memory-seed" / "sessions" / "diagrams"
+        diagrams.mkdir(parents=True, exist_ok=True)
+        path = diagrams / f"{date_str}.md"
+        path.write_text(
+            "\n".join(
+                [
+                    "---",
+                    "tags:",
+                    "  - session-log-diagrams",
+                    f"diagram_date: {date_str}",
+                    "---",
+                    "",
+                    f"## {date_str} 09:00 - Entry",
+                    "",
+                    "```yaml",
+                    f"entry_id: {entry_id}",
+                    "```",
+                    "",
+                    "```mermaid",
+                    "graph TD",
+                    "  A[Branch] --> B[Main]",
+                    "```",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return path
 
     def make_memory_fixture(self):
         cwd = self.make_project()
@@ -581,6 +660,40 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertEqual(fetched["chunk"]["entry_id"], "ms-granular")
         self.assertEqual(fetched["chunk"]["granularity"], "section")
 
+    def test_call_tool_memory_branch_status_reports_git_posture(self):
+        cwd = self.make_project()
+        (cwd / "README.md").write_text("# test\n", encoding="utf-8")
+        self.init_git_project(cwd)
+        self.commit_all(cwd, "base")
+
+        payload = call_tool("memory_branch_status", {"cwd": str(cwd)})
+
+        self.assertEqual(payload["status"]["branch"], "main")
+        self.assertTrue(payload["status"]["is_git_repo"])
+        self.assertTrue(payload["status"]["is_integration_branch"])
+        self.assertIn("recommendation", payload["status"])
+
+    def test_call_tool_memory_session_fuse_preview_reports_parented_sidecar(self):
+        cwd = self.make_project()
+        self.write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self.init_git_project(cwd)
+        self.commit_all(cwd, "base")
+        self.git(cwd, "switch", "-c", "feature-fuse")
+        self.write_legacy_diagram(cwd, "2026-07-10", "mse_0123456789abcdef")
+        self.commit_all(cwd, "add sidecar")
+        self.git(cwd, "switch", "main")
+
+        payload = call_tool("memory_session_fuse_preview", {"cwd": str(cwd), "branch": "feature-fuse"})
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["issues"], [])
+        self.assertEqual(payload["planned_entries"], [])
+        self.assertEqual(
+            payload["planned_sidecars"],
+            ["mse_0123456789abcdef 2026-07-10 09:00 -> .memory-seed/sessions/diagrams/2026-07/2026-07-10.md"],
+        )
+        self.assertEqual(payload["write_surface"], "CLI-only; run apply during an in-progress git merge.")
+
     def test_jsonrpc_tools_list_and_call(self):
         cwd = self.make_memory_fixture()
         listed = handle_jsonrpc_message({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
@@ -602,6 +715,8 @@ class MemoryMcpServerTests(unittest.TestCase):
 
         self.assertEqual(listed["id"], 1)
         self.assertIn("memory_search", [tool["name"] for tool in listed["result"]["tools"]])
+        self.assertIn("memory_branch_status", [tool["name"] for tool in listed["result"]["tools"]])
+        self.assertIn("memory_session_fuse_preview", [tool["name"] for tool in listed["result"]["tools"]])
         self.assertEqual(called["id"], 2)
         content = called["result"]["content"][0]
         self.assertEqual(content["type"], "text")

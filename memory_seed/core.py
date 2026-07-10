@@ -236,6 +236,38 @@ class _FlatSessionEntry:
     user_initials: str | None
 
 
+@dataclass(frozen=True)
+class _SessionEntryRecord:
+    text: str
+    entry_id: str | None
+    timestamp: str | None
+    session_date: str
+    branch: str | None
+    source_path: str
+    target_path: str
+    user: str | None = None
+
+
+@dataclass(frozen=True)
+class _DiagramSidecarRecord:
+    text: str
+    entry_id: str | None
+    timestamp: str | None
+    diagram_date: str | None
+    source_path: str
+    target_path: str
+
+
+@dataclass
+class SessionFuseResult:
+    changed: bool
+    planned_entries: list[str] = field(default_factory=list)
+    planned_sidecars: list[str] = field(default_factory=list)
+    removed_sources: list[str] = field(default_factory=list)
+    already_present: list[str] = field(default_factory=list)
+    issues: list[str] = field(default_factory=list)
+
+
 def iter_session_documents(sessions_dir: Path) -> Iterator[SessionDocument]:
     documents: list[SessionDocument] = []
     if not sessions_dir.is_dir():
@@ -1165,6 +1197,556 @@ def _hash_id_from_file_frontmatter(text: str) -> str | None:
     if not match:
         return None
     return _parse_frontmatter_scalars(match.group(1)).get("hash_id")
+
+
+_SESSION_ENTRY_HEADING_TS_RE = re.compile(r"^##\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s+-")
+
+
+def _session_doc_from_relative_path(rel_path: str) -> tuple[str, str | None, str] | None:
+    path = Path(rel_path)
+    parts = path.parts
+    if len(parts) < 3 or parts[0] != MEMORY_DIR_NAME or parts[1] != "sessions":
+        return None
+    rest = parts[2:]
+    if not rest or rest[0] == "diagrams":
+        return None
+    if len(rest) == 1:
+        match = SESSION_DATE_RE.match(rest[0])
+        if not match or not _valid_session_date(match.group(1)):
+            return None
+        return match.group(1), None, "legacy-flat"
+    if len(rest) == 2:
+        day_match = SESSION_DAY_DIR_RE.match(rest[0])
+        if day_match and rest[1].endswith(".md"):
+            date_str = day_match.group(1)
+            user = Path(rest[1]).stem
+            if _valid_session_date(date_str) and SESSION_USER_SLUG_RE.match(user) and user not in _RESERVED_SESSION_STEMS:
+                return date_str, user, "per-user-day"
+        month_match = SESSION_MONTH_DIR_RE.match(rest[0])
+        date_match = SESSION_DATE_RE.match(rest[1])
+        if month_match and date_match:
+            month_str = month_match.group(1)
+            date_str = date_match.group(1)
+            if _valid_session_date(date_str) and date_str.startswith(month_str + "-"):
+                return date_str, None, "month-flat"
+    if len(rest) == 3:
+        month_match = SESSION_MONTH_DIR_RE.match(rest[0])
+        day_match = SESSION_DAY_DIR_RE.match(rest[1])
+        if month_match and day_match and rest[2].endswith(".md"):
+            month_str = month_match.group(1)
+            date_str = day_match.group(1)
+            user = Path(rest[2]).stem
+            if (
+                _valid_session_date(date_str)
+                and date_str.startswith(month_str + "-")
+                and SESSION_USER_SLUG_RE.match(user)
+                and user not in _RESERVED_SESSION_STEMS
+            ):
+                return date_str, user, "month-user"
+    return None
+
+
+def _diagram_doc_from_relative_path(rel_path: str) -> tuple[str | None, str] | None:
+    path = Path(rel_path)
+    parts = path.parts
+    if len(parts) < 4 or parts[0] != MEMORY_DIR_NAME or parts[1] != "sessions" or parts[2] != "diagrams":
+        return None
+    rest = parts[3:]
+    if len(rest) == 1:
+        match = SESSION_DATE_RE.match(rest[0])
+        if match and _valid_session_date(match.group(1)):
+            return match.group(1), "legacy-diagram"
+        return None, "legacy-diagram"
+    if len(rest) == 2:
+        month_match = SESSION_MONTH_DIR_RE.match(rest[0])
+        date_match = SESSION_DATE_RE.match(rest[1])
+        if month_match and date_match:
+            month_str = month_match.group(1)
+            date_str = date_match.group(1)
+            if _valid_session_date(date_str) and date_str.startswith(month_str + "-"):
+                return date_str, "month-diagram"
+        return None, "month-diagram"
+    return None
+
+
+def _session_target_relative_path(date_str: str, user: str | None = None) -> str:
+    if user:
+        return (Path(MEMORY_DIR_NAME) / "sessions" / date_str[:7] / date_str / f"{user}.md").as_posix()
+    return (Path(MEMORY_DIR_NAME) / "sessions" / date_str[:7] / f"{date_str}.md").as_posix()
+
+
+def _diagram_target_relative_path(date_str: str) -> str:
+    return (Path(MEMORY_DIR_NAME) / "sessions" / "diagrams" / date_str[:7] / f"{date_str}.md").as_posix()
+
+
+def _split_entry_records(text: str, *, source_path: str, session_date: str, user: str | None) -> list[_SessionEntryRecord]:
+    matches = list(_ENTRY_HEADING_RE.finditer(text))
+    records: list[_SessionEntryRecord] = []
+    target_path = _session_target_relative_path(session_date, user)
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        entry_text = text[match.start():end].rstrip() + "\n"
+        heading_line = match.group(0)
+        timestamp_match = _SESSION_ENTRY_HEADING_TS_RE.match(heading_line)
+        timestamp = timestamp_match.group(1) if timestamp_match else None
+        yaml_match = _FENCED_YAML_RE.search(entry_text)
+        yaml_block = yaml_match.group(1) if yaml_match else ""
+        entry_id_match = _ENTRY_ID_RE.search(yaml_block)
+        scalars = _parse_frontmatter_scalars(yaml_block)
+        records.append(
+            _SessionEntryRecord(
+                text=entry_text,
+                entry_id=entry_id_match.group(1) if entry_id_match else None,
+                timestamp=timestamp,
+                session_date=session_date,
+                branch=scalars.get("branch"),
+                source_path=source_path,
+                target_path=target_path,
+                user=user,
+            )
+        )
+    return records
+
+
+def _session_file_prefix(text: str, date_str: str, *, user: str | None = None) -> str:
+    first_heading = _ENTRY_HEADING_RE.search(text)
+    if first_heading:
+        prefix = text[:first_heading.start()].rstrip()
+        if prefix:
+            return prefix + "\n\n"
+    if user:
+        return ""
+    return (
+        "---\n"
+        "tags:\n"
+        "  - session-log\n"
+        "  - memory-seed\n"
+        f"session_date: {date_str}\n"
+        "---\n\n"
+    )
+
+
+def _diagram_file_prefix(text: str, date_str: str) -> str:
+    first_heading = _ENTRY_HEADING_RE.search(text)
+    if first_heading:
+        prefix = text[:first_heading.start()].rstrip()
+        if prefix:
+            return prefix + "\n\n"
+    return (
+        "---\n"
+        "tags:\n"
+        "  - session-log-diagrams\n"
+        f"diagram_date: {date_str}\n"
+        "---\n\n"
+    )
+
+
+def _split_diagram_records(text: str, *, source_path: str, diagram_date: str | None) -> list[_DiagramSidecarRecord]:
+    blocks = list(_ENTRY_TS_YAML_RE.finditer(text))
+    records: list[_DiagramSidecarRecord] = []
+    for index, block in enumerate(blocks):
+        section_end = blocks[index + 1].start() if index + 1 < len(blocks) else len(text)
+        block_text = text[block.start():section_end].rstrip() + "\n"
+        timestamp, yaml_block = block.groups()
+        entry_id_match = _ENTRY_ID_RE.search(yaml_block)
+        target_date = diagram_date or timestamp[:10]
+        records.append(
+            _DiagramSidecarRecord(
+                text=block_text,
+                entry_id=entry_id_match.group(1) if entry_id_match else None,
+                timestamp=timestamp,
+                diagram_date=diagram_date,
+                source_path=source_path,
+                target_path=_diagram_target_relative_path(target_date),
+            )
+        )
+    return records
+
+
+def _git_lines(root: Path, args: Sequence[str]) -> tuple[int, list[str]]:
+    code, text = _git_text(root, args)
+    if code != 0 or not text:
+        return code, []
+    return code, [line for line in text.splitlines() if line.strip()]
+
+
+def _git_show_text(root: Path, ref: str, rel_path: str) -> str | None:
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "show", f"{ref}:{rel_path}"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    return proc.stdout
+
+
+def _git_ref_paths(root: Path, ref: str) -> list[str]:
+    code, lines = _git_lines(root, ("ls-tree", "-r", "--name-only", ref, "--", f"{MEMORY_DIR_NAME}/sessions"))
+    if code != 0:
+        return []
+    return lines
+
+
+def _entry_records_from_ref(root: Path, ref: str) -> list[_SessionEntryRecord]:
+    records: list[_SessionEntryRecord] = []
+    for rel_path in _git_ref_paths(root, ref):
+        doc = _session_doc_from_relative_path(rel_path)
+        if doc is None:
+            continue
+        date_str, user, _layout = doc
+        text = _git_show_text(root, ref, rel_path)
+        if text is None:
+            continue
+        records.extend(_split_entry_records(text, source_path=rel_path, session_date=date_str, user=user))
+    return records
+
+
+def _entries_from_ref(root: Path, ref: str) -> dict[str, _SessionEntryRecord]:
+    entries: dict[str, _SessionEntryRecord] = {}
+    for record in _entry_records_from_ref(root, ref):
+        if record.entry_id and record.entry_id not in entries:
+            entries[record.entry_id] = record
+    return entries
+
+
+def _sidecar_records_from_ref(root: Path, ref: str) -> list[_DiagramSidecarRecord]:
+    records: list[_DiagramSidecarRecord] = []
+    for rel_path in _git_ref_paths(root, ref):
+        doc = _diagram_doc_from_relative_path(rel_path)
+        if doc is None:
+            continue
+        diagram_date, _layout = doc
+        text = _git_show_text(root, ref, rel_path)
+        if text is None:
+            continue
+        records.extend(_split_diagram_records(text, source_path=rel_path, diagram_date=diagram_date))
+    return records
+
+
+def _sidecars_from_ref(root: Path, ref: str) -> dict[str, _DiagramSidecarRecord]:
+    sidecars: dict[str, _DiagramSidecarRecord] = {}
+    for record in _sidecar_records_from_ref(root, ref):
+        if record.entry_id and record.entry_id not in sidecars:
+            sidecars[record.entry_id] = record
+    return sidecars
+
+
+def _working_tree_entries(root: Path, rel_path: str, *, date_str: str, user: str | None) -> list[_SessionEntryRecord]:
+    path = root / rel_path
+    if not path.exists():
+        return []
+    text = read_text_file(path)
+    return _split_entry_records(text, source_path=rel_path, session_date=date_str, user=user)
+
+
+def _working_tree_sidecars(root: Path, rel_path: str, *, diagram_date: str) -> list[_DiagramSidecarRecord]:
+    path = root / rel_path
+    if not path.exists():
+        return []
+    text = read_text_file(path)
+    return _split_diagram_records(text, source_path=rel_path, diagram_date=diagram_date)
+
+
+def _records_are_chronological(records: Sequence[_SessionEntryRecord | _DiagramSidecarRecord]) -> bool:
+    timestamps = [record.timestamp for record in records]
+    if any(timestamp is None for timestamp in timestamps):
+        return False
+    return list(timestamps) == sorted(timestamps)
+
+
+def _write_chronological_session_file(path: Path, date_str: str, records: Sequence[_SessionEntryRecord], *, user: str | None = None) -> None:
+    existing_text = read_text_file(path) if path.exists() else ""
+    prefix = _session_file_prefix(existing_text, date_str, user=user)
+    ordered = sorted(records, key=lambda record: (record.timestamp or "", record.entry_id or ""))
+    body = "\n".join(record.text.rstrip() for record in ordered).rstrip()
+    write_text_file(path, prefix + body + "\n")
+
+
+def _write_chronological_diagram_file(path: Path, date_str: str, records: Sequence[_DiagramSidecarRecord]) -> None:
+    existing_text = read_text_file(path) if path.exists() else ""
+    prefix = _diagram_file_prefix(existing_text, date_str)
+    ordered = sorted(records, key=lambda record: (record.timestamp or "", record.entry_id or ""))
+    body = "\n".join(record.text.rstrip() for record in ordered).rstrip()
+    write_text_file(path, prefix + body + "\n")
+
+
+def _git_dir(root: Path) -> Path | None:
+    code, git_dir = _git_text(root, ("rev-parse", "--git-dir"))
+    if code != 0 or not git_dir:
+        return None
+    path = Path(git_dir)
+    if not path.is_absolute():
+        path = root / path
+    return path
+
+
+def _merge_head_commits(root: Path) -> list[str]:
+    git_dir = _git_dir(root)
+    if git_dir is None:
+        return []
+    merge_head = git_dir / "MERGE_HEAD"
+    if not merge_head.exists():
+        return []
+    try:
+        return [line.strip() for line in merge_head.read_text(encoding="utf-8").splitlines() if line.strip()]
+    except (OSError, UnicodeDecodeError):
+        return []
+
+
+def _resolve_commit(root: Path, ref: str) -> str | None:
+    code, commit = _git_text(root, ("rev-parse", f"{ref}^{{commit}}"))
+    return commit if code == 0 and commit else None
+
+
+def session_fuse(
+    cwd: str | Path = ".",
+    *,
+    branch: str,
+    base: str = "HEAD",
+    apply: bool = False,
+) -> SessionFuseResult:
+    """Fuse branch-local session entries into the current working tree.
+
+    The command is intentionally Memory Seed-aware instead of relying on Git's
+    line-oriented merge drivers: branch-only entries must carry ``branch:
+    <branch>``, existing entries are immutable, target paths normalize to the
+    current month-grouped layout, and apply mode is guarded by an in-progress
+    Git merge.
+    """
+    runtime = resolve_runtime(cwd)
+    root = runtime.workspace_root
+    if not (root / ".git").exists():
+        return SessionFuseResult(changed=False, issues=["session fuse requires a Git repository"])
+    if branch in {"main", "master"}:
+        return SessionFuseResult(changed=False, issues=["source branch must not be main or master"])
+
+    branch_commit = _resolve_commit(root, branch)
+    if branch_commit is None:
+        return SessionFuseResult(changed=False, issues=[f"source branch does not resolve to a commit: {branch}"])
+    base_commit = _resolve_commit(root, base)
+    if base_commit is None:
+        return SessionFuseResult(changed=False, issues=[f"base ref does not resolve to a commit: {base}"])
+
+    if apply:
+        merge_heads = _merge_head_commits(root)
+        if not merge_heads:
+            return SessionFuseResult(changed=False, issues=["--apply requires an in-progress git merge"])
+        if branch_commit not in merge_heads:
+            return SessionFuseResult(
+                changed=False,
+                issues=[f"--apply source branch {branch} ({branch_commit}) is not listed in MERGE_HEAD"],
+            )
+
+    base_paths = set(_git_ref_paths(root, base_commit))
+    base_entry_records = _entry_records_from_ref(root, base_commit)
+    branch_entry_records = _entry_records_from_ref(root, branch_commit)
+    base_sidecar_records = _sidecar_records_from_ref(root, base_commit)
+    branch_sidecar_records = _sidecar_records_from_ref(root, branch_commit)
+
+    base_entries: dict[str, _SessionEntryRecord] = {}
+    branch_entries: dict[str, _SessionEntryRecord] = {}
+    base_sidecars: dict[str, _DiagramSidecarRecord] = {}
+    branch_sidecars: dict[str, _DiagramSidecarRecord] = {}
+
+    issues: list[str] = []
+    import_entries: list[_SessionEntryRecord] = []
+    imported_ids: set[str] = set()
+    import_sidecar_ids: set[str] = set()
+
+    seen_branch_entries: set[str] = set()
+    duplicate_branch_entries: set[str] = set()
+    for record in base_entry_records:
+        if record.entry_id and record.entry_id not in base_entries:
+            base_entries[record.entry_id] = record
+    for record in branch_entry_records:
+        if not record.entry_id:
+            issues.append(f"{record.source_path}: session entry at {record.timestamp or '(unknown time)'} has no entry_id")
+            continue
+        if record.entry_id in seen_branch_entries:
+            duplicate_branch_entries.add(record.entry_id)
+            continue
+        seen_branch_entries.add(record.entry_id)
+        branch_entries[record.entry_id] = record
+    for entry_id in sorted(duplicate_branch_entries):
+        issues.append(f"branch {branch}: duplicate session entry_id blocks safe fuse: {entry_id}")
+
+    seen_branch_sidecars: set[str] = set()
+    duplicate_branch_sidecars: set[str] = set()
+    for record in base_sidecar_records:
+        if record.entry_id and record.entry_id not in base_sidecars:
+            base_sidecars[record.entry_id] = record
+    for record in branch_sidecar_records:
+        if not record.entry_id:
+            issues.append(f"{record.source_path}: diagram sidecar block at {record.timestamp or '(unknown time)'} has no entry_id")
+            continue
+        if record.entry_id in seen_branch_sidecars:
+            duplicate_branch_sidecars.add(record.entry_id)
+            continue
+        seen_branch_sidecars.add(record.entry_id)
+        branch_sidecars[record.entry_id] = record
+    for entry_id in sorted(duplicate_branch_sidecars):
+        issues.append(f"branch {branch}: duplicate diagram sidecar blocks safe fuse: {entry_id}")
+
+    for entry_id, branch_entry in sorted(branch_entries.items(), key=lambda item: (item[1].timestamp or "", item[0])):
+        base_entry = base_entries.get(entry_id)
+        if base_entry is not None:
+            if base_entry.text != branch_entry.text:
+                issues.append(f"{branch_entry.source_path}: existing entry_id modified on branch: {entry_id}")
+            continue
+        if not branch_entry.timestamp:
+            issues.append(f"{branch_entry.source_path}: entry_id {entry_id} has no parseable timestamp heading")
+            continue
+        if branch_entry.timestamp[:10] != branch_entry.session_date:
+            issues.append(
+                f"{branch_entry.source_path}: entry_id {entry_id} heading date {branch_entry.timestamp[:10]} "
+                f"does not match session date {branch_entry.session_date}"
+            )
+            continue
+        if branch_entry.branch != branch:
+            issues.append(
+                f"{branch_entry.source_path}: entry_id {entry_id} has branch {branch_entry.branch or '(missing)'}; expected {branch}"
+            )
+            continue
+        if branch_entry.branch in {"main", "master"}:
+            issues.append(f"{branch_entry.source_path}: entry_id {entry_id} records integration branch {branch_entry.branch}")
+            continue
+        import_entries.append(branch_entry)
+        imported_ids.add(entry_id)
+
+    for entry_id, branch_sidecar in sorted(branch_sidecars.items(), key=lambda item: (item[1].timestamp or "", item[0])):
+        base_sidecar = base_sidecars.get(entry_id)
+        if base_sidecar is not None:
+            if base_sidecar.text != branch_sidecar.text:
+                issues.append(f"{branch_sidecar.source_path}: existing diagram sidecar modified for entry_id {entry_id}")
+            continue
+        parent_entry = branch_entries.get(entry_id) if entry_id in imported_ids else base_entries.get(entry_id)
+        if parent_entry is None:
+            issues.append(
+                f"{branch_sidecar.source_path}: diagram sidecar references entry_id {entry_id} "
+                "without a parent entry on the base branch or accepted for this fuse"
+            )
+            continue
+        if parent_entry.timestamp is None:
+            issues.append(f"{branch_sidecar.source_path}: parent entry_id {entry_id} has no parseable timestamp")
+            continue
+        if branch_sidecar.timestamp is None:
+            issues.append(f"{branch_sidecar.source_path}: diagram sidecar for entry_id {entry_id} has no parseable timestamp")
+            continue
+        if branch_sidecar.diagram_date and branch_sidecar.diagram_date != parent_entry.timestamp[:10]:
+            issues.append(
+                f"{branch_sidecar.source_path}: diagram date {branch_sidecar.diagram_date} does not match "
+                f"entry date {parent_entry.timestamp[:10]} for {entry_id}"
+            )
+            continue
+        import_sidecar_ids.add(entry_id)
+
+    if issues:
+        return SessionFuseResult(changed=False, issues=issues)
+
+    planned_entries: list[str] = []
+    planned_sidecars: list[str] = []
+    removed_sources: list[str] = []
+    already_present: list[str] = []
+
+    entries_by_target: dict[str, list[_SessionEntryRecord]] = {}
+    for entry in import_entries:
+        entries_by_target.setdefault(entry.target_path, []).append(entry)
+        planned_entries.append(f"{entry.entry_id} {entry.timestamp} -> {entry.target_path}")
+        if entry.source_path != entry.target_path and entry.source_path not in base_paths:
+            if entry.source_path not in removed_sources:
+                removed_sources.append(entry.source_path)
+
+    sidecars_by_target: dict[str, list[_DiagramSidecarRecord]] = {}
+    for entry_id, sidecar in sorted(branch_sidecars.items(), key=lambda item: (item[1].timestamp or "", item[0])):
+        if entry_id not in import_sidecar_ids:
+            continue
+        sidecars_by_target.setdefault(sidecar.target_path, []).append(sidecar)
+        planned_sidecars.append(f"{entry_id} {sidecar.timestamp} -> {sidecar.target_path}")
+        if sidecar.source_path != sidecar.target_path and sidecar.source_path not in base_paths:
+            if sidecar.source_path not in removed_sources:
+                removed_sources.append(sidecar.source_path)
+
+    if not apply:
+        return SessionFuseResult(
+            changed=False,
+            planned_entries=planned_entries,
+            planned_sidecars=planned_sidecars,
+            removed_sources=removed_sources,
+        )
+
+    session_writes: list[tuple[Path, str, str | None, list[_SessionEntryRecord]]] = []
+    diagram_writes: list[tuple[Path, str, list[_DiagramSidecarRecord]]] = []
+
+    for target_rel, incoming in entries_by_target.items():
+        target_path = root / target_rel
+        date_str = incoming[0].session_date
+        user = incoming[0].user
+        existing = _working_tree_entries(root, target_rel, date_str=date_str, user=user)
+        if not _records_are_chronological(existing):
+            return SessionFuseResult(changed=False, issues=[f"{target_rel}: existing entries are not chronological"])
+        by_id = {record.entry_id: record for record in existing if record.entry_id}
+        writable_records = list(existing)
+        for record in incoming:
+            current = by_id.get(record.entry_id)
+            if current is not None:
+                if current.text == record.text:
+                    already_present.append(record.entry_id or "")
+                    continue
+                return SessionFuseResult(changed=False, issues=[f"{target_rel}: entry_id {record.entry_id} already exists with different text"])
+            writable_records.append(record)
+        writable_records = sorted(writable_records, key=lambda item: (item.timestamp or "", item.entry_id or ""))
+        if not _records_are_chronological(writable_records):
+            return SessionFuseResult(changed=False, issues=[f"{target_rel}: imported entries are not chronological"])
+        session_writes.append((target_path, date_str, user, writable_records))
+
+    for target_rel, incoming in sidecars_by_target.items():
+        target_path = root / target_rel
+        date_str = incoming[0].target_path.rsplit("/", 1)[-1].removesuffix(".md")
+        existing = _working_tree_sidecars(root, target_rel, diagram_date=date_str)
+        if not _records_are_chronological(existing):
+            return SessionFuseResult(changed=False, issues=[f"{target_rel}: existing diagram blocks are not chronological"])
+        by_id = {record.entry_id: record for record in existing if record.entry_id}
+        writable_records = list(existing)
+        for record in incoming:
+            current = by_id.get(record.entry_id)
+            if current is not None:
+                if current.text == record.text:
+                    already_present.append(record.entry_id or "")
+                    continue
+                return SessionFuseResult(changed=False, issues=[f"{target_rel}: diagram for entry_id {record.entry_id} already exists with different text"])
+            writable_records.append(record)
+        writable_records = sorted(writable_records, key=lambda item: (item.timestamp or "", item.entry_id or ""))
+        if not _records_are_chronological(writable_records):
+            return SessionFuseResult(changed=False, issues=[f"{target_rel}: imported diagram blocks are not chronological"])
+        diagram_writes.append((target_path, date_str, writable_records))
+
+    for target_path, date_str, user, writable_records in session_writes:
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        if user and not target_path.exists():
+            _ensure_per_user_session_file(target_path, date_str, user)
+        _write_chronological_session_file(target_path, date_str, writable_records, user=user)
+
+    for target_path, date_str, writable_records in diagram_writes:
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        _write_chronological_diagram_file(target_path, date_str, writable_records)
+
+    for source_rel in removed_sources:
+        source_path = root / source_rel
+        if source_path.exists() and source_path.is_file():
+            source_path.unlink()
+
+    return SessionFuseResult(
+        changed=bool(planned_entries or planned_sidecars or removed_sources),
+        planned_entries=planned_entries,
+        planned_sidecars=planned_sidecars,
+        removed_sources=removed_sources,
+        already_present=already_present,
+    )
 
 
 def migrate_session_month_layout(cwd: str | Path = ".", dry_run: bool = False) -> SessionLayoutMigrationResult:

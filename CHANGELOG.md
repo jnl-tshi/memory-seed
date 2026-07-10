@@ -36,6 +36,12 @@ All notable changes to Memory Seed are summarized here.
   parsing, `compact`, hooks, and `links check` continue reading legacy flat/day layouts. Added the
   explicit `memory-seed migrate sessions-month-layout [--dry-run]` command to reorganize old files
   with backups; no migration runs automatically during init/update/hooks/MCP/Trace startup.
+- Added branch-session fuse hardening for multi-agent integration: `memory-seed session fuse --branch
+  <branch>` previews branch-local session entries and diagram sidecars, while `--apply` is gated to
+  an in-progress `git merge --no-ff --no-commit`. Existing entries/sidecars are immutable, imported
+  entries must carry matching `branch:` metadata, sidecars require a parent entry already on base or
+  accepted in the same fuse, and MCP now exposes read-only `memory_branch_status` and
+  `memory_session_fuse_preview` tools routed through `agent_collaboration.md`.
 
 ## 2.16.0 - 2026-07-05
 

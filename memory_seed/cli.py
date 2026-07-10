@@ -27,6 +27,7 @@ from .core import (
     remove_skill,
     resolve_agents,
     selected_agents,
+    session_fuse,
     session_target,
     skill_status,
     update_project,
@@ -200,6 +201,13 @@ def main(argv: list[str] | None = None) -> int:
     session_target_parser.add_argument("--date", default=None, help="target date (YYYY-MM-DD); default: today")
     session_target_parser.add_argument("--user", default=None, help="override the active user slug")
     session_target_parser.add_argument("--create", action="store_true", help="create the target file if needed")
+    session_fuse_parser = session_sub.add_parser(
+        "fuse",
+        help="dry-run or apply branch-local session entries into the current integration tree",
+    )
+    session_fuse_parser.add_argument("--branch", required=True, help="source branch whose session entries should be fused")
+    session_fuse_parser.add_argument("--base", default="HEAD", help="base ref to compare against (default: HEAD)")
+    session_fuse_parser.add_argument("--apply", action="store_true", help="write the planned fuse; requires an in-progress git merge")
 
     branch_parser = subparsers.add_parser("branch", help="inspect Git branch/worktree posture")
     branch_sub = branch_parser.add_subparsers(dest="branch_command", required=True)
@@ -332,6 +340,39 @@ def main(argv: list[str] | None = None) -> int:
                 print(target.path.relative_to(Path(".").resolve()).as_posix())
             except ValueError:
                 print(target.path.as_posix())
+            return 0
+        if args.session_command == "fuse":
+            result = session_fuse(
+                cwd=Path(".").resolve(),
+                branch=args.branch,
+                base=args.base,
+                apply=args.apply,
+            )
+            if result.issues:
+                print("Session fuse blocked:", file=sys.stderr)
+                for issue in result.issues:
+                    print(f"  - {issue}", file=sys.stderr)
+                return 1
+            if not (result.planned_entries or result.planned_sidecars or result.removed_sources):
+                print("No branch session entries or sidecars need fusing.")
+                return 0
+            entry_verb = "Imported" if args.apply else "Would import"
+            diagram_verb = "Imported diagram" if args.apply else "Would import diagram"
+            remove_verb = "Removed source" if args.apply else "Would remove source"
+            for planned in result.planned_entries:
+                print(f"{entry_verb}: {planned}")
+            for planned in result.planned_sidecars:
+                print(f"{diagram_verb}: {planned}")
+            for source in result.removed_sources:
+                print(f"{remove_verb}: {source}")
+            if result.already_present:
+                for entry_id in sorted(set(result.already_present)):
+                    if entry_id:
+                        print(f"Already present: {entry_id}")
+            if args.apply:
+                print("Session fuse applied.")
+            else:
+                print("No files changed. Rerun with --apply during a git merge to write these changes.")
             return 0
 
     if args.command == "branch":
