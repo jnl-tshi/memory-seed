@@ -213,6 +213,14 @@ button {
   display: grid;
   grid-template-columns: var(--left-width, 260px) 6px minmax(280px, 1fr) 6px var(--right-width, 390px);
 }
+/* Collapsible sidebar: Graph/Trail want the canvas width more than the facets. */
+.shell.left-collapsed {
+  grid-template-columns: 0 0 minmax(280px, 1fr) 6px var(--right-width, 390px);
+}
+.shell.left-collapsed .left,
+.shell.left-collapsed [data-resize="left"] {
+  display: none;
+}
 .pane {
   min-width: 0;
   min-height: 0;
@@ -255,7 +263,6 @@ button {
 }
 .metric {
   padding: 9px;
-  border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
 }
@@ -304,6 +311,12 @@ button {
   font-family: var(--mono);
   font-size: 11px;
 }
+/* Applied-filter chips: visible, removable filter state at the point of use. */
+.filter-chip {
+  border-color: var(--accent);
+  background: var(--accent-weak);
+  color: var(--text);
+}
 .center {
   display: grid;
   grid-template-rows: minmax(0, 1fr);
@@ -348,22 +361,20 @@ select, input[type="date"] {
   overflow: auto;
   padding: 14px 16px 44px;
 }
+/* De-crowding: whitespace separates results; boxes, borders, and shadows do
+   not. Accent appears only on hover/selection. */
 .results {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 2px;
 }
 .card {
-  border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--panel);
-  padding: 12px 13px;
+  background: transparent;
+  padding: 8px 10px;
   cursor: pointer;
 }
 .card:hover, .card.selected {
-  border-color: var(--accent);
-}
-.card.selected {
   background: var(--accent-weak);
 }
 .card-head, .entry-meta {
@@ -375,9 +386,13 @@ select, input[type="date"] {
   font-size: 10.5px;
 }
 .card h3 {
-  margin: 6px 0 5px;
+  margin: 3px 0 0;
   font-size: 14px;
+  font-weight: 600;
   line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .excerpt {
   margin: 0 0 9px;
@@ -394,11 +409,13 @@ select, input[type="date"] {
   grid-template-columns: 112px minmax(0, 1fr) 96px 42px;
   gap: 10px;
   align-items: center;
-  padding: 8px 11px;
-  border-bottom: 1px solid var(--border);
-  border-left: 2px solid var(--accent);
-  background: var(--panel);
+  padding: 6px 11px;
+  border-radius: var(--radius-sm);
+  background: transparent;
   cursor: pointer;
+}
+.compact-row:hover, .compact-row.selected {
+  background: var(--accent-weak);
 }
 .compact-row span {
   min-width: 0;
@@ -510,16 +527,29 @@ select, input[type="date"] {
   font-size: 12px;
 }
 .timeline-item {
-  position: relative;
-  margin-left: 8px;
-  padding: 9px 12px;
-  border-left: 1px solid var(--border);
-  border-radius: 0 var(--radius) var(--radius) 0;
-  background: var(--panel);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
-.timeline-item + .timeline-item {
-  margin-top: 6px;
+.timeline-item:hover {
+  background: var(--accent-weak);
+}
+.timeline-time {
+  flex: none;
+  width: 40px;
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  color: var(--faint);
+}
+.timeline-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-body);
 }
 .graph-stage {
   position: relative;
@@ -535,43 +565,12 @@ select, input[type="date"] {
   touch-action: none;
   overflow: hidden;
 }
-.graph-legend {
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  width: fit-content;
-  max-width: calc(100% - 24px);
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--panel);
-  box-shadow: var(--shadow);
-  pointer-events: none;
-}
-.legend-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
 .legend-item {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   color: var(--muted);
   font-size: 11px;
-}
-.legend-swatch {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  box-shadow: 0 0 0 2px var(--bg);
 }
 .legend-line {
   width: 14px;

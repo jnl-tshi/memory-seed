@@ -22,6 +22,8 @@ const state = {
   graphTransform: { x: 0, y: 0, scale: 1 },
   graphHover: "",
   trailWindow: 60,
+  leftCollapsed: localStorage.getItem("ml:leftCollapsed") === "1",
+  topicsExpanded: false,
   results: [],
   timeline: null,
   graph: null,
@@ -160,7 +162,7 @@ function render() {
   app.innerHTML = `
     <div class="app">
       ${topbar()}
-      <div class="shell">
+      <div class="shell ${state.leftCollapsed ? "left-collapsed" : ""}">
         <aside class="pane left" data-pane="left">${leftPane()}</aside>
         <div class="resizer" data-resize="left"></div>
         <main class="pane center" data-pane="center">${centerPane()}</main>
@@ -213,6 +215,7 @@ function topbar() {
     .join("");
   return `
     <header class="topbar">
+      <button type="button" class="icon-button" data-toggle-left title="${state.leftCollapsed ? "Show sidebar" : "Hide sidebar"}">☰</button>
       <div class="brand"><span class="brand-mark"></span><span>Memory Trace</span></div>
       <div class="runtime-chip"><span class="runtime-dot"></span><span>${esc(state.runtime?.label || "runtime")}</span><span>${state.runtime?.entry_count || 0} entries</span></div>
       ${state.view === "search"
@@ -243,9 +246,36 @@ function leftPane() {
     <div class="section-title"><span>User</span></div>
     ${filterRows(facets.users, "user", state.user)}
     <div class="section-title"><span>Topics</span></div>
-    <div class="chip-list">${Object.entries(facets.topics || {}).slice(0, 40).map(([topic, count]) => `<button type="button" class="chip ${state.topic === topic ? "active" : ""}" data-topic="${escAttr(topic)}">#${esc(topic)} <span class="count">${count}</span></button>`).join("")}</div>
+    <div class="chip-list">${topicChips(facets)}</div>
     <div class="section-title"><span>Granularity</span></div>
     <div class="segmented">${["entry", "section", "all"].map((item) => `<button type="button" class="tab ${state.granularity === item ? "active" : ""}" data-granularity="${item}">${item}</button>`).join("")}</div>`;
+}
+
+function topicChips(facets) {
+  // Facet hygiene: cap the visible list (Hick's law) behind an explicit
+  // "+N more" toggle instead of a 40-chip wall.
+  const entries = Object.entries(facets.topics || {});
+  const cap = 12;
+  const shown = state.topicsExpanded ? entries : entries.slice(0, cap);
+  const chips = shown.map(([topic, count]) => `<button type="button" class="chip ${state.topic === topic ? "active" : ""}" data-topic="${escAttr(topic)}">#${esc(topic)} <span class="count">${count}</span></button>`);
+  if (entries.length > cap) {
+    chips.push(`<button type="button" class="chip" data-topics-more>${state.topicsExpanded ? "show less" : `+${entries.length - cap} more`}</button>`);
+  }
+  return chips.join("");
+}
+
+// Applied-filter chips: active filters stay visible and removable at the point
+// of use instead of buried in the sidebar. Date chips only appear when the
+// range differs from the corpus bounds.
+function filterChips() {
+  const bounds = state.facets?.runtime?.date_bounds || [];
+  const chips = [];
+  if (state.agent) chips.push(["agent", `agent: ${state.agent}`]);
+  if (state.user) chips.push(["user", `user: ${state.user}`]);
+  if (state.topic) chips.push(["topic", `#${state.topic}`]);
+  if (state.dateFrom && state.dateFrom !== (bounds[0] || "")) chips.push(["dateFrom", `from ${state.dateFrom}`]);
+  if (state.dateTo && state.dateTo !== (bounds[1] || "")) chips.push(["dateTo", `to ${state.dateTo}`]);
+  return chips.map(([key, label]) => `<button type="button" class="chip filter-chip" data-clear-filter="${key}" title="Clear this filter">${esc(label)} ×</button>`).join("");
 }
 
 function savedButton(label, query, view, sort) {
@@ -273,6 +303,7 @@ function searchView() {
   return `
     <div class="viewbar">
       <span class="meta"><strong>${state.results.length}</strong> ${state.granularity === "entry" ? "entries" : "results"} shown ${state.nextCursor ? "of more" : ""}</span>
+      ${filterChips()}
       <span class="spacer"></span>
       <select id="sort">${["relevance", "newest", "oldest"].map((item) => `<option value="${item}" ${state.sort === item ? "selected" : ""}>${item}</option>`).join("")}</select>
       <div class="segmented">${["comfortable", "compact"].map((item) => `<button type="button" class="tab ${state.density === item ? "active" : ""}" data-density="${item}">${item}</button>`).join("")}</div>
@@ -284,25 +315,23 @@ function searchView() {
 }
 
 function resultList() {
+  // Scores only mean something against a query; on empty-query browsing they
+  // are uniform zeros and would just be noise.
+  const showScore = Boolean(state.query.trim());
   if (state.density === "compact") {
-    return `<div class="results">${state.results.map((item) => `<div class="compact-row ${item.chunk_id === state.selectedId ? "selected" : ""}" data-chunk="${escAttr(item.chunk_id)}" title="Open entry"><span>${item.date} ${item.time || ""}</span><span>${esc(item.title)}${(item.matched_sections || []).length ? ` <span class="count">· ${(item.matched_sections || []).length} matched section${(item.matched_sections || []).length === 1 ? "" : "s"}</span>` : ""}</span><span class="optional-wide">${esc(item.agent_type || "")}</span><span>${Number(item.score || 0).toFixed(1)}</span></div>`).join("")}</div>`;
+    return `<div class="results">${state.results.map((item) => `<div class="compact-row ${item.chunk_id === state.selectedId ? "selected" : ""}" data-chunk="${escAttr(item.chunk_id)}" title="${escAttr(item.title)}"><span>${item.date} ${item.time || ""}</span><span>${esc(stripTitleStamp(item.title))}${(item.matched_sections || []).length ? ` <span class="count">· ${(item.matched_sections || []).length} matched section${(item.matched_sections || []).length === 1 ? "" : "s"}</span>` : ""}</span><span class="optional-wide">${esc(item.agent_type || "")}</span><span>${showScore ? Number(item.score || 0).toFixed(1) : ""}</span></div>`).join("")}</div>`;
   }
-  return `<div class="results">${state.results.map((item) => `
-    <article class="card ${item.chunk_id === state.selectedId ? "selected" : ""}" data-chunk="${escAttr(item.chunk_id)}">
-      <div class="card-head"><span>${item.date} ${item.time || ""}</span><span>${esc(item.agent_type || "")}</span><span class="score">${Number(item.score || 0).toFixed(1)}</span></div>
-      <h3>${esc(item.title)}</h3>
-      <p class="excerpt">${highlight(item.excerpt || "", state.query)}</p>
-      ${matchedSectionChips(item)}
-      <div class="chip-list compact-hide">${(item.topics || []).slice(0, 5).map((topic) => `<span class="chip">#${esc(topic)}</span>`).join("")}<span class="count optional-wide">${esc(item.score_explanation || "")}</span></div>
-    </article>`).join("")}</div>`;
-}
-
-function matchedSectionChips(item) {
-  // One selectable result per session entry; matched subsections surface as
-  // highlight context inside it, never as separate selectable records.
-  const sections = item.matched_sections || [];
-  if (!sections.length) return "";
-  return `<div class="chip-list compact-hide">${sections.slice(0, 4).map((section) => `<span class="chip" title="${escAttr(section.excerpt || "")}">Matched section: ${esc((section.heading_path || []).slice(-1)[0] || "(untitled)")}</span>`).join("")}</div>`;
+  // Minimal glance state (overview-first): date + title (+ score under a
+  // query). Excerpts, topics, agent, and matched sections all live in the
+  // reader on selection.
+  return `<div class="results">${state.results.map((item) => {
+    const matched = (item.matched_sections || []).length;
+    return `
+    <article class="card ${item.chunk_id === state.selectedId ? "selected" : ""}" data-chunk="${escAttr(item.chunk_id)}" title="${escAttr(item.title)}">
+      <div class="card-head"><span>${item.date} ${item.time || ""}</span>${matched ? `<span class="count">${matched} matched section${matched === 1 ? "" : "s"}</span>` : ""}${showScore ? `<span class="score">${Number(item.score || 0).toFixed(1)}</span>` : ""}</div>
+      <h3>${esc(stripTitleStamp(item.title))}</h3>
+    </article>`;
+  }).join("")}</div>`;
 }
 
 function timelineView() {
@@ -317,6 +346,7 @@ function timelineView() {
   return `
     <div class="viewbar">
       <span class="meta">Activity overview</span>
+      ${filterChips()}
       <span class="spacer"></span>
       <button type="button" class="chip ${state.timelineHideEmpty ? "active" : ""}" data-timeline-empty>${state.timelineHideEmpty ? "Showing active days" : "Showing empty days"}</button>
       <div class="segmented timeline-zoom" role="group" aria-label="Timeline granularity">${zoomControls}</div>
@@ -330,7 +360,7 @@ function timelineView() {
       </div>
     </div>
     <div class="timeline-stream">
-      ${Object.entries(byDay).map(([day, items]) => `<div class="day-group" id="day-${day}"><div class="day-head">${day} · ${items.length} entries</div>${items.map((item) => `<div class="timeline-item" data-chunk="${escAttr(item.chunk_id)}" data-entry-datetime="${escAttr(timelineItemDatetime(item))}"><div class="entry-meta"><span>${item.time || "00:00"}</span><span>${esc(item.agent_type || "")}</span></div><div>${esc(item.title)}</div></div>`).join("")}</div>`).join("")}
+      ${Object.entries(byDay).map(([day, items]) => `<div class="day-group" id="day-${day}"><div class="day-head">${day} · ${items.length} entries</div>${items.map((item) => `<div class="timeline-item" data-chunk="${escAttr(item.chunk_id)}" data-entry-datetime="${escAttr(timelineItemDatetime(item))}" title="${escAttr(item.title)}${item.agent_type ? escAttr(` · ${item.agent_type}`) : ""}"><span class="timeline-time">${item.time || "00:00"}</span><span class="timeline-title">${esc(stripTitleStamp(item.title))}</span></div>`).join("")}</div>`).join("")}
     </div>`;
 }
 
@@ -342,12 +372,13 @@ function graphView() {
   return `
     <div class="viewbar">
       <span class="meta">${graph.nodes.length} nodes · ${graph.edges.length} edges</span>
+      ${filterChips()}
       <span class="spacer"></span>
       <div class="segmented">${[["all", "All entries"], ["neighborhood", "Neighborhood"]].map(([scope, label]) => `<button type="button" class="tab ${state.graphScope === scope ? "active" : ""}" data-graph-scope="${scope}">${label}</button>`).join("")}</div>
       <button type="button" class="chip" data-graph-reset>Reset view</button>
       <button type="button" class="chip" data-graph-fit>Fit view</button>
       <button type="button" class="chip ${state.graphSizeMode === "importance" ? "active" : ""}" data-graph-size title="Toggle node size between link connectivity and importance score">Size: ${state.graphSizeMode === "importance" ? "importance" : "links"}</button>
-      ${["related", "topic", "agent", "day"].map((type) => `<button type="button" class="chip ${state.graphEdgeTypes.has(type) ? "active" : ""}" data-edge="${type}">${type}</button>`).join("")}
+      ${["related", "topic", "agent", "day"].map((type) => `<button type="button" class="chip edge-chip ${state.graphEdgeTypes.has(type) ? "active" : ""}" data-edge="${type}" style="border-color:${edgeColor(type)}">${type}</button>`).join("")}
     </div>
     <div class="graph-stage">
       <svg class="graph-canvas" data-graph-canvas viewBox="0 0 1000 620" role="img">
@@ -379,18 +410,6 @@ function graphView() {
       }).join("")}
       </g>
       </svg>
-      ${graphLegend(graph)}
-    </div>`;
-}
-
-function graphLegend(graph) {
-  const agents = [...new Set((graph.nodes || []).map((node) => node.agent || "unknown"))].sort();
-  const edgeItems = [["related", "related"], ["topic", "topic"], ["agent", "agent"], ["day", "day"]];
-  return `
-    <div class="graph-legend" aria-label="Graph legend">
-      <div class="legend-group"><span class="count">Nodes</span>${agents.map((agent) => `<span class="legend-item" title="${escAttr(agent)}"><span class="legend-swatch" style="background:${agentColor(agent)}"></span>${esc(graphLegendLabel(agent))}</span>`).join("")}</div>
-      <div class="legend-group"><span class="count">Edges</span>${edgeItems.map(([type, label]) => `<span class="legend-item"><span class="legend-line" style="background:${edgeColor(type)}"></span>${esc(label)}</span>`).join("")}</div>
-      <div class="legend-group"><span class="count">Size: ${state.graphSizeMode === "importance" ? "importance" : "links"}</span><span class="count">Near: links/topics/dates</span></div>
     </div>`;
 }
 
@@ -411,9 +430,7 @@ function trailStamp(node) {
 }
 
 function trailTitle(node) {
-  // Entry titles start with their timestamp; the time column and day
-  // separators already carry it, so strip the prefix instead of repeating it.
-  return String(node.title || "").replace(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}\s*-\s*/, "");
+  return stripTitleStamp(node.title);
 }
 
 function trailModel(graph) {
@@ -761,6 +778,24 @@ function installDelegatedEvents() {
     if (target.dataset.trailMore !== undefined) {
       state.trailWindow += TRAIL_WINDOW_STEP;
       render();
+      return;
+    }
+    if (target.dataset.toggleLeft !== undefined) {
+      state.leftCollapsed = !state.leftCollapsed;
+      localStorage.setItem("ml:leftCollapsed", state.leftCollapsed ? "1" : "0");
+      render();
+      return;
+    }
+    if (target.dataset.topicsMore !== undefined) {
+      state.topicsExpanded = !state.topicsExpanded;
+      render();
+      return;
+    }
+    if (target.dataset.clearFilter) {
+      const key = target.dataset.clearFilter;
+      const bounds = state.facets?.runtime?.date_bounds || [];
+      const cleared = key === "dateFrom" ? bounds[0] || "" : key === "dateTo" ? bounds[1] || "" : "";
+      await updateFilter(key, cleared);
       return;
     }
     if (target.dataset.bucketStart) {
@@ -1172,14 +1207,15 @@ function graphDegrees(graph) {
   return degree;
 }
 
+// Entry titles start with their timestamp; every list view already shows the
+// date/time in its own column, so strip the prefix instead of repeating it.
+function stripTitleStamp(title) {
+  return String(title || "").replace(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}\s*-\s*/, "");
+}
+
 function graphTitle(title) {
   const value = String(title || "");
   return value.length > 56 ? `${value.slice(0, 53)}...` : value;
-}
-
-function graphLegendLabel(value) {
-  const label = String(value || "unknown");
-  return label.length > 14 ? `${label.slice(0, 12)}...` : label;
 }
 
 function hashString(value) {
@@ -1372,13 +1408,6 @@ function inline(text) {
   return esc(text).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
 }
 
-function highlight(text, query) {
-  const words = [...new Set((query.toLowerCase().match(/[a-z0-9]{3,}/g) || []))].slice(0, 8);
-  if (!words.length) return esc(text);
-  const pattern = new RegExp(`(${words.map(escapeRegExp).join("|")})`, "ig");
-  return esc(text).replace(pattern, "<mark>$1</mark>");
-}
-
 function debounce(fn, wait) {
   let timer;
   return (...args) => {
@@ -1397,10 +1426,6 @@ function esc(value) {
 
 function escAttr(value) {
   return esc(value).replace(/`/g, "&#96;");
-}
-
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 boot().catch((error) => {
