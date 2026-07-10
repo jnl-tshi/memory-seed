@@ -188,13 +188,20 @@ def _iter_windows_processes() -> list[ProcessInfo]:
         "-NoProfile",
         "-NonInteractive",
         "-Command",
+        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
         "Get-CimInstance Win32_Process | "
         "Select-Object ProcessId,Name,ExecutablePath,CommandLine | "
         "ConvertTo-Json -Compress",
     ]
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=10)
-    except (OSError, subprocess.TimeoutExpired):
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError):
         return []
     if result.returncode != 0 or not result.stdout.strip():
         return []
@@ -225,8 +232,14 @@ def _iter_windows_processes() -> list[ProcessInfo]:
 
 def _iter_posix_processes() -> list[ProcessInfo]:
     try:
-        result = subprocess.run(["ps", "-eo", "pid=,comm=,args="], capture_output=True, text=True, timeout=10)
-    except (OSError, subprocess.TimeoutExpired):
+        result = subprocess.run(
+            ["ps", "-eo", "pid=,comm=,args="],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError):
         return []
     if result.returncode != 0:
         return []
@@ -388,9 +401,10 @@ def _terminate_windows_process(pid: int) -> bool:
             ["taskkill", "/PID", str(pid), "/T", "/F"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=10,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError):
         return False
     return result.returncode == 0
 

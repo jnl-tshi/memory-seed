@@ -1,6 +1,7 @@
 import contextlib
 import io
 import json
+import subprocess
 import sys
 import unittest
 from unittest import mock
@@ -136,6 +137,108 @@ class ProcessMatchingTests(unittest.TestCase):
         self.assertEqual([process.pid for process in result.stopped], [700])
         self.assertEqual([process.pid for process in result.failed], [701])
         self.assertEqual([process.pid for process in result.remaining], [701])
+
+
+class ProcessEncodingTests(unittest.TestCase):
+    # Regression for the Windows cp1252/OEM-codepage decode crash and mojibake already
+    # fixed for the git helpers in core.py (mse_azn6bejpd9xpmh3f): subprocess.run(text=True)
+    # without an explicit encoding uses the locale default on Windows, which can crash or
+    # garble non-ASCII process names/command lines. A mocked str stdout can't exercise the
+    # real bytes->str decode, so these assert the encoding wiring and failure handling
+    # directly; the real decode path is covered on Windows by
+    # WindowsProcessListingIntegrationTests below.
+
+    def test_windows_process_listing_forces_utf8_output_encoding(self):
+        from memory_seed.processes import _iter_windows_processes
+
+        completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="[]", stderr="")
+        with mock.patch("memory_seed.processes.subprocess.run", return_value=completed) as run:
+            self.assertEqual(_iter_windows_processes(), [])
+
+        _, kwargs = run.call_args
+        self.assertEqual(kwargs.get("encoding"), "utf-8")
+        command = run.call_args.args[0]
+        self.assertIn("[Console]::OutputEncoding = [System.Text.Encoding]::UTF8", command[-1])
+
+    def test_windows_process_listing_survives_decode_error(self):
+        from memory_seed.processes import _iter_windows_processes
+
+        with mock.patch(
+            "memory_seed.processes.subprocess.run",
+            side_effect=UnicodeDecodeError("utf-8", b"\x82", 0, 1, "invalid start byte"),
+        ):
+            self.assertEqual(_iter_windows_processes(), [])
+
+    def test_windows_process_listing_round_trips_non_ascii_name(self):
+        from memory_seed.processes import _iter_windows_processes
+
+        payload = json.dumps(
+            {
+                "ProcessId": 4321,
+                "Name": "café-процесс.exe",
+                "ExecutablePath": None,
+                "CommandLine": "café-процесс.exe --arg",
+            }
+        )
+        completed = subprocess.CompletedProcess(args=[], returncode=0, stdout=payload, stderr="")
+        with mock.patch("memory_seed.processes.subprocess.run", return_value=completed):
+            processes = _iter_windows_processes()
+
+        self.assertEqual(len(processes), 1)
+        self.assertEqual(processes[0].name, "café-процесс.exe")
+        self.assertIn("café-процесс.exe", processes[0].cmdline)
+
+    def test_posix_process_listing_forces_utf8_and_survives_decode_error(self):
+        from memory_seed.processes import _iter_posix_processes
+
+        completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+        with mock.patch("memory_seed.processes.subprocess.run", return_value=completed) as run:
+            self.assertEqual(_iter_posix_processes(), [])
+        self.assertEqual(run.call_args.kwargs.get("encoding"), "utf-8")
+
+        with mock.patch(
+            "memory_seed.processes.subprocess.run",
+            side_effect=UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"),
+        ):
+            self.assertEqual(_iter_posix_processes(), [])
+
+    def test_taskkill_forces_utf8_and_survives_decode_error(self):
+        from memory_seed.processes import _terminate_windows_process
+
+        completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+        with mock.patch("memory_seed.processes.subprocess.run", return_value=completed) as run:
+            self.assertTrue(_terminate_windows_process(4321))
+        self.assertEqual(run.call_args.kwargs.get("encoding"), "utf-8")
+
+        with mock.patch(
+            "memory_seed.processes.subprocess.run",
+            side_effect=UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"),
+        ):
+            self.assertFalse(_terminate_windows_process(4321))
+
+
+@unittest.skipUnless(sys.platform == "win32", "real Windows process listing requires PowerShell/WMI")
+class WindowsProcessListingIntegrationTests(unittest.TestCase):
+    def test_real_powershell_round_trips_non_ascii_command_line(self):
+        # Real (non-mocked) round trip: without forcing PowerShell's own OutputEncoding to
+        # UTF-8, non-ASCII bytes are mangled or lost by PowerShell itself before Python ever
+        # decodes them (verified manually: café's "e-acute" surfaces as a lone OEM-codepage
+        # byte that isn't valid UTF-8, and non-Latin script is replaced with literal "?").
+        # A mock can't catch that class of bug, so this spawns a real child process with a
+        # non-ASCII argv entry and reads it back through the shipped code path.
+        from memory_seed.processes import _iter_windows_processes
+
+        marker = "café-процесс-marker"
+        proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(20)", marker])
+        try:
+            processes = _iter_windows_processes()
+        finally:
+            proc.terminate()
+            proc.wait(timeout=10)
+
+        match = next((p for p in processes if p.pid == proc.pid), None)
+        self.assertIsNotNone(match, "spawned process not found in Windows process listing")
+        self.assertIn(marker, match.cmdline)
 
 
 class ProcessCliTests(unittest.TestCase):
