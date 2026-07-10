@@ -149,6 +149,7 @@ async function selectChunk(chunkId, rerender = true, token = state.loadSeq) {
 
 function render() {
   const scrollState = captureCenterScroll();
+  const focusState = captureFocusedInput();
   document.documentElement.dataset.theme = state.theme;
   document.documentElement.dataset.accent = state.accent;
   app.innerHTML = `
@@ -165,7 +166,40 @@ function render() {
   bindResizers();
   observePanes();
   restoreCenterScroll(scrollState);
+  restoreFocusedInput(focusState);
   applyMatchHighlight();
+}
+
+// render() replaces the whole DOM, which destroys the element the user is
+// typing in: focus, caret, and any keystrokes newer than the debounced state
+// would be lost mid-word without capturing the live input here.
+function captureFocusedInput() {
+  const active = document.activeElement;
+  if (!active || !active.id || !("value" in active)) return null;
+  let start = null;
+  let end = null;
+  try {
+    start = active.selectionStart;
+    end = active.selectionEnd;
+  } catch {
+    // Selection is unsupported on some input types (e.g. date).
+  }
+  return { id: active.id, value: active.value, start, end };
+}
+
+function restoreFocusedInput(focusState) {
+  if (!focusState) return;
+  const el = document.getElementById(focusState.id);
+  if (!el) return;
+  if ("value" in el && el.value !== focusState.value) el.value = focusState.value;
+  el.focus();
+  if (typeof focusState.start === "number" && typeof el.setSelectionRange === "function") {
+    try {
+      el.setSelectionRange(focusState.start, focusState.end);
+    } catch {
+      // Same input types as above.
+    }
+  }
 }
 
 function topbar() {
@@ -176,7 +210,9 @@ function topbar() {
     <header class="topbar">
       <div class="brand"><span class="brand-mark"></span><span>Memory Trace</span></div>
       <div class="runtime-chip"><span class="runtime-dot"></span><span>${esc(state.runtime?.label || "runtime")}</span><span>${state.runtime?.entry_count || 0} entries</span></div>
-      <div class="searchbox"><span>⌕</span><input id="query" value="${escAttr(state.query)}" placeholder="Search memory, tags, files, decisions" spellcheck="false"></div>
+      ${state.view === "search"
+        ? `<div class="searchbox"><span>⌕</span><input id="query" value="${escAttr(state.query)}" placeholder="Search memory, tags, files, decisions" spellcheck="false"></div>`
+        : `<div class="searchbox-spacer"></div>`}
       <div class="segmented">${tabs}</div>
       <button type="button" class="icon-button" data-theme title="Theme">${state.theme === "dark" ? "◐" : "◑"}</button>
       <div class="palette">${["indigo", "teal", "amber", "ruby", "violet"].map((name) => `<button type="button" class="${state.accent === name ? "active" : ""}" data-accent="${name}" title="${name}" style="background:${palettePreview(name)}"></button>`).join("")}</div>
