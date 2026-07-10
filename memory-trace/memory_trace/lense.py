@@ -492,6 +492,15 @@ def create_app(cwd: str | Path = ".", *, rebuild_cache: bool = False) -> Any:
         path = resources.files("memory_trace").joinpath("static", name)
         return FileResponse(path)
 
+    @app.get("/assets/fonts/{name}")
+    def asset_font(name: str) -> Any:
+        # Self-hosted type pairing (OFL, license files ship alongside the
+        # woff2s): no CDN call, Trace stays fully local/offline.
+        if name not in {"inter-var.woff2", "space-grotesk-var.woff2"}:
+            raise HTTPException(status_code=404, detail="asset not found")
+        path = resources.files("memory_trace").joinpath("static", "fonts", name)
+        return FileResponse(path, media_type="font/woff2")
+
     @app.get("/api/runtime")
     def api_runtime() -> dict[str, Any]:
         return service.runtime()

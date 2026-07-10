@@ -593,7 +593,7 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertNotIn("node.title.slice(0, 28)", script)
         self.assertIn('granularity: "entry"', script)
         self.assertNotIn('granularity: state.graphScope === "all" ? "all" : "entry"', script)
-        self.assertIn('entry_id: state.graphScope === "neighborhood"', script)
+        self.assertIn('entry_id: !trail && state.graphScope === "neighborhood"', script)
         self.assertIn("agent: state.agent", script)
         self.assertIn("user: state.user", script)
         self.assertIn("topic: state.topic", script)
@@ -618,10 +618,12 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn("All entries", script)
         self.assertNotIn("All chunks", script)
         self.assertIn("Neighborhood", script)
-        self.assertIn("graphLegend", script)
-        self.assertIn("graphLegendLabel", script)
+        # De-crowding pass: the floating legend is gone; the edge-type toggle
+        # chips carry their edge color directly (dual-encoded control).
+        self.assertNotIn("graphLegend", script)
+        self.assertIn("edge-chip", script)
+        self.assertIn('style="border-color:${edgeColor(type)}"', script)
         self.assertIn("Size: ", script)
-        self.assertIn("Near: links/topics/dates", script)
         self.assertIn("graph-stage", script)
         self.assertIn("node.connectivity", script)
         self.assertIn("node.importance_score", script)
@@ -639,10 +641,7 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn("pointer-events: all;", styles)
         self.assertIn("cursor: pointer;", styles)
         self.assertIn(".graph-edge.graph-related", styles)
-        self.assertIn(".graph-legend", styles)
-        self.assertIn("position: absolute;", styles)
-        self.assertIn("bottom: 12px;", styles)
-        self.assertIn(".legend-swatch", styles)
+        self.assertNotIn(".graph-legend", styles)
         self.assertIn(".graph-node:not(.graph-dim)", styles)
         self.assertIn("paint-order: stroke;", styles)
         self.assertIn("pointer-events: none;", styles)
@@ -678,25 +677,37 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn(".match-note", styles)
 
     def test_frontend_has_trail_view_with_distinct_supersedes_and_branch_edges(self):
-        # Trail view (Arc 2c): a dedicated tab rendering the branch + supersedes
-        # axes with distinct color semantics and a directed supersession edge.
+        # Trail is a dedicated git-graph timeline renderer: lane-per-branch
+        # (interval coloring), lifecycle arcs, recent window with load-older.
         import importlib.resources as resources
 
         script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
+        styles = resources.files("memory_trace").joinpath("static/styles.css").read_text(encoding="utf-8")
 
         self.assertIn('["trail", "Trail"]', script)
         self.assertIn('state.view === "trail"', script)
-        self.assertIn('TRAIL_EDGE_TYPES = "branch,supersedes,related"', script)
+        self.assertIn('TRAIL_EDGE_TYPES = "branch,supersedes,evolves"', script)
+        self.assertIn("function trailView(", script)
+        self.assertIn("function trailModel(", script)
+        self.assertIn("laneBusyUntil", script)  # straight-lane interval coloring
+        self.assertIn("data-trail-more", script)  # bounded window, load older
+        self.assertIn("stripTitleStamp", script)
         # Distinct edge-type color semantics (supersedes never == related).
         self.assertIn("supersedes:", script)
         self.assertIn("branch:", script)
-        # Directed, dashed supersession edge with an arrow marker.
-        self.assertIn("arrow-supersedes", script)
+        self.assertIn("var(--edge-evolves)", script)
+        self.assertIn("--edge-evolves:", styles)
+        # Directed lifecycle edges: dashed replaces, dotted refines, arrowed.
+        self.assertIn("trail-arrow-supersedes", script)
+        self.assertIn("trail-arrow-evolves", script)
         self.assertIn('stroke-dasharray="6 4"', script)
-        # Legend label must agree with edge direction (source replaces target).
+        # Labels must agree with edge direction (source replaces target).
         # "replaced by" would invert the meaning of the arrow.
-        self.assertIn('["supersedes", "replaces"]', script)
+        self.assertIn("replaces", script)
+        self.assertIn("refines", script)
         self.assertNotIn("replaced by", script)
+        self.assertIn(".trail-rail", styles)
+        self.assertIn(".trail-row", styles)
 
     def test_frontend_center_view_bounds_scroll_region(self):
         import importlib.resources as resources
