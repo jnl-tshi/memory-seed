@@ -19,16 +19,17 @@ lineage; rarity-weighted `F:` file-overlap suggest ranking with rename alias bri
 `memory_search` freshness fields; session-log-check escalation hardening; fuse rewriter spacing
 fix; authored-inverse-field append-only guard.
 
-**User-approved stage sequence (2026-07-10; one branch + one merge commit per stage, reversible):**
+**Goal run COMPLETE 2026-07-10.** All approved stages shipped, one merge commit each (revert
+`-m 1` of the merge backs a stage out):
 
-| Stage | Work | Gate |
+| Stage | Work | Merge commit |
 |---|---|---|
-| S1 (done in Phase 2) | Doc/status repairs from the alignment audit | - |
-| S2 | README hotfix: honest `memory-trace` install caveat + line-16 mojibake repair | approved |
-| S3 | Evolution-edges lineage seeding pass (new typed clarification entries) | user reviews each entry |
-| S4 | Core **2.17** release prep + cut | user approves the PyPI gate |
-| S5 | Topics P1 (`memory-trace-topic-neighbourhoods-plan.md`) - vocabulary derived from existing entry slugs, user-approved before write | approved |
-| S6 | Full README front-door refresh | placeholders acceptable |
+| S1 (Phase 2/3) | Doc/status repairs + review-swarm fixes | `aedd1c0`, `77c6c1b` (direct-main docs) |
+| S2 | README hotfix: trace install truth + mojibake | `0d87ad9` |
+| S3 | Lineage seeding pass (continuity/evolves/retirement entries) | `6ad3b33` |
+| S4 | Core **2.17.0** cut + GitHub Release v2.17.0 (PyPI gate approved by user) | `20630fb` |
+| S5 | Topics P1: vocabulary, parsing, filter, `topics list`/`check` | `f6291d5` |
+| S6 | README front-door refresh (highlights, how-it-works, placeholders, links) | `1a09a3e` |
 
 **Deferred out of this run:** `memory-trace 0.1.0` publication (waits on user-created PyPI
 project + trusted publisher; a prepared workflow file ships in S4 so it is one step later);
@@ -233,7 +234,7 @@ Specs:
 - [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md) (**active** - Phases 1-2 implemented in the unpushed tree; Phase 3 report/handover pack remains gated)
 - [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md) (**active** - approved 2026-07-05; controlled `link add` and explicit historical backfill for curated `related_entries`, sequenced after the lower-risk retrieval/diagram/risk-signaling work unless reprioritized)
 - [`memory-trace-topic-neighbourhoods-plan.md`](memory-trace-topic-neighbourhoods-plan.md) (**active** - clarified 2026-07-08; `topics:` becomes the normal 1-3-topic field for meaningful entries, backed by project-local `.memory-seed/topics.yaml`)
-- [`readme-front-door-refresh-plan.md`](readme-front-door-refresh-plan.md) (**active** - clarified 2026-07-08; README refresh should include real screenshots/GIFs or placeholders)
+- [`readme-front-door-refresh-plan.md`](completed/readme-front-door-refresh-plan.md) (**implemented 2026-07-10** via goal-run S2 hotfix + S6 refresh; residual: real screenshots/GIFs replace the placeholders when captured, optional tail-slimming into docs/)
 - [`evolution-edges-plan.md`](evolution-edges-plan.md) (**P1 implemented 2026-07-10, unreleased** - typed `evolves`/`evolved_by` edge, append-only inverse enforcement, structured `continuity:` artifact lineage, rarity-weighted `F:` file-overlap ranking with alias bridging, and `memory_search` freshness fields all shipped with tests; remaining: the user-reviewed lineage seeding pass and the deferred Trace lineage pass)
 - [`user-interface-deep-research-report.md`](completed/user-interface-deep-research-report.md) (completed 2026-07-05 - historical research; its one live tail, the Pillar B decision, was made and split into the distribution plan above; citation artifacts scrubbed 2026-07-05)
 
