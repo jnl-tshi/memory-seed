@@ -694,6 +694,126 @@ class MemoryMcpServerTests(unittest.TestCase):
         )
         self.assertEqual(payload["write_surface"], "CLI-only; run apply during an in-progress git merge.")
 
+    def test_call_tool_memory_link_suggest_ranks_older_lexical_candidates(self):
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:00 - Cache key design\n\n"
+            "```yaml\n"
+            "entry_id: ms-cache0000\n"
+            "```\n\n"
+            "The original cache key sharding design.\n\n"
+            "## 2026-05-17 10:00 - Unrelated hooks work\n\n"
+            "```yaml\n"
+            "entry_id: ms-hooks0000\n"
+            "```\n\n"
+            "Session start hook wiring, nothing about storage.\n\n"
+            "## 2026-05-17 11:00 - Revisit cache key sharding\n\n"
+            "```yaml\n"
+            "entry_id: ms-newcache0\n"
+            "```\n\n"
+            "Revisit the cache key sharding design decided earlier.\n",
+        )
+
+        payload = call_tool("memory_link_suggest", {"cwd": str(cwd), "top_k": 5})
+
+        # Defaults to the newest entry as the target the agent just wrote...
+        self.assertEqual(payload["target"]["entry_id"], "ms-newcache0")
+        # ...and the lexically-closest older entry ranks first for related_entries.
+        self.assertEqual(payload["related_entries"][0], "ms-cache0000")
+        # Forward-only: the target never suggests linking to itself.
+        self.assertNotIn("ms-newcache0", payload["related_entries"])
+
+    def test_call_tool_memory_link_suggest_honors_explicit_entry_id(self):
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:00 - Oldest\n\n```yaml\nentry_id: ms-oldest000\n```\n\nAlpha topic.\n\n"
+            "## 2026-05-17 10:00 - Middle\n\n```yaml\nentry_id: ms-middle000\n```\n\nAlpha topic again.\n\n"
+            "## 2026-05-17 11:00 - Newest\n\n```yaml\nentry_id: ms-newest000\n```\n\nAlpha topic once more.\n",
+        )
+
+        payload = call_tool(
+            "memory_link_suggest",
+            {"cwd": str(cwd), "entry_id": "ms-middle000"},
+        )
+
+        # Target is the requested entry; only strictly-older entries are candidates.
+        self.assertEqual(payload["target"]["entry_id"], "ms-middle000")
+        self.assertEqual(payload["related_entries"], ["ms-oldest000"])
+
+    def test_call_tool_memory_link_show_reports_graph_node(self):
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:00 - Cited decision\n\n"
+            "```yaml\n"
+            "entry_id: ms-cited0000\n"
+            "```\n\n"
+            "The decision a later entry cites.\n\n"
+            "## 2026-05-17 10:00 - Citer\n\n"
+            "```yaml\n"
+            "entry_id: ms-citer0001\n"
+            "related_entries:\n"
+            "  - ms-cited0000\n"
+            "```\n\n"
+            "Cites the decision.\n",
+        )
+
+        cited = call_tool("memory_link_show", {"cwd": str(cwd), "entry_id": "ms-cited0000"})
+        citer = call_tool("memory_link_show", {"cwd": str(cwd), "entry_id": "ms-citer0001"})
+
+        # Inbound backlinks are computed at read time; outbound is stored as declared.
+        self.assertEqual(cited["inbound"], ["ms-citer0001"])
+        self.assertEqual(cited["outbound"], [])
+        self.assertEqual(cited["inbound_relation_count"], 1)
+        self.assertEqual(cited["importance_score"], 1.0)
+        # No .git in this fixture: commit reference scan degrades to the field-only set.
+        self.assertEqual(cited["commit_reference_count"], 0)
+        self.assertEqual(citer["outbound"], ["ms-cited0000"])
+        self.assertEqual(citer["inbound"], [])
+
+    def test_call_tool_memory_link_show_raises_on_unknown_entry(self):
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:00 - Only\n\n```yaml\nentry_id: ms-only0000\n```\n\nBody.\n",
+        )
+
+        with self.assertRaises(ValueError):
+            call_tool("memory_link_show", {"cwd": str(cwd), "entry_id": "ms-missing00"})
+
+    def test_call_tool_memory_session_target_resolves_read_only(self):
+        cwd = self.make_project()
+        (cwd / ".memory-seed" / "sessions").mkdir(parents=True)
+
+        payload = call_tool("memory_session_target", {"cwd": str(cwd), "date": "2026-06-21"})
+
+        self.assertEqual(payload["path"], ".memory-seed/sessions/2026-06/2026-06-21.md")
+        self.assertEqual(payload["session_date"], "2026-06-21")
+        self.assertIsNone(payload["user"])
+        self.assertEqual(payload["layout"], "month-flat")
+        # Read-only contract: resolving the target must never create the file.
+        self.assertFalse(payload["exists"])
+        self.assertFalse((cwd / ".memory-seed" / "sessions" / "2026-06" / "2026-06-21.md").exists())
+
+    def test_call_tool_memory_session_target_rejects_bad_date(self):
+        cwd = self.make_project()
+        (cwd / ".memory-seed" / "sessions").mkdir(parents=True)
+
+        with self.assertRaises(ValueError):
+            call_tool("memory_session_target", {"cwd": str(cwd), "date": "2026-13-40"})
+
+    def test_memory_session_target_schema_has_no_create_flag(self):
+        from memory_seed.mcp_server import TOOLS
+
+        tool = next(t for t in TOOLS if t["name"] == "memory_session_target")
+        self.assertNotIn("create", tool["inputSchema"]["properties"])
+
     def test_jsonrpc_tools_list_and_call(self):
         cwd = self.make_memory_fixture()
         listed = handle_jsonrpc_message({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
@@ -714,9 +834,13 @@ class MemoryMcpServerTests(unittest.TestCase):
         )
 
         self.assertEqual(listed["id"], 1)
-        self.assertIn("memory_search", [tool["name"] for tool in listed["result"]["tools"]])
-        self.assertIn("memory_branch_status", [tool["name"] for tool in listed["result"]["tools"]])
-        self.assertIn("memory_session_fuse_preview", [tool["name"] for tool in listed["result"]["tools"]])
+        listed_names = [tool["name"] for tool in listed["result"]["tools"]]
+        self.assertIn("memory_search", listed_names)
+        self.assertIn("memory_branch_status", listed_names)
+        self.assertIn("memory_session_fuse_preview", listed_names)
+        self.assertIn("memory_link_suggest", listed_names)
+        self.assertIn("memory_link_show", listed_names)
+        self.assertIn("memory_session_target", listed_names)
         self.assertEqual(called["id"], 2)
         content = called["result"]["content"][0]
         self.assertEqual(content["type"], "text")

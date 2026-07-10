@@ -195,7 +195,10 @@ def main(argv: list[str] | None = None) -> int:
     user_set.add_argument("slug", help="user slug, e.g. jean")
     user_sub.add_parser("clear", help="clear the local user slug")
 
-    session_parser = subparsers.add_parser("session", help="inspect session targets")
+    session_parser = subparsers.add_parser(
+        "session",
+        help="inspect the session-log target or integrate branch-local session memory",
+    )
     session_sub = session_parser.add_subparsers(dest="session_command", required=True)
     session_target_parser = session_sub.add_parser("target", help="print the active session log target")
     session_target_parser.add_argument("--date", default=None, help="target date (YYYY-MM-DD); default: today")
@@ -228,12 +231,12 @@ def main(argv: list[str] | None = None) -> int:
     migrate_sub = migrate_parser.add_subparsers(dest="migrate_command", required=True)
     migrate_sessions = migrate_sub.add_parser(
         "sessions-layout",
-        help="split legacy flat session files into per-day/per-user files",
+        help="split legacy flat session files into per-day/per-user files (by author; see sessions-month-layout for folder grouping)",
     )
     migrate_sessions.add_argument("--dry-run", action="store_true", help="show planned migrations without writing")
     migrate_month_sessions = migrate_sub.add_parser(
         "sessions-month-layout",
-        help="move old session files into YYYY-MM month folders",
+        help="move old session files into YYYY-MM month folders (by date; see sessions-layout for per-author splitting)",
     )
     migrate_month_sessions.add_argument("--dry-run", action="store_true", help="show planned migrations without writing")
 

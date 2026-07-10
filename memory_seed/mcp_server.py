@@ -4,17 +4,31 @@ import argparse
 import json
 import sys
 from datetime import date
+from pathlib import Path
 from typing import Any
 
-from .core import branch_status, session_fuse
+from .core import (
+    branch_status,
+    commit_reference_ids,
+    resolve_runtime,
+    session_fuse,
+    session_target,
+)
 # The MCP server is a thin JSON-RPC wrapper over the public retrieval service
 # (memory_seed/retrieval.py) - the same service the in-package Lense and the
 # future companion UI distribution consume, so every surface returns the same
 # answers. `format_search_results` is re-exported here for compatibility.
 from .retrieval import (
+    chunk_to_dict,
     format_search_results,
     get_chunk,
+    ranked_to_dict,
     search_memory,
+)
+from .semantic_cache import (
+    build_related_entry_graph,
+    extract_memory_chunks,
+    suggest_related_entries,
 )
 
 
@@ -64,6 +78,33 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "memory_link_suggest",
+        "description": "Rank older session entries to link from a target entry, closing the authoring loop: returns paste-ready related_entries candidates. Read-only; the agent writes the edge into its own new entry.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "default": "."},
+                "entry_id": {
+                    "type": "string",
+                    "description": "Entry to suggest links for. Defaults to the newest entry (the one just written).",
+                },
+                "top_k": {"type": "integer", "default": 5},
+            },
+        },
+    },
+    {
+        "name": "memory_link_show",
+        "description": "Show one entry's related-entry graph node: stored outbound edges, computed inbound backlinks, supersession edges, importance score, and linked-commit count. Read-only graph traversal.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "entry_id": {"type": "string"},
+                "cwd": {"type": "string", "default": "."},
+            },
+            "required": ["entry_id"],
+        },
+    },
+    {
         "name": "memory_branch_status",
         "description": "Read Git branch/worktree posture and return Memory Seed branch-history guidance.",
         "inputSchema": {
@@ -105,6 +146,24 @@ TOOLS: list[dict[str, Any]] = [
             "required": ["chunk_id"],
         },
     },
+    {
+        "name": "memory_session_target",
+        "description": "Resolve the active session-log target path (where a new entry should be appended) for the nearest runtime. Read-only; never creates the file. The agent appends the entry itself.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "default": "."},
+                "date": {
+                    "type": "string",
+                    "description": "Target session date in YYYY-MM-DD format. Defaults to today (system clock).",
+                },
+                "user": {
+                    "type": "string",
+                    "description": "Override the active user slug when resolving a per-user target.",
+                },
+            },
+        },
+    },
 ]
 
 
@@ -133,6 +192,52 @@ def call_tool(
             date_to=_optional_date(args, "date_to"),
             exclude_superseded=bool(args.get("exclude_superseded", False)),
         )
+
+    if name == "memory_link_suggest":
+        entry_id = _optional_str(args, "entry_id")
+        target, ranked = suggest_related_entries(
+            cwd=args.get("cwd", "."),
+            entry_id=entry_id,
+            top_k=int(args.get("top_k", 5)),
+        )
+        return {
+            "target": {
+                "entry_id": target.entry_id,
+                "title": target.title,
+                "session_date": target.session_date.isoformat(),
+                "source": target.source_path,
+            },
+            "suggestions": [ranked_to_dict(item) for item in ranked],
+            "related_entries": [item.chunk.entry_id for item in ranked],
+        }
+
+    if name == "memory_link_show":
+        entry_id = _required_str(args, "entry_id")
+        cwd = args.get("cwd", ".")
+        entry_chunks = extract_memory_chunks(cwd, granularity="entry")
+        graph = build_related_entry_graph(cwd=cwd, chunks=entry_chunks)
+        node = graph.get(entry_id)
+        if node is None:
+            raise ValueError(f"entry_id {entry_id} not found")
+        chunk = next((c for c in entry_chunks if c.entry_id == entry_id), None)
+        commit_refs = commit_reference_ids(
+            resolve_runtime(cwd).workspace_root,
+            entry_id,
+            chunk.commits if chunk else (),
+        )
+        return {
+            "entry_id": node.entry_id,
+            "title": node.title,
+            "source_path": node.source_path,
+            "session_date": node.session_date.isoformat(),
+            "outbound": list(node.outbound),
+            "inbound": list(node.inbound),
+            "supersedes": list(node.supersedes),
+            "superseded_by": list(node.superseded_by),
+            "inbound_relation_count": len(node.inbound),
+            "importance_score": round(node.importance_score, 6),
+            "commit_reference_count": len(commit_refs),
+        }
 
     if name == "memory_branch_status":
         return {"status": branch_status(cwd=args.get("cwd", ".")).to_dict()}
@@ -164,6 +269,28 @@ def call_tool(
     if name == "memory_get_chunk":
         chunk_id = _required_str(args, "chunk_id")
         return {"chunk": get_chunk(chunk_id, args.get("cwd", "."))}
+
+    if name == "memory_session_target":
+        root = Path(args.get("cwd", ".")).resolve()
+        target = session_target(
+            cwd=root,
+            date_str=_optional_str(args, "date"),
+            explicit_user=_optional_str(args, "user"),
+            create=False,
+        )
+        try:
+            rel_path = target.path.relative_to(root).as_posix()
+        except ValueError:
+            rel_path = target.path.as_posix()
+        return {
+            "path": rel_path,
+            "absolute_path": target.path.as_posix(),
+            "session_date": target.session_date,
+            "user": target.user,
+            "layout": target.layout,
+            "exists": target.path.exists(),
+            "write_surface": "Agent appends the entry directly; MCP never writes session files.",
+        }
 
     raise ValueError(f"Unknown tool: {name}")
 
