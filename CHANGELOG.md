@@ -4,6 +4,17 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Recorded two shipped-but-unchangelogged features found by the 2026-07-10 goal-run review:
+  (1) **Memory Trace Phase-2 extraction** - the review UI moved into the standalone `memory-trace/`
+  distribution (own `pyproject.toml`, `memory_trace` package, `memory-trace` command, static
+  assets; core sheds `fastapi`/`uvicorn`; `memory-seed[lense]` and `memory-seed lense` are
+  deprecation shims), with Arc 2 UI work (reader subsection highlighting, Trail view with branch
+  lineage + supersedes edges, client-side Mermaid rendering with source fallback). Publication of
+  `memory-trace 0.1.0` waits on core 2.17 plus PyPI project setup.
+  (2) **Skill profiles and CLI skill management** - fresh projects install core skills by default,
+  optional profiles can be selected during `init`, ignored optional skills stay ignored on
+  `update`, and `memory-seed skills list|ignored|add|remove` rewires skill files and registry
+  entries.
 - Fixed the fuse/merge-branch chronological rewriter butting each session-entry heading against
   the previous entry's last line: `_write_chronological_session_file` and
   `_write_chronological_diagram_file` now join entries with a blank line, restoring the

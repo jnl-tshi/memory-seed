@@ -50,8 +50,9 @@ These items need user judgement, account access, or real-client validation.
 
 ## Active Roadmap
 
-Approved 2026-06-13. Incremental release history has moved from 2.6.0 through the current 2.14.0
-release. Source: docs/2_Todo review + session findings.
+Approved 2026-06-13. Incremental release history has moved from 2.6.0 through the current 2.16.0
+release. Source: docs/2_Todo review + session findings. `CHANGELOG.md` is the authority for what
+shipped in which release; the summaries below are orientation only.
 
 ### Release 2.6.0 (shipped 2026-06-13)
 
@@ -155,52 +156,30 @@ First batch of multi-user Phase 3 increments from the reviewed 3.0 plan
 - **Working Principles / skill guidance:** decision-ladder and guard-preservation bullets, Mermaid
   usage guidance, failed-approach logging, and the Fan-Out Recipe in `agent_collaboration.md`.
 
-### Unreleased after 2.14.0
+### Release 2.15.0 (shipped 2026-07-04)
 
-- **Typed supersession edges P1:** `supersedes`, computed `superseded_by`, links-check guards, CLI
-  and MCP exposure.
-- **Git commit entry linking P1:** `Memory-Entry:` trailer, optional `commits:` field, git-gated
-  validation, and `memory-seed link commits`.
-- **Ranking P1a/P1b:** `inbound_relation_count`, supersession-aware `importance_score`, and the
-  Memory Trace graph-node naming from `related_degree` to `connectivity`.
-- **Proposal lifecycle skill:** `proposal_lifecycle.md` now defines inbox -> todo -> completed
-  movement, reference/spec lanes, status requirements, completed-proposal movement rules, and required
-  roadmap/audit update surfaces.
-- **Worktree dependency strategy P1:** dependency tiers, task-packet dependency fields,
-  orchestrator-owned dependency/lockfile policy, and the tmux control-room note now live in
-  `agent_collaboration.md`.
-- **Public retrieval service (Memory Trace distribution Phase 1):** `memory_seed/retrieval.py` owns
-  search orchestration and the canonical result dicts; MCP is a thin parity-tested wrapper; the
-  Trace consumes the same service.
-- **Entry-level result rollup:** the shared `EntryRollup` contract collapses section matches into one
-  selectable entry-level result with `best_match_chunk_id`/`matched_sections`/`score_source`
-  highlight metadata; Memory Trace entry-granularity search consumes it; MCP and section/all granularities
-  unchanged.
-- **Session decision diagrams Phase 1:** `sessions/diagrams/YYYY-MM-DD.md` sidecars (one dated file
-  per day, mirroring session-log filenames; each diagram a heading block naming its `entry_id`)
-  validated by `links check` (`malformed-diagram`/`orphan-diagram`/`diagram-date-mismatch`), surfaced
-  via `entry_diagram_sidecars()` + opt-in `get_chunk(include_diagrams=True)` + Memory Trace chunk metadata,
-  with authoring guidance in `session_logging.md`/`end_of_turn.md` (live + seed).
-- **Memory Trace extraction and Arc 2 UI work:** the review UI has been extracted into the standalone
-  `memory-trace/` distribution, with `memory-seed lense` now a shim. Memory Trace includes reader
-  subsection highlighting, Trail view (branch lineage + supersedes edges), design-token/microcopy
-  baseline, and built-in client-side Mermaid rendering with source fallback.
-- **Skill profiles and CLI skill management:** fresh projects install core skills by default,
-  optional profiles can be selected during `init`, ignored optional skills stay ignored on `update`,
-  and `memory-seed skills list|ignored|add|remove` rewires skill files and registry entries.
-- **Reference-doc lifecycle:** `docs/4_Reference/` now holds source research and extracted learnings
-  that inform proposals without remaining as actionable inbox/todo items; the planning profile creates
-  the generic bootstrap anchors `docs/inbox/`, `docs/todo/`, `docs/todo/completed/`, and
-  `docs/reference/` for newly initialized projects.
-- **Compact diagramming skill:** `compact_mermaid_diagrams.md` is seeded and registered, covering
-  compact rectangular Mermaid layout plus Mermaid-first/D2-specialist selection guidance.
-- **UTF-8 encoding hardening:** `.editorconfig`, `.gitattributes`, `memory_seed.text_files`, README
-  policy, generated-write hardening, MCP Unicode output, `encoding check`, backup-first atomic
-  `encoding repair`, production implicit-I/O enforcement, and doctor summaries are implemented.
-- **Safe shutdown/upgrade workflow proposal:** completed for `memory-seed` and `memory-trace`;
-  process discovery, dry-run previews, JSON output, confirmation-gated shutdown, failed-shutdown
-  upgrade blocking, manager selection/detection, and `uv`/`pipx`/`pip` upgrade command execution are
-  implemented.
+Typed supersession edges P1, git commit <-> entry linking P1 (`Memory-Entry:` trailer +
+`link commits`), ranking P1a/P1b (`inbound_relation_count`, dampened `importance_score`,
+`connectivity` rename), and the `exclude_superseded` search filter. Full detail: `CHANGELOG.md`.
+
+### Release 2.16.0 (shipped 2026-07-05)
+
+Public retrieval service (`memory_seed/retrieval.py`, distribution plan Phase 1), entry-level
+result rollup, decision-diagram sidecar surfacing through the shared service, the graph-edge
+contract spec, risk-signaling skill, and Memory Trace graph `importance_score` sizing. Full
+detail: `CHANGELOG.md`.
+
+### Unreleased (queued for 2.17)
+
+`CHANGELOG.md`'s `## Unreleased` section is the authority. Headlines: month-grouped session
+writes + `migrate sessions-month-layout`; branch-session fuse + `session merge-branch` one-step
+integration; typed `evolves`/`continuity` lifecycle edges with lifecycle-aware ranking and search
+freshness fields; authoring-loop MCP tools; `branch status`; session-log-check escalation; UTF-8
+encoding check/repair; process shutdown/upgrade commands; agent-selection init; proposal-lifecycle
+and skill-architecture governance skills; Memory Trace Phase-2 extraction (standalone
+`memory-trace/` package, `lense` shim) and skill-profile CLI management (`skills
+list|ignored|add|remove`) - the last two were previously missing from the CHANGELOG and were
+folded into Unreleased during the 2026-07-10 goal-run review.
 
 ### 3.0 - In Progress
 
@@ -210,7 +189,8 @@ Multi-user Phases 1-2 shipped (2.9/2.10), the core multi-user increments (A-P3 i
 A-ID 80-bit entry IDs, A-P4 MCP metadata/filters, S2 participant registry parsing, and A-P5
 `migrate sessions-layout`) shipped in 2.12.0, and related-entries generation P1 shipped in 2.13.0.
 The 3.0 plan is now partly historical: shipped sections are retained for context. The Pillar B
-distribution choice is implemented in the unpushed tree as the standalone `memory-trace/` package;
+distribution choice is implemented and merged on `main` as the standalone `memory-trace/` package
+(awaiting the 2.17-then-0.1.0 release ordering);
 see [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md). The Memory Trace
 product and Trail view plan is completed at
 [`completed/memory-trace-product-and-trail-view-plan.md`](completed/memory-trace-product-and-trail-view-plan.md).

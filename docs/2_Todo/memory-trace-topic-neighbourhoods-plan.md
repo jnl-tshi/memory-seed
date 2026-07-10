@@ -180,7 +180,16 @@ topics:
 - Add `memory-seed topics list`.
 - Add `memory-seed topics check` for duplicate slugs, malformed slugs, unknown entry topics,
   deprecated topic use, alias collisions, topic-count warnings, and unused indexed topics.
+- **Slug contract (decided 2026-07-10, goal-run review):** a topic slug must match
+  `^[a-z0-9][a-z0-9_-]{0,63}$` - the same pattern family as user slugs (`SESSION_USER_SLUG_RE`
+  precedent in `memory_seed/core.py`), reusing one convention rather than inventing a third.
+  Every slug observed in the 42 live entries already passes. Underscores are permitted for
+  consistency with the user-slug rule even though the observed convention is hyphen-only.
 - Optionally add read-only `topics suggest --from <file>` after validation exists.
+- **Test-infra note (2026-07-10 review):** validator/parse/CLI/MCP phases all have existing test
+  patterns to extend; the Memory Trace topic-chain rendering and `topics suggest --from <file>`
+  have no analog in the current suites and need novel fixtures - budget for that in Phase 3/4
+  estimates.
 
 ### Phase 4 - MCP And Memory Trace
 
