@@ -578,9 +578,10 @@ def find_trailer_commits(root: Path, entry_id: str) -> list[str] | None:
             ["git", "-C", str(root), "log", "--all", f"--grep=Memory-Entry: {entry_id}", "--format=%H %s"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=30,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError):
         return None
     if proc.returncode != 0:
         return None
@@ -614,9 +615,10 @@ def _git_text(root: Path, args: Sequence[str]) -> tuple[int, str]:
             ["git", "-C", str(root), *args],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=30,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError):
         return 1, ""
     return proc.returncode, proc.stdout.strip()
 
@@ -1376,9 +1378,10 @@ def _git_show_text(root: Path, ref: str, rel_path: str) -> str | None:
             ["git", "-C", str(root), "show", f"{ref}:{rel_path}"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=30,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError):
         return None
     if proc.returncode != 0:
         return None
@@ -1392,9 +1395,36 @@ def _git_ref_paths(root: Path, ref: str) -> list[str]:
     return lines
 
 
-def _entry_records_from_ref(root: Path, ref: str) -> list[_SessionEntryRecord]:
+def _changed_session_paths(root: Path, base: str, branch: str) -> set[str] | None:
+    """Session/diagram file paths changed on ``branch`` relative to its merge-base with ``base``.
+
+    Uses a three-dot diff (``base...branch`` == merge-base(base, branch)..branch) so only the
+    branch's own additions are in scope. Two-dot would also surface base's post-divergence session
+    appends - which matters here because every integration merge appends to the same dated files.
+    Scoping the branch-side record walk to this set keeps fuse from validating unchanged base-tree
+    files (e.g. legacy pre-schema logs that carry no entry_id) that were never part of the branch.
+
+    Returns ``None`` when the diff command itself fails (e.g. no merge-base / unrelated histories),
+    distinct from a legitimate empty diff (empty set). Callers must treat ``None`` as an error rather
+    than "nothing changed", or a git failure would silently filter out every branch record and make
+    the fuse report success while importing nothing.
+    """
+    code, lines = _git_lines(
+        root,
+        ("diff", "--name-only", f"{base}...{branch}", "--", f"{MEMORY_DIR_NAME}/sessions"),
+    )
+    if code != 0:
+        return None
+    return set(lines)
+
+
+def _entry_records_from_ref(
+    root: Path, ref: str, *, only_paths: set[str] | None = None
+) -> list[_SessionEntryRecord]:
     records: list[_SessionEntryRecord] = []
     for rel_path in _git_ref_paths(root, ref):
+        if only_paths is not None and rel_path not in only_paths:
+            continue
         doc = _session_doc_from_relative_path(rel_path)
         if doc is None:
             continue
@@ -1414,9 +1444,13 @@ def _entries_from_ref(root: Path, ref: str) -> dict[str, _SessionEntryRecord]:
     return entries
 
 
-def _sidecar_records_from_ref(root: Path, ref: str) -> list[_DiagramSidecarRecord]:
+def _sidecar_records_from_ref(
+    root: Path, ref: str, *, only_paths: set[str] | None = None
+) -> list[_DiagramSidecarRecord]:
     records: list[_DiagramSidecarRecord] = []
     for rel_path in _git_ref_paths(root, ref):
+        if only_paths is not None and rel_path not in only_paths:
+            continue
         doc = _diagram_doc_from_relative_path(rel_path)
         if doc is None:
             continue
@@ -1542,11 +1576,20 @@ def session_fuse(
                 issues=[f"--apply source branch {branch} ({branch_commit}) is not listed in MERGE_HEAD"],
             )
 
+    # Branch-side enumeration is scoped to the files the branch actually changed relative to its
+    # merge-base with base; base-side stays full (needed for already-present dedup and sidecar
+    # parent lookups against the complete base corpus).
+    changed_paths = _changed_session_paths(root, base_commit, branch_commit)
+    if changed_paths is None:
+        return SessionFuseResult(
+            changed=False,
+            issues=[f"could not compute changed session files for branch {branch} against base {base}"],
+        )
     base_paths = set(_git_ref_paths(root, base_commit))
     base_entry_records = _entry_records_from_ref(root, base_commit)
-    branch_entry_records = _entry_records_from_ref(root, branch_commit)
+    branch_entry_records = _entry_records_from_ref(root, branch_commit, only_paths=changed_paths)
     base_sidecar_records = _sidecar_records_from_ref(root, base_commit)
-    branch_sidecar_records = _sidecar_records_from_ref(root, branch_commit)
+    branch_sidecar_records = _sidecar_records_from_ref(root, branch_commit, only_paths=changed_paths)
 
     base_entries: dict[str, _SessionEntryRecord] = {}
     branch_entries: dict[str, _SessionEntryRecord] = {}

@@ -4,6 +4,13 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Fixed two `session fuse` bugs that made it unusable on this repo's own branches. (1) The git
+  subprocess helpers (`_git_text`, `_git_show_text`, `find_trailer_commits`) now decode output as
+  strict UTF-8 and catch `UnicodeDecodeError`, instead of defaulting to the Windows locale (cp1252)
+  and crashing / silently truncating on non-ASCII session content. (2) Branch-side validation is now
+  scoped to the files the branch actually changed (three-dot `git diff <base>...<branch>`), so
+  unchanged base-tree files — including legacy pre-schema logs that carry no `entry_id` — no longer
+  block the fuse; base-side enumeration stays full for already-present and sidecar-parent lookups.
 - Added three read-only authoring-support MCP tools so the LLM's write-side loop matches its
   retrieval loop: `memory_link_suggest` (rank older entries to link, returning paste-ready
   `related_entries`), `memory_link_show` (one entry's related-entry graph node — outbound/inbound

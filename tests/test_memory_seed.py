@@ -1887,6 +1887,83 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("session entry", result.issues[0])
         self.assertIn("has no entry_id", result.issues[0])
 
+    def test_session_fuse_ignores_unchanged_base_entries_without_entry_id(self):
+        # Regression: fuse must scope branch-side validation to the branch's changed files, not the
+        # whole corpus. A legacy pre-schema entry with no entry_id sitting unchanged on the base tree
+        # (e.g. migrated from .AGENTS/) previously blocked every fuse on this repo.
+        cwd = self.make_project()
+        legacy = cwd / MEMORY_DIR_NAME / "sessions" / "2026-05" / "2026-05-17.md"
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_text(
+            "---\ntags:\n  - session-log\nsession_date: 2026-05-17\n---\n\n"
+            "## 2026-05-17 09:00 - Legacy entry\n\nNo YAML block and no entry_id.\n",
+            encoding="utf-8",
+        )
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-fuse")
+        self._write_legacy_session(cwd, "2026-07-11", "mse_1111111111111111", branch="feature-fuse")
+        self._commit_all(cwd, "feature session")  # legacy file untouched on the branch
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="feature-fuse")
+
+        # The unchanged legacy no-entry_id file is outside the branch diff, so it must not block...
+        self.assertEqual(result.issues, [])
+        # ...and the genuine branch entry is still planned.
+        self.assertEqual(
+            result.planned_entries,
+            ["mse_1111111111111111 2026-07-11 09:00 -> .memory-seed/sessions/2026-07/2026-07-11.md"],
+        )
+
+    def test_session_fuse_reads_non_ascii_branch_entry(self):
+        # Regression for the Windows cp1252 crash: git show of a non-ASCII session file must decode
+        # as UTF-8. Applies the fuse and asserts the exact non-ASCII body round-trips byte-for-byte -
+        # a cp1252 read would either crash or mojibake it, so this guards decoding, not just "no crash".
+        non_ascii_body = "- Decision — kept the “fuse” contract \U0001f9e0 café."
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-fuse")
+        self._write_grouped_session(
+            cwd,
+            "2026-07-11",
+            "mse_2222222222222222",
+            branch="feature-fuse",
+            body=non_ascii_body,
+        )
+        self._commit_all(cwd, "feature session")
+        self._git(cwd, "switch", "main")
+        self._git(cwd, "merge", "--no-ff", "--no-commit", "feature-fuse")
+
+        result = session_fuse(cwd=cwd, branch="feature-fuse", apply=True)
+
+        self.assertEqual(result.issues, [])
+        self.assertTrue(result.changed)
+        grouped = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-11.md"
+        self.assertIn(non_ascii_body, grouped.read_text(encoding="utf-8"))
+
+    def test_session_fuse_blocks_when_diff_fails(self):
+        # Regression: a git diff failure (e.g. unrelated histories / no merge-base) must surface an
+        # issue, not collapse to an empty change set that silently filters out every branch entry
+        # and reports success importing nothing.
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "--orphan", "feature-orphan")
+        self._write_legacy_session(cwd, "2026-07-11", "mse_1111111111111111", branch="feature-orphan")
+        self._commit_all(cwd, "orphan session")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="feature-orphan")
+
+        self.assertFalse(result.changed)
+        self.assertTrue(result.issues)
+        self.assertIn("could not compute changed session files", result.issues[0])
+
     def test_session_fuse_blocks_branch_field_mismatch(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
