@@ -9,7 +9,7 @@ from pathlib import Path
 from functools import lru_cache
 from typing import Any, Callable, Protocol, Sequence
 
-from .core import SessionDocument, iter_session_documents, resolve_runtime
+from .core import SessionDocument, _parse_continuity_items, iter_session_documents, resolve_runtime
 
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
@@ -34,6 +34,30 @@ ENTRY_DATETIME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s+-\s+.+$"
 # (never hide, only deprioritize). Tunable; affects only the read-only
 # importance_score signal, never default memory_search ranking.
 SUPERSEDED_IMPORTANCE_DAMPING = 0.25
+
+# Scale applied to the rarity-weighted F:-file-overlap sum when re-ranking
+# link-suggest candidates (evolution-edges-plan.md D5). Overlap is a precision
+# boost layered on the similarity ranking, never a gate: entries without F:
+# paths get a zero bonus and no penalty, and hub files shared by most entries
+# contribute ~nothing via the idf weighting.
+FILE_OVERLAP_BOOST = 0.75
+
+
+@dataclass(frozen=True)
+class ContinuityBlock:
+    """One stored ``continuity:`` item - artifact lineage, not an entry edge.
+
+    Records that an artifact (file path, directory, command, or concept term)
+    was renamed, migrated, or removed, with direction preserved
+    (evolution-edges-plan.md D6). Values are historical labels like ``branch:``
+    - never validated against the live filesystem or git. ``to_ref`` is None
+    for ``removal`` (a removal with a successor is a rename or a supersession).
+    Malformed items are kept as parsed; ``links check`` owns reporting them.
+    """
+
+    kind: str
+    from_ref: str
+    to_ref: str | None = None
 
 
 @dataclass(frozen=True)
@@ -62,7 +86,13 @@ class MemoryChunk:
     file_hash_id: str | None = None
     related_entries: tuple[str, ...] = ()
     supersedes: tuple[str, ...] = ()
+    # Typed lifecycle edge: earlier decisions this entry extends/refines while
+    # they stay valid (evolves), vs. supersedes which retires its targets.
+    evolves: tuple[str, ...] = ()
     commits: tuple[str, ...] = ()
+    # Stored artifact-lineage blocks (rename/migration/removal); see
+    # ContinuityBlock. A label family like ``branch:``, not an entry edge.
+    continuity: tuple[ContinuityBlock, ...] = ()
     # Optional git branch the entry's work happened on, captured at record time
     # (parallel in spirit to ``commits``). Forward-only, never backfilled, and a
     # durable historical label - not validated against live git refs.
@@ -162,17 +192,23 @@ def rank_session_memory(
     date_from: date | None = None,
     date_to: date | None = None,
     exclude_superseded: bool = False,
+    chunks: Sequence[MemoryChunk] | None = None,
 ) -> list[RankedMemoryChunk]:
-    chunks = extract_memory_chunks(cwd, granularity=granularity)
-    chunks = _filter_chunks(chunks, user=user, date_from=date_from, date_to=date_to)
+    # Pass ``chunks`` to reuse an already-extracted corpus (matching
+    # ``granularity``) and keep the search path free of re-parsing.
+    corpus = list(chunks) if chunks is not None else extract_memory_chunks(cwd, granularity=granularity)
+    chunks = _filter_chunks(corpus, user=user, date_from=date_from, date_to=date_to)
     if exclude_superseded:
         # Opt-in narrowing (like date_from/date_to): drop entries that have been
         # superseded by a later decision. Never a default and never a hard
         # exclusion unless the caller asks - superseded entries remain fully
         # retrievable by default (deprioritized via importance_score, not hidden).
+        # The graph is built over the pre-filter corpus: a superseding entry
+        # outside the user/date window still retires its target. Being evolved
+        # never excludes - evolution is freshness, not retirement.
         superseded = {
             node.entry_id
-            for node in build_related_entry_graph(cwd).values()
+            for node in build_related_entry_graph(cwd, chunks=corpus).values()
             if node.superseded_by
         }
         chunks = [chunk for chunk in chunks if chunk.entry_id not in superseded]
@@ -223,12 +259,19 @@ class RelatedEntryNode:
     ``inbound``. The two edge kinds are never merged: a supersession is a status
     signal (this decision is retired), not a relatedness signal.
 
+    ``evolves`` is the entry's stored typed edge marking earlier decisions it
+    extends or refines *while they remain valid*; ``evolved_by`` is its
+    computed, read-time-only inverse (never stored in any file - append-only is
+    preserved because the inverse exists only in this derived layer). Being
+    evolved is a freshness signal, not a retirement: it never dampens
+    ``importance_score`` and never feeds ``exclude_superseded``.
+
     ``importance_score`` is the read-only ranking precursor: the inbound
     ``related_entries`` count (``len(inbound)``), dampened by
     ``SUPERSEDED_IMPORTANCE_DAMPING`` when the entry has any ``superseded_by``
     edge. Supersession edges never contribute to the count itself - the
-    dampener is applied after, as a hard override. Not blended into default
-    ``memory_search`` ranking.
+    dampener is applied after, as a hard override. ``evolved_by`` edges never
+    dampen. Not blended into default ``memory_search`` ranking.
     """
 
     entry_id: str
@@ -239,6 +282,8 @@ class RelatedEntryNode:
     inbound: tuple[str, ...]
     supersedes: tuple[str, ...] = ()
     superseded_by: tuple[str, ...] = ()
+    evolves: tuple[str, ...] = ()
+    evolved_by: tuple[str, ...] = ()
     importance_score: float = 0.0
 
 
@@ -272,6 +317,7 @@ def build_related_entry_graph(
 
     inbound: dict[str, list[str]] = {entry_id: [] for entry_id in by_id}
     superseded_by: dict[str, list[str]] = {entry_id: [] for entry_id in by_id}
+    evolved_by: dict[str, list[str]] = {entry_id: [] for entry_id in by_id}
     for chunk in chunks:
         if not chunk.entry_id:
             continue
@@ -281,13 +327,19 @@ def build_related_entry_graph(
         for ref in chunk.supersedes:
             if ref in by_id and ref != chunk.entry_id:
                 superseded_by[ref].append(chunk.entry_id)
+        for ref in chunk.evolves:
+            if ref in by_id and ref != chunk.entry_id:
+                evolved_by[ref].append(chunk.entry_id)
 
     graph: dict[str, RelatedEntryNode] = {}
     for entry_id, chunk in by_id.items():
         inbound_ids = tuple(dict.fromkeys(inbound[entry_id]))
         superseded_by_ids = tuple(dict.fromkeys(superseded_by[entry_id]))
+        evolved_by_ids = tuple(dict.fromkeys(evolved_by[entry_id]))
         importance = float(len(inbound_ids))
         if superseded_by_ids:
+            # evolved_by deliberately does not dampen: an evolved decision is
+            # still live, just incomplete without its evolutions.
             importance *= SUPERSEDED_IMPORTANCE_DAMPING
         graph[entry_id] = RelatedEntryNode(
             entry_id=entry_id,
@@ -298,9 +350,102 @@ def build_related_entry_graph(
             inbound=inbound_ids,
             supersedes=tuple(chunk.supersedes),
             superseded_by=superseded_by_ids,
+            evolves=tuple(chunk.evolves),
+            evolved_by=evolved_by_ids,
             importance_score=importance,
         )
     return graph
+
+
+@dataclass(frozen=True)
+class RelatedEntrySuggestion:
+    """One link-suggest candidate: similarity ranking plus D5 file-overlap
+    evidence. ``shared_files`` names the (alias-canonicalized) F: paths the
+    candidate shares with the target - shown so the agent's
+    evolves/supersedes/related judgment is concrete. ``chunk``/``final_score``
+    pass-throughs keep older consumers of the plain ranked shape working."""
+
+    result: RankedMemoryChunk
+    shared_files: tuple[str, ...] = ()
+    file_overlap_bonus: float = 0.0
+    adjusted_score: float = 0.0
+
+    @property
+    def chunk(self) -> MemoryChunk:
+        return self.result.chunk
+
+    @property
+    def final_score(self) -> float:
+        return self.adjusted_score
+
+
+_BACKTICK_TOKEN_RE = re.compile(r"`([^`\n]+)`")
+
+
+def _normalize_file_ref(value: str) -> str:
+    return value.strip().replace("\\", "/").rstrip(".,;")
+
+
+def _entry_file_refs(text: str) -> tuple[str, ...]:
+    """Conservatively extract file paths from an entry body's ``F:`` lines.
+
+    Only backtick-quoted, whitespace-free tokens containing a ``/`` or ``.``
+    are accepted - prose fragments ("same as D1", "live + seed") are ignored.
+    Missed paths are acceptable; false ones are not (evolution-edges-plan.md
+    D5). Continuation lines (indented, not a new bullet) are included so
+    wrapped F: lists parse.
+    """
+    refs: list[str] = []
+    lines = text.splitlines()
+    index = 0
+    while index < len(lines):
+        stripped = lines[index].strip()
+        if stripped.startswith("- F:"):
+            block = [stripped[4:]]
+            probe = index + 1
+            while (
+                probe < len(lines)
+                and lines[probe][:1] in (" ", "\t")
+                and not lines[probe].strip().startswith("- ")
+            ):
+                block.append(lines[probe].strip())
+                probe += 1
+            for token in _BACKTICK_TOKEN_RE.findall(" ".join(block)):
+                if any(char.isspace() for char in token):
+                    continue
+                if "/" not in token and "." not in token:
+                    continue
+                normalized = _normalize_file_ref(token)
+                if normalized:
+                    refs.append(normalized)
+            index = probe
+            continue
+        index += 1
+    return tuple(dict.fromkeys(refs))
+
+
+def _continuity_alias_map(chunks: Sequence[MemoryChunk]) -> dict[str, str]:
+    """Old-name -> newest-name mapping derived from stored continuity blocks.
+
+    Follows rename/migration chains transitively (Explorer -> Lense -> Trace
+    resolves old names to the terminal one) with a cycle guard. Removals carry
+    no ``to`` and never alias. Derived read-time only - nothing is written
+    back (evolution-edges-plan.md D6).
+    """
+    mapping: dict[str, str] = {}
+    for chunk in chunks:
+        for block in chunk.continuity:
+            if block.kind in ("rename", "migration") and block.from_ref and block.to_ref:
+                mapping[_normalize_file_ref(block.from_ref)] = _normalize_file_ref(block.to_ref)
+    resolved: dict[str, str] = {}
+    for start in mapping:
+        seen = {start}
+        current = mapping[start]
+        while current in mapping and current not in seen:
+            seen.add(current)
+            current = mapping[current]
+        resolved[start] = current
+    return resolved
 
 
 def suggest_related_entries(
@@ -309,7 +454,7 @@ def suggest_related_entries(
     entry_id: str | None = None,
     top_k: int = 5,
     embedding_provider: EmbeddingProvider | None = None,
-) -> tuple[MemoryChunk, list[RankedMemoryChunk]]:
+) -> tuple[MemoryChunk, list[RelatedEntrySuggestion]]:
     """Rank candidate prior entries to link from a target entry.
 
     Forward-only by construction: candidates are restricted to entries *older*
@@ -318,7 +463,11 @@ def suggest_related_entries(
     user chose). Self and already-linked entries are excluded. The default
     target is the newest entry - "suggest links for the entry I just wrote".
     Read-only; it never writes. Ranking reuses ``rank_memory_chunks`` with
-    recency disabled so similarity, not age, drives the ordering.
+    recency disabled so similarity, not age, drives the ordering, then applies
+    the D5 file-overlap boost: shared ``F:`` paths (alias-resolved through
+    recorded continuity renames, rarity-weighted so hub files contribute
+    ~nothing) raise semantically comparable candidates that touch the same
+    decision surface. Entries without ``F:`` paths are never penalized.
     """
     chunks = [chunk for chunk in extract_memory_chunks(cwd, granularity="entry") if chunk.entry_id]
     if not chunks:
@@ -343,15 +492,55 @@ def suggest_related_entries(
     if not candidates:
         return target, []
 
+    alias = _continuity_alias_map(chunks)
+    file_refs: dict[str, set[str]] = {}
+    document_frequency: dict[str, int] = {}
+    for chunk in chunks:
+        refs = {alias.get(ref, ref) for ref in _entry_file_refs(chunk.text)}
+        file_refs[chunk.entry_id or ""] = refs
+        for ref in refs:
+            document_frequency[ref] = document_frequency.get(ref, 0) + 1
+    total_entries = len(chunks)
+
+    def _idf(ref: str) -> float:
+        occurrences = document_frequency.get(ref, 0)
+        if occurrences <= 0:
+            return 0.0
+        return max(math.log(total_entries / occurrences), 0.0)
+
     query = f"{target.title}\n{target.text}".strip()
     ranked = rank_memory_chunks(
         query,
         candidates,
-        top_k=top_k,
+        top_k=len(candidates),
         recency_enabled=False,
         embedding_provider=embedding_provider,
     )
-    return target, ranked
+    target_files = file_refs.get(target.entry_id or "", set())
+    suggestions: list[RelatedEntrySuggestion] = []
+    for item in ranked:
+        shared = tuple(sorted(target_files & file_refs.get(item.chunk.entry_id or "", set())))
+        bonus = FILE_OVERLAP_BOOST * sum(_idf(ref) for ref in shared)
+        suggestions.append(
+            RelatedEntrySuggestion(
+                result=item,
+                shared_files=shared,
+                file_overlap_bonus=bonus,
+                adjusted_score=item.final_score + bonus,
+            )
+        )
+    suggestions.sort(
+        key=lambda suggestion: (
+            suggestion.adjusted_score,
+            suggestion.result.match_score,
+            suggestion.result.lexical_score,
+            -suggestion.result.age_days,
+            suggestion.result.chunk.source_file,
+            suggestion.result.chunk.start_line,
+        ),
+        reverse=True,
+    )
+    return target, suggestions[: max(top_k, 0)]
 
 
 def rank_memory_chunks(
@@ -479,7 +668,9 @@ def _extract_entry_chunks_from_file(
         entry_id = _metadata_value(metadata, "entry_id")
         related_entries = _metadata_list(metadata, "related_entries")
         supersedes = _metadata_list(metadata, "supersedes")
+        evolves = _metadata_list(metadata, "evolves")
         commits = _metadata_list(metadata, "commits")
+        continuity = _extract_entry_continuity(entry_lines)
         sections = _entry_sections(entry_lines)
         heading_path = (title,)
         entry_range = (start_line, end_line)
@@ -514,7 +705,9 @@ def _extract_entry_chunks_from_file(
                     file_hash_id=file_hash_id,
                     related_entries=related_entries,
                     supersedes=supersedes,
+                    evolves=evolves,
                     commits=commits,
+                    continuity=continuity,
                     branch=_metadata_value(metadata, "branch"),
                     entry_title=title,
                     entry_line_range=entry_range,
@@ -555,7 +748,9 @@ def _extract_entry_chunks_from_file(
                     file_hash_id=file_hash_id,
                     related_entries=related_entries,
                     supersedes=supersedes,
+                    evolves=evolves,
                     commits=commits,
+                    continuity=continuity,
                     branch=_metadata_value(metadata, "branch"),
                     entry_title=title,
                     entry_line_range=entry_range,
@@ -598,7 +793,9 @@ def _extract_entry_chunks_from_file(
                     file_hash_id=file_hash_id,
                     related_entries=related_entries,
                     supersedes=supersedes,
+                    evolves=evolves,
                     commits=commits,
+                    continuity=continuity,
                     branch=_metadata_value(metadata, "branch"),
                     entry_title=title,
                     entry_line_range=entry_range,
@@ -700,18 +897,54 @@ def _extract_file_frontmatter(lines: Sequence[str]) -> dict[str, str]:
     return metadata
 
 
-def _extract_entry_metadata(entry_lines: Sequence[str]) -> dict[str, str | tuple[str, ...]]:
+def _entry_yaml_lines(entry_lines: Sequence[str]) -> list[str]:
+    """The raw lines of the entry's leading fenced ```yaml block, or []."""
     index = 0
     while index < len(entry_lines) and not entry_lines[index].strip():
         index += 1
     if index >= len(entry_lines) or entry_lines[index].strip() not in ("```yaml", "```yml"):
-        return {}
-    metadata: dict[str, str | tuple[str, ...]] = {}
+        return []
     yaml_lines: list[str] = []
     for line in entry_lines[index + 1 :]:
         if line.strip() == "```":
             break
         yaml_lines.append(line)
+    return yaml_lines
+
+
+def _extract_entry_continuity(entry_lines: Sequence[str]) -> tuple[ContinuityBlock, ...]:
+    """Parse stored ``continuity:`` items (kind/from/to mappings) from the
+    entry's yaml block. Items are kept as parsed, malformed or not - ``links
+    check`` owns validation; the alias map filters to well-formed
+    rename/migration items itself."""
+    yaml_lines = _entry_yaml_lines(entry_lines)
+    region: list[str] = []
+    collecting = False
+    for line in yaml_lines:
+        if collecting:
+            if line[:1] in (" ", "\t"):
+                region.append(line)
+                continue
+            break
+        if line.strip() == "continuity:":
+            collecting = True
+    if not region:
+        return ()
+    return tuple(
+        ContinuityBlock(
+            kind=item.get("kind", ""),
+            from_ref=item.get("from", ""),
+            to_ref=item.get("to") or None,
+        )
+        for item in _parse_continuity_items("\n".join(region))
+    )
+
+
+def _extract_entry_metadata(entry_lines: Sequence[str]) -> dict[str, str | tuple[str, ...]]:
+    yaml_lines = _entry_yaml_lines(entry_lines)
+    if not yaml_lines:
+        return {}
+    metadata: dict[str, str | tuple[str, ...]] = {}
 
     line_index = 0
     while line_index < len(yaml_lines):

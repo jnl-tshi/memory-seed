@@ -4,6 +4,22 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Added typed evolution edges and artifact lineage (evolution-edges plan): entries can declare
+  `evolves:` - "extends that decision, which remains valid" - with a computed, read-time-only
+  `evolved_by` inverse that never dampens `importance_score` and never feeds `exclude_superseded`
+  (the semantic line vs. `supersedes`); `links check` gains per-kind forward-only guards
+  (`dangling/self/postdates/cycle` for evolves), the `authored-inverse-field` guard (a stored
+  `superseded_by:`/`evolved_by:` key is now a named integrity error - append-only enforcement),
+  and `malformed-continuity`. The new structured `continuity:` field records artifact renames,
+  migrations, and removals (`kind`/`from`/`to`; `to` forbidden on removal) as historical labels;
+  recorded renames feed a transitive alias table in `link suggest`/`memory_link_suggest`, which
+  now also applies a rarity-weighted `F:` file-overlap boost with per-suggestion shared-file
+  evidence (boost-only: hub files count ~nothing, absent `F:` is never penalized). Every
+  `memory_search` result now carries computed `superseded_by`/`evolved_by` so consumers see
+  retired/evolved status at retrieval time without extra calls - additive fields, ranking and
+  order untouched. Decision Harvest (live + seed skills) gains the lifecycle prompts: does a
+  harvested decision replace/remove/evolve an earlier entry, and did the turn rename, relocate,
+  or remove any artifact.
 - Added `memory-seed session merge-branch --branch <branch> [--dry-run]`: one-step task-branch
   integration that wraps the previously manual dance (fuse dry-run, `git merge --no-ff
   --no-commit`, `session fuse --apply`, commit) so session entries always land in timestamp order

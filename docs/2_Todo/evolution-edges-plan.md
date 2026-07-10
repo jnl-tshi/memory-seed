@@ -9,7 +9,12 @@ tags:
 
 # Typed Evolution Edges (`evolves` / `evolved_by`) - Scope
 
-> **Status:** Proposed (drafted 2026-07-10; awaiting user approval before implementation).
+> **Status:** P1 IMPLEMENTED 2026-07-10 (unreleased) - approved by the user the same day and built
+> on branch `claude-feature-evolution-edges`: D1-D7 shipped with tests (evolves edge + inverse,
+> authored-inverse-field guard, continuity field + malformed-continuity, F-overlap ranking with
+> alias table and shared-file evidence, search freshness fields, harvest prompts in live + seed
+> skills, graph-edge-contract updated). Remaining before this file moves to completed/: the
+> user-reviewed **lineage seeding pass** below, and the deferred **Trace lineage pass**.
 > **Priority:** P1-adjacent - same low-risk graph-semantics tier as the shipped `supersedes` P1;
 > sequence after the currently active retrieval/topic work unless reprioritized.
 > **Source:** User observation 2026-07-10: the `session merge-branch` work evolved the fuse

@@ -318,6 +318,159 @@ class MemorySeedTests(unittest.TestCase):
 
         self.assertEqual([i.kind for i in issues], ["self-supersedes"], [i.__dict__ for i in issues])
 
+    def _flat_session_raw(self, cwd, filename, text):
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / filename).write_text(text, encoding="utf-8")
+
+    def _entry_yaml(self, heading, entry_id, *yaml_lines):
+        lines = [f"## {heading}", "", "```yaml", f"entry_id: {entry_id}", *yaml_lines, "```", "", "- note", ""]
+        return "\n".join(lines)
+
+    def test_links_check_accepts_backward_evolves(self):
+        cwd = self.make_project()
+        self._flat_session_raw(
+            cwd,
+            "2026-06-13.md",
+            self._entry_yaml("2026-06-13 09:00 - original", "mse_0123456789abcdef")
+            + self._entry_yaml(
+                "2026-06-13 10:00 - refinement", "mse_ffffffffffffffff", "evolves:", "  - mse_0123456789abcdef"
+            ),
+        )
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+
+    def test_links_check_flags_dangling_evolves(self):
+        cwd = self.make_project()
+        self._flat_session_raw(
+            cwd,
+            "2026-06-13.md",
+            self._entry_yaml("2026-06-13 09:00 - only", "mse_0123456789abcdef", "evolves:", "  - mse_zzzzzzzzzzzzzzzz"),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["dangling-evolves"], [i.__dict__ for i in issues])
+        self.assertIn("mse_zzzzzzzzzzzzzzzz", issues[0].detail)
+
+    def test_links_check_flags_postdating_evolves(self):
+        cwd = self.make_project()
+        self._flat_session_raw(
+            cwd,
+            "2026-06-13.md",
+            self._entry_yaml("2026-06-13 09:00 - earlier", "mse_0123456789abcdef", "evolves:", "  - mse_ffffffffffffffff")
+            + self._entry_yaml("2026-06-13 10:00 - later", "mse_ffffffffffffffff"),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["evolves-postdates"], [i.__dict__ for i in issues])
+
+    def test_links_check_flags_self_evolves(self):
+        cwd = self.make_project()
+        self._flat_session_raw(
+            cwd,
+            "2026-06-13.md",
+            self._entry_yaml("2026-06-13 09:00 - self", "mse_0123456789abcdef", "evolves:", "  - mse_0123456789abcdef"),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["self-evolves"], [i.__dict__ for i in issues])
+
+    def test_links_check_flags_evolves_cycle_between_same_minute_entries(self):
+        # Same-minute entries defeat the postdates ordering, so the DFS cycle
+        # guard has to catch a mutual evolves pair - within the evolves kind
+        # only, never mixed with supersedes edges.
+        cwd = self.make_project()
+        self._flat_session_raw(
+            cwd,
+            "2026-06-13.md",
+            self._entry_yaml("2026-06-13 09:00 - a", "mse_aaaaaaaaaaaaaaaa", "evolves:", "  - mse_bbbbbbbbbbbbbbbb")
+            + self._entry_yaml("2026-06-13 09:00 - b", "mse_bbbbbbbbbbbbbbbb", "evolves:", "  - mse_aaaaaaaaaaaaaaaa"),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertIn("evolves-cycle", [i.kind for i in issues], [i.__dict__ for i in issues])
+        cycle_issue = next(i for i in issues if i.kind == "evolves-cycle")
+        self.assertIn("evolution cycle", cycle_issue.detail)
+
+    def test_links_check_flags_authored_inverse_fields(self):
+        # Append-only enforcement: the computed inverses live only in the
+        # derived read layer; a stored key is a named integrity error, not a
+        # silently ignored no-op.
+        cwd = self.make_project()
+        self._flat_session_raw(
+            cwd,
+            "2026-06-13.md",
+            self._entry_yaml("2026-06-13 09:00 - a", "mse_0123456789abcdef", "evolved_by:", "  - mse_ffffffffffffffff")
+            + self._entry_yaml("2026-06-13 10:00 - b", "mse_ffffffffffffffff", "superseded_by:", "  - mse_0123456789abcdef"),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        kinds = [i.kind for i in issues]
+        self.assertEqual(kinds.count("authored-inverse-field"), 2, [i.__dict__ for i in issues])
+        details = " ".join(i.detail for i in issues if i.kind == "authored-inverse-field")
+        self.assertIn("evolved_by", details)
+        self.assertIn("superseded_by", details)
+
+    def test_links_check_accepts_valid_continuity_blocks(self):
+        cwd = self.make_project()
+        self._flat_session_raw(
+            cwd,
+            "2026-06-13.md",
+            self._entry_yaml(
+                "2026-06-13 09:00 - lineage", "mse_0123456789abcdef",
+                "continuity:",
+                "  - kind: rename",
+                "    from: memory_seed/lense.py",
+                "    to: memory_trace/lense.py",
+                "  - kind: migration",
+                "    from: .AGENTS/",
+                "    to: .memory-seed/",
+                "  - kind: removal",
+                "    from: memory-seed lense command",
+            ),
+        )
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+
+    def test_links_check_flags_every_malformed_continuity_shape(self):
+        cwd = self.make_project()
+        self._flat_session_raw(
+            cwd,
+            "2026-06-13.md",
+            self._entry_yaml(
+                "2026-06-13 09:00 - lineage", "mse_0123456789abcdef",
+                "continuity:",
+                "  - kind: refactor",           # unknown kind
+                "    from: a",
+                "  - kind: rename",             # rename without to
+                "    from: b",
+                "  - kind: removal",            # removal with to
+                "    from: c",
+                "    to: d",
+                "  - kind: migration",          # missing from
+                "    to: e",
+            ),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        kinds = [i.kind for i in issues]
+        self.assertEqual(kinds.count("malformed-continuity"), 4, [i.__dict__ for i in issues])
+        details = " ".join(i.detail for i in issues)
+        self.assertIn("refactor", details)
+        self.assertIn("has no to", details)
+        self.assertIn("must not have to", details)
+        self.assertIn("has no from", details)
+
     def _flat_session_with_commits(self, cwd, *hashes):
         sessions = cwd / MEMORY_DIR_NAME / "sessions"
         sessions.mkdir(parents=True, exist_ok=True)
