@@ -9,13 +9,16 @@ tags:
 
 # README Front Door Refresh Plan
 
-Status: ACTIVE - clarified; implementation not started. Split 2026-07-10 (goal-run alignment): two
-live front-door defects are pulled forward into an immediate user-approved hotfix stage ahead of
-this full refresh - (1) the current README instructs `pip install memory-trace`, which is not on
-PyPI (no trace publish workflow or trusted publisher exists yet), and (2) the demo link on line 16
-renders mojibake ("â–¶"). The full refresh remains this plan's scope. The "stale external search
-URL" acceptance criterion is inapplicable to the current README (leftover from the inbox source)
-and is retired.
+Status: **IMPLEMENTED 2026-07-10** (goal-run stages S2 + S6, unreleased). S2 hotfix shipped the
+two live defects first (honest memory-trace install caveat in both READMEs; mojibake repaired).
+S6 delivered the front-door shape: highlights block, surfaced publishable-memory security note,
+compact "How It Works", visual-proof section with explicit placeholders (init + Trace screenshots
+still wanted from the user), and a "Learn More" footer linking CHANGELOG, roadmap, functionality
+audit, graph-edge contract, and the Trace README; `encoding check README.md` is clean. The
+"stale external search URL" criterion was retired as inapplicable. **Residual (recorded, not
+blocking):** the deep reference tail (CLI/MCP internals, ~400 lines) still lives in the README;
+slimming it into `docs/` remains an optional follow-up, and real screenshots/GIFs replace the
+placeholders whenever the user captures them.
 Priority: P6 documentation polish after release-safety, encoding hardening, and Memory Trace release
 ordering unless the user reprioritizes launch-readiness.
 Source: Promoted from `docs/2_Todo/completed/README Improvements.md` on 2026-07-08. Clarified by user
