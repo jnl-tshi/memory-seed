@@ -1615,7 +1615,10 @@ def _write_chronological_session_file(path: Path, date_str: str, records: Sequen
     existing_text = read_text_file(path) if path.exists() else ""
     prefix = _session_file_prefix(existing_text, date_str, user=user)
     ordered = sorted(records, key=lambda record: (record.timestamp or "", record.entry_id or ""))
-    body = "\n".join(record.text.rstrip() for record in ordered).rstrip()
+    # Records are rstripped, so a double newline leaves exactly one blank line
+    # between entries - the same separation a hand-appended log has. A single
+    # "\n" here butts each heading against the previous entry's last line.
+    body = "\n\n".join(record.text.rstrip() for record in ordered).rstrip()
     write_text_file(path, prefix + body + "\n")
 
 
@@ -1623,7 +1626,8 @@ def _write_chronological_diagram_file(path: Path, date_str: str, records: Sequen
     existing_text = read_text_file(path) if path.exists() else ""
     prefix = _diagram_file_prefix(existing_text, date_str)
     ordered = sorted(records, key=lambda record: (record.timestamp or "", record.entry_id or ""))
-    body = "\n".join(record.text.rstrip() for record in ordered).rstrip()
+    # Same blank-line separation contract as the session-file writer above.
+    body = "\n\n".join(record.text.rstrip() for record in ordered).rstrip()
     write_text_file(path, prefix + body + "\n")
 
 
