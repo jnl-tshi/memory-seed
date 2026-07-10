@@ -6,7 +6,9 @@ import json
 import os
 import sqlite3
 import tempfile
+import threading
 import time
+import uuid
 import webbrowser
 import gc
 from dataclasses import asdict
@@ -63,12 +65,21 @@ class LenseCache:
         self.cwd = Path(cwd).resolve()
         self.runtime = resolve_runtime(self.cwd)
         self.db_path = Path(db_path) if db_path is not None else default_cache_path(self.cwd, cache_root=cache_root)
+        # Serializes rebuilds within this process. The UI fires several API
+        # calls concurrently on first load; without this, two threads raced the
+        # same pid-named tmp file ("table meta already exists", then Windows
+        # PermissionError on replace/unlink).
+        self._rebuild_lock = threading.Lock()
 
     def rebuild(self) -> None:
+        with self._rebuild_lock:
+            self._rebuild_locked()
+
+    def _rebuild_locked(self) -> None:
         self._ensure_cache_parent()
-        tmp = self.db_path.with_name(f"{self.db_path.name}.{os.getpid()}.tmp")
-        if tmp.exists():
-            tmp.unlink()
+        # Unique per attempt (not just per pid): concurrent threads share a pid,
+        # and a crashed run's stale tmp must never be another rebuild's target.
+        tmp = self.db_path.with_name(f"{self.db_path.name}.{uuid.uuid4().hex}.tmp")
         conn = sqlite3.connect(tmp)
         try:
             self._create_schema(conn)
@@ -113,11 +124,35 @@ class LenseCache:
         finally:
             conn.close()
         gc.collect()
-        os.replace(tmp, self.db_path)
+        # Windows: a reader connection that has not finished closing can hold
+        # the destination briefly; retry the atomic swap instead of failing the
+        # whole rebuild, and never leave the tmp file behind.
+        try:
+            for attempt in range(5):
+                try:
+                    os.replace(tmp, self.db_path)
+                    break
+                except PermissionError:
+                    if attempt == 4:
+                        raise
+                    time.sleep(0.1 * (attempt + 1))
+        finally:
+            if tmp.exists():
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
 
     def ensure_current(self) -> None:
-        if not self.db_path.exists() or not self._metadata_matches():
-            self.rebuild()
+        # Double-checked around the lock: the common already-current path stays
+        # lock-free; racing first-load threads serialize, and the losers see the
+        # winner's fresh cache instead of rebuilding again.
+        if self.db_path.exists() and self._metadata_matches():
+            return
+        with self._rebuild_lock:
+            if self.db_path.exists() and self._metadata_matches():
+                return
+            self._rebuild_locked()
 
     def status(self) -> dict[str, Any]:
         if not self.db_path.exists():
