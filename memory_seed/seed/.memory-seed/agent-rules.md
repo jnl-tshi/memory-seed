@@ -74,7 +74,7 @@ At the start of work:
 4. Read `.memory-seed/index.md`, especially `Active State`, `Topology`, `Inheritance`, and `Lazy Skills`.
 5. Read inherited parent policy only when the active index says policy inheritance is enabled.
 6. Read `.memory-seed/policy.md`.
-7. Establish current project state: read the newest session document in full (and skim the one before it), selected by session date across `.memory-seed/sessions/YYYY-MM-DD.md` and `.memory-seed/sessions/YYYY-MM-DD/<user>.md`. Read it directly — do not use `memory_search` to find the latest state (see Recency vs. Topical Retrieval). A SessionStart hook injects this automatically where supported; do the read yourself when it is not.
+7. Establish current project state: read the newest session document in full (and skim the one before it), selected by session date across `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`, `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md`, and the legacy flat/day layouts. Read it directly — do not use `memory_search` to find the latest state (see Recency vs. Topical Retrieval). A SessionStart hook injects this automatically where supported; do the read yourself when it is not.
 8. Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry.
 9. Load full `.memory-seed/skills/*.md` runbooks only when the trigger registry matches the current task.
 10. If `.agents/_registry.yaml` exists at the workspace root, read it and load all persona files with `status: active`. Apply persona rules alongside this agent-rules.md and policy.md. Record `agent_name` (the persona's slug) in every session log entry this turn.
@@ -126,7 +126,7 @@ Default to the least expensive level and smallest context set that can safely ha
 - `.memory-seed/index.md`: rich project orientation, current state, topology, inheritance, and skill pointers.
 - `.memory-seed/policy.md`: behavioral constraints only.
 - `.memory-seed/skills/*.md`: task-specific runbooks, loaded on demand.
-- `.memory-seed/sessions/YYYY-MM-DD.md` or `.memory-seed/sessions/YYYY-MM-DD/<user>.md`: append-only chronological work history.
+- `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md` or `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md`: append-only chronological work history.
 - `.memory-seed/archive/`: archived prior control-plane states.
 
 ## Change Permission Model

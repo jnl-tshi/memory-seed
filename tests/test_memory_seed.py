@@ -19,6 +19,7 @@ from memory_seed.core import (
     get_version,
     init_project,
     iter_session_documents,
+    migrate_session_month_layout,
     migrate_session_layout,
     resolve_runtime,
     remove_skill,
@@ -1242,6 +1243,10 @@ class MemorySeedTests(unittest.TestCase):
             "2026-06-20.md": "## Legacy\n",
             "2026-06-21/jean.md": "## Jean\n",
             "2026-06-21/amina.md": "## Amina\n",
+            "2026-06/2026-06-22.md": "## Month flat\n",
+            "2026-06/2026-06-23/jean.md": "## Month Jean\n",
+            "2026-07/2026-06-24.md": "## Month mismatch\n",
+            "2026-07/2026-06-24/jean.md": "## Month user mismatch\n",
             "2026-06-21/README.md": "## Not a user\n",
             "2026-06-21/Bad_User.md": "## Invalid slug\n",
             "not-a-date/theo.md": "## Invalid date\n",
@@ -1256,10 +1261,12 @@ class MemorySeedTests(unittest.TestCase):
                 ("2026-06-20", None, "legacy-flat", "2026-06-20.md"),
                 ("2026-06-21", "amina", "per-user-day", "amina.md"),
                 ("2026-06-21", "jean", "per-user-day", "jean.md"),
+                ("2026-06-22", None, "month-flat", "2026-06-22.md"),
+                ("2026-06-23", "jean", "month-user", "jean.md"),
             ],
         )
 
-    def test_session_target_uses_legacy_path_without_configured_user(self):
+    def test_session_target_uses_month_grouped_path_without_configured_user(self):
         cwd = self.make_project()
         (cwd / MEMORY_DIR_NAME / "sessions").mkdir(parents=True)
 
@@ -1267,10 +1274,10 @@ class MemorySeedTests(unittest.TestCase):
 
         self.assertEqual(
             target.path,
-            cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-21.md",
+            cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21.md",
         )
         self.assertIsNone(target.user)
-        self.assertEqual(target.layout, "legacy-flat")
+        self.assertEqual(target.layout, "month-flat")
 
     def test_session_target_uses_environment_user_before_local_config(self):
         import os
@@ -1288,9 +1295,9 @@ class MemorySeedTests(unittest.TestCase):
         self.assertEqual(target.user, "jean")
         self.assertEqual(
             target.path,
-            cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-21" / "jean.md",
+            cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21" / "jean.md",
         )
-        self.assertEqual(target.layout, "per-user-day")
+        self.assertEqual(target.layout, "month-user")
 
     def test_session_target_stays_flat_with_fewer_than_two_participants(self):
         cwd = self.make_project()
@@ -1301,7 +1308,7 @@ class MemorySeedTests(unittest.TestCase):
         # No participants: file at all -> flat.
         target = session_target(cwd=cwd, date_str="2026-06-21")
         self.assertIsNone(target.user)
-        self.assertEqual(target.layout, "legacy-flat")
+        self.assertEqual(target.layout, "month-flat")
 
         # Exactly one participant -> still flat; a configured user alone isn't
         # enough to fragment the log, since there's no second author to
@@ -1311,7 +1318,7 @@ class MemorySeedTests(unittest.TestCase):
         )
         target = session_target(cwd=cwd, date_str="2026-06-21")
         self.assertIsNone(target.user)
-        self.assertEqual(target.layout, "legacy-flat")
+        self.assertEqual(target.layout, "month-flat")
 
     def test_session_target_switches_to_per_user_with_two_participants(self):
         cwd = self.make_project()
@@ -1323,7 +1330,7 @@ class MemorySeedTests(unittest.TestCase):
         target = session_target(cwd=cwd, date_str="2026-06-21")
 
         self.assertEqual(target.user, "jean")
-        self.assertEqual(target.layout, "per-user-day")
+        self.assertEqual(target.layout, "month-user")
 
     def test_session_target_explicit_user_bypasses_participant_gate(self):
         cwd = self.make_project()
@@ -1331,7 +1338,7 @@ class MemorySeedTests(unittest.TestCase):
         target = session_target(cwd=cwd, date_str="2026-06-21", explicit_user="jean")
 
         self.assertEqual(target.user, "jean")
-        self.assertEqual(target.layout, "per-user-day")
+        self.assertEqual(target.layout, "month-user")
 
     def test_session_target_create_initializes_per_user_file_once(self):
         cwd = self.make_project()
@@ -1424,10 +1431,10 @@ class MemorySeedTests(unittest.TestCase):
         result = migrate_session_layout(cwd=cwd, dry_run=True)
 
         self.assertFalse(result.changed)
-        self.assertEqual(result.planned, ["2026-06-21.md -> 2026-06-21/amina.md", "2026-06-21.md -> 2026-06-21/jean.md"])
+        self.assertEqual(result.planned, ["2026-06-21.md -> 2026-06/2026-06-21/amina.md", "2026-06-21.md -> 2026-06/2026-06-21/jean.md"])
         self.assertEqual(result.issues, [])
         self.assertTrue(flat.exists())
-        self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-21" / "jean.md").exists())
+        self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21" / "jean.md").exists())
 
     def test_migrate_sessions_layout_apply_splits_entries_and_backs_up_source(self):
         cwd = self.make_project()
@@ -1438,12 +1445,12 @@ class MemorySeedTests(unittest.TestCase):
 
         self.assertTrue(result.changed)
         self.assertFalse(flat.exists())
-        self.assertEqual(result.migrated, ["2026-06-21/amina.md", "2026-06-21/jean.md"])
+        self.assertEqual(result.migrated, ["2026-06/2026-06-21/amina.md", "2026-06/2026-06-21/jean.md"])
         self.assertEqual(len(result.backed_up), 1)
         backup = cwd / result.backed_up[0]
         self.assertTrue(backup.exists())
-        jean = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-21" / "jean.md").read_text(encoding="utf-8")
-        amina = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-21" / "amina.md").read_text(encoding="utf-8")
+        jean = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21" / "jean.md").read_text(encoding="utf-8")
+        amina = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21" / "amina.md").read_text(encoding="utf-8")
         self.assertIn("schema_version: 2", jean)
         self.assertIn("hash_id: msm_", jean)
         self.assertIn("user: jean", jean)
@@ -1479,7 +1486,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(result.issues)
         self.assertIn("ZZ", result.issues[0])
         self.assertTrue(flat.exists())
-        self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-21" / "jean.md").exists())
+        self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21" / "jean.md").exists())
 
     def test_migrate_sessions_layout_blocks_duplicate_participant_initials(self):
         cwd = self.make_project()
@@ -1514,6 +1521,134 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("## 2026-06-21 08:00 - Existing", jean)
         self.assertIn("entry_id: ms-11111111", jean)
         self.assertEqual(jean.count("hash_id: msm_"), 1)
+
+    def _write_old_diagram_sidecar(self, cwd, date_str="2026-06-21", entry_id="ms-11111111"):
+        diagrams = cwd / MEMORY_DIR_NAME / "sessions" / "diagrams"
+        diagrams.mkdir(parents=True, exist_ok=True)
+        path = diagrams / f"{date_str}.md"
+        path.write_text(
+            "\n".join(
+                [
+                    "---",
+                    "tags:",
+                    "  - session-log-diagrams",
+                    f"diagram_date: {date_str}",
+                    "---",
+                    "",
+                    f"## {date_str} 09:00 - Diagram",
+                    "",
+                    "```yaml",
+                    f"entry_id: {entry_id}",
+                    "```",
+                    "",
+                    "```mermaid",
+                    "flowchart TD",
+                    "  A --> B",
+                    "```",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def test_migrate_sessions_month_layout_dry_run_plans_without_writing(self):
+        cwd = self.make_project()
+        flat = self._write_flat_session(cwd)
+        self._per_user_session(cwd, "2026-06-22", "jean", hash_id="msm_" + "c" * 32, entries=("ms-33333333",))
+        diagram = self._write_old_diagram_sidecar(cwd)
+
+        result = migrate_session_month_layout(cwd=cwd, dry_run=True)
+
+        self.assertFalse(result.changed)
+        self.assertEqual(
+            result.planned,
+            [
+                "2026-06-21.md -> 2026-06/2026-06-21.md",
+                "2026-06-22/jean.md -> 2026-06/2026-06-22/jean.md",
+                "diagrams/2026-06-21.md -> diagrams/2026-06/2026-06-21.md",
+            ],
+        )
+        self.assertEqual(result.issues, [])
+        self.assertTrue(flat.exists())
+        self.assertTrue(diagram.exists())
+        self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21.md").exists())
+
+    def test_migrate_sessions_month_layout_apply_moves_sources_and_backs_up(self):
+        cwd = self.make_project()
+        flat = self._write_flat_session(cwd)
+        self._per_user_session(cwd, "2026-06-22", "jean", hash_id="msm_" + "c" * 32, entries=("ms-33333333",))
+        diagram = self._write_old_diagram_sidecar(cwd)
+
+        result = migrate_session_month_layout(cwd=cwd)
+
+        self.assertTrue(result.changed)
+        self.assertEqual(
+            result.migrated,
+            [
+                "2026-06/2026-06-21.md",
+                "2026-06/2026-06-22/jean.md",
+                "diagrams/2026-06/2026-06-21.md",
+            ],
+        )
+        self.assertFalse(flat.exists())
+        self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-22" / "jean.md").exists())
+        self.assertFalse(diagram.exists())
+        self.assertEqual(len(result.backed_up), 3)
+        for backup in result.backed_up:
+            self.assertTrue((cwd / backup).exists())
+        moved_flat = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21.md").read_text(encoding="utf-8")
+        moved_user = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-22" / "jean.md").read_text(encoding="utf-8")
+        moved_diagram = (cwd / MEMORY_DIR_NAME / "sessions" / "diagrams" / "2026-06" / "2026-06-21.md").read_text(encoding="utf-8")
+        self.assertIn("entry_id: ms-11111111", moved_flat)
+        self.assertIn("hash_id: msm_" + "c" * 32, moved_user)
+        self.assertIn("```mermaid", moved_diagram)
+        self.assertTrue(check_session_links(cwd=cwd).ok)
+
+    def test_migrate_sessions_month_layout_is_idempotent_after_apply(self):
+        cwd = self.make_project()
+        self._write_flat_session(cwd)
+
+        migrate_session_month_layout(cwd=cwd)
+        result = migrate_session_month_layout(cwd=cwd)
+
+        self.assertFalse(result.changed)
+        self.assertEqual(result.planned, [])
+        self.assertEqual(result.migrated, [])
+        self.assertEqual(result.issues, [])
+
+    def test_migrate_sessions_month_layout_appends_to_existing_target_when_safe(self):
+        cwd = self.make_project()
+        flat = self._write_flat_session(cwd)
+        target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            "## 2026-06-21 08:00 - Existing\n\n```yaml\nentry_id: ms-existing\n```\n\n- Existing.\n",
+            encoding="utf-8",
+        )
+
+        result = migrate_session_month_layout(cwd=cwd)
+
+        self.assertTrue(result.changed)
+        self.assertFalse(flat.exists())
+        text = target.read_text(encoding="utf-8")
+        self.assertIn("entry_id: ms-existing", text)
+        self.assertIn("entry_id: ms-11111111", text)
+        self.assertIn("entry_id: mse_0123456789abcdef", text)
+
+    def test_migrate_sessions_month_layout_blocks_duplicate_target_entry_ids(self):
+        cwd = self.make_project()
+        flat = self._write_flat_session(cwd)
+        target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("## Existing\n\n```yaml\nentry_id: ms-11111111\n```\n", encoding="utf-8")
+
+        result = migrate_session_month_layout(cwd=cwd)
+
+        self.assertFalse(result.changed)
+        self.assertTrue(result.issues)
+        self.assertIn("ms-11111111", result.issues[0])
+        self.assertTrue(flat.exists())
 
     def test_compact_returns_headings_from_recent_sessions(self):
         cwd = self.make_project()
@@ -1860,6 +1995,26 @@ class SessionLogOrderingHookTests(unittest.TestCase):
         (path / ".memory-seed" / "sessions").mkdir(parents=True)
         return path
 
+    def _flat_target(self, cwd, day):
+        path = cwd / ".memory-seed" / "sessions" / day[:7] / f"{day}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _user_target(self, cwd, day, user):
+        path = cwd / ".memory-seed" / "sessions" / day[:7] / day / f"{user}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _write_two_participants(self, cwd):
+        (cwd / ".memory-seed" / "project.yaml").write_text(
+            "participants:\n"
+            "  - slug: jean\n"
+            "    initials: JN\n"
+            "  - slug: amina\n"
+            "    initials: AM\n",
+            encoding="utf-8",
+        )
+
     def _run(self, cwd):
         import subprocess
         import sys
@@ -1891,7 +2046,7 @@ class SessionLogOrderingHookTests(unittest.TestCase):
 
         cwd = self.make_project()
         today = datetime.date.today().isoformat()
-        (cwd / ".memory-seed" / "sessions" / f"{today}.md").write_text(
+        self._flat_target(cwd, today).write_text(
             f"## {today} 02:00 - later\n\ntext\n\n## {today} 01:45 - earlier\n\ntext\n",
             encoding="utf-8",
         )
@@ -1902,7 +2057,7 @@ class SessionLogOrderingHookTests(unittest.TestCase):
 
         cwd = self.make_project()
         today = datetime.date.today().isoformat()
-        (cwd / ".memory-seed" / "sessions" / f"{today}.md").write_text(
+        self._flat_target(cwd, today).write_text(
             f"## {today} 01:45 - earlier\n\ntext\n\n## {today} 02:00 - later\n\ntext\n",
             encoding="utf-8",
         )
@@ -1923,7 +2078,7 @@ class SessionLogOrderingHookTests(unittest.TestCase):
         old = datetime.datetime.now() - datetime.timedelta(minutes=30)
         day = old.strftime("%Y-%m-%d")
         stamp = old.strftime("%H:%M")
-        (cwd / ".memory-seed" / "sessions" / f"{day}.md").write_text(
+        self._flat_target(cwd, day).write_text(
             f"## {day} {stamp} - old entry\n\ntext\n",
             encoding="utf-8",
         )
@@ -1936,7 +2091,7 @@ class SessionLogOrderingHookTests(unittest.TestCase):
         now = datetime.datetime.now()
         today = now.strftime("%Y-%m-%d")
         recent_time = now.strftime("%H:%M")
-        (cwd / ".memory-seed" / "sessions" / f"{today}.md").write_text(
+        self._flat_target(cwd, today).write_text(
             f"## {today} {recent_time} - recent entry\n\ntext\n",
             encoding="utf-8",
         )
@@ -1950,7 +2105,7 @@ class SessionLogOrderingHookTests(unittest.TestCase):
         old = datetime.datetime.now() - datetime.timedelta(minutes=30)
         day = old.strftime("%Y-%m-%d")
         stamp = old.strftime("%H:%M")
-        session_file = cwd / ".memory-seed" / "sessions" / f"{day}.md"
+        session_file = self._flat_target(cwd, day)
         session_file.write_text(
             f"## {day} {stamp} - old entry\n\ntext\n",
             encoding="utf-8",
@@ -1964,11 +2119,10 @@ class SessionLogOrderingHookTests(unittest.TestCase):
         import datetime
 
         cwd = self.make_project()
+        self._write_two_participants(cwd)
         now = datetime.datetime.now()
         today = now.strftime("%Y-%m-%d")
-        user_dir = cwd / ".memory-seed" / "sessions" / today
-        user_dir.mkdir(parents=True)
-        (user_dir / "amina.md").write_text(
+        self._user_target(cwd, today, "amina").write_text(
             f"## {today} {now.strftime('%H:%M')} - Amina recent\n\ntext\n",
             encoding="utf-8",
         )
@@ -1976,21 +2130,20 @@ class SessionLogOrderingHookTests(unittest.TestCase):
         out = self._run_with_env(cwd, {"MEMORY_SEED_USER": "jean"})
 
         self.assertIn("SESSION LOG REMINDER", out)
-        self.assertIn(f".memory-seed/sessions/{today}/jean.md", out)
+        self.assertIn(f".memory-seed/sessions/{today[:7]}/{today}/jean.md", out)
         self.assertNotIn(f".memory-seed/sessions/{today}.md", out)
 
     def test_user_scoped_order_warning_checks_only_selected_file(self):
         import datetime
 
         cwd = self.make_project()
+        self._write_two_participants(cwd)
         today = datetime.date.today().isoformat()
-        user_dir = cwd / ".memory-seed" / "sessions" / today
-        user_dir.mkdir(parents=True)
-        (user_dir / "jean.md").write_text(
+        self._user_target(cwd, today, "jean").write_text(
             f"## {today} 02:00 - later\n\ntext\n\n## {today} 01:45 - earlier\n\ntext\n",
             encoding="utf-8",
         )
-        (user_dir / "amina.md").write_text(
+        self._user_target(cwd, today, "amina").write_text(
             f"## {today} 01:00 - amina\n\ntext\n",
             encoding="utf-8",
         )
@@ -1998,7 +2151,7 @@ class SessionLogOrderingHookTests(unittest.TestCase):
         out = self._run_with_env(cwd, {"MEMORY_SEED_USER": "jean"})
 
         self.assertIn("ORDER WARNING", out)
-        self.assertIn(f".memory-seed/sessions/{today}/jean.md", out)
+        self.assertIn(f".memory-seed/sessions/{today[:7]}/{today}/jean.md", out)
 
 
 class McpMergeTests(unittest.TestCase):
@@ -2795,7 +2948,7 @@ class CliHelpTests(unittest.TestCase):
 
             code, out = self._run(["session", "target"])
             self.assertEqual(code, 0)
-            self.assertRegex(out.strip(), r"\.memory-seed/sessions/\d{4}-\d{2}-\d{2}/jean\.md$")
+            self.assertRegex(out.strip(), r"\.memory-seed/sessions/\d{4}-\d{2}/\d{4}-\d{2}-\d{2}/jean\.md$")
 
             code, out = self._run(["session", "target", "--create"])
             self.assertEqual(code, 0)
@@ -2841,7 +2994,34 @@ class CliHelpTests(unittest.TestCase):
             os.chdir(cwd)
 
         self.assertEqual(code, 0)
-        self.assertIn("Would migrate: 2026-06-21.md -> 2026-06-21/jean.md", out)
+        self.assertIn("Would migrate: 2026-06-21.md -> 2026-06/2026-06-21/jean.md", out)
+        self.assertIn("No files changed.", out)
+
+    def test_migrate_sessions_month_layout_cli_dry_run(self):
+        import os
+
+        cwd = Path.cwd()
+        project = Path(tempfile.mkdtemp(prefix="memory-seed-cli-month-migrate-"))
+        self.addCleanup(lambda: shutil.rmtree(project, ignore_errors=True))
+        (project / ".memory-seed" / "sessions").mkdir(parents=True)
+        (project / ".memory-seed" / "sessions" / "2026-06-21.md").write_text(
+            "## 2026-06-21 09:00 - Entry\n\n"
+            "```yaml\n"
+            "entry_id: ms-11111111\n"
+            "user_initials: JN\n"
+            "```\n\n"
+            "- Body.\n",
+            encoding="utf-8",
+        )
+
+        try:
+            os.chdir(project)
+            code, out = self._run(["migrate", "sessions-month-layout", "--dry-run"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 0)
+        self.assertIn("Would migrate: 2026-06-21.md -> 2026-06/2026-06-21.md", out)
         self.assertIn("No files changed.", out)
 
 

@@ -176,6 +176,51 @@ class SemanticCacheTests(unittest.TestCase):
         self.assertEqual(chunks[0].user, "jean")
         self.assertEqual(chunks[0].file_hash_id, "msm_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 
+    def test_extracts_month_grouped_flat_and_per_user_sessions(self):
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-06/2026-06-21.md",
+            "## 2026-06-21 09:00 - Month flat memory\n\n"
+            "```yaml\n"
+            "entry_id: ms-monthflat\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "```\n\n"
+            "Grouped flat discovery works.\n",
+        )
+        self.write_session(
+            cwd,
+            "2026-06/2026-06-22/jean.md",
+            "---\n"
+            "schema_version: 2\n"
+            "session_date: 2026-06-22\n"
+            "hash_id: msm_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+            "user: jean\n"
+            "---\n\n"
+            "## 2026-06-22 09:30 - Month per-user memory\n\n"
+            "```yaml\n"
+            "entry_id: ms-monthuser\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "```\n\n"
+            "Grouped per-user discovery works.\n",
+        )
+
+        chunks = extract_memory_chunks(cwd)
+        by_id = {chunk.entry_id: chunk for chunk in chunks}
+
+        self.assertEqual(by_id["ms-monthflat"].source_path, ".memory-seed/sessions/2026-06/2026-06-21.md")
+        self.assertIsNone(by_id["ms-monthflat"].user)
+        self.assertEqual(by_id["ms-monthuser"].source_path, ".memory-seed/sessions/2026-06/2026-06-22/jean.md")
+        self.assertEqual(by_id["ms-monthuser"].source_file, "jean.md")
+        self.assertEqual(by_id["ms-monthuser"].user, "jean")
+        self.assertEqual(by_id["ms-monthuser"].file_hash_id, "msm_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+
     def test_extracts_entry_level_related_entries(self):
         cwd = self.make_project()
         self.write_session(

@@ -56,13 +56,13 @@ related_entries:
 
 `branch` is an optional single scalar naming the git branch this entry's work happened on, captured at record time: read the current branch (`git rev-parse --abbrev-ref HEAD`) when writing a solo entry; for orchestrated multi-agent work the orchestrator backfills it from the Task Packet's `working_branch` when writing the Final Handoff Gate entry. It is a durable historical label like a commit SHA — forward-only, never backfilled onto older entries, and omitted entirely when unavailable (detached HEAD, no repository, or an agent that chooses not to record it). `links check` never checks that the branch still exists: feature branches are routinely deleted after merge, so a vanished branch is expected history, not an integrity error. There is deliberately **no `worktree:` field** — a worktree is an ephemeral, machine-specific local path with no evolution semantics; when that operational detail matters it belongs in the multi-agent handoff record, not the durable entry schema.
 
-Keep session filenames date-only, such as `.memory-seed/sessions/2026-05-02.md`. Generate `entry_id` as a deterministic 80-bit `mse_` ID from metadata only: timestamp, title, user initials, agent type, project path, and subproject path. Legacy `ms-` IDs remain valid and must not be rewritten.
+Keep new session files in month-grouped folders, such as `.memory-seed/sessions/2026-05/2026-05-02.md`. Generate `entry_id` as a deterministic 80-bit `mse_` ID from metadata only: timestamp, title, user initials, agent type, project path, and subproject path. Legacy `ms-` IDs remain valid and must not be rewritten.
 
 ## Decision Diagram Sidecars
 
 When an entry's decision logic is genuinely **spatial, temporal, or concurrent** — branching alternatives that were weighed, a sequence across components, a topology — you may capture it as a Mermaid diagram in a **sidecar file**, authored in the same turn as the entry:
 
-- Location: `.memory-seed/sessions/diagrams/YYYY-MM-DD.md` — **one file per date**, mirroring the session-log filename convention, so a human browsing the filesystem without the Explorer can find a day's diagrams next to that day's session log.
+- Location: `.memory-seed/sessions/diagrams/YYYY-MM/YYYY-MM-DD.md` — **one file per date**, mirroring the month-grouped session-log convention, so a human browsing the filesystem without the Explorer can find a day's diagrams next to that day's session log. Existing legacy sidecars under `.memory-seed/sessions/diagrams/YYYY-MM-DD.md` remain readable.
 - File shape: append a heading block shaped exactly like a session entry — `## <timestamp> - <title>`, followed by a fenced ` ```yaml ` block naming `entry_id:` (required — the single link to the entry it accompanies), followed by one or more fenced ` ```mermaid ` blocks. Multiple diagrams logged the same day append to the same date file, in ascending time order, exactly like session logs.
 - Match the heading timestamp to the entry's own heading timestamp when practical — it's a human convenience for eyeballing the session log and the diagrams file side by side, not a required key (`entry_id` is the only thing validated).
 - Never inline diagrams in the session entry itself — the prose log stays clean, diffable, and append-only. The sidecar is the diagram's home; readers and the Explorer UI render it beside the entry.
@@ -70,7 +70,7 @@ When an entry's decision logic is genuinely **spatial, temporal, or concurrent**
 - Same high bar as the Mermaid Working Principle: prose is the default; **most entries need no sidecar**. Never add one just for coverage.
 - `links check` validates sidecars: `malformed-diagram` (filename isn't a valid `YYYY-MM-DD.md` date, no heading+yaml block found, missing `entry_id`, no ```mermaid block, or unbalanced fence), `orphan-diagram` (`entry_id` resolves to no known entry), `diagram-date-mismatch` (the entry's actual session date differs from the diagrams filename date).
 
-Example sidecar (`.memory-seed/sessions/diagrams/2026-07-05.md`):
+Example sidecar (`.memory-seed/sessions/diagrams/2026-07/2026-07-05.md`):
 
 ````markdown
 ---
@@ -98,9 +98,9 @@ flowchart TD
 Two related but separate mechanisms:
 
 - **Identity** (`.memory-seed/local.yaml`, gitignored): the active local user, set via `memory-seed user set <slug>`. Once configured, `user_initials` in new entries should reflect that user, resolved against `.memory-seed/project.yaml`'s `participants:` registry (`slug` / `initials` / `display_name`).
-- **Layout** (flat vs. per-user file): purely a function of how many participants are registered, not whether identity is configured. `session_target()` only switches to `.memory-seed/sessions/YYYY-MM-DD/<user>.md` once `participants:` lists 2 or more entries; with 0 or 1, it stays on the shared flat `.memory-seed/sessions/YYYY-MM-DD.md` file regardless of a configured user. Per-user files exist to avoid concurrent-author merge conflicts, which isn't a concern until there is a second author to conflict with. An explicit `--user <slug>` CLI override bypasses this gate (a deliberate one-shot choice).
+- **Layout** (flat vs. per-user file): purely a function of how many participants are registered, not whether identity is configured. `session_target()` writes shared flat logs to `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`. It only switches to `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md` once `participants:` lists 2 or more entries; with 0 or 1, it stays on the shared flat month-grouped file regardless of a configured user. Per-user files exist to avoid concurrent-author merge conflicts, which isn't a concern until there is a second author to conflict with. An explicit `--user <slug>` CLI override bypasses this gate (a deliberate one-shot choice).
 
-Practical effect: configuring identity alone never fragments an existing single-author project's log. Only registering a second `participants:` entry does — at that point `memory-seed migrate sessions-layout` can split existing flat history if wanted.
+Practical effect: configuring identity alone never fragments an existing single-author project's log. Only registering a second `participants:` entry does — at that point `memory-seed migrate sessions-layout` can split existing flat history if wanted. Historical flat/day files remain readable; use `memory-seed migrate sessions-month-layout` when you explicitly want to reorganize old files into month folders.
 
 **No local identity configured?** The SessionStart hook offers once, then never repeats regardless of whether the offer was accepted (tracked by a gitignored `.memory-seed/.identity-offer-stamp` file, written on first offer). This is optional and skippable — most projects are solo and don't need it. If offered, ask the user for a preferred slug/initials/display name, then run `memory-seed user set <slug>` and add a matching `participants:` entry.
 

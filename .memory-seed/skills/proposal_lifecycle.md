@@ -74,7 +74,7 @@ When moving or resolving proposals, check whether these need updates:
 - `docs/3_Spec/functionality-audit.md` or `docs/spec/functionality-audit.md`
 - `CHANGELOG.md` when release-facing behavior changed
 - `.memory-seed/index.md` when active architecture or project state changed
-- `.memory-seed/sessions/YYYY-MM-DD.md` for the durable decision log
+- `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md` for the durable decision log
 - Markdown links that pointed at the old path
 
 ## Completion Criteria

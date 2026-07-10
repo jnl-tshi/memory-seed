@@ -79,7 +79,7 @@ Use the fetched chunk text, not just the excerpt, when making or evaluating a co
 
 ## Fallback
 
-If MCP tools are unavailable, read recent and relevant `.memory-seed/sessions/YYYY-MM-DD.md` and `.memory-seed/sessions/YYYY-MM-DD/<user>.md` files directly. Start with the last two session documents, then search older dated files by keyword if needed.
+If MCP tools are unavailable, read recent and relevant `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md` and `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md` files directly, with legacy flat/day paths still readable. Start with the last two session documents, then search older dated files by keyword if needed.
 
 ## Authority And Conflict Resolution
 

@@ -28,7 +28,7 @@ horizontal scrolling, tall isolated baselines, or excessive whitespace.
 2. Choose D2 only when it materially improves readability or maintainability for dense nested
    architecture maps, service dependency diagrams, module/package boundaries, repeated containers, or
    before/after architecture states.
-3. Do not use D2 for `.memory-seed/sessions/diagrams/YYYY-MM-DD.md` sidecars unless the active
+3. Do not use D2 for `.memory-seed/sessions/diagrams/YYYY-MM/YYYY-MM-DD.md` sidecars unless the active
    sidecar plan and renderer explicitly support D2. Current sidecar guidance is Mermaid-first.
 4. If Mermaid and D2 both express the diagram clearly, choose Mermaid.
 5. Do not add any diagram when prose, a short list, or a table would be clearer.

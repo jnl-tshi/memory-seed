@@ -4,7 +4,8 @@ Fires once when a session begins. Reads the newest relevant session log directly
 (by filename date) and injects its content so the agent knows the current state
 without any follow-up read. With a configured user, the hook orients on that
 user's newest per-user session file and lists same-day co-contributor files.
-Without a configured user, it preserves the legacy flat-file behavior.
+Without a configured user, it reads the shared flat file. Both old flat/day
+paths and new YYYY-MM grouped paths are supported.
 """
 
 import json
@@ -30,6 +31,7 @@ if not sessions.exists():
     sys.exit(0)
 
 date_re = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+month_re = re.compile(r"^\d{4}-\d{2}$")
 flat_date_re = re.compile(r"^\d{4}-\d{2}-\d{2}\.md$")
 user_re = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 entry_re = re.compile(r"^## \d{4}-\d{2}-\d{2} \d{2}:\d{2}\b")
@@ -147,20 +149,54 @@ def session_docs():
                 "rel": f".memory-seed/sessions/{path.name}",
             })
             continue
-        if not path.is_dir() or not date_re.match(path.name):
+        if not path.is_dir():
             continue
+        if date_re.match(path.name):
+            for child in path.iterdir():
+                if not child.is_file() or child.suffix != ".md":
+                    continue
+                user = child.stem
+                if not valid_user(user):
+                    continue
+                docs.append({
+                    "path": child,
+                    "date": path.name,
+                    "user": user,
+                    "rel": f".memory-seed/sessions/{path.name}/{child.name}",
+                })
+            continue
+        if not month_re.match(path.name):
+            continue
+        month = path.name
         for child in path.iterdir():
-            if not child.is_file() or child.suffix != ".md":
+            if child.is_file() and flat_date_re.match(child.name):
+                date = child.stem
+                if not date.startswith(month + "-"):
+                    continue
+                docs.append({
+                    "path": child,
+                    "date": date,
+                    "user": None,
+                    "rel": f".memory-seed/sessions/{month}/{child.name}",
+                })
                 continue
-            user = child.stem
-            if not valid_user(user):
+            if not child.is_dir() or not date_re.match(child.name):
                 continue
-            docs.append({
-                "path": child,
-                "date": path.name,
-                "user": user,
-                "rel": f".memory-seed/sessions/{path.name}/{child.name}",
-            })
+            date = child.name
+            if not date.startswith(month + "-"):
+                continue
+            for user_file in child.iterdir():
+                if not user_file.is_file() or user_file.suffix != ".md":
+                    continue
+                user = user_file.stem
+                if not valid_user(user):
+                    continue
+                docs.append({
+                    "path": user_file,
+                    "date": date,
+                    "user": user,
+                    "rel": f".memory-seed/sessions/{month}/{date}/{user_file.name}",
+                })
     return sorted(docs, key=lambda doc: (doc["date"], doc["user"] or "", doc["path"].stat().st_mtime))
 
 

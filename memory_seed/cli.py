@@ -19,6 +19,7 @@ from .core import (
     doctor,
     get_version,
     init_project,
+    migrate_session_month_layout,
     migrate_session_layout,
     read_local_user,
     read_project_agents,
@@ -222,6 +223,11 @@ def main(argv: list[str] | None = None) -> int:
         help="split legacy flat session files into per-day/per-user files",
     )
     migrate_sessions.add_argument("--dry-run", action="store_true", help="show planned migrations without writing")
+    migrate_month_sessions = migrate_sub.add_parser(
+        "sessions-month-layout",
+        help="move old session files into YYYY-MM month folders",
+    )
+    migrate_month_sessions.add_argument("--dry-run", action="store_true", help="show planned migrations without writing")
 
     link_parser = subparsers.add_parser("link", help="inspect and suggest related-entry graph edges")
     link_sub = link_parser.add_subparsers(dest="link_command", required=True)
@@ -472,6 +478,27 @@ def main(argv: list[str] | None = None) -> int:
             for backup in result.backed_up:
                 print(f"Backed up: {backup.as_posix()}")
             print("Legacy flat session files migrated.")
+            return 0
+        if args.migrate_command == "sessions-month-layout":
+            result = migrate_session_month_layout(cwd=Path(".").resolve(), dry_run=args.dry_run)
+            if result.issues:
+                print("Session month-layout migration blocked:", file=sys.stderr)
+                for issue in result.issues:
+                    print(f"  - {issue}", file=sys.stderr)
+                return 1
+            if not result.planned:
+                print("No old session files need month-layout migration.")
+                return 0
+            if args.dry_run:
+                for planned in result.planned:
+                    print(f"Would migrate: {planned}")
+                print("No files changed.")
+                return 0
+            for migrated in result.migrated:
+                print(f"Migrated: {migrated}")
+            for backup in result.backed_up:
+                print(f"Backed up: {backup.as_posix()}")
+            print("Session files migrated to month folders.")
             return 0
 
     if args.command == "link":

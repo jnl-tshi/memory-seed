@@ -29,6 +29,13 @@ All notable changes to Memory Seed are summarized here.
   `skill_architecture.md` under the new `governance` skill profile. The new skill owns guidance for
   skill/profile boundaries, concise trigger-registry entries, and seed/live parity; `agent-rules.md`
   now points to it before agents move procedural guidance between rules, policy, and skills.
+- Switched new session writes to month-grouped targets:
+  `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`,
+  `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md`, and grouped diagram sidecars under
+  `.memory-seed/sessions/diagrams/YYYY-MM/YYYY-MM-DD.md`. Core discovery, retrieval, MCP/Trace
+  parsing, `compact`, hooks, and `links check` continue reading legacy flat/day layouts. Added the
+  explicit `memory-seed migrate sessions-month-layout [--dry-run]` command to reorganize old files
+  with backups; no migration runs automatically during init/update/hooks/MCP/Trace startup.
 
 ## 2.16.0 - 2026-07-05
 

@@ -177,10 +177,12 @@ _MERMAID_BLOCK_RE = re.compile(r"^```mermaid\s*\n(.*?)^```\s*$", re.MULTILINE | 
 def entry_diagram_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     """Authored decision-diagram sidecar metadata, keyed by ``entry_id``.
 
-    Sidecars live at ``.memory-seed/sessions/diagrams/YYYY-MM-DD.md`` - one
-    dated file per day, mirroring the session-log filename convention so a
-    human browsing the filesystem without the Explorer can find a day's
-    diagrams next to that day's session log. Each diagram is a heading block
+    New sidecars live at
+    ``.memory-seed/sessions/diagrams/YYYY-MM/YYYY-MM-DD.md`` - one dated file
+    per day, mirroring the month-grouped session-log convention so a human
+    browsing the filesystem without the Explorer can find a day's diagrams next
+    to that day's session log. Legacy ``diagrams/YYYY-MM-DD.md`` sidecars remain
+    readable. Each diagram is a heading block
     shaped like a session entry (``## <timestamp> - <title>`` + a fenced
     ```` ```yaml ```` block naming ``entry_id`` + fenced ```` ```mermaid ````
     block(s)), so multiple diagrams append to the same date file across a day.
@@ -191,14 +193,17 @@ def entry_diagram_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     unreadable or malformed blocks are skipped (``links check`` owns reporting
     them). Sidecars are optional per entry.
     """
-    from .core import resolve_runtime
+    from .core import iter_diagram_sidecar_documents, resolve_runtime
 
     runtime = resolve_runtime(cwd)
     diagrams_dir = runtime.memory_dir / "sessions" / "diagrams"
     sidecars: dict[str, dict[str, Any]] = {}
     if not diagrams_dir.is_dir():
         return sidecars
-    for path in sorted(diagrams_dir.glob("*.md")):
+    for diagram_doc in iter_diagram_sidecar_documents(runtime.memory_dir / "sessions"):
+        if diagram_doc.malformed_reason:
+            continue
+        path = diagram_doc.path
         try:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):

@@ -90,7 +90,7 @@ Bootstrap is incomplete until these generated files also exist:
 ```text
 .memory-seed/index.md
 .memory-seed/policy.md
-.memory-seed/sessions/YYYY-MM-DD.md
+.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md
 ```
 
 Sub-project runtimes do not need their own root `AGENTS.md`, `CLAUDE.md`, or `GEMINI.md` unless the sub-project is meant to be opened independently as a repository.
@@ -114,7 +114,7 @@ When the standard baseline changes:
 - Update `memory-system-version` only when control-plane behavior changes materially.
 - Keep reusable control-plane files aligned to the same version.
 - Before replacing reusable versioned artifacts, archive the previous versions under `.memory-seed/archive/<version>/`.
-- Record the change in `.memory-seed/sessions/YYYY-MM-DD.md`.
+- Record the change in `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`.
 - Do not change the version for ordinary project-specific `index.md`, `policy.md`, skill, or session updates unless they are part of a control-plane release.
 
 ## Step 1: Inspect Local Evidence
@@ -192,7 +192,7 @@ Create or repair:
 - `.memory-seed/policy.md`: generated behavioral constraints.
 - `.memory-seed/skills/index.md`: deterministic trigger registry.
 - `.memory-seed/skills/*.md`: reusable runbooks.
-- `.memory-seed/sessions/YYYY-MM-DD.md`: first session log.
+- `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`: first session log.
 - `.memory-seed/archive/`: archive directory.
 
 Do not copy source-project domain facts into the target runtime.
@@ -434,7 +434,7 @@ The user only sees the questions; the formatting steps happen silently.
 
 ## Step 10: Create First Session Log
 
-Create `.memory-seed/sessions/YYYY-MM-DD.md` with file frontmatter:
+Create `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md` with file frontmatter:
 
 ```yaml
 ---
@@ -497,7 +497,7 @@ Bootstrap is incomplete until all checks pass:
 - `.memory-seed/policy.md` contains behavioral constraints only.
 - `.memory-seed/skills/index.md` contains the deterministic skill trigger registry.
 - `.memory-seed/skills/` contains runbooks only, not active state.
-- `.memory-seed/sessions/YYYY-MM-DD.md` records bootstrap decisions.
+- `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md` records bootstrap decisions.
 - `.memory-seed/archive/` exists.
 - No stale `.AGENTS/` paths are presented as canonical.
 - Security posture matches risk level.
