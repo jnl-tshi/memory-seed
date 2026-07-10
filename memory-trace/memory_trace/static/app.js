@@ -465,7 +465,15 @@ function trailModel(graph) {
     span.last = Math.max(span.last, index);
     spans.set(branch, span);
   });
-  const branches = [...spans.keys()].sort((a, b) => spans.get(a).first - spans.get(b).first || spans.get(b).last - spans.get(a).last);
+  // main is pinned to the leftmost lane (git-client convention); entries with
+  // no recorded branch don't allocate a lane - their dots sit on lane 0.
+  const branches = [...spans.keys()]
+    .filter((branch) => branch !== "")
+    .sort((a, b) => {
+      if (a === "main") return -1;
+      if (b === "main") return 1;
+      return spans.get(a).first - spans.get(b).first || spans.get(b).last - spans.get(a).last;
+    });
   const laneOf = new Map();
   const colorOf = new Map();
   const laneBusyUntil = [];
@@ -512,6 +520,35 @@ function trailView() {
   const laneSegments = [...laneRows.entries()].flatMap(([branch, rows]) =>
     rows.slice(1).map((row, i) => `<line x1="${laneX(branch)}" y1="${rowY(rows[i])}" x2="${laneX(branch)}" y2="${rowY(row)}" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></line>`)
   );
+
+  // Gitgraph forking: a task branch forks off the nearest older main row and
+  // merges into the nearest newer main row, drawn as rounded lane-change
+  // curves in the branch's color. A branch with no newer main row is still
+  // open and deliberately dangles - no merge is fabricated.
+  const mainRows = laneRows.get("main") || [];
+  const connectors = [...laneRows.entries()].flatMap(([branch, rows]) => {
+    if (branch === "main" || !mainRows.length) return [];
+    const newest = rows[0];
+    const oldest = rows[rows.length - 1];
+    const bx = laneX(branch);
+    const mx = laneX("main");
+    const out = [];
+    const forkMain = mainRows.find((row) => row > oldest);
+    if (forkMain !== undefined) {
+      const y1 = rowY(forkMain);
+      const y2 = rowY(oldest);
+      const mid = (y1 + y2) / 2;
+      out.push(`<path class="trail-link" d="M ${mx} ${y1} C ${mx} ${mid} ${bx} ${mid} ${bx} ${y2}" fill="none" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></path>`);
+    }
+    const mergeMain = [...mainRows].reverse().find((row) => row < newest);
+    if (mergeMain !== undefined) {
+      const y1 = rowY(newest);
+      const y2 = rowY(mergeMain);
+      const mid = (y1 + y2) / 2;
+      out.push(`<path class="trail-link" d="M ${bx} ${y1} C ${bx} ${mid} ${mx} ${mid} ${mx} ${y2}" fill="none" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></path>`);
+    }
+    return out;
+  });
 
   const arcs = lifecycle.map((edge) => {
     const sourceItem = items[rowOf.get(edge.source)];
@@ -564,6 +601,7 @@ function trailView() {
             <marker id="trail-arrow-supersedes" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("supersedes")}"></path></marker>
             <marker id="trail-arrow-evolves" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("evolves")}"></path></marker>
           </defs>
+          ${connectors.join("")}
           ${laneSegments.join("")}
           ${arcs.join("")}
           ${dots.join("")}
@@ -997,9 +1035,14 @@ function resetGraphView() {
   render();
 }
 
+// Every scrollable region in the app. render() rebuilds the DOM, so ANY
+// scroll position not captured here silently resets on the next state change
+// (the left-pane facet click bug). New scroll containers must be added here.
+const SCROLL_PRESERVE_SELECTORS = [".pane.left", ".pane.right", ".scroll", ".timeline-stream", ".overview-scroll", ".trail-scroll"];
+
 function captureCenterScroll() {
   const stateBySelector = {};
-  [".scroll", ".timeline-stream", ".overview-scroll"].forEach((selector) => {
+  SCROLL_PRESERVE_SELECTORS.forEach((selector) => {
     const element = document.querySelector(selector);
     if (element) stateBySelector[selector] = { top: element.scrollTop, left: element.scrollLeft };
   });

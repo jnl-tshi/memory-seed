@@ -655,7 +655,10 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn("restoreCenterScroll", script)
         self.assertIn("const scrollState = captureCenterScroll();", script)
         self.assertIn("restoreCenterScroll(scrollState);", script)
-        self.assertIn('[".scroll", ".timeline-stream", ".overview-scroll"]', script)
+        # Scroll preservation must cover every scrollable pane, not just the
+        # center views - a missing selector is the "left pane resets on facet
+        # click" bug class.
+        self.assertIn('[".pane.left", ".pane.right", ".scroll", ".timeline-stream", ".overview-scroll", ".trail-scroll"]', script)
 
     def test_frontend_highlights_and_scrolls_to_matched_subsection(self):
         # Entry-level UI results plan (Arc 2a): a subsection match highlights and
@@ -691,6 +694,7 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn("function trailModel(", script)
         self.assertIn("laneBusyUntil", script)  # straight-lane interval coloring
         self.assertIn("data-trail-more", script)  # bounded window, load older
+        self.assertIn("trail-link", script)  # fork/merge connectors to main
         self.assertIn("stripTitleStamp", script)
         # Distinct edge-type color semantics (supersedes never == related).
         self.assertIn("supersedes:", script)
