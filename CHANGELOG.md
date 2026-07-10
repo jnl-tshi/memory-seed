@@ -4,6 +4,8 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+## 2.17.0 - 2026-07-10
+
 - Recorded two shipped-but-unchangelogged features found by the 2026-07-10 goal-run review:
   (1) **Memory Trace Phase-2 extraction** - the review UI moved into the standalone `memory-trace/`
   distribution (own `pyproject.toml`, `memory_trace` package, `memory-trace` command, static

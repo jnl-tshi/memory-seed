@@ -169,17 +169,18 @@ result rollup, decision-diagram sidecar surfacing through the shared service, th
 contract spec, risk-signaling skill, and Memory Trace graph `importance_score` sizing. Full
 detail: `CHANGELOG.md`.
 
-### Unreleased (queued for 2.17)
+### Release 2.17.0 (cut 2026-07-10, goal-run S4)
 
-`CHANGELOG.md`'s `## Unreleased` section is the authority. Headlines: month-grouped session
-writes + `migrate sessions-month-layout`; branch-session fuse + `session merge-branch` one-step
+`CHANGELOG.md`'s `## 2.17.0` section is the authority. Headlines: month-grouped session writes +
+`migrate sessions-month-layout`; branch-session fuse + `session merge-branch` one-step
 integration; typed `evolves`/`continuity` lifecycle edges with lifecycle-aware ranking and search
 freshness fields; authoring-loop MCP tools; `branch status`; session-log-check escalation; UTF-8
 encoding check/repair; process shutdown/upgrade commands; agent-selection init; proposal-lifecycle
 and skill-architecture governance skills; Memory Trace Phase-2 extraction (standalone
-`memory-trace/` package, `lense` shim) and skill-profile CLI management (`skills
-list|ignored|add|remove`) - the last two were previously missing from the CHANGELOG and were
-folded into Unreleased during the 2026-07-10 goal-run review.
+`memory-trace/` package, `lense` shim) and skill-profile CLI management. The release restores the
+`.memory-seed/archive/<version>/` snapshot convention (dormant since 2.5) and ships the inert
+`publish-memory-trace.yml` workflow so `memory-trace 0.1.0` publication is one release-tag away
+once the user creates its PyPI project + trusted publisher + `pypi-memory-trace` environment.
 
 ### 3.0 - In Progress
 

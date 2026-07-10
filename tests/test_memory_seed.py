@@ -38,7 +38,7 @@ class MemorySeedTests(unittest.TestCase):
         return path
 
     def test_version_reads_reusable_control_plane_version(self):
-        self.assertEqual(get_version(), "2.16")
+        self.assertEqual(get_version(), "2.17")
 
     # --- A-P3 session integrity validation (memory-seed links check) ---
 
