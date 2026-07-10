@@ -618,6 +618,8 @@ def main(argv: list[str] | None = None) -> int:
             for item in ranked:
                 chunk = item.chunk
                 print(f"  {chunk.entry_id}  {chunk.session_date}  {chunk.title}  (score {item.final_score:.3f})")
+                if item.shared_files:
+                    print(f"    shares: {', '.join(item.shared_files)}")
             print()
             print("Paste into the entry's YAML:")
             print("related_entries:")
@@ -645,6 +647,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  inbound  ({len(node.inbound)}): " + (", ".join(node.inbound) or "-"))
             print(f"  supersedes ({len(node.supersedes)}): " + (", ".join(node.supersedes) or "-"))
             print(f"  superseded_by ({len(node.superseded_by)}): " + (", ".join(node.superseded_by) or "-"))
+            print(f"  evolves ({len(node.evolves)}): " + (", ".join(node.evolves) or "-"))
+            print(f"  evolved_by ({len(node.evolved_by)}): " + (", ".join(node.evolved_by) or "-"))
+            continuity_blocks = chunk.continuity if chunk else ()
+            rendered_continuity = ", ".join(
+                f"{block.kind}: {block.from_ref}" + (f" -> {block.to_ref}" if block.to_ref else "")
+                for block in continuity_blocks
+            )
+            print(f"  continuity ({len(continuity_blocks)}): " + (rendered_continuity or "-"))
             print(f"  inbound_relation_count: {len(node.inbound)}")
             print(f"  importance_score: {node.importance_score:.2f}" + ("  (superseded: dampened)" if node.superseded_by else ""))
             print(f"  commit_reference_count: {len(commit_refs)}")

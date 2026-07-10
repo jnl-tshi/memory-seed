@@ -50,7 +50,20 @@ related_entries:
 
 `agent_type` is the LLM model or vendor. `agent_name` is the active `.agents/` persona slug, or `null` when no persona is active. `related_entries` is an optional list of related `entry_id` values, legacy `ms-` or current `mse_`, that link this entry to prior entries. It forms the canonical graph edges surfaced by `memory_search` / `memory_get_chunk` and validated by `memory-seed links check`. To fill it, prefer the `memory_link_suggest` MCP tool (or `memory-seed link suggest`), which ranks older candidate entries and returns a paste-ready list instead of guessing. When resolving where to append the entry, `memory_session_target` (or `memory-seed session target`) returns the active target path read-only.
 
-`supersedes` is an optional sibling list of `entry_id` values marking earlier decisions this entry explicitly replaces or deprecates — a typed status edge, kept separate from `related_entries` (relatedness) and never merged with it. Forward-only: reference only entries that already existed when this one was written; `links check` rejects a `supersedes` ref whose target postdates the referencing entry, a self-reference, or a cycle. A superseded entry stays fully retrievable — supersession deprioritizes, never hides. The computed inverse (`superseded_by`) is available read-time via `memory-seed link show` and `memory_get_chunk`; do not hand-write it.
+`supersedes` is an optional sibling list of `entry_id` values marking earlier decisions this entry explicitly replaces or deprecates — a typed status edge, kept separate from `related_entries` (relatedness) and never merged with it. Forward-only: reference only entries that already existed when this one was written; `links check` rejects a `supersedes` ref whose target postdates the referencing entry, a self-reference, or a cycle. A superseded entry stays fully retrievable — supersession deprioritizes, never hides. A feature removal with no successor still supersedes the removed feature's decision entries — the removing entry's `D:`/`R:` states that nothing replaces it. The computed inverse (`superseded_by`) is available read-time via `memory-seed link show`, `memory_get_chunk`, and on `memory_search` results; it is never written into any file — `links check` flags a stored `superseded_by:`/`evolved_by:` key as `authored-inverse-field`.
+
+`evolves` is an optional sibling list of `entry_id` values marking earlier decisions this entry extends, refines, or partially replaces **while they remain valid** — a freshness edge, not a retirement. Use the three-way rule: old decision now wrong or dead → `supersedes`; old decision still right but incomplete without this entry → `evolves`; old decision merely context → `related_entries`. Same forward-only guards as `supersedes` (`links check` rejects dangling refs, self-references, postdating targets, and cycles, independently per edge kind). Being evolved never dampens the target's `importance_score` and never feeds `exclude_superseded`. The computed inverse (`evolved_by`) is read-time only — never hand-write it.
+
+`continuity` is an optional list of artifact-lineage items recording that this entry's work renamed, migrated, or removed an artifact — a name-level record (file path, directory, command, or product/concept term), distinct from the entry-level edges above. Each item is `kind: rename|migration|removal` with `from:` (always required) and `to:` (required for rename/migration, forbidden for removal). Values are historical labels like `branch:` — never validated against the live tree, because the old artifact is expected to be gone. Recorded mappings let `link suggest` bridge file-overlap ranking across renames (transitively), so record both the old and new names at the moment of the change:
+
+```yaml
+continuity:
+  - kind: rename
+    from: memory_seed/lense.py
+    to: memory_trace/lense.py
+  - kind: removal
+    from: memory-seed lense command
+```
 
 `commits` is an optional list of full 40-character commit SHAs implementing this entry's decision. Backfill it only on the current/newest entry, in the same turn the commit lands — once a later entry exists, adding `commits:` becomes a historical edit requiring explicit user-requested correction. The commit side of the link is the `Memory-Entry: <entry_id>` message trailer (see Working Principles), which needs no backfill window; `memory-seed link commits <entry_id>` reads both sources. `links check` rejects short or malformed hashes always, and unknown hashes when a `.git` repository is present.
 
@@ -153,10 +166,19 @@ Before choosing the entry shape, harvest the durable decisions made this turn.
    over-compressed multi-decision entry.
 6. If a single-decision entry is still used after considering multiple candidate decisions, make the
    consolidation explicit in `R:` or `A:` so future readers know why the choices were treated as one.
+7. Ask: does any harvested decision **replace, remove, or evolve** an earlier entry's decision?
+   Replace or remove → `supersedes`; extend-while-still-valid → `evolves`; merely related →
+   `related_entries` only. `memory_link_suggest` surfaces candidates with shared-file evidence to
+   make this concrete.
+8. Ask: did this turn **rename, relocate, or remove any artifact** (file, directory, command,
+   concept/product name)? If so, record a `continuity:` block with the old and new names — that
+   mapping is what keeps file-overlap ranking and traceability working across the change.
 
 `F` fields should support later lexical search. Prefer exact changed file paths and filenames as
-standalone tokens. Avoid ellipses (`...`), brace groups (`{app.js,styles.css}`), or folder-only
-shorthand when specific files matter; use prose grouping only after the exact paths are present.
+standalone tokens, backtick-quoted and repo-relative (backtick-quoted path tokens are what
+machine extraction reads for file-overlap ranking). Avoid ellipses (`...`), brace groups
+(`{app.js,styles.css}`), or folder-only shorthand when specific files matter; use prose grouping
+only after the exact paths are present.
 
 ## Entry Shapes
 

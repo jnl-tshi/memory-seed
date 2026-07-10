@@ -32,30 +32,48 @@ re-parsing). Do not re-implement edge parsing or inverse computation elsewhere.
 | `inbound` | computed | entries whose `related_entries` point here (backlinks) |
 | `supersedes` | stored | this entry's `supersedes` (decisions it retires) |
 | `superseded_by` | computed | entries that supersede this one |
+| `evolves` | stored | this entry's `evolves` (decisions it extends while they stay valid) |
+| `evolved_by` | computed | entries that evolve this one (freshness, never retirement) |
 | `importance_score` | computed | see below |
+
+Computed inverse fields exist **only** in this derived read layer - they are never written into any
+entry file (append-only). `links check` flags a stored `superseded_by:`/`evolved_by:` key as
+`authored-inverse-field`.
 
 Inbound-style fields are computed only from refs that resolve to a known `entry_id`; stored fields are
 reported as-is (`links check` flags dangling stored refs).
 
 ## Edge kinds - never merged
 
-Three independent edge kinds live in entry YAML. They are parsed separately and never folded into one
+Four independent edge kinds live in entry YAML. They are parsed separately and never folded into one
 another:
 
 - **`related_entries`** - relatedness. Forward-only (reference only entries that already existed).
   Bidirectional at read time via `inbound`.
 - **`supersedes`** - a typed *status* edge: "this decision replaces that one." Forward-only, so the
   supersession graph is acyclic by construction. Its inverse is `superseded_by`. A supersession is
-  **not** a relatedness signal and must never be counted as one.
+  **not** a relatedness signal and must never be counted as one. A feature removal with no
+  successor still supersedes the removed feature's decision entries.
+- **`evolves`** - a typed *freshness* edge: "this decision extends/refines that one, which remains
+  valid but is incomplete alone." Forward-only and acyclic with the same guards as `supersedes`,
+  checked independently per kind (an `evolves` + `supersedes` pair between the same two entries is
+  legal). Its inverse is `evolved_by`. Being evolved **never dampens** `importance_score` and never
+  feeds `exclude_superseded` - that is the semantic line between evolution and supersession.
 - **`commits`** - full 40-character SHAs implementing the entry's decision. The commit *side* of the
   link is the `Memory-Entry: <entry_id>` commit-message trailer; the `commits:` field is optional
   same-turn backfill. Read both via `memory-seed link commits`.
 - **`branch`** - an optional single scalar: the git branch the entry's work happened on, captured at
-  record time. A *stored label*, not a relational edge - it never links two entries the way the three
+  record time. A *stored label*, not a relational edge - it never links two entries the way the
   edge kinds above do; entries sharing a `branch:` value form a time-ordered *axis* the Trail view
   chains, the same way `topic`/`agent`/`day` chains are derived. Forward-only, never backfilled, and
   never validated against live git refs (a deleted feature branch is expected history). There is no
   `worktree:` field - a worktree is an ephemeral local path with no evolution semantics.
+- **`continuity`** - stored artifact-lineage items (label family with `branch:`, not a relational
+  entry edge): `kind: rename|migration|removal` with `from:`/`to:` recording what an artifact
+  (path, command, or concept term) became. `to` is required for rename/migration and forbidden for
+  removal. Values are historical labels, never validated against the live tree. `link suggest`
+  derives a transitive old->new alias table from these mappings for file-overlap ranking; Trace
+  may derive a continuity display chain. Membership is never duplicated as topic vocabulary.
 
 Current Memory Trace `topic` chains are display-only derived axes from chunk hashtags and heading
 contexts, not authored entry-YAML topic metadata. The accepted but unimplemented indexed topic
@@ -98,6 +116,8 @@ Rules (the harmony contract):
 3. Outbound `supersedes` count (cleanup credit) never adds to the score - a large cleanup entry must
    not game its own rank.
 4. Never hide, only deprioritize: a superseded entry stays fully retrievable.
+5. `evolved_by` never dampens and never excludes - evolution is freshness, not retirement. Only
+   `superseded_by` triggers the dampener or the opt-in filter.
 
 ## Validation authority
 
@@ -105,8 +125,13 @@ Rules (the harmony contract):
 layouts. Issue kinds it owns:
 
 - `duplicate-entry-id`, `duplicate-hash-id`
-- `dangling-related-entry`, `dangling-related-memory`, `dangling-supersedes`
-- `self-supersedes`, `supersedes-postdates`, `supersedes-cycle` (the forward-only/acyclic guards)
+- `dangling-related-entry`, `dangling-related-memory`, `dangling-supersedes`, `dangling-evolves`
+- `self-supersedes`, `supersedes-postdates`, `supersedes-cycle` and `self-evolves`,
+  `evolves-postdates`, `evolves-cycle` (the forward-only/acyclic guards, run independently per
+  edge kind)
+- `authored-inverse-field` (a stored `superseded_by:`/`evolved_by:` key - append-only enforcement)
+- `malformed-continuity` (unknown kind, missing `from`, `to` on removal, missing `to` on
+  rename/migration)
 - `malformed-commit-hash` (always), `unknown-commit` (only when a `.git` repo is present)
 - per-user-file frontmatter checks (user/date/schema/hash)
 
@@ -116,11 +141,11 @@ A new edge kind's validation belongs here, reusing the entry-YAML scan, not a pa
 
 | Surface | Exposes |
 |---|---|
-| `memory-seed link show <id>` | outbound, inbound, `supersedes`, `superseded_by`, `inbound_relation_count`, `importance_score`, `commit_reference_count` |
+| `memory-seed link show <id>` | outbound, inbound, `supersedes`, `superseded_by`, `evolves`, `evolved_by`, `continuity`, `inbound_relation_count`, `importance_score`, `commit_reference_count` |
 | `memory-seed link commits <id>` | `commits:` field + `Memory-Entry:` trailer scan |
-| `memory-seed link suggest` | ranked older candidates to link (read-only) |
-| MCP `memory_get_chunk` | `superseded_by`, `inbound_relation_count`, `importance_score`, `commit_reference_count` (+ stored fields) |
-| MCP `memory_search` | results carry stored `supersedes`; opt-in `exclude_superseded` filter |
+| `memory-seed link suggest` | ranked older candidates to link (read-only), re-ranked by the rarity-weighted `F:` file-overlap boost (alias-resolved through recorded `continuity` renames, transitively) with shared-file evidence shown; boost-only, never a gate |
+| MCP `memory_get_chunk` | `superseded_by`, `evolved_by`, `inbound_relation_count`, `importance_score`, `commit_reference_count` (+ stored fields incl. `evolves`, `continuity`) |
+| MCP `memory_search` | results carry stored `supersedes`/`evolves`/`continuity` **and computed `superseded_by`/`evolved_by`** (freshness at the moment of consumption - additive fields; ranking and order untouched); opt-in `exclude_superseded` filter |
 | Memory Trace graph | `connectivity` (its own metric) and `importance_score` per node; a "Size:" toggle sizes nodes by either |
 
 ## Standing rules for new work

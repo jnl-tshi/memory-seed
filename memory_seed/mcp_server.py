@@ -207,7 +207,18 @@ def call_tool(
                 "session_date": target.session_date.isoformat(),
                 "source": target.source_path,
             },
-            "suggestions": [ranked_to_dict(item) for item in ranked],
+            "suggestions": [
+                {
+                    **ranked_to_dict(item.result),
+                    # D5 evidence: alias-canonicalized F: paths shared with the
+                    # target, and the rarity-weighted boost they contributed -
+                    # shown so the evolves/supersedes/related call is concrete.
+                    "shared_files": list(item.shared_files),
+                    "file_overlap_bonus": round(item.file_overlap_bonus, 6),
+                    "adjusted_score": round(item.adjusted_score, 6),
+                }
+                for item in ranked
+            ],
             "related_entries": [item.chunk.entry_id for item in ranked],
         }
 
@@ -234,6 +245,12 @@ def call_tool(
             "inbound": list(node.inbound),
             "supersedes": list(node.supersedes),
             "superseded_by": list(node.superseded_by),
+            "evolves": list(node.evolves),
+            "evolved_by": list(node.evolved_by),
+            "continuity": [
+                {"kind": block.kind, "from": block.from_ref, "to": block.to_ref}
+                for block in (chunk.continuity if chunk else ())
+            ],
             "inbound_relation_count": len(node.inbound),
             "importance_score": round(node.importance_score, 6),
             "commit_reference_count": len(commit_refs),

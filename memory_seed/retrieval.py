@@ -85,6 +85,7 @@ def search_memory(
         embedding_provider,
         enabled=semantic_enabled,
     )
+    chunks = extract_memory_chunks(cwd, granularity=granularity)
     ranked = rank_session_memory(
         query,
         cwd,
@@ -99,8 +100,9 @@ def search_memory(
         date_from=date_from,
         date_to=date_to,
         exclude_superseded=exclude_superseded,
+        chunks=chunks,
     )
-    return format_search_results(
+    payload = format_search_results(
         query,
         ranked,
         top_k=top_k,
@@ -108,6 +110,17 @@ def search_memory(
         semantic_provider=provider_name,
         semantic_fallback_reason=fallback_reason,
     )
+    # Freshness at the moment of consumption (evolution-edges-plan.md D7):
+    # each result carries the computed lifecycle status so a consumer sees
+    # "retired" / "newer development builds on this" without a per-result
+    # get_chunk round trip. Additive, read-only, and reuses the corpus
+    # extracted above - ranking and result order are untouched.
+    graph = build_related_entry_graph(cwd, chunks=chunks)
+    for result in payload["results"]:
+        node = graph.get(result.get("entry_id") or "")
+        result["superseded_by"] = list(node.superseded_by) if node else []
+        result["evolved_by"] = list(node.evolved_by) if node else []
+    return payload
 
 
 def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = False) -> dict[str, Any]:
@@ -132,12 +145,16 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
         raise ValueError(f"chunk_id not found: {chunk_id}")
     payload = chunk_to_dict(found)
     superseded_by: list[str] = []
+    evolved_by: list[str] = []
     inbound_relation_count = 0
     importance_score = 0.0
     if found.entry_id:
         node = build_related_entry_graph(chunks=entry_chunks).get(found.entry_id)
         if node is not None:
             superseded_by = list(node.superseded_by)
+            # Read-time-only inverse of evolves: newer entries that extend this
+            # decision while it stays valid. Never stored, never dampens.
+            evolved_by = list(node.evolved_by)
             # How many other entries reference this one via related_entries
             # (inbound backlinks only) - the raw signal importance_score is
             # built on. Distinct from Lense's `connectivity`, which counts
@@ -154,6 +171,7 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
             commit_reference_ids(resolve_runtime(cwd).workspace_root, found.entry_id, found.commits)
         )
     payload["superseded_by"] = superseded_by
+    payload["evolved_by"] = evolved_by
     payload["inbound_relation_count"] = inbound_relation_count
     payload["importance_score"] = importance_score
     payload["commit_reference_count"] = commit_reference_count
@@ -290,6 +308,11 @@ def ranked_to_dict(result: RankedMemoryChunk) -> dict[str, Any]:
         "file_hash_id": chunk.file_hash_id,
         "related_entries": list(chunk.related_entries),
         "supersedes": list(chunk.supersedes),
+        "evolves": list(chunk.evolves),
+        "continuity": [
+            {"kind": block.kind, "from": block.from_ref, "to": block.to_ref}
+            for block in chunk.continuity
+        ],
         "line_range": [chunk.start_line, chunk.end_line],
         "heading_path": list(chunk.heading_path),
         "matched_terms": list(result.matched_terms),
@@ -321,6 +344,11 @@ def chunk_to_dict(chunk: MemoryChunk) -> dict[str, Any]:
         "file_hash_id": chunk.file_hash_id,
         "related_entries": list(chunk.related_entries),
         "supersedes": list(chunk.supersedes),
+        "evolves": list(chunk.evolves),
+        "continuity": [
+            {"kind": block.kind, "from": block.from_ref, "to": block.to_ref}
+            for block in chunk.continuity
+        ],
         "entry_datetime": None
         if chunk.entry_datetime is None
         else chunk.entry_datetime.isoformat(),

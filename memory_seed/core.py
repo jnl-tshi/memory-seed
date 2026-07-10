@@ -550,6 +550,41 @@ def _frontmatter_list_region(block: str, list_key: str) -> str:
     return "\n".join(out)
 
 
+def _parse_continuity_items(region: str) -> list[dict[str, str]]:
+    """Parse the indented ``continuity:`` list region into item mappings.
+
+    Stdlib-only, shared by the validator here and the chunk extractor in
+    ``semantic_cache`` so both read the identical shape. Each ``- `` starts a
+    new item; ``key: value`` lines fill the current item. Malformed lines are
+    kept out of items rather than guessed at - the validator reports the
+    resulting missing keys."""
+    items: list[dict[str, str]] = []
+    current: dict[str, str] | None = None
+    for line in region.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("- "):
+            if current is not None:
+                items.append(current)
+            current = {}
+            stripped = stripped[2:].strip()
+            if not stripped:
+                continue
+        if current is None:
+            continue
+        if ":" in stripped:
+            key, value = stripped.split(":", 1)
+            current[key.strip()] = value.strip().strip("'\"")
+    if current is not None:
+        items.append(current)
+    return items
+
+
+_CONTINUITY_KINDS = {"rename", "migration", "removal"}
+_AUTHORED_INVERSE_RE = re.compile(r"^(superseded_by|evolved_by)\s*:", re.MULTILINE)
+
+
 def _fenced_yaml_blocks(text: str) -> Iterator[str]:
     for match in _FENCED_YAML_RE.finditer(text):
         yield match.group(1)
@@ -749,9 +784,11 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     related_entry_refs: list[tuple[str, str]] = []
     related_memory_refs: list[tuple[str, str]] = []
     supersedes_refs: list[tuple[str, str]] = []
+    evolves_refs: list[tuple[str, str]] = []
     commit_refs: list[tuple[str, str]] = []
     # (rel_path, source_entry_id, ref) for refs attributable to a source entry.
     supersedes_edges: list[tuple[str, str, str]] = []
+    evolves_edges: list[tuple[str, str, str]] = []
     entry_timestamps: dict[str, str] = {}
     files_checked = 0
 
@@ -778,11 +815,61 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                 related_entry_refs.append((rel, ref))
             for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, "supersedes")):
                 supersedes_refs.append((rel, ref))
+            for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, "evolves")):
+                evolves_refs.append((rel, ref))
             for token in _COMMIT_TOKEN_RE.findall(_frontmatter_list_region(yaml_block, "commits")):
                 commit_refs.append((rel, token))
+            # Append-only enforcement: the computed inverses exist only in the
+            # derived read layer and must never be written into stored YAML.
+            inverse_match = _AUTHORED_INVERSE_RE.search(yaml_block)
+            if inverse_match:
+                issues.append(
+                    LinkIssue(
+                        rel,
+                        "authored-inverse-field",
+                        f"stored '{inverse_match.group(1)}:' key found; the inverse is read-time only "
+                        "and must never be written into an entry",
+                    )
+                )
+            # Structural continuity validation (artifact lineage, D6): kind is
+            # closed-vocabulary, from is required, to is required for
+            # rename/migration and forbidden for removal.
+            continuity_region = _frontmatter_list_region(yaml_block, "continuity")
+            if continuity_region.strip():
+                for item in _parse_continuity_items(continuity_region):
+                    kind = item.get("kind", "")
+                    from_value = item.get("from", "")
+                    to_value = item.get("to", "")
+                    if kind not in _CONTINUITY_KINDS:
+                        issues.append(
+                            LinkIssue(
+                                rel,
+                                "malformed-continuity",
+                                f"continuity kind '{kind or '(missing)'}' is not rename|migration|removal",
+                            )
+                        )
+                        continue
+                    if not from_value:
+                        issues.append(
+                            LinkIssue(rel, "malformed-continuity", f"continuity {kind} item has no from")
+                        )
+                        continue
+                    if kind == "removal" and to_value:
+                        issues.append(
+                            LinkIssue(
+                                rel,
+                                "malformed-continuity",
+                                f"continuity removal '{from_value}' must not have to "
+                                "(a removal with a successor is a rename or a supersession)",
+                            )
+                        )
+                    elif kind != "removal" and not to_value:
+                        issues.append(
+                            LinkIssue(rel, "malformed-continuity", f"continuity {kind} '{from_value}' has no to")
+                        )
 
-        # Second, heading-anchored pass: attribute each supersedes ref to its
-        # source entry and heading timestamp for the forward-only guard.
+        # Second, heading-anchored pass: attribute each supersedes/evolves ref
+        # to its source entry and heading timestamp for the forward-only guard.
         for heading_ts, yaml_block in _ENTRY_TS_YAML_RE.findall(text):
             id_match = _ENTRY_ID_RE.search(yaml_block)
             source_id = id_match.group(1) if id_match else None
@@ -791,6 +878,9 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
             for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, "supersedes")):
                 if source_id:
                     supersedes_edges.append((rel, source_id, ref))
+            for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, "evolves")):
+                if source_id:
+                    evolves_edges.append((rel, source_id, ref))
 
         if doc.layout not in {"per-user-day", "month-user"}:
             continue
@@ -902,6 +992,9 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     for rel, ref in supersedes_refs:
         if ref not in known_entries:
             issues.append(LinkIssue(rel, "dangling-supersedes", f"supersedes -> {ref} (no such entry_id)"))
+    for rel, ref in evolves_refs:
+        if ref not in known_entries:
+            issues.append(LinkIssue(rel, "dangling-evolves", f"evolves -> {ref} (no such entry_id)"))
 
     # commits: entries store full 40-character SHAs (validation stays
     # unambiguous; display may shorten). Existence is checked only when a .git
@@ -923,61 +1016,74 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
             if commit_known[token] is False:
                 issues.append(LinkIssue(rel_path, "unknown-commit", f"commits -> {token} (no such commit in this repository)"))
 
-    # Forward-only guard: supersedes may only point at entries that already
-    # existed when the referencing entry was written. Acyclicity of the
-    # supersession graph depends on this holding, so violations are errors,
+    # Forward-only guard: supersedes/evolves may only point at entries that
+    # already existed when the referencing entry was written. Acyclicity of
+    # each lifecycle graph depends on this holding, so violations are errors,
     # not warnings. Refs without a resolvable source or target timestamp fall
-    # through to the dangling check above rather than failing here.
-    adjacency: dict[str, set[str]] = {}
-    edge_file: dict[str, str] = {}
-    for rel_path, source_id, ref in supersedes_edges:
-        edge_file.setdefault(source_id, rel_path)
-        if ref == source_id:
-            issues.append(LinkIssue(rel_path, "self-supersedes", f"supersedes -> {ref} (entry supersedes itself)"))
-            continue
-        source_ts = entry_timestamps.get(source_id)
-        target_ts = entry_timestamps.get(ref)
-        if source_ts and target_ts and target_ts > source_ts:
-            issues.append(
-                LinkIssue(
-                    rel_path,
-                    "supersedes-postdates",
-                    f"supersedes -> {ref} ({target_ts}) postdates the referencing entry {source_id} ({source_ts})",
-                )
-            )
-        if ref in known_entries:
-            adjacency.setdefault(source_id, set()).add(ref)
-
-    # Cycle guard: the postdates check leaves same-minute entries unordered, so
-    # a cycle is still constructible there; a DFS closes that residual hole.
-    state: dict[str, int] = {}  # absent=unvisited, 1=in-stack, 2=done
-    for start in sorted(adjacency):
-        if state.get(start):
-            continue
-        stack: list[tuple[str, Iterator[str]]] = [(start, iter(sorted(adjacency.get(start, ()))))]
-        state[start] = 1
-        path = [start]
-        while stack:
-            node, neighbours = stack[-1]
-            advanced = False
-            for neighbour in neighbours:
-                if state.get(neighbour) == 1:
-                    cycle = " -> ".join(path[path.index(neighbour):] + [neighbour])
-                    issues.append(
-                        LinkIssue(edge_file.get(neighbour, ""), "supersedes-cycle", f"supersession cycle: {cycle}")
+    # through to the dangling check above rather than failing here. The two
+    # edge kinds are guarded independently - an evolves + supersedes pair
+    # between the same two entries is legal, and cycles are checked within
+    # each kind, never across kinds.
+    def _forward_only_guard(
+        edges: list[tuple[str, str, str]],
+        field: str,
+        self_message: str,
+        cycle_noun: str,
+    ) -> None:
+        adjacency: dict[str, set[str]] = {}
+        edge_file: dict[str, str] = {}
+        for rel_path, source_id, ref in edges:
+            edge_file.setdefault(source_id, rel_path)
+            if ref == source_id:
+                issues.append(LinkIssue(rel_path, f"self-{field}", f"{field} -> {ref} ({self_message})"))
+                continue
+            source_ts = entry_timestamps.get(source_id)
+            target_ts = entry_timestamps.get(ref)
+            if source_ts and target_ts and target_ts > source_ts:
+                issues.append(
+                    LinkIssue(
+                        rel_path,
+                        f"{field}-postdates",
+                        f"{field} -> {ref} ({target_ts}) postdates the referencing entry {source_id} ({source_ts})",
                     )
-                    continue
-                if state.get(neighbour) == 2:
-                    continue
-                state[neighbour] = 1
-                path.append(neighbour)
-                stack.append((neighbour, iter(sorted(adjacency.get(neighbour, ())))))
-                advanced = True
-                break
-            if not advanced:
-                state[node] = 2
-                path.pop()
-                stack.pop()
+                )
+            if ref in known_entries:
+                adjacency.setdefault(source_id, set()).add(ref)
+
+        # Cycle guard: the postdates check leaves same-minute entries
+        # unordered, so a cycle is still constructible there; a DFS closes
+        # that residual hole.
+        state: dict[str, int] = {}  # absent=unvisited, 1=in-stack, 2=done
+        for start in sorted(adjacency):
+            if state.get(start):
+                continue
+            stack: list[tuple[str, Iterator[str]]] = [(start, iter(sorted(adjacency.get(start, ()))))]
+            state[start] = 1
+            path = [start]
+            while stack:
+                node, neighbours = stack[-1]
+                advanced = False
+                for neighbour in neighbours:
+                    if state.get(neighbour) == 1:
+                        cycle = " -> ".join(path[path.index(neighbour):] + [neighbour])
+                        issues.append(
+                            LinkIssue(edge_file.get(neighbour, ""), f"{field}-cycle", f"{cycle_noun} cycle: {cycle}")
+                        )
+                        continue
+                    if state.get(neighbour) == 2:
+                        continue
+                    state[neighbour] = 1
+                    path.append(neighbour)
+                    stack.append((neighbour, iter(sorted(adjacency.get(neighbour, ())))))
+                    advanced = True
+                    break
+                if not advanced:
+                    state[node] = 2
+                    path.pop()
+                    stack.pop()
+
+    _forward_only_guard(supersedes_edges, "supersedes", "entry supersedes itself", "supersession")
+    _forward_only_guard(evolves_edges, "evolves", "entry evolves itself", "evolution")
 
     return LinksCheckResult(ok=not issues, files_checked=files_checked, issues=issues)
 

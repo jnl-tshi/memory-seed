@@ -272,6 +272,54 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertNotIn("ms-oldcache0", ids)
         self.assertIn("ms-newcache0", ids)
 
+    def test_memory_search_results_carry_computed_lifecycle_status(self):
+        # D7 (evolution-edges-plan.md): freshness at the moment of consumption.
+        # Search results expose the computed inverses so a consumer sees
+        # "retired" / "evolved" without a per-result get_chunk round trip.
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:00 - Old cache decision\n\n"
+            "```yaml\n"
+            "entry_id: ms-oldcache0\n"
+            "```\n\n"
+            "The original cache key design.\n\n"
+            "## 2026-05-17 09:30 - Foundational cache decision\n\n"
+            "```yaml\n"
+            "entry_id: ms-basecache\n"
+            "```\n\n"
+            "The cache layering design.\n\n"
+            "## 2026-05-17 10:00 - New cache decision\n\n"
+            "```yaml\n"
+            "entry_id: ms-newcache0\n"
+            "supersedes:\n"
+            "  - ms-oldcache0\n"
+            "evolves:\n"
+            "  - ms-basecache\n"
+            "```\n\n"
+            "The revised cache key design.\n",
+        )
+
+        payload = call_tool(
+            "memory_search",
+            {"query": "cache design", "cwd": str(cwd), "top_k": 10, "semantic_enabled": False},
+            today=date(2026, 5, 18),
+        )
+        by_id = {r["entry_id"]: r for r in payload["results"]}
+
+        # The retired entry is still returned (never hidden) and labelled.
+        self.assertEqual(by_id["ms-oldcache0"]["superseded_by"], ["ms-newcache0"])
+        self.assertEqual(by_id["ms-oldcache0"]["evolved_by"], [])
+        # The evolved entry is labelled fresh-but-extended, never retired.
+        self.assertEqual(by_id["ms-basecache"]["evolved_by"], ["ms-newcache0"])
+        self.assertEqual(by_id["ms-basecache"]["superseded_by"], [])
+        # The successor entry carries its stored edges and clean status.
+        self.assertEqual(by_id["ms-newcache0"]["supersedes"], ["ms-oldcache0"])
+        self.assertEqual(by_id["ms-newcache0"]["evolves"], ["ms-basecache"])
+        self.assertEqual(by_id["ms-newcache0"]["superseded_by"], [])
+        self.assertEqual(by_id["ms-newcache0"]["evolved_by"], [])
+
     def test_call_tool_ignores_caller_supplied_today_in_arguments(self):
         cwd = self.make_memory_fixture()
 
@@ -775,6 +823,76 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertEqual(cited["commit_reference_count"], 0)
         self.assertEqual(citer["outbound"], ["ms-cited0000"])
         self.assertEqual(citer["inbound"], [])
+
+    def test_call_tool_memory_link_show_reports_lifecycle_and_continuity(self):
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:00 - Base decision\n\n"
+            "```yaml\n"
+            "entry_id: ms-base00000\n"
+            "```\n\n"
+            "The foundational design.\n\n"
+            "## 2026-05-17 10:00 - Refinement\n\n"
+            "```yaml\n"
+            "entry_id: ms-refine000\n"
+            "evolves:\n"
+            "  - ms-base00000\n"
+            "continuity:\n"
+            "  - kind: rename\n"
+            "    from: old/name.py\n"
+            "    to: new/name.py\n"
+            "```\n\n"
+            "Extends the foundational design and renames the module.\n",
+        )
+
+        base = call_tool("memory_link_show", {"cwd": str(cwd), "entry_id": "ms-base00000"})
+        refine = call_tool("memory_link_show", {"cwd": str(cwd), "entry_id": "ms-refine000"})
+
+        self.assertEqual(base["evolved_by"], ["ms-refine000"])
+        self.assertEqual(base["evolves"], [])
+        # Evolution never dampens: base stays at its raw inbound count.
+        self.assertEqual(base["importance_score"], 0.0)
+        self.assertEqual(base["superseded_by"], [])
+        self.assertEqual(refine["evolves"], ["ms-base00000"])
+        self.assertEqual(refine["continuity"], [{"kind": "rename", "from": "old/name.py", "to": "new/name.py"}])
+
+    def test_call_tool_memory_link_suggest_reports_shared_file_evidence(self):
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 08:00 - Unrelated hooks work\n\n"
+            "```yaml\n"
+            "entry_id: ms-hooks0000\n"
+            "```\n\n"
+            "Hook wiring, nothing about scoring.\n\n"
+            "- F: `hooks/check.py`.\n\n"
+            "## 2026-05-17 09:00 - Ranker groundwork\n\n"
+            "```yaml\n"
+            "entry_id: ms-ground000\n"
+            "```\n\n"
+            "Scoring pipeline groundwork.\n\n"
+            "- F: `src/ranker.py`.\n\n"
+            "## 2026-05-17 11:00 - Ranker follow-up\n\n"
+            "```yaml\n"
+            "entry_id: ms-follow000\n"
+            "```\n\n"
+            "Scoring pipeline follow-up.\n\n"
+            "- F: `src/ranker.py`.\n",
+        )
+
+        payload = call_tool("memory_link_suggest", {"cwd": str(cwd), "entry_id": "ms-follow000"})
+
+        suggestion = payload["suggestions"][0]
+        self.assertEqual(suggestion["entry_id"], "ms-ground000")
+        self.assertEqual(suggestion["shared_files"], ["src/ranker.py"])
+        self.assertGreater(suggestion["file_overlap_bonus"], 0.0)
+        self.assertEqual(
+            suggestion["adjusted_score"],
+            round(suggestion["score"] + suggestion["file_overlap_bonus"], 6),
+        )
 
     def test_call_tool_memory_link_show_raises_on_unknown_entry(self):
         cwd = self.make_project()

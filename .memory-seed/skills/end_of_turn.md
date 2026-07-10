@@ -15,7 +15,10 @@ Use this skill when running the Memory Seed end-of-turn routine, `/esr`, or any 
 1. Resolve the active session target with `memory-seed session target` when the target is uncertain.
 2. Run the Decision Harvest from `.memory-seed/skills/session_logging.md` before composing the entry:
    identify every durable accepted choice, then choose single-decision, multi-decision, or separate
-   entries from that list.
+   entries from that list. The harvest includes the lifecycle questions: does any harvested decision
+   replace/remove (`supersedes`) or extend-while-still-valid (`evolves`) an earlier entry, and did
+   the turn rename, relocate, or remove any artifact (record a `continuity:` block with old and new
+   names).
 3. Append the session entry to the active session target before doing other closeout work. Use
    `.memory-seed/skills/session_logging.md` for the exact entry schema, DRAFT labels,
    `related_entries`, timestamp, and append-only rules.

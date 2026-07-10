@@ -485,7 +485,7 @@ class SemanticCacheTests(unittest.TestCase):
         self.assertEqual(chunks[0].source_path, ".AGENTS/sessions/2026-05-19.md")
 
 
-def _entry(title, entry_id, body, related=None, supersedes=None):
+def _entry(title, entry_id, body, related=None, supersedes=None, evolves=None, continuity=None, files=None):
     lines = [
         f"## {title}",
         "",
@@ -502,7 +502,20 @@ def _entry(title, entry_id, body, related=None, supersedes=None):
     if supersedes:
         lines.append("supersedes:")
         lines.extend(f"  - {ref}" for ref in supersedes)
+    if evolves:
+        lines.append("evolves:")
+        lines.extend(f"  - {ref}" for ref in evolves)
+    if continuity:
+        lines.append("continuity:")
+        for kind, from_ref, to_ref in continuity:
+            lines.append(f"  - kind: {kind}")
+            lines.append(f"    from: {from_ref}")
+            if to_ref is not None:
+                lines.append(f"    to: {to_ref}")
     lines += ["```", "", body, ""]
+    if files:
+        quoted = ", ".join(f"`{ref}`" for ref in files)
+        lines += [f"- F: {quoted}.", ""]
     return "\n".join(lines)
 
 
@@ -703,6 +716,182 @@ class RelatedEntryGraphTests(unittest.TestCase):
 
         self.assertEqual(graph["ms-only0000"].supersedes, ("ms-missing0",))
         self.assertNotIn("ms-missing0", graph)
+
+
+class EvolutionEdgeTests(unittest.TestCase):
+    def make_project(self):
+        path = Path(tempfile.mkdtemp(prefix="memory-seed-evolves-test-"))
+        self.addCleanup(lambda: shutil.rmtree(path, ignore_errors=True))
+        return path
+
+    def write_file(self, cwd, filename, *entries):
+        sessions = cwd / ".memory-seed" / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        path = sessions / filename
+        path.write_text("# Session Log\n\n" + "\n".join(entries), encoding="utf-8")
+        return path
+
+    def test_graph_computes_evolved_by_inverse_without_dampening(self):
+        cwd = self.make_project()
+        # OLD is cited by two entries and evolved by NEW: the inverse must be
+        # computed, and importance must stay the full undampened inbound count
+        # - evolution is freshness, not retirement.
+        self.write_file(
+            cwd,
+            "2026-05-10.md",
+            _entry("2026-05-10 09:00 - Old decision", "ms-old00000", "the base decision."),
+            _entry("2026-05-10 10:00 - Citer 1", "ms-cite0001", "x", related=["ms-old00000"]),
+            _entry("2026-05-10 10:01 - Citer 2", "ms-cite0002", "x", related=["ms-old00000"]),
+            _entry("2026-05-10 11:00 - Refinement", "ms-new00000", "extends the base.", evolves=["ms-old00000"]),
+        )
+
+        graph = build_related_entry_graph(cwd)
+
+        self.assertEqual(graph["ms-new00000"].evolves, ("ms-old00000",))
+        self.assertEqual(graph["ms-old00000"].evolved_by, ("ms-new00000",))
+        # No status bleed: evolution is not supersession and not relatedness.
+        self.assertEqual(graph["ms-old00000"].superseded_by, ())
+        self.assertEqual(graph["ms-old00000"].inbound, ("ms-cite0001", "ms-cite0002"))
+        self.assertEqual(graph["ms-old00000"].importance_score, 2.0)
+
+    def test_declaring_evolves_changes_zero_bytes_of_target_file(self):
+        cwd = self.make_project()
+        target_path = self.write_file(
+            cwd,
+            "2026-05-09.md",
+            _entry("2026-05-09 09:00 - Old decision", "ms-old00000", "the base decision."),
+        )
+        before = target_path.read_bytes()
+        self.write_file(
+            cwd,
+            "2026-05-10.md",
+            _entry("2026-05-10 09:00 - Refinement", "ms-new00000", "extends it.", evolves=["ms-old00000"]),
+        )
+
+        graph = build_related_entry_graph(cwd)
+
+        self.assertEqual(graph["ms-old00000"].evolved_by, ("ms-new00000",))
+        # Append-only: the inverse exists only in the derived read layer.
+        self.assertEqual(target_path.read_bytes(), before)
+
+    def test_continuity_blocks_parse_from_entry_yaml(self):
+        cwd = self.make_project()
+        self.write_file(
+            cwd,
+            "2026-05-10.md",
+            _entry(
+                "2026-05-10 09:00 - Lineage",
+                "ms-lineage00",
+                "renamed and removed things.",
+                continuity=[
+                    ("rename", "old/path.py", "new/path.py"),
+                    ("removal", "old-command", None),
+                ],
+            ),
+        )
+
+        chunks = extract_memory_chunks(cwd, granularity="entry")
+
+        blocks = chunks[0].continuity
+        self.assertEqual(len(blocks), 2)
+        self.assertEqual((blocks[0].kind, blocks[0].from_ref, blocks[0].to_ref), ("rename", "old/path.py", "new/path.py"))
+        self.assertEqual((blocks[1].kind, blocks[1].from_ref, blocks[1].to_ref), ("removal", "old-command", None))
+
+
+class FileOverlapSuggestTests(unittest.TestCase):
+    def make_project(self):
+        path = Path(tempfile.mkdtemp(prefix="memory-seed-overlap-test-"))
+        self.addCleanup(lambda: shutil.rmtree(path, ignore_errors=True))
+        return path
+
+    def write_day(self, cwd, *entries):
+        sessions = cwd / ".memory-seed" / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / "2026-05-10.md").write_text(
+            "# Session Log\n\n" + "\n".join(entries),
+            encoding="utf-8",
+        )
+
+    def test_rare_file_overlap_outranks_identical_candidate(self):
+        cwd = self.make_project()
+        # X and Y have identical bodies (identical base similarity); X shares
+        # the rare file with the target. Without the boost, the tiebreak
+        # (higher start_line first) would put Y ahead; the boost must flip it.
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 09:00 - X", "ms-x0000000", "ranking work.", files=["src/rare_module.py"]),
+            _entry("2026-05-10 09:30 - Y", "ms-y0000000", "ranking work.", files=["src/other_module.py"]),
+            _entry("2026-05-10 11:00 - Target", "ms-t0000000", "ranking work.", files=["src/rare_module.py"]),
+        )
+
+        target, suggestions = suggest_related_entries(cwd, entry_id="ms-t0000000")
+
+        self.assertEqual([s.chunk.entry_id for s in suggestions], ["ms-x0000000", "ms-y0000000"])
+        self.assertEqual(suggestions[0].shared_files, ("src/rare_module.py",))
+        self.assertGreater(suggestions[0].file_overlap_bonus, 0.0)
+        self.assertEqual(suggestions[1].shared_files, ())
+        self.assertEqual(suggestions[1].file_overlap_bonus, 0.0)
+
+    def test_hub_file_overlap_contributes_no_boost(self):
+        cwd = self.make_project()
+        # CHANGELOG.md appears in every entry's F: its idf is log(N/N) = 0, so
+        # sharing it is evidence-listed but score-neutral.
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 09:00 - X", "ms-x0000000", "audit work.", files=["CHANGELOG.md"]),
+            _entry("2026-05-10 10:00 - Y", "ms-y0000000", "audit work.", files=["CHANGELOG.md"]),
+            _entry("2026-05-10 11:00 - Target", "ms-t0000000", "audit work.", files=["CHANGELOG.md"]),
+        )
+
+        target, suggestions = suggest_related_entries(cwd, entry_id="ms-t0000000")
+
+        for suggestion in suggestions:
+            self.assertEqual(suggestion.shared_files, ("CHANGELOG.md",))
+            self.assertEqual(suggestion.file_overlap_bonus, 0.0)
+            self.assertEqual(suggestion.adjusted_score, suggestion.result.final_score)
+
+    def test_entry_without_f_lines_suffers_no_penalty(self):
+        cwd = self.make_project()
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 09:00 - NoF", "ms-nof00000", "encoding work."),
+            _entry("2026-05-10 11:00 - Target", "ms-t0000000", "encoding work.", files=["src/rare_module.py"]),
+        )
+
+        target, suggestions = suggest_related_entries(cwd, entry_id="ms-t0000000")
+
+        self.assertEqual([s.chunk.entry_id for s in suggestions], ["ms-nof00000"])
+        self.assertEqual(suggestions[0].file_overlap_bonus, 0.0)
+        self.assertEqual(suggestions[0].adjusted_score, suggestions[0].result.final_score)
+
+    def test_alias_table_bridges_recorded_renames_transitively(self):
+        cwd = self.make_project()
+        # OLD touched explorer.py; two rename entries chain explorer -> lense
+        # -> trace; the target touches trace.py. The alias table must resolve
+        # the old path to the terminal name so the pair genuinely overlaps.
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 08:00 - Old work", "ms-old00000", "graph view work.", files=["ui/explorer.py"]),
+            _entry(
+                "2026-05-10 09:00 - Rename 1",
+                "ms-ren00001",
+                "explorer becomes lense.",
+                continuity=[("rename", "ui/explorer.py", "ui/lense.py")],
+            ),
+            _entry(
+                "2026-05-10 10:00 - Rename 2",
+                "ms-ren00002",
+                "lense becomes trace.",
+                continuity=[("rename", "ui/lense.py", "ui/trace.py")],
+            ),
+            _entry("2026-05-10 11:00 - Target", "ms-t0000000", "graph view work.", files=["ui/trace.py"]),
+        )
+
+        target, suggestions = suggest_related_entries(cwd, entry_id="ms-t0000000", top_k=3)
+
+        old = next(s for s in suggestions if s.chunk.entry_id == "ms-old00000")
+        self.assertEqual(old.shared_files, ("ui/trace.py",))
+        self.assertGreater(old.file_overlap_bonus, 0.0)
 
 
 if __name__ == "__main__":
