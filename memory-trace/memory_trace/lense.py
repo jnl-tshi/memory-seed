@@ -817,7 +817,7 @@ def _graph_edges(
             seen.add(key)
             edges.append({"source": source, "target": target, "type": edge_type})
 
-    if "related" in edge_types or "supersedes" in edge_types:
+    if edge_types & {"related", "supersedes", "evolves"}:
         graph = build_related_entry_graph(chunks=entries)
         for node in graph.values():
             source_chunk = by_id.get(node.entry_id)
@@ -833,6 +833,12 @@ def _graph_edges(
                 for target in node.supersedes:
                     target_chunk = by_id.get(target)
                     add(source, node_id(target_chunk) if target_chunk else target, "supersedes")
+            # evolves is the freshness-without-retirement lifecycle edge: the
+            # source refines the target while the target stays valid.
+            if "evolves" in edge_types:
+                for target in node.evolves:
+                    target_chunk = by_id.get(target)
+                    add(source, node_id(target_chunk) if target_chunk else target, "evolves")
 
     def chain(grouped: dict[str, list[MemoryChunk]], edge_type: str) -> None:
         if edge_type not in edge_types:
@@ -953,6 +959,8 @@ def _graph_node(
         "entry_id": chunk.entry_id,
         "title": chunk.title,
         "date": chunk.session_date.isoformat(),
+        "datetime": chunk.entry_datetime.isoformat() if chunk.entry_datetime else None,
+        "branch": chunk.branch,
         "agent": chunk.agent_type or chunk.agent_name or "unknown",
         "topics": _topics(chunk),
         "granularity": chunk.granularity,
@@ -978,7 +986,7 @@ def _chunk_datetime(chunk: MemoryChunk) -> datetime:
 
 
 def _topics(chunk: MemoryChunk) -> list[str]:
-    return sorted(set(chunk.tags) | set(chunk.contexts))
+    return sorted(set(chunk.topics) | set(chunk.tags) | set(chunk.contexts))
 
 
 def _parse_date(value: str | None) -> date | None:

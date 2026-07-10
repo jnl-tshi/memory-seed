@@ -14,7 +14,7 @@ from memory_trace.cli import main
 from memory_trace.lense import LenseCache, LenseService, create_app, missing_optional_dependency_hint
 
 
-def _entry(title, entry_id, body, *, agent="codex", related=None, branch=None, supersedes=None):
+def _entry(title, entry_id, body, *, agent="codex", related=None, branch=None, supersedes=None, evolves=None, topics=None):
     lines = [
         f"## {title}",
         "",
@@ -27,12 +27,18 @@ def _entry(title, entry_id, body, *, agent="codex", related=None, branch=None, s
     ]
     if branch:
         lines.append(f"branch: {branch}")
+    if topics:
+        lines.append("topics:")
+        lines.extend(f"  - {topic}" for topic in topics)
     if related:
         lines.append("related_entries:")
         lines.extend(f"  - {ref}" for ref in related)
     if supersedes:
         lines.append("supersedes:")
         lines.extend(f"  - {ref}" for ref in supersedes)
+    if evolves:
+        lines.append("evolves:")
+        lines.extend(f"  - {ref}" for ref in evolves)
     lines += ["```", "", body, ""]
     return "\n".join(lines)
 
@@ -299,6 +305,53 @@ class LenseServiceTests(unittest.TestCase):
         related_only = service.graph(edge_types=("related",))
         self.assertNotIn("supersedes", {edge["type"] for edge in related_only["edges"]})
         self.assertNotIn("branch", {edge["type"] for edge in related_only["edges"]})
+
+    def test_graph_emits_evolves_edges_and_node_lineage_fields(self):
+        # evolves is the freshness-without-retirement lifecycle edge; the Trail
+        # renderer also needs branch + datetime on every node to lay out lanes
+        # and rows without a second fetch.
+        self.write_session(
+            "2026-06-11.md",
+            "\n".join(
+                [
+                    _entry("2026-06-11 09:00 - Original approach", "mse_ev_base", "Base.",
+                           branch="feature/y"),
+                    _entry("2026-06-11 12:00 - Refined approach", "mse_ev_next", "Refined.",
+                           branch="feature/y", evolves=["mse_ev_base"]),
+                ]
+            ),
+        )
+        service = self.service()
+
+        graph = service.graph(edge_types=("branch", "evolves"))
+        by_type = {}
+        for edge in graph["edges"]:
+            by_type.setdefault(edge["type"], []).append((edge["source"], edge["target"]))
+        # Directed: the newer entry (carrying evolves:) points at the older one.
+        self.assertIn(("mse_ev_next", "mse_ev_base"), by_type.get("evolves", []))
+        self.assertNotIn(("mse_ev_base", "mse_ev_next"), by_type.get("evolves", []))
+        nodes = {node["id"]: node for node in graph["nodes"]}
+        self.assertEqual(nodes["mse_ev_base"]["branch"], "feature/y")
+        self.assertEqual(nodes["mse_ev_base"]["datetime"], "2026-06-11T09:00:00")
+        # Asking for evolves alone must not leak other edge kinds.
+        evolves_only = service.graph(edge_types=("evolves",))
+        self.assertEqual({edge["type"] for edge in evolves_only["edges"]}, {"evolves"})
+
+    def test_facets_and_filters_include_indexed_topics(self):
+        # Indexed topics (entry YAML `topics:`) must feed the topics facet and
+        # the topic filter, not just inline #tags.
+        self.write_session(
+            "2026-06-12.md",
+            _entry("2026-06-12 09:00 - Topic-carrying entry", "mse_topical", "Body.",
+                   topics=["retrieval", "graph"]),
+        )
+        service = self.service()
+
+        facets = service.facets()
+        self.assertIn("retrieval", facets["topics"])
+        self.assertIn("graph", facets["topics"])
+        page = service.search(q="", topic="retrieval", granularity="entry")
+        self.assertEqual({item["entry_id"] for item in page["results"]}, {"mse_topical"})
 
     def test_graph_is_entry_level_and_reports_connectivity(self):
         self.write_session(

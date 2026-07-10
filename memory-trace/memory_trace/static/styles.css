@@ -40,6 +40,7 @@
   --edge-agent: #18a999;
   --edge-day: #d9941a;
   --edge-supersedes: #d94b63;
+  --edge-evolves: #4f98d9;
   --edge-branch: #3fa66a;
   --status-superseded: #d94b63;
 }
@@ -577,6 +578,16 @@ select, input[type="date"] {
   height: 3px;
   border-radius: 999px;
 }
+/* Dual-encoded edge samples: dash pattern carries the meaning alongside color. */
+.legend-line-dashed, .legend-line-dotted {
+  height: 0;
+  border-radius: 0;
+  background: transparent;
+  border-top: 2px dashed currentColor;
+}
+.legend-line-dotted {
+  border-top-style: dotted;
+}
 .graph-canvas:active {
   cursor: grabbing;
 }
@@ -618,6 +629,76 @@ select, input[type="date"] {
   opacity: 1;
   stroke-opacity: 0.92;
   stroke-width: 3;
+}
+/* Trail: git-graph timeline. Fixed row height keeps the SVG rail and the HTML
+   rows aligned by index; the rail draws lanes/arcs, rows carry the text. */
+.trail-scroll {
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 16px 44px;
+}
+.trail-body {
+  display: flex;
+  align-items: flex-start;
+}
+.trail-rail {
+  flex: none;
+  display: block;
+}
+.trail-rows {
+  flex: 1;
+  min-width: 0;
+}
+.trail-row {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.trail-row:hover, .trail-row.selected {
+  background: var(--accent-weak);
+}
+.trail-day {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+}
+.trail-time {
+  flex: none;
+  width: 40px;
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  color: var(--faint);
+}
+.trail-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-body);
+}
+.trail-branch {
+  flex: none;
+  margin-left: auto;
+  padding: 1px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: var(--fs-label);
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trail-more {
+  margin-top: var(--space-md);
 }
 .detail-header {
   position: sticky;

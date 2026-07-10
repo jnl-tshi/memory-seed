@@ -21,6 +21,7 @@ const state = {
   graphEdgeTypes: new Set(["related"]),
   graphTransform: { x: 0, y: 0, scale: 1 },
   graphHover: "",
+  trailWindow: 60,
   results: [],
   timeline: null,
   graph: null,
@@ -77,10 +78,11 @@ async function loadView() {
   if (state.view === "graph" || state.view === "trail") await loadGraph();
 }
 
-// The Trail view is the graph engine focused on feature evolution: intra-branch
-// lineage (branch axis) plus cross-branch supersession, with plain relatedness
-// as light context. Fixed edge set - not the graph view's toggleable chips.
-const TRAIL_EDGE_TYPES = "branch,supersedes,related";
+// Trail is a git-graph timeline: intra-branch lineage gives the lanes, and the
+// two lifecycle edges (supersedes = replaces, evolves = refines) draw as arcs.
+// Fixed edge set - not the graph view's toggleable chips. Plain relatedness is
+// deliberately excluded: it swamped the lineage signal.
+const TRAIL_EDGE_TYPES = "branch,supersedes,evolves";
 
 async function loadSearch(cursor = null, append = false, token = state.loadSeq) {
   const params = qs({
@@ -121,8 +123,11 @@ async function loadTimeline(token = state.loadSeq) {
 }
 
 async function loadGraph(token = state.loadSeq) {
+  // Trail always fetches the full corpus (windowing happens client-side so
+  // "load older" needs no round trip) and ignores the graph view's scope.
+  const trail = state.view === "trail";
   const params = qs({
-    entry_id: state.graphScope === "neighborhood" ? state.selected?.entry_id || state.selectedId : "",
+    entry_id: !trail && state.graphScope === "neighborhood" ? state.selected?.entry_id || state.selectedId : "",
     granularity: "entry",
     agent: state.agent,
     user: state.user,
@@ -130,8 +135,8 @@ async function loadGraph(token = state.loadSeq) {
     date_from: state.dateFrom,
     date_to: state.dateTo,
     depth: 1,
-    edge_types: state.view === "trail" ? TRAIL_EDGE_TYPES : [...state.graphEdgeTypes].join(","),
-    limit: state.graphScope === "all" ? 500 : 90,
+    edge_types: trail ? TRAIL_EDGE_TYPES : [...state.graphEdgeTypes].join(","),
+    limit: trail || state.graphScope === "all" ? 1000 : 90,
   });
   state.graph = await api(`/api/graph?${params}`);
   return token === state.loadSeq;
@@ -259,7 +264,8 @@ function filterRows(values, kind, active) {
 function centerPane() {
   const densityClass = `density-${state.density}`;
   if (state.view === "timeline") return `<section class="${densityClass} timeline-view">${timelineView()}</section>`;
-  if (state.view === "graph" || state.view === "trail") return `<section class="${densityClass}">${graphView()}</section>`;
+  if (state.view === "trail") return `<section class="${densityClass}">${trailView()}</section>`;
+  if (state.view === "graph") return `<section class="${densityClass}">${graphView()}</section>`;
   return `<section class="${densityClass}">${searchView()}</section>`;
 }
 
@@ -335,13 +341,13 @@ function graphView() {
   const related = graphRelatedIds(graph, state.graphHover);
   return `
     <div class="viewbar">
-      <span class="meta">${state.view === "trail" ? "Trail · how features evolved · " : ""}${graph.nodes.length} nodes · ${graph.edges.length} edges</span>
+      <span class="meta">${graph.nodes.length} nodes · ${graph.edges.length} edges</span>
       <span class="spacer"></span>
       <div class="segmented">${[["all", "All entries"], ["neighborhood", "Neighborhood"]].map(([scope, label]) => `<button type="button" class="tab ${state.graphScope === scope ? "active" : ""}" data-graph-scope="${scope}">${label}</button>`).join("")}</div>
       <button type="button" class="chip" data-graph-reset>Reset view</button>
       <button type="button" class="chip" data-graph-fit>Fit view</button>
       <button type="button" class="chip ${state.graphSizeMode === "importance" ? "active" : ""}" data-graph-size title="Toggle node size between link connectivity and importance score">Size: ${state.graphSizeMode === "importance" ? "importance" : "links"}</button>
-      ${state.view === "trail" ? "" : ["related", "topic", "agent", "day"].map((type) => `<button type="button" class="chip ${state.graphEdgeTypes.has(type) ? "active" : ""}" data-edge="${type}">${type}</button>`).join("")}
+      ${["related", "topic", "agent", "day"].map((type) => `<button type="button" class="chip ${state.graphEdgeTypes.has(type) ? "active" : ""}" data-edge="${type}">${type}</button>`).join("")}
     </div>
     <div class="graph-stage">
       <svg class="graph-canvas" data-graph-canvas viewBox="0 0 1000 620" role="img">
@@ -379,19 +385,175 @@ function graphView() {
 
 function graphLegend(graph) {
   const agents = [...new Set((graph.nodes || []).map((node) => node.agent || "unknown"))].sort();
-  // Trail names its two axes with plain-language meaning; the graph view lists
-  // its generic edge types. Consistent "one color, one job" labelling.
-  // Label must agree with edge direction: the arrow runs source -> target where
-  // source supersedes target, so the active-voice "replaces" reads correctly
-  // ("New --replaces-> Old"). A passive label would invert the arrow's meaning.
-  const edgeItems = state.view === "trail"
-    ? [["branch", "same branch"], ["supersedes", "replaces"], ["related", "related"]]
-    : [["related", "related"], ["topic", "topic"], ["agent", "agent"], ["day", "day"]];
+  const edgeItems = [["related", "related"], ["topic", "topic"], ["agent", "agent"], ["day", "day"]];
   return `
     <div class="graph-legend" aria-label="Graph legend">
       <div class="legend-group"><span class="count">Nodes</span>${agents.map((agent) => `<span class="legend-item" title="${escAttr(agent)}"><span class="legend-swatch" style="background:${agentColor(agent)}"></span>${esc(graphLegendLabel(agent))}</span>`).join("")}</div>
       <div class="legend-group"><span class="count">Edges</span>${edgeItems.map(([type, label]) => `<span class="legend-item"><span class="legend-line" style="background:${edgeColor(type)}"></span>${esc(label)}</span>`).join("")}</div>
-      <div class="legend-group"><span class="count">Size: ${state.graphSizeMode === "importance" ? "importance" : "links"}</span><span class="count">${state.view === "trail" ? "Dashed → supersession" : "Near: links/topics/dates"}</span></div>
+      <div class="legend-group"><span class="count">Size: ${state.graphSizeMode === "importance" ? "importance" : "links"}</span><span class="count">Near: links/topics/dates</span></div>
+    </div>`;
+}
+
+// --- Trail: interactive git-graph timeline ----------------------------------
+// Newest entry at the top, one straight lane per branch (lowest free lane,
+// freed when the branch's visible life ends - interval coloring, the
+// "straight branches" scheme git clients use). Lifecycle arcs bow through the
+// left gutter: supersedes = dashed (replaces), evolves = dotted (refines).
+// Day separators share the fixed row height so SVG y stays index * ROW.
+const TRAIL_ROW = 30;
+const TRAIL_LANE_W = 14;
+const TRAIL_GUTTER = 30;
+const TRAIL_WINDOW_STEP = 60;
+const trailBranchColors = ["#6f7cff", "#3fa66a", "#d9941a", "#8f63e8", "#18a999", "#d94b63", "#4f98d9", "#b8873b", "#7a8ff2", "#5bb98c"];
+
+function trailStamp(node) {
+  return Date.parse(node.datetime || `${node.date}T00:00:00`) || 0;
+}
+
+function trailTitle(node) {
+  // Entry titles start with their timestamp; the time column and day
+  // separators already carry it, so strip the prefix instead of repeating it.
+  return String(node.title || "").replace(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}\s*-\s*/, "");
+}
+
+function trailModel(graph) {
+  const nodes = (graph.nodes || [])
+    .filter((node) => node.entry_id)
+    .sort((a, b) => trailStamp(b) - trailStamp(a) || String(a.id).localeCompare(String(b.id)));
+  const total = nodes.length;
+  const visible = nodes.slice(0, state.trailWindow);
+
+  const items = [];
+  let lastDay = null;
+  for (const node of visible) {
+    if (node.date !== lastDay) {
+      items.push({ kind: "day", label: node.date });
+      lastDay = node.date;
+    }
+    items.push({ kind: "node", node });
+  }
+
+  // Branch intervals over display rows (top = newest). A branch owns its lane
+  // from its newest to its oldest visible row.
+  const rowOf = new Map();
+  items.forEach((item, index) => {
+    if (item.kind === "node") rowOf.set(item.node.id, index);
+  });
+  const spans = new Map();
+  items.forEach((item, index) => {
+    if (item.kind !== "node") return;
+    const branch = item.node.branch || "";
+    const span = spans.get(branch) || { first: index, last: index };
+    span.first = Math.min(span.first, index);
+    span.last = Math.max(span.last, index);
+    spans.set(branch, span);
+  });
+  const branches = [...spans.keys()].sort((a, b) => spans.get(a).first - spans.get(b).first || spans.get(b).last - spans.get(a).last);
+  const laneOf = new Map();
+  const colorOf = new Map();
+  const laneBusyUntil = [];
+  branches.forEach((branch, order) => {
+    const span = spans.get(branch);
+    let lane = laneBusyUntil.findIndex((busy) => busy < span.first);
+    if (lane === -1) {
+      lane = laneBusyUntil.length;
+      laneBusyUntil.push(-1);
+    }
+    laneBusyUntil[lane] = span.last;
+    laneOf.set(branch, lane);
+    colorOf.set(branch, trailBranchColors[order % trailBranchColors.length]);
+  });
+
+  const lifecycle = (graph.edges || []).filter(
+    (edge) => (edge.type === "supersedes" || edge.type === "evolves") && rowOf.has(edge.source) && rowOf.has(edge.target)
+  );
+  return { items, total, rowOf, spans, laneOf, colorOf, laneCount: laneBusyUntil.length, lifecycle };
+}
+
+function trailView() {
+  const graph = state.graph;
+  if (!graph) return `<div class="empty">Trail loading</div>`;
+  const model = trailModel(graph);
+  const { items, total, rowOf, spans, laneOf, colorOf, lifecycle } = model;
+  if (!items.length) return `<div class="empty">No entries with lineage data yet.</div>`;
+  const laneX = (branch) => TRAIL_GUTTER + (laneOf.get(branch) || 0) * TRAIL_LANE_W + 7;
+  const rowY = (index) => index * TRAIL_ROW + TRAIL_ROW / 2;
+  const railWidth = TRAIL_GUTTER + model.laneCount * TRAIL_LANE_W + 12;
+  const height = items.length * TRAIL_ROW;
+  const selectedEntry = state.selected?.entry_id || "";
+
+  // Lane continuity: connect consecutive visible rows of the same branch.
+  // Entries with no recorded branch get a dot but no line - continuity that
+  // was never recorded is not drawn.
+  const laneRows = new Map();
+  items.forEach((item, index) => {
+    if (item.kind !== "node" || !item.node.branch) return;
+    const branch = item.node.branch;
+    if (!laneRows.has(branch)) laneRows.set(branch, []);
+    laneRows.get(branch).push(index);
+  });
+  const laneSegments = [...laneRows.entries()].flatMap(([branch, rows]) =>
+    rows.slice(1).map((row, i) => `<line x1="${laneX(branch)}" y1="${rowY(rows[i])}" x2="${laneX(branch)}" y2="${rowY(row)}" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></line>`)
+  );
+
+  const arcs = lifecycle.map((edge) => {
+    const sourceItem = items[rowOf.get(edge.source)];
+    const targetItem = items[rowOf.get(edge.target)];
+    const sx = laneX(sourceItem.node.branch || "");
+    const sy = rowY(rowOf.get(edge.source));
+    const tx = laneX(targetItem.node.branch || "");
+    const ty = rowY(rowOf.get(edge.target));
+    const bow = Math.max(4, TRAIL_GUTTER - 8 - Math.min(18, Math.abs(ty - sy) / TRAIL_ROW));
+    const touched = selectedEntry && (edge.source === selectedEntry || edge.target === selectedEntry);
+    const dash = edge.type === "supersedes" ? "6 4" : "2 3";
+    return `<path d="M ${sx} ${sy} C ${bow} ${sy} ${bow} ${ty} ${tx} ${ty}" fill="none" stroke="${edgeColor(edge.type)}" stroke-width="${touched ? 2.4 : 1.6}" stroke-dasharray="${dash}" stroke-opacity="${!selectedEntry || touched ? 0.9 : 0.3}" marker-end="url(#trail-arrow-${edge.type})"><title>${esc(trailTitle(sourceItem.node))} ${edge.type === "supersedes" ? "replaces" : "refines"} ${esc(trailTitle(targetItem.node))}</title></path>`;
+  });
+
+  const dots = items.flatMap((item, index) => {
+    if (item.kind !== "node") return [];
+    const branch = item.node.branch || "";
+    const selected = item.node.entry_id === selectedEntry || item.node.chunk_id === state.selectedId;
+    return [`<circle cx="${laneX(branch)}" cy="${rowY(index)}" r="${selected ? 6.5 : 4.5}" fill="${branch ? colorOf.get(branch) : "var(--faint)"}" stroke="${selected ? "var(--accent-strong)" : "var(--bg)"}" stroke-width="${selected ? 2.5 : 2}"></circle>`];
+  });
+
+  const rows = items.map((item, index) => {
+    if (item.kind === "day") return `<div class="trail-day">${esc(item.label)}</div>`;
+    const node = item.node;
+    const branch = node.branch || "";
+    const tip = branch && spans.get(branch)?.first === index;
+    const selected = node.entry_id === selectedEntry || node.chunk_id === state.selectedId;
+    const time = node.datetime ? node.datetime.slice(11, 16) : "";
+    return `
+      <div class="trail-row ${selected ? "selected" : ""}" data-chunk="${escAttr(node.chunk_id)}" title="${escAttr(node.title)}${branch ? escAttr(` · ${branch}`) : ""}">
+        <span class="trail-time">${time}</span>
+        <span class="trail-title">${esc(trailTitle(node))}</span>
+        ${tip ? `<span class="trail-branch" style="color:${colorOf.get(branch)}">${esc(branch)}</span>` : ""}
+      </div>`;
+  });
+
+  const shown = items.filter((item) => item.kind === "node").length;
+  return `
+    <div class="viewbar">
+      <span class="meta"><strong>${shown}</strong> of ${total} entries · newest first</span>
+      <span class="spacer"></span>
+      <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("supersedes")}"></span>replaces</span>
+      <span class="legend-item"><span class="legend-line legend-line-dotted" style="border-color:${edgeColor("evolves")}"></span>refines</span>
+      ${shown < total ? `<button type="button" class="chip" data-trail-more>Load older</button>` : ""}
+    </div>
+    <div class="trail-scroll">
+      <div class="trail-body">
+        <svg class="trail-rail" width="${railWidth}" height="${height}" viewBox="0 0 ${railWidth} ${height}" aria-hidden="true">
+          <defs>
+            <marker id="trail-arrow-supersedes" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("supersedes")}"></path></marker>
+            <marker id="trail-arrow-evolves" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("evolves")}"></path></marker>
+          </defs>
+          ${laneSegments.join("")}
+          ${arcs.join("")}
+          ${dots.join("")}
+        </svg>
+        <div class="trail-rows">${rows.join("")}</div>
+      </div>
+      ${shown < total ? `<button type="button" class="chip trail-more" data-trail-more>Load older entries</button>` : ""}
     </div>`;
 }
 
@@ -594,6 +756,11 @@ function installDelegatedEvents() {
       const token = ++state.loadSeq;
       await loadSearch(state.nextCursor, true, token);
       if (token === state.loadSeq) render();
+      return;
+    }
+    if (target.dataset.trailMore !== undefined) {
+      state.trailWindow += TRAIL_WINDOW_STEP;
+      render();
       return;
     }
     if (target.dataset.bucketStart) {
@@ -1034,6 +1201,7 @@ function edgeColor(type) {
     agent: "var(--edge-agent)",
     day: "var(--edge-day)",
     supersedes: "var(--edge-supersedes)",
+    evolves: "var(--edge-evolves)",
     branch: "var(--edge-branch)",
   }[type] || "var(--muted)";
 }
