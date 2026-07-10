@@ -291,6 +291,7 @@ uvx --from memory-seed memory-seed init --dry-run
 uvx --from memory-seed memory-seed update --dry-run
 uvx --from memory-seed memory-seed compact
 uvx --from memory-seed memory-seed branch status
+uvx --from memory-seed memory-seed session fuse --branch <branch>
 ```
 
 Use `uv tool install memory-seed` when you want Memory Seed installed persistently as a local machine tool with console scripts on PATH:
@@ -339,6 +340,12 @@ It warns when feature-like work appears to be happening on an integration branch
 or creates branches automatically. For visible topology, work on a task branch/worktree and merge
 back with `git merge --no-ff`.
 
+Use `memory-seed session fuse --branch <branch>` before promoting a task branch that contains
+branch-local session entries or diagram sidecars. It is a dry-run by default. Apply mode requires an
+in-progress `git merge --no-ff --no-commit <branch>` and only imports validated branch-only entries
+whose YAML `branch:` matches the source branch. Diagram sidecars are imported only when their parent
+entry already exists on the base branch or is accepted for promotion in the same fuse.
+
 From this repository checkout, run:
 
 ```powershell
@@ -353,6 +360,7 @@ python -m memory_seed.cli encoding repair --dry-run
 python -m memory_seed.cli init --dry-run
 python -m memory_seed.cli update --dry-run
 python -m memory_seed.cli compact
+python -m memory_seed.cli session fuse --branch <branch>
 ```
 
 The `init` command copies only the reusable seed files into the current folder:
@@ -487,6 +495,7 @@ When run in a project that already has Memory Seed files:
 - `memory-seed links check` validates session-memory integrity across both layouts: duplicate `entry_id`/`hash_id`, dangling `related_entries`/`related_memories` (including entry-level `related_entries` in session-entry YAML), and per-user-file frontmatter problems (filename↔frontmatter user/date mismatch, missing/malformed `hash_id`, unsupported `schema_version`). It names the offending file and value and exits non-zero on any issue, so it doubles as a CI gate; `doctor` surfaces a one-line summary pointing at it.
 - `memory-seed migrate sessions-layout [--dry-run]` splits legacy flat session files into grouped per-user files using `.memory-seed/project.yaml` participants, backs up migrated sources, and refuses ambiguous or unsafe merges.
 - `memory-seed migrate sessions-month-layout [--dry-run]` moves old flat/day session files and old diagram sidecars into grouped `YYYY-MM/` folders. It backs up sources, removes migrated originals after successful writes, and is never automatic.
+- `memory-seed session fuse --branch <branch> [--base <ref>] [--apply]` dry-runs or applies branch-local session entries and sidecars into the current integration tree. It blocks missing or mismatched `branch:` metadata, missing/duplicate `entry_id` values, edits to existing entries or sidecars, non-chronological targets, and sidecars without a parent entry already on the base branch or accepted for promotion in the same fuse. `--apply` requires an in-progress merge and normalizes imported files to the grouped layout.
 - `memory-seed link suggest [--for <entry_id>] [--top-k N]` ranks older session entries to link from a target entry (default: the newest entry), skips the target and its already-linked entries, and prints a copy-pasteable `related_entries:` snippet. Read-only.
 - `memory-seed link show <entry_id>` prints an entry's stored outbound `related_entries` plus its computed inbound backlinks, so the related-entry graph is bidirectional at read time without editing any historical entry. Read-only.
 - `memory-seed processes [--json]` lists active package-owned Memory Seed processes.
@@ -612,6 +621,8 @@ The server exposes:
 ```text
 memory_search(query, cwd=".", top_k=8, lambda_days=0.01, recency_enabled=true, recency_floor=0.15, semantic_enabled=true, user=null, date_from=null, date_to=null)
 memory_get_chunk(chunk_id, cwd=".")
+memory_branch_status(cwd=".")
+memory_session_fuse_preview(branch, cwd=".", base="HEAD")
 ```
 
 `memory_search` also accepts `granularity="entry"` by default or `granularity="section"` for narrower section-level results. It discovers session entries in `sessions/YYYY-MM/YYYY-MM-DD.md`, `sessions/YYYY-MM/YYYY-MM-DD/<user>.md`, and the legacy flat/day layouts. Entry granularity returns one coherent chunk per `##` session entry and normally uses the entry YAML `entry_id` as `chunk_id`, such as `ms-db2d715c` for legacy entries or `mse_0123456789abcdef` for new generated entries. Section granularity returns ids such as `ms-db2d715c#decisions/d1-use-draft-for-compact-decision-records` while preserving the parent `entry_id`.
@@ -619,6 +630,12 @@ memory_get_chunk(chunk_id, cwd=".")
 `memory_search` returns JSON with source path, `path`, `session_date`, optional per-user `user`, optional `file_hash_id`, entry-level `related_entries`, line range, heading path, score fields, matched fields, matched terms, semantic status, entry metadata, granularity, and an excerpt. The `user`, `date_from`, and `date_to` filters are applied before ranking so `top_k` is selected from the filtered corpus. This is intended to be both agent-efficient and human-validatable.
 
 The ranking engine stays local and CPU-friendly. MCP search uses a Model2Vec static embedding provider by default with the general-purpose `minishlab/potion-base-8M` model, combines semantic score with lexical and metadata scoring, then applies recency. If Model2Vec or the model cannot load or score a query, the server falls back to lexical, metadata, and recency ranking without failing the request. Use `--no-semantic` on `memory-seed-mcp --stdio` or `semantic_enabled=false` in `memory_search` to force fallback behavior.
+
+`memory_branch_status` and `memory_session_fuse_preview` are read-only collaboration tools for LLM
+orchestrators. The skill registry routes them through `agent_collaboration.md`, which tells agents
+when to use the MCP preview and when to fall back to CLI commands. Fuse preview reports planned
+entries, planned sidecars, source removals, blockers, and the gated CLI apply command; it does not
+write files. Applying a fuse remains CLI-only during an inspected `git merge --no-ff --no-commit`.
 
 ### Performance characteristics
 

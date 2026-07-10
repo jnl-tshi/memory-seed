@@ -155,6 +155,7 @@ graph TD
 | `agents list \| add <a> \| remove <a>` | Show selected/ignored agents or reconfigure installed agent integrations (cleanup-aware removal). |
 | `user set <slug> \| show \| clear` | Manage the local active user in gitignored `.memory-seed/local.yaml` (new in 2.10). |
 | `session target [--create] [--user <slug>] [--date ...]` | Print (and optionally create) the active grouped session-log target; flat or per-user depending on the resolved user and participant gate. |
+| `session fuse --branch <branch> [--base <ref>] [--apply]` | Dry-run or apply branch-local session entries/sidecars into the current integration tree; apply requires an in-progress merge and validates branch provenance, chronology, immutable existing entries, and sidecar parent entries. |
 | `branch status [--json]` | Read-only: report current Git branch/worktree posture and warn when distinct feature work should move to a task branch with `--no-ff` integration. |
 | `links check` | Validate session-memory integrity across both layouts (duplicate/dangling IDs, per-user frontmatter problems); exits non-zero on any issue (new in 2.12). |
 | `migrate sessions-layout [--dry-run]` | Split legacy flat session files into grouped per-user files using `project.yaml` participants; preserves entry IDs, backs up before removing migrated sources. |
@@ -181,7 +182,7 @@ graph TD
 
   subgraph MemoryTier["Memory operations"]
     direction LR
-    USER["user"] ~~~ SESSION["session target"]
+    USER["user"] ~~~ SESSION["session target / fuse"]
     COMPACT["compact"] ~~~ LINKS["links / link"]
   end
 
@@ -471,9 +472,10 @@ graph TD
   LOGCHECK --> LOGNUDGE
 ```
 
-### I. MCP memory retrieval
-- `mcp_server.py`: a dependency-light **stdio JSON-RPC** server exposing two tools - `memory_search` (ranked entries/sections) and `memory_get_chunk` (full text for one `chunk_id`). Unreleased after 2.15: it is now a **thin wrapper over `retrieval.py`** with a byte-identical tool contract (parity-tested).
+### I. MCP memory retrieval and control preview
+- `mcp_server.py`: a dependency-light **stdio JSON-RPC** server. Retrieval tools are `memory_search` (ranked entries/sections) and `memory_get_chunk` (full text for one `chunk_id`). Collaboration/control-preview tools are `memory_branch_status` (read-only branch/worktree posture) and `memory_session_fuse_preview` (read-only branch-local session/sidecar fuse plan). Unreleased after 2.15: retrieval is now a **thin wrapper over `retrieval.py`** with a byte-identical tool contract (parity-tested).
 - `retrieval.py` (**new, unreleased - Memory Trace distribution Phase 1**): the public, MCP-independent retrieval service every consumer rides - `search_memory()`, `get_chunk()` (opt-in `include_diagrams`), `resolve_semantic_provider()`, the canonical `ranked_to_dict`/`chunk_to_dict` result dicts, the `EntryRollup`/`rollup_entry_matches()`/`rollup_entry_results()` entry-level rollup contract (one visible result per session entry; `best_match_chunk_id`, `matched_sections`, `score_source`), and `entry_diagram_sidecars()`. MCP wraps it; Memory Trace imports it as its frozen surface.
+- **MCP skill surface (unreleased).** `skills/index.md` routes `memory_search`/`memory_get_chunk` usage to `history_retrieval.md` and routes `memory_branch_status`/`memory_session_fuse_preview` usage to `agent_collaboration.md`. The collaboration tools are intentionally read-only: they help an LLM diagnose branch posture and preview fuse blockers/plans, while write application remains CLI-only during an inspected merge.
 - `semantic_cache.py`: `extract_memory_chunks()` parses `sessions/*.md` into typed `MemoryChunk`s (entry- or section-granularity; `session_date` derived from filename; `entry_id` as `chunk_id`). `rank_memory_chunks()` combines **lexical + semantic + recency** signals:
   `final = (lexical_score + 3-max(semantic,0)) - recency_multiplier`, with semantic via Model2Vec (`model2vec:minishlab/potion-base-8M`, lexical fallback) and an exponential recency decay floored at `recency_floor`.
 - **Metadata + filters.** `memory_search`/`memory_get_chunk` expose `session_date`, `path`, per-user `user`, `file_hash_id`, and entry-level `related_entries` (2.12); `memory_search` accepts `user`, `date_from`, and `date_to` filters applied before ranking. Unreleased after 2.14: `memory_get_chunk` also exposes `superseded_by`, `inbound_relation_count`, and `importance_score`; `memory_search` results carry stored `supersedes` and accept an opt-in `exclude_superseded` filter (default off) that drops superseded entries from a single query.
@@ -496,8 +498,9 @@ graph TD
 
   subgraph ConsumerTier["Consumers"]
     direction LR
-    MCP["MCP server"] ~~~ TRACE["Memory Trace"]
+    MCP["MCP server<br>retrieval + preview"] ~~~ TRACE["Memory Trace"]
     VALIDATE["mcp_validate"]
+    ORCH["LLM orchestrator"]
   end
 
   SourceTier ~~~ ServiceTier
@@ -512,6 +515,7 @@ graph TD
   ROLLUP --> MCP
   ROLLUP --> TRACE
   MCP --> VALIDATE
+  MCP --> ORCH
 ```
 
 ### J. Session log model
@@ -519,6 +523,7 @@ graph TD
 - **Entry IDs (widened in 2.12).** New generated `entry_id`s use deterministic 80-bit `mse_` Base32 IDs (`generate_session_entry_id()`); legacy 32-bit `ms-` IDs remain valid and are never rewritten.
 - **Integrity validation (new in 2.12, grouped-aware after current work).** `check_session_links()` / `memory-seed links check` scans for duplicate `entry_id`/`hash_id` and dangling refs, exiting non-zero as a CI gate. The legacy-flat `related_entries` scan gap was fixed in 2.14. It also validates `supersedes` refs (dangling/self/postdates/cycle), `commits:` hashes (malformed/unknown when git is present), and decision-diagram sidecars under both `sessions/diagrams/YYYY-MM-DD.md` and `sessions/diagrams/YYYY-MM/YYYY-MM-DD.md` (`malformed-diagram`, `orphan-diagram`, `diagram-date-mismatch`; sidecars always optional).
 - **Decision diagram sidecars (new, unreleased - diagrams plan Phase 1; grouped after current work).** Optional authored reasoning diagrams append to `sessions/diagrams/YYYY-MM/YYYY-MM-DD.md` - one dated file per day, mirroring the grouped session-log convention for filesystem readability; legacy sidecars under `sessions/diagrams/YYYY-MM-DD.md` remain readable. Each diagram is a `## <timestamp> - <title>` heading block naming its `entry_id` in a fenced yaml block, followed by fenced mermaid block(s), never inlined in the append-only session log itself. Authoring guidance (same spatial/temporal/concurrent bar as the Mermaid Working Principle) lives in `session_logging.md` + `end_of_turn.md` (live + seed); metadata surfaces through `retrieval.entry_diagram_sidecars()` and the Memory Trace chunk view.
+- **Branch-session fuse (unreleased).** `memory-seed session fuse --branch <branch>` lets an orchestrator dry-run branch-local memory before promotion, then apply it only during an in-progress `git merge --no-ff --no-commit <branch>`. It imports branch-only entries when `branch:` matches the source branch, existing entries are unmodified, IDs are present/unique, target chronology remains valid, and paths can normalize to the grouped layout. Diagram sidecars are accepted only when their parent entry already exists on the base/main tree or the parent branch entry is accepted for promotion in the same fuse; orphan or malformed sidecars block the fuse.
 - **Multi-user session memory (phased).** `iter_session_documents()` now reads four layouts: legacy flat (`sessions/YYYY-MM-DD.md`), legacy per-day/per-user (`sessions/YYYY-MM-DD/<user>.md`), grouped flat (`sessions/YYYY-MM/YYYY-MM-DD.md`), and grouped per-user (`sessions/YYYY-MM/YYYY-MM-DD/<user>.md`). `memory_search`, `memory_get_chunk`, Memory Trace, hooks, `links check`, and `compact` consume that shared iterator. `session_target()` writes new flat targets to `sessions/YYYY-MM/YYYY-MM-DD.md`; when the per-user gate applies it writes `sessions/YYYY-MM/YYYY-MM-DD/<user>.md`. `--create` initializes per-user file frontmatter (`schema_version: 2`, `session_date`, immutable `hash_id`, `user`, `created_at`). Historical files are moved only by explicit migration.
 - **Participant-count layout gating (new in 2.14).** A configured user alone no longer fragments the log: `session_target()` only honors an *ambiently*-resolved user (env var or `local.yaml`) once `.memory-seed/project.yaml`'s `participants:` list has 2 or more entries - with 0 or 1, it stays on the shared grouped flat file, since per-user files exist to avoid concurrent-author conflicts that don't arise until there's a second author. An explicit `--user <slug>` CLI override still bypasses the gate (a deliberate one-shot choice). `doctor` separately warns (non-fatal) when a configured local user has no matching `participants:` entry. This repository has one participant registered (`jean`, initials `JNL`), so it correctly stays on the grouped flat layout for new writes.
 

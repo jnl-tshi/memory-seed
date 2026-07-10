@@ -60,14 +60,14 @@ Keep new session files in month-grouped folders, such as `.memory-seed/sessions/
 
 ## Decision Diagram Sidecars
 
-When an entry's decision logic is genuinely **spatial, temporal, or concurrent** — branching alternatives that were weighed, a sequence across components, a topology — you may capture it as a Mermaid diagram in a **sidecar file**, authored in the same turn as the entry:
+When an entry's durable decision logic is genuinely **spatial, temporal, or concurrent** - branching alternatives that were weighed, a sequence across components, a topology - create a Mermaid diagram in a **sidecar file** unless the diagram would add no structure beyond prose. This is still a high bar for routine entries, but branch/worktree/merge topology, old-to-new layout migrations, schema or compatibility flows, multi-agent concurrency, command lifecycle flows, and retrieval/data pipelines are positive triggers for a sidecar.
 
 - Location: `.memory-seed/sessions/diagrams/YYYY-MM/YYYY-MM-DD.md` — **one file per date**, mirroring the month-grouped session-log convention, so a human browsing the filesystem without the Explorer can find a day's diagrams next to that day's session log. Existing legacy sidecars under `.memory-seed/sessions/diagrams/YYYY-MM-DD.md` remain readable.
 - File shape: append a heading block shaped exactly like a session entry — `## <timestamp> - <title>`, followed by a fenced ` ```yaml ` block naming `entry_id:` (required — the single link to the entry it accompanies), followed by one or more fenced ` ```mermaid ` blocks. Multiple diagrams logged the same day append to the same date file, in ascending time order, exactly like session logs.
 - Match the heading timestamp to the entry's own heading timestamp when practical — it's a human convenience for eyeballing the session log and the diagrams file side by side, not a required key (`entry_id` is the only thing validated).
 - Never inline diagrams in the session entry itself — the prose log stays clean, diffable, and append-only. The sidecar is the diagram's home; readers and the Explorer UI render it beside the entry.
 - Sidecars are frozen point-in-time records of the decision **as made**; do not edit them when later decisions supersede the entry (supersession is visible through the live graph, not by rewriting the diagram).
-- Same high bar as the Mermaid Working Principle: prose is the default; **most entries need no sidecar**. Never add one just for coverage.
+- Same high bar as the Mermaid Working Principle: prose is the default for ordinary entries; never add a sidecar just for coverage. When a positive trigger above is present and no sidecar is written, state the reason briefly under `A:` or `Follow-up`.
 - `links check` validates sidecars: `malformed-diagram` (filename isn't a valid `YYYY-MM-DD.md` date, no heading+yaml block found, missing `entry_id`, no ```mermaid block, or unbalanced fence), `orphan-diagram` (`entry_id` resolves to no known entry), `diagram-date-mismatch` (the entry's actual session date differs from the diagrams filename date).
 
 Example sidecar (`.memory-seed/sessions/diagrams/2026-07/2026-07-05.md`):
@@ -136,6 +136,23 @@ DRAFT is the baseline decision-record format for session entries. A DRAFT decisi
 - If an approach was **attempted and failed** or proved incompatible during the session, log it under `A` even when not explicitly asked to — this is empirical evidence for future sessions, not an optional nicety. State what was tried and why it failed in one line; that's enough for a future agent to skip it without re-deriving the failure.
 - Use `D1`, `D2`, and similar labels only inside a multi-decision entry.
 - Do not rewrite old logs solely to match the newest schema unless the user explicitly asks.
+
+## Decision Harvest
+
+Before choosing the entry shape, harvest the durable decisions made this turn.
+
+1. List the accepted choices that changed project behavior, user workflow, file layout, schema,
+   migration behavior, policy, skill behavior, agent coordination, release behavior, or architecture.
+2. Count rejected alternatives, failed attempts, and compatibility constraints separately; they belong
+   under `A:` unless they became their own accepted decision.
+3. If exactly one durable choice remains, use the single-decision shape.
+4. If two or more durable choices belong to one coherent task, use the multi-decision shape with
+   `D1`, `D2`, and so on. Do not bury accepted decisions as rationale, implementation detail, or
+   alternatives under one broad `D:`.
+5. If durable choices affect unrelated subsystems, write separate entries instead of one
+   over-compressed multi-decision entry.
+6. If a single-decision entry is still used after considering multiple candidate decisions, make the
+   consolidation explicit in `R:` or `A:` so future readers know why the choices were treated as one.
 
 `F` fields should support later lexical search. Prefer exact changed file paths and filenames as
 standalone tokens. Avoid ellipses (`...`), brace groups (`{app.js,styles.css}`), or folder-only

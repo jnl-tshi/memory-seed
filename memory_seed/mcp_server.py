@@ -6,6 +6,7 @@ import sys
 from datetime import date
 from typing import Any
 
+from .core import branch_status, session_fuse
 # The MCP server is a thin JSON-RPC wrapper over the public retrieval service
 # (memory_seed/retrieval.py) - the same service the in-package Lense and the
 # future companion UI distribution consume, so every surface returns the same
@@ -63,6 +64,36 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "memory_branch_status",
+        "description": "Read Git branch/worktree posture and return Memory Seed branch-history guidance.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "default": "."},
+            },
+        },
+    },
+    {
+        "name": "memory_session_fuse_preview",
+        "description": "Dry-run branch-local session entry and diagram-sidecar fuse planning. Read-only; use the CLI --apply path during an in-progress merge to write.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "branch": {
+                    "type": "string",
+                    "description": "Source task branch whose branch-local session entries and sidecars should be inspected.",
+                },
+                "cwd": {"type": "string", "default": "."},
+                "base": {
+                    "type": "string",
+                    "default": "HEAD",
+                    "description": "Base ref to compare against, normally the current integration branch HEAD.",
+                },
+            },
+            "required": ["branch"],
+        },
+    },
+    {
         "name": "memory_get_chunk",
         "description": "Fetch an exact Memory Seed chunk by chunk_id.",
         "inputSchema": {
@@ -102,6 +133,33 @@ def call_tool(
             date_to=_optional_date(args, "date_to"),
             exclude_superseded=bool(args.get("exclude_superseded", False)),
         )
+
+    if name == "memory_branch_status":
+        return {"status": branch_status(cwd=args.get("cwd", ".")).to_dict()}
+
+    if name == "memory_session_fuse_preview":
+        branch = _required_str(args, "branch")
+        base = args.get("base", "HEAD")
+        if not isinstance(base, str) or not base.strip():
+            raise ValueError("Invalid string argument: base")
+        result = session_fuse(
+            cwd=args.get("cwd", "."),
+            branch=branch,
+            base=base.strip(),
+            apply=False,
+        )
+        return {
+            "ok": not result.issues,
+            "changed": result.changed,
+            "planned_entries": result.planned_entries,
+            "planned_sidecars": result.planned_sidecars,
+            "removed_sources": result.removed_sources,
+            "already_present": result.already_present,
+            "issues": result.issues,
+            "write_surface": "CLI-only; run apply during an in-progress git merge.",
+            "merge_checkpoint_command": f"git merge --no-ff --no-commit {branch}",
+            "apply_command": f"memory-seed session fuse --branch {branch} --base {base.strip()} --apply",
+        }
 
     if name == "memory_get_chunk":
         chunk_id = _required_str(args, "chunk_id")

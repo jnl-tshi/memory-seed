@@ -23,6 +23,7 @@ from memory_seed.core import (
     migrate_session_layout,
     resolve_runtime,
     remove_skill,
+    session_fuse,
     session_target,
     skill_status,
     update_project,
@@ -1650,6 +1651,274 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("ms-11111111", result.issues[0])
         self.assertTrue(flat.exists())
 
+    def _git(self, cwd, *args):
+        import subprocess
+
+        return subprocess.run(["git", "-C", str(cwd), *args], check=True, capture_output=True, text=True)
+
+    def _init_git_project(self, cwd):
+        self._git(cwd, "init", "-q")
+        self._git(cwd, "config", "user.name", "Test User")
+        self._git(cwd, "config", "user.email", "test@example.com")
+        self._git(cwd, "config", "commit.gpgsign", "false")
+        self._git(cwd, "branch", "-M", "main")
+
+    def _commit_all(self, cwd, message):
+        self._git(cwd, "add", "-A")
+        self._git(cwd, "commit", "-q", "-m", message)
+
+    def _write_grouped_session(self, cwd, date, entry_id, *, branch, title="Entry", time="09:00", body="- Body."):
+        path = cwd / MEMORY_DIR_NAME / "sessions" / date[:7] / f"{date}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "\n".join(
+                [
+                    "---",
+                    "tags:",
+                    "  - session-log",
+                    "  - memory-seed",
+                    f"session_date: {date}",
+                    "---",
+                    "",
+                    f"## {date} {time} - {title}",
+                    "",
+                    "```yaml",
+                    f"entry_id: {entry_id}",
+                    "user_initials: JN",
+                    "agent_type: codex",
+                    f"branch: {branch}",
+                    "```",
+                    "",
+                    body,
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def _write_legacy_session(self, cwd, date, entry_id, *, branch, title="Entry", time="09:00"):
+        path = cwd / MEMORY_DIR_NAME / "sessions" / f"{date}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "\n".join(
+                [
+                    "---",
+                    "tags:",
+                    "  - session-log",
+                    "  - memory-seed",
+                    f"session_date: {date}",
+                    "---",
+                    "",
+                    f"## {date} {time} - {title}",
+                    "",
+                    "```yaml",
+                    f"entry_id: {entry_id}",
+                    "user_initials: JN",
+                    "agent_type: codex",
+                    f"branch: {branch}",
+                    "```",
+                    "",
+                    "- Branch body.",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def _write_legacy_diagram(self, cwd, date, entry_id, title="Entry"):
+        path = cwd / MEMORY_DIR_NAME / "sessions" / "diagrams" / f"{date}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "\n".join(
+                [
+                    "---",
+                    "tags:",
+                    "  - session-log-diagrams",
+                    f"diagram_date: {date}",
+                    "---",
+                    "",
+                    f"## {date} 09:00 - {title}",
+                    "",
+                    "```yaml",
+                    f"entry_id: {entry_id}",
+                    "```",
+                    "",
+                    "```mermaid",
+                    "graph TD",
+                    "  A[Branch] --> B[Main]",
+                    "```",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def test_session_fuse_dry_run_reports_branch_only_entries_without_writing(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-fuse")
+        self._write_legacy_session(cwd, "2026-07-11", "mse_1111111111111111", branch="feature-fuse")
+        self._commit_all(cwd, "feature session")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="feature-fuse")
+
+        self.assertFalse(result.changed)
+        self.assertEqual(result.issues, [])
+        self.assertEqual(
+            result.planned_entries,
+            ["mse_1111111111111111 2026-07-11 09:00 -> .memory-seed/sessions/2026-07/2026-07-11.md"],
+        )
+        self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-11.md").exists())
+
+    def test_session_fuse_apply_requires_in_progress_merge(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-fuse")
+        self._write_legacy_session(cwd, "2026-07-11", "mse_1111111111111111", branch="feature-fuse")
+        self._commit_all(cwd, "feature session")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="feature-fuse", apply=True)
+
+        self.assertFalse(result.changed)
+        self.assertTrue(result.issues)
+        self.assertIn("in-progress git merge", result.issues[0])
+
+    def test_session_fuse_apply_normalizes_paths_and_imports_sidecars(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-fuse")
+        self._write_legacy_session(cwd, "2026-07-11", "mse_1111111111111111", branch="feature-fuse")
+        self._write_legacy_diagram(cwd, "2026-07-11", "mse_1111111111111111")
+        self._commit_all(cwd, "feature session")
+        self._git(cwd, "switch", "main")
+        self._git(cwd, "merge", "--no-ff", "--no-commit", "feature-fuse")
+
+        result = session_fuse(cwd=cwd, branch="feature-fuse", apply=True)
+
+        self.assertTrue(result.changed)
+        self.assertEqual(result.issues, [])
+        self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-07-11.md").exists())
+        self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "diagrams" / "2026-07-11.md").exists())
+        grouped = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-11.md"
+        grouped_diagram = cwd / MEMORY_DIR_NAME / "sessions" / "diagrams" / "2026-07" / "2026-07-11.md"
+        self.assertIn("entry_id: mse_1111111111111111", grouped.read_text(encoding="utf-8"))
+        self.assertIn("branch: feature-fuse", grouped.read_text(encoding="utf-8"))
+        self.assertIn("```mermaid", grouped_diagram.read_text(encoding="utf-8"))
+        self.assertTrue(check_session_links(cwd=cwd).ok)
+
+    def test_session_fuse_allows_sidecar_for_existing_base_entry(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-fuse")
+        self._write_legacy_diagram(cwd, "2026-07-10", "mse_0123456789abcdef")
+        self._commit_all(cwd, "add sidecar")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="feature-fuse")
+
+        self.assertEqual(result.issues, [])
+        self.assertEqual(
+            result.planned_sidecars,
+            ["mse_0123456789abcdef 2026-07-10 09:00 -> .memory-seed/sessions/diagrams/2026-07/2026-07-10.md"],
+        )
+
+    def test_session_fuse_blocks_orphan_sidecar(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-fuse")
+        self._write_legacy_diagram(cwd, "2026-07-11", "mse_1111111111111111")
+        self._commit_all(cwd, "orphan sidecar")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="feature-fuse")
+
+        self.assertFalse(result.changed)
+        self.assertTrue(result.issues)
+        self.assertIn("without a parent entry", result.issues[0])
+
+    def test_session_fuse_blocks_sidecar_without_entry_id(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-fuse")
+        sidecar = self._write_legacy_diagram(cwd, "2026-07-10", "mse_0123456789abcdef")
+        sidecar.write_text(sidecar.read_text(encoding="utf-8").replace("entry_id: mse_0123456789abcdef\n", ""), encoding="utf-8")
+        self._commit_all(cwd, "malformed sidecar")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="feature-fuse")
+
+        self.assertFalse(result.changed)
+        self.assertTrue(result.issues)
+        self.assertIn("diagram sidecar block", result.issues[0])
+        self.assertIn("has no entry_id", result.issues[0])
+
+    def test_session_fuse_blocks_session_entry_without_entry_id(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-fuse")
+        session = self._write_legacy_session(cwd, "2026-07-11", "mse_1111111111111111", branch="feature-fuse")
+        session.write_text(session.read_text(encoding="utf-8").replace("entry_id: mse_1111111111111111\n", ""), encoding="utf-8")
+        self._commit_all(cwd, "malformed session")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="feature-fuse")
+
+        self.assertFalse(result.changed)
+        self.assertTrue(result.issues)
+        self.assertIn("session entry", result.issues[0])
+        self.assertIn("has no entry_id", result.issues[0])
+
+    def test_session_fuse_blocks_branch_field_mismatch(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-fuse")
+        self._write_legacy_session(cwd, "2026-07-11", "mse_1111111111111111", branch="main")
+        self._commit_all(cwd, "feature session")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="feature-fuse")
+
+        self.assertFalse(result.changed)
+        self.assertTrue(result.issues)
+        self.assertIn("expected feature-fuse", result.issues[0])
+
+    def test_session_fuse_blocks_existing_entry_edits(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main", body="- Original.")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-fuse")
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main", body="- Edited.")
+        self._commit_all(cwd, "edit existing")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="feature-fuse")
+
+        self.assertFalse(result.changed)
+        self.assertTrue(result.issues)
+        self.assertIn("existing entry_id modified", result.issues[0])
+
     def test_compact_returns_headings_from_recent_sessions(self):
         cwd = self.make_project()
         today = __import__("datetime").date.today().isoformat()
@@ -3023,6 +3292,73 @@ class CliHelpTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("Would migrate: 2026-06-21.md -> 2026-06/2026-06-21.md", out)
         self.assertIn("No files changed.", out)
+
+    def test_session_fuse_cli_dry_run_reports_imports(self):
+        import os
+        import subprocess
+
+        cwd = Path.cwd()
+        project = Path(tempfile.mkdtemp(prefix="memory-seed-cli-fuse-"))
+        self.addCleanup(lambda: shutil.rmtree(project, ignore_errors=True))
+        sessions = project / ".memory-seed" / "sessions"
+        grouped = sessions / "2026-07"
+        grouped.mkdir(parents=True, exist_ok=True)
+        (grouped / "2026-07-10.md").write_text(
+            "---\n"
+            "tags:\n"
+            "  - session-log\n"
+            "  - memory-seed\n"
+            "session_date: 2026-07-10\n"
+            "---\n\n"
+            "## 2026-07-10 09:00 - Base\n\n"
+            "```yaml\n"
+            "entry_id: mse_0123456789abcdef\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "branch: main\n"
+            "```\n\n"
+            "- Base.\n",
+            encoding="utf-8",
+        )
+
+        try:
+            os.chdir(project)
+            subprocess.run(["git", "init", "-q"], check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.name", "Test User"], check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.email", "test@example.com"], check=True, capture_output=True)
+            subprocess.run(["git", "config", "commit.gpgsign", "false"], check=True, capture_output=True)
+            subprocess.run(["git", "branch", "-M", "main"], check=True, capture_output=True)
+            subprocess.run(["git", "add", "-A"], check=True, capture_output=True)
+            subprocess.run(["git", "commit", "-q", "-m", "base"], check=True, capture_output=True)
+            subprocess.run(["git", "switch", "-c", "feature-fuse"], check=True, capture_output=True)
+            (sessions / "2026-07-11.md").write_text(
+                "---\n"
+                "tags:\n"
+                "  - session-log\n"
+                "  - memory-seed\n"
+                "session_date: 2026-07-11\n"
+                "---\n\n"
+                "## 2026-07-11 09:00 - Feature\n\n"
+                "```yaml\n"
+                "entry_id: mse_1111111111111111\n"
+                "user_initials: JN\n"
+                "agent_type: codex\n"
+                "branch: feature-fuse\n"
+                "```\n\n"
+                "- Feature.\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "add", "-A"], check=True, capture_output=True)
+            subprocess.run(["git", "commit", "-q", "-m", "feature"], check=True, capture_output=True)
+            subprocess.run(["git", "switch", "main"], check=True, capture_output=True)
+            code, out = self._run(["session", "fuse", "--branch", "feature-fuse"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 0)
+        self.assertIn("Would import: mse_1111111111111111", out)
+        self.assertIn(".memory-seed/sessions/2026-07/2026-07-11.md", out)
+        self.assertIn("No files changed", out)
 
 
 class SessionStartContextHookTests(unittest.TestCase):
