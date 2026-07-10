@@ -731,6 +731,12 @@ select, input[type="date"] {
   flex: none;
   display: block;
 }
+/* The relationship zone left of main is visually separate space from the
+   worktree/branch lanes: a subtle tinted band behind the dotted lanes. */
+.trail-rel-zone {
+  fill: var(--panel-2);
+  opacity: 0.6;
+}
 .trail-rows {
   flex: 1;
   min-width: 0;

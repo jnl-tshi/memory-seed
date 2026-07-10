@@ -594,8 +594,10 @@ function trailView() {
     return out;
   });
 
-  // Relationship edges route orthogonally through their type's dotted lane:
-  // out from the source dot, down (or up) the lane, back in to the target dot.
+  // Relationship edges route as straight orthogonal lines through their
+  // type's dotted lane: out from the source dot, along the lane, back in to
+  // the target dot. Unselected routes stay clearly visible (0.6) - selection
+  // brightens its own routes rather than hiding the rest.
   const arcs = lifecycle.map((edge) => {
     const sourceItem = items[rowOf.get(edge.source)];
     const targetItem = items[rowOf.get(edge.target)];
@@ -604,11 +606,9 @@ function trailView() {
     const tx = laneX(targetItem.node.branch || "");
     const ty = rowY(rowOf.get(edge.target));
     const lx = relLaneX(edge.type);
-    const r = 6;
-    const dir = ty > sy ? 1 : -1;
-    const path = `M ${sx} ${sy} L ${lx + r} ${sy} Q ${lx} ${sy} ${lx} ${sy + r * dir} L ${lx} ${ty - r * dir} Q ${lx} ${ty} ${lx + r} ${ty} L ${tx} ${ty}`;
+    const path = `M ${sx} ${sy} L ${lx} ${sy} L ${lx} ${ty} L ${tx} ${ty}`;
     const touched = selectedEntry && (edge.source === selectedEntry || edge.target === selectedEntry);
-    return `<path d="${path}" fill="none" stroke="${edgeColor(edge.type)}" stroke-width="${touched ? 2.6 : 2}" stroke-dasharray="${TRAIL_DASH[edge.type]}" stroke-opacity="${!selectedEntry || touched ? 0.95 : 0.35}" marker-end="url(#trail-arrow-${edge.type})"><title>${esc(trailTitle(sourceItem.node))} ${TRAIL_VERB[edge.type]} ${esc(trailTitle(targetItem.node))}</title></path>`;
+    return `<path d="${path}" fill="none" stroke="${edgeColor(edge.type)}" stroke-width="${touched ? 2.6 : 2}" stroke-dasharray="${TRAIL_DASH[edge.type]}" stroke-opacity="${!selectedEntry || touched ? 0.95 : 0.6}" marker-end="url(#trail-arrow-${edge.type})"><title>${esc(trailTitle(sourceItem.node))} ${TRAIL_VERB[edge.type]} ${esc(trailTitle(targetItem.node))}</title></path>`;
   });
 
   const dots = items.flatMap((item, index) => {
@@ -651,6 +651,7 @@ function trailView() {
             <marker id="trail-arrow-evolves" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("evolves")}"></path></marker>
             <marker id="trail-arrow-related" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("related")}"></path></marker>
           </defs>
+          <rect class="trail-rel-zone" x="0" y="0" width="${TRAIL_REL_ZONE - 5}" height="${height}" rx="6"></rect>
           ${connectors.join("")}
           ${laneSegments.join("")}
           ${arcs.join("")}
