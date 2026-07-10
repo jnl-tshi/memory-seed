@@ -10,11 +10,13 @@ tags:
 
 # Memory Trace - Companion Distribution Plan (Pillar B)
 
-> **Status:** ACTIVE - decided 2026-07-05. **Phase 1 implemented 2026-07-05 (unreleased):** the
+> **Status:** ACTIVE - decided 2026-07-05. **Phase 1 implemented 2026-07-05, RELEASED in 2.16.0**
+> (status corrected 2026-07-10; an earlier revision mislabeled it unreleased): the
 > public retrieval service exists (`memory_seed/retrieval.py` - search/fetch orchestration, canonical
 > result dicts, entry-level rollup, diagram-sidecar surfacing), MCP is a thin wrapper with a
 > byte-identical contract (parity-tested), and Memory Trace consumes the service.
-> **Phase 2 implemented 2026-07-06 (unreleased, on branch `claude/refactor/memory-trace-extraction`):**
+> **Phase 2 implemented 2026-07-06, merged to `main` and pushed** (status corrected 2026-07-10; the
+> former feature branch no longer exists and nothing is unpushed):
 > the review UI is extracted into the standalone **`memory-trace`** distribution (`memory-trace/` - its
 > own `pyproject.toml`, `memory_trace` package, `memory-trace` console command, `static/` assets). It
 > depends on `memory-seed` and imports only the public retrieval/parse/rank/graph surface; core sheds
@@ -50,8 +52,13 @@ tags:
 > entries are the selectable UI object; subsection matches are highlighted inside entries.
 > Naming transition is governed by [`completed/memory-trace-product-and-trail-view-plan.md`](completed/memory-trace-product-and-trail-view-plan.md):
 > Memory Trace is the intended product name for the companion UI line, with package/command naming
-> checked before publication. Phase 1 and Phase 2 are now implemented in the unpushed tree; the active
-> remaining concern is release ordering (`memory-seed>=2.17` before `memory-trace 0.1.0`).
+> checked before publication. Phase 1 shipped in 2.16.0 and Phase 2 is merged and pushed on `main`;
+> remaining work (per the 2026-07-10 goal-run decision): (1) cut core **2.17** in this run;
+> (2) `memory-trace 0.1.0` publication is deferred until the user creates the PyPI project and
+> trusted-publisher config for `memory-trace` (none exists today - `.github/workflows/publish.yml`
+> covers `memory-seed` only); a trace publish workflow file is prepared in advance so publication
+> is one step once the PyPI side exists. Until then the README must not present
+> `pip install memory-trace` as available (hotfix staged 2026-07-10).
 > **Acceptance criteria:** see the per-phase gates below.
 
 ## Decision

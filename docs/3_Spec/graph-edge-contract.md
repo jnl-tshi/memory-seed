@@ -9,7 +9,7 @@ tags:
 
 # Decision-Graph Edge Contract
 
-**As of:** 2026-07-04 - control-plane `2.15`
+**As of:** 2026-07-10 - control-plane `2.16` (+ unreleased `evolves`/`continuity`/D5-D7 additions)
 
 This is the single reference for how Memory Seed's decision-graph edges and derived metrics are
 defined, computed, and read across every surface (CLI, MCP, Memory Trace, `links check`). It exists

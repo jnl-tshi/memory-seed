@@ -1,34 +1,42 @@
 # Next Steps
 
-Status: Active implementation-run brief
-Updated: 2026-07-08
+Status: Active implementation-run brief (goal run in progress)
+Updated: 2026-07-10
 Source: `docs/2_Todo/` active proposals, `docs/2_Todo/completed/` completed proposals,
-`docs/3_Spec/functionality-audit.md`, the 2026-07-07/2026-07-08 session entries, and the
-2026-07-08 inbox triage.
+`docs/3_Spec/functionality-audit.md`, the 2026-07-10 goal-run Phase 1 alignment audit
+(three-agent plan review + user decisions), and
+`goal-roadmap-refinement-and-staged-implementation.md`.
 
 ## Next Implementation Run Brief
 
-This section is the current source of truth for the next implementation run. Keep it small; older
-release history below is retained for context only.
+This section is the current source of truth for the current goal run
+(`goal-roadmap-refinement-and-staged-implementation.md`). Keep it small; older release history
+below is retained for context only.
 
-| Priority | Proposal | Why This Order |
+**Shipped since the 2026-07-08 brief (unreleased on `main`, pushed):** `session merge-branch`
+one-step integration; typed `evolves`/`evolved_by` edges; structured `continuity:` artifact
+lineage; rarity-weighted `F:` file-overlap suggest ranking with rename alias bridging;
+`memory_search` freshness fields; session-log-check escalation hardening; fuse rewriter spacing
+fix; authored-inverse-field append-only guard.
+
+**User-approved stage sequence (2026-07-10; one branch + one merge commit per stage, reversible):**
+
+| Stage | Work | Gate |
 |---|---|---|
-| P0 | `memory-trace-distribution-plan.md` | Finish release-ordering/publication follow-through: core 2.17 before `memory-trace 0.1.0`. |
-| P1 | `memory-trace-topic-neighbourhoods-plan.md` | Implement core per-project topic indexes and 1-3 indexed `topics:` per meaningful entry, while keeping Trace's tag/context topics as fallback for old entries. |
-| P2 | `readme-front-door-refresh-plan.md` | Polish launch-facing docs once the release-safety and Trace packaging blockers are settled. |
+| S1 (done in Phase 2) | Doc/status repairs from the alignment audit | - |
+| S2 | README hotfix: honest `memory-trace` install caveat + line-16 mojibake repair | approved |
+| S3 | Evolution-edges lineage seeding pass (new typed clarification entries) | user reviews each entry |
+| S4 | Core **2.17** release prep + cut | user approves the PyPI gate |
+| S5 | Topics P1 (`memory-trace-topic-neighbourhoods-plan.md`) - vocabulary derived from existing entry slugs, user-approved before write | approved |
+| S6 | Full README front-door refresh | placeholders acceptable |
 
-Immediate implementation target:
-
-1. Complete P0 release ordering: publish Memory Seed 2.17 before Memory Trace 0.1.0.
-2. Implement P1 after package boundaries are available to test against released core behavior.
-3. Complete P2 with real screenshots/GIFs where available and explicit placeholders otherwise.
-
-Active but not in the next small run unless reprioritized:
-
-- `session-decision-diagrams-plan.md` Phase 3 export packs.
-- `related-entries-p2-mutation-plan.md` historical curation writers.
-- `memory-trace-ai-timeline-summarisation-plan.md` AI-assisted evidence-pack summaries.
-- `fontjoy-typography-pairing.md` self-hosted heading/body font pairing for the Memory Trace UI (low-priority polish; ride the next Trace UI pass).
+**Deferred out of this run:** `memory-trace 0.1.0` publication (waits on user-created PyPI
+project + trusted publisher; a prepared workflow file ships in S4 so it is one step later);
+`session-decision-diagrams-plan.md` Phase 3 export packs; `related-entries-p2-mutation-plan.md`
+historical curation writers (boundary with the seeding pass reconciled 2026-07-10 - typed
+lifecycle history via seeding, untyped `related_entries` backfill via P2);
+`memory-trace-ai-timeline-summarisation-plan.md`; `fontjoy-typography-pairing.md` (rides the next
+Trace UI pass); the Trace lineage pass (evolves edges + continuity chains in Trail).
 
 Continuity naming for new work:
 

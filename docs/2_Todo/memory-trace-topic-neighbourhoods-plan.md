@@ -11,7 +11,13 @@ tags:
 
 # Memory Trace Topic Neighbourhoods Plan
 
-Status: ACTIVE - accepted for implementation; implementation not started.
+Status: ACTIVE - accepted for implementation; implementation not started. Two 2026-07-10 goal-run
+resolutions: (1) **starter vocabulary decision (was open):** this repository's
+`.memory-seed/topics.yaml` is derived from the ad-hoc `topics:` slugs already authored across
+existing session entries (41 entries carry them today, unvalidated - the plan's own topic-sprawl
+blind spot materialized before implementation), harvested, de-duplicated, and presented for user
+approval before writing; freshly seeded projects get a minimal generic starter instead.
+(2) Scheduled as a named stage of the current goal run, after the core 2.17 release stage.
 Priority: P3 after release-safety, encoding hardening, and Memory Trace package release ordering. It
 should run before AI timeline summarisation because topic filters become part of the evidence-pack
 contract.

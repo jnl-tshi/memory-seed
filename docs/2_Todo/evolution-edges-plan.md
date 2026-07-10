@@ -332,6 +332,11 @@ forward-only; nothing historical is edited) typing known history:
 
 Each seeded entry is a normal dated session entry citing its evidence.
 
+Boundary with [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md)
+(reconciled 2026-07-10): this pass writes new entries only and owns all typed lifecycle history;
+the P2 plan's explicit backfill mutates existing entries' YAML for untyped `related_entries` only.
+Neither substitutes for the other.
+
 ## Explicitly deferred
 
 - **Trace lineage pass** (one named follow-up, not scattered notes): render `evolves` edges and

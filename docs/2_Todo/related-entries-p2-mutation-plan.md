@@ -21,6 +21,13 @@ tags:
 > **Non-goals:** No silent rewriting of historical entry prose. No automatic graph generation. No
 > Memory Trace write/curation UI. No ranking changes. No sidecar graph store unless the in-entry approach
 > proves insufficient during implementation.
+> **Boundary with the evolution-edges seeding pass (reconciled 2026-07-10):** the two mechanisms
+> are complementary and must not blur. The lineage seeding pass in
+> [`evolution-edges-plan.md`](evolution-edges-plan.md) writes **new** clarification entries that
+> declare typed `evolves`/`supersedes`/`continuity` against old entries - zero bytes of history
+> change, no mutation machinery needed. This plan's backfill mutates **existing** old entries'
+> YAML for untyped `related_entries` only. Typed lifecycle history always goes through the seeding
+> pass; this plan never writes `evolves`/`supersedes`/`continuity` into historical entries.
 > **Dependencies:** P1 related-entry graph surfaces are shipped in 2.13.0; `links check` already
 > validates dangling `related_entries` across both session layouts.
 > **Acceptance criteria:** see below.
