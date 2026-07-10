@@ -585,7 +585,11 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn("graphTransform", script)
         self.assertIn("graphHover", script)
         self.assertIn("hashString", script)
-        self.assertIn("degreePull", script)
+        # Force-directed layout (FR repulsion + weighted attraction + collision),
+        # deterministic and cached - replaces the attraction-only hash scatter.
+        self.assertIn("graphForceLayout", script)
+        self.assertIn("repulsion", script)
+        self.assertIn("graphLayoutCache", script)
         self.assertIn("graphTitle", script)
         self.assertIn("clearGraphHover", script)
         self.assertIn("graph-hit", script)

@@ -399,15 +399,25 @@ function graphView() {
         const marker = edge.type === "supersedes" ? ' marker-end="url(#arrow-supersedes)"' : "";
         return `<line class="graph-edge graph-edge-${edge.type} ${highlight ? "graph-related" : ""} ${dim ? "graph-dim" : ""}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${edgeColor(edge.type)}" stroke-width="${width}"${dash}${marker}></line>`;
       }).join("")}
-      ${graph.nodes.map((node, index) => {
-        const p = positions[node.id];
-        const selected = node.chunk_id === state.selectedId || node.id === state.selected?.entry_id;
-        const highlight = state.graphHover && (node.id === state.graphHover || related.has(node.id));
-        const dim = state.graphHover && !highlight;
-        const sizeVal = state.graphSizeMode === "importance" ? Number(node.importance_score || 0) : Number(node.connectivity || 0);
-        const radius = selected ? 18 : Math.min(16, 7 + sizeVal * 2.2);
-        return `<g class="graph-node ${highlight ? "graph-related" : ""} ${dim ? "graph-dim" : ""}" data-node-id="${escAttr(node.id)}" data-chunk="${escAttr(node.chunk_id)}"><circle class="graph-hit" cx="${p.x}" cy="${p.y}" r="${Math.max(radius + 10, 20)}"></circle><circle cx="${p.x}" cy="${p.y}" r="${radius}" fill="${agentColor(node.agent)}" stroke="${selected ? "var(--accent)" : "var(--bg)"}" stroke-width="3"></circle><text class="graph-label" data-graph-label x="${p.x}" y="${p.y - 15}" text-anchor="middle">${esc(graphTitle(node.title))}</text><title>${esc(node.title)}</title></g>`;
-      }).join("")}
+      ${(() => {
+        // Progressive disclosure: labels are shown for the hovered node, its
+        // neighbourhood, the selection, and the top-connected nodes only -
+        // 260 always-on labels are unreadable. Tooltips carry the rest.
+        const sizeOf = (node) => (state.graphSizeMode === "importance" ? Number(node.importance_score || 0) : Number(node.connectivity || 0));
+        const ranked = graph.nodes.map(sizeOf).sort((a, b) => b - a);
+        const labelCut = Math.max(ranked[Math.min(14, ranked.length - 1)] ?? 0, 0.001);
+        return graph.nodes.map((node) => {
+          const p = positions[node.id];
+          const selected = node.chunk_id === state.selectedId || node.id === state.selected?.entry_id;
+          const highlight = state.graphHover && (node.id === state.graphHover || related.has(node.id));
+          const dim = state.graphHover && !highlight;
+          const sizeVal = sizeOf(node);
+          const radius = selected ? 18 : Math.min(16, 7 + sizeVal * 2.2);
+          const showLabel = selected || highlight || sizeVal >= labelCut;
+          const label = showLabel ? `<text class="graph-label" data-graph-label x="${p.x}" y="${p.y - 15}" text-anchor="middle">${esc(graphTitle(node.title))}</text>` : "";
+          return `<g class="graph-node ${highlight ? "graph-related" : ""} ${dim ? "graph-dim" : ""}" data-node-id="${escAttr(node.id)}" data-chunk="${escAttr(node.chunk_id)}"><circle class="graph-hit" cx="${p.x}" cy="${p.y}" r="${Math.max(radius + 10, 20)}"></circle><circle cx="${p.x}" cy="${p.y}" r="${radius}" fill="${agentColor(node.agent)}" stroke="${selected ? "var(--accent)" : "var(--bg)"}" stroke-width="3"></circle>${label}<title>${esc(node.title)}</title></g>`;
+        }).join("");
+      })()}
       </g>
       </svg>
     </div>`;
@@ -1151,63 +1161,152 @@ function cssEscape(value) {
   return String(value).replace(/["\\]/g, "\\$&");
 }
 
+// Force-directed layout: Fruchterman-Reingold repulsion + weighted link
+// attraction + centering gravity + a collision pass (the d3-force recipe,
+// hand-rolled to stay dependency-free). The old layout had attraction only,
+// so unrelated nodes clumped. Hash-seeded start keeps it deterministic;
+// positions are cached per dataset so pan/hover re-renders never recompute.
+let graphLayoutCache = { key: "", positions: null };
+
 function graphPositions(nodes, edges = []) {
-  const positions = {};
-  const centerX = 500;
-  const centerY = 310;
-  const links = graphDegrees({ edges });
-  const layoutLinks = layoutSimilarityLinks(nodes, edges);
+  const key = `${nodes.length}|${edges.length}|${nodes[0]?.id || ""}|${nodes[nodes.length - 1]?.id || ""}`;
+  if (graphLayoutCache.key === key && graphLayoutCache.positions) return graphLayoutCache.positions;
+  const positions = graphForceLayout(nodes, edges);
+  graphLayoutCache = { key, positions };
+  return positions;
+}
+
+function graphForceLayout(nodes, edges) {
+  const width = 1000;
+  const height = 620;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const count = Math.max(1, nodes.length);
+  const k = Math.max(34, Math.min(90, Math.sqrt((width * height) / count) * 0.9));
+  const pos = {};
   nodes.forEach((node, index) => {
     const seed = hashString(node.id || `${index}`);
     const angle = ((seed % 3600) / 3600) * Math.PI * 2;
-    const ring = 0.22 + (((seed >>> 8) % 1000) / 1000) * 0.78;
-    const degreePull = Math.max(0.55, 1 - (links[node.id] || 0) * 0.025);
-    const wobbleX = (((seed >>> 18) % 1000) / 1000 - 0.5) * 72;
-    const wobbleY = (((seed >>> 28) % 1000) / 1000 - 0.5) * 52;
-    positions[node.id] = {
-      x: centerX + Math.cos(angle) * 420 * ring * degreePull + wobbleX,
-      y: centerY + Math.sin(angle) * 250 * ring * degreePull + wobbleY,
+    const ring = 0.25 + (((seed >>> 8) % 1000) / 1000) * 0.75;
+    pos[node.id] = {
+      x: centerX + Math.cos(angle) * 420 * ring,
+      y: centerY + Math.sin(angle) * 260 * ring,
     };
   });
-  for (let pass = 0; pass < 3; pass += 1) {
-    layoutLinks.forEach((edge) => {
-      const a = positions[edge.source], b = positions[edge.target];
-      if (!a || !b) return;
-      const midX = (a.x + b.x) / 2;
-      const midY = (a.y + b.y) / 2;
-      const strength = edge.strength || 0.03;
-      a.x += (midX - a.x) * strength;
-      a.y += (midY - a.y) * strength;
-      b.x += (midX - b.x) * strength;
-      b.y += (midY - b.y) * strength;
+  const ids = nodes.map((node) => node.id).filter((id) => pos[id]);
+  const links = layoutSimilarityLinks(nodes, edges).filter((link) => pos[link.source] && pos[link.target]);
+  let temperature = width / 8;
+  const iterations = 120;
+  for (let iter = 0; iter < iterations; iter += 1) {
+    const disp = {};
+    ids.forEach((id) => {
+      disp[id] = { x: 0, y: 0 };
     });
+    for (let i = 0; i < ids.length; i += 1) {
+      for (let j = i + 1; j < ids.length; j += 1) {
+        const a = pos[ids[i]];
+        const b = pos[ids[j]];
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let dist = Math.hypot(dx, dy);
+        if (dist < 0.01) {
+          dx = (((hashString(ids[i]) >>> 4) % 7) - 3) * 0.1 || 0.1;
+          dy = 0.1;
+          dist = Math.hypot(dx, dy);
+        }
+        const repulsion = (k * k) / dist;
+        disp[ids[i]].x += (dx / dist) * repulsion;
+        disp[ids[i]].y += (dy / dist) * repulsion;
+        disp[ids[j]].x -= (dx / dist) * repulsion;
+        disp[ids[j]].y -= (dy / dist) * repulsion;
+      }
+    }
+    links.forEach((link) => {
+      const a = pos[link.source];
+      const b = pos[link.target];
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      const dist = Math.max(0.01, Math.hypot(dx, dy));
+      const weight = Math.min(1, (link.strength || 0.03) * 14);
+      const attraction = ((dist * dist) / k) * weight;
+      disp[link.source].x -= (dx / dist) * attraction;
+      disp[link.source].y -= (dy / dist) * attraction;
+      disp[link.target].x += (dx / dist) * attraction;
+      disp[link.target].y += (dy / dist) * attraction;
+    });
+    ids.forEach((id) => {
+      const point = pos[id];
+      // Gentle centering keeps disconnected clusters on canvas.
+      disp[id].x += (centerX - point.x) * 0.04;
+      disp[id].y += (centerY - point.y) * 0.04;
+      const magnitude = Math.max(0.01, Math.hypot(disp[id].x, disp[id].y));
+      const limited = Math.min(magnitude, temperature);
+      point.x += (disp[id].x / magnitude) * limited;
+      point.y += (disp[id].y / magnitude) * limited;
+      point.x = Math.max(24, Math.min(width - 24, point.x));
+      point.y = Math.max(24, Math.min(height - 24, point.y));
+    });
+    temperature = Math.max(2, temperature * 0.95);
   }
-  return positions;
+  // Collision pass: labels need breathing room beyond point separation.
+  const minSeparation = 30;
+  for (let pass = 0; pass < 10; pass += 1) {
+    for (let i = 0; i < ids.length; i += 1) {
+      for (let j = i + 1; j < ids.length; j += 1) {
+        const a = pos[ids[i]];
+        const b = pos[ids[j]];
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let dist = Math.hypot(dx, dy);
+        if (dist >= minSeparation) continue;
+        if (dist < 0.01) {
+          dx = (((hashString(ids[i]) >>> 6) % 7) - 3) * 0.1 || 0.1;
+          dy = 0.1;
+          dist = Math.hypot(dx, dy);
+        }
+        const push = (minSeparation - dist) / 2;
+        a.x += (dx / dist) * push;
+        a.y += (dy / dist) * push;
+        b.x -= (dx / dist) * push;
+        b.y -= (dy / dist) * push;
+      }
+    }
+  }
+  return pos;
 }
 
 function layoutSimilarityLinks(nodes, edges) {
   const visible = new Set(nodes.map((node) => node.id));
   const links = [];
   const seen = new Set();
-  edges.filter((edge) => edge.type === "related").forEach((edge) => {
-    if (!visible.has(edge.source) || !visible.has(edge.target)) return;
-    const key = [edge.source, edge.target].sort().join("|");
+  const push = (source, target, strength) => {
+    const key = [source, target].sort().join("|");
     if (seen.has(key)) return;
     seen.add(key);
-    links.push({ source: edge.source, target: edge.target, strength: 0.075 });
+    links.push({ source, target, strength });
+  };
+  edges.filter((edge) => edge.type === "related").forEach((edge) => {
+    if (!visible.has(edge.source) || !visible.has(edge.target)) return;
+    push(edge.source, edge.target, 0.075);
   });
+  // Sparse similarity attraction: each node pulls only toward its top-3
+  // topic neighbours (date proximity is a tie-break boost, never a link by
+  // itself). The old all-pairs link set collapsed the force layout into a
+  // hairball on burst-heavy corpora where most entries share a date window.
+  const byNode = new Map(nodes.map((node) => [node.id, []]));
   for (let i = 0; i < nodes.length; i += 1) {
     for (let j = i + 1; j < nodes.length; j += 1) {
       const topicScore = sharedTopicScore(nodes[i], nodes[j]);
-      const dateScore = dateProximityScore(nodes[i], nodes[j]);
-      const strength = topicScore * 0.045 + dateScore * 0.026;
-      if (strength <= 0.01) continue;
-      const key = [nodes[i].id, nodes[j].id].sort().join("|");
-      if (seen.has(key)) continue;
-      seen.add(key);
-      links.push({ source: nodes[i].id, target: nodes[j].id, strength });
+      if (topicScore <= 0.15) continue;
+      const score = topicScore * (1 + dateProximityScore(nodes[i], nodes[j]) * 0.3);
+      byNode.get(nodes[i].id).push({ other: nodes[j].id, score });
+      byNode.get(nodes[j].id).push({ other: nodes[i].id, score });
     }
   }
+  byNode.forEach((candidates, id) => {
+    candidates.sort((a, b) => b.score - a.score);
+    candidates.slice(0, 3).forEach((candidate) => push(id, candidate.other, 0.03 + candidate.score * 0.03));
+  });
   return links;
 }
 
@@ -1239,15 +1338,6 @@ function graphRelatedIds(graph, nodeId) {
     if (edge.target === nodeId) related.add(edge.source);
   });
   return related;
-}
-
-function graphDegrees(graph) {
-  const degree = {};
-  graph.edges.forEach((edge) => {
-    degree[edge.source] = (degree[edge.source] || 0) + 1;
-    degree[edge.target] = (degree[edge.target] || 0) + 1;
-  });
-  return degree;
 }
 
 // Entry titles start with their timestamp; every list view already shows the
