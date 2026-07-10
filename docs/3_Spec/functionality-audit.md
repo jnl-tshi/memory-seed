@@ -159,6 +159,8 @@ graph TD
 | `session merge-branch --branch <branch> [--dry-run]` | One-step branch integration: fuse dry-run gate, `git merge --no-ff --no-commit`, session-path reset, fuse apply, stage, commit. Fails closed: fuse issues abort before the merge starts; non-session conflicts leave the merge in progress. Requires a clean working tree. |
 | `branch status [--json]` | Read-only: report current Git branch/worktree posture and warn when distinct feature work should move to a task branch with `--no-ff` integration. |
 | `links check` | Validate session-memory integrity across both layouts (duplicate/dangling IDs, per-user frontmatter problems); exits non-zero on any issue (new in 2.12). |
+| `topics list` | Show the controlled topic vocabulary from `.memory-seed/topics.yaml` (canonical slugs, aliases, status). |
+| `topics check` | Validate the vocabulary and entry `topics:` usage: unknown/malformed/duplicate/collision errors, deprecated-use and >3-count warnings, unused-topic info; exit 1 on any error. Separate from `links check` - topics are membership, not an edge kind. |
 | `migrate sessions-layout [--dry-run]` | Split legacy flat session files into grouped per-user files using `project.yaml` participants; preserves entry IDs, backs up before removing migrated sources. |
 | `migrate sessions-month-layout [--dry-run]` | Explicitly move old flat/day session files and old diagram sidecars into `YYYY-MM/` folders with backups; never automatic. |
 | `link suggest [--for <entry_id>] [--top-k N]` | Read-only: rank older candidate entries to link from a target entry; prints a paste-ready `related_entries:` snippet (new in 2.13). |

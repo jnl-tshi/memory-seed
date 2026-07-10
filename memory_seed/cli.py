@@ -227,6 +227,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     branch_status_parser.add_argument("--json", action="store_true", help="emit machine-readable status")
 
+    topics_parser = subparsers.add_parser("topics", help="inspect and validate the controlled topic vocabulary")
+    topics_sub = topics_parser.add_subparsers(dest="topics_command", required=True)
+    topics_sub.add_parser("list", help="show the topics defined in .memory-seed/topics.yaml")
+    topics_sub.add_parser(
+        "check",
+        help="validate vocabulary shape and entry topics: usage (exit 1 on any error)",
+    )
+
     links_parser = subparsers.add_parser("links", help="validate session-memory integrity")
     links_sub = links_parser.add_subparsers(dest="links_command", required=True)
     links_sub.add_parser(
@@ -597,6 +605,37 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"Backed up: {backup.as_posix()}")
             print("Session files migrated to month folders.")
             return 0
+
+    if args.command == "topics":
+        from .topics import check_topics, load_topic_index
+
+        if args.topics_command == "list":
+            index = load_topic_index(Path(".").resolve())
+            if not index.exists:
+                print(f"No topic index found at {index.path}.")
+                return 1
+            print(f"{index.path} (schema_version {index.schema_version or '?'}, {len(index.topics)} topics):")
+            for record in index.topics:
+                status = "" if record.status == "active" else f"  [{record.status}]"
+                aliases = f"  (aliases: {', '.join(record.aliases)})" if record.aliases else ""
+                print(f"  {record.slug}{status}{aliases}")
+                if record.description:
+                    print(f"    {record.description}")
+            return 0
+        if args.topics_command == "check":
+            result = check_topics(Path(".").resolve())
+            for issue in result.issues:
+                where = f" ({issue.source})" if issue.source else ""
+                print(f"  [{issue.severity}] {issue.kind}: {issue.detail}{where}")
+            print(
+                f"Topics check: {result.topics_defined} topics defined, "
+                f"{result.entries_checked} entries with topics checked."
+            )
+            if result.ok:
+                print("Topic vocabulary OK.")
+                return 0
+            print("Topic vocabulary has errors.", file=sys.stderr)
+            return 1
 
     if args.command == "link":
         from .semantic_cache import build_related_entry_graph, suggest_related_entries

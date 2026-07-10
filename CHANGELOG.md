@@ -4,6 +4,21 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Implemented indexed topics P1 (topic-neighbourhoods plan, Phases 0-3): meaningful session
+  entries carry 1-3 `topics:` slugs resolved against the new deploy-once project-local
+  `.memory-seed/topics.yaml` vocabulary (canonical slugs + aliases, slug rule
+  `^[a-z0-9][a-z0-9_-]{0,63}$`, `update` never overwrites project curation; seeded projects get a
+  minimal generic starter). `MemoryChunk.topics` parses the stored field; retrieval dicts expose
+  it; `memory_search` gains an opt-in alias-expanded `topics` pre-ranking filter (fail-open, no
+  effect when unused). New `memory-seed topics list` and `memory-seed topics check` commands
+  validate the vocabulary and entry usage (unknown/malformed/duplicate/collision errors;
+  deprecated-use and >3-count warnings; unused-topic info) - deliberately separate from
+  `links check`, since topics are membership, not a graph edge kind. `session_logging.md`
+  (live + seed) documents the field and the read-the-index-first authoring rule. This repo's own
+  vocabulary was derived from the 62 slugs already in use (user-approved 19-canonical
+  consolidation with every observed slug preserved as canonical or alias). Trace rendering of
+  indexed topics and MCP topic-management tools stay deferred (plan Phase 4).
+
 ## 2.17.0 - 2026-07-10
 
 - Recorded two shipped-but-unchangelogged features found by the 2026-07-10 goal-run review:

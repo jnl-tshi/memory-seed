@@ -73,6 +73,11 @@ TOOLS: list[dict[str, Any]] = [
                     "default": False,
                     "description": "Opt-in: drop entries that a later decision has superseded (non-empty superseded_by). Off by default - superseded entries stay retrievable.",
                 },
+                "topics": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Opt-in pre-ranking filter: keep only entries whose stored topics: match one of these slugs (aliases from .memory-seed/topics.yaml resolve both ways). Unknown slugs narrow, never error.",
+                },
             },
             "required": ["query"],
         },
@@ -191,6 +196,7 @@ def call_tool(
             date_from=_optional_date(args, "date_from"),
             date_to=_optional_date(args, "date_to"),
             exclude_superseded=bool(args.get("exclude_superseded", False)),
+            topics=list(args.get("topics") or []) or None,
         )
 
     if name == "memory_link_suggest":

@@ -2197,6 +2197,9 @@ SEED_FILES = [
         ".memory-seed/agent-rules.md",
     ),
     SeedFile(SEED_ROOT / MEMORY_DIR_NAME / "archive" / ".gitkeep", ".memory-seed/archive/.gitkeep"),
+    # Deploy-once project-local topic vocabulary (destination is runtime-local
+    # under .memory-seed/, so update never overwrites project curation).
+    SeedFile(SEED_ROOT / MEMORY_DIR_NAME / "topics.yaml", ".memory-seed/topics.yaml"),
     SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "project-bootstrap.md",
         ".memory-seed/project-bootstrap.md",

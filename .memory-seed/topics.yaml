@@ -1,0 +1,102 @@
+schema_version: 1
+# Project-local controlled topic vocabulary (memory-trace-topic-neighbourhoods-plan.md).
+# Derived 2026-07-10 from the slugs already authored across 50 session entries, consolidated to
+# 19 canonical topics with every observed slug preserved as canonical or alias (user-approved).
+# Deploy-once: `memory-seed update` never overwrites this file. Aliases resolve at read time;
+# `memory-seed topics check` errors only on slugs found in neither column.
+topics:
+  - slug: git-workflow
+    label: Git Workflow
+    description: Branching, merging, integration topology, and push/publish mechanics.
+    status: active
+    aliases: [merge, branch-history, git-publishing]
+  - slug: session-fuse
+    label: Session Fuse
+    description: Branch-session fuse and merge-branch integration machinery.
+    status: active
+    aliases: []
+  - slug: session-logging
+    label: Session Logging
+    description: Entry authoring, DRAFT discipline, harvest, and append-only chronology.
+    status: active
+    aliases: [session-authoring, decision-harvest, append-only, backfill]
+  - slug: graph
+    label: Decision Graph
+    description: Related-entry edges, lifecycle edges, continuity lineage, and graph schema.
+    status: active
+    aliases: [related-entries, supersession, continuity, schema, topics]
+  - slug: proposal-lifecycle
+    label: Proposal Lifecycle
+    description: Roadmap, proposals, goals, and docs-lifecycle movement.
+    status: active
+    aliases: [proposal, roadmap, goal]
+  - slug: release
+    label: Release
+    description: Version cuts, changelog folds, packaging, and publish gates.
+    status: active
+    aliases: [release-packaging, release-preflight, changelog]
+  - slug: documentation
+    label: Documentation
+    description: README, audits, and public-facing docs accuracy.
+    status: active
+    aliases: [readme, functionality-audit, audit, document-ingestion]
+  - slug: session-layout
+    label: Session Layout
+    description: Session file layouts, migrations, and multi-user structure.
+    status: active
+    aliases: [migration, multi-user-sessions]
+  - slug: mcp-tools
+    label: MCP And CLI Tools
+    description: MCP tool surface and CLI command design.
+    status: active
+    aliases: [cli, cli-audit]
+  - slug: retrieval
+    label: Retrieval
+    description: Search, ranking, and the public retrieval service.
+    status: active
+    aliases: []
+  - slug: windows-encoding
+    label: Windows Encoding
+    description: UTF-8 policy, cp1252 hazards, and encoding hygiene.
+    status: active
+    aliases: [encoding-hygiene]
+  - slug: mermaid
+    label: Mermaid Diagrams
+    description: Decision-diagram sidecars and diagram authoring.
+    status: active
+    aliases: [mermaid-sidecars, diagram-sidecars]
+  - slug: agent-collaboration
+    label: Agent Collaboration
+    description: Subagents, worktrees, task packets, and multi-agent hazards.
+    status: active
+    aliases: [team-collaboration, windows-worktree-hazard]
+  - slug: hooks
+    label: Lifecycle Hooks
+    description: Session-start, prompt, and stop hooks.
+    status: active
+    aliases: []
+  - slug: memory-trace
+    label: Memory Trace
+    description: The companion review UI package and its views.
+    status: active
+    aliases: [memory-trace-ui]
+  - slug: control-plane
+    label: Control Plane
+    description: Agent rules, skills governance, and reusable runtime files.
+    status: active
+    aliases: [agent-rules, skill-architecture, governance-profile, lazy-loading]
+  - slug: process-management
+    label: Process Management
+    description: Package process discovery, shutdown, and upgrade workflows.
+    status: active
+    aliases: [processes, upgrade-workflow]
+  - slug: bugfix
+    label: Bug Fixes
+    description: Defect repairs, corrections, and cleanup passes.
+    status: active
+    aliases: [process-correction, memory-repair, cleanup]
+  - slug: tooling-evaluation
+    label: Tooling Evaluation
+    description: External tool/library assessment and licensing checks.
+    status: active
+    aliases: [design-evaluation, licensing]
