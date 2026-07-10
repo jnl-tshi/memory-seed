@@ -19,11 +19,15 @@ canonical chunk model, one canonical ranking service.
 
 ## Install
 
+> **Not yet on PyPI.** `memory-trace 0.1.0` publishes after the core `memory-seed 2.17` release.
+> Until then, install from a clone of the parent repository:
+
 ```bash
-pip install memory-trace
+pip install ./memory-trace
 ```
 
-This pulls `memory-seed` (plus `fastapi`/`uvicorn`) automatically.
+Once published this becomes `pip install memory-trace`. Either form pulls `memory-seed` (plus
+`fastapi`/`uvicorn`) automatically.
 
 ## Use
 
