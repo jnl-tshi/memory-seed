@@ -20,6 +20,16 @@ All notable changes to Memory Seed are summarized here.
   `history_retrieval.md`, and keep all session writing on the CLI/direct-file path. The CLI `session`
   group help was relabeled to cover its write-capable `fuse` subcommand, and the two `migrate`
   subcommands now cross-reference each other.
+- Added a warning-only `memory-seed branch status [--json]` command that reports current Git
+  branch/worktree posture and recommends a task branch plus `git merge --no-ff` when distinct
+  feature or proposal work is happening directly on the integration branch. No hard block — small
+  fixes, release prep, and emergency repairs may still proceed on the integration branch.
+- Tightened session-log closeout: `session_logging.md`/`end_of_turn.md` now route through an
+  explicit **Decision Harvest** step before choosing the entry shape (single DRAFT vs. multi-decision
+  D1/D2), so durable choices made in a turn are captured individually rather than compressed into one
+  broad record. Decision-diagram sidecar guidance changed from an optional consideration to a
+  **positive trigger** for branch/merge topology, old-to-new layout migrations, schema/compatibility
+  flows, multi-agent concurrency, command lifecycle flows, and retrieval/data pipeline decisions.
 - Added the Phase 1 UTF-8 text contract: `.editorconfig`, `.gitattributes`, `memory_seed.text_files`
   helpers for UTF-8/LF/NFC text and Unicode-preserving JSON, README documentation, MCP
   Unicode-preserving JSON output, and regression tests for non-ASCII round trips.
