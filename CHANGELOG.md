@@ -4,6 +4,18 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Added `memory-seed session merge-branch --branch <branch> [--dry-run]`: one-step task-branch
+  integration that wraps the previously manual dance (fuse dry-run, `git merge --no-ff
+  --no-commit`, `session fuse --apply`, commit) so session entries always land in timestamp order
+  without a separate fuse step to forget - added after two real incidents where skipping that step
+  let raw git line-merges land entries out of chronological order. Fails closed: fuse issues abort
+  before any merge state exists; non-session conflicts leave the merge in progress for manual
+  resolution (never `merge --abort`); branch-touched session paths are reset to base content before
+  the fuse apply, which defeats both conflict markers and silent out-of-order auto-merges; requires
+  a clean working tree and names the dirty paths when refusing. `agent_collaboration.md` (live +
+  seed) now routes integration through `session merge-branch` first, keeping `session fuse` as the
+  lower-level primitive for manually inspected merges. No new MCP tool: MCP stays read-only for
+  this workflow.
 - Hardened the `session-log-check.py` Stop hook against reminders going unaddressed: a gitignored
   `.memory-seed/.session-log-check-state` (fail-open on corruption) tracks consecutive stale checks
   with no new session entry appearing in between, escalating from the base reminder to explicit

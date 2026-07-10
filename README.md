@@ -291,7 +291,7 @@ uvx --from memory-seed memory-seed init --dry-run
 uvx --from memory-seed memory-seed update --dry-run
 uvx --from memory-seed memory-seed compact
 uvx --from memory-seed memory-seed branch status
-uvx --from memory-seed memory-seed session fuse --branch <branch>
+uvx --from memory-seed memory-seed session merge-branch --branch <branch>
 ```
 
 Use `uv tool install memory-seed` when you want Memory Seed installed persistently as a local machine tool with console scripts on PATH:
@@ -340,11 +340,17 @@ It warns when feature-like work appears to be happening on an integration branch
 or creates branches automatically. For visible topology, work on a task branch/worktree and merge
 back with `git merge --no-ff`.
 
-Use `memory-seed session fuse --branch <branch>` before promoting a task branch that contains
-branch-local session entries or diagram sidecars. It is a dry-run by default. Apply mode requires an
-in-progress `git merge --no-ff --no-commit <branch>` and only imports validated branch-only entries
-whose YAML `branch:` matches the source branch. Diagram sidecars are imported only when their parent
-entry already exists on the base branch or is accepted for promotion in the same fuse.
+Use `memory-seed session merge-branch --branch <branch>` to promote a task branch that contains
+branch-local session entries or diagram sidecars: it dry-runs the fuse, merges with
+`git merge --no-ff --no-commit`, applies the fuse, and commits in one step, so session entries land
+in timestamp order without a separate manual fuse step. Fuse issues abort before the merge starts;
+non-session conflicts leave the merge in progress for manual resolution.
+
+The lower-level `memory-seed session fuse --branch <branch>` remains available for manually
+inspected merges. It is a dry-run by default. Apply mode requires an in-progress
+`git merge --no-ff --no-commit <branch>` and only imports validated branch-only entries whose YAML
+`branch:` matches the source branch. Diagram sidecars are imported only when their parent entry
+already exists on the base branch or is accepted for promotion in the same fuse.
 
 From this repository checkout, run:
 
@@ -360,7 +366,7 @@ python -m memory_seed.cli encoding repair --dry-run
 python -m memory_seed.cli init --dry-run
 python -m memory_seed.cli update --dry-run
 python -m memory_seed.cli compact
-python -m memory_seed.cli session fuse --branch <branch>
+python -m memory_seed.cli session merge-branch --branch <branch>
 ```
 
 The `init` command copies only the reusable seed files into the current folder:
@@ -496,6 +502,7 @@ When run in a project that already has Memory Seed files:
 - `memory-seed migrate sessions-layout [--dry-run]` splits legacy flat session files into grouped per-user files using `.memory-seed/project.yaml` participants, backs up migrated sources, and refuses ambiguous or unsafe merges.
 - `memory-seed migrate sessions-month-layout [--dry-run]` moves old flat/day session files and old diagram sidecars into grouped `YYYY-MM/` folders. It backs up sources, removes migrated originals after successful writes, and is never automatic.
 - `memory-seed session fuse --branch <branch> [--base <ref>] [--apply]` dry-runs or applies branch-local session entries and sidecars into the current integration tree. It blocks missing or mismatched `branch:` metadata, missing/duplicate `entry_id` values, edits to existing entries or sidecars, non-chronological targets, and sidecars without a parent entry already on the base branch or accepted for promotion in the same fuse. `--apply` requires an in-progress merge and normalizes imported files to the grouped layout.
+- `memory-seed session merge-branch --branch <branch> [--dry-run]` wraps the whole integration dance in one command: fuse dry-run gate, `git merge --no-ff --no-commit`, session-path reset to base content, fuse apply, stage, and merge commit. Fuse issues abort before the merge ever starts; non-session conflicts leave the merge in progress for manual resolution (never `merge --abort`); session files always land timestamp-sorted regardless of how git would have line-merged them. Requires a clean working tree.
 - `memory-seed link suggest [--for <entry_id>] [--top-k N]` ranks older session entries to link from a target entry (default: the newest entry), skips the target and its already-linked entries, and prints a copy-pasteable `related_entries:` snippet. Read-only.
 - `memory-seed link show <entry_id>` prints an entry's stored outbound `related_entries` plus its computed inbound backlinks, so the related-entry graph is bidirectional at read time without editing any historical entry. Read-only.
 - `memory-seed processes [--json]` lists active package-owned Memory Seed processes.

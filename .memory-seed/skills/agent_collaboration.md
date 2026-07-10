@@ -112,7 +112,7 @@ Gates, in order:
 4. **Worker Identity Gate.** Before a worker touches any file, it reports the packet's `preflight` output; the orchestrator verifies it matches the intended worktree and `base_sha` before the worker proceeds.
 5. **Worktree Gate.** Parallel code-writing workers get separate worktrees, each with a bounded task packet. Workers never touch shared memory/session/control-plane files unless explicitly assigned — those stay orchestrator-owned per `shared_file_policy`.
 6. **Pre-Review Validation Gate.** Each worker commits its own work and reports changed files, checks run, failures, skipped checks and why, and known risks *before* review. No uncommitted worker state gets integrated.
-7. **Integration Gate.** The orchestrator merges worker branches one at a time into an integration branch, inspects the diff after each merge, resolves conflicts only via the named owner, and reruns targeted validation. No octopus merges for code. When branch-local session entries or diagram sidecars exist, dry-run `memory-seed session fuse --branch <branch>` before promotion; apply it only during the inspected merge.
+7. **Integration Gate.** The orchestrator merges worker branches one at a time into an integration branch, inspects the diff after each merge, resolves conflicts only via the named owner, and reruns targeted validation. No octopus merges for code. When branch-local session entries or diagram sidecars exist, integrate that branch with `memory-seed session merge-branch --branch <branch>` — it dry-runs the fuse, performs the `--no-ff` merge, applies the fuse, and commits in one gated step. The lower-level `session fuse` dry-run/`--apply` pair remains available for manually inspected merges.
 8. **Bounded Review-to-Rework Loop.** An independent validator (same strong tier as planning) reviews the integrated diff against the plan. Findings route back to the Worktree Gate for revision, tracked by `review_loop.current_iteration` and capped at `max_iterations` (default 2) — then automation stops and produces a human decision summary. The loop must not restart exploration or planning automatically.
 9. **Final Handoff Gate.** The orchestrator (never the workers) writes the integration artifact and the handoff session entry: base SHA, worker branches/worktrees, validation evidence, review result, unresolved risks. Workers' reported commit hashes belong in the handoff entry's records. Set the entry's optional `branch:` field (see `session_logging.md`) from the Task Packet's `working_branch` — a durable record-time label, not a worktree path.
 
@@ -140,15 +140,20 @@ multiple writing agents work on different features at the same time.
   reviewers, and validators may share the current tree because they do not write commits.
 - Integrate completed task branches one at a time with `git merge --no-ff <branch>` when the desired
   outcome is a visible branch-and-merge graph. Avoid squash, rebase, or fast-forward integration when
-  preserving branch shape matters.
+  preserving branch shape matters. When the branch carries session entries or diagram sidecars,
+  prefer `memory-seed session merge-branch --branch <branch>`, which performs the same `--no-ff`
+  merge and fuses the session memory in one step.
 - Do not delete task branches before the final handoff if the user wants the branch labels visible in
   local tools. If branches are later deleted, merge commits still preserve topology, but branch labels
   disappear.
 - Before feature work starts, run `memory-seed branch status` when available. Treat warnings as a
   prompt to create or switch to a task branch, not as a hard block.
-- Before promoting branch-local memory, run `memory-seed session fuse --branch <branch>` from the
-  integration tree. The dry-run reports entries, sidecars, and source paths that would be normalized.
-  `--apply` requires an in-progress `git merge --no-ff --no-commit <branch>`.
+- To promote branch-local memory, run `memory-seed session merge-branch --branch <branch>` from the
+  integration tree: it dry-runs the fuse, merges with `--no-ff`, applies the fuse, and commits —
+  failing closed (fuse issues abort before the merge starts; non-session conflicts leave the merge
+  in progress for the named conflict owner). For a manually inspected merge, the lower-level
+  `session fuse --branch <branch>` dry-run remains available; its `--apply` requires an in-progress
+  `git merge --no-ff --no-commit <branch>`.
 - Final handoff records the base SHA, task branch, worktree path, merge method (`--no-ff` when used),
   merge commit if available, validation, and unresolved risks.
 
@@ -165,15 +170,17 @@ falling back to shell commands:
   Treat `ok: false` or any `issues` as a merge blocker until the orchestrator or user resolves them.
 - MCP remains read-only for this workflow. Do not expect it to apply a fuse, delete source files, or
   complete a merge. Use the returned `merge_checkpoint_command` and `apply_command` as operator
-  guidance, then apply through the CLI only during an in-progress inspected merge.
+  guidance, then either run `memory-seed session merge-branch --branch <branch>` for the one-step
+  merge+fuse+commit, or apply through `session fuse --apply` only during an in-progress inspected
+  merge.
 - A previewed diagram sidecar is valid only when its parent entry already exists on the base/main tree
   or the parent branch entry is accepted for promotion in the same preview. Orphan or malformed
   sidecars must block promotion.
 
 If MCP tools are unavailable, run `memory-seed branch status` and
-`memory-seed session fuse --branch <branch>` directly from the integration tree and report the same
-fields: warnings/issues, planned entries, planned sidecars, source removals, and the gated apply
-command.
+`memory-seed session merge-branch --branch <branch> --dry-run` directly from the integration tree
+and report the same fields: warnings/issues, planned entries, planned sidecars, source removals,
+and the command that would perform the merge.
 
 ## Dependency Strategy
 

@@ -268,6 +268,18 @@ class SessionFuseResult:
     issues: list[str] = field(default_factory=list)
 
 
+@dataclass
+class SessionMergeBranchResult:
+    committed: bool
+    merge_in_progress: bool = False
+    conflicts: list[str] = field(default_factory=list)
+    planned_entries: list[str] = field(default_factory=list)
+    planned_sidecars: list[str] = field(default_factory=list)
+    removed_sources: list[str] = field(default_factory=list)
+    already_present: list[str] = field(default_factory=list)
+    issues: list[str] = field(default_factory=list)
+
+
 def iter_session_documents(sessions_dir: Path) -> Iterator[SessionDocument]:
     documents: list[SessionDocument] = []
     if not sessions_dir.is_dir():
@@ -1790,6 +1802,147 @@ def session_fuse(
         removed_sources=removed_sources,
         already_present=already_present,
     )
+
+
+def session_merge_branch(
+    cwd: str | Path = ".",
+    *,
+    branch: str,
+    dry_run: bool = False,
+) -> SessionMergeBranchResult:
+    """Merge a task branch and fuse its branch-local session memory in one step.
+
+    Wraps the documented integration dance (fuse dry-run, ``git merge --no-ff
+    --no-commit``, ``session fuse --apply``, commit) into a single command so
+    orchestrators cannot skip the fuse step and let a raw line-merge land
+    session entries out of chronological order. Fails closed: any fuse issue
+    aborts before the merge starts, and any non-session conflict leaves the
+    merge in progress for manual resolution instead of guessing.
+    """
+    runtime = resolve_runtime(cwd)
+    root = runtime.workspace_root
+    if not (root / ".git").exists():
+        return SessionMergeBranchResult(committed=False, issues=["session merge-branch requires a Git repository"])
+    if branch in {"main", "master"}:
+        return SessionMergeBranchResult(committed=False, issues=["source branch must not be main or master"])
+
+    branch_commit = _resolve_commit(root, branch)
+    if branch_commit is None:
+        return SessionMergeBranchResult(committed=False, issues=[f"source branch does not resolve to a commit: {branch}"])
+    base_commit = _resolve_commit(root, "HEAD")
+    if base_commit is None:
+        return SessionMergeBranchResult(committed=False, issues=["HEAD does not resolve to a commit"])
+
+    if _merge_head_commits(root):
+        return SessionMergeBranchResult(
+            committed=False,
+            merge_in_progress=True,
+            issues=["a git merge is already in progress; finish or abort it before session merge-branch"],
+        )
+    code, status_out = _git_text(root, ("status", "--short"))
+    if code != 0:
+        return SessionMergeBranchResult(committed=False, issues=["could not read git status"])
+    dirty_paths = [line.strip() for line in status_out.splitlines() if line.strip()]
+    if dirty_paths:
+        listing = "; ".join(dirty_paths[:10])
+        if len(dirty_paths) > 10:
+            listing += f"; ... ({len(dirty_paths) - 10} more)"
+        return SessionMergeBranchResult(
+            committed=False,
+            issues=[f"working tree is not clean; commit or stash these paths first: {listing}"],
+        )
+
+    # Fuse dry-run gate: any session-memory problem (modified existing entry,
+    # missing entry_id/branch provenance, duplicate ids, ...) aborts before the
+    # git merge ever starts, so a fail-closed result has no merge state to clean.
+    preview = session_fuse(root, branch=branch, base="HEAD", apply=False)
+    if preview.issues:
+        return SessionMergeBranchResult(committed=False, issues=list(preview.issues))
+
+    result = SessionMergeBranchResult(
+        committed=False,
+        planned_entries=list(preview.planned_entries),
+        planned_sidecars=list(preview.planned_sidecars),
+        removed_sources=list(preview.removed_sources),
+        already_present=list(preview.already_present),
+    )
+    if dry_run:
+        return result
+
+    merge_code, merge_out = _git_text(root, ("merge", "--no-ff", "--no-commit", branch))
+    # Exit code 1 is ambiguous (conflict vs. real failure); the presence of
+    # MERGE_HEAD is the reliable signal that a merge actually started.
+    if not _merge_head_commits(root):
+        if merge_code != 0:
+            result.issues.append(f"git merge failed without starting a merge: {merge_out or '(no output)'}")
+        # rc 0 with no MERGE_HEAD: branch is already merged into HEAD.
+        return result
+
+    code, conflicted = _git_lines(root, ("diff", "--name-only", "--diff-filter=U"))
+    if code != 0:
+        result.merge_in_progress = True
+        result.issues.append("could not enumerate conflicted paths; merge left in progress")
+        return result
+    non_session = [
+        path
+        for path in conflicted
+        if _session_doc_from_relative_path(path) is None and _diagram_doc_from_relative_path(path) is None
+    ]
+    if non_session:
+        result.merge_in_progress = True
+        result.conflicts = non_session
+        return result
+
+    # Reset every branch-touched session path that also exists on base back to
+    # base's committed content. This guarantees the fuse apply below never sees
+    # conflict markers, and it undoes any silent git auto-merge that landed
+    # entries by physical position instead of timestamp without a conflict.
+    changed_paths = _changed_session_paths(root, base_commit, branch_commit)
+    if changed_paths is None:
+        result.merge_in_progress = True
+        result.issues.append(f"could not compute changed session files for branch {branch}; merge left in progress")
+        return result
+    base_paths = set(_git_ref_paths(root, base_commit))
+    for rel_path in sorted(changed_paths & base_paths):
+        code, _ = _git_text(root, ("checkout", base_commit, "--", rel_path))
+        if code != 0:
+            result.merge_in_progress = True
+            result.issues.append(f"could not reset {rel_path} to base content; merge left in progress")
+            return result
+
+    applied = session_fuse(root, branch=branch, base=base_commit, apply=True)
+    if applied.issues:
+        result.merge_in_progress = True
+        result.issues.extend(applied.issues)
+        return result
+    result.planned_entries = list(applied.planned_entries)
+    result.planned_sidecars = list(applied.planned_sidecars)
+    result.removed_sources = list(applied.removed_sources)
+    result.already_present = list(applied.already_present)
+
+    # The clean-tree precondition makes this sweep safe: the only changes under
+    # sessions/ at this point are the merge itself plus fuse's writes/removals.
+    code, _ = _git_text(root, ("add", "-A", "--", f"{MEMORY_DIR_NAME}/sessions"))
+    if code != 0:
+        result.merge_in_progress = True
+        result.issues.append("could not stage fused session files; merge left in progress")
+        return result
+
+    code, remaining = _git_lines(root, ("diff", "--name-only", "--diff-filter=U"))
+    if code != 0 or remaining:
+        result.merge_in_progress = True
+        listing = ", ".join(remaining) if remaining else "(unknown)"
+        result.issues.append(f"unmerged paths remain after fuse; merge left in progress: {listing}")
+        return result
+
+    code, commit_out = _git_text(root, ("commit", "--no-edit"))
+    if code != 0:
+        result.merge_in_progress = bool(_merge_head_commits(root))
+        result.issues.append(f"git commit failed: {commit_out or '(no output)'}")
+        return result
+
+    result.committed = True
+    return result
 
 
 def migrate_session_month_layout(cwd: str | Path = ".", dry_run: bool = False) -> SessionLayoutMigrationResult:
