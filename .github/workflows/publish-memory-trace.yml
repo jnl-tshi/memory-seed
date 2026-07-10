@@ -1,0 +1,66 @@
+# Prepared in advance (2026-07-10, goal-run S4) and INERT until two user-side steps exist:
+#   1. A PyPI project `memory-trace` with trusted publishing configured for this repository,
+#      workflow file `publish-memory-trace.yml`, environment `pypi-memory-trace`.
+#   2. The `pypi-memory-trace` GitHub Environment on this repo (add a required reviewer to keep
+#      the same manual approval gate the core package has).
+# Trigger: publish a GitHub Release whose tag starts with `memory-trace-v` (e.g.
+# `memory-trace-v0.1.0`). Core `memory-seed` releases (tags `vX.Y.Z`) never match, and this
+# workflow's job-level condition skips them explicitly. memory-trace 0.1.0 must not publish
+# before core 2.17 is live on PyPI (it depends on memory-seed>=2.17).
+name: Publish memory-trace to PyPI
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build memory-trace distribution
+    if: startsWith(github.event.release.tag_name, 'memory-trace-v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Run memory-trace tests
+        run: python -m unittest discover -s memory-trace/tests -t .
+
+      - name: Build package
+        run: uv build --directory memory-trace
+
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: memory-trace-distributions
+          path: memory-trace/dist/
+
+  publish:
+    name: Publish memory-trace to PyPI
+    if: startsWith(github.event.release.tag_name, 'memory-trace-v')
+    runs-on: ubuntu-latest
+    needs: build
+    environment: pypi-memory-trace
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download distribution artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: memory-trace-distributions
+          path: dist/
+
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
