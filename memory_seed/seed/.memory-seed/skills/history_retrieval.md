@@ -77,6 +77,31 @@ Fetch any result that may affect implementation, policy, bootstrap behavior, rel
 
 Use the fetched chunk text, not just the excerpt, when making or evaluating a consequential decision.
 
+## Authoring-Support Tools
+
+These read-only MCP tools close the *authoring* loop — finding what to link and where to write — the counterpart to the search/fetch retrieval loop above. They never write; the agent still appends its own entry and edges.
+
+- `memory_link_suggest`: rank older entries to link from a target entry (default: the newest entry, i.e. "the one I just wrote"). Returns a `target` summary, ranked `suggestions`, and a paste-ready `related_entries` list. Use it when filling an entry's `related_entries` instead of guessing or re-searching. Optional `entry_id` targets a specific entry; `top_k` bounds the candidates.
+
+```json
+{
+  "cwd": ".",
+  "entry_id": "mse_...",
+  "top_k": 5
+}
+```
+
+- `memory_link_show`: show one entry's graph node — stored `outbound` edges, computed `inbound` backlinks, `supersedes`/`superseded_by`, `importance_score`, and `commit_reference_count`. Use it to traverse the related-entry graph structurally instead of re-running a topical search.
+
+```json
+{
+  "entry_id": "mse_...",
+  "cwd": "."
+}
+```
+
+- `memory_session_target`: resolve the active session-log target path for the nearest runtime (where a new entry should be appended). Read-only — it never creates the file. Use it at end-of-turn to find the append target instead of shelling out to `memory-seed session target`. Optional `date` (default today) and `user` (per-user override).
+
 ## Fallback
 
 If MCP tools are unavailable, read recent and relevant `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md` and `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md` files directly, with legacy flat/day paths still readable. Start with the last two session documents, then search older dated files by keyword if needed.

@@ -621,6 +621,9 @@ The server exposes:
 ```text
 memory_search(query, cwd=".", top_k=8, lambda_days=0.01, recency_enabled=true, recency_floor=0.15, semantic_enabled=true, user=null, date_from=null, date_to=null)
 memory_get_chunk(chunk_id, cwd=".")
+memory_link_suggest(cwd=".", entry_id=null, top_k=5)
+memory_link_show(entry_id, cwd=".")
+memory_session_target(cwd=".", date=null, user=null)
 memory_branch_status(cwd=".")
 memory_session_fuse_preview(branch, cwd=".", base="HEAD")
 ```
@@ -630,6 +633,14 @@ memory_session_fuse_preview(branch, cwd=".", base="HEAD")
 `memory_search` returns JSON with source path, `path`, `session_date`, optional per-user `user`, optional `file_hash_id`, entry-level `related_entries`, line range, heading path, score fields, matched fields, matched terms, semantic status, entry metadata, granularity, and an excerpt. The `user`, `date_from`, and `date_to` filters are applied before ranking so `top_k` is selected from the filtered corpus. This is intended to be both agent-efficient and human-validatable.
 
 The ranking engine stays local and CPU-friendly. MCP search uses a Model2Vec static embedding provider by default with the general-purpose `minishlab/potion-base-8M` model, combines semantic score with lexical and metadata scoring, then applies recency. If Model2Vec or the model cannot load or score a query, the server falls back to lexical, metadata, and recency ranking without failing the request. Use `--no-semantic` on `memory-seed-mcp --stdio` or `semantic_enabled=false` in `memory_search` to force fallback behavior.
+
+`memory_link_suggest`, `memory_link_show`, and `memory_session_target` are read-only authoring-support
+tools: they close the write-side loop that `memory_search`/`memory_get_chunk` open on the read side.
+`memory_link_suggest` ranks older entries to link (paste-ready `related_entries` for the entry just
+written), `memory_link_show` returns one entry's graph node (outbound/inbound edges, supersession,
+importance, linked-commit count), and `memory_session_target` resolves where a new entry should be
+appended without ever creating the file. They are routed through `history_retrieval.md`. The agent
+still authors and appends the entry itself; MCP never writes session files.
 
 `memory_branch_status` and `memory_session_fuse_preview` are read-only collaboration tools for LLM
 orchestrators. The skill registry routes them through `agent_collaboration.md`, which tells agents

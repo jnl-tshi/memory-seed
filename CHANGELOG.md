@@ -4,6 +4,15 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Added three read-only authoring-support MCP tools so the LLM's write-side loop matches its
+  retrieval loop: `memory_link_suggest` (rank older entries to link, returning paste-ready
+  `related_entries`), `memory_link_show` (one entry's related-entry graph node — outbound/inbound
+  edges, supersession, importance, linked-commit count), and `memory_session_target` (resolve the
+  session-log append target without ever creating the file). They wrap the existing
+  `suggest_related_entries`/`build_related_entry_graph`/`session_target` functions, are routed through
+  `history_retrieval.md`, and keep all session writing on the CLI/direct-file path. The CLI `session`
+  group help was relabeled to cover its write-capable `fuse` subcommand, and the two `migrate`
+  subcommands now cross-reference each other.
 - Added the Phase 1 UTF-8 text contract: `.editorconfig`, `.gitattributes`, `memory_seed.text_files`
   helpers for UTF-8/LF/NFC text and Unicode-preserving JSON, README documentation, MCP
   Unicode-preserving JSON output, and regression tests for non-ASCII round trips.
