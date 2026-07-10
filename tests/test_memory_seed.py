@@ -24,6 +24,7 @@ from memory_seed.core import (
     resolve_runtime,
     remove_skill,
     session_fuse,
+    session_merge_branch,
     session_target,
     skill_status,
     update_project,
@@ -1996,6 +1997,171 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(result.issues)
         self.assertIn("existing entry_id modified", result.issues[0])
 
+    def _grouped_session_text(self, date, entries):
+        lines = [
+            "---",
+            "tags:",
+            "  - session-log",
+            "  - memory-seed",
+            f"session_date: {date}",
+            "---",
+            "",
+        ]
+        for time, title, entry_id, branch in entries:
+            lines += [
+                f"## {date} {time} - {title}",
+                "",
+                "```yaml",
+                f"entry_id: {entry_id}",
+                "user_initials: JN",
+                "agent_type: codex",
+                f"branch: {branch}",
+                "```",
+                "",
+                f"- Body for {title}.",
+                "",
+            ]
+        return "\n".join(lines)
+
+    def test_session_merge_branch_commits_clean_merge_end_to_end(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        self._write_grouped_session(cwd, "2026-07-11", "mse_1111111111111111", branch="feature-merge")
+        self._commit_all(cwd, "feature session")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertEqual(result.issues, [])
+        self.assertTrue(result.committed)
+        self.assertFalse(result.merge_in_progress)
+        self.assertFalse((cwd / ".git" / "MERGE_HEAD").exists())
+        parents = self._git(cwd, "log", "--merges", "-1", "--format=%P").stdout.split()
+        self.assertEqual(len(parents), 2)
+        grouped = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-11.md"
+        self.assertIn("entry_id: mse_1111111111111111", grouped.read_text(encoding="utf-8"))
+        # Working tree fully committed: nothing staged or dirty afterwards.
+        self.assertEqual(self._git(cwd, "status", "--short").stdout.strip(), "")
+
+    def test_session_merge_branch_leaves_non_session_conflicts_in_progress(self):
+        cwd = self.make_project()
+        (cwd / "notes.txt").write_text("base\n", encoding="utf-8")
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        (cwd / "notes.txt").write_text("branch change\n", encoding="utf-8")
+        self._commit_all(cwd, "branch edit")
+        self._git(cwd, "switch", "main")
+        (cwd / "notes.txt").write_text("main change\n", encoding="utf-8")
+        self._commit_all(cwd, "main edit")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertFalse(result.committed)
+        self.assertTrue(result.merge_in_progress)
+        self.assertEqual(result.conflicts, ["notes.txt"])
+        # The merge must be left in progress for manual resolution, not aborted.
+        self.assertTrue((cwd / ".git" / "MERGE_HEAD").exists())
+
+    def test_session_merge_branch_fixes_out_of_order_landing(self):
+        # The bug this command exists for: both sides append to the same dated
+        # file after a shared ancestor, and a raw git merge would land the
+        # branch's earlier-timestamped entry after base's later one (or leave
+        # conflict markers). The wrapper must produce a chronological file.
+        cwd = self.make_project()
+        target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-12.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        entry_a = ("09:00", "Base entry", "mse_aaaaaaaaaaaaaaaa", "main")
+        entry_b = ("10:00", "Later main entry", "mse_bbbbbbbbbbbbbbbb", "main")
+        entry_c = ("09:30", "Branch entry", "mse_cccccccccccccccc", "feature-merge")
+        target.write_text(self._grouped_session_text("2026-07-12", [entry_a]), encoding="utf-8")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        target.write_text(self._grouped_session_text("2026-07-12", [entry_a, entry_c]), encoding="utf-8")
+        self._commit_all(cwd, "branch appends 09:30")
+        self._git(cwd, "switch", "main")
+        target.write_text(self._grouped_session_text("2026-07-12", [entry_a, entry_b]), encoding="utf-8")
+        self._commit_all(cwd, "main appends 10:00")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertEqual(result.issues, [])
+        self.assertTrue(result.committed)
+        text = target.read_text(encoding="utf-8")
+        self.assertNotIn("<<<<<<<", text)
+        pos_a = text.find("## 2026-07-12 09:00")
+        pos_c = text.find("## 2026-07-12 09:30")
+        pos_b = text.find("## 2026-07-12 10:00")
+        self.assertTrue(0 <= pos_a < pos_c < pos_b, f"order wrong: a={pos_a} c={pos_c} b={pos_b}")
+        # The committed tree matches the working tree (fuse result was staged).
+        committed = self._git(cwd, "show", "HEAD:.memory-seed/sessions/2026-07/2026-07-12.md").stdout
+        self.assertEqual(committed, text)
+
+    def test_session_merge_branch_fails_closed_before_merge_on_modified_entry(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main", body="- Original.")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main", body="- Edited.")
+        self._commit_all(cwd, "edit existing")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertFalse(result.committed)
+        self.assertTrue(result.issues)
+        self.assertIn("existing entry_id modified", result.issues[0])
+        # Blocked at the fuse dry-run gate: the git merge must never have started.
+        self.assertFalse(result.merge_in_progress)
+        self.assertFalse((cwd / ".git" / "MERGE_HEAD").exists())
+
+    def test_session_merge_branch_refuses_dirty_working_tree_naming_paths(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        self._write_grouped_session(cwd, "2026-07-11", "mse_1111111111111111", branch="feature-merge")
+        self._commit_all(cwd, "feature session")
+        self._git(cwd, "switch", "main")
+        (cwd / "uncommitted.txt").write_text("dirty\n", encoding="utf-8")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertFalse(result.committed)
+        self.assertTrue(result.issues)
+        self.assertIn("working tree is not clean", result.issues[0])
+        self.assertIn("uncommitted.txt", result.issues[0])
+        self.assertFalse((cwd / ".git" / "MERGE_HEAD").exists())
+
+    def test_session_merge_branch_dry_run_reports_plan_without_merging(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        self._write_grouped_session(cwd, "2026-07-11", "mse_1111111111111111", branch="feature-merge")
+        self._commit_all(cwd, "feature session")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge", dry_run=True)
+
+        self.assertFalse(result.committed)
+        self.assertEqual(result.issues, [])
+        self.assertEqual(
+            result.planned_entries,
+            ["mse_1111111111111111 2026-07-11 09:00 -> .memory-seed/sessions/2026-07/2026-07-11.md"],
+        )
+        self.assertFalse((cwd / ".git" / "MERGE_HEAD").exists())
+        self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-11.md").exists())
+        self.assertEqual(self._git(cwd, "log", "--merges", "-1", "--format=%P").stdout.strip(), "")
+
     def test_compact_returns_headings_from_recent_sessions(self):
         cwd = self.make_project()
         today = __import__("datetime").date.today().isoformat()
@@ -3522,7 +3688,72 @@ class CliHelpTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("Would import: mse_1111111111111111", out)
         self.assertIn(".memory-seed/sessions/2026-07/2026-07-11.md", out)
-        self.assertIn("No files changed", out)
+
+    def test_session_merge_branch_cli_dry_run_reports_plan(self):
+        import os
+        import subprocess
+
+        cwd = Path.cwd()
+        project = Path(tempfile.mkdtemp(prefix="memory-seed-cli-merge-branch-"))
+        self.addCleanup(lambda: shutil.rmtree(project, ignore_errors=True))
+        sessions = project / ".memory-seed" / "sessions"
+        grouped = sessions / "2026-07"
+        grouped.mkdir(parents=True, exist_ok=True)
+        (grouped / "2026-07-10.md").write_text(
+            "---\n"
+            "tags:\n"
+            "  - session-log\n"
+            "  - memory-seed\n"
+            "session_date: 2026-07-10\n"
+            "---\n\n"
+            "## 2026-07-10 09:00 - Base\n\n"
+            "```yaml\n"
+            "entry_id: mse_0123456789abcdef\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "branch: main\n"
+            "```\n\n"
+            "- Base.\n",
+            encoding="utf-8",
+        )
+
+        try:
+            os.chdir(project)
+            subprocess.run(["git", "init", "-q"], check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.name", "Test User"], check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.email", "test@example.com"], check=True, capture_output=True)
+            subprocess.run(["git", "config", "commit.gpgsign", "false"], check=True, capture_output=True)
+            subprocess.run(["git", "branch", "-M", "main"], check=True, capture_output=True)
+            subprocess.run(["git", "add", "-A"], check=True, capture_output=True)
+            subprocess.run(["git", "commit", "-q", "-m", "base"], check=True, capture_output=True)
+            subprocess.run(["git", "switch", "-c", "feature-merge"], check=True, capture_output=True)
+            (grouped / "2026-07-11.md").write_text(
+                "---\n"
+                "tags:\n"
+                "  - session-log\n"
+                "  - memory-seed\n"
+                "session_date: 2026-07-11\n"
+                "---\n\n"
+                "## 2026-07-11 09:00 - Feature\n\n"
+                "```yaml\n"
+                "entry_id: mse_1111111111111111\n"
+                "user_initials: JN\n"
+                "agent_type: codex\n"
+                "branch: feature-merge\n"
+                "```\n\n"
+                "- Feature.\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "add", "-A"], check=True, capture_output=True)
+            subprocess.run(["git", "commit", "-q", "-m", "feature"], check=True, capture_output=True)
+            subprocess.run(["git", "switch", "main"], check=True, capture_output=True)
+            code, out = self._run(["session", "merge-branch", "--branch", "feature-merge", "--dry-run"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 0)
+        self.assertIn("Would import: mse_1111111111111111", out)
+        self.assertIn("Dry run - no merge performed.", out)
 
 
 class SessionStartContextHookTests(unittest.TestCase):

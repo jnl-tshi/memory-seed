@@ -28,6 +28,7 @@ from .core import (
     resolve_agents,
     selected_agents,
     session_fuse,
+    session_merge_branch,
     session_target,
     skill_status,
     update_project,
@@ -211,6 +212,12 @@ def main(argv: list[str] | None = None) -> int:
     session_fuse_parser.add_argument("--branch", required=True, help="source branch whose session entries should be fused")
     session_fuse_parser.add_argument("--base", default="HEAD", help="base ref to compare against (default: HEAD)")
     session_fuse_parser.add_argument("--apply", action="store_true", help="write the planned fuse; requires an in-progress git merge")
+    session_merge_parser = session_sub.add_parser(
+        "merge-branch",
+        help="merge a task branch and fuse its branch-local session entries in one step",
+    )
+    session_merge_parser.add_argument("--branch", required=True, help="task branch to merge into the current branch")
+    session_merge_parser.add_argument("--dry-run", action="store_true", help="preview the fuse plan without merging")
 
     branch_parser = subparsers.add_parser("branch", help="inspect Git branch/worktree posture")
     branch_sub = branch_parser.add_subparsers(dest="branch_command", required=True)
@@ -376,6 +383,52 @@ def main(argv: list[str] | None = None) -> int:
                 print("Session fuse applied.")
             else:
                 print("No files changed. Rerun with --apply during a git merge to write these changes.")
+            return 0
+        if args.session_command == "merge-branch":
+            result = session_merge_branch(
+                cwd=Path(".").resolve(),
+                branch=args.branch,
+                dry_run=args.dry_run,
+            )
+            if result.issues:
+                print("Session merge-branch blocked:", file=sys.stderr)
+                for issue in result.issues:
+                    print(f"  - {issue}", file=sys.stderr)
+                if result.merge_in_progress:
+                    print(
+                        "The git merge was left in progress; resolve and commit manually, or git merge --abort.",
+                        file=sys.stderr,
+                    )
+                return 1
+            if result.conflicts:
+                print("Non-session conflicts require manual resolution:", file=sys.stderr)
+                for path in result.conflicts:
+                    print(f"  - {path}", file=sys.stderr)
+                print(
+                    "The git merge was left in progress; resolve these paths, then run "
+                    "'memory-seed session fuse --branch <branch> --apply' and commit.",
+                    file=sys.stderr,
+                )
+                return 1
+            entry_verb = "Would import" if args.dry_run else "Imported"
+            diagram_verb = "Would import diagram" if args.dry_run else "Imported diagram"
+            remove_verb = "Would remove source" if args.dry_run else "Removed source"
+            for planned in result.planned_entries:
+                print(f"{entry_verb}: {planned}")
+            for planned in result.planned_sidecars:
+                print(f"{diagram_verb}: {planned}")
+            for source in result.removed_sources:
+                print(f"{remove_verb}: {source}")
+            if result.already_present:
+                for entry_id in sorted(set(result.already_present)):
+                    if entry_id:
+                        print(f"Already present: {entry_id}")
+            if args.dry_run:
+                print("Dry run - no merge performed. Rerun without --dry-run to merge and fuse.")
+            elif result.committed:
+                print("Merge committed.")
+            else:
+                print(f"Branch {args.branch} is already merged into HEAD; nothing to do.")
             return 0
 
     if args.command == "branch":
