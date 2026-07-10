@@ -4,6 +4,11 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Fixed the fuse/merge-branch chronological rewriter butting each session-entry heading against
+  the previous entry's last line: `_write_chronological_session_file` and
+  `_write_chronological_diagram_file` now join entries with a blank line, restoring the
+  hand-appended log's separation. Files previously rewritten cramped are normalized the next time
+  a fuse touches them; a regression test pins the one-blank-line contract.
 - Added typed evolution edges and artifact lineage (evolution-edges plan): entries can declare
   `evolves:` - "extends that decision, which remains valid" - with a computed, read-time-only
   `evolved_by` inverse that never dampens `importance_score` and never feeds `exclude_superseded`

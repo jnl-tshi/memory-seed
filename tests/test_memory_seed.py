@@ -1971,6 +1971,49 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("```mermaid", grouped_diagram.read_text(encoding="utf-8"))
         self.assertTrue(check_session_links(cwd=cwd).ok)
 
+    def test_session_fuse_apply_separates_entries_with_one_blank_line(self):
+        # Regression: the chronological rewriter used to join rstripped entries
+        # with a single "\n", butting each "## " heading against the previous
+        # entry's last line and wrecking the log's readability on every fuse.
+        cwd = self.make_project()
+        target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-10.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            self._grouped_session_text("2026-07-10", [("09:00", "Base", "mse_aaaaaaaaaaaaaaaa", "main")]),
+            encoding="utf-8",
+        )
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-fuse")
+        target.write_text(
+            self._grouped_session_text(
+                "2026-07-10",
+                [
+                    ("09:00", "Base", "mse_aaaaaaaaaaaaaaaa", "main"),
+                    ("10:00", "Branch entry", "mse_bbbbbbbbbbbbbbbb", "feature-fuse"),
+                ],
+            ),
+            encoding="utf-8",
+        )
+        self._commit_all(cwd, "branch appends")
+        self._git(cwd, "switch", "main")
+        self._git(cwd, "merge", "--no-ff", "--no-commit", "feature-fuse")
+
+        result = session_fuse(cwd=cwd, branch="feature-fuse", apply=True)
+
+        self.assertEqual(result.issues, [])
+        text = target.read_text(encoding="utf-8")
+        lines = text.splitlines()
+        for index, line in enumerate(lines):
+            if line.startswith("## ") and index > 0:
+                self.assertEqual(
+                    lines[index - 1].strip(), "",
+                    f"heading at line {index + 1} has no blank line before it: {lines[index - 1]!r}",
+                )
+        # Exactly one blank line between entries, never a run of them.
+        self.assertIn("\n\n## 2026-07-10 10:00", text)
+        self.assertNotIn("\n\n\n", text)
+
     def test_session_fuse_allows_sidecar_for_existing_base_entry(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
