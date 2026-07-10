@@ -9,6 +9,17 @@ Memory Seed is a portable local memory system for AI coding agents. It plants a 
 
 It is built first for solo developers who move between Codex, Claude Code, Gemini CLI, and other file-reading agents. Teams can also use it to standardize local agent memory across repositories without introducing a database or hosted memory service.
 
+**Highlights**
+
+- **Local-first, Git-native.** Memory is plain Markdown in your repository - versioned, diffable, greppable, and yours. No database, no hosted service, no telemetry.
+- **Vendor-neutral.** One control plane serves Claude Code, Codex, Gemini CLI, Cursor, and Copilot; switching agents keeps the memory.
+- **Inspectable decisions, not summaries.** Append-only session logs record decisions with reasons (DRAFT records), typed lifecycle edges (`supersedes`/`evolves`), artifact lineage, and commit links - validated by `links check`.
+- **Agent-native retrieval.** MCP `memory_search`/`memory_get_chunk` give ranked, self-contained memory chunks with computed freshness status; hooks keep agents oriented at session start.
+- **Safe collaboration.** Branch-aware session fusing (`session merge-branch`) integrates multi-agent work with chronology and provenance enforced.
+
+> **Treat `.memory-seed/` as publishable.** Session logs travel with the repository - see
+> [Public Memory Hygiene](#public-memory-hygiene) before pushing memory to a public remote.
+
 ## Demo
 
 https://github.com/user-attachments/assets/b1c64d9e-4a67-4bc2-a030-d8ba7f17ccfe
@@ -59,7 +70,20 @@ Validate the search workflow manually:
 uvx --from memory-seed memory-seed-mcp-validate "bootstrap mode check"
 ```
 
+## How It Works
+
+1. `memory-seed init` plants the reusable control plane: `AGENTS.md` routing, `.memory-seed/` rules/skills/hooks, and agent configs (hooks + MCP registration) for the agents you select.
+2. Agents follow `AGENTS.md` to the nearest `.memory-seed/` runtime and read the small always-read set (rules, index, policy, skill registry); deeper skills lazy-load by trigger.
+3. Work gets recorded as append-only, timestamped session entries with decisions and reasons; lifecycle hooks remind the agent to log and orient it at session start.
+4. Retrieval is layered: recency comes from reading the newest session file directly, topical recall from MCP `memory_search` (semantic + lexical + recency ranking, local CPU-only embeddings).
+5. **Memory Trace**, the optional companion UI, renders the same files read-only - search, timeline, graph, and Trail lineage views.
+
 ## See It Work
+
+Visual proof (placeholders until real captures land):
+
+- `[placeholder: screenshot - memory-seed init in a fresh project]`
+- `[placeholder: screenshot - Memory Trace timeline/graph view]`
 
 You can validate the local search workflow without configuring an agent client:
 
@@ -731,3 +755,11 @@ Environment name: pypi
 ```
 
 The publish workflow lives at `.github/workflows/publish.yml`. It runs tests, builds the package with `uv build`, and publishes through PyPI's trusted publisher flow.
+
+## Learn More
+
+- [CHANGELOG](CHANGELOG.md) — what shipped in each release.
+- [Active roadmap](docs/2_Todo/0_NEXT_STEPS.md) — the current implementation-run brief and stage plan.
+- [Functionality audit](docs/3_Spec/functionality-audit.md) — the live normative inventory of every surface.
+- [Graph-edge contract](docs/3_Spec/graph-edge-contract.md) — how decision-graph edges and metrics are defined.
+- [Memory Trace](memory-trace/README.md) — the companion review UI's own README.
