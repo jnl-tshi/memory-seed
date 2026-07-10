@@ -28,6 +28,7 @@ Active but not in the next small run unless reprioritized:
 - `session-decision-diagrams-plan.md` Phase 3 export packs.
 - `related-entries-p2-mutation-plan.md` historical curation writers.
 - `memory-trace-ai-timeline-summarisation-plan.md` AI-assisted evidence-pack summaries.
+- `fontjoy-typography-pairing.md` self-hosted heading/body font pairing for the Memory Trace UI (low-priority polish; ride the next Trace UI pass).
 
 Continuity naming for new work:
 
@@ -244,6 +245,7 @@ Specs:
 - [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md) (**active** - approved 2026-07-05; controlled `link add` and explicit historical backfill for curated `related_entries`, sequenced after the lower-risk retrieval/diagram/risk-signaling work unless reprioritized)
 - [`memory-trace-topic-neighbourhoods-plan.md`](memory-trace-topic-neighbourhoods-plan.md) (**active** - clarified 2026-07-08; `topics:` becomes the normal 1-3-topic field for meaningful entries, backed by project-local `.memory-seed/topics.yaml`)
 - [`readme-front-door-refresh-plan.md`](readme-front-door-refresh-plan.md) (**active** - clarified 2026-07-08; README refresh should include real screenshots/GIFs or placeholders)
+- [`evolution-edges-plan.md`](evolution-edges-plan.md) (**proposed** - drafted 2026-07-10, awaiting approval; typed `evolves`/`evolved_by` edge for freshness-without-retirement, removal convention under `supersedes`, Decision Harvest lifecycle prompt, rarity-weighted `F:` file-overlap ranking for lifecycle candidates, and the structured `continuity:` artifact-lineage field for rename/migration/removal with alias-bridged ranking)
 - [`user-interface-deep-research-report.md`](completed/user-interface-deep-research-report.md) (completed 2026-07-05 - historical research; its one live tail, the Pillar B decision, was made and split into the distribution plan above; citation artifacts scrubbed 2026-07-05)
 
 - [`completed/memory-explorer-entry-level-ui-results-plan.md`](completed/memory-explorer-entry-level-ui-results-plan.md) (**completed 2026-07-06** - entries are selectable results; subsection matches are highlighted inside the parent entry)

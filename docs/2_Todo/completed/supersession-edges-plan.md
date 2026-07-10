@@ -14,8 +14,10 @@ tags:
 > `links check` validation (dangling/self/postdates/cycle), `link show` + `memory_get_chunk`
 > exposure, and the `session_logging.md` schema doc shipped 2026-07-03; the harmony-contract
 > dampening shipped 2026-07-04 with `interaction-frequency-ranking-plan.md` P1b
-> (`SUPERSEDED_IMPORTANCE_DAMPING = 0.25`, with the required fixture). Still open: the deferred P2
-> Lense UI surfacing. Source: external review doc
+> (`SUPERSEDED_IMPORTANCE_DAMPING = 0.25`, with the required fixture). The formerly deferred P2 UI
+> surfacing shipped with the Memory Trace Arc 2 work (the Trail view renders supersedes edges;
+> confirmed against `memory-trace/` 2026-07-10 - this status line previously lagged
+> `0_NEXT_STEPS.md`). Source: external review doc
 > `Memory-Seed Logic Capture Improvement.md` (the "Supersession Pointer" field in its proposed
 > decision schema). Companion to
 > [`related-entries-generation-plan.md`](related-entries-generation-plan.md) (extends the same

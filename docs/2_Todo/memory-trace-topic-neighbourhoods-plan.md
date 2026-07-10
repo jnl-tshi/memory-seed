@@ -123,6 +123,12 @@ topics:
 - Decide whether the starter `topics.yaml` is a minimal generic file or generated from project
   bootstrap context. Either way, it must be deploy-once/project-local, not a version-overwritten
   seed/live twin.
+- No core continuity topics need seeding: `evolution-edges-plan.md` D6 (revised 2026-07-10) records
+  rename/migration/removal events as a structured `continuity:` entry field (kind/from/to) rather
+  than topic vocabulary, so continuity membership is derivable from that field. If Trace later wants
+  a "continuity events" chain, derive it as a display axis (like `day`/`agent` chains) - do not add
+  `rename`/`migration`/`removal` slugs to `topics.yaml`, or membership would be authored in two
+  places.
 
 ## Blind Spots To Resolve
 
