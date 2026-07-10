@@ -1,0 +1,32 @@
+schema_version: 1
+# Project-local controlled topic vocabulary. Meaningful session entries carry 1-3 `topics:` slugs
+# drawn from this index; `memory-seed topics check` validates entries against it. This file is
+# deploy-once project-local state: `memory-seed update` never overwrites it - curate it for your
+# project (add topics as durable themes emerge; prefer renaming via `aliases:` over deleting).
+# A slug must match ^[a-z0-9][a-z0-9_-]{0,63}$.
+topics:
+  - slug: architecture
+    label: Architecture
+    description: Durable design decisions and system structure.
+    status: active
+    aliases: []
+  - slug: bugfix
+    label: Bug Fixes
+    description: Defect repairs and corrections.
+    status: active
+    aliases: []
+  - slug: documentation
+    label: Documentation
+    description: README, docs, and public-facing accuracy.
+    status: active
+    aliases: []
+  - slug: release
+    label: Release
+    description: Version cuts, packaging, and publishing.
+    status: active
+    aliases: []
+  - slug: workflow
+    label: Workflow
+    description: Process, tooling, and collaboration conventions.
+    status: active
+    aliases: []

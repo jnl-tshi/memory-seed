@@ -93,6 +93,10 @@ class MemoryChunk:
     # Stored artifact-lineage blocks (rename/migration/removal); see
     # ContinuityBlock. A label family like ``branch:``, not an entry edge.
     continuity: tuple[ContinuityBlock, ...] = ()
+    # Authored controlled-vocabulary membership (1-3 slugs from
+    # .memory-seed/topics.yaml). Distinct from hashtag-derived ``tags`` and
+    # heading-derived ``contexts``, which remain the display fallback.
+    topics: tuple[str, ...] = ()
     # Optional git branch the entry's work happened on, captured at record time
     # (parallel in spirit to ``commits``). Forward-only, never backfilled, and a
     # durable historical label - not validated against live git refs.
@@ -193,11 +197,14 @@ def rank_session_memory(
     date_to: date | None = None,
     exclude_superseded: bool = False,
     chunks: Sequence[MemoryChunk] | None = None,
+    topics: set[str] | None = None,
 ) -> list[RankedMemoryChunk]:
     # Pass ``chunks`` to reuse an already-extracted corpus (matching
     # ``granularity``) and keep the search path free of re-parsing.
+    # ``topics`` is a pre-expanded slug match set (canonical + aliases; see
+    # topics.expand_topic_filter) - a pre-ranking gate like user/date filters.
     corpus = list(chunks) if chunks is not None else extract_memory_chunks(cwd, granularity=granularity)
-    chunks = _filter_chunks(corpus, user=user, date_from=date_from, date_to=date_to)
+    chunks = _filter_chunks(corpus, user=user, date_from=date_from, date_to=date_to, topics=topics)
     if exclude_superseded:
         # Opt-in narrowing (like date_from/date_to): drop entries that have been
         # superseded by a later decision. Never a default and never a hard
@@ -230,6 +237,7 @@ def _filter_chunks(
     user: str | None,
     date_from: date | None,
     date_to: date | None,
+    topics: set[str] | None = None,
 ) -> list[MemoryChunk]:
     filtered: list[MemoryChunk] = []
     for chunk in chunks:
@@ -238,6 +246,8 @@ def _filter_chunks(
         if date_from is not None and chunk.session_date < date_from:
             continue
         if date_to is not None and chunk.session_date > date_to:
+            continue
+        if topics is not None and not (topics & set(chunk.topics)):
             continue
         filtered.append(chunk)
     return filtered
@@ -671,6 +681,7 @@ def _extract_entry_chunks_from_file(
         evolves = _metadata_list(metadata, "evolves")
         commits = _metadata_list(metadata, "commits")
         continuity = _extract_entry_continuity(entry_lines)
+        entry_topics = _metadata_list(metadata, "topics")
         sections = _entry_sections(entry_lines)
         heading_path = (title,)
         entry_range = (start_line, end_line)
@@ -708,6 +719,7 @@ def _extract_entry_chunks_from_file(
                     evolves=evolves,
                     commits=commits,
                     continuity=continuity,
+                    topics=entry_topics,
                     branch=_metadata_value(metadata, "branch"),
                     entry_title=title,
                     entry_line_range=entry_range,
@@ -751,6 +763,7 @@ def _extract_entry_chunks_from_file(
                     evolves=evolves,
                     commits=commits,
                     continuity=continuity,
+                    topics=entry_topics,
                     branch=_metadata_value(metadata, "branch"),
                     entry_title=title,
                     entry_line_range=entry_range,
@@ -796,6 +809,7 @@ def _extract_entry_chunks_from_file(
                     evolves=evolves,
                     commits=commits,
                     continuity=continuity,
+                    topics=entry_topics,
                     branch=_metadata_value(metadata, "branch"),
                     entry_title=title,
                     entry_line_range=entry_range,

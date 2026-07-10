@@ -75,12 +75,18 @@ another:
   derives a transitive old->new alias table from these mappings for file-overlap ranking; Trace
   may derive a continuity display chain. Membership is never duplicated as topic vocabulary.
 
-Current Memory Trace `topic` chains are display-only derived axes from chunk hashtags and heading
-contexts, not authored entry-YAML topic metadata. The accepted but unimplemented indexed topic
-contract will add `topics:` as normal entry metadata and `.memory-seed/topics.yaml` as the
-project-local vocabulary; that implementation is tracked in
-`docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md`. Until it ships, consumers must treat indexed
-topics as planned contract, not current parser/retrieval truth.
+**Indexed topics (implemented 2026-07-10, topics P1):** `topics:` is authored entry metadata - an
+optional list of 1-3 slugs (`^[a-z0-9][a-z0-9_-]{0,63}$`) resolved against the deploy-once
+project-local vocabulary `.memory-seed/topics.yaml` (canonical slugs + aliases; aliases resolve at
+read time). Topics are neighbourhood *membership*, not an edge kind: they never link two entries
+directly, and they are validated by the separate `memory-seed topics check`
+(unknown-slug/malformed/duplicate/collision errors; count and deprecated-use warnings) -
+deliberately outside `links check`'s edge-validation authority. `MemoryChunk.topics` carries the
+stored slugs; retrieval dicts expose them; `memory_search` accepts an opt-in pre-ranking `topics`
+filter (alias-expanded, fail-open on unknown names, no effect when unused). Memory Trace's
+existing `topic` chains remain display-only derived axes from chunk hashtags and heading contexts
+and serve as the fallback for entries predating authored topics; Trace rendering of *indexed*
+topics is deferred (`docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md` Phase 4).
 
 ## Derived metrics - two distinct numbers, distinct names
 

@@ -11,13 +11,15 @@ tags:
 
 # Memory Trace Topic Neighbourhoods Plan
 
-Status: ACTIVE - accepted for implementation; implementation not started. Two 2026-07-10 goal-run
-resolutions: (1) **starter vocabulary decision (was open):** this repository's
-`.memory-seed/topics.yaml` is derived from the ad-hoc `topics:` slugs already authored across
-existing session entries (41 entries carry them today, unvalidated - the plan's own topic-sprawl
-blind spot materialized before implementation), harvested, de-duplicated, and presented for user
-approval before writing; freshly seeded projects get a minimal generic starter instead.
-(2) Scheduled as a named stage of the current goal run, after the core 2.17 release stage.
+Status: **Phases 0-3 IMPLEMENTED 2026-07-10** (goal-run stage S5, unreleased): contract updated,
+`.memory-seed/topics.yaml` live (this repo: user-approved 19-canonical vocabulary derived from
+the 62 slugs already in use, every observed slug canonical or alias; seed: minimal generic
+starter, deploy-once), `MemoryChunk.topics` parsing, retrieval-dict exposure, alias-expanded
+opt-in `memory_search` topics filter, `memory-seed topics list`/`topics check` (slug rule
+`^[a-z0-9][a-z0-9_-]{0,63}$`; unknown/malformed/duplicate/collision errors, deprecated/count
+warnings), and `session_logging.md` authoring guidance (live + seed). Remaining before this file
+moves to completed/: **Phase 4** (Trace indexed-topic rendering as chronological chains + MCP
+topic-management tools) and the optional `topics suggest --from <file>`.
 Priority: P3 after release-safety, encoding hardening, and Memory Trace package release ordering. It
 should run before AI timeline summarisation because topic filters become part of the evidence-pack
 contract.

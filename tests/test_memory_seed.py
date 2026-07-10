@@ -1280,6 +1280,7 @@ class MemorySeedTests(unittest.TestCase):
                 ".memory-seed/skills/session_logging.md",
                 ".memory-seed/skills/skill_architecture.md",
                 ".memory-seed/skills/subproject_runtime.md",
+                ".memory-seed/topics.yaml",
                 "AGENTS.md",
                 "CLAUDE.md",
                 "GEMINI.md",

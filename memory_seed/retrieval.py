@@ -72,6 +72,7 @@ def search_memory(
     date_from: date | None = None,
     date_to: date | None = None,
     exclude_superseded: bool = False,
+    topics: list[str] | None = None,
 ) -> dict[str, Any]:
     """Search session memory and return the canonical result payload.
 
@@ -86,6 +87,13 @@ def search_memory(
         enabled=semantic_enabled,
     )
     chunks = extract_memory_chunks(cwd, granularity=granularity)
+    topic_filter: set[str] | None = None
+    if topics:
+        # Alias-aware expansion (canonical + aliases both match); fail-open on
+        # unknown names so vocabulary drift narrows results instead of erroring.
+        from .topics import expand_topic_filter
+
+        topic_filter = expand_topic_filter(cwd, topics)
     ranked = rank_session_memory(
         query,
         cwd,
@@ -101,6 +109,7 @@ def search_memory(
         date_to=date_to,
         exclude_superseded=exclude_superseded,
         chunks=chunks,
+        topics=topic_filter,
     )
     payload = format_search_results(
         query,
@@ -313,6 +322,7 @@ def ranked_to_dict(result: RankedMemoryChunk) -> dict[str, Any]:
             {"kind": block.kind, "from": block.from_ref, "to": block.to_ref}
             for block in chunk.continuity
         ],
+        "topics": list(chunk.topics),
         "line_range": [chunk.start_line, chunk.end_line],
         "heading_path": list(chunk.heading_path),
         "matched_terms": list(result.matched_terms),
@@ -349,6 +359,7 @@ def chunk_to_dict(chunk: MemoryChunk) -> dict[str, Any]:
             {"kind": block.kind, "from": block.from_ref, "to": block.to_ref}
             for block in chunk.continuity
         ],
+        "topics": list(chunk.topics),
         "entry_datetime": None
         if chunk.entry_datetime is None
         else chunk.entry_datetime.isoformat(),

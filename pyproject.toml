@@ -56,6 +56,7 @@ memory_seed = [
   "seed/.memory-seed/agent-rules.md",
   "seed/.memory-seed/archive/.gitkeep",
   "seed/.memory-seed/project-bootstrap.md",
+  "seed/.memory-seed/topics.yaml",
   "seed/.memory-seed/skills/agent_collaboration.md",
   "seed/.memory-seed/skills/security_triage.md",
   "seed/.memory-seed/skills/copywriter-conversion.md",
