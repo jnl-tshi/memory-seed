@@ -1,3 +1,8 @@
+> Status: TRIAGE COMPLETE 2026-07-10 (dispositions user-approved 2026-07-09/10): Fontjoy ->
+> adopt-now plan (`fontjoy-typography-pairing.md`); fffuel and 21st.dev -> reference-only
+> (`docs/4_Reference/fffuel-svg-css-generators.md`, `docs/4_Reference/21st-dev-components.md`).
+> Source video replaced by this note per user direction. Kept as the triage record.
+
 # Inbox: dev-tools reel — "10/10 websites every week"
 
 **Source:** Instagram Reel screen-recording (`20260709_093402000_iOS.MP4`, 44 s, creator @kiksugc), captured 2026-07-09. Transcribed and reviewed 2026-07-10; the source video was replaced by this note.

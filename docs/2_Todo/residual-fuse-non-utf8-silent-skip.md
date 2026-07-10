@@ -1,3 +1,9 @@
+> Status: OPEN small fix (promoted from inbox 2026-07-10 during the goal-run docs pass).
+> Verified still present: `_git_show_text` returns None on a non-UTF-8 blob and the fuse
+> record walkers `continue` past it silently. Low severity (UTF-8 write policy +
+> `encoding check` guard the corpus); fix shape: surface a blocking issue naming the file
+> instead of skipping. Listed under deferred small fixes in `0_NEXT_STEPS.md`.
+
 # Residual: `session fuse` silently skips a non-UTF-8 branch file
 
 **Source:** review residual from the session-fuse encoding/scoping fix (session entry `mse_azn6bejpd9xpmh3f`, merge commit `c522379`, 2026-07-10). Flagged by both the advisor and the independent review subagent; consciously deferred as out of scope for that change.

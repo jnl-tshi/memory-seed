@@ -37,7 +37,11 @@ project + trusted publisher; a prepared workflow file ships in S4 so it is one s
 historical curation writers (boundary with the seeding pass reconciled 2026-07-10 - typed
 lifecycle history via seeding, untyped `related_entries` backfill via P2);
 `memory-trace-ai-timeline-summarisation-plan.md`; `fontjoy-typography-pairing.md` (rides the next
-Trace UI pass); the Trace lineage pass (evolves edges + continuity chains in Trail).
+Trace UI pass); the Trace lineage pass (evolves edges + continuity chains in Trail); topics plan
+Phase 4 (Trace indexed-topic rendering + MCP topic tools);
+[`residual-fuse-non-utf8-silent-skip.md`](residual-fuse-non-utf8-silent-skip.md) (small fix,
+promoted from inbox 2026-07-10: fuse should block naming a non-UTF-8 file instead of silently
+skipping it); README screenshot captures to replace the S6 placeholders.
 
 Continuity naming for new work:
 
@@ -109,7 +113,7 @@ Bundles the SessionStart orientation hook (Claude/Codex/Gemini/Cursor) and Copil
 ### Release 2.12.0 (shipped 2026-06-15)
 
 First batch of multi-user Phase 3 increments from the reviewed 3.0 plan
-([`3.0-plan.md`](3.0-plan.md)):
+([`3.0-plan.md`](completed/3.0-plan.md)):
 
 - **Session-memory integrity validation (A-P3):** `memory-seed links check` validates both layouts
   (duplicate `entry_id`/`hash_id`, dangling `related_*` refs incl. entry-level `related_entries`,
@@ -185,7 +189,7 @@ once the user creates its PyPI project + trusted publisher + `pypi-memory-trace`
 
 ### 3.0 - In Progress
 
-See the reviewed, sequenced plan: [`3.0-plan.md`](3.0-plan.md).
+See the reviewed, sequenced plan: [`3.0-plan.md`](completed/3.0-plan.md).
 
 Multi-user Phases 1-2 shipped (2.9/2.10), the core multi-user increments (A-P3 integrity validation,
 A-ID 80-bit entry IDs, A-P4 MCP metadata/filters, S2 participant registry parsing, and A-P5

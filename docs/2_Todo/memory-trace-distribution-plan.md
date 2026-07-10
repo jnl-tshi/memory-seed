@@ -28,7 +28,7 @@ tags:
 > `branch:` field) ships first.** The held 2.17 core release is therefore a hard prerequisite for
 > publishing the companion package, not an optional bundle.
 > This is the canonical plan for Pillar B distribution.
-> Supersedes the "open evaluation" framing in [`3.0-plan.md`](3.0-plan.md) section "Pillar B" and closes the
+> Supersedes the "open evaluation" framing in [`3.0-plan.md`](completed/3.0-plan.md) section "Pillar B" and closes the
 > block in [`user-interface-deep-research-report.md`](completed/user-interface-deep-research-report.md).
 > **Priority:** P2 (after the unreleased ranking/supersession/commit-linking batch releases; not a
 > blocker for any shipped surface).
@@ -181,10 +181,10 @@ Once the seam is proven, move the review UI out.
 ## Provenance
 
 - User decision 2026-07-05 (JNL).
-- Companion-package intent: [`3.0-plan.md`](3.0-plan.md) section "Pillar B".
+- Companion-package intent: [`3.0-plan.md`](completed/3.0-plan.md) section "Pillar B".
 - Decision inputs and evaluation loop: [`codex/proposal-synergy-evaluation.md`](codex/proposal-synergy-evaluation.md)
   section "Pillar B Distribution Decision".
-- Retrieval-seam analysis: [`3.0-plan.md`](3.0-plan.md) section "Review Correction: Retrieval Is Already
+- Retrieval-seam analysis: [`3.0-plan.md`](completed/3.0-plan.md) section "Review Correction: Retrieval Is Already
   Mostly Shared".
 - Shared edge/metric contract: [`../3_Spec/graph-edge-contract.md`](../3_Spec/graph-edge-contract.md).
 - Decision-diagram surfacing + paid report pack: [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md).

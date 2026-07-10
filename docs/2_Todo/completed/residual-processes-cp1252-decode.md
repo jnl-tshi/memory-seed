@@ -1,3 +1,8 @@
+> Status: RESOLVED 2026-07-10. The cp1252 decode risk was fixed the same day by background
+> task `task_56a17f30` (strict UTF-8 + UnicodeDecodeError handling in `_iter_windows_processes`,
+> `_iter_posix_processes`, `_terminate_windows_process`, plus forced UTF-8 console output),
+> merged to main in `c6abdfe` and released in 2.17.0. Kept as the durable record.
+
 # Residual: cp1252 subprocess-decode risk in `processes.py`
 
 **Source:** same-class latent bug found while fixing the git-helper encoding bug (session entry `mse_azn6bejpd9xpmh3f`, merge commit `c522379`, 2026-07-10). Out of scope for the `session fuse` fix.

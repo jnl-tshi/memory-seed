@@ -105,4 +105,4 @@ dedicated `link backfill` subcommand is acceptable if it makes the risk clearer 
 - Completed P1 source plan:
   [`completed/related-entries-generation-plan.md`](completed/related-entries-generation-plan.md).
 - Current 3.0 coordination:
-  [`3.0-plan.md`](3.0-plan.md), [`NEXT_STEPS.md`](NEXT_STEPS.md).
+  [`3.0-plan.md`](completed/3.0-plan.md), [`NEXT_STEPS.md`](NEXT_STEPS.md).

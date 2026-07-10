@@ -62,7 +62,7 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 
 - Project type: reusable local AI memory-system seed and Python CLI/MCP tooling.
 - Current priority: use this repository as a meta-test for the all-in-one `.memory-seed/` v2 layout with nearest-runtime sub-project discovery.
-- Goal run 2026-07-10 COMPLETE: all four phases of `docs/2_Todo/goal-roadmap-refinement-and-staged-implementation.md` executed (alignment audit, consolidation, review swarm, stages S2-S6); v2.17.0 released; stage-to-merge-commit map in `docs/2_Todo/0_NEXT_STEPS.md`. Open follow-ups: `memory-trace 0.1.0` publication (user PyPI setup; inert workflow ready), topics plan Phase 4 (Trace rendering + MCP tools), Trace lineage pass, README screenshot captures.
+- Goal run 2026-07-10 COMPLETE: all four phases of `docs/2_Todo/completed/goal-roadmap-refinement-and-staged-implementation.md` executed (alignment audit, consolidation, review swarm, stages S2-S6); v2.17.0 released; stage-to-merge-commit map in `docs/2_Todo/0_NEXT_STEPS.md`. Open follow-ups: `memory-trace 0.1.0` publication (user PyPI setup; inert workflow ready), topics plan Phase 4 (Trace rendering + MCP tools), Trace lineage pass, README screenshot captures.
 - Main output: plain-file local memory system for AI agents plus Python package `memory-seed`.
 - Current risk: private/local system design work with possible personal notes because this project lives inside a second-brain folder.
 - Current risk: subagents or isolated worktrees spawned for this repo can silently inherit a stale git worktree pinned to an old commit rather than the live tree, producing fabricated or outdated citations if untrusted.

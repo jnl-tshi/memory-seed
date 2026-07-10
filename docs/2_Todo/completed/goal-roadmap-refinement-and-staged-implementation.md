@@ -1,3 +1,8 @@
+> Status: EXECUTED TO COMPLETION 2026-07-10. All four phases ran the same day: alignment
+> audit (3 reviewers, 4 user decisions), consolidation, assumption-review swarm (4 reviewers,
+> 4 approved fixes), and stages S2-S6 each as one revertable merge commit - including the
+> v2.17.0 release. Stage-to-merge-commit map: `0_NEXT_STEPS.md`.
+
 ---
 memory-system-version: 2.17
 tags:
