@@ -693,7 +693,10 @@ if (coords.some((value, index) => value !== expected[index])) {
 
         self.assertIn('["trail", "Trail"]', script)
         self.assertIn('state.view === "trail"', script)
-        self.assertIn('TRAIL_EDGE_TYPES = "branch,supersedes,evolves"', script)
+        self.assertIn('TRAIL_EDGE_TYPES = "branch,supersedes,evolves,related"', script)
+        # Relationship lanes left of main (always dotted): related | evolves |
+        # replaces. Branch lanes right of main are the solid git branches.
+        self.assertIn('TRAIL_REL_LANES = ["related", "evolves", "supersedes"]', script)
         self.assertIn("function trailView(", script)
         self.assertIn("function trailModel(", script)
         self.assertIn("laneBusyUntil", script)  # straight-lane interval coloring
@@ -710,9 +713,11 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn("trail-arrow-evolves", script)
         self.assertIn('stroke-dasharray="6 4"', script)
         # Labels must agree with edge direction (source replaces target).
-        # "replaced by" would invert the meaning of the arrow.
+        # "replaced by" would invert the meaning of the arrow. The evolves edge
+        # is labelled with its entry-field name, not a synonym.
         self.assertIn("replaces", script)
-        self.assertIn("refines", script)
+        self.assertIn("evolves", script)
+        self.assertNotIn("refines", script)
         self.assertNotIn("replaced by", script)
         self.assertIn(".trail-rail", styles)
         self.assertIn(".trail-row", styles)

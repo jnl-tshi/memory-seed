@@ -91,11 +91,10 @@ async function loadView() {
   if (state.view === "graph" || state.view === "trail") await loadGraph();
 }
 
-// Trail is a git-graph timeline: intra-branch lineage gives the lanes, and the
-// two lifecycle edges (supersedes = replaces, evolves = refines) draw as arcs.
-// Fixed edge set - not the graph view's toggleable chips. Plain relatedness is
-// deliberately excluded: it swamped the lineage signal.
-const TRAIL_EDGE_TYPES = "branch,supersedes,evolves";
+// Trail is a git-graph timeline: intra-branch lineage gives the branch lanes,
+// and relationship edges (supersedes/evolves/related) route through dedicated
+// dotted lanes left of main. Fixed edge set - not the graph view's chips.
+const TRAIL_EDGE_TYPES = "branch,supersedes,evolves,related";
 
 async function loadSearch(cursor = null, append = false, token = state.loadSeq) {
   const params = qs({
@@ -452,12 +451,19 @@ function graphView() {
 // Newest entry at the top, one straight lane per branch (lowest free lane,
 // freed when the branch's visible life ends - interval coloring, the
 // "straight branches" scheme git clients use). Lifecycle arcs bow through the
-// left gutter: supersedes = dashed (replaces), evolves = dotted (refines).
+// dotted relationship lanes left of main: related | evolves | replaces.
 // Day separators share the fixed row height so SVG y stays index * ROW.
 const TRAIL_ROW = 30;
 const TRAIL_LANE_W = 14;
-const TRAIL_GUTTER = 30;
 const TRAIL_WINDOW_STEP = 60;
+// Relationship lanes sit left of main, always dotted: related | evolves |
+// replaces (strongest lifecycle signal closest to the trunk). Branch lanes to
+// the right of them are the solid spawned git branches.
+const TRAIL_REL_LANES = ["related", "evolves", "supersedes"];
+const TRAIL_REL_LANE_W = 12;
+const TRAIL_REL_ZONE = TRAIL_REL_LANES.length * TRAIL_REL_LANE_W + 12;
+const TRAIL_DASH = { supersedes: "6 4", evolves: "2 3", related: "1 5" };
+const TRAIL_VERB = { supersedes: "replaces", evolves: "evolves", related: "relates to" };
 const trailBranchColors = ["#6f7cff", "#3fa66a", "#d9941a", "#8f63e8", "#18a999", "#d94b63", "#4f98d9", "#b8873b", "#7a8ff2", "#5bb98c"];
 
 function trailStamp(node) {
@@ -525,7 +531,7 @@ function trailModel(graph) {
   });
 
   const lifecycle = (graph.edges || []).filter(
-    (edge) => (edge.type === "supersedes" || edge.type === "evolves") && rowOf.has(edge.source) && rowOf.has(edge.target)
+    (edge) => TRAIL_REL_LANES.includes(edge.type) && rowOf.has(edge.source) && rowOf.has(edge.target)
   );
   return { items, total, rowOf, spans, laneOf, colorOf, laneCount: laneBusyUntil.length, lifecycle };
 }
@@ -536,9 +542,12 @@ function trailView() {
   const model = trailModel(graph);
   const { items, total, rowOf, spans, laneOf, colorOf, lifecycle } = model;
   if (!items.length) return `<div class="empty">No entries with lineage data yet.</div>`;
-  const laneX = (branch) => TRAIL_GUTTER + (laneOf.get(branch) || 0) * TRAIL_LANE_W + 7;
+  const laneX = (branch) => TRAIL_REL_ZONE + (laneOf.get(branch) || 0) * TRAIL_LANE_W + 7;
+  const relLaneX = (type) => 8 + TRAIL_REL_LANES.indexOf(type) * TRAIL_REL_LANE_W;
   const rowY = (index) => index * TRAIL_ROW + TRAIL_ROW / 2;
-  const railWidth = TRAIL_GUTTER + model.laneCount * TRAIL_LANE_W + 12;
+  // Rail width reacts to both zones, so the text column shifts right as more
+  // branches run in parallel.
+  const railWidth = TRAIL_REL_ZONE + model.laneCount * TRAIL_LANE_W + 12;
   const height = items.length * TRAIL_ROW;
   const selectedEntry = state.selected?.entry_id || "";
 
@@ -585,6 +594,8 @@ function trailView() {
     return out;
   });
 
+  // Relationship edges route orthogonally through their type's dotted lane:
+  // out from the source dot, down (or up) the lane, back in to the target dot.
   const arcs = lifecycle.map((edge) => {
     const sourceItem = items[rowOf.get(edge.source)];
     const targetItem = items[rowOf.get(edge.target)];
@@ -592,10 +603,12 @@ function trailView() {
     const sy = rowY(rowOf.get(edge.source));
     const tx = laneX(targetItem.node.branch || "");
     const ty = rowY(rowOf.get(edge.target));
-    const bow = Math.max(4, TRAIL_GUTTER - 8 - Math.min(18, Math.abs(ty - sy) / TRAIL_ROW));
+    const lx = relLaneX(edge.type);
+    const r = 6;
+    const dir = ty > sy ? 1 : -1;
+    const path = `M ${sx} ${sy} L ${lx + r} ${sy} Q ${lx} ${sy} ${lx} ${sy + r * dir} L ${lx} ${ty - r * dir} Q ${lx} ${ty} ${lx + r} ${ty} L ${tx} ${ty}`;
     const touched = selectedEntry && (edge.source === selectedEntry || edge.target === selectedEntry);
-    const dash = edge.type === "supersedes" ? "6 4" : "2 3";
-    return `<path d="M ${sx} ${sy} C ${bow} ${sy} ${bow} ${ty} ${tx} ${ty}" fill="none" stroke="${edgeColor(edge.type)}" stroke-width="${touched ? 2.4 : 1.6}" stroke-dasharray="${dash}" stroke-opacity="${!selectedEntry || touched ? 0.9 : 0.3}" marker-end="url(#trail-arrow-${edge.type})"><title>${esc(trailTitle(sourceItem.node))} ${edge.type === "supersedes" ? "replaces" : "refines"} ${esc(trailTitle(targetItem.node))}</title></path>`;
+    return `<path d="${path}" fill="none" stroke="${edgeColor(edge.type)}" stroke-width="${touched ? 2.6 : 2}" stroke-dasharray="${TRAIL_DASH[edge.type]}" stroke-opacity="${!selectedEntry || touched ? 0.95 : 0.35}" marker-end="url(#trail-arrow-${edge.type})"><title>${esc(trailTitle(sourceItem.node))} ${TRAIL_VERB[edge.type]} ${esc(trailTitle(targetItem.node))}</title></path>`;
   });
 
   const dots = items.flatMap((item, index) => {
@@ -626,7 +639,8 @@ function trailView() {
       <span class="meta"><strong>${shown}</strong> of ${total} entries · newest first</span>
       <span class="spacer"></span>
       <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("supersedes")}"></span>replaces</span>
-      <span class="legend-item"><span class="legend-line legend-line-dotted" style="border-color:${edgeColor("evolves")}"></span>refines</span>
+      <span class="legend-item"><span class="legend-line legend-line-dotted" style="border-color:${edgeColor("evolves")}"></span>evolves</span>
+      <span class="legend-item"><span class="legend-line legend-line-dotted" style="border-color:${edgeColor("related")}"></span>related</span>
       ${shown < total ? `<button type="button" class="chip" data-trail-more>Load older</button>` : ""}
     </div>
     <div class="trail-scroll">
@@ -635,6 +649,7 @@ function trailView() {
           <defs>
             <marker id="trail-arrow-supersedes" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("supersedes")}"></path></marker>
             <marker id="trail-arrow-evolves" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("evolves")}"></path></marker>
+            <marker id="trail-arrow-related" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("related")}"></path></marker>
           </defs>
           ${connectors.join("")}
           ${laneSegments.join("")}
