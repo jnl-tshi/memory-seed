@@ -9,6 +9,7 @@ build/
 # Memory Seed runtime markers
 .memory-seed/.retrieval-reminder-stamp
 .memory-seed/.identity-offer-stamp
+.memory-seed/.session-log-check-state
 .memory-seed/backups/
 
 # Demo sub-project build artifacts

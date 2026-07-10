@@ -78,6 +78,25 @@ def configured_user():
     return None
 
 
+def _load_state(path):
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _save_state(path, state):
+    try:
+        path.write_text(json.dumps(state), encoding="utf-8")
+    except OSError:
+        pass
+
+
 user = configured_user()
 if user:
     today_file = d / today[:7] / today / f"{user}.md"
@@ -109,16 +128,52 @@ for stamp in stamps:
     except ValueError:
         pass
 
-if latest is None or latest < cutoff:
-    messages.append(
-        f"SESSION LOG REMINDER: No .memory-seed/sessions/ entry has been "
-        f"written in the last 15 minutes. If you completed meaningful work "
-        f"this turn, append an entry to {target_label} "
-        f"now — before this turn ends. "
-        f"For decisions, use DRAFT labels: "
-        f"D (Decision, required), R (Reason, required), "
-        f"A (Alternatives, optional), F (Files, optional), T (Tests, optional)."
-    )
+is_stale = latest is None or latest < cutoff
+latest_str = latest.strftime("%Y-%m-%d %H:%M") if latest else None
+
+# Escalation state: the staleness check above is anchored to the last logged
+# entry's own timestamp, so it is immune to turn frequency - it fires once
+# 15 real minutes have passed since that entry, no matter how many turns ran
+# in between. What it cannot detect is whether a fired reminder was actually
+# acted on. The state file remembers the latest entry timestamp we last saw
+# and how many consecutive stale checks have passed with no new entry
+# appearing in between, so a miss that survives one reminder gets a louder,
+# harder-to-miss second one instead of repeating identically forever.
+state_path = Path(".memory-seed/.session-log-check-state")
+state = _load_state(state_path)
+if state.get("target") == target_label and state.get("last_seen_entry") == latest_str:
+    consecutive_misses = state.get("consecutive_misses", 0)
+    if not isinstance(consecutive_misses, int):
+        consecutive_misses = 0
+else:
+    consecutive_misses = 0
+
+if is_stale:
+    consecutive_misses += 1
+    if consecutive_misses >= 2:
+        messages.append(
+            f"SESSION LOG REMINDER (repeated - {consecutive_misses} checks in a row with no "
+            f"new entry): a prior reminder for {target_label} already fired and nothing new has "
+            f"been logged since. Deferring or batching session log writes is a discipline "
+            f"failure. Stop and append an entry now covering everything done since the last "
+            f"logged entry - this is especially important if the turn ran `git push`, `git "
+            f"merge`, deleted or moved files, or made any decision worth remembering."
+        )
+    else:
+        messages.append(
+            f"SESSION LOG REMINDER: no entry has been logged in {target_label} in the last 15 "
+            f"minutes. Append one now, before this turn ends - not deferred, not batched. This "
+            f"applies whenever the turn changed files, ran a git operation (push, merge, "
+            f"rebase, delete), or made a decision, however small. D (Decision) and R (Reason) "
+            f"are required on every entry; A (Alternatives), F (Files), T (Tests) are optional."
+        )
+else:
+    consecutive_misses = 0
+
+_save_state(
+    state_path,
+    {"target": target_label, "last_seen_entry": latest_str, "consecutive_misses": consecutive_misses},
+)
 
 # Chronology check: today's entry headings must be in non-decreasing time order.
 if any(stamps[i] < stamps[i - 1] for i in range(1, len(stamps))):
