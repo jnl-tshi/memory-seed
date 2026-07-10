@@ -506,26 +506,58 @@ function trailModel(graph) {
     span.last = Math.max(span.last, index);
     spans.set(branch, span);
   });
-  // main is pinned to the leftmost lane (git-client convention); entries with
-  // no recorded branch don't allocate a lane - their dots sit on lane 0.
-  const branches = [...spans.keys()]
-    .filter((branch) => branch !== "")
-    .sort((a, b) => {
-      if (a === "main") return -1;
-      if (b === "main") return 1;
-      return spans.get(a).first - spans.get(b).first || spans.get(b).last - spans.get(a).last;
+  // Fork/merge targets on main: a branch forks off the nearest older main row
+  // and merges into the nearest newer main row (undefined = still open).
+  const mainRowList = [];
+  items.forEach((item, index) => {
+    if (item.kind === "node" && item.node.branch === "main") mainRowList.push(index);
+  });
+  const linkRows = new Map();
+  // Lane occupancy runs fork-to-merge, not just across a branch's own entry
+  // rows: branches whose entries occupy disjoint row ranges but converge on
+  // the same merge point still run in parallel and must not share a lane.
+  const occupancy = new Map();
+  spans.forEach((span, branch) => {
+    if (branch === "" || branch === "main") return;
+    const forkRow = mainRowList.find((row) => row > span.last);
+    const mergeRow = [...mainRowList].reverse().find((row) => row < span.first);
+    linkRows.set(branch, { forkRow, mergeRow });
+    occupancy.set(branch, {
+      first: mergeRow !== undefined ? Math.min(span.first, mergeRow) : span.first,
+      last: forkRow !== undefined ? Math.max(span.last, forkRow) : span.last,
     });
+  });
+  if (spans.has("main")) occupancy.set("main", { ...spans.get("main") });
+  // main is pinned to the leftmost lane (git-client convention); the rest
+  // allocate shortest-lived first, so among concurrent branches the longest
+  // takes the outermost lane. Entries with no recorded branch don't allocate
+  // a lane - their dots sit on lane 0.
+  const branches = [...occupancy.keys()].sort((a, b) => {
+    if (a === "main") return -1;
+    if (b === "main") return 1;
+    const spanA = occupancy.get(a);
+    const spanB = occupancy.get(b);
+    const entryA = spans.get(a);
+    const entryB = spans.get(b);
+    // Shortest-lived first; ties (same fork/merge window) break on the
+    // branch's own entry range, so the longest still lands outermost.
+    return (
+      (spanA.last - spanA.first) - (spanB.last - spanB.first)
+      || (entryA.last - entryA.first) - (entryB.last - entryB.first)
+      || spanA.first - spanB.first
+    );
+  });
   const laneOf = new Map();
   const colorOf = new Map();
-  const laneBusyUntil = [];
+  const laneIntervals = [];
   branches.forEach((branch, order) => {
-    const span = spans.get(branch);
-    let lane = laneBusyUntil.findIndex((busy) => busy < span.first);
+    const span = occupancy.get(branch);
+    let lane = laneIntervals.findIndex((intervals) => intervals.every((occupied) => span.last < occupied.first || span.first > occupied.last));
     if (lane === -1) {
-      lane = laneBusyUntil.length;
-      laneBusyUntil.push(-1);
+      lane = laneIntervals.length;
+      laneIntervals.push([]);
     }
-    laneBusyUntil[lane] = span.last;
+    laneIntervals[lane].push(span);
     laneOf.set(branch, lane);
     colorOf.set(branch, trailBranchColors[order % trailBranchColors.length]);
   });
@@ -533,14 +565,14 @@ function trailModel(graph) {
   const lifecycle = (graph.edges || []).filter(
     (edge) => TRAIL_REL_LANES.includes(edge.type) && rowOf.has(edge.source) && rowOf.has(edge.target)
   );
-  return { items, total, rowOf, spans, laneOf, colorOf, laneCount: laneBusyUntil.length, lifecycle };
+  return { items, total, rowOf, spans, laneOf, colorOf, laneCount: laneIntervals.length, lifecycle, linkRows };
 }
 
 function trailView() {
   const graph = state.graph;
   if (!graph) return `<div class="empty">Trail loading</div>`;
   const model = trailModel(graph);
-  const { items, total, rowOf, spans, laneOf, colorOf, lifecycle } = model;
+  const { items, total, rowOf, spans, laneOf, colorOf, lifecycle, linkRows } = model;
   if (!items.length) return `<div class="empty">No entries with lineage data yet.</div>`;
   const laneX = (branch) => TRAIL_REL_ZONE + (laneOf.get(branch) || 0) * TRAIL_LANE_W + 7;
   const relLaneX = (type) => 8 + TRAIL_REL_LANES.indexOf(type) * TRAIL_REL_LANE_W;
@@ -565,29 +597,27 @@ function trailView() {
     rows.slice(1).map((row, i) => `<line x1="${laneX(branch)}" y1="${rowY(rows[i])}" x2="${laneX(branch)}" y2="${rowY(row)}" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></line>`)
   );
 
-  // Gitgraph forking: a task branch forks off the nearest older main row and
-  // merges into the nearest newer main row, drawn as rounded lane-change
-  // curves in the branch's color. A branch with no newer main row is still
-  // open and deliberately dangles - no merge is fabricated.
-  const mainRows = laneRows.get("main") || [];
-  const connectors = [...laneRows.entries()].flatMap(([branch, rows]) => {
-    if (branch === "main" || !mainRows.length) return [];
+  // Gitgraph forking: fork/merge rows come from the model - the same rows
+  // that drive lane occupancy, so connectors and lane allocation always
+  // agree. A branch with no newer main row is still open and deliberately
+  // dangles - no merge is fabricated.
+  const connectors = [...linkRows.entries()].flatMap(([branch, { forkRow, mergeRow }]) => {
+    const rows = laneRows.get(branch) || [];
+    if (!rows.length) return [];
     const newest = rows[0];
     const oldest = rows[rows.length - 1];
     const bx = laneX(branch);
     const mx = laneX("main");
     const out = [];
-    const forkMain = mainRows.find((row) => row > oldest);
-    if (forkMain !== undefined) {
-      const y1 = rowY(forkMain);
+    if (forkRow !== undefined) {
+      const y1 = rowY(forkRow);
       const y2 = rowY(oldest);
       const mid = (y1 + y2) / 2;
       out.push(`<path class="trail-link" d="M ${mx} ${y1} C ${mx} ${mid} ${bx} ${mid} ${bx} ${y2}" fill="none" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></path>`);
     }
-    const mergeMain = [...mainRows].reverse().find((row) => row < newest);
-    if (mergeMain !== undefined) {
+    if (mergeRow !== undefined) {
       const y1 = rowY(newest);
-      const y2 = rowY(mergeMain);
+      const y2 = rowY(mergeRow);
       const mid = (y1 + y2) / 2;
       out.push(`<path class="trail-link" d="M ${bx} ${y1} C ${bx} ${mid} ${mx} ${mid} ${mx} ${y2}" fill="none" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></path>`);
     }

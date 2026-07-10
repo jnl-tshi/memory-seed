@@ -699,7 +699,11 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn('TRAIL_REL_LANES = ["related", "evolves", "supersedes"]', script)
         self.assertIn("function trailView(", script)
         self.assertIn("function trailModel(", script)
-        self.assertIn("laneBusyUntil", script)  # straight-lane interval coloring
+        # Lane occupancy runs fork-to-merge (not just entry rows), so branches
+        # converging on one merge point hold parallel lanes; shortest-lived
+        # allocates first, putting the longest branch outermost.
+        self.assertIn("laneIntervals", script)
+        self.assertIn("const occupancy", script)
         self.assertIn("data-trail-more", script)  # bounded window, load older
         self.assertIn("trail-link", script)  # fork/merge connectors to main
         self.assertIn("stripTitleStamp", script)
