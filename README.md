@@ -13,7 +13,7 @@ It is built first for solo developers who move between Codex, Claude Code, Gemin
 
 https://github.com/user-attachments/assets/b1c64d9e-4a67-4bc2-a030-d8ba7f17ccfe
 
-[â–¶ Watch the 30-second demo](https://github.com/jnl-tshi/memory-seed/releases/download/v2.1.3/memory-seed-demo.mp4) if the player above does not load.
+[Watch the 30-second demo](https://github.com/jnl-tshi/memory-seed/releases/download/v2.1.3/memory-seed-demo.mp4) if the player above does not load.
 
 ## Quickstart
 
@@ -91,10 +91,15 @@ The validator performs the same search-then-fetch flow an MCP-capable agent uses
 
 **Memory Trace** is the optional local browser UI for exploring a project's Memory Seed runtime — read-only search, filters, timeline, graph, and reader/details views over your Markdown session files, backed by a rebuildable local SQLite cache outside the repository. It ships as a **separate distribution** so the core control plane stays lightweight and web-framework-free; Memory Trace depends on `memory-seed` and consumes its public retrieval service.
 
+> **Not yet on PyPI.** `memory-trace 0.1.0` publishes after the core `memory-seed 2.17` release
+> (it depends on the 2.17 `branch:` field). Until then, install it from this repository:
+
 ```powershell
-python -m pip install memory-trace
+python -m pip install ./memory-trace   # from a clone of this repo
 memory-trace --cwd . --host 127.0.0.1 --port 8765 --no-open
 ```
+
+Once published, this becomes `python -m pip install memory-trace`.
 
 The former in-package `memory-seed[lense]` extra is now a deprecation shim: it installs `memory-trace`, and the `memory-seed lense` command still runs but prints a notice pointing you to the `memory-trace` command. Without `memory-trace` installed, `memory-seed lense` prints an install hint instead of failing.
 
