@@ -4,6 +4,15 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Hardened the `session-log-check.py` Stop hook against reminders going unaddressed: a gitignored
+  `.memory-seed/.session-log-check-state` (fail-open on corruption) tracks consecutive stale checks
+  with no new session entry appearing in between, escalating from the base reminder to explicit
+  "repeated" wording (naming the count, citing `agent-rules.md`'s discipline-failure framing) instead
+  of repeating identically forever; a new entry resets the counter. The 15-minute staleness check
+  itself is unchanged and was already anchored to the last logged entry's own timestamp rather than
+  to hook-invocation frequency. Reminder language was also tightened: leads with the imperative,
+  names concrete triggers (file changes, `git push`/`merge`/`rebase`/delete, any decision), and
+  states D/R as required on every entry instead of framing DRAFT labels as decision-only.
 - Fixed two `session fuse` bugs that made it unusable on this repo's own branches. (1) The git
   subprocess helpers (`_git_text`, `_git_show_text`, `find_trailer_commits`) now decode output as
   strict UTF-8 and catch `UnicodeDecodeError`, instead of defaulting to the Windows locale (cp1252)

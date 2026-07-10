@@ -2499,6 +2499,93 @@ class SessionLogOrderingHookTests(unittest.TestCase):
         self.assertIn("ORDER WARNING", out)
         self.assertIn(f".memory-seed/sessions/{today[:7]}/{today}/jean.md", out)
 
+    def _write_stale_entry(self, cwd, minutes_ago=30):
+        import datetime
+
+        old = datetime.datetime.now() - datetime.timedelta(minutes=minutes_ago)
+        day = old.strftime("%Y-%m-%d")
+        stamp = old.strftime("%H:%M")
+        self._flat_target(cwd, day).write_text(
+            f"## {day} {stamp} - old entry\n\ntext\n",
+            encoding="utf-8",
+        )
+
+    def test_first_stale_check_uses_base_wording_not_escalated(self):
+        cwd = self.make_project()
+        self._write_stale_entry(cwd)
+
+        out = self._run(cwd)
+
+        self.assertIn("SESSION LOG REMINDER", out)
+        self.assertNotIn("repeated", out)
+
+    def test_second_consecutive_stale_check_escalates_wording(self):
+        cwd = self.make_project()
+        self._write_stale_entry(cwd)
+
+        self._run(cwd)
+        out = self._run(cwd)
+
+        self.assertIn("SESSION LOG REMINDER (repeated - 2 checks in a row", out)
+        self.assertIn("discipline failure", out)
+
+    def test_escalation_count_keeps_climbing_across_repeated_misses(self):
+        cwd = self.make_project()
+        self._write_stale_entry(cwd)
+
+        self._run(cwd)
+        self._run(cwd)
+        out = self._run(cwd)
+
+        self.assertIn("3 checks in a row", out)
+
+    def test_escalation_resets_once_a_new_entry_is_logged(self):
+        import datetime
+
+        cwd = self.make_project()
+        self._write_stale_entry(cwd)
+        self._run(cwd)
+        self._run(cwd)
+
+        # Simulate the agent complying: append a fresh entry before the next check.
+        now = datetime.datetime.now()
+        today = now.strftime("%Y-%m-%d")
+        target = self._flat_target(cwd, today)
+        existing = target.read_text(encoding="utf-8") if target.exists() else ""
+        target.write_text(
+            existing + f"\n## {today} {now.strftime('%H:%M')} - caught up\n\ntext\n",
+            encoding="utf-8",
+        )
+
+        out = self._run(cwd)
+
+        self.assertEqual(out.strip(), "")
+
+    def test_state_file_written_under_memory_seed_directory(self):
+        import json
+
+        cwd = self.make_project()
+        self._write_stale_entry(cwd)
+
+        self._run(cwd)
+
+        state_path = cwd / ".memory-seed" / ".session-log-check-state"
+        self.assertTrue(state_path.exists())
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        self.assertEqual(state["consecutive_misses"], 1)
+
+    def test_corrupt_state_file_fails_open(self):
+        cwd = self.make_project()
+        self._write_stale_entry(cwd)
+        (cwd / ".memory-seed" / ".session-log-check-state").write_text(
+            "not valid json {{{", encoding="utf-8"
+        )
+
+        out = self._run(cwd)
+
+        self.assertIn("SESSION LOG REMINDER", out)
+        self.assertNotIn("repeated", out)
+
 
 class McpMergeTests(unittest.TestCase):
     def make_project(self):
