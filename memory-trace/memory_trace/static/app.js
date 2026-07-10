@@ -23,6 +23,8 @@ const state = {
   graphHover: "",
   trailWindow: 60,
   leftCollapsed: localStorage.getItem("ml:leftCollapsed") === "1",
+  rightCollapsed: localStorage.getItem("ml:rightCollapsed") === "1",
+  sectionOpen: readStoredJson("ml:sections", { views: false, filters: true, topics: true }),
   topicsExpanded: false,
   results: [],
   timeline: null,
@@ -37,6 +39,15 @@ const state = {
   matchHint: null,
   pendingMatchScroll: false,
 };
+
+function readStoredJson(key, fallback) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key));
+    return value && typeof value === "object" ? { ...fallback, ...value } : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 const app = document.getElementById("app");
 const agentColors = ["#6f7cff", "#18a999", "#d9941a", "#d94b63", "#8f63e8", "#4f98d9"];
@@ -162,7 +173,7 @@ function render() {
   app.innerHTML = `
     <div class="app">
       ${topbar()}
-      <div class="shell ${state.leftCollapsed ? "left-collapsed" : ""}">
+      <div class="shell ${state.leftCollapsed ? "left-collapsed" : ""} ${state.rightCollapsed ? "right-collapsed" : ""}">
         <aside class="pane left" data-pane="left">${leftPane()}</aside>
         <div class="resizer" data-resize="left"></div>
         <main class="pane center" data-pane="center">${centerPane()}</main>
@@ -224,6 +235,7 @@ function topbar() {
       <div class="segmented">${tabs}</div>
       <button type="button" class="icon-button" data-theme title="Theme">${state.theme === "dark" ? "◐" : "◑"}</button>
       <div class="palette">${["indigo", "teal", "amber", "ruby", "violet"].map((name) => `<button type="button" class="${state.accent === name ? "active" : ""}" data-accent="${name}" title="${name}" style="background:${palettePreview(name)}"></button>`).join("")}</div>
+      <button type="button" class="icon-button" data-toggle-right title="${state.rightCollapsed ? "Show reader" : "Hide reader"}">▤</button>
     </header>`;
 }
 
@@ -234,21 +246,43 @@ function leftPane() {
       <div class="metric"><strong>${facets.runtime.entry_count || 0}</strong><span>entries</span></div>
       <div class="metric"><strong>${facets.runtime.chunk_count || 0}</strong><span>chunks</span></div>
     </div>
-    <div class="section-title"><span>Saved Views</span></div>
-    ${savedButton("Recent work", "", "", "newest")}
-    ${savedButton("Design decisions", "design decision", "", "relevance")}
-    ${savedButton("Related graph", "", "graph", "relevance")}
-    <div class="section-title"><span>Filters</span><button type="button" class="chip" data-reset>Reset</button></div>
-    <label class="section-title"><span>Date From</span></label><input type="date" id="date-from" value="${escAttr(state.dateFrom)}">
-    <label class="section-title"><span>Date To</span></label><input type="date" id="date-to" value="${escAttr(state.dateTo)}">
-    <div class="section-title"><span>Agent</span></div>
-    ${filterRows(facets.agents, "agent", state.agent)}
-    <div class="section-title"><span>User</span></div>
-    ${filterRows(facets.users, "user", state.user)}
-    <div class="section-title"><span>Topics</span></div>
-    <div class="chip-list">${topicChips(facets)}</div>
-    <div class="section-title"><span>Granularity</span></div>
-    <div class="segmented">${["entry", "section", "all"].map((item) => `<button type="button" class="tab ${state.granularity === item ? "active" : ""}" data-granularity="${item}">${item}</button>`).join("")}</div>`;
+    ${sidebarSection("views", "Saved Views", `
+      ${savedButton("Recent work", "", "", "newest")}
+      ${savedButton("Design decisions", "design decision", "", "relevance")}
+      ${savedButton("Related graph", "", "graph", "relevance")}`)}
+    ${sidebarSection("filters", "Filters", `
+      ${facetSelect("agent-filter", "agent", facets.agents, state.agent, "All agents")}
+      ${facetSelect("user-filter", "user", facets.users, state.user, "All users")}
+      <label class="field-label" for="date-from">From</label><input type="date" id="date-from" value="${escAttr(state.dateFrom)}">
+      <label class="field-label" for="date-to">To</label><input type="date" id="date-to" value="${escAttr(state.dateTo)}">
+      <label class="field-label">Granularity</label>
+      <div class="segmented">${["entry", "section", "all"].map((item) => `<button type="button" class="tab ${state.granularity === item ? "active" : ""}" data-granularity="${item}">${item}</button>`).join("")}</div>
+      <button type="button" class="chip filters-reset" data-reset>Reset filters</button>`)}
+    ${sidebarSection("topics", "Topics", `<div class="chip-list">${topicChips(facets)}</div>`)}`;
+}
+
+// Collapsible sidebar sections (dropdown-style disclosure): open state
+// persists so the sidebar keeps the user's chosen density across sessions.
+function sidebarSection(key, title, body) {
+  const open = state.sectionOpen[key] !== false;
+  return `
+    <section class="side-section">
+      <button type="button" class="side-section-head" data-section="${key}" aria-expanded="${open}"><span>${title}</span><span class="count">${open ? "▾" : "▸"}</span></button>
+      ${open ? `<div class="side-section-body">${body}</div>` : ""}
+    </section>`;
+}
+
+// Facet dropdowns: a select with counts costs one row of screen real estate
+// regardless of how many values the facet has.
+function facetSelect(id, kind, values, active, allLabel) {
+  const entries = Object.entries(values || {});
+  const total = entries.reduce((sum, [, count]) => sum + count, 0);
+  return `
+    <label class="field-label" for="${id}">${kind === "agent" ? "Agent" : "User"}</label>
+    <select id="${id}" data-filter-select="${kind}">
+      <option value="">${esc(allLabel)} (${total})</option>
+      ${entries.map(([key, count]) => `<option value="${escAttr(key)}" ${active === key ? "selected" : ""}>${esc(key)} (${count})</option>`).join("")}
+    </select>`;
 }
 
 function topicChips(facets) {
@@ -282,15 +316,6 @@ function savedButton(label, query, view, sort) {
   return `<button type="button" class="row-button" data-saved-query="${escAttr(query)}" data-saved-view="${escAttr(view)}" data-saved-sort="${escAttr(sort)}"><span class="swatch"></span><span>${label}</span><span class="count">preset</span></button>`;
 }
 
-function filterRows(values, kind, active) {
-  const entries = Object.entries(values || {});
-  if (!entries.length) return `<div class="count">None</div>`;
-  return [
-    `<button type="button" class="row-button ${!active ? "active" : ""}" data-${kind}=""><span class="swatch"></span><span>All</span><span class="count">${entries.reduce((sum, item) => sum + item[1], 0)}</span></button>`,
-    ...entries.map(([key, count], index) => `<button type="button" class="row-button ${active === key ? "active" : ""}" data-${kind}="${escAttr(key)}"><span class="swatch" style="background:${agentColors[index % agentColors.length]}"></span><span>${esc(key)}</span><span class="count">${count}</span></button>`),
-  ].join("");
-}
-
 function centerPane() {
   const densityClass = `density-${state.density}`;
   if (state.view === "timeline") return `<section class="${densityClass} timeline-view">${timelineView()}</section>`;
@@ -309,7 +334,7 @@ function searchView() {
       <div class="segmented">${["comfortable", "compact"].map((item) => `<button type="button" class="tab ${state.density === item ? "active" : ""}" data-density="${item}">${item}</button>`).join("")}</div>
     </div>
     <div class="scroll">
-      ${state.results.length ? resultList() : `<div class="empty">No session entries match the current filters.</div>`}
+      ${state.results.length ? resultList() : `<div class="empty"><div><p>No entries match${state.query.trim() ? ` "${esc(state.query.trim())}" with` : ""} the current filters.</p><button type="button" class="chip" data-reset>Clear filters</button></div></div>`}
       ${state.nextCursor ? `<button type="button" class="chip" data-more>Load more</button>` : ""}
     </div>`;
 }
@@ -667,6 +692,20 @@ function installDelegatedEvents() {
     if (event.target?.id === "query") queryInput(event.target.value);
   });
 
+  // "/" focuses search from anywhere (switching to the Search view first,
+  // since that is the only view the query affects); Esc leaves the box.
+  window.addEventListener("keydown", async (event) => {
+    const tag = event.target?.tagName;
+    const typing = tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA";
+    if (event.key === "/" && !typing) {
+      event.preventDefault();
+      if (state.view !== "search") await setView("search");
+      document.getElementById("query")?.focus();
+    } else if (event.key === "Escape" && event.target?.id === "query") {
+      event.target.blur();
+    }
+  });
+
   app.addEventListener("wheel", (event) => {
     if (!event.target.closest("[data-graph-canvas]")) return;
     event.preventDefault();
@@ -707,7 +746,9 @@ function installDelegatedEvents() {
   app.addEventListener("change", async (event) => {
     const target = event.target;
     if (!target) return;
-    if (target.id === "sort") {
+    if (target.dataset?.filterSelect) {
+      await updateFilter(target.dataset.filterSelect, target.value);
+    } else if (target.id === "sort") {
       state.sort = target.value;
       await reloadCurrentView();
     } else if (target.id === "date-from") {
@@ -834,6 +875,19 @@ function installDelegatedEvents() {
       render();
       return;
     }
+    if (target.dataset.toggleRight !== undefined) {
+      state.rightCollapsed = !state.rightCollapsed;
+      localStorage.setItem("ml:rightCollapsed", state.rightCollapsed ? "1" : "0");
+      render();
+      return;
+    }
+    if (target.dataset.section) {
+      const key = target.dataset.section;
+      state.sectionOpen[key] = state.sectionOpen[key] === false;
+      localStorage.setItem("ml:sections", JSON.stringify(state.sectionOpen));
+      render();
+      return;
+    }
     if (target.dataset.topicsMore !== undefined) {
       state.topicsExpanded = !state.topicsExpanded;
       render();
@@ -877,6 +931,12 @@ function installDelegatedEvents() {
       const hint = matchHintFor(target.dataset.chunk);
       state.matchHint = hint;
       state.pendingMatchScroll = Boolean(hint);
+      // Selecting an entry is an explicit "inspect this" - reopen the reader
+      // if it was collapsed so the click always produces visible feedback.
+      if (state.rightCollapsed) {
+        state.rightCollapsed = false;
+        localStorage.setItem("ml:rightCollapsed", "0");
+      }
       const token = ++state.loadSeq;
       await selectChunk(target.dataset.chunk, true, token);
     }
