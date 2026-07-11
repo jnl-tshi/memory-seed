@@ -64,6 +64,10 @@ function readStoredJson(key, fallback) {
 const app = document.getElementById("app");
 const agentColors = ["#6f7cff", "#18a999", "#d9941a", "#d94b63", "#8f63e8", "#4f98d9"];
 let paneObserver = null;
+// Set while restoreFocusedInput() refocuses the search box as a re-render
+// bookkeeping detail - the search box's own "focusin" listener checks this so
+// that internal focus restoration never re-triggers a dropdown reopen.
+let restoringFocus = false;
 
 function api(path) {
   return fetch(path).then((response) => {
@@ -212,7 +216,13 @@ function restoreFocusedInput(focusState) {
   const el = document.getElementById(focusState.id);
   if (!el) return;
   if ("value" in el && el.value !== focusState.value) el.value = focusState.value;
+  // This focus() call is re-render bookkeeping (preserving caret continuity
+  // through a full DOM rebuild), not a real user refocus - it must not trip
+  // the search box's "reopen the dropdown on refocus" listener, or a
+  // deliberate close (Enter/Escape) would reopen itself on its own re-render.
+  restoringFocus = true;
   el.focus();
+  restoringFocus = false;
   if (typeof focusState.start === "number" && typeof el.setSelectionRange === "function") {
     try {
       el.setSelectionRange(focusState.start, focusState.end);
@@ -800,8 +810,13 @@ function installDelegatedEvents() {
     if (event.target?.id === "query") queryInput(event.target.value);
   });
 
-  // Refocusing a box that still holds a query reopens its ranked dropdown.
+  // Refocusing a box that still holds a query reopens its ranked dropdown -
+  // but only a genuine refocus (e.g. clicking back in after clicking away).
+  // restoringFocus distinguishes that from render()'s internal caret-
+  // preservation refocus, which must never reopen a dropdown the user (or
+  // Enter/Escape) just closed.
   app.addEventListener("focusin", (event) => {
+    if (restoringFocus) return;
     if (event.target?.id === "query" && state.query.trim() && !state.searchOpen) {
       state.searchOpen = true;
       render();
