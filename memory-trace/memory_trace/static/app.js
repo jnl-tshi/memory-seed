@@ -1768,6 +1768,11 @@ function escAttr(value) {
   return esc(value).replace(/`/g, "&#96;");
 }
 
+// Phase 0 golden-fixture hook: a read-only surface for baseline capture and
+// future React-parity harnesses to call the Trail's layout model directly
+// (trailModel is otherwise module-scoped). Not used by the app itself.
+window.memoryTraceDebug = { trailModel, trailOrderedNodes };
+
 boot().catch((error) => {
   app.innerHTML = `<div class="boot">Memory Trace failed to load: ${esc(error.message)}</div>`;
 });
