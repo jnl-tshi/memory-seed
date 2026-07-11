@@ -764,12 +764,13 @@ select, input[type="date"] {
   background: transparent;
   box-shadow: inset 0 0 0 1.5px var(--accent);
 }
-/* Daisy-chained related context: adjacent same-branch related entries keep a
-   left bracket in the related color instead of a redundant route. */
-.trail-row.related-adjacent {
+/* Same-branch related context (two-rule model): full bracket = entries the
+   selection cites; pastel narrower bracket = entries that mention it or
+   second-order links. Routes are reserved for branch-hopping relationships. */
+.trail-row.chain-primary, .trail-row.chain-secondary {
   position: relative;
 }
-.trail-row.related-adjacent::before {
+.trail-row.chain-primary::before, .trail-row.chain-secondary::before {
   content: "";
   position: absolute;
   left: 0;
@@ -778,6 +779,10 @@ select, input[type="date"] {
   width: 3px;
   border-radius: 999px;
   background: var(--edge-related);
+}
+.trail-row.chain-secondary::before {
+  width: 2px;
+  background: color-mix(in srgb, var(--edge-related) 45%, var(--bg));
 }
 .detail-header.pinned {
   box-shadow: inset 0 0 0 1.5px var(--accent);

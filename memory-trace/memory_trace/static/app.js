@@ -475,9 +475,6 @@ const TRAIL_REL_ZONE = TRAIL_REL_LANES.length * TRAIL_REL_LANE_W + 12;
 // comparison). related routes draw only for the selected entry: as ambient
 // traffic they drowned the lifecycle signal.
 const TRAIL_DASH = { supersedes: "6 4", evolves: "6 4", related: "6 4" };
-// Related routes on main hide unless a merge separates the pair or they sit
-// more than this many main entries apart (user-approved distance override).
-const TRAIL_MAIN_GAP = 10;
 const TRAIL_VERB = { supersedes: "replaces", evolves: "evolves", related: "relates to" };
 const trailBranchColors = ["#6f7cff", "#3fa66a", "#d9941a", "#8f63e8", "#18a999", "#d94b63", "#4f98d9", "#b8873b", "#7a8ff2", "#5bb98c"];
 
@@ -653,47 +650,41 @@ function trailView() {
   // active (unmuted) selection saturates the routes it touches and reveals
   // its related routes.
   const focusActive = Boolean(selectedEntry) && !state.selectionMuted;
-  // Related routes show only where structure doesn't already tell the story
-  // (user-finalised criteria): cross-branch pairs always; same-branch pairs
-  // only when not directly adjacent in that branch's sequence (the lane line
-  // covers adjacency); main pairs additionally need a branch merge between
-  // them or a gap of more than TRAIL_MAIN_GAP main entries.
-  const mergeRows = [...linkRows.values()].map((link) => link.mergeRow).filter((row) => row !== undefined);
-  const relatedVisible = (sRow, tRow, sBranch, tBranch) => {
-    if (sBranch !== tBranch) return true;
-    const rows = branchRows.get(sBranch) || [];
-    const si = rows.indexOf(sRow);
-    const ti = rows.indexOf(tRow);
-    if (sBranch === "main") {
-      const lo = Math.min(sRow, tRow);
-      const hi = Math.max(sRow, tRow);
-      return mergeRows.some((row) => row > lo && row < hi) || Math.abs(si - ti) > TRAIL_MAIN_GAP;
-    }
-    return Math.abs(si - ti) !== 1;
-  };
-  // Adjacent related pairs are suppressed from route drawing, but their
-  // context survives as a left-hand bracket on the neighbouring rows (user
-  // mockup): consecutive entries that feed the selected one stay identifiable
-  // without a redundant line next to the lane.
-  const adjacentRelated = new Set();
-  if (focusActive) {
-    lifecycle.forEach((edge) => {
-      if (edge.type !== "related") return;
-      if (edge.source !== selectedEntry && edge.target !== selectedEntry) return;
-      const sBranch = items[rowOf.get(edge.source)].node.branch || "";
-      const tBranch = items[rowOf.get(edge.target)].node.branch || "";
-      if (sBranch !== tBranch) return;
-      const rows = branchRows.get(sBranch) || [];
-      if (Math.abs(rows.indexOf(rowOf.get(edge.source)) - rows.indexOf(rowOf.get(edge.target))) !== 1) return;
-      adjacentRelated.add(edge.source === selectedEntry ? edge.target : edge.source);
+  // Two-rule related model (user-finalised): routes are reserved for
+  // branch-hopping relationships; ALL same-branch related context renders as
+  // row brackets instead. Full bracket = outbound (entries the selection
+  // cites); pastel bracket = inbound mentions + bounded second-order (one
+  // extra hop, same branch as the selection only). This also retires the
+  // old main-lane merge/N-gap special cases.
+  const chainPrimary = new Set();
+  const chainSecondary = new Set();
+  if (focusActive && rowOf.has(selectedEntry)) {
+    const selectedBranch = items[rowOf.get(selectedEntry)].node.branch || "";
+    const branchOf = (id) => items[rowOf.get(id)].node.branch || "";
+    const related = lifecycle.filter((edge) => edge.type === "related");
+    const firstOrder = new Set();
+    related.forEach((edge) => {
+      if (edge.source === selectedEntry) firstOrder.add(edge.target);
+      if (edge.target === selectedEntry) firstOrder.add(edge.source);
     });
+    related.forEach((edge) => {
+      if (edge.source === selectedEntry && branchOf(edge.target) === selectedBranch) chainPrimary.add(edge.target);
+      else if (edge.target === selectedEntry && branchOf(edge.source) === selectedBranch) chainSecondary.add(edge.source);
+    });
+    related.forEach((edge) => {
+      if (firstOrder.has(edge.source) && edge.target !== selectedEntry && !firstOrder.has(edge.target) && branchOf(edge.target) === selectedBranch) chainSecondary.add(edge.target);
+      if (firstOrder.has(edge.target) && edge.source !== selectedEntry && !firstOrder.has(edge.source) && branchOf(edge.source) === selectedBranch) chainSecondary.add(edge.source);
+    });
+    chainPrimary.forEach((id) => chainSecondary.delete(id));
+    chainSecondary.delete(selectedEntry);
   }
   const arcs = lifecycle.flatMap((edge) => {
     const touched = focusActive && (edge.source === selectedEntry || edge.target === selectedEntry);
     if (edge.type === "related" && !touched) return [];
     const sourceItem = items[rowOf.get(edge.source)];
     const targetItem = items[rowOf.get(edge.target)];
-    if (edge.type === "related" && !relatedVisible(rowOf.get(edge.source), rowOf.get(edge.target), sourceItem.node.branch || "", targetItem.node.branch || "")) return [];
+    // Same-branch related context is bracketed on the rows, never drawn.
+    if (edge.type === "related" && (sourceItem.node.branch || "") === (targetItem.node.branch || "")) return [];
     const sx = laneX(sourceItem.node.branch || "");
     const sy = rowY(rowOf.get(edge.source));
     const tx = laneX(targetItem.node.branch || "");
@@ -724,7 +715,7 @@ function trailView() {
     const selected = node.entry_id === selectedEntry || node.chunk_id === state.selectedId;
     const time = node.datetime ? node.datetime.slice(11, 16) : "";
     return `
-      <div class="trail-row ${selected ? (state.selectionMuted ? "pinned" : "selected") : ""} ${adjacentRelated.has(node.id) ? "related-adjacent" : ""}" data-chunk="${escAttr(node.chunk_id)}" title="${escAttr(node.title)}${branch ? escAttr(` · ${branch}`) : ""}">
+      <div class="trail-row ${selected ? (state.selectionMuted ? "pinned" : "selected") : ""} ${chainPrimary.has(node.id) ? "chain-primary" : chainSecondary.has(node.id) ? "chain-secondary" : ""}" data-chunk="${escAttr(node.chunk_id)}" title="${escAttr(node.title)}${branch ? escAttr(` · ${branch}`) : ""}">
         <span class="trail-time">${time}</span>
         <span class="trail-title">${esc(trailTitle(node))}</span>
         ${tip ? `<span class="trail-branch" style="color:${colorOf.get(branch)}">${esc(branch)}</span>` : ""}
