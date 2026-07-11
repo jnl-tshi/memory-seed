@@ -41,7 +41,12 @@ Trace UI pass); the Trace lineage pass (evolves edges + continuity chains in Tra
 Phase 4 (Trace indexed-topic rendering + MCP topic tools);
 [`residual-fuse-non-utf8-silent-skip.md`](residual-fuse-non-utf8-silent-skip.md) (small fix,
 promoted from inbox 2026-07-10: fuse should block naming a non-UTF-8 file instead of silently
-skipping it); README screenshot captures to replace the S6 placeholders.
+skipping it); README screenshot captures to replace the S6 placeholders; decision-diagram
+sidecar integration into Memory Trace views beyond the reader (deferred 2026-07-11 at user
+direction - sidecars render only in the reader's "Decision diagrams" section today; candidate
+shapes are a diagram indicator on Trail rows / Graph nodes, inline Trail expansion, or a
+dedicated affordance, with scope to be designed with the user; see session entry
+`mse_j4wn8rqk2t6x0vhs`).
 
 **Memory Trace next-generation planning promoted 2026-07-11:** the top-level entry point is
 [`memory-trace-product-and-system-architecture-blueprint.md`](memory-trace-product-and-system-architecture-blueprint.md),
