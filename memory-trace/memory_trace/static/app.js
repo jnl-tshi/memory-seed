@@ -1,7 +1,7 @@
 const state = {
   runtime: null,
   facets: null,
-  view: storedView() || "search",
+  view: storedView() || "trail",
   theme: localStorage.getItem("ml:theme") || "dark",
   accent: localStorage.getItem("ml:accent") || "indigo",
   query: "",
@@ -209,7 +209,9 @@ function restoreFocusedInput(focusState) {
 }
 
 function topbar() {
-  const tabs = [["search", "Search"], ["graph", "Graph"], ["trail", "Trail"]]
+  // Trail is the primary surface (chronological evidence), Graph the
+  // secondary exploration surface - the next-generation blueprint's ordering.
+  const tabs = [["trail", "Trail"], ["graph", "Graph"], ["search", "Search"]]
     .map(([key, label]) => `<button type="button" class="tab ${state.view === key ? "active" : ""}" data-view="${key}">${label}</button>`)
     .join("");
   return `

@@ -739,6 +739,9 @@ if (coords.some((value, index) => value !== expected[index])) {
         styles = resources.files("memory_trace").joinpath("static/styles.css").read_text(encoding="utf-8")
 
         self.assertIn('["trail", "Trail"]', script)
+        # Trail is the primary surface: first tab and the default view.
+        self.assertIn('[["trail", "Trail"], ["graph", "Graph"]', script)
+        self.assertIn('view: storedView() || "trail"', script)
         self.assertIn('state.view === "trail"', script)
         self.assertIn('TRAIL_EDGE_TYPES = "branch,supersedes,evolves,related"', script)
         # Relationship lanes left of main (always dotted): replaces | evolves |
