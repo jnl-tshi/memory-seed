@@ -33,6 +33,14 @@ A phase cannot be marked complete without:
 
 ## 3. Phase 0 — baseline and parity fixtures
 
+> **Status: DELIVERED 2026-07-11.** Evidence:
+> [`../3_Spec/memory-trace-vanilla-parity-checklist.md`](../3_Spec/memory-trace-vanilla-parity-checklist.md)
+> (the parity gate), the measurements/screenshot report at
+> [`../4_Reference/memory-trace-phase0-baseline/README.md`](../4_Reference/memory-trace-phase0-baseline/README.md),
+> the deterministic 500/1k/10k generator (`memory-trace/tests/fixtures/generate_synthetic.py`),
+> and the Trail golden fixture (`memory-trace/tests/fixtures/trail-golden-48.json`).
+> Interaction recordings were consciously waived - rationale in the report.
+
 Deliver:
 
 - screenshots and interaction recordings of current tabs;

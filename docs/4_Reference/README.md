@@ -18,3 +18,5 @@ Current Memory Trace provenance:
 
 - `memory-trace-next-generation-plan-document-set.md` records the 2026-07-11 imported plan package
   after its actionable documents were promoted into `docs/2_Todo/` and `docs/3_Spec/`.
+- `memory-trace-phase0-baseline/` holds the roadmap Phase 0 baseline evidence: measurements
+  report (README.md), and screenshots of every vanilla tab/state as of 2026-07-11.
