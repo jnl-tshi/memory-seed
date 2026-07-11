@@ -57,6 +57,17 @@ Exit:
 
 ## 4. Phase 1 — versioned API contract
 
+> **Status: DELIVERED 2026-07-11.** Evidence: `memory_trace/models.py` (Pydantic models for
+> every existing dict shape, plus the `ProvenanceClass` and `EdgeType` enums), the
+> `/api/v1/{runtime,facets,search,chunks,graph,trail}` routes in `memory_trace/lense.py`
+> (legacy `/api/*` untouched), `memory-trace/tests/test_v1_api_contract.py` and
+> `test_openapi_contract_fixture.py`, and the committed contract fixtures under
+> `memory-trace/tests/contract/` (`openapi.v1.json`, `types.ts`, regeneration documented in
+> that directory's `README.md`). `/api/timeline` has no v1 counterpart - Trail is its
+> designated successor and nothing consumes it. The "React client consumes only versioned
+> API" exit criterion is enabled but not yet self-certifiable - no React client exists until
+> Phase 2; it becomes a checkable fact once that client is built against `types.ts`.
+
 Deliver:
 
 - versioned FastAPI routes;
