@@ -2337,6 +2337,97 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("uncommitted.txt", result.issues[0])
         self.assertFalse((cwd / ".git" / "MERGE_HEAD").exists())
 
+    def test_session_merge_branch_stamps_memory_entry_trailers(self):
+        # Approved trailer plan (2026-07-11): the merge commit carries one
+        # Memory-Entry trailer per fused entry, below git's prepared merge
+        # message, and find_trailer_commits resolves each entry to it. The
+        # wider lowercase ids other agents emit (e.g. 20-hex codex ids) are
+        # stamped too; base entries are never claimed.
+        from memory_seed.core import find_trailer_commits
+
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-12.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        entries = [
+            ("09:00", "Branch entry one", "mse_1111111111111111", "feature-merge"),
+            ("10:00", "Branch entry two", "mse_3ca332874c2bce263fd2", "feature-merge"),
+        ]
+        target.write_text(self._grouped_session_text("2026-07-12", entries), encoding="utf-8")
+        self._commit_all(cwd, "feature session")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertEqual(result.issues, [])
+        self.assertTrue(result.committed)
+        self.assertEqual(
+            result.stamped_entries,
+            ["mse_1111111111111111", "mse_3ca332874c2bce263fd2"],
+        )
+        message = self._git(cwd, "log", "-1", "--format=%B").stdout
+        # Git's prepared message is preserved above the trailer block.
+        self.assertTrue(message.startswith("Merge branch 'feature-merge'"))
+        self.assertIn("Memory-Entry: mse_1111111111111111", message)
+        self.assertIn("Memory-Entry: mse_3ca332874c2bce263fd2", message)
+        # The base entry was never part of the fuse and is never claimed.
+        self.assertNotIn("mse_0123456789abcdef", message)
+        merge_sha = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+        for entry_id in ("mse_1111111111111111", "mse_3ca332874c2bce263fd2"):
+            hits = find_trailer_commits(cwd, entry_id)
+            self.assertIsNotNone(hits)
+            self.assertIn(merge_sha, [hit.split()[0] for hit in hits])
+
+    def test_session_merge_branch_stamps_no_trailers_without_fuse_imports(self):
+        # A merge whose branch touched no session files fuses nothing and must
+        # leave git's prepared merge message untouched.
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        (cwd / "notes.txt").write_text("base\n", encoding="utf-8")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        (cwd / "notes.txt").write_text("branch change\n", encoding="utf-8")
+        self._commit_all(cwd, "branch edit")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertEqual(result.issues, [])
+        self.assertTrue(result.committed)
+        self.assertEqual(result.stamped_entries, [])
+        message = self._git(cwd, "log", "-1", "--format=%B").stdout
+        self.assertNotIn("Memory-Entry:", message)
+
+    def test_session_merge_branch_never_stamps_malformed_entry_ids(self):
+        # A malformed id must not poison the trailer channel: the entry still
+        # fuses, but no Memory-Entry line is written for it.
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-12.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        entries = [
+            ("09:00", "Good entry", "mse_1111111111111111", "feature-merge"),
+            ("10:00", "Weird id entry", "mse_UPPER!!invalid", "feature-merge"),
+        ]
+        target.write_text(self._grouped_session_text("2026-07-12", entries), encoding="utf-8")
+        self._commit_all(cwd, "feature session")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertTrue(result.committed)
+        self.assertEqual(result.stamped_entries, ["mse_1111111111111111"])
+        message = self._git(cwd, "log", "-1", "--format=%B").stdout
+        self.assertIn("Memory-Entry: mse_1111111111111111", message)
+        self.assertNotIn("mse_UPPER!!invalid", message)
+
     def test_session_merge_branch_dry_run_reports_plan_without_merging(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")

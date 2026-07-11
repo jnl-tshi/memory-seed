@@ -151,7 +151,10 @@ multiple writing agents work on different features at the same time.
 - To promote branch-local memory, run `memory-seed session merge-branch --branch <branch>` from the
   integration tree: it dry-runs the fuse, merges with `--no-ff`, applies the fuse, and commits —
   failing closed (fuse issues abort before the merge starts; non-session conflicts leave the merge
-  in progress for the named conflict owner). For a manually inspected merge, the lower-level
+  in progress for the named conflict owner). The merge commit is stamped automatically with one
+  `Memory-Entry: <entry_id>` trailer per fused entry (below git's prepared merge message), so
+  `link commits` and trailer scans resolve fused entries to their integration point with no manual
+  step. For a manually inspected merge, the lower-level
   `session fuse --branch <branch>` dry-run remains available; its `--apply` requires an in-progress
   `git merge --no-ff --no-commit <branch>`.
 - Final handoff records the base SHA, task branch, worktree path, merge method (`--no-ff` when used),

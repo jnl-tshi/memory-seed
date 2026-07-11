@@ -4,6 +4,14 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- `session merge-branch` now stamps one `Memory-Entry: <entry_id>` trailer per fused entry on the
+  merge commit it creates (below git's prepared merge message), making the forward commit<->entry
+  link authoritative at integration time - `link commits` and `find_trailer_commits` resolve fused
+  entries to their integration point with no manual step. Only well-formed ids are stamped (a
+  malformed id never poisons the trailer channel), entries already on the base commit are never
+  claimed, and there is no cap. The CLI reports the stamped count; a stamping failure never aborts
+  an otherwise-clean merge. `agent_collaboration.md` and `session_logging.md` (live + seed) note
+  the automatic trailer and nudge ordinary session-append commits to carry it manually.
 - Implemented indexed topics P1 (topic-neighbourhoods plan, Phases 0-3): meaningful session
   entries carry 1-3 `topics:` slugs resolved against the new deploy-once project-local
   `.memory-seed/topics.yaml` vocabulary (canonical slugs + aliases, slug rule
