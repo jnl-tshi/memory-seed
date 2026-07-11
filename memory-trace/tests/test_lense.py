@@ -391,6 +391,15 @@ class LenseServiceTests(unittest.TestCase):
         self.assertIsNone(pending["commit"])
         self.assertTrue(pending["commit_tracking"])
 
+        # Evidence-based main attribution: no-branch entries captured by a
+        # first-parent trunk commit join main (inferred); the uncommitted one
+        # has no evidence and stays unattached.
+        nodes = {node["id"]: node for node in self.service().graph(edge_types=("branch",))["nodes"]}
+        self.assertEqual(nodes["mse_bootstrap"]["branch"], "main")
+        self.assertTrue(nodes["mse_bootstrap"]["branch_inferred"])
+        self.assertIsNone(nodes["mse_uncommitted"]["branch"])
+        self.assertFalse(nodes["mse_uncommitted"]["branch_inferred"])
+
     def test_graph_is_entry_level_and_reports_connectivity(self):
         self.write_session(
             "2026-06-04.md",

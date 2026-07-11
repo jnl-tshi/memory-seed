@@ -121,9 +121,18 @@ class LenseCache:
                 "insert into meta(key, value) values('runtime_root', ?)",
                 (str(self.runtime.workspace_root),),
             )
+            commit_map = _entry_commit_map(self.runtime.workspace_root)
             conn.execute(
                 "insert into meta(key, value) values('entry_commits', ?)",
-                (json.dumps(_entry_commit_map(self.runtime.workspace_root)),),
+                (json.dumps(commit_map),),
+            )
+            # Evidence-based main attribution: an entry with no recorded
+            # branch whose capturing commit sits on the trunk's first-parent
+            # history was committed directly on main - proven, not assumed.
+            main_shas = _first_parent_main_shas(self.runtime.workspace_root)
+            conn.execute(
+                "insert into meta(key, value) values('main_commit_entries', ?)",
+                (json.dumps(sorted(eid for eid, info in commit_map.items() if info.get("sha") in main_shas)),),
             )
             conn.commit()
         finally:
@@ -178,6 +187,12 @@ class LenseCache:
             row = conn.execute("select value from meta where key='entry_commits'").fetchone()
         return json.loads(row[0]) if row else {}
 
+    def main_commit_entries(self) -> set[str]:
+        self.ensure_current()
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute("select value from meta where key='main_commit_entries'").fetchone()
+        return set(json.loads(row[0])) if row else set()
+
     def chunks(self, *, granularity: str | None = None) -> list[MemoryChunk]:
         self.ensure_current()
         sql = "select json from chunks"
@@ -194,11 +209,12 @@ class LenseCache:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 stored = conn.execute("select path, mtime_ns, size from files order by path").fetchall()
-                # Caches from before commit tracking lack the key; rebuild once.
+                # Caches from before commit tracking lack these keys; rebuild once.
                 has_commits = conn.execute("select 1 from meta where key='entry_commits'").fetchone()
+                has_main_map = conn.execute("select 1 from meta where key='main_commit_entries'").fetchone()
         except sqlite3.Error:
             return False
-        if not has_commits:
+        if not has_commits or not has_main_map:
             return False
         return [(str(path), int(mtime), int(size)) for path, mtime, size in current] == [
             (str(path), int(mtime), int(size)) for path, mtime, size in stored
@@ -469,12 +485,14 @@ class LenseService:
         else:
             visible_ids = list(by_id)
         limited_ids = set(visible_ids[: _limit(limit, maximum=1000)])
+        inferred_main = self.cache.main_commit_entries()
         nodes = [
             _graph_node(
                 by_id[item_id],
                 node_id=item_id,
                 connectivity=connectivity.get(item_id, 0),
                 importance_score=importance.get(item_id, 0.0),
+                inferred_main=not by_id[item_id].branch and (by_id[item_id].entry_id or "") in inferred_main,
             )
             for item_id in visible_ids
             if item_id in limited_ids and item_id in by_id
@@ -662,6 +680,25 @@ def run_server(args: argparse.Namespace) -> int:
 def _file_row(root: Path, path: Path) -> tuple[str, int, int]:
     stat = path.stat()
     return (path.relative_to(root).as_posix(), stat.st_mtime_ns, stat.st_size)
+
+
+def _first_parent_main_shas(root: Path) -> set[str]:
+    """Commit SHAs on the trunk's first-parent history. Work committed
+    directly on main (the pre-branching era) lives here; branch work reaches
+    main only through merge commits, which first-parent traversal skips.
+    Fails open to an empty set without git."""
+    for ref in ("main", "master", "HEAD"):
+        try:
+            proc = subprocess.run(
+                ["git", "-C", str(root), "rev-list", "--first-parent", ref],
+                capture_output=True,
+                timeout=60,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return set()
+        if proc.returncode == 0:
+            return set(proc.stdout.decode("utf-8", errors="replace").split())
+    return set()
 
 
 def _entry_commit_map(root: Path) -> dict[str, dict[str, str]]:
@@ -1037,7 +1074,12 @@ def _graph_node(
     node_id: str | None = None,
     connectivity: int = 0,
     importance_score: float = 0.0,
+    inferred_main: bool = False,
 ) -> dict[str, Any]:
+    # inferred_main: no branch was recorded, but the entry's capturing commit
+    # sits on main's first-parent history - committed directly on main, so it
+    # joins the trunk. Recorded branches are never overridden; the raw
+    # metadata surface keeps showing the recorded (null) value.
     return {
         "id": node_id or chunk.entry_id or chunk.chunk_id,
         "chunk_id": chunk.chunk_id,
@@ -1045,7 +1087,8 @@ def _graph_node(
         "title": chunk.title,
         "date": chunk.session_date.isoformat(),
         "datetime": chunk.entry_datetime.isoformat() if chunk.entry_datetime else None,
-        "branch": chunk.branch,
+        "branch": chunk.branch or ("main" if inferred_main else None),
+        "branch_inferred": inferred_main,
         "agent": chunk.agent_type or chunk.agent_name or "unknown",
         "topics": _topics(chunk),
         "granularity": chunk.granularity,

@@ -17,6 +17,15 @@ service (`memory_seed.retrieval`). It never reimplements parsing, ranking, the
 graph-edge contract, or diagram-sidecar reading — the same answers as MCP, one
 canonical chunk model, one canonical ranking service.
 
+## Planning
+
+Next-generation product and architecture planning lives in the parent repository docs:
+
+- `../docs/2_Todo/memory-trace-product-and-system-architecture-blueprint.md`
+- `../docs/2_Todo/memory-trace-next-generation-implementation-roadmap.md`
+- `../docs/3_Spec/memory-trace-trail-search-and-graph-ux.md`
+- `../docs/3_Spec/memory-trace-derived-artifact-provenance-contract.md`
+
 ## Install
 
 > **Not yet on PyPI.** `memory-trace 0.1.0` publishes after the core `memory-seed 2.17` release.
