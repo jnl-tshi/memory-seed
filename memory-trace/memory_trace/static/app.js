@@ -560,7 +560,12 @@ function trailModel(graph) {
   const laneIntervals = [];
   branches.forEach((branch, order) => {
     const span = occupancy.get(branch);
-    let lane = laneIntervals.findIndex((intervals) => intervals.every((occupied) => span.last < occupied.first || span.first > occupied.last));
+    // Touching at a single shared junction row (one branch merges exactly
+    // where the next forks) is daisy-chaining, not parallelism - those
+    // branches share a lane, like sequential branches in a git graph. The
+    // trunk column (lane 0) is main's alone: a branch that merely touches
+    // main's visible span must not render as a continuation of main.
+    let lane = laneIntervals.findIndex((intervals, index) => (branch === "main" || index > 0) && intervals.every((occupied) => span.last <= occupied.first || span.first >= occupied.last));
     if (lane === -1) {
       lane = laneIntervals.length;
       laneIntervals.push([]);
