@@ -462,7 +462,11 @@ const TRAIL_WINDOW_STEP = 60;
 const TRAIL_REL_LANES = ["related", "evolves", "supersedes"];
 const TRAIL_REL_LANE_W = 12;
 const TRAIL_REL_ZONE = TRAIL_REL_LANES.length * TRAIL_REL_LANE_W + 12;
-const TRAIL_DASH = { supersedes: "6 4", evolves: "2 3", related: "1 5" };
+// All relationship routes share the clearest dash cadence; color alone
+// separates the types (user decision - replaces' dash won the readability
+// comparison). related routes draw only for the selected entry: as ambient
+// traffic they drowned the lifecycle signal.
+const TRAIL_DASH = { supersedes: "6 4", evolves: "6 4", related: "6 4" };
 const TRAIL_VERB = { supersedes: "replaces", evolves: "evolves", related: "relates to" };
 const trailBranchColors = ["#6f7cff", "#3fa66a", "#d9941a", "#8f63e8", "#18a999", "#d94b63", "#4f98d9", "#b8873b", "#7a8ff2", "#5bb98c"];
 
@@ -628,7 +632,9 @@ function trailView() {
   // type's dotted lane: out from the source dot, along the lane, back in to
   // the target dot. Unselected routes stay clearly visible (0.6) - selection
   // brightens its own routes rather than hiding the rest.
-  const arcs = lifecycle.map((edge) => {
+  const arcs = lifecycle.flatMap((edge) => {
+    const touched = selectedEntry && (edge.source === selectedEntry || edge.target === selectedEntry);
+    if (edge.type === "related" && !touched) return [];
     const sourceItem = items[rowOf.get(edge.source)];
     const targetItem = items[rowOf.get(edge.target)];
     const sx = laneX(sourceItem.node.branch || "");
@@ -637,8 +643,7 @@ function trailView() {
     const ty = rowY(rowOf.get(edge.target));
     const lx = relLaneX(edge.type);
     const path = `M ${sx} ${sy} L ${lx} ${sy} L ${lx} ${ty} L ${tx} ${ty}`;
-    const touched = selectedEntry && (edge.source === selectedEntry || edge.target === selectedEntry);
-    return `<path d="${path}" fill="none" stroke="${edgeColor(edge.type)}" stroke-width="${touched ? 2.6 : 2}" stroke-dasharray="${TRAIL_DASH[edge.type]}" stroke-opacity="${!selectedEntry || touched ? 0.95 : 0.6}" marker-end="url(#trail-arrow-${edge.type})"><title>${esc(trailTitle(sourceItem.node))} ${TRAIL_VERB[edge.type]} ${esc(trailTitle(targetItem.node))}</title></path>`;
+    return [`<path d="${path}" fill="none" stroke="${edgeColor(edge.type)}" stroke-width="${touched ? 2.6 : 2}" stroke-dasharray="${TRAIL_DASH[edge.type]}" stroke-opacity="${!selectedEntry || touched ? 0.95 : 0.6}" marker-end="url(#trail-arrow-${edge.type})"><title>${esc(trailTitle(sourceItem.node))} ${TRAIL_VERB[edge.type]} ${esc(trailTitle(targetItem.node))}</title></path>`];
   });
 
   const dots = items.flatMap((item, index) => {
@@ -669,8 +674,8 @@ function trailView() {
       <span class="meta"><strong>${shown}</strong> of ${total} entries · newest first</span>
       <span class="spacer"></span>
       <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("supersedes")}"></span>replaces</span>
-      <span class="legend-item"><span class="legend-line legend-line-dotted" style="border-color:${edgeColor("evolves")}"></span>evolves</span>
-      <span class="legend-item"><span class="legend-line legend-line-dotted" style="border-color:${edgeColor("related")}"></span>related</span>
+      <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("evolves")}"></span>evolves</span>
+      <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("related")}"></span>related · on select</span>
       ${shown < total ? `<button type="button" class="chip" data-trail-more>Load older</button>` : ""}
     </div>
     <div class="trail-scroll">
