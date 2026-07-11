@@ -549,7 +549,7 @@ function trailModel(graph) {
   const laneOf = new Map();
   const colorOf = new Map();
   const laneIntervals = [];
-  branches.forEach((branch, order) => {
+  branches.forEach((branch) => {
     const span = occupancy.get(branch);
     // Touching at a single shared junction row (one branch merges exactly
     // where the next forks) is daisy-chaining, not parallelism - those
@@ -563,7 +563,14 @@ function trailModel(graph) {
     }
     laneIntervals[lane].push(span);
     laneOf.set(branch, lane);
-    colorOf.set(branch, trailBranchColors[order % trailBranchColors.length]);
+    // Color keys off the lane, not arrival order: lanes are the thing that's
+    // already guaranteed collision-free for anything parallel or adjacent
+    // (laneIntervals never lets overlapping spans share one), so keying
+    // color to the same axis makes "no two visible lines share a color" an
+    // invariant instead of a coincidence. Daisy-chained branches that reuse
+    // a freed lane inherit its color too, which is fine - they never appear
+    // on screen at the same time.
+    colorOf.set(branch, trailBranchColors[lane % trailBranchColors.length]);
   });
 
   const lifecycle = (graph.edges || []).filter(
