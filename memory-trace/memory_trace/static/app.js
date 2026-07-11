@@ -460,10 +460,12 @@ function graphView() {
 const TRAIL_ROW = 30;
 const TRAIL_LANE_W = 14;
 const TRAIL_WINDOW_STEP = 60;
-// Relationship lanes sit left of main, always dotted: related | evolves |
-// replaces (strongest lifecycle signal closest to the trunk). Branch lanes to
-// the right of them are the solid spawned git branches.
-const TRAIL_REL_LANES = ["related", "evolves", "supersedes"];
+// Relationship lanes sit left of main, always dotted: replaces | evolves |
+// related. Under the two-rule model related routes are pure branch hops -
+// the rarest, densest signal - so they take the innermost lane next to main
+// and never cross the other two on their way out. Branch lanes to the right
+// are the solid spawned git branches.
+const TRAIL_REL_LANES = ["supersedes", "evolves", "related"];
 const TRAIL_REL_LANE_W = 12;
 // Corner radius for every lane change (gitgraph "rounded" style): straight
 // runs, small elbows at the turns. Must stay below half the minimum row gap

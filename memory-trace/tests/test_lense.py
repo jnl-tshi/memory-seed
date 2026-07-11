@@ -694,9 +694,10 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn('["trail", "Trail"]', script)
         self.assertIn('state.view === "trail"', script)
         self.assertIn('TRAIL_EDGE_TYPES = "branch,supersedes,evolves,related"', script)
-        # Relationship lanes left of main (always dotted): related | evolves |
-        # replaces. Branch lanes right of main are the solid git branches.
-        self.assertIn('TRAIL_REL_LANES = ["related", "evolves", "supersedes"]', script)
+        # Relationship lanes left of main (always dotted): replaces | evolves |
+        # related - related innermost since its routes are pure branch hops.
+        # Branch lanes right of main are the solid git branches.
+        self.assertIn('TRAIL_REL_LANES = ["supersedes", "evolves", "related"]', script)
         self.assertIn("function trailView(", script)
         self.assertIn("function trailModel(", script)
         # Lane occupancy runs fork-to-merge (not just entry rows), so branches
