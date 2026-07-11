@@ -764,6 +764,21 @@ select, input[type="date"] {
   background: transparent;
   box-shadow: inset 0 0 0 1.5px var(--accent);
 }
+/* Daisy-chained related context: adjacent same-branch related entries keep a
+   left bracket in the related color instead of a redundant route. */
+.trail-row.related-adjacent {
+  position: relative;
+}
+.trail-row.related-adjacent::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 5px;
+  bottom: 5px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--edge-related);
+}
 .detail-header.pinned {
   box-shadow: inset 0 0 0 1.5px var(--accent);
 }

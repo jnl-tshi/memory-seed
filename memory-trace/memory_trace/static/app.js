@@ -671,6 +671,23 @@ function trailView() {
     }
     return Math.abs(si - ti) !== 1;
   };
+  // Adjacent related pairs are suppressed from route drawing, but their
+  // context survives as a left-hand bracket on the neighbouring rows (user
+  // mockup): consecutive entries that feed the selected one stay identifiable
+  // without a redundant line next to the lane.
+  const adjacentRelated = new Set();
+  if (focusActive) {
+    lifecycle.forEach((edge) => {
+      if (edge.type !== "related") return;
+      if (edge.source !== selectedEntry && edge.target !== selectedEntry) return;
+      const sBranch = items[rowOf.get(edge.source)].node.branch || "";
+      const tBranch = items[rowOf.get(edge.target)].node.branch || "";
+      if (sBranch !== tBranch) return;
+      const rows = branchRows.get(sBranch) || [];
+      if (Math.abs(rows.indexOf(rowOf.get(edge.source)) - rows.indexOf(rowOf.get(edge.target))) !== 1) return;
+      adjacentRelated.add(edge.source === selectedEntry ? edge.target : edge.source);
+    });
+  }
   const arcs = lifecycle.flatMap((edge) => {
     const touched = focusActive && (edge.source === selectedEntry || edge.target === selectedEntry);
     if (edge.type === "related" && !touched) return [];
@@ -707,7 +724,7 @@ function trailView() {
     const selected = node.entry_id === selectedEntry || node.chunk_id === state.selectedId;
     const time = node.datetime ? node.datetime.slice(11, 16) : "";
     return `
-      <div class="trail-row ${selected ? (state.selectionMuted ? "pinned" : "selected") : ""}" data-chunk="${escAttr(node.chunk_id)}" title="${escAttr(node.title)}${branch ? escAttr(` · ${branch}`) : ""}">
+      <div class="trail-row ${selected ? (state.selectionMuted ? "pinned" : "selected") : ""} ${adjacentRelated.has(node.id) ? "related-adjacent" : ""}" data-chunk="${escAttr(node.chunk_id)}" title="${escAttr(node.title)}${branch ? escAttr(` · ${branch}`) : ""}">
         <span class="trail-time">${time}</span>
         <span class="trail-title">${esc(trailTitle(node))}</span>
         ${tip ? `<span class="trail-branch" style="color:${colorOf.get(branch)}">${esc(branch)}</span>` : ""}
