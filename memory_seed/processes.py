@@ -59,6 +59,16 @@ def normalize_package(package: str) -> PackageName:
     return package  # type: ignore[return-value]
 
 
+def install_owner_package(package: str) -> str:
+    package = normalize_package(package)
+    return "memory-seed" if package == "memory-trace" else package
+
+
+def pip_requirement_for_package(package: str) -> str:
+    package = normalize_package(package)
+    return 'memory-seed[trace]' if package == "memory-trace" else package
+
+
 def _package_token_re(package: str) -> re.Pattern[str]:
     return re.compile(r"(?<![a-z0-9])" + re.escape(package.lower()) + r"(?![a-z0-9])")
 
@@ -290,20 +300,21 @@ def format_process_table(processes: Sequence[ManagedProcess]) -> str:
 
 def detect_install_manager(package: str, *, executable_path: str | None = None) -> InstallDetection:
     package = normalize_package(package)
+    install_owner = install_owner_package(package)
     executable_path = executable_path or sys.executable
     normalized = executable_path.replace("\\", "/").lower()
-    if f"/uv/tools/{package}/" in normalized:
+    if f"/uv/tools/{package}/" in normalized or f"/uv/tools/{install_owner}/" in normalized:
         return InstallDetection(
             manager="uv",
             confidence="high",
-            reason="Executable path is inside a uv tools directory.",
+            reason=f"Executable path is inside a uv tools directory for {install_owner}.",
             executable_path=executable_path,
         )
-    if f"/pipx/venvs/{package}/" in normalized:
+    if f"/pipx/venvs/{package}/" in normalized or f"/pipx/venvs/{install_owner}/" in normalized:
         return InstallDetection(
             manager="pipx",
             confidence="high",
-            reason="Executable path is inside a pipx venv directory.",
+            reason=f"Executable path is inside a pipx venv directory for {install_owner}.",
             executable_path=executable_path,
         )
     if "/.venv/" in normalized or normalized.startswith(".venv/"):
@@ -323,12 +334,13 @@ def detect_install_manager(package: str, *, executable_path: str | None = None) 
 
 def build_upgrade_command(package: str, manager: str) -> list[str]:
     package = normalize_package(package)
+    install_owner = install_owner_package(package)
     if manager == "uv":
-        return ["uv", "tool", "upgrade", package]
+        return ["uv", "tool", "upgrade", install_owner]
     if manager == "pipx":
-        return ["pipx", "upgrade", package]
+        return ["pipx", "upgrade", install_owner]
     if manager == "pip":
-        return [sys.executable, "-m", "pip", "install", "--upgrade", package]
+        return [sys.executable, "-m", "pip", "install", "--upgrade", pip_requirement_for_package(package)]
     raise ValueError(f"Unsupported install manager: {manager}")
 
 
@@ -688,12 +700,16 @@ def _confirm(prompt: str) -> bool:
 
 
 def _choose_install_manager(package: str) -> InstallManager | None:
+    install_owner = install_owner_package(package)
+    pip_requirement = pip_requirement_for_package(package)
     print(f"Could not safely determine how {package} was installed.")
+    if install_owner != package:
+        print(f"The {package} command is installed by {install_owner}.")
     print()
     print("Choose one:")
-    print(f"1. uv    -> uv tool upgrade {package}")
-    print(f"2. pipx  -> pipx upgrade {package}")
-    print(f"3. pip   -> {sys.executable} -m pip install --upgrade {package}")
+    print(f"1. uv    -> uv tool upgrade {install_owner}")
+    print(f"2. pipx  -> pipx upgrade {install_owner}")
+    print(f"3. pip   -> {sys.executable} -m pip install --upgrade {pip_requirement}")
     print("4. cancel")
     try:
         response = input("Upgrade with which manager? [1/2/3/4]: ").strip().lower()
@@ -714,8 +730,16 @@ def _choose_install_manager(package: str) -> InstallManager | None:
 
 
 def _print_manager_required(package: str) -> None:
+    install_owner = install_owner_package(package)
+    pip_requirement = pip_requirement_for_package(package)
     print("Could not safely determine install manager.", file=sys.stderr)
+    if install_owner != package:
+        print(f"The {package} command is installed by {install_owner}.", file=sys.stderr)
     print("Re-run with one of:", file=sys.stderr)
     print(f"{package} upgrade --yes --manager uv", file=sys.stderr)
     print(f"{package} upgrade --yes --manager pipx", file=sys.stderr)
     print(f"{package} upgrade --yes --manager pip", file=sys.stderr)
+    print("These resolve to:", file=sys.stderr)
+    print(f"  uv:   uv tool upgrade {install_owner}", file=sys.stderr)
+    print(f"  pipx: pipx upgrade {install_owner}", file=sys.stderr)
+    print(f"  pip:  {sys.executable} -m pip install --upgrade {pip_requirement}", file=sys.stderr)

@@ -27,16 +27,22 @@ classifiers = [
 memory-seed = "memory_seed.cli:main"
 memory-seed-mcp = "memory_seed.mcp_server:main"
 memory-seed-mcp-validate = "memory_seed.mcp_validate:main"
+memory-trace = "memory_trace.cli:main"
 
 [project.optional-dependencies]
-# Deprecated shim: the review UI (formerly the in-package "Lense") is now the
-# standalone `memory-trace` distribution. `pip install memory-seed[lense]` pulls
-# it for one deprecation window so existing users don't hard-break; new users
-# should install `memory-trace` directly. Core itself carries no web framework.
-lense = ["memory-trace>=0.1"]
+# Optional review UI dependencies. Plain `pip install memory-seed` stays
+# web-framework-free; `pip install "memory-seed[trace]"` enables the local
+# Memory Trace browser UI and the `memory-trace` command.
+trace = ["fastapi>=0.110", "uvicorn>=0.27"]
+# Deprecated alias for one release window so existing `memory-seed[lense]`
+# users do not hard-break while the product name moves to Memory Trace.
+lense = ["fastapi>=0.110", "uvicorn>=0.27"]
 
 [tool.setuptools]
-packages = ["memory_seed"]
+packages = ["memory_seed", "memory_trace"]
+
+[tool.setuptools.package-dir]
+memory_trace = "memory-trace/memory_trace"
 
 [tool.setuptools.package-data]
 memory_seed = [
@@ -83,4 +89,14 @@ memory_seed = [
   "seed/.memory-seed/hooks/session-log-check.py",
   "seed/.memory-seed/hooks/memory-retrieval-check.py",
   "seed/.memory-seed/hooks/session-start-context.py",
+]
+memory_trace = [
+  "static/index.html",
+  "static/app.js",
+  "static/styles.css",
+  "static/manifest.json",
+  "static/fonts/inter-var.woff2",
+  "static/fonts/space-grotesk-var.woff2",
+  "static/fonts/LICENSE-inter.txt",
+  "static/fonts/OFL-space-grotesk.txt",
 ]

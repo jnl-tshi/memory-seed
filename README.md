@@ -111,21 +111,26 @@ Heading: 2026-05-17 - Bootstrap mode check fix
 
 The validator performs the same search-then-fetch flow an MCP-capable agent uses: rank matching memory chunks, fetch the selected chunk by id, and print the exact source text for human review.
 
-## Memory Trace (companion review UI)
+## Memory Trace (optional review UI)
 
-**Memory Trace** is the optional local browser UI for exploring a project's Memory Seed runtime — read-only search, filters, timeline, graph, and reader/details views over your Markdown session files, backed by a rebuildable local SQLite cache outside the repository. It ships as a **separate distribution** so the core control plane stays lightweight and web-framework-free; Memory Trace depends on `memory-seed` and consumes its public retrieval service.
+**Memory Trace** is the optional local browser UI for exploring a project's Memory Seed runtime: read-only search, filters, timeline, graph, and reader/details views over your Markdown session files, backed by a rebuildable local SQLite cache outside the repository. It ships inside the main `memory-seed` distribution so there is one installable product, while the web dependencies stay behind the `trace` extra so plain `pip install memory-seed` remains lightweight.
 
-> **Not yet on PyPI.** `memory-trace 0.1.0` publishes after the core `memory-seed 2.17` release
-> (it depends on the 2.17 `branch:` field). Until then, install it from this repository:
+Install the review UI with the optional extra:
 
 ```powershell
-python -m pip install ./memory-trace   # from a clone of this repo
+python -m pip install "memory-seed[trace]"
 memory-trace --cwd . --host 127.0.0.1 --port 8765 --no-open
 ```
 
-Once published, this becomes `python -m pip install memory-trace`.
+For `uv` tool installs, install the owning package with the extra. To add Trace
+to an existing core-only tool install, reinstall the tool with `--force`:
 
-The former in-package `memory-seed[lense]` extra is now a deprecation shim: it installs `memory-trace`, and the `memory-seed lense` command still runs but prints a notice pointing you to the `memory-trace` command. Without `memory-trace` installed, `memory-seed lense` prints an install hint instead of failing.
+```powershell
+uv tool install "memory-seed[trace]"
+uv tool install --force "memory-seed[trace]"
+```
+
+The former `memory-seed[lense]` extra remains as a temporary alias for `memory-seed[trace]`, and the `memory-seed lense` command still runs but prints a notice pointing you to the `memory-trace` command. Without the `trace` extra installed, both commands print an install hint instead of failing with a Python traceback.
 
 ## Why This Exists
 
@@ -540,7 +545,7 @@ When run in a project that already has Memory Seed files:
 - `memory-seed upgrade [--dry-run] [--yes] [--manager uv|pipx|pip] [--json]` handles active package-owned processes, then runs the selected package-manager upgrade command.
 - `memory-seed encoding check [path] [--json]` reports invalid UTF-8, UTF-8 BOMs, CRLF line endings, non-NFC text, likely mojibake markers, and implicit text-mode Python I/O in project-owned files.
 - `memory-seed encoding repair [path] [--dry-run] [--json]` previews or repairs BOM, newline, and NFC drift with atomic writes and timestamped backups. Invalid UTF-8 and likely mojibake are blocked for manual review.
-- `memory-seed lense` is a deprecation shim for the review UI, which now ships as the standalone `memory-trace` package/command; it delegates when `memory-trace` is installed and otherwise prints an install hint.
+- `memory-seed lense` is a deprecation shim for the review UI, which now runs through the bundled `memory-trace` command when `memory-seed[trace]` is installed; without the extra it prints an install hint.
 - `memory-seed session target [--create]` prints the active session log path and can create the file if needed.
 
 Known behavior to understand: `update --dry-run` currently lists all control-plane targets, not only files that would actually change. `init --force` intentionally rewrites all bundled seed files and should be used as a reinstall command rather than a targeted refresh.

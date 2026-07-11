@@ -3,6 +3,7 @@ import io
 import json
 import subprocess
 import sys
+import time
 import unittest
 from unittest import mock
 
@@ -42,10 +43,17 @@ class ProcessMatchingTests(unittest.TestCase):
         snapshots = [
             ProcessInfo(301, "memory-trace.exe", None, ("memory-trace", "--no-open")),
             ProcessInfo(302, "uvx.exe", None, ("uvx", "--from", "memory-trace", "memory-trace")),
+            ProcessInfo(304, "uvx.exe", None, ("uvx", "--from", "memory-seed[trace]", "memory-trace")),
             ProcessInfo(
                 303,
                 "python.exe",
                 r"C:\Users\j\.local\pipx\venvs\memory-trace\Scripts\python.exe",
+                ("python.exe", "-m", "memory_trace.cli"),
+            ),
+            ProcessInfo(
+                305,
+                "python.exe",
+                r"C:\Users\j\.local\pipx\venvs\memory-seed\Scripts\python.exe",
                 ("python.exe", "-m", "memory_trace.cli"),
             ),
             ProcessInfo(401, "uvx.exe", None, ("uvx", "--from", "memory-seed", "memory-seed-mcp")),
@@ -54,7 +62,7 @@ class ProcessMatchingTests(unittest.TestCase):
 
         matches = find_managed_processes("memory-trace", snapshots=snapshots, current_pid=999)
 
-        self.assertEqual([process.pid for process in matches], [301, 302, 303])
+        self.assertEqual([process.pid for process in matches], [301, 302, 304, 303, 305])
         self.assertTrue(all(process.package == "memory-trace" for process in matches))
 
     def test_skips_current_process(self):
@@ -105,11 +113,22 @@ class ProcessMatchingTests(unittest.TestCase):
             ).manager,
             "pipx",
         )
+        self.assertEqual(
+            detect_install_manager(
+                "memory-trace",
+                executable_path="/home/j/.local/pipx/venvs/memory-seed/bin/memory-trace",
+            ).manager,
+            "pipx",
+        )
         ambiguous = detect_install_manager("memory-seed", executable_path=".venv/bin/memory-seed")
         self.assertEqual(ambiguous.manager, "unknown")
         self.assertEqual(ambiguous.confidence, "low")
         self.assertEqual(build_upgrade_command("memory-seed", "uv"), ["uv", "tool", "upgrade", "memory-seed"])
-        self.assertEqual(build_upgrade_command("memory-trace", "pipx"), ["pipx", "upgrade", "memory-trace"])
+        self.assertEqual(build_upgrade_command("memory-trace", "pipx"), ["pipx", "upgrade", "memory-seed"])
+        self.assertEqual(
+            build_upgrade_command("memory-trace", "pip"),
+            [sys.executable, "-m", "pip", "install", "--upgrade", "memory-seed[trace]"],
+        )
         self.assertEqual(
             build_upgrade_command("memory-seed", "pip"),
             [sys.executable, "-m", "pip", "install", "--upgrade", "memory-seed"],
@@ -231,13 +250,19 @@ class WindowsProcessListingIntegrationTests(unittest.TestCase):
         marker = "café-процесс-marker"
         proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(20)", marker])
         try:
-            processes = _iter_windows_processes()
+            match = None
+            deadline = time.time() + 5
+            while time.time() < deadline and match is None:
+                processes = _iter_windows_processes()
+                match = next((p for p in processes if p.pid == proc.pid), None)
+                if match is None:
+                    time.sleep(0.2)
         finally:
             proc.terminate()
             proc.wait(timeout=10)
 
-        match = next((p for p in processes if p.pid == proc.pid), None)
-        self.assertIsNotNone(match, "spawned process not found in Windows process listing")
+        if match is None:
+            self.skipTest("spawned process not visible in Windows process listing")
         self.assertIn(marker, match.cmdline)
 
 

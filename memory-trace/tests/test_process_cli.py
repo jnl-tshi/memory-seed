@@ -55,6 +55,24 @@ class MemoryTraceProcessCliTests(unittest.TestCase):
         self.assertEqual(err, "")
         self.assertIn("Would stop 1 memory-trace process", out)
 
+    def test_upgrade_command_targets_memory_seed_owner_package(self):
+        from memory_seed.processes import InstallDetection
+
+        with (
+            mock.patch("memory_seed.processes.find_managed_processes", return_value=[]),
+            mock.patch(
+                "memory_seed.processes.detect_install_manager",
+                return_value=InstallDetection("uv", "high", "test", "/tmp/memory-trace"),
+            ),
+            mock.patch("memory_seed.processes.run_upgrade_command", return_value=0) as run_upgrade,
+        ):
+            code, out, err = self.run_cli(["upgrade", "--yes"])
+
+        self.assertEqual(code, 0)
+        self.assertEqual(err, "")
+        self.assertIn("No active memory-trace processes found.", out)
+        run_upgrade.assert_called_once_with(["uv", "tool", "upgrade", "memory-seed"])
+
 
 if __name__ == "__main__":
     unittest.main()

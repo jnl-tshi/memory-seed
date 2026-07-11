@@ -494,7 +494,7 @@ class LenseCliTests(unittest.TestCase):
     def test_missing_optional_dependency_hint_is_explicit(self):
         self.assertEqual(
             missing_optional_dependency_hint(),
-            'Install with: pip install memory-trace',
+            'Install with: pip install "memory-seed[trace]"',
         )
 
     def test_memory_trace_command_prints_install_hint_when_fastapi_missing(self):
@@ -512,7 +512,7 @@ class LenseCliTests(unittest.TestCase):
             code = main(["--cwd", ".", "--host", "127.0.0.1", "--port", "0", "--no-open"])
 
         self.assertEqual(code, 1)
-        self.assertIn('Install with: pip install memory-trace', stderr.getvalue())
+        self.assertIn('Install with: pip install "memory-seed[trace]"', stderr.getvalue())
 
     def test_static_manifest_is_packaged(self):
         import importlib.resources as resources
