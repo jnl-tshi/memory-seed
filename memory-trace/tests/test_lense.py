@@ -711,6 +711,15 @@ if (coords.some((value, index) => value !== expected[index])) {
         # click" bug class.
         self.assertIn('[".pane.left", ".pane.right", ".scroll", ".trail-scroll"]', script)
 
+    def test_frontend_exposes_phase0_debug_hook(self):
+        # Phase 0 golden fixtures and future React-parity harnesses call the
+        # module-scoped Trail model through this read-only window hook.
+        import importlib.resources as resources
+
+        script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
+
+        self.assertIn("window.memoryTraceDebug = { trailModel, trailOrderedNodes };", script)
+
     def test_frontend_highlights_and_scrolls_to_matched_subsection(self):
         # Entry-level UI results plan (Arc 2a): a subsection match highlights and
         # scrolls inside the parent entry reader, never as a separate record.

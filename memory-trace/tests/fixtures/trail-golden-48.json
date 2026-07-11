@@ -1,0 +1,618 @@
+{
+  "fixture": "generate_synthetic.py count=48 seed=20260711",
+  "captured_from": "vanilla app.js trailModel (Phase 0 baseline)",
+  "node_count": 48,
+  "edge_count": 84,
+  "total": 48,
+  "laneCount": 5,
+  "items": [
+    {
+      "kind": "day",
+      "label": "2026-07-01"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000001g",
+      "entry_id": "mse_000000000000001g",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000001f",
+      "entry_id": "mse_000000000000001f",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000001e",
+      "entry_id": "mse_000000000000001e",
+      "branch": "feature/synth-0005"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000001d",
+      "entry_id": "mse_000000000000001d",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000001c",
+      "entry_id": "mse_000000000000001c",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000001b",
+      "entry_id": "mse_000000000000001b",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000001a",
+      "entry_id": "mse_000000000000001a",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000019",
+      "entry_id": "mse_0000000000000019",
+      "branch": "main"
+    },
+    {
+      "kind": "day",
+      "label": "2026-06-30"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000018",
+      "entry_id": "mse_0000000000000018",
+      "branch": "feature/synth-0007"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000017",
+      "entry_id": "mse_0000000000000017",
+      "branch": "feature/synth-0005"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000016",
+      "entry_id": "mse_0000000000000016",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000015",
+      "entry_id": "mse_0000000000000015",
+      "branch": "feature/synth-0007"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000014",
+      "entry_id": "mse_0000000000000014",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000013",
+      "entry_id": "mse_0000000000000013",
+      "branch": "feature/synth-0006"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000012",
+      "entry_id": "mse_0000000000000012",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000011",
+      "entry_id": "mse_0000000000000011",
+      "branch": "main"
+    },
+    {
+      "kind": "day",
+      "label": "2026-06-29"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000010",
+      "entry_id": "mse_0000000000000010",
+      "branch": "feature/synth-0006"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000z",
+      "entry_id": "mse_000000000000000z",
+      "branch": "feature/synth-0006"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000y",
+      "entry_id": "mse_000000000000000y",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000x",
+      "entry_id": "mse_000000000000000x",
+      "branch": "feature/synth-0004"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000w",
+      "entry_id": "mse_000000000000000w",
+      "branch": "feature/synth-0004"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000v",
+      "entry_id": "mse_000000000000000v",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000t",
+      "entry_id": "mse_000000000000000t",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000s",
+      "entry_id": "mse_000000000000000s",
+      "branch": "feature/synth-0005"
+    },
+    {
+      "kind": "day",
+      "label": "2026-06-28"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000r",
+      "entry_id": "mse_000000000000000r",
+      "branch": "feature/synth-0003"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000q",
+      "entry_id": "mse_000000000000000q",
+      "branch": "feature/synth-0003"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000p",
+      "entry_id": "mse_000000000000000p",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000n",
+      "entry_id": "mse_000000000000000n",
+      "branch": "feature/synth-0002"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000m",
+      "entry_id": "mse_000000000000000m",
+      "branch": "feature/synth-0004"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000k",
+      "entry_id": "mse_000000000000000k",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000j",
+      "entry_id": "mse_000000000000000j",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000h",
+      "entry_id": "mse_000000000000000h",
+      "branch": "feature/synth-0002"
+    },
+    {
+      "kind": "day",
+      "label": "2026-06-27"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000g",
+      "entry_id": "mse_000000000000000g",
+      "branch": "feature/synth-0003"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000f",
+      "entry_id": "mse_000000000000000f",
+      "branch": "feature/synth-0001"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000e",
+      "entry_id": "mse_000000000000000e",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000d",
+      "entry_id": "mse_000000000000000d",
+      "branch": "feature/synth-0001"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000c",
+      "entry_id": "mse_000000000000000c",
+      "branch": "feature/synth-0001"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000b",
+      "entry_id": "mse_000000000000000b",
+      "branch": "feature/synth-0001"
+    },
+    {
+      "kind": "node",
+      "id": "mse_000000000000000a",
+      "entry_id": "mse_000000000000000a",
+      "branch": "feature/synth-0001"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000009",
+      "entry_id": "mse_0000000000000009",
+      "branch": "main"
+    },
+    {
+      "kind": "day",
+      "label": "2026-06-26"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000008",
+      "entry_id": "mse_0000000000000008",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000007",
+      "entry_id": "mse_0000000000000007",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000006",
+      "entry_id": "mse_0000000000000006",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000005",
+      "entry_id": "mse_0000000000000005",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000004",
+      "entry_id": "mse_0000000000000004",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000003",
+      "entry_id": "mse_0000000000000003",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000002",
+      "entry_id": "mse_0000000000000002",
+      "branch": "main"
+    },
+    {
+      "kind": "node",
+      "id": "mse_0000000000000001",
+      "entry_id": "mse_0000000000000001",
+      "branch": "main"
+    }
+  ],
+  "laneOf": {
+    "main": 0,
+    "feature/synth-0007": 1,
+    "feature/synth-0006": 1,
+    "feature/synth-0002": 1,
+    "feature/synth-0001": 2,
+    "feature/synth-0004": 2,
+    "feature/synth-0003": 3,
+    "feature/synth-0005": 4
+  },
+  "spans": {
+    "main": {
+      "first": 1,
+      "last": 53
+    },
+    "feature/synth-0005": {
+      "first": 3,
+      "last": 26
+    },
+    "feature/synth-0007": {
+      "first": 10,
+      "last": 13
+    },
+    "feature/synth-0006": {
+      "first": 15,
+      "last": 20
+    },
+    "feature/synth-0004": {
+      "first": 22,
+      "last": 32
+    },
+    "feature/synth-0003": {
+      "first": 28,
+      "last": 37
+    },
+    "feature/synth-0002": {
+      "first": 31,
+      "last": 35
+    },
+    "feature/synth-0001": {
+      "first": 38,
+      "last": 43
+    }
+  },
+  "linkRows": {
+    "feature/synth-0005": {
+      "forkRow": 30,
+      "mergeRow": 2
+    },
+    "feature/synth-0007": {
+      "forkRow": 14,
+      "mergeRow": 8
+    },
+    "feature/synth-0006": {
+      "forkRow": 21,
+      "mergeRow": 14
+    },
+    "feature/synth-0004": {
+      "forkRow": 33,
+      "mergeRow": 21
+    },
+    "feature/synth-0003": {
+      "forkRow": 39,
+      "mergeRow": 25
+    },
+    "feature/synth-0002": {
+      "forkRow": 39,
+      "mergeRow": 30
+    },
+    "feature/synth-0001": {
+      "forkRow": 44,
+      "mergeRow": 34
+    }
+  },
+  "lifecycle": [
+    {
+      "type": "evolves",
+      "source": "mse_0000000000000002",
+      "target": "mse_0000000000000001"
+    },
+    {
+      "type": "related",
+      "source": "mse_0000000000000003",
+      "target": "mse_0000000000000001"
+    },
+    {
+      "type": "related",
+      "source": "mse_0000000000000003",
+      "target": "mse_0000000000000002"
+    },
+    {
+      "type": "supersedes",
+      "source": "mse_0000000000000003",
+      "target": "mse_0000000000000002"
+    },
+    {
+      "type": "evolves",
+      "source": "mse_0000000000000004",
+      "target": "mse_0000000000000002"
+    },
+    {
+      "type": "related",
+      "source": "mse_0000000000000006",
+      "target": "mse_0000000000000005"
+    },
+    {
+      "type": "related",
+      "source": "mse_0000000000000006",
+      "target": "mse_0000000000000001"
+    },
+    {
+      "type": "related",
+      "source": "mse_0000000000000008",
+      "target": "mse_0000000000000003"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000b",
+      "target": "mse_0000000000000001"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000d",
+      "target": "mse_0000000000000009"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000d",
+      "target": "mse_0000000000000008"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000f",
+      "target": "mse_000000000000000b"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000f",
+      "target": "mse_0000000000000004"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000h",
+      "target": "mse_000000000000000b"
+    },
+    {
+      "type": "evolves",
+      "source": "mse_000000000000000j",
+      "target": "mse_000000000000000b"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000k",
+      "target": "mse_000000000000000j"
+    },
+    {
+      "type": "supersedes",
+      "source": "mse_000000000000000m",
+      "target": "mse_0000000000000007"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000n",
+      "target": "mse_0000000000000001"
+    },
+    {
+      "type": "supersedes",
+      "source": "mse_000000000000000p",
+      "target": "mse_000000000000000c"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000q",
+      "target": "mse_000000000000000h"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000q",
+      "target": "mse_000000000000000g"
+    },
+    {
+      "type": "evolves",
+      "source": "mse_000000000000000q",
+      "target": "mse_000000000000000p"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000r",
+      "target": "mse_000000000000000g"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000r",
+      "target": "mse_000000000000000h"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000s",
+      "target": "mse_0000000000000003"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000s",
+      "target": "mse_0000000000000009"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000v",
+      "target": "mse_0000000000000007"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000v",
+      "target": "mse_0000000000000005"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000w",
+      "target": "mse_000000000000000e"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000x",
+      "target": "mse_000000000000000g"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000000x",
+      "target": "mse_000000000000000r"
+    },
+    {
+      "type": "supersedes",
+      "source": "mse_000000000000000x",
+      "target": "mse_0000000000000009"
+    },
+    {
+      "type": "evolves",
+      "source": "mse_0000000000000011",
+      "target": "mse_000000000000000k"
+    },
+    {
+      "type": "related",
+      "source": "mse_0000000000000012",
+      "target": "mse_000000000000000q"
+    },
+    {
+      "type": "related",
+      "source": "mse_0000000000000015",
+      "target": "mse_000000000000000b"
+    },
+    {
+      "type": "evolves",
+      "source": "mse_0000000000000017",
+      "target": "mse_000000000000000q"
+    },
+    {
+      "type": "related",
+      "source": "mse_0000000000000018",
+      "target": "mse_000000000000000w"
+    },
+    {
+      "type": "evolves",
+      "source": "mse_0000000000000019",
+      "target": "mse_0000000000000003"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000001a",
+      "target": "mse_0000000000000015"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000001a",
+      "target": "mse_000000000000000z"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000001d",
+      "target": "mse_000000000000000b"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000001g",
+      "target": "mse_000000000000000k"
+    },
+    {
+      "type": "related",
+      "source": "mse_000000000000001g",
+      "target": "mse_000000000000000c"
+    },
+    {
+      "type": "supersedes",
+      "source": "mse_000000000000001g",
+      "target": "mse_0000000000000018"
+    }
+  ]
+}
