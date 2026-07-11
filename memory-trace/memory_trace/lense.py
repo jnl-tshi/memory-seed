@@ -652,6 +652,108 @@ def create_app(cwd: str | Path = ".", *, rebuild_cache: bool = False) -> Any:
     def api_rebuild() -> dict[str, Any]:
         return service.rebuild()
 
+    # Versioned contract (roadmap Phase 1): same LenseService, same params,
+    # response_model-validated/typed. The legacy /api/* routes above are
+    # untouched and keep serving the vanilla frontend unchanged - v1 is
+    # additive, not a replacement, so a future React client has something
+    # stable to build against. /api/timeline has no v1 counterpart: Trail is
+    # its designated successor (roadmap Phase 4) and nothing consumes it.
+    from .models import ChunkResponse, Facets, GraphResponse, RuntimeInfo, SearchResponse, TrailResponse
+
+    @app.get("/api/v1/runtime", response_model=RuntimeInfo)
+    def v1_runtime() -> dict[str, Any]:
+        return service.runtime()
+
+    @app.get("/api/v1/facets", response_model=Facets)
+    def v1_facets() -> dict[str, Any]:
+        return service.facets()
+
+    @app.get("/api/v1/search", response_model=SearchResponse)
+    def v1_search(
+        q: str = "",
+        limit: int = 25,
+        cursor: str | None = None,
+        granularity: str = "entry",
+        agent: str | None = None,
+        user: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        topic: str | None = None,
+        sort: str = "relevance",
+    ) -> dict[str, Any]:
+        return service.search(
+            q=q,
+            limit=limit,
+            cursor=cursor,
+            granularity=granularity,
+            agent=agent,
+            user=user,
+            date_from=date_from,
+            date_to=date_to,
+            topic=topic,
+            sort=sort,
+        )
+
+    @app.get("/api/v1/chunks/{chunk_id:path}", response_model=ChunkResponse)
+    def v1_chunk(chunk_id: str) -> dict[str, Any]:
+        try:
+            return service.chunk(chunk_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="chunk not found") from None
+
+    @app.get("/api/v1/graph", response_model=GraphResponse)
+    def v1_graph(
+        entry_id: str | None = None,
+        depth: int = 1,
+        edge_types: str = "related,topic,agent,day",
+        limit: int = 80,
+        granularity: str = Query("entry", pattern="^(entry|all)$"),
+        agent: str | None = None,
+        user: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        topic: str | None = None,
+    ) -> dict[str, Any]:
+        return service.graph(
+            entry_id=entry_id,
+            depth=depth,
+            edge_types=tuple(x for x in edge_types.split(",") if x),
+            limit=limit,
+            granularity=granularity,
+            agent=agent,
+            user=user,
+            date_from=date_from,
+            date_to=date_to,
+            topic=topic,
+        )
+
+    @app.get("/api/v1/trail", response_model=TrailResponse)
+    def v1_trail(
+        entry_id: str | None = None,
+        depth: int = 1,
+        limit: int = 1000,
+        agent: str | None = None,
+        user: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        topic: str | None = None,
+    ) -> dict[str, Any]:
+        # Fixed to the Trail's own edge set (app.js TRAIL_EDGE_TYPES) - the
+        # Trail is a dedicated product surface, not a parameterization of the
+        # general graph, so its contract doesn't expose edge_types at all.
+        return service.graph(
+            entry_id=entry_id,
+            depth=depth,
+            edge_types=("branch", "supersedes", "evolves", "related"),
+            limit=limit,
+            granularity="entry",
+            agent=agent,
+            user=user,
+            date_from=date_from,
+            date_to=date_to,
+            topic=topic,
+        )
+
     return app
 
 
