@@ -1,7 +1,7 @@
 const state = {
   runtime: null,
   facets: null,
-  view: localStorage.getItem("ml:view") || "search",
+  view: storedView() || "search",
   theme: localStorage.getItem("ml:theme") || "dark",
   accent: localStorage.getItem("ml:accent") || "indigo",
   query: "",
@@ -13,9 +13,6 @@ const state = {
   density: "comfortable",
   dateFrom: "",
   dateTo: "",
-  timelineZoom: "day",
-  timelineHideEmpty: localStorage.getItem("ml:timelineHideEmpty") === "1",
-  timelineSelectedBucket: "",
   graphScope: "all",
   graphSizeMode: localStorage.getItem("ml:graphSizeMode") || "links",
   graphEdgeTypes: new Set(["related"]),
@@ -31,7 +28,6 @@ const state = {
   sectionOpen: readStoredJson("ml:sections", { views: false, filters: true, topics: true }),
   topicsExpanded: false,
   results: [],
-  timeline: null,
   graph: null,
   selected: null,
   selectedId: null,
@@ -43,6 +39,13 @@ const state = {
   matchHint: null,
   pendingMatchScroll: false,
 };
+
+// Timeline retired 2026-07-11: Trail is its chronological successor, so a
+// stored "timeline" view preference lands on Trail instead of a dead tab.
+function storedView() {
+  const stored = localStorage.getItem("ml:view");
+  return stored === "timeline" ? "trail" : stored;
+}
 
 function readStoredJson(key, fallback) {
   try {
@@ -91,7 +94,6 @@ function seedDates() {
 
 async function loadView() {
   if (state.view === "search") await loadSearch();
-  if (state.view === "timeline") await loadTimeline();
   if (state.view === "graph" || state.view === "trail") await loadGraph();
 }
 
@@ -118,23 +120,6 @@ async function loadSearch(cursor = null, append = false, token = state.loadSeq) 
   state.results = append ? [...state.results, ...page.results] : page.results;
   state.nextCursor = page.next_cursor;
   if (!state.selectedId && state.results[0]) await selectChunk(state.results[0].chunk_id, false);
-  return true;
-}
-
-async function loadTimeline(token = state.loadSeq) {
-  const params = qs({
-    date_from: state.dateFrom,
-    date_to: state.dateTo,
-    agent: state.agent,
-    user: state.user,
-    topic: state.topic,
-    zoom: state.timelineZoom,
-    include_empty: state.timelineHideEmpty ? "false" : "true",
-    limit: 500,
-  });
-  state.timeline = await api(`/api/timeline?${params}`);
-  if (token !== state.loadSeq) return false;
-  if (!state.selectedId && state.timeline.stream[0]) await selectChunk(state.timeline.stream[0].chunk_id, false);
   return true;
 }
 
@@ -224,7 +209,7 @@ function restoreFocusedInput(focusState) {
 }
 
 function topbar() {
-  const tabs = [["search", "Search"], ["timeline", "Timeline"], ["graph", "Graph"], ["trail", "Trail"]]
+  const tabs = [["search", "Search"], ["graph", "Graph"], ["trail", "Trail"]]
     .map(([key, label]) => `<button type="button" class="tab ${state.view === key ? "active" : ""}" data-view="${key}">${label}</button>`)
     .join("");
   return `
@@ -321,7 +306,6 @@ function savedButton(label, query, view, sort) {
 
 function centerPane() {
   const densityClass = `density-${state.density}`;
-  if (state.view === "timeline") return `<section class="${densityClass} timeline-view">${timelineView()}</section>`;
   if (state.view === "trail") return `<section class="${densityClass}">${trailView()}</section>`;
   if (state.view === "graph") return `<section class="${densityClass}">${graphView()}</section>`;
   return `<section class="${densityClass}">${searchView()}</section>`;
@@ -360,36 +344,6 @@ function resultList() {
       <h3>${esc(stripTitleStamp(item.title))}</h3>
     </article>`;
   }).join("")}</div>`;
-}
-
-function timelineView() {
-  const timeline = state.timeline;
-  if (!timeline) return `<div class="empty">Timeline loading</div>`;
-  const max = Math.max(1, ...timeline.buckets.map((bucket) => bucket.count));
-  const bucketMin = 44;
-  const byDay = groupBy(timeline.stream, (item) => item.date);
-  const zoomControls = ["day", "12h", "6h", "3h"]
-    .map((item) => `<button type="button" class="tab ${state.timelineZoom === item ? "active" : ""}" data-timeline-zoom="${item}">${item}</button>`)
-    .join("");
-  return `
-    <div class="viewbar">
-      <span class="meta">Activity overview</span>
-      ${filterChips()}
-      <span class="spacer"></span>
-      <button type="button" class="chip ${state.timelineHideEmpty ? "active" : ""}" data-timeline-empty>${state.timelineHideEmpty ? "Showing active days" : "Showing empty days"}</button>
-      <div class="segmented timeline-zoom" role="group" aria-label="Timeline granularity">${zoomControls}</div>
-    </div>
-    <div class="timeline-overview">
-      <div class="overview-scroll">
-        <div class="overview" style="--bucket-count:${timeline.buckets.length}; --bucket-min:${bucketMin}px">${timeline.buckets.map((bucket) => {
-          const selected = state.timelineSelectedBucket === bucket.start;
-          return `<button type="button" class="bucket ${bucket.count ? "active" : ""} ${selected ? "selected" : ""}" data-bucket-date="${escAttr(bucket.date)}" data-bucket-start="${escAttr(bucket.start)}" data-bucket-end="${escAttr(bucket.end)}" title="${escAttr(bucket.label)} · ${bucket.count}" style="height:${18 + (bucket.count / max) * 58}px"><span class="bucket-label">${esc(formatBucketLabel(bucket))}</span><span class="bucket-count">${bucket.count || ""}</span></button>`;
-        }).join("")}</div>
-      </div>
-    </div>
-    <div class="timeline-stream">
-      ${Object.entries(byDay).map(([day, items]) => `<div class="day-group" id="day-${day}"><div class="day-head">${day} · ${items.length} entries</div>${items.map((item) => `<div class="timeline-item" data-chunk="${escAttr(item.chunk_id)}" data-entry-datetime="${escAttr(timelineItemDatetime(item))}" title="${escAttr(item.title)}${item.agent_type ? escAttr(` · ${item.agent_type}`) : ""}"><span class="timeline-time">${item.time || "00:00"}</span><span class="timeline-title">${esc(stripTitleStamp(item.title))}</span></div>`).join("")}</div>`).join("")}
-    </div>`;
 }
 
 function graphView() {
@@ -874,9 +828,6 @@ function installDelegatedEvents() {
       await updateFilter("dateFrom", target.value);
     } else if (target.id === "date-to") {
       await updateFilter("dateTo", target.value);
-    } else if (target.id === "timeline-zoom") {
-      state.timelineZoom = target.value;
-      await reloadCurrentView();
     }
   });
 
@@ -948,17 +899,6 @@ function installDelegatedEvents() {
       render();
       return;
     }
-    if (target.dataset.timelineZoom) {
-      state.timelineZoom = target.dataset.timelineZoom;
-      await reloadCurrentView();
-      return;
-    }
-    if (target.dataset.timelineEmpty !== undefined) {
-      state.timelineHideEmpty = !state.timelineHideEmpty;
-      localStorage.setItem("ml:timelineHideEmpty", state.timelineHideEmpty ? "1" : "0");
-      await reloadCurrentView();
-      return;
-    }
     if (target.dataset.graphScope) {
       state.graphScope = target.dataset.graphScope;
       state.graphHover = "";
@@ -1017,10 +957,6 @@ function installDelegatedEvents() {
       const bounds = state.facets?.runtime?.date_bounds || [];
       const cleared = key === "dateFrom" ? bounds[0] || "" : key === "dateTo" ? bounds[1] || "" : "";
       await updateFilter(key, cleared);
-      return;
-    }
-    if (target.dataset.bucketStart) {
-      selectTimelineBucket(target);
       return;
     }
     if (target.dataset.graphSize !== undefined) {
@@ -1161,9 +1097,6 @@ async function setView(view) {
 
 async function updateFilter(key, value) {
   state[key] = value;
-  if (key === "dateFrom" || key === "dateTo" || key === "agent" || key === "user" || key === "topic") {
-    state.timelineSelectedBucket = "";
-  }
   await reloadCurrentView();
 }
 
@@ -1173,7 +1106,6 @@ async function resetFilters() {
   state.topic = "";
   state.granularity = "entry";
   state.sort = "relevance";
-  state.timelineSelectedBucket = "";
   seedDates();
   await reloadCurrentView();
 }
@@ -1188,23 +1120,6 @@ async function openGraphChunk(chunkId) {
   state.graphHover = "";
   const token = ++state.loadSeq;
   await selectChunk(chunkId, true, token);
-}
-
-function selectTimelineBucket(target) {
-  const bucket = {
-    date: target.dataset.bucketDate,
-    start: target.dataset.bucketStart,
-    end: target.dataset.bucketEnd,
-  };
-  state.timelineSelectedBucket = bucket.start;
-  markSelectedTimelineBucket(bucket.start);
-  scrollTimelineToBucket(bucket);
-}
-
-function markSelectedTimelineBucket(bucketStart) {
-  document.querySelectorAll(".bucket.selected").forEach((bucket) => bucket.classList.remove("selected"));
-  const selected = document.querySelector(`.bucket[data-bucket-start="${cssEscape(bucketStart)}"]`);
-  if (selected) selected.classList.add("selected");
 }
 
 function findGraphNodeFromPoint(x, y) {
@@ -1226,26 +1141,6 @@ function findGraphNodeFromPoint(x, y) {
   return nearest;
 }
 
-function scrollTimelineToBucket(bucket) {
-  const stream = document.querySelector(".timeline-stream");
-  const target = findTimelineBucketTarget(bucket);
-  if (!stream || !target) return;
-  stream.scrollTo({
-    top: Math.max(0, target.offsetTop - stream.offsetTop),
-    behavior: "smooth",
-  });
-}
-
-function findTimelineBucketTarget(bucket) {
-  const items = Array.from(document.querySelectorAll(".timeline-item[data-entry-datetime]"));
-  const exact = items.find((item) => {
-    const value = item.dataset.entryDatetime;
-    return value >= bucket.start && value < bucket.end;
-  });
-  if (exact) return exact;
-  return document.getElementById(`day-${bucket.date}`);
-}
-
 function clearGraphHover() {
   state.graphHover = "";
   render();
@@ -1259,7 +1154,7 @@ function resetGraphView() {
 // Every scrollable region in the app. render() rebuilds the DOM, so ANY
 // scroll position not captured here silently resets on the next state change
 // (the left-pane facet click bug). New scroll containers must be added here.
-const SCROLL_PRESERVE_SELECTORS = [".pane.left", ".pane.right", ".scroll", ".timeline-stream", ".overview-scroll", ".trail-scroll"];
+const SCROLL_PRESERVE_SELECTORS = [".pane.left", ".pane.right", ".scroll", ".trail-scroll"];
 
 function captureCenterScroll() {
   const stateBySelector = {};
@@ -1345,31 +1240,6 @@ function observePanes() {
     }
   });
   document.querySelectorAll("[data-pane]").forEach((pane) => paneObserver.observe(pane));
-}
-
-function groupBy(items, fn) {
-  return items.reduce((acc, item) => {
-    const key = fn(item);
-    (acc[key] = acc[key] || []).push(item);
-    return acc;
-  }, {});
-}
-
-function formatBucketLabel(bucket) {
-  if (state.timelineZoom === "day") return bucket.date.slice(5);
-  const start = new Date(bucket.start);
-  const monthDay = bucket.date.slice(5);
-  const hour = String(start.getHours()).padStart(2, "0");
-  return `${monthDay} ${hour}`;
-}
-
-function timelineItemDatetime(item) {
-  return `${item.date}T${item.time || "00:00"}:00`;
-}
-
-function cssEscape(value) {
-  if (window.CSS?.escape) return window.CSS.escape(value);
-  return String(value).replace(/["\\]/g, "\\$&");
 }
 
 // Force-directed layout: Fruchterman-Reingold repulsion + weighted link

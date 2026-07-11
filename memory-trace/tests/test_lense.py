@@ -709,7 +709,7 @@ if (coords.some((value, index) => value !== expected[index])) {
         # Scroll preservation must cover every scrollable pane, not just the
         # center views - a missing selector is the "left pane resets on facet
         # click" bug class.
-        self.assertIn('[".pane.left", ".pane.right", ".scroll", ".timeline-stream", ".overview-scroll", ".trail-scroll"]', script)
+        self.assertIn('[".pane.left", ".pane.right", ".scroll", ".trail-scroll"]', script)
 
     def test_frontend_highlights_and_scrolls_to_matched_subsection(self):
         # Entry-level UI results plan (Arc 2a): a subsection match highlights and
@@ -790,68 +790,25 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn("height: 100%;", styles)
         self.assertIn("overflow: hidden;", styles)
 
-    def test_timeline_overview_can_scroll_horizontally_at_all_zooms(self):
+    def test_frontend_timeline_tab_is_retired(self):
+        # Timeline retired 2026-07-11: the Trail (git-graph timeline) is its
+        # chronological successor. The /api/timeline endpoint intentionally
+        # remains server-side; only the frontend surface is gone. A stored
+        # "timeline" view preference must migrate to Trail, not a dead tab.
         import importlib.resources as resources
 
         script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
         styles = resources.files("memory_trace").joinpath("static/styles.css").read_text(encoding="utf-8")
 
-        self.assertIn("overview-scroll", script)
-        self.assertIn("--bucket-count", script)
-        self.assertIn("--bucket-min", script)
-        self.assertIn("data-timeline-zoom", script)
-        self.assertIn("scrollTimelineToBucket", script)
-        self.assertIn("findTimelineBucketTarget", script)
-        self.assertIn("timelineItemDatetime", script)
-        self.assertIn("data-entry-datetime", script)
-        # Timeline scrolls via its own bucket mechanism (scrollTimelineToBucket,
-        # asserted above). scrollIntoView now exists in app.js but only for the
-        # reader's matched-subsection jump - it is never wired to the timeline.
-        self.assertIn("scrollTimelineToBucket", script)
-        self.assertIn(".overview-scroll", styles)
-        self.assertIn("overflow-x: scroll;", styles)
-        self.assertIn("grid-template-columns: repeat(var(--bucket-count, 1), minmax(var(--bucket-min, 12px), 1fr));", styles)
-        self.assertIn("calc(var(--bucket-count, 1) * var(--bucket-min, 12px))", styles)
-        self.assertIn("width: max(100%, calc(var(--bucket-count, 1) * var(--bucket-min, 12px)));", styles)
-        self.assertIn("background: transparent;", styles)
-        self.assertIn("const bucketMin = 44;", script)
-        self.assertNotIn('"3h": 30', script)
-        self.assertIn("bucket-label", script)
-        self.assertIn(".bucket-label", styles)
-        self.assertIn("bottom: 7px;", styles)
-        self.assertIn("top: 5px;", styles)
-        self.assertIn("max-width: calc(100% - 6px);", styles)
-
-    def test_timeline_overview_stays_visible_above_stream_and_receives_filters(self):
-        import importlib.resources as resources
-
-        script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
-        styles = resources.files("memory_trace").joinpath("static/styles.css").read_text(encoding="utf-8")
-
-        self.assertIn('agent: state.agent', script)
-        self.assertIn('user: state.user', script)
-        self.assertIn('topic: state.topic', script)
-        self.assertIn("timelineHideEmpty", script)
-        self.assertIn("include_empty", script)
-        self.assertIn("limit: 500", script)
-        self.assertIn("data-timeline-empty", script)
-        self.assertIn("timelineSelectedBucket", script)
-        self.assertIn("data-bucket-date", script)
-        self.assertIn("data-bucket-start", script)
-        self.assertIn("data-bucket-end", script)
-        self.assertIn("selectTimelineBucket", script)
-        self.assertIn("markSelectedTimelineBucket", script)
-        self.assertIn('target.dataset.bucketStart', script)
-        self.assertNotIn('target.dataset.bucketStart) {\n      await updateFilter("dateFrom"', script)
-        self.assertNotIn('target.dataset.bucketStart) {\n      await updateFilter("dateTo"', script)
-        self.assertIn("timeline-overview", script)
-        self.assertIn("timeline-stream", script)
-        self.assertIn(".timeline-overview", styles)
-        self.assertIn("position: sticky;", styles)
-        self.assertIn("top: 44px;", styles)
-        self.assertIn(".bucket.selected", styles)
-        self.assertIn("grid-template-rows: 44px auto minmax(0, 1fr);", styles)
-        self.assertIn("overflow-y: auto;", styles)
+        self.assertNotIn('["timeline", "Timeline"]', script)
+        self.assertNotIn("timelineView", script)
+        self.assertNotIn("/api/timeline", script)
+        self.assertNotIn("timelineZoom", script)
+        self.assertNotIn("timelineSelectedBucket", script)
+        self.assertIn('stored === "timeline" ? "trail" : stored', script)
+        self.assertNotIn(".timeline-overview", styles)
+        self.assertNotIn(".timeline-stream", styles)
+        self.assertNotIn(".bucket", styles)
 
 
 if __name__ == "__main__":
