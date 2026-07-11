@@ -107,6 +107,21 @@ class V1ApiContractTests(unittest.TestCase):
         self.assertIn("best_match_chunk_id", result)
         self.assertIn("matched_sections", result)
 
+    def test_v1_search_ranked_path_validates_without_rollup_fields(self):
+        # granularity=all (and any empty-query search) takes the _ranked_to_api
+        # path, which omits best_match_chunk_id/score_source/matched_sections -
+        # the response_model must accept that shape too, not just the rollup one.
+        client = self.client()
+
+        legacy = client.get("/api/search", params={"q": "Memory Lense ui", "granularity": "all"}).json()
+        v1 = client.get("/api/v1/search", params={"q": "Memory Lense ui", "granularity": "all"}).json()
+
+        self.assertEqual(legacy["results"][0]["chunk_id"], v1["results"][0]["chunk_id"])
+        result = v1["results"][0]
+        self.assertIsNone(result["best_match_chunk_id"])
+        self.assertIsNone(result["score_source"])
+        self.assertEqual(result["matched_sections"], [])
+
     def test_v1_chunk_matches_legacy_and_has_typed_metadata(self):
         client = self.client()
 
