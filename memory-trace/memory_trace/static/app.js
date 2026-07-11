@@ -680,6 +680,15 @@ function trailView() {
     chainPrimary.forEach((id) => chainSecondary.delete(id));
     chainSecondary.delete(selectedEntry);
   }
+  // Commit packaging: entries captured by the same git commit as the
+  // selection get a right-edge bracket - the left edge belongs to semantic
+  // relations, the right edge to packaging.
+  const commitSiblings = new Set();
+  if (focusActive && state.selected?.entry_id === selectedEntry) {
+    (state.selected.commit_entry_ids || []).forEach((id) => {
+      if (id !== selectedEntry) commitSiblings.add(id);
+    });
+  }
   const arcs = lifecycle.flatMap((edge) => {
     const touched = focusActive && (edge.source === selectedEntry || edge.target === selectedEntry);
     if (edge.type === "related" && !touched) return [];
@@ -717,7 +726,7 @@ function trailView() {
     const selected = node.entry_id === selectedEntry || node.chunk_id === state.selectedId;
     const time = node.datetime ? node.datetime.slice(11, 16) : "";
     return `
-      <div class="trail-row ${selected ? (state.selectionMuted ? "pinned" : "selected") : ""} ${chainPrimary.has(node.id) ? "chain-primary" : chainSecondary.has(node.id) ? "chain-secondary" : ""}" data-chunk="${escAttr(node.chunk_id)}" title="${escAttr(node.title)}${branch ? escAttr(` · ${branch}`) : ""}">
+      <div class="trail-row ${selected ? (state.selectionMuted ? "pinned" : "selected") : ""} ${chainPrimary.has(node.id) ? "chain-primary" : chainSecondary.has(node.id) ? "chain-secondary" : ""} ${commitSiblings.has(node.id) ? "commit-sibling" : ""}" data-chunk="${escAttr(node.chunk_id)}" title="${escAttr(node.title)}${branch ? escAttr(` · ${branch}`) : ""}">
         <span class="trail-time">${time}</span>
         <span class="trail-title">${esc(trailTitle(node))}</span>
         ${tip ? `<span class="trail-branch" style="color:${colorOf.get(branch)}">${esc(branch)}</span>` : ""}
@@ -774,6 +783,7 @@ function rightPane() {
       <div class="chip-list">${(selected.sections || []).map((section) => `<span class="chip">${esc(section)}</span>`).join("")}</div>
       <div class="markdown">${markdown(selected.text || "")}</div>
     </section>
+    ${commitSection(selected)}
     ${diagramsSection(selected)}
     <section class="detail-section">
       <h4>Linked Memories</h4>
@@ -1110,6 +1120,29 @@ function diagramsSection(selected) {
       <h4>Decision diagrams</h4>
       ${blocks.map((block) => `<figure class="diagram">${block.title ? `<figcaption class="count">${esc(block.title)}</figcaption>` : ""}${renderDiagramBlock(block.source)}</figure>`).join("")}
     </section>`;
+}
+
+// Commit packaging: the git commit that first captured this entry, plus the
+// other entries that rode the same commit (batch commits on main and the
+// pre-branching era included - the map is diff-derived, not merge-derived).
+function commitSection(selected) {
+  if (selected.commit) {
+    const siblings = selected.commit_entries || [];
+    return `
+    <section class="detail-section">
+      <h4>Commit</h4>
+      <div class="entry-meta"><span class="count">${esc(selected.commit.short)}</span><span>${esc(selected.commit.subject)}</span></div>
+      ${siblings.length ? `<div class="count commit-note">${siblings.length} other entr${siblings.length === 1 ? "y" : "ies"} in this commit</div>${siblings.map((item) => `<button type="button" class="link-card" data-chunk="${escAttr(item.chunk_id)}">${esc(stripTitleStamp(item.title))}<br><span class="count">${item.date} ${item.time || ""}</span></button>`).join("")}` : `<div class="count commit-note">Only entry in this commit.</div>`}
+    </section>`;
+  }
+  if (selected.commit_tracking) {
+    return `
+    <section class="detail-section">
+      <h4>Commit</h4>
+      <div class="count">Not yet committed.</div>
+    </section>`;
+  }
+  return "";
 }
 
 // Small reader-header note naming the matched subsection, when one is active for

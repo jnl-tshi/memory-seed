@@ -353,6 +353,44 @@ class LenseServiceTests(unittest.TestCase):
         page = service.search(q="", topic="retrieval", granularity="entry")
         self.assertEqual({item["entry_id"] for item in page["results"]}, {"mse_topical"})
 
+    def test_chunk_reports_commit_and_batch_siblings(self):
+        # Commit packaging: each entry maps to the oldest commit whose diff
+        # added it, so main-era work with no immediate commit rides "the next
+        # commit that occurred" (batch commits, pre-branching history). An
+        # appended-but-uncommitted entry reports commit None with tracking on.
+        def git(*args):
+            subprocess.run(["git", "-C", str(self.cwd), *args], check=True, capture_output=True)
+
+        git("init")
+        git("config", "user.email", "test@example.com")
+        git("config", "user.name", "Test")
+        git("config", "commit.gpgsign", "false")
+        git("add", "-A")
+        git("commit", "-m", "batch: seed sessions")
+        self.write_session("2026-06-05.md", _entry("2026-06-05 09:00 - Later work", "mse_later", "Later."))
+        git("add", "-A")
+        git("commit", "-m", "second commit")
+        service = self.service()
+
+        detail = service.chunk("mse_bootstrap")
+        self.assertEqual(detail["commit"]["subject"], "batch: seed sessions")
+        self.assertTrue(detail["commit_tracking"])
+        # The whole seeded batch shares the commit; later work does not.
+        self.assertIn("mse_ui", detail["commit_entry_ids"])
+        self.assertIn("mse_graph", detail["commit_entry_ids"])
+        self.assertNotIn("mse_later", detail["commit_entry_ids"])
+        sibling_ids = {item["entry_id"] for item in detail["commit_entries"]}
+        self.assertIn("mse_ui", sibling_ids)
+        self.assertNotIn("mse_bootstrap", sibling_ids)  # never lists itself
+
+        later = service.chunk("mse_later")
+        self.assertEqual(later["commit"]["subject"], "second commit")
+
+        self.write_session("2026-06-06.md", _entry("2026-06-06 09:00 - Uncommitted", "mse_uncommitted", "Pending."))
+        pending = self.service().chunk("mse_uncommitted")
+        self.assertIsNone(pending["commit"])
+        self.assertTrue(pending["commit_tracking"])
+
     def test_graph_is_entry_level_and_reports_connectivity(self):
         self.write_session(
             "2026-06-04.md",

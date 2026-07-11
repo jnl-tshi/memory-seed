@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import subprocess
 import tempfile
 import threading
 import time
@@ -120,6 +121,10 @@ class LenseCache:
                 "insert into meta(key, value) values('runtime_root', ?)",
                 (str(self.runtime.workspace_root),),
             )
+            conn.execute(
+                "insert into meta(key, value) values('entry_commits', ?)",
+                (json.dumps(_entry_commit_map(self.runtime.workspace_root)),),
+            )
             conn.commit()
         finally:
             conn.close()
@@ -167,6 +172,12 @@ class LenseCache:
             "chunk_count": chunk_count,
         }
 
+    def entry_commits(self) -> dict[str, dict[str, str]]:
+        self.ensure_current()
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute("select value from meta where key='entry_commits'").fetchone()
+        return json.loads(row[0]) if row else {}
+
     def chunks(self, *, granularity: str | None = None) -> list[MemoryChunk]:
         self.ensure_current()
         sql = "select json from chunks"
@@ -183,7 +194,11 @@ class LenseCache:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 stored = conn.execute("select path, mtime_ns, size from files order by path").fetchall()
+                # Caches from before commit tracking lack the key; rebuild once.
+                has_commits = conn.execute("select 1 from meta where key='entry_commits'").fetchone()
         except sqlite3.Error:
+            return False
+        if not has_commits:
             return False
         return [(str(path), int(mtime), int(size)) for path, mtime, size in current] == [
             (str(path), int(mtime), int(size)) for path, mtime, size in stored
@@ -337,8 +352,31 @@ class LenseService:
             raise KeyError(chunk_id)
         node = graph.get(selected.entry_id or "")
         sidecar = entry_diagram_sidecars(self.cache.cwd).get(selected.entry_id or "")
+        # Commit packaging: which git commit first captured this entry, and
+        # which other entries rode the same commit (batch commits on main and
+        # pre-branching history included - the map is diff-derived, not
+        # merge-derived). commit None + commit_tracking True = not yet
+        # committed; commit_tracking False = no git data at all.
+        commit_map = self.cache.entry_commits()
+        commit = commit_map.get(selected.entry_id or "")
+        commit_entry_ids: list[str] = []
+        commit_entries: list[dict[str, Any]] = []
+        if commit:
+            commit_entry_ids = sorted(
+                entry_id for entry_id, info in commit_map.items() if info.get("sha") == commit.get("sha")
+            )
+            by_entry = {chunk.entry_id: chunk for chunk in entries if chunk.entry_id}
+            commit_entries = [
+                _chunk_summary(by_entry[entry_id])
+                for entry_id in commit_entry_ids
+                if entry_id in by_entry and entry_id != selected.entry_id
+            ]
         return {
             **_chunk_to_api(selected),
+            "commit": commit or None,
+            "commit_entry_ids": commit_entry_ids,
+            "commit_entries": commit_entries,
+            "commit_tracking": bool(commit_map),
             "backlinks": list(node.inbound if node else ()),
             "related_entries": list(selected.related_entries),
             # Authored decision-diagram sidecar metadata (Class 2, frozen);
@@ -624,6 +662,44 @@ def run_server(args: argparse.Namespace) -> int:
 def _file_row(root: Path, path: Path) -> tuple[str, int, int]:
     stat = path.stat()
     return (path.relative_to(root).as_posix(), stat.st_mtime_ns, stat.st_size)
+
+
+def _entry_commit_map(root: Path) -> dict[str, dict[str, str]]:
+    """entry_id -> the oldest commit whose diff added that entry's id line.
+
+    One ``git log -p`` pass over the session tree, newest-first; assignment
+    overwrites on every sighting, so the final value is the OLDEST commit -
+    migrations and fuse rewrites that re-add an entry never steal attribution
+    from the commit that first captured it. This is what makes "work done on
+    main with no commit rides the next commit that occurs" true by
+    construction, including pre-branching history. Fails open to an empty map
+    when git or a repository is unavailable.
+    """
+    try:
+        proc = subprocess.run(
+            [
+                "git", "-C", str(root), "log", "-p",
+                "--format=%x01%H%x1f%h%x1f%aI%x1f%s",
+                "--", ".memory-seed/sessions",
+            ],
+            capture_output=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return {}
+    if proc.returncode != 0:
+        return {}
+    mapping: dict[str, dict[str, str]] = {}
+    current: dict[str, str] | None = None
+    for line in proc.stdout.decode("utf-8", errors="replace").splitlines():
+        if line.startswith("\x01"):
+            parts = (line[1:].split("\x1f") + ["", "", "", ""])[:4]
+            current = {"sha": parts[0], "short": parts[1], "date": parts[2], "subject": parts[3]}
+        elif current is not None and line.startswith("+entry_id:"):
+            entry_id = line[len("+entry_id:"):].strip()
+            if entry_id:
+                mapping[entry_id] = current
+    return mapping
 
 
 def _chunk_to_storage(chunk: MemoryChunk) -> dict[str, Any]:
