@@ -24,6 +24,10 @@ const state = {
   trailWindow: 60,
   leftCollapsed: localStorage.getItem("ml:leftCollapsed") === "1",
   rightCollapsed: localStorage.getItem("ml:rightCollapsed") === "1",
+  // Second click on the selected entry mutes its edge emphasis (related
+  // routes hidden, lifecycle routes back to pastel) while the entry stays
+  // pinned with a border and the reader keeps showing it.
+  selectionMuted: false,
   sectionOpen: readStoredJson("ml:sections", { views: false, filters: true, topics: true }),
   topicsExpanded: false,
   results: [],
@@ -351,7 +355,7 @@ function resultList() {
   return `<div class="results">${state.results.map((item) => {
     const matched = (item.matched_sections || []).length;
     return `
-    <article class="card ${item.chunk_id === state.selectedId ? "selected" : ""}" data-chunk="${escAttr(item.chunk_id)}" title="${escAttr(item.title)}">
+    <article class="card ${item.chunk_id === state.selectedId ? (state.selectionMuted ? "pinned" : "selected") : ""}" data-chunk="${escAttr(item.chunk_id)}" title="${escAttr(item.title)}">
       <div class="card-head"><span>${item.date} ${item.time || ""}</span>${matched ? `<span class="count">${matched} matched section${matched === 1 ? "" : "s"}</span>` : ""}${showScore ? `<span class="score">${Number(item.score || 0).toFixed(1)}</span>` : ""}</div>
       <h3>${esc(stripTitleStamp(item.title))}</h3>
     </article>`;
@@ -640,10 +644,12 @@ function trailView() {
 
   // Relationship edges route through their type's dotted lane with the same
   // small-radius elbows: out from the source dot, along the lane, back in to
-  // the target dot. Unselected routes stay clearly visible (0.6) - selection
-  // brightens its own routes rather than hiding the rest.
+  // the target dot. Lifecycle routes rest in their pastel variants; an
+  // active (unmuted) selection saturates the routes it touches and reveals
+  // its related routes.
+  const focusActive = Boolean(selectedEntry) && !state.selectionMuted;
   const arcs = lifecycle.flatMap((edge) => {
-    const touched = selectedEntry && (edge.source === selectedEntry || edge.target === selectedEntry);
+    const touched = focusActive && (edge.source === selectedEntry || edge.target === selectedEntry);
     if (edge.type === "related" && !touched) return [];
     const sourceItem = items[rowOf.get(edge.source)];
     const targetItem = items[rowOf.get(edge.target)];
@@ -655,7 +661,11 @@ function trailView() {
     const r = TRAIL_CORNER;
     const dir = ty > sy ? 1 : -1;
     const path = `M ${sx} ${sy} L ${lx + r} ${sy} Q ${lx} ${sy} ${lx} ${sy + r * dir} L ${lx} ${ty - r * dir} Q ${lx} ${ty} ${lx + r} ${ty} L ${tx} ${ty}`;
-    return [`<path d="${path}" fill="none" stroke="${edgeColor(edge.type)}" stroke-width="${touched ? 2.6 : 2}" stroke-dasharray="${TRAIL_DASH[edge.type]}" stroke-opacity="${!selectedEntry || touched ? 0.95 : 0.6}" marker-end="url(#trail-arrow-${edge.type})"><title>${esc(trailTitle(sourceItem.node))} ${TRAIL_VERB[edge.type]} ${esc(trailTitle(targetItem.node))}</title></path>`];
+    const soft = edge.type !== "related" && !touched;
+    const stroke = soft ? `var(--edge-${edge.type}-soft)` : edgeColor(edge.type);
+    const marker = soft ? `trail-arrow-${edge.type}-soft` : `trail-arrow-${edge.type}`;
+    const opacity = touched ? 0.95 : focusActive ? 0.5 : 0.9;
+    return [`<path d="${path}" fill="none" stroke="${stroke}" stroke-width="${touched ? 2.6 : 2}" stroke-dasharray="${TRAIL_DASH[edge.type]}" stroke-opacity="${opacity}" marker-end="url(#${marker})"><title>${esc(trailTitle(sourceItem.node))} ${TRAIL_VERB[edge.type]} ${esc(trailTitle(targetItem.node))}</title></path>`];
   });
 
   const dots = items.flatMap((item, index) => {
@@ -673,7 +683,7 @@ function trailView() {
     const selected = node.entry_id === selectedEntry || node.chunk_id === state.selectedId;
     const time = node.datetime ? node.datetime.slice(11, 16) : "";
     return `
-      <div class="trail-row ${selected ? "selected" : ""}" data-chunk="${escAttr(node.chunk_id)}" title="${escAttr(node.title)}${branch ? escAttr(` · ${branch}`) : ""}">
+      <div class="trail-row ${selected ? (state.selectionMuted ? "pinned" : "selected") : ""}" data-chunk="${escAttr(node.chunk_id)}" title="${escAttr(node.title)}${branch ? escAttr(` · ${branch}`) : ""}">
         <span class="trail-time">${time}</span>
         <span class="trail-title">${esc(trailTitle(node))}</span>
         ${tip ? `<span class="trail-branch" style="color:${colorOf.get(branch)}">${esc(branch)}</span>` : ""}
@@ -697,6 +707,8 @@ function trailView() {
             <marker id="trail-arrow-supersedes" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("supersedes")}"></path></marker>
             <marker id="trail-arrow-evolves" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("evolves")}"></path></marker>
             <marker id="trail-arrow-related" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("related")}"></path></marker>
+            <marker id="trail-arrow-supersedes-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-supersedes-soft)"></path></marker>
+            <marker id="trail-arrow-evolves-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-evolves-soft)"></path></marker>
           </defs>
           <rect class="trail-rel-zone" x="0" y="0" width="${TRAIL_REL_ZONE - 5}" height="${height}" rx="6"></rect>
           ${connectors.join("")}
@@ -718,7 +730,7 @@ function rightPane() {
     ["Backlinks", selected.backlinks || []],
   ];
   return `
-    <div class="detail-header">
+    <div class="detail-header ${state.selectionMuted ? "pinned" : ""}">
       <div class="entry-meta"><span>${selected.date} ${selected.time || ""}</span><span>${esc(selected.agent_type || "")}</span></div>
       <h2>${esc(selected.title)}</h2>
       <div class="count">${esc(selected.chunk_id)}</div>
@@ -991,6 +1003,15 @@ function installDelegatedEvents() {
       return;
     }
     if (target.dataset.chunk) {
+      // Second click on the already-selected entry toggles muted focus:
+      // related routes hide, lifecycle routes go back to pastel, and the
+      // entry stays pinned (border) with the reader still on it.
+      if (state.selectedId === target.dataset.chunk && state.selected) {
+        state.selectionMuted = !state.selectionMuted;
+        render();
+        return;
+      }
+      state.selectionMuted = false;
       const hint = matchHintFor(target.dataset.chunk);
       state.matchHint = hint;
       state.pendingMatchScroll = Boolean(hint);

@@ -60,6 +60,10 @@
   --edge-day: #d9941a;
   --edge-supersedes: #d94b63;
   --edge-evolves: #4f98d9;
+  /* Pastel resting versions: lifecycle routes render soft until a selection
+     saturates the ones it touches. */
+  --edge-supersedes-soft: #c98d99;
+  --edge-evolves-soft: #92b9dd;
   --edge-branch: #3fa66a;
   --status-superseded: #d94b63;
 }
@@ -752,6 +756,16 @@ select, input[type="date"] {
 }
 .trail-row:hover, .trail-row.selected {
   background: var(--accent-weak);
+}
+/* Muted (second-click) focus: the entry stays pinned with a border while its
+   edge emphasis is turned off. The same ring marks the reader header so the
+   right pane's subject stays unambiguous. */
+.trail-row.pinned, .card.pinned {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.detail-header.pinned {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
 }
 .trail-day {
   height: 30px;
