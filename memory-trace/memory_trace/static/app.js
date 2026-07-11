@@ -9,7 +9,6 @@ const state = {
   user: "",
   topic: "",
   granularity: "entry",
-  sort: "relevance",
   density: "comfortable",
   dateFrom: "",
   dateTo: "",
@@ -27,11 +26,16 @@ const state = {
   selectionMuted: false,
   sectionOpen: readStoredJson("ml:sections", { views: false, filters: true, topics: true }),
   topicsExpanded: false,
+  // Search is a function over the Trail and Graph, not a destination view:
+  // results feed the ranked dropdown, matchEntries drives in-place highlight
+  // and dimming in whichever view is open.
   results: [],
+  matchEntries: new Set(),
+  searchOpen: false,
+  pendingTrailScroll: false,
   graph: null,
   selected: null,
   selectedId: null,
-  nextCursor: null,
   loadSeq: 0,
   // Entry-level UI results plan: when a search result's best match came from a
   // subsection, remember which heading to highlight/scroll-to inside the parent
@@ -40,11 +44,12 @@ const state = {
   pendingMatchScroll: false,
 };
 
-// Timeline retired 2026-07-11: Trail is its chronological successor, so a
-// stored "timeline" view preference lands on Trail instead of a dead tab.
+// Timeline and Search retired as tabs 2026-07-11: Trail is the chronological
+// successor and search became a function over Trail/Graph, so stale stored
+// view preferences land on Trail instead of a dead tab.
 function storedView() {
   const stored = localStorage.getItem("ml:view");
-  return stored === "timeline" ? "trail" : stored;
+  return stored === "timeline" || stored === "search" ? "trail" : stored;
 }
 
 function readStoredJson(key, fallback) {
@@ -93,7 +98,7 @@ function seedDates() {
 }
 
 async function loadView() {
-  if (state.view === "search") await loadSearch();
+  if (state.query.trim()) await refreshSearch();
   if (state.view === "graph" || state.view === "trail") await loadGraph();
 }
 
@@ -102,24 +107,32 @@ async function loadView() {
 // dotted lanes left of main. Fixed edge set - not the graph view's chips.
 const TRAIL_EDGE_TYPES = "branch,supersedes,evolves,related";
 
-async function loadSearch(cursor = null, append = false, token = state.loadSeq) {
+// Search over the current view: server-side ranking (sections and files
+// included) produces the ranked dropdown plus the entry match set that the
+// Trail and Graph highlight in place. Typing never selects or navigates.
+const SEARCH_LIMIT = 50;
+
+async function refreshSearch(token = state.loadSeq) {
+  if (!state.query.trim()) {
+    state.results = [];
+    state.matchEntries = new Set();
+    state.searchOpen = false;
+    return true;
+  }
   const params = qs({
     q: state.query,
-    limit: 30,
-    cursor,
+    limit: SEARCH_LIMIT,
     granularity: state.granularity,
     agent: state.agent,
     user: state.user,
     topic: state.topic,
     date_from: state.dateFrom,
     date_to: state.dateTo,
-    sort: state.sort,
   });
   const page = await api(`/api/search?${params}`);
   if (token !== state.loadSeq) return false;
-  state.results = append ? [...state.results, ...page.results] : page.results;
-  state.nextCursor = page.next_cursor;
-  if (!state.selectedId && state.results[0]) await selectChunk(state.results[0].chunk_id, false);
+  state.results = page.results;
+  state.matchEntries = new Set(page.results.map((item) => item.entry_id).filter(Boolean));
   return true;
 }
 
@@ -174,6 +187,7 @@ function render() {
   restoreCenterScroll(scrollState);
   restoreFocusedInput(focusState);
   applyMatchHighlight();
+  applyTrailScroll();
 }
 
 // render() replaces the whole DOM, which destroys the element the user is
@@ -211,7 +225,7 @@ function restoreFocusedInput(focusState) {
 function topbar() {
   // Trail is the primary surface (chronological evidence), Graph the
   // secondary exploration surface - the next-generation blueprint's ordering.
-  const tabs = [["trail", "Trail"], ["graph", "Graph"], ["search", "Search"]]
+  const tabs = [["trail", "Trail"], ["graph", "Graph"]]
     .map(([key, label]) => `<button type="button" class="tab ${state.view === key ? "active" : ""}" data-view="${key}">${label}</button>`)
     .join("");
   return `
@@ -219,14 +233,48 @@ function topbar() {
       <button type="button" class="icon-button" data-toggle-left title="${state.leftCollapsed ? "Show sidebar" : "Hide sidebar"}">☰</button>
       <div class="brand"><span class="brand-mark"></span><span>Memory Trace</span></div>
       <div class="runtime-chip"><span class="runtime-dot"></span><span>${esc(state.runtime?.label || "runtime")}</span><span>${state.runtime?.entry_count || 0} entries</span></div>
-      ${state.view === "search"
-        ? `<div class="searchbox"><span>⌕</span><input id="query" value="${escAttr(state.query)}" placeholder="Search memory, tags, files, decisions" spellcheck="false"></div>`
-        : `<div class="searchbox-spacer"></div>`}
+      <div class="searchbox-wrap">
+        <div class="searchbox"><span>⌕</span><input id="query" value="${escAttr(state.query)}" placeholder="Search memory, tags, files, decisions" spellcheck="false"></div>
+        ${searchDropdown()}
+      </div>
       <div class="segmented">${tabs}</div>
       <button type="button" class="icon-button" data-theme title="Theme">${state.theme === "dark" ? "◐" : "◑"}</button>
       <div class="palette">${["indigo", "teal", "amber", "ruby", "violet"].map((name) => `<button type="button" class="${state.accent === name ? "active" : ""}" data-accent="${name}" title="${name}" style="background:${palettePreview(name)}"></button>`).join("")}</div>
       <button type="button" class="icon-button" data-toggle-right title="${state.rightCollapsed ? "Show reader" : "Hide reader"}">▤</button>
     </header>`;
+}
+
+// Ranked results dropdown under the search box: the relevance-ordered jump
+// list (the roadmap's "ranked results drawer" shape). Clicking a result
+// selects the entry in the current view; the match markers stay in place.
+function searchDropdown() {
+  if (!state.searchOpen || !state.query.trim()) return "";
+  const top = state.results.slice(0, 10);
+  if (!top.length) {
+    return `<div class="search-dropdown"><div class="search-empty">No matches for "${esc(state.query.trim())}" with the current filters.</div></div>`;
+  }
+  const more = state.matchEntries.size - top.length;
+  return `
+    <div class="search-dropdown">
+      ${top.map((item) => {
+        const matched = (item.matched_sections || []).length;
+        return `<button type="button" class="search-result" data-search-jump data-chunk="${escAttr(item.chunk_id)}" title="${escAttr(item.title)}"><span class="search-result-title">${esc(stripTitleStamp(item.title))}</span><span class="count">${item.date} ${item.time || ""}${matched ? ` · ${matched} matched section${matched === 1 ? "" : "s"}` : ""}</span></button>`;
+      }).join("")}
+      ${more > 0 ? `<div class="search-empty">+${more} more highlighted in the ${state.view === "graph" ? "graph" : "trail"}</div>` : ""}
+    </div>`;
+}
+
+// Shared viewbar fragment: match count + next/previous cycling + clear,
+// shown in whichever view is open while a query is active.
+function searchStatus() {
+  if (!state.query.trim()) return "";
+  const count = state.matchEntries.size;
+  const capped = state.results.length >= SEARCH_LIMIT;
+  return `
+      <span class="meta search-hits">⌕ <strong>${count}${capped ? "+" : ""}</strong> match${count === 1 && !capped ? "" : "es"}</span>
+      <button type="button" class="chip" data-match-prev title="Previous match (Shift+Enter)">↑</button>
+      <button type="button" class="chip" data-match-next title="Next match (Enter)">↓</button>
+      <button type="button" class="chip" data-search-clear title="Clear search">×</button>`;
 }
 
 function leftPane() {
@@ -237,9 +285,9 @@ function leftPane() {
       <div class="metric"><strong>${facets.runtime.chunk_count || 0}</strong><span>chunks</span></div>
     </div>
     ${sidebarSection("views", "Saved Views", `
-      ${savedButton("Recent work", "", "", "newest")}
-      ${savedButton("Design decisions", "design decision", "", "relevance")}
-      ${savedButton("Related graph", "", "graph", "relevance")}`)}
+      ${savedButton("Recent work", "", "trail")}
+      ${savedButton("Design decisions", "design decision", "trail")}
+      ${savedButton("Related graph", "", "graph")}`)}
     ${sidebarSection("filters", "Filters", `
       ${facetSelect("agent-filter", "agent", facets.agents, state.agent, "All agents")}
       ${facetSelect("user-filter", "user", facets.users, state.user, "All users")}
@@ -302,50 +350,14 @@ function filterChips() {
   return chips.map(([key, label]) => `<button type="button" class="chip filter-chip" data-clear-filter="${key}" title="Clear this filter">${esc(label)} ×</button>`).join("");
 }
 
-function savedButton(label, query, view, sort) {
-  return `<button type="button" class="row-button" data-saved-query="${escAttr(query)}" data-saved-view="${escAttr(view)}" data-saved-sort="${escAttr(sort)}"><span class="swatch"></span><span>${label}</span><span class="count">preset</span></button>`;
+function savedButton(label, query, view) {
+  return `<button type="button" class="row-button" data-saved-query="${escAttr(query)}" data-saved-view="${escAttr(view)}"><span class="swatch"></span><span>${label}</span><span class="count">preset</span></button>`;
 }
 
 function centerPane() {
   const densityClass = `density-${state.density}`;
-  if (state.view === "trail") return `<section class="${densityClass}">${trailView()}</section>`;
   if (state.view === "graph") return `<section class="${densityClass}">${graphView()}</section>`;
-  return `<section class="${densityClass}">${searchView()}</section>`;
-}
-
-function searchView() {
-  return `
-    <div class="viewbar">
-      <span class="meta"><strong>${state.results.length}</strong> ${state.granularity === "entry" ? "entries" : "results"} shown ${state.nextCursor ? "of more" : ""}</span>
-      ${filterChips()}
-      <span class="spacer"></span>
-      <select id="sort">${["relevance", "newest", "oldest"].map((item) => `<option value="${item}" ${state.sort === item ? "selected" : ""}>${item}</option>`).join("")}</select>
-      <div class="segmented">${["comfortable", "compact"].map((item) => `<button type="button" class="tab ${state.density === item ? "active" : ""}" data-density="${item}">${item}</button>`).join("")}</div>
-    </div>
-    <div class="scroll">
-      ${state.results.length ? resultList() : `<div class="empty"><div><p>No entries match${state.query.trim() ? ` "${esc(state.query.trim())}" with` : ""} the current filters.</p><button type="button" class="chip" data-reset>Clear filters</button></div></div>`}
-      ${state.nextCursor ? `<button type="button" class="chip" data-more>Load more</button>` : ""}
-    </div>`;
-}
-
-function resultList() {
-  // Scores only mean something against a query; on empty-query browsing they
-  // are uniform zeros and would just be noise.
-  const showScore = Boolean(state.query.trim());
-  if (state.density === "compact") {
-    return `<div class="results">${state.results.map((item) => `<div class="compact-row ${item.chunk_id === state.selectedId ? "selected" : ""}" data-chunk="${escAttr(item.chunk_id)}" title="${escAttr(item.title)}"><span>${item.date} ${item.time || ""}</span><span>${esc(stripTitleStamp(item.title))}${(item.matched_sections || []).length ? ` <span class="count">· ${(item.matched_sections || []).length} matched section${(item.matched_sections || []).length === 1 ? "" : "s"}</span>` : ""}</span><span class="optional-wide">${esc(item.agent_type || "")}</span><span>${showScore ? Number(item.score || 0).toFixed(1) : ""}</span></div>`).join("")}</div>`;
-  }
-  // Minimal glance state (overview-first): date + title (+ score under a
-  // query). Excerpts, topics, agent, and matched sections all live in the
-  // reader on selection.
-  return `<div class="results">${state.results.map((item) => {
-    const matched = (item.matched_sections || []).length;
-    return `
-    <article class="card ${item.chunk_id === state.selectedId ? (state.selectionMuted ? "pinned" : "selected") : ""}" data-chunk="${escAttr(item.chunk_id)}" title="${escAttr(item.title)}">
-      <div class="card-head"><span>${item.date} ${item.time || ""}</span>${matched ? `<span class="count">${matched} matched section${matched === 1 ? "" : "s"}</span>` : ""}${showScore ? `<span class="score">${Number(item.score || 0).toFixed(1)}</span>` : ""}</div>
-      <h3>${esc(stripTitleStamp(item.title))}</h3>
-    </article>`;
-  }).join("")}</div>`;
+  return `<section class="${densityClass}">${trailView()}</section>`;
 }
 
 function graphView() {
@@ -353,10 +365,16 @@ function graphView() {
   if (!graph) return `<div class="empty">Graph loading</div>`;
   const positions = graphPositions(graph.nodes, graph.edges);
   const related = graphRelatedIds(graph, state.graphHover);
+  // Search as a function over the graph: matching nodes keep full presence
+  // (and earn a label), everything else dims - same grammar as hover focus.
+  const searching = Boolean(state.query.trim());
+  const entryOf = new Map(graph.nodes.map((node) => [node.id, node.entry_id || ""]));
+  const isMatch = (id) => state.matchEntries.has(entryOf.get(id) || "");
   return `
     <div class="viewbar">
       <span class="meta">${graph.nodes.length} nodes · ${graph.edges.length} edges</span>
       ${filterChips()}
+      ${searchStatus()}
       <span class="spacer"></span>
       <div class="segmented">${[["all", "All entries"], ["neighborhood", "Neighborhood"]].map(([scope, label]) => `<button type="button" class="tab ${state.graphScope === scope ? "active" : ""}" data-graph-scope="${scope}">${label}</button>`).join("")}</div>
       <button type="button" class="chip" data-graph-reset>Reset view</button>
@@ -376,7 +394,7 @@ function graphView() {
         const a = positions[edge.source], b = positions[edge.target];
         if (!a || !b) return "";
         const highlight = state.graphHover && (edge.source === state.graphHover || edge.target === state.graphHover);
-        const dim = state.graphHover && !highlight;
+        const dim = (state.graphHover && !highlight) || (searching && !isMatch(edge.source) && !isMatch(edge.target));
         // supersedes: directed + dashed status edge, never conflated with related.
         const width = edge.type === "supersedes" ? 2.2 : edge.type === "branch" ? 1.6 : edge.type === "related" ? 2 : 1;
         const dash = edge.type === "supersedes" ? ' stroke-dasharray="6 4"' : "";
@@ -394,12 +412,13 @@ function graphView() {
           const p = positions[node.id];
           const selected = node.chunk_id === state.selectedId || node.id === state.selected?.entry_id;
           const highlight = state.graphHover && (node.id === state.graphHover || related.has(node.id));
-          const dim = state.graphHover && !highlight;
+          const match = searching && isMatch(node.id);
+          const dim = (state.graphHover && !highlight) || (searching && !match && !selected);
           const sizeVal = sizeOf(node);
           const radius = selected ? 18 : Math.min(16, 7 + sizeVal * 2.2);
-          const showLabel = selected || highlight || sizeVal >= labelCut;
+          const showLabel = selected || highlight || match || sizeVal >= labelCut;
           const label = showLabel ? `<text class="graph-label" data-graph-label x="${p.x}" y="${p.y - 15}" text-anchor="middle">${esc(graphTitle(node.title))}</text>` : "";
-          return `<g class="graph-node ${highlight ? "graph-related" : ""} ${dim ? "graph-dim" : ""}" data-node-id="${escAttr(node.id)}" data-chunk="${escAttr(node.chunk_id)}"><circle class="graph-hit" cx="${p.x}" cy="${p.y}" r="${Math.max(radius + 10, 20)}"></circle><circle cx="${p.x}" cy="${p.y}" r="${radius}" fill="${agentColor(node.agent)}" stroke="${selected ? "var(--accent)" : "var(--bg)"}" stroke-width="3"></circle>${label}<title>${esc(node.title)}</title></g>`;
+          return `<g class="graph-node ${highlight ? "graph-related" : ""} ${match ? "search-match" : ""} ${dim ? "graph-dim" : ""}" data-node-id="${escAttr(node.id)}" data-chunk="${escAttr(node.chunk_id)}"><circle class="graph-hit" cx="${p.x}" cy="${p.y}" r="${Math.max(radius + 10, 20)}"></circle><circle cx="${p.x}" cy="${p.y}" r="${radius}" fill="${agentColor(node.agent)}" stroke="${selected ? "var(--accent)" : "var(--bg)"}" stroke-width="3"></circle>${label}<title>${esc(node.title)}</title></g>`;
         }).join("");
       })()}
       </g>
@@ -667,11 +686,18 @@ function trailView() {
     return [`<path d="${path}" fill="none" stroke="${stroke}" stroke-width="${touched ? 2.6 : 2}" stroke-dasharray="${TRAIL_DASH[edge.type]}" stroke-opacity="${opacity}" marker-end="url(#${marker})"><title>${esc(trailTitle(sourceItem.node))} ${TRAIL_VERB[edge.type]} ${esc(trailTitle(targetItem.node))}</title></path>`];
   });
 
+  // Search as a function over the Trail: matching rows get a marker dot and
+  // keep full presence, everything else dims - the graph structure stays
+  // intact so lineage context never disappears under a query.
+  const searching = Boolean(state.query.trim());
+  const rowMatch = (node) => searching && state.matchEntries.has(node.entry_id || "");
+
   const dots = items.flatMap((item, index) => {
     if (item.kind !== "node") return [];
     const branch = item.node.branch || "";
     const selected = item.node.entry_id === selectedEntry || item.node.chunk_id === state.selectedId;
-    return [`<circle cx="${laneX(branch)}" cy="${rowY(index)}" r="${selected ? 6.5 : 4.5}" fill="${branch ? colorOf.get(branch) : "var(--faint)"}" stroke="${selected ? "var(--accent-strong)" : "var(--bg)"}" stroke-width="${selected ? 2.5 : 2}"></circle>`];
+    const miss = searching && !rowMatch(item.node) && !selected;
+    return [`<circle cx="${laneX(branch)}" cy="${rowY(index)}" r="${selected ? 6.5 : 4.5}" fill="${branch ? colorOf.get(branch) : "var(--faint)"}" fill-opacity="${miss ? 0.35 : 1}" stroke="${selected ? "var(--accent-strong)" : "var(--bg)"}" stroke-width="${selected ? 2.5 : 2}"></circle>`];
   });
 
   const rows = items.map((item, index) => {
@@ -681,9 +707,11 @@ function trailView() {
     const tip = branch && spans.get(branch)?.first === index;
     const selected = node.entry_id === selectedEntry || node.chunk_id === state.selectedId;
     const time = node.datetime ? node.datetime.slice(11, 16) : "";
+    const searchClass = !searching ? "" : rowMatch(node) ? "search-match" : selected ? "" : "search-miss";
     return `
-      <div class="trail-row ${selected ? (state.selectionMuted ? "pinned" : "selected") : ""} ${chainPrimary.has(node.id) ? "chain-primary" : chainSecondary.has(node.id) ? "chain-secondary" : ""} ${commitSiblings.has(node.id) ? "commit-sibling" : ""}" data-chunk="${escAttr(node.chunk_id)}" title="${escAttr(node.title)}${branch ? escAttr(` · ${branch}`) : ""}">
+      <div class="trail-row ${selected ? (state.selectionMuted ? "pinned" : "selected") : ""} ${searchClass} ${chainPrimary.has(node.id) ? "chain-primary" : chainSecondary.has(node.id) ? "chain-secondary" : ""} ${commitSiblings.has(node.id) ? "commit-sibling" : ""}" data-chunk="${escAttr(node.chunk_id)}" title="${escAttr(node.title)}${branch ? escAttr(` · ${branch}`) : ""}">
         <span class="trail-time">${time}</span>
+        ${rowMatch(node) ? `<span class="trail-match-dot"></span>` : ""}
         <span class="trail-title">${esc(trailTitle(node))}</span>
         ${tip ? `<span class="trail-branch" style="color:${colorOf.get(branch)}">${esc(branch)}</span>` : ""}
       </div>`;
@@ -693,6 +721,7 @@ function trailView() {
   return `
     <div class="viewbar">
       <span class="meta"><strong>${shown}</strong> of ${total} entries · newest first</span>
+      ${searchStatus()}
       <span class="spacer"></span>
       <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("supersedes")}"></span>replaces</span>
       <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("evolves")}"></span>evolves</span>
@@ -758,7 +787,11 @@ function rightPane() {
 function installDelegatedEvents() {
   const queryInput = debounce(async (value) => {
     state.query = value;
-    await reloadCurrentView();
+    const token = ++state.loadSeq;
+    const ok = await refreshSearch(token);
+    if (!ok || token !== state.loadSeq) return;
+    state.searchOpen = Boolean(state.query.trim());
+    render();
   }, 180);
   let graphDrag = null;
   let suppressGraphClick = false;
@@ -767,17 +800,32 @@ function installDelegatedEvents() {
     if (event.target?.id === "query") queryInput(event.target.value);
   });
 
-  // "/" focuses search from anywhere (switching to the Search view first,
-  // since that is the only view the query affects); Esc leaves the box.
+  // Refocusing a box that still holds a query reopens its ranked dropdown.
+  app.addEventListener("focusin", (event) => {
+    if (event.target?.id === "query" && state.query.trim() && !state.searchOpen) {
+      state.searchOpen = true;
+      render();
+    }
+  });
+
+  // "/" focuses search from anywhere (the box is now on every view);
+  // Enter / Shift+Enter cycle matches; Esc closes the dropdown, then leaves.
   window.addEventListener("keydown", async (event) => {
     const tag = event.target?.tagName;
     const typing = tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA";
     if (event.key === "/" && !typing) {
       event.preventDefault();
-      if (state.view !== "search") await setView("search");
       document.getElementById("query")?.focus();
+    } else if (event.key === "Enter" && event.target?.id === "query") {
+      event.preventDefault();
+      await jumpToMatch(event.shiftKey ? -1 : 1);
     } else if (event.key === "Escape" && event.target?.id === "query") {
-      event.target.blur();
+      if (state.searchOpen) {
+        state.searchOpen = false;
+        render();
+      } else {
+        event.target.blur();
+      }
     }
   });
 
@@ -823,9 +871,6 @@ function installDelegatedEvents() {
     if (!target) return;
     if (target.dataset?.filterSelect) {
       await updateFilter(target.dataset.filterSelect, target.value);
-    } else if (target.id === "sort") {
-      state.sort = target.value;
-      await reloadCurrentView();
     } else if (target.id === "date-from") {
       await updateFilter("dateFrom", target.value);
     } else if (target.id === "date-to") {
@@ -842,6 +887,17 @@ function installDelegatedEvents() {
   });
 
   app.addEventListener("click", async (event) => {
+    // Click-away closes the ranked dropdown; the query and markers persist.
+    if (state.searchOpen && !event.target.closest?.(".searchbox-wrap")) {
+      state.searchOpen = false;
+      render();
+    }
+    const searchHit = event.target.closest("[data-search-jump]");
+    if (searchHit) {
+      state.searchOpen = false;
+      await jumpToChunk(searchHit.dataset.chunk);
+      return;
+    }
     const graphNode = event.target.closest("[data-node-id][data-chunk]");
     if (graphNode) {
       if (suppressGraphClick) {
@@ -896,11 +952,6 @@ function installDelegatedEvents() {
       await updateFilter("granularity", target.dataset.granularity);
       return;
     }
-    if (target.dataset.density) {
-      state.density = target.dataset.density;
-      render();
-      return;
-    }
     if (target.dataset.graphScope) {
       state.graphScope = target.dataset.graphScope;
       state.graphHover = "";
@@ -919,10 +970,24 @@ function installDelegatedEvents() {
       await resetFilters();
       return;
     }
-    if (target.dataset.more !== undefined) {
-      const token = ++state.loadSeq;
-      await loadSearch(state.nextCursor, true, token);
-      if (token === state.loadSeq) render();
+    if (target.dataset.matchNext !== undefined) {
+      await jumpToMatch(1);
+      return;
+    }
+    if (target.dataset.matchPrev !== undefined) {
+      await jumpToMatch(-1);
+      return;
+    }
+    if (target.dataset.searchClear !== undefined) {
+      state.query = "";
+      state.results = [];
+      state.matchEntries = new Set();
+      state.searchOpen = false;
+      // Clear the live input too: render()'s focus preservation would
+      // otherwise restore the stale text over the emptied state.
+      const box = document.getElementById("query");
+      if (box) box.value = "";
+      render();
       return;
     }
     if (target.dataset.trailMore !== undefined) {
@@ -974,8 +1039,11 @@ function installDelegatedEvents() {
     }
     if (target.dataset.savedQuery !== undefined) {
       state.query = target.dataset.savedQuery;
-      state.sort = target.dataset.savedSort;
-      if (target.dataset.savedView) state.view = target.dataset.savedView;
+      state.searchOpen = false;
+      if (target.dataset.savedView) {
+        state.view = target.dataset.savedView;
+        localStorage.setItem("ml:view", state.view);
+      }
       await reloadCurrentView();
       return;
     }
@@ -1007,6 +1075,63 @@ function installDelegatedEvents() {
       await selectChunk(target.dataset.chunk, true, token);
     }
   });
+}
+
+// The Trail's chronological node order (newest first) - the same sort
+// trailModel uses, exposed so match cycling and window growth agree with the
+// rendered rows without re-deriving the full model.
+function trailOrderedNodes() {
+  return (state.graph?.nodes || [])
+    .filter((node) => node.entry_id)
+    .sort((a, b) => trailStamp(b) - trailStamp(a) || String(a.id).localeCompare(String(b.id)));
+}
+
+// Grow the Trail window until the target entry's row is rendered, stepping in
+// whole TRAIL_WINDOW_STEP pages so "load older" and match jumps stay aligned.
+function ensureTrailVisible(chunkId) {
+  const index = trailOrderedNodes().findIndex((node) => node.chunk_id === chunkId);
+  if (index >= state.trailWindow) {
+    state.trailWindow = Math.ceil((index + 1) / TRAIL_WINDOW_STEP) * TRAIL_WINDOW_STEP;
+  }
+}
+
+// Jump to a searched entry (dropdown click): select it in the current view,
+// reopening the reader and scrolling the Trail to the row.
+async function jumpToChunk(chunkId) {
+  state.selectionMuted = false;
+  const hint = matchHintFor(chunkId);
+  state.matchHint = hint;
+  state.pendingMatchScroll = Boolean(hint);
+  if (state.rightCollapsed) {
+    state.rightCollapsed = false;
+    localStorage.setItem("ml:rightCollapsed", "0");
+  }
+  if (state.view === "trail") {
+    ensureTrailVisible(chunkId);
+    state.pendingTrailScroll = true;
+  }
+  const token = ++state.loadSeq;
+  await selectChunk(chunkId, true, token);
+}
+
+// Cycle matches in Trail order (newest first): Enter / next steps down the
+// trail, Shift+Enter / prev steps back up, wrapping at the ends.
+async function jumpToMatch(step) {
+  const matches = trailOrderedNodes().filter((node) => state.matchEntries.has(node.entry_id));
+  if (!matches.length) return;
+  const current = matches.findIndex((node) => node.chunk_id === state.selectedId);
+  const next = matches[(current + step + matches.length) % matches.length];
+  state.searchOpen = false;
+  await jumpToChunk(next.chunk_id);
+}
+
+// Post-render: scroll the Trail to a freshly jumped-to row. Idempotent, like
+// applyMatchHighlight - the flag only survives one render.
+function applyTrailScroll() {
+  if (!state.pendingTrailScroll) return;
+  state.pendingTrailScroll = false;
+  const row = document.querySelector(".trail-row.selected, .trail-row.pinned");
+  if (row) row.scrollIntoView({ block: "center" });
 }
 
 // Entry-level UI results: derive the best-matching subsection heading for a
@@ -1107,7 +1232,6 @@ async function resetFilters() {
   state.user = "";
   state.topic = "";
   state.granularity = "entry";
-  state.sort = "relevance";
   seedDates();
   await reloadCurrentView();
 }

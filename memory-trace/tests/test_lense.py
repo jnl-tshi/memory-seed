@@ -793,11 +793,13 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn("height: 100%;", styles)
         self.assertIn("overflow: hidden;", styles)
 
-    def test_frontend_timeline_tab_is_retired(self):
+    def test_frontend_timeline_and_search_tabs_are_retired(self):
         # Timeline retired 2026-07-11: the Trail (git-graph timeline) is its
-        # chronological successor. The /api/timeline endpoint intentionally
-        # remains server-side; only the frontend surface is gone. A stored
-        # "timeline" view preference must migrate to Trail, not a dead tab.
+        # chronological successor. Search retired as a destination the same
+        # day: it became a function over the Trail and Graph. The
+        # /api/timeline endpoint intentionally remains server-side; only the
+        # frontend surfaces are gone. Stored "timeline"/"search" view
+        # preferences must migrate to Trail, not a dead tab.
         import importlib.resources as resources
 
         script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
@@ -808,10 +810,45 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertNotIn("/api/timeline", script)
         self.assertNotIn("timelineZoom", script)
         self.assertNotIn("timelineSelectedBucket", script)
-        self.assertIn('stored === "timeline" ? "trail" : stored', script)
+        self.assertNotIn('["search", "Search"]', script)
+        self.assertNotIn("function searchView(", script)
+        self.assertNotIn("function resultList(", script)
+        self.assertIn('stored === "timeline" || stored === "search" ? "trail" : stored', script)
         self.assertNotIn(".timeline-overview", styles)
         self.assertNotIn(".timeline-stream", styles)
         self.assertNotIn(".bucket", styles)
+
+    def test_frontend_search_is_a_function_over_trail_and_graph(self):
+        # Search-as-a-function contract (user decision 2026-07-11): the box is
+        # always in the topbar, server-ranked results feed a ranked dropdown
+        # (the roadmap's "ranked results drawer"), and the match set
+        # highlights in place - Trail rows get a marker dot with misses
+        # dimmed, Graph nodes dim the same way. Matches cycle in Trail order.
+        import importlib.resources as resources
+
+        script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
+        styles = resources.files("memory_trace").joinpath("static/styles.css").read_text(encoding="utf-8")
+
+        self.assertIn("function refreshSearch(", script)
+        self.assertIn("matchEntries", script)
+        self.assertIn("function searchDropdown(", script)
+        self.assertIn("data-search-jump", script)
+        self.assertIn("function searchStatus(", script)
+        self.assertIn("data-match-next", script)
+        self.assertIn("data-match-prev", script)
+        self.assertIn("data-search-clear", script)
+        self.assertIn("function jumpToMatch(", script)
+        self.assertIn("function ensureTrailVisible(", script)
+        self.assertIn("applyTrailScroll();", script)  # wired into render()
+        # In-place highlighting, never removal: the Trail keeps its structure.
+        self.assertIn("search-match", script)
+        self.assertIn("search-miss", script)
+        self.assertIn("trail-match-dot", script)
+        self.assertIn(".trail-row.search-miss", styles)
+        self.assertIn(".trail-match-dot", styles)
+        self.assertIn(".search-dropdown", styles)
+        # Typing must never select or navigate (the old focus-steal bug class)
+        self.assertNotIn("await selectChunk(state.results[0]", script)
 
 
 if __name__ == "__main__":
