@@ -706,6 +706,11 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn("const occupancy", script)
         self.assertIn("data-trail-more", script)  # bounded window, load older
         self.assertIn("trail-link", script)  # fork/merge connectors to main
+        # Related-route filter (user-finalised): cross-branch always; same
+        # branch only when non-adjacent; main needs a merge between or a
+        # TRAIL_MAIN_GAP distance.
+        self.assertIn("relatedVisible", script)
+        self.assertIn("TRAIL_MAIN_GAP", script)
         self.assertIn("stripTitleStamp", script)
         # Distinct edge-type color semantics (supersedes never == related).
         self.assertIn("supersedes:", script)

@@ -475,6 +475,9 @@ const TRAIL_REL_ZONE = TRAIL_REL_LANES.length * TRAIL_REL_LANE_W + 12;
 // comparison). related routes draw only for the selected entry: as ambient
 // traffic they drowned the lifecycle signal.
 const TRAIL_DASH = { supersedes: "6 4", evolves: "6 4", related: "6 4" };
+// Related routes on main hide unless a merge separates the pair or they sit
+// more than this many main entries apart (user-approved distance override).
+const TRAIL_MAIN_GAP = 10;
 const TRAIL_VERB = { supersedes: "replaces", evolves: "evolves", related: "relates to" };
 const trailBranchColors = ["#6f7cff", "#3fa66a", "#d9941a", "#8f63e8", "#18a999", "#d94b63", "#4f98d9", "#b8873b", "#7a8ff2", "#5bb98c"];
 
@@ -603,14 +606,16 @@ function trailView() {
   // Lane continuity: connect consecutive visible rows of the same branch.
   // Entries with no recorded branch get a dot but no line - continuity that
   // was never recorded is not drawn.
-  const laneRows = new Map();
+  const branchRows = new Map();
   items.forEach((item, index) => {
-    if (item.kind !== "node" || !item.node.branch) return;
-    const branch = item.node.branch;
-    if (!laneRows.has(branch)) laneRows.set(branch, []);
-    laneRows.get(branch).push(index);
+    if (item.kind !== "node") return;
+    const branch = item.node.branch || "";
+    if (!branchRows.has(branch)) branchRows.set(branch, []);
+    branchRows.get(branch).push(index);
   });
-  const laneSegments = [...laneRows.entries()].flatMap(([branch, rows]) =>
+  // No-branch legacy entries get dots but never lines - continuity that was
+  // never recorded is not drawn.
+  const laneSegments = [...branchRows.entries()].filter(([branch]) => branch !== "").flatMap(([branch, rows]) =>
     rows.slice(1).map((row, i) => `<line x1="${laneX(branch)}" y1="${rowY(rows[i])}" x2="${laneX(branch)}" y2="${rowY(row)}" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></line>`)
   );
 
@@ -621,7 +626,7 @@ function trailView() {
   // rest travels vertically in the branch's own lane. A branch with no newer
   // main row is still open and deliberately dangles - no merge is fabricated.
   const connectors = [...linkRows.entries()].flatMap(([branch, { forkRow, mergeRow }]) => {
-    const rows = laneRows.get(branch) || [];
+    const rows = branchRows.get(branch) || [];
     if (!rows.length) return [];
     const newest = rows[0];
     const oldest = rows[rows.length - 1];
@@ -648,11 +653,30 @@ function trailView() {
   // active (unmuted) selection saturates the routes it touches and reveals
   // its related routes.
   const focusActive = Boolean(selectedEntry) && !state.selectionMuted;
+  // Related routes show only where structure doesn't already tell the story
+  // (user-finalised criteria): cross-branch pairs always; same-branch pairs
+  // only when not directly adjacent in that branch's sequence (the lane line
+  // covers adjacency); main pairs additionally need a branch merge between
+  // them or a gap of more than TRAIL_MAIN_GAP main entries.
+  const mergeRows = [...linkRows.values()].map((link) => link.mergeRow).filter((row) => row !== undefined);
+  const relatedVisible = (sRow, tRow, sBranch, tBranch) => {
+    if (sBranch !== tBranch) return true;
+    const rows = branchRows.get(sBranch) || [];
+    const si = rows.indexOf(sRow);
+    const ti = rows.indexOf(tRow);
+    if (sBranch === "main") {
+      const lo = Math.min(sRow, tRow);
+      const hi = Math.max(sRow, tRow);
+      return mergeRows.some((row) => row > lo && row < hi) || Math.abs(si - ti) > TRAIL_MAIN_GAP;
+    }
+    return Math.abs(si - ti) !== 1;
+  };
   const arcs = lifecycle.flatMap((edge) => {
     const touched = focusActive && (edge.source === selectedEntry || edge.target === selectedEntry);
     if (edge.type === "related" && !touched) return [];
     const sourceItem = items[rowOf.get(edge.source)];
     const targetItem = items[rowOf.get(edge.target)];
+    if (edge.type === "related" && !relatedVisible(rowOf.get(edge.source), rowOf.get(edge.target), sourceItem.node.branch || "", targetItem.node.branch || "")) return [];
     const sx = laneX(sourceItem.node.branch || "");
     const sy = rowY(rowOf.get(edge.source));
     const tx = laneX(targetItem.node.branch || "");
