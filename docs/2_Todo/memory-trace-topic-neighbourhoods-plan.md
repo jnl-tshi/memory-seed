@@ -32,7 +32,9 @@ Scope: Define and implement controlled topic neighbourhoods as a core Memory See
 contract and Memory Trace graph/trail view.
 Non-goals: No graph database. No committed authoritative graph index. No full mesh between entries
 that share a topic. No automatic historical backfill. No Memory Trace write UI.
-Dependencies: `docs/3_Spec/graph-edge-contract.md`, `docs/2_Todo/memory-trace-distribution-plan.md`,
+Dependencies: `docs/3_Spec/graph-edge-contract.md`, `docs/3_Spec/memory-trace-trail-search-and-graph-ux.md`,
+`docs/2_Todo/memory-trace-product-and-system-architecture-blueprint.md`,
+`docs/2_Todo/memory-trace-distribution-plan.md`,
 `docs/2_Todo/related-entries-p2-mutation-plan.md`, `docs/2_Todo/session-decision-diagrams-plan.md`,
 and the live/seed `session_logging.md` skill.
 Acceptance criteria: See "Acceptance Criteria" below.
@@ -199,6 +201,9 @@ topics:
 - Make Memory Trace prefer indexed topics when present and fall back to current tag/context display
   topics otherwise.
 - Render topic neighbourhoods as chronological chains in graph/trail views.
+- Follow the Trail/search/graph UX boundary in
+  [`../3_Spec/memory-trace-trail-search-and-graph-ux.md`](../3_Spec/memory-trace-trail-search-and-graph-ux.md):
+  topic neighbourhoods are graph/Trail navigation aids, not authoritative edges.
 
 ## Acceptance Criteria
 

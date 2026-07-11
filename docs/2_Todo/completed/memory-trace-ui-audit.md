@@ -9,11 +9,14 @@ tags:
 
 # Memory Trace UI Audit (Arc 2b baseline)
 
-> **Status:** ACTIVE - first evidence-based UI audit of the `memory-trace` package, run 2026-07-06 as
+> **Status:** COMPLETED baseline - first evidence-based UI audit of the `memory-trace` package, run 2026-07-06 as
 > the narrow deliverable of distribution-plan Arc 2b (the
 > [designing-user-interfaces source learnings](../../4_Reference/designing-user-interfaces-source-learnings.md)
 > recommend a focused audit + token baseline, **not** a redesign). Scope: the shipped read-only
 > surfaces - search, reader, timeline, graph, and the new Trail view.
+> Future frontend architecture is governed by
+> [`../memory-trace-frontend-architecture-and-design-system-proposal.md`](../memory-trace-frontend-architecture-and-design-system-proposal.md);
+> this audit remains parity/baseline evidence.
 > **Non-goals:** No visual redesign, no new component library, no responsive-breakpoint system.
 
 This audit follows the source's audit dimensions (typography, color/state, spacing/grid, interactive

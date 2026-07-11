@@ -43,6 +43,10 @@ tags:
 > Memory Trace. No new default dependency on core `memory-seed`.
 > **Dependencies:** [`../3_Spec/graph-edge-contract.md`](../3_Spec/graph-edge-contract.md) (Class-1 substrate;
 > `build_related_entry_graph()` is the canonical reader - do not fork edge parsing).
+> [`../3_Spec/memory-trace-derived-artifact-provenance-contract.md`](../3_Spec/memory-trace-derived-artifact-provenance-contract.md)
+> governs generated report/export provenance.
+> [`memory-trace-evidence-annotations-and-projection-architecture.md`](memory-trace-evidence-annotations-and-projection-architecture.md)
+> governs Evidence Packs and projection state for future export work.
 > [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md) Phase 1 (the
 > public retrieval service must surface sidecar diagrams and structured fields these views consume).
 > [`completed/memory-explorer-entry-level-ui-results-plan.md`](completed/memory-explorer-entry-level-ui-results-plan.md)
@@ -183,6 +187,9 @@ The uniform, non-technical-facing deliverable and the one genuinely new Class-1 
   market-fit report - positioned in the Memory Trace product, not core.
 - Gated on the Memory Trace distribution and on an explicit product decision;
   scope its acceptance criteria when that tier is greenlit.
+- Any generated report, presentation, or export must follow the derived-artifact provenance contract:
+  every material claim maps to cited evidence, the machine-readable appendix ships with the human
+  artefact, and promotion back into project memory is explicit.
 
 ### Phase 3 acceptance criteria (to be firmed at greenlight)
 

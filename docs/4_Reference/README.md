@@ -13,3 +13,8 @@ Lifecycle:
 
 When a reference document produces actionable work, promote the actionable scope into a focused
 `docs/2_Todo/*.md` plan and keep the source document here.
+
+Current Memory Trace provenance:
+
+- `memory-trace-next-generation-plan-document-set.md` records the 2026-07-11 imported plan package
+  after its actionable documents were promoted into `docs/2_Todo/` and `docs/3_Spec/`.

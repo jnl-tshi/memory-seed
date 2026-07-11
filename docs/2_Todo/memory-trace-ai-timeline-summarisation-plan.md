@@ -2,7 +2,7 @@
 title: "Proposal: Optional Local-AI Summarisation Layer for Memory Trace Decision Timelines"
 date: "2026-07-07"
 project: "memory-seed"
-related_to: "docs/2_Todo/completed/memory-trace-product-and-trail-view-plan.md; docs/2_Todo/memory-trace-distribution-plan.md; docs/2_Todo/session-decision-diagrams-plan.md"
+related_to: "docs/2_Todo/completed/memory-trace-product-and-trail-view-plan.md; docs/2_Todo/memory-trace-distribution-plan.md; docs/2_Todo/session-decision-diagrams-plan.md; docs/3_Spec/memory-trace-derived-artifact-provenance-contract.md"
 author_context: "Prepared for Jean Nathan Tshibuyi"
 format: "Markdown product and architecture proposal"
 status: "active-todo"
@@ -20,7 +20,9 @@ citation-bearing structured summaries, and optionally feeds deterministic export
 Non-goals: No authoritative memory writes, no session-log rewrites, no hidden repository scan, no
 default bundled model, no default terminal-agent execution, and no direct connector/tool-calling export
 inside the core summarisation engine.
-Dependencies: [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md),
+Dependencies: [`memory-trace-product-and-system-architecture-blueprint.md`](memory-trace-product-and-system-architecture-blueprint.md),
+[`../3_Spec/memory-trace-derived-artifact-provenance-contract.md`](../3_Spec/memory-trace-derived-artifact-provenance-contract.md),
+[`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md),
 [`completed/memory-trace-product-and-trail-view-plan.md`](completed/memory-trace-product-and-trail-view-plan.md),
 [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md), and
 [`../3_Spec/graph-edge-contract.md`](../3_Spec/graph-edge-contract.md).
@@ -41,6 +43,12 @@ adapters consume validated summary JSON rather than performing AI-driven tool ca
 ## Summary
 
 Memory Trace should add an optional local-AI summarisation layer that helps users understand decision timelines, feature evolution, and project history from the existing Memory Seed session files.
+
+The generated-output provenance boundary is now governed by
+[`../3_Spec/memory-trace-derived-artifact-provenance-contract.md`](../3_Spec/memory-trace-derived-artifact-provenance-contract.md):
+every material claim in a summary, report, presentation, or export needs cited evidence and a
+machine-readable provenance appendix. This plan remains the implementation-specific AI provider and
+summary-flow plan.
 
 The feature should not replace Memory Seed's deterministic retrieval, graph, timeline, or Markdown audit trail. Instead, it should sit above the existing read-only retrieval and graph services as an **explanation layer**. The AI may summarise, compare, cluster, and narrate decisions, but every generated statement must point back to concrete session entries, files, dates, entry IDs, and graph edges.
 
