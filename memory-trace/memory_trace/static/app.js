@@ -1,7 +1,7 @@
 const state = {
   runtime: null,
   facets: null,
-  view: localStorage.getItem("ml:view") || "search",
+  view: storedView() || "trail",
   theme: localStorage.getItem("ml:theme") || "dark",
   accent: localStorage.getItem("ml:accent") || "indigo",
   query: "",
@@ -9,24 +9,33 @@ const state = {
   user: "",
   topic: "",
   granularity: "entry",
-  sort: "relevance",
   density: "comfortable",
   dateFrom: "",
   dateTo: "",
-  timelineZoom: "day",
-  timelineHideEmpty: localStorage.getItem("ml:timelineHideEmpty") === "1",
-  timelineSelectedBucket: "",
   graphScope: "all",
   graphSizeMode: localStorage.getItem("ml:graphSizeMode") || "links",
   graphEdgeTypes: new Set(["related"]),
   graphTransform: { x: 0, y: 0, scale: 1 },
   graphHover: "",
+  trailWindow: 60,
+  leftCollapsed: localStorage.getItem("ml:leftCollapsed") === "1",
+  rightCollapsed: localStorage.getItem("ml:rightCollapsed") === "1",
+  // Second click on the selected entry mutes its edge emphasis (related
+  // routes hidden, lifecycle routes back to pastel) while the entry stays
+  // pinned with a border and the reader keeps showing it.
+  selectionMuted: false,
+  sectionOpen: readStoredJson("ml:sections", { views: false, filters: true, topics: true }),
+  topicsExpanded: false,
+  // Search is a function over the Trail and Graph, not a destination view:
+  // results feed the ranked dropdown, matchEntries drives in-place highlight
+  // and dimming in whichever view is open.
   results: [],
-  timeline: null,
+  matchEntries: new Set(),
+  searchOpen: false,
+  pendingTrailScroll: false,
   graph: null,
   selected: null,
   selectedId: null,
-  nextCursor: null,
   loadSeq: 0,
   // Entry-level UI results plan: when a search result's best match came from a
   // subsection, remember which heading to highlight/scroll-to inside the parent
@@ -34,6 +43,23 @@ const state = {
   matchHint: null,
   pendingMatchScroll: false,
 };
+
+// Timeline and Search retired as tabs 2026-07-11: Trail is the chronological
+// successor and search became a function over Trail/Graph, so stale stored
+// view preferences land on Trail instead of a dead tab.
+function storedView() {
+  const stored = localStorage.getItem("ml:view");
+  return stored === "timeline" || stored === "search" ? "trail" : stored;
+}
+
+function readStoredJson(key, fallback) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key));
+    return value && typeof value === "object" ? { ...fallback, ...value } : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 const app = document.getElementById("app");
 const agentColors = ["#6f7cff", "#18a999", "#d9941a", "#d94b63", "#8f63e8", "#4f98d9"];
@@ -72,57 +98,50 @@ function seedDates() {
 }
 
 async function loadView() {
-  if (state.view === "search") await loadSearch();
-  if (state.view === "timeline") await loadTimeline();
+  if (state.query.trim()) await refreshSearch();
   if (state.view === "graph" || state.view === "trail") await loadGraph();
 }
 
-// The Trail view is the graph engine focused on feature evolution: intra-branch
-// lineage (branch axis) plus cross-branch supersession, with plain relatedness
-// as light context. Fixed edge set - not the graph view's toggleable chips.
-const TRAIL_EDGE_TYPES = "branch,supersedes,related";
+// Trail is a git-graph timeline: intra-branch lineage gives the branch lanes,
+// and relationship edges (supersedes/evolves/related) route through dedicated
+// dotted lanes left of main. Fixed edge set - not the graph view's chips.
+const TRAIL_EDGE_TYPES = "branch,supersedes,evolves,related";
 
-async function loadSearch(cursor = null, append = false, token = state.loadSeq) {
+// Search over the current view: server-side ranking (sections and files
+// included) produces the ranked dropdown plus the entry match set that the
+// Trail and Graph highlight in place. Typing never selects or navigates.
+const SEARCH_LIMIT = 50;
+
+async function refreshSearch(token = state.loadSeq) {
+  if (!state.query.trim()) {
+    state.results = [];
+    state.matchEntries = new Set();
+    state.searchOpen = false;
+    return true;
+  }
   const params = qs({
     q: state.query,
-    limit: 30,
-    cursor,
+    limit: SEARCH_LIMIT,
     granularity: state.granularity,
     agent: state.agent,
     user: state.user,
     topic: state.topic,
     date_from: state.dateFrom,
     date_to: state.dateTo,
-    sort: state.sort,
   });
   const page = await api(`/api/search?${params}`);
   if (token !== state.loadSeq) return false;
-  state.results = append ? [...state.results, ...page.results] : page.results;
-  state.nextCursor = page.next_cursor;
-  if (!state.selectedId && state.results[0]) await selectChunk(state.results[0].chunk_id, false);
-  return true;
-}
-
-async function loadTimeline(token = state.loadSeq) {
-  const params = qs({
-    date_from: state.dateFrom,
-    date_to: state.dateTo,
-    agent: state.agent,
-    user: state.user,
-    topic: state.topic,
-    zoom: state.timelineZoom,
-    include_empty: state.timelineHideEmpty ? "false" : "true",
-    limit: 500,
-  });
-  state.timeline = await api(`/api/timeline?${params}`);
-  if (token !== state.loadSeq) return false;
-  if (!state.selectedId && state.timeline.stream[0]) await selectChunk(state.timeline.stream[0].chunk_id, false);
+  state.results = page.results;
+  state.matchEntries = new Set(page.results.map((item) => item.entry_id).filter(Boolean));
   return true;
 }
 
 async function loadGraph(token = state.loadSeq) {
+  // Trail always fetches the full corpus (windowing happens client-side so
+  // "load older" needs no round trip) and ignores the graph view's scope.
+  const trail = state.view === "trail";
   const params = qs({
-    entry_id: state.graphScope === "neighborhood" ? state.selected?.entry_id || state.selectedId : "",
+    entry_id: !trail && state.graphScope === "neighborhood" ? state.selected?.entry_id || state.selectedId : "",
     granularity: "entry",
     agent: state.agent,
     user: state.user,
@@ -130,8 +149,8 @@ async function loadGraph(token = state.loadSeq) {
     date_from: state.dateFrom,
     date_to: state.dateTo,
     depth: 1,
-    edge_types: state.view === "trail" ? TRAIL_EDGE_TYPES : [...state.graphEdgeTypes].join(","),
-    limit: state.graphScope === "all" ? 500 : 90,
+    edge_types: trail ? TRAIL_EDGE_TYPES : [...state.graphEdgeTypes].join(","),
+    limit: trail || state.graphScope === "all" ? 1000 : 90,
   });
   state.graph = await api(`/api/graph?${params}`);
   return token === state.loadSeq;
@@ -149,12 +168,13 @@ async function selectChunk(chunkId, rerender = true, token = state.loadSeq) {
 
 function render() {
   const scrollState = captureCenterScroll();
+  const focusState = captureFocusedInput();
   document.documentElement.dataset.theme = state.theme;
   document.documentElement.dataset.accent = state.accent;
   app.innerHTML = `
     <div class="app">
       ${topbar()}
-      <div class="shell">
+      <div class="shell ${state.leftCollapsed ? "left-collapsed" : ""} ${state.rightCollapsed ? "right-collapsed" : ""}">
         <aside class="pane left" data-pane="left">${leftPane()}</aside>
         <div class="resizer" data-resize="left"></div>
         <main class="pane center" data-pane="center">${centerPane()}</main>
@@ -165,22 +185,96 @@ function render() {
   bindResizers();
   observePanes();
   restoreCenterScroll(scrollState);
+  restoreFocusedInput(focusState);
   applyMatchHighlight();
+  applyTrailScroll();
+}
+
+// render() replaces the whole DOM, which destroys the element the user is
+// typing in: focus, caret, and any keystrokes newer than the debounced state
+// would be lost mid-word without capturing the live input here.
+function captureFocusedInput() {
+  const active = document.activeElement;
+  if (!active || !active.id || !("value" in active)) return null;
+  let start = null;
+  let end = null;
+  try {
+    start = active.selectionStart;
+    end = active.selectionEnd;
+  } catch {
+    // Selection is unsupported on some input types (e.g. date).
+  }
+  return { id: active.id, value: active.value, start, end };
+}
+
+function restoreFocusedInput(focusState) {
+  if (!focusState) return;
+  const el = document.getElementById(focusState.id);
+  if (!el) return;
+  if ("value" in el && el.value !== focusState.value) el.value = focusState.value;
+  el.focus();
+  if (typeof focusState.start === "number" && typeof el.setSelectionRange === "function") {
+    try {
+      el.setSelectionRange(focusState.start, focusState.end);
+    } catch {
+      // Same input types as above.
+    }
+  }
 }
 
 function topbar() {
-  const tabs = [["search", "Search"], ["timeline", "Timeline"], ["graph", "Graph"], ["trail", "Trail"]]
+  // Trail is the primary surface (chronological evidence), Graph the
+  // secondary exploration surface - the next-generation blueprint's ordering.
+  const tabs = [["trail", "Trail"], ["graph", "Graph"]]
     .map(([key, label]) => `<button type="button" class="tab ${state.view === key ? "active" : ""}" data-view="${key}">${label}</button>`)
     .join("");
   return `
     <header class="topbar">
+      <button type="button" class="icon-button" data-toggle-left title="${state.leftCollapsed ? "Show sidebar" : "Hide sidebar"}">☰</button>
       <div class="brand"><span class="brand-mark"></span><span>Memory Trace</span></div>
       <div class="runtime-chip"><span class="runtime-dot"></span><span>${esc(state.runtime?.label || "runtime")}</span><span>${state.runtime?.entry_count || 0} entries</span></div>
-      <div class="searchbox"><span>⌕</span><input id="query" value="${escAttr(state.query)}" placeholder="Search memory, tags, files, decisions" spellcheck="false"></div>
+      <div class="searchbox-wrap">
+        <div class="searchbox"><span>⌕</span><input id="query" value="${escAttr(state.query)}" placeholder="Search memory, tags, files, decisions" spellcheck="false"></div>
+        ${searchDropdown()}
+      </div>
       <div class="segmented">${tabs}</div>
       <button type="button" class="icon-button" data-theme title="Theme">${state.theme === "dark" ? "◐" : "◑"}</button>
       <div class="palette">${["indigo", "teal", "amber", "ruby", "violet"].map((name) => `<button type="button" class="${state.accent === name ? "active" : ""}" data-accent="${name}" title="${name}" style="background:${palettePreview(name)}"></button>`).join("")}</div>
+      <button type="button" class="icon-button" data-toggle-right title="${state.rightCollapsed ? "Show reader" : "Hide reader"}">▤</button>
     </header>`;
+}
+
+// Ranked results dropdown under the search box: the relevance-ordered jump
+// list (the roadmap's "ranked results drawer" shape). Clicking a result
+// selects the entry in the current view; the match markers stay in place.
+function searchDropdown() {
+  if (!state.searchOpen || !state.query.trim()) return "";
+  const top = state.results.slice(0, 10);
+  if (!top.length) {
+    return `<div class="search-dropdown"><div class="search-empty">No matches for "${esc(state.query.trim())}" with the current filters.</div></div>`;
+  }
+  const more = state.matchEntries.size - top.length;
+  return `
+    <div class="search-dropdown">
+      ${top.map((item) => {
+        const matched = (item.matched_sections || []).length;
+        return `<button type="button" class="search-result" data-search-jump data-chunk="${escAttr(item.chunk_id)}" title="${escAttr(item.title)}"><span class="search-result-title">${esc(stripTitleStamp(item.title))}</span><span class="count">${item.date} ${item.time || ""}${matched ? ` · ${matched} matched section${matched === 1 ? "" : "s"}` : ""}</span></button>`;
+      }).join("")}
+      ${more > 0 ? `<div class="search-empty">+${more} more highlighted in the ${state.view === "graph" ? "graph" : "trail"}</div>` : ""}
+    </div>`;
+}
+
+// Shared viewbar fragment: match count + next/previous cycling + clear,
+// shown in whichever view is open while a query is active.
+function searchStatus() {
+  if (!state.query.trim()) return "";
+  const count = state.matchEntries.size;
+  const capped = state.results.length >= SEARCH_LIMIT;
+  return `
+      <span class="meta search-hits">⌕ <strong>${count}${capped ? "+" : ""}</strong> match${count === 1 && !capped ? "" : "es"}</span>
+      <button type="button" class="chip" data-match-prev title="Previous match (Shift+Enter)">↑</button>
+      <button type="button" class="chip" data-match-next title="Next match (Enter)">↓</button>
+      <button type="button" class="chip" data-search-clear title="Clear search">×</button>`;
 }
 
 function leftPane() {
@@ -190,106 +284,80 @@ function leftPane() {
       <div class="metric"><strong>${facets.runtime.entry_count || 0}</strong><span>entries</span></div>
       <div class="metric"><strong>${facets.runtime.chunk_count || 0}</strong><span>chunks</span></div>
     </div>
-    <div class="section-title"><span>Saved Views</span></div>
-    ${savedButton("Recent work", "", "", "newest")}
-    ${savedButton("Design decisions", "design decision", "", "relevance")}
-    ${savedButton("Related graph", "", "graph", "relevance")}
-    <div class="section-title"><span>Filters</span><button type="button" class="chip" data-reset>Reset</button></div>
-    <label class="section-title"><span>Date From</span></label><input type="date" id="date-from" value="${escAttr(state.dateFrom)}">
-    <label class="section-title"><span>Date To</span></label><input type="date" id="date-to" value="${escAttr(state.dateTo)}">
-    <div class="section-title"><span>Agent</span></div>
-    ${filterRows(facets.agents, "agent", state.agent)}
-    <div class="section-title"><span>User</span></div>
-    ${filterRows(facets.users, "user", state.user)}
-    <div class="section-title"><span>Topics</span></div>
-    <div class="chip-list">${Object.entries(facets.topics || {}).slice(0, 40).map(([topic, count]) => `<button type="button" class="chip ${state.topic === topic ? "active" : ""}" data-topic="${escAttr(topic)}">#${esc(topic)} <span class="count">${count}</span></button>`).join("")}</div>
-    <div class="section-title"><span>Granularity</span></div>
-    <div class="segmented">${["entry", "section", "all"].map((item) => `<button type="button" class="tab ${state.granularity === item ? "active" : ""}" data-granularity="${item}">${item}</button>`).join("")}</div>`;
+    ${sidebarSection("views", "Saved Views", `
+      ${savedButton("Recent work", "", "trail")}
+      ${savedButton("Design decisions", "design decision", "trail")}
+      ${savedButton("Related graph", "", "graph")}`)}
+    ${sidebarSection("filters", "Filters", `
+      ${facetSelect("agent-filter", "agent", facets.agents, state.agent, "All agents")}
+      ${facetSelect("user-filter", "user", facets.users, state.user, "All users")}
+      <label class="field-label" for="date-from">From</label><input type="date" id="date-from" value="${escAttr(state.dateFrom)}">
+      <label class="field-label" for="date-to">To</label><input type="date" id="date-to" value="${escAttr(state.dateTo)}">
+      <label class="field-label">Granularity</label>
+      <div class="segmented">${["entry", "section", "all"].map((item) => `<button type="button" class="tab ${state.granularity === item ? "active" : ""}" data-granularity="${item}">${item}</button>`).join("")}</div>
+      <button type="button" class="chip filters-reset" data-reset>Reset filters</button>`)}
+    ${sidebarSection("topics", "Topics", `<div class="chip-list">${topicChips(facets)}</div>`)}`;
 }
 
-function savedButton(label, query, view, sort) {
-  return `<button type="button" class="row-button" data-saved-query="${escAttr(query)}" data-saved-view="${escAttr(view)}" data-saved-sort="${escAttr(sort)}"><span class="swatch"></span><span>${label}</span><span class="count">preset</span></button>`;
+// Collapsible sidebar sections (dropdown-style disclosure): open state
+// persists so the sidebar keeps the user's chosen density across sessions.
+function sidebarSection(key, title, body) {
+  const open = state.sectionOpen[key] !== false;
+  return `
+    <section class="side-section">
+      <button type="button" class="side-section-head" data-section="${key}" aria-expanded="${open}"><span>${title}</span><span class="count">${open ? "▾" : "▸"}</span></button>
+      ${open ? `<div class="side-section-body">${body}</div>` : ""}
+    </section>`;
 }
 
-function filterRows(values, kind, active) {
+// Facet dropdowns: a select with counts costs one row of screen real estate
+// regardless of how many values the facet has.
+function facetSelect(id, kind, values, active, allLabel) {
   const entries = Object.entries(values || {});
-  if (!entries.length) return `<div class="count">None</div>`;
-  return [
-    `<button type="button" class="row-button ${!active ? "active" : ""}" data-${kind}=""><span class="swatch"></span><span>All</span><span class="count">${entries.reduce((sum, item) => sum + item[1], 0)}</span></button>`,
-    ...entries.map(([key, count], index) => `<button type="button" class="row-button ${active === key ? "active" : ""}" data-${kind}="${escAttr(key)}"><span class="swatch" style="background:${agentColors[index % agentColors.length]}"></span><span>${esc(key)}</span><span class="count">${count}</span></button>`),
-  ].join("");
+  const total = entries.reduce((sum, [, count]) => sum + count, 0);
+  return `
+    <label class="field-label" for="${id}">${kind === "agent" ? "Agent" : "User"}</label>
+    <select id="${id}" data-filter-select="${kind}">
+      <option value="">${esc(allLabel)} (${total})</option>
+      ${entries.map(([key, count]) => `<option value="${escAttr(key)}" ${active === key ? "selected" : ""}>${esc(key)} (${count})</option>`).join("")}
+    </select>`;
+}
+
+function topicChips(facets) {
+  // Facet hygiene: cap the visible list (Hick's law) behind an explicit
+  // "+N more" toggle instead of a 40-chip wall.
+  const entries = Object.entries(facets.topics || {});
+  const cap = 12;
+  const shown = state.topicsExpanded ? entries : entries.slice(0, cap);
+  const chips = shown.map(([topic, count]) => `<button type="button" class="chip ${state.topic === topic ? "active" : ""}" data-topic="${escAttr(topic)}">#${esc(topic)} <span class="count">${count}</span></button>`);
+  if (entries.length > cap) {
+    chips.push(`<button type="button" class="chip" data-topics-more>${state.topicsExpanded ? "show less" : `+${entries.length - cap} more`}</button>`);
+  }
+  return chips.join("");
+}
+
+// Applied-filter chips: active filters stay visible and removable at the point
+// of use instead of buried in the sidebar. Date chips only appear when the
+// range differs from the corpus bounds.
+function filterChips() {
+  const bounds = state.facets?.runtime?.date_bounds || [];
+  const chips = [];
+  if (state.agent) chips.push(["agent", `agent: ${state.agent}`]);
+  if (state.user) chips.push(["user", `user: ${state.user}`]);
+  if (state.topic) chips.push(["topic", `#${state.topic}`]);
+  if (state.dateFrom && state.dateFrom !== (bounds[0] || "")) chips.push(["dateFrom", `from ${state.dateFrom}`]);
+  if (state.dateTo && state.dateTo !== (bounds[1] || "")) chips.push(["dateTo", `to ${state.dateTo}`]);
+  return chips.map(([key, label]) => `<button type="button" class="chip filter-chip" data-clear-filter="${key}" title="Clear this filter">${esc(label)} ×</button>`).join("");
+}
+
+function savedButton(label, query, view) {
+  return `<button type="button" class="row-button" data-saved-query="${escAttr(query)}" data-saved-view="${escAttr(view)}"><span class="swatch"></span><span>${label}</span><span class="count">preset</span></button>`;
 }
 
 function centerPane() {
   const densityClass = `density-${state.density}`;
-  if (state.view === "timeline") return `<section class="${densityClass} timeline-view">${timelineView()}</section>`;
-  if (state.view === "graph" || state.view === "trail") return `<section class="${densityClass}">${graphView()}</section>`;
-  return `<section class="${densityClass}">${searchView()}</section>`;
-}
-
-function searchView() {
-  return `
-    <div class="viewbar">
-      <span class="meta"><strong>${state.results.length}</strong> ${state.granularity === "entry" ? "entries" : "results"} shown ${state.nextCursor ? "of more" : ""}</span>
-      <span class="spacer"></span>
-      <select id="sort">${["relevance", "newest", "oldest"].map((item) => `<option value="${item}" ${state.sort === item ? "selected" : ""}>${item}</option>`).join("")}</select>
-      <div class="segmented">${["comfortable", "compact"].map((item) => `<button type="button" class="tab ${state.density === item ? "active" : ""}" data-density="${item}">${item}</button>`).join("")}</div>
-    </div>
-    <div class="scroll">
-      ${state.results.length ? resultList() : `<div class="empty">No session entries match the current filters.</div>`}
-      ${state.nextCursor ? `<button type="button" class="chip" data-more>Load more</button>` : ""}
-    </div>`;
-}
-
-function resultList() {
-  if (state.density === "compact") {
-    return `<div class="results">${state.results.map((item) => `<div class="compact-row ${item.chunk_id === state.selectedId ? "selected" : ""}" data-chunk="${escAttr(item.chunk_id)}" title="Open entry"><span>${item.date} ${item.time || ""}</span><span>${esc(item.title)}${(item.matched_sections || []).length ? ` <span class="count">· ${(item.matched_sections || []).length} matched section${(item.matched_sections || []).length === 1 ? "" : "s"}</span>` : ""}</span><span class="optional-wide">${esc(item.agent_type || "")}</span><span>${Number(item.score || 0).toFixed(1)}</span></div>`).join("")}</div>`;
-  }
-  return `<div class="results">${state.results.map((item) => `
-    <article class="card ${item.chunk_id === state.selectedId ? "selected" : ""}" data-chunk="${escAttr(item.chunk_id)}">
-      <div class="card-head"><span>${item.date} ${item.time || ""}</span><span>${esc(item.agent_type || "")}</span><span class="score">${Number(item.score || 0).toFixed(1)}</span></div>
-      <h3>${esc(item.title)}</h3>
-      <p class="excerpt">${highlight(item.excerpt || "", state.query)}</p>
-      ${matchedSectionChips(item)}
-      <div class="chip-list compact-hide">${(item.topics || []).slice(0, 5).map((topic) => `<span class="chip">#${esc(topic)}</span>`).join("")}<span class="count optional-wide">${esc(item.score_explanation || "")}</span></div>
-    </article>`).join("")}</div>`;
-}
-
-function matchedSectionChips(item) {
-  // One selectable result per session entry; matched subsections surface as
-  // highlight context inside it, never as separate selectable records.
-  const sections = item.matched_sections || [];
-  if (!sections.length) return "";
-  return `<div class="chip-list compact-hide">${sections.slice(0, 4).map((section) => `<span class="chip" title="${escAttr(section.excerpt || "")}">Matched section: ${esc((section.heading_path || []).slice(-1)[0] || "(untitled)")}</span>`).join("")}</div>`;
-}
-
-function timelineView() {
-  const timeline = state.timeline;
-  if (!timeline) return `<div class="empty">Timeline loading</div>`;
-  const max = Math.max(1, ...timeline.buckets.map((bucket) => bucket.count));
-  const bucketMin = 44;
-  const byDay = groupBy(timeline.stream, (item) => item.date);
-  const zoomControls = ["day", "12h", "6h", "3h"]
-    .map((item) => `<button type="button" class="tab ${state.timelineZoom === item ? "active" : ""}" data-timeline-zoom="${item}">${item}</button>`)
-    .join("");
-  return `
-    <div class="viewbar">
-      <span class="meta">Activity overview</span>
-      <span class="spacer"></span>
-      <button type="button" class="chip ${state.timelineHideEmpty ? "active" : ""}" data-timeline-empty>${state.timelineHideEmpty ? "Showing active days" : "Showing empty days"}</button>
-      <div class="segmented timeline-zoom" role="group" aria-label="Timeline granularity">${zoomControls}</div>
-    </div>
-    <div class="timeline-overview">
-      <div class="overview-scroll">
-        <div class="overview" style="--bucket-count:${timeline.buckets.length}; --bucket-min:${bucketMin}px">${timeline.buckets.map((bucket) => {
-          const selected = state.timelineSelectedBucket === bucket.start;
-          return `<button type="button" class="bucket ${bucket.count ? "active" : ""} ${selected ? "selected" : ""}" data-bucket-date="${escAttr(bucket.date)}" data-bucket-start="${escAttr(bucket.start)}" data-bucket-end="${escAttr(bucket.end)}" title="${escAttr(bucket.label)} · ${bucket.count}" style="height:${18 + (bucket.count / max) * 58}px"><span class="bucket-label">${esc(formatBucketLabel(bucket))}</span><span class="bucket-count">${bucket.count || ""}</span></button>`;
-        }).join("")}</div>
-      </div>
-    </div>
-    <div class="timeline-stream">
-      ${Object.entries(byDay).map(([day, items]) => `<div class="day-group" id="day-${day}"><div class="day-head">${day} · ${items.length} entries</div>${items.map((item) => `<div class="timeline-item" data-chunk="${escAttr(item.chunk_id)}" data-entry-datetime="${escAttr(timelineItemDatetime(item))}"><div class="entry-meta"><span>${item.time || "00:00"}</span><span>${esc(item.agent_type || "")}</span></div><div>${esc(item.title)}</div></div>`).join("")}</div>`).join("")}
-    </div>`;
+  if (state.view === "graph") return `<section class="${densityClass}">${graphView()}</section>`;
+  return `<section class="${densityClass}">${trailView()}</section>`;
 }
 
 function graphView() {
@@ -297,15 +365,22 @@ function graphView() {
   if (!graph) return `<div class="empty">Graph loading</div>`;
   const positions = graphPositions(graph.nodes, graph.edges);
   const related = graphRelatedIds(graph, state.graphHover);
+  // Search as a function over the graph: matching nodes keep full presence
+  // (and earn a label), everything else dims - same grammar as hover focus.
+  const searching = Boolean(state.query.trim());
+  const entryOf = new Map(graph.nodes.map((node) => [node.id, node.entry_id || ""]));
+  const isMatch = (id) => state.matchEntries.has(entryOf.get(id) || "");
   return `
     <div class="viewbar">
-      <span class="meta">${state.view === "trail" ? "Trail · how features evolved · " : ""}${graph.nodes.length} nodes · ${graph.edges.length} edges</span>
+      <span class="meta">${graph.nodes.length} nodes · ${graph.edges.length} edges</span>
+      ${filterChips()}
+      ${searchStatus()}
       <span class="spacer"></span>
       <div class="segmented">${[["all", "All entries"], ["neighborhood", "Neighborhood"]].map(([scope, label]) => `<button type="button" class="tab ${state.graphScope === scope ? "active" : ""}" data-graph-scope="${scope}">${label}</button>`).join("")}</div>
       <button type="button" class="chip" data-graph-reset>Reset view</button>
       <button type="button" class="chip" data-graph-fit>Fit view</button>
       <button type="button" class="chip ${state.graphSizeMode === "importance" ? "active" : ""}" data-graph-size title="Toggle node size between link connectivity and importance score">Size: ${state.graphSizeMode === "importance" ? "importance" : "links"}</button>
-      ${state.view === "trail" ? "" : ["related", "topic", "agent", "day"].map((type) => `<button type="button" class="chip ${state.graphEdgeTypes.has(type) ? "active" : ""}" data-edge="${type}">${type}</button>`).join("")}
+      ${["related", "topic", "agent", "day"].map((type) => `<button type="button" class="chip edge-chip ${state.graphEdgeTypes.has(type) ? "active" : ""}" data-edge="${type}" style="border-color:${edgeColor(type)}">${type}</button>`).join("")}
     </div>
     <div class="graph-stage">
       <svg class="graph-canvas" data-graph-canvas viewBox="0 0 1000 620" role="img">
@@ -319,43 +394,359 @@ function graphView() {
         const a = positions[edge.source], b = positions[edge.target];
         if (!a || !b) return "";
         const highlight = state.graphHover && (edge.source === state.graphHover || edge.target === state.graphHover);
-        const dim = state.graphHover && !highlight;
+        const dim = (state.graphHover && !highlight) || (searching && !isMatch(edge.source) && !isMatch(edge.target));
         // supersedes: directed + dashed status edge, never conflated with related.
         const width = edge.type === "supersedes" ? 2.2 : edge.type === "branch" ? 1.6 : edge.type === "related" ? 2 : 1;
         const dash = edge.type === "supersedes" ? ' stroke-dasharray="6 4"' : "";
         const marker = edge.type === "supersedes" ? ' marker-end="url(#arrow-supersedes)"' : "";
         return `<line class="graph-edge graph-edge-${edge.type} ${highlight ? "graph-related" : ""} ${dim ? "graph-dim" : ""}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${edgeColor(edge.type)}" stroke-width="${width}"${dash}${marker}></line>`;
       }).join("")}
-      ${graph.nodes.map((node, index) => {
-        const p = positions[node.id];
-        const selected = node.chunk_id === state.selectedId || node.id === state.selected?.entry_id;
-        const highlight = state.graphHover && (node.id === state.graphHover || related.has(node.id));
-        const dim = state.graphHover && !highlight;
-        const sizeVal = state.graphSizeMode === "importance" ? Number(node.importance_score || 0) : Number(node.connectivity || 0);
-        const radius = selected ? 18 : Math.min(16, 7 + sizeVal * 2.2);
-        return `<g class="graph-node ${highlight ? "graph-related" : ""} ${dim ? "graph-dim" : ""}" data-node-id="${escAttr(node.id)}" data-chunk="${escAttr(node.chunk_id)}"><circle class="graph-hit" cx="${p.x}" cy="${p.y}" r="${Math.max(radius + 10, 20)}"></circle><circle cx="${p.x}" cy="${p.y}" r="${radius}" fill="${agentColor(node.agent)}" stroke="${selected ? "var(--accent)" : "var(--bg)"}" stroke-width="3"></circle><text class="graph-label" data-graph-label x="${p.x}" y="${p.y - 15}" text-anchor="middle">${esc(graphTitle(node.title))}</text><title>${esc(node.title)}</title></g>`;
-      }).join("")}
+      ${(() => {
+        // Progressive disclosure: labels are shown for the hovered node, its
+        // neighbourhood, the selection, and the top-connected nodes only -
+        // 260 always-on labels are unreadable. Tooltips carry the rest.
+        const sizeOf = (node) => (state.graphSizeMode === "importance" ? Number(node.importance_score || 0) : Number(node.connectivity || 0));
+        const ranked = graph.nodes.map(sizeOf).sort((a, b) => b - a);
+        const labelCut = Math.max(ranked[Math.min(14, ranked.length - 1)] ?? 0, 0.001);
+        return graph.nodes.map((node) => {
+          const p = positions[node.id];
+          const selected = node.chunk_id === state.selectedId || node.id === state.selected?.entry_id;
+          const highlight = state.graphHover && (node.id === state.graphHover || related.has(node.id));
+          const match = searching && isMatch(node.id);
+          const dim = (state.graphHover && !highlight) || (searching && !match && !selected);
+          const sizeVal = sizeOf(node);
+          const radius = selected ? 18 : Math.min(16, 7 + sizeVal * 2.2);
+          const showLabel = selected || highlight || match || sizeVal >= labelCut;
+          const label = showLabel ? `<text class="graph-label" data-graph-label x="${p.x}" y="${p.y - 15}" text-anchor="middle">${esc(graphTitle(node.title))}</text>` : "";
+          return `<g class="graph-node ${highlight ? "graph-related" : ""} ${match ? "search-match" : ""} ${dim ? "graph-dim" : ""}" data-node-id="${escAttr(node.id)}" data-chunk="${escAttr(node.chunk_id)}"><circle class="graph-hit" cx="${p.x}" cy="${p.y}" r="${Math.max(radius + 10, 20)}"></circle><circle cx="${p.x}" cy="${p.y}" r="${radius}" fill="${agentColor(node.agent)}" stroke="${selected ? "var(--accent)" : "var(--bg)"}" stroke-width="3"></circle>${label}<title>${esc(node.title)}</title></g>`;
+        }).join("");
+      })()}
       </g>
       </svg>
-      ${graphLegend(graph)}
     </div>`;
 }
 
-function graphLegend(graph) {
-  const agents = [...new Set((graph.nodes || []).map((node) => node.agent || "unknown"))].sort();
-  // Trail names its two axes with plain-language meaning; the graph view lists
-  // its generic edge types. Consistent "one color, one job" labelling.
-  // Label must agree with edge direction: the arrow runs source -> target where
-  // source supersedes target, so the active-voice "replaces" reads correctly
-  // ("New --replaces-> Old"). A passive label would invert the arrow's meaning.
-  const edgeItems = state.view === "trail"
-    ? [["branch", "same branch"], ["supersedes", "replaces"], ["related", "related"]]
-    : [["related", "related"], ["topic", "topic"], ["agent", "agent"], ["day", "day"]];
+// --- Trail: interactive git-graph timeline ----------------------------------
+// Newest entry at the top, one straight lane per branch (lowest free lane,
+// freed when the branch's visible life ends - interval coloring, the
+// "straight branches" scheme git clients use). Lifecycle arcs bow through the
+// dotted relationship lanes left of main: related | evolves | replaces.
+// Day separators share the fixed row height so SVG y stays index * ROW.
+const TRAIL_ROW = 30;
+const TRAIL_LANE_W = 14;
+const TRAIL_WINDOW_STEP = 60;
+// Relationship lanes sit left of main, always dotted: replaces | evolves |
+// related. Under the two-rule model related routes are pure branch hops -
+// the rarest, densest signal - so they take the innermost lane next to main
+// and never cross the other two on their way out. Branch lanes to the right
+// are the solid spawned git branches.
+const TRAIL_REL_LANES = ["supersedes", "evolves", "related"];
+const TRAIL_REL_LANE_W = 12;
+// Corner radius for every lane change (gitgraph "rounded" style): straight
+// runs, small elbows at the turns. Must stay below half the minimum row gap
+// (TRAIL_ROW / 2) and below one lane width so corners never overlap.
+const TRAIL_CORNER = 7;
+const TRAIL_REL_ZONE = TRAIL_REL_LANES.length * TRAIL_REL_LANE_W + 12;
+// All relationship routes share the clearest dash cadence; color alone
+// separates the types (user decision - replaces' dash won the readability
+// comparison). related routes draw only for the selected entry: as ambient
+// traffic they drowned the lifecycle signal.
+const TRAIL_DASH = { supersedes: "6 4", evolves: "6 4", related: "6 4" };
+const TRAIL_VERB = { supersedes: "replaces", evolves: "evolves", related: "relates to" };
+const trailBranchColors = ["#6f7cff", "#3fa66a", "#d9941a", "#8f63e8", "#18a999", "#d94b63", "#4f98d9", "#b8873b", "#7a8ff2", "#5bb98c"];
+
+function trailStamp(node) {
+  return Date.parse(node.datetime || `${node.date}T00:00:00`) || 0;
+}
+
+function trailTitle(node) {
+  return stripTitleStamp(node.title);
+}
+
+function trailModel(graph) {
+  const nodes = (graph.nodes || [])
+    .filter((node) => node.entry_id)
+    .sort((a, b) => trailStamp(b) - trailStamp(a) || String(a.id).localeCompare(String(b.id)));
+  const total = nodes.length;
+  const visible = nodes.slice(0, state.trailWindow);
+
+  const items = [];
+  let lastDay = null;
+  for (const node of visible) {
+    if (node.date !== lastDay) {
+      items.push({ kind: "day", label: node.date });
+      lastDay = node.date;
+    }
+    items.push({ kind: "node", node });
+  }
+
+  // Branch intervals over display rows (top = newest). A branch owns its lane
+  // from its newest to its oldest visible row.
+  const rowOf = new Map();
+  items.forEach((item, index) => {
+    if (item.kind === "node") rowOf.set(item.node.id, index);
+  });
+  const spans = new Map();
+  items.forEach((item, index) => {
+    if (item.kind !== "node") return;
+    const branch = item.node.branch || "";
+    const span = spans.get(branch) || { first: index, last: index };
+    span.first = Math.min(span.first, index);
+    span.last = Math.max(span.last, index);
+    spans.set(branch, span);
+  });
+  // Fork/merge targets on main: a branch forks off the nearest older main row
+  // and merges into the nearest newer main row (undefined = still open).
+  const mainRowList = [];
+  items.forEach((item, index) => {
+    if (item.kind === "node" && item.node.branch === "main") mainRowList.push(index);
+  });
+  const linkRows = new Map();
+  // Lane occupancy runs fork-to-merge, not just across a branch's own entry
+  // rows: branches whose entries occupy disjoint row ranges but converge on
+  // the same merge point still run in parallel and must not share a lane.
+  const occupancy = new Map();
+  spans.forEach((span, branch) => {
+    if (branch === "" || branch === "main") return;
+    const forkRow = mainRowList.find((row) => row > span.last);
+    const mergeRow = [...mainRowList].reverse().find((row) => row < span.first);
+    linkRows.set(branch, { forkRow, mergeRow });
+    occupancy.set(branch, {
+      first: mergeRow !== undefined ? Math.min(span.first, mergeRow) : span.first,
+      last: forkRow !== undefined ? Math.max(span.last, forkRow) : span.last,
+    });
+  });
+  if (spans.has("main")) occupancy.set("main", { ...spans.get("main") });
+  // main is pinned to the leftmost lane (git-client convention); the rest
+  // allocate shortest-lived first, so among concurrent branches the longest
+  // takes the outermost lane. Entries with no recorded branch don't allocate
+  // a lane - their dots sit on lane 0.
+  const branches = [...occupancy.keys()].sort((a, b) => {
+    if (a === "main") return -1;
+    if (b === "main") return 1;
+    const spanA = occupancy.get(a);
+    const spanB = occupancy.get(b);
+    const entryA = spans.get(a);
+    const entryB = spans.get(b);
+    // Shortest-lived first; ties (same fork/merge window) break on the
+    // branch's own entry range, so the longest still lands outermost.
+    return (
+      (spanA.last - spanA.first) - (spanB.last - spanB.first)
+      || (entryA.last - entryA.first) - (entryB.last - entryB.first)
+      || spanA.first - spanB.first
+    );
+  });
+  const laneOf = new Map();
+  const colorOf = new Map();
+  const laneIntervals = [];
+  branches.forEach((branch, order) => {
+    const span = occupancy.get(branch);
+    // Touching at a single shared junction row (one branch merges exactly
+    // where the next forks) is daisy-chaining, not parallelism - those
+    // branches share a lane, like sequential branches in a git graph. The
+    // trunk column (lane 0) is main's alone: a branch that merely touches
+    // main's visible span must not render as a continuation of main.
+    let lane = laneIntervals.findIndex((intervals, index) => (branch === "main" || index > 0) && intervals.every((occupied) => span.last <= occupied.first || span.first >= occupied.last));
+    if (lane === -1) {
+      lane = laneIntervals.length;
+      laneIntervals.push([]);
+    }
+    laneIntervals[lane].push(span);
+    laneOf.set(branch, lane);
+    colorOf.set(branch, trailBranchColors[order % trailBranchColors.length]);
+  });
+
+  const lifecycle = (graph.edges || []).filter(
+    (edge) => TRAIL_REL_LANES.includes(edge.type) && rowOf.has(edge.source) && rowOf.has(edge.target)
+  );
+  return { items, total, rowOf, spans, laneOf, colorOf, laneCount: laneIntervals.length, lifecycle, linkRows };
+}
+
+function trailView() {
+  const graph = state.graph;
+  if (!graph) return `<div class="empty">Trail loading</div>`;
+  const model = trailModel(graph);
+  const { items, total, rowOf, spans, laneOf, colorOf, lifecycle, linkRows } = model;
+  if (!items.length) return `<div class="empty">No entries with lineage data yet.</div>`;
+  const laneX = (branch) => TRAIL_REL_ZONE + (laneOf.get(branch) || 0) * TRAIL_LANE_W + 7;
+  const relLaneX = (type) => 8 + TRAIL_REL_LANES.indexOf(type) * TRAIL_REL_LANE_W;
+  const rowY = (index) => index * TRAIL_ROW + TRAIL_ROW / 2;
+  // Rail width reacts to both zones, so the text column shifts right as more
+  // branches run in parallel.
+  const railWidth = TRAIL_REL_ZONE + model.laneCount * TRAIL_LANE_W + 12;
+  const height = items.length * TRAIL_ROW;
+  const selectedEntry = state.selected?.entry_id || "";
+
+  // Lane continuity: connect consecutive visible rows of the same branch.
+  // Entries with no recorded branch get a dot but no line - continuity that
+  // was never recorded is not drawn.
+  const branchRows = new Map();
+  items.forEach((item, index) => {
+    if (item.kind !== "node") return;
+    const branch = item.node.branch || "";
+    if (!branchRows.has(branch)) branchRows.set(branch, []);
+    branchRows.get(branch).push(index);
+  });
+  // No-branch legacy entries get dots but never lines - continuity that was
+  // never recorded is not drawn.
+  const laneSegments = [...branchRows.entries()].filter(([branch]) => branch !== "").flatMap(([branch, rows]) =>
+    rows.slice(1).map((row, i) => `<line x1="${laneX(branch)}" y1="${rowY(rows[i])}" x2="${laneX(branch)}" y2="${rowY(row)}" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></line>`)
+  );
+
+  // Gitgraph forking: fork/merge rows come from the model - the same rows
+  // that drive lane occupancy, so connectors and lane allocation always
+  // agree. Connectors are straight runs with small-radius elbows (the
+  // gitgraph "rounded" style): the bend sits right at the junction row, the
+  // rest travels vertically in the branch's own lane. A branch with no newer
+  // main row is still open and deliberately dangles - no merge is fabricated.
+  const connectors = [...linkRows.entries()].flatMap(([branch, { forkRow, mergeRow }]) => {
+    const rows = branchRows.get(branch) || [];
+    if (!rows.length) return [];
+    const newest = rows[0];
+    const oldest = rows[rows.length - 1];
+    const bx = laneX(branch);
+    const mx = laneX("main");
+    const r = TRAIL_CORNER;
+    const out = [];
+    if (forkRow !== undefined) {
+      const yf = rowY(forkRow);
+      const yb = rowY(oldest);
+      out.push(`<path class="trail-link" d="M ${mx} ${yf} L ${bx - r} ${yf} Q ${bx} ${yf} ${bx} ${yf - r} L ${bx} ${yb}" fill="none" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></path>`);
+    }
+    if (mergeRow !== undefined) {
+      const yb = rowY(newest);
+      const ym = rowY(mergeRow);
+      out.push(`<path class="trail-link" d="M ${bx} ${yb} L ${bx} ${ym + r} Q ${bx} ${ym} ${bx - r} ${ym} L ${mx} ${ym}" fill="none" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></path>`);
+    }
+    return out;
+  });
+
+  // Relationship edges route through their type's dotted lane with the same
+  // small-radius elbows: out from the source dot, along the lane, back in to
+  // the target dot. Lifecycle routes rest in their pastel variants; an
+  // active (unmuted) selection saturates the routes it touches and reveals
+  // its related routes.
+  const focusActive = Boolean(selectedEntry) && !state.selectionMuted;
+  // Two-rule related model (user-finalised): routes are reserved for
+  // branch-hopping relationships; ALL same-branch related context renders as
+  // row brackets instead. Full bracket = outbound (entries the selection
+  // cites); pastel bracket = inbound mentions + bounded second-order (one
+  // extra hop, same branch as the selection only). This also retires the
+  // old main-lane merge/N-gap special cases.
+  const chainPrimary = new Set();
+  const chainSecondary = new Set();
+  if (focusActive && rowOf.has(selectedEntry)) {
+    const selectedBranch = items[rowOf.get(selectedEntry)].node.branch || "";
+    const branchOf = (id) => items[rowOf.get(id)].node.branch || "";
+    const related = lifecycle.filter((edge) => edge.type === "related");
+    const firstOrder = new Set();
+    related.forEach((edge) => {
+      if (edge.source === selectedEntry) firstOrder.add(edge.target);
+      if (edge.target === selectedEntry) firstOrder.add(edge.source);
+    });
+    related.forEach((edge) => {
+      if (edge.source === selectedEntry && branchOf(edge.target) === selectedBranch) chainPrimary.add(edge.target);
+      else if (edge.target === selectedEntry && branchOf(edge.source) === selectedBranch) chainSecondary.add(edge.source);
+    });
+    related.forEach((edge) => {
+      if (firstOrder.has(edge.source) && edge.target !== selectedEntry && !firstOrder.has(edge.target) && branchOf(edge.target) === selectedBranch) chainSecondary.add(edge.target);
+      if (firstOrder.has(edge.target) && edge.source !== selectedEntry && !firstOrder.has(edge.source) && branchOf(edge.source) === selectedBranch) chainSecondary.add(edge.source);
+    });
+    chainPrimary.forEach((id) => chainSecondary.delete(id));
+    chainSecondary.delete(selectedEntry);
+  }
+  // Commit packaging: entries captured by the same git commit as the
+  // selection get a right-edge bracket - the left edge belongs to semantic
+  // relations, the right edge to packaging.
+  const commitSiblings = new Set();
+  if (focusActive && state.selected?.entry_id === selectedEntry) {
+    (state.selected.commit_entry_ids || []).forEach((id) => {
+      if (id !== selectedEntry) commitSiblings.add(id);
+    });
+  }
+  const arcs = lifecycle.flatMap((edge) => {
+    const touched = focusActive && (edge.source === selectedEntry || edge.target === selectedEntry);
+    if (edge.type === "related" && !touched) return [];
+    const sourceItem = items[rowOf.get(edge.source)];
+    const targetItem = items[rowOf.get(edge.target)];
+    // Same-branch related context is bracketed on the rows, never drawn.
+    if (edge.type === "related" && (sourceItem.node.branch || "") === (targetItem.node.branch || "")) return [];
+    const sx = laneX(sourceItem.node.branch || "");
+    const sy = rowY(rowOf.get(edge.source));
+    const tx = laneX(targetItem.node.branch || "");
+    const ty = rowY(rowOf.get(edge.target));
+    const lx = relLaneX(edge.type);
+    const r = TRAIL_CORNER;
+    const dir = ty > sy ? 1 : -1;
+    const path = `M ${sx} ${sy} L ${lx + r} ${sy} Q ${lx} ${sy} ${lx} ${sy + r * dir} L ${lx} ${ty - r * dir} Q ${lx} ${ty} ${lx + r} ${ty} L ${tx} ${ty}`;
+    const soft = edge.type !== "related" && !touched;
+    const stroke = soft ? `var(--edge-${edge.type}-soft)` : edgeColor(edge.type);
+    const marker = soft ? `trail-arrow-${edge.type}-soft` : `trail-arrow-${edge.type}`;
+    const opacity = touched ? 0.95 : focusActive ? 0.5 : 0.9;
+    return [`<path d="${path}" fill="none" stroke="${stroke}" stroke-width="${touched ? 2.6 : 2}" stroke-dasharray="${TRAIL_DASH[edge.type]}" stroke-opacity="${opacity}" marker-end="url(#${marker})"><title>${esc(trailTitle(sourceItem.node))} ${TRAIL_VERB[edge.type]} ${esc(trailTitle(targetItem.node))}</title></path>`];
+  });
+
+  // Search as a function over the Trail: matching rows get a marker dot and
+  // keep full presence, everything else dims - the graph structure stays
+  // intact so lineage context never disappears under a query.
+  const searching = Boolean(state.query.trim());
+  const rowMatch = (node) => searching && state.matchEntries.has(node.entry_id || "");
+
+  const dots = items.flatMap((item, index) => {
+    if (item.kind !== "node") return [];
+    const branch = item.node.branch || "";
+    const selected = item.node.entry_id === selectedEntry || item.node.chunk_id === state.selectedId;
+    const miss = searching && !rowMatch(item.node) && !selected;
+    return [`<circle cx="${laneX(branch)}" cy="${rowY(index)}" r="${selected ? 6.5 : 4.5}" fill="${branch ? colorOf.get(branch) : "var(--faint)"}" fill-opacity="${miss ? 0.35 : 1}" stroke="${selected ? "var(--accent-strong)" : "var(--bg)"}" stroke-width="${selected ? 2.5 : 2}"></circle>`];
+  });
+
+  const rows = items.map((item, index) => {
+    if (item.kind === "day") return `<div class="trail-day">${esc(item.label)}</div>`;
+    const node = item.node;
+    const branch = node.branch || "";
+    const tip = branch && spans.get(branch)?.first === index;
+    const selected = node.entry_id === selectedEntry || node.chunk_id === state.selectedId;
+    const time = node.datetime ? node.datetime.slice(11, 16) : "";
+    const searchClass = !searching ? "" : rowMatch(node) ? "search-match" : selected ? "" : "search-miss";
+    return `
+      <div class="trail-row ${selected ? (state.selectionMuted ? "pinned" : "selected") : ""} ${searchClass} ${chainPrimary.has(node.id) ? "chain-primary" : chainSecondary.has(node.id) ? "chain-secondary" : ""} ${commitSiblings.has(node.id) ? "commit-sibling" : ""}" data-chunk="${escAttr(node.chunk_id)}" title="${escAttr(node.title)}${branch ? escAttr(` · ${branch}`) : ""}">
+        <span class="trail-time">${time}</span>
+        ${rowMatch(node) ? `<span class="trail-match-dot"></span>` : ""}
+        <span class="trail-title">${esc(trailTitle(node))}</span>
+        ${tip ? `<span class="trail-branch" style="color:${colorOf.get(branch)}">${esc(branch)}</span>` : ""}
+      </div>`;
+  });
+
+  const shown = items.filter((item) => item.kind === "node").length;
   return `
-    <div class="graph-legend" aria-label="Graph legend">
-      <div class="legend-group"><span class="count">Nodes</span>${agents.map((agent) => `<span class="legend-item" title="${escAttr(agent)}"><span class="legend-swatch" style="background:${agentColor(agent)}"></span>${esc(graphLegendLabel(agent))}</span>`).join("")}</div>
-      <div class="legend-group"><span class="count">Edges</span>${edgeItems.map(([type, label]) => `<span class="legend-item"><span class="legend-line" style="background:${edgeColor(type)}"></span>${esc(label)}</span>`).join("")}</div>
-      <div class="legend-group"><span class="count">Size: ${state.graphSizeMode === "importance" ? "importance" : "links"}</span><span class="count">${state.view === "trail" ? "Dashed → supersession" : "Near: links/topics/dates"}</span></div>
+    <div class="viewbar">
+      <span class="meta"><strong>${shown}</strong> of ${total} entries · newest first</span>
+      ${searchStatus()}
+      <span class="spacer"></span>
+      <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("supersedes")}"></span>replaces</span>
+      <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("evolves")}"></span>evolves</span>
+      <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("related")}"></span>related · on select</span>
+      ${shown < total ? `<button type="button" class="chip" data-trail-more>Load older</button>` : ""}
+    </div>
+    <div class="trail-scroll">
+      <div class="trail-body">
+        <svg class="trail-rail" width="${railWidth}" height="${height}" viewBox="0 0 ${railWidth} ${height}" aria-hidden="true">
+          <defs>
+            <marker id="trail-arrow-supersedes" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("supersedes")}"></path></marker>
+            <marker id="trail-arrow-evolves" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("evolves")}"></path></marker>
+            <marker id="trail-arrow-related" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("related")}"></path></marker>
+            <marker id="trail-arrow-supersedes-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-supersedes-soft)"></path></marker>
+            <marker id="trail-arrow-evolves-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-evolves-soft)"></path></marker>
+          </defs>
+          <rect class="trail-rel-zone" x="0" y="0" width="${TRAIL_REL_ZONE - 5}" height="${height}" rx="6"></rect>
+          ${connectors.join("")}
+          ${laneSegments.join("")}
+          ${arcs.join("")}
+          ${dots.join("")}
+        </svg>
+        <div class="trail-rows">${rows.join("")}</div>
+      </div>
+      ${shown < total ? `<button type="button" class="chip trail-more" data-trail-more>Load older entries</button>` : ""}
     </div>`;
 }
 
@@ -367,7 +758,7 @@ function rightPane() {
     ["Backlinks", selected.backlinks || []],
   ];
   return `
-    <div class="detail-header">
+    <div class="detail-header ${state.selectionMuted ? "pinned" : ""}">
       <div class="entry-meta"><span>${selected.date} ${selected.time || ""}</span><span>${esc(selected.agent_type || "")}</span></div>
       <h2>${esc(selected.title)}</h2>
       <div class="count">${esc(selected.chunk_id)}</div>
@@ -377,6 +768,7 @@ function rightPane() {
       <div class="chip-list">${(selected.sections || []).map((section) => `<span class="chip">${esc(section)}</span>`).join("")}</div>
       <div class="markdown">${markdown(selected.text || "")}</div>
     </section>
+    ${commitSection(selected)}
     ${diagramsSection(selected)}
     <section class="detail-section">
       <h4>Linked Memories</h4>
@@ -395,13 +787,46 @@ function rightPane() {
 function installDelegatedEvents() {
   const queryInput = debounce(async (value) => {
     state.query = value;
-    await reloadCurrentView();
+    const token = ++state.loadSeq;
+    const ok = await refreshSearch(token);
+    if (!ok || token !== state.loadSeq) return;
+    state.searchOpen = Boolean(state.query.trim());
+    render();
   }, 180);
   let graphDrag = null;
   let suppressGraphClick = false;
 
   app.addEventListener("input", (event) => {
     if (event.target?.id === "query") queryInput(event.target.value);
+  });
+
+  // Refocusing a box that still holds a query reopens its ranked dropdown.
+  app.addEventListener("focusin", (event) => {
+    if (event.target?.id === "query" && state.query.trim() && !state.searchOpen) {
+      state.searchOpen = true;
+      render();
+    }
+  });
+
+  // "/" focuses search from anywhere (the box is now on every view);
+  // Enter / Shift+Enter cycle matches; Esc closes the dropdown, then leaves.
+  window.addEventListener("keydown", async (event) => {
+    const tag = event.target?.tagName;
+    const typing = tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA";
+    if (event.key === "/" && !typing) {
+      event.preventDefault();
+      document.getElementById("query")?.focus();
+    } else if (event.key === "Enter" && event.target?.id === "query") {
+      event.preventDefault();
+      await jumpToMatch(event.shiftKey ? -1 : 1);
+    } else if (event.key === "Escape" && event.target?.id === "query") {
+      if (state.searchOpen) {
+        state.searchOpen = false;
+        render();
+      } else {
+        event.target.blur();
+      }
+    }
   });
 
   app.addEventListener("wheel", (event) => {
@@ -444,16 +869,12 @@ function installDelegatedEvents() {
   app.addEventListener("change", async (event) => {
     const target = event.target;
     if (!target) return;
-    if (target.id === "sort") {
-      state.sort = target.value;
-      await reloadCurrentView();
+    if (target.dataset?.filterSelect) {
+      await updateFilter(target.dataset.filterSelect, target.value);
     } else if (target.id === "date-from") {
       await updateFilter("dateFrom", target.value);
     } else if (target.id === "date-to") {
       await updateFilter("dateTo", target.value);
-    } else if (target.id === "timeline-zoom") {
-      state.timelineZoom = target.value;
-      await reloadCurrentView();
     }
   });
 
@@ -466,6 +887,17 @@ function installDelegatedEvents() {
   });
 
   app.addEventListener("click", async (event) => {
+    // Click-away closes the ranked dropdown; the query and markers persist.
+    if (state.searchOpen && !event.target.closest?.(".searchbox-wrap")) {
+      state.searchOpen = false;
+      render();
+    }
+    const searchHit = event.target.closest("[data-search-jump]");
+    if (searchHit) {
+      state.searchOpen = false;
+      await jumpToChunk(searchHit.dataset.chunk);
+      return;
+    }
     const graphNode = event.target.closest("[data-node-id][data-chunk]");
     if (graphNode) {
       if (suppressGraphClick) {
@@ -520,22 +952,6 @@ function installDelegatedEvents() {
       await updateFilter("granularity", target.dataset.granularity);
       return;
     }
-    if (target.dataset.density) {
-      state.density = target.dataset.density;
-      render();
-      return;
-    }
-    if (target.dataset.timelineZoom) {
-      state.timelineZoom = target.dataset.timelineZoom;
-      await reloadCurrentView();
-      return;
-    }
-    if (target.dataset.timelineEmpty !== undefined) {
-      state.timelineHideEmpty = !state.timelineHideEmpty;
-      localStorage.setItem("ml:timelineHideEmpty", state.timelineHideEmpty ? "1" : "0");
-      await reloadCurrentView();
-      return;
-    }
     if (target.dataset.graphScope) {
       state.graphScope = target.dataset.graphScope;
       state.graphHover = "";
@@ -554,14 +970,60 @@ function installDelegatedEvents() {
       await resetFilters();
       return;
     }
-    if (target.dataset.more !== undefined) {
-      const token = ++state.loadSeq;
-      await loadSearch(state.nextCursor, true, token);
-      if (token === state.loadSeq) render();
+    if (target.dataset.matchNext !== undefined) {
+      await jumpToMatch(1);
       return;
     }
-    if (target.dataset.bucketStart) {
-      selectTimelineBucket(target);
+    if (target.dataset.matchPrev !== undefined) {
+      await jumpToMatch(-1);
+      return;
+    }
+    if (target.dataset.searchClear !== undefined) {
+      state.query = "";
+      state.results = [];
+      state.matchEntries = new Set();
+      state.searchOpen = false;
+      // Clear the live input too: render()'s focus preservation would
+      // otherwise restore the stale text over the emptied state.
+      const box = document.getElementById("query");
+      if (box) box.value = "";
+      render();
+      return;
+    }
+    if (target.dataset.trailMore !== undefined) {
+      state.trailWindow += TRAIL_WINDOW_STEP;
+      render();
+      return;
+    }
+    if (target.dataset.toggleLeft !== undefined) {
+      state.leftCollapsed = !state.leftCollapsed;
+      localStorage.setItem("ml:leftCollapsed", state.leftCollapsed ? "1" : "0");
+      render();
+      return;
+    }
+    if (target.dataset.toggleRight !== undefined) {
+      state.rightCollapsed = !state.rightCollapsed;
+      localStorage.setItem("ml:rightCollapsed", state.rightCollapsed ? "1" : "0");
+      render();
+      return;
+    }
+    if (target.dataset.section) {
+      const key = target.dataset.section;
+      state.sectionOpen[key] = state.sectionOpen[key] === false;
+      localStorage.setItem("ml:sections", JSON.stringify(state.sectionOpen));
+      render();
+      return;
+    }
+    if (target.dataset.topicsMore !== undefined) {
+      state.topicsExpanded = !state.topicsExpanded;
+      render();
+      return;
+    }
+    if (target.dataset.clearFilter) {
+      const key = target.dataset.clearFilter;
+      const bounds = state.facets?.runtime?.date_bounds || [];
+      const cleared = key === "dateFrom" ? bounds[0] || "" : key === "dateTo" ? bounds[1] || "" : "";
+      await updateFilter(key, cleared);
       return;
     }
     if (target.dataset.graphSize !== undefined) {
@@ -577,8 +1039,11 @@ function installDelegatedEvents() {
     }
     if (target.dataset.savedQuery !== undefined) {
       state.query = target.dataset.savedQuery;
-      state.sort = target.dataset.savedSort;
-      if (target.dataset.savedView) state.view = target.dataset.savedView;
+      state.searchOpen = false;
+      if (target.dataset.savedView) {
+        state.view = target.dataset.savedView;
+        localStorage.setItem("ml:view", state.view);
+      }
       await reloadCurrentView();
       return;
     }
@@ -588,13 +1053,85 @@ function installDelegatedEvents() {
       return;
     }
     if (target.dataset.chunk) {
+      // Second click on the already-selected entry toggles muted focus:
+      // related routes hide, lifecycle routes go back to pastel, and the
+      // entry stays pinned (border) with the reader still on it.
+      if (state.selectedId === target.dataset.chunk && state.selected) {
+        state.selectionMuted = !state.selectionMuted;
+        render();
+        return;
+      }
+      state.selectionMuted = false;
       const hint = matchHintFor(target.dataset.chunk);
       state.matchHint = hint;
       state.pendingMatchScroll = Boolean(hint);
+      // Selecting an entry is an explicit "inspect this" - reopen the reader
+      // if it was collapsed so the click always produces visible feedback.
+      if (state.rightCollapsed) {
+        state.rightCollapsed = false;
+        localStorage.setItem("ml:rightCollapsed", "0");
+      }
       const token = ++state.loadSeq;
       await selectChunk(target.dataset.chunk, true, token);
     }
   });
+}
+
+// The Trail's chronological node order (newest first) - the same sort
+// trailModel uses, exposed so match cycling and window growth agree with the
+// rendered rows without re-deriving the full model.
+function trailOrderedNodes() {
+  return (state.graph?.nodes || [])
+    .filter((node) => node.entry_id)
+    .sort((a, b) => trailStamp(b) - trailStamp(a) || String(a.id).localeCompare(String(b.id)));
+}
+
+// Grow the Trail window until the target entry's row is rendered, stepping in
+// whole TRAIL_WINDOW_STEP pages so "load older" and match jumps stay aligned.
+function ensureTrailVisible(chunkId) {
+  const index = trailOrderedNodes().findIndex((node) => node.chunk_id === chunkId);
+  if (index >= state.trailWindow) {
+    state.trailWindow = Math.ceil((index + 1) / TRAIL_WINDOW_STEP) * TRAIL_WINDOW_STEP;
+  }
+}
+
+// Jump to a searched entry (dropdown click): select it in the current view,
+// reopening the reader and scrolling the Trail to the row.
+async function jumpToChunk(chunkId) {
+  state.selectionMuted = false;
+  const hint = matchHintFor(chunkId);
+  state.matchHint = hint;
+  state.pendingMatchScroll = Boolean(hint);
+  if (state.rightCollapsed) {
+    state.rightCollapsed = false;
+    localStorage.setItem("ml:rightCollapsed", "0");
+  }
+  if (state.view === "trail") {
+    ensureTrailVisible(chunkId);
+    state.pendingTrailScroll = true;
+  }
+  const token = ++state.loadSeq;
+  await selectChunk(chunkId, true, token);
+}
+
+// Cycle matches in Trail order (newest first): Enter / next steps down the
+// trail, Shift+Enter / prev steps back up, wrapping at the ends.
+async function jumpToMatch(step) {
+  const matches = trailOrderedNodes().filter((node) => state.matchEntries.has(node.entry_id));
+  if (!matches.length) return;
+  const current = matches.findIndex((node) => node.chunk_id === state.selectedId);
+  const next = matches[(current + step + matches.length) % matches.length];
+  state.searchOpen = false;
+  await jumpToChunk(next.chunk_id);
+}
+
+// Post-render: scroll the Trail to a freshly jumped-to row. Idempotent, like
+// applyMatchHighlight - the flag only survives one render.
+function applyTrailScroll() {
+  if (!state.pendingTrailScroll) return;
+  state.pendingTrailScroll = false;
+  const row = document.querySelector(".trail-row.selected, .trail-row.pinned");
+  if (row) row.scrollIntoView({ block: "center" });
 }
 
 // Entry-level UI results: derive the best-matching subsection heading for a
@@ -648,6 +1185,29 @@ function diagramsSection(selected) {
     </section>`;
 }
 
+// Commit packaging: the git commit that first captured this entry, plus the
+// other entries that rode the same commit (batch commits on main and the
+// pre-branching era included - the map is diff-derived, not merge-derived).
+function commitSection(selected) {
+  if (selected.commit) {
+    const siblings = selected.commit_entries || [];
+    return `
+    <section class="detail-section">
+      <h4>Commit</h4>
+      <div class="entry-meta"><span class="count">${esc(selected.commit.short)}</span><span>${esc(selected.commit.subject)}</span></div>
+      ${siblings.length ? `<div class="count commit-note">${siblings.length} other entr${siblings.length === 1 ? "y" : "ies"} in this commit</div>${siblings.map((item) => `<button type="button" class="link-card" data-chunk="${escAttr(item.chunk_id)}">${esc(stripTitleStamp(item.title))}<br><span class="count">${item.date} ${item.time || ""}</span></button>`).join("")}` : `<div class="count commit-note">Only entry in this commit.</div>`}
+    </section>`;
+  }
+  if (selected.commit_tracking) {
+    return `
+    <section class="detail-section">
+      <h4>Commit</h4>
+      <div class="count">Not yet committed.</div>
+    </section>`;
+  }
+  return "";
+}
+
 // Small reader-header note naming the matched subsection, when one is active for
 // the open entry. Consistent "Best match" microcopy - never raw chunk language.
 function matchNote(selected) {
@@ -664,9 +1224,6 @@ async function setView(view) {
 
 async function updateFilter(key, value) {
   state[key] = value;
-  if (key === "dateFrom" || key === "dateTo" || key === "agent" || key === "user" || key === "topic") {
-    state.timelineSelectedBucket = "";
-  }
   await reloadCurrentView();
 }
 
@@ -675,8 +1232,6 @@ async function resetFilters() {
   state.user = "";
   state.topic = "";
   state.granularity = "entry";
-  state.sort = "relevance";
-  state.timelineSelectedBucket = "";
   seedDates();
   await reloadCurrentView();
 }
@@ -691,23 +1246,6 @@ async function openGraphChunk(chunkId) {
   state.graphHover = "";
   const token = ++state.loadSeq;
   await selectChunk(chunkId, true, token);
-}
-
-function selectTimelineBucket(target) {
-  const bucket = {
-    date: target.dataset.bucketDate,
-    start: target.dataset.bucketStart,
-    end: target.dataset.bucketEnd,
-  };
-  state.timelineSelectedBucket = bucket.start;
-  markSelectedTimelineBucket(bucket.start);
-  scrollTimelineToBucket(bucket);
-}
-
-function markSelectedTimelineBucket(bucketStart) {
-  document.querySelectorAll(".bucket.selected").forEach((bucket) => bucket.classList.remove("selected"));
-  const selected = document.querySelector(`.bucket[data-bucket-start="${cssEscape(bucketStart)}"]`);
-  if (selected) selected.classList.add("selected");
 }
 
 function findGraphNodeFromPoint(x, y) {
@@ -729,26 +1267,6 @@ function findGraphNodeFromPoint(x, y) {
   return nearest;
 }
 
-function scrollTimelineToBucket(bucket) {
-  const stream = document.querySelector(".timeline-stream");
-  const target = findTimelineBucketTarget(bucket);
-  if (!stream || !target) return;
-  stream.scrollTo({
-    top: Math.max(0, target.offsetTop - stream.offsetTop),
-    behavior: "smooth",
-  });
-}
-
-function findTimelineBucketTarget(bucket) {
-  const items = Array.from(document.querySelectorAll(".timeline-item[data-entry-datetime]"));
-  const exact = items.find((item) => {
-    const value = item.dataset.entryDatetime;
-    return value >= bucket.start && value < bucket.end;
-  });
-  if (exact) return exact;
-  return document.getElementById(`day-${bucket.date}`);
-}
-
 function clearGraphHover() {
   state.graphHover = "";
   render();
@@ -759,9 +1277,14 @@ function resetGraphView() {
   render();
 }
 
+// Every scrollable region in the app. render() rebuilds the DOM, so ANY
+// scroll position not captured here silently resets on the next state change
+// (the left-pane facet click bug). New scroll containers must be added here.
+const SCROLL_PRESERVE_SELECTORS = [".pane.left", ".pane.right", ".scroll", ".trail-scroll"];
+
 function captureCenterScroll() {
   const stateBySelector = {};
-  [".scroll", ".timeline-stream", ".overview-scroll"].forEach((selector) => {
+  SCROLL_PRESERVE_SELECTORS.forEach((selector) => {
     const element = document.querySelector(selector);
     if (element) stateBySelector[selector] = { top: element.scrollTop, left: element.scrollLeft };
   });
@@ -845,88 +1368,152 @@ function observePanes() {
   document.querySelectorAll("[data-pane]").forEach((pane) => paneObserver.observe(pane));
 }
 
-function groupBy(items, fn) {
-  return items.reduce((acc, item) => {
-    const key = fn(item);
-    (acc[key] = acc[key] || []).push(item);
-    return acc;
-  }, {});
-}
-
-function formatBucketLabel(bucket) {
-  if (state.timelineZoom === "day") return bucket.date.slice(5);
-  const start = new Date(bucket.start);
-  const monthDay = bucket.date.slice(5);
-  const hour = String(start.getHours()).padStart(2, "0");
-  return `${monthDay} ${hour}`;
-}
-
-function timelineItemDatetime(item) {
-  return `${item.date}T${item.time || "00:00"}:00`;
-}
-
-function cssEscape(value) {
-  if (window.CSS?.escape) return window.CSS.escape(value);
-  return String(value).replace(/["\\]/g, "\\$&");
-}
+// Force-directed layout: Fruchterman-Reingold repulsion + weighted link
+// attraction + centering gravity + a collision pass (the d3-force recipe,
+// hand-rolled to stay dependency-free). The old layout had attraction only,
+// so unrelated nodes clumped. Hash-seeded start keeps it deterministic;
+// positions are cached per dataset so pan/hover re-renders never recompute.
+let graphLayoutCache = { key: "", positions: null };
 
 function graphPositions(nodes, edges = []) {
-  const positions = {};
-  const centerX = 500;
-  const centerY = 310;
-  const links = graphDegrees({ edges });
-  const layoutLinks = layoutSimilarityLinks(nodes, edges);
+  const key = `${nodes.length}|${edges.length}|${nodes[0]?.id || ""}|${nodes[nodes.length - 1]?.id || ""}`;
+  if (graphLayoutCache.key === key && graphLayoutCache.positions) return graphLayoutCache.positions;
+  const positions = graphForceLayout(nodes, edges);
+  graphLayoutCache = { key, positions };
+  return positions;
+}
+
+function graphForceLayout(nodes, edges) {
+  const width = 1000;
+  const height = 620;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const count = Math.max(1, nodes.length);
+  const k = Math.max(34, Math.min(90, Math.sqrt((width * height) / count) * 0.9));
+  const pos = {};
   nodes.forEach((node, index) => {
     const seed = hashString(node.id || `${index}`);
     const angle = ((seed % 3600) / 3600) * Math.PI * 2;
-    const ring = 0.22 + (((seed >>> 8) % 1000) / 1000) * 0.78;
-    const degreePull = Math.max(0.55, 1 - (links[node.id] || 0) * 0.025);
-    const wobbleX = (((seed >>> 18) % 1000) / 1000 - 0.5) * 72;
-    const wobbleY = (((seed >>> 28) % 1000) / 1000 - 0.5) * 52;
-    positions[node.id] = {
-      x: centerX + Math.cos(angle) * 420 * ring * degreePull + wobbleX,
-      y: centerY + Math.sin(angle) * 250 * ring * degreePull + wobbleY,
+    const ring = 0.25 + (((seed >>> 8) % 1000) / 1000) * 0.75;
+    pos[node.id] = {
+      x: centerX + Math.cos(angle) * 420 * ring,
+      y: centerY + Math.sin(angle) * 260 * ring,
     };
   });
-  for (let pass = 0; pass < 3; pass += 1) {
-    layoutLinks.forEach((edge) => {
-      const a = positions[edge.source], b = positions[edge.target];
-      if (!a || !b) return;
-      const midX = (a.x + b.x) / 2;
-      const midY = (a.y + b.y) / 2;
-      const strength = edge.strength || 0.03;
-      a.x += (midX - a.x) * strength;
-      a.y += (midY - a.y) * strength;
-      b.x += (midX - b.x) * strength;
-      b.y += (midY - b.y) * strength;
+  const ids = nodes.map((node) => node.id).filter((id) => pos[id]);
+  const links = layoutSimilarityLinks(nodes, edges).filter((link) => pos[link.source] && pos[link.target]);
+  let temperature = width / 8;
+  const iterations = 120;
+  for (let iter = 0; iter < iterations; iter += 1) {
+    const disp = {};
+    ids.forEach((id) => {
+      disp[id] = { x: 0, y: 0 };
     });
+    for (let i = 0; i < ids.length; i += 1) {
+      for (let j = i + 1; j < ids.length; j += 1) {
+        const a = pos[ids[i]];
+        const b = pos[ids[j]];
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let dist = Math.hypot(dx, dy);
+        if (dist < 0.01) {
+          dx = (((hashString(ids[i]) >>> 4) % 7) - 3) * 0.1 || 0.1;
+          dy = 0.1;
+          dist = Math.hypot(dx, dy);
+        }
+        const repulsion = (k * k) / dist;
+        disp[ids[i]].x += (dx / dist) * repulsion;
+        disp[ids[i]].y += (dy / dist) * repulsion;
+        disp[ids[j]].x -= (dx / dist) * repulsion;
+        disp[ids[j]].y -= (dy / dist) * repulsion;
+      }
+    }
+    links.forEach((link) => {
+      const a = pos[link.source];
+      const b = pos[link.target];
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      const dist = Math.max(0.01, Math.hypot(dx, dy));
+      const weight = Math.min(1, (link.strength || 0.03) * 14);
+      const attraction = ((dist * dist) / k) * weight;
+      disp[link.source].x -= (dx / dist) * attraction;
+      disp[link.source].y -= (dy / dist) * attraction;
+      disp[link.target].x += (dx / dist) * attraction;
+      disp[link.target].y += (dy / dist) * attraction;
+    });
+    ids.forEach((id) => {
+      const point = pos[id];
+      // Gentle centering keeps disconnected clusters on canvas.
+      disp[id].x += (centerX - point.x) * 0.04;
+      disp[id].y += (centerY - point.y) * 0.04;
+      const magnitude = Math.max(0.01, Math.hypot(disp[id].x, disp[id].y));
+      const limited = Math.min(magnitude, temperature);
+      point.x += (disp[id].x / magnitude) * limited;
+      point.y += (disp[id].y / magnitude) * limited;
+      point.x = Math.max(24, Math.min(width - 24, point.x));
+      point.y = Math.max(24, Math.min(height - 24, point.y));
+    });
+    temperature = Math.max(2, temperature * 0.95);
   }
-  return positions;
+  // Collision pass: labels need breathing room beyond point separation.
+  const minSeparation = 30;
+  for (let pass = 0; pass < 10; pass += 1) {
+    for (let i = 0; i < ids.length; i += 1) {
+      for (let j = i + 1; j < ids.length; j += 1) {
+        const a = pos[ids[i]];
+        const b = pos[ids[j]];
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let dist = Math.hypot(dx, dy);
+        if (dist >= minSeparation) continue;
+        if (dist < 0.01) {
+          dx = (((hashString(ids[i]) >>> 6) % 7) - 3) * 0.1 || 0.1;
+          dy = 0.1;
+          dist = Math.hypot(dx, dy);
+        }
+        const push = (minSeparation - dist) / 2;
+        a.x += (dx / dist) * push;
+        a.y += (dy / dist) * push;
+        b.x -= (dx / dist) * push;
+        b.y -= (dy / dist) * push;
+      }
+    }
+  }
+  return pos;
 }
 
 function layoutSimilarityLinks(nodes, edges) {
   const visible = new Set(nodes.map((node) => node.id));
   const links = [];
   const seen = new Set();
-  edges.filter((edge) => edge.type === "related").forEach((edge) => {
-    if (!visible.has(edge.source) || !visible.has(edge.target)) return;
-    const key = [edge.source, edge.target].sort().join("|");
+  const push = (source, target, strength) => {
+    const key = [source, target].sort().join("|");
     if (seen.has(key)) return;
     seen.add(key);
-    links.push({ source: edge.source, target: edge.target, strength: 0.075 });
+    links.push({ source, target, strength });
+  };
+  edges.filter((edge) => edge.type === "related").forEach((edge) => {
+    if (!visible.has(edge.source) || !visible.has(edge.target)) return;
+    push(edge.source, edge.target, 0.075);
   });
+  // Sparse similarity attraction: each node pulls only toward its top-3
+  // topic neighbours (date proximity is a tie-break boost, never a link by
+  // itself). The old all-pairs link set collapsed the force layout into a
+  // hairball on burst-heavy corpora where most entries share a date window.
+  const byNode = new Map(nodes.map((node) => [node.id, []]));
   for (let i = 0; i < nodes.length; i += 1) {
     for (let j = i + 1; j < nodes.length; j += 1) {
       const topicScore = sharedTopicScore(nodes[i], nodes[j]);
-      const dateScore = dateProximityScore(nodes[i], nodes[j]);
-      const strength = topicScore * 0.045 + dateScore * 0.026;
-      if (strength <= 0.01) continue;
-      const key = [nodes[i].id, nodes[j].id].sort().join("|");
-      if (seen.has(key)) continue;
-      seen.add(key);
-      links.push({ source: nodes[i].id, target: nodes[j].id, strength });
+      if (topicScore <= 0.15) continue;
+      const score = topicScore * (1 + dateProximityScore(nodes[i], nodes[j]) * 0.3);
+      byNode.get(nodes[i].id).push({ other: nodes[j].id, score });
+      byNode.get(nodes[j].id).push({ other: nodes[i].id, score });
     }
   }
+  byNode.forEach((candidates, id) => {
+    candidates.sort((a, b) => b.score - a.score);
+    candidates.slice(0, 3).forEach((candidate) => push(id, candidate.other, 0.03 + candidate.score * 0.03));
+  });
   return links;
 }
 
@@ -960,23 +1547,15 @@ function graphRelatedIds(graph, nodeId) {
   return related;
 }
 
-function graphDegrees(graph) {
-  const degree = {};
-  graph.edges.forEach((edge) => {
-    degree[edge.source] = (degree[edge.source] || 0) + 1;
-    degree[edge.target] = (degree[edge.target] || 0) + 1;
-  });
-  return degree;
+// Entry titles start with their timestamp; every list view already shows the
+// date/time in its own column, so strip the prefix instead of repeating it.
+function stripTitleStamp(title) {
+  return String(title || "").replace(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}\s*-\s*/, "");
 }
 
 function graphTitle(title) {
   const value = String(title || "");
   return value.length > 56 ? `${value.slice(0, 53)}...` : value;
-}
-
-function graphLegendLabel(value) {
-  const label = String(value || "unknown");
-  return label.length > 14 ? `${label.slice(0, 12)}...` : label;
 }
 
 function hashString(value) {
@@ -998,6 +1577,7 @@ function edgeColor(type) {
     agent: "var(--edge-agent)",
     day: "var(--edge-day)",
     supersedes: "var(--edge-supersedes)",
+    evolves: "var(--edge-evolves)",
     branch: "var(--edge-branch)",
   }[type] || "var(--muted)";
 }
@@ -1168,13 +1748,6 @@ function inline(text) {
   return esc(text).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
 }
 
-function highlight(text, query) {
-  const words = [...new Set((query.toLowerCase().match(/[a-z0-9]{3,}/g) || []))].slice(0, 8);
-  if (!words.length) return esc(text);
-  const pattern = new RegExp(`(${words.map(escapeRegExp).join("|")})`, "ig");
-  return esc(text).replace(pattern, "<mark>$1</mark>");
-}
-
 function debounce(fn, wait) {
   let timer;
   return (...args) => {
@@ -1193,10 +1766,6 @@ function esc(value) {
 
 function escAttr(value) {
   return esc(value).replace(/`/g, "&#96;");
-}
-
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 boot().catch((error) => {

@@ -41,7 +41,26 @@ Trace UI pass); the Trace lineage pass (evolves edges + continuity chains in Tra
 Phase 4 (Trace indexed-topic rendering + MCP topic tools);
 [`residual-fuse-non-utf8-silent-skip.md`](residual-fuse-non-utf8-silent-skip.md) (small fix,
 promoted from inbox 2026-07-10: fuse should block naming a non-UTF-8 file instead of silently
-skipping it); README screenshot captures to replace the S6 placeholders.
+skipping it); README screenshot captures to replace the S6 placeholders; decision-diagram
+sidecar integration into Memory Trace views beyond the reader (deferred 2026-07-11 at user
+direction - sidecars render only in the reader's "Decision diagrams" section today; candidate
+shapes are a diagram indicator on Trail rows / Graph nodes, inline Trail expansion, or a
+dedicated affordance, with scope to be designed with the user; see session entry
+`mse_j4wn8rqk2t6x0vhs`).
+
+**Memory Trace next-generation planning promoted 2026-07-11:** the top-level entry point is
+[`memory-trace-product-and-system-architecture-blueprint.md`](memory-trace-product-and-system-architecture-blueprint.md),
+with sequencing in
+[`memory-trace-next-generation-implementation-roadmap.md`](memory-trace-next-generation-implementation-roadmap.md)
+and coverage/retirement decisions in
+[`memory-trace-next-generation-coverage-matrix.md`](memory-trace-next-generation-coverage-matrix.md).
+The promoted specs are
+[`../3_Spec/memory-trace-trail-search-and-graph-ux.md`](../3_Spec/memory-trace-trail-search-and-graph-ux.md)
+and
+[`../3_Spec/memory-trace-derived-artifact-provenance-contract.md`](../3_Spec/memory-trace-derived-artifact-provenance-contract.md).
+Existing active implementation plans remain active where they own unique acceptance criteria:
+distribution/publication, AI summarisation provider flow, topic Phase 4, and decision-diagram export
+packs.
 
 Continuity naming for new work:
 
@@ -234,6 +253,13 @@ Specs:
 
 - [`multi-user-session-memory-proposal.md`](completed/multi-user-session-memory-proposal.md) (completed - full scope shipped through 2.12.0)
 - [`multi-user-deep-research-report.md`](completed/multi-user-deep-research-report.md) (completed - recommendations fully acted on)
+- [`memory-trace-product-and-system-architecture-blueprint.md`](memory-trace-product-and-system-architecture-blueprint.md) (**active, canonical Memory Trace next-generation product/system entry point** - promoted 2026-07-11)
+- [`memory-trace-next-generation-implementation-roadmap.md`](memory-trace-next-generation-implementation-roadmap.md) (**active** - phase sequence for API, React shell, Trail/search/graph parity, annotations, Evidence Packs, provider integrations, hosted foundations, and security)
+- [`memory-trace-next-generation-coverage-matrix.md`](memory-trace-next-generation-coverage-matrix.md) (**active planning matrix** - explains which older plans remain active versus completed/reference)
+- [`memory-trace-frontend-architecture-and-design-system-proposal.md`](memory-trace-frontend-architecture-and-design-system-proposal.md) (**active** - React/TypeScript/Vite design-system migration proposal, gated by parity fixtures and vanilla fallback)
+- [`memory-trace-evidence-annotations-and-projection-architecture.md`](memory-trace-evidence-annotations-and-projection-architecture.md) (**active** - Evidence Packs, deterministic anchors, append-only annotations, projection architecture, and provider freshness)
+- [`memory-trace-commercialisation-and-monetisation-report.md`](memory-trace-commercialisation-and-monetisation-report.md) (**active strategy** - free local Trail, paid advanced analysis/cross-project/hosted/managed-AI/enterprise tiers, validation still required)
+- [`memory-trace-hosted-product-and-security-architecture.md`](memory-trace-hosted-product-and-security-architecture.md) (**active later-stage architecture** - hosted/team security, sync, entitlements, provider integration, and audit model)
 - [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md) (**active, canonical** - Phase 1 retrieval service and Phase 2 package extraction are implemented in the unpushed tree; active only for release-ordering/publication follow-through)
 - [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md) (**active** - Phases 1-2 implemented in the unpushed tree; Phase 3 report/handover pack remains gated)
 - [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md) (**active** - approved 2026-07-05; controlled `link add` and explicit historical backfill for curated `related_entries`, sequenced after the lower-risk retrieval/diagram/risk-signaling work unless reprioritized)

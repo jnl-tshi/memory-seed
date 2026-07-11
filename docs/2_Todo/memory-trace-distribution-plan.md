@@ -61,6 +61,11 @@ tags:
 > `pip install memory-trace` as available (hotfix staged 2026-07-10).
 > **Acceptance criteria:** see the per-phase gates below.
 
+> **Next-generation planning link:** future Memory Trace product and system evolution is governed by
+> [`memory-trace-product-and-system-architecture-blueprint.md`](memory-trace-product-and-system-architecture-blueprint.md).
+> This distribution plan remains active only for the package/release ordering, publication, and
+> dependency-boundary acceptance criteria that are still unique to the companion distribution.
+
 ## Decision
 
 Pillar B ships as a **separate companion distribution**, not as a permanent in-package optional

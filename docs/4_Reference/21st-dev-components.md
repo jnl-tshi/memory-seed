@@ -13,7 +13,11 @@ Repo/platform are **MIT** ("every file is MIT-licensed and yours to keep"), free
 Components are **React + Tailwind CSS + Radix UI** (shadcn/ui-inspired). **Memory Trace is a hand-written vanilla-JS static app** (`memory-trace/memory_trace/static/{index.html, app.js, styles.css}` — no framework, no bundler, no Tailwind). A copied component does not drop in. Direct use would require either hand-porting to vanilla CSS (losing the React/Tailwind value) or re-platforming Trace to React (disproportionate to Trace's deliberately lean stack). So 21st.dev is kept as a **design-idea source**, not a dependency.
 
 ## If revisited
-Only a decision to re-platform Memory Trace onto React/Tailwind (for independent reasons) would make direct 21st.dev adoption worthwhile.
+The 2026-07-11 next-generation Memory Trace frontend proposal now supplies that independent reason
+to evaluate React/Tailwind-compatible component ideas:
+`docs/2_Todo/memory-trace-frontend-architecture-and-design-system-proposal.md`. This does **not**
+make 21st.dev a dependency by default; it remains inspiration-only until a specific component is
+reviewed for licence, accessibility, bundle cost, and fit with the Trace design system.
 
 ## Related
 - Cross-reference: `docs/2_Todo/fontjoy-typography-pairing.md` (adopted from the same reel), `docs/4_Reference/fffuel-svg-css-generators.md` (also reference-only).

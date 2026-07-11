@@ -14,7 +14,7 @@ from memory_trace.cli import main
 from memory_trace.lense import LenseCache, LenseService, create_app, missing_optional_dependency_hint
 
 
-def _entry(title, entry_id, body, *, agent="codex", related=None, branch=None, supersedes=None):
+def _entry(title, entry_id, body, *, agent="codex", related=None, branch=None, supersedes=None, evolves=None, topics=None):
     lines = [
         f"## {title}",
         "",
@@ -27,12 +27,18 @@ def _entry(title, entry_id, body, *, agent="codex", related=None, branch=None, s
     ]
     if branch:
         lines.append(f"branch: {branch}")
+    if topics:
+        lines.append("topics:")
+        lines.extend(f"  - {topic}" for topic in topics)
     if related:
         lines.append("related_entries:")
         lines.extend(f"  - {ref}" for ref in related)
     if supersedes:
         lines.append("supersedes:")
         lines.extend(f"  - {ref}" for ref in supersedes)
+    if evolves:
+        lines.append("evolves:")
+        lines.extend(f"  - {ref}" for ref in evolves)
     lines += ["```", "", body, ""]
     return "\n".join(lines)
 
@@ -300,6 +306,100 @@ class LenseServiceTests(unittest.TestCase):
         self.assertNotIn("supersedes", {edge["type"] for edge in related_only["edges"]})
         self.assertNotIn("branch", {edge["type"] for edge in related_only["edges"]})
 
+    def test_graph_emits_evolves_edges_and_node_lineage_fields(self):
+        # evolves is the freshness-without-retirement lifecycle edge; the Trail
+        # renderer also needs branch + datetime on every node to lay out lanes
+        # and rows without a second fetch.
+        self.write_session(
+            "2026-06-11.md",
+            "\n".join(
+                [
+                    _entry("2026-06-11 09:00 - Original approach", "mse_ev_base", "Base.",
+                           branch="feature/y"),
+                    _entry("2026-06-11 12:00 - Refined approach", "mse_ev_next", "Refined.",
+                           branch="feature/y", evolves=["mse_ev_base"]),
+                ]
+            ),
+        )
+        service = self.service()
+
+        graph = service.graph(edge_types=("branch", "evolves"))
+        by_type = {}
+        for edge in graph["edges"]:
+            by_type.setdefault(edge["type"], []).append((edge["source"], edge["target"]))
+        # Directed: the newer entry (carrying evolves:) points at the older one.
+        self.assertIn(("mse_ev_next", "mse_ev_base"), by_type.get("evolves", []))
+        self.assertNotIn(("mse_ev_base", "mse_ev_next"), by_type.get("evolves", []))
+        nodes = {node["id"]: node for node in graph["nodes"]}
+        self.assertEqual(nodes["mse_ev_base"]["branch"], "feature/y")
+        self.assertEqual(nodes["mse_ev_base"]["datetime"], "2026-06-11T09:00:00")
+        # Asking for evolves alone must not leak other edge kinds.
+        evolves_only = service.graph(edge_types=("evolves",))
+        self.assertEqual({edge["type"] for edge in evolves_only["edges"]}, {"evolves"})
+
+    def test_facets_and_filters_include_indexed_topics(self):
+        # Indexed topics (entry YAML `topics:`) must feed the topics facet and
+        # the topic filter, not just inline #tags.
+        self.write_session(
+            "2026-06-12.md",
+            _entry("2026-06-12 09:00 - Topic-carrying entry", "mse_topical", "Body.",
+                   topics=["retrieval", "graph"]),
+        )
+        service = self.service()
+
+        facets = service.facets()
+        self.assertIn("retrieval", facets["topics"])
+        self.assertIn("graph", facets["topics"])
+        page = service.search(q="", topic="retrieval", granularity="entry")
+        self.assertEqual({item["entry_id"] for item in page["results"]}, {"mse_topical"})
+
+    def test_chunk_reports_commit_and_batch_siblings(self):
+        # Commit packaging: each entry maps to the oldest commit whose diff
+        # added it, so main-era work with no immediate commit rides "the next
+        # commit that occurred" (batch commits, pre-branching history). An
+        # appended-but-uncommitted entry reports commit None with tracking on.
+        def git(*args):
+            subprocess.run(["git", "-C", str(self.cwd), *args], check=True, capture_output=True)
+
+        git("init")
+        git("config", "user.email", "test@example.com")
+        git("config", "user.name", "Test")
+        git("config", "commit.gpgsign", "false")
+        git("add", "-A")
+        git("commit", "-m", "batch: seed sessions")
+        self.write_session("2026-06-05.md", _entry("2026-06-05 09:00 - Later work", "mse_later", "Later."))
+        git("add", "-A")
+        git("commit", "-m", "second commit")
+        service = self.service()
+
+        detail = service.chunk("mse_bootstrap")
+        self.assertEqual(detail["commit"]["subject"], "batch: seed sessions")
+        self.assertTrue(detail["commit_tracking"])
+        # The whole seeded batch shares the commit; later work does not.
+        self.assertIn("mse_ui", detail["commit_entry_ids"])
+        self.assertIn("mse_graph", detail["commit_entry_ids"])
+        self.assertNotIn("mse_later", detail["commit_entry_ids"])
+        sibling_ids = {item["entry_id"] for item in detail["commit_entries"]}
+        self.assertIn("mse_ui", sibling_ids)
+        self.assertNotIn("mse_bootstrap", sibling_ids)  # never lists itself
+
+        later = service.chunk("mse_later")
+        self.assertEqual(later["commit"]["subject"], "second commit")
+
+        self.write_session("2026-06-06.md", _entry("2026-06-06 09:00 - Uncommitted", "mse_uncommitted", "Pending."))
+        pending = self.service().chunk("mse_uncommitted")
+        self.assertIsNone(pending["commit"])
+        self.assertTrue(pending["commit_tracking"])
+
+        # Evidence-based main attribution: no-branch entries captured by a
+        # first-parent trunk commit join main (inferred); the uncommitted one
+        # has no evidence and stays unattached.
+        nodes = {node["id"]: node for node in self.service().graph(edge_types=("branch",))["nodes"]}
+        self.assertEqual(nodes["mse_bootstrap"]["branch"], "main")
+        self.assertTrue(nodes["mse_bootstrap"]["branch_inferred"])
+        self.assertIsNone(nodes["mse_uncommitted"]["branch"])
+        self.assertFalse(nodes["mse_uncommitted"]["branch_inferred"])
+
     def test_graph_is_entry_level_and_reports_connectivity(self):
         self.write_session(
             "2026-06-04.md",
@@ -532,7 +632,11 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn("graphTransform", script)
         self.assertIn("graphHover", script)
         self.assertIn("hashString", script)
-        self.assertIn("degreePull", script)
+        # Force-directed layout (FR repulsion + weighted attraction + collision),
+        # deterministic and cached - replaces the attraction-only hash scatter.
+        self.assertIn("graphForceLayout", script)
+        self.assertIn("repulsion", script)
+        self.assertIn("graphLayoutCache", script)
         self.assertIn("graphTitle", script)
         self.assertIn("clearGraphHover", script)
         self.assertIn("graph-hit", script)
@@ -540,7 +644,7 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertNotIn("node.title.slice(0, 28)", script)
         self.assertIn('granularity: "entry"', script)
         self.assertNotIn('granularity: state.graphScope === "all" ? "all" : "entry"', script)
-        self.assertIn('entry_id: state.graphScope === "neighborhood"', script)
+        self.assertIn('entry_id: !trail && state.graphScope === "neighborhood"', script)
         self.assertIn("agent: state.agent", script)
         self.assertIn("user: state.user", script)
         self.assertIn("topic: state.topic", script)
@@ -565,10 +669,12 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn("All entries", script)
         self.assertNotIn("All chunks", script)
         self.assertIn("Neighborhood", script)
-        self.assertIn("graphLegend", script)
-        self.assertIn("graphLegendLabel", script)
+        # De-crowding pass: the floating legend is gone; the edge-type toggle
+        # chips carry their edge color directly (dual-encoded control).
+        self.assertNotIn("graphLegend", script)
+        self.assertIn("edge-chip", script)
+        self.assertIn('style="border-color:${edgeColor(type)}"', script)
         self.assertIn("Size: ", script)
-        self.assertIn("Near: links/topics/dates", script)
         self.assertIn("graph-stage", script)
         self.assertIn("node.connectivity", script)
         self.assertIn("node.importance_score", script)
@@ -586,10 +692,7 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn("pointer-events: all;", styles)
         self.assertIn("cursor: pointer;", styles)
         self.assertIn(".graph-edge.graph-related", styles)
-        self.assertIn(".graph-legend", styles)
-        self.assertIn("position: absolute;", styles)
-        self.assertIn("bottom: 12px;", styles)
-        self.assertIn(".legend-swatch", styles)
+        self.assertNotIn(".graph-legend", styles)
         self.assertIn(".graph-node:not(.graph-dim)", styles)
         self.assertIn("paint-order: stroke;", styles)
         self.assertIn("pointer-events: none;", styles)
@@ -603,7 +706,10 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn("restoreCenterScroll", script)
         self.assertIn("const scrollState = captureCenterScroll();", script)
         self.assertIn("restoreCenterScroll(scrollState);", script)
-        self.assertIn('[".scroll", ".timeline-stream", ".overview-scroll"]', script)
+        # Scroll preservation must cover every scrollable pane, not just the
+        # center views - a missing selector is the "left pane resets on facet
+        # click" bug class.
+        self.assertIn('[".pane.left", ".pane.right", ".scroll", ".trail-scroll"]', script)
 
     def test_frontend_highlights_and_scrolls_to_matched_subsection(self):
         # Entry-level UI results plan (Arc 2a): a subsection match highlights and
@@ -625,25 +731,57 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn(".match-note", styles)
 
     def test_frontend_has_trail_view_with_distinct_supersedes_and_branch_edges(self):
-        # Trail view (Arc 2c): a dedicated tab rendering the branch + supersedes
-        # axes with distinct color semantics and a directed supersession edge.
+        # Trail is a dedicated git-graph timeline renderer: lane-per-branch
+        # (interval coloring), lifecycle arcs, recent window with load-older.
         import importlib.resources as resources
 
         script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
+        styles = resources.files("memory_trace").joinpath("static/styles.css").read_text(encoding="utf-8")
 
         self.assertIn('["trail", "Trail"]', script)
+        # Trail is the primary surface: first tab and the default view.
+        self.assertIn('[["trail", "Trail"], ["graph", "Graph"]', script)
+        self.assertIn('view: storedView() || "trail"', script)
         self.assertIn('state.view === "trail"', script)
-        self.assertIn('TRAIL_EDGE_TYPES = "branch,supersedes,related"', script)
+        self.assertIn('TRAIL_EDGE_TYPES = "branch,supersedes,evolves,related"', script)
+        # Relationship lanes left of main (always dotted): replaces | evolves |
+        # related - related innermost since its routes are pure branch hops.
+        # Branch lanes right of main are the solid git branches.
+        self.assertIn('TRAIL_REL_LANES = ["supersedes", "evolves", "related"]', script)
+        self.assertIn("function trailView(", script)
+        self.assertIn("function trailModel(", script)
+        # Lane occupancy runs fork-to-merge (not just entry rows), so branches
+        # converging on one merge point hold parallel lanes; shortest-lived
+        # allocates first, putting the longest branch outermost.
+        self.assertIn("laneIntervals", script)
+        self.assertIn("const occupancy", script)
+        self.assertIn("data-trail-more", script)  # bounded window, load older
+        self.assertIn("trail-link", script)  # fork/merge connectors to main
+        # Two-rule related model (user-finalised): routes draw only for
+        # cross-branch pairs; same-branch context brackets the rows (full =
+        # outbound citations, pastel = inbound mentions + second-order).
+        self.assertIn("chainPrimary", script)
+        self.assertIn("chainSecondary", script)
+        self.assertNotIn("TRAIL_MAIN_GAP", script)
+        self.assertIn("stripTitleStamp", script)
         # Distinct edge-type color semantics (supersedes never == related).
         self.assertIn("supersedes:", script)
         self.assertIn("branch:", script)
-        # Directed, dashed supersession edge with an arrow marker.
-        self.assertIn("arrow-supersedes", script)
+        self.assertIn("var(--edge-evolves)", script)
+        self.assertIn("--edge-evolves:", styles)
+        # Directed lifecycle edges: dashed replaces, dotted refines, arrowed.
+        self.assertIn("trail-arrow-supersedes", script)
+        self.assertIn("trail-arrow-evolves", script)
         self.assertIn('stroke-dasharray="6 4"', script)
-        # Legend label must agree with edge direction (source replaces target).
-        # "replaced by" would invert the meaning of the arrow.
-        self.assertIn('["supersedes", "replaces"]', script)
+        # Labels must agree with edge direction (source replaces target).
+        # "replaced by" would invert the meaning of the arrow. The evolves edge
+        # is labelled with its entry-field name, not a synonym.
+        self.assertIn("replaces", script)
+        self.assertIn("evolves", script)
+        self.assertNotIn("refines", script)
         self.assertNotIn("replaced by", script)
+        self.assertIn(".trail-rail", styles)
+        self.assertIn(".trail-row", styles)
 
     def test_frontend_center_view_bounds_scroll_region(self):
         import importlib.resources as resources
@@ -655,68 +793,62 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn("height: 100%;", styles)
         self.assertIn("overflow: hidden;", styles)
 
-    def test_timeline_overview_can_scroll_horizontally_at_all_zooms(self):
+    def test_frontend_timeline_and_search_tabs_are_retired(self):
+        # Timeline retired 2026-07-11: the Trail (git-graph timeline) is its
+        # chronological successor. Search retired as a destination the same
+        # day: it became a function over the Trail and Graph. The
+        # /api/timeline endpoint intentionally remains server-side; only the
+        # frontend surfaces are gone. Stored "timeline"/"search" view
+        # preferences must migrate to Trail, not a dead tab.
         import importlib.resources as resources
 
         script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
         styles = resources.files("memory_trace").joinpath("static/styles.css").read_text(encoding="utf-8")
 
-        self.assertIn("overview-scroll", script)
-        self.assertIn("--bucket-count", script)
-        self.assertIn("--bucket-min", script)
-        self.assertIn("data-timeline-zoom", script)
-        self.assertIn("scrollTimelineToBucket", script)
-        self.assertIn("findTimelineBucketTarget", script)
-        self.assertIn("timelineItemDatetime", script)
-        self.assertIn("data-entry-datetime", script)
-        # Timeline scrolls via its own bucket mechanism (scrollTimelineToBucket,
-        # asserted above). scrollIntoView now exists in app.js but only for the
-        # reader's matched-subsection jump - it is never wired to the timeline.
-        self.assertIn("scrollTimelineToBucket", script)
-        self.assertIn(".overview-scroll", styles)
-        self.assertIn("overflow-x: scroll;", styles)
-        self.assertIn("grid-template-columns: repeat(var(--bucket-count, 1), minmax(var(--bucket-min, 12px), 1fr));", styles)
-        self.assertIn("calc(var(--bucket-count, 1) * var(--bucket-min, 12px))", styles)
-        self.assertIn("width: max(100%, calc(var(--bucket-count, 1) * var(--bucket-min, 12px)));", styles)
-        self.assertIn("background: transparent;", styles)
-        self.assertIn("const bucketMin = 44;", script)
-        self.assertNotIn('"3h": 30', script)
-        self.assertIn("bucket-label", script)
-        self.assertIn(".bucket-label", styles)
-        self.assertIn("bottom: 7px;", styles)
-        self.assertIn("top: 5px;", styles)
-        self.assertIn("max-width: calc(100% - 6px);", styles)
+        self.assertNotIn('["timeline", "Timeline"]', script)
+        self.assertNotIn("timelineView", script)
+        self.assertNotIn("/api/timeline", script)
+        self.assertNotIn("timelineZoom", script)
+        self.assertNotIn("timelineSelectedBucket", script)
+        self.assertNotIn('["search", "Search"]', script)
+        self.assertNotIn("function searchView(", script)
+        self.assertNotIn("function resultList(", script)
+        self.assertIn('stored === "timeline" || stored === "search" ? "trail" : stored', script)
+        self.assertNotIn(".timeline-overview", styles)
+        self.assertNotIn(".timeline-stream", styles)
+        self.assertNotIn(".bucket", styles)
 
-    def test_timeline_overview_stays_visible_above_stream_and_receives_filters(self):
+    def test_frontend_search_is_a_function_over_trail_and_graph(self):
+        # Search-as-a-function contract (user decision 2026-07-11): the box is
+        # always in the topbar, server-ranked results feed a ranked dropdown
+        # (the roadmap's "ranked results drawer"), and the match set
+        # highlights in place - Trail rows get a marker dot with misses
+        # dimmed, Graph nodes dim the same way. Matches cycle in Trail order.
         import importlib.resources as resources
 
         script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
         styles = resources.files("memory_trace").joinpath("static/styles.css").read_text(encoding="utf-8")
 
-        self.assertIn('agent: state.agent', script)
-        self.assertIn('user: state.user', script)
-        self.assertIn('topic: state.topic', script)
-        self.assertIn("timelineHideEmpty", script)
-        self.assertIn("include_empty", script)
-        self.assertIn("limit: 500", script)
-        self.assertIn("data-timeline-empty", script)
-        self.assertIn("timelineSelectedBucket", script)
-        self.assertIn("data-bucket-date", script)
-        self.assertIn("data-bucket-start", script)
-        self.assertIn("data-bucket-end", script)
-        self.assertIn("selectTimelineBucket", script)
-        self.assertIn("markSelectedTimelineBucket", script)
-        self.assertIn('target.dataset.bucketStart', script)
-        self.assertNotIn('target.dataset.bucketStart) {\n      await updateFilter("dateFrom"', script)
-        self.assertNotIn('target.dataset.bucketStart) {\n      await updateFilter("dateTo"', script)
-        self.assertIn("timeline-overview", script)
-        self.assertIn("timeline-stream", script)
-        self.assertIn(".timeline-overview", styles)
-        self.assertIn("position: sticky;", styles)
-        self.assertIn("top: 44px;", styles)
-        self.assertIn(".bucket.selected", styles)
-        self.assertIn("grid-template-rows: 44px auto minmax(0, 1fr);", styles)
-        self.assertIn("overflow-y: auto;", styles)
+        self.assertIn("function refreshSearch(", script)
+        self.assertIn("matchEntries", script)
+        self.assertIn("function searchDropdown(", script)
+        self.assertIn("data-search-jump", script)
+        self.assertIn("function searchStatus(", script)
+        self.assertIn("data-match-next", script)
+        self.assertIn("data-match-prev", script)
+        self.assertIn("data-search-clear", script)
+        self.assertIn("function jumpToMatch(", script)
+        self.assertIn("function ensureTrailVisible(", script)
+        self.assertIn("applyTrailScroll();", script)  # wired into render()
+        # In-place highlighting, never removal: the Trail keeps its structure.
+        self.assertIn("search-match", script)
+        self.assertIn("search-miss", script)
+        self.assertIn("trail-match-dot", script)
+        self.assertIn(".trail-row.search-miss", styles)
+        self.assertIn(".trail-match-dot", styles)
+        self.assertIn(".search-dropdown", styles)
+        # Typing must never select or navigate (the old focus-steal bug class)
+        self.assertNotIn("await selectChunk(state.results[0]", script)
 
 
 if __name__ == "__main__":

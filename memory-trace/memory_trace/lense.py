@@ -5,8 +5,11 @@ import hashlib
 import json
 import os
 import sqlite3
+import subprocess
 import tempfile
+import threading
 import time
+import uuid
 import webbrowser
 import gc
 from dataclasses import asdict
@@ -63,12 +66,21 @@ class LenseCache:
         self.cwd = Path(cwd).resolve()
         self.runtime = resolve_runtime(self.cwd)
         self.db_path = Path(db_path) if db_path is not None else default_cache_path(self.cwd, cache_root=cache_root)
+        # Serializes rebuilds within this process. The UI fires several API
+        # calls concurrently on first load; without this, two threads raced the
+        # same pid-named tmp file ("table meta already exists", then Windows
+        # PermissionError on replace/unlink).
+        self._rebuild_lock = threading.Lock()
 
     def rebuild(self) -> None:
+        with self._rebuild_lock:
+            self._rebuild_locked()
+
+    def _rebuild_locked(self) -> None:
         self._ensure_cache_parent()
-        tmp = self.db_path.with_name(f"{self.db_path.name}.{os.getpid()}.tmp")
-        if tmp.exists():
-            tmp.unlink()
+        # Unique per attempt (not just per pid): concurrent threads share a pid,
+        # and a crashed run's stale tmp must never be another rebuild's target.
+        tmp = self.db_path.with_name(f"{self.db_path.name}.{uuid.uuid4().hex}.tmp")
         conn = sqlite3.connect(tmp)
         try:
             self._create_schema(conn)
@@ -109,15 +121,52 @@ class LenseCache:
                 "insert into meta(key, value) values('runtime_root', ?)",
                 (str(self.runtime.workspace_root),),
             )
+            commit_map = _entry_commit_map(self.runtime.workspace_root)
+            conn.execute(
+                "insert into meta(key, value) values('entry_commits', ?)",
+                (json.dumps(commit_map),),
+            )
+            # Evidence-based main attribution: an entry with no recorded
+            # branch whose capturing commit sits on the trunk's first-parent
+            # history was committed directly on main - proven, not assumed.
+            main_shas = _first_parent_main_shas(self.runtime.workspace_root)
+            conn.execute(
+                "insert into meta(key, value) values('main_commit_entries', ?)",
+                (json.dumps(sorted(eid for eid, info in commit_map.items() if info.get("sha") in main_shas)),),
+            )
             conn.commit()
         finally:
             conn.close()
         gc.collect()
-        os.replace(tmp, self.db_path)
+        # Windows: a reader connection that has not finished closing can hold
+        # the destination briefly; retry the atomic swap instead of failing the
+        # whole rebuild, and never leave the tmp file behind.
+        try:
+            for attempt in range(5):
+                try:
+                    os.replace(tmp, self.db_path)
+                    break
+                except PermissionError:
+                    if attempt == 4:
+                        raise
+                    time.sleep(0.1 * (attempt + 1))
+        finally:
+            if tmp.exists():
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
 
     def ensure_current(self) -> None:
-        if not self.db_path.exists() or not self._metadata_matches():
-            self.rebuild()
+        # Double-checked around the lock: the common already-current path stays
+        # lock-free; racing first-load threads serialize, and the losers see the
+        # winner's fresh cache instead of rebuilding again.
+        if self.db_path.exists() and self._metadata_matches():
+            return
+        with self._rebuild_lock:
+            if self.db_path.exists() and self._metadata_matches():
+                return
+            self._rebuild_locked()
 
     def status(self) -> dict[str, Any]:
         if not self.db_path.exists():
@@ -131,6 +180,18 @@ class LenseCache:
             "file_count": file_count,
             "chunk_count": chunk_count,
         }
+
+    def entry_commits(self) -> dict[str, dict[str, str]]:
+        self.ensure_current()
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute("select value from meta where key='entry_commits'").fetchone()
+        return json.loads(row[0]) if row else {}
+
+    def main_commit_entries(self) -> set[str]:
+        self.ensure_current()
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute("select value from meta where key='main_commit_entries'").fetchone()
+        return set(json.loads(row[0])) if row else set()
 
     def chunks(self, *, granularity: str | None = None) -> list[MemoryChunk]:
         self.ensure_current()
@@ -148,7 +209,12 @@ class LenseCache:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 stored = conn.execute("select path, mtime_ns, size from files order by path").fetchall()
+                # Caches from before commit tracking lack these keys; rebuild once.
+                has_commits = conn.execute("select 1 from meta where key='entry_commits'").fetchone()
+                has_main_map = conn.execute("select 1 from meta where key='main_commit_entries'").fetchone()
         except sqlite3.Error:
+            return False
+        if not has_commits or not has_main_map:
             return False
         return [(str(path), int(mtime), int(size)) for path, mtime, size in current] == [
             (str(path), int(mtime), int(size)) for path, mtime, size in stored
@@ -302,8 +368,31 @@ class LenseService:
             raise KeyError(chunk_id)
         node = graph.get(selected.entry_id or "")
         sidecar = entry_diagram_sidecars(self.cache.cwd).get(selected.entry_id or "")
+        # Commit packaging: which git commit first captured this entry, and
+        # which other entries rode the same commit (batch commits on main and
+        # pre-branching history included - the map is diff-derived, not
+        # merge-derived). commit None + commit_tracking True = not yet
+        # committed; commit_tracking False = no git data at all.
+        commit_map = self.cache.entry_commits()
+        commit = commit_map.get(selected.entry_id or "")
+        commit_entry_ids: list[str] = []
+        commit_entries: list[dict[str, Any]] = []
+        if commit:
+            commit_entry_ids = sorted(
+                entry_id for entry_id, info in commit_map.items() if info.get("sha") == commit.get("sha")
+            )
+            by_entry = {chunk.entry_id: chunk for chunk in entries if chunk.entry_id}
+            commit_entries = [
+                _chunk_summary(by_entry[entry_id])
+                for entry_id in commit_entry_ids
+                if entry_id in by_entry and entry_id != selected.entry_id
+            ]
         return {
             **_chunk_to_api(selected),
+            "commit": commit or None,
+            "commit_entry_ids": commit_entry_ids,
+            "commit_entries": commit_entries,
+            "commit_tracking": bool(commit_map),
             "backlinks": list(node.inbound if node else ()),
             "related_entries": list(selected.related_entries),
             # Authored decision-diagram sidecar metadata (Class 2, frozen);
@@ -396,12 +485,14 @@ class LenseService:
         else:
             visible_ids = list(by_id)
         limited_ids = set(visible_ids[: _limit(limit, maximum=1000)])
+        inferred_main = self.cache.main_commit_entries()
         nodes = [
             _graph_node(
                 by_id[item_id],
                 node_id=item_id,
                 connectivity=connectivity.get(item_id, 0),
                 importance_score=importance.get(item_id, 0.0),
+                inferred_main=not by_id[item_id].branch and (by_id[item_id].entry_id or "") in inferred_main,
             )
             for item_id in visible_ids
             if item_id in limited_ids and item_id in by_id
@@ -456,6 +547,15 @@ def create_app(cwd: str | Path = ".", *, rebuild_cache: bool = False) -> Any:
             raise HTTPException(status_code=404, detail="asset not found")
         path = resources.files("memory_trace").joinpath("static", name)
         return FileResponse(path)
+
+    @app.get("/assets/fonts/{name}")
+    def asset_font(name: str) -> Any:
+        # Self-hosted type pairing (OFL, license files ship alongside the
+        # woff2s): no CDN call, Trace stays fully local/offline.
+        if name not in {"inter-var.woff2", "space-grotesk-var.woff2"}:
+            raise HTTPException(status_code=404, detail="asset not found")
+        path = resources.files("memory_trace").joinpath("static", "fonts", name)
+        return FileResponse(path, media_type="font/woff2")
 
     @app.get("/api/runtime")
     def api_runtime() -> dict[str, Any]:
@@ -580,6 +680,63 @@ def run_server(args: argparse.Namespace) -> int:
 def _file_row(root: Path, path: Path) -> tuple[str, int, int]:
     stat = path.stat()
     return (path.relative_to(root).as_posix(), stat.st_mtime_ns, stat.st_size)
+
+
+def _first_parent_main_shas(root: Path) -> set[str]:
+    """Commit SHAs on the trunk's first-parent history. Work committed
+    directly on main (the pre-branching era) lives here; branch work reaches
+    main only through merge commits, which first-parent traversal skips.
+    Fails open to an empty set without git."""
+    for ref in ("main", "master", "HEAD"):
+        try:
+            proc = subprocess.run(
+                ["git", "-C", str(root), "rev-list", "--first-parent", ref],
+                capture_output=True,
+                timeout=60,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return set()
+        if proc.returncode == 0:
+            return set(proc.stdout.decode("utf-8", errors="replace").split())
+    return set()
+
+
+def _entry_commit_map(root: Path) -> dict[str, dict[str, str]]:
+    """entry_id -> the oldest commit whose diff added that entry's id line.
+
+    One ``git log -p`` pass over the session tree, newest-first; assignment
+    overwrites on every sighting, so the final value is the OLDEST commit -
+    migrations and fuse rewrites that re-add an entry never steal attribution
+    from the commit that first captured it. This is what makes "work done on
+    main with no commit rides the next commit that occurs" true by
+    construction, including pre-branching history. Fails open to an empty map
+    when git or a repository is unavailable.
+    """
+    try:
+        proc = subprocess.run(
+            [
+                "git", "-C", str(root), "log", "-p",
+                "--format=%x01%H%x1f%h%x1f%aI%x1f%s",
+                "--", ".memory-seed/sessions",
+            ],
+            capture_output=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return {}
+    if proc.returncode != 0:
+        return {}
+    mapping: dict[str, dict[str, str]] = {}
+    current: dict[str, str] | None = None
+    for line in proc.stdout.decode("utf-8", errors="replace").splitlines():
+        if line.startswith("\x01"):
+            parts = (line[1:].split("\x1f") + ["", "", "", ""])[:4]
+            current = {"sha": parts[0], "short": parts[1], "date": parts[2], "subject": parts[3]}
+        elif current is not None and line.startswith("+entry_id:"):
+            entry_id = line[len("+entry_id:"):].strip()
+            if entry_id:
+                mapping[entry_id] = current
+    return mapping
 
 
 def _chunk_to_storage(chunk: MemoryChunk) -> dict[str, Any]:
@@ -782,7 +939,7 @@ def _graph_edges(
             seen.add(key)
             edges.append({"source": source, "target": target, "type": edge_type})
 
-    if "related" in edge_types or "supersedes" in edge_types:
+    if edge_types & {"related", "supersedes", "evolves"}:
         graph = build_related_entry_graph(chunks=entries)
         for node in graph.values():
             source_chunk = by_id.get(node.entry_id)
@@ -798,6 +955,12 @@ def _graph_edges(
                 for target in node.supersedes:
                     target_chunk = by_id.get(target)
                     add(source, node_id(target_chunk) if target_chunk else target, "supersedes")
+            # evolves is the freshness-without-retirement lifecycle edge: the
+            # source refines the target while the target stays valid.
+            if "evolves" in edge_types:
+                for target in node.evolves:
+                    target_chunk = by_id.get(target)
+                    add(source, node_id(target_chunk) if target_chunk else target, "evolves")
 
     def chain(grouped: dict[str, list[MemoryChunk]], edge_type: str) -> None:
         if edge_type not in edge_types:
@@ -911,13 +1074,21 @@ def _graph_node(
     node_id: str | None = None,
     connectivity: int = 0,
     importance_score: float = 0.0,
+    inferred_main: bool = False,
 ) -> dict[str, Any]:
+    # inferred_main: no branch was recorded, but the entry's capturing commit
+    # sits on main's first-parent history - committed directly on main, so it
+    # joins the trunk. Recorded branches are never overridden; the raw
+    # metadata surface keeps showing the recorded (null) value.
     return {
         "id": node_id or chunk.entry_id or chunk.chunk_id,
         "chunk_id": chunk.chunk_id,
         "entry_id": chunk.entry_id,
         "title": chunk.title,
         "date": chunk.session_date.isoformat(),
+        "datetime": chunk.entry_datetime.isoformat() if chunk.entry_datetime else None,
+        "branch": chunk.branch or ("main" if inferred_main else None),
+        "branch_inferred": inferred_main,
         "agent": chunk.agent_type or chunk.agent_name or "unknown",
         "topics": _topics(chunk),
         "granularity": chunk.granularity,
@@ -943,7 +1114,7 @@ def _chunk_datetime(chunk: MemoryChunk) -> datetime:
 
 
 def _topics(chunk: MemoryChunk) -> list[str]:
-    return sorted(set(chunk.tags) | set(chunk.contexts))
+    return sorted(set(chunk.topics) | set(chunk.tags) | set(chunk.contexts))
 
 
 def _parse_date(value: str | None) -> date | None:

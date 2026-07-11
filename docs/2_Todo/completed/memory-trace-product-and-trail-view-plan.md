@@ -12,6 +12,9 @@ format: "Markdown research proposal"
 > **Status:** COMPLETED 2026-07-06 - promoted from inbox on 2026-07-05 as the canonical naming/product plan for
 > the companion UI workstream. Supersedes the Trail-only naming plan now archived at
 > [`completed/memory-trail-renaming-plan.md`](completed/memory-trail-renaming-plan.md).
+> Future Memory Trace product/system evolution is now governed by
+> [`../memory-trace-product-and-system-architecture-blueprint.md`](../memory-trace-product-and-system-architecture-blueprint.md)
+> and [`../../3_Spec/memory-trace-trail-search-and-graph-ux.md`](../../3_Spec/memory-trace-trail-search-and-graph-ux.md).
 > **Priority:** Resolved. Naming, branch capture, package extraction, and the Trail view are present
 > in the unpushed Memory Trace worktree.
 > **Source:** Conversation 2026-07-05 (JNL): use **Memory Trace** as the overall package/product name,
