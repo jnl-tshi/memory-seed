@@ -25,6 +25,12 @@ node_modules/
 
 # Local Memory Lense prototype exports kept outside packaged source
 docs/todo/memory lense/
+
+# Memory Trace interaction-recording harness output (on-demand artifacts,
+# like the synthetic datasets - only deliberately-copied recordings under
+# docs/4_Reference/... are ever committed)
+memory-trace/tests/capture/*.webm
+memory-trace/tests/capture/*.gif
 .memory-seed/local.yaml
 
 # Local editor config

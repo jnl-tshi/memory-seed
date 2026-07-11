@@ -856,6 +856,15 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn(".trail-row.search-miss", styles)
         self.assertIn(".trail-match-dot", styles)
         self.assertIn(".search-dropdown", styles)
+        # Regression (found 2026-07-11 while building the Playwright recording
+        # harness): render()'s caret-preservation refocus of #query re-fired
+        # the box's own "refocus reopens the dropdown" listener, so
+        # jumpToMatch/Escape's close never stuck while the box kept focus.
+        # restoringFocus distinguishes the internal restore from a genuine
+        # user refocus so a deliberate close survives its own re-render.
+        self.assertIn("let restoringFocus = false;", script)
+        self.assertIn("restoringFocus = true;\n  el.focus();\n  restoringFocus = false;", script)
+        self.assertIn("if (restoringFocus) return;", script)
         # Typing must never select or navigate (the old focus-steal bug class)
         self.assertNotIn("await selectChunk(state.results[0]", script)
 
