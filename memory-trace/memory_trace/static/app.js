@@ -461,6 +461,10 @@ const TRAIL_WINDOW_STEP = 60;
 // the right of them are the solid spawned git branches.
 const TRAIL_REL_LANES = ["related", "evolves", "supersedes"];
 const TRAIL_REL_LANE_W = 12;
+// Corner radius for every lane change (gitgraph "rounded" style): straight
+// runs, small elbows at the turns. Must stay below half the minimum row gap
+// (TRAIL_ROW / 2) and below one lane width so corners never overlap.
+const TRAIL_CORNER = 7;
 const TRAIL_REL_ZONE = TRAIL_REL_LANES.length * TRAIL_REL_LANE_W + 12;
 // All relationship routes share the clearest dash cadence; color alone
 // separates the types (user decision - replaces' dash won the readability
@@ -603,8 +607,10 @@ function trailView() {
 
   // Gitgraph forking: fork/merge rows come from the model - the same rows
   // that drive lane occupancy, so connectors and lane allocation always
-  // agree. A branch with no newer main row is still open and deliberately
-  // dangles - no merge is fabricated.
+  // agree. Connectors are straight runs with small-radius elbows (the
+  // gitgraph "rounded" style): the bend sits right at the junction row, the
+  // rest travels vertically in the branch's own lane. A branch with no newer
+  // main row is still open and deliberately dangles - no merge is fabricated.
   const connectors = [...linkRows.entries()].flatMap(([branch, { forkRow, mergeRow }]) => {
     const rows = laneRows.get(branch) || [];
     if (!rows.length) return [];
@@ -612,24 +618,23 @@ function trailView() {
     const oldest = rows[rows.length - 1];
     const bx = laneX(branch);
     const mx = laneX("main");
+    const r = TRAIL_CORNER;
     const out = [];
     if (forkRow !== undefined) {
-      const y1 = rowY(forkRow);
-      const y2 = rowY(oldest);
-      const mid = (y1 + y2) / 2;
-      out.push(`<path class="trail-link" d="M ${mx} ${y1} C ${mx} ${mid} ${bx} ${mid} ${bx} ${y2}" fill="none" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></path>`);
+      const yf = rowY(forkRow);
+      const yb = rowY(oldest);
+      out.push(`<path class="trail-link" d="M ${mx} ${yf} L ${bx - r} ${yf} Q ${bx} ${yf} ${bx} ${yf - r} L ${bx} ${yb}" fill="none" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></path>`);
     }
     if (mergeRow !== undefined) {
-      const y1 = rowY(newest);
-      const y2 = rowY(mergeRow);
-      const mid = (y1 + y2) / 2;
-      out.push(`<path class="trail-link" d="M ${bx} ${y1} C ${bx} ${mid} ${mx} ${mid} ${mx} ${y2}" fill="none" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></path>`);
+      const yb = rowY(newest);
+      const ym = rowY(mergeRow);
+      out.push(`<path class="trail-link" d="M ${bx} ${yb} L ${bx} ${ym + r} Q ${bx} ${ym} ${bx - r} ${ym} L ${mx} ${ym}" fill="none" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></path>`);
     }
     return out;
   });
 
-  // Relationship edges route as straight orthogonal lines through their
-  // type's dotted lane: out from the source dot, along the lane, back in to
+  // Relationship edges route through their type's dotted lane with the same
+  // small-radius elbows: out from the source dot, along the lane, back in to
   // the target dot. Unselected routes stay clearly visible (0.6) - selection
   // brightens its own routes rather than hiding the rest.
   const arcs = lifecycle.flatMap((edge) => {
@@ -642,7 +647,9 @@ function trailView() {
     const tx = laneX(targetItem.node.branch || "");
     const ty = rowY(rowOf.get(edge.target));
     const lx = relLaneX(edge.type);
-    const path = `M ${sx} ${sy} L ${lx} ${sy} L ${lx} ${ty} L ${tx} ${ty}`;
+    const r = TRAIL_CORNER;
+    const dir = ty > sy ? 1 : -1;
+    const path = `M ${sx} ${sy} L ${lx + r} ${sy} Q ${lx} ${sy} ${lx} ${sy + r * dir} L ${lx} ${ty - r * dir} Q ${lx} ${ty} ${lx + r} ${ty} L ${tx} ${ty}`;
     return [`<path d="${path}" fill="none" stroke="${edgeColor(edge.type)}" stroke-width="${touched ? 2.6 : 2}" stroke-dasharray="${TRAIL_DASH[edge.type]}" stroke-opacity="${!selectedEntry || touched ? 0.95 : 0.6}" marker-end="url(#trail-arrow-${edge.type})"><title>${esc(trailTitle(sourceItem.node))} ${TRAIL_VERB[edge.type]} ${esc(trailTitle(targetItem.node))}</title></path>`];
   });
 
