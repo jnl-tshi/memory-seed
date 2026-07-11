@@ -277,6 +277,7 @@ class SessionMergeBranchResult:
     planned_sidecars: list[str] = field(default_factory=list)
     removed_sources: list[str] = field(default_factory=list)
     already_present: list[str] = field(default_factory=list)
+    stamped_entries: list[str] = field(default_factory=list)
     issues: list[str] = field(default_factory=list)
 
 
@@ -494,6 +495,11 @@ _FILE_FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---", re.DOTALL)
 _LEGACY_ENTRY_ID_RE = r"ms-[0-9a-f]{8}"
 _V2_ENTRY_ID_RE = r"mse_[0-9a-hjkmnp-tv-z]{16}"
 _RELATED_ENTRY_REF_RE = re.compile(rf"(?:{_LEGACY_ENTRY_ID_RE}|{_V2_ENTRY_ID_RE})")
+# Memory-Entry trailer stamping accepts both id generations plus the wider
+# lowercase ids observed from other agents (e.g. 20-hex-char codex ids);
+# anything else is never stamped, so a malformed id cannot poison the trailer
+# channel that find_trailer_commits greps.
+_TRAILER_ENTRY_ID_RE = re.compile(r"(?:ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32})")
 _RELATED_MEMORY_REF_RE = re.compile(r"msm_[0-9a-zA-Z]+")
 _FENCED_YAML_RE = re.compile(r"^```ya?ml\s*\n(.*?)^```\s*$", re.MULTILINE | re.DOTALL)
 # An entry heading with a parseable timestamp, followed immediately by its
@@ -1641,6 +1647,41 @@ def _git_dir(root: Path) -> Path | None:
     return path
 
 
+def _stamp_memory_entry_trailers(root: Path, planned_entries: Sequence[str]) -> list[str]:
+    """Append ``Memory-Entry: <entry_id>`` trailers to the prepared MERGE_MSG.
+
+    Takes the fuse's planned-entry lines (``"<entry_id> <timestamp> -> <path>"``),
+    keeps the first occurrence of each well-formed id (no cap - a partial list
+    would make ``find_trailer_commits`` silently miss entries), and appends one
+    trailer line per id below the existing message content. Returns the stamped
+    ids; returns ``[]`` without raising on any failure so trailer stamping can
+    never abort a merge.
+    """
+    stamped: list[str] = []
+    for planned in planned_entries:
+        entry_id = planned.split(" ", 1)[0]
+        if entry_id and entry_id not in stamped and _TRAILER_ENTRY_ID_RE.fullmatch(entry_id):
+            stamped.append(entry_id)
+    if not stamped:
+        return []
+    git_dir = _git_dir(root)
+    if git_dir is None:
+        return []
+    merge_msg = git_dir / "MERGE_MSG"
+    try:
+        message = merge_msg.read_text(encoding="utf-8") if merge_msg.exists() else ""
+    except (OSError, UnicodeDecodeError):
+        return []
+    if not message.strip():
+        return []
+    trailers = "".join(f"Memory-Entry: {entry_id}\n" for entry_id in stamped)
+    try:
+        merge_msg.write_text(message.rstrip("\n") + "\n\n" + trailers, encoding="utf-8")
+    except OSError:
+        return []
+    return stamped
+
+
 def _merge_head_commits(root: Path) -> list[str]:
     git_dir = _git_dir(root)
     if git_dir is None:
@@ -2044,6 +2085,15 @@ def session_merge_branch(
         listing = ", ".join(remaining) if remaining else "(unknown)"
         result.issues.append(f"unmerged paths remain after fuse; merge left in progress: {listing}")
         return result
+
+    # Memory-Entry trailer stamping (approved plan, 2026-07-11): one trailer
+    # per entry this fuse imports, appended below git's prepared merge message
+    # so find_trailer_commits resolves each fused entry to this merge commit.
+    # planned_entries is diffed against the base commit, so entries that
+    # reached base earlier are never claimed; already_present only records
+    # working-tree placement by git's own auto-merge and does not exclude.
+    # Best-effort: a stamping failure must not abort an otherwise-clean merge.
+    result.stamped_entries = _stamp_memory_entry_trailers(root, result.planned_entries)
 
     code, commit_out = _git_text(root, ("commit", "--no-edit"))
     if code != 0:

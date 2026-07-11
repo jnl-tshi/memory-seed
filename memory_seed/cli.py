@@ -435,6 +435,8 @@ def main(argv: list[str] | None = None) -> int:
                 print("Dry run - no merge performed. Rerun without --dry-run to merge and fuse.")
             elif result.committed:
                 print("Merge committed.")
+                if result.stamped_entries:
+                    print(f"Stamped {len(result.stamped_entries)} Memory-Entry trailer(s) on the merge commit.")
             else:
                 print(f"Branch {args.branch} is already merged into HEAD; nothing to do.")
             return 0
