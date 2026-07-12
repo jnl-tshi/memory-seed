@@ -4,6 +4,8 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+## 2.18.0 - 2026-07-13
+
 - Memory Trace now ships as part of the main `memory-seed` package behind the optional
   `trace` extra (`pip install "memory-seed[trace]"`) instead of a separate PyPI
   distribution. The root package installs the `memory-trace` command, includes the
@@ -17,7 +19,7 @@ All notable changes to Memory Seed are summarized here.
   malformed id never poisons the trailer channel), entries already on the base commit are never
   claimed, and there is no cap. The CLI reports the stamped count; a stamping failure never aborts
   an otherwise-clean merge. `agent_collaboration.md` and `session_logging.md` (live + seed) note
-  the automatic trailer and nudge ordinary session-append commits to carry it manually.
+  the automatic trailer; ordinary commits are covered by the `prepare-commit-msg` hook below.
 - Implemented indexed topics P1 (topic-neighbourhoods plan, Phases 0-3): meaningful session
   entries carry 1-3 `topics:` slugs resolved against the new deploy-once project-local
   `.memory-seed/topics.yaml` vocabulary (canonical slugs + aliases, slug rule

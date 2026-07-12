@@ -305,7 +305,7 @@ GEMINI.md
 
 ## Current Version
 
-The current reusable control-plane version is `2.17`.
+The current reusable control-plane version is `2.18`.
 
 Legacy `.AGENTS/` projects remain supported as a fallback during migration.
 
@@ -356,8 +356,8 @@ uv pip install memory-seed
 For repeatable team or production usage, pin the package version:
 
 ```powershell
-uvx --from memory-seed==2.17.0 memory-seed doctor
-uvx --from memory-seed==2.17.0 memory-seed update --dry-run
+uvx --from memory-seed==2.18.0 memory-seed doctor
+uvx --from memory-seed==2.18.0 memory-seed update --dry-run
 ```
 
 If you are not using uv, install or upgrade the CLI with pip:
@@ -367,7 +367,7 @@ python -m pip install --upgrade memory-seed
 python -m pip show memory-seed
 ```
 
-`python -m pip show memory-seed` reports the installed Python package version, such as `2.17.0`. `memory-seed version` reports the reusable control-plane version, currently `2.17`; it is not the package-version check.
+`python -m pip show memory-seed` reports the installed Python package version, such as `2.18.0`. `memory-seed version` reports the reusable control-plane version, currently `2.18`; it is not the package-version check.
 
 To discover commands and flags, use `memory-seed help` (also shown when you run `memory-seed` with no command), `memory-seed -h`, or `memory-seed <command> -h` for a specific command.
 

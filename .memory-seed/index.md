@@ -67,8 +67,8 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Main output: plain-file local memory system for AI agents plus Python package `memory-seed`.
 - Current risk: private/local system design work with possible personal notes because this project lives inside a second-brain folder.
 - Current risk: subagents or isolated worktrees spawned for this repo can silently inherit a stale git worktree pinned to an old commit rather than the live tree, producing fabricated or outdated citations if untrusted.
-- Control-plane version: `2.17`.
-- Package version: `2.17.0`.
+- Control-plane version: `2.18`.
+- Package version: `2.18.0`.
 
 ## Topology
 

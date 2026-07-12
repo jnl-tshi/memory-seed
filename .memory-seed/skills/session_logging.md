@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.17
+memory-system-version: 2.18
 tags:
   - memory-seed
   - skill
@@ -65,7 +65,7 @@ continuity:
     from: memory-seed lense command
 ```
 
-`commits` is an optional list of full 40-character commit SHAs implementing this entry's decision. Backfill it only on the current/newest entry, in the same turn the commit lands — once a later entry exists, adding `commits:` becomes a historical edit requiring explicit user-requested correction. The commit side of the link is the `Memory-Entry: <entry_id>` message trailer (see Working Principles), which needs no backfill window; `memory-seed link commits <entry_id>` reads both sources. When a commit's main content is a session-entry append, add one `Memory-Entry:` trailer per appended entry id yourself — `session merge-branch` stamps them automatically for every entry its fuse imports, but ordinary commits carry the trailer only if you write it. `links check` rejects short or malformed hashes always, and unknown hashes when a `.git` repository is present.
+`commits` is an optional list of full 40-character commit SHAs implementing this entry's decision. Backfill it only on the current/newest entry, in the same turn the commit lands — once a later entry exists, adding `commits:` becomes a historical edit requiring explicit user-requested correction. The commit side of the link is the `Memory-Entry: <entry_id>` message trailer (see Working Principles), which needs no backfill window; `memory-seed link commits <entry_id>` reads both sources. Ordinary commits get their `Memory-Entry:` trailers stamped automatically by the seeded `prepare-commit-msg` git hook (one per staged appended entry, deduplicated; `memory-seed hooks install` if not installed), and `session merge-branch` stamps them for every entry its fuse imports — hand-write a trailer only to link a commit to a motivating entry its diff does not contain. `links check` rejects short or malformed hashes always, and unknown hashes when a `.git` repository is present.
 
 `topics` is an optional list of 1-3 controlled-vocabulary slugs from `.memory-seed/topics.yaml` marking which durable project themes this entry belongs to — deterministic neighbourhood membership, distinct from `related_entries` (relationship) and from hashtag `tags`/heading `contexts` (derived display fallbacks for old entries). **Read the topic index before writing; prefer an existing canonical slug (aliases also resolve) over inventing a new one** — invented slugs are exactly the sprawl `memory-seed topics check` exists to catch (unknown slugs are errors; more than 3 topics is a warning). A slug matches `^[a-z0-9][a-z0-9_-]{0,63}$`. When a genuinely new durable theme emerges, add it to `topics.yaml` (project-local, never overwritten by `update`) in the same turn. `memory_search` accepts a `topics` filter that resolves aliases both ways.
 
