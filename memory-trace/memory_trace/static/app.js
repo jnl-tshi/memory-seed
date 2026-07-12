@@ -463,21 +463,23 @@ const TRAIL_REL_ZONE = TRAIL_REL_LANES.length * TRAIL_REL_LANE_W + 12;
 // traffic they drowned the lifecycle signal.
 const TRAIL_DASH = { supersedes: "6 4", evolves: "6 4", related: "6 4" };
 const TRAIL_VERB = { supersedes: "replaces", evolves: "evolves", related: "relates to" };
-// Each lane owns a family of three distinct colors rather than one flat
-// color: lanes are already collision-free for anything parallel or adjacent,
-// but branches that daisy-chain through the same lane one after another still
-// need to read as distinct entries, not a single continuous branch, so a lane
-// cycles its three colors across its successive branches. All 15 codes across
-// the five families are unique, so even when the palette wraps (more lanes
-// than families) no two adjacent lanes can collide. The set is drawn from
-// colorblind-safe palettes (Okabe-Ito / ColorBrewer), each member mid-toned
-// so it stays legible against both the light and dark theme background.
+// Each of the first four lanes owns a "pack" of three distinct colors rather
+// than one flat color: lanes are already collision-free for anything parallel
+// or adjacent, but branches that daisy-chain through the same lane one after
+// another still need to read as distinct entries, not a single continuous
+// branch, so those lanes cycle their pack's three colors across successive
+// branches. Four packs (12 unique bright colors) cover the common case - most
+// work rarely runs more than four branches in parallel. Colors are the
+// brighter, higher-saturation set (user preference); each pack pairs three
+// well-separated hues so the cycle reads clearly, and every member stays
+// legible on both the light and dark theme background. Lane 0 leads with
+// main's classic indigo. Deeper overflow lanes are handled at assignment time
+// (see trailModel): they pin to their pack's middle color instead of cycling.
 const trailLaneColorFamilies = [
-  ["#D55E00", "#0072B2", "#009E73"],
-  ["#CC79A7", "#E69F00", "#56B4E9"],
-  ["#B2182B", "#2166AC", "#4D9221"],
-  ["#7B3294", "#008837", "#F46D43"],
-  ["#542788", "#1B7837", "#A6761D"],
+  ["#6f7cff", "#3fa66a", "#d9941a"],
+  ["#d94b63", "#22b8cf", "#7cb342"],
+  ["#8f63e8", "#e8590c", "#18a999"],
+  ["#db2777", "#3b82f6", "#16a34a"],
 ];
 
 function trailStamp(node) {
@@ -595,7 +597,11 @@ function trailModel(graph) {
     laneBranches
       .slice()
       .sort((a, b) => occupancy.get(a).first - occupancy.get(b).first)
-      .forEach((branch, i) => colorOf.set(branch, family[i % family.length]));
+      // The first four lanes cycle their pack's three colors across their
+      // daisy-chained branches. Deeper lanes (index 4+) are rare and pin to the
+      // pack's middle color rather than cycling, so overflow depth stays calm
+      // and never masquerades as a lively primary lane.
+      .forEach((branch, i) => colorOf.set(branch, lane < 4 ? family[i % family.length] : family[1]));
   });
 
   const lifecycle = (graph.edges || []).filter(
@@ -611,11 +617,44 @@ function trailView() {
   const { items, total, rowOf, spans, laneOf, colorOf, lifecycle, linkRows } = model;
   if (!items.length) return `<div class="empty">No entries with lineage data yet.</div>`;
   const laneX = (branch) => TRAIL_REL_ZONE + (laneOf.get(branch) || 0) * TRAIL_LANE_W + 7;
+  const laneCenterX = (lane) => TRAIL_REL_ZONE + lane * TRAIL_LANE_W + 7;
   const relLaneX = (type) => 8 + TRAIL_REL_LANES.indexOf(type) * TRAIL_REL_LANE_W;
   const rowY = (index) => index * TRAIL_ROW + TRAIL_ROW / 2;
   // Rail width reacts to both zones, so the text column shifts right as more
   // branches run in parallel.
   const railWidth = TRAIL_REL_ZONE + model.laneCount * TRAIL_LANE_W + 12;
+
+  // Per-row text indent follows the git-graph silhouette: each row's time+title
+  // start just right of the rightmost lane actually alive at that row, so the
+  // text edge hugs the lanes (wide where many branches run in parallel, sliding
+  // left toward main where only the trunk remains) instead of sitting at a
+  // fixed column past the widest point. Envelope uses fork-to-merge occupancy -
+  // the same interval that governs lane allocation - so text never crosses a
+  // connector or a parallel lane, only clears whatever is present on its row.
+  const TRAIL_TEXT_CLEAR = 18; // dot radius + breathing gap past the last lane
+  const rowIndent = (lane) => Math.round(laneCenterX(lane) + TRAIL_TEXT_CLEAR);
+  const occupancy = new Map();
+  laneOf.forEach((_lane, branch) => {
+    const span = spans.get(branch);
+    if (!span) return;
+    if (branch === "main") {
+      occupancy.set(branch, { first: span.first, last: span.last });
+      return;
+    }
+    const link = linkRows.get(branch) || {};
+    occupancy.set(branch, {
+      first: link.mergeRow !== undefined ? Math.min(span.first, link.mergeRow) : span.first,
+      last: link.forkRow !== undefined ? Math.max(span.last, link.forkRow) : span.last,
+    });
+  });
+  const envelopeLane = new Array(items.length).fill(0);
+  laneOf.forEach((lane, branch) => {
+    const occ = occupancy.get(branch);
+    if (!occ) return;
+    for (let i = occ.first; i <= occ.last && i < envelopeLane.length; i += 1) {
+      if (lane > envelopeLane[i]) envelopeLane[i] = lane;
+    }
+  });
   const height = items.length * TRAIL_ROW;
   const selectedEntry = state.selected?.entry_id || "";
 
@@ -743,7 +782,7 @@ function trailView() {
   });
 
   const rows = items.map((item, index) => {
-    if (item.kind === "day") return `<div class="trail-day">${esc(item.label)}</div>`;
+    if (item.kind === "day") return `<div class="trail-day" style="--indent:${rowIndent(0)}px">${esc(item.label)}</div>`;
     const node = item.node;
     const branch = node.branch || "";
     const tip = branch && spans.get(branch)?.first === index;
@@ -751,7 +790,7 @@ function trailView() {
     const time = node.datetime ? node.datetime.slice(11, 16) : "";
     const searchClass = !searching ? "" : rowMatch(node) ? "search-match" : selected ? "" : "search-miss";
     return `
-      <div class="trail-row ${selected ? (state.selectionMuted ? "pinned" : "selected") : ""} ${searchClass} ${chainPrimary.has(node.id) ? "chain-primary" : chainSecondary.has(node.id) ? "chain-secondary" : ""} ${commitSiblings.has(node.id) ? "commit-sibling" : ""}" data-chunk="${escAttr(node.chunk_id)}" title="${escAttr(node.title)}${branch ? escAttr(` · ${branch}`) : ""}">
+      <div class="trail-row ${selected ? (state.selectionMuted ? "pinned" : "selected") : ""} ${searchClass} ${chainPrimary.has(node.id) ? "chain-primary" : chainSecondary.has(node.id) ? "chain-secondary" : ""} ${commitSiblings.has(node.id) ? "commit-sibling" : ""}" style="--indent:${rowIndent(envelopeLane[index])}px" data-chunk="${escAttr(node.chunk_id)}" title="${escAttr(node.title)}${branch ? escAttr(` · ${branch}`) : ""}">
         <span class="trail-time">${time}</span>
         ${rowMatch(node) ? `<span class="trail-match-dot"></span>` : ""}
         <span class="trail-title">${esc(trailTitle(node))}</span>
