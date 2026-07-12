@@ -171,6 +171,14 @@ class DiagramSidecarDocument:
     malformed_reason: str | None = None
 
 
+@dataclass(frozen=True)
+class LinkSidecarDocument:
+    path: Path
+    link_date: str | None
+    layout: Literal["legacy-link", "month-link"]
+    malformed_reason: str | None = None
+
+
 @dataclass
 class InitResult:
     changed: bool
@@ -400,6 +408,70 @@ def iter_diagram_sidecar_documents(sessions_dir: Path) -> Iterator[DiagramSideca
                 )
                 continue
             documents.append(DiagramSidecarDocument(path=child, diagram_date=date_str, layout="month-diagram"))
+
+    return iter(sorted(documents, key=lambda doc: doc.path.as_posix()))
+
+
+def iter_link_sidecar_documents(sessions_dir: Path) -> Iterator[LinkSidecarDocument]:
+    """Lifecycle-edge link sidecars under ``sessions/links``, mirroring
+    ``iter_diagram_sidecar_documents``. A link sidecar records
+    ``supersedes``/``evolves``/``related_entries`` edges authored *after* an
+    entry (append-only enrichment - the entry itself is never reopened). Same
+    dated layouts: ``links/YYYY-MM/YYYY-MM-DD.md`` and legacy
+    ``links/YYYY-MM-DD.md``. Returns an empty iterator when the dir is absent."""
+    documents: list[LinkSidecarDocument] = []
+    links_dir = sessions_dir / "links"
+    if not links_dir.is_dir():
+        return iter(())
+
+    for path in links_dir.iterdir():
+        if path.is_file():
+            date_match = SESSION_DATE_RE.match(path.name)
+            if not date_match or not _valid_session_date(date_match.group(1)):
+                documents.append(
+                    LinkSidecarDocument(
+                        path=path,
+                        link_date=None,
+                        layout="legacy-link",
+                        malformed_reason=f"filename '{path.name}' is not a YYYY-MM-DD.md date",
+                    )
+                )
+                continue
+            documents.append(LinkSidecarDocument(path=path, link_date=date_match.group(1), layout="legacy-link"))
+            continue
+
+        if not path.is_dir():
+            continue
+        month_match = SESSION_MONTH_DIR_RE.match(path.name)
+        if not month_match:
+            continue
+        month_str = month_match.group(1)
+        for child in path.iterdir():
+            if not child.is_file() or child.suffix != ".md":
+                continue
+            date_match = SESSION_DATE_RE.match(child.name)
+            if not date_match or not _valid_session_date(date_match.group(1)):
+                documents.append(
+                    LinkSidecarDocument(
+                        path=child,
+                        link_date=None,
+                        layout="month-link",
+                        malformed_reason=f"filename '{child.name}' is not a YYYY-MM-DD.md date",
+                    )
+                )
+                continue
+            date_str = date_match.group(1)
+            if not date_str.startswith(month_str + "-"):
+                documents.append(
+                    LinkSidecarDocument(
+                        path=child,
+                        link_date=date_str,
+                        layout="month-link",
+                        malformed_reason=f"date '{date_str}' does not match month folder '{month_str}'",
+                    )
+                )
+                continue
+            documents.append(LinkSidecarDocument(path=child, link_date=date_str, layout="month-link"))
 
     return iter(sorted(documents, key=lambda doc: doc.path.as_posix()))
 

@@ -199,6 +199,12 @@ _DIAGRAM_ENTRY_RE = re.compile(
 # source (not just a count) so a consumer can render it client-side. Still no
 # Mermaid *semantics* are parsed here - this only extracts the fenced text.
 _MERMAID_BLOCK_RE = re.compile(r"^```mermaid\s*\n(.*?)^```\s*$", re.MULTILINE | re.DOTALL)
+# Same entry-block shape as _DIAGRAM_ENTRY_RE; a link sidecar block is keyed to
+# its source entry's id and carries the typed lifecycle edges authored later.
+_LINK_ENTRY_RE = re.compile(
+    r"^##\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s+-\s*([^\n]*)\n\s*```ya?ml\s*\n(.*?)^```\s*$",
+    re.MULTILINE | re.DOTALL,
+)
 
 
 def entry_diagram_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
@@ -266,6 +272,73 @@ def entry_diagram_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                 # blocks only; malformed fences are left to `links check`.
                 "mermaid_blocks": mermaid_blocks,
             }
+    return sidecars
+
+
+def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
+    """Late-authored lifecycle edges, keyed by source ``entry_id``.
+
+    Mirrors ``entry_diagram_sidecars``: sidecars live under
+    ``.memory-seed/sessions/links/YYYY-MM/YYYY-MM-DD.md`` (legacy flat
+    ``links/YYYY-MM-DD.md`` also read), one dated file per day. Each block is a
+    session-entry-shaped heading plus a fenced yaml carrying the source
+    ``entry_id`` and any of ``supersedes`` / ``evolves`` / ``related_entries``
+    lists - the typed edges an entry gained *after* it was written, without
+    reopening the append-only entry. Refs are extracted with the same regex
+    ``links check`` validates against, so the reader and the integrity gate
+    agree. Multiple blocks keyed to one entry union their edges. Returns an
+    empty map when the dir is absent; malformed sidecars are skipped here and
+    surfaced by ``links check``.
+    """
+    from .core import (
+        _RELATED_ENTRY_REF_RE,
+        _frontmatter_list_region,
+        iter_link_sidecar_documents,
+        resolve_runtime,
+    )
+
+    runtime = resolve_runtime(cwd)
+    links_dir = runtime.memory_dir / "sessions" / "links"
+    sidecars: dict[str, dict[str, Any]] = {}
+    if not links_dir.is_dir():
+        return sidecars
+    for link_doc in iter_link_sidecar_documents(runtime.memory_dir / "sessions"):
+        if link_doc.malformed_reason:
+            continue
+        path = link_doc.path
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        try:
+            rel = path.relative_to(runtime.workspace_root).as_posix()
+        except ValueError:
+            rel = path.as_posix()
+        for block in _LINK_ENTRY_RE.finditer(text):
+            heading_ts, _title, yaml_block = block.groups()
+            entry_id = None
+            for line in yaml_block.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("entry_id:"):
+                    entry_id = stripped.split(":", 1)[1].strip().strip("'\"")
+                    break
+            if not entry_id:
+                continue
+            found = {
+                key: tuple(_RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, key)))
+                for key in ("supersedes", "evolves", "related_entries")
+            }
+            existing = sidecars.get(entry_id)
+            if existing:
+                for key in ("supersedes", "evolves", "related_entries"):
+                    existing[key] = tuple(dict.fromkeys(existing[key] + found[key]))
+            else:
+                sidecars[entry_id] = {
+                    "entry_id": entry_id,
+                    "path": rel,
+                    "heading_datetime": heading_ts,
+                    **found,
+                }
     return sidecars
 
 
