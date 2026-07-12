@@ -12,7 +12,7 @@ import time
 import uuid
 import webbrowser
 import gc
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import date, datetime, time as datetime_time, timedelta
 from importlib import resources
 from pathlib import Path
@@ -22,7 +22,7 @@ from typing import Any, Callable, Iterable, Sequence
 # reimplements parsing, ranking, the graph-edge contract, or diagram-sidecar
 # reading. These are the frozen surfaces the distribution split depends on.
 from memory_seed.core import iter_session_documents, resolve_runtime
-from memory_seed.retrieval import EntryRollup, entry_diagram_sidecars, rollup_entry_matches
+from memory_seed.retrieval import EntryRollup, entry_diagram_sidecars, entry_link_sidecars, rollup_entry_matches
 from memory_seed.semantic_cache import (
     MemoryChunk,
     RankedMemoryChunk,
@@ -416,7 +416,9 @@ class LenseService:
         }
 
     def chunk(self, chunk_id: str) -> dict[str, Any]:
-        entries = self._entry_chunks()
+        # Same link-sidecar augmentation as graph(), via the same helper, so the
+        # reader's inverse edges (superseded_by/evolved_by) agree with the Trail.
+        entries = _augment_with_link_sidecars(self._entry_chunks(), self.cache.cwd)
         graph = build_related_entry_graph(self.cache.cwd, chunks=entries)
         selected = next((chunk for chunk in self.cache.chunks() if chunk.chunk_id == chunk_id), None)
         if selected is None:
@@ -545,6 +547,11 @@ class LenseService:
         granularity = "entry"
         entries = self.cache.chunks(granularity="entry")
         entries = _filter_chunks(entries, agent=agent, user=user, date_from=date_from, date_to=date_to, topic=topic)
+        # Fold in late-authored lifecycle edges before edges/nodes are built,
+        # using the per-worktree path so the switcher reads each branch's own
+        # link sidecars. Read at request time (not cached) so sidecar edits are
+        # always fresh - the lense cache invalidates on session-file mtime only.
+        entries = _augment_with_link_sidecars(entries, self.cache.cwd)
         node_id = _graph_node_id_for(granularity)
         by_id = {node_id(chunk): chunk for chunk in entries if node_id(chunk)}
         edge_type_set = set(edge_types)
@@ -1115,6 +1122,44 @@ def _entry_merge_map(events: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         for entry_id in event.get("entry_ids", ()):
             mapping[entry_id] = event
     return mapping
+
+
+def _augment_with_link_sidecars(entries: Sequence[MemoryChunk], cwd: str | Path) -> list[MemoryChunk]:
+    """Union each entry's YAML-declared lifecycle edges with any authored later
+    in a link sidecar (see ``entry_link_sidecars``). The sidecar is the
+    append-only enrichment layer: write-time YAML stays canonical, late-found
+    ``supersedes``/``evolves``/``related_entries`` ride alongside. Augments the
+    INPUT chunk list so ``build_related_entry_graph``'s inverse edges
+    (superseded_by/evolved_by) and ``_graph_edges`` both pick them up with no
+    change of their own. ``cwd`` must be the per-worktree path so the switcher
+    reads each branch's own sidecars. Fails open (returns ``entries``) when no
+    sidecars exist."""
+    sidecars = entry_link_sidecars(cwd)
+    if not sidecars:
+        return list(entries)
+
+    def union(base: tuple[str, ...], extra: Iterable[str], entry_id: str | None) -> tuple[str, ...]:
+        merged = list(base)
+        for ref in extra:
+            if ref and ref != entry_id and ref not in merged:
+                merged.append(ref)
+        return tuple(merged)
+
+    augmented: list[MemoryChunk] = []
+    for chunk in entries:
+        extra = sidecars.get(chunk.entry_id or "")
+        if not extra:
+            augmented.append(chunk)
+            continue
+        augmented.append(
+            replace(
+                chunk,
+                supersedes=union(chunk.supersedes, extra.get("supersedes", ()), chunk.entry_id),
+                evolves=union(chunk.evolves, extra.get("evolves", ()), chunk.entry_id),
+                related_entries=union(chunk.related_entries, extra.get("related_entries", ()), chunk.entry_id),
+            )
+        )
+    return augmented
 
 
 def _chunk_to_storage(chunk: MemoryChunk) -> dict[str, Any]:

@@ -171,6 +171,14 @@ class DiagramSidecarDocument:
     malformed_reason: str | None = None
 
 
+@dataclass(frozen=True)
+class LinkSidecarDocument:
+    path: Path
+    link_date: str | None
+    layout: Literal["legacy-link", "month-link"]
+    malformed_reason: str | None = None
+
+
 @dataclass
 class InitResult:
     changed: bool
@@ -400,6 +408,70 @@ def iter_diagram_sidecar_documents(sessions_dir: Path) -> Iterator[DiagramSideca
                 )
                 continue
             documents.append(DiagramSidecarDocument(path=child, diagram_date=date_str, layout="month-diagram"))
+
+    return iter(sorted(documents, key=lambda doc: doc.path.as_posix()))
+
+
+def iter_link_sidecar_documents(sessions_dir: Path) -> Iterator[LinkSidecarDocument]:
+    """Lifecycle-edge link sidecars under ``sessions/links``, mirroring
+    ``iter_diagram_sidecar_documents``. A link sidecar records
+    ``supersedes``/``evolves``/``related_entries`` edges authored *after* an
+    entry (append-only enrichment - the entry itself is never reopened). Same
+    dated layouts: ``links/YYYY-MM/YYYY-MM-DD.md`` and legacy
+    ``links/YYYY-MM-DD.md``. Returns an empty iterator when the dir is absent."""
+    documents: list[LinkSidecarDocument] = []
+    links_dir = sessions_dir / "links"
+    if not links_dir.is_dir():
+        return iter(())
+
+    for path in links_dir.iterdir():
+        if path.is_file():
+            date_match = SESSION_DATE_RE.match(path.name)
+            if not date_match or not _valid_session_date(date_match.group(1)):
+                documents.append(
+                    LinkSidecarDocument(
+                        path=path,
+                        link_date=None,
+                        layout="legacy-link",
+                        malformed_reason=f"filename '{path.name}' is not a YYYY-MM-DD.md date",
+                    )
+                )
+                continue
+            documents.append(LinkSidecarDocument(path=path, link_date=date_match.group(1), layout="legacy-link"))
+            continue
+
+        if not path.is_dir():
+            continue
+        month_match = SESSION_MONTH_DIR_RE.match(path.name)
+        if not month_match:
+            continue
+        month_str = month_match.group(1)
+        for child in path.iterdir():
+            if not child.is_file() or child.suffix != ".md":
+                continue
+            date_match = SESSION_DATE_RE.match(child.name)
+            if not date_match or not _valid_session_date(date_match.group(1)):
+                documents.append(
+                    LinkSidecarDocument(
+                        path=child,
+                        link_date=None,
+                        layout="month-link",
+                        malformed_reason=f"filename '{child.name}' is not a YYYY-MM-DD.md date",
+                    )
+                )
+                continue
+            date_str = date_match.group(1)
+            if not date_str.startswith(month_str + "-"):
+                documents.append(
+                    LinkSidecarDocument(
+                        path=child,
+                        link_date=date_str,
+                        layout="month-link",
+                        malformed_reason=f"date '{date_str}' does not match month folder '{month_str}'",
+                    )
+                )
+                continue
+            documents.append(LinkSidecarDocument(path=child, link_date=date_str, layout="month-link"))
 
     return iter(sorted(documents, key=lambda doc: doc.path.as_posix()))
 
@@ -775,7 +847,11 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     ``sessions/diagrams/YYYY-MM-DD.md`` and
     ``sessions/diagrams/YYYY-MM/YYYY-MM-DD.md`` (``orphan-diagram``,
     ``diagram-date-mismatch``, ``malformed-diagram``; sidecars are always
-    optional).
+    optional). Lifecycle-edge link sidecars under ``sessions/links/…`` are
+    validated the same way (``orphan-link-sidecar``,
+    ``link-sidecar-date-mismatch``, ``malformed-link-sidecar``), and their
+    ``supersedes``/``evolves``/``related_entries`` edges join the entry-YAML
+    edges in the dangling and forward-only checks.
 
     Each issue names the source file and the offending value. Returns
     ``ok=False`` when any issue is found so a CLI gate can exit non-zero.
@@ -988,6 +1064,64 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                 issues.append(LinkIssue(rel, "malformed-diagram", f"diagram block for {entry_id} has no ```mermaid block"))
             elif len(fence_lines) % 2 != 0:
                 issues.append(LinkIssue(rel, "malformed-diagram", f"diagram block for {entry_id} has an unbalanced code fence"))
+
+    # Lifecycle-edge link sidecars (sessions/links/...): supersedes/evolves/
+    # related edges authored after an entry, keyed to the SOURCE (newer) entry.
+    # Optional throughout. Edges fold into the SAME dangling + forward-only
+    # checks as entry-YAML edges, attributed to the source ENTRY's heading
+    # timestamp (not the sidecar's authoring time), so "B supersedes A" is legal
+    # iff A predates B no matter when the sidecar was written. Dangling checks
+    # run inline here because the supersedes/evolves dangling passes above have
+    # already executed; the forward-only guard runs last and sees these edges.
+    for link_doc in iter_link_sidecar_documents(sessions_dir):
+        files_checked += 1
+        link_path = link_doc.path
+        try:
+            rel = link_path.relative_to(root).as_posix()
+        except ValueError:
+            rel = link_path.as_posix()
+        if link_doc.malformed_reason:
+            issues.append(LinkIssue(rel, "malformed-link-sidecar", link_doc.malformed_reason))
+            continue
+        file_date = link_doc.link_date or ""
+        try:
+            text = link_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            issues.append(LinkIssue(rel, "unreadable", str(exc)))
+            continue
+        blocks = list(_ENTRY_TS_YAML_RE.finditer(text))
+        if not blocks:
+            issues.append(
+                LinkIssue(rel, "malformed-link-sidecar", "no '## <timestamp> - <title>' + ```yaml entry_id block found")
+            )
+            continue
+        for block in blocks:
+            heading_ts, yaml_block = block.groups()
+            entry_id_match = _ENTRY_ID_RE.search(yaml_block)
+            if not entry_id_match:
+                issues.append(LinkIssue(rel, "malformed-link-sidecar", f"link block at '{heading_ts}' has no entry_id"))
+                continue
+            entry_id = entry_id_match.group(1)
+            if entry_id not in known_entries:
+                issues.append(LinkIssue(rel, "orphan-link-sidecar", f"entry_id -> {entry_id} (no such entry_id)"))
+            entry_date = entry_timestamps.get(entry_id, "")[:10]
+            if entry_date and entry_date != file_date:
+                issues.append(
+                    LinkIssue(
+                        rel,
+                        "link-sidecar-date-mismatch",
+                        f"entry_id {entry_id} was logged on {entry_date}, but link sidecar is filed under {file_date}",
+                    )
+                )
+            for kind, edge_list in (("supersedes", supersedes_edges), ("evolves", evolves_edges)):
+                for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, kind)):
+                    if ref not in known_entries:
+                        issues.append(LinkIssue(rel, f"dangling-{kind}", f"{kind} -> {ref} (no such entry_id)"))
+                    else:
+                        edge_list.append((rel, entry_id, ref))
+            for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, "related_entries")):
+                if ref not in known_entries:
+                    issues.append(LinkIssue(rel, "dangling-related-entry", f"related_entries -> {ref} (no such entry_id)"))
 
     for rel, ref in related_entry_refs:
         if ref not in known_entries:
