@@ -133,6 +133,25 @@ class LinkSidecarReadPathTests(unittest.TestCase):
         # A malformed file is skipped by the parser, so no edge leaks from it.
         self.assertEqual(entry_link_sidecars(self.cwd), {})
 
+    def test_non_crockford_entry_ids_still_parse(self):
+        # Real corpus ids include o/u/i/l (outside the strict Crockford charset
+        # of the entry-YAML ref regex), e.g. codex-authored entries. The sidecar
+        # reader must not silently drop them - regression for a live bug where
+        # an evolves edge to mse_...o/u/i/l... vanished without a trace.
+        loose = "mse_37fpcovvuniqzlxk"  # contains o, u, i, l
+        (self.sessions / "2026-06-02.md").write_text(
+            "---\ntags:\n  - session-log\n---\n\n"
+            + _entry("2026-06-02 09:00", loose, "Codex-style id", branch="feature-y"),
+            encoding="utf-8",
+        )
+        self._write_sidecar(
+            _link_block("2026-06-02 10:00", NEW, "late edge", evolves=[loose]),
+            month="2026-06",
+            day="2026-06-01",
+        )
+        parsed = entry_link_sidecars(self.cwd)
+        self.assertEqual(parsed[NEW]["evolves"], (loose,))
+
     def test_month_folder_mismatch_is_flagged(self):
         links_dir = self.sessions / "links" / "2026-06"
         links_dir.mkdir(parents=True, exist_ok=True)
