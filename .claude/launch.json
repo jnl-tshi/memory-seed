@@ -9,6 +9,15 @@
         "import sys; sys.path.insert(0, 'memory-trace'); sys.path.insert(0, '.'); from memory_trace.cli import main; sys.exit(main(['--cwd', '.', '--host', '127.0.0.1', '--port', '8765', '--no-open']))"
       ],
       "port": 8765
+    },
+    {
+      "name": "memory-trace-worktree",
+      "runtimeExecutable": "C:\\Users\\johnn\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\\python.exe",
+      "runtimeArgs": [
+        "-c",
+        "import sys; sys.path.insert(0, 'memory-trace'); sys.path.insert(0, '.'); from memory_trace.cli import main; sys.exit(main(['--cwd', '.', '--host', '127.0.0.1', '--port', '8766', '--no-open', '--static-root', '.claude/worktrees/memory-trace-trail']))"
+      ],
+      "port": 8766
     }
   ]
 }
