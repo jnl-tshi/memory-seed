@@ -932,6 +932,40 @@ class MemoryMcpServerTests(unittest.TestCase):
         tool = next(t for t in TOOLS if t["name"] == "memory_session_target")
         self.assertNotIn("create", tool["inputSchema"]["properties"])
 
+    def test_call_tool_memory_entry_id_is_deterministic_and_canonical(self):
+        args = {
+            "timestamp": "2026-07-12 12:15",
+            "title": "Fuse Codex branches and align Trace packaging docs",
+            "user_initials": "JNL",
+            "agent_type": "codex",
+        }
+
+        first = call_tool("memory_entry_id", args)
+        second = call_tool("memory_entry_id", args)
+
+        # Deterministic: same metadata, same id - and it matches the library
+        # generator (this exact tuple reproduces a real corpus id).
+        self.assertEqual(first["entry_id"], "mse_kq3ba0cy9nkpqkm0")
+        self.assertEqual(first["entry_id"], second["entry_id"])
+        # Canonical Crockford alphabet: never o/u/i/l.
+        self.assertNotRegex(first["entry_id"][4:], r"[oiul]")
+
+    def test_call_tool_memory_entry_id_metadata_changes_the_id(self):
+        base = {
+            "timestamp": "2026-07-12 12:15",
+            "title": "Some title",
+            "user_initials": "JNL",
+            "agent_type": "claude",
+        }
+
+        changed = call_tool("memory_entry_id", {**base, "title": "Another title"})
+
+        self.assertNotEqual(call_tool("memory_entry_id", base)["entry_id"], changed["entry_id"])
+
+    def test_call_tool_memory_entry_id_requires_core_fields(self):
+        with self.assertRaises(ValueError):
+            call_tool("memory_entry_id", {"timestamp": "2026-07-12 12:15", "title": "x", "user_initials": "JNL"})
+
     def test_jsonrpc_tools_list_and_call(self):
         cwd = self.make_memory_fixture()
         listed = handle_jsonrpc_message({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
@@ -959,6 +993,7 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertIn("memory_link_suggest", listed_names)
         self.assertIn("memory_link_show", listed_names)
         self.assertIn("memory_session_target", listed_names)
+        self.assertIn("memory_entry_id", listed_names)
         self.assertEqual(called["id"], 2)
         content = called["result"]["content"][0]
         self.assertEqual(content["type"], "text")

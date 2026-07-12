@@ -351,6 +351,29 @@ class MemorySeedTests(unittest.TestCase):
 
         self.assertEqual([i.kind for i in issues], ["dangling-supersedes"], [i.__dict__ for i in issues])
 
+    def test_cli_session_entry_id_reproduces_canonical_id(self):
+        import contextlib
+        import io
+        import sys as _sys
+        from unittest import mock as _mock
+
+        from memory_seed.cli import main as cli_main
+
+        argv = [
+            "memory-seed", "session", "entry-id",
+            "--timestamp", "2026-07-12 12:15",
+            "--title", "Fuse Codex branches and align Trace packaging docs",
+            "--user-initials", "JNL",
+            "--agent-type", "codex",
+        ]
+        buffer = io.StringIO()
+        with _mock.patch.object(_sys, "argv", argv), contextlib.redirect_stdout(buffer):
+            exit_code = cli_main()
+
+        self.assertEqual(exit_code, 0)
+        # Deterministic: this metadata tuple reproduces a real corpus id.
+        self.assertEqual(buffer.getvalue().strip(), "mse_kq3ba0cy9nkpqkm0")
+
     # --- Link sidecars: late-authored lifecycle edges join the same checks ---
 
     def _link_sidecar(self, cwd, file_date, source_entry, *, supersedes=(), evolves=(), heading_time="10:00"):
