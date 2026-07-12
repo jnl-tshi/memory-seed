@@ -336,6 +336,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     link_commits.add_argument("entry_id", help="entry_id to show commits for")
 
+    hooks_parser = subparsers.add_parser("hooks", help="manage git hooks that keep memory metadata true by construction")
+    hooks_sub = hooks_parser.add_subparsers(dest="hooks_command", required=True)
+    hooks_sub.add_parser(
+        "install",
+        help="install the prepare-commit-msg shim that auto-stamps Memory-Entry trailers (idempotent)",
+    )
+
     esr_parser = subparsers.add_parser(
         "esr",
         help="end-of-session mechanical preflight: every deterministic check in one read-only report",
@@ -1148,6 +1155,18 @@ def main(argv: list[str] | None = None) -> int:
             print("Ignored optional skills: " + ", ".join(status.ignored))
         print("Next: open AGENTS.md and follow nearest-runtime mode.")
         return 0
+
+    if args.command == "hooks":
+        if args.hooks_command == "install":
+            from .core import install_git_hooks
+
+            actions = install_git_hooks(Path(".").resolve())
+            if not actions:
+                print("No git repository found - nothing installed.")
+                return 0
+            for action in actions:
+                print(action)
+            return 0
 
     if args.command == "esr":
         from .esr import esr_report, format_esr_report

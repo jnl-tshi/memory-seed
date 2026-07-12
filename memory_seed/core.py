@@ -2778,7 +2778,65 @@ SEED_FILES = [
         SEED_ROOT / MEMORY_DIR_NAME / "hooks" / "session-start-context.py",
         ".memory-seed/hooks/session-start-context.py",
     ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "hooks" / "prepare-commit-msg.py",
+        ".memory-seed/hooks/prepare-commit-msg.py",
+    ),
 ]
+
+# Shim written into .git/hooks/ so git runs the repo-tracked trailer stamper.
+# sh, not python, because git invokes hooks through sh on every platform
+# (including Git for Windows); the shim just finds an interpreter and delegates.
+_GIT_PREPARE_COMMIT_MSG_SHIM = """#!/bin/sh
+# Installed by memory-seed (hooks install): stamps Memory-Entry trailers for
+# staged session entries. Delegates to the repo-tracked script; never blocks.
+root="$(git rev-parse --show-toplevel)" || exit 0
+script="$root/.memory-seed/hooks/prepare-commit-msg.py"
+[ -f "$script" ] || exit 0
+if command -v python3 >/dev/null 2>&1; then
+  python3 "$script" "$@" || exit 0
+else
+  python "$script" "$@" || exit 0
+fi
+exit 0
+"""
+
+
+def install_git_hooks(cwd: Path | str = ".") -> list[str]:
+    """Write the prepare-commit-msg shim into .git/hooks (idempotent).
+
+    Returns the list of actions taken; empty when there is no git repository.
+    An existing hook that memory-seed did not write is left untouched and
+    reported instead of overwritten.
+    """
+    runtime = resolve_runtime(cwd)
+    root = runtime.workspace_root
+    git_dir_lines = _git_capture(root, "rev-parse", "--git-dir")
+    if not git_dir_lines:
+        return []
+    git_dir = Path(git_dir_lines[0].strip())
+    if not git_dir.is_absolute():
+        git_dir = root / git_dir
+    hooks_dir = git_dir / "hooks"
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+    hook_path = hooks_dir / "prepare-commit-msg"
+    if hook_path.exists():
+        existing = read_text_file(hook_path)
+        if "Installed by memory-seed" in existing:
+            if existing == _GIT_PREPARE_COMMIT_MSG_SHIM:
+                return [f"prepare-commit-msg: already installed ({hook_path})"]
+            write_text_file(hook_path, _GIT_PREPARE_COMMIT_MSG_SHIM)
+            return [f"prepare-commit-msg: refreshed ({hook_path})"]
+        return [
+            f"prepare-commit-msg: NOT installed - a hook that memory-seed did not write "
+            f"already exists at {hook_path}; merge the shim manually"
+        ]
+    write_text_file(hook_path, _GIT_PREPARE_COMMIT_MSG_SHIM)
+    try:
+        hook_path.chmod(0o755)
+    except OSError:
+        pass
+    return [f"prepare-commit-msg: installed ({hook_path})"]
 
 CORE_SKILL_NAMES = (
     "session_logging.md",
@@ -4398,6 +4456,12 @@ def init_project(
     for artifact in _create_skill_artifacts(target_root, selected_optional):
         if artifact not in created:
             created.append(artifact)
+
+    # Default-on at init (user decision, cheap-tooling P3): a fresh project
+    # gets the Memory-Entry trailer stamper immediately; existing checkouts
+    # opt in explicitly via `memory-seed hooks install`. No-op without git.
+    for action in install_git_hooks(target_root):
+        created.append(f"git-hook: {action}")
 
     return InitResult(
         changed=True,
