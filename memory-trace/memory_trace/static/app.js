@@ -463,7 +463,23 @@ const TRAIL_REL_ZONE = TRAIL_REL_LANES.length * TRAIL_REL_LANE_W + 12;
 // traffic they drowned the lifecycle signal.
 const TRAIL_DASH = { supersedes: "6 4", evolves: "6 4", related: "6 4" };
 const TRAIL_VERB = { supersedes: "replaces", evolves: "evolves", related: "relates to" };
-const trailBranchColors = ["#6f7cff", "#3fa66a", "#d9941a", "#8f63e8", "#18a999", "#d94b63", "#4f98d9", "#b8873b", "#7a8ff2", "#5bb98c"];
+// Each lane owns a color family (one hue, several shades) rather than one
+// flat color: lanes are already collision-free for anything parallel or
+// adjacent, but branches that daisy-chain through the same lane one after
+// another still need to read as distinct entries, not a single continuous
+// branch. Shades within a family are spaced by hue, not just tint/shade -
+// two light-vs-dark versions of one color still read as "the same line" at
+// a glance, so each shade leans toward a different neighboring hue instead
+// (e.g. green's shades run true-green / grass / olive / emerald-teal), while
+// staying legible against both the light and dark theme background.
+const trailLaneColorFamilies = [
+  ["#6f7cff", "#3b82f6", "#22b8cf", "#5b4fd6"],
+  ["#3fa66a", "#16a34a", "#7cb342", "#0f9b8e"],
+  ["#d9941a", "#e8590c", "#eab308", "#b45309"],
+  ["#8f63e8", "#a855f7", "#7e3fc9", "#c026d3"],
+  ["#d94b63", "#dc2626", "#db2777", "#f2704f"],
+  ["#18a999", "#0891b2", "#14b8a6", "#0e7490"],
+];
 
 function trailStamp(node) {
   return Date.parse(node.datetime || `${node.date}T00:00:00`) || 0;
@@ -549,6 +565,7 @@ function trailModel(graph) {
   const laneOf = new Map();
   const colorOf = new Map();
   const laneIntervals = [];
+  const laneBranchOrder = [];
   branches.forEach((branch) => {
     const span = occupancy.get(branch);
     // Touching at a single shared junction row (one branch merges exactly
@@ -560,17 +577,26 @@ function trailModel(graph) {
     if (lane === -1) {
       lane = laneIntervals.length;
       laneIntervals.push([]);
+      laneBranchOrder.push([]);
     }
     laneIntervals[lane].push(span);
+    laneBranchOrder[lane].push(branch);
     laneOf.set(branch, lane);
-    // Color keys off the lane, not arrival order: lanes are the thing that's
-    // already guaranteed collision-free for anything parallel or adjacent
-    // (laneIntervals never lets overlapping spans share one), so keying
-    // color to the same axis makes "no two visible lines share a color" an
-    // invariant instead of a coincidence. Daisy-chained branches that reuse
-    // a freed lane inherit its color too, which is fine - they never appear
-    // on screen at the same time.
-    colorOf.set(branch, trailBranchColors[lane % trailBranchColors.length]);
+  });
+  // Color keys off lane + position-within-lane, not arrival order: lanes are
+  // already guaranteed collision-free for anything parallel or adjacent
+  // (laneIntervals never lets overlapping spans share one), so a lane's hue
+  // family is never confused with a neighbor's. Within a lane, branches cycle
+  // through their family in the order they actually appear top-to-bottom
+  // (chronological, not shortest-lived-first), so daisy-chained branches that
+  // reuse a freed lane read as distinct back-to-back entries instead of one
+  // continuous line.
+  laneBranchOrder.forEach((laneBranches, lane) => {
+    const family = trailLaneColorFamilies[lane % trailLaneColorFamilies.length];
+    laneBranches
+      .slice()
+      .sort((a, b) => occupancy.get(a).first - occupancy.get(b).first)
+      .forEach((branch, i) => colorOf.set(branch, family[i % family.length]));
   });
 
   const lifecycle = (graph.edges || []).filter(
