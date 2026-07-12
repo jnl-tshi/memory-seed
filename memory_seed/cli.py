@@ -219,6 +219,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     session_merge_parser.add_argument("--branch", required=True, help="task branch to merge into the current branch")
     session_merge_parser.add_argument("--dry-run", action="store_true", help="preview the fuse plan without merging")
+    session_reorder_parser = session_sub.add_parser(
+        "reorder",
+        help="restore chronological entry order in one day's session file (pure block permutation)",
+    )
+    session_reorder_parser.add_argument("--date", required=True, help="session date (YYYY-MM-DD)")
+    session_reorder_parser.add_argument("--user", default=None, help="override the active user slug")
+    session_reorder_parser.add_argument("--apply", action="store_true", help="write the reordered file (default: dry run)")
     session_entry_id_parser = session_sub.add_parser(
         "entry-id",
         help="compute the canonical entry_id for a new session entry (deterministic, no randomness)",
@@ -476,6 +483,32 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"Stamped {len(result.stamped_entries)} Memory-Entry trailer(s) on the merge commit.")
             else:
                 print(f"Branch {args.branch} is already merged into HEAD; nothing to do.")
+            return 0
+        if args.session_command == "reorder":
+            from .core import session_reorder
+
+            result = session_reorder(
+                cwd=Path(".").resolve(), date_str=args.date, explicit_user=args.user, apply=args.apply
+            )
+            if not result.ok:
+                print(f"Reorder refused for {result.path}:", file=sys.stderr)
+                for issue in result.issues:
+                    print(f"  - {issue}", file=sys.stderr)
+                return 1
+            if not result.changed:
+                print(f"{result.path}: already chronological ({len(result.order_before)} entries).")
+                return 0
+            print(f"{result.path}:")
+            print("  current order:")
+            for item in result.order_before:
+                print(f"    {item}")
+            print("  chronological order:")
+            for item in result.order_after:
+                print(f"    {item}")
+            if result.applied:
+                print("Applied. Run 'memory-seed links check' to confirm integrity.")
+            else:
+                print("Dry run - rerun with --apply to write (entry bytes are never altered, only block order).")
             return 0
         if args.session_command == "entry-id":
             print(

@@ -1303,6 +1303,89 @@ def session_target(
 
 _ENTRY_HEADING_RE = re.compile(r"^##\s+.+$", re.MULTILINE)
 _USER_INITIALS_RE = re.compile(r"^user_initials:\s*(\S+)\s*$", re.MULTILINE)
+_REORDER_HEADING_RE = re.compile(r"^##\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s+-\s*(.*)$")
+
+
+@dataclass(frozen=True)
+class SessionReorderResult:
+    path: Path
+    ok: bool
+    changed: bool
+    applied: bool
+    order_before: tuple[str, ...] = ()
+    order_after: tuple[str, ...] = ()
+    issues: tuple[str, ...] = ()
+
+
+def session_reorder(
+    cwd: Path | str = ".",
+    *,
+    date_str: str,
+    explicit_user: str | None = None,
+    apply: bool = False,
+) -> SessionReorderResult:
+    """Restore chronological order in one day's session file - a pure block
+    permutation, never a content edit.
+
+    Entries are `## YYYY-MM-DD HH:MM - title` blocks; the file's bytes are
+    split into preamble + entry spans and the spans are stably re-sorted by
+    heading timestamp (ties keep their original relative order). Every
+    entry's bytes - ids, refs, body - are untouched: order is presentation,
+    content is history, so this stays inside the append-only contract. The
+    function refuses (ok=False) rather than guess when any `## ` heading
+    does not parse as a timestamped entry or the file does not end with a
+    newline (both would make a byte-exact permutation ambiguous). Dry-run by
+    default; ``apply=True`` writes. Intended for repairing misordered logs
+    that block ``session merge-branch``'s chronology gate - run
+    ``links check`` after applying.
+    """
+    target = session_target(cwd, date_str=date_str, explicit_user=explicit_user, create=False)
+    path = target.path
+    if not path.exists():
+        return SessionReorderResult(path=path, ok=False, changed=False, applied=False, issues=(f"no session file for {date_str}",))
+    text = read_text_file(path)
+    matches = list(_ENTRY_HEADING_RE.finditer(text))
+    if not matches:
+        return SessionReorderResult(path=path, ok=True, changed=False, applied=False, issues=("no entries found",))
+
+    issues: list[str] = []
+    blocks: list[tuple[str, int, str]] = []  # (timestamp, original_index, bytes)
+    for index, match in enumerate(matches):
+        heading = match.group(0)
+        parsed = _REORDER_HEADING_RE.match(heading)
+        if not parsed:
+            issues.append(f"heading is not a timestamped entry: {heading!r}")
+            continue
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        block = text[match.start():end]
+        if not block.endswith("\n"):
+            issues.append(f"entry at {parsed.group(1)} does not end with a newline; permutation would not be byte-exact")
+        blocks.append((parsed.group(1), index, block))
+    if issues:
+        return SessionReorderResult(path=path, ok=False, changed=False, applied=False, issues=tuple(issues))
+
+    preamble = text[: matches[0].start()]
+    ordered = sorted(blocks, key=lambda item: (item[0], item[1]))
+    order_before = tuple(f"{ts} - {_REORDER_HEADING_RE.match(block.splitlines()[0]).group(2)}" for ts, _i, block in blocks)
+    order_after = tuple(f"{ts} - {_REORDER_HEADING_RE.match(block.splitlines()[0]).group(2)}" for ts, _i, block in ordered)
+    changed = [item[1] for item in ordered] != [item[1] for item in blocks]
+    if not changed:
+        return SessionReorderResult(path=path, ok=True, changed=False, applied=False, order_before=order_before, order_after=order_after)
+
+    new_text = preamble + "".join(block for _ts, _i, block in ordered)
+    # Byte-exact permutation guarantee: same content, only order differs.
+    if sorted(new_text) != sorted(text):
+        return SessionReorderResult(
+            path=path, ok=False, changed=True, applied=False,
+            order_before=order_before, order_after=order_after,
+            issues=("internal error: permutation would alter file bytes; refusing",),
+        )
+    if apply:
+        write_text_file(path, new_text)
+    return SessionReorderResult(
+        path=path, ok=True, changed=True, applied=apply,
+        order_before=order_before, order_after=order_after,
+    )
 
 
 def _flat_session_entries(text: str) -> list[_FlatSessionEntry]:
