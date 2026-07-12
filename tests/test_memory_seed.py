@@ -318,6 +318,107 @@ class MemorySeedTests(unittest.TestCase):
 
         self.assertEqual([i.kind for i in issues], ["self-supersedes"], [i.__dict__ for i in issues])
 
+    # --- Link sidecars: late-authored lifecycle edges join the same checks ---
+
+    def _link_sidecar(self, cwd, file_date, source_entry, *, supersedes=(), evolves=(), heading_time="10:00"):
+        """Write a link sidecar block keyed to ``source_entry`` under
+        sessions/links/<month>/<file_date>.md."""
+        d = cwd / MEMORY_DIR_NAME / "sessions" / "links" / file_date[:7]
+        d.mkdir(parents=True, exist_ok=True)
+        lines = [f"## {file_date} {heading_time} - edge", "", "```yaml", f"entry_id: {source_entry}"]
+        for key, refs in (("supersedes", supersedes), ("evolves", evolves)):
+            if refs:
+                lines.append(f"{key}:")
+                lines.extend(f"  - {ref}" for ref in refs)
+        lines += ["```", ""]
+        (d / f"{file_date}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def test_links_check_accepts_backward_supersedes_in_sidecar(self):
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - original", "mse_0123456789abcdef", ()),
+            ("2026-06-13 10:00 - replacement", "mse_ffffffffffffffff", ()),
+        )
+        self._link_sidecar(cwd, "2026-06-13", "mse_ffffffffffffffff", supersedes=("mse_0123456789abcdef",))
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+
+    def test_links_check_accepts_backward_evolves_in_sidecar(self):
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - base", "mse_0123456789abcdef", ()),
+            ("2026-06-13 10:00 - refinement", "mse_ffffffffffffffff", ()),
+        )
+        self._link_sidecar(cwd, "2026-06-13", "mse_ffffffffffffffff", evolves=("mse_0123456789abcdef",))
+
+        self.assertTrue(check_session_links(cwd=cwd).ok)
+
+    def test_links_check_flags_dangling_supersedes_in_sidecar(self):
+        cwd = self.make_project()
+        self._flat_session(cwd, "2026-06-13.md", ("2026-06-13 10:00 - only", "mse_ffffffffffffffff", ()))
+        self._link_sidecar(cwd, "2026-06-13", "mse_ffffffffffffffff", supersedes=("mse_zzzzzzzzzzzzzzzz",))
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["dangling-supersedes"], [i.__dict__ for i in issues])
+
+    def test_links_check_flags_postdating_supersedes_in_sidecar(self):
+        # Forward-only guard covers sidecar edges too, attributed to the SOURCE
+        # entry's timestamp: an earlier entry may not supersede a later one.
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - earlier", "mse_0123456789abcdef", ()),
+            ("2026-06-13 10:00 - later", "mse_ffffffffffffffff", ()),
+        )
+        self._link_sidecar(cwd, "2026-06-13", "mse_0123456789abcdef", supersedes=("mse_ffffffffffffffff",))
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["supersedes-postdates"], [i.__dict__ for i in issues])
+
+    def test_links_check_flags_orphan_link_sidecar(self):
+        cwd = self.make_project()
+        self._flat_session(cwd, "2026-06-13.md", ("2026-06-13 09:00 - only", "mse_0123456789abcdef", ()))
+        self._link_sidecar(cwd, "2026-06-13", "mse_ffffffffffffffff", supersedes=("mse_0123456789abcdef",))
+
+        kinds = [i.kind for i in check_session_links(cwd=cwd).issues]
+
+        self.assertIn("orphan-link-sidecar", kinds)
+
+    def test_links_check_flags_link_sidecar_date_mismatch(self):
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - original", "mse_0123456789abcdef", ()),
+            ("2026-06-13 10:00 - replacement", "mse_ffffffffffffffff", ()),
+        )
+        # Source entry logged 2026-06-13, block filed under 2026-06-14.
+        self._link_sidecar(cwd, "2026-06-14", "mse_ffffffffffffffff", supersedes=("mse_0123456789abcdef",))
+
+        kinds = [i.kind for i in check_session_links(cwd=cwd).issues]
+
+        self.assertIn("link-sidecar-date-mismatch", kinds)
+
+    def test_links_check_flags_malformed_link_sidecar(self):
+        cwd = self.make_project()
+        self._flat_session(cwd, "2026-06-13.md", ("2026-06-13 09:00 - only", "mse_0123456789abcdef", ()))
+        links = cwd / MEMORY_DIR_NAME / "sessions" / "links" / "2026-06"
+        links.mkdir(parents=True, exist_ok=True)
+        (links / "not-a-date.md").write_text("## whatever\n", encoding="utf-8")
+
+        kinds = [i.kind for i in check_session_links(cwd=cwd).issues]
+
+        self.assertIn("malformed-link-sidecar", kinds)
+
     def _flat_session_raw(self, cwd, filename, text):
         sessions = cwd / MEMORY_DIR_NAME / "sessions"
         sessions.mkdir(parents=True, exist_ok=True)
