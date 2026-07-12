@@ -545,22 +545,21 @@ function trailModel(graph) {
   });
   if (spans.has("main")) occupancy.set("main", { ...spans.get("main") });
   // main is pinned to the leftmost lane (git-client convention); the rest
-  // allocate shortest-lived first, so among concurrent branches the longest
-  // takes the outermost lane. Entries with no recorded branch don't allocate
-  // a lane - their dots sit on lane 0.
+  // allocate oldest-first, so the inner lanes hold the older, tighter branches
+  // and newer branches stack outward. The Trail is newest-first (top = index
+  // 0), so "older" means a larger row index: a branch whose newest entry sits
+  // lower down sorts first and claims the innermost free lane. Ties break
+  // toward the more compact branch, then the older start. Entries with no
+  // recorded branch don't allocate a lane - their dots sit on lane 0.
   const branches = [...occupancy.keys()].sort((a, b) => {
     if (a === "main") return -1;
     if (b === "main") return 1;
-    const spanA = occupancy.get(a);
-    const spanB = occupancy.get(b);
     const entryA = spans.get(a);
     const entryB = spans.get(b);
-    // Shortest-lived first; ties (same fork/merge window) break on the
-    // branch's own entry range, so the longest still lands outermost.
     return (
-      (spanA.last - spanA.first) - (spanB.last - spanB.first)
+      (entryB.first - entryA.first)
       || (entryA.last - entryA.first) - (entryB.last - entryB.first)
-      || spanA.first - spanB.first
+      || (entryB.last - entryA.last)
     );
   });
   const laneOf = new Map();
@@ -782,7 +781,7 @@ function trailView() {
   });
 
   const rows = items.map((item, index) => {
-    if (item.kind === "day") return `<div class="trail-day" style="--indent:${rowIndent(0)}px">${esc(item.label)}</div>`;
+    if (item.kind === "day") return `<div class="trail-day" style="--indent:${rowIndent(envelopeLane[index])}px">${esc(item.label)}</div>`;
     const node = item.node;
     const branch = node.branch || "";
     const tip = branch && spans.get(branch)?.first === index;
