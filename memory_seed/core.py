@@ -1303,6 +1303,282 @@ def session_target(
 
 _ENTRY_HEADING_RE = re.compile(r"^##\s+.+$", re.MULTILINE)
 _USER_INITIALS_RE = re.compile(r"^user_initials:\s*(\S+)\s*$", re.MULTILINE)
+_REORDER_HEADING_RE = re.compile(r"^##\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s+-\s*(.*)$")
+_APPEND_TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$")
+
+
+def _known_entry_ids_and_timestamps(sessions_dir: Path) -> tuple[set[str], dict[str, str]]:
+    """All entry ids in the corpus, plus id -> heading timestamp where the
+    entry block is heading-anchored (refs to un-anchored ids skip the
+    forward-only check, matching links check)."""
+    known: set[str] = set()
+    timestamps: dict[str, str] = {}
+    for doc in iter_session_documents(sessions_dir):
+        try:
+            text = read_text_file(doc.path)
+        except (OSError, UnicodeDecodeError):
+            continue
+        known.update(_ENTRY_ID_RE.findall(text))
+        for heading_ts, yaml_block in _ENTRY_TS_YAML_RE.findall(text):
+            id_match = _ENTRY_ID_RE.search(yaml_block)
+            if id_match:
+                timestamps.setdefault(id_match.group(1), heading_ts)
+    return known, timestamps
+
+
+@dataclass(frozen=True)
+class SessionAppendResult:
+    ok: bool
+    path: Path | None = None
+    entry_id: str | None = None
+    timestamp: str | None = None
+    issues: tuple[str, ...] = ()
+    written: bool = False
+
+
+def session_append_entry(
+    cwd: Path | str = ".",
+    *,
+    title: str,
+    body: str,
+    user_initials: str,
+    agent_type: str,
+    agent_name: str | None = None,
+    topics: Sequence[str] = (),
+    related_entries: Sequence[str] = (),
+    supersedes: Sequence[str] = (),
+    evolves: Sequence[str] = (),
+    project_path: str = ".",
+    subproject_path: str | None = None,
+    branch: str | None = None,
+    auto_branch: bool = True,
+    timestamp: str | None = None,
+    explicit_user: str | None = None,
+) -> SessionAppendResult:
+    """Append a session entry with every structural guarantee enforced.
+
+    The tool owns structure, the agent owns voice: target resolution, heading
+    timestamp, canonical entry id, YAML shape, ref/topic validation, and
+    chronological append are handled here; ``title``, ``topics``, lifecycle
+    classification, and the D/R/A/F/T ``body`` prose arrive verbatim and are
+    never reworded.
+
+    Guards (all reported together; nothing is written when any fails):
+    - timestamp defaults to now and must not sort before the file's last
+      entry - when the previous heading claims a FUTURE time relative to the
+      clock, this errors loudly rather than silently propagating drift; the
+      agent fixes it consciously (``--timestamp`` or ``session reorder``).
+    - every ``related_entries``/``supersedes``/``evolves`` ref must exist
+      (kills fabricated ids) and must not postdate this entry (forward-only,
+      same rule links check enforces after the fact).
+    - topics must resolve in the controlled vocabulary; aliases are stored as
+      their canonical slug.
+    - the generated id colliding with an existing one means identical
+      metadata - almost certainly a double-append - and errors.
+    - ``branch`` is captured from git automatically unless supplied or
+      ``auto_branch=False`` (omitted when detached or not a repository).
+    """
+    issues: list[str] = []
+    ts = timestamp or datetime.now().strftime("%Y-%m-%d %H:%M")
+    if not _APPEND_TS_RE.match(ts):
+        return SessionAppendResult(ok=False, issues=(f"invalid timestamp '{ts}' (expected 'YYYY-MM-DD HH:MM')",))
+    date_part = ts[:10]
+    if not _valid_session_date(date_part):
+        return SessionAppendResult(ok=False, issues=(f"invalid session date '{date_part}'",))
+
+    target = session_target(cwd, date_str=date_part, explicit_user=explicit_user, create=False)
+    runtime = resolve_runtime(cwd)
+    sessions_dir = runtime.memory_dir / "sessions"
+
+    if target.path.exists():
+        text = read_text_file(target.path)
+        heading_times = [
+            match.group(1)
+            for match in (_REORDER_HEADING_RE.match(m.group(0)) for m in _ENTRY_HEADING_RE.finditer(text))
+            if match
+        ]
+        if heading_times and heading_times[-1] > ts:
+            issues.append(
+                f"chronology conflict: the file's last entry claims {heading_times[-1]} but this entry "
+                f"would be stamped {ts}. Fix consciously: pass --timestamp, correct the clock drift at "
+                "its source, or repair prior order with 'session reorder'. Refusing to append out of order."
+            )
+
+    known, entry_ts = _known_entry_ids_and_timestamps(sessions_dir)
+    for kind, refs in (("related_entries", related_entries), ("supersedes", supersedes), ("evolves", evolves)):
+        for ref in refs:
+            if ref not in known:
+                issues.append(f"{kind} -> {ref}: no such entry_id (refs must never be invented)")
+            elif ref in entry_ts and entry_ts[ref] > ts:
+                issues.append(f"{kind} -> {ref}: target is newer ({entry_ts[ref]}) than this entry ({ts}); edges point backward in time")
+
+    canonical_topics: list[str] = []
+    if topics:
+        from .topics import load_topic_index
+
+        index = load_topic_index(cwd)
+        resolution = index.resolution()
+        if not resolution:
+            issues.append("topics given but no controlled vocabulary exists (.memory-seed/topics.yaml)")
+        else:
+            for topic in topics:
+                slug = resolution.get(topic)
+                if slug is None:
+                    issues.append(f"unknown topic '{topic}' (not a canonical slug or alias in topics.yaml)")
+                elif slug not in canonical_topics:
+                    canonical_topics.append(slug)
+
+    entry_id = generate_session_entry_id(
+        timestamp=ts,
+        title=title,
+        user_initials=user_initials,
+        agent_type=agent_type,
+        project_path=project_path,
+        subproject_path=subproject_path,
+    )
+    if entry_id in known:
+        issues.append(
+            f"generated id {entry_id} already exists - identical metadata (timestamp/title/initials/agent/paths); "
+            "this looks like a double-append"
+        )
+
+    resolved_branch = branch
+    if resolved_branch is None and auto_branch:
+        lines = _git_capture(runtime.workspace_root, "rev-parse", "--abbrev-ref", "HEAD")
+        if lines and lines[0].strip() and lines[0].strip() != "HEAD":
+            resolved_branch = lines[0].strip()
+
+    if issues:
+        return SessionAppendResult(ok=False, path=target.path, timestamp=ts, issues=tuple(issues))
+
+    yaml_lines = [
+        f"entry_id: {entry_id}",
+        f"user_initials: {user_initials}",
+        f"agent_type: {agent_type}",
+        f"agent_name: {agent_name if agent_name else 'null'}",
+        f"project_path: {project_path}",
+        f"subproject_path: {subproject_path if subproject_path else 'null'}",
+    ]
+    if resolved_branch:
+        yaml_lines.append(f"branch: {resolved_branch}")
+    for key, values in (
+        ("topics", canonical_topics),
+        ("related_entries", list(related_entries)),
+        ("supersedes", list(supersedes)),
+        ("evolves", list(evolves)),
+    ):
+        if values:
+            yaml_lines.append(f"{key}:")
+            yaml_lines.extend(f"  - {value}" for value in values)
+
+    block = "\n".join(
+        [f"## {ts} - {title}", "", "```yaml", *yaml_lines, "```", "", body.strip(), ""]
+    )
+    target = session_target(cwd, date_str=date_part, explicit_user=explicit_user, create=True)
+    existing = read_text_file(target.path) if target.path.exists() else ""
+    if existing.strip():
+        new_text = existing.rstrip("\n") + "\n\n" + block
+    else:
+        new_text = existing + block
+    write_text_file(target.path, new_text)
+    return SessionAppendResult(ok=True, path=target.path, entry_id=entry_id, timestamp=ts, written=True)
+
+
+def _git_capture(root: Path, *args: str) -> list[str] | None:
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), *args],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    return proc.stdout.splitlines()
+
+
+@dataclass(frozen=True)
+class SessionReorderResult:
+    path: Path
+    ok: bool
+    changed: bool
+    applied: bool
+    order_before: tuple[str, ...] = ()
+    order_after: tuple[str, ...] = ()
+    issues: tuple[str, ...] = ()
+
+
+def session_reorder(
+    cwd: Path | str = ".",
+    *,
+    date_str: str,
+    explicit_user: str | None = None,
+    apply: bool = False,
+) -> SessionReorderResult:
+    """Restore chronological order in one day's session file - a pure block
+    permutation, never a content edit.
+
+    Entries are `## YYYY-MM-DD HH:MM - title` blocks; the file's bytes are
+    split into preamble + entry spans and the spans are stably re-sorted by
+    heading timestamp (ties keep their original relative order). Every
+    entry's bytes - ids, refs, body - are untouched: order is presentation,
+    content is history, so this stays inside the append-only contract. The
+    function refuses (ok=False) rather than guess when any `## ` heading
+    does not parse as a timestamped entry or the file does not end with a
+    newline (both would make a byte-exact permutation ambiguous). Dry-run by
+    default; ``apply=True`` writes. Intended for repairing misordered logs
+    that block ``session merge-branch``'s chronology gate - run
+    ``links check`` after applying.
+    """
+    target = session_target(cwd, date_str=date_str, explicit_user=explicit_user, create=False)
+    path = target.path
+    if not path.exists():
+        return SessionReorderResult(path=path, ok=False, changed=False, applied=False, issues=(f"no session file for {date_str}",))
+    text = read_text_file(path)
+    matches = list(_ENTRY_HEADING_RE.finditer(text))
+    if not matches:
+        return SessionReorderResult(path=path, ok=True, changed=False, applied=False, issues=("no entries found",))
+
+    issues: list[str] = []
+    blocks: list[tuple[str, int, str]] = []  # (timestamp, original_index, bytes)
+    for index, match in enumerate(matches):
+        heading = match.group(0)
+        parsed = _REORDER_HEADING_RE.match(heading)
+        if not parsed:
+            issues.append(f"heading is not a timestamped entry: {heading!r}")
+            continue
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        block = text[match.start():end]
+        if not block.endswith("\n"):
+            issues.append(f"entry at {parsed.group(1)} does not end with a newline; permutation would not be byte-exact")
+        blocks.append((parsed.group(1), index, block))
+    if issues:
+        return SessionReorderResult(path=path, ok=False, changed=False, applied=False, issues=tuple(issues))
+
+    preamble = text[: matches[0].start()]
+    ordered = sorted(blocks, key=lambda item: (item[0], item[1]))
+    order_before = tuple(f"{ts} - {_REORDER_HEADING_RE.match(block.splitlines()[0]).group(2)}" for ts, _i, block in blocks)
+    order_after = tuple(f"{ts} - {_REORDER_HEADING_RE.match(block.splitlines()[0]).group(2)}" for ts, _i, block in ordered)
+    changed = [item[1] for item in ordered] != [item[1] for item in blocks]
+    if not changed:
+        return SessionReorderResult(path=path, ok=True, changed=False, applied=False, order_before=order_before, order_after=order_after)
+
+    new_text = preamble + "".join(block for _ts, _i, block in ordered)
+    # Byte-exact permutation guarantee: same content, only order differs.
+    if sorted(new_text) != sorted(text):
+        return SessionReorderResult(
+            path=path, ok=False, changed=True, applied=False,
+            order_before=order_before, order_after=order_after,
+            issues=("internal error: permutation would alter file bytes; refusing",),
+        )
+    if apply:
+        write_text_file(path, new_text)
+    return SessionReorderResult(
+        path=path, ok=True, changed=True, applied=apply,
+        order_before=order_before, order_after=order_after,
+    )
 
 
 def _flat_session_entries(text: str) -> list[_FlatSessionEntry]:
