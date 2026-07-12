@@ -55,6 +55,50 @@ def default_cache_path(cwd: str | Path = ".", *, cache_root: str | Path | None =
     return root / f"{digest}.sqlite3"
 
 
+def list_worktrees(cwd: str | Path = ".") -> list[dict[str, Any]]:
+    """Enumerate the git worktrees for the repository containing ``cwd``.
+
+    Returns ``{path, branch, head, is_primary}`` dicts in git's own order (the
+    primary working tree first). Each worktree is a checkout of a different
+    branch with its own ``.memory-seed/sessions``, so pointing a LenseService
+    at one shows that branch's memory. Returns an empty list when git or the
+    repository is unavailable - callers fall back to the launch checkout alone.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(cwd), "worktree", "list", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return []
+    worktrees: list[dict[str, Any]] = []
+    current: dict[str, Any] = {}
+    for raw in proc.stdout.splitlines():
+        line = raw.rstrip()
+        if not line:
+            if current.get("path"):
+                worktrees.append(current)
+            current = {}
+            continue
+        if line.startswith("worktree "):
+            current = {"path": line[len("worktree "):].strip(), "head": None, "branch": None}
+        elif line.startswith("HEAD "):
+            current["head"] = line[len("HEAD "):].strip()
+        elif line.startswith("branch "):
+            ref = line[len("branch "):].strip()
+            current["branch"] = ref.rsplit("/", 1)[-1] if "/" in ref else ref
+        elif line == "detached":
+            current["branch"] = None
+    if current.get("path"):
+        worktrees.append(current)
+    for index, entry in enumerate(worktrees):
+        entry["is_primary"] = index == 0
+    return worktrees
+
+
 class LenseCache:
     def __init__(
         self,
@@ -537,6 +581,39 @@ def create_app(cwd: str | Path = ".", *, rebuild_cache: bool = False) -> Any:
     service = LenseService(cache)
     app = FastAPI(title="Memory Trace", version="1.0")
 
+    # Worktree switching: one running Trace can show each on-device worktree's
+    # branch-specific memory. The launch checkout is the default; other
+    # worktrees get a lazily built, cached LenseService the first time they are
+    # requested. Services are keyed by resolved path and only paths git reports
+    # as worktrees of this repo are ever served (no arbitrary-path reads).
+    launch_path = cache.cwd
+    worktree_services: dict[Path, LenseService] = {launch_path: service}
+    worktree_lock = threading.Lock()
+
+    def worktree_entries() -> list[dict[str, Any]]:
+        entries = list_worktrees(launch_path)
+        if not entries:
+            return [{"path": str(launch_path), "branch": None, "head": None, "is_primary": True}]
+        return entries
+
+    def service_for(worktree: str | None) -> LenseService:
+        if not worktree:
+            return service
+        target = Path(worktree).resolve()
+        if target == launch_path:
+            return service
+        known = {Path(entry["path"]).resolve() for entry in worktree_entries()}
+        if target not in known:
+            raise HTTPException(status_code=404, detail="unknown worktree")
+        with worktree_lock:
+            existing = worktree_services.get(target)
+            if existing is None:
+                wt_cache = LenseCache(target)
+                wt_cache.rebuild()
+                existing = LenseService(wt_cache)
+                worktree_services[target] = existing
+            return existing
+
     @app.get("/", response_class=HTMLResponse)
     def index() -> Any:
         return HTMLResponse(_static_text("index.html", "text/html"))
@@ -557,13 +634,31 @@ def create_app(cwd: str | Path = ".", *, rebuild_cache: bool = False) -> Any:
         path = resources.files("memory_trace").joinpath("static", "fonts", name)
         return FileResponse(path, media_type="font/woff2")
 
+    @app.get("/api/worktrees")
+    def api_worktrees() -> dict[str, Any]:
+        out = []
+        for entry in worktree_entries():
+            path = str(Path(entry["path"]).resolve())
+            branch = entry.get("branch")
+            out.append(
+                {
+                    "id": path,
+                    "path": path,
+                    "branch": branch,
+                    "label": branch or f"{Path(path).name} (detached)",
+                    "is_primary": bool(entry.get("is_primary")),
+                    "is_default": Path(path).resolve() == launch_path,
+                }
+            )
+        return {"worktrees": out, "default": str(launch_path)}
+
     @app.get("/api/runtime")
-    def api_runtime() -> dict[str, Any]:
-        return service.runtime()
+    def api_runtime(worktree: str | None = None) -> dict[str, Any]:
+        return service_for(worktree).runtime()
 
     @app.get("/api/facets")
-    def api_facets() -> dict[str, Any]:
-        return service.facets()
+    def api_facets(worktree: str | None = None) -> dict[str, Any]:
+        return service_for(worktree).facets()
 
     @app.get("/api/search")
     def api_search(
@@ -577,8 +672,9 @@ def create_app(cwd: str | Path = ".", *, rebuild_cache: bool = False) -> Any:
         date_to: str | None = None,
         topic: str | None = None,
         sort: str = "relevance",
+        worktree: str | None = None,
     ) -> dict[str, Any]:
-        return service.search(
+        return service_for(worktree).search(
             q=q,
             limit=limit,
             cursor=cursor,
@@ -592,9 +688,9 @@ def create_app(cwd: str | Path = ".", *, rebuild_cache: bool = False) -> Any:
         )
 
     @app.get("/api/chunks/{chunk_id:path}")
-    def api_chunk(chunk_id: str) -> dict[str, Any]:
+    def api_chunk(chunk_id: str, worktree: str | None = None) -> dict[str, Any]:
         try:
-            return service.chunk(chunk_id)
+            return service_for(worktree).chunk(chunk_id)
         except KeyError:
             raise HTTPException(status_code=404, detail="chunk not found") from None
 
@@ -609,8 +705,9 @@ def create_app(cwd: str | Path = ".", *, rebuild_cache: bool = False) -> Any:
         user: str | None = None,
         topic: str | None = None,
         include_empty: bool = True,
+        worktree: str | None = None,
     ) -> dict[str, Any]:
-        return service.timeline(
+        return service_for(worktree).timeline(
             date_from=date_from,
             date_to=date_to,
             zoom=zoom,
@@ -634,8 +731,9 @@ def create_app(cwd: str | Path = ".", *, rebuild_cache: bool = False) -> Any:
         date_from: str | None = None,
         date_to: str | None = None,
         topic: str | None = None,
+        worktree: str | None = None,
     ) -> dict[str, Any]:
-        return service.graph(
+        return service_for(worktree).graph(
             entry_id=entry_id,
             depth=depth,
             edge_types=tuple(x for x in edge_types.split(",") if x),

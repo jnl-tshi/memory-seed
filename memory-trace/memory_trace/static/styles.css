@@ -186,6 +186,34 @@ button {
   border-radius: 50%;
   background: #26ba81;
 }
+/* Worktree switcher: sits beside the runtime chip, styled to match. */
+.worktree-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 3px 8px;
+  min-width: 0;
+}
+.worktree-icon {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+}
+.worktree-picker select {
+  border: none;
+  /* Matches the picker chip so the closed control blends in, while giving the
+     option popup a real (themed) background instead of transparent. */
+  background: var(--surface);
+  padding: 3px 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  max-width: 200px;
+  cursor: pointer;
+}
 /* Search is a function over the current view: the box is always present and
    the ranked dropdown anchors to this wrapper. */
 .searchbox-wrap {
@@ -486,6 +514,13 @@ select, input[type="date"] {
   padding: 0 8px;
   outline: none;
   font-size: 12px;
+}
+/* Native <option> popups don't always honour color-scheme (Windows Chrome
+   renders them light regardless), so theme the option list explicitly to keep
+   every dropdown consistent in both light and dark mode. */
+option {
+  background: var(--panel);
+  color: var(--text);
 }
 .scroll {
   min-height: 0;
