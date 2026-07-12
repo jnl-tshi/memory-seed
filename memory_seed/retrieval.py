@@ -367,6 +367,7 @@ def audit_link_gaps(
     cwd: str | Path = ".",
     *,
     entry_id: str | None = None,
+    session_date: str | None = None,
     top_k: int = 5,
 ) -> list[LinkGap]:
     """Find entry pairs that share files or topics but carry no recorded edge.
@@ -381,6 +382,11 @@ def audit_link_gaps(
     (hub files like a shared app.js contribute ~nothing) then shared-topic
     count - the classification into supersedes/evolves/related is left to the
     caller (the end-of-session sweep). Read-only; forward-only by construction.
+
+    ``session_date`` (YYYY-MM-DD) scopes the TARGETS to one session's entries
+    while candidates remain the full corpus - the end-of-session sweep audits
+    only the entries it just wrote (O(K*N), K = today's entries) instead of
+    re-auditing history every session.
     """
     import math
 
@@ -431,7 +437,12 @@ def audit_link_gaps(
             | set(sidecar.get("evolves", ()))
         )
 
-    targets = [by_id[entry_id]] if entry_id is not None else chunks
+    if entry_id is not None:
+        targets = [by_id[entry_id]]
+    elif session_date is not None:
+        targets = [chunk for chunk in chunks if chunk.session_date.isoformat() == session_date]
+    else:
+        targets = chunks
     gaps: list[LinkGap] = []
     for target in targets:
         tid = target.entry_id or ""

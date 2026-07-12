@@ -134,6 +134,28 @@ class LinkAuditTests(unittest.TestCase):
         with self.assertRaises(LookupError):
             audit_link_gaps(cwd=self.cwd, entry_id="mse_dddddddddddddddd")
 
+    def test_session_date_scopes_targets_not_candidates(self):
+        # The end-of-session sweep audits only today's entries as targets, but
+        # candidates still come from the whole corpus (older sessions).
+        (self.sessions / "2026-06-01.md").write_text(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"]), encoding="utf-8"
+        )
+        (self.sessions / "2026-06-02.md").write_text(
+            "\n".join(
+                [
+                    _entry("2026-06-02 09:00", B, files=["pkg/foo.py"]),
+                    _entry("2026-06-02 10:00", C, files=["pkg/bar.py"]),
+                ]
+            ),
+            encoding="utf-8",
+        )
+        gaps = audit_link_gaps(cwd=self.cwd, session_date="2026-06-02")
+        # Only B gapped (C shares nothing); B's candidate A is from the PRIOR session.
+        self.assertEqual([g.entry_id for g in gaps], [B])
+        self.assertEqual([c.entry_id for c in gaps[0].candidates], [A])
+        # And the earlier session's entry is never a target under the scope.
+        self.assertEqual(audit_link_gaps(cwd=self.cwd, session_date="2026-06-01"), [])
+
 
 if __name__ == "__main__":
     unittest.main()

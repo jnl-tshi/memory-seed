@@ -280,6 +280,13 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="audit a single entry (default: every entry)",
     )
+    link_audit.add_argument(
+        "--date",
+        dest="audit_date",
+        metavar="YYYY-MM-DD",
+        default=None,
+        help="audit only entries from this session date (the end-of-session sweep scope)",
+    )
     link_audit.add_argument("--top-k", type=int, default=5, help="candidates per entry (default: 5)")
     link_show = link_sub.add_parser(
         "show",
@@ -683,7 +690,9 @@ def main(argv: list[str] | None = None) -> int:
             from .retrieval import audit_link_gaps
 
             try:
-                gaps = audit_link_gaps(cwd=cwd, entry_id=args.for_entry, top_k=args.top_k)
+                gaps = audit_link_gaps(
+                    cwd=cwd, entry_id=args.for_entry, session_date=args.audit_date, top_k=args.top_k
+                )
             except LookupError as exc:
                 print(str(exc), file=sys.stderr)
                 return 1

@@ -28,17 +28,18 @@ Use this skill when running the Memory Seed end-of-turn routine, `/esr`, or any 
    `.memory-seed/sessions/diagrams/YYYY-MM/YYYY-MM-DD.md` in the same turn unless the diagram would
    add no structure beyond prose. If a positive trigger is present and no sidecar is written, record
    the reason in the session entry.
-5. Review whether `.memory-seed/index.md` needs updated topology, active state, inheritance, current risk, or skill pointers.
-6. Review whether `.memory-seed/policy.md` needs durable behavioral-policy changes.
-7. Review whether any `.memory-seed/skills/*.md` runbook changed.
-8. If work occurred in a sub-project runtime, review whether the parent or root runtime needs a brief coordination summary.
-9. Run the smallest verification that proves the work.
-10. Run the orphan & artifact sweep for files, features, commands, generated artifacts, and scratch output touched by this session.
-11. Run the Stale Worktree Sweep when the project uses git worktrees.
-12. Run the Persona evolution check when a persona is active.
-13. Run the Skill evolution check when a persona is active.
-14. Check for unregistered persona files and escalate to persona onboarding when files exist without registry entries.
-15. Run the Baseline-promotion check for general rules, skills, or runbooks worth promoting beyond this project.
+5. Run the Lifecycle Link Sweep once the session's entries are appended.
+6. Review whether `.memory-seed/index.md` needs updated topology, active state, inheritance, current risk, or skill pointers.
+7. Review whether `.memory-seed/policy.md` needs durable behavioral-policy changes.
+8. Review whether any `.memory-seed/skills/*.md` runbook changed.
+9. If work occurred in a sub-project runtime, review whether the parent or root runtime needs a brief coordination summary.
+10. Run the smallest verification that proves the work.
+11. Run the orphan & artifact sweep for files, features, commands, generated artifacts, and scratch output touched by this session.
+12. Run the Stale Worktree Sweep when the project uses git worktrees.
+13. Run the Persona evolution check when a persona is active.
+14. Run the Skill evolution check when a persona is active.
+15. Check for unregistered persona files and escalate to persona onboarding when files exist without registry entries.
+16. Run the Baseline-promotion check for general rules, skills, or runbooks worth promoting beyond this project.
 
 ## Consolidation Review
 
@@ -51,6 +52,31 @@ Review consolidation when:
 - session notes became long enough that future agents will struggle to scan them
 - a release, publish, migration, bootstrap repair, security decision, or major refactor completed
 - `index.md`, `policy.md`, or a skill no longer reflects current state
+
+## Lifecycle Link Sweep
+
+Write-time YAML (the Decision Harvest's lifecycle questions in step 2) is the first line of defense;
+this sweep is the safety net for edges you could not know at authoring time. It exists because typed
+lifecycle edges rot silently otherwise: genuine supersessions get logged as generic
+`related_entries` and the distinction collapses.
+
+- Run `memory-seed link audit --date <today>` - it audits only this session's entries (targets)
+  against the full corpus (candidates), flagging pairs that share `F:` files or topics with no
+  recorded edge. File overlap surfaces a candidate even when a `related_entries` link already exists
+  (the upgrade case); topic-only overlap is suppressed by any existing edge.
+- Classify each flagged candidate with the litmus: the new entry *retires* it -> `supersedes`;
+  *refines it while it stays valid* -> `evolves`; genuinely just connected -> `related_entries`.
+  Not every flag deserves an edge - shared files can be coincidental; skip those.
+- Record the accepted edges in the day's link sidecar
+  `.memory-seed/sessions/links/YYYY-MM/YYYY-MM-DD.md` - never by reopening a written entry
+  (append-only). Each block is keyed to the SOURCE (newer) entry:
+  `## <entry's timestamp> - <short label>` + a fenced yaml with `entry_id:` and the
+  `supersedes:`/`evolves:`/`related_entries:` lists pointing at older targets.
+- Ask the user for approval before writing the sidecar (same gate as persona evolution): show the
+  proposed edges with their evidence and classification.
+- Finish with `memory-seed links check` - sidecar edges join the dangling and forward-only guards.
+
+Skip silently when the audit reports no gaps.
 
 ## Orphan And Artifact Sweep
 
