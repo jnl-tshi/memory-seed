@@ -11,10 +11,14 @@ class TrailGoldenFixtureTests(unittest.TestCase):
 
     This is the parity target for the React Trail (roadmap Phase 4): a
     re-implementation must reproduce laneOf/spans/linkRows/items for the same
-    corpus. Regeneration procedure lives in the baseline report
-    (docs/4_Reference/memory-trace-phase0-baseline.md): regenerate the corpus
-    with generate_synthetic.py (count=48, seed=20260711), serve it, and read
-    window.memoryTraceDebug.trailModel(graph) in the browser.
+    corpus. Regenerate after any trailModel change with the browserless
+    harness (requires node; deterministic - two runs are byte-identical):
+
+        PYTHONPATH=".;memory-trace" python memory-trace/tests/fixtures/regen_trail_golden.py
+
+    It evaluates the real app.js in a node vm and calls the same
+    window.memoryTraceDebug.trailModel hook the original browser capture
+    procedure (docs/4_Reference/memory-trace-phase0-baseline.md) used.
 
     The assertions below check internal consistency, so a hand-edited or
     corrupted fixture fails loudly even without a browser.
