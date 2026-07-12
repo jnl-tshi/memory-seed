@@ -2811,7 +2811,10 @@ def install_git_hooks(cwd: Path | str = ".") -> list[str]:
     """
     runtime = resolve_runtime(cwd)
     root = runtime.workspace_root
-    git_dir_lines = _git_capture(root, "rev-parse", "--git-dir")
+    # --git-common-dir, not --git-dir: in a linked worktree the latter is the
+    # per-worktree metadata dir, but git resolves hooks from the COMMON dir -
+    # installing there covers the primary checkout and every worktree at once.
+    git_dir_lines = _git_capture(root, "rev-parse", "--git-common-dir")
     if not git_dir_lines:
         return []
     git_dir = Path(git_dir_lines[0].strip())
