@@ -892,12 +892,18 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
         # Entry-level related_entries/supersedes live inside each entry's fenced
         # ```yaml block, the same shape in both layouts - scan them regardless
         # of layout, unlike the per-user *file*-frontmatter checks below.
+        # Refs extract with the wider _TRAILER_ENTRY_ID_RE, not the strict
+        # Crockford _RELATED_ENTRY_REF_RE: real corpus ids include o/u/i/l
+        # (codex-authored entries), and a ref the extractor skips silently
+        # bypasses the dangling and forward-only guards while the graph still
+        # draws it. known_entries accepts any id shape (_ENTRY_ID_RE), so a
+        # wider-matched bad token surfaces as dangling instead of vanishing.
         for yaml_block in _fenced_yaml_blocks(text):
-            for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, "related_entries")):
+            for ref in _TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(yaml_block, "related_entries")):
                 related_entry_refs.append((rel, ref))
-            for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, "supersedes")):
+            for ref in _TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(yaml_block, "supersedes")):
                 supersedes_refs.append((rel, ref))
-            for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, "evolves")):
+            for ref in _TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(yaml_block, "evolves")):
                 evolves_refs.append((rel, ref))
             for token in _COMMIT_TOKEN_RE.findall(_frontmatter_list_region(yaml_block, "commits")):
                 commit_refs.append((rel, token))
@@ -957,10 +963,10 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
             source_id = id_match.group(1) if id_match else None
             if source_id:
                 entry_timestamps.setdefault(source_id, heading_ts)
-            for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, "supersedes")):
+            for ref in _TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(yaml_block, "supersedes")):
                 if source_id:
                     supersedes_edges.append((rel, source_id, ref))
-            for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, "evolves")):
+            for ref in _TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(yaml_block, "evolves")):
                 if source_id:
                     evolves_edges.append((rel, source_id, ref))
 
@@ -998,7 +1004,7 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                 issues.append(LinkIssue(rel, "malformed-hash-id", f"hash_id '{hash_id}' lacks the msm_ prefix"))
             hash_id_files.setdefault(hash_id, []).append(rel)
 
-        for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(block, "related_entries")):
+        for ref in _TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(block, "related_entries")):
             related_entry_refs.append((rel, ref))
         for ref in _RELATED_MEMORY_REF_RE.findall(_frontmatter_list_region(block, "related_memories")):
             related_memory_refs.append((rel, ref))
