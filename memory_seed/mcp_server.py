@@ -10,6 +10,7 @@ from typing import Any
 from .core import (
     branch_status,
     commit_reference_ids,
+    generate_session_entry_id,
     resolve_runtime,
     session_fuse,
     session_target,
@@ -169,6 +170,31 @@ TOOLS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "name": "memory_entry_id",
+        "description": "Compute the canonical entry_id for a new session entry from its metadata (deterministic sha256, no randomness). Closes the authoring loop: call this instead of inventing an id - hand-rolled ids drift outside the canonical Crockford alphabet and are not reproducible. Read-only; the agent writes the id into its own new entry.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "timestamp": {
+                    "type": "string",
+                    "description": "Entry heading timestamp, e.g. '2026-07-12 14:45'.",
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Entry title (the text after 'YYYY-MM-DD HH:MM - ').",
+                },
+                "user_initials": {"type": "string", "description": "user_initials field, e.g. JNL."},
+                "agent_type": {"type": "string", "description": "agent_type field, e.g. claude."},
+                "project_path": {"type": "string", "default": "."},
+                "subproject_path": {
+                    "type": "string",
+                    "description": "subproject_path field; omit for null.",
+                },
+            },
+            "required": ["timestamp", "title", "user_initials", "agent_type"],
+        },
+    },
 ]
 
 
@@ -313,6 +339,20 @@ def call_tool(
             "layout": target.layout,
             "exists": target.path.exists(),
             "write_surface": "Agent appends the entry directly; MCP never writes session files.",
+        }
+
+    if name == "memory_entry_id":
+        entry_id = generate_session_entry_id(
+            timestamp=_required_str(args, "timestamp"),
+            title=_required_str(args, "title"),
+            user_initials=_required_str(args, "user_initials"),
+            agent_type=_required_str(args, "agent_type"),
+            project_path=str(args.get("project_path", ".")),
+            subproject_path=_optional_str(args, "subproject_path"),
+        )
+        return {
+            "entry_id": entry_id,
+            "write_surface": "Agent writes this id into its own new entry; MCP never writes session files.",
         }
 
     raise ValueError(f"Unknown tool: {name}")

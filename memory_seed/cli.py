@@ -17,6 +17,7 @@ from .core import (
     clear_local_user,
     compact_sessions,
     doctor,
+    generate_session_entry_id,
     get_version,
     init_project,
     migrate_session_month_layout,
@@ -218,6 +219,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     session_merge_parser.add_argument("--branch", required=True, help="task branch to merge into the current branch")
     session_merge_parser.add_argument("--dry-run", action="store_true", help="preview the fuse plan without merging")
+    session_entry_id_parser = session_sub.add_parser(
+        "entry-id",
+        help="compute the canonical entry_id for a new session entry (deterministic, no randomness)",
+    )
+    session_entry_id_parser.add_argument("--timestamp", required=True, help="entry heading timestamp, e.g. '2026-07-12 14:45'")
+    session_entry_id_parser.add_argument("--title", required=True, help="entry title (the text after the timestamp)")
+    session_entry_id_parser.add_argument("--user-initials", required=True, help="user_initials field, e.g. JNL")
+    session_entry_id_parser.add_argument("--agent-type", required=True, help="agent_type field, e.g. claude")
+    session_entry_id_parser.add_argument("--project-path", default=".", help="project_path field (default: .)")
+    session_entry_id_parser.add_argument("--subproject-path", default=None, help="subproject_path field (default: null)")
 
     branch_parser = subparsers.add_parser("branch", help="inspect Git branch/worktree posture")
     branch_sub = branch_parser.add_subparsers(dest="branch_command", required=True)
@@ -458,6 +469,18 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"Stamped {len(result.stamped_entries)} Memory-Entry trailer(s) on the merge commit.")
             else:
                 print(f"Branch {args.branch} is already merged into HEAD; nothing to do.")
+            return 0
+        if args.session_command == "entry-id":
+            print(
+                generate_session_entry_id(
+                    timestamp=args.timestamp,
+                    title=args.title,
+                    user_initials=args.user_initials,
+                    agent_type=args.agent_type,
+                    project_path=args.project_path,
+                    subproject_path=args.subproject_path,
+                )
+            )
             return 0
 
     if args.command == "branch":
