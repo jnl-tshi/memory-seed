@@ -1,6 +1,17 @@
 # Cheap tooling for skill/hook weak points — proposal set
 
-Status: inbox (for discussion, 2026-07-12)
+Status: COMPLETED 2026-07-12 — all eight proposals implemented and merged the
+same day they were written. Dispositions: P1 `session append` (b9c6c38), P2
+`session reorder` (b9c6c38; applied to the real 2026-07-12 misorder,
+unblocking `session merge-branch`), P3 prepare-commit-msg trailer hook
+(b5e67ca + common-dir fix), P4 `memory-seed esr` (b9c6c38), P5 folded into
+P4's seed-twins report section (per user ruling, not built separately), P6
+serve-time asset versioning and P7 `--static-root` (b0e9f87), P8 browserless
+golden-fixture harness (1fb48fc). User rulings honored: P1 depends on P2;
+timestamp policy = error-and-fix-consciously; sweep applies only with
+per-run approval.
+
+Originally: inbox (for discussion, 2026-07-12)
 Origin: holistic review after the lifecycle-links + entry-id hardening. Pattern
 established today, twice: a skill rule without a one-call tool does not hold
 against flow (lifecycle edges rotted to one file in 312 entries; every agent

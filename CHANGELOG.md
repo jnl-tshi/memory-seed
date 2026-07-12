@@ -32,6 +32,71 @@ All notable changes to Memory Seed are summarized here.
   vocabulary was derived from the 62 slugs already in use (user-approved 19-canonical
   consolidation with every observed slug preserved as canonical or alias). Trace rendering of
   indexed topics and MCP topic-management tools stay deferred (plan Phase 4).
+- Memory Trace UI pass: the Trail (git-graph-style timeline over session entries) is the primary
+  tab and default view, retiring the Timeline tab; search acts as a function over the active view
+  (matching rows keep full presence with a marker, everything else dims) instead of a separate
+  results page; relationship routes (`replaces`/`evolves`/`related`) render in a dedicated dotted
+  zone left of the branch lanes with same-branch context shown as row brackets.
+- Versioned `/api/v1/*` API alongside the legacy `/api/*` surface: Pydantic response models, a
+  committed OpenAPI schema and generated TypeScript types as contract fixtures, plus Phase-0
+  regression harnesses (deterministic synthetic corpus generator and a Trail lane/edge golden
+  fixture) targeting the future React client.
+- Memory Trace worktree switcher: one running server can display each on-device git worktree's
+  branch-specific memory. `/api/worktrees` enumerates checkouts (from `git worktree list`, the
+  only paths ever served); every legacy data endpoint gains an optional `worktree` param backed by
+  lazily built per-worktree services; a header dropdown (hidden for single-checkout repos) switches
+  the whole UI, defaulting to the launch checkout.
+- Commit-accurate Trail merges: fork/merge connectors are driven by the `Memory-Entry:` trailers
+  on trunk merge commits (one first-parent `git log` pass plus `merge-base` fork points, cached
+  beside the diff-derived authoring map) instead of a positional heuristic. Merge anchors
+  interpolate to commit-time positions between entries (back-to-back merges spread apart), trunk
+  merge rings are hoverable and click-select the merged work, the reader splits "Authored in" from
+  "Merged to main by", a branch whose newest entry is unmerged dangles open, and pre-trailer-era
+  branches keep the old heuristic flagged "estimated" on hover. A dashed, dimmed phantom trunk
+  extends main's lane above its newest displayed entry so branches merging into main up top have a
+  visible trunk to land on without asserting a live current main. Legacy `/api/*` + vanilla UI
+  only for now; the `/api/v1` contract is deliberately untouched.
+- Trail lane readability: the first four lanes each cycle a pack of three bright colors across
+  daisy-chained branches (12 unique colors; deeper lanes pin to their pack's middle color), lane
+  allocation orders branches by entry time (older/compact inner, newer outer), and each row's
+  time/title indentation follows the lane silhouette (date-separator rows included).
+- Lifecycle-edge link sidecars: `supersedes`/`evolves`/`related_entries` edges can be authored
+  AFTER an entry in append-only `sessions/links/YYYY-MM/YYYY-MM-DD.md` sidecars (mirroring the
+  decision-diagram sidecar mechanism) instead of reopening written entries. The Trail merges
+  sidecar and entry-YAML edges at read time; `links check` validates sidecar refs through the same
+  dangling and forward-only guards (`orphan-link-sidecar`, `link-sidecar-date-mismatch`,
+  `malformed-link-sidecar`) attributed to the source entry's timestamp. New `memory-seed link
+  audit [--for ID] [--date YYYY-MM-DD]` finds entry pairs sharing `F:` files or topics with no
+  recorded edge - file overlap qualifies a pair even without a shared topic and surfaces
+  already-related pairs as lifecycle upgrade candidates; IDF weighting keeps hub files from
+  dominating. `end_of_turn.md` gains a Lifecycle Link Sweep step (audit today's entries, classify
+  retire-vs-refine, record in the sidecar with user approval).
+- Canonical entry-id generation is now one call away on both agent surfaces: `memory-seed session
+  entry-id` (CLI) and `memory_entry_id` (MCP) wrap the deterministic sha256 generator so ids stop
+  being hand-rolled (hand-rolled ids are irreproducible and drift outside the canonical Crockford
+  alphabet). `links check` ref extraction (entry YAML and sidecars) now uses the wider trailer-id
+  pattern so refs to real non-Crockford ids are validated instead of silently skipped.
+- `memory-seed session append`: entry authoring with structure enforced - target resolution,
+  now-timestamp (refusing out-of-order appends loudly; conflicts are fixed consciously, never
+  silently bumped), canonical id, YAML shape, ref validation (fabricated and forward-pointing ids
+  refused), controlled-topic resolution, and branch auto-capture, while title/classification/body
+  prose pass through verbatim. `memory-seed session reorder --date` repairs a misordered day as a
+  pure block permutation (entry bytes untouched; dry-run default).
+- `memory-seed esr`: one read-only end-of-turn preflight covering links check, topics check, the
+  session-scoped link audit, per-worktree posture (merged+clean checkouts marked as stale-sweep
+  candidates), and live-vs-seed skill twin drift (control-plane dev repo only). Every section
+  prints even when clean; exit code reflects only hard integrity failures.
+- Memory-Entry trailers stamp automatically on ordinary commits: a repo-tracked
+  `prepare-commit-msg` hook (`.memory-seed/hooks/prepare-commit-msg.py`, seeded) appends
+  deduplicated trailers for staged session entries and never blocks a commit. `memory-seed hooks
+  install` writes the sh shim into the git common dir (covering all worktrees); `init` installs it
+  by default when a repository exists.
+- Memory Trace serving: index.html's asset `?v=` tags are rewritten per request with a content
+  hash of `app.js`+`styles.css` (no manual cache-bust bump to forget; asset edits take effect
+  without restart), and `--static-root` / `MEMORY_TRACE_STATIC_ROOT` serves another checkout's UI
+  assets for verifying a worktree's changes without copying files. The Trail golden fixture is
+  regenerated browserlessly via `tests/fixtures/regen_trail_golden.py` (node vm harness over the
+  real `app.js`; byte-identical across runs).
 
 ## 2.17.0 - 2026-07-10
 
