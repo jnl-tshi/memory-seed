@@ -269,6 +269,18 @@ def main(argv: list[str] | None = None) -> int:
         help="entry to suggest links for (default: the newest entry)",
     )
     link_suggest.add_argument("--top-k", type=int, default=5, help="number of candidates to show (default: 5)")
+    link_audit = link_sub.add_parser(
+        "audit",
+        help="find entries that share files/topics but have no recorded edge (read-only)",
+    )
+    link_audit.add_argument(
+        "--for",
+        dest="for_entry",
+        metavar="ENTRY_ID",
+        default=None,
+        help="audit a single entry (default: every entry)",
+    )
+    link_audit.add_argument("--top-k", type=int, default=5, help="candidates per entry (default: 5)")
     link_show = link_sub.add_parser(
         "show",
         help="show outbound edges and computed inbound backlinks for an entry",
@@ -666,6 +678,34 @@ def main(argv: list[str] | None = None) -> int:
             print("related_entries:")
             for item in ranked:
                 print(f"  - {item.chunk.entry_id}")
+            return 0
+        if args.link_command == "audit":
+            from .retrieval import audit_link_gaps
+
+            try:
+                gaps = audit_link_gaps(cwd=cwd, entry_id=args.for_entry, top_k=args.top_k)
+            except LookupError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            if not gaps:
+                print("No unlinked structural neighbours found (no shared files or topics without an edge).")
+                return 0
+            print("Entries sharing files/topics with no recorded edge - classify each and record in a link sidecar:")
+            for gap in gaps:
+                print()
+                print(f"{gap.entry_id}  {gap.session_date}  {gap.title}")
+                for cand in gap.candidates:
+                    evidence = []
+                    if cand.shared_files:
+                        evidence.append(f"files: {', '.join(cand.shared_files)}")
+                    if cand.shared_topics:
+                        evidence.append(f"topics: {', '.join(cand.shared_topics)}")
+                    if cand.already_related:
+                        evidence.append("already related — consider upgrading to a lifecycle edge")
+                    print(f"    -> {cand.entry_id}  {cand.session_date}  {cand.title}")
+                    print(f"       {' | '.join(evidence)}")
+            print()
+            print("Litmus: retires it -> supersedes; refines while it stays valid -> evolves; else related.")
             return 0
         if args.link_command == "show":
             from .core import commit_reference_ids, resolve_runtime
