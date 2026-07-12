@@ -1113,13 +1113,17 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                         f"entry_id {entry_id} was logged on {entry_date}, but link sidecar is filed under {file_date}",
                     )
                 )
+            # Wider _TRAILER_ENTRY_ID_RE, matching the sidecar reader: real
+            # corpus ids include non-Crockford letters (o/u/i/l) the strict
+            # ref regex would silently skip - here a bad ref must surface as
+            # dangling, never vanish.
             for kind, edge_list in (("supersedes", supersedes_edges), ("evolves", evolves_edges)):
-                for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, kind)):
+                for ref in _TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(yaml_block, kind)):
                     if ref not in known_entries:
                         issues.append(LinkIssue(rel, f"dangling-{kind}", f"{kind} -> {ref} (no such entry_id)"))
                     else:
                         edge_list.append((rel, entry_id, ref))
-            for ref in _RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, "related_entries")):
+            for ref in _TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(yaml_block, "related_entries")):
                 if ref not in known_entries:
                     issues.append(LinkIssue(rel, "dangling-related-entry", f"related_entries -> {ref} (no such entry_id)"))
 

@@ -290,8 +290,14 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     empty map when the dir is absent; malformed sidecars are skipped here and
     surfaced by ``links check``.
     """
+    # _TRAILER_ENTRY_ID_RE, not the strict _RELATED_ENTRY_REF_RE: real corpus
+    # ids include non-Crockford letters (o/u/i/l, e.g. codex-authored entries),
+    # which the strict charset silently drops - an edge that vanishes without a
+    # trace. The wider match is safe because links check validates every ref
+    # against known entries: a bad token becomes a dangling-* issue, not a
+    # silent no-op.
     from .core import (
-        _RELATED_ENTRY_REF_RE,
+        _TRAILER_ENTRY_ID_RE,
         _frontmatter_list_region,
         iter_link_sidecar_documents,
         resolve_runtime,
@@ -325,7 +331,7 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
             if not entry_id:
                 continue
             found = {
-                key: tuple(_RELATED_ENTRY_REF_RE.findall(_frontmatter_list_region(yaml_block, key)))
+                key: tuple(_TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(yaml_block, key)))
                 for key in ("supersedes", "evolves", "related_entries")
             }
             existing = sidecars.get(entry_id)
