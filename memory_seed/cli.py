@@ -310,6 +310,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     link_commits.add_argument("entry_id", help="entry_id to show commits for")
 
+    esr_parser = subparsers.add_parser(
+        "esr",
+        help="end-of-session mechanical preflight: every deterministic check in one read-only report",
+    )
+    esr_parser.add_argument("--date", default=None, help="session date for the link-gap sweep (default: today)")
+    esr_parser.add_argument("--json", action="store_true", help="emit the report as JSON")
+
     update_parser = subparsers.add_parser("update", help="update reusable control-plane files")
     update_parser.add_argument(
         "--dry-run",
@@ -1050,6 +1057,18 @@ def main(argv: list[str] | None = None) -> int:
             print("Ignored optional skills: " + ", ".join(status.ignored))
         print("Next: open AGENTS.md and follow nearest-runtime mode.")
         return 0
+
+    if args.command == "esr":
+        from .esr import esr_report, format_esr_report
+
+        report = esr_report(cwd=Path(".").resolve(), session_date=args.date)
+        if args.json:
+            print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
+        else:
+            print(format_esr_report(report))
+        # Preflight, not a gate: only hard integrity failures are fatal -
+        # link gaps, stale worktrees, and topic warnings are report lines.
+        return 0 if report.integrity_ok else 1
 
     if args.command == "update":
         result = update_project(dry_run=args.dry_run)

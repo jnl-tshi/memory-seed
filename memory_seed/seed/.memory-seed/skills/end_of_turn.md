@@ -12,6 +12,10 @@ Use this skill when running the Memory Seed end-of-turn routine, `/esr`, or any 
 
 ## Procedure
 
+0. Run `memory-seed esr` (add `--date YYYY-MM-DD` for a session crossing midnight): one read-only
+   report covering integrity, topics, lifecycle link gaps, worktree posture, and seed-twin drift.
+   Read every section - each prints even when clean, so a skipped check is visible. Use its
+   sections for steps 5, 11, and 12 instead of re-running the underlying commands one by one.
 1. Resolve the active session target with `memory-seed session target` when the target is uncertain.
 2. Run the Decision Harvest from `.memory-seed/skills/session_logging.md` before composing the entry:
    identify every durable accepted choice, then choose single-decision, multi-decision, or separate
@@ -60,10 +64,12 @@ this sweep is the safety net for edges you could not know at authoring time. It 
 lifecycle edges rot silently otherwise: genuine supersessions get logged as generic
 `related_entries` and the distinction collapses.
 
-- Run `memory-seed link audit --date <today>` - it audits only this session's entries (targets)
-  against the full corpus (candidates), flagging pairs that share `F:` files or topics with no
-  recorded edge. File overlap surfaces a candidate even when a `related_entries` link already exists
-  (the upgrade case); topic-only overlap is suppressed by any existing edge.
+- Start from the "Lifecycle link gaps" section of the `memory-seed esr` report (step 0) - it is
+  `link audit --date <today>`: this session's entries (targets) against the full corpus
+  (candidates), flagging pairs that share `F:` files or topics with no recorded edge. File overlap
+  surfaces a candidate even when a `related_entries` link already exists (the upgrade case);
+  topic-only overlap is suppressed by any existing edge. Run `memory-seed link audit` directly only
+  when you need a different scope or more candidates per entry.
 - Classify each flagged candidate with the litmus: the new entry *retires* it -> `supersedes`;
   *refines it while it stays valid* -> `evolves`; genuinely just connected -> `related_entries`.
   Not every flag deserves an edge - shared files can be coincidental; skip those.
@@ -95,10 +101,13 @@ Applies to every worktree under `.claude/worktrees/` and `.codex/worktrees/` (or
 just ones this session created - other agents (Claude, Codex, or otherwise) may leave theirs behind
 too.
 
-- List worktrees (`git worktree list`) and identify candidates: any whose branch has zero commits
-  ahead of the integration branch (`git log <integration>..<branch>`), i.e. already fully merged.
-- For each candidate, check for uncommitted changes (`git status --short` inside the worktree)
-  before removing it - a merged branch can still carry working-tree state its own history never saw.
+- Start from the "Worktrees" section of the `memory-seed esr` report (step 0): it already lists
+  every worktree with its branch, commits ahead of the integration branch, and dirty-file count,
+  and marks merged-and-clean ones as STALE CANDIDATE. Fall back to `git worktree list` +
+  `git log <integration>..<branch>` + `git status --short` per worktree only when the report is
+  unavailable.
+- A merged branch can still carry working-tree state its own history never saw - the dirty count
+  covers this, but re-check `git status --short` inside the worktree immediately before removal.
 - If uncommitted changes exist, diagnose before touching them:
   - Genuinely stale/superseded (already reflected in the integration branch some other way, or pure
     formatting/line-ending noise) - safe to discard, but still name the specific worktree and diff
