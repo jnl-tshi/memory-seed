@@ -1,7 +1,8 @@
 schema_version: 1
 # Project-local controlled topic vocabulary (memory-trace-topic-neighbourhoods-plan.md).
 # Derived 2026-07-10 from the slugs already authored across 50 session entries, consolidated to
-# 19 canonical topics with every observed slug preserved as canonical or alias (user-approved).
+# 21 canonical topics with every observed slug preserved as canonical or alias (user-approved);
+# 2026-07-12 added Memory Trace UI and core Memory Seed slugs used by later entries.
 # Deploy-once: `memory-seed update` never overwrites this file. Aliases resolve at read time;
 # `memory-seed topics check` errors only on slugs found in neither column.
 topics:
@@ -80,6 +81,16 @@ topics:
     description: The companion review UI package and its views.
     status: active
     aliases: [memory-trace-ui]
+  - slug: ui-design
+    label: UI Design
+    description: Interface layout, visual hierarchy, interaction design, and rendered UI behavior.
+    status: active
+    aliases: [frontend-design, visual-design]
+  - slug: memory-seed
+    label: Memory Seed Core
+    description: Core package, CLI, MCP, seed runtime, and Memory Seed product behavior not captured by narrower topics.
+    status: active
+    aliases: [memory-seed-core]
   - slug: control-plane
     label: Control Plane
     description: Agent rules, skills governance, and reusable runtime files.
