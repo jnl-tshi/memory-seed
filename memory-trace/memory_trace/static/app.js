@@ -1,6 +1,14 @@
 const state = {
   runtime: null,
   facets: null,
+  // On-device worktree switching: `worktrees` is the list from /api/worktrees,
+  // `worktree` is the selected one's id (a resolved path), `worktreeDefault` is
+  // the launch checkout - the empty/default selection sends no param so the
+  // server serves its own checkout. Changing this re-points every fetch at the
+  // chosen worktree's branch-specific memory.
+  worktrees: [],
+  worktree: "",
+  worktreeDefault: "",
   view: storedView() || "trail",
   theme: localStorage.getItem("ml:theme") || "dark",
   accent: localStorage.getItem("ml:accent") || "indigo",
@@ -70,10 +78,21 @@ let paneObserver = null;
 let restoringFocus = false;
 
 function api(path) {
-  return fetch(path).then((response) => {
+  return fetch(withWorktree(path)).then((response) => {
     if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
     return response.json();
   });
+}
+
+// Every data fetch carries the selected worktree so the server serves that
+// checkout's branch memory. The default selection sends no param (the server
+// uses its own launch checkout); /api/worktrees is the enumeration itself and
+// is never scoped.
+function withWorktree(path) {
+  if (!state.worktree || state.worktree === state.worktreeDefault) return path;
+  if (path.startsWith("/api/worktrees")) return path;
+  const sep = path.includes("?") ? "&" : "?";
+  return `${path}${sep}worktree=${encodeURIComponent(state.worktree)}`;
 }
 
 function qs(params) {
@@ -88,11 +107,51 @@ async function boot() {
   document.documentElement.dataset.theme = state.theme;
   document.documentElement.dataset.accent = state.accent;
   restorePanes();
+  await loadWorktrees();
   [state.runtime, state.facets] = await Promise.all([api("/api/runtime"), api("/api/facets")]);
   seedDates();
   await loadView();
   installDelegatedEvents();
   render();
+}
+
+// Enumerate on-device worktrees once at boot; the dropdown defaults to the
+// launch checkout (main in the normal case). Failures are non-fatal - Trace
+// just runs single-checkout, as it always has.
+async function loadWorktrees() {
+  try {
+    const data = await api("/api/worktrees");
+    state.worktrees = data.worktrees || [];
+    state.worktreeDefault = data.default || "";
+    const preferred = state.worktrees.find((w) => w.is_default) || state.worktrees[0];
+    state.worktree = preferred ? preferred.id : "";
+  } catch {
+    state.worktrees = [];
+    state.worktree = "";
+  }
+}
+
+// Switching worktrees swaps the entire data source: clear the current
+// selection and graph, then reload runtime/facets/view against the new
+// checkout's branch memory.
+async function switchWorktree(id) {
+  if (id === state.worktree) return;
+  state.worktree = id;
+  state.selected = null;
+  state.selectedId = null;
+  state.graph = null;
+  state.query = "";
+  state.results = [];
+  state.matchEntries = new Set();
+  state.searchOpen = false;
+  const token = ++state.loadSeq;
+  const [runtime, facets] = await Promise.all([api("/api/runtime"), api("/api/facets")]);
+  if (token !== state.loadSeq) return;
+  state.runtime = runtime;
+  state.facets = facets;
+  seedDates();
+  await loadView();
+  if (token === state.loadSeq) render();
 }
 
 function seedDates() {
@@ -243,6 +302,7 @@ function topbar() {
       <button type="button" class="icon-button" data-toggle-left title="${state.leftCollapsed ? "Show sidebar" : "Hide sidebar"}">☰</button>
       <div class="brand"><span class="brand-mark"></span><span>Memory Trace</span></div>
       <div class="runtime-chip"><span class="runtime-dot"></span><span>${esc(state.runtime?.label || "runtime")}</span><span>${state.runtime?.entry_count || 0} entries</span></div>
+      ${worktreePicker()}
       <div class="searchbox-wrap">
         <div class="searchbox"><span>⌕</span><input id="query" value="${escAttr(state.query)}" placeholder="Search memory, tags, files, decisions" spellcheck="false"></div>
         ${searchDropdown()}
@@ -252,6 +312,22 @@ function topbar() {
       <div class="palette">${["indigo", "teal", "amber", "ruby", "violet"].map((name) => `<button type="button" class="${state.accent === name ? "active" : ""}" data-accent="${name}" title="${name}" style="background:${palettePreview(name)}"></button>`).join("")}</div>
       <button type="button" class="icon-button" data-toggle-right title="${state.rightCollapsed ? "Show reader" : "Hide reader"}">▤</button>
     </header>`;
+}
+
+// Worktree switcher: shows each on-device worktree (branch) and re-points the
+// whole Trail at the selected checkout's memory. Hidden when there's only the
+// one launch checkout - nothing to switch between.
+function worktreePicker() {
+  if (state.worktrees.length < 2) return "";
+  return `
+    <label class="worktree-picker" title="Show the Trail for another on-device worktree">
+      <span class="worktree-icon" aria-hidden="true">⑃</span>
+      <select id="worktree-select" data-worktree-select>
+        ${state.worktrees
+          .map((w) => `<option value="${escAttr(w.id)}" ${w.id === state.worktree ? "selected" : ""}>${esc(w.label)}${w.is_primary ? "" : " ·wt"}</option>`)
+          .join("")}
+      </select>
+    </label>`;
 }
 
 // Ranked results dropdown under the search box: the relevance-ordered jump
@@ -954,7 +1030,9 @@ function installDelegatedEvents() {
   app.addEventListener("change", async (event) => {
     const target = event.target;
     if (!target) return;
-    if (target.dataset?.filterSelect) {
+    if (target.dataset?.worktreeSelect !== undefined) {
+      await switchWorktree(target.value);
+    } else if (target.dataset?.filterSelect) {
       await updateFilter(target.dataset.filterSelect, target.value);
     } else if (target.id === "date-from") {
       await updateFilter("dateFrom", target.value);
