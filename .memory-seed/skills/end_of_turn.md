@@ -34,10 +34,11 @@ Use this skill when running the Memory Seed end-of-turn routine, `/esr`, or any 
 8. If work occurred in a sub-project runtime, review whether the parent or root runtime needs a brief coordination summary.
 9. Run the smallest verification that proves the work.
 10. Run the orphan & artifact sweep for files, features, commands, generated artifacts, and scratch output touched by this session.
-11. Run the Persona evolution check when a persona is active.
-12. Run the Skill evolution check when a persona is active.
-13. Check for unregistered persona files and escalate to persona onboarding when files exist without registry entries.
-14. Run the Baseline-promotion check for general rules, skills, or runbooks worth promoting beyond this project.
+11. Run the Stale Worktree Sweep when the project uses git worktrees.
+12. Run the Persona evolution check when a persona is active.
+13. Run the Skill evolution check when a persona is active.
+14. Check for unregistered persona files and escalate to persona onboarding when files exist without registry entries.
+15. Run the Baseline-promotion check for general rules, skills, or runbooks worth promoting beyond this project.
 
 ## Consolidation Review
 
@@ -61,6 +62,29 @@ Scope the sweep to this session's changes.
 - Dead-code tools: run an already-declared tool only when the project provides one. Do not install a tool solely for ESR.
 
 Do not delete user-owned or pre-existing files on the sweep alone. Flag and ask when ownership is unclear.
+
+## Stale Worktree Sweep
+
+Applies to every worktree under `.claude/worktrees/` and `.codex/worktrees/` (or equivalent), not
+just ones this session created - other agents (Claude, Codex, or otherwise) may leave theirs behind
+too.
+
+- List worktrees (`git worktree list`) and identify candidates: any whose branch has zero commits
+  ahead of the integration branch (`git log <integration>..<branch>`), i.e. already fully merged.
+- For each candidate, check for uncommitted changes (`git status --short` inside the worktree)
+  before removing it - a merged branch can still carry working-tree state its own history never saw.
+- If uncommitted changes exist, diagnose before touching them:
+  - Genuinely stale/superseded (already reflected in the integration branch some other way, or pure
+    formatting/line-ending noise) - safe to discard, but still name the specific worktree and diff
+    and get explicit user confirmation before discarding; a prior general "clean them up" does not
+    by itself authorize discarding a diff turning out to hold real content.
+  - Unique, never-recorded content (e.g. a session-log entry that exists nowhere else) - recover it
+    into the canonical target first (commit it properly), then remove the worktree.
+- Only remove a worktree once its branch is confirmed merged (or the user explicitly says to
+  abandon it) and any uncommitted content has been resolved - recovered or discarded with consent.
+- Prefer the platform's worktree-removal tool when the worktree was entered via `EnterWorktree`;
+  otherwise `git worktree remove` (add `--force` only after the above checks pass), then
+  `git worktree prune` to clear stale metadata.
 
 ## Persona Evolution Check
 
