@@ -819,6 +819,22 @@ function trailView() {
     rows.slice(1).map((row, i) => `<line x1="${laneX(branch)}" y1="${rowY(rows[i])}" x2="${laneX(branch)}" y2="${rowY(row)}" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></line>`)
   );
 
+  // Phantom trunk: main is a single continuous ref, but a stale or
+  // branch-heavy view can carry no main ENTRY in its top region - so the
+  // branches that merged INTO main up there have no visible trunk to land on
+  // (they read as merging into nothing). Where main has real nodes but its
+  // newest sits below the top of the view, extend a DASHED, dimmed spine from
+  // the top edge down to that newest main node. Dashed + faint deliberately
+  // reads as "main continues here, no entries logged at this height" - never
+  // confusable with the solid real trunk, and never asserting a live current
+  // main. Guarded to main-has-nodes, so a filter that hides main (its rows go
+  // empty) draws no phantom rather than a spine through unrelated results.
+  const mainRows = branchRows.get("main") || [];
+  const phantomTrunk =
+    mainRows.length && mainRows[0] > 0
+      ? `<line x1="${laneX("main")}" y1="0" x2="${laneX("main")}" y2="${rowY(mainRows[0])}" stroke="${colorOf.get("main") || trailLaneColorFamilies[0][0]}" stroke-width="2" stroke-opacity="0.3" stroke-dasharray="2 5" stroke-linecap="round"></line>`
+      : "";
+
   // Gitgraph forking: fork/merge rows come from the model - the same rows
   // that drive lane occupancy, so connectors and lane allocation always
   // agree. Anchors are commit-accurate where a Memory-Entry trailer exists
@@ -978,6 +994,7 @@ function trailView() {
             <marker id="trail-arrow-evolves-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-evolves-soft)"></path></marker>
           </defs>
           <rect class="trail-rel-zone" x="0" y="0" width="${TRAIL_REL_ZONE - 5}" height="${height}" rx="6"></rect>
+          ${phantomTrunk}
           ${connectors.join("")}
           ${laneSegments.join("")}
           ${arcs.join("")}
