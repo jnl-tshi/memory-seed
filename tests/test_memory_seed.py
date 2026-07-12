@@ -318,6 +318,39 @@ class MemorySeedTests(unittest.TestCase):
 
         self.assertEqual([i.kind for i in issues], ["self-supersedes"], [i.__dict__ for i in issues])
 
+    def test_links_check_guards_non_crockford_entry_yaml_refs(self):
+        # Regression: real corpus ids include o/u/i/l (outside the strict
+        # Crockford charset), e.g. codex-authored entries. A ref to one used to
+        # be silently skipped by the extractor - bypassing the dangling and
+        # forward-only guards while the graph still drew the edge.
+        loose = "mse_37fpcovvuniqzlxk"  # contains o, u, i, l
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - earlier", "mse_0123456789abcdef", (loose,)),
+            (f"2026-06-13 10:00 - later", loose, ()),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        # The earlier entry supersedes the LATER loose-id entry: the forward-only
+        # guard must now see and reject it instead of silently passing.
+        self.assertEqual([i.kind for i in issues], ["supersedes-postdates"], [i.__dict__ for i in issues])
+        self.assertIn(loose, issues[0].detail)
+
+    def test_links_check_flags_dangling_ref_to_non_crockford_id(self):
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - only", "mse_0123456789abcdef", ("mse_gonevvuniqzlxkoo",)),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["dangling-supersedes"], [i.__dict__ for i in issues])
+
     # --- Link sidecars: late-authored lifecycle edges join the same checks ---
 
     def _link_sidecar(self, cwd, file_date, source_entry, *, supersedes=(), evolves=(), heading_time="10:00"):
