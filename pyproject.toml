@@ -89,6 +89,7 @@ memory_seed = [
   "seed/.memory-seed/hooks/session-log-check.py",
   "seed/.memory-seed/hooks/memory-retrieval-check.py",
   "seed/.memory-seed/hooks/session-start-context.py",
+  "seed/.memory-seed/hooks/prepare-commit-msg.py",
 ]
 memory_trace = [
   "static/index.html",
