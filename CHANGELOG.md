@@ -4,6 +4,12 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Memory Trace now ships as part of the main `memory-seed` package behind the optional
+  `trace` extra (`pip install "memory-seed[trace]"`) instead of a separate PyPI
+  distribution. The root package installs the `memory-trace` command, includes the
+  `memory_trace` package/static assets, keeps `memory-seed[lense]` as a temporary alias,
+  and removes the obsolete standalone `memory-trace` publish workflow/project metadata.
+  Plain `pip install memory-seed` remains web-framework-free.
 - `session merge-branch` now stamps one `Memory-Entry: <entry_id>` trailer per fused entry on the
   merge commit it creates (below git's prepared merge message), making the forward commit<->entry
   link authoritative at integration time - `link commits` and `find_trailer_commits` resolve fused
@@ -30,12 +36,11 @@ All notable changes to Memory Seed are summarized here.
 ## 2.17.0 - 2026-07-10
 
 - Recorded two shipped-but-unchangelogged features found by the 2026-07-10 goal-run review:
-  (1) **Memory Trace Phase-2 extraction** - the review UI moved into the standalone `memory-trace/`
-  distribution (own `pyproject.toml`, `memory_trace` package, `memory-trace` command, static
-  assets; core sheds `fastapi`/`uvicorn`; `memory-seed[lense]` and `memory-seed lense` are
+  (1) **Memory Trace Phase-2 extraction** - the review UI moved into the `memory-trace/`
+  source package (the `memory_trace` package, `memory-trace` command, and static assets; core
+  sheds mandatory `fastapi`/`uvicorn`; `memory-seed[lense]` and `memory-seed lense` are
   deprecation shims), with Arc 2 UI work (reader subsection highlighting, Trail view with branch
-  lineage + supersedes edges, client-side Mermaid rendering with source fallback). Publication of
-  `memory-trace 0.1.0` waits on core 2.17 plus PyPI project setup.
+  lineage + supersedes edges, client-side Mermaid rendering with source fallback).
   (2) **Skill profiles and CLI skill management** - fresh projects install core skills by default,
   optional profiles can be selected during `init`, ignored optional skills stay ignored on
   `update`, and `memory-seed skills list|ignored|add|remove` rewires skill files and registry

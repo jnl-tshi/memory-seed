@@ -1,7 +1,7 @@
 """Memory Trace - the companion review UI for Memory Seed.
 
-Memory Trace is a separate distribution that depends on ``memory-seed`` and
-consumes its public retrieval service (``memory_seed.retrieval``). It never
+Memory Trace ships inside the optional ``memory-seed[trace]`` extra and consumes
+Memory Seed's public retrieval service (``memory_seed.retrieval``). It never
 reimplements parsing, ranking, graph, or diagram-sidecar logic - the core
 package owns those, and this package renders them read-only.
 """

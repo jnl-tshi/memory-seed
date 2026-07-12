@@ -35,3 +35,6 @@ memory-trace/tests/capture/*.gif
 
 # Local editor config
 .vscode/
+
+# Local Codex agent worktrees
+.codex/worktrees/
