@@ -1411,6 +1411,7 @@ class MemorySeedTests(unittest.TestCase):
                 ".memory-seed/agent-rules.md",
                 ".memory-seed/archive/.gitkeep",
                 ".memory-seed/hooks/memory-retrieval-check.py",
+                ".memory-seed/hooks/prepare-commit-msg.py",
                 ".memory-seed/hooks/session-log-check.py",
                 ".memory-seed/hooks/session-start-context.py",
                 ".memory-seed/project-bootstrap.md",
