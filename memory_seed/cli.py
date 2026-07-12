@@ -219,6 +219,25 @@ def main(argv: list[str] | None = None) -> int:
     )
     session_merge_parser.add_argument("--branch", required=True, help="task branch to merge into the current branch")
     session_merge_parser.add_argument("--dry-run", action="store_true", help="preview the fuse plan without merging")
+    session_append_parser = session_sub.add_parser(
+        "append",
+        help="append a session entry with structure enforced (id, chronology, refs, topics); body from --body-file or stdin",
+    )
+    session_append_parser.add_argument("--title", required=True, help="entry title (text after 'YYYY-MM-DD HH:MM - ')")
+    session_append_parser.add_argument("--user-initials", required=True, help="user_initials field, e.g. JNL")
+    session_append_parser.add_argument("--agent-type", required=True, help="agent_type field, e.g. claude")
+    session_append_parser.add_argument("--agent-name", default=None, help="agent_name field (default: null)")
+    session_append_parser.add_argument("--topics", default="", help="comma-separated controlled-vocabulary slugs or aliases")
+    session_append_parser.add_argument("--related", default="", help="comma-separated related_entries ids")
+    session_append_parser.add_argument("--supersedes", default="", help="comma-separated ids this entry retires")
+    session_append_parser.add_argument("--evolves", default="", help="comma-separated ids this entry refines (they stay valid)")
+    session_append_parser.add_argument("--project-path", default=".", help="project_path field (default: .)")
+    session_append_parser.add_argument("--subproject-path", default=None, help="subproject_path field (default: null)")
+    session_append_parser.add_argument("--branch", default=None, help="branch field (default: auto-captured from git)")
+    session_append_parser.add_argument("--no-branch", action="store_true", help="omit the branch field entirely")
+    session_append_parser.add_argument("--timestamp", default=None, help="override heading timestamp 'YYYY-MM-DD HH:MM' (default: now)")
+    session_append_parser.add_argument("--user", default=None, help="override the active user slug")
+    session_append_parser.add_argument("--body-file", default=None, help="file containing the entry body (default: read stdin)")
     session_reorder_parser = session_sub.add_parser(
         "reorder",
         help="restore chronological entry order in one day's session file (pure block permutation)",
@@ -483,6 +502,45 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"Stamped {len(result.stamped_entries)} Memory-Entry trailer(s) on the merge commit.")
             else:
                 print(f"Branch {args.branch} is already merged into HEAD; nothing to do.")
+            return 0
+        if args.session_command == "append":
+            from .core import session_append_entry
+
+            if args.body_file:
+                body = Path(args.body_file).read_text(encoding="utf-8")
+            else:
+                body = sys.stdin.read()
+            if not body.strip():
+                print("Entry body is empty (pass --body-file or pipe the D/R/A/F/T prose on stdin).", file=sys.stderr)
+                return 1
+
+            def _csv(raw: str) -> tuple[str, ...]:
+                return tuple(item.strip() for item in raw.split(",") if item.strip())
+
+            result = session_append_entry(
+                cwd=Path(".").resolve(),
+                title=args.title,
+                body=body,
+                user_initials=args.user_initials,
+                agent_type=args.agent_type,
+                agent_name=args.agent_name,
+                topics=_csv(args.topics),
+                related_entries=_csv(args.related),
+                supersedes=_csv(args.supersedes),
+                evolves=_csv(args.evolves),
+                project_path=args.project_path,
+                subproject_path=args.subproject_path,
+                branch=args.branch,
+                auto_branch=not args.no_branch,
+                timestamp=args.timestamp,
+                explicit_user=args.user,
+            )
+            if not result.ok:
+                print("Append refused:", file=sys.stderr)
+                for issue in result.issues:
+                    print(f"  - {issue}", file=sys.stderr)
+                return 1
+            print(f"Appended {result.entry_id} ({result.timestamp}) to {result.path}")
             return 0
         if args.session_command == "reorder":
             from .core import session_reorder
