@@ -66,6 +66,16 @@ The stronger model is:
 - metered managed AI;
 - enterprise security and deployment.
 
+### Installation boundary
+
+The install/package boundary is not the monetisation boundary.
+
+The 2026-07-12 packaging decision keeps Memory Trace architecturally separate in source while
+shipping it through the main package as `memory-seed[trace]` with the `memory-trace` command. This
+avoids the PyPI name collision around `memory-trace`, keeps a single Memory Seed front door, and
+still allows the paid boundary to sit at advanced analysis, hosted collaboration, managed AI,
+exports, and enterprise controls.
+
 ### Comparable models
 
 Obsidian makes its local application free without limits and monetises Sync and Publish. Its paid services add synchronisation, history, collaboration and web publishing.

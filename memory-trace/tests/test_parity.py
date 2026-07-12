@@ -1,11 +1,12 @@
-"""Cross-package parity: Memory Trace must return the same answers as core MCP.
+"""Trace-source parity: Memory Trace must return the same answers as core MCP.
 
-Distribution-plan Arc 1 gate. Memory Trace lives in its own distribution now, so
-whatever it reads from `memory_seed` is a public API with semver obligations.
+Distribution-plan Arc 1 gate. Memory Trace lives in its own source boundary,
+even though it now ships through the root `memory-seed[trace]` extra. Whatever
+it reads from `memory_seed` is still a public API with semver obligations.
 These tests assert that the extracted UI, consuming `memory_seed.retrieval`
 through its `LenseService`, agrees with the core MCP tools on the same corpus -
 the "same answers as MCP, one canonical chunk model" rule, proven across the
-package boundary rather than assumed.
+source boundary rather than assumed.
 """
 
 from __future__ import annotations
@@ -63,7 +64,7 @@ class CrossPackageParityTests(unittest.TestCase):
         mcp = call_tool("memory_search", {"query": query, "cwd": str(self.cwd), "semantic_enabled": False})
         ui = self.service().search(q=query, limit=5)
         self.assertTrue(mcp["results"] and ui["results"])
-        # Same winning entry, across the package boundary.
+        # Same winning entry, across the Trace source boundary.
         self.assertEqual(mcp["results"][0]["entry_id"], ui["results"][0]["entry_id"])
         self.assertEqual(ui["results"][0]["entry_id"], "mse_bootstrap")
 

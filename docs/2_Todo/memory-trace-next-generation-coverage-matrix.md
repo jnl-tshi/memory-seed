@@ -31,7 +31,7 @@ Resolution:
 
 | Existing document | Status after integration | Coverage decision | Unique active requirements preserved |
 |---|---|---|---|
-| `docs/2_Todo/memory-trace-distribution-plan.md` | Keep active | Blueprint preserves separate `memory-trace` package, public retrieval service, and no-fork parser/ranker rule. | Release-ordering, PyPI/trusted-publisher follow-through, deprecation shim, and package-publication criteria remain here. |
+| `docs/2_Todo/memory-trace-distribution-plan.md` | Keep active | Blueprint preserves the separate Trace source/product boundary, public retrieval service, and no-fork parser/ranker rule. | Optional-extra packaging, deprecation shim, no-default-web-dependency guarantees, and release/documentation follow-through remain here. |
 | `docs/2_Todo/memory-trace-ai-timeline-summarisation-plan.md` | Keep active | Derived-artifact provenance contract governs evidence/citation packaging; AI plan remains implementation-specific. | Local/BYOK provider first, terminal-agent adapter later, schema-constrained output, disabled-by-default AI, no session mutation. |
 | `docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md` | Keep active | UX spec governs graph/Trail presentation; topic plan owns core `topics:` contract and remaining Trace/MCP topic work. | Phase 4 indexed-topic rendering, MCP topic-management tools, optional `topics suggest`. |
 | `docs/2_Todo/session-decision-diagrams-plan.md` | Keep active | Derived-artifact contract and evidence-pack plan cover export provenance; diagram plan owns sidecar convention and Phase 3 report/handover pack. | Exportable report/handover pack acceptance criteria and Mermaid sidecar constraints. |

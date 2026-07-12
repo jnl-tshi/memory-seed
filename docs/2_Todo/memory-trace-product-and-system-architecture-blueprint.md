@@ -121,13 +121,14 @@ These distinctions must remain visible through the UI. Memory Trace must not fla
 
 ### 2.3 Memory Trace today
 
-Memory Trace is a standalone Python distribution depending on Memory Seed. It currently uses:
+Memory Trace is a separate source/product boundary that currently ships through the root
+`memory-seed[trace]` optional extra and exposes the `memory-trace` command. It uses:
 
 - FastAPI;
 - Uvicorn;
 - vanilla JavaScript;
 - HTML and CSS;
-- static assets packaged inside the Python wheel;
+- static assets packaged inside the root `memory-seed` Python wheel when the `trace` extra is used;
 - a rebuildable SQLite cache outside the repository.
 
 It already supports search, filters, timeline/Trail, graph and reader/detail views. The next architecture must preserve this functionality and treat the current implementation as the minimum parity baseline.
@@ -139,7 +140,8 @@ The existing design already has several strong properties:
 - Markdown remains inspectable and Git-reviewable.
 - Retrieval and graph semantics are shared between MCP and Trace.
 - SQLite is explicitly non-authoritative and can be rebuilt.
-- The package boundary keeps web dependencies out of Memory Seed core.
+- The optional-extra boundary keeps web dependencies out of plain Memory Seed installs while the
+  source boundary keeps Trace UI development separate from Memory Seed core.
 - Git branch history and typed edges provide richer semantics than a generic knowledge graph.
 - Trace can operate locally without a hosted account.
 - The Trail already renders a dense gitgraph-style chronology rather than a generic feed.
