@@ -919,6 +919,13 @@ function trailView() {
       if (id !== selectedEntry) commitSiblings.add(id);
     });
   }
+  // Adjacent-row test: no other NODE row between the two (a day separator in
+  // between still counts as adjacent).
+  const adjacentRows = (rowA, rowB) => {
+    const lo = Math.min(rowA, rowB);
+    const hi = Math.max(rowA, rowB);
+    return items.slice(lo + 1, hi).every((item) => item.kind !== "node");
+  };
   const arcs = lifecycle.flatMap((edge) => {
     const touched = focusActive && (edge.source === selectedEntry || edge.target === selectedEntry);
     if (edge.type === "related" && !touched) return [];
@@ -930,15 +937,29 @@ function trailView() {
     const sy = rowY(rowOf.get(edge.source));
     const tx = laneX(targetItem.node.branch || "");
     const ty = rowY(rowOf.get(edge.target));
-    const lx = relLaneX(edge.type);
-    const r = TRAIL_CORNER;
-    const dir = ty > sy ? 1 : -1;
-    const path = `M ${sx} ${sy} L ${lx + r} ${sy} Q ${lx} ${sy} ${lx} ${sy + r * dir} L ${lx} ${ty - r * dir} Q ${lx} ${ty} ${lx + r} ${ty} L ${tx} ${ty}`;
     const soft = edge.type !== "related" && !touched;
     const stroke = soft ? `var(--edge-${edge.type}-soft)` : edgeColor(edge.type);
     const marker = soft ? `trail-arrow-${edge.type}-soft` : `trail-arrow-${edge.type}`;
     const opacity = touched ? 0.95 : focusActive ? 0.5 : 0.9;
-    return [`<path d="${path}" fill="none" stroke="${stroke}" stroke-width="${touched ? 2.6 : 2}" stroke-dasharray="${TRAIL_DASH[edge.type]}" stroke-opacity="${opacity}" marker-end="url(#${marker})"><title>${esc(trailTitle(sourceItem.node))} ${TRAIL_VERB[edge.type]} ${esc(trailTitle(targetItem.node))}</title></path>`];
+    const tip = `<title>${esc(trailTitle(sourceItem.node))} ${TRAIL_VERB[edge.type]} ${esc(trailTitle(targetItem.node))}</title>`;
+    // Daisy-chained lifecycle edges between ADJACENT rows (each entry
+    // replacing/refining the one directly below - the common case when work
+    // iterates within a session) would stack the relationship zone into a
+    // thicket of out-and-back routes carrying no information the proximity
+    // doesn't already give. Same de-cluttering spirit as bracketing
+    // same-branch related context: an adjacent lifecycle edge renders as a
+    // short direct hop beside the dots, and the routed lanes are reserved for
+    // edges that actually span distance.
+    if (edge.type !== "related" && adjacentRows(rowOf.get(edge.source), rowOf.get(edge.target))) {
+      const bow = 11;
+      const path = `M ${sx} ${sy} C ${sx - bow} ${sy + (ty - sy) * 0.3}, ${tx - bow} ${ty - (ty - sy) * 0.3}, ${tx} ${ty}`;
+      return [`<path d="${path}" fill="none" stroke="${stroke}" stroke-width="${touched ? 2.6 : 2}" stroke-dasharray="${TRAIL_DASH[edge.type]}" stroke-opacity="${opacity}" marker-end="url(#${marker})">${tip}</path>`];
+    }
+    const lx = relLaneX(edge.type);
+    const r = TRAIL_CORNER;
+    const dir = ty > sy ? 1 : -1;
+    const path = `M ${sx} ${sy} L ${lx + r} ${sy} Q ${lx} ${sy} ${lx} ${sy + r * dir} L ${lx} ${ty - r * dir} Q ${lx} ${ty} ${lx + r} ${ty} L ${tx} ${ty}`;
+    return [`<path d="${path}" fill="none" stroke="${stroke}" stroke-width="${touched ? 2.6 : 2}" stroke-dasharray="${TRAIL_DASH[edge.type]}" stroke-opacity="${opacity}" marker-end="url(#${marker})">${tip}</path>`];
   });
 
   // Search as a function over the Trail: matching rows get a marker dot and
@@ -1987,8 +2008,52 @@ function _diagramArrowDefs() {
   return `<defs><marker id="diagram-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"></path></marker></defs>`;
 }
 
+// Source entries are hard-wrapped at an authoring column (~100 chars), but
+// the reader pane is narrower and its width varies: rendering each source
+// LINE as its own block breaks sentences at arbitrary points. Join
+// continuation lines back into their logical block - a line continues the
+// previous one unless it starts a new structural element - so paragraphs and
+// bullets reflow to the pane. Fenced code is preserved verbatim.
+function unwrapLines(lines) {
+  const out = [];
+  let inCode = false;
+  for (const line of lines) {
+    if (line.trim().startsWith("```")) {
+      inCode = !inCode;
+      out.push(line);
+      continue;
+    }
+    if (inCode) {
+      out.push(line);
+      continue;
+    }
+    const trimmed = line.trim();
+    const startsBlock =
+      !trimmed
+      || /^#{1,6}\s/.test(trimmed)
+      || trimmed.startsWith("- ")
+      || trimmed.startsWith("* ")
+      || /^\d+\.\s/.test(trimmed)
+      || trimmed.startsWith(">")
+      || trimmed.startsWith("|");
+    const prev = out.length ? out[out.length - 1] : "";
+    const prevTrimmed = prev.trim();
+    const prevJoinable =
+      prevTrimmed
+      && !prevTrimmed.startsWith("```")
+      && !/^#{1,6}\s/.test(prevTrimmed)
+      && !prevTrimmed.startsWith("|");
+    if (!startsBlock && prevJoinable) {
+      out[out.length - 1] = `${prev.replace(/\s+$/, "")} ${trimmed}`;
+    } else {
+      out.push(line);
+    }
+  }
+  return out;
+}
+
 function markdown(text) {
-  const lines = text.split("\n");
+  const lines = unwrapLines(text.split("\n"));
   const out = [];
   let inCode = false;
   let code = [];
