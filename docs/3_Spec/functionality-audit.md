@@ -8,6 +8,15 @@ tags:
 
 # Memory Seed - Functionality Audit
 
+> **Addendum 2026-07-13:** this inventory's as-of date predates the 2026-07-11/12 feature batch.
+> For the newer surface see `CHANGELOG.md` (Unreleased): lifecycle-edge link sidecars +
+> `memory-seed link audit` + the end-of-turn Lifecycle Link Sweep, `session append` /
+> `session reorder` / `session entry-id` (+ `memory_entry_id` MCP tool), `memory-seed esr`,
+> `memory-seed hooks install` (prepare-commit-msg trailer stamping), Memory Trace worktree
+> switcher + commit-accurate Trail merges + `--static-root` + serve-time asset hashing, and the
+> browserless golden-fixture harness. Test counts have grown accordingly (413 core + 92 trace as
+> of 2026-07-13).
+
 **As of:** 2026-07-05 - control-plane `2.16` - package `2.16.0`
 **Scope:** every current feature, how the subsystems relate, how data flows, plus a roadmap section for upcoming work.
 

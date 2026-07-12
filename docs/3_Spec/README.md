@@ -12,6 +12,10 @@ This folder holds normative Memory Seed specs that current code and future work 
   AI summaries, project updates, reports, presentations, and exports.
 - `memory-trace-vanilla-parity-checklist.md` is the active React-migration parity gate: every
   user-observable vanilla behaviour, checked off only from the React app (Phase 0 deliverable).
+- `lifecycle-edge-linking-sidecars.md` is the live contract for after-the-fact lifecycle-edge
+  link sidecars (format, read/validation semantics, MCP scope boundary) plus its design record -
+  implemented 2026-07-12; it stays here because the sidecar format is a normative contract, not a
+  finished plan.
 
 These files are not completed proposals. Completed proposal and source-plan documents belong in
 `docs/2_Todo/completed/`; source-only research belongs in `docs/4_Reference/`.

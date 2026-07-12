@@ -3,7 +3,14 @@
 Memory Trace is the companion **review UI** for
 [Memory Seed](https://pypi.org/project/memory-seed/) — a local, read-only browser
 view over a project's cross-agent decision memory (session logs, the decision
-graph, timelines, and authored decision diagrams).
+graph, timelines, and authored decision diagrams). The Trail view is a
+git-graph-style timeline: branch lanes from recorded `branch:` metadata,
+commit-accurate fork/merge connectors driven by `Memory-Entry:` commit trailers
+(positional "estimated" fallback for pre-trailer history), clickable trunk
+merge rings, typed `replaces`/`evolves` lifecycle routes, and an on-device
+worktree switcher for per-branch memory. New UI surface lands on the legacy
+`/api/*` + vanilla client first; the versioned `/api/v1/*` contract follows
+once polished.
 
 It is bundled into the main `memory-seed` distribution on purpose:
 
@@ -52,7 +59,10 @@ Serves the read-only UI on a local port and opens a browser. Nothing is ever
 written back to your session files; every deep link targets a stable
 `chunk_id` / `entry_id`.
 
-Options: `--cwd`, `--host`, `--port`, `--no-open`, `--rebuild-cache`.
+Options: `--cwd`, `--host`, `--port`, `--no-open`, `--rebuild-cache`, `--static-root`
+(serve UI assets from another directory or checkout root - e.g. verify a git worktree's UI
+without copying files; also settable as `MEMORY_TRACE_STATIC_ROOT`). Asset `?v=` tags are
+content-hashed at serve time, so edited assets are never masked by a stale browser cache.
 
 ## Upgrade preparation
 

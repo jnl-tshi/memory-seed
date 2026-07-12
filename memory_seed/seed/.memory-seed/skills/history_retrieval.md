@@ -48,9 +48,9 @@ Default search payload:
 
 Use `cwd` as the project or sub-project path you are operating in. The runtime resolver uses the nearest `.memory-seed/` directory from that path.
 
-Use `granularity: "entry"` by default. It returns one coherent chunk for each `##` session entry, and `chunk_id` is normally the entry YAML `entry_id`, such as `ms-db2d715c`.
+Use `granularity: "entry"` by default. It returns one coherent chunk for each `##` session entry, and `chunk_id` is normally the entry YAML `entry_id`, such as `mse_0123456789abcdef` (legacy `ms-db2d715c`-style ids also occur in older history).
 
-Use `granularity: "section"` only when entries are long, multi-topic, or the task needs narrower targeting. Section chunk ids append a heading path to the parent entry id, such as `ms-db2d715c#decisions/d1-use-draft-for-compact-decision-records`.
+Use `granularity: "section"` only when entries are long, multi-topic, or the task needs narrower targeting. Section chunk ids append a heading path to the parent entry id, such as `mse_0123456789abcdef#decisions/d1-use-draft-for-compact-decision-records`.
 
 Useful optional search fields:
 
@@ -92,6 +92,7 @@ These read-only MCP tools close the *authoring* loop — finding what to link an
 ```
 
 - `memory_link_show`: show one entry's graph node — stored `outbound` edges, computed `inbound` backlinks, `supersedes`/`superseded_by`, `importance_score`, and `commit_reference_count`. Use it to traverse the related-entry graph structurally instead of re-running a topical search.
+- `memory_entry_id`: compute the canonical deterministic `entry_id` for a new entry from its metadata (timestamp, title, user initials, agent type, paths). Call this instead of inventing an id when authoring an entry by hand - hand-rolled ids are irreproducible. The agent writes the id into its own entry; the tool never writes files.
 
 ```json
 {

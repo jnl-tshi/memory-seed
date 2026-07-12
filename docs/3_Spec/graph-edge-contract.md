@@ -45,7 +45,14 @@ reported as-is (`links check` flags dangling stored refs).
 
 ## Edge kinds - never merged
 
-Four independent edge kinds live in entry YAML. They are parsed separately and never folded into one
+Four independent edge kinds live in entry YAML - and, since 2026-07-12, `related_entries`/
+`supersedes`/`evolves` edges may ALSO be authored after the fact in append-only **link sidecars**
+(`sessions/links/YYYY-MM/YYYY-MM-DD.md`; see `lifecycle-edge-linking-sidecars.md`). Effective edges
+on the Memory Trace surface are union(entry YAML, sidecar), merged at read time by the lense's
+`_augment_with_link_sidecars` before the shared graph builder runs; `links check` validates sidecar
+refs through the same dangling and forward-only guards. Stated scope boundary: the MCP graph tools
+(`memory_link_show`, `memory_get_chunk`, `memory_search`) read entry YAML only and do NOT see
+sidecar edges yet - MCP parity is a recorded follow-up. Edge kinds are parsed separately and never folded into one
 another:
 
 - **`related_entries`** - relatedness. Forward-only (reference only entries that already existed).
@@ -153,6 +160,7 @@ A new edge kind's validation belongs here, reusing the entry-YAML scan, not a pa
 | MCP `memory_get_chunk` | `superseded_by`, `evolved_by`, `inbound_relation_count`, `importance_score`, `commit_reference_count` (+ stored fields incl. `evolves`, `continuity`) |
 | MCP `memory_search` | results carry stored `supersedes`/`evolves`/`continuity` **and computed `superseded_by`/`evolved_by`** (freshness at the moment of consumption - additive fields; ranking and order untouched); opt-in `exclude_superseded` filter |
 | Memory Trace graph | `connectivity` (its own metric) and `importance_score` per node; a "Size:" toggle sizes nodes by either |
+| Memory Trace legacy `/api/graph` + `/api/chunks` | additionally `merges` / `branches` (commit-accurate Trail merge events from `Memory-Entry` trailers) and `merged_by` per chunk - legacy surface only; `/api/v1/*` response models deliberately strip these until the vanilla implementation is promoted |
 
 ## Standing rules for new work
 
