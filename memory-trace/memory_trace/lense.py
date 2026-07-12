@@ -178,6 +178,12 @@ class LenseCache:
                 "insert into meta(key, value) values('main_commit_entries', ?)",
                 (json.dumps(sorted(eid for eid, info in commit_map.items() if info.get("sha") in main_shas)),),
             )
+            # Merge-commit ground truth for the Trail: Memory-Entry trailers on
+            # trunk first-parent commits, each with its merge-base fork point.
+            conn.execute(
+                "insert into meta(key, value) values('trailer_merges', ?)",
+                (json.dumps(_first_parent_trailer_commits(self.runtime.workspace_root)),),
+            )
             conn.commit()
         finally:
             conn.close()
@@ -237,6 +243,12 @@ class LenseCache:
             row = conn.execute("select value from meta where key='main_commit_entries'").fetchone()
         return set(json.loads(row[0])) if row else set()
 
+    def trailer_merges(self) -> list[dict[str, Any]]:
+        self.ensure_current()
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute("select value from meta where key='trailer_merges'").fetchone()
+        return json.loads(row[0]) if row else []
+
     def chunks(self, *, granularity: str | None = None) -> list[MemoryChunk]:
         self.ensure_current()
         sql = "select json from chunks"
@@ -256,9 +268,10 @@ class LenseCache:
                 # Caches from before commit tracking lack these keys; rebuild once.
                 has_commits = conn.execute("select 1 from meta where key='entry_commits'").fetchone()
                 has_main_map = conn.execute("select 1 from meta where key='main_commit_entries'").fetchone()
+                has_merges = conn.execute("select 1 from meta where key='trailer_merges'").fetchone()
         except sqlite3.Error:
             return False
-        if not has_commits or not has_main_map:
+        if not has_commits or not has_main_map or not has_merges:
             return False
         return [(str(path), int(mtime), int(size)) for path, mtime, size in current] == [
             (str(path), int(mtime), int(size)) for path, mtime, size in stored
@@ -431,12 +444,27 @@ class LenseService:
                 for entry_id in commit_entry_ids
                 if entry_id in by_entry and entry_id != selected.entry_id
             ]
+        # Distinct from the authoring commit above: the merge commit whose
+        # Memory-Entry trailer landed this entry on the trunk ("Merged to main
+        # by" in the reader). None for unmerged or pre-trailer-era entries.
+        merge_event = _entry_merge_map(self.cache.trailer_merges()).get(selected.entry_id or "")
+        merged_by = (
+            {
+                "sha": merge_event["sha"],
+                "short": merge_event["short"],
+                "date": merge_event["date"],
+                "subject": merge_event["subject"],
+            }
+            if merge_event
+            else None
+        )
         return {
             **_chunk_to_api(selected),
             "commit": commit or None,
             "commit_entry_ids": commit_entry_ids,
             "commit_entries": commit_entries,
             "commit_tracking": bool(commit_map),
+            "merged_by": merged_by,
             "backlinks": list(node.inbound if node else ()),
             "related_entries": list(selected.related_entries),
             # Authored decision-diagram sidecar metadata (Class 2, frozen);
@@ -530,23 +558,86 @@ class LenseService:
             visible_ids = list(by_id)
         limited_ids = set(visible_ids[: _limit(limit, maximum=1000)])
         inferred_main = self.cache.main_commit_entries()
+        displayed = [by_id[item_id] for item_id in visible_ids if item_id in limited_ids and item_id in by_id]
         nodes = [
             _graph_node(
-                by_id[item_id],
-                node_id=item_id,
-                connectivity=connectivity.get(item_id, 0),
-                importance_score=importance.get(item_id, 0.0),
-                inferred_main=not by_id[item_id].branch and (by_id[item_id].entry_id or "") in inferred_main,
+                chunk,
+                node_id=node_id(chunk),
+                connectivity=connectivity.get(node_id(chunk), 0),
+                importance_score=importance.get(node_id(chunk), 0.0),
+                inferred_main=not chunk.branch and (chunk.entry_id or "") in inferred_main,
             )
-            for item_id in visible_ids
-            if item_id in limited_ids and item_id in by_id
+            for chunk in displayed
         ]
         visible_edges = [
             edge
             for edge in edges
             if edge["source"] in limited_ids and edge["target"] in limited_ids and edge["type"] in edge_type_set
         ][: _limit(limit, maximum=1000)]
-        return {"entry_id": entry_id, "granularity": granularity, "nodes": nodes, "edges": visible_edges, "edge_types": sorted(edge_type_set)}
+        # Commit-accurate merges (legacy /api surface only; the v1 routes strip
+        # these via response_model until the vanilla implementation is polished).
+        merge_events = self.cache.trailer_merges()
+        displayed_entry_ids = {chunk.entry_id for chunk in displayed if chunk.entry_id}
+        merges = []
+        for event in merge_events:
+            ids = [eid for eid in event.get("entry_ids", ()) if eid in displayed_entry_ids]
+            if ids:
+                merges.append(
+                    {
+                        "sha": event["sha"],
+                        "short": event["short"],
+                        "date": event["date"],
+                        "subject": event["subject"],
+                        "entry_ids": ids,
+                    }
+                )
+        entry_merge = _entry_merge_map(merge_events)
+        # Branch closure semantics: a branch's lane closes with a merge only
+        # when its NEWEST displayed entry was merged - if newer unmerged work
+        # exists the branch is open and dangles (accurate), while its earlier
+        # merges remain visible as trunk merge dots. The fork comes from the
+        # OLDEST entry's merge event (its merge-base is where the branch first
+        # left the trunk; later re-merges base off the previous merge).
+        # estimated=True only when no entry of the branch has any trailer
+        # event - the pre-trailer era, where the frontend keeps its positional
+        # heuristic.
+        branch_chunks: dict[str, list[MemoryChunk]] = {}
+        for chunk in sorted(displayed, key=lambda chunk: (_chunk_datetime(chunk), chunk.start_line), reverse=True):
+            branch = chunk.branch
+            if not branch or branch in {"main", "master"}:
+                continue
+            branch_chunks.setdefault(branch, []).append(chunk)
+        branches: dict[str, dict[str, Any]] = {}
+        for branch, chunks_newest_first in branch_chunks.items():
+            events = [
+                entry_merge[chunk.entry_id]
+                for chunk in chunks_newest_first
+                if chunk.entry_id and chunk.entry_id in entry_merge
+            ]
+            newest_event = entry_merge.get(chunks_newest_first[0].entry_id or "")
+            branches[branch] = {
+                "merge": (
+                    {
+                        "sha": newest_event["sha"],
+                        "short": newest_event["short"],
+                        "date": newest_event["date"],
+                        "subject": newest_event["subject"],
+                    }
+                    if newest_event
+                    else None
+                ),
+                "fork": events[-1].get("fork") if events else None,
+                "estimated": not events,
+            }
+        return {
+            "entry_id": entry_id,
+            "granularity": granularity,
+            "nodes": nodes,
+            "edges": visible_edges,
+            "edge_types": sorted(edge_type_set),
+            "merges": merges,
+            "branches": branches,
+        }
 
     def rebuild(self) -> dict[str, Any]:
         self.cache.rebuild()
@@ -936,6 +1027,93 @@ def _entry_commit_map(root: Path) -> dict[str, dict[str, str]]:
             entry_id = line[len("+entry_id:"):].strip()
             if entry_id:
                 mapping[entry_id] = current
+    return mapping
+
+
+def _first_parent_trailer_commits(root: Path) -> list[dict[str, Any]]:
+    """Merge-commit ground truth for the Trail: trunk first-parent commits
+    carrying ``Memory-Entry:`` trailers, newest-first.
+
+    ``session merge-branch`` stamps one trailer per merged entry on the merge
+    commit - the only place the entry/commit join can be recorded atomically,
+    since an entry cannot contain the SHA of a commit that hashes over it. For
+    true merge commits (>=2 parents) ``fork`` is the parents' merge-base; a
+    non-merge commit carrying a trailer keeps ``fork: None``. Fails open to an
+    empty list without git.
+    """
+    for ref in ("main", "master", "HEAD"):
+        try:
+            proc = subprocess.run(
+                [
+                    "git", "-C", str(root), "log", "--first-parent", ref,
+                    "--format=%H%x1f%h%x1f%cI%x1f%P%x1f%(trailers:key=Memory-Entry,valueonly,separator=;)%x1f%s",
+                ],
+                capture_output=True,
+                timeout=60,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return []
+        if proc.returncode != 0:
+            continue
+        events: list[dict[str, Any]] = []
+        for line in proc.stdout.decode("utf-8", errors="replace").splitlines():
+            if "\x1f" not in line:
+                continue
+            sha, short, date, parents, trailers, subject = (line.split("\x1f") + [""] * 6)[:6]
+            entry_ids = [item.strip() for item in trailers.split(";") if item.strip()]
+            if not entry_ids:
+                continue
+            parent_list = parents.split()
+            events.append(
+                {
+                    "sha": sha,
+                    "short": short,
+                    "date": date,
+                    "subject": subject,
+                    "entry_ids": entry_ids,
+                    "fork": _merge_fork_point(root, parent_list[0], parent_list[1]) if len(parent_list) >= 2 else None,
+                }
+            )
+        return events
+    return []
+
+
+def _merge_fork_point(root: Path, parent_a: str, parent_b: str) -> dict[str, str] | None:
+    """Where the merged branch left the trunk: the merge-base of the merge
+    commit's parents. None when the base cannot be resolved (shallow clone,
+    unrelated histories) - callers fall back to the positional estimate."""
+    try:
+        base = subprocess.run(
+            ["git", "-C", str(root), "merge-base", parent_a, parent_b],
+            capture_output=True,
+            timeout=30,
+        )
+        if base.returncode != 0:
+            return None
+        sha = base.stdout.decode("utf-8", errors="replace").strip()
+        if not sha:
+            return None
+        shown = subprocess.run(
+            ["git", "-C", str(root), "show", "-s", "--format=%H%x1f%h%x1f%cI", sha],
+            capture_output=True,
+            timeout=30,
+        )
+        if shown.returncode != 0:
+            return None
+        parts = (shown.stdout.decode("utf-8", errors="replace").strip().split("\x1f") + ["", ""])[:3]
+        return {"sha": parts[0], "short": parts[1], "date": parts[2]}
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def _entry_merge_map(events: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """entry_id -> the merge event that landed it on the trunk. Events arrive
+    newest-first and assignment overwrites, so the OLDEST merge wins - the same
+    attribution rule as _entry_commit_map (re-merges never steal credit)."""
+    mapping: dict[str, dict[str, Any]] = {}
+    for event in events:
+        for entry_id in event.get("entry_ids", ()):
+            mapping[entry_id] = event
     return mapping
 
 

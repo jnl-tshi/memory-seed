@@ -622,7 +622,11 @@ option {
 }
 /* The rail is a full-height background the rows float over, so each row's text
    can indent independently to follow the lane silhouette (see --indent, set
-   per row). The rows sit above it and stay click targets; the rail is inert. */
+   per row). The rows sit above it and stay click targets; the rail as a whole
+   is inert, but it stacks ABOVE the rows (z-index) so its two interactive
+   slivers - merge rings and connector strokes - can take the pointer for
+   tooltips and clicks. Lanes and row text never overlap by construction (the
+   per-row indent clears the lane envelope), so the flip is invisible. */
 .trail-body {
   position: relative;
 }
@@ -632,6 +636,17 @@ option {
   top: 0;
   display: block;
   pointer-events: none;
+  z-index: 1;
+}
+.trail-link {
+  pointer-events: stroke;
+}
+.trail-merge-dot {
+  pointer-events: auto;
+  cursor: pointer;
+}
+.trail-merge-dot:hover {
+  stroke-width: 3;
 }
 /* The relationship zone left of main is visually separate space from the
    worktree/branch lanes: a subtle tinted band behind the dotted lanes. */

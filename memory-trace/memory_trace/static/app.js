@@ -598,12 +598,54 @@ function trailModel(graph) {
     span.last = Math.max(span.last, index);
     spans.set(branch, span);
   });
-  // Fork/merge targets on main: a branch forks off the nearest older main row
-  // and merges into the nearest newer main row (undefined = still open).
+  // Fork/merge targets on main. Ground truth first: the API's graph.branches
+  // carries each branch's real merge commit and fork point (merge-base),
+  // recovered from the Memory-Entry trailers session merge-branch stamps on
+  // merge commits. A commit is a TIME on the trunk, not an entry row, so its
+  // anchor is a fractional row interpolated between the two entries whose
+  // timestamps bracket it - back-to-back merges spread out by commit time
+  // instead of piling onto one entry. Pre-trailer-era branches (no events at
+  // all) keep the old positional heuristic, flagged estimated for the hover.
   const mainRowList = [];
   items.forEach((item, index) => {
     if (item.kind === "node" && item.node.branch === "main") mainRowList.push(index);
   });
+  const nodeRows = [];
+  items.forEach((item, index) => {
+    if (item.kind === "node") nodeRows.push({ row: index, stamp: trailStamp(item.node) });
+  });
+  const interpRow = (iso) => {
+    const t = Date.parse(iso || "");
+    if (!Number.isFinite(t) || !nodeRows.length) return undefined;
+    if (t >= nodeRows[0].stamp) return nodeRows[0].row;
+    if (t <= nodeRows[nodeRows.length - 1].stamp) return nodeRows[nodeRows.length - 1].row;
+    for (let i = 0; i < nodeRows.length - 1; i += 1) {
+      const upper = nodeRows[i];
+      const lower = nodeRows[i + 1];
+      if (t <= upper.stamp && t >= lower.stamp) {
+        const span = upper.stamp - lower.stamp;
+        const frac = span > 0 ? (upper.stamp - t) / span : 0.5;
+        return upper.row + frac * (lower.row - upper.row);
+      }
+    }
+    return nodeRows[nodeRows.length - 1].row;
+  };
+  // Trunk merge dots: every merge event touching a visible entry, placed at
+  // its commit-time row. Entry heading times can run ahead of the wall clock
+  // that stamped the commit, so each dot clamps to sit at least half a row
+  // ABOVE (newer than) the newest entry it merged - a merge drawn below its
+  // own content would read upside-down. Clicking a dot opens the merged work.
+  const mergeEvents = (graph.merges || []).flatMap((event) => {
+    const entryRows = (event.entry_ids || []).map((id) => rowOf.get(id)).filter((row) => row !== undefined);
+    if (!entryRows.length) return [];
+    const newestRow = Math.min(...entryRows);
+    let row = interpRow(event.date);
+    if (row === undefined) return [];
+    row = Math.min(row, newestRow - 0.5);
+    return [{ row, sha: event.sha, short: event.short, subject: event.subject, count: entryRows.length, chunkId: items[newestRow].node.chunk_id }];
+  });
+  const mergeRowBySha = new Map(mergeEvents.map((event) => [event.sha, event.row]));
+  const branchMeta = graph.branches || {};
   const linkRows = new Map();
   // Lane occupancy runs fork-to-merge, not just across a branch's own entry
   // rows: branches whose entries occupy disjoint row ranges but converge on
@@ -611,12 +653,38 @@ function trailModel(graph) {
   const occupancy = new Map();
   spans.forEach((span, branch) => {
     if (branch === "" || branch === "main") return;
-    const forkRow = mainRowList.find((row) => row > span.last);
-    const mergeRow = [...mainRowList].reverse().find((row) => row < span.first);
-    linkRows.set(branch, { forkRow, mergeRow });
+    const heuristicFork = mainRowList.find((row) => row > span.last);
+    const heuristicMerge = [...mainRowList].reverse().find((row) => row < span.first);
+    const info = branchMeta[branch];
+    let forkRow;
+    let mergeRow;
+    let estimated = true;
+    let mergeLabel = null;
+    let forkLabel = null;
+    if (info && !info.estimated) {
+      estimated = false;
+      if (info.merge) {
+        mergeRow = mergeRowBySha.has(info.merge.sha) ? mergeRowBySha.get(info.merge.sha) : interpRow(info.merge.date);
+        if (mergeRow !== undefined) mergeRow = Math.min(mergeRow, span.first - 0.5);
+        mergeLabel = `${info.merge.short} ${info.merge.subject}`;
+      }
+      // else: the newest entry is not merged yet - the branch is open and
+      // dangles; its earlier merges still show as trunk dots.
+      if (info.fork) {
+        forkRow = interpRow(info.fork.date);
+        if (forkRow !== undefined) forkRow = Math.max(forkRow, span.last + 0.5);
+        forkLabel = info.fork.short;
+      } else {
+        forkRow = heuristicFork;
+      }
+    } else {
+      forkRow = heuristicFork;
+      mergeRow = heuristicMerge;
+    }
+    linkRows.set(branch, { forkRow, mergeRow, estimated, mergeLabel, forkLabel });
     occupancy.set(branch, {
-      first: mergeRow !== undefined ? Math.min(span.first, mergeRow) : span.first,
-      last: forkRow !== undefined ? Math.max(span.last, forkRow) : span.last,
+      first: mergeRow !== undefined ? Math.min(span.first, Math.floor(mergeRow)) : span.first,
+      last: forkRow !== undefined ? Math.max(span.last, Math.ceil(forkRow)) : span.last,
     });
   });
   if (spans.has("main")) occupancy.set("main", { ...spans.get("main") });
@@ -682,7 +750,7 @@ function trailModel(graph) {
   const lifecycle = (graph.edges || []).filter(
     (edge) => TRAIL_REL_LANES.includes(edge.type) && rowOf.has(edge.source) && rowOf.has(edge.target)
   );
-  return { items, total, rowOf, spans, laneOf, colorOf, laneCount: laneIntervals.length, lifecycle, linkRows };
+  return { items, total, rowOf, spans, laneOf, colorOf, laneCount: laneIntervals.length, lifecycle, linkRows, mergeEvents };
 }
 
 function trailView() {
@@ -717,9 +785,11 @@ function trailView() {
       return;
     }
     const link = linkRows.get(branch) || {};
+    // Merge/fork anchors are fractional (commit-time interpolated); round
+    // outward so the text envelope still clears the whole connector.
     occupancy.set(branch, {
-      first: link.mergeRow !== undefined ? Math.min(span.first, link.mergeRow) : span.first,
-      last: link.forkRow !== undefined ? Math.max(span.last, link.forkRow) : span.last,
+      first: link.mergeRow !== undefined ? Math.min(span.first, Math.floor(link.mergeRow)) : span.first,
+      last: link.forkRow !== undefined ? Math.max(span.last, Math.ceil(link.forkRow)) : span.last,
     });
   });
   const envelopeLane = new Array(items.length).fill(0);
@@ -751,11 +821,13 @@ function trailView() {
 
   // Gitgraph forking: fork/merge rows come from the model - the same rows
   // that drive lane occupancy, so connectors and lane allocation always
-  // agree. Connectors are straight runs with small-radius elbows (the
-  // gitgraph "rounded" style): the bend sits right at the junction row, the
-  // rest travels vertically in the branch's own lane. A branch with no newer
-  // main row is still open and deliberately dangles - no merge is fabricated.
-  const connectors = [...linkRows.entries()].flatMap(([branch, { forkRow, mergeRow }]) => {
+  // agree. Anchors are commit-accurate where a Memory-Entry trailer exists
+  // (fractional, commit-time interpolated) and positional estimates
+  // otherwise; the hover says which. Connectors are straight runs with
+  // small-radius elbows (the gitgraph "rounded" style): the bend sits right
+  // at the junction row, the rest travels vertically in the branch's own
+  // lane. An unmerged branch deliberately dangles - no merge is fabricated.
+  const connectors = [...linkRows.entries()].flatMap(([branch, { forkRow, mergeRow, mergeLabel, forkLabel }]) => {
     const rows = branchRows.get(branch) || [];
     if (!rows.length) return [];
     const newest = rows[0];
@@ -767,15 +839,26 @@ function trailView() {
     if (forkRow !== undefined) {
       const yf = rowY(forkRow);
       const yb = rowY(oldest);
-      out.push(`<path class="trail-link" d="M ${mx} ${yf} L ${bx - r} ${yf} Q ${bx} ${yf} ${bx} ${yf - r} L ${bx} ${yb}" fill="none" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></path>`);
+      const forkTip = forkLabel ? `forked after ${forkLabel}` : "fork point estimated";
+      out.push(`<path class="trail-link" d="M ${mx} ${yf} L ${bx - r} ${yf} Q ${bx} ${yf} ${bx} ${yf - r} L ${bx} ${yb}" fill="none" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"><title>${esc(`${branch} · ${forkTip}`)}</title></path>`);
     }
     if (mergeRow !== undefined) {
       const yb = rowY(newest);
       const ym = rowY(mergeRow);
-      out.push(`<path class="trail-link" d="M ${bx} ${yb} L ${bx} ${ym + r} Q ${bx} ${ym} ${bx - r} ${ym} L ${mx} ${ym}" fill="none" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></path>`);
+      const mergeTip = mergeLabel ? `merged by ${mergeLabel}` : "merge point estimated";
+      out.push(`<path class="trail-link" d="M ${bx} ${yb} L ${bx} ${ym + r} Q ${bx} ${ym} ${bx - r} ${ym} L ${mx} ${ym}" fill="none" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"><title>${esc(`${branch} · ${mergeTip}`)}</title></path>`);
     }
     return out;
   });
+
+  // Trunk merge dots: one ring per real merge commit at its commit-time row
+  // on the main lane - repeated merges of a long-lived branch stay visible
+  // even though the branch renders as a single lane. Clicking selects the
+  // merged work (the reader then shows the commit and its sibling entries).
+  const mergeDotFill = colorOf.get("main") || trailLaneColorFamilies[0][0];
+  const mergeDots = (model.mergeEvents || []).map((event) =>
+    `<circle class="trail-merge-dot" cx="${laneX("main")}" cy="${rowY(event.row)}" r="3.5" fill="var(--bg)" stroke="${mergeDotFill}" stroke-width="2" data-chunk="${escAttr(event.chunkId)}"><title>${esc(`${event.short} ${event.subject} · ${event.count} ${event.count === 1 ? "entry" : "entries"}`)}</title></circle>`
+  );
 
   // Relationship edges route through their type's dotted lane with the same
   // small-radius elbows: out from the source dot, along the lane, back in to
@@ -899,6 +982,7 @@ function trailView() {
           ${laneSegments.join("")}
           ${arcs.join("")}
           ${dots.join("")}
+          ${mergeDots.join("")}
         </svg>
         <div class="trail-rows">${rows.join("")}</div>
       </div>
@@ -1348,16 +1432,21 @@ function diagramsSection(selected) {
     </section>`;
 }
 
-// Commit packaging: the git commit that first captured this entry, plus the
-// other entries that rode the same commit (batch commits on main and the
-// pre-branching era included - the map is diff-derived, not merge-derived).
+// Commit packaging: the git commit that first captured this entry ("Authored
+// in", diff-derived), plus the merge commit whose Memory-Entry trailer landed
+// it on the trunk ("Merged to main by") when that differs, plus the other
+// entries that rode the same authoring commit.
 function commitSection(selected) {
+  const mergedBy = selected.merged_by && selected.merged_by.sha !== selected.commit?.sha
+    ? `<div class="entry-meta commit-merged-by"><span class="count">Merged to main by</span><span class="count">${esc(selected.merged_by.short)}</span><span>${esc(selected.merged_by.subject)}</span></div>`
+    : "";
   if (selected.commit) {
     const siblings = selected.commit_entries || [];
     return `
     <section class="detail-section">
       <h4>Commit</h4>
-      <div class="entry-meta"><span class="count">${esc(selected.commit.short)}</span><span>${esc(selected.commit.subject)}</span></div>
+      <div class="entry-meta"><span class="count">Authored in</span><span class="count">${esc(selected.commit.short)}</span><span>${esc(selected.commit.subject)}</span></div>
+      ${mergedBy}
       ${siblings.length ? `<div class="count commit-note">${siblings.length} other entr${siblings.length === 1 ? "y" : "ies"} in this commit</div>${siblings.map((item) => `<button type="button" class="link-card" data-chunk="${escAttr(item.chunk_id)}">${esc(stripTitleStamp(item.title))}<br><span class="count">${item.date} ${item.time || ""}</span></button>`).join("")}` : `<div class="count commit-note">Only entry in this commit.</div>`}
     </section>`;
   }
