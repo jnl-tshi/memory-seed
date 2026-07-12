@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import re
 import json
 import os
 import sqlite3
@@ -666,7 +667,37 @@ class LenseService:
         }
 
 
-def create_app(cwd: str | Path = ".", *, rebuild_cache: bool = False) -> Any:
+def _resolve_static_root(static_root: str | Path | None) -> Path | None:
+    """Resolve a static-asset override to the directory holding index.html.
+
+    Accepts either the static directory itself or a checkout root (a git
+    worktree), in which case the packaged layout
+    ``memory-trace/memory_trace/static`` is tried underneath. This is the
+    verify-a-worktree's-UI path: the running server keeps its data source but
+    serves that checkout's index.html/app.js/styles.css, replacing the
+    copy-into-primary-then-restore dance. Raises when the override points at
+    nothing servable - a typo must not silently fall back to packaged assets.
+    """
+    if static_root is None:
+        return None
+    candidate = Path(static_root).resolve()
+    if (candidate / "index.html").is_file():
+        return candidate
+    nested = candidate / "memory-trace" / "memory_trace" / "static"
+    if (nested / "index.html").is_file():
+        return nested
+    raise RuntimeError(
+        f"static root {candidate} contains no index.html (looked in the directory itself and "
+        "under memory-trace/memory_trace/static/)"
+    )
+
+
+def create_app(
+    cwd: str | Path = ".",
+    *,
+    rebuild_cache: bool = False,
+    static_root: str | Path | None = None,
+) -> Any:
     try:
         from fastapi import FastAPI, HTTPException, Query
         from fastapi.responses import FileResponse, HTMLResponse
@@ -678,6 +709,31 @@ def create_app(cwd: str | Path = ".", *, rebuild_cache: bool = False) -> Any:
         cache.rebuild()
     service = LenseService(cache)
     app = FastAPI(title="Memory Trace", version="1.0")
+
+    static_dir = _resolve_static_root(static_root or os.environ.get("MEMORY_TRACE_STATIC_ROOT"))
+
+    def _static_file(*parts: str) -> Any:
+        if static_dir is not None:
+            override = static_dir.joinpath(*parts)
+            if override.is_file():
+                return override
+        return resources.files("memory_trace").joinpath("static", *parts)
+
+    def _asset_version() -> str:
+        # Serve-time cache busting: the ?v= tags in index.html are rewritten
+        # per request with a content hash of the two mutable assets, so a
+        # changed app.js/styles.css can never be masked by a stale browser
+        # cache and no manual tag bump exists to forget. Recomputed per page
+        # load (two small file reads) so even a same-process asset swap - the
+        # static-root override pointing at an actively edited worktree - stays
+        # correct without a restart.
+        digest = hashlib.sha256()
+        for name in ("app.js", "styles.css"):
+            try:
+                digest.update(_static_file(name).read_bytes())
+            except OSError:
+                pass
+        return digest.hexdigest()[:10]
 
     # Worktree switching: one running Trace can show each on-device worktree's
     # branch-specific memory. The launch checkout is the default; other
@@ -714,14 +770,15 @@ def create_app(cwd: str | Path = ".", *, rebuild_cache: bool = False) -> Any:
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> Any:
-        return HTMLResponse(_static_text("index.html", "text/html"))
+        text = _static_file("index.html").read_text(encoding="utf-8")
+        text = re.sub(r"\?v=[^\"']+", f"?v={_asset_version()}", text)
+        return HTMLResponse(text)
 
     @app.get("/assets/{name}")
     def asset(name: str) -> Any:
         if name not in {"app.js", "styles.css"}:
             raise HTTPException(status_code=404, detail="asset not found")
-        path = resources.files("memory_trace").joinpath("static", name)
-        return FileResponse(path)
+        return FileResponse(_static_file(name))
 
     @app.get("/assets/fonts/{name}")
     def asset_font(name: str) -> Any:
@@ -729,8 +786,7 @@ def create_app(cwd: str | Path = ".", *, rebuild_cache: bool = False) -> Any:
         # woff2s): no CDN call, Trace stays fully local/offline.
         if name not in {"inter-var.woff2", "space-grotesk-var.woff2"}:
             raise HTTPException(status_code=404, detail="asset not found")
-        path = resources.files("memory_trace").joinpath("static", "fonts", name)
-        return FileResponse(path, media_type="font/woff2")
+        return FileResponse(_static_file("fonts", name), media_type="font/woff2")
 
     @app.get("/api/worktrees")
     def api_worktrees() -> dict[str, Any]:
@@ -960,7 +1016,7 @@ def run_server(args: argparse.Namespace) -> int:
         print(missing_optional_dependency_hint(), file=os.sys.stderr)
         return 1
     try:
-        app = create_app(args.cwd, rebuild_cache=args.rebuild_cache)
+        app = create_app(args.cwd, rebuild_cache=args.rebuild_cache, static_root=getattr(args, "static_root", None))
     except RuntimeError as exc:
         print(str(exc), file=os.sys.stderr)
         return 1

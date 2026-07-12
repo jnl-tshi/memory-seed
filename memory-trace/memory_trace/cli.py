@@ -28,6 +28,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--port", type=int, default=0, help="port to bind; 0 chooses a free port")
     parser.add_argument("--no-open", action="store_true", help="do not open a browser")
     parser.add_argument("--rebuild-cache", action="store_true", help="rebuild the SQLite cache before serving")
+    parser.add_argument(
+        "--static-root",
+        default=None,
+        help="serve UI assets (index.html/app.js/styles.css) from this directory or checkout root "
+        "instead of the installed package - verify a worktree's UI without copying files "
+        "(also: MEMORY_TRACE_STATIC_ROOT)",
+    )
     return parser
 
 
