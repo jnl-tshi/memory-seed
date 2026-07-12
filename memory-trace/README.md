@@ -5,12 +5,23 @@ Memory Trace is the companion **review UI** for
 view over a project's cross-agent decision memory (session logs, the decision
 graph, timelines, and authored decision diagrams).
 
-It is a **separate distribution** from the `memory-seed` control plane on purpose:
+It is a separate UI/source package from the `memory-seed` control plane on purpose:
 
 - **Core stays lightweight.** `pip install memory-seed` installs no web framework
   and no UI code — just the local-first, file-based control plane agents rely on.
-- **The UI iterates on its own cadence.** Visual work here never rides a core
-  version bump, and never destabilizes the control plane.
+- **The UI keeps a clear source boundary.** Visual work can evolve without being tangled into
+  control-plane modules.
+
+The 2026-07-11 release-strategy revision keeps that architecture boundary but folds public
+installation into the main package extra:
+
+```bash
+pip install "memory-seed[trace]"
+memory-trace
+```
+
+The separate `memory-trace` PyPI name is blocked as too similar to an existing project, and the
+commercial strategy does not use the install layer as the monetisation boundary.
 
 Memory Trace **depends on** `memory-seed` and consumes its public retrieval
 service (`memory_seed.retrieval`). It never reimplements parsing, ranking, the
@@ -28,15 +39,20 @@ Next-generation product and architecture planning lives in the parent repository
 
 ## Install
 
-> **Not yet on PyPI.** `memory-trace 0.1.0` publishes after the core `memory-seed 2.17` release.
-> Until then, install from a clone of the parent repository:
+Target public install path after the packaging fold-in:
+
+```bash
+pip install "memory-seed[trace]"
+```
+
+Current source-checkout install path before that fold-in:
 
 ```bash
 pip install ./memory-trace
 ```
 
-Once published this becomes `pip install memory-trace`. Either form pulls `memory-seed` (plus
-`fastapi`/`uvicorn`) automatically.
+The source-checkout form pulls `memory-seed` plus `fastapi`/`uvicorn` automatically. The public
+release should move those web dependencies behind the root `trace` extra.
 
 ## Use
 
@@ -75,7 +91,6 @@ line clearly belongs to `memory-trace`. `upgrade` supports `--manager uv`, `--ma
 
 ## Migrating from `memory-seed[lense]`
 
-Memory Trace replaces the in-package `memory-seed[lense]` extra (the "Memory
-Lense" preview). The deprecated `memory-seed lense` command still works when
-`memory-trace` is installed, but prints a notice pointing here — use the
-`memory-trace` command instead.
+Memory Trace replaces the old "Memory Lense" preview. `memory-seed[lense]` should remain a
+deprecated alias for `memory-seed[trace]` for one release window. The deprecated `memory-seed lense`
+command should keep pointing users to the `memory-trace` command.

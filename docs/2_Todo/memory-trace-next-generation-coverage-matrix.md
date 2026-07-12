@@ -31,7 +31,7 @@ Resolution:
 
 | Existing document | Status after integration | Coverage decision | Unique active requirements preserved |
 |---|---|---|---|
-| `docs/2_Todo/memory-trace-distribution-plan.md` | Keep active | Blueprint preserves separate `memory-trace` package, public retrieval service, and no-fork parser/ranker rule. | Release-ordering, PyPI/trusted-publisher follow-through, deprecation shim, and package-publication criteria remain here. |
+| `docs/2_Todo/memory-trace-distribution-plan.md` | Keep active | Revised 2026-07-11: preserve the Trace product/source boundary and no-fork parser/ranker rule, but fold release/install into `memory-seed[trace]` instead of a separate PyPI project. | Root-wheel packaging, `trace` extra, deprecated `lense` alias, `memory-trace` command, no web deps on plain `memory-seed`, and retirement/inertness of standalone publish workflow. |
 | `docs/2_Todo/memory-trace-ai-timeline-summarisation-plan.md` | Keep active | Derived-artifact provenance contract governs evidence/citation packaging; AI plan remains implementation-specific. | Local/BYOK provider first, terminal-agent adapter later, schema-constrained output, disabled-by-default AI, no session mutation. |
 | `docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md` | Keep active | UX spec governs graph/Trail presentation; topic plan owns core `topics:` contract and remaining Trace/MCP topic work. | Phase 4 indexed-topic rendering, MCP topic-management tools, optional `topics suggest`. |
 | `docs/2_Todo/session-decision-diagrams-plan.md` | Keep active | Derived-artifact contract and evidence-pack plan cover export provenance; diagram plan owns sidecar convention and Phase 3 report/handover pack. | Exportable report/handover pack acceptance criteria and Mermaid sidecar constraints. |
@@ -49,6 +49,7 @@ Resolution:
 - **Graph as primary surface vs Trail-first product.** Resolved by role separation: Trail is the primary chronological evidence surface; graph is a specialised topic/document/relationship exploration surface.
 - **AI summaries vs authoritative memory.** Resolved by Evidence Packs and provenance manifests: generated output is derived, cited, and non-authoritative unless explicitly promoted.
 - **UI docs vs graph contract.** Resolved by authority boundary: `graph-edge-contract.md` remains canonical; UI docs cannot redefine edge semantics.
+- **Separate PyPI package vs product branding.** Resolved by separating product/source boundaries from install boundaries: Memory Trace remains the product and `memory-trace` remains the command, while `memory-seed[trace]` becomes the install path.
 
 ## Active Follow-Through
 

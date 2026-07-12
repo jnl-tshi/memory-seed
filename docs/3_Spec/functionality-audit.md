@@ -28,7 +28,7 @@ graph TD
       direction TB
       PKG["PyPI package"] ~~~ SEED["seed templates"]
     end
-    subgraph TracePkg["memory-trace package"]
+    subgraph TracePkg["Trace UI source / trace extra"]
       direction TB
       TRACECLI["memory-trace CLI"] ~~~ TRACEUI["read-only UI"]
     end
@@ -728,10 +728,18 @@ graph TD
 ```
 
 ### O. Memory Trace (review UI; legacy Lense shim)
-- The review UI shipped in 2.13 as the in-package `memory-seed[lense]` extra ("Memory Lense") and was **extracted** into the standalone **`memory-trace`** distribution (Arc 1 of the Memory Trace roadmap): its own package/command depending on `memory-seed`, importing the public retrieval service (`memory_seed/retrieval.py`). `memory-seed[lense]` is now a deprecation shim, and `memory-seed lense` delegates to `memory-trace` when installed. Core ships **no** web framework.
+- The review UI shipped in 2.13 as the in-package `memory-seed[lense]` extra ("Memory Lense") and
+  was source-extracted into `memory-trace/` (Arc 1 of the Memory Trace roadmap): its own
+  `memory_trace` package, `memory-trace` command, static assets, and public-retrieval consumer. The
+  2026-07-11 release-strategy revision keeps that source/product boundary but targets installation
+  through the root `memory-seed[trace]` extra rather than a separate PyPI project. `memory-seed[lense]`
+  should remain a deprecated alias for one release window, and plain `memory-seed` must ship no web
+  framework.
 - Serves search, filters, timeline, graph, and reader/details views over the same `semantic_cache` parsing/ranking + `retrieval` service MCP uses - no forked retrieval logic (parity tested across the package boundary). Current Trace topic facets/edges historically derived display topics from Markdown hashtags plus heading contexts. Controlled entry-YAML `topics:` and project-local `.memory-seed/topics.yaml` are now implemented in the core parser/retrieval/CLI path; Trace indexed-topic rendering as chronological chains and MCP topic-management tools remain in `docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md` Phase 4.
 - **Cache architecture:** a rebuildable local SQLite cache stored **outside the repository** (`%LOCALAPPDATA%\memory-seed\lense` on Windows, `~/.cache/memory-seed/lense` elsewhere; keyed by a hash of the workspace root, with a `tempfile` fallback if the cache directory isn't writable). `LenseCache.rebuild()` does a full wipe-and-atomic-replace (`os.replace` after a `.tmp` write) whenever session-file mtime/size drift is detected - the cache is never authoritative and Markdown stays the source of truth. Because the cache lives outside the repo by construction, this also satisfies the project's OneDrive-sync-safety constraint (see section 6) without needing to gitignore anything.
-- Static UI assets (`memory-trace/memory_trace/static/`: `index.html`, `app.js`, `styles.css`, `manifest.json`) ship inside the `memory-trace` wheel/sdist.
+- Static UI assets (`memory-trace/memory_trace/static/`: `index.html`, `app.js`, `styles.css`,
+  `manifest.json`) are the assets that need to ship inside the root wheel once the `trace` extra
+  fold-in is implemented.
 - **Next-generation planning (promoted 2026-07-11):** `docs/2_Todo/memory-trace-product-and-system-architecture-blueprint.md` is the top-level product/system entry point; `docs/2_Todo/memory-trace-next-generation-implementation-roadmap.md` sequences the future API/React/Trail/evidence/hosted phases; `docs/2_Todo/memory-trace-next-generation-coverage-matrix.md` explains which older plans remain active; and the new live specs are `docs/3_Spec/memory-trace-trail-search-and-graph-ux.md` plus `docs/3_Spec/memory-trace-derived-artifact-provenance-contract.md`.
 
 ```mermaid

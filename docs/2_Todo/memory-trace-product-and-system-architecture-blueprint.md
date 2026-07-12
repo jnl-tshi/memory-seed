@@ -121,7 +121,11 @@ These distinctions must remain visible through the UI. Memory Trace must not fla
 
 ### 2.3 Memory Trace today
 
-Memory Trace is a standalone Python distribution depending on Memory Seed. It currently uses:
+Memory Trace is an architecturally separate UI/source package depending on Memory Seed's public
+retrieval surface. The 2026-07-11 release-strategy revision targets distribution through the main
+`memory-seed[trace]` extra rather than a separate PyPI project, because PyPI blocks `memory-trace`
+as too similar to the existing `memorytrace` package and the commercial strategy does not use the
+install layer as the monetisation boundary. It currently uses:
 
 - FastAPI;
 - Uvicorn;
@@ -139,7 +143,7 @@ The existing design already has several strong properties:
 - Markdown remains inspectable and Git-reviewable.
 - Retrieval and graph semantics are shared between MCP and Trace.
 - SQLite is explicitly non-authoritative and can be rebuilt.
-- The package boundary keeps web dependencies out of Memory Seed core.
+- The optional-extra boundary keeps web dependencies out of the plain Memory Seed install.
 - Git branch history and typed edges provide richer semantics than a generic knowledge graph.
 - Trace can operate locally without a hosted account.
 - The Trail already renders a dense gitgraph-style chronology rather than a generic feed.
@@ -416,7 +420,9 @@ Potential enterprise value:
 
 ## 8. Non-functional requirements
 
-- Python wheel remains the end-user distribution for local mode.
+- The Memory Seed Python wheel remains the end-user distribution for local mode.
+- Plain `pip install memory-seed` remains web-framework-free.
+- `pip install "memory-seed[trace]"` is the target install path for the local Trace UI.
 - End users do not require Node.js.
 - Frontend build runs in development and release CI only.
 - All runtime assets are local; no required CDN.

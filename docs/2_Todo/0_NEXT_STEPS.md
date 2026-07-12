@@ -31,8 +31,9 @@ fix; authored-inverse-field append-only guard.
 | S5 | Topics P1: vocabulary, parsing, filter, `topics list`/`check` | `f6291d5` |
 | S6 | README front-door refresh (highlights, how-it-works, placeholders, links) | `1a09a3e` |
 
-**Deferred out of this run:** `memory-trace 0.1.0` publication (waits on user-created PyPI
-project + trusted publisher; a prepared workflow file ships in S4 so it is one step later);
+**Deferred out of this run:** Memory Trace packaging fold-in (2026-07-11 revision: do not pursue a
+separate `memory-trace` PyPI project; ship Trace through `memory-seed[trace]` with the
+`memory-trace` command, keeping plain `memory-seed` web-framework-free);
 `session-decision-diagrams-plan.md` Phase 3 export packs; `related-entries-p2-mutation-plan.md`
 historical curation writers (boundary with the seeding pass reconciled 2026-07-10 - typed
 lifecycle history via seeding, untyped `related_entries` backfill via P2);
@@ -200,11 +201,12 @@ detail: `CHANGELOG.md`.
 integration; typed `evolves`/`continuity` lifecycle edges with lifecycle-aware ranking and search
 freshness fields; authoring-loop MCP tools; `branch status`; session-log-check escalation; UTF-8
 encoding check/repair; process shutdown/upgrade commands; agent-selection init; proposal-lifecycle
-and skill-architecture governance skills; Memory Trace Phase-2 extraction (standalone
-`memory-trace/` package, `lense` shim) and skill-profile CLI management. The release restores the
-`.memory-seed/archive/<version>/` snapshot convention (dormant since 2.5) and ships the inert
-`publish-memory-trace.yml` workflow so `memory-trace 0.1.0` publication is one release-tag away
-once the user creates its PyPI project + trusted publisher + `pypi-memory-trace` environment.
+and skill-architecture governance skills; Memory Trace Phase-2 source extraction (`memory-trace/`
+source package, `lense` shim) and skill-profile CLI management. The release restores the
+`.memory-seed/archive/<version>/` snapshot convention (dormant since 2.5). The later 2026-07-11
+release-strategy revision supersedes standalone `memory-trace` publication: the next packaging task
+is folding Trace into the root wheel as `memory-seed[trace]` while preserving the `memory-trace`
+command.
 
 ### 3.0 - In Progress
 
@@ -214,8 +216,9 @@ Multi-user Phases 1-2 shipped (2.9/2.10), the core multi-user increments (A-P3 i
 A-ID 80-bit entry IDs, A-P4 MCP metadata/filters, S2 participant registry parsing, and A-P5
 `migrate sessions-layout`) shipped in 2.12.0, and related-entries generation P1 shipped in 2.13.0.
 The 3.0 plan is now partly historical: shipped sections are retained for context. The Pillar B
-distribution choice is implemented and merged on `main` as the standalone `memory-trace/` package
-(awaiting the 2.17-then-0.1.0 release ordering);
+source extraction is implemented and merged on `main` as `memory-trace/`, but the 2026-07-11 release
+strategy now folds Trace into the root `memory-seed[trace]` install path instead of a separate PyPI
+project;
 see [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md). The Memory Trace
 product and Trail view plan is completed at
 [`completed/memory-trace-product-and-trail-view-plan.md`](completed/memory-trace-product-and-trail-view-plan.md).
@@ -235,12 +238,14 @@ Remaining work:
    (current-entry-only) if hand-editing YAML proves painful. This is a convenience increment, not a
    blocker for graph read paths; existing YAML plus `link suggest`/`link show` already covers
    discovery and inspection.
-2. **Pillar B separate-distribution - implemented in the unpushed tree.** Memory Lense shipped in
-   2.13.0 as an in-package optional extra (`memory-seed[lense]`) - a V1 delivered inside the core
-   package as a UI prototype vehicle. The companion package extraction is now implemented as
-   `memory-trace/`: the package and command are `memory-trace`, core sheds the web stack, and
-   `memory-seed lense` is a shim. Remaining: release core 2.17 before publishing
-   `memory-trace 0.1.0`, because Trace depends on the new `branch:` field.
+2. **Pillar B Trace packaging fold-in - active.** Memory Lense shipped in 2.13.0 as an in-package
+   optional extra (`memory-seed[lense]`) - a V1 delivered inside the core package as a UI prototype
+   vehicle. The Trace source extraction is implemented as `memory-trace/`, but the public install
+   strategy is now `memory-seed[trace]` plus the `memory-trace` command rather than a separate
+   `memory-trace` PyPI package. Remaining: include `memory_trace` and static assets in the root
+   wheel, add the `trace` extra, keep `lense` as a deprecated alias for one release window, preserve
+   no-web-deps behavior for plain `memory-seed`, and retire or leave inert the standalone Trace
+   publish workflow.
    Any future UI work consumes `build_related_entry_graph()` and the public retrieval service rather
    than forking graph or ranking logic.
 
@@ -260,7 +265,7 @@ Specs:
 - [`memory-trace-evidence-annotations-and-projection-architecture.md`](memory-trace-evidence-annotations-and-projection-architecture.md) (**active** - Evidence Packs, deterministic anchors, append-only annotations, projection architecture, and provider freshness)
 - [`memory-trace-commercialisation-and-monetisation-report.md`](memory-trace-commercialisation-and-monetisation-report.md) (**active strategy** - free local Trail, paid advanced analysis/cross-project/hosted/managed-AI/enterprise tiers, validation still required)
 - [`memory-trace-hosted-product-and-security-architecture.md`](memory-trace-hosted-product-and-security-architecture.md) (**active later-stage architecture** - hosted/team security, sync, entitlements, provider integration, and audit model)
-- [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md) (**active, canonical** - Phase 1 retrieval service and Phase 2 package extraction are implemented in the unpushed tree; active only for release-ordering/publication follow-through)
+- [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md) (**active, canonical** - revised 2026-07-11 to fold Trace into `memory-seed[trace]` while preserving the Trace source/product boundary)
 - [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md) (**active** - Phases 1-2 implemented in the unpushed tree; Phase 3 report/handover pack remains gated)
 - [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md) (**active** - approved 2026-07-05; controlled `link add` and explicit historical backfill for curated `related_entries`, sequenced after the lower-risk retrieval/diagram/risk-signaling work unless reprioritized)
 - [`memory-trace-topic-neighbourhoods-plan.md`](memory-trace-topic-neighbourhoods-plan.md) (**active** - clarified 2026-07-08; `topics:` becomes the normal 1-3-topic field for meaningful entries, backed by project-local `.memory-seed/topics.yaml`)

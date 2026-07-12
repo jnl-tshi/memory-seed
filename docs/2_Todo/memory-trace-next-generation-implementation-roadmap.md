@@ -278,7 +278,11 @@ Graph work may proceed in parallel after the shell and API are stable. Hosted wo
 - build React in parallel;
 - use feature flags;
 - retain vanilla fallback during parity phase;
-- publish alpha wheels;
+- ship Trace through the root `memory-seed` wheel as the optional `trace` extra;
+- keep plain `pip install memory-seed` web-framework-free;
+- expose the `memory-trace` command from the main distribution when `memory-seed[trace]` is installed;
+- keep `memory-seed[lense]` as a deprecated alias for one release window;
+- do not pursue a separate `memory-trace` PyPI project unless future release-cadence pressure justifies reopening the decision;
 - test from installed wheel, not source checkout only;
 - remove vanilla frontend only after explicit product-owner sign-off.
 

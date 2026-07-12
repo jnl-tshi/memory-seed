@@ -15,6 +15,10 @@ format: "Markdown research proposal"
 > Future Memory Trace product/system evolution is now governed by
 > [`../memory-trace-product-and-system-architecture-blueprint.md`](../memory-trace-product-and-system-architecture-blueprint.md)
 > and [`../../3_Spec/memory-trace-trail-search-and-graph-ux.md`](../../3_Spec/memory-trace-trail-search-and-graph-ux.md).
+> **2026-07-11 packaging correction:** the product name and command remain **Memory Trace** /
+> `memory-trace`, but the PyPI project name `memory-trace` is blocked as too similar to an existing
+> `memorytrace` project. The release strategy now targets `memory-seed[trace]` rather than a
+> separate PyPI project; see [`../memory-trace-distribution-plan.md`](../memory-trace-distribution-plan.md).
 > **Priority:** Resolved. Naming, branch capture, package extraction, and the Trail view are present
 > in the unpushed Memory Trace worktree.
 > **Source:** Conversation 2026-07-05 (JNL): use **Memory Trace** as the overall package/product name,
