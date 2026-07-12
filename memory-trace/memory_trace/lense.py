@@ -36,7 +36,7 @@ ZOOMS = {"day": 24, "12h": 12, "6h": 6, "3h": 3}
 
 
 def missing_optional_dependency_hint() -> str:
-    return 'Install with: pip install memory-trace'
+    return 'Install with: pip install "memory-seed[trace]"'
 
 
 def default_cache_path(cwd: str | Path = ".", *, cache_root: str | Path | None = None) -> Path:

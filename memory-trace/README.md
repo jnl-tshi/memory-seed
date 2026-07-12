@@ -5,15 +5,16 @@ Memory Trace is the companion **review UI** for
 view over a project's cross-agent decision memory (session logs, the decision
 graph, timelines, and authored decision diagrams).
 
-It is a **separate distribution** from the `memory-seed` control plane on purpose:
+It is bundled into the main `memory-seed` distribution on purpose:
 
-- **Core stays lightweight.** `pip install memory-seed` installs no web framework
-  and no UI code — just the local-first, file-based control plane agents rely on.
-- **The UI iterates on its own cadence.** Visual work here never rides a core
-  version bump, and never destabilizes the control plane.
+- **Core stays lightweight.** `pip install memory-seed` installs no web runtime
+  dependencies: just the local-first, file-based control plane agents rely on.
+- **One product, optional UI.** `pip install "memory-seed[trace]"` adds the
+  FastAPI/Uvicorn runtime and installs the `memory-trace` command without
+  requiring a separate PyPI project.
 
-Memory Trace **depends on** `memory-seed` and consumes its public retrieval
-service (`memory_seed.retrieval`). It never reimplements parsing, ranking, the
+Memory Trace consumes Memory Seed's public retrieval service
+(`memory_seed.retrieval`). It never reimplements parsing, ranking, the
 graph-edge contract, or diagram-sidecar reading — the same answers as MCP, one
 canonical chunk model, one canonical ranking service.
 
@@ -28,15 +29,15 @@ Next-generation product and architecture planning lives in the parent repository
 
 ## Install
 
-> **Not yet on PyPI.** `memory-trace 0.1.0` publishes after the core `memory-seed 2.17` release.
-> Until then, install from a clone of the parent repository:
+Install the optional UI extra from the main package:
 
 ```bash
-pip install ./memory-trace
+pip install "memory-seed[trace]"
 ```
 
-Once published this becomes `pip install memory-trace`. Either form pulls `memory-seed` (plus
-`fastapi`/`uvicorn`) automatically.
+Plain `pip install memory-seed` still installs the CLI, MCP server, and control
+plane without the web stack. The deprecated `memory-seed[lense]` extra is kept
+as a temporary alias for `memory-seed[trace]`.
 
 ## Use
 
@@ -71,11 +72,12 @@ memory-trace upgrade --yes --manager uv
 Shutdown defaults to `No` unless confirmed or run with `--yes`. Matching is conservative: generic
 `python`, `uv`, `uvx`, and `pipx` processes are stopped only when their executable path or command
 line clearly belongs to `memory-trace`. `upgrade` supports `--manager uv`, `--manager pipx`, and
-`--manager pip`.
+`--manager pip`, but upgrades the owning `memory-seed` package because `memory-trace` is a bundled
+command, not a separately published distribution.
 
 ## Migrating from `memory-seed[lense]`
 
-Memory Trace replaces the in-package `memory-seed[lense]` extra (the "Memory
-Lense" preview). The deprecated `memory-seed lense` command still works when
-`memory-trace` is installed, but prints a notice pointing here — use the
-`memory-trace` command instead.
+Memory Trace replaces the old `memory-seed lense` preview command. The
+deprecated `memory-seed lense` command still works when `memory-seed[trace]` is
+installed, but prints a notice pointing here: use the `memory-trace` command
+instead.

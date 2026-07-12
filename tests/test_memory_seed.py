@@ -3578,9 +3578,10 @@ class CliHelpTests(unittest.TestCase):
         self.assertIn("Keeping Memory Seed current", out)
 
     def test_lense_command_is_a_deprecation_shim_to_memory_trace(self):
-        # The review UI moved to the standalone `memory-trace` package. When it
-        # is not installed (as in the core-only test env), `memory-seed lense`
-        # points the user there and exits non-zero - core ships no web stack.
+        # The review UI moved behind the optional `trace` extra and the
+        # `memory-trace` command. When the extra is not installed (as in the
+        # core-only test env), `memory-seed lense` points the user there and
+        # exits non-zero - core ships no web stack.
         import contextlib
         import io
 

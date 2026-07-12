@@ -3,7 +3,7 @@
 This module is the canonical search-orchestration and result-dict contract for
 every consumer: the MCP server (`memory_seed/mcp_server.py`) wraps it, the
 deprecated in-package Memory Lense shim routes users to Memory Trace, and the
-standalone `memory-trace` companion UI imports it as its frozen public API. Do
+bundled `memory-trace` companion UI imports it as its frozen public API. Do
 not fork result-dict shapes per consumer - same
 answers as MCP, richer navigation for humans.
 

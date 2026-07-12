@@ -292,7 +292,7 @@ def main(argv: list[str] | None = None) -> int:
     compact_parser.add_argument("--all", action="store_true", dest="scan_all", help="scan all sessions")
     compact_parser.add_argument("--output", type=str, default=None, help="write summary to file instead of stdout")
 
-    lense_parser = subparsers.add_parser("lense", help="[deprecated] moved to the 'memory-trace' package/command")
+    lense_parser = subparsers.add_parser("lense", help="[deprecated] use the 'memory-trace' command")
     lense_parser.add_argument("--cwd", default=".", help="project/runtime path to inspect (default: current directory)")
     lense_parser.add_argument("--host", default="127.0.0.1", help="host to bind (default: 127.0.0.1)")
     lense_parser.add_argument("--port", type=int, default=0, help="port to bind; 0 chooses a free port")
@@ -758,15 +758,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "lense":
-        # Deprecated shim: the review UI moved to the standalone `memory-trace`
-        # package/command. This delegates when memory-trace is installed and
-        # otherwise points the user at it - core ships no web stack of its own.
+        # Deprecated shim: the review UI now lives behind the `trace` extra and
+        # the `memory-trace` command. Plain core installs ship no web stack.
         try:
             from memory_trace.lense import run_server
         except ModuleNotFoundError:
             print(
-                "Memory Lense has moved to the 'memory-trace' package.\n"
-                "  Install:  pip install memory-trace\n"
+                "Memory Lense has moved to the Memory Trace command.\n"
+                "  Install:  pip install \"memory-seed[trace]\"\n"
                 "  Run:      memory-trace",
                 file=sys.stderr,
             )
