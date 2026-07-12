@@ -463,22 +463,21 @@ const TRAIL_REL_ZONE = TRAIL_REL_LANES.length * TRAIL_REL_LANE_W + 12;
 // traffic they drowned the lifecycle signal.
 const TRAIL_DASH = { supersedes: "6 4", evolves: "6 4", related: "6 4" };
 const TRAIL_VERB = { supersedes: "replaces", evolves: "evolves", related: "relates to" };
-// Each lane owns a color family (one hue, several shades) rather than one
-// flat color: lanes are already collision-free for anything parallel or
-// adjacent, but branches that daisy-chain through the same lane one after
-// another still need to read as distinct entries, not a single continuous
-// branch. Shades within a family are spaced by hue, not just tint/shade -
-// two light-vs-dark versions of one color still read as "the same line" at
-// a glance, so each shade leans toward a different neighboring hue instead
-// (e.g. green's shades run true-green / grass / olive / emerald-teal), while
-// staying legible against both the light and dark theme background.
+// Each lane owns a family of three distinct colors rather than one flat
+// color: lanes are already collision-free for anything parallel or adjacent,
+// but branches that daisy-chain through the same lane one after another still
+// need to read as distinct entries, not a single continuous branch, so a lane
+// cycles its three colors across its successive branches. All 15 codes across
+// the five families are unique, so even when the palette wraps (more lanes
+// than families) no two adjacent lanes can collide. The set is drawn from
+// colorblind-safe palettes (Okabe-Ito / ColorBrewer), each member mid-toned
+// so it stays legible against both the light and dark theme background.
 const trailLaneColorFamilies = [
-  ["#6f7cff", "#3b82f6", "#22b8cf", "#5b4fd6"],
-  ["#3fa66a", "#16a34a", "#7cb342", "#0f9b8e"],
-  ["#d9941a", "#e8590c", "#eab308", "#b45309"],
-  ["#8f63e8", "#a855f7", "#7e3fc9", "#c026d3"],
-  ["#d94b63", "#dc2626", "#db2777", "#f2704f"],
-  ["#18a999", "#0891b2", "#14b8a6", "#0e7490"],
+  ["#D55E00", "#0072B2", "#009E73"],
+  ["#CC79A7", "#E69F00", "#56B4E9"],
+  ["#B2182B", "#2166AC", "#4D9221"],
+  ["#7B3294", "#008837", "#F46D43"],
+  ["#542788", "#1B7837", "#A6761D"],
 ];
 
 function trailStamp(node) {
