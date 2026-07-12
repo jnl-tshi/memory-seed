@@ -59,14 +59,34 @@ vanilla (this document starts all-unchecked by design).
 
 - [ ] Newest-first fixed-height rows (30px) with day separator rows sharing the grid
 - [ ] One lane per branch via fork-to-merge occupancy intervals (not just entry rows)
-- [ ] Lane allocation: shortest-lived first with entry-range tie-break, so among concurrent
-      branches the longest takes the outermost lane
+- [ ] Lane allocation: time-ordered - main pinned to lane 0, then oldest-first by newest-entry
+      row (compactness, then older-end tie-breaks), so older/compact branches take inner lanes
+      and newer branches stack outward
+- [ ] Lane colors: the first four lanes each cycle a pack of three bright colors across
+      daisy-chained branches (12 unique colors); lanes 5+ pin to their pack's middle color
+- [ ] Text indentation follows the lane silhouette: each row's time/title starts just right of
+      the rightmost lane alive at that row (day-separator rows included), via fork-to-merge
+      envelope occupancy
 - [ ] Daisy-chaining: branches whose occupancy touches only at a shared junction row share a
       lane; the trunk column (lane 0) is main's alone
-- [ ] Golden fixture reproduced: `trail-golden-48.json` (items order, laneOf, spans, linkRows)
+- [ ] Golden fixture reproduced: `trail-golden-48.json` (items order, laneOf, spans, linkRows incl. `estimated`; regenerate with `tests/fixtures/regen_trail_golden.py`)
 - [ ] Rounded-elbow routing (radius 7) for every lane change: connectors, arcs, no sharp turns
-- [ ] Fork/merge connectors to the nearest older/newer main row; an unmerged branch dangles
-      (no fabricated merge); entries with no recorded branch get dots but never lines
+- [ ] Commit-accurate fork/merge connectors: anchors from `Memory-Entry` trailer merge events
+      (`graph.branches`/`graph.merges`), time-interpolated to fractional trunk rows and clamped
+      newer-than-content; trunk merge rings (hover = sha+subject, click selects the merged work);
+      a branch whose NEWEST entry is unmerged dangles open; pre-trailer branches fall back to the
+      positional heuristic flagged "estimated" on hover; entries with no recorded branch get dots
+      but never lines
+- [ ] Dashed phantom trunk: a dimmed dashed spine on lane 0 from the top edge to main's newest
+      displayed node (only when main has nodes in view and isn't already at the top)
+- [ ] Adjacent lifecycle short-hops: a supersedes/evolves edge between adjacent node rows renders
+      as a short direct hop beside the dots; routed relationship lanes only for distant edges
+- [ ] Reader: "Authored in" vs "Merged to main by" commit split; prose reflow (hard-wrapped
+      source lines joined into logical blocks; fenced code preserved verbatim)
+- [ ] Worktree switcher: header dropdown from `/api/worktrees` (hidden for single checkouts),
+      switching reloads runtime/facets/view against the chosen checkout's memory
+- [ ] Serving: asset `?v=` tags content-hashed at serve time; `--static-root` /
+      `MEMORY_TRACE_STATIC_ROOT` serves another checkout's UI assets
 - [ ] Evidence-based main inference: pre-branching no-branch entries whose capturing commit is
       on main's first-parent chain render on main's lane (`branch_inferred`); recorded branches
       never overridden; uncommitted no-branch entries stay unattached

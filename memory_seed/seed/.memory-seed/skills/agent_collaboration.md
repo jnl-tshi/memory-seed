@@ -247,7 +247,8 @@ When a conflict is resolved, the handoff must state which side won, why, and wha
 
 - For subagent work, the orchestrator owns durable session logging and summarizes worker results.
 - Workers should return handoff evidence instead of writing session logs unless the orchestrator explicitly delegates memory updates.
-- If a worker branch does write session memory, each new entry must carry `branch: <task-branch>`.
+- If a worker branch does write session memory, each new entry must carry `branch: <task-branch>`
+  (`memory-seed session append` captures it automatically from git).
   Existing entries are immutable. Branch diagram sidecars may be fused only when the parent entry is
   already on the base/main tree or is accepted for promotion in the same fuse.
 - In multi-developer workflows, use per-user session targets when configured so human contributors avoid same-file session conflicts.

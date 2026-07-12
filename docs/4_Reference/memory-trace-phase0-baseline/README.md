@@ -22,11 +22,15 @@ phase sequencing is the next-generation implementation roadmap.
 - **Trail golden fixture**: `memory-trace/tests/fixtures/trail-golden-48.json` - trailModel()
   output over the 48-entry corpus: 54 items (48 nodes + 6 day separators), 5 lanes, main pinned
   to lane 0, three branches daisy-chained onto lane 1, 44 lifecycle edges.
-  **Regeneration**: regenerate the 48-entry corpus (seed 20260711), serve it
-  (`python -m memory_trace.cli --cwd <corpus> --port <p> --no-open --rebuild-cache`), then in
-  the browser evaluate `window.memoryTraceDebug.trailModel(graph)` against
-  `/api/graph?granularity=entry&limit=1000&edge_types=branch,supersedes,evolves,related` and
-  serialise (Maps -> objects) exactly as the fixture's key layout shows.
+  **Regeneration** (browserless since 2026-07-13):
+  `PYTHONPATH=".;memory-trace" python memory-trace/tests/fixtures/regen_trail_golden.py`
+  regenerates the corpus, replays the app's exact `/api/graph` request, evaluates the REAL
+  `app.js` in a node vm (`regen_trail_golden.mjs`, DOM stubs only), and rewrites the fixture -
+  deterministic, byte-identical across runs; requires node. The original manual procedure
+  (serve the corpus, evaluate `window.memoryTraceDebug.trailModel(graph)` in the browser)
+  remains valid but is no longer needed. The fixture has been regenerated against the current
+  model (time-ordered lane allocation; trailer-aware `linkRows` carrying an `estimated` flag),
+  superseding the lane/edge snapshot described elsewhere in this report.
   `tests/test_trail_golden.py` validates internal consistency offline.
 
 ## Server-side measurements (synthetic corpora; median of 5 unless noted)

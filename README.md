@@ -130,6 +130,8 @@ uv tool install "memory-seed[trace]"
 uv tool install --force "memory-seed[trace]"
 ```
 
+The Trail view renders session entries as a git-graph-style timeline: branch lanes from recorded `branch:` metadata, fork/merge connectors driven by the `Memory-Entry:` commit trailers where they exist (with an "estimated" positional fallback for older history), clickable trunk merge rings, typed `replaces`/`evolves` lifecycle routes, and an on-device **worktree switcher** so one running server can show each checkout's branch-specific memory. Asset `?v=` tags are content-hashed at serve time (no stale-browser-cache surprises), and `--static-root <path>` / `MEMORY_TRACE_STATIC_ROOT` serves another checkout's UI assets - useful for verifying a worktree's UI changes without copying files.
+
 The former `memory-seed[lense]` extra remains as a temporary alias for `memory-seed[trace]`, and the `memory-seed lense` command still runs but prints a notice pointing you to the `memory-trace` command. Without the `trace` extra installed, both commands print an install hint instead of failing with a Python traceback.
 
 ## Why This Exists
@@ -240,12 +242,13 @@ Both reminders are cross-platform Python scripts in `.memory-seed/hooks/`:
 - `session-log-check.py` - after a turn, reminds the agent to append a session-log entry if none was written in the last 15 minutes, and warns if the day's entries are out of ascending time order. When the per-user participant gate selects a user file, it checks only that user's grouped file (`sessions/YYYY-MM/YYYY-MM-DD/<user>.md`) so another contributor's recent entry does not suppress the reminder. The staleness check is anchored to the last logged entry's own timestamp, so it always eventually fires once 15 real minutes pass, independent of how many turns ran in between - what it cannot detect is whether a fired reminder was acted on. A gitignored state file (`.memory-seed/.session-log-check-state`, fail-open on corruption) tracks consecutive stale checks with no new entry appearing in between, so a reminder that goes unaddressed escalates to a louder, explicit "repeated" warning on the next check instead of repeating identically.
 - `memory-retrieval-check.py` — before substantive work, reminds the agent to use `memory_search` for topical recall and to read the newest session file directly for current state. Gated by an 8-hour marker file so it fires about once per working session.
 - `session-start-context.py` - at session start, injects the newest relevant session file's entries (path, all headings, and the most recent entry body) so the agent establishes current state by recency rather than semantic search. With a configured user it injects that user's newest entry and lists same-day co-contributor files by path and entry count; without a configured user it preserves legacy flat-file behavior. Fires once per session. Copilot CLI cannot run command hooks at session start, so it gets a static `prompt` hook with the same directive instead.
+- `prepare-commit-msg.py` - a **git** hook (not an agent hook): stamps one `Memory-Entry: <entry_id>` trailer per staged session entry onto ordinary commits, so the commit<->entry link is true by construction instead of relying on the author to remember. Scoped to session trees only, deduplicated, and it never blocks a commit. `memory-seed init` installs the shim into the git common dir (covering every worktree) when a repository exists; existing checkouts opt in with `memory-seed hooks install`. A pre-existing foreign hook is reported, never overwritten.
 
 The hooks nudge; they never block. The scripts use Python 3.11+, which Memory Seed already requires.
 
 Beyond the hooks, the end-of-session routine in `agent-rules.md` ("End Of Turn") includes a diff-scoped **orphan & artifact sweep**: before closing a session the agent reviews what it changed, confirms new files/features are actually wired in, resolves references left dangling by deletions or renames, and flags scratch debris — so half-removed features and stray files are caught as they happen rather than accumulating. It is language-agnostic and never installs tooling; a project's own dead-code tool (vulture/ruff, knip, ArchUnit, cppcheck) can be run for deeper whole-codebase checks when one is already present.
 
-The routine also runs a **consolidation review** (promote durable, reusable facts from the session logs into `index.md`/`policy.md` via the `memory_consolidation` skill) and a **baseline-promotion check** (flag any approved adaptation general enough to reuse beyond this project, recorded in `.memory-seed/plans/`). The whole routine ships as a seeded **`/esr`** command for the agents with a repo-level command mechanism: Claude (`.claude/commands/esr.md`) and Gemini (`.gemini/commands/esr.toml`); Codex, Cursor, and other agents run the same routine directly from `agent-rules.md`. There is intentionally no blocking end-of-turn hook — evolution needs reasoning and user approval, which a hook cannot do.
+The routine also runs a **consolidation review** (promote durable, reusable facts from the session logs into `index.md`/`policy.md` via the `memory_consolidation` skill) and a **baseline-promotion check** (flag any approved adaptation general enough to reuse beyond this project, recorded in `.memory-seed/plans/`). The mechanical half of the routine runs as one read-only command, `memory-seed esr` - links check, topics check, the session-scoped lifecycle link audit, per-worktree posture (merged+clean checkouts marked as stale-sweep candidates), and seed-twin drift - every section printing even when clean so a skipped step is visible. The whole routine ships as a seeded **`/esr`** command for the agents with a repo-level command mechanism: Claude (`.claude/commands/esr.md`) and Gemini (`.gemini/commands/esr.toml`); Codex, Cursor, and other agents run the same routine directly from `agent-rules.md`. There is intentionally no blocking end-of-turn hook — evolution needs reasoning and user approval, which a hook cannot do.
 
 ## Reusable Seed Files
 
@@ -263,6 +266,7 @@ GEMINI.md
     session-log-check.py
     memory-retrieval-check.py
     session-start-context.py
+    prepare-commit-msg.py
   skills/
     index.md
     agent_collaboration.md
@@ -301,7 +305,7 @@ GEMINI.md
 
 ## Current Version
 
-The current reusable control-plane version is `2.13`.
+The current reusable control-plane version is `2.17`.
 
 Legacy `.AGENTS/` projects remain supported as a fallback during migration.
 
@@ -352,8 +356,8 @@ uv pip install memory-seed
 For repeatable team or production usage, pin the package version:
 
 ```powershell
-uvx --from memory-seed==2.13.0 memory-seed doctor
-uvx --from memory-seed==2.13.0 memory-seed update --dry-run
+uvx --from memory-seed==2.17.0 memory-seed doctor
+uvx --from memory-seed==2.17.0 memory-seed update --dry-run
 ```
 
 If you are not using uv, install or upgrade the CLI with pip:
@@ -363,7 +367,7 @@ python -m pip install --upgrade memory-seed
 python -m pip show memory-seed
 ```
 
-`python -m pip show memory-seed` reports the installed Python package version, such as `2.13.0`. `memory-seed version` reports the reusable control-plane version, currently `2.13`; it is not the package-version check.
+`python -m pip show memory-seed` reports the installed Python package version, such as `2.17.0`. `memory-seed version` reports the reusable control-plane version, currently `2.17`; it is not the package-version check.
 
 To discover commands and flags, use `memory-seed help` (also shown when you run `memory-seed` with no command), `memory-seed -h`, or `memory-seed <command> -h` for a specific command.
 
@@ -415,6 +419,7 @@ GEMINI.md
 .memory-seed/hooks/session-log-check.py
 .memory-seed/hooks/memory-retrieval-check.py
 .memory-seed/hooks/session-start-context.py
+.memory-seed/hooks/prepare-commit-msg.py
 .memory-seed/skills/index.md
 .memory-seed/skills/end_of_turn.md
 .memory-seed/skills/history_retrieval.md
@@ -533,13 +538,19 @@ When run in a project that already has Memory Seed files:
 - `memory-seed compact` reads dated session logs from the nearest `.memory-seed/` runtime, including month-grouped and legacy flat/day layouts, with legacy `.AGENTS/` fallback. It prints a Markdown summary and writes only when `--output` is provided.
 - `memory-seed user set/show/clear` manages a gitignored local user slug for opt-in per-user session files.
 - `memory-seed topics list` shows the controlled topic vocabulary in `.memory-seed/topics.yaml` (deploy-once project-local; `update` never overwrites curation). `memory-seed topics check` validates it plus every entry's `topics:` usage - unknown/malformed/duplicate/collision slugs are errors, deprecated-use and more-than-3-per-entry are warnings. Meaningful entries carry 1-3 slugs; aliases resolve at read time, and `memory_search` accepts an alias-expanded opt-in `topics` filter.
-- `memory-seed links check` validates session-memory integrity across both layouts: duplicate `entry_id`/`hash_id`, dangling `related_entries`/`related_memories`/`supersedes`/`evolves` refs, forward-only lifecycle guards per edge kind (self-reference, postdating target, cycle - for both `supersedes` and `evolves`), stored inverse keys (`authored-inverse-field`: `superseded_by`/`evolved_by` are read-time only), malformed `continuity:` blocks (unknown kind, missing `from`, `to` on removal, missing `to` on rename/migration), and per-user-file frontmatter problems (filename↔frontmatter user/date mismatch, missing/malformed `hash_id`, unsupported `schema_version`). It names the offending file and value and exits non-zero on any issue, so it doubles as a CI gate; `doctor` surfaces a one-line summary pointing at it.
+- `memory-seed links check` validates session-memory integrity across both layouts: duplicate `entry_id`/`hash_id`, dangling `related_entries`/`related_memories`/`supersedes`/`evolves` refs, forward-only lifecycle guards per edge kind (self-reference, postdating target, cycle - for both `supersedes` and `evolves`), stored inverse keys (`authored-inverse-field`: `superseded_by`/`evolved_by` are read-time only), malformed `continuity:` blocks (unknown kind, missing `from`, `to` on removal, missing `to` on rename/migration), per-user-file frontmatter problems (filename↔frontmatter user/date mismatch, missing/malformed `hash_id`, unsupported `schema_version`), and lifecycle-edge **link sidecars** under `sessions/links/YYYY-MM/` (`orphan-link-sidecar`, `link-sidecar-date-mismatch`, `malformed-link-sidecar`; sidecar edges join the same dangling and forward-only guards). It names the offending file and value and exits non-zero on any issue, so it doubles as a CI gate; `doctor` surfaces a one-line summary pointing at it.
 - `memory-seed migrate sessions-layout [--dry-run]` splits legacy flat session files into grouped per-user files using `.memory-seed/project.yaml` participants, backs up migrated sources, and refuses ambiguous or unsafe merges.
 - `memory-seed migrate sessions-month-layout [--dry-run]` moves old flat/day session files and old diagram sidecars into grouped `YYYY-MM/` folders. It backs up sources, removes migrated originals after successful writes, and is never automatic.
 - `memory-seed session fuse --branch <branch> [--base <ref>] [--apply]` dry-runs or applies branch-local session entries and sidecars into the current integration tree. It blocks missing or mismatched `branch:` metadata, missing/duplicate `entry_id` values, edits to existing entries or sidecars, non-chronological targets, and sidecars without a parent entry already on the base branch or accepted for promotion in the same fuse. `--apply` requires an in-progress merge and normalizes imported files to the grouped layout.
 - `memory-seed session merge-branch --branch <branch> [--dry-run]` wraps the whole integration dance in one command: fuse dry-run gate, `git merge --no-ff --no-commit`, session-path reset to base content, fuse apply, stage, and merge commit. Fuse issues abort before the merge ever starts; non-session conflicts leave the merge in progress for manual resolution (never `merge --abort`); session files always land timestamp-sorted regardless of how git would have line-merged them. Requires a clean working tree.
 - `memory-seed link suggest [--for <entry_id>] [--top-k N]` ranks older session entries to link from a target entry (default: the newest entry), skips the target and its already-linked entries, and prints a copy-pasteable `related_entries:` snippet. Candidates sharing rare `F:` file paths with the target get a rarity-weighted boost (hub files count ~nothing, absent `F:` is never penalized), with recorded `continuity:` renames alias-resolved transitively so pre-rename entries still overlap; shared files are shown as evidence. Read-only.
 - `memory-seed link show <entry_id>` prints an entry's stored outbound `related_entries`, `supersedes`/`evolves` edges, `continuity` artifact-lineage blocks, plus its computed inbound backlinks and `superseded_by`/`evolved_by` inverses, so the graph is bidirectional at read time without editing any historical entry. Read-only.
+- `memory-seed link audit [--for <entry_id>] [--date YYYY-MM-DD]` finds entry pairs that share `F:` files or topics but carry no recorded edge - file overlap surfaces a candidate even when a `related_entries` link already exists (a lifecycle-upgrade hint), topic-only overlap is suppressed by any edge, and IDF weighting keeps hub files from dominating. `--date` scopes targets to one session (the end-of-turn sweep's input). Read-only.
+- `memory-seed session append --title ... --user-initials ... --agent-type ... [--topics a,b] [--supersedes id] [--evolves id] [--related id] [--body-file f]` appends a session entry with structure enforced: target resolution, heading timestamp (refusing out-of-order appends loudly), canonical deterministic `entry_id`, YAML shape, ref validation (fabricated or forward-pointing ids refused), controlled-topic resolution, and git branch auto-capture. The body prose passes through verbatim.
+- `memory-seed session reorder --date YYYY-MM-DD [--apply]` repairs a misordered day's log as a pure block permutation - entries are stably re-sorted by heading timestamp with their bytes untouched. Dry-run by default.
+- `memory-seed session entry-id --timestamp ... --title ... --user-initials ... --agent-type ...` computes the canonical deterministic entry id (also available as the `memory_entry_id` MCP tool) - ids are a metadata hash, never invented by hand.
+- `memory-seed hooks install` writes the `prepare-commit-msg` git shim (see Agent Hooks) into the git common dir; idempotent, and it never overwrites a hook it did not write.
+- `memory-seed esr [--date YYYY-MM-DD] [--json]` prints the end-of-turn mechanical preflight report described under Agent Hooks; exit code reflects only hard integrity failures.
 - `memory-seed processes [--json]` lists active package-owned Memory Seed processes.
 - `memory-seed shutdown [--dry-run] [--yes] [--json]` previews or stops only matching package-owned Memory Seed processes after confirmation.
 - `memory-seed upgrade [--dry-run] [--yes] [--manager uv|pipx|pip] [--json]` handles active package-owned processes, then runs the selected package-manager upgrade command.
@@ -666,6 +677,7 @@ memory_get_chunk(chunk_id, cwd=".")
 memory_link_suggest(cwd=".", entry_id=null, top_k=5)
 memory_link_show(entry_id, cwd=".")
 memory_session_target(cwd=".", date=null, user=null)
+memory_entry_id(timestamp, title, user_initials, agent_type, project_path=".", subproject_path=null)
 memory_branch_status(cwd=".")
 memory_session_fuse_preview(branch, cwd=".", base="HEAD")
 ```

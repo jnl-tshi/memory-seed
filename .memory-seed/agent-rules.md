@@ -161,7 +161,10 @@ For restricted files, the agent must be able to explain why the file's ownership
 
 Routine append:
 
-- Active session target (`memory-seed session target`): append concise notes after meaningful work, before the current turn ends.
+- Append concise notes after meaningful work, before the current turn ends. Canonical path:
+  `memory-seed session append` (enforces target, chronology, canonical `entry_id`, ref/topic
+  validity, branch capture; body prose passes through verbatim). Composing by hand: resolve the
+  target with `memory-seed session target`, compute the id with `session entry-id` - never invent it.
 
 Do not rewrite old session entries unless the user explicitly asks for repair, archival cleanup, or correction.
 
@@ -174,7 +177,7 @@ Cross-cutting principles that apply to any agent and any task:
 - Before adding code, check whether it needs to exist, already exists, or is already covered by stdlib/platform behavior.
 - Do not remove terse guards without understanding what they protect.
 - Default to plain text for ordinary explanations; when a session decision has spatial, temporal, topology, migration, compatibility, or concurrent structure, follow the decision-diagram sidecar triggers in `session_logging.md` and load `compact_mermaid_diagrams.md` before authoring Mermaid.
-- Link commits to motivating decision entries with `Memory-Entry: <entry_id>` when applicable.
+- Commits link to their session entries via `Memory-Entry: <entry_id>` trailers. The seeded `prepare-commit-msg` git hook stamps them automatically for staged session entries (`memory-seed hooks install` if not yet installed), and `session merge-branch` stamps its own on merge commits; hand-write a trailer only when linking a commit to a motivating entry the diff does not contain.
 - Preserve visible branch history for distinct feature work by loading `agent_collaboration.md` before editing and using a task branch/worktree unless the user chooses another history model.
 - Use qualitative risk tiers before acting by loading `.memory-seed/skills/risk_signaling.md` for ambiguous, destructive, irreversible, externally visible, financial, security-sensitive, or shared-control-plane work.
 - Load `.memory-seed/skills/skill_architecture.md` before adding, removing, renaming, splitting, or refactoring skills, editing `skills/index.md`, changing profiles, or moving procedural guidance between this file, `policy.md`, and skills.
@@ -182,7 +185,7 @@ Cross-cutting principles that apply to any agent and any task:
 
 After any turn where meaningful work was completed, append a concise entry to the active session target before the turn ends. Deferring or batching session log writes is a discipline failure.
 
-Load `.memory-seed/skills/end_of_turn.md` for the full ESR checklist: session entry, consolidation review, policy/index/skill review, verification, orphan and artifact sweep, persona evolution, skill evolution, unregistered persona check, and baseline-promotion review.
+Start with `memory-seed esr` - one read-only report covering the mechanical checks (links, topics, session-scoped link audit, worktree posture, seed-twin drift). Then load `.memory-seed/skills/end_of_turn.md` for the full ESR checklist: session entry, lifecycle link sweep, consolidation review, policy/index/skill review, verification, orphan and artifact sweep, stale worktree sweep, persona evolution, skill evolution, unregistered persona check, and baseline-promotion review.
 
 Load `.memory-seed/skills/session_logging.md` for session frontmatter, entry YAML, DRAFT labels, entry shapes, append-only chronology, `related_entries`, and examples.
 

@@ -1,6 +1,12 @@
 # Lifecycle-edge linking sidecars + end-of-session sweep
 
-Status: draft (awaiting approval to implement)
+Status: IMPLEMENTED 2026-07-12 (all phases merged to main; this document is now the live
+contract for the sidecar format + read/validation semantics, plus the design record).
+As-built deviations from the original draft: ref extraction uses the wider
+`_TRAILER_ENTRY_ID_RE` (real corpus ids include non-Crockford letters; a strict regex silently
+dropped edges), and `link audit` generates candidates from topic/file overlap (no all-pairs
+semantic scan) with `--for <entry_id>` and `--date YYYY-MM-DD` scoping (the sweep audits only the
+session's own entries against the full corpus).
 Related: [graph-edge-contract.md](graph-edge-contract.md)
 
 ## Problem
@@ -120,9 +126,9 @@ sweep is the safety net.
 ## Layer 2 — Detection (`memory-seed link audit`)
 
 A new `link` subcommand, **not** folded into `links check` (the integrity gate
-stays fast, deterministic, and dependency-light). `link audit` reuses
-`suggest_related_entries` to flag entries whose strong candidates (high
-file-overlap / similarity) are captured by **no** edge — YAML or sidecar —
+stays fast, deterministic, and dependency-light). `link audit` flags entries
+whose structural neighbours (shared `F:` files or shared topics; file overlap
+qualifies a pair even without a shared topic) are captured by **no** edge — YAML or sidecar —
 printing the candidate, the shared-`F:` evidence, and the suggested edge type.
 It is both the standalone "did we miss links?" check and the discovery step the
 end-of-session sweep consumes. An already-declared edge (either source)
@@ -144,7 +150,7 @@ focus and its write-time authoring is unchanged.
 - The sidecar block heading is cosmetic; `entry_id` is authoritative. No
   heading-vs-entry consistency check beyond entry existence.
 
-## Implementation order (walking skeleton first)
+## Implementation order (as built - walking skeleton first)
 Because `TRAIL_EDGE_TYPES` already requests `supersedes`/`evolves`
 (`app.js:171`), the entire payoff hinges on the read path emitting those edges.
 Prove that before building anything else:
