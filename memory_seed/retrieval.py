@@ -342,6 +342,159 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     return sidecars
 
 
+@dataclass(frozen=True)
+class LinkGapCandidate:
+    entry_id: str
+    title: str
+    session_date: str
+    shared_files: tuple[str, ...]
+    shared_topics: tuple[str, ...]
+    file_overlap_score: float
+    # True when a related_entries link already exists but no lifecycle edge -
+    # the "supersession mislabelled as related" case the sweep should upgrade.
+    already_related: bool = False
+
+
+@dataclass(frozen=True)
+class LinkGap:
+    entry_id: str
+    title: str
+    session_date: str
+    candidates: tuple[LinkGapCandidate, ...]
+
+
+def audit_link_gaps(
+    cwd: str | Path = ".",
+    *,
+    entry_id: str | None = None,
+    session_date: str | None = None,
+    top_k: int = 5,
+) -> list[LinkGap]:
+    """Find entry pairs that share files or topics but carry no recorded edge.
+
+    Candidate generation deliberately avoids an all-pairs semantic scan: for
+    each target entry the candidate set is the OLDER entries that share >=1
+    ``F:`` file OR >=1 topic with it. File overlap qualifies a pair even when no
+    topic is shared - matching files override the absence of a topic link.
+    Candidates already captured by any edge (``related_entries`` /
+    ``supersedes`` / ``evolves``, entry YAML or a link sidecar) are dropped, so
+    only genuine gaps remain. The survivors rank by IDF-weighted file overlap
+    (hub files like a shared app.js contribute ~nothing) then shared-topic
+    count - the classification into supersedes/evolves/related is left to the
+    caller (the end-of-session sweep). Read-only; forward-only by construction.
+
+    ``session_date`` (YYYY-MM-DD) scopes the TARGETS to one session's entries
+    while candidates remain the full corpus - the end-of-session sweep audits
+    only the entries it just wrote (O(K*N), K = today's entries) instead of
+    re-auditing history every session.
+    """
+    import math
+
+    from .semantic_cache import (
+        FILE_OVERLAP_BOOST,
+        _continuity_alias_map,
+        _entry_file_refs,
+        _entry_order_key,
+        extract_memory_chunks,
+    )
+
+    chunks = [chunk for chunk in extract_memory_chunks(cwd, granularity="entry") if chunk.entry_id]
+    if not chunks:
+        return []
+    by_id = {chunk.entry_id: chunk for chunk in chunks}
+    if entry_id is not None and entry_id not in by_id:
+        raise LookupError(f"entry_id {entry_id} not found")
+
+    sidecars = entry_link_sidecars(cwd)
+    alias = _continuity_alias_map(chunks)
+    file_refs: dict[str, set[str]] = {}
+    topics_of: dict[str, set[str]] = {}
+    document_frequency: dict[str, int] = {}
+    order: dict[str, Any] = {}
+    for chunk in chunks:
+        refs = {alias.get(ref, ref) for ref in _entry_file_refs(chunk.text)}
+        file_refs[chunk.entry_id or ""] = refs
+        topics_of[chunk.entry_id or ""] = set(chunk.topics)
+        order[chunk.entry_id or ""] = _entry_order_key(chunk)
+        for ref in refs:
+            document_frequency[ref] = document_frequency.get(ref, 0) + 1
+    total = len(chunks)
+
+    def idf(ref: str) -> float:
+        occurrences = document_frequency.get(ref, 0)
+        return max(math.log(total / occurrences), 0.0) if occurrences > 0 else 0.0
+
+    def related_of(chunk: MemoryChunk) -> set[str]:
+        sidecar = sidecars.get(chunk.entry_id or "", {})
+        return set(chunk.related_entries) | set(sidecar.get("related_entries", ()))
+
+    def lifecycle_of(chunk: MemoryChunk) -> set[str]:
+        sidecar = sidecars.get(chunk.entry_id or "", {})
+        return (
+            set(chunk.supersedes)
+            | set(chunk.evolves)
+            | set(sidecar.get("supersedes", ()))
+            | set(sidecar.get("evolves", ()))
+        )
+
+    if entry_id is not None:
+        targets = [by_id[entry_id]]
+    elif session_date is not None:
+        targets = [chunk for chunk in chunks if chunk.session_date.isoformat() == session_date]
+    else:
+        targets = chunks
+    gaps: list[LinkGap] = []
+    for target in targets:
+        tid = target.entry_id or ""
+        target_files = file_refs.get(tid, set())
+        target_topics = topics_of.get(tid, set())
+        target_related = related_of(target)
+        target_lifecycle = lifecycle_of(target)
+        target_key = order[tid]
+        candidates: list[LinkGapCandidate] = []
+        for chunk in chunks:
+            cid = chunk.entry_id or ""
+            if cid == tid or order[cid] >= target_key:  # forward-only: only older entries
+                continue
+            if cid in target_lifecycle:  # a lifecycle edge already records this pair
+                continue
+            shared_files = tuple(sorted(target_files & file_refs.get(cid, set())))
+            shared_topics = tuple(sorted(target_topics & topics_of.get(cid, set())))
+            # Files override topics: shared files always surface a lifecycle
+            # candidate (even if merely "related" today - the upgrade case).
+            # Topic-only overlap is far weaker, so any existing edge suppresses
+            # it - it isn't worth flagging a topic-mate you already linked.
+            if shared_files:
+                pass
+            elif shared_topics and cid not in target_related:
+                pass
+            else:
+                continue
+            score = FILE_OVERLAP_BOOST * sum(idf(ref) for ref in shared_files)
+            candidates.append(
+                LinkGapCandidate(
+                    entry_id=cid,
+                    title=chunk.title,
+                    session_date=chunk.session_date.isoformat(),
+                    shared_files=shared_files,
+                    shared_topics=shared_topics,
+                    file_overlap_score=round(score, 6),
+                    already_related=cid in target_related,
+                )
+            )
+        candidates.sort(key=lambda c: (c.file_overlap_score, len(c.shared_topics)), reverse=True)
+        if candidates:
+            gaps.append(
+                LinkGap(
+                    entry_id=tid,
+                    title=target.title,
+                    session_date=target.session_date.isoformat(),
+                    candidates=tuple(candidates[:top_k]),
+                )
+            )
+    return gaps
+
+
 def format_search_results(
     query: str,
     ranked: list[RankedMemoryChunk],
