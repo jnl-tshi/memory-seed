@@ -585,13 +585,18 @@ select, input[type="date"] {
   overflow: auto;
   padding: 10px 16px 44px;
 }
+/* The rail is a full-height background the rows float over, so each row's text
+   can indent independently to follow the lane silhouette (see --indent, set
+   per row). The rows sit above it and stay click targets; the rail is inert. */
 .trail-body {
-  display: flex;
-  align-items: flex-start;
+  position: relative;
 }
 .trail-rail {
-  flex: none;
+  position: absolute;
+  left: 0;
+  top: 0;
   display: block;
+  pointer-events: none;
 }
 /* The relationship zone left of main is visually separate space from the
    worktree/branch lanes: a subtle tinted band behind the dotted lanes. */
@@ -600,7 +605,7 @@ select, input[type="date"] {
   opacity: 0.6;
 }
 .trail-rows {
-  flex: 1;
+  position: relative;
   min-width: 0;
 }
 .trail-row {
@@ -608,19 +613,21 @@ select, input[type="date"] {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 10px;
+  padding: 0 10px 0 var(--indent, 10px);
   border-radius: var(--radius-sm);
   cursor: pointer;
 }
+/* Highlight only the text side (from just left of the indent), so hovering or
+   selecting a row never paints over the lanes showing through beside it. */
 .trail-row:hover, .trail-row.selected {
-  background: var(--accent-weak);
+  background: linear-gradient(to right, transparent max(0px, calc(var(--indent, 10px) - 6px)), var(--accent-weak) 0);
 }
 /* Muted (second-click) focus: the entry stays pinned with a border while its
    edge emphasis is turned off. The same ring marks the reader header so the
    right pane's subject stays unambiguous. */
 .trail-row.pinned {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--accent);
+  background: linear-gradient(to right, transparent max(0px, calc(var(--indent, 10px) - 6px)), color-mix(in srgb, var(--accent) 28%, transparent) 0);
+  box-shadow: none;
 }
 /* Search over the Trail: matching rows keep full presence and earn a marker
    dot; everything else dims in place so lineage context never disappears. */
@@ -646,7 +653,7 @@ select, input[type="date"] {
 .trail-row.chain-primary::before, .trail-row.chain-secondary::before {
   content: "";
   position: absolute;
-  left: 0;
+  left: max(0px, calc(var(--indent, 10px) - 6px));
   top: 5px;
   bottom: 5px;
   width: 3px;
@@ -680,7 +687,7 @@ select, input[type="date"] {
   height: 30px;
   display: flex;
   align-items: center;
-  padding: 0 10px;
+  padding: 0 10px 0 var(--indent, 10px);
   color: var(--faint);
   font-family: var(--mono);
   font-size: var(--fs-label);
