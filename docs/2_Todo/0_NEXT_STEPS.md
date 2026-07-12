@@ -1,7 +1,7 @@
 # Next Steps
 
-Status: Active implementation-run brief (goal run in progress)
-Updated: 2026-07-10
+Status: Active implementation-run brief (2026-07-10 goal run complete; post-run work shipped)
+Updated: 2026-07-13
 Source: `docs/2_Todo/` active proposals, `docs/2_Todo/completed/` completed proposals,
 `docs/3_Spec/functionality-audit.md`, the 2026-07-10 goal-run Phase 1 alignment audit
 (three-agent plan review + user decisions), and
@@ -30,6 +30,21 @@ fix; authored-inverse-field append-only guard.
 | S4 | Core **2.17.0** cut + GitHub Release v2.17.0 (PyPI gate approved by user) | `20630fb` |
 | S5 | Topics P1: vocabulary, parsing, filter, `topics list`/`check` | `f6291d5` |
 | S6 | README front-door refresh (highlights, how-it-works, placeholders, links) | `1a09a3e` |
+
+**Shipped since the goal run (2026-07-11/12, unreleased on `main` - see CHANGELOG Unreleased):**
+Trace UI pass (Trail primary, search-as-function, relationship zone); versioned `/api/v1` contract +
+Phase-0 harnesses; on-device worktree switcher; commit-accurate Trail merges from Memory-Entry
+trailers (+ phantom trunk, Authored-in/Merged-by reader split); Trail lane color packs +
+time-ordered lanes + lane-following indentation; lifecycle-edge link sidecars + `link audit` +
+end-of-turn sweep; canonical entry-id tooling (`session entry-id` CLI, `memory_entry_id` MCP);
+`session append` scaffolder + `session reorder` chronology repair (the 2026-07-12 misorder is
+fixed - `session merge-branch` unblocked); `memory-seed esr` preflight; automatic Memory-Entry
+trailers via the seeded `prepare-commit-msg` hook (+ `hooks install`, init default-on); serve-time
+asset versioning + `--static-root`; browserless Trail golden-fixture regeneration. Follow-ups
+carried forward: port merges/lifecycle edges to `/api/v1` once the vanilla pass is judged polished;
+MCP-graph sidecar-edge parity (stated scope boundary in
+[`../3_Spec/lifecycle-edge-linking-sidecars.md`](../3_Spec/lifecycle-edge-linking-sidecars.md));
+historical lifecycle-edge backfill (declined 2026-07-12, revisitable now the sweep exists).
 
 **Deferred out of this run:** `session-decision-diagrams-plan.md` Phase 3 export packs;
 `related-entries-p2-mutation-plan.md`
