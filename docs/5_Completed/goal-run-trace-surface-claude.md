@@ -1,6 +1,11 @@
+---
+implemented_by: executed 2026-07-13 (goal-run session entries + `worktree-memory-trace-trail` merges on `main`)
+shipped: 2026-07-13
+---
+
 # Goal run: Memory Trace surface (Claude)
 
-Status: ACTIVE goal prompt (authored 2026-07-13, user-approved scope)
+Status: EXECUTED — spent one-shot brief; all three items shipped and merged; moved to `5_Completed` 2026-07-14
 Owner: Claude, in the `.claude/worktrees/memory-trace-trail` worktree (branch
 `worktree-memory-trace-trail`). Paired with the concurrent Codex core run
 (`goal-run-core-parity-codex.md`) - different packages, minimal collision surface.

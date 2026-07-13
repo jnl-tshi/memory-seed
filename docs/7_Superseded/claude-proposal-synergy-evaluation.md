@@ -1,11 +1,12 @@
 ---
 memory-system-version: 2.13
+superseded_by: shipped implementations of every evaluated proposal + `docs/2_Todo/0_NEXT_STEPS.md` (2026-07-14 refresh)
+superseded_on: 2026-07-14
 tags:
   - memory-seed
   - claude
   - proposal-review
   - roadmap
-status: draft
 ---
 
 # Proposal Synergy Evaluation (Claude)

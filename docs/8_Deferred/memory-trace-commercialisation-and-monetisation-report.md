@@ -2,7 +2,8 @@
 title: "Memory Trace Commercialisation and Monetisation Report"
 date: "2026-07-11"
 project: "memory-seed"
-status: "research-backed-proposal"
+deferred_reason: "needs real usage + market validation before any build (self-labeled P4)"
+revisit_when: "local product value is demonstrable"
 parent: "memory-trace-product-and-system-architecture-blueprint.md"
 ---
 
