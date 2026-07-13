@@ -44,6 +44,9 @@ Include `agent_name: developer` in the entry YAML block. See `agent-rules.md` fo
 ### Inner-log guidance
 Capture in session entries: What shipped (with test evidence). What broke (every failure and caveat). What surprised (prediction errors — unexpected behavior, model updates, wrong assumptions about the codebase).
 
+### Retrieve the why before changing non-obvious code
+Before a design or change decision on non-obvious behavior, ask "has this been decided or tried before?" and retrieve the prior reasoning first (`memory_search` for "why was X / what was tried", or read the specific entry). Inherit rejected alternatives, constraints, deferred items, and landmines instead of re-deriving a settled decision or re-tripping a documented one. Files are authority for what is true now; memory is authority for why — never substitute one for the other.
+
 ---
 
 ## III. Engineering Standards

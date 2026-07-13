@@ -174,7 +174,7 @@ Cross-cutting principles that apply to any agent and any task:
 
 - Prove risky or hard-to-verify automation on a small case before applying it broadly.
 - State what the agent verified versus what only the user can verify.
-- Before adding code, check whether it needs to exist, already exists, or is already covered by stdlib/platform behavior.
+- Before adding code, check whether it needs to exist, already exists, or is already covered by stdlib/platform behavior; likewise, before a design or change decision on non-obvious behavior, retrieve the prior reasoning first (`memory_search` for "why was X / what was tried", or read the specific entry) to inherit rejected alternatives, constraints, deferred items, and landmines rather than re-deriving them — files are authority for what is true now, memory is authority for why, never substitute one for the other.
 - Do not remove terse guards without understanding what they protect.
 - Default to plain text for ordinary explanations; when a session decision has spatial, temporal, topology, migration, compatibility, or concurrent structure, follow the decision-diagram sidecar triggers in `session_logging.md` and load `compact_mermaid_diagrams.md` before authoring Mermaid.
 - Commits link to their session entries via `Memory-Entry: <entry_id>` trailers. The seeded `prepare-commit-msg` git hook stamps them automatically for staged session entries (`memory-seed hooks install` if not yet installed), and `session merge-branch` stamps its own on merge commits; hand-write a trailer only when linking a commit to a motivating entry the diff does not contain.
