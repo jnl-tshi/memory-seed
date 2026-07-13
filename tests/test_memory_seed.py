@@ -846,6 +846,138 @@ class MemorySeedTests(unittest.TestCase):
         self.assertFalse(status.is_git_repo)
         self.assertIn("Not a Git repository", status.recommendation)
 
+    def test_worktree_guard_passes_owned_and_blocks_foreign_namespace(self):
+        import subprocess
+        from memory_seed.core import worktree_guard
+
+        cwd = self.make_project()
+        memory = cwd / MEMORY_DIR_NAME
+        memory.mkdir()
+        (memory / "project.yaml").write_text(
+            "\n".join(
+                [
+                    "schema_version: 1",
+                    "worktrees:",
+                    "  namespaces:",
+                    "    codex: .CODEX/WORKTREES",
+                    "    claude: .claude/worktrees",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        self._git_repo_with_commit(cwd)
+        codex_wt = cwd / ".codex" / "worktrees" / "task with spaces"
+        claude_wt = cwd / ".claude" / "worktrees" / "task"
+        codex_wt.parent.mkdir(parents=True)
+        claude_wt.parent.mkdir(parents=True)
+        subprocess.run(
+            ["git", "-C", str(cwd), "worktree", "add", "-q", "-b", "codex/task", str(codex_wt)],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(cwd), "worktree", "add", "-q", "-b", "claude/task", str(claude_wt)],
+            check=True,
+            capture_output=True,
+        )
+
+        owned = worktree_guard(cwd=codex_wt, agent_type="Codex", write_intent=True)
+        foreign = worktree_guard(cwd=claude_wt, agent_type="codex", write_intent=True)
+
+        self.assertTrue(owned.ok, owned)
+        self.assertEqual(owned.classification, "owned-worktree")
+        self.assertTrue(owned.safe_to_write)
+        self.assertEqual(owned.actual_namespace_owner, "codex")
+        self.assertFalse(foreign.ok)
+        self.assertEqual(foreign.classification, "foreign-worktree")
+        self.assertFalse(foreign.safe_to_write)
+        self.assertEqual(foreign.actual_namespace_owner, "claude")
+
+    def test_worktree_guard_root_checkout_requires_explicit_override_for_writes(self):
+        from memory_seed.core import worktree_guard
+
+        cwd = self.make_project()
+        self._git_repo_with_commit(cwd)
+
+        read_only = worktree_guard(cwd=cwd, agent_type="codex")
+        blocked = worktree_guard(cwd=cwd, agent_type="codex", write_intent=True)
+        allowed = worktree_guard(cwd=cwd, agent_type="codex", write_intent=True, allow_root_write=True)
+
+        self.assertTrue(read_only.ok)
+        self.assertEqual(read_only.classification, "root-checkout")
+        self.assertFalse(blocked.ok)
+        self.assertEqual(blocked.severity, "block")
+        self.assertTrue(allowed.ok)
+        self.assertEqual(allowed.classification, "root-checkout")
+
+    def test_worktree_guard_unmanaged_write_policy_can_block(self):
+        import subprocess
+        from memory_seed.core import worktree_guard
+
+        cwd = self.make_project()
+        memory = cwd / MEMORY_DIR_NAME
+        memory.mkdir()
+        (memory / "project.yaml").write_text(
+            "\n".join(
+                [
+                    "schema_version: 1",
+                    "worktrees:",
+                    "  unmanaged_write_policy: block",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        self._git_repo_with_commit(cwd)
+        unmanaged = cwd / "scratch worktrees" / "task"
+        unmanaged.parent.mkdir(parents=True)
+        subprocess.run(
+            ["git", "-C", str(cwd), "worktree", "add", "-q", "-b", "scratch/task", str(unmanaged)],
+            check=True,
+            capture_output=True,
+        )
+
+        status = worktree_guard(cwd=unmanaged, agent_type="codex", write_intent=True)
+
+        self.assertFalse(status.ok)
+        self.assertEqual(status.classification, "unmanaged-worktree")
+        self.assertEqual(status.severity, "block")
+
+    def test_worktree_guard_uses_project_namespace_overrides(self):
+        import subprocess
+        from memory_seed.core import worktree_guard
+
+        cwd = self.make_project()
+        memory = cwd / MEMORY_DIR_NAME
+        memory.mkdir()
+        (memory / "project.yaml").write_text(
+            "\n".join(
+                [
+                    "schema_version: 1",
+                    "worktrees:",
+                    "  namespaces:",
+                    "    codex: custom spaces/codex",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        self._git_repo_with_commit(cwd)
+        custom = cwd / "custom spaces" / "codex" / "task"
+        custom.parent.mkdir(parents=True)
+        subprocess.run(
+            ["git", "-C", str(cwd), "worktree", "add", "-q", "-b", "codex/custom-task", str(custom)],
+            check=True,
+            capture_output=True,
+        )
+
+        status = worktree_guard(cwd=custom, agent_type="codex", write_intent=True)
+
+        self.assertTrue(status.ok, status)
+        self.assertEqual(status.classification, "owned-worktree")
+        self.assertEqual(status.expected_namespace, "custom spaces/codex")
+
     def test_links_check_flags_supersedes_cycle_between_same_minute_entries(self):
         # Same-minute entries slip past the postdates comparison; the DFS
         # cycle guard is what catches a mutual supersession there.
@@ -3813,6 +3945,24 @@ class CliHelpTests(unittest.TestCase):
             code = main(argv)
         return code, buffer.getvalue()
 
+    def _git_repo_with_commit(self, cwd):
+        import subprocess
+
+        subprocess.run(["git", "-C", str(cwd), "init", "-q"], check=True, capture_output=True)
+        (cwd / "README.txt").write_text("x", encoding="utf-8")
+        subprocess.run(["git", "-C", str(cwd), "add", "-A"], check=True, capture_output=True)
+        subprocess.run(
+            [
+                "git", "-C", str(cwd),
+                "-c", "user.name=test", "-c", "user.email=test@example.com",
+                "-c", "commit.gpgsign=false",
+                "commit", "-q", "-m", "initial",
+            ],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(["git", "-C", str(cwd), "branch", "-M", "main"], check=True, capture_output=True)
+
     def test_help_command_lists_all_commands(self):
         code, out = self._run(["help"])
         self.assertEqual(code, 0)
@@ -4019,6 +4169,76 @@ class CliHelpTests(unittest.TestCase):
         self.assertEqual(data["branch"], "feature-topic")
         self.assertFalse(data["is_integration_branch"])
         self.assertIn("merge --no-ff", data["recommendation"])
+
+    def test_worktree_guard_cli_blocks_root_write_intent_without_override(self):
+        import os
+
+        project = self.make_project()
+        self._git_repo_with_commit(project)
+        cwd = Path.cwd()
+        try:
+            os.chdir(project)
+            code, out = self._run(["worktree", "guard", "--agent", "codex", "--write-intent"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 1)
+        self.assertIn("Classification: root-checkout", out)
+        self.assertIn("Safe to write: no", out)
+        self.assertIn("--allow-root-write", out)
+
+    def test_worktree_guard_cli_json_reports_owned_worktree(self):
+        import json
+        import os
+        import subprocess
+
+        project = self.make_project()
+        self._git_repo_with_commit(project)
+        worktree = project / ".codex" / "worktrees" / "cli-task"
+        worktree.parent.mkdir(parents=True)
+        subprocess.run(
+            ["git", "-C", str(project), "worktree", "add", "-q", "-b", "codex/cli-task", str(worktree)],
+            check=True,
+            capture_output=True,
+        )
+        cwd = Path.cwd()
+        try:
+            os.chdir(worktree)
+            code, out = self._run(["worktree", "guard", "--agent", "codex", "--write-intent", "--json"])
+        finally:
+            os.chdir(cwd)
+
+        data = json.loads(out)
+        self.assertEqual(code, 0)
+        self.assertEqual(data["classification"], "owned-worktree")
+        self.assertTrue(data["safe_to_write"])
+
+    def test_worktree_status_cli_without_agent_is_read_only_observation(self):
+        import json
+        import os
+        import subprocess
+
+        project = self.make_project()
+        self._git_repo_with_commit(project)
+        worktree = project / ".codex" / "worktrees" / "status-task"
+        worktree.parent.mkdir(parents=True)
+        subprocess.run(
+            ["git", "-C", str(project), "worktree", "add", "-q", "-b", "codex/status-task", str(worktree)],
+            check=True,
+            capture_output=True,
+        )
+        cwd = Path.cwd()
+        try:
+            os.chdir(worktree)
+            code, out = self._run(["worktree", "status", "--json"])
+        finally:
+            os.chdir(cwd)
+
+        data = json.loads(out)
+        self.assertEqual(code, 0)
+        self.assertEqual(data["classification"], "owned-worktree")
+        self.assertEqual(data["actual_namespace_owner"], "codex")
+        self.assertFalse(data["write_intent"])
 
     def test_interactive_init_prompts_for_agent_opt_out(self):
         import contextlib

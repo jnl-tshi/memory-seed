@@ -65,6 +65,12 @@ All notable changes to Memory Seed are summarized here.
   project topic index, resolve canonical slugs/aliases with entry usage, and mirror
   `memory-seed topics check` validation without gaining a write surface for project-curated
   `.memory-seed/topics.yaml`.
+- Added an agent worktree namespace guard: `memory-seed worktree guard --agent <agent>
+  --write-intent` and the read-only `memory_worktree_guard` MCP tool classify the current checkout
+  as an owned worktree, foreign worktree, root checkout, unmanaged worktree, or non-worktree. Codex,
+  Claude, Gemini, and Cursor get default `.agent/worktrees/` namespaces, root writes require an
+  explicit override, and `agent_collaboration.md` now requires the guard before branch/worktree
+  edits.
 - `session fuse` now blocks changed branch session/diagram files that cannot decode as UTF-8,
   naming the offending path instead of silently skipping it. Base-side decode failures remain
   non-blocking for already-present and sidecar-parent lookup degradation.

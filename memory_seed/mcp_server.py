@@ -14,6 +14,7 @@ from .core import (
     resolve_runtime,
     session_fuse,
     session_target,
+    worktree_guard,
 )
 # The MCP server is a thin JSON-RPC wrapper over the public retrieval service
 # (memory_seed/retrieval.py) - the same service the in-package Lense and the
@@ -124,6 +125,31 @@ TOOLS: list[dict[str, Any]] = [
             "properties": {
                 "cwd": {"type": "string", "default": "."},
             },
+        },
+    },
+    {
+        "name": "memory_worktree_guard",
+        "description": "Classify whether the current Git worktree is safe for a named agent. Read-only pre-write guard.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "agent_type": {
+                    "type": "string",
+                    "description": "Agent slug to check, e.g. codex, claude, gemini, or cursor.",
+                },
+                "write_intent": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "When true, root and foreign namespace policy is enforced as a write gate.",
+                },
+                "allow_root_write": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "Explicit override for approved root-checkout integration or cleanup writes.",
+                },
+                "cwd": {"type": "string", "default": "."},
+            },
+            "required": ["agent_type"],
         },
     },
     {
@@ -335,6 +361,15 @@ def call_tool(
 
     if name == "memory_branch_status":
         return {"status": branch_status(cwd=args.get("cwd", ".")).to_dict()}
+
+    if name == "memory_worktree_guard":
+        status = worktree_guard(
+            cwd=args.get("cwd", "."),
+            agent_type=_required_str(args, "agent_type"),
+            write_intent=bool(args.get("write_intent", False)),
+            allow_root_write=bool(args.get("allow_root_write", False)),
+        )
+        return status.to_dict()
 
     if name == "memory_session_fuse_preview":
         branch = _required_str(args, "branch")

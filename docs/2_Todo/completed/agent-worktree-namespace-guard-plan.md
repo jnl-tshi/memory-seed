@@ -1,6 +1,6 @@
 # Agent Worktree Namespace Guard Plan
 
-Status: Proposed
+Status: Implemented 2026-07-13
 Priority: P1 - immediate multi-agent safety hardening
 Source: 2026-07-12 user direction after reviewing how to keep Codex out of Claude worktrees and Claude out of Codex worktrees.
 Scope: Add vendor-neutral guardrails so writing agents work from their own namespace under an agent-owned worktree folder, while root checkout inspection and integration remain possible by explicit policy.

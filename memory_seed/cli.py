@@ -33,6 +33,7 @@ from .core import (
     session_target,
     skill_status,
     update_project,
+    worktree_guard,
     write_local_user,
 )
 from .text_files import (
@@ -263,6 +264,27 @@ def main(argv: list[str] | None = None) -> int:
         help="show read-only branch guardrails for feature work",
     )
     branch_status_parser.add_argument("--json", action="store_true", help="emit machine-readable status")
+
+    worktree_parser = subparsers.add_parser("worktree", help="inspect agent worktree namespace posture")
+    worktree_sub = worktree_parser.add_subparsers(dest="worktree_command", required=True)
+    worktree_guard_parser = worktree_sub.add_parser(
+        "guard",
+        help="check whether the current worktree is safe for this agent before editing",
+    )
+    worktree_guard_parser.add_argument("--agent", required=True, help="agent slug, e.g. codex or claude")
+    worktree_guard_parser.add_argument("--write-intent", action="store_true", help="treat this as a pre-write gate")
+    worktree_guard_parser.add_argument(
+        "--allow-root-write",
+        action="store_true",
+        help="explicitly allow root-checkout writes for approved integration or cleanup work",
+    )
+    worktree_guard_parser.add_argument("--json", action="store_true", help="emit machine-readable status")
+    worktree_status_parser = worktree_sub.add_parser(
+        "status",
+        help="show current worktree namespace posture without blocking read-only inspection",
+    )
+    worktree_status_parser.add_argument("--agent", default=None, help="optional expected agent slug")
+    worktree_status_parser.add_argument("--json", action="store_true", help="emit machine-readable status")
 
     topics_parser = subparsers.add_parser("topics", help="inspect and validate the controlled topic vocabulary")
     topics_sub = topics_parser.add_subparsers(dest="topics_command", required=True)
@@ -622,6 +644,34 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"  - {warning}")
             print(f"Recommendation: {status.recommendation}")
             return 0
+
+    if args.command == "worktree":
+        result = worktree_guard(
+            cwd=Path(".").resolve(),
+            agent_type=args.agent,
+            write_intent=args.worktree_command == "guard" and args.write_intent,
+            allow_root_write=getattr(args, "allow_root_write", False),
+        )
+        if args.json:
+            print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+            return 0 if result.ok else 1
+        print(f"Classification: {result.classification}")
+        print(f"Severity: {result.severity}")
+        print(f"Agent: {result.agent_type or '(not specified)'}")
+        print(f"Safe to write: {'yes' if result.safe_to_write else 'no'}")
+        print(f"Branch: {result.current_branch or '(detached/unavailable)'}")
+        print(f"HEAD: {result.head or '(unavailable)'}")
+        print(f"Dirty: {'yes' if result.dirty else 'no' if result.dirty is False else '(unavailable)'}")
+        print(f"Worktree path: {result.worktree_path or '(unavailable)'}")
+        print(f"Repository root: {result.repo_root or '(unavailable)'}")
+        print(f"Expected namespace: {result.expected_namespace or '(not configured)'}")
+        print(f"Actual namespace owner: {result.actual_namespace_owner or '(none)'}")
+        if result.warnings:
+            print("Warnings:")
+            for warning in result.warnings:
+                print(f"  - {warning}")
+        print(f"Recommendation: {result.recommended_next_action}")
+        return 0 if result.ok else 1
 
     if args.command == "encoding":
         if args.encoding_command == "check":

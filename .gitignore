@@ -38,3 +38,6 @@ memory-trace/tests/capture/*.gif
 
 # Local Codex agent worktrees
 .codex/worktrees/
+.claude/worktrees/
+.gemini/worktrees/
+.cursor/worktrees/
