@@ -905,9 +905,16 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.link_command == "show":
             from .core import commit_reference_ids, resolve_runtime
+            from .retrieval import augment_chunks_with_link_sidecars
             from .semantic_cache import extract_memory_chunks
 
-            entry_chunks = extract_memory_chunks(cwd, granularity="entry")
+            # Union entry-YAML edges with late-authored link-sidecar edges so
+            # `show` reflects the SAME effective graph that retrieval/MCP/Trace
+            # read - otherwise a sidecar-recorded supersedes/evolves/related is
+            # invisible here (its computed inverse and importance too).
+            entry_chunks = augment_chunks_with_link_sidecars(
+                extract_memory_chunks(cwd, granularity="entry"), cwd=cwd
+            )
             graph = build_related_entry_graph(cwd=cwd, chunks=entry_chunks)
             node = graph.get(args.entry_id)
             if node is None:

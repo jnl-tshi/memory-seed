@@ -546,6 +546,51 @@ class MemorySeedTests(unittest.TestCase):
 
         self.assertIn("malformed-link-sidecar", kinds)
 
+    def test_link_show_reflects_sidecar_edges(self):
+        """`link show` must union late-authored link-sidecar edges into the
+        effective graph (computed inverse included), matching what
+        retrieval/MCP/Trace read - not just the raw entry-YAML edges."""
+        import contextlib
+        import io
+        import os
+        import sys as _sys
+        from unittest import mock as _mock
+
+        from memory_seed.cli import main as cli_main
+
+        cwd = self.make_project()
+        base = "mse_0123456789abcdef"
+        refinement = "mse_ffffffffffffffff"
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - base", base, ()),
+            ("2026-06-13 10:00 - refinement", refinement, ()),
+        )
+        # Recorded ONLY in a link sidecar (not in either entry's YAML).
+        self._link_sidecar(cwd, "2026-06-13", refinement, evolves=(base,))
+
+        def run(entry_id):
+            buffer = io.StringIO()
+            prev = os.getcwd()
+            os.chdir(cwd)  # the link handler resolves cwd from Path(".")
+            try:
+                with _mock.patch.object(_sys, "argv", ["memory-seed", "link", "show", entry_id]), \
+                        contextlib.redirect_stdout(buffer):
+                    code = cli_main()
+            finally:
+                os.chdir(prev)
+            return code, buffer.getvalue()
+
+        code_ref, out_ref = run(refinement)
+        code_base, out_base = run(base)
+
+        self.assertEqual(code_ref, 0, out_ref)
+        self.assertEqual(code_base, 0, out_base)
+        # The sidecar evolves edge is visible from both ends of the graph.
+        self.assertIn(f"evolves (1): {base}", out_ref)
+        self.assertIn(f"evolved_by (1): {refinement}", out_base)
+
     def _flat_session_raw(self, cwd, filename, text):
         sessions = cwd / MEMORY_DIR_NAME / "sessions"
         sessions.mkdir(parents=True, exist_ok=True)
