@@ -35,6 +35,16 @@ ENTRY_DATETIME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s+-\s+.+$"
 # importance_score signal, never default memory_search ranking.
 SUPERSEDED_IMPORTANCE_DAMPING = 0.25
 
+# Multiplier folded into final_score for a superseded entry when the caller opts
+# into supersession-aware ranking (freshness-aware-memory-ranking-proposal.md).
+# Mirrors the SUPERSEDED_IMPORTANCE_DAMPING harmony constant so a replaced
+# decision sinks beneath its live replacement in the default order - but it is
+# DEFAULT-OFF: rank_memory_chunks only applies it when passed the superseded id
+# set (gated by rank_session_memory / search_memory's supersession_damping flag).
+# It composes multiplicatively with recency_multiplier and never hard-excludes
+# (that stays exclude_superseded): a superseded entry is down-ranked, not hidden.
+SUPERSEDED_RANK_DAMPING = 0.25
+
 # Scale applied to the rarity-weighted F:-file-overlap sum when re-ranking
 # link-suggest candidates (evolution-edges-plan.md D5). Overlap is a precision
 # boost layered on the similarity ranking, never a gate: entries without F:
@@ -196,6 +206,7 @@ def rank_session_memory(
     date_from: date | None = None,
     date_to: date | None = None,
     exclude_superseded: bool = False,
+    supersession_damping: bool = False,
     chunks: Sequence[MemoryChunk] | None = None,
     topics: set[str] | None = None,
 ) -> list[RankedMemoryChunk]:
@@ -205,20 +216,26 @@ def rank_session_memory(
     # topics.expand_topic_filter) - a pre-ranking gate like user/date filters.
     corpus = list(chunks) if chunks is not None else extract_memory_chunks(cwd, granularity=granularity)
     chunks = _filter_chunks(corpus, user=user, date_from=date_from, date_to=date_to, topics=topics)
-    if exclude_superseded:
-        # Opt-in narrowing (like date_from/date_to): drop entries that have been
-        # superseded by a later decision. Never a default and never a hard
-        # exclusion unless the caller asks - superseded entries remain fully
-        # retrievable by default (deprioritized via importance_score, not hidden).
-        # The graph is built over the pre-filter corpus: a superseding entry
-        # outside the user/date window still retires its target. Being evolved
-        # never excludes - evolution is freshness, not retirement.
-        superseded = {
+    # The superseded id set feeds both the opt-in hard filter (exclude_superseded)
+    # and the opt-in rank-dampener (supersession_damping); build it once over the
+    # pre-filter corpus so a superseding entry outside the user/date window still
+    # counts. When ``corpus`` is the sidecar-augmented set passed by search_memory,
+    # sidecar-authored supersessions are included. Being evolved never lands here -
+    # evolution is freshness, not retirement.
+    superseded_ids: set[str] = set()
+    if exclude_superseded or supersession_damping:
+        superseded_ids = {
             node.entry_id
             for node in build_related_entry_graph(cwd, chunks=corpus).values()
             if node.superseded_by
         }
-        chunks = [chunk for chunk in chunks if chunk.entry_id not in superseded]
+    if exclude_superseded:
+        # Opt-in narrowing (like date_from/date_to): drop entries that have been
+        # superseded by a later decision. Never a default and never a hard
+        # exclusion unless the caller asks - superseded entries remain fully
+        # retrievable by default (deprioritized via the dampener/importance_score,
+        # not hidden).
+        chunks = [chunk for chunk in chunks if chunk.entry_id not in superseded_ids]
     return rank_memory_chunks(
         query,
         chunks,
@@ -228,6 +245,9 @@ def rank_session_memory(
         recency_enabled=recency_enabled,
         recency_floor=recency_floor,
         embedding_provider=embedding_provider,
+        # DEFAULT-OFF: only pass the dampener input when the caller opted in, so
+        # default ranking order stays byte-for-byte identical to today.
+        superseded_ids=superseded_ids if supersession_damping else None,
     )
 
 
@@ -365,6 +385,41 @@ def build_related_entry_graph(
             importance_score=importance,
         )
     return graph
+
+
+def evolves_lineage_heads(
+    graph: dict[str, RelatedEntryNode], entry_id: str
+) -> tuple[str, ...]:
+    """Follow the ``evolved_by`` chain from ``entry_id`` to the head(s) of its
+    lineage - the newest entries that evolve this decision and are not themselves
+    evolved further (the current, fuller form).
+
+    Freshness-successor surfacing (freshness-aware-memory-ranking-proposal.md
+    item 2 / evolution-edges-plan.md): evolves is *never* dampened, so this only
+    points a reader at the up-to-date form without burying the still-valid
+    original - it re-ranks and hides nothing. Returns terminal successor ids
+    (excluding ``entry_id`` itself), empty when the entry has no evolutions. The
+    evolves graph is acyclic by the edge contract; a ``seen`` set guards against a
+    malformed cycle. Result is sorted for a deterministic payload.
+    """
+    node = graph.get(entry_id)
+    if node is None or not node.evolved_by:
+        return ()
+    heads: set[str] = set()
+    seen: set[str] = {entry_id}
+    stack = list(node.evolved_by)
+    while stack:
+        current = stack.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        successor = graph.get(current)
+        if successor is None or not successor.evolved_by:
+            # Terminal: nothing evolves this one further -> head of lineage.
+            heads.add(current)
+        else:
+            stack.extend(successor.evolved_by)
+    return tuple(sorted(heads))
 
 
 @dataclass(frozen=True)
@@ -563,7 +618,15 @@ def rank_memory_chunks(
     recency_enabled: bool = True,
     recency_floor: float = 0.15,
     embedding_provider: EmbeddingProvider | None = None,
+    superseded_ids: set[str] | None = None,
 ) -> list[RankedMemoryChunk]:
+    # ``superseded_ids`` is the opt-in supersession rank-dampener input
+    # (freshness-aware-memory-ranking-proposal.md): the entry_ids that a later
+    # decision has superseded, sourced by the caller from the (sidecar-augmented)
+    # related-entry graph. When provided, a matching entry's final_score is scaled
+    # by SUPERSEDED_RANK_DAMPING so a live replacement out-ranks the decision it
+    # retires. DEFAULT None -> no dampening and byte-for-byte-identical ordering;
+    # evolves is never in this set (evolution is freshness, not retirement).
     current_date = today or date.today()
     query_terms = _query_terms(query)
     semantic_scores = _semantic_scores(query, chunks, embedding_provider)
@@ -583,6 +646,10 @@ def rank_memory_chunks(
             recency_floor=recency_floor,
         )
         final_score = match_score * recency_multiplier
+        if superseded_ids and chunk.entry_id and chunk.entry_id in superseded_ids:
+            # Down-rank only, never hide: the superseded entry stays in the
+            # results, just multiplicatively demoted beneath a fresher match.
+            final_score *= SUPERSEDED_RANK_DAMPING
         ranked.append(
             RankedMemoryChunk(
                 chunk=chunk,

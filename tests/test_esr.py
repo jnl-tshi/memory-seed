@@ -49,8 +49,23 @@ class EsrReportTests(unittest.TestCase):
         self.assertEqual(report.link_gaps, [])
         self.assertFalse(report.seed_twins_checked)
         # Sections print even when clean - a skipped step cannot hide.
-        for section in ("Integrity", "Topics", "Lifecycle link gaps", "Worktrees", "Seed twins"):
+        for section in ("Integrity", "Topics", "Lifecycle link gaps", "Integration mode", "Worktrees", "Seed twins"):
             self.assertIn(section, text)
+
+    def test_integration_mode_surfaced_defaulting_to_local_merge(self):
+        (self.sessions / "2026-06-01.md").write_text(_entry("2026-06-01 09:00", A), encoding="utf-8")
+
+        # No project.yaml -> default local-merge.
+        report = esr_report(cwd=self.cwd, session_date="2026-06-01")
+        self.assertEqual(report.integration_mode, "local-merge")
+        self.assertIn("local-merge", format_esr_report(report))
+        self.assertEqual(report.to_dict()["integration_mode"], "local-merge")
+
+        # Declared pr surfaces in the report and the formatted output.
+        (self.cwd / MEMORY_DIR_NAME / "project.yaml").write_text("integration_mode: pr\n", encoding="utf-8")
+        report = esr_report(cwd=self.cwd, session_date="2026-06-01")
+        self.assertEqual(report.integration_mode, "pr")
+        self.assertIn("pr — integrate via push", format_esr_report(report))
 
     def test_integrity_failure_is_reported(self):
         (self.sessions / "2026-06-01.md").write_text(

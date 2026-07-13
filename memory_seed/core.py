@@ -1108,6 +1108,78 @@ def worktree_guard(
     )
 
 
+# --- Entry DRAFT-body format lint (deterministic, shared by session append +
+# links check). Purely STRUCTURAL: it never judges whether a turn should be one
+# decision or several (that is authoring judgement) - only that the chosen shape
+# is well formed. High precision (6/348 real-corpus entries flag), so it is safe
+# to gate a write on. See session_logging.md for the authored templates.
+_ENTRY_HEADING_RE = re.compile(r"^## \d{4}-\d{2}-\d{2} \d{2}:\d{2} - .+$")
+_BARE_DRAFT_RE = re.compile(r"^(D|R|A|F|T)\d*\s*:")         # column-0 label with no '- '
+_BULLET_DRAFT_RE = re.compile(r"^-\s+(D|R|A|F|T)\d*\s*:")   # '- D:' list item
+_INLINE_NUMBERED_DECISION_RE = re.compile(r"^-\s+D\d+\s*:")  # '- D1:' inline (should be '#### Dn')
+_ENTRY_SECTION_RE = re.compile(r"^#{2,4}\s+(Summary|Decision|Decisions|Implementation|Validation|Follow-up)", re.I)
+_SINGULAR_DECISION_HEADING_RE = re.compile(r"^###\s+Decision\s*$")
+# Indent-aware: a nested '  - R:' under a '- D1:' is still a reason present.
+_ANY_D_LABEL_RE = re.compile(r"^\s*-?\s*D\d*\s*:")
+_ANY_R_LABEL_RE = re.compile(r"^\s*-?\s*R\d*\s*:")
+
+
+def entry_body_format_issues(body: str) -> list[str]:
+    """Return DRAFT-format problems in one entry BODY (text after the ```yaml
+    block), or [] when well formed. Flags: bare ``D:``/``R:`` labels that are not
+    ``- `` list items; DRAFT prose with no ``### Decision``/``### Summary``
+    heading; multiple decisions crammed under a singular ``### Decision`` via
+    inline ``- Dn:`` (should be ``### Decisions`` + ``#### Dn - name``); and a
+    decision (``D:``) with no reason (``R:`` is mandatory). Entries with no DRAFT
+    labels at all (e.g. a plain ``### Summary`` note) are never flagged - the lint
+    only rejects malformed DRAFT usage, it does not force DRAFT on every entry."""
+    lines = body.splitlines()
+    issues: list[str] = []
+    bare = [ln for ln in lines if _BARE_DRAFT_RE.match(ln)]
+    bulleted = [ln for ln in lines if _BULLET_DRAFT_RE.match(ln)]
+    inline_numbered = any(_INLINE_NUMBERED_DECISION_RE.match(ln) for ln in lines)
+    has_section = any(_ENTRY_SECTION_RE.match(ln) for ln in lines)
+    singular_decision = any(_SINGULAR_DECISION_HEADING_RE.match(ln) for ln in lines)
+    if bare:
+        labels = ", ".join(sorted({ln.split(":", 1)[0].strip() for ln in bare}))
+        issues.append(f"DRAFT labels ({labels}) are not list items - prefix each with '- ' under a section heading")
+    if bare and not has_section:
+        issues.append("DRAFT prose has no '### Decision'/'### Decisions'/'### Summary' section heading")
+    # Only the singular-heading case is a genuine error: a lone '### Decision'
+    # holding several inline '- Dn:' bullets conflates decisions and drops the
+    # per-decision structure. A well-formed '### Decisions' block with '- D1:' +
+    # nested '- R:' renders fine and is left alone (avoid condemning a readable
+    # historical style over pedantic '#### Dn' conformance).
+    if inline_numbered and singular_decision:
+        issues.append("multiple decisions under a singular '### Decision' - use '### Decisions' + '#### Dn - name' subsections")
+    if (bare or bulleted) and any(_ANY_D_LABEL_RE.match(ln) for ln in lines) and not any(_ANY_R_LABEL_RE.match(ln) for ln in lines):
+        issues.append("a decision (D:) has no reason (R:) - R is mandatory")
+    return issues
+
+
+def check_entry_format(text: str) -> list[tuple[str, str]]:
+    """Run ``entry_body_format_issues`` over every entry in a session-file's
+    ``text``, returning ``(entry_id, issue)`` pairs. Shared by ``links check``
+    (audit over the corpus) and available for any surface that has raw text; the
+    write-time gate in ``session append`` calls ``entry_body_format_issues`` on
+    the single body it is about to write."""
+    lines = text.splitlines()
+    heads = [i for i, ln in enumerate(lines) if _ENTRY_HEADING_RE.match(ln)]
+    out: list[tuple[str, str]] = []
+    for k, start in enumerate(heads):
+        end = heads[k + 1] if k + 1 < len(heads) else len(lines)
+        block = lines[start:end]
+        entry_id = next(
+            (m.group(1) for ln in block if (m := re.match(r"\s*entry_id:\s*(\S+)", ln))),
+            "?",
+        )
+        fences = [i for i, ln in enumerate(block) if ln.strip() == "```"]
+        body = "\n".join(block[fences[1] + 1:] if len(fences) >= 2 else block[1:])
+        for issue in entry_body_format_issues(body):
+            out.append((entry_id, issue))
+    return out
+
+
 def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     """Validate session-memory integrity across both legacy-flat and per-user
     layouts (multi-user Phase 3). Detects duplicate entry/file IDs, dangling
@@ -1163,6 +1235,13 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
 
         for entry_id in _ENTRY_ID_RE.findall(text):
             entry_id_files.setdefault(entry_id, []).append(rel)
+
+        # DRAFT-body format lint: a malformed decision record (bare labels, no
+        # section heading, wrong multi-decision shape, D: without R:) is an
+        # integrity error so it surfaces in `esr` and blocks a bad commit once CI
+        # runs links check. Structural only; see entry_body_format_issues.
+        for entry_id, issue in check_entry_format(text):
+            issues.append(LinkIssue(rel, "malformed-entry-format", f"{entry_id}: {issue}"))
 
         # Entry-level related_entries/supersedes live inside each entry's fenced
         # ```yaml block, the same shape in both layouts - scan them regardless
@@ -1722,6 +1801,12 @@ def session_append_entry(
         lines = _git_capture(runtime.workspace_root, "rev-parse", "--abbrev-ref", "HEAD")
         if lines and lines[0].strip() and lines[0].strip() != "HEAD":
             resolved_branch = lines[0].strip()
+
+    # Write-time DRAFT-format gate: the tool owns structure, so it refuses to
+    # write a malformed decision record (bare labels, missing R:, wrong
+    # multi-decision shape). The message names the fix; see session_logging.md.
+    for issue in entry_body_format_issues(body):
+        issues.append(f"body format: {issue}")
 
     if issues:
         return SessionAppendResult(ok=False, path=target.path, timestamp=ts, issues=tuple(issues))
@@ -4455,6 +4540,42 @@ def read_project_participants(target_root: Path) -> list[ProjectParticipant]:
         flush()
 
     return participants
+
+
+INTEGRATION_MODES = ("local-merge", "pr")
+DEFAULT_INTEGRATION_MODE = "local-merge"
+
+
+def read_integration_mode(target_root: Path) -> str:
+    """Return the project's declared integration mode from .memory-seed/project.yaml.
+
+    ``integration_mode:`` is a single top-level scalar governing how branch work
+    lands (configurable-integration-mode-plan.md):
+
+    - ``local-merge`` (default): branch work merges into local ``main`` via
+      ``memory-seed session merge-branch``; nothing is pushed.
+    - ``pr``: branch work integrates through the hosting provider - the branch is
+      prepared, pushed, and a PR is opened; the host performs the merge.
+
+    Fail-open to ``local-merge``: an absent file/key, an unreadable file, or an
+    unrecognised value all yield the default, so legacy and unconfigured projects
+    behave exactly as before. A declared ``pr`` mode is the durable authorization
+    for the normal push->PR flow; force-push and other destructive git operations
+    stay gated regardless of mode.
+    """
+    path = _project_config_path(target_root)
+    if not path.exists():
+        return DEFAULT_INTEGRATION_MODE
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return DEFAULT_INTEGRATION_MODE
+    for raw in lines:
+        match = re.match(r"^integration_mode\s*:\s*(.+)$", raw.rstrip())
+        if match:
+            value = match.group(1).strip().strip("'\"")
+            return value if value in INTEGRATION_MODES else DEFAULT_INTEGRATION_MODE
+    return DEFAULT_INTEGRATION_MODE
 
 
 def write_project_agents(target_root: Path, agents: set[str]) -> None:

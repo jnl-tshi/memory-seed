@@ -13,7 +13,11 @@ from memory_seed.retrieval import (
     rollup_entry_results,
     search_memory,
 )
-from memory_seed.semantic_cache import extract_memory_chunks, rank_memory_chunks
+from memory_seed.semantic_cache import (
+    SUPERSEDED_RANK_DAMPING,
+    extract_memory_chunks,
+    rank_memory_chunks,
+)
 
 
 class RetrievalServiceParityTests(unittest.TestCase):
@@ -48,7 +52,8 @@ class RetrievalServiceParityTests(unittest.TestCase):
             "```\n\n"
             "Updated AGENTS.md and agent-rules.md to require checking for initialized memory files.\n\n"
             "### Decision\n\n"
-            "- D: Require the bootstrap mode check before operating mode.\n\n"
+            "- D: Require the bootstrap mode check before operating mode.\n"
+            "- R: Agents were skipping bootstrap and operating on an unseeded runtime.\n\n"
             "### Follow-up\n\n"
             "- Watch for bootstrap regressions in agent-rules.\n",
         )
@@ -428,6 +433,210 @@ class RetrievalServiceParityTests(unittest.TestCase):
             elif isinstance(node, ast.ImportFrom):
                 imported.append(node.module or "")
         self.assertFalse([name for name in imported if "mcp_server" in name], imported)
+
+
+class FreshnessRankingTests(unittest.TestCase):
+    """Freshness-aware ranking guardrails (freshness-aware-memory-ranking-proposal.md).
+
+    The default-off supersession rank-dampener must let a live replacement
+    out-rank the decision it supersedes when opted in, source the signal from the
+    sidecar-augmented graph, never bury an evolved-but-valid entry, and leave the
+    default order byte-for-byte unchanged when the flag is off. The fixture is
+    deliberately built so recency does NOT decide it: the superseded (older) entry
+    has the stronger textual match, so without the damper it out-ranks its
+    replacement (the very bug the proposal fixes) - the damper is what flips it.
+    """
+
+    TODAY = date(2026, 5, 20)
+    OLD = "mse_0123456789abcdef"  # superseded decision (older, strong match)
+    NEW = "mse_ffffffffffffffff"  # live replacement (newer, weaker match)
+    QUERY = "redis cache ttl invalidation strategy"
+
+    def make_project(self):
+        path = Path(tempfile.mkdtemp(prefix="memory-seed-freshness-test-"))
+        self.addCleanup(lambda: shutil.rmtree(path, ignore_errors=True))
+        return path
+
+    def write_session(self, cwd, filename, content):
+        path = cwd / ".memory-seed" / "sessions" / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+    def make_supersession_fixture(self, *, sidecar=False):
+        """OLD (strong match) is superseded by NEW (weaker match). The supersedes
+        edge lives in NEW's entry YAML, or - when ``sidecar=True`` - only in an
+        append-only link sidecar keyed to NEW."""
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:15 - Redis cache TTL invalidation strategy\n\n"
+            "```yaml\n"
+            f"entry_id: {self.OLD}\n"
+            "user_initials: JN\nagent_type: codex\nproject_path: .\nsubproject_path: null\n"
+            "```\n\n"
+            "### Decision\n\n"
+            "- D: Use a Redis cache TTL invalidation strategy.\n"
+            "- R: Needed a cache eviction approach.\n",
+        )
+        supersedes_yaml = "" if sidecar else f"supersedes:\n  - {self.OLD}\n"
+        self.write_session(
+            cwd,
+            "2026-05-18.md",
+            "## 2026-05-18 10:00 - Cache TTL rework\n\n"
+            "```yaml\n"
+            f"entry_id: {self.NEW}\n"
+            "user_initials: JN\nagent_type: codex\nproject_path: .\nsubproject_path: null\n"
+            f"{supersedes_yaml}"
+            "```\n\n"
+            "### Decision\n\n"
+            "- D: Replace it; redis cache ttl invalidation strategy revisited.\n"
+            "- R: Superseded the earlier cache decision.\n",
+        )
+        if sidecar:
+            links_dir = cwd / ".memory-seed" / "sessions" / "links" / "2026-05"
+            links_dir.mkdir(parents=True, exist_ok=True)
+            (links_dir / "2026-05-18.md").write_text(
+                "## 2026-05-18 10:05 - late supersedes edge\n\n"
+                "```yaml\n"
+                f"entry_id: {self.NEW}\n"
+                f"supersedes:\n  - {self.OLD}\n"
+                "```\n",
+                encoding="utf-8",
+            )
+        return cwd
+
+    def search(self, cwd, **kwargs):
+        return search_memory(
+            self.QUERY, str(cwd), semantic_enabled=False, today=self.TODAY, **kwargs
+        )
+
+    def test_supersession_damping_ranks_replacement_above_retired(self):
+        """(a) With the flag ON, the live replacement out-ranks the decision it
+        supersedes, while the retired entry stays fully retrievable (down-rank
+        only, never hidden)."""
+        cwd = self.make_supersession_fixture()
+        # Opting out (supersession_damping=False) is the pre-change baseline: the
+        # retired-but-strongly-matching decision out-ranks its replacement.
+        off = self.search(cwd, supersession_damping=False)
+        self.assertEqual([r["entry_id"] for r in off["results"]][0], self.OLD)
+        by_off = {r["entry_id"]: r for r in off["results"]}
+
+        on = self.search(cwd, supersession_damping=True)
+        on_order = [r["entry_id"] for r in on["results"]]
+        by_on = {r["entry_id"]: r for r in on["results"]}
+        # The replacement now ranks above the decision it supersedes...
+        self.assertEqual(on_order[0], self.NEW)
+        # ...and the superseded entry is still present - never a hard exclusion.
+        self.assertIn(self.OLD, on_order)
+        # Only the superseded entry is damped; the replacement's score is untouched.
+        self.assertEqual(by_on[self.NEW]["score"], by_off[self.NEW]["score"])
+        self.assertLess(by_on[self.OLD]["score"], by_off[self.OLD]["score"])
+        self.assertAlmostEqual(
+            by_on[self.OLD]["score"],
+            by_off[self.OLD]["score"] * SUPERSEDED_RANK_DAMPING,
+            places=6,
+        )
+
+    def test_supersession_damping_from_link_sidecar(self):
+        """(b) The SAME flip when the supersedes edge lives ONLY in a link
+        sidecar - proving the dampener is sourced from the sidecar-augmented
+        graph, not just entry YAML."""
+        cwd = self.make_supersession_fixture(sidecar=True)
+        # The replacement's entry YAML carries no supersedes edge; it exists only
+        # in the sidecar.
+        raw = {c.entry_id: c for c in extract_memory_chunks(str(cwd), granularity="entry")}
+        self.assertEqual(raw[self.NEW].supersedes, ())
+
+        off = self.search(cwd, supersession_damping=False)
+        self.assertEqual([r["entry_id"] for r in off["results"]][0], self.OLD)
+
+        on = self.search(cwd, supersession_damping=True)
+        on_order = [r["entry_id"] for r in on["results"]]
+        by_on = {r["entry_id"]: r for r in on["results"]}
+        self.assertEqual(on_order[0], self.NEW)
+        self.assertIn(self.OLD, on_order)
+        # The sidecar-authored supersession reached the ranker (and the exposed field).
+        self.assertEqual(by_on[self.OLD]["superseded_by"], [self.NEW])
+
+    def make_evolves_fixture(self):
+        """A three-entry evolves chain: C evolves B, B evolves A. All still
+        valid; A is the base, C is the current fuller form (head of lineage)."""
+        cwd = self.make_project()
+        chain = [
+            ("2026-05-15.md", "2026-05-15 09:00 - Session logging cadence", self.A, None),
+            ("2026-05-16.md", "2026-05-16 09:00 - Session logging cadence refined", self.B, self.A),
+            ("2026-05-17.md", "2026-05-17 09:00 - Session logging cadence finalized", self.C, self.B),
+        ]
+        for filename, heading, entry_id, evolves in chain:
+            evolves_yaml = f"evolves:\n  - {evolves}\n" if evolves else ""
+            self.write_session(
+                cwd,
+                filename,
+                f"## {heading}\n\n"
+                "```yaml\n"
+                f"entry_id: {entry_id}\n"
+                "user_initials: JN\nagent_type: codex\nproject_path: .\nsubproject_path: null\n"
+                f"{evolves_yaml}"
+                "```\n\n"
+                "### Decision\n\n"
+                "- D: Session logging cadence approach.\n"
+                "- R: Keep a consistent session logging cadence.\n",
+            )
+        return cwd
+
+    A = "mse_aaaaaaaaaaaaaaaa"
+    B = "mse_bbbbbbbbbbbbbbbb"
+    C = "mse_cccccccccccccccc"
+
+    def test_evolves_chain_not_buried_and_successor_surfaced(self):
+        """(c) An evolved-but-valid entry is NOT down-ranked (evolves is exempt
+        from the dampener) and its successor / head-of-lineage is surfaced so the
+        current fuller form is reachable."""
+        cwd = self.make_evolves_fixture()
+        off = self.search(cwd, supersession_damping=False)
+        on = self.search(cwd, supersession_damping=True)
+        by_off = {r["entry_id"]: r for r in off["results"]}
+        by_on = {r["entry_id"]: r for r in on["results"]}
+
+        # Evolves never dampens: every score is identical with the flag on or off,
+        # even under supersession_damping=True.
+        for eid in (self.A, self.B, self.C):
+            self.assertIn(eid, by_on)
+            self.assertEqual(by_on[eid]["score"], by_off[eid]["score"])
+            self.assertEqual(by_on[eid]["superseded_by"], [])
+
+        # The successor is surfaced: the base and the middle point to the head of
+        # the lineage (C), followed transitively; the head points nowhere further.
+        self.assertEqual(by_on[self.A]["evolved_head"], [self.C])
+        self.assertEqual(by_on[self.B]["evolved_head"], [self.C])
+        self.assertEqual(by_on[self.C]["evolved_head"], [])
+        # The immediate successor stays exposed too (unchanged behavior).
+        self.assertEqual(by_on[self.A]["evolved_by"], [self.B])
+
+    def test_default_now_damps_and_opt_out_restores_order(self):
+        """(d) The dampener is ON by default: a bare search - and the MCP
+        `memory_search` tool with no flag - demotes the superseded entry beneath
+        its live replacement, and supersession_damping=False restores the
+        pre-change full-weight order. The default agent-facing behavior is damped."""
+        cwd = self.make_supersession_fixture()
+        default = self.search(cwd)
+        on = self.search(cwd, supersession_damping=True)
+        # The default now equals the (damped) opted-in behavior, byte for byte.
+        self.assertEqual(default["results"], on["results"])
+        self.assertEqual([r["entry_id"] for r in default["results"]][0], self.NEW)
+        # The MCP tool default (no flag supplied) damps too - the agent-facing surface.
+        tool_default = call_tool(
+            "memory_search",
+            {"query": self.QUERY, "cwd": str(cwd), "semantic_enabled": False},
+            today=self.TODAY,
+        )
+        self.assertEqual([r["entry_id"] for r in tool_default["results"]][0], self.NEW)
+        # Opting out restores the pre-change order: the superseded entry on top.
+        explicit_off = self.search(cwd, supersession_damping=False)
+        order_off = [r["entry_id"] for r in explicit_off["results"]]
+        self.assertEqual(order_off, [self.OLD, self.NEW])
+        self.assertNotEqual([r["entry_id"] for r in default["results"]], order_off)
 
 
 if __name__ == "__main__":

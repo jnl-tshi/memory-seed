@@ -40,6 +40,77 @@ class MemorySeedTests(unittest.TestCase):
     def test_version_reads_reusable_control_plane_version(self):
         self.assertEqual(get_version(), "2.18")
 
+    def test_read_integration_mode_defaults_parses_and_fails_open(self):
+        from memory_seed.core import DEFAULT_INTEGRATION_MODE, read_integration_mode
+
+        cwd = self.make_project()
+        mseed = cwd / MEMORY_DIR_NAME
+        mseed.mkdir(parents=True, exist_ok=True)
+
+        # Absent file -> default (legacy/unconfigured behaves as before).
+        self.assertEqual(read_integration_mode(cwd), "local-merge")
+        # Present file without the key -> default.
+        (mseed / "project.yaml").write_text(
+            "participants:\n  - slug: jean\n    initials: JN\n", encoding="utf-8"
+        )
+        self.assertEqual(read_integration_mode(cwd), "local-merge")
+        # Declared pr (alongside other keys).
+        (mseed / "project.yaml").write_text(
+            "integration_mode: pr\nparticipants:\n  - slug: jean\n    initials: JN\n", encoding="utf-8"
+        )
+        self.assertEqual(read_integration_mode(cwd), "pr")
+        # Explicit local-merge.
+        (mseed / "project.yaml").write_text("integration_mode: local-merge\n", encoding="utf-8")
+        self.assertEqual(read_integration_mode(cwd), "local-merge")
+        # Unrecognised value fails open to the default, not the garbage.
+        (mseed / "project.yaml").write_text("integration_mode: octopus\n", encoding="utf-8")
+        self.assertEqual(read_integration_mode(cwd), DEFAULT_INTEGRATION_MODE)
+        # Quoted value is accepted.
+        (mseed / "project.yaml").write_text('integration_mode: "pr"\n', encoding="utf-8")
+        self.assertEqual(read_integration_mode(cwd), "pr")
+
+    def test_entry_body_format_issues_flags_malformed_draft(self):
+        from memory_seed.core import entry_body_format_issues as fmt
+
+        # Well-formed shapes produce no issues.
+        self.assertEqual(fmt("### Decision\n\n- D: chose X\n- R: because Y"), [])
+        self.assertEqual(fmt("### Summary\n\n- a plain note, no DRAFT"), [])  # DRAFT not forced
+        self.assertEqual(
+            fmt("### Decisions\n\n#### D1 - a\n\n- D: x\n- R: y\n\n#### D2 - b\n\n- D: z\n- R: w"), []
+        )
+        # Nested '- R:' under an inline '- D1:' under '### Decisions' is a valid,
+        # readable style - must NOT false-positive as 'D without R'.
+        self.assertEqual(fmt("### Decisions\n\n- D1: a\n  - R: reason\n  - F: file"), [])
+
+        # Bare labels (no '- ') and no heading.
+        bare = fmt("D: chose X\nR: because Y")
+        self.assertTrue(any("not list items" in i for i in bare))
+        self.assertTrue(any("no '### Decision'" in i for i in bare))
+        # Several decisions crammed under a singular '### Decision'.
+        self.assertTrue(
+            any("singular '### Decision'" in i for i in fmt("### Decision\n\n- D1: a\n- R: y\n- D2: b\n- R: z"))
+        )
+        # A decision with no reason.
+        self.assertTrue(any("no reason (R:)" in i for i in fmt("### Decision\n\n- D: only a decision")))
+
+    def test_links_check_flags_malformed_entry_format(self):
+        from memory_seed.core import check_session_links
+
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        good = "## 2026-06-01 09:00 - Good\n\n```yaml\nentry_id: ms-aaaaaaaa\n```\n\n### Decision\n\n- D: x\n- R: y\n"
+        (sessions / "2026-06-01.md").write_text(good, encoding="utf-8")
+        self.assertTrue(check_session_links(cwd=cwd).ok)
+
+        bad = "## 2026-06-02 09:00 - Bad\n\n```yaml\nentry_id: ms-bbbbbbbb\n```\n\nD: bare label\nR: reason\n"
+        (sessions / "2026-06-02.md").write_text(bad, encoding="utf-8")
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        fmt_issues = [i for i in result.issues if i.kind == "malformed-entry-format"]
+        self.assertTrue(fmt_issues)
+        self.assertTrue(any("ms-bbbbbbbb" in i.detail for i in fmt_issues))
+
     # --- A-P3 session integrity validation (memory-seed links check) ---
 
     def _per_user_session(self, cwd, date, user, *, fm_user=None, fm_date=None,

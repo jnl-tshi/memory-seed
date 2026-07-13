@@ -158,3 +158,32 @@ Extend `memory-seed link show <entry_id>` and `memory_get_chunk` output to inclu
   (`interaction-frequency-ranking-plan.md` P1b, shipped 2026-07-04), with a fixture test proving a
   superseded-but-heavily-cited entry ranks below a non-superseded, moderately-cited one.
 - Concise session log entry.
+
+## Follow-on: supersession as a `memory_search` ranking signal (2026-07-13)
+
+The "expose before you rank" staging chosen here has **fully graduated**. `superseded_by` was exposed
+read-only first (P1), dampened `importance_score` next (P1b) - and now it re-orders default
+`memory_search` **on by default**. `freshness-aware-memory-ranking-proposal.md` adds
+`SUPERSEDED_RANK_DAMPING = 0.25` (mirroring `SUPERSEDED_IMPORTANCE_DAMPING`), folded into `final_score`
+in `rank_memory_chunks` when `supersession_damping` is set (threaded through `rank_session_memory` and
+`search_memory`, and exposed on MCP `memory_search`):
+
+- **On by default after real-corpus validation.** It shipped default-off first (fixtures on a branch,
+  2.18), then a real-corpus A/B on both live supersession lineages (the Trail palette chain and the
+  Explorer/Lense-era "Retirement record") cleared the bar - the live replacement out-ranked every
+  retired predecessor at full k, retired entries stayed retrievable, and no-superseded-hit queries were
+  byte-identical - so `search_memory` and the MCP tool now default `supersession_damping=True`.
+  `supersession_damping=False` opts out and restores byte-for-byte prior order.
+- The superseded id set is drawn from the **sidecar-augmented** graph the search path already
+  builds, so a supersession authored later in a link sidecar dampens too (fixture-covered).
+- **Down-rank only, never hide** (the guiding constraint): the retired entry stays fully
+  retrievable; `exclude_superseded` remains the separate opt-in hard filter. A surfaced supersession
+  is a decision to verify against the code, not a claim the code already changed.
+- `evolves` is preserved as freshness, never retirement: it is never dampened; instead each result
+  carries `evolved_head` (the head of the evolves lineage) so the current fuller form is reachable.
+
+Fixtures live in `tests/test_retrieval.py` (YAML- and sidecar-authored supersession flip; evolves
+chain not buried + successor surfaced; the default now damps and `supersession_damping=False` restores
+prior order - including via the MCP tool) and `tests/test_semantic_cache.py`
+(the ranker damper and `evolves_lineage_heads` primitives). Contract: `docs/3_Spec/graph-edge-contract.md`
+("Supersession rank-dampener" under the harmony contract).

@@ -4,6 +4,37 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Session entries now have a deterministic **DRAFT-format lint**
+  (`core.entry_body_format_issues` / `check_entry_format`): `session append` refuses to write a
+  malformed decision record (bare `D:`/`R:` labels that are not `- ` list items, DRAFT prose with no
+  `### Decision`/`### Summary` heading, several decisions crammed under a singular `### Decision`, or a
+  `D:` with no `R:`), and `links check` reports the same corpus-wide as `malformed-entry-format`
+  (surfaced by `esr`, merge-blocking once CI runs it). The check is structural only - it never judges
+  whether a turn should be one decision or several. Ships in core, so every project inherits it; six
+  historical malformed entries were reformatted. (Follow-ons: blocking git commit hook, `session
+  append` decision-scaffolding flags, and a read-only `memory_entry_format_preview` MCP tool.)
+- Added a project-local `integration_mode` (`local-merge` | `pr`) setting in `project.yaml`
+  (`read_integration_mode`, default `local-merge`, fail-open), surfaced by `esr` - the foundation for
+  a configurable PR/branch-protection vs. direct-merge workflow (see
+  `docs/2_Todo/configurable-integration-mode-plan.md`).
+- **Freshness-aware `memory_search` ranking (supersession dampener, on by default).** A replaced
+  decision no longer out-ranks its live replacement: entries with a non-empty `superseded_by` (drawn
+  from the sidecar-augmented graph, so sidecar-authored supersessions count too) are multiplicatively
+  down-ranked (`SUPERSEDED_RANK_DAMPING = 0.25`) in `final_score`, and each result now carries
+  `evolved_head` so an evolves lineage's current fuller form is reachable without burying the
+  still-valid original. Down-rank only - never a hard exclude (`exclude_superseded` stays the separate
+  opt-in filter) and never hidden: a retired entry stays fully retrievable, just lower. Shipped
+  default-off with fixtures, then turned **on by default** in `search_memory` + the MCP `memory_search`
+  tool after a real-corpus A/B on both live supersession lineages proved the replacement surfaces above
+  every retired predecessor while queries with no superseded hit in-window stay byte-identical;
+  `supersession_damping=false` opts out. From `docs/2_Todo/freshness-aware-memory-ranking-proposal.md`.
+- **Retrieve the *why* before changing non-obvious code**, now a portable control-plane discipline:
+  `agent-rules.md` Working Principles, `skills/history_retrieval.md`, and the developer persona (all
+  with seed twins, so every project inherits it) direct every agent to `memory_search` the prior
+  reasoning - rejected alternatives, constraints, deferred items, landmines - before a design/change
+  decision on non-obvious behavior, keeping files the authority for what is true *now* and memory the
+  authority for *why*. From `docs/2_Todo/proactive-history-retrieval-discipline-proposal.md`.
+
 - Memory Trace UI polish: switching worktrees now plays a subway-map loading animation (the Trail is
   a train line, so a switch is a short journey - stations light up at the real load milestones as the
   train slides between them) instead of freezing the previous view; and the decision-diagram badge

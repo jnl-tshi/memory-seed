@@ -28,6 +28,7 @@ from .semantic_cache import (
     Model2VecEmbeddingProvider,
     RankedMemoryChunk,
     build_related_entry_graph,
+    evolves_lineage_heads,
     extract_memory_chunks,
     rank_session_memory,
 )
@@ -72,6 +73,7 @@ def search_memory(
     date_from: date | None = None,
     date_to: date | None = None,
     exclude_superseded: bool = False,
+    supersession_damping: bool = True,
     topics: list[str] | None = None,
 ) -> dict[str, Any]:
     """Search session memory and return the canonical result payload.
@@ -80,6 +82,17 @@ def search_memory(
     semantic-provider resolution (with lexical fallback), shared ranking via
     `rank_session_memory`, and `format_search_results` formatting. Non-MCP
     consumers call this directly and get identical answers.
+
+    ``supersession_damping`` (freshness-aware-memory-ranking-proposal.md) is the
+    supersession rank-dampener, ON by default: an entry with a non-empty
+    ``superseded_by`` (drawn from the sidecar-augmented graph below) is
+    multiplicatively down-ranked so a live replacement out-ranks the decision it
+    retires. It only re-orders - it never hard-excludes (that stays
+    ``exclude_superseded``) and never hides an entry: a superseded entry stays
+    fully retrievable, just lower. Pass ``False`` to restore full-weight ordering.
+    Graduated to default-on after validation on the real corpus (both YAML- and
+    sidecar-authored supersession lineages surfaced the live replacement above the
+    decisions it retired, with no effect on queries lacking a superseded hit).
     """
     provider, provider_name, fallback_reason = resolve_semantic_provider(
         query,
@@ -108,6 +121,7 @@ def search_memory(
         date_from=date_from,
         date_to=date_to,
         exclude_superseded=exclude_superseded,
+        supersession_damping=supersession_damping,
         chunks=chunks,
         topics=topic_filter,
     )
@@ -126,9 +140,18 @@ def search_memory(
     # extracted above - ranking and result order are untouched.
     graph = build_related_entry_graph(cwd, chunks=chunks)
     for result in payload["results"]:
-        node = graph.get(result.get("entry_id") or "")
+        entry_id = result.get("entry_id") or ""
+        node = graph.get(entry_id)
         result["superseded_by"] = list(node.superseded_by) if node else []
         result["evolved_by"] = list(node.evolved_by) if node else []
+        # Evolves successor-surfacing (freshness-aware-memory-ranking-proposal.md
+        # item 2): point an evolved-but-still-valid hit at the head of its
+        # evolution lineage - the current, fuller form - so it is reachable
+        # without burying the original. Additive and read-only: evolves is never
+        # dampened, and this changes no ordering. Empty when nothing evolves this
+        # entry further; follows the chain transitively through the (sidecar-
+        # augmented) graph.
+        result["evolved_head"] = list(evolves_lineage_heads(graph, entry_id))
     return payload
 
 

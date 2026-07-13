@@ -19,6 +19,8 @@ Pick the retrieval method by question type. They are not interchangeable.
 
 ## When To Search
 
+**Retrieve proactively before a design or change decision on non-obvious behavior — do not wait for a question to force it.** Before touching non-obvious code, ask "has this been decided or tried before?" and `memory_search` for "why was X / what was tried" (or read the specific entry), so you inherit rejected alternatives, constraints, deferred items, and landmines instead of re-deriving a settled decision or re-tripping a documented one.
+
 Call `memory_search` before relying on the visible conversation alone when the task asks about or depends on:
 
 - a past design decision, architecture choice, policy change, bootstrap choice, release, migration, or unresolved risk
@@ -27,6 +29,10 @@ Call `memory_search` before relying on the visible conversation alone when the t
 - sub-project boundaries, inherited policy, or prior agent handoff context
 
 Skip MCP history lookup for small, obvious edits where current source files and the active `index.md` / `policy.md` are enough.
+
+### Why vs. Current State — Division Of Labor
+
+Files are the authority for what is true *now* (current source, `index.md`, `policy.md`); memory is the authority for *why* (the reasoning, tradeoffs, and rejected paths behind that state). Read files for current state; retrieve memory for the reasoning — never substitute one for the other. A file tells you what the code does now, not which alternatives were rejected or which constraint a terse guard protects; that reasoning lives only in session memory.
 
 ## Retrieval Tool Mechanics
 
