@@ -1,6 +1,13 @@
 # Fontjoy typography pairing for Memory Trace
 
-Status: Active (approved 2026-07-10) — low priority UI polish
+Status: **IMPLEMENTED 2026-07-10** (unreleased; entry `mse_ka0qpy31eq42cnf2`). Space Grotesk
+(display/headings) + Inter (body) selected via Fontjoy and self-hosted as variable latin-subset
+woff2 under `memory-trace/memory_trace/static/fonts/`, wired through `@font-face` and the
+`--display`/`--sans` CSS variables in `styles.css` — no CDN, no JS, no build step. All acceptance
+criteria met. (Was tagged the stretch of the 2026-07-13 Trace goal run; found already complete.)
+Original plan, retained for provenance:
+
+Status (original): Active (approved 2026-07-10) — low priority UI polish
 Priority: P-low (ride the next Memory Trace UI pass, or a small standalone change)
 Source: dev-tools reel triage (`docs/1_Inbox/dev-tools-reel-10of10-websites.md`); web research + user decision 2026-07-10 (see session entry).
 Scope: Choose a heading/body font pairing via [Fontjoy](https://fontjoy.com) and apply it to the Memory Trace UI by **self-hosting** the font files.
