@@ -176,6 +176,21 @@ convention stays theoretical.
   frame.
 - **Implemented 2026-07-06:** retrieval parity is preserved through the shared service.
 
+### Phase 2b - Trail/Graph surfacing (implemented, unreleased)
+
+Beyond the reader (the deferred task recorded 2026-07-11 as `mse_j4wn8rqk2t6x0vhs`, "designed with
+the user when picked up"). **User-chosen design (2026-07-13): badge + popover preview.** A small
+diamond badge marks Trail rows and Graph nodes whose entry carries a Class-2 sidecar, driven by a
+cheap `has_diagram` boolean on the graph node (`entry_diagram_sidecars` set membership, read fresh
+per request). Engaging the badge floats the diagram in a popover rendered by the same Arc 2d
+renderer as the reader - the diagram source is fetched lazily from the chunk endpoint on demand, so
+the graph payload stays a boolean across hundreds of nodes. Rejected alternatives (recorded with the
+user): indicator-only (opens reader) as too thin, and inline Trail expansion as too costly against
+the Trail's fixed-row lane geometry. `has_diagram` ships on the legacy `/api/*` surface only for now
+(the v1 `GraphNode` model strips it) until the badge UI is polished, matching the merge-geometry
+vanilla-first precedent. Popover closes on the × button, an outside click, Escape, or re-clicking the
+badge. Read-only; the entry stays the canonical deep-link target.
+
 ## Phase 3 - Exportable report / handover pack (paid backbone, gated)
 
 The uniform, non-technical-facing deliverable and the one genuinely new Class-1 artifact.

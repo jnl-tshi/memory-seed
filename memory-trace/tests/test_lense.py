@@ -404,6 +404,32 @@ class LenseServiceTests(unittest.TestCase):
         )
         self.assertEqual({node["entry_id"] for node in by_alias["nodes"]}, {"mse_canon", "mse_alias"})
 
+    def test_graph_nodes_flag_entries_with_decision_diagram_sidecars(self):
+        # session-decision-diagrams plan: the Trail/Graph badge is driven by a
+        # has_diagram flag on graph nodes - true for entries carrying a Class-2
+        # sidecar, false otherwise (the diagram source is fetched lazily, so the
+        # node payload stays a boolean).
+        self.write_session(
+            "2026-06-25.md",
+            _entry("2026-06-25 09:00 - With diagram", "mse_diag", "Body.")
+            + _entry("2026-06-25 10:00 - Without diagram", "mse_nodiag", "Body."),
+        )
+        diagrams = self.cwd / ".memory-seed" / "sessions" / "diagrams"
+        diagrams.mkdir(parents=True, exist_ok=True)
+        (diagrams / "2026-06-25.md").write_text(
+            "---\ntags:\n  - session-log-diagrams\ndiagram_date: 2026-06-25\n---\n\n"
+            "## 2026-06-25 09:00 - With diagram\n\n"
+            "```yaml\nentry_id: mse_diag\n```\n\n"
+            "```mermaid\nflowchart TD\n  A --> B\n```\n",
+            encoding="utf-8",
+        )
+        service = self.service()
+
+        graph = service.graph(granularity="entry", limit=50)
+        by_id = {node["entry_id"]: node for node in graph["nodes"]}
+        self.assertTrue(by_id["mse_diag"]["has_diagram"])
+        self.assertFalse(by_id["mse_nodiag"]["has_diagram"])
+
     def test_chunk_reports_commit_and_batch_siblings(self):
         # Commit packaging: each entry maps to the oldest commit whose diff
         # added it, so main-era work with no immediate commit rides "the next

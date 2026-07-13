@@ -929,3 +929,65 @@ option {
   color: var(--muted);
   white-space: pre;
 }
+
+/* Decision-diagram badge + popover (Trail rows + Graph nodes). The badge marks
+   an entry carrying a Class-2 reasoning-diagram sidecar; engaging it floats the
+   diagram in a popover rendered by the same Arc 2d renderer as the reader. */
+.trail-diagram-badge {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 2px;
+  margin-left: 2px;
+  flex: 0 0 auto;
+}
+.trail-diagram-badge:hover {
+  color: var(--edge-related);
+}
+.graph-diagram-badge {
+  fill: var(--panel);
+  stroke: var(--edge-related);
+  stroke-width: 1.5;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.graph-diagram-badge:hover {
+  fill: var(--edge-related);
+}
+.diagram-popover {
+  position: fixed;
+  z-index: 60;
+  max-width: 420px;
+  max-height: 60vh;
+  overflow: auto;
+  padding: var(--space-sm, 8px);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.diagram-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: var(--space-xs, 4px);
+}
+.diagram-popover-close {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 4px;
+}
+.diagram-popover-close:hover {
+  color: var(--text);
+}
+.diagram-popover .diagram {
+  margin: 0;
+}

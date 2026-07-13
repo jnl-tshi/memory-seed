@@ -504,7 +504,14 @@ function graphView() {
           const radius = selected ? 18 : Math.min(16, 7 + sizeVal * 2.2);
           const showLabel = selected || highlight || match || sizeVal >= labelCut;
           const label = showLabel ? `<text class="graph-label" data-graph-label x="${p.x}" y="${p.y - 15}" text-anchor="middle">${esc(graphTitle(node.title))}</text>` : "";
-          return `<g class="graph-node ${highlight ? "graph-related" : ""} ${match ? "search-match" : ""} ${dim ? "graph-dim" : ""}" data-node-id="${escAttr(node.id)}" data-chunk="${escAttr(node.chunk_id)}"><circle class="graph-hit" cx="${p.x}" cy="${p.y}" r="${Math.max(radius + 10, 20)}"></circle><circle cx="${p.x}" cy="${p.y}" r="${radius}" fill="${agentColor(node.agent)}" stroke="${selected ? "var(--accent)" : "var(--bg)"}" stroke-width="3"></circle>${label}<title>${esc(node.title)}</title></g>`;
+          // Decision-diagram badge: a small diamond at the node's upper-right
+          // when the entry carries a Class-2 sidecar. Click opens the popover
+          // preview (handled before node selection).
+          const bx = p.x + radius * 0.78, by = p.y - radius * 0.78;
+          const diagramBadge = node.has_diagram
+            ? `<path class="graph-diagram-badge" data-diagram-entry="${escAttr(node.entry_id || "")}" d="M ${bx} ${by - 4.5} L ${bx + 4.5} ${by} L ${bx} ${by + 4.5} L ${bx - 4.5} ${by} Z"><title>Decision diagram — click to preview</title></path>`
+            : "";
+          return `<g class="graph-node ${highlight ? "graph-related" : ""} ${match ? "search-match" : ""} ${dim ? "graph-dim" : ""}" data-node-id="${escAttr(node.id)}" data-chunk="${escAttr(node.chunk_id)}"><circle class="graph-hit" cx="${p.x}" cy="${p.y}" r="${Math.max(radius + 10, 20)}"></circle><circle cx="${p.x}" cy="${p.y}" r="${radius}" fill="${agentColor(node.agent)}" stroke="${selected ? "var(--accent)" : "var(--bg)"}" stroke-width="3"></circle>${label}${diagramBadge}<title>${esc(node.title)}</title></g>`;
         }).join("");
       })()}
       </g>
@@ -989,6 +996,7 @@ function trailView() {
         <span class="trail-time">${time}</span>
         ${rowMatch(node) ? `<span class="trail-match-dot"></span>` : ""}
         <span class="trail-title">${esc(trailTitle(node))}</span>
+        ${node.has_diagram ? `<button type="button" class="trail-diagram-badge" data-diagram-entry="${escAttr(node.entry_id || "")}" title="Decision diagram — click to preview" aria-label="Preview decision diagram">◇</button>` : ""}
         ${tip ? `<span class="trail-branch" style="color:${colorOf.get(branch)}">${esc(branch)}</span>` : ""}
       </div>`;
   });
@@ -1200,6 +1208,14 @@ function installDelegatedEvents() {
     if (searchHit) {
       state.searchOpen = false;
       await jumpToChunk(searchHit.dataset.chunk);
+      return;
+    }
+    // Decision-diagram badge (Trail rows + Graph nodes): open the popover
+    // preview. Checked before row/node selection so engaging the badge never
+    // also selects the entry underneath it.
+    const diagramBadge = event.target.closest("[data-diagram-entry]");
+    if (diagramBadge) {
+      await openDiagramPopover(diagramBadge.dataset.diagramEntry, diagramBadge);
       return;
     }
     const graphNode = event.target.closest("[data-node-id][data-chunk]");
@@ -1487,6 +1503,84 @@ function diagramsSection(selected) {
       <h4>Decision diagrams</h4>
       ${blocks.map((block) => `<figure class="diagram">${block.title ? `<figcaption class="count">${esc(block.title)}</figcaption>` : ""}${renderDiagramBlock(block.source)}</figure>`).join("")}
     </section>`;
+}
+
+// --- Decision-diagram popover (Trail/Graph badge preview) --------------------
+// The badge on a Trail row / Graph node lazily fetches the entry's chunk
+// (cached), then floats its Class-2 sidecar diagram(s) beside the badge with the
+// same Arc 2d renderer the reader uses. A preview affordance only - the reader
+// stays the full view. Lives on document.body so a Trail re-render never wipes
+// it; closed by the × button, an outside click, Escape, or re-clicking the badge.
+const _diagramChunkCache = new Map();
+
+function closeDiagramPopover() {
+  const existing = document.querySelector(".diagram-popover");
+  if (existing) existing.remove();
+  document.removeEventListener("keydown", _diagramPopoverKeydown, true);
+  document.removeEventListener("click", _diagramPopoverAway, true);
+}
+
+function _diagramPopoverKeydown(event) {
+  if (event.key === "Escape") {
+    event.stopPropagation();
+    closeDiagramPopover();
+  }
+}
+
+function _diagramPopoverAway(event) {
+  if (event.target.closest(".diagram-popover") || event.target.closest("[data-diagram-entry]")) return;
+  closeDiagramPopover();
+}
+
+async function openDiagramPopover(entryId, anchorEl) {
+  if (!entryId) return;
+  const open = document.querySelector(".diagram-popover");
+  if (open && open.dataset.entry === entryId) {
+    closeDiagramPopover(); // second click on the same badge toggles closed
+    return;
+  }
+  closeDiagramPopover();
+  let chunk = _diagramChunkCache.get(entryId);
+  if (chunk === undefined) {
+    chunk = await fetch(`/api/chunks/${encodeURIComponent(entryId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null);
+    _diagramChunkCache.set(entryId, chunk);
+  }
+  const blocks = (chunk?.diagrams || []).flatMap((sidecar) =>
+    (sidecar.mermaid_blocks || []).map((source) => ({ source, title: sidecar.title })),
+  );
+  const pop = document.createElement("div");
+  pop.className = "diagram-popover";
+  pop.dataset.entry = entryId;
+  const body = blocks.length
+    ? blocks.map((b) => `<figure class="diagram">${b.title ? `<figcaption class="count">${esc(b.title)}</figcaption>` : ""}${renderDiagramBlock(b.source)}</figure>`).join("")
+    : `<div class="empty">No diagram available for this entry.</div>`;
+  pop.innerHTML = `<div class="diagram-popover-head"><span class="count">${esc(chunk?.title || "Decision diagram")}</span><button type="button" class="diagram-popover-close" data-diagram-close aria-label="Close">×</button></div>${body}`;
+  pop.querySelector("[data-diagram-close]").addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeDiagramPopover();
+  });
+  document.body.appendChild(pop);
+  _positionDiagramPopover(pop, anchorEl);
+  // Defer the dismiss listeners one tick so the click that opened the popover
+  // (still propagating) doesn't immediately close it.
+  setTimeout(() => {
+    document.addEventListener("keydown", _diagramPopoverKeydown, true);
+    document.addEventListener("click", _diagramPopoverAway, true);
+  }, 0);
+}
+
+function _positionDiagramPopover(pop, anchorEl) {
+  const a = anchorEl.getBoundingClientRect();
+  const pw = pop.offsetWidth;
+  const ph = pop.offsetHeight;
+  let left = a.right + 8;
+  let top = a.top;
+  if (left + pw > window.innerWidth - 8) left = Math.max(8, a.left - pw - 8);
+  if (top + ph > window.innerHeight - 8) top = Math.max(8, window.innerHeight - ph - 8);
+  pop.style.left = `${left}px`;
+  pop.style.top = `${top}px`;
 }
 
 // Commit packaging: the git commit that first captured this entry ("Authored

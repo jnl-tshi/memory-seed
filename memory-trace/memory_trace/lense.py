@@ -573,6 +573,10 @@ class LenseService:
             visible_ids = list(by_id)
         limited_ids = set(visible_ids[: _limit(limit, maximum=1000)])
         inferred_main = self.cache.main_commit_entries()
+        # Entry ids carrying an authored Class-2 decision-diagram sidecar, read
+        # fresh per request (same cadence as link sidecars) so a newly authored
+        # diagram badges immediately.
+        diagram_ids = set(entry_diagram_sidecars(self.cache.cwd))
         displayed = [by_id[item_id] for item_id in visible_ids if item_id in limited_ids and item_id in by_id]
         nodes = [
             _graph_node(
@@ -581,6 +585,7 @@ class LenseService:
                 connectivity=connectivity.get(node_id(chunk), 0),
                 importance_score=importance.get(node_id(chunk), 0.0),
                 inferred_main=not chunk.branch and (chunk.entry_id or "") in inferred_main,
+                has_diagram=(chunk.entry_id or "") in diagram_ids,
             )
             for chunk in displayed
         ]
@@ -1574,6 +1579,7 @@ def _graph_node(
     connectivity: int = 0,
     importance_score: float = 0.0,
     inferred_main: bool = False,
+    has_diagram: bool = False,
 ) -> dict[str, Any]:
     # inferred_main: no branch was recorded, but the entry's capturing commit
     # sits on main's first-parent history - committed directly on main, so it
@@ -1593,6 +1599,14 @@ def _graph_node(
         "granularity": chunk.granularity,
         "connectivity": connectivity,
         "importance_score": round(importance_score, 3),
+        # Class-2 decision-diagram sidecar presence (session-decision-diagrams
+        # plan). A cheap boolean so the Trail/Graph can badge entries that carry
+        # an authored reasoning diagram; the diagram source itself is fetched
+        # lazily from the chunk endpoint when the badge is engaged (the graph
+        # payload stays lean across hundreds of nodes). Legacy /api surface only
+        # for now - the v1 GraphNode model strips it until the badge UI is
+        # polished, matching the merge-geometry vanilla-first precedent.
+        "has_diagram": has_diagram,
     }
 
 
