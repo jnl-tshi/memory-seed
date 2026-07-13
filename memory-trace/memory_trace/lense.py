@@ -582,8 +582,9 @@ class LenseService:
             for edge in edges
             if edge["source"] in limited_ids and edge["target"] in limited_ids and edge["type"] in edge_type_set
         ][: _limit(limit, maximum=1000)]
-        # Commit-accurate merges (legacy /api surface only; the v1 routes strip
-        # these via response_model until the vanilla implementation is polished).
+        # Commit-accurate merges: served on both the legacy /api surface and the
+        # versioned /api/v1 surface (the v1 GraphResponse/TrailResponse models
+        # formalize these keys as of the 2.18 polish; see models.py).
         merge_events = self.cache.trailer_merges()
         displayed_entry_ids = {chunk.entry_id for chunk in displayed if chunk.entry_id}
         merges = []

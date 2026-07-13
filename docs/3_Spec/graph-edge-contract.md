@@ -160,7 +160,7 @@ A new edge kind's validation belongs here, reusing the entry-YAML scan, not a pa
 | MCP `memory_get_chunk` | `superseded_by`, `evolved_by`, `inbound_relation_count`, `importance_score`, `commit_reference_count` (+ stored fields incl. `evolves`, `continuity`) |
 | MCP `memory_search` | results carry stored `supersedes`/`evolves`/`continuity` **and computed `superseded_by`/`evolved_by`** (freshness at the moment of consumption - additive fields; ranking and order untouched); opt-in `exclude_superseded` filter |
 | Memory Trace graph | `connectivity` (its own metric) and `importance_score` per node; a "Size:" toggle sizes nodes by either |
-| Memory Trace legacy `/api/graph` + `/api/chunks` | additionally `merges` / `branches` (commit-accurate Trail merge events from `Memory-Entry` trailers) and `merged_by` per chunk - legacy surface only; `/api/v1/*` response models deliberately strip these until the vanilla implementation is promoted |
+| Memory Trace `/api/graph` + `/api/chunks` **and** `/api/v1/{graph,trail,chunks}` | additionally `merges` / `branches` (commit-accurate Trail merge events from `Memory-Entry` trailers) and `merged_by` per chunk. Shipped legacy-only under "vanilla only, polish first"; promoted onto the versioned surface in 2.18 (the `MergeEvent` / `BranchInfo` / `ForkPoint` response models, `merged_by: CommitInfo`) once the vanilla implementation had survived a release cycle - additive, so the promotion breaks no existing v1 client |
 
 ## Standing rules for new work
 

@@ -14,8 +14,8 @@ plus ``git init``) and pin:
 - pre-trailer-era branches fall back to ``estimated: True``;
 - ``chunk()`` reports ``merged_by`` distinctly from the authoring ``commit``;
 - without git everything fails open (empty merges, estimated branches);
-- the ``/api/v1/*`` contract does NOT expose the new keys (response_model
-  strips them - pins the vanilla-only scope).
+- the ``/api/v1/*`` contract now exposes the same keys (the 2.18 polish
+  promoted the merge geometry onto the versioned surface - additively).
 """
 
 import os
@@ -185,21 +185,30 @@ class TrailMergeAccuracyTests(unittest.TestCase):
         unmerged = client.get("/api/chunks/mse_feat2").json()
         self.assertIsNone(unmerged["merged_by"])
 
-    def test_v1_contract_does_not_expose_the_new_keys(self):
-        # Vanilla-only scope: the versioned surface stays untouched -
-        # response_model validation strips the extra keys the shared service
-        # now returns.
+    def test_v1_contract_exposes_the_merge_geometry(self):
+        # 2.18 polish: the versioned surface now formalizes merges/branches
+        # (graph + trail) and merged_by (chunk) via response_model - additive,
+        # so the shapes match the legacy surface rather than being stripped.
         client = self.client()
-        v1_graph = client.get("/api/v1/graph", params={"granularity": "entry"})
-        self.assertEqual(v1_graph.status_code, 200)
-        self.assertNotIn("merges", v1_graph.json())
-        self.assertNotIn("branches", v1_graph.json())
-        v1_trail = client.get("/api/v1/trail")
-        self.assertEqual(v1_trail.status_code, 200)
-        self.assertNotIn("merges", v1_trail.json())
-        v1_chunk = client.get("/api/v1/chunks/mse_feat1")
-        self.assertEqual(v1_chunk.status_code, 200)
-        self.assertNotIn("merged_by", v1_chunk.json())
+
+        v1_graph = client.get("/api/v1/graph", params={"granularity": "entry"}).json()
+        legacy_graph = client.get("/api/graph", params={"granularity": "entry"}).json()
+        self.assertEqual(v1_graph["merges"], legacy_graph["merges"])
+        self.assertEqual(v1_graph["branches"], legacy_graph["branches"])
+        # Real trailer data flows through, not just empty scaffolding.
+        self.assertEqual(len(v1_graph["merges"]), 2)
+        self.assertFalse(v1_graph["branches"]["feature-y"]["estimated"])
+        self.assertEqual(v1_graph["branches"]["feature-y"]["merge"]["sha"], self.merge2)
+        self.assertEqual(v1_graph["branches"]["feature-y"]["fork"]["sha"], self.commit_d)
+
+        v1_trail = client.get("/api/v1/trail").json()
+        self.assertEqual(len(v1_trail["merges"]), 2)
+        self.assertIn("branches", v1_trail)
+
+        v1_chunk = client.get("/api/v1/chunks/mse_feat1").json()
+        self.assertEqual(v1_chunk["merged_by"]["sha"], self.merge1)
+        v1_unmerged = client.get("/api/v1/chunks/mse_feat2").json()
+        self.assertIsNone(v1_unmerged["merged_by"])
 
 
 class TrailMergeNoGitFallbackTests(unittest.TestCase):

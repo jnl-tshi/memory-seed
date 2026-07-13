@@ -4,6 +4,15 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- The commit-accurate Trail merge geometry is now served on the versioned `/api/v1/*` surface as
+  well as the legacy one: `/api/v1/graph` and `/api/v1/trail` carry `merges` (trailer-stamped merge
+  events) and `branches` (per-branch merge/fork/estimated), and `/api/v1/chunks/{id}` carries
+  `merged_by`. New `MergeEvent` / `BranchInfo` / `ForkPoint` response models formalize the shapes;
+  `merged_by` reuses `CommitInfo`. The promotion is purely additive (existing v1 clients ignore the
+  new keys), lands after the vanilla implementation survived a full release cycle, and inherits
+  sidecar-sourced lifecycle edges automatically (they were already ordinary graph edges). The
+  committed `openapi.v1.json` and generated `types.ts` fixtures are regenerated to match.
+
 ## 2.18.0 - 2026-07-13
 
 - Memory Trace now ships as part of the main `memory-seed` package behind the optional
