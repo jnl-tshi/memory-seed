@@ -4194,6 +4194,42 @@ def read_project_participants(target_root: Path) -> list[ProjectParticipant]:
     return participants
 
 
+INTEGRATION_MODES = ("local-merge", "pr")
+DEFAULT_INTEGRATION_MODE = "local-merge"
+
+
+def read_integration_mode(target_root: Path) -> str:
+    """Return the project's declared integration mode from .memory-seed/project.yaml.
+
+    ``integration_mode:`` is a single top-level scalar governing how branch work
+    lands (configurable-integration-mode-plan.md):
+
+    - ``local-merge`` (default): branch work merges into local ``main`` via
+      ``memory-seed session merge-branch``; nothing is pushed.
+    - ``pr``: branch work integrates through the hosting provider - the branch is
+      prepared, pushed, and a PR is opened; the host performs the merge.
+
+    Fail-open to ``local-merge``: an absent file/key, an unreadable file, or an
+    unrecognised value all yield the default, so legacy and unconfigured projects
+    behave exactly as before. A declared ``pr`` mode is the durable authorization
+    for the normal push->PR flow; force-push and other destructive git operations
+    stay gated regardless of mode.
+    """
+    path = _project_config_path(target_root)
+    if not path.exists():
+        return DEFAULT_INTEGRATION_MODE
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return DEFAULT_INTEGRATION_MODE
+    for raw in lines:
+        match = re.match(r"^integration_mode\s*:\s*(.+)$", raw.rstrip())
+        if match:
+            value = match.group(1).strip().strip("'\"")
+            return value if value in INTEGRATION_MODES else DEFAULT_INTEGRATION_MODE
+    return DEFAULT_INTEGRATION_MODE
+
+
 def write_project_agents(target_root: Path, agents: set[str]) -> None:
     """Persist the agent selection to .memory-seed/project.yaml.
 

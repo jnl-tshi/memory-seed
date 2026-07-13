@@ -40,6 +40,35 @@ class MemorySeedTests(unittest.TestCase):
     def test_version_reads_reusable_control_plane_version(self):
         self.assertEqual(get_version(), "2.18")
 
+    def test_read_integration_mode_defaults_parses_and_fails_open(self):
+        from memory_seed.core import DEFAULT_INTEGRATION_MODE, read_integration_mode
+
+        cwd = self.make_project()
+        mseed = cwd / MEMORY_DIR_NAME
+        mseed.mkdir(parents=True, exist_ok=True)
+
+        # Absent file -> default (legacy/unconfigured behaves as before).
+        self.assertEqual(read_integration_mode(cwd), "local-merge")
+        # Present file without the key -> default.
+        (mseed / "project.yaml").write_text(
+            "participants:\n  - slug: jean\n    initials: JN\n", encoding="utf-8"
+        )
+        self.assertEqual(read_integration_mode(cwd), "local-merge")
+        # Declared pr (alongside other keys).
+        (mseed / "project.yaml").write_text(
+            "integration_mode: pr\nparticipants:\n  - slug: jean\n    initials: JN\n", encoding="utf-8"
+        )
+        self.assertEqual(read_integration_mode(cwd), "pr")
+        # Explicit local-merge.
+        (mseed / "project.yaml").write_text("integration_mode: local-merge\n", encoding="utf-8")
+        self.assertEqual(read_integration_mode(cwd), "local-merge")
+        # Unrecognised value fails open to the default, not the garbage.
+        (mseed / "project.yaml").write_text("integration_mode: octopus\n", encoding="utf-8")
+        self.assertEqual(read_integration_mode(cwd), DEFAULT_INTEGRATION_MODE)
+        # Quoted value is accepted.
+        (mseed / "project.yaml").write_text('integration_mode: "pr"\n', encoding="utf-8")
+        self.assertEqual(read_integration_mode(cwd), "pr")
+
     # --- A-P3 session integrity validation (memory-seed links check) ---
 
     def _per_user_session(self, cwd, date, user, *, fm_user=None, fm_date=None,
