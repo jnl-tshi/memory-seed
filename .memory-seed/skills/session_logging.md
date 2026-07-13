@@ -260,3 +260,20 @@ Use one entry when several decisions belong to one coherent task, plan, or user 
 
 - Residual risks or next actions.
 ```
+
+### Format is enforced (not just guidance)
+
+The DRAFT shapes above are checked by tooling, so a malformed entry cannot enter
+through the sanctioned path and is caught everywhere else:
+
+- `memory-seed session append` **rejects** a malformed body before writing - bare
+  `D:`/`R:` labels that are not `- ` list items, DRAFT prose with no section
+  heading, several decisions crammed under a singular `### Decision`, or a `D:`
+  with no `R:`. The error names the fix.
+- `links check` (surfaced by `esr`, merge-blocking under CI) flags the same across
+  the whole corpus as `malformed-entry-format`.
+
+The check (`core.entry_body_format_issues`) is **structural only** - it never
+decides whether a turn is one decision or several (that stays authoring
+judgement). Fix a flagged entry to the templates above; do not hand-write a
+malformed entry to bypass the gate.

@@ -80,6 +80,16 @@ class SessionAppendTests(unittest.TestCase):
         # Nothing was appended.
         self.assertNotIn("Late-clock entry", result.path.read_text(encoding="utf-8"))
 
+    def test_malformed_body_is_refused(self):
+        # The tool owns structure: a DRAFT body with bare labels and no section
+        # heading is rejected before anything is written, with a fix message.
+        result = self._append(body="D: bare, unbulleted label\nR: no heading either")
+
+        self.assertFalse(result.ok)
+        self.assertFalse(result.written)
+        self.assertTrue(any("body format" in issue for issue in result.issues), result.issues)
+        self.assertNotIn("bare, unbulleted", result.path.read_text(encoding="utf-8") if result.path.exists() else "")
+
     def test_fabricated_ref_is_refused(self):
         result = self._append(related_entries=("mse_" + "9" * 16,))
 

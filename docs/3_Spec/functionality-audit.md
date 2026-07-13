@@ -16,6 +16,15 @@ tags:
 > switcher + commit-accurate Trail merges + `--static-root` + serve-time asset hashing, and the
 > browserless golden-fixture harness. Test counts have grown accordingly (413 core + 92 trace as
 > of 2026-07-13).
+>
+> **Addendum 2026-07-13 (later):** also unreleased - a project-local `integration_mode`
+> (`local-merge` | `pr`) in `project.yaml` read by `read_integration_mode` and surfaced by `esr`
+> (foundation for a configurable PR/branch-protection workflow); and a deterministic **entry DRAFT
+> format lint** (`core.entry_body_format_issues` / `check_entry_format`) that `session append`
+> enforces at write time and `links check` reports corpus-wide as `malformed-entry-format`
+> (structural only - bare labels, missing section heading, multi-decision under a singular
+> `### Decision`, `D:` without `R:`). See `docs/2_Todo/configurable-integration-mode-plan.md` and
+> `docs/2_Todo/openssf-credibility-proposals.md`.
 
 **As of:** 2026-07-05 - control-plane `2.16` - package `2.16.0`
 **Scope:** every current feature, how the subsystems relate, how data flows, plus a roadmap section for upcoming work.
