@@ -516,9 +516,9 @@ class FreshnessRankingTests(unittest.TestCase):
         supersedes, while the retired entry stays fully retrievable (down-rank
         only, never hidden)."""
         cwd = self.make_supersession_fixture()
-        # Flag off is today's behavior: the retired-but-strongly-matching decision
-        # out-ranks its replacement.
-        off = self.search(cwd)
+        # Opting out (supersession_damping=False) is the pre-change baseline: the
+        # retired-but-strongly-matching decision out-ranks its replacement.
+        off = self.search(cwd, supersession_damping=False)
         self.assertEqual([r["entry_id"] for r in off["results"]][0], self.OLD)
         by_off = {r["entry_id"]: r for r in off["results"]}
 
@@ -548,7 +548,7 @@ class FreshnessRankingTests(unittest.TestCase):
         raw = {c.entry_id: c for c in extract_memory_chunks(str(cwd), granularity="entry")}
         self.assertEqual(raw[self.NEW].supersedes, ())
 
-        off = self.search(cwd)
+        off = self.search(cwd, supersession_damping=False)
         self.assertEqual([r["entry_id"] for r in off["results"]][0], self.OLD)
 
         on = self.search(cwd, supersession_damping=True)
@@ -594,7 +594,7 @@ class FreshnessRankingTests(unittest.TestCase):
         from the dampener) and its successor / head-of-lineage is surfaced so the
         current fuller form is reachable."""
         cwd = self.make_evolves_fixture()
-        off = self.search(cwd, **{})
+        off = self.search(cwd, supersession_damping=False)
         on = self.search(cwd, supersession_damping=True)
         by_off = {r["entry_id"]: r for r in off["results"]}
         by_on = {r["entry_id"]: r for r in on["results"]}
@@ -614,21 +614,29 @@ class FreshnessRankingTests(unittest.TestCase):
         # The immediate successor stays exposed too (unchanged behavior).
         self.assertEqual(by_on[self.A]["evolved_by"], [self.B])
 
-    def test_default_off_leaves_ordering_unchanged(self):
-        """(d) With the flag OFF (default), the result order and scores are
-        byte-for-byte identical to today - the damper is inert unless opted in."""
+    def test_default_now_damps_and_opt_out_restores_order(self):
+        """(d) The dampener is ON by default: a bare search - and the MCP
+        `memory_search` tool with no flag - demotes the superseded entry beneath
+        its live replacement, and supersession_damping=False restores the
+        pre-change full-weight order. The default agent-facing behavior is damped."""
         cwd = self.make_supersession_fixture()
         default = self.search(cwd)
-        explicit_off = self.search(cwd, supersession_damping=False)
-        # Passing the new flag as False (or omitting it) changes nothing at all.
-        self.assertEqual(default["results"], explicit_off["results"])
-        # And the default order is the pre-change order: the superseded entry is
-        # NOT demoted unless the caller opts in.
-        order = [r["entry_id"] for r in default["results"]]
-        self.assertEqual(order, [self.OLD, self.NEW])
-        # Opting in demonstrably changes that order (the damper has teeth).
         on = self.search(cwd, supersession_damping=True)
-        self.assertNotEqual([r["entry_id"] for r in on["results"]], order)
+        # The default now equals the (damped) opted-in behavior, byte for byte.
+        self.assertEqual(default["results"], on["results"])
+        self.assertEqual([r["entry_id"] for r in default["results"]][0], self.NEW)
+        # The MCP tool default (no flag supplied) damps too - the agent-facing surface.
+        tool_default = call_tool(
+            "memory_search",
+            {"query": self.QUERY, "cwd": str(cwd), "semantic_enabled": False},
+            today=self.TODAY,
+        )
+        self.assertEqual([r["entry_id"] for r in tool_default["results"]][0], self.NEW)
+        # Opting out restores the pre-change order: the superseded entry on top.
+        explicit_off = self.search(cwd, supersession_damping=False)
+        order_off = [r["entry_id"] for r in explicit_off["results"]]
+        self.assertEqual(order_off, [self.OLD, self.NEW])
+        self.assertNotEqual([r["entry_id"] for r in default["results"]], order_off)
 
 
 if __name__ == "__main__":

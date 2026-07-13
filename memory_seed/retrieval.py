@@ -73,7 +73,7 @@ def search_memory(
     date_from: date | None = None,
     date_to: date | None = None,
     exclude_superseded: bool = False,
-    supersession_damping: bool = False,
+    supersession_damping: bool = True,
     topics: list[str] | None = None,
 ) -> dict[str, Any]:
     """Search session memory and return the canonical result payload.
@@ -84,12 +84,15 @@ def search_memory(
     consumers call this directly and get identical answers.
 
     ``supersession_damping`` (freshness-aware-memory-ranking-proposal.md) is the
-    opt-in, DEFAULT-OFF supersession rank-dampener: when True, an entry with a
-    non-empty ``superseded_by`` (drawn from the sidecar-augmented graph below) is
+    supersession rank-dampener, ON by default: an entry with a non-empty
+    ``superseded_by`` (drawn from the sidecar-augmented graph below) is
     multiplicatively down-ranked so a live replacement out-ranks the decision it
     retires. It only re-orders - it never hard-excludes (that stays
-    ``exclude_superseded``) and never hides an entry. Off by default, result
-    order is byte-for-byte identical to prior behavior.
+    ``exclude_superseded``) and never hides an entry: a superseded entry stays
+    fully retrievable, just lower. Pass ``False`` to restore full-weight ordering.
+    Graduated to default-on after validation on the real corpus (both YAML- and
+    sidecar-authored supersession lineages surfaced the live replacement above the
+    decisions it retired, with no effect on queries lacking a superseded hit).
     """
     provider, provider_name, fallback_reason = resolve_semantic_provider(
         query,
