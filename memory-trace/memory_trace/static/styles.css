@@ -479,6 +479,21 @@ button {
   background: var(--accent-weak);
   color: var(--text);
 }
+/* Reader topic chips (topics P4): an entry's controlled-vocabulary topics,
+   tinted with the graph's topic colour so a topic reads the same in the reader
+   and the graph. Clickable - filters the timeline by that topic. */
+.topic-chip {
+  border-color: color-mix(in srgb, var(--edge-topic) 55%, var(--border));
+  color: var(--text);
+  cursor: pointer;
+}
+.topic-chip:hover {
+  border-color: var(--edge-topic);
+}
+.topic-chip.active {
+  background: color-mix(in srgb, var(--edge-topic) 22%, transparent);
+  border-color: var(--edge-topic);
+}
 .center {
   display: grid;
   grid-template-rows: minmax(0, 1fr);

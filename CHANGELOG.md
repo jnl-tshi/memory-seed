@@ -12,6 +12,15 @@ All notable changes to Memory Seed are summarized here.
   new keys), lands after the vanilla implementation survived a full release cycle, and inherits
   sidecar-sourced lifecycle edges automatically (they were already ordinary graph edges). The
   committed `openapi.v1.json` and generated `types.ts` fixtures are regenerated to match.
+- Memory Trace now renders the authored controlled-vocabulary `topics:` field as first-class UI
+  (topic-neighbourhoods plan, Phase 4 Trace half). Its single `_topics()` chokepoint prefers an
+  entry's indexed topics and falls back to the hashtag/heading-derived display axes only for
+  entries that predate the field - never mixing the two - so the topics facet, the reader's new
+  clickable topic chips, the graph's `topic` chronological chains, and the topic filter all speak
+  the controlled vocabulary once an entry adopts it. The topic filter is now vocabulary-aware:
+  it expands the requested slug through `topics.yaml` (canonical + aliases, fail-open) so filtering
+  by a canonical topic matches alias-stored entries and vice versa. Both the legacy `/api/*` and the
+  versioned `/api/v1/*` surfaces inherit this through the shared service.
 
 ## 2.18.0 - 2026-07-13
 

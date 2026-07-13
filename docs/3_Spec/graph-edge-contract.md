@@ -90,10 +90,14 @@ directly, and they are validated by the separate `memory-seed topics check`
 (unknown-slug/malformed/duplicate/collision errors; count and deprecated-use warnings) -
 deliberately outside `links check`'s edge-validation authority. `MemoryChunk.topics` carries the
 stored slugs; retrieval dicts expose them; `memory_search` accepts an opt-in pre-ranking `topics`
-filter (alias-expanded, fail-open on unknown names, no effect when unused). Memory Trace's
-existing `topic` chains remain display-only derived axes from chunk hashtags and heading contexts
-and serve as the fallback for entries predating authored topics; Trace rendering of *indexed*
-topics is deferred (`docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md` Phase 4).
+filter (alias-expanded, fail-open on unknown names, no effect when unused). Memory Trace **prefers
+indexed topics** as of topics P4: its single `_topics()` chokepoint returns the authored `topics:`
+slugs when an entry has any and falls back to the hashtag/heading-derived axes only for entries
+predating the field - never mixing the two. That effective set feeds the topics facet, the reader's
+topic chips, the graph's `topic` chronological chains, and the topic filter, and the filter is
+alias-expanded through `topics.yaml` (via `expand_topic_filter`, fail-open) so a canonical slug
+matches alias-stored entries and vice versa. The MCP-topic-management half of Phase 4 is tracked
+separately (`docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md`).
 
 ## Derived metrics - two distinct numbers, distinct names
 
