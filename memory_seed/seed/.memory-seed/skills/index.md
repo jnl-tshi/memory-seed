@@ -52,6 +52,7 @@ skills:
       - prior decisions, rationale, unresolved risks, or release history matter
       - using memory_search or memory_get_chunk
       - filling an entry's related_entries or resolving the session-log append target via memory_link_suggest, memory_link_show, or memory_session_target
+      - inspecting controlled topics via memory_topics_list, memory_topic_inspect, or memory_topics_check
       - reconciling current files with older session history
       - deciding whether older memory conflicts with current authority files
     do_not_load_when:
@@ -61,7 +62,7 @@ skills:
     required: true
     load_when:
       - writing, validating, or repairing session entries
-      - deciding DRAFT labels, entry shapes, related_entries, or append-only chronology
+      - deciding DRAFT labels, entry shapes, topics, related_entries, or append-only chronology
       - changing session log schema or examples
     do_not_load_when:
       - only reading recent session state without writing or repairing logs

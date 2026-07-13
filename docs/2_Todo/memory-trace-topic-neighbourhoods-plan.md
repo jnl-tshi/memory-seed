@@ -17,9 +17,10 @@ the 62 slugs already in use, every observed slug canonical or alias; seed: minim
 starter, deploy-once), `MemoryChunk.topics` parsing, retrieval-dict exposure, alias-expanded
 opt-in `memory_search` topics filter, `memory-seed topics list`/`topics check` (slug rule
 `^[a-z0-9][a-z0-9_-]{0,63}$`; unknown/malformed/duplicate/collision errors, deprecated/count
-warnings), and `session_logging.md` authoring guidance (live + seed). Remaining before this file
-moves to completed/: **Phase 4** (Trace indexed-topic rendering as chronological chains + MCP
-topic-management tools) and the optional `topics suggest --from <file>`.
+warnings), and `session_logging.md` authoring guidance (live + seed). Phase 4 is now implemented:
+Trace renders indexed topics as chronological chains and MCP exposes read-only topic-management
+tools (`memory_topics_list`, `memory_topic_inspect`, `memory_topics_check`). Remaining optional
+follow-up before this file moves to completed/: `topics suggest --from <file>`.
 Priority: P3 after release-safety, encoding hardening, and Memory Trace package release ordering. It
 should run before AI timeline summarisation because topic filters become part of the evidence-pack
 contract.
@@ -197,8 +198,10 @@ topics:
 
 ### Phase 4 - MCP And Memory Trace
 
-- Add MCP topic tools only after CLI validation semantics are stable. **(MCP half - paired Codex
-  run; not yet landed.)**
+- **IMPLEMENTED (MCP half, unreleased):** `memory_topics_list` lists `.memory-seed/topics.yaml`,
+  `memory_topic_inspect` resolves canonical slugs/aliases and reports matching entry usage, and
+  `memory_topics_check` mirrors `memory-seed topics check` validation. All three are read-only; no
+  MCP write surface exists for the deploy-once project-curated topic index.
 - **IMPLEMENTED (Trace half, unreleased):** Memory Trace now prefers indexed topics when present and
   falls back to current tag/context display topics otherwise. A single `_topics()` chokepoint in
   `lense.py` returns the authored `topics:` slugs for entries that carry them, never mixing in

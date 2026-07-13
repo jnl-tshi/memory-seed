@@ -154,6 +154,41 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "memory_topics_list",
+        "description": "List the controlled topic vocabulary from .memory-seed/topics.yaml. Read-only.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "default": "."},
+            },
+        },
+    },
+    {
+        "name": "memory_topic_inspect",
+        "description": "Inspect one controlled topic or alias and show matching session entries. Read-only.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "Canonical topic slug or alias to inspect.",
+                },
+                "cwd": {"type": "string", "default": "."},
+            },
+            "required": ["topic"],
+        },
+    },
+    {
+        "name": "memory_topics_check",
+        "description": "Validate controlled topic vocabulary shape and entry topic usage. Mirrors `memory-seed topics check`; read-only.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "default": "."},
+            },
+        },
+    },
+    {
         "name": "memory_session_target",
         "description": "Resolve the active session-log target path (where a new entry should be appended) for the nearest runtime. Read-only; never creates the file. The agent appends the entry itself.",
         "inputSchema": {
@@ -323,6 +358,72 @@ def call_tool(
         chunk_id = _required_str(args, "chunk_id")
         return {"chunk": get_chunk(chunk_id, args.get("cwd", "."))}
 
+    if name == "memory_topics_list":
+        from .topics import load_topic_index
+
+        index = load_topic_index(args.get("cwd", "."))
+        return {
+            "path": index.path,
+            "exists": index.exists,
+            "schema_version": index.schema_version,
+            "topics": [_topic_record_to_dict(record) for record in index.topics],
+            "write_surface": "Read-only. Use CLI/project file edits with user approval to change topics.yaml.",
+        }
+
+    if name == "memory_topic_inspect":
+        from .topics import load_topic_index
+
+        cwd = args.get("cwd", ".")
+        requested = _required_str(args, "topic")
+        index = load_topic_index(cwd)
+        resolution = index.resolution()
+        canonical = resolution.get(requested)
+        record = next((item for item in index.topics if item.slug == canonical), None) if canonical else None
+        matching_names = sorted(name for name, slug in resolution.items() if slug == canonical) if canonical else []
+        entries = []
+        if canonical:
+            for chunk in extract_memory_chunks(cwd, granularity="entry"):
+                if any(resolution.get(topic, topic) == canonical for topic in chunk.topics):
+                    entries.append(
+                        {
+                            "entry_id": chunk.entry_id,
+                            "title": chunk.title,
+                            "session_date": chunk.session_date.isoformat(),
+                            "source": chunk.source_path,
+                            "topics": list(chunk.topics),
+                        }
+                    )
+        return {
+            "requested": requested,
+            "found": record is not None,
+            "canonical": canonical,
+            "topic": _topic_record_to_dict(record) if record else None,
+            "matching_names": matching_names,
+            "usage_count": len(entries),
+            "entries": entries,
+            "write_surface": "Read-only. Use CLI/project file edits with user approval to change topics.yaml.",
+        }
+
+    if name == "memory_topics_check":
+        from .topics import check_topics
+
+        result = check_topics(args.get("cwd", "."))
+        return {
+            "ok": result.ok,
+            "topics_defined": result.topics_defined,
+            "entries_checked": result.entries_checked,
+            "issues": [
+                {
+                    "severity": issue.severity,
+                    "kind": issue.kind,
+                    "detail": issue.detail,
+                    "source": issue.source,
+                }
+                for issue in result.issues
+            ],
+            "write_surface": "Read-only. Use CLI/project file edits with user approval to change topics.yaml.",
+        }
+
     if name == "memory_session_target":
         root = Path(args.get("cwd", ".")).resolve()
         target = session_target(
@@ -477,6 +578,16 @@ def _optional_date(arguments: dict[str, Any], key: str) -> date | None:
         return date.fromisoformat(value.strip())
     except ValueError as exc:
         raise ValueError(f"Invalid {key}; expected YYYY-MM-DD") from exc
+
+
+def _topic_record_to_dict(record: Any) -> dict[str, Any]:
+    return {
+        "slug": record.slug,
+        "label": record.label,
+        "description": record.description,
+        "status": record.status,
+        "aliases": list(record.aliases),
+    }
 
 
 def _result(message_id: Any, result: dict[str, Any]) -> dict[str, Any]:
