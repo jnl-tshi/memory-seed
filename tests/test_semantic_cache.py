@@ -8,8 +8,10 @@ from pathlib import Path
 
 from memory_seed.semantic_cache import (
     SUPERSEDED_IMPORTANCE_DAMPING,
+    SUPERSEDED_RANK_DAMPING,
     MemoryChunk,
     build_related_entry_graph,
+    evolves_lineage_heads,
     extract_memory_chunks,
     rank_memory_chunks,
     rank_session_memory,
@@ -796,6 +798,89 @@ class EvolutionEdgeTests(unittest.TestCase):
         self.assertEqual(len(blocks), 2)
         self.assertEqual((blocks[0].kind, blocks[0].from_ref, blocks[0].to_ref), ("rename", "old/path.py", "new/path.py"))
         self.assertEqual((blocks[1].kind, blocks[1].from_ref, blocks[1].to_ref), ("removal", "old-command", None))
+
+
+class SupersessionRankDampingTests(unittest.TestCase):
+    """Primitive-level guardrails for the default-off supersession rank-dampener
+    (freshness-aware-memory-ranking-proposal.md item 1) and the evolves
+    successor-surfacing helper (item 2)."""
+
+    def make_project(self):
+        path = Path(tempfile.mkdtemp(prefix="memory-seed-damp-test-"))
+        self.addCleanup(lambda: shutil.rmtree(path, ignore_errors=True))
+        return path
+
+    def write_day(self, cwd, *entries):
+        sessions = cwd / ".memory-seed" / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / "2026-05-10.md").write_text(
+            "# Session Log\n\n" + "\n".join(entries), encoding="utf-8"
+        )
+
+    def test_rank_memory_chunks_damps_only_superseded_ids(self):
+        cwd = self.make_project()
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 09:00 - Retired", "ms-old00000", "shared ranking topic."),
+            _entry("2026-05-10 10:00 - Live", "ms-new00000", "shared ranking topic."),
+        )
+        chunks = extract_memory_chunks(cwd, granularity="entry")
+        today = date(2026, 5, 10)  # both age 0 -> recency identical, isolates the damper
+
+        baseline = {r.chunk.entry_id: r.final_score for r in rank_memory_chunks("ranking", chunks, today=today)}
+        damped = {
+            r.chunk.entry_id: r.final_score
+            for r in rank_memory_chunks("ranking", chunks, today=today, superseded_ids={"ms-old00000"})
+        }
+        # The live entry is untouched; the superseded one is scaled by the damper.
+        self.assertEqual(damped["ms-new00000"], baseline["ms-new00000"])
+        self.assertAlmostEqual(damped["ms-old00000"], baseline["ms-old00000"] * SUPERSEDED_RANK_DAMPING)
+        # Default (no superseded_ids) leaves every score byte-for-byte identical.
+        default = {r.chunk.entry_id: r.final_score for r in rank_memory_chunks("ranking", chunks, today=today)}
+        self.assertEqual(default, baseline)
+
+    def test_rank_session_memory_supersession_damping_flag(self):
+        cwd = self.make_project()
+        # Newer entry supersedes the older one; both match the query.
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 09:00 - Retired decision", "ms-old00000", "cache eviction ranking."),
+            _entry(
+                "2026-05-10 10:00 - Live decision",
+                "ms-new00000",
+                "cache eviction ranking.",
+                supersedes=["ms-old00000"],
+            ),
+        )
+        today = date(2026, 5, 10)
+        off = {r.chunk.entry_id: r.final_score for r in rank_session_memory("ranking", cwd, today=today)}
+        on = {
+            r.chunk.entry_id: r.final_score
+            for r in rank_session_memory("ranking", cwd, today=today, supersession_damping=True)
+        }
+        # Default off is unchanged; opting in damps only the superseded entry.
+        self.assertEqual(on["ms-new00000"], off["ms-new00000"])
+        self.assertAlmostEqual(on["ms-old00000"], off["ms-old00000"] * SUPERSEDED_RANK_DAMPING)
+        # Down-rank only: the superseded entry is still returned, never dropped
+        # (that stays exclude_superseded).
+        self.assertIn("ms-old00000", on)
+
+    def test_evolves_lineage_heads_follows_chain_to_head(self):
+        cwd = self.make_project()
+        # C evolves B, B evolves A. A/B are valid; C is the head of the lineage.
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 09:00 - Base A", "ms-a0000000", "base decision."),
+            _entry("2026-05-10 10:00 - Refined B", "ms-b0000000", "refined.", evolves=["ms-a0000000"]),
+            _entry("2026-05-10 11:00 - Final C", "ms-c0000000", "final.", evolves=["ms-b0000000"]),
+        )
+        graph = build_related_entry_graph(cwd)
+        # Base and middle resolve transitively to the head; the head resolves to
+        # nothing further; an unknown id is empty.
+        self.assertEqual(evolves_lineage_heads(graph, "ms-a0000000"), ("ms-c0000000",))
+        self.assertEqual(evolves_lineage_heads(graph, "ms-b0000000"), ("ms-c0000000",))
+        self.assertEqual(evolves_lineage_heads(graph, "ms-c0000000"), ())
+        self.assertEqual(evolves_lineage_heads(graph, "ms-missing0"), ())
 
 
 class FileOverlapSuggestTests(unittest.TestCase):

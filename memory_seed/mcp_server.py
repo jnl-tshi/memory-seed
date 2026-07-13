@@ -75,6 +75,11 @@ TOOLS: list[dict[str, Any]] = [
                     "default": False,
                     "description": "Opt-in: drop entries that a later decision has superseded (non-empty superseded_by). Off by default - superseded entries stay retrievable.",
                 },
+                "supersession_damping": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "Opt-in: down-rank (not drop) entries a later decision superseded, so a live replacement out-ranks the decision it retires. Draws superseded_by from the sidecar-augmented graph. Off by default - order is unchanged and the superseded entry stays retrievable.",
+                },
                 "topics": {
                     "type": "array",
                     "items": {"type": "string"},
@@ -258,6 +263,7 @@ def call_tool(
             date_from=_optional_date(args, "date_from"),
             date_to=_optional_date(args, "date_to"),
             exclude_superseded=bool(args.get("exclude_superseded", False)),
+            supersession_damping=bool(args.get("supersession_damping", False)),
             topics=list(args.get("topics") or []) or None,
         )
 
