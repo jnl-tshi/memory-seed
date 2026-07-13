@@ -31,6 +31,7 @@ from memory_seed.semantic_cache import (
     extract_memory_chunks,
     rank_memory_chunks,
 )
+from memory_seed.topics import expand_topic_filter
 
 
 ZOOMS = {"day": 24, "12h": 12, "6h": 6, "3h": 3}
@@ -377,6 +378,7 @@ class LenseService:
                 date_from=date_from,
                 date_to=date_to,
                 topic=topic,
+                cwd=self.cache.cwd,
             )
             ranked_pool = rank_memory_chunks(query, pool, top_k=len(pool), embedding_provider=None)
             rollups = rollup_entry_matches(ranked_pool)
@@ -395,7 +397,9 @@ class LenseService:
                 "results": [_rollup_to_api(rollup) for rollup in page_rollups],
             }
         chunks = self.cache.chunks(granularity=None if granularity == "all" else granularity)
-        chunks = _filter_chunks(chunks, agent=agent, user=user, date_from=date_from, date_to=date_to, topic=topic)
+        chunks = _filter_chunks(
+            chunks, agent=agent, user=user, date_from=date_from, date_to=date_to, topic=topic, cwd=self.cache.cwd
+        )
         if query:
             ranked = rank_memory_chunks(query, chunks, top_k=len(chunks), embedding_provider=None)
         else:
@@ -508,6 +512,7 @@ class LenseService:
             date_from=date_from,
             date_to=date_to,
             topic=topic,
+            cwd=self.cache.cwd,
         )
         if entries:
             start_day = _parse_date(date_from) or min(chunk.session_date for chunk in entries)
@@ -547,7 +552,9 @@ class LenseService:
             raise ValueError("granularity must be entry or all")
         granularity = "entry"
         entries = self.cache.chunks(granularity="entry")
-        entries = _filter_chunks(entries, agent=agent, user=user, date_from=date_from, date_to=date_to, topic=topic)
+        entries = _filter_chunks(
+            entries, agent=agent, user=user, date_from=date_from, date_to=date_to, topic=topic, cwd=self.cache.cwd
+        )
         # Fold in late-authored lifecycle edges before edges/nodes are built,
         # using the per-worktree path so the switcher reads each branch's own
         # link sidecars. Read at request time (not cached) so sidecar edits are
@@ -1346,9 +1353,21 @@ def _filter_chunks(
     date_from: str | None = None,
     date_to: str | None = None,
     topic: str | None = None,
+    cwd: str | Path | None = None,
 ) -> list[MemoryChunk]:
     start = _parse_date(date_from)
     end = _parse_date(date_to)
+    # Vocabulary-aware topic filter (topic-neighbourhoods plan Phase 4): expand
+    # the requested slug to its canonical form plus every alias from
+    # topics.yaml, so filtering by a canonical topic matches entries that stored
+    # an alias and vice versa - the same expansion the core retrieval/MCP paths
+    # use. Fail-open: an unknown name (a derived hashtag on an old entry, or a
+    # project with no topics.yaml) passes through as an exact-match set, so
+    # pre-vocabulary filtering is unchanged.
+    if topic:
+        topic_match = expand_topic_filter(cwd, [topic]) if cwd is not None else {topic}
+    else:
+        topic_match = None
     return [
         chunk
         for chunk in chunks
@@ -1356,7 +1375,7 @@ def _filter_chunks(
         and (not user or chunk.user == user)
         and (start is None or chunk.session_date >= start)
         and (end is None or chunk.session_date <= end)
-        and (not topic or topic in _topics(chunk))
+        and (topic_match is None or bool(topic_match & set(_topics(chunk))))
     ]
 
 
@@ -1594,7 +1613,18 @@ def _chunk_datetime(chunk: MemoryChunk) -> datetime:
 
 
 def _topics(chunk: MemoryChunk) -> list[str]:
-    return sorted(set(chunk.topics) | set(chunk.tags) | set(chunk.contexts))
+    """Effective display topics for an entry (topic-neighbourhoods plan Phase 4).
+
+    Prefer the authored controlled-vocabulary ``topics:`` field; fall back to the
+    hashtag/heading-derived axes (``tags`` | ``contexts``) only for entries that
+    predate the indexed field. The two are never mixed - an entry carrying any
+    authored topic shows exactly its authored slugs, so the facet, chips, topic
+    chains, and filter all speak the controlled vocabulary once an entry adopts
+    it. This single chokepoint feeds facets, nodes, chunk payloads, topic edge
+    chains, and the topic filter."""
+    if chunk.topics:
+        return sorted(set(chunk.topics))
+    return sorted(set(chunk.tags) | set(chunk.contexts))
 
 
 def _parse_date(value: str | None) -> date | None:

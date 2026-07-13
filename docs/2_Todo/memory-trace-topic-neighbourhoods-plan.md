@@ -197,9 +197,17 @@ topics:
 
 ### Phase 4 - MCP And Memory Trace
 
-- Add MCP topic tools only after CLI validation semantics are stable.
-- Make Memory Trace prefer indexed topics when present and fall back to current tag/context display
-  topics otherwise.
+- Add MCP topic tools only after CLI validation semantics are stable. **(MCP half - paired Codex
+  run; not yet landed.)**
+- **IMPLEMENTED (Trace half, unreleased):** Memory Trace now prefers indexed topics when present and
+  falls back to current tag/context display topics otherwise. A single `_topics()` chokepoint in
+  `lense.py` returns the authored `topics:` slugs for entries that carry them, never mixing in
+  hashtags/contexts; the fallback covers pre-vocabulary entries. That effective set feeds the topics
+  facet, the reader's clickable topic chips (`readerTopics`, `.topic-chip`), the graph's `topic`
+  chronological chains (already chained via `chain()`, no full-mesh), and the topic filter. The
+  filter is alias-expanded through `topics.yaml` via `expand_topic_filter` (fail-open), so filtering
+  by a canonical slug matches alias-stored entries and vice versa. The change is inherited by
+  `/api/v1` automatically (shared service; topics field already on the models).
 - Render topic neighbourhoods as chronological chains in graph/trail views.
 - Follow the Trail/search/graph UX boundary in
   [`../3_Spec/memory-trace-trail-search-and-graph-ux.md`](../3_Spec/memory-trace-trail-search-and-graph-ux.md):

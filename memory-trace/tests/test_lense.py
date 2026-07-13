@@ -353,6 +353,57 @@ class LenseServiceTests(unittest.TestCase):
         page = service.search(q="", topic="retrieval", granularity="entry")
         self.assertEqual({item["entry_id"] for item in page["results"]}, {"mse_topical"})
 
+    def test_indexed_topics_preferred_over_derived_tags(self):
+        # topics P4: an entry carrying authored `topics:` shows exactly those in
+        # the facet and node - its inline #hashtags no longer leak in. An entry
+        # with no authored topics still falls back to hashtag/context derivation.
+        self.write_session(
+            "2026-06-20.md",
+            _entry("2026-06-20 09:00 - Authored", "mse_auth",
+                   "Body carrying a #legacyhash inline tag.", topics=["retrieval"])
+            + _entry("2026-06-20 10:00 - Derived", "mse_deriv",
+                     "Body carrying only a #fallbackhash inline tag."),
+        )
+        service = self.service()
+
+        facets = service.facets()
+        self.assertIn("retrieval", facets["topics"])       # authored slug surfaces
+        self.assertNotIn("legacyhash", facets["topics"])   # its hashtag is suppressed
+        self.assertIn("fallbackhash", facets["topics"])    # old-style entry keeps the fallback
+
+        graph = service.graph(granularity="entry", limit=50)
+        by_id = {node["entry_id"]: node for node in graph["nodes"]}
+        self.assertEqual(by_id["mse_auth"]["topics"], ["retrieval"])
+        self.assertEqual(by_id["mse_deriv"]["topics"], ["fallbackhash"])
+
+    def test_topic_filter_is_vocabulary_aware(self):
+        # topics P4: filtering by a canonical slug matches entries that stored an
+        # alias of it and vice versa - the Trace filter now expands through
+        # topics.yaml the way the core retrieval path does. Date-scoped to the
+        # test entries so setUp's #graph-derived entries don't confound it.
+        (self.cwd / ".memory-seed").mkdir(parents=True, exist_ok=True)
+        (self.cwd / ".memory-seed" / "topics.yaml").write_text(
+            "schema_version: 1\ntopics:\n  - slug: graph\n    aliases: [related-entries, supersession]\n",
+            encoding="utf-8",
+        )
+        self.write_session(
+            "2026-06-21.md",
+            _entry("2026-06-21 09:00 - Canonical", "mse_canon", "Body.", topics=["graph"])
+            + _entry("2026-06-21 10:00 - Alias", "mse_alias", "Body.", topics=["related-entries"])
+            + _entry("2026-06-21 11:00 - Unrelated", "mse_other", "Body.", topics=["retrieval"]),
+        )
+        service = self.service()
+
+        # Filter by the canonical slug -> canonical AND alias-stored entries.
+        by_canon = service.timeline(date_from="2026-06-21", date_to="2026-06-21", topic="graph")
+        self.assertEqual({item["entry_id"] for item in by_canon["stream"]}, {"mse_canon", "mse_alias"})
+
+        # Filter by the alias -> resolves to the same canonical match set.
+        by_alias = service.graph(
+            granularity="entry", topic="related-entries", date_from="2026-06-21", date_to="2026-06-21", limit=50
+        )
+        self.assertEqual({node["entry_id"] for node in by_alias["nodes"]}, {"mse_canon", "mse_alias"})
+
     def test_chunk_reports_commit_and_batch_siblings(self):
         # Commit packaging: each entry maps to the oldest commit whose diff
         # added it, so main-era work with no immediate commit rides "the next

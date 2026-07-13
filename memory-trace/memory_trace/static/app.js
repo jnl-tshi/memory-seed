@@ -1028,6 +1028,24 @@ function trailView() {
     </div>`;
 }
 
+// Reader topic chips (topic-neighbourhoods plan Phase 4). Sourced from the
+// entry's effective topics: authored controlled-vocabulary `topics:` when
+// present, else the derived tag/context fallback for pre-vocabulary entries
+// (the backend `_topics()` prefers indexed and never mixes the two). Each chip
+// reuses the sidebar's `data-topic` handler, so clicking filters the timeline
+// by that topic.
+function readerTopics(selected) {
+  const topics = selected.topics || [];
+  if (!topics.length) return "";
+  const chips = topics
+    .map(
+      (topic) =>
+        `<button type="button" class="chip topic-chip ${state.topic === topic ? "active" : ""}" data-topic="${escAttr(topic)}">#${esc(topic)}</button>`,
+    )
+    .join("");
+  return `<div class="chip-list topic-chips">${chips}</div>`;
+}
+
 function rightPane() {
   const selected = state.selected;
   if (!selected) return `<div class="empty">Select a memory to inspect details.</div>`;
@@ -1043,6 +1061,7 @@ function rightPane() {
     </div>
     <section class="detail-section">
       <h4>Entry${matchNote(selected)}</h4>
+      ${readerTopics(selected)}
       <div class="chip-list">${(selected.sections || []).map((section) => `<span class="chip">${esc(section)}</span>`).join("")}</div>
       <div class="markdown">${markdown(selected.text || "")}</div>
     </section>
