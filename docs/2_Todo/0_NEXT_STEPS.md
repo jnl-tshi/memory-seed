@@ -42,8 +42,6 @@ fixed - `session merge-branch` unblocked); `memory-seed esr` preflight; automati
 trailers via the seeded `prepare-commit-msg` hook (+ `hooks install`, init default-on); serve-time
 asset versioning + `--static-root`; browserless Trail golden-fixture regeneration. Follow-ups
 carried forward:
-MCP-graph sidecar-edge parity (stated scope boundary in
-[`../3_Spec/lifecycle-edge-linking-sidecars.md`](../3_Spec/lifecycle-edge-linking-sidecars.md));
 historical lifecycle-edge backfill (declined 2026-07-12, revisitable now the sweep exists).
 
 **Deferred out of this run:** `session-decision-diagrams-plan.md` Phase 3 export packs;
@@ -51,11 +49,8 @@ historical lifecycle-edge backfill (declined 2026-07-12, revisitable now the swe
 historical curation writers (boundary with the seeding pass reconciled 2026-07-10 - typed
 lifecycle history via seeding, untyped `related_entries` backfill via P2);
 `memory-trace-ai-timeline-summarisation-plan.md`; `fontjoy-typography-pairing.md` (rides the next
-Trace UI pass); the Trace lineage pass (evolves edges + continuity chains in Trail); topics plan
-Phase 4 (Trace indexed-topic rendering + MCP topic tools);
-[`residual-fuse-non-utf8-silent-skip.md`](residual-fuse-non-utf8-silent-skip.md) (small fix,
-promoted from inbox 2026-07-10: fuse should block naming a non-UTF-8 file instead of silently
-skipping it); README screenshot captures to replace the S6 placeholders; decision-diagram
+Trace UI pass); the Trace lineage pass (evolves edges + continuity chains in Trail);
+README screenshot captures to replace the S6 placeholders; decision-diagram
 sidecar integration into Memory Trace views beyond the reader (deferred 2026-07-11 at user
 direction - sidecars render only in the reader's "Decision diagrams" section today; candidate
 shapes are a diagram indicator on Trail rows / Graph nodes, inline Trail expansion, or a

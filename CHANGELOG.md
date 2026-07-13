@@ -34,6 +34,9 @@ All notable changes to Memory Seed are summarized here.
   project topic index, resolve canonical slugs/aliases with entry usage, and mirror
   `memory-seed topics check` validation without gaining a write surface for project-curated
   `.memory-seed/topics.yaml`.
+- `session fuse` now blocks changed branch session/diagram files that cannot decode as UTF-8,
+  naming the offending path instead of silently skipping it. Base-side decode failures remain
+  non-blocking for already-present and sidecar-parent lookup degradation.
 - Memory Trace surfaces authored Class-2 decision-diagram sidecars in the Trail and Graph views, not
   just the reader (session-decision-diagrams plan; user-chosen "badge + popover" design). A small
   diamond badge marks Trail rows and Graph nodes whose entry carries a sidecar, driven by a new cheap

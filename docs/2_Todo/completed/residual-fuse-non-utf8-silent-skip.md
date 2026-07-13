@@ -1,8 +1,7 @@
-> Status: OPEN small fix (promoted from inbox 2026-07-10 during the goal-run docs pass).
-> Verified still present: `_git_show_text` returns None on a non-UTF-8 blob and the fuse
-> record walkers `continue` past it silently. Low severity (UTF-8 write policy +
-> `encoding check` guard the corpus); fix shape: surface a blocking issue naming the file
-> instead of skipping. Listed under deferred small fixes in `0_NEXT_STEPS.md`.
+> Status: COMPLETED 2026-07-13. `_git_show_text` now distinguishes missing blobs from UTF-8
+> decode failures, and `session fuse` blocks branch-delta session/diagram files with an explicit
+> `could not decode <path> as UTF-8` issue instead of silently omitting them. Base-side decode
+> failures remain non-blocking for already-present/parent lookup degradation.
 
 # Residual: `session fuse` silently skips a non-UTF-8 branch file
 

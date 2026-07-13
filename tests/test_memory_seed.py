@@ -2301,6 +2301,25 @@ class MemorySeedTests(unittest.TestCase):
         grouped = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-11.md"
         self.assertIn(non_ascii_body, grouped.read_text(encoding="utf-8"))
 
+    def test_session_fuse_blocks_non_utf8_branch_session_file(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-fuse")
+        bad = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07-11.md"
+        bad.parent.mkdir(parents=True, exist_ok=True)
+        bad.write_bytes(b"## 2026-07-11 09:00 - Bad bytes\n\n```yaml\nentry_id: mse_badbadbadbadbad\nbranch: feature-fuse\n```\n\n\xff\n")
+        self._commit_all(cwd, "invalid utf8 session")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="feature-fuse")
+
+        self.assertFalse(result.changed)
+        self.assertEqual(result.planned_entries, [])
+        self.assertTrue(result.issues)
+        self.assertIn("could not decode .memory-seed/sessions/2026-07-11.md as UTF-8", result.issues)
+
     def test_session_fuse_blocks_when_diff_fails(self):
         # Regression: a git diff failure (e.g. unrelated histories / no merge-base) must surface an
         # issue, not collapse to an empty change set that silently filters out every branch entry
