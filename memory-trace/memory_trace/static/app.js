@@ -1005,8 +1005,78 @@ function trailView() {
     const hi = Math.max(rowA, rowB);
     return items.slice(lo + 1, hi).every((item) => item.kind !== "node");
   };
+  // Edge-type precedence: when one entry pair carries more than one lifecycle
+  // edge, render only the highest-information one - replaces > evolves >
+  // related - so a pair that both evolves and relates shows the evolves (it
+  // tells you the most), never a weaker duplicate beside it.
+  const EDGE_INFO_RANK = { supersedes: 3, evolves: 2, related: 1 };
+  const pairKey = (a, b) => (a < b ? `${a}${b}` : `${b}${a}`);
+  const strongestByPair = new Map();
+  lifecycle.forEach((edge) => {
+    const cur = strongestByPair.get(pairKey(edge.source, edge.target));
+    if (!cur || EDGE_INFO_RANK[edge.type] > EDGE_INFO_RANK[cur.type]) {
+      strongestByPair.set(pairKey(edge.source, edge.target), edge);
+    }
+  });
+  const winsPair = (edge) => strongestByPair.get(pairKey(edge.source, edge.target)) === edge;
+  // Daisy-chained evolves within one lane become a single continuous bracket
+  // beside the dots - the grouping the chain actually is - instead of a run of
+  // little out-and-back hops that add no information the proximity doesn't. An
+  // evolves edge brackets when it wins its pair, its rows are adjacent, and
+  // both sit in the same lane; union such edges into maximal chains.
+  const sameLane = (a, b) => (items[rowOf.get(a)].node.branch || "") === (items[rowOf.get(b)].node.branch || "");
+  const bracketEvolves = lifecycle.filter(
+    (edge) =>
+      edge.type === "evolves" &&
+      winsPair(edge) &&
+      adjacentRows(rowOf.get(edge.source), rowOf.get(edge.target)) &&
+      sameLane(edge.source, edge.target)
+  );
+  const bracketedEvolves = new Set(bracketEvolves);
+  const chainParent = new Map();
+  const chainFind = (x) => {
+    while (chainParent.get(x) !== x) {
+      chainParent.set(x, chainParent.get(chainParent.get(x)));
+      x = chainParent.get(x);
+    }
+    return x;
+  };
+  bracketEvolves.forEach((edge) => {
+    const ra = rowOf.get(edge.source);
+    const rb = rowOf.get(edge.target);
+    if (!chainParent.has(ra)) chainParent.set(ra, ra);
+    if (!chainParent.has(rb)) chainParent.set(rb, rb);
+    chainParent.set(chainFind(ra), chainFind(rb));
+  });
+  const chainRows = new Map();
+  [...chainParent.keys()].forEach((row) => {
+    const root = chainFind(row);
+    if (!chainRows.has(root)) chainRows.set(root, []);
+    chainRows.get(root).push(row);
+  });
+  const EVOLVES_BRACKET_DX = 9;
+  const EVOLVES_BRACKET_TICK = 5;
+  const evolvesBrackets = [...chainRows.values()].map((rowsIn) => {
+    const rowsSorted = rowsIn.slice().sort((a, b) => a - b);
+    const branch = items[rowsSorted[0]].node.branch || "";
+    const x = laneX(branch) - EVOLVES_BRACKET_DX;
+    const top = rowY(rowsSorted[0]);
+    const bot = rowY(rowsSorted[rowsSorted.length - 1]);
+    const touched = focusActive && rowsSorted.some((r) => items[r].node.entry_id === selectedEntry);
+    const stroke = touched ? edgeColor("evolves") : "var(--edge-evolves-soft)";
+    const opacity = touched ? 0.95 : focusActive ? 0.5 : 0.9;
+    const labels = rowsSorted.map((r) => trailTitle(items[r].node));
+    const tip = `<title>evolves chain (${rowsSorted.length}): ${esc(labels.join(" ← "))}</title>`;
+    const t = EVOLVES_BRACKET_TICK;
+    const d = `M ${x + t} ${top} L ${x} ${top} L ${x} ${bot} L ${x + t} ${bot}`;
+    return `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${touched ? 2.6 : 2}" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="${opacity}">${tip}</path>`;
+  });
   const arcs = lifecycle.flatMap((edge) => {
     const touched = focusActive && (edge.source === selectedEntry || edge.target === selectedEntry);
+    // Precedence: drop any edge that isn't the strongest signal for its pair.
+    if (!winsPair(edge)) return [];
+    // Adjacent same-lane evolves are drawn as a chain bracket above, not here.
+    if (bracketedEvolves.has(edge)) return [];
     if (edge.type === "related" && !touched) return [];
     const sourceItem = items[rowOf.get(edge.source)];
     const targetItem = items[rowOf.get(edge.target)];
@@ -1029,7 +1099,7 @@ function trailView() {
     // same-branch related context: an adjacent lifecycle edge renders as a
     // short direct hop beside the dots, and the routed lanes are reserved for
     // edges that actually span distance.
-    if (edge.type !== "related" && adjacentRows(rowOf.get(edge.source), rowOf.get(edge.target))) {
+    if (edge.type === "supersedes" && adjacentRows(rowOf.get(edge.source), rowOf.get(edge.target))) {
       const bow = 11;
       const path = `M ${sx} ${sy} C ${sx - bow} ${sy + (ty - sy) * 0.3}, ${tx - bow} ${ty - (ty - sy) * 0.3}, ${tx} ${ty}`;
       return [`<path d="${path}" fill="none" stroke="${stroke}" stroke-width="${touched ? 2.6 : 2}" stroke-dasharray="${TRAIL_DASH[edge.type]}" stroke-opacity="${opacity}" marker-end="url(#${marker})">${tip}</path>`];
@@ -1098,6 +1168,7 @@ function trailView() {
           ${phantomTrunk}
           ${connectors.join("")}
           ${laneSegments.join("")}
+          ${evolvesBrackets.join("")}
           ${arcs.join("")}
           ${dots.join("")}
           ${mergeDots.join("")}
