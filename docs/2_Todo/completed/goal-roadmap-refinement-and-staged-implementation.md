@@ -4,7 +4,7 @@
 > v2.17.0 release. Stage-to-merge-commit map: `0_NEXT_STEPS.md`.
 
 ---
-memory-system-version: 2.17
+memory-system-version: 2.18
 tags:
   - memory-seed
   - goal
