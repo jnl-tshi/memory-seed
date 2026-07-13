@@ -29,6 +29,14 @@ MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
 LOCAL_CONFIG_IGNORE_ENTRY = ".memory-seed/local.yaml"
+DEFAULT_WORKTREE_NAMESPACES = {
+    "codex": ".codex/worktrees",
+    "claude": ".claude/worktrees",
+    "gemini": ".gemini/worktrees",
+    "cursor": ".cursor/worktrees",
+}
+DEFAULT_ROOT_WRITE_POLICY = "explicit-override"
+DEFAULT_UNMANAGED_WRITE_POLICY = "warn"
 
 # Entry-point "routing" files share their names with files other tools own
 # (HyperFrames also uses AGENTS.md/CLAUDE.md). When one of these already exists
@@ -109,6 +117,56 @@ class BranchStatus:
             "recent_merge_commit": self.recent_merge_commit,
             "warnings": list(self.warnings),
             "recommendation": self.recommendation,
+            "worktree_guard_command": "memory-seed worktree guard --agent <agent> --write-intent",
+        }
+
+
+@dataclass(frozen=True)
+class WorktreeGuardConfig:
+    root_write_policy: str
+    unmanaged_write_policy: str
+    namespaces: dict[str, str]
+
+
+@dataclass(frozen=True)
+class WorktreeGuardStatus:
+    ok: bool
+    severity: str
+    agent_type: str | None
+    classification: str
+    safe_to_write: bool
+    write_intent: bool
+    current_branch: str | None
+    head: str | None
+    dirty: bool | None
+    worktree_path: str | None
+    repo_root: str | None
+    expected_namespace: str | None
+    actual_namespace_owner: str | None
+    root_write_policy: str
+    unmanaged_write_policy: str
+    recommended_next_action: str
+    warnings: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict:
+        return {
+            "ok": self.ok,
+            "severity": self.severity,
+            "agent_type": self.agent_type,
+            "classification": self.classification,
+            "safe_to_write": self.safe_to_write,
+            "write_intent": self.write_intent,
+            "current_branch": self.current_branch,
+            "head": self.head,
+            "dirty": self.dirty,
+            "worktree_path": self.worktree_path,
+            "repo_root": self.repo_root,
+            "expected_namespace": self.expected_namespace,
+            "actual_namespace_owner": self.actual_namespace_owner,
+            "root_write_policy": self.root_write_policy,
+            "unmanaged_write_policy": self.unmanaged_write_policy,
+            "recommended_next_action": self.recommended_next_action,
+            "warnings": list(self.warnings),
         }
 
 
@@ -842,6 +900,211 @@ def branch_status(cwd: str | Path = ".") -> BranchStatus:
         recent_merge_commit=merge_commit,
         warnings=tuple(warnings),
         recommendation=recommendation,
+    )
+
+
+def _casefold_parts(path: Path) -> tuple[str, ...]:
+    return tuple(part.casefold() for part in path.resolve().parts)
+
+
+def _is_relative_to_casefold(child: Path, parent: Path) -> bool:
+    child_parts = _casefold_parts(child)
+    parent_parts = _casefold_parts(parent)
+    return len(child_parts) >= len(parent_parts) and child_parts[: len(parent_parts)] == parent_parts
+
+
+def _parse_worktree_list(porcelain: str) -> list[dict[str, str]]:
+    items: list[dict[str, str]] = []
+    current: dict[str, str] | None = None
+    for raw in porcelain.splitlines():
+        if raw.startswith("worktree "):
+            if current:
+                items.append(current)
+            current = {"path": raw[len("worktree "):].strip()}
+            continue
+        if current is None or " " not in raw:
+            continue
+        key, value = raw.split(" ", 1)
+        current[key] = value.strip()
+    if current:
+        items.append(current)
+    return items
+
+
+def _namespace_owner(repo_root: Path, worktree_path: Path, namespaces: dict[str, str]) -> str | None:
+    for owner, namespace in sorted(namespaces.items()):
+        namespace_root = repo_root / namespace
+        if _is_relative_to_casefold(worktree_path, namespace_root):
+            return owner
+    return None
+
+
+def _worktree_guard_config_for(root: Path) -> WorktreeGuardConfig:
+    namespaces = dict(DEFAULT_WORKTREE_NAMESPACES)
+    root_write_policy = DEFAULT_ROOT_WRITE_POLICY
+    unmanaged_write_policy = DEFAULT_UNMANAGED_WRITE_POLICY
+    path = _project_config_path(root)
+    if not path.exists():
+        return WorktreeGuardConfig(root_write_policy, unmanaged_write_policy, namespaces)
+    try:
+        text = read_text_file(path)
+    except OSError:
+        return WorktreeGuardConfig(root_write_policy, unmanaged_write_policy, namespaces)
+
+    block = _extract_yaml_block(text, "worktrees")
+    if block is None:
+        return WorktreeGuardConfig(root_write_policy, unmanaged_write_policy, namespaces)
+
+    in_namespaces = False
+    for raw in block.splitlines()[1:]:
+        line = raw.rstrip()
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        key_match = re.match(r"^\s+([A-Za-z_][A-Za-z0-9_-]*)\s*:\s*(.*?)\s*$", line)
+        if not key_match:
+            continue
+        key = key_match.group(1)
+        value = key_match.group(2).strip().strip("'\"")
+        if indent == 2 and key == "namespaces":
+            in_namespaces = True
+            continue
+        if indent == 2 and key in {"root_write_policy", "unmanaged_write_policy"}:
+            in_namespaces = False
+            if key == "root_write_policy" and value:
+                root_write_policy = value
+            elif key == "unmanaged_write_policy" and value:
+                unmanaged_write_policy = value
+            continue
+        if indent >= 4 and in_namespaces and value:
+            namespaces[key.lower()] = value.replace("\\", "/").strip("/")
+    return WorktreeGuardConfig(root_write_policy, unmanaged_write_policy, namespaces)
+
+
+def worktree_guard(
+    cwd: str | Path = ".",
+    *,
+    agent_type: str | None = None,
+    write_intent: bool = False,
+    allow_root_write: bool = False,
+) -> WorktreeGuardStatus:
+    """Classify whether the current Git worktree belongs to the calling agent.
+
+    This is deliberately read-only. It never creates, moves, deletes, or switches
+    worktrees; callers use the structured result to decide whether writing is
+    appropriate.
+    """
+    root = Path(cwd).resolve()
+    code, top = _git_text(root, ("rev-parse", "--show-toplevel"))
+    normalized_agent = agent_type.strip().lower() if agent_type else None
+    config = _worktree_guard_config_for(resolve_runtime(root).workspace_root)
+    expected_namespace = config.namespaces.get(normalized_agent or "") if normalized_agent else None
+    if code != 0 or not top:
+        ok = not write_intent
+        return WorktreeGuardStatus(
+            ok=ok,
+            severity="block" if write_intent else "warning",
+            agent_type=normalized_agent,
+            classification="not-a-worktree",
+            safe_to_write=False,
+            write_intent=write_intent,
+            current_branch=None,
+            head=None,
+            dirty=None,
+            worktree_path=None,
+            repo_root=None,
+            expected_namespace=expected_namespace,
+            actual_namespace_owner=None,
+            root_write_policy=config.root_write_policy,
+            unmanaged_write_policy=config.unmanaged_write_policy,
+            recommended_next_action=(
+                "Move into the repository worktree assigned to this agent before editing."
+                if write_intent
+                else "Git worktree posture is unavailable from this path."
+            ),
+            warnings=("Current path is not inside a Git worktree.",),
+        )
+
+    worktree_path = Path(top).resolve()
+    code, worktree_out = _git_text(worktree_path, ("worktree", "list", "--porcelain"))
+    worktrees = _parse_worktree_list(worktree_out) if code == 0 else []
+    repo_root = Path(worktrees[0]["path"]).resolve() if worktrees else worktree_path
+    _, branch = _git_text(worktree_path, ("branch", "--show-current"))
+    _, head = _git_text(worktree_path, ("rev-parse", "HEAD"))
+    _, status_out = _git_text(worktree_path, ("status", "--short"))
+    dirty = bool(status_out.strip())
+
+    actual_owner = _namespace_owner(repo_root, worktree_path, config.namespaces)
+    if _casefold_parts(worktree_path) == _casefold_parts(repo_root):
+        classification = "root-checkout"
+    elif actual_owner and (normalized_agent is None or actual_owner == normalized_agent):
+        classification = "owned-worktree"
+    elif actual_owner:
+        classification = "foreign-worktree"
+    else:
+        classification = "unmanaged-worktree"
+
+    warnings: list[str] = []
+    safe_to_write = True
+    severity = "ok"
+    if classification == "owned-worktree":
+        recommendation = "Current worktree matches the agent namespace; writing is allowed."
+    elif classification == "foreign-worktree":
+        safe_to_write = False
+        severity = "block"
+        warnings.append(
+            f"Current worktree belongs to '{actual_owner}', not '{normalized_agent or 'unknown'}'."
+        )
+        recommendation = f"Move to {expected_namespace or 'the configured namespace'} for this agent before editing."
+    elif classification == "root-checkout":
+        if write_intent and not allow_root_write:
+            safe_to_write = False
+            severity = "block"
+            warnings.append("Root checkout write intent requires --allow-root-write.")
+            recommendation = "Use an agent-owned task worktree, or rerun with --allow-root-write for approved root cleanup."
+        else:
+            severity = "warning" if write_intent else "ok"
+            recommendation = (
+                "Root checkout is acceptable for read-only inspection and explicit integration work."
+                if not write_intent
+                else "Root write override was provided; keep this to approved integration or cleanup work."
+            )
+    elif classification == "unmanaged-worktree":
+        policy = config.unmanaged_write_policy.lower()
+        if write_intent and policy == "block":
+            safe_to_write = False
+            severity = "block"
+            recommendation = f"Move this task into {expected_namespace or 'a configured agent namespace'} before editing."
+        else:
+            severity = "warning"
+            recommendation = (
+                f"Unmanaged worktree; expected namespace is {expected_namespace or 'not configured for this agent'}."
+            )
+        warnings.append("Current Git worktree is outside every configured agent namespace.")
+    else:
+        safe_to_write = False
+        severity = "block"
+        recommendation = "Move into a configured worktree before editing."
+
+    ok = safe_to_write if write_intent else severity != "block"
+    return WorktreeGuardStatus(
+        ok=ok,
+        severity=severity,
+        agent_type=normalized_agent,
+        classification=classification,
+        safe_to_write=safe_to_write,
+        write_intent=write_intent,
+        current_branch=branch or None,
+        head=head or None,
+        dirty=dirty,
+        worktree_path=worktree_path.as_posix(),
+        repo_root=repo_root.as_posix(),
+        expected_namespace=expected_namespace,
+        actual_namespace_owner=actual_owner,
+        root_write_policy=config.root_write_policy,
+        unmanaged_write_policy=config.unmanaged_write_policy,
+        recommended_next_action=recommendation,
+        warnings=tuple(warnings),
     )
 
 

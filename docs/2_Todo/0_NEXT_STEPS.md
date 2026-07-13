@@ -76,8 +76,8 @@ packs.
 "memory-seed[trace]"` with the `memory-trace` command. Do not plan a separate `memory-trace` PyPI
 project unless this strategy is explicitly reopened.
 
-**Agent worktree namespace guard added 2026-07-12:** the active P1 proposal is
-[`agent-worktree-namespace-guard-plan.md`](agent-worktree-namespace-guard-plan.md). It hardens the
+**Agent worktree namespace guard implemented 2026-07-13:** completed proposal
+[`agent-worktree-namespace-guard-plan.md`](completed/agent-worktree-namespace-guard-plan.md) hardens the
 multi-agent branch/worktree workflow so Codex, Claude, Gemini, Cursor, and configured third-party
 agents can verify that write work is happening inside the correct agent-owned worktree namespace
 before files are edited.
@@ -282,7 +282,7 @@ Specs:
 - [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md) (**active** - Phases 1-2 implemented in the unpushed tree; Phase 3 report/handover pack remains gated)
 - [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md) (**active** - approved 2026-07-05; controlled `link add` and explicit historical backfill for curated `related_entries`, sequenced after the lower-risk retrieval/diagram/risk-signaling work unless reprioritized)
 - [`memory-trace-topic-neighbourhoods-plan.md`](memory-trace-topic-neighbourhoods-plan.md) (**active** - clarified 2026-07-08; `topics:` becomes the normal 1-3-topic field for meaningful entries, backed by project-local `.memory-seed/topics.yaml`)
-- [`agent-worktree-namespace-guard-plan.md`](agent-worktree-namespace-guard-plan.md) (**active P1** - add CLI/MCP guardrails and collaboration-skill guidance so writing agents use their own `.codex/`, `.claude/`, `.gemini/`, or `.cursor/` worktree namespace)
+- [`completed/agent-worktree-namespace-guard-plan.md`](completed/agent-worktree-namespace-guard-plan.md) (**implemented 2026-07-13, unreleased** - CLI/MCP guardrails and collaboration-skill guidance so writing agents use their own `.codex/`, `.claude/`, `.gemini/`, or `.cursor/` worktree namespace)
 - [`readme-front-door-refresh-plan.md`](completed/readme-front-door-refresh-plan.md) (**implemented 2026-07-10** via goal-run S2 hotfix + S6 refresh; residual: real screenshots/GIFs replace the placeholders when captured, optional tail-slimming into docs/)
 - [`evolution-edges-plan.md`](evolution-edges-plan.md) (**P1 implemented 2026-07-10, unreleased** - typed `evolves`/`evolved_by` edge, append-only inverse enforcement, structured `continuity:` artifact lineage, rarity-weighted `F:` file-overlap ranking with alias bridging, and `memory_search` freshness fields all shipped with tests; remaining: the user-reviewed lineage seeding pass and the deferred Trace lineage pass)
 - [`user-interface-deep-research-report.md`](completed/user-interface-deep-research-report.md) (completed 2026-07-05 - historical research; its one live tail, the Pillar B decision, was made and split into the distribution plan above; citation artifacts scrubbed 2026-07-05)
@@ -304,9 +304,9 @@ P1 - **Low-risk guidance and graph semantics.** Failed-approaches logging, Merma
 the fanout collaboration recipe, `supersedes` P1, git commit linking P1, and ranking P1a/P1b have
 all shipped or are queued in unreleased commits.
 
-P1a - **Agent worktree namespace guard.** Active 2026-07-12. Add a pre-write guard and MCP readout
-so each writing agent can confirm it is in its own namespace before edits, while root checkout writes
-require an explicit override.
+P1a - **Agent worktree namespace guard - implemented 2026-07-13 (unreleased).** The pre-write guard
+and MCP readout let each writing agent confirm it is in its own namespace before edits, while root
+checkout writes require an explicit override.
 
 P2 - **Read-only surfacing before behavior changes.** Expose raw `inbound_relation_count`, commit
 metadata, and later `importance_score` as inspectable metadata before any default search-ranking
@@ -352,7 +352,8 @@ implementation docs live in `docs/2_Todo/completed/`; nothing from this cluster 
 1. [`git-commit-entry-linking-plan.md`](completed/git-commit-entry-linking-plan.md) - **P1 implemented
    2026-07-03 (unreleased):** the `Memory-Entry:` trailer convention, `commits:` schema field,
    git-gated `links check` validation, and read-only `memory-seed link commits` are built and
-   tested. Remaining: the deferred P2 reminder-only post-commit hook.
+   tested. The old P2 reminder-only post-commit hook is closed as obsolete because the seeded
+   `prepare-commit-msg` hook now stamps commit trailers automatically without editing session YAML.
 2. [`supersession-edges-plan.md`](completed/supersession-edges-plan.md) - **P1 fully implemented 2026-07-03/04
    (unreleased):** the typed `supersedes` edge, read-time `superseded_by` inverse, `links check`
    validation (dangling/self/postdates/cycle guard), `link show`/`memory_get_chunk` exposure, and

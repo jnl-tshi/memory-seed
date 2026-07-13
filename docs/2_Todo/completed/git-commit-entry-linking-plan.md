@@ -13,8 +13,10 @@ tags:
 > **Status: P1 IMPLEMENTED 2026-07-03 (unreleased).** The `Memory-Entry:` trailer convention
 > (Working Principles bullet), the `commits:` schema field (session_logging.md), git-gated
 > `links check` validation (malformed/unknown hashes), and read-only
-> `memory-seed link commits <entry_id>` (field + trailer-scan) are built and tested. P2
-> (reminder-only post-commit hook) remains deferred. Source: external review doc
+> `memory-seed link commits <entry_id>` (field + trailer-scan) are built and tested. The old P2
+> reminder-only post-commit hook is closed as obsolete: the later seeded `prepare-commit-msg` hook
+> stamps `Memory-Entry:` trailers automatically for staged session entries, with `hooks status` and
+> `hooks repair` covering installation drift. Source: external review doc
 > `Memory-Seed Logic Capture Improvement.md` (the "Version Control Reference" field in its
 > proposed decision schema). Companion to
 > [`related-entries-generation-plan.md`](related-entries-generation-plan.md) (same forward-edge /
@@ -105,10 +107,11 @@ historical edit and requires explicit user-requested correction.
 - **P1 (proposed first increment):** schema field + trailer convention documented in
   `agent-rules.md`/`session_logging.md`; git-presence-gated hash validation in `links check`;
   read-only `memory-seed link commits <entry_id>`.
-- **P2 (deferred):** auto-populate `commits:` on the newest entry via an optional post-commit hook.
-  Reminder-only by default (append a suggested `commits:` line agents confirm), never auto-writing
-  YAML without review - same "hooks can't reason or obtain approval" principle already applied to
-  the (deliberately unshipped) evolution-nudge hook.
+- **P2 (obsolete/closed 2026-07-13):** the proposed reminder-only post-commit hook is no longer
+  needed. The shipped `prepare-commit-msg` hook stamps commit messages with `Memory-Entry:` trailers
+  before the commit is created, so the durable commit-to-entry link exists without reopening YAML.
+  `commits:` backfill remains same-turn/newest-entry-only and explicit; the hook does not edit
+  session files.
 
 ## Open Decisions
 

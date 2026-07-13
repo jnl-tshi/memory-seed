@@ -872,6 +872,44 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertTrue(payload["status"]["is_integration_branch"])
         self.assertIn("recommendation", payload["status"])
 
+    def test_call_tool_memory_worktree_guard_reports_owned_namespace(self):
+        cwd = self.make_project()
+        (cwd / "README.md").write_text("# test\n", encoding="utf-8")
+        self.init_git_project(cwd)
+        self.commit_all(cwd, "base")
+        worktree = cwd / ".codex" / "worktrees" / "mcp-task"
+        worktree.parent.mkdir(parents=True)
+        self.git(cwd, "worktree", "add", "-q", "-b", "codex/mcp-task", str(worktree))
+
+        payload = call_tool(
+            "memory_worktree_guard",
+            {"cwd": str(worktree), "agent_type": "codex", "write_intent": True},
+        )
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["classification"], "owned-worktree")
+        self.assertTrue(payload["safe_to_write"])
+        self.assertEqual(payload["actual_namespace_owner"], "codex")
+
+    def test_call_tool_memory_worktree_guard_blocks_foreign_namespace(self):
+        cwd = self.make_project()
+        (cwd / "README.md").write_text("# test\n", encoding="utf-8")
+        self.init_git_project(cwd)
+        self.commit_all(cwd, "base")
+        worktree = cwd / ".claude" / "worktrees" / "mcp-task"
+        worktree.parent.mkdir(parents=True)
+        self.git(cwd, "worktree", "add", "-q", "-b", "claude/mcp-task", str(worktree))
+
+        payload = call_tool(
+            "memory_worktree_guard",
+            {"cwd": str(worktree), "agent_type": "codex", "write_intent": True},
+        )
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["classification"], "foreign-worktree")
+        self.assertFalse(payload["safe_to_write"])
+        self.assertEqual(payload["severity"], "block")
+
     def test_call_tool_memory_session_fuse_preview_reports_parented_sidecar(self):
         cwd = self.make_project()
         self.write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
@@ -1202,6 +1240,7 @@ class MemoryMcpServerTests(unittest.TestCase):
         listed_names = [tool["name"] for tool in listed["result"]["tools"]]
         self.assertIn("memory_search", listed_names)
         self.assertIn("memory_branch_status", listed_names)
+        self.assertIn("memory_worktree_guard", listed_names)
         self.assertIn("memory_session_fuse_preview", listed_names)
         self.assertIn("memory_link_suggest", listed_names)
         self.assertIn("memory_link_show", listed_names)

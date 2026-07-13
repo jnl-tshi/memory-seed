@@ -378,6 +378,14 @@ It warns when feature-like work appears to be happening on an integration branch
 or creates branches automatically. For visible topology, work on a task branch/worktree and merge
 back with `git merge --no-ff`.
 
+Use `memory-seed worktree guard --agent <agent> --write-intent` before file edits in an agent
+worktree workflow. It is read-only and reports whether the current checkout is the named agent's
+namespace (`.codex/worktrees`, `.claude/worktrees`, `.gemini/worktrees`, `.cursor/worktrees`, or a
+project override), a foreign namespace, the root checkout, an unmanaged worktree, or not a Git
+worktree. Root checkout writes fail unless the operator passes `--allow-root-write`; unmanaged
+worktrees warn by default unless `.memory-seed/project.yaml` sets `worktrees.unmanaged_write_policy`
+to `block`.
+
 Use `memory-seed session merge-branch --branch <branch>` to promote a task branch that contains
 branch-local session entries or diagram sidecars: it dry-runs the fuse, merges with
 `git merge --no-ff --no-commit`, applies the fuse, and commits in one step, so session entries land
@@ -684,6 +692,7 @@ memory_topics_list(cwd=".")
 memory_topic_inspect(topic, cwd=".")
 memory_topics_check(cwd=".")
 memory_branch_status(cwd=".")
+memory_worktree_guard(agent_type, write_intent=false, allow_root_write=false, cwd=".")
 memory_session_fuse_preview(branch, cwd=".", base="HEAD")
 ```
 
@@ -708,11 +717,14 @@ tools for agents. They expose the project topic index, resolve canonical slugs/a
 usage, and mirror `memory-seed topics check` validation without adding a write surface for the
 project-curated `.memory-seed/topics.yaml` file.
 
-`memory_branch_status` and `memory_session_fuse_preview` are read-only collaboration tools for LLM
-orchestrators. The skill registry routes them through `agent_collaboration.md`, which tells agents
-when to use the MCP preview and when to fall back to CLI commands. Fuse preview reports planned
-entries, planned sidecars, source removals, blockers, and the gated CLI apply command; it does not
-write files. Applying a fuse remains CLI-only during an inspected `git merge --no-ff --no-commit`.
+`memory_branch_status`, `memory_worktree_guard`, and `memory_session_fuse_preview` are read-only
+collaboration tools for LLM orchestrators. The skill registry routes them through
+`agent_collaboration.md`, which tells agents when to use the MCP guard/preview and when to fall back
+to CLI commands. `memory_worktree_guard` classifies the current checkout as an owned worktree,
+foreign worktree, root checkout, unmanaged worktree, or non-worktree for a named agent. Fuse preview
+reports planned entries, planned sidecars, source removals, blockers, and the gated CLI apply
+command; it does not write files. Applying a fuse remains CLI-only during an inspected
+`git merge --no-ff --no-commit`.
 
 ### Performance characteristics
 

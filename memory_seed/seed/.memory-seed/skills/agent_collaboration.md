@@ -58,10 +58,12 @@ Every worker packet should include:
 
 ```yaml
 owner: "<human-or-agent-slug>"
+agent_type: "codex|claude|gemini|cursor|other"
 role: "worker|validator|researcher"
 base_branch: "<branch to start from>"
 base_sha: "<commit hash the worker must verify before editing>"
 working_branch: "<branch to write to, or read-only>"
+worktree_namespace: ".codex/worktrees|.claude/worktrees|.gemini/worktrees|.cursor/worktrees|custom"
 worktree: "<path or 'current tree for read-only work'>"
 expected_pwd: "<worktree path or repository root>"
 objective: "<one concrete outcome>"
@@ -78,6 +80,7 @@ allowed_files:
 forbidden_files:
   - "<paths or globs the worker must not edit>"
 preflight:
+  - "memory-seed worktree guard --agent <agent_type> --write-intent"
   - "pwd"
   - "git rev-parse --show-toplevel"
   - "git rev-parse HEAD"
@@ -109,7 +112,7 @@ Gates, in order:
 1. **Scope Gate.** Objective, non-goals, acceptance criteria, base branch/SHA, expected integration artifact, high-risk/shared files, and an explicit call on whether parallel implementation is justified (default: no, unless file ownership is clearly separable and the wall-clock reduction justifies the integration overhead).
 2. **Exploration Gate.** Read-only agents, each given one narrow question, returning evidence — recommendations labeled as such, not stated as fact. Explorers may share the current tree since they never write, but that exemption covers write-collision safety only, not staleness: explorers still run the preflight commands and confirm their tree matches the intended base before their reads or citations are trusted.
 3. **Plan Gate.** A single orchestrator reconciles explorer conflicts, chooses the architecture, assigns file ownership and interfaces, defines validation commands, and names the conflict owner. Use the strongest available capability tier here — same as review, not lighter. A weak plan poisons every downstream worker; review only catches what is already built.
-4. **Worker Identity Gate.** Before a worker touches any file, it reports the packet's `preflight` output; the orchestrator verifies it matches the intended worktree and `base_sha` before the worker proceeds.
+4. **Worker Identity Gate.** Before a worker touches any file, it reports the packet's `preflight` output; the orchestrator verifies `memory-seed worktree guard --agent <agent_type> --write-intent` passes, then verifies the intended worktree and `base_sha` before the worker proceeds.
 5. **Worktree Gate.** Parallel code-writing workers get separate worktrees, each with a bounded task packet. Workers never touch shared memory/session/control-plane files unless explicitly assigned — those stay orchestrator-owned per `shared_file_policy`.
 6. **Pre-Review Validation Gate.** Each worker commits its own work and reports changed files, checks run, failures, skipped checks and why, and known risks *before* review. No uncommitted worker state gets integrated.
 7. **Integration Gate.** The orchestrator merges worker branches one at a time into an integration branch, inspects the diff after each merge, resolves conflicts only via the named owner, and reruns targeted validation. No octopus merges for code. When branch-local session entries or diagram sidecars exist, integrate that branch with `memory-seed session merge-branch --branch <branch>` — it dry-runs the fuse, performs the `--no-ff` merge, applies the fuse, and commits in one gated step. The lower-level `session fuse` dry-run/`--apply` pair remains available for manually inspected merges.
@@ -124,6 +127,9 @@ Capability tier guidance: exploration economy/standard; planning **frontier**; i
 - Update from the base branch before starting long-running work.
 - Name branches by repository convention first; otherwise use `<owner>/<kind>/<topic>`.
 - Use separate worktrees for parallel code-writing agents to prevent uncommitted file collisions.
+- Writing agents use their own namespace by default: Codex in `.codex/worktrees/<task>`, Claude in `.claude/worktrees/<task>`, Gemini in `.gemini/worktrees/<task>`, and Cursor in `.cursor/worktrees/<task>`. Configured third-party agents need an explicit namespace in `.memory-seed/project.yaml` before routine write work.
+- Before editing in a branch/worktree workflow, run `memory-seed worktree guard --agent <agent> --write-intent`. A foreign namespace is a shared-control-plane STOP hazard; move to the correct worktree unless the user explicitly approves a different path.
+- Root checkout is for read-only inspection, mainline integration, and approved cleanup. Routine feature edits should use an agent-owned task worktree; root writes require an explicit guard override (`--allow-root-write`) and should be recorded in the handoff.
 - Do not create a worktree inside a tracked directory unless the worktree directory is ignored.
 - Avoid stacking unrelated features in one branch. Commit or park completed work before starting the next feature.
 
@@ -168,6 +174,10 @@ falling back to shell commands:
 - `memory_branch_status` replaces the read-only CLI posture check for agents that can call MCP. Use
   it before distinct feature work, before assigning branch/worktree packets, and before explaining
   why a task should move off `main`.
+- `memory_worktree_guard` mirrors `memory-seed worktree guard` as a read-only structured pre-write
+  check. Use it before file edits when MCP is available; treat `safe_to_write: false` or
+  `severity: block` as a blocker until the worker moves to the correct namespace or the user grants
+  an explicit root-write override.
 - `memory_session_fuse_preview` replaces the dry-run CLI preview for agents that can call MCP. Use it
   before promoting a task branch that may contain branch-local session entries or diagram sidecars.
   Treat `ok: false` or any `issues` as a merge blocker until the orchestrator or user resolves them.
