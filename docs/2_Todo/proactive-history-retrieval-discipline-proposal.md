@@ -10,7 +10,9 @@ tags:
 
 # Proactive "consult memory for the why" discipline (portable, all-agent)
 
-Status: **PROPOSED** (2026-07-13, user-requested).
+Status: **SHIPPED** 2026-07-13 — the proactive retrieve-the-why rule is seeded in `agent-rules.md` Working
+Principles, `history_retrieval.md`, and the developer persona, all with seed twins (merged to main).
+Belongs in `docs/5_Completed/`; physical relocation batched into lifecycle Phase 2.
 Priority: P2 — control-plane behavior change; low blast radius (doc/skill edits + seed twins), high
 leverage (every agent, every project inherits it).
 Source: User 2026-07-13 — observed that agents (Claude included) read source files for the *current

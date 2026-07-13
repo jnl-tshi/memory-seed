@@ -3,6 +3,7 @@ title: "Memory Trace Trail, Search and Graph UX Specification"
 date: "2026-07-11"
 project: "memory-seed"
 status: "proposed-specification"
+spec_binding: candidate
 parent: "../2_Todo/memory-trace-product-and-system-architecture-blueprint.md"
 ---
 

@@ -3,6 +3,7 @@ title: "Memory Trace Derived-Artifact Provenance Contract"
 date: "2026-07-11"
 project: "memory-seed"
 status: "proposed-specification"
+spec_binding: candidate
 related:
   - "../2_Todo/memory-trace-ai-timeline-summarisation-plan.md"
   - "../2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md"
