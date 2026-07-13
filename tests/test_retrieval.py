@@ -48,7 +48,8 @@ class RetrievalServiceParityTests(unittest.TestCase):
             "```\n\n"
             "Updated AGENTS.md and agent-rules.md to require checking for initialized memory files.\n\n"
             "### Decision\n\n"
-            "- D: Require the bootstrap mode check before operating mode.\n\n"
+            "- D: Require the bootstrap mode check before operating mode.\n"
+            "- R: Agents were skipping bootstrap and operating on an unseeded runtime.\n\n"
             "### Follow-up\n\n"
             "- Watch for bootstrap regressions in agent-rules.\n",
         )

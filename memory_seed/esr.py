@@ -24,7 +24,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from .core import check_session_links, resolve_runtime
+from .core import check_session_links, read_integration_mode, resolve_runtime
 from .topics import check_topics
 
 
@@ -44,6 +44,7 @@ class WorktreePosture:
 @dataclass
 class EsrReport:
     session_date: str
+    integration_mode: str = "local-merge"
     integrity_ok: bool = True
     integrity_issues: list[str] = field(default_factory=list)
     topics_ok: bool = True
@@ -57,6 +58,7 @@ class EsrReport:
     def to_dict(self) -> dict[str, Any]:
         return {
             "session_date": self.session_date,
+            "integration_mode": self.integration_mode,
             "integrity": {"ok": self.integrity_ok, "issues": self.integrity_issues},
             "topics": {"ok": self.topics_ok, "issues": self.topics_issues},
             "link_gaps": self.link_gaps,
@@ -189,6 +191,7 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
     root = runtime.workspace_root
     day = session_date or date.today().isoformat()
     report = EsrReport(session_date=day)
+    report.integration_mode = read_integration_mode(root)
 
     links = check_session_links(cwd=cwd)
     report.integrity_ok = links.ok
@@ -258,6 +261,13 @@ def format_esr_report(report: EsrReport) -> str:
                 lines.append(f"    -> {cand['entry_id']}  {cand['title']}")
                 if evidence:
                     lines.append(f"       {' | '.join(evidence)}")
+    lines.append("")
+
+    lines.append("## Integration mode")
+    if report.integration_mode == "pr":
+        lines.append("pr — integrate via push + pull request (declared push authorization for that flow).")
+    else:
+        lines.append("local-merge — integrate via `session merge-branch` into local main; no push.")
     lines.append("")
 
     lines.append("## Worktrees")
