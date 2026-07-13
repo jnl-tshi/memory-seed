@@ -161,6 +161,27 @@ class V1ApiContractTests(unittest.TestCase):
         node_ids = {node["entry_id"] for node in v1["nodes"]}
         self.assertEqual(node_ids, {"mse_bootstrap", "mse_ui"})
 
+    def test_v1_graph_and_chunk_carry_merge_geometry_fields(self):
+        # No git repo in this corpus, so the merge geometry fails open: merges
+        # empty, the branch estimated, merged_by None. Pins that the versioned
+        # models now carry these keys even in the fallback shape (the real-data
+        # path is exercised in test_trail_merge_accuracy against a git repo).
+        client = self.client()
+
+        graph = client.get("/api/v1/graph", params={"granularity": "entry", "limit": 100}).json()
+        self.assertEqual(graph["merges"], [])
+        self.assertEqual(
+            graph["branches"], {"feature-ui": {"merge": None, "fork": None, "estimated": True}}
+        )
+
+        trail = client.get("/api/v1/trail", params={"limit": 100}).json()
+        self.assertIn("merges", trail)
+        self.assertIn("branches", trail)
+
+        chunk = client.get("/api/v1/chunks/mse_ui").json()
+        self.assertIn("merged_by", chunk)
+        self.assertIsNone(chunk["merged_by"])
+
     def test_v1_timeline_has_no_counterpart(self):
         client = self.client()
 
@@ -186,7 +207,17 @@ class V1ApiContractTests(unittest.TestCase):
             self.assertIn(path, schema["paths"], path)
 
         schema_names = set(schema["components"]["schemas"])
-        for name in ("RuntimeInfo", "Facets", "GraphNode", "TrailEvent", "ProvenanceClass", "EdgeType"):
+        for name in (
+            "RuntimeInfo",
+            "Facets",
+            "GraphNode",
+            "TrailEvent",
+            "ProvenanceClass",
+            "EdgeType",
+            "MergeEvent",
+            "BranchInfo",
+            "ForkPoint",
+        ):
             self.assertTrue(
                 any(name in key for key in schema_names),
                 f"{name} not found among component schemas: {sorted(schema_names)}",

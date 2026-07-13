@@ -10,6 +10,12 @@ ProvenanceClass and EdgeType - because docs/3_Spec/memory-trace-trail-search-
 and-graph-ux.md and docs/3_Spec/graph-edge-contract.md name them as
 forward-stable contract types even though every node emitted today is
 "authored_memory" and every edge kind is already produced by _graph_edges.
+
+The commit-accurate Trail merge geometry (MergeEvent/BranchInfo on the
+graph/trail responses, merged_by on the chunk response) shipped legacy-only
+under the "vanilla only, polish first" ruling; after a full release cycle the
+polish condition was met, so v1 now formalizes it too - additively (old
+clients ignore the new keys).
 """
 
 from __future__ import annotations
@@ -147,6 +153,41 @@ class CommitInfo(BaseModel):
     subject: str
 
 
+class ForkPoint(BaseModel):
+    """Where a merged branch left the trunk: the merge-base of the merge
+    commit's parents. No ``subject`` - a fork point is a plain trunk commit,
+    not itself a merge."""
+
+    sha: str
+    short: str
+    date: str
+
+
+class MergeEvent(BaseModel):
+    """A trunk merge commit carrying ``Memory-Entry:`` trailers - the
+    commit-accurate join between a merge and the entries it landed on main
+    (``session merge-branch`` stamps one trailer per merged entry). ``entry_ids``
+    is filtered to the displayed nodes."""
+
+    sha: str
+    short: str
+    date: str
+    subject: str
+    entry_ids: list[str]
+
+
+class BranchInfo(BaseModel):
+    """Per-branch Trail geometry recovered from trailer ground truth: the merge
+    event that closed the branch's newest displayed entry (``merge`` is None when
+    that newest entry is still open - the branch dangles, no fabricated merge),
+    the fork point, and ``estimated`` (True only in the pre-trailer era, where the
+    frontend keeps its positional heuristic)."""
+
+    merge: CommitInfo | None
+    fork: ForkPoint | None
+    estimated: bool
+
+
 class Suggestions(BaseModel):
     same_day: list[ChunkBrief]
     same_topic: list[ChunkBrief]
@@ -169,6 +210,10 @@ class ChunkResponse(ChunkSummary):
     commit_entry_ids: list[str]
     commit_entries: list[ChunkBrief]
     commit_tracking: bool
+    # The merge commit whose Memory-Entry trailer landed this entry on the
+    # trunk ("Merged to main by" in the reader) - distinct from the authoring
+    # ``commit`` above. None for unmerged or pre-trailer-era entries.
+    merged_by: CommitInfo | None
     backlinks: list[str]
     # Sidecar rendering itself is out of scope for this contract (deferred
     # decision-diagram integration); kept loose since only metadata passes
@@ -207,6 +252,11 @@ class GraphResponse(BaseModel):
     nodes: list[GraphNode]
     edges: list[GraphEdge]
     edge_types: list[EdgeType]
+    # Commit-accurate Trail merge geometry (see MergeEvent/BranchInfo): the
+    # trailer-stamped merge events touching displayed nodes, and per-branch
+    # merge/fork/estimated. Empty/estimated when git or trailers are absent.
+    merges: list[MergeEvent]
+    branches: dict[str, BranchInfo]
 
 
 class TrailEvent(GraphNode):
@@ -224,3 +274,7 @@ class TrailResponse(BaseModel):
     nodes: list[TrailEvent]
     edges: list[GraphEdge]
     edge_types: list[EdgeType]
+    # Same commit-accurate merge geometry as GraphResponse - the Trail is the
+    # primary consumer of these fields (trunk merge dots, fork/merge lanes).
+    merges: list[MergeEvent]
+    branches: dict[str, BranchInfo]

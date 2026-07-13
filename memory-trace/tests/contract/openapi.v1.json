@@ -1,6 +1,42 @@
 {
   "components": {
     "schemas": {
+      "BranchInfo": {
+        "description": "Per-branch Trail geometry recovered from trailer ground truth: the merge\nevent that closed the branch's newest displayed entry (``merge`` is None when\nthat newest entry is still open - the branch dangles, no fabricated merge),\nthe fork point, and ``estimated`` (True only in the pre-trailer era, where the\nfrontend keeps its positional heuristic).",
+        "properties": {
+          "estimated": {
+            "title": "Estimated",
+            "type": "boolean"
+          },
+          "fork": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ForkPoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "merge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommitInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "merge",
+          "fork",
+          "estimated"
+        ],
+        "title": "BranchInfo",
+        "type": "object"
+      },
       "ChunkBrief": {
         "description": "The compact shape used for commit_entries/suggestions (_chunk_summary).",
         "properties": {
@@ -314,6 +350,16 @@
             "title": "Line Range",
             "type": "array"
           },
+          "merged_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommitInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "metadata": {
             "$ref": "#/components/schemas/ChunkMetadata"
           },
@@ -430,6 +476,7 @@
           "commit_entry_ids",
           "commit_entries",
           "commit_tracking",
+          "merged_by",
           "backlinks",
           "diagrams",
           "suggestions",
@@ -574,6 +621,30 @@
         "title": "FacetsRuntimeInfo",
         "type": "object"
       },
+      "ForkPoint": {
+        "description": "Where a merged branch left the trunk: the merge-base of the merge\ncommit's parents. No ``subject`` - a fork point is a plain trunk commit,\nnot itself a merge.",
+        "properties": {
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "sha": {
+            "title": "Sha",
+            "type": "string"
+          },
+          "short": {
+            "title": "Short",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha",
+          "short",
+          "date"
+        ],
+        "title": "ForkPoint",
+        "type": "object"
+      },
       "GraphEdge": {
         "properties": {
           "source": {
@@ -699,6 +770,13 @@
       },
       "GraphResponse": {
         "properties": {
+          "branches": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/BranchInfo"
+            },
+            "title": "Branches",
+            "type": "object"
+          },
           "edge_types": {
             "items": {
               "$ref": "#/components/schemas/EdgeType"
@@ -728,6 +806,13 @@
             "title": "Granularity",
             "type": "string"
           },
+          "merges": {
+            "items": {
+              "$ref": "#/components/schemas/MergeEvent"
+            },
+            "title": "Merges",
+            "type": "array"
+          },
           "nodes": {
             "items": {
               "$ref": "#/components/schemas/GraphNode"
@@ -741,7 +826,9 @@
           "granularity",
           "nodes",
           "edges",
-          "edge_types"
+          "edge_types",
+          "merges",
+          "branches"
         ],
         "title": "GraphResponse",
         "type": "object"
@@ -791,6 +878,43 @@
           "excerpt"
         ],
         "title": "MatchedSection",
+        "type": "object"
+      },
+      "MergeEvent": {
+        "description": "A trunk merge commit carrying ``Memory-Entry:`` trailers - the\ncommit-accurate join between a merge and the entries it landed on main\n(``session merge-branch`` stamps one trailer per merged entry). ``entry_ids``\nis filtered to the displayed nodes.",
+        "properties": {
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "entry_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Entry Ids",
+            "type": "array"
+          },
+          "sha": {
+            "title": "Sha",
+            "type": "string"
+          },
+          "short": {
+            "title": "Short",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha",
+          "short",
+          "date",
+          "subject",
+          "entry_ids"
+        ],
+        "title": "MergeEvent",
         "type": "object"
       },
       "ProvenanceClass": {
@@ -1356,6 +1480,13 @@
       },
       "TrailResponse": {
         "properties": {
+          "branches": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/BranchInfo"
+            },
+            "title": "Branches",
+            "type": "object"
+          },
           "edge_types": {
             "items": {
               "$ref": "#/components/schemas/EdgeType"
@@ -1385,6 +1516,13 @@
             "title": "Granularity",
             "type": "string"
           },
+          "merges": {
+            "items": {
+              "$ref": "#/components/schemas/MergeEvent"
+            },
+            "title": "Merges",
+            "type": "array"
+          },
           "nodes": {
             "items": {
               "$ref": "#/components/schemas/TrailEvent"
@@ -1398,7 +1536,9 @@
           "granularity",
           "nodes",
           "edges",
-          "edge_types"
+          "edge_types",
+          "merges",
+          "branches"
         ],
         "title": "TrailResponse",
         "type": "object"

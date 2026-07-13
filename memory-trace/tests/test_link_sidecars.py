@@ -112,6 +112,19 @@ class LinkSidecarReadPathTests(unittest.TestCase):
         edges = self._graph_edges(self._app())
         self.assertIn({"source": NEW, "target": OLD, "type": "supersedes"}, edges)
 
+    def test_v1_graph_inherits_sidecar_lifecycle_edges(self):
+        # Sidecar edges are ordinary supersedes/evolves entries in the edges
+        # list, which the versioned surface never stripped - they flow through
+        # the shared service. Pins that v1 sees them just like the legacy graph
+        # (the merge-geometry v1 promotion did not disturb edge provenance).
+        from fastapi.testclient import TestClient
+
+        self._write_sidecar(_link_block("2026-06-01 10:00", NEW, "New palette", supersedes=[OLD]))
+        payload = TestClient(self._app()).get(
+            "/api/v1/graph", params={"granularity": "entry", "edge_types": "supersedes,evolves,related"}
+        ).json()
+        self.assertIn({"source": NEW, "target": OLD, "type": "supersedes"}, payload["edges"])
+
     def test_graph_has_no_lifecycle_edge_without_sidecar(self):
         edges = self._graph_edges(self._app())
         self.assertFalse([e for e in edges if e["type"] in {"supersedes", "evolves"}])

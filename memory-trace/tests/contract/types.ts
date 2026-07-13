@@ -111,6 +111,20 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * BranchInfo
+         * @description Per-branch Trail geometry recovered from trailer ground truth: the merge
+         *     event that closed the branch's newest displayed entry (``merge`` is None when
+         *     that newest entry is still open - the branch dangles, no fabricated merge),
+         *     the fork point, and ``estimated`` (True only in the pre-trailer era, where the
+         *     frontend keeps its positional heuristic).
+         */
+        BranchInfo: {
+            /** Estimated */
+            estimated: boolean;
+            fork: components["schemas"]["ForkPoint"] | null;
+            merge: components["schemas"]["CommitInfo"] | null;
+        };
+        /**
          * ChunkBrief
          * @description The compact shape used for commit_entries/suggestions (_chunk_summary).
          */
@@ -192,6 +206,7 @@ export interface components {
             lexical_terms: string[];
             /** Line Range */
             line_range: number[];
+            merged_by: components["schemas"]["CommitInfo"] | null;
             metadata: components["schemas"]["ChunkMetadata"];
             /** Path */
             path: string | null;
@@ -267,6 +282,20 @@ export interface components {
             /** Workspace Root */
             workspace_root: string;
         };
+        /**
+         * ForkPoint
+         * @description Where a merged branch left the trunk: the merge-base of the merge
+         *     commit's parents. No ``subject`` - a fork point is a plain trunk commit,
+         *     not itself a merge.
+         */
+        ForkPoint: {
+            /** Date */
+            date: string;
+            /** Sha */
+            sha: string;
+            /** Short */
+            short: string;
+        };
         /** GraphEdge */
         GraphEdge: {
             /** Source */
@@ -308,6 +337,10 @@ export interface components {
         };
         /** GraphResponse */
         GraphResponse: {
+            /** Branches */
+            branches: {
+                [key: string]: components["schemas"]["BranchInfo"];
+            };
             /** Edge Types */
             edge_types: components["schemas"]["EdgeType"][];
             /** Edges */
@@ -316,6 +349,8 @@ export interface components {
             entry_id: string | null;
             /** Granularity */
             granularity: string;
+            /** Merges */
+            merges: components["schemas"]["MergeEvent"][];
             /** Nodes */
             nodes: components["schemas"]["GraphNode"][];
         };
@@ -334,6 +369,25 @@ export interface components {
             heading_path: string[];
             /** Line Range */
             line_range: number[];
+        };
+        /**
+         * MergeEvent
+         * @description A trunk merge commit carrying ``Memory-Entry:`` trailers - the
+         *     commit-accurate join between a merge and the entries it landed on main
+         *     (``session merge-branch`` stamps one trailer per merged entry). ``entry_ids``
+         *     is filtered to the displayed nodes.
+         */
+        MergeEvent: {
+            /** Date */
+            date: string;
+            /** Entry Ids */
+            entry_ids: string[];
+            /** Sha */
+            sha: string;
+            /** Short */
+            short: string;
+            /** Subject */
+            subject: string;
         };
         /**
          * ProvenanceClass
@@ -501,6 +555,10 @@ export interface components {
         };
         /** TrailResponse */
         TrailResponse: {
+            /** Branches */
+            branches: {
+                [key: string]: components["schemas"]["BranchInfo"];
+            };
             /** Edge Types */
             edge_types: components["schemas"]["EdgeType"][];
             /** Edges */
@@ -509,6 +567,8 @@ export interface components {
             entry_id: string | null;
             /** Granularity */
             granularity: string;
+            /** Merges */
+            merges: components["schemas"]["MergeEvent"][];
             /** Nodes */
             nodes: components["schemas"]["TrailEvent"][];
         };

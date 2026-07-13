@@ -41,7 +41,7 @@ end-of-turn sweep; canonical entry-id tooling (`session entry-id` CLI, `memory_e
 fixed - `session merge-branch` unblocked); `memory-seed esr` preflight; automatic Memory-Entry
 trailers via the seeded `prepare-commit-msg` hook (+ `hooks install`, init default-on); serve-time
 asset versioning + `--static-root`; browserless Trail golden-fixture regeneration. Follow-ups
-carried forward: port merges/lifecycle edges to `/api/v1` once the vanilla pass is judged polished;
+carried forward:
 MCP-graph sidecar-edge parity (stated scope boundary in
 [`../3_Spec/lifecycle-edge-linking-sidecars.md`](../3_Spec/lifecycle-edge-linking-sidecars.md));
 historical lifecycle-edge backfill (declined 2026-07-12, revisitable now the sweep exists).
