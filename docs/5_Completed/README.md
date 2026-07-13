@@ -6,7 +6,12 @@ clutter this one.
 
 **Required YAML:** `implemented_by:` (session entry id or commit) and the ship date.
 
-**Contents:** _none yet._ The existing archive in `docs/2_Todo/completed/` (43 docs) migrates here in
-Phase 2, together with the two already-shipped proposals still sitting in `2_Todo/`
-(`freshness-aware-memory-ranking-proposal.md`, `proactive-history-retrieval-discipline-proposal.md`) —
-their status text is already corrected in place.
+**Contents** (promoted 2026-07-14; `docs index` will render this as a table in P2):
+
+- `freshness-aware-memory-ranking-proposal.md` — supersession dampener + `evolved_head`, on by default.
+- `proactive-history-retrieval-discipline-proposal.md` — retrieve-the-*why* control-plane discipline.
+- `fontjoy-typography-pairing.md` — self-hosted Inter + Space Grotesk pairing.
+- `goal-run-core-parity-codex.md`, `goal-run-trace-surface-claude.md` — spent 2026-07-13 goal-run briefs,
+  fully executed and merged.
+
+The larger archive in `docs/2_Todo/completed/` (43 docs) migrates here in the P2 bulk move.

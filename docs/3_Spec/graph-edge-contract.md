@@ -215,4 +215,4 @@ linking, `inbound_relation_count`/`importance_score`, the `connectivity` rename,
 `git-commit-entry-linking-plan.md`, `interaction-frequency-ranking-plan.md`, and
 `exclude-superseded-filter-plan.md`. The `supersession_damping` rank-dampener (exposed in 2.18, then
 turned **on by default** after real-corpus validation) and `evolved_head` successor-surfacing come from
-`docs/2_Todo/freshness-aware-memory-ranking-proposal.md`.
+`docs/5_Completed/freshness-aware-memory-ranking-proposal.md`.

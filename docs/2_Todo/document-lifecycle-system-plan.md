@@ -6,12 +6,13 @@ tags:
   - documentation
   - lifecycle
 priority: P2
-next_action: approve, then execute P1 (create lanes + front door + move the 3 drifts + 2 draft specs)
+next_action: execute Phase 2 — `docs index`/`docs check` CLI, bulk-migrate the 43 `2_Todo/completed/` docs to `5_Completed/`, remove the empty `superpowers/specs/`
 ---
 
 # Document lifecycle system — human-discoverable, folder-primary, with a generated index
 
-Status folder: `1_Inbox` (this doc is itself in the pipeline it describes).
+Status folder: `2_Todo` (Phase 1 — lanes + front door — shipped 2026-07-13; this doc now tracks the
+remaining Phase 2 work, and moved here from `1_Inbox` on 2026-07-14 to reflect that it is mid-execution).
 Source: objective `docs/` review (agent) + user's gap analysis + user's human-discoverability direction, all
 2026-07-13.
 

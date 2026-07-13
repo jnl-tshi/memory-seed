@@ -20,7 +20,7 @@ refute rather than sent in blind.
 
 **Mid-evaluation, a concurrent Codex session independently ran a near-identical synergy pass** and
 applied edits directly to almost every file this evaluation also targeted (see
-[`codex/proposal-synergy-evaluation.md`](../codex/proposal-synergy-evaluation.md)). Rather than
+[`codex-proposal-synergy-evaluation.md`](codex-proposal-synergy-evaluation.md)). Rather than
 duplicate or revert that work, this report reconciles: it identifies what Codex's pass already fixed,
 confirms nothing here contradicts it, and applies only the remainder - four items neither Codex's
 report nor its edits covered.

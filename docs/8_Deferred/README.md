@@ -6,5 +6,9 @@ return.
 
 **Required YAML:** `deferred_reason:` (one line), and `revisit_when:` if there is a concrete trigger.
 
-**Contents:** _none yet._ Long-horizon items currently living in `2_Todo` (e.g. the hosted/commercial
-Memory Trace strategy docs, if the user parks them) are candidates to move here in Phase 2.
+**Contents** (parked 2026-07-14):
+
+- `memory-trace-commercialisation-and-monetisation-report.md` — pricing/tiers; needs usage + market
+  validation before any build (self-labeled P4).
+- `memory-trace-hosted-product-and-security-architecture.md` — hosted/team tier; needs commercial +
+  billing/auth decisions and a later security review (self-labeled P5).
