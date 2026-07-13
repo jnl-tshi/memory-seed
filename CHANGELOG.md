@@ -4,6 +4,14 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Memory Trace UI polish: switching worktrees now plays a subway-map loading animation (the Trail is
+  a train line, so a switch is a short journey - stations light up at the real load milestones as the
+  train slides between them) instead of freezing the previous view; and the decision-diagram badge
+  now opens a large centred, zoomable/pannable viewer (wheel-zoom toward the cursor, drag-pan,
+  minus/Fit/plus controls, close on ×/backdrop/Escape) rather than a cramped 420px popover, with
+  reader diagrams clickable into the same viewer. While there, the built-in Arc 2d flowchart renderer
+  learned to honour mermaid `<br/>` line breaks and size nodes to fit, so labels no longer overflow.
+
 - The commit-accurate Trail merge geometry is now served on the versioned `/api/v1/*` surface as
   well as the legacy one: `/api/v1/graph` and `/api/v1/trail` carry `merges` (trailer-stamped merge
   events) and `branches` (per-branch merge/fork/estimated), and `/api/v1/chunks/{id}` carries

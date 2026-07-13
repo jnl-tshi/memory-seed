@@ -179,12 +179,15 @@ convention stays theoretical.
 ### Phase 2b - Trail/Graph surfacing (implemented, unreleased)
 
 Beyond the reader (the deferred task recorded 2026-07-11 as `mse_j4wn8rqk2t6x0vhs`, "designed with
-the user when picked up"). **User-chosen design (2026-07-13): badge + popover preview.** A small
+the user when picked up"). **User-chosen design (2026-07-13): badge + popover preview**, since upgraded to a
+**badge + zoomable viewer** on user feedback that the preview was too small to inspect. A small
 diamond badge marks Trail rows and Graph nodes whose entry carries a Class-2 sidecar, driven by a
 cheap `has_diagram` boolean on the graph node (`entry_diagram_sidecars` set membership, read fresh
-per request). Engaging the badge floats the diagram in a popover rendered by the same Arc 2d
-renderer as the reader - the diagram source is fetched lazily from the chunk endpoint on demand, so
-the graph payload stays a boolean across hundreds of nodes. Rejected alternatives (recorded with the
+per request). Engaging the badge (or clicking a reader diagram) opens a large centred, zoomable and
+pannable viewer rendered by the same Arc 2d renderer as the reader (wheel-zoom toward the cursor,
+drag-pan, minus/Fit/plus controls; close on ×/backdrop/Escape) - the diagram source is fetched
+lazily and worktree-scoped from the chunk endpoint on demand, so the graph payload stays a boolean
+across hundreds of nodes. Rejected alternatives (recorded with the
 user): indicator-only (opens reader) as too thin, and inline Trail expansion as too costly against
 the Trail's fixed-row lane geometry. `has_diagram` ships on the legacy `/api/*` surface only for now
 (the v1 `GraphNode` model strips it) until the badge UI is polished, matching the merge-geometry

@@ -9,6 +9,12 @@ const state = {
   worktrees: [],
   worktree: "",
   worktreeDefault: "",
+  // Worktree-switch loading overlay: a subway-map progress animation (the Trail
+  // as a train line - "train of thought"). worktreeStage advances 0->1->2 at the
+  // real fetch boundaries so stations light up as genuine milestones.
+  worktreeLoading: false,
+  worktreeStage: 0,
+  worktreeToLabel: "",
   view: storedView() || "trail",
   theme: localStorage.getItem("ml:theme") || "dark",
   accent: localStorage.getItem("ml:accent") || "indigo",
@@ -131,12 +137,29 @@ async function loadWorktrees() {
   }
 }
 
+// Minimum on-screen time for the worktree-switch loader, so a warm-cache switch
+// (tens of ms) doesn't flash the animation and vanish - it should read as an
+// intentional journey between stops.
+const WORKTREE_LOADER_MIN_MS = 650;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Advance the loader to a station imperatively (attribute flip only, no full
+// re-render) so the CSS transition slides the train and lights the next stop
+// smoothly - a render() here would recreate the element and reset the motion.
+function setWorktreeStage(n) {
+  state.worktreeStage = n;
+  const loader = document.querySelector(".worktree-loader");
+  if (loader) loader.dataset.stage = String(n);
+}
+
 // Switching worktrees swaps the entire data source: clear the current
 // selection and graph, then reload runtime/facets/view against the new
-// checkout's branch memory.
+// checkout's branch memory. The subway loader shows for the whole trip.
 async function switchWorktree(id) {
   if (id === state.worktree) return;
+  const target = state.worktrees.find((w) => w.id === id);
   state.worktree = id;
+  state.worktreeToLabel = target ? target.label : "";
   state.selected = null;
   state.selectedId = null;
   state.graph = null;
@@ -144,14 +167,26 @@ async function switchWorktree(id) {
   state.results = [];
   state.matchEntries = new Set();
   state.searchOpen = false;
+  // Show the loader BEFORE the awaits - switchWorktree otherwise renders only at
+  // the end, leaving the old view frozen through the whole switch.
+  state.worktreeLoading = true;
+  state.worktreeStage = 0;
+  const startedAt = Date.now();
   const token = ++state.loadSeq;
+  render();
   const [runtime, facets] = await Promise.all([api("/api/runtime"), api("/api/facets")]);
   if (token !== state.loadSeq) return;
   state.runtime = runtime;
   state.facets = facets;
   seedDates();
+  setWorktreeStage(1);
   await loadView();
-  if (token === state.loadSeq) render();
+  if (token !== state.loadSeq) return;
+  setWorktreeStage(2);
+  await sleep(Math.max(0, WORKTREE_LOADER_MIN_MS - (Date.now() - startedAt)));
+  if (token !== state.loadSeq) return;
+  state.worktreeLoading = false;
+  render();
 }
 
 function seedDates() {
@@ -442,8 +477,45 @@ function savedButton(label, query, view) {
 
 function centerPane() {
   const densityClass = `density-${state.density}`;
+  if (state.worktreeLoading) return `<section class="${densityClass}">${worktreeLoader()}</section>`;
   if (state.view === "graph") return `<section class="${densityClass}">${graphView()}</section>`;
   return `<section class="${densityClass}">${trailView()}</section>`;
+}
+
+// Worktree-switch loader as a subway line: the Trail is a train line, so a
+// switch is a short journey between stops. Three stations = the three real load
+// milestones (depart -> reading branch memory -> arrive); the train car slides
+// station to station via a CSS transition as switchWorktree flips data-stage,
+// the travelled track lights up behind it, and a soft halo pulses so it reads as
+// alive between stops. "Train of thought", literally. Echoes the Trail's own
+// vocabulary - a vertical line, circular station dots, the accent lane colour.
+function worktreeLoader() {
+  const stations = [
+    "Leaving the platform",
+    "Reading branch memory",
+    `Arriving${state.worktreeToLabel ? ` at ${esc(state.worktreeToLabel)}` : ""}`,
+  ];
+  const cx = 34;
+  const ys = [30, 120, 210];
+  const track = `<line class="wt-track" x1="${cx}" y1="${ys[0]}" x2="${cx}" y2="${ys[2]}"></line>`;
+  const litTrack = `<line class="wt-track-lit" x1="${cx}" y1="${ys[0]}" x2="${cx}" y2="${ys[2]}" pathLength="1"></line>`;
+  const dots = ys.map((y, i) => `<circle class="wt-station" data-i="${i}" cx="${cx}" cy="${y}" r="5.5"></circle>`).join("");
+  const labels = ys
+    .map((y, i) => `<text class="wt-label" data-i="${i}" x="${cx + 18}" y="${y + 4}">${stations[i]}</text>`)
+    .join("");
+  // Train car rides at y=0 in its own group; the group is translated to the
+  // active station by CSS, so the transition animates the slide.
+  const train = `<g class="wt-train"><circle class="wt-train-halo" cx="${cx}" cy="0" r="11"></circle><rect x="${cx - 9}" y="-6" width="18" height="12" rx="4"></rect></g>`;
+  return `
+    <div class="worktree-loader" data-stage="${state.worktreeStage}" role="status" aria-live="polite">
+      <svg class="wt-map" viewBox="0 0 240 240" width="240" height="240" aria-hidden="true">
+        ${track}${litTrack}${dots}${labels}${train}
+      </svg>
+      <div class="wt-caption">
+        <div class="wt-title">Switching worktree${state.worktreeToLabel ? ` &middot; ${esc(state.worktreeToLabel)}` : ""}</div>
+        <div class="wt-sub">following the train of thought&hellip;</div>
+      </div>
+    </div>`;
 }
 
 function graphView() {
@@ -1210,12 +1282,12 @@ function installDelegatedEvents() {
       await jumpToChunk(searchHit.dataset.chunk);
       return;
     }
-    // Decision-diagram badge (Trail rows + Graph nodes): open the popover
-    // preview. Checked before row/node selection so engaging the badge never
+    // Decision-diagram trigger (Trail/Graph badge + reader diagram): open the
+    // zoomable viewer. Checked before row/node selection so engaging it never
     // also selects the entry underneath it.
-    const diagramBadge = event.target.closest("[data-diagram-entry]");
-    if (diagramBadge) {
-      await openDiagramPopover(diagramBadge.dataset.diagramEntry, diagramBadge);
+    const diagramTrigger = event.target.closest("[data-diagram-entry]");
+    if (diagramTrigger) {
+      await openDiagramViewer(diagramTrigger.dataset.diagramEntry);
       return;
     }
     const graphNode = event.target.closest("[data-node-id][data-chunk]");
@@ -1498,89 +1570,166 @@ function diagramsSection(selected) {
     (sidecar.mermaid_blocks || []).map((source) => ({ source, title: sidecar.title })),
   );
   if (!blocks.length) return "";
+  // Each figure is clickable to open the same zoomable viewer as the Trail/Graph
+  // badge, so a cramped inline diagram can be inspected full-size in place.
+  const entry = escAttr(selected.entry_id || "");
   return `
     <section class="detail-section">
-      <h4>Decision diagrams</h4>
-      ${blocks.map((block) => `<figure class="diagram">${block.title ? `<figcaption class="count">${esc(block.title)}</figcaption>` : ""}${renderDiagramBlock(block.source)}</figure>`).join("")}
+      <h4>Decision diagrams <span class="count">· click to zoom</span></h4>
+      ${blocks.map((block) => `<figure class="diagram diagram-openable" data-diagram-entry="${entry}" title="Click to inspect (zoom + pan)">${block.title ? `<figcaption class="count">${esc(block.title)}</figcaption>` : ""}${renderDiagramBlock(block.source)}</figure>`).join("")}
     </section>`;
 }
 
-// --- Decision-diagram popover (Trail/Graph badge preview) --------------------
-// The badge on a Trail row / Graph node lazily fetches the entry's chunk
-// (cached), then floats its Class-2 sidecar diagram(s) beside the badge with the
-// same Arc 2d renderer the reader uses. A preview affordance only - the reader
-// stays the full view. Lives on document.body so a Trail re-render never wipes
-// it; closed by the × button, an outside click, Escape, or re-clicking the badge.
+// --- Decision-diagram viewer (Trail/Graph badge + reader -> zoomable panel) ---
+// The badge (and a click on a reader diagram) lazily fetches the entry's chunk
+// (cached), then opens a large CENTRED panel - a reasoning flow needs room to
+// inspect, not a 420px preview. Each diagram renders with the built-in Arc 2d
+// renderer inside a pan/zoom viewport: wheel zooms toward the cursor, drag pans,
+// and a control bar offers zoom out / fit / zoom in. Closed by the × button, a
+// backdrop click, Escape, or re-triggering the same entry's badge.
 const _diagramChunkCache = new Map();
 
-function closeDiagramPopover() {
-  const existing = document.querySelector(".diagram-popover");
-  if (existing) existing.remove();
-  document.removeEventListener("keydown", _diagramPopoverKeydown, true);
-  document.removeEventListener("click", _diagramPopoverAway, true);
+function closeDiagramViewer() {
+  document.querySelector(".diagram-viewer-backdrop")?.remove();
+  document.removeEventListener("keydown", _diagramViewerKeydown, true);
 }
 
-function _diagramPopoverKeydown(event) {
+function _diagramViewerKeydown(event) {
   if (event.key === "Escape") {
     event.stopPropagation();
-    closeDiagramPopover();
+    closeDiagramViewer();
   }
 }
 
-function _diagramPopoverAway(event) {
-  if (event.target.closest(".diagram-popover") || event.target.closest("[data-diagram-entry]")) return;
-  closeDiagramPopover();
-}
-
-async function openDiagramPopover(entryId, anchorEl) {
+async function openDiagramViewer(entryId) {
   if (!entryId) return;
-  const open = document.querySelector(".diagram-popover");
+  const open = document.querySelector(".diagram-viewer-backdrop");
   if (open && open.dataset.entry === entryId) {
-    closeDiagramPopover(); // second click on the same badge toggles closed
+    closeDiagramViewer(); // re-triggering the same entry toggles closed
     return;
   }
-  closeDiagramPopover();
-  let chunk = _diagramChunkCache.get(entryId);
+  closeDiagramViewer();
+  // Cache is keyed by worktree+entry: the same entry id resolves to a different
+  // chunk per checkout, and api() scopes the fetch to the selected worktree.
+  const cacheKey = `${state.worktree || ""}::${entryId}`;
+  let chunk = _diagramChunkCache.get(cacheKey);
   if (chunk === undefined) {
-    chunk = await fetch(`/api/chunks/${encodeURIComponent(entryId)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null);
-    _diagramChunkCache.set(entryId, chunk);
+    chunk = await api(`/api/chunks/${encodeURIComponent(entryId)}`).catch(() => null);
+    _diagramChunkCache.set(cacheKey, chunk);
   }
   const blocks = (chunk?.diagrams || []).flatMap((sidecar) =>
     (sidecar.mermaid_blocks || []).map((source) => ({ source, title: sidecar.title })),
   );
-  const pop = document.createElement("div");
-  pop.className = "diagram-popover";
-  pop.dataset.entry = entryId;
+  const backdrop = document.createElement("div");
+  backdrop.className = "diagram-viewer-backdrop";
+  backdrop.dataset.entry = entryId;
   const body = blocks.length
-    ? blocks.map((b) => `<figure class="diagram">${b.title ? `<figcaption class="count">${esc(b.title)}</figcaption>` : ""}${renderDiagramBlock(b.source)}</figure>`).join("")
+    ? blocks
+        .map(
+          (b) => `
+        <figure class="diagram-view">
+          ${b.title ? `<figcaption class="count">${esc(b.title)}</figcaption>` : ""}
+          <div class="diagram-viewport" data-viewport>
+            <div class="diagram-stage" data-stage>${renderDiagramBlock(b.source)}</div>
+          </div>
+          <div class="diagram-zoom-bar">
+            <button type="button" data-zoom="out" aria-label="Zoom out">&minus;</button>
+            <button type="button" data-zoom="fit" aria-label="Reset zoom">Fit</button>
+            <button type="button" data-zoom="in" aria-label="Zoom in">+</button>
+          </div>
+        </figure>`,
+        )
+        .join("")
     : `<div class="empty">No diagram available for this entry.</div>`;
-  pop.innerHTML = `<div class="diagram-popover-head"><span class="count">${esc(chunk?.title || "Decision diagram")}</span><button type="button" class="diagram-popover-close" data-diagram-close aria-label="Close">×</button></div>${body}`;
-  pop.querySelector("[data-diagram-close]").addEventListener("click", (e) => {
+  backdrop.innerHTML = `
+    <div class="diagram-viewer" role="dialog" aria-modal="true" aria-label="Decision diagram">
+      <div class="diagram-viewer-head">
+        <span class="count">${esc(chunk?.title || "Decision diagram")}</span>
+        <button type="button" class="diagram-viewer-close" data-diagram-close aria-label="Close">×</button>
+      </div>
+      <div class="diagram-viewer-body">${body}</div>
+    </div>`;
+  backdrop.querySelector("[data-diagram-close]").addEventListener("click", (e) => {
     e.stopPropagation();
-    closeDiagramPopover();
+    closeDiagramViewer();
   });
-  document.body.appendChild(pop);
-  _positionDiagramPopover(pop, anchorEl);
-  // Defer the dismiss listeners one tick so the click that opened the popover
-  // (still propagating) doesn't immediately close it.
-  setTimeout(() => {
-    document.addEventListener("keydown", _diagramPopoverKeydown, true);
-    document.addEventListener("click", _diagramPopoverAway, true);
-  }, 0);
+  // Backdrop click closes; clicks inside the panel (target !== backdrop) don't.
+  backdrop.addEventListener("mousedown", (e) => {
+    if (e.target === backdrop) closeDiagramViewer();
+  });
+  document.body.appendChild(backdrop);
+  backdrop.querySelectorAll(".diagram-view").forEach(initDiagramPanZoom);
+  setTimeout(() => document.addEventListener("keydown", _diagramViewerKeydown, true), 0);
 }
 
-function _positionDiagramPopover(pop, anchorEl) {
-  const a = anchorEl.getBoundingClientRect();
-  const pw = pop.offsetWidth;
-  const ph = pop.offsetHeight;
-  let left = a.right + 8;
-  let top = a.top;
-  if (left + pw > window.innerWidth - 8) left = Math.max(8, a.left - pw - 8);
-  if (top + ph > window.innerHeight - 8) top = Math.max(8, window.innerHeight - ph - 8);
-  pop.style.left = `${left}px`;
-  pop.style.top = `${top}px`;
+// Wire wheel-zoom (toward the cursor) + drag-pan + zoom buttons onto one
+// diagram figure. Pointer capture keeps a drag glued to the viewport even when
+// the cursor leaves it, and avoids leaking window listeners across viewers.
+function initDiagramPanZoom(figure) {
+  const viewport = figure.querySelector("[data-viewport]");
+  const stage = figure.querySelector("[data-stage]");
+  if (!viewport || !stage) return;
+  const st = { scale: 1, x: 0, y: 0 };
+  const clamp = (s) => Math.min(6, Math.max(0.3, s));
+  const apply = () => {
+    stage.style.transform = `translate(${st.x}px, ${st.y}px) scale(${st.scale})`;
+  };
+  const zoomAt = (px, py, factor) => {
+    const next = clamp(st.scale * factor);
+    const k = next / st.scale;
+    st.x = px - (px - st.x) * k; // keep the point under (px,py) fixed
+    st.y = py - (py - st.y) * k;
+    st.scale = next;
+    apply();
+  };
+  const fit = () => {
+    st.scale = 1;
+    st.x = 0;
+    st.y = 0;
+    apply();
+  };
+  viewport.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault(); // or the panel scrolls instead of zooming
+      const rect = viewport.getBoundingClientRect();
+      zoomAt(e.clientX - rect.left, e.clientY - rect.top, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+    },
+    { passive: false },
+  );
+  let dragging = false;
+  let sx = 0;
+  let sy = 0;
+  viewport.addEventListener("pointerdown", (e) => {
+    dragging = true;
+    sx = e.clientX - st.x;
+    sy = e.clientY - st.y;
+    viewport.setPointerCapture(e.pointerId);
+    viewport.classList.add("grabbing");
+  });
+  viewport.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    st.x = e.clientX - sx;
+    st.y = e.clientY - sy;
+    apply();
+  });
+  const endDrag = (e) => {
+    dragging = false;
+    try {
+      viewport.releasePointerCapture(e.pointerId);
+    } catch {}
+    viewport.classList.remove("grabbing");
+  };
+  viewport.addEventListener("pointerup", endDrag);
+  viewport.addEventListener("pointercancel", endDrag);
+  const center = (factor) => {
+    const rect = viewport.getBoundingClientRect();
+    zoomAt(rect.width / 2, rect.height / 2, factor);
+  };
+  figure.querySelector('[data-zoom="in"]').addEventListener("click", () => center(1.25));
+  figure.querySelector('[data-zoom="out"]').addEventListener("click", () => center(1 / 1.25));
+  figure.querySelector('[data-zoom="fit"]').addEventListener("click", fit);
+  fit();
 }
 
 // Commit packaging: the git commit that first captured this entry ("Authored
@@ -2053,7 +2202,23 @@ function renderFlowchart(text) {
     if (!byLayer.has(key)) byLayer.set(key, []);
     byLayer.get(key).push(id);
   });
-  const boxW = 130, boxH = 40, gapMain = 78, gapCross = 26;
+  // Honour mermaid's <br/> line breaks (authored so long labels wrap) and size
+  // the uniform box to the widest line + tallest label - otherwise long labels
+  // overflow their box, which is invisible at thumbnail size but glaring once
+  // the diagram is opened full-size in the zoom viewer.
+  const labelLines = (label) =>
+    String(label)
+      .replace(/^["']|["']$/g, "")
+      .split(/<br\s*\/?>/i)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  const nodeLines = new Map([...nodes.entries()].map(([id, label]) => [id, labelLines(label).length ? labelLines(label) : [id]]));
+  const maxLines = Math.max(1, ...[...nodeLines.values()].map((l) => l.length));
+  const longestChars = Math.max(8, ...[...nodeLines.values()].flat().map((l) => l.length));
+  const lineH = 16;
+  const boxW = Math.min(300, Math.max(130, longestChars * 7 + 22));
+  const boxH = Math.max(40, 14 + maxLines * lineH);
+  const gapMain = 78, gapCross = 26;
   const pos = new Map();
   let maxCross = 0;
   [...byLayer.entries()].sort((a, b) => a[0] - b[0]).forEach(([lyr, ids]) => {
@@ -2080,9 +2245,12 @@ function renderFlowchart(text) {
     const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
     return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--edge-related)" stroke-width="1.5" marker-end="url(#diagram-arrow)"></line>${edge.label ? `<text class="diagram-edge-label" x="${midX}" y="${midY}" text-anchor="middle">${esc(edge.label)}</text>` : ""}`;
   }).join("");
-  const nodeSvg = [...nodes.entries()].map(([id, label]) => {
+  const nodeSvg = [...nodeLines.entries()].map(([id, lns]) => {
     const p = pos.get(id);
-    return `<g class="diagram-node"><rect x="${p.x}" y="${p.y}" width="${boxW}" height="${boxH}" rx="6"></rect><text x="${p.x + boxW / 2}" y="${p.y + boxH / 2 + 4}" text-anchor="middle">${esc(label)}</text></g>`;
+    const cx = p.x + boxW / 2;
+    const startY = p.y + boxH / 2 - ((lns.length - 1) * lineH) / 2 + 4;
+    const tspans = lns.map((ln, i) => `<tspan x="${cx}" y="${startY + i * lineH}">${esc(ln)}</tspan>`).join("");
+    return `<g class="diagram-node"><rect x="${p.x}" y="${p.y}" width="${boxW}" height="${boxH}" rx="6"></rect><text text-anchor="middle">${tspans}</text></g>`;
   }).join("");
   return `<svg class="diagram-svg" viewBox="0 0 ${width} ${height}" role="img" preserveAspectRatio="xMidYMid meet">${_diagramArrowDefs()}${edgeSvg}${nodeSvg}</svg>`;
 }
