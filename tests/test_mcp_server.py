@@ -66,6 +66,29 @@ class MemoryMcpServerTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
 
+    def write_topics_index(self, cwd):
+        memory = cwd / ".memory-seed"
+        memory.mkdir(parents=True, exist_ok=True)
+        (memory / "topics.yaml").write_text(
+            "\n".join(
+                [
+                    "schema_version: 1",
+                    "topics:",
+                    "  - slug: retrieval",
+                    "    label: Retrieval",
+                    "    description: Search and ranking.",
+                    "    status: active",
+                    "    aliases: [search, ranking]",
+                    "  - slug: old-theme",
+                    "    label: Old Theme",
+                    "    status: deprecated",
+                    "    aliases: []",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
     def write_link_sidecar(self, cwd, file_date, source_entry, *, supersedes=(), evolves=(), related_entries=()):
         links = cwd / ".memory-seed" / "sessions" / "links" / file_date[:7]
         links.mkdir(parents=True, exist_ok=True)
@@ -1094,6 +1117,68 @@ class MemoryMcpServerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             call_tool("memory_entry_id", {"timestamp": "2026-07-12 12:15", "title": "x", "user_initials": "JNL"})
 
+    def test_call_tool_memory_topics_list_returns_vocabulary(self):
+        cwd = self.make_project()
+        self.write_topics_index(cwd)
+
+        payload = call_tool("memory_topics_list", {"cwd": str(cwd)})
+
+        self.assertTrue(payload["exists"])
+        self.assertEqual(payload["schema_version"], "1")
+        self.assertEqual([topic["slug"] for topic in payload["topics"]], ["retrieval", "old-theme"])
+        self.assertEqual(payload["topics"][0]["aliases"], ["search", "ranking"])
+        self.assertIn("Read-only", payload["write_surface"])
+
+    def test_call_tool_memory_topic_inspect_resolves_alias_and_reports_usage(self):
+        cwd = self.make_project()
+        self.write_topics_index(cwd)
+        self.write_session(
+            cwd,
+            "2026-07-01.md",
+            "## 2026-07-01 09:00 - Retrieval work\n\n"
+            "```yaml\n"
+            "entry_id: ms-topic0000\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "topics:\n"
+            "  - search\n"
+            "```\n\n"
+            "Improved ranking.\n",
+        )
+
+        payload = call_tool("memory_topic_inspect", {"cwd": str(cwd), "topic": "ranking"})
+
+        self.assertTrue(payload["found"])
+        self.assertEqual(payload["canonical"], "retrieval")
+        self.assertEqual(payload["matching_names"], ["ranking", "retrieval", "search"])
+        self.assertEqual(payload["usage_count"], 1)
+        self.assertEqual(payload["entries"][0]["entry_id"], "ms-topic0000")
+        self.assertEqual(payload["entries"][0]["topics"], ["search"])
+
+    def test_call_tool_memory_topics_check_reports_validation_issues(self):
+        cwd = self.make_project()
+        self.write_topics_index(cwd)
+        self.write_session(
+            cwd,
+            "2026-07-01.md",
+            "## 2026-07-01 09:00 - Topic validation\n\n"
+            "```yaml\n"
+            "entry_id: ms-topicbad\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "topics:\n"
+            "  - missing-topic\n"
+            "```\n\n"
+            "Bad topic.\n",
+        )
+
+        payload = call_tool("memory_topics_check", {"cwd": str(cwd)})
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["topics_defined"], 2)
+        self.assertEqual(payload["entries_checked"], 1)
+        self.assertIn("unknown-entry-topic", [issue["kind"] for issue in payload["issues"]])
+
     def test_jsonrpc_tools_list_and_call(self):
         cwd = self.make_memory_fixture()
         listed = handle_jsonrpc_message({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
@@ -1122,6 +1207,9 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertIn("memory_link_show", listed_names)
         self.assertIn("memory_session_target", listed_names)
         self.assertIn("memory_entry_id", listed_names)
+        self.assertIn("memory_topics_list", listed_names)
+        self.assertIn("memory_topic_inspect", listed_names)
+        self.assertIn("memory_topics_check", listed_names)
         self.assertEqual(called["id"], 2)
         content = called["result"]["content"][0]
         self.assertEqual(content["type"], "text")

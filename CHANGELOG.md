@@ -29,6 +29,11 @@ All notable changes to Memory Seed are summarized here.
   it expands the requested slug through `topics.yaml` (canonical + aliases, fail-open) so filtering
   by a canonical topic matches alias-stored entries and vice versa. Both the legacy `/api/*` and the
   versioned `/api/v1/*` surfaces inherit this through the shared service.
+- MCP now exposes read-only topic-management tools for the controlled vocabulary:
+  `memory_topics_list`, `memory_topic_inspect`, and `memory_topics_check`. Agents can list the
+  project topic index, resolve canonical slugs/aliases with entry usage, and mirror
+  `memory-seed topics check` validation without gaining a write surface for project-curated
+  `.memory-seed/topics.yaml`.
 - Memory Trace surfaces authored Class-2 decision-diagram sidecars in the Trail and Graph views, not
   just the reader (session-decision-diagrams plan; user-chosen "badge + popover" design). A small
   diamond badge marks Trail rows and Graph nodes whose entry carries a sidecar, driven by a new cheap

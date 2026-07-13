@@ -680,6 +680,9 @@ memory_link_suggest(cwd=".", entry_id=null, top_k=5)
 memory_link_show(entry_id, cwd=".")
 memory_session_target(cwd=".", date=null, user=null)
 memory_entry_id(timestamp, title, user_initials, agent_type, project_path=".", subproject_path=null)
+memory_topics_list(cwd=".")
+memory_topic_inspect(topic, cwd=".")
+memory_topics_check(cwd=".")
 memory_branch_status(cwd=".")
 memory_session_fuse_preview(branch, cwd=".", base="HEAD")
 ```
@@ -699,6 +702,11 @@ and evolution edges with their computed inverses, continuity blocks, importance,
 count), and `memory_session_target` resolves where a new entry should be
 appended without ever creating the file. They are routed through `history_retrieval.md`. The agent
 still authors and appends the entry itself; MCP never writes session files.
+
+`memory_topics_list`, `memory_topic_inspect`, and `memory_topics_check` are read-only topic-management
+tools for agents. They expose the project topic index, resolve canonical slugs/aliases with entry
+usage, and mirror `memory-seed topics check` validation without adding a write surface for the
+project-curated `.memory-seed/topics.yaml` file.
 
 `memory_branch_status` and `memory_session_fuse_preview` are read-only collaboration tools for LLM
 orchestrators. The skill registry routes them through `agent_collaboration.md`, which tells agents
