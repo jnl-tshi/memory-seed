@@ -136,6 +136,26 @@ Rules (the harmony contract):
 5. `evolved_by` never dampens and never excludes - evolution is freshness, not retirement. Only
    `superseded_by` triggers the dampener or the opt-in filter.
 
+### Supersession rank-dampener (`memory_search` order) - available, default-off
+
+Separate from the read-only `importance_score` dampener above, `memory_search` has an **opt-in**
+supersession rank-dampener (`freshness-aware-memory-ranking-proposal.md`). When the caller sets
+`supersession_damping=True`, `rank_memory_chunks` folds `SUPERSEDED_RANK_DAMPING` (0.25, mirroring the
+`importance_score` harmony constant) into `final_score` for any entry with a non-empty `superseded_by`,
+so a live replacement out-ranks the decision it retires. It:
+
+- is **default-off**: with the flag unset, ranking order is byte-for-byte identical to prior behavior
+  (`importance_score` is still not a term in `final_score`).
+- sources `superseded_by` from the **sidecar-augmented** graph the search path already builds, so a
+  supersession authored later in a link sidecar dampens too.
+- **down-ranks only, never hides**: the superseded entry stays fully retrievable, just lower. Hard
+  exclusion remains the separate opt-in `exclude_superseded` filter. A surfaced supersession is a
+  decision to verify against the code (files are authority), not a claim the code already changed.
+- leaves `evolved_by` untouched (evolution is freshness, not retirement); the evolves lineage is
+  *surfaced* instead - `memory_search` results carry `evolved_head`, the head-of-lineage the
+  `evolved_by` chain resolves to, so the current fuller form is reachable without burying the
+  still-valid original.
+
 ## Validation authority
 
 `links check` (`check_session_links()` in `core.py`) is the single validator, run over both session
@@ -162,7 +182,7 @@ A new edge kind's validation belongs here, reusing the entry-YAML scan, not a pa
 | `memory-seed link commits <id>` | `commits:` field + `Memory-Entry:` trailer scan |
 | `memory-seed link suggest` | ranked older candidates to link (read-only), re-ranked by the rarity-weighted `F:` file-overlap boost (alias-resolved through recorded `continuity` renames, transitively) with shared-file evidence shown; boost-only, never a gate |
 | MCP `memory_get_chunk` | `superseded_by`, `evolved_by`, `inbound_relation_count`, `importance_score`, `commit_reference_count` (+ stored fields incl. `evolves`, `continuity`) |
-| MCP `memory_search` | results carry stored `supersedes`/`evolves`/`continuity` **and computed `superseded_by`/`evolved_by`** (freshness at the moment of consumption - additive fields; ranking and order untouched); opt-in `exclude_superseded` filter |
+| MCP `memory_search` | results carry stored `supersedes`/`evolves`/`continuity` **and computed `superseded_by`/`evolved_by`/`evolved_head`** (freshness at the moment of consumption - additive fields; default order untouched); opt-in `exclude_superseded` hard filter and opt-in `supersession_damping` rank-dampener (default-off; down-ranks superseded entries so a live replacement out-ranks the decision it retires - see the harmony contract above) |
 | Memory Trace graph | `connectivity` (its own metric) and `importance_score` per node; a "Size:" toggle sizes nodes by either; `has_diagram` per node (Class-2 decision-diagram sidecar presence) drives a badge on Trail rows / Graph nodes whose popover lazy-loads the diagram - legacy `/api` surface only, the v1 `GraphNode` model strips it until polished |
 | Memory Trace `/api/graph` + `/api/chunks` **and** `/api/v1/{graph,trail,chunks}` | additionally `merges` / `branches` (commit-accurate Trail merge events from `Memory-Entry` trailers) and `merged_by` per chunk. Shipped legacy-only under "vanilla only, polish first"; promoted onto the versioned surface in 2.18 (the `MergeEvent` / `BranchInfo` / `ForkPoint` response models, `merged_by: CommitInfo`) once the vanilla implementation had survived a release cycle - additive, so the promotion breaks no existing v1 client |
 
@@ -174,7 +194,10 @@ A new edge kind's validation belongs here, reusing the entry-YAML scan, not a pa
   commit/git-derived signal is computed by the caller and passed in, so `memory_search` and other
   frequent readers never shell out to git.
 - **Expose before you rank.** New derived signals are surfaced read-only first; default
-  `memory_search` ranking stays stable until a signal proves useful against fixtures on a branch.
+  `memory_search` ranking stays stable until a signal proves useful against fixtures on a branch. This
+  line has **graduated for supersession**: `superseded_by` was exposed first, then promoted to a
+  ranking signal - but only behind the opt-in `supersession_damping` flag (default-off), so the
+  default order is still stable until the flag is flipped on.
 - **One name, one meaning.** If two surfaces need different numbers, give them different names (the
   `connectivity` vs `inbound_relation_count` split is the precedent).
 
@@ -184,4 +207,6 @@ Consolidates the graph/ranking work shipped in 2.15.0: typed supersession edges,
 linking, `inbound_relation_count`/`importance_score`, the `connectivity` rename, and the
 `exclude_superseded` filter. Plans in `docs/2_Todo/completed/supersession-edges-plan.md`,
 `git-commit-entry-linking-plan.md`, `interaction-frequency-ranking-plan.md`, and
-`exclude-superseded-filter-plan.md`.
+`exclude-superseded-filter-plan.md`. The default-off `supersession_damping` rank-dampener and
+`evolved_head` successor-surfacing (2.18, on a branch) come from
+`docs/2_Todo/freshness-aware-memory-ranking-proposal.md`.

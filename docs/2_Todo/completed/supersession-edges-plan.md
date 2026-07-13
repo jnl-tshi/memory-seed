@@ -158,3 +158,27 @@ Extend `memory-seed link show <entry_id>` and `memory_get_chunk` output to inclu
   (`interaction-frequency-ranking-plan.md` P1b, shipped 2026-07-04), with a fixture test proving a
   superseded-but-heavily-cited entry ranks below a non-superseded, moderately-cited one.
 - Concise session log entry.
+
+## Follow-on: supersession as a `memory_search` ranking signal (2026-07-13)
+
+The "expose before you rank" staging chosen here has graduated. `superseded_by` was exposed
+read-only first (P1), dampened `importance_score` next (P1b) - and now, behind an opt-in flag, it
+also re-orders default `memory_search`. `freshness-aware-memory-ranking-proposal.md` (2.18, on a
+branch) adds `SUPERSEDED_RANK_DAMPING = 0.25` (mirroring `SUPERSEDED_IMPORTANCE_DAMPING`), folded
+into `final_score` in `rank_memory_chunks` when the caller sets `supersession_damping=True`
+(threaded through `rank_session_memory` and `search_memory`, and exposed on MCP `memory_search`):
+
+- **Default-off**, per the change discipline: with the flag unset, ranking order is byte-for-byte
+  unchanged. It ships default-off first, with fixtures on a branch, before any default flip.
+- The superseded id set is drawn from the **sidecar-augmented** graph the search path already
+  builds, so a supersession authored later in a link sidecar dampens too (fixture-covered).
+- **Down-rank only, never hide** (the guiding constraint): the retired entry stays fully
+  retrievable; `exclude_superseded` remains the separate opt-in hard filter. A surfaced supersession
+  is a decision to verify against the code, not a claim the code already changed.
+- `evolves` is preserved as freshness, never retirement: it is never dampened; instead each result
+  carries `evolved_head` (the head of the evolves lineage) so the current fuller form is reachable.
+
+Fixtures live in `tests/test_retrieval.py` (YAML- and sidecar-authored supersession flip; evolves
+chain not buried + successor surfaced; default-off ordering unchanged) and `tests/test_semantic_cache.py`
+(the ranker damper and `evolves_lineage_heads` primitives). Contract: `docs/3_Spec/graph-edge-contract.md`
+("Supersession rank-dampener" under the harmony contract).
