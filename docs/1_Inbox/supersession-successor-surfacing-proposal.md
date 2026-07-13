@@ -74,7 +74,7 @@ default, that's the common case, not an edge case.
 
 ## Relationship to existing coverage (checked — not a duplicate)
 
-- `docs/2_Todo/freshness-aware-memory-ranking-proposal.md` — item 1 (dampener) + item 2 (evolves
+- `docs/5_Completed/freshness-aware-memory-ranking-proposal.md` — item 1 (dampener) + item 2 (evolves
   `evolved_head`). This is the **missing symmetric item 3** (supersedes successor), not a re-proposal.
 - `docs/3_Spec/graph-edge-contract.md` — "Supersession rank-dampener" section documents damp-only for
   supersedes and `evolved_head` for evolves; this closes that asymmetry.

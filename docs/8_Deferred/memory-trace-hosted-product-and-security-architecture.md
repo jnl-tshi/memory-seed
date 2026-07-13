@@ -2,7 +2,8 @@
 title: "Memory Trace Hosted Product and Security Architecture"
 date: "2026-07-11"
 project: "memory-seed"
-status: "proposed"
+deferred_reason: "needs commercial + billing/auth decisions and a later security review (self-labeled P5)"
+revisit_when: "local Community/Pro foundations are stable"
 parent: "memory-trace-product-and-system-architecture-blueprint.md"
 ---
 

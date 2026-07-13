@@ -11,8 +11,8 @@ This package contains the proposed next-generation Memory Trace planning set.
 - `docs/2_Todo/memory-trace-product-and-system-architecture-blueprint.md`
 - `docs/2_Todo/memory-trace-frontend-architecture-and-design-system-proposal.md`
 - `docs/2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md`
-- `docs/2_Todo/memory-trace-commercialisation-and-monetisation-report.md`
-- `docs/2_Todo/memory-trace-hosted-product-and-security-architecture.md`
+- `docs/8_Deferred/memory-trace-commercialisation-and-monetisation-report.md`
+- `docs/8_Deferred/memory-trace-hosted-product-and-security-architecture.md`
 - `docs/2_Todo/memory-trace-next-generation-implementation-roadmap.md`
 
 ## Specifications

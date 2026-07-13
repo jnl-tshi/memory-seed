@@ -1,5 +1,7 @@
 ---
 memory-system-version: 2.18
+implemented_by: mse_b2nfkj9yen3x4qvc
+shipped: unreleased on `main` (CHANGELOG Unreleased)
 tags:
   - memory-seed
   - proposal

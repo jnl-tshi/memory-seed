@@ -17,4 +17,4 @@ Memory Seed / Memory Trace are treated as publishable/open-source (`memory_hygie
 Two paths would unblock direct use: (a) restrict strictly to **CSS-generator output** (code in `styles.css`, not "Images"), or (b) obtain written permission from fffuel to embed generated SVGs in an OSS repo. Neither is pursued now.
 
 ## Related
-- Cross-reference: `docs/2_Todo/fontjoy-typography-pairing.md` (adopted from the same reel), `docs/4_Reference/21st-dev-components.md` (also reference-only).
+- Cross-reference: `docs/5_Completed/fontjoy-typography-pairing.md` (adopted from the same reel), `docs/4_Reference/21st-dev-components.md` (also reference-only).

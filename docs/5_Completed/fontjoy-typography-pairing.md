@@ -1,3 +1,8 @@
+---
+implemented_by: mse_ka0qpy31eq42cnf2
+shipped: unreleased on `main` (2026-07-10)
+---
+
 # Fontjoy typography pairing for Memory Trace
 
 Status: **IMPLEMENTED 2026-07-10** (unreleased; entry `mse_ka0qpy31eq42cnf2`). Space Grotesk

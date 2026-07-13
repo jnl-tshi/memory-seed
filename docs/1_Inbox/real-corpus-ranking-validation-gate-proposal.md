@@ -69,6 +69,6 @@ without regressing ordinary ones*.
 
 - `docs/3_Spec/graph-edge-contract.md` — "Expose before you rank" (the rule this amends) and the
   supersession graduation note (which *describes* a real-corpus check but doesn't *require* one).
-- `docs/2_Todo/freshness-aware-memory-ranking-proposal.md` — the ad-hoc A/B this turns into tooling.
+- `docs/5_Completed/freshness-aware-memory-ranking-proposal.md` — the ad-hoc A/B this turns into tooling.
 - Distinct from `docs/2_Todo/completed/*` Trail golden-fixture work (that pins UI output, not ranking
   behavior).

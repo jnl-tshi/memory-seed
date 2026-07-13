@@ -20,4 +20,4 @@ make 21st.dev a dependency by default; it remains inspiration-only until a speci
 reviewed for licence, accessibility, bundle cost, and fit with the Trace design system.
 
 ## Related
-- Cross-reference: `docs/2_Todo/fontjoy-typography-pairing.md` (adopted from the same reel), `docs/4_Reference/fffuel-svg-css-generators.md` (also reference-only).
+- Cross-reference: `docs/5_Completed/fontjoy-typography-pairing.md` (adopted from the same reel), `docs/4_Reference/fffuel-svg-css-generators.md` (also reference-only).

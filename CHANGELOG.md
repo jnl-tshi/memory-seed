@@ -87,6 +87,11 @@ All notable changes to Memory Seed are summarized here.
   union(entry YAML, link sidecar) before graph construction or payload formatting.
   Sidecar-only `supersedes`/`evolves` edges now surface through MCP outbound and inverse
   freshness fields, while YAML-only behavior remains unchanged when no sidecars exist.
+- `memory-seed link show` now reflects the same sidecar-augmented effective graph: it unions
+  entry-YAML edges with link-sidecar edges before building the graph, so late-authored
+  `supersedes`/`evolves`/`related_entries` (and their computed inverses and importance) appear in the
+  CLI readout instead of only in retrieval/MCP/Trace. Regression-tested; caller-augments matches the
+  other consumers.
 - Hardened Memory-Entry trailer hook management: `memory-seed hooks status [--json]`
   reports missing/stale/broken/current/foreign `prepare-commit-msg` state, `memory-seed
   hooks repair` refreshes only missing or Memory Seed-managed hooks, `doctor` warns

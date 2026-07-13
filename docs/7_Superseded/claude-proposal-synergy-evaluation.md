@@ -1,11 +1,12 @@
 ---
 memory-system-version: 2.13
+superseded_by: shipped implementations of every evaluated proposal + `docs/2_Todo/0_NEXT_STEPS.md` (2026-07-14 refresh)
+superseded_on: 2026-07-14
 tags:
   - memory-seed
   - claude
   - proposal-review
   - roadmap
-status: draft
 ---
 
 # Proposal Synergy Evaluation (Claude)
@@ -20,7 +21,7 @@ refute rather than sent in blind.
 
 **Mid-evaluation, a concurrent Codex session independently ran a near-identical synergy pass** and
 applied edits directly to almost every file this evaluation also targeted (see
-[`codex/proposal-synergy-evaluation.md`](../codex/proposal-synergy-evaluation.md)). Rather than
+[`codex-proposal-synergy-evaluation.md`](codex-proposal-synergy-evaluation.md)). Rather than
 duplicate or revert that work, this report reconciles: it identifies what Codex's pass already fixed,
 confirms nothing here contradicts it, and applies only the remainder - four items neither Codex's
 report nor its edits covered.

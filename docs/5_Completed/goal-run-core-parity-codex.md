@@ -1,6 +1,11 @@
+---
+implemented_by: executed 2026-07-13 (goal-run session entries + `codex/session-2026-07-13` merges on `main`)
+shipped: 2026-07-13
+---
+
 # Goal run: Memory Seed core parity + guardrails (Codex)
 
-Status: ACTIVE goal prompt (authored 2026-07-13, user-approved scope)
+Status: EXECUTED — spent one-shot brief; all four items shipped and merged; moved to `5_Completed` 2026-07-14
 Owner: Codex, in its OWN worktree under `.codex/worktrees/` (create one; never write in the
 primary checkout or another agent's namespace). Paired with the concurrent Claude Trace-surface
 run (`goal-run-trace-surface-claude.md`) - different packages, minimal collision surface: you own
