@@ -21,6 +21,14 @@ All notable changes to Memory Seed are summarized here.
   it expands the requested slug through `topics.yaml` (canonical + aliases, fail-open) so filtering
   by a canonical topic matches alias-stored entries and vice versa. Both the legacy `/api/*` and the
   versioned `/api/v1/*` surfaces inherit this through the shared service.
+- Memory Trace surfaces authored Class-2 decision-diagram sidecars in the Trail and Graph views, not
+  just the reader (session-decision-diagrams plan; user-chosen "badge + popover" design). A small
+  diamond badge marks Trail rows and Graph nodes whose entry carries a sidecar, driven by a new cheap
+  `has_diagram` boolean on graph nodes; clicking the badge floats the diagram in a popover rendered
+  by the same built-in Arc 2d renderer as the reader, lazy-fetching the source from the chunk
+  endpoint so the graph payload stays lean. The popover closes on the × button, an outside click,
+  Escape, or re-clicking the badge. `has_diagram` ships on the legacy `/api/*` surface only for now
+  (the v1 `GraphNode` model strips it) until the badge UI is polished.
 
 ## 2.18.0 - 2026-07-13
 
