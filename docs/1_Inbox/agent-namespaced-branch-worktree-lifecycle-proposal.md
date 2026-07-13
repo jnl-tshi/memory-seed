@@ -38,7 +38,7 @@ can own the tasks."
 
 | Artifact | Scope | Form | Example |
 |---|---|---|---|
-| Worktree | one per agent **session** | `.<agent>/worktrees/<session>` | `.codex/worktrees/session-2026-07-13` |
+| Worktree | one per agent **session** | `.<agent>/worktrees/[<user>/]<session>` | solo `.codex/worktrees/session-2026-07-13`; multi-user `.codex/worktrees/jean/session-2026-07-13` |
 | Branch | one per **task** | `<agent>/<kind>/<topic>` | `claude/feature/freshness-ranking` |
 
 - A single **session worktree** hosts the agent's work for that session; the agent checks out one **task
@@ -48,6 +48,16 @@ can own the tasks."
   agent). **Required on both** — no bare `feature-*` branches, no agent-less worktree dirs.
 - `<session>` is a stable session id/date (e.g. `session-2026-07-13`); `<kind>` ∈
   `feature|fix|refactor|test|docs`.
+- **User scoping (multi-user only).** When 2+ human participants are registered, the worktree gains a
+  `<user>` segment: `.<agent>/worktrees/<user>/<session>` (e.g. `.codex/worktrees/jean/session-...`).
+  This reuses the **same participant-count gate** that already flips session logs from flat to per-user
+  (`session_target()`, `multi-user-session-memory-proposal.md`) — so a **solo repo stays flat**
+  `.<agent>/worktrees/<session>` and nothing changes (per the `user_identity` note: solo → flat, layout
+  switches only at 2+ participants). `<user>` is the registered user slug (e.g. `jean`), the same
+  identity session entries carry in `user_initials`. Branches stay `<agent>/<kind>/<topic>` even
+  multi-user — a task branch's author is already recorded in its session entry (`user_initials`,
+  `branch:`), so the `<user>` segment lives where the filesystem actually needs to disambiguate two
+  people's concurrent sessions: the worktree.
 - **Parallel fan-out exception:** when an agent spawns parallel *writing* workers, each worker gets a
   short-lived **worker worktree** under the same namespace (e.g. `.claude/worktrees/session-<id>-worker-<n>`),
   removed as soon as its branch integrates — not held to session end.
@@ -96,7 +106,8 @@ when the session itself ends.
   **another agent's active session** namespace.
 - **Config (`.memory-seed/project.yaml`):** `worktrees.namespaces` (exists) + branch `prefix_policy`
   (`warn|block`) + `post_merge_cleanup: auto|prompt|manual` (task-branch deletion) +
-  `session_worktree_gc: on-session-end|manual`.
+  `session_worktree_gc: on-session-end|manual`. The `<user>` worktree segment needs **no new knob** — it
+  follows the existing `participants:` registration (present iff 2+ participants).
 
 ### 4. Enforcement
 
@@ -115,7 +126,8 @@ when the session itself ends.
 
 ## Acceptance criteria
 
-- New session worktrees are `.<agent>/worktrees/<session>` and new task branches are
+- New session worktrees are `.<agent>/worktrees/[<user>/]<session>` (the `<user>` segment present iff
+  2+ participants are registered, matching the session-log gate) and new task branches are
   `<agent>/<kind>/<topic>`; `worktree guard` warns on a bare/mismatched branch or an agent-less worktree.
 - `doctor`/`branch status` list retired-eligible session worktrees, merged task branches, and misnamed
   branches.
@@ -137,3 +149,6 @@ when the session itself ends.
   worker-worktree removal; this proposal adds the per-task **branch-deletion** half and the retire rules.
 - `.memory-seed/skills/end_of_turn.md` "Stale Worktree Sweep" — the manual discipline this formalizes.
 - `docs/2_Todo/completed/worktree-dependency-strategy-plan.md` — isolation/dependency tiers (unchanged).
+- `docs/2_Todo/completed/multi-user-session-memory-proposal.md` + the `session_target()` participant-count
+  gate — the multi-user mechanism the `<user>` worktree segment reuses (same 2+-participant trigger as
+  per-user session files), so worktree and session-log user-scoping activate together.
