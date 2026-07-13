@@ -338,9 +338,18 @@ def main(argv: list[str] | None = None) -> int:
 
     hooks_parser = subparsers.add_parser("hooks", help="manage git hooks that keep memory metadata true by construction")
     hooks_sub = hooks_parser.add_subparsers(dest="hooks_command", required=True)
+    hooks_status = hooks_sub.add_parser(
+        "status",
+        help="show whether Memory-Entry trailer stamping is installed and current",
+    )
+    hooks_status.add_argument("--json", action="store_true", help="emit machine-readable status")
     hooks_sub.add_parser(
         "install",
         help="install the prepare-commit-msg shim that auto-stamps Memory-Entry trailers (idempotent)",
+    )
+    hooks_sub.add_parser(
+        "repair",
+        help="install or refresh Memory Seed-managed trailer hooks without overwriting foreign hooks",
     )
 
     esr_parser = subparsers.add_parser(
@@ -1157,7 +1166,31 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "hooks":
-        if args.hooks_command == "install":
+        if args.hooks_command == "status":
+            from .core import git_hook_status
+
+            status = git_hook_status(Path(".").resolve())
+            payload = {
+                "is_git_repo": status.is_git_repo,
+                "state": status.state,
+                "message": status.message,
+                "hook_path": status.hook_path,
+                "managed": status.managed,
+                "current": status.current,
+                "repairable": status.repairable,
+            }
+            if args.json:
+                print(json.dumps(payload, indent=2, ensure_ascii=False))
+            else:
+                print(f"state: {status.state}")
+                print(status.message)
+                if status.hook_path:
+                    print(f"path: {status.hook_path}")
+                if status.repairable:
+                    print("Next: run `memory-seed hooks repair`.")
+            return 0 if status.state in {"current", "no-git"} else 1
+
+        if args.hooks_command in {"install", "repair"}:
             from .core import install_git_hooks
 
             actions = install_git_hooks(Path(".").resolve())

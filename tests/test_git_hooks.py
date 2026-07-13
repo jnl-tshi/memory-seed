@@ -11,7 +11,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from memory_seed.core import MEMORY_DIR_NAME, PACKAGE_ROOT, install_git_hooks
+from memory_seed.core import (
+    MEMORY_DIR_NAME,
+    PACKAGE_ROOT,
+    git_hook_status,
+    init_project,
+    install_git_hooks,
+    update_project,
+)
 
 HOOK_SCRIPT = PACKAGE_ROOT / "seed" / MEMORY_DIR_NAME / "hooks" / "prepare-commit-msg.py"
 
@@ -53,6 +60,21 @@ class GitHookTests(unittest.TestCase):
         self.assertTrue(any("already installed" in action for action in second))
         hook = self.cwd / ".git" / "hooks" / "prepare-commit-msg"
         self.assertIn("Installed by memory-seed", hook.read_text(encoding="utf-8"))
+        self.assertEqual(git_hook_status(self.cwd).state, "current")
+
+    def test_hooks_status_reports_missing_and_foreign(self):
+        missing = git_hook_status(self.cwd)
+        self.assertEqual(missing.state, "missing")
+        self.assertTrue(missing.repairable)
+
+        hook = self.cwd / ".git" / "hooks" / "prepare-commit-msg"
+        hook.parent.mkdir(parents=True, exist_ok=True)
+        hook.write_text("#!/bin/sh\necho custom\n", encoding="utf-8")
+
+        foreign = git_hook_status(self.cwd)
+
+        self.assertEqual(foreign.state, "foreign")
+        self.assertFalse(foreign.repairable)
 
     def test_installer_refuses_to_clobber_a_foreign_hook(self):
         hook = self.cwd / ".git" / "hooks" / "prepare-commit-msg"
@@ -63,6 +85,40 @@ class GitHookTests(unittest.TestCase):
 
         self.assertTrue(any("NOT installed" in action for action in actions))
         self.assertIn("echo custom", hook.read_text(encoding="utf-8"))
+
+    def test_update_refreshes_managed_stale_hook(self):
+        project = Path(tempfile.mkdtemp(prefix="mseed-hook-update-"))
+        self.addCleanup(lambda: shutil.rmtree(project, ignore_errors=True))
+        subprocess.run(["git", "-C", str(project), "init", "-b", "main"], check=True, capture_output=True, text=True)
+        init_project(cwd=project)
+        hook = project / ".git" / "hooks" / "prepare-commit-msg"
+        hook.write_text(
+            "#!/bin/sh\n"
+            "# Installed by memory-seed (hooks install): old shim\n"
+            "exit 0\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(git_hook_status(project).state, "stale-managed")
+
+        result = update_project(cwd=project)
+
+        self.assertEqual(git_hook_status(project).state, "current")
+        self.assertTrue(any(item.startswith("git-hook: prepare-commit-msg: refreshed") for item in result.created))
+
+    def test_update_preserves_foreign_hook(self):
+        project = Path(tempfile.mkdtemp(prefix="mseed-hook-foreign-"))
+        self.addCleanup(lambda: shutil.rmtree(project, ignore_errors=True))
+        subprocess.run(["git", "-C", str(project), "init", "-b", "main"], check=True, capture_output=True, text=True)
+        init_project(cwd=project)
+        hook = project / ".git" / "hooks" / "prepare-commit-msg"
+        foreign = "#!/bin/sh\necho custom\n"
+        hook.write_text(foreign, encoding="utf-8")
+
+        result = update_project(cwd=project)
+
+        self.assertEqual(hook.read_text(encoding="utf-8"), foreign)
+        self.assertEqual(git_hook_status(project).state, "foreign")
+        self.assertFalse(any(item.startswith("git-hook:") for item in result.created))
 
     def test_commit_carrying_an_entry_gets_the_trailer_end_to_end(self):
         install_git_hooks(self.cwd)

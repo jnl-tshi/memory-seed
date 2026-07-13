@@ -48,12 +48,12 @@ reported as-is (`links check` flags dangling stored refs).
 Four independent edge kinds live in entry YAML - and, since 2026-07-12, `related_entries`/
 `supersedes`/`evolves` edges may ALSO be authored after the fact in append-only **link sidecars**
 (`sessions/links/YYYY-MM/YYYY-MM-DD.md`; see `lifecycle-edge-linking-sidecars.md`). Effective edges
-on the Memory Trace surface are union(entry YAML, sidecar), merged at read time by the lense's
-`_augment_with_link_sidecars` before the shared graph builder runs; `links check` validates sidecar
-refs through the same dangling and forward-only guards. Stated scope boundary: the MCP graph tools
-(`memory_link_show`, `memory_get_chunk`, `memory_search`) read entry YAML only and do NOT see
-sidecar edges yet - MCP parity is a recorded follow-up. Edge kinds are parsed separately and never folded into one
-another:
+are union(entry YAML, sidecar), merged at read time by
+`retrieval.augment_chunks_with_link_sidecars()` before the shared graph builder runs; `links check`
+validates sidecar refs through the same dangling and forward-only guards. MCP graph tools
+(`memory_link_show`, `memory_get_chunk`, `memory_search`) use the same effective edge set, so
+outbound fields and computed inverses match the Trail/reader contract. Edge kinds are parsed
+separately and never folded into one another:
 
 - **`related_entries`** - relatedness. Forward-only (reference only entries that already existed).
   Bidirectional at read time via `inbound`.

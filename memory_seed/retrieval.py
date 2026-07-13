@@ -17,10 +17,10 @@ docs/3_Spec/graph-edge-contract.md.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from .semantic_cache import (
     EmbeddingProvider,
@@ -86,7 +86,7 @@ def search_memory(
         embedding_provider,
         enabled=semantic_enabled,
     )
-    chunks = extract_memory_chunks(cwd, granularity=granularity)
+    chunks = augment_chunks_with_link_sidecars(extract_memory_chunks(cwd, granularity=granularity), cwd)
     topic_filter: set[str] | None = None
     if topics:
         # Alias-aware expansion (canonical + aliases both match); fail-open on
@@ -143,13 +143,14 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
     `entry_diagram_sidecars`). Off by default so the MCP tool contract is
     unchanged; Explorer/Trail consumers opt in.
     """
-    entry_chunks = extract_memory_chunks(cwd, granularity="entry")
+    entry_chunks = augment_chunks_with_link_sidecars(extract_memory_chunks(cwd, granularity="entry"), cwd)
     found = next((chunk for chunk in entry_chunks if chunk.chunk_id == chunk_id), None)
     if found is None:
-        found = next(
-            (chunk for chunk in extract_memory_chunks(cwd, granularity="section") if chunk.chunk_id == chunk_id),
-            None,
+        section_chunks = augment_chunks_with_link_sidecars(
+            extract_memory_chunks(cwd, granularity="section"),
+            cwd,
         )
+        found = next((chunk for chunk in section_chunks if chunk.chunk_id == chunk_id), None)
     if found is None:
         raise ValueError(f"chunk_id not found: {chunk_id}")
     payload = chunk_to_dict(found)
@@ -346,6 +347,47 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                     **found,
                 }
     return sidecars
+
+
+def augment_chunks_with_link_sidecars(
+    chunks: Iterable[MemoryChunk],
+    cwd: str | Path = ".",
+) -> list[MemoryChunk]:
+    """Union entry YAML edges with append-only link sidecar edges.
+
+    Link sidecars are authored after a session entry is written, so the
+    effective graph is ``union(entry YAML, sidecar)`` at read time. This helper
+    augments the input chunks before callers build ``build_related_entry_graph``
+    so outbound edges, inverse freshness fields, and result payloads all agree
+    without teaching ``semantic_cache`` how to read sidecar files.
+    """
+    entries = list(chunks)
+    sidecars = entry_link_sidecars(cwd)
+    if not sidecars:
+        return entries
+
+    def union(base: tuple[str, ...], extra: Iterable[str], entry_id: str | None) -> tuple[str, ...]:
+        merged = list(base)
+        for ref in extra:
+            if ref and ref != entry_id and ref not in merged:
+                merged.append(ref)
+        return tuple(merged)
+
+    augmented: list[MemoryChunk] = []
+    for chunk in entries:
+        extra = sidecars.get(chunk.entry_id or "")
+        if not extra:
+            augmented.append(chunk)
+            continue
+        augmented.append(
+            replace(
+                chunk,
+                related_entries=union(chunk.related_entries, extra.get("related_entries", ()), chunk.entry_id),
+                supersedes=union(chunk.supersedes, extra.get("supersedes", ()), chunk.entry_id),
+                evolves=union(chunk.evolves, extra.get("evolves", ()), chunk.entry_id),
+            )
+        )
+    return augmented
 
 
 @dataclass(frozen=True)

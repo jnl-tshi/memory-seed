@@ -20,6 +20,7 @@ from .core import (
 # future companion UI distribution consume, so every surface returns the same
 # answers. `format_search_results` is re-exported here for compatibility.
 from .retrieval import (
+    augment_chunks_with_link_sidecars,
     chunk_to_dict,
     format_search_results,
     get_chunk,
@@ -257,7 +258,10 @@ def call_tool(
     if name == "memory_link_show":
         entry_id = _required_str(args, "entry_id")
         cwd = args.get("cwd", ".")
-        entry_chunks = extract_memory_chunks(cwd, granularity="entry")
+        entry_chunks = augment_chunks_with_link_sidecars(
+            extract_memory_chunks(cwd, granularity="entry"),
+            cwd,
+        )
         graph = build_related_entry_graph(cwd=cwd, chunks=entry_chunks)
         node = graph.get(entry_id)
         if node is None:

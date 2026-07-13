@@ -4,6 +4,13 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Hardened Memory-Entry trailer hook management: `memory-seed hooks status [--json]`
+  reports missing/stale/broken/current/foreign `prepare-commit-msg` state, `memory-seed
+  hooks repair` refreshes only missing or Memory Seed-managed hooks, `doctor` warns
+  when the core trailer hook is not current, and Windows installs now use an
+  absolute-Python shim to avoid Git-for-Windows shell startup failures. Foreign
+  hooks are reported and never overwritten.
+
 ## 2.18.0 - 2026-07-13
 
 - Memory Trace now ships as part of the main `memory-seed` package behind the optional
