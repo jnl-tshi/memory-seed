@@ -22,6 +22,25 @@ Non-goals: No change to recency (already ranked). No change to the deliberate ev
 semantics. No hard exclusion by default (`exclude_superseded` stays the opt-in filter). No ranking
 flip until fixtures prove it.
 
+## Guiding constraint (must hold — user, 2026-07-13)
+**Memory ranking adds freshness *context*; it must never stop the agent from finding the actual live
+condition of the repository, and it must never hide information — it only adds context to the
+situation.**
+
+- The repository's live condition (what the code/files are **now**) is found by reading the **files**,
+  the source of truth — never by `memory_search`. This proposal re-orders only the *reasoning/context*
+  layer; it does not gate discovery of current state. (Keeps the `agent-rules.md` "History Retrieval"
+  line intact: current files are authority, session history is evidence and reason.)
+- A surfaced supersession is a **decision record to verify against the code**, not a claim the code
+  already changed. Implementation can lag the decision, so a "superseded" entry is context that says
+  *"this was decided to be replaced"* — the agent still reads the file to see whether it actually was.
+- **Down-rank only, never a default hard-exclude.** A superseded/older entry stays fully retrievable
+  (just lower); no reasoning the agent might need is removed from view. `exclude_superseded` remains an
+  explicit, caller-chosen filter.
+
+Any implementation that would suppress, hide, or substitute-for the live file/code state - rather than
+merely add the freshness dimension to context - is out of scope and violates this constraint.
+
 ## Current behavior (grounded)
 - **Recency is already a default ranking factor:** `final_score = match_score * recency_multiplier`
   ([`semantic_cache.py:585`](../../memory_seed/semantic_cache.py), exponential decay by entry age). So
