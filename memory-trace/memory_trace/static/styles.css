@@ -957,37 +957,172 @@ option {
 .graph-diagram-badge:hover {
   fill: var(--edge-related);
 }
-.diagram-popover {
+/* Decision-diagram viewer: a large centred, zoomable/pannable panel (the badge
+   preview was capped at 420px - too small to read a real flow). */
+.diagram-viewer-backdrop {
   position: fixed;
+  inset: 0;
   z-index: 60;
-  max-width: 420px;
-  max-height: 60vh;
-  overflow: auto;
-  padding: var(--space-sm, 8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.5);
+}
+.diagram-viewer {
+  display: flex;
+  flex-direction: column;
+  width: min(880px, 92vw);
+  max-height: 88vh;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius, 8px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
 }
-.diagram-popover-head {
+.diagram-viewer-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: var(--space-xs, 4px);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
 }
-.diagram-popover-close {
+.diagram-viewer-close {
   border: 0;
   background: none;
   color: var(--muted);
   cursor: pointer;
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1;
   padding: 0 4px;
 }
-.diagram-popover-close:hover {
+.diagram-viewer-close:hover { color: var(--text); }
+.diagram-viewer-body {
+  overflow: auto;
+  padding: 12px;
+}
+.diagram-view { margin: 0 0 16px; }
+.diagram-view:last-child { margin-bottom: 0; }
+.diagram-viewport {
+  position: relative;
+  height: min(60vh, 520px);
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  cursor: grab;
+  touch-action: none;
+}
+.diagram-viewport.grabbing { cursor: grabbing; }
+.diagram-stage {
+  transform-origin: 0 0;
+  width: 100%;
+  padding: 12px;
+}
+.diagram-stage .diagram-svg { width: 100%; height: auto; }
+.diagram-zoom-bar {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+.diagram-zoom-bar button {
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  min-width: 30px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm, 6px);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.diagram-zoom-bar button:hover { border-color: var(--accent); }
+.diagram-openable { cursor: zoom-in; }
+
+/* Worktree-switch subway loader (worktreeLoader). The Trail's own vocabulary -
+   a vertical accent line, circular stations, a train car sliding between the
+   real load milestones. Progress is driven by the [data-stage] attribute, which
+   switchWorktree flips at each fetch boundary; CSS transitions do the motion. */
+.worktree-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 320px;
+  height: 100%;
+  padding: 24px;
+}
+.wt-map { overflow: visible; }
+.wt-track {
+  stroke: var(--border);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.wt-track-lit {
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1; /* stage 0: none of the track lit yet */
+  transition: stroke-dashoffset 0.55s cubic-bezier(0.5, 0.05, 0.2, 1);
+}
+.wt-station {
+  fill: var(--panel);
+  stroke: var(--border);
+  stroke-width: 2.5;
+  transition: fill 0.4s ease, stroke 0.4s ease;
+}
+.wt-label {
+  fill: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  transition: fill 0.4s ease;
+}
+.wt-train {
+  transform: translateY(30px); /* stage 0 station */
+  transition: transform 0.55s cubic-bezier(0.5, 0.05, 0.2, 1);
+}
+.wt-train rect { fill: var(--accent); }
+.wt-train-halo {
+  fill: var(--accent);
+  animation: wt-pulse 1.15s ease-in-out infinite;
+}
+@keyframes wt-pulse {
+  0%, 100% { opacity: 0.1; }
+  50% { opacity: 0.36; }
+}
+/* Milestone progression: lit track length, lit stations/labels, train stop. */
+.worktree-loader[data-stage="1"] .wt-track-lit { stroke-dashoffset: 0.5; }
+.worktree-loader[data-stage="2"] .wt-track-lit { stroke-dashoffset: 0; }
+.worktree-loader[data-stage="1"] .wt-train { transform: translateY(120px); }
+.worktree-loader[data-stage="2"] .wt-train { transform: translateY(210px); }
+.worktree-loader[data-stage="0"] .wt-station[data-i="0"],
+.worktree-loader[data-stage="1"] .wt-station[data-i="0"],
+.worktree-loader[data-stage="1"] .wt-station[data-i="1"],
+.worktree-loader[data-stage="2"] .wt-station {
+  fill: var(--accent);
+  stroke: var(--accent-strong);
+}
+.worktree-loader[data-stage="0"] .wt-label[data-i="0"],
+.worktree-loader[data-stage="1"] .wt-label[data-i="0"],
+.worktree-loader[data-stage="1"] .wt-label[data-i="1"],
+.worktree-loader[data-stage="2"] .wt-label { fill: var(--text); }
+.wt-caption { text-align: center; }
+.wt-title {
+  font-family: var(--display, var(--sans));
+  font-size: 15px;
   color: var(--text);
 }
-.diagram-popover .diagram {
-  margin: 0;
+.wt-sub {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wt-train-halo { animation: none; }
+  .wt-track-lit, .wt-train { transition: none; }
 }
