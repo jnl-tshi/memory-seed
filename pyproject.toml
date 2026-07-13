@@ -44,6 +44,11 @@ packages = ["memory_seed", "memory_trace"]
 [tool.setuptools.package-dir]
 memory_trace = "memory-trace/memory_trace"
 
+[tool.pytest.ini_options]
+# Pytest's cacheprovider can hang on shutdown in Windows OneDrive worktrees
+# after tests pass. Keep validation deterministic by disabling repo-local cache.
+addopts = ["-p", "no:cacheprovider"]
+
 [tool.setuptools.package-data]
 memory_seed = [
   "seed/AGENTS.md",

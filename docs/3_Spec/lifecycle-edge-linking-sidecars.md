@@ -70,26 +70,27 @@ backward edge from the source entry to an older target.
   `entry_diagram_sidecars` (block regex → `entry_id` → list fields).
 
 Placement is forced, not stylistic: `retrieval` already imports
-`semantic_cache` (confirmed, `retrieval.py:25`), so `semantic_cache` can never
-import a reader in `retrieval`. That is *why* the graph merge can't live in
-`build_related_entry_graph` and must live in `lense`.
+`semantic_cache`, so `semantic_cache` can never import a reader in `retrieval`.
+That is *why* the graph merge can't live in `build_related_entry_graph`. The
+merge now lives in `retrieval.augment_chunks_with_link_sidecars()`, a core-safe
+helper shared by MCP, CLI/retrieval, and Memory Trace callers before they invoke
+the canonical graph builder.
 
-### Merge (one shared lense helper, applied to the INPUT chunk list)
+### Merge (shared retrieval helper, applied to the INPUT chunk list)
 `build_related_entry_graph` builds the inverse edges
 (`superseded_by`/`evolved_by`) from its **input** chunks and is otherwise pure
 over them. So the merge augments the *input*, and everything downstream
 (`_graph_edges`, connectivity, the reader's inverses) follows with **no change
 to `build_related_entry_graph` or `_graph_edges`**.
 
-- New lense helper `_augment_with_link_sidecars(chunks, cwd)`:
+- Shared helper `augment_chunks_with_link_sidecars(chunks, cwd)`:
   `entry_link_sidecars(cwd)` → `dataclasses.replace` each chunk unioning
   `supersedes`/`evolves`/`related_entries` (dedup by target id, drop
-  self-refs). Called at the **top of both `graph()` and `chunk()`** with
-  `self.cache.cwd` — the correct per-worktree path (`graph()` currently calls
-  `build_related_entry_graph(chunks=entries)` with cwd defaulting to `.`, which
-  would read the wrong worktree; passing through the helper fixes that). Both
-  entry points MUST use the same helper or the reader panel and the Trail
-  disagree.
+  self-refs). MCP `memory_search`, `memory_get_chunk`, and `memory_link_show`
+  call it before graph construction or payload formatting, so their outbound
+  lifecycle fields and computed inverse fields reflect union(YAML, sidecar)
+  edges. Memory Trace keeps the same rule by applying the helper with the
+  per-worktree cwd before building graph/reader payloads.
 - Read at **request time**, not baked into the cache: the lense cache
   invalidates on session-*file* mtime and does not track the new `links/`
   files, so caching sidecar edges would go stale on sidecar edits. Reading a
@@ -102,12 +103,14 @@ to `build_related_entry_graph` or `_graph_edges`**.
   fails. Dangling sidecar refs reuse the `dangling-supersedes` /
   `dangling-evolves` issue kinds.
 
-### Scope boundary (stated, not silent)
-The **MCP graph tools do not reflect sidecar edges** — they call core
-`build_related_entry_graph` over raw chunks and never pass through the lense
-helper. `links check` *does* validate sidecar edges. This asymmetry is
-acceptable for a Trail-focused first pass; MCP-graph parity is a deferred
-follow-up (it would need the reader wired into a core-safe location).
+### MCP parity
+The earlier Trail-first scope boundary is closed. The **MCP graph tools now
+reflect sidecar edges**: `memory_search`, `memory_get_chunk`, and
+`memory_link_show` all pass extracted chunks through
+`augment_chunks_with_link_sidecars()` before graph construction or payload
+formatting. `links check` continues to validate sidecar edges through the same
+dangling and forward-only guards, so read surfaces and validation agree on the
+effective edge set.
 
 ### Sidecar-structural validation (mirrors diagram sidecars)
 New `links check` issue kinds: `orphan-link-sidecar` (block whose `entry_id`

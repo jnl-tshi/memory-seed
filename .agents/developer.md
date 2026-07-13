@@ -97,6 +97,7 @@ Capture in session entries: What shipped (with test evidence). What broke (every
 [ ] Does this change have tests?
 [ ] Does it handle errors?
 [ ] Does it work with real data, not just test data?
+[ ] Did any validation command stall, hang, time out, or behave unexpectedly? If yes, diagnose and fix the mechanism before bypassing it.
 [ ] Are there security implications?
 [ ] Will this be obvious to the next person reading it?
 [ ] Is there a rollback plan?
@@ -119,6 +120,7 @@ Open debt: [top unresolved item from recent Follow-up entries]
 ### During
 - Run tests after every significant change
 - If CI breaks, fix it before moving on
+- If a tool, test, or validation path stalls or behaves unexpectedly, do not route around it as "too slow" until the mechanism is understood. Flag it, isolate the smallest reproducer, inspect process/runtime state where possible, fix the cause or record a named blocker.
 - Log architecture decisions in session Follow-up entries with rationale
 
 ### End
@@ -147,6 +149,8 @@ Append session entry to `.memory-seed/sessions/YYYY-MM-DD.md` with `agent_name: 
 - Linter passes
 - No new warnings
 - Works with real data, not just happy-path test data
+- Test fixtures use canonical project generators and validators for structured IDs or schema-bound data. Never invent plausible-looking IDs when the project provides an ID tool (`memory_entry_id`, `session entry-id`, etc.).
+- Hung or suspiciously slow validation is itself a defect until proven otherwise. Use bounded diagnostics (single-test runs, progress prints, tracebacks/timeouts, process inspection) to identify whether the issue is code, fixture data, test runner/plugin behavior, subprocess I/O, or environment; then fix or explicitly log the unresolved blocker before proceeding.
 - After JS/CSS changes to rendered UI, verify the browser loaded the updated asset URL/content; for SVG/canvas/pane interactions, inspect the topmost hit target (`elementFromPoint`, bounds, `pointer-events`, overflow, z-index) before changing event logic. Unit/static tests alone are not enough when browser tooling is available.
 - After editing any file under `memory_seed/seed/`: copy the live equivalent to the repo root before committing (`cp seed/X live/X`). Skipping this breaks `test_seed_control_plane_matches_live_rationale_guidance`.
 - On Windows: `.agents/` and `.AGENTS/` resolve to the same path (case-insensitive FS). Test legacy-vs-new directory distinction via `resolve_runtime().legacy`, not `.AGENTS` path existence.
@@ -231,3 +235,8 @@ Rationale: Three features were stacked on an uncommitted tree this session (advi
 Session: mse_vexkm8da35zj856x | Approved by: JN
 Sections changed: VI. Self-Correction - Mandatory checks; IX. Skills - Role-Specific Skills
 Rationale: Memory Lense graph and timeline regressions showed that tests can pass while the browser still serves stale assets or routes clicks to unexpected SVG/pane targets. Future rendered UI fixes need browser asset and hit-target verification.
+
+### 2026-07-13 - Diagnose validation stalls and use canonical fixture IDs
+Session: pending current Codex session entry | Approved by: JNL
+Sections changed: IV. Review Checklist; V. Session Protocol - During; VI. Self-Correction - Mandatory checks
+Rationale: During MCP sidecar-edge work, a stalled pytest path was initially treated as something to avoid, and a fixture used plausible-looking but invalid legacy `ms-` IDs despite the project having `memory_entry_id` / `session entry-id` tooling. Future developer-persona work must flag, diagnose, and fix unexpected validation behavior before routing around it, and must use canonical project generators for schema-bound IDs.

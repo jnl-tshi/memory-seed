@@ -6,6 +6,7 @@ import re
 import hashlib
 import secrets
 import subprocess
+import sys
 import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -197,6 +198,17 @@ class DoctorResult:
     version_mismatches: list[dict[str, str]] = field(default_factory=list)
     bootstrap_missing: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class GitHookStatus:
+    is_git_repo: bool
+    state: str
+    message: str
+    hook_path: str | None = None
+    managed: bool = False
+    current: bool = False
+    repairable: bool = False
 
 
 @dataclass
@@ -2785,8 +2797,8 @@ SEED_FILES = [
 ]
 
 # Shim written into .git/hooks/ so git runs the repo-tracked trailer stamper.
-# sh, not python, because git invokes hooks through sh on every platform
-# (including Git for Windows); the shim just finds an interpreter and delegates.
+# Non-Windows installs use this portable shell delegator; Windows installs use
+# an absolute-Python wrapper from _git_prepare_commit_msg_shim().
 _GIT_PREPARE_COMMIT_MSG_SHIM = """#!/bin/sh
 # Installed by memory-seed (hooks install): stamps Memory-Entry trailers for
 # staged session entries. Delegates to the repo-tracked script; never blocks.
@@ -2802,6 +2814,151 @@ exit 0
 """
 
 
+def _git_prepare_commit_msg_shim() -> str:
+    if os.name != "nt":
+        return _GIT_PREPARE_COMMIT_MSG_SHIM
+    # Git for Windows normally runs shell hooks, but some locked-down Windows
+    # sessions fail before the shell script starts. An absolute-Python shebang
+    # avoids sh/env and delegates to the repo-tracked standalone script.
+    return f"""#!{sys.executable}
+# Installed by memory-seed (hooks install): stamps Memory-Entry trailers for
+# staged session entries. Delegates to the repo-tracked script; never blocks.
+import runpy
+import subprocess
+import sys
+from pathlib import Path
+
+
+def main():
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=10,
+        )
+    except Exception:
+        return 0
+    if proc.returncode != 0:
+        return 0
+    root = proc.stdout.strip()
+    if not root:
+        return 0
+    script = Path(root) / ".memory-seed" / "hooks" / "prepare-commit-msg.py"
+    if not script.is_file():
+        return 0
+    old_argv = sys.argv[:]
+    try:
+        sys.argv = [str(script), *sys.argv[1:]]
+        runpy.run_path(str(script), run_name="__main__")
+    except SystemExit:
+        return 0
+    except Exception:
+        return 0
+    finally:
+        sys.argv = old_argv
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+"""
+
+
+def _git_common_hooks_dir(root: Path) -> Path | None:
+    git_dir_lines = _git_capture(root, "rev-parse", "--git-common-dir")
+    if not git_dir_lines:
+        return None
+    git_dir = Path(git_dir_lines[0].strip())
+    if not git_dir.is_absolute():
+        git_dir = root / git_dir
+    return git_dir / "hooks"
+
+
+def git_hook_status(cwd: Path | str = ".") -> GitHookStatus:
+    runtime = resolve_runtime(cwd)
+    root = runtime.workspace_root
+    hooks_dir = _git_common_hooks_dir(root)
+    if hooks_dir is None:
+        return GitHookStatus(
+            is_git_repo=False,
+            state="no-git",
+            message="No git repository found.",
+        )
+
+    hook_path = hooks_dir / "prepare-commit-msg"
+    hook_path_str = hook_path.as_posix()
+    if not hook_path.exists():
+        return GitHookStatus(
+            is_git_repo=True,
+            state="missing",
+            message="Memory-Entry trailer hook is missing. Run `memory-seed hooks repair`.",
+            hook_path=hook_path_str,
+            repairable=True,
+        )
+
+    existing = read_text_file(hook_path)
+    if "Installed by memory-seed" not in existing:
+        return GitHookStatus(
+            is_git_repo=True,
+            state="foreign",
+            message=(
+                "A foreign prepare-commit-msg hook is installed; Memory Seed will not overwrite it. "
+                "Merge the Memory Seed hook manually if commit trailers are required."
+            ),
+            hook_path=hook_path_str,
+        )
+
+    shim = _git_prepare_commit_msg_shim()
+    if existing != shim:
+        return GitHookStatus(
+            is_git_repo=True,
+            state="stale-managed",
+            message="Memory Seed prepare-commit-msg hook is stale. Run `memory-seed hooks repair`.",
+            hook_path=hook_path_str,
+            managed=True,
+            repairable=True,
+        )
+
+    if os.name == "nt":
+        first_line = existing.splitlines()[0] if existing.splitlines() else ""
+        if first_line.startswith("#!") and not Path(first_line[2:]).exists():
+            return GitHookStatus(
+                is_git_repo=True,
+                state="broken-python",
+                message=(
+                    "Memory Seed prepare-commit-msg hook points at a missing Python executable. "
+                    "Run `memory-seed hooks repair`."
+                ),
+                hook_path=hook_path_str,
+                managed=True,
+                repairable=True,
+            )
+
+    script = root / MEMORY_DIR_NAME / "hooks" / "prepare-commit-msg.py"
+    if not script.is_file():
+        return GitHookStatus(
+            is_git_repo=True,
+            state="script-missing",
+            message=(
+                "Memory Seed git hook is installed, but .memory-seed/hooks/prepare-commit-msg.py "
+                "is missing. Run `memory-seed update`."
+            ),
+            hook_path=hook_path_str,
+            managed=True,
+        )
+
+    return GitHookStatus(
+        is_git_repo=True,
+        state="current",
+        message="Memory Seed prepare-commit-msg hook is current.",
+        hook_path=hook_path_str,
+        managed=True,
+        current=True,
+    )
+
+
 def install_git_hooks(cwd: Path | str = ".") -> list[str]:
     """Write the prepare-commit-msg shim into .git/hooks (idempotent).
 
@@ -2811,30 +2968,32 @@ def install_git_hooks(cwd: Path | str = ".") -> list[str]:
     """
     runtime = resolve_runtime(cwd)
     root = runtime.workspace_root
-    # --git-common-dir, not --git-dir: in a linked worktree the latter is the
-    # per-worktree metadata dir, but git resolves hooks from the COMMON dir -
-    # installing there covers the primary checkout and every worktree at once.
-    git_dir_lines = _git_capture(root, "rev-parse", "--git-common-dir")
-    if not git_dir_lines:
+    # --git-common-dir, not --git-dir: in a linked worktree git resolves hooks
+    # from the COMMON dir - installing there covers every linked worktree.
+    hooks_dir = _git_common_hooks_dir(root)
+    if hooks_dir is None:
         return []
-    git_dir = Path(git_dir_lines[0].strip())
-    if not git_dir.is_absolute():
-        git_dir = root / git_dir
-    hooks_dir = git_dir / "hooks"
     hooks_dir.mkdir(parents=True, exist_ok=True)
     hook_path = hooks_dir / "prepare-commit-msg"
+    shim = _git_prepare_commit_msg_shim()
     if hook_path.exists():
         existing = read_text_file(hook_path)
         if "Installed by memory-seed" in existing:
-            if existing == _GIT_PREPARE_COMMIT_MSG_SHIM:
+            if existing == shim:
                 return [f"prepare-commit-msg: already installed ({hook_path})"]
-            write_text_file(hook_path, _GIT_PREPARE_COMMIT_MSG_SHIM)
+            try:
+                write_text_file(hook_path, shim)
+            except OSError as exc:
+                return [f"prepare-commit-msg: NOT refreshed - could not write {hook_path}: {exc}"]
             return [f"prepare-commit-msg: refreshed ({hook_path})"]
         return [
             f"prepare-commit-msg: NOT installed - a hook that memory-seed did not write "
             f"already exists at {hook_path}; merge the shim manually"
         ]
-    write_text_file(hook_path, _GIT_PREPARE_COMMIT_MSG_SHIM)
+    try:
+        write_text_file(hook_path, shim)
+    except OSError as exc:
+        return [f"prepare-commit-msg: NOT installed - could not write {hook_path}: {exc}"]
     try:
         hook_path.chmod(0o755)
     except OSError:
@@ -4541,6 +4700,12 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
         if artifact not in created:
             created.append(artifact)
 
+    # Commit trailers are core provenance. Refresh only Memory Seed-managed
+    # hooks (or install when absent); foreign hooks remain untouched.
+    for action in install_git_hooks(target_root):
+        if ": installed" in action or ": refreshed" in action:
+            created.append(f"git-hook: {action}")
+
     return InitResult(
         changed=bool(created or backed_up or archived),
         planned=planned,
@@ -4804,6 +4969,10 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
             'Set it by hand to: command = "uvx", args = ["--from", "memory-seed", '
             '"memory-seed-mcp", "--stdio"].'
         )
+
+    hook_status = git_hook_status(target_root)
+    if hook_status.is_git_repo and hook_status.state != "current":
+        warnings.append(f"Git hook status: {hook_status.message}")
 
     # Orphan-skill check: every skill runbook must be registered in the trigger
     # registry, or agents will never load it. index.md references each skill as

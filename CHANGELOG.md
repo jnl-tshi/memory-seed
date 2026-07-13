@@ -37,6 +37,17 @@ All notable changes to Memory Seed are summarized here.
   endpoint so the graph payload stays lean. The popover closes on the × button, an outside click,
   Escape, or re-clicking the badge. `has_diagram` ships on the legacy `/api/*` surface only for now
   (the v1 `GraphNode` model strips it) until the badge UI is polished.
+- MCP graph sidecar-edge parity: `memory_search`, `memory_get_chunk`, and `memory_link_show`
+  now read the same effective lifecycle-edge set as Trail/Trace by applying
+  union(entry YAML, link sidecar) before graph construction or payload formatting.
+  Sidecar-only `supersedes`/`evolves` edges now surface through MCP outbound and inverse
+  freshness fields, while YAML-only behavior remains unchanged when no sidecars exist.
+- Hardened Memory-Entry trailer hook management: `memory-seed hooks status [--json]`
+  reports missing/stale/broken/current/foreign `prepare-commit-msg` state, `memory-seed
+  hooks repair` refreshes only missing or Memory Seed-managed hooks, `doctor` warns
+  when the core trailer hook is not current, and Windows installs now use an
+  absolute-Python shim to avoid Git-for-Windows shell startup failures. Foreign
+  hooks are reported and never overwritten.
 
 ## 2.18.0 - 2026-07-13
 

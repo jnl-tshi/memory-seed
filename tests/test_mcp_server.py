@@ -66,6 +66,21 @@ class MemoryMcpServerTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
 
+    def write_link_sidecar(self, cwd, file_date, source_entry, *, supersedes=(), evolves=(), related_entries=()):
+        links = cwd / ".memory-seed" / "sessions" / "links" / file_date[:7]
+        links.mkdir(parents=True, exist_ok=True)
+        lines = [f"## {file_date} 10:00 - sidecar links", "", "```yaml", f"entry_id: {source_entry}"]
+        for key, refs in (
+            ("related_entries", related_entries),
+            ("supersedes", supersedes),
+            ("evolves", evolves),
+        ):
+            if refs:
+                lines.append(f"{key}:")
+                lines.extend(f"  - {ref}" for ref in refs)
+        lines += ["```", ""]
+        (links / f"{file_date}.md").write_text("\n".join(lines), encoding="utf-8")
+
     def write_grouped_session(self, cwd, date_str, entry_id, *, branch):
         self.write_session(
             cwd,
@@ -319,6 +334,119 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertEqual(by_id["ms-newcache0"]["evolves"], ["ms-basecache"])
         self.assertEqual(by_id["ms-newcache0"]["superseded_by"], [])
         self.assertEqual(by_id["ms-newcache0"]["evolved_by"], [])
+
+    def test_mcp_graph_surfaces_union_of_yaml_and_link_sidecar_edges(self):
+        cwd = self.make_project()
+        old_id = "mse_73acenc747vkk724"
+        base_id = "mse_6f9qmrbdtq4esea8"
+        new_id = "mse_3z3b625t90e185x4"
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:00 - Old cache decision\n\n"
+            "```yaml\n"
+            f"entry_id: {old_id}\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "```\n\n"
+            "The original cache key design.\n\n"
+            "## 2026-05-17 09:30 - Foundational cache decision\n\n"
+            "```yaml\n"
+            f"entry_id: {base_id}\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "```\n\n"
+            "The cache layering design.\n\n"
+            "## 2026-05-17 10:00 - New cache decision\n\n"
+            "```yaml\n"
+            f"entry_id: {new_id}\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "```\n\n"
+            "The revised cache key design.\n",
+        )
+        self.write_link_sidecar(
+            cwd,
+            "2026-05-17",
+            new_id,
+            supersedes=(old_id,),
+            evolves=(base_id,),
+        )
+
+        search = call_tool(
+            "memory_search",
+            {"query": "cache design", "cwd": str(cwd), "top_k": 10, "semantic_enabled": False},
+            today=date(2026, 5, 18),
+        )
+        by_id = {r["entry_id"]: r for r in search["results"]}
+        old_chunk = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": old_id})["chunk"]
+        base_chunk = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": base_id})["chunk"]
+        new_chunk = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": new_id})["chunk"]
+        old_node = call_tool("memory_link_show", {"cwd": str(cwd), "entry_id": old_id})
+        base_node = call_tool("memory_link_show", {"cwd": str(cwd), "entry_id": base_id})
+        new_node = call_tool("memory_link_show", {"cwd": str(cwd), "entry_id": new_id})
+
+        self.assertEqual(by_id[old_id]["superseded_by"], [new_id])
+        self.assertEqual(by_id[base_id]["evolved_by"], [new_id])
+        self.assertEqual(by_id[new_id]["supersedes"], [old_id])
+        self.assertEqual(by_id[new_id]["evolves"], [base_id])
+        self.assertEqual(old_chunk["superseded_by"], [new_id])
+        self.assertEqual(base_chunk["evolved_by"], [new_id])
+        self.assertEqual(new_chunk["supersedes"], [old_id])
+        self.assertEqual(new_chunk["evolves"], [base_id])
+        self.assertEqual(old_node["superseded_by"], [new_id])
+        self.assertEqual(base_node["evolved_by"], [new_id])
+        self.assertEqual(new_node["supersedes"], [old_id])
+        self.assertEqual(new_node["evolves"], [base_id])
+
+    def test_mcp_graph_yaml_only_lifecycle_edges_still_work_without_sidecars(self):
+        cwd = self.make_project()
+        original_id = "mse_ar1n3fe9phvv7dhd"
+        replacement_id = "mse_zyp770zqesd85dpf"
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:00 - Original decision\n\n"
+            "```yaml\n"
+            f"entry_id: {original_id}\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "```\n\n"
+            "The first take on the cache key.\n\n"
+            "## 2026-05-17 10:00 - Replacement decision\n\n"
+            "```yaml\n"
+            f"entry_id: {replacement_id}\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "supersedes:\n"
+            f"  - {original_id}\n"
+            "```\n\n"
+            "The corrected take on the cache key.\n",
+        )
+
+        search = call_tool(
+            "memory_search",
+            {"query": "cache key", "cwd": str(cwd), "top_k": 10, "semantic_enabled": False},
+            today=date(2026, 5, 18),
+        )
+        by_id = {r["entry_id"]: r for r in search["results"]}
+        original = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": original_id})["chunk"]
+        replacement = call_tool("memory_link_show", {"cwd": str(cwd), "entry_id": replacement_id})
+
+        self.assertEqual(by_id[original_id]["superseded_by"], [replacement_id])
+        self.assertEqual(by_id[replacement_id]["supersedes"], [original_id])
+        self.assertEqual(original["superseded_by"], [replacement_id])
+        self.assertEqual(replacement["supersedes"], [original_id])
 
     def test_call_tool_ignores_caller_supplied_today_in_arguments(self):
         cwd = self.make_memory_fixture()
