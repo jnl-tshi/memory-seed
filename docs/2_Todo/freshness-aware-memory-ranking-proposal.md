@@ -9,7 +9,10 @@ tags:
 
 # Freshness-aware memory ranking (supersession-dampen + evolves-successor-surface)
 
-Status: **PROPOSED** (2026-07-13, user-requested).
+Status: **LANDED - on by default** (2026-07-13, user-requested). Shipped default-off on
+`feature-freshness-ranking`, then turned on by default on `feature-freshness-default-on` after a
+real-corpus A/B on both live supersession lineages (the Trail palette chain and the Explorer/Lense-era
+"Retirement record" that superseded two 3.0-plan decisions).
 Priority: P2 — retrieval quality; touches the ranking contract, so it carries that contract's
 change-discipline (fixtures-on-a-branch before default-on).
 Source: User 2026-07-13 — "recency of the data must be an important signal, especially if it has an
@@ -83,7 +86,12 @@ Supersession was exposed first, on purpose. This proposal is the next stage of t
   a branch - a superseded decision + its replacement (both YAML and *sidecar*-authored supersession),
   and an evolves chain - asserting the live/current entry ranks above the retired one and that an
   evolved-but-valid entry is not buried. Flip default-on only once the fixtures prove it doesn't harm
-  ordinary topical search.
+  ordinary topical search. **Done (2026-07-13):** fixtures landed default-off, then a real-corpus A/B
+  cleared the bar - on both live supersession lineages the replacement out-ranked every retired
+  predecessor at full k, the retired entries stayed retrievable (down-rank only, e.g. #1 -> #45), and
+  queries with no superseded hit in-window were byte-identical - so `supersession_damping` is now on by
+  default in `search_memory` + the MCP `memory_search` tool, with `supersession_damping=False` the
+  opt-out.
 - `exclude_superseded` remains the caller's hard-filter escape hatch; this changes *order*, not
   *membership*.
 - Update `graph-edge-contract.md`'s ranking section + `docs/2_Todo/completed/supersession-edges-plan.md`
