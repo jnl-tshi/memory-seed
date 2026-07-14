@@ -49,7 +49,7 @@ DOCX Windows render lessons
 
 ## Clashes To Resolve
 
-- `3.0-plan.md` still needs to be read as historical context, not the active queue. The active decision is resolved: the UI has been extracted as `memory-trace`; the canonical plan is [`../memory-trace-distribution-plan.md`](../memory-trace-distribution-plan.md).
+- `3.0-plan.md` still needs to be read as historical context, not the active queue. The active decision is resolved: the UI has been extracted as `memory-trace`; the canonical plan is [`../2_Todo/memory-trace-distribution-plan.md`](../2_Todo/memory-trace-distribution-plan.md).
 - `user-interface-deep-research-report.md` is historical pre-Trace research and mentions no persistent cache, while the shipped baseline has an outside-repo rebuildable SQLite cache and graph/search UI.
 - `related-entries-generation-plan.md` correctly says P1 shipped read-only, but stale P1/Definition-of-Done wording still includes `link add`.
 - `interaction-frequency-ranking-plan.md` claims Option C P1 can ship now while relying on supersession dampening that cannot exist until `supersedes` ships. Split raw related-degree exposure from supersession-aware scoring.
@@ -100,7 +100,7 @@ P3 - Deferred automation and mutation:
 Evaluate whether the human review UI should remain an in-package optional extra or spin out into a separate companion package.
 
 **Outcome:** decided to spin out a separate companion package, now named `memory-trace`; the scoped
-plan is [`../memory-trace-distribution-plan.md`](../memory-trace-distribution-plan.md).
+plan is [`../2_Todo/memory-trace-distribution-plan.md`](../2_Todo/memory-trace-distribution-plan.md).
 This evaluation loop is closed.
 
 Inputs (as weighed):

@@ -90,10 +90,9 @@ Track above.
   guard shipped; removal/GC did not).
 - [`agent-namespaced-branch-worktree-lifecycle-proposal.md`](../1_Inbox/agent-namespaced-branch-worktree-lifecycle-proposal.md)
   — session-scoped-worktree / task-owns-branch naming scheme + enforcement (practice is still mixed).
-- [`memory-seed-architectural-discovery-proposal.md`](../1_Inbox/memory-seed-architectural-discovery-proposal.md)
-  — a governance "Constitution" derived from evidence (invariant/principle/policy classification + a
-  drift-governance gate). **Decision needed:** it asks to *pause major architectural expansion* first,
-  which conflicts with Tracks A/B above — a sequencing call for you, not a routine approval.
+
+*(The architectural-discovery proposal was approved and promoted to `2_Todo/` — it is the active
+Constitution-first work; see the pause banner above.)*
 
 ## Captured strategic input — `4_Reference` (2026-07-14 drop, triaged)
 
