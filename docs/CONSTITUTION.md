@@ -6,7 +6,7 @@
 Invariants #1 & #6, §5, and the open-core principle). **Source:** distilled from demonstrated behaviour
 across the codebase,
 `3_Spec/`, `.memory-seed/agent-rules.md`, and the session-memory corpus — not invented. Framework from the
-[architectural-discovery proposal](2_Todo/memory-seed-architectural-discovery-proposal.md).
+[architectural-discovery proposal](5_Completed/memory-seed-architectural-discovery-proposal.md).
 
 > **How to read this.** Higher layers constrain lower ones and change more slowly:
 > **Vision → Invariants → Principles → Policies → Implementations.** An *implementation* may change

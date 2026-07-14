@@ -4,21 +4,20 @@ tags:
   - proposal
   - governance
   - architecture
-priority: P0
-next_action: Constitution RATIFIED 2026-07-14 (docs/CONSTITUTION.md v1.0); awaiting the resume-Tracks-A/B vs Constitution-gated decision (move this to 5_Completed once that is made)
+implemented_by: mse_cdcby6x93e5np7yq (Constitution v1.0 — authored mse_mhfreh4t521ryc2v, ratified mse_cdcby6x93e5np7yq)
+shipped: 2026-07-14
 ---
 
-<!-- Promoted 1_Inbox -> 2_Todo on 2026-07-14: the maintainer approved a Constitution-first pause. ACTIVE.
-     The Constitution is drafted at docs/CONSTITUTION.md (v1 ratification draft). The discovery FRAMEWORK
-     here (invariant/principle/policy/implementation tiering, evidence-grounding, amendment process) is
-     folded INTO that document as inline citations + its "Open Questions" section, rather than shipped as a
-     separate discovery report. Remaining: maintainer ratification, then the resume-A/B-vs-Constitution-gated
-     decision. Development of 0_NEXT_STEPS Tracks A/B is paused. -->
+<!-- COMPLETED 2026-07-14: this proposal's arc is done. The maintainer paused development; the discovery
+     FRAMEWORK here (invariant/principle/policy/implementation tiering, evidence-grounding, amendment
+     process) was folded directly into docs/CONSTITUTION.md (v1.0, ratified 2026-07-14) as inline citations
+     + its "Open Questions" section rather than a separate discovery report; and development has resumed
+     Constitution-aligned. Kept for the record. -->
 
 # Proposal: Architectural Discovery Report
 ## Establishing the Foundation for the Memory Seed Constitution
 
-**Status:** Proposal  
+**Status:** COMPLETED (2026-07-14) — the Constitution v1.0 was authored and ratified from this framework; development resumed Constitution-aligned.  
 **Audience:** Project maintainers, contributors, AI agents  
 **Purpose:** Define a structured discovery process that derives Memory Seed's Constitution from evidence rather than opinion.
 

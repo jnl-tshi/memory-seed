@@ -6,16 +6,14 @@ tags:
   - architecture
   - projection
   - performance
-priority: P1
-next_action: (blocked) awaits Constitution ratification + the dev-resume decision; then start Phase 1 over the existing SQLite cache
-blocked_by: Constitution-first pause (docs/2_Todo/0_NEXT_STEPS.md) — no feature build while paused
+priority: P0
+next_action: START Phase 1 — extend the existing SQLite cache into the read-model (git-watermark warm start + atomic build/swap) per the projection contract
 ---
 
 # Derived-projection implementation plan
 
-**Status:** BLOCKED — feature development is paused for the Constitution-first phase
-([`0_NEXT_STEPS.md`](0_NEXT_STEPS.md)). This plan is approved-in-principle and ready to start once the
-maintainer ratifies the Constitution and resumes development.
+**Status:** ACTIVE — the **foundation** item; development resumed Constitution-aligned 2026-07-14
+([`0_NEXT_STEPS.md`](0_NEXT_STEPS.md)). Start Phase 1 by extending the existing SQLite cache.
 **Priority:** P1 (it is what makes Memory Trace fast on large histories).
 **Source:** the maintainer's design conversation on performance vs. the Markdown source of truth (2026-07-14).
 **Implements:** [`../3_Spec/draft/derived-read-model-projection-contract.md`](../3_Spec/draft/derived-read-model-projection-contract.md)
