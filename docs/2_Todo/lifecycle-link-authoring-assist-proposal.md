@@ -10,9 +10,11 @@ tags:
 
 # Lifecycle-link authoring assist (`link audit --apply` sidecar scaffold + advisory gap warning)
 
-Status: **PROPOSED** (2026-07-13). Inbox — spun out of a user question about the lifecycle-link update
-process ("is there a hook that runs in background?").
+Status: **PROMOTED to `2_Todo`** 2026-07-14 (active — approved by JNL). Filed 2026-07-13.
 Priority: P2 — retrieval/graph quality; removes authoring friction, touches no ranking behavior.
+Next action: build `link audit --date <d> --apply` (inert `classify_pending` sidecar scaffold), the
+`links check` `sidecar-unclassified-stub` warning, and the `esr` open-stub count (steps 1–3). The
+commit-time nudge (4) and MCP `memory_link_record` write tool (5) stay optional/deferred.
 Source: User 2026-07-13, after confirming the update flow is deliberately manual.
 
 ## Problem

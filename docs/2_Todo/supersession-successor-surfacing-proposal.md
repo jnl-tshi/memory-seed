@@ -9,9 +9,10 @@ tags:
 
 # Supersession successor-surfacing (make the live replacement reachable, not just the retired one damped)
 
-Status: **PROPOSED** (2026-07-13). Inbox — surfaced by the real-corpus A/B that justified turning
-supersession damping on by default.
+Status: **PROMOTED to `2_Todo`** 2026-07-14 (active — approved by JNL). Filed 2026-07-13.
 Priority: P2 — retrieval quality; closes an asymmetry the default-on flip exposed.
+Next action: implement `superseding_head` (step 1 — additive/read-only, mirrors the existing
+`evolved_head`); step 2 (bounded replacement boost) waits on `ranking-ab` (the gate proposal).
 Source: This session's freshness-ranking validation.
 
 ## Problem — supersession ranking is asymmetric

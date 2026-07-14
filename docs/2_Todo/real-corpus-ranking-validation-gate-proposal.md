@@ -10,8 +10,11 @@ tags:
 
 # Real-corpus A/B as a required gate before any default ranking flip
 
-Status: **PROPOSED** (2026-07-13). Inbox — spun out of the supersession-damping default flip.
+Status: **PROMOTED to `2_Todo`** 2026-07-14 (active — approved by JNL). Filed 2026-07-13.
 Priority: P2 — hardens the ranking change-discipline; small tooling + a contract amendment.
+Next action: build `memory-seed ranking-ab` and amend the graph-edge-contract "Expose before you rank"
+rule to require a real-corpus A/B before any default flip. **Sequence first** in the promoted
+ranking/graph-quality track — it is the gate the successor-surfacing replacement boost waits on.
 Source: This session — the advisor caught that fixtures alone hadn't proven the flip.
 
 ## Problem — "fixtures on a branch" is necessary but not sufficient
