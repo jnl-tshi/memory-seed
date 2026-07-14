@@ -2,7 +2,8 @@
 
 **Version:** 1.0 — **RATIFICATION DRAFT** (awaiting the maintainer's ratification; amend freely first)
 **Status:** Living document. It starts tight and grows only by amendment (see [Governance](#11-governance)).
-**Adopted:** 2026-07-14 (draft). **Source:** distilled from demonstrated behaviour across the codebase,
+**Adopted:** 2026-07-14 (draft; revised same day to add the derived-layer / optional-tier model — Invariants
+#1 & #6, §5). **Source:** distilled from demonstrated behaviour across the codebase,
 `3_Spec/`, `.memory-seed/agent-rules.md`, and the session-memory corpus — not invented. Framework from the
 [architectural-discovery proposal](2_Todo/memory-seed-architectural-discovery-proposal.md).
 
@@ -29,9 +30,11 @@ the Git-history layer: decision and reasoning provenance. *(Ref: `4_Reference/me
 
 The sacred properties. Changing one is a [constitutional amendment](#11-governance).
 
-1. **Users own their memory.** It lives as plain files in the user's repository; the core needs no server,
-   no database, and no network. *(Cited: Markdown+YAML storage with no DB; `memory-seed situate`/`esr` and
-   the core CLI/MCP are network-free; `memory-seed` installs web-framework-free.)*
+1. **Users own their memory.** It lives as plain files in the user's repository; the **core** runs with no
+   server, database, or network. Optional layers may add a cache, index, database, or hosted service for
+   performance or collaboration — the core never depends on them. *(Cited: Markdown+YAML storage with no DB;
+   `memory-seed situate`/`esr` and the core CLI/MCP are network-free; `memory-seed` installs
+   web-framework-free; the `memory-seed[trace]` optional extra is the pattern.)*
 2. **The past is append-only — extend and supersede, never rewrite or delete.** History is evidence;
    corrections are new entries that point back. *(Cited: append-only session logs; `links check`
    forward-only/acyclic guards; supersede-don't-delete in `.memory-seed/skills/proposal_lifecycle.md` and
@@ -44,9 +47,15 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
 5. **Memory is model-independent.** No entry's meaning depends on the agent or model that wrote it; it
    serves any agent and any human. *(Cited: `agent-rules.md` `vendor_neutral: true`; the seed ships for
    Claude, Codex, Gemini, Cursor, and Copilot alike.)*
-6. **Memory is human-readable and durable.** A person can read and edit it directly, with no tool. *(Cited:
-   Markdown + YAML, folder-as-state, generated human indexes. Implementation note: "Markdown today, another
-   durable format tomorrow" — the format may change; readability may not.)*
+6. **Markdown is the single source of truth — human-readable, durable, and authoritative *everywhere*.**
+   Every other store — cache, index, database, embedding, or hosted backend — is a **derived projection**:
+   fully rebuildable from the Markdown, never authoritative, never required for the core to run. This holds
+   even under hosted or collaborative use — concurrent writes resolve *into* Markdown, and a server database
+   is only ever an accelerator over it, never a second source of truth. A person can always read and edit
+   the source directly with no tool; derived layers need not be human-readable. *(Cited: the rebuildable
+   SQLite cache outside the repo; per-user session files + `session merge-branch`/fuse as Markdown-native
+   concurrent-write resolution. "Markdown today, another durable format tomorrow" — the format may change;
+   the source-of-truth role may not.)*
 7. **Retrieval never hides live history to flatter a ranking.** A superseded entry is down-ranked, never
    removed from results. *(Cited: `SUPERSEDED_RANK_DAMPING` down-rank-only rule in `graph-edge-contract.md`;
    `exclude_superseded` is a separate opt-in filter, never the default.)*
@@ -72,6 +81,9 @@ How we decide. Amending these is heavier than a normal proposal but lighter than
 - **Trust before automation.** Establish that memory is trustworthy before acting on it automatically.
   **[candidate]** — partly aspirational; the content-trust taxonomy that would make it operational is not
   yet built (see [Open Questions](#10-open-questions--unresolved-tensions)).
+- **Open-core, one source of truth.** The local Markdown truth is free and complete on its own; paid or
+  hosted tiers add convenience, scale, and collaboration *on top of* it — never a second, authoritative
+  store. **[direction — decided 2026-07-14; no paid tier exists yet.]**
 
 ---
 
@@ -91,11 +103,19 @@ ordinary proposal work.
 
 ## 5. Implementations — freely replaceable technology
 
-No allegiance is owed to any of these; they serve the layers above.
+No allegiance is owed to any of these; they serve the layers above, and every non-core store sits
+downstream of Invariant #6 (derived, rebuildable). Grouped by distance from the core:
 
-Markdown + YAML files · a rebuildable SQLite cache (outside the repo) · Git as the commit substrate · MCP
-over stdio · Model2Vec embeddings (optional) · the vanilla-JS Memory Trace UI (a React/Vite shell is
-*planned*, not adopted) · Mermaid/D2 for diagrams · Python 3.11+ / setuptools packaging.
+- **Core (always present):** Markdown + YAML files · Git as the commit substrate · MCP over stdio ·
+  Python 3.11+ / setuptools · Mermaid/D2 for diagrams.
+- **Derived accelerators** (optional, read-side, rebuildable from the Markdown): a SQLite cache today;
+  candidates — **DuckDB** for analytical Trace/graph processing, **SQLite FTS5** for full-text, and a
+  **vector index** (sqlite-vec / pgvector / hnswlib) for semantic search.
+- **Optional-local capability** (adds features, still offline, degrades to the core): Model2Vec embeddings;
+  a **React/Vite** Trace shell (*planned*); a **VS Code extension** (memory beside the code — a candidate
+  high-leverage adoption surface); a desktop shell; pluggable local AI providers.
+- **Hosted / collaborative** (paid tier — still Markdown-authoritative per Invariant #6): a team-sync /
+  managed backend and cross-project memory — candidate directions, not adopted.
 
 ---
 
@@ -146,9 +166,13 @@ The live record of what is *not* settled (this is the honest half of "discovery"
 - **Governance-first vs. ship-first.** Development of `0_NEXT_STEPS` Tracks A/B is **paused** while this
   Constitution is drafted and ratified. Open: do we resume A/B after ratification, or gate future work on
   the Constitution first? *(This is the decision that created this document.)*
-- **The next-generation Trace shell** (React/Vite) is a strategic bet, not yet committed.
+- **The next-generation Trace shell** (React/Vite) and a **VS Code extension** are candidate optional-local
+  surfaces (§5), not yet committed.
 - **Trust taxonomy (§7) and quality metrics (§8)** are named but undefined.
-- **Commercial / hosted direction** is parked (`8_Deferred/`), pending demonstrated local value.
+- **Source-of-truth under collaboration — RESOLVED (2026-07-14):** even a future hosted/collaborative tier
+  keeps Markdown authoritative; any server database is a derived projection (Invariant #6). *Still open:*
+  **which** commercial tier to reach (local-pro / team-hosted / enterprise) and when — parked while
+  development is paused (`8_Deferred/memory-trace-commercialisation-and-monetisation-report.md`).
 - **Where the Constitution sits relative to the locked control plane.** Today it *describes*
   `agent-rules.md`; making agent-rules formally *subordinate* to this document is a future amendment, not
   assumed here.
