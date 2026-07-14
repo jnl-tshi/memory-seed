@@ -5,7 +5,7 @@ tags:
   - governance
   - architecture
 priority: P0
-next_action: maintainer ratifies docs/CONSTITUTION.md v1 (drafted 2026-07-14); then decide resume-Tracks-A/B vs Constitution-gated work
+next_action: Constitution RATIFIED 2026-07-14 (docs/CONSTITUTION.md v1.0); awaiting the resume-Tracks-A/B vs Constitution-gated decision (move this to 5_Completed once that is made)
 ---
 
 <!-- Promoted 1_Inbox -> 2_Todo on 2026-07-14: the maintainer approved a Constitution-first pause. ACTIVE.

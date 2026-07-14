@@ -1,13 +1,14 @@
 # Next Steps
 
-Status: **PAUSED for Constitution-first governance** (maintainer decision, 2026-07-14).
+Status: **PAUSED** — Constitution **ratified** 2026-07-14 (v1.0); awaiting the maintainer's resume-vs-gate decision.
 Updated: 2026-07-14
 
 > ⏸ **Development of Tracks A/B below is PAUSED.** The maintainer chose to establish the project's
-> governing principles before further feature expansion. Active work is now authoring and ratifying
-> [`docs/CONSTITUTION.md`](../CONSTITUTION.md) — a living document — guided by
-> [`memory-seed-architectural-discovery-proposal.md`](memory-seed-architectural-discovery-proposal.md).
-> Tracks A/B are preserved intact below and resume once the Constitution is ratified (or as it directs).
+> governing principles before further feature expansion. The Constitution is now **RATIFIED — v1.0,
+> 2026-07-14** ([`docs/CONSTITUTION.md`](../CONSTITUTION.md), a living document; framework:
+> [`memory-seed-architectural-discovery-proposal.md`](memory-seed-architectural-discovery-proposal.md)).
+> The live decision is now yours: **resume Tracks A/B, or keep future work gated on the Constitution.**
+> Tracks A/B are preserved intact below.
 > Platform-layer design produced during the pause (blocked on resume): the
 > [derived-projection contract](../3_Spec/draft/derived-read-model-projection-contract.md) + its
 > [implementation plan](derived-projection-implementation-plan.md), under Constitution Invariant #6.
