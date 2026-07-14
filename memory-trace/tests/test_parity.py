@@ -4,7 +4,7 @@ Distribution-plan Arc 1 gate. Memory Trace lives in its own source boundary,
 even though it now ships through the root `memory-seed[trace]` extra. Whatever
 it reads from `memory_seed` is still a public API with semver obligations.
 These tests assert that the extracted UI, consuming `memory_seed.retrieval`
-through its `LenseService`, agrees with the core MCP tools on the same corpus -
+through its `TraceService`, agrees with the core MCP tools on the same corpus -
 the "same answers as MCP, one canonical chunk model" rule, proven across the
 source boundary rather than assumed.
 """
@@ -17,7 +17,7 @@ import unittest
 from pathlib import Path
 
 from memory_seed.mcp_server import call_tool
-from memory_trace.lense import LenseCache, LenseService
+from memory_trace.service import TraceCache, TraceService
 
 
 def _session(entry_id: str, title: str, body: str) -> str:
@@ -54,10 +54,10 @@ class CrossPackageParityTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def service(self) -> LenseService:
-        cache = LenseCache(self.cwd, cache_root=self.cache_root)
+    def service(self) -> TraceService:
+        cache = TraceCache(self.cwd, cache_root=self.cache_root)
         cache.rebuild()
-        return LenseService(cache)
+        return TraceService(cache)
 
     def test_search_top_entry_agrees_with_mcp(self):
         query = "bootstrap mode check"

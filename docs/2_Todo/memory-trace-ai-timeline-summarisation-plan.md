@@ -737,6 +737,6 @@ Document-generation integrations should be treated as export surfaces, not as pa
 - [`docs/2_Todo/session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md) - two-class diagram model and no-LLM reasoning-diagram constraint.
 - [`docs/3_Spec/graph-edge-contract.md`](../3_Spec/graph-edge-contract.md) - canonical graph/edge/metric contract.
 - [`memory_seed/retrieval.py`](../../memory_seed/retrieval.py) - public MCP-independent retrieval service.
-- [`memory-trace/memory_trace/lense.py`](../../memory-trace/memory_trace/lense.py) - current local read-only browser UI implementation.
+- [`memory-trace/memory_trace/service.py`](../../memory-trace/memory_trace/service.py) - current local read-only browser UI implementation.
 - [Claude Code CLI reference](https://code.claude.com/docs/en/cli-reference) - terminal-agent adapter feasibility reference.
 - [Codex non-interactive mode](https://developers.openai.com/codex/noninteractive) - `codex exec`, JSONL, schema, and sandboxing feasibility reference.

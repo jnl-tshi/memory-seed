@@ -11,7 +11,7 @@ from urllib.parse import quote
 from unittest import mock
 
 from memory_trace.cli import main
-from memory_trace.lense import LenseCache, LenseService, create_app, missing_optional_dependency_hint
+from memory_trace.service import TraceCache, TraceService, create_app, missing_optional_dependency_hint
 
 
 def _entry(title, entry_id, body, *, agent="codex", related=None, branch=None, supersedes=None, evolves=None, topics=None):
@@ -43,7 +43,7 @@ def _entry(title, entry_id, body, *, agent="codex", related=None, branch=None, s
     return "\n".join(lines)
 
 
-class LenseServiceTests(unittest.TestCase):
+class TraceServiceTests(unittest.TestCase):
     def setUp(self):
         self.cwd = Path(tempfile.mkdtemp(prefix="memory-seed-lense-test-"))
         self.cache_root = Path(tempfile.mkdtemp(prefix="memory-seed-lense-cache-"))
@@ -89,9 +89,9 @@ class LenseServiceTests(unittest.TestCase):
         )
 
     def service(self):
-        cache = LenseCache(self.cwd, cache_root=self.cache_root)
+        cache = TraceCache(self.cwd, cache_root=self.cache_root)
         cache.rebuild()
-        return LenseService(cache)
+        return TraceService(cache)
 
     def test_cache_builds_facets_and_search_is_paged(self):
         service = self.service()
@@ -218,7 +218,7 @@ class LenseServiceTests(unittest.TestCase):
         self.assertEqual(chunk["diagrams"][0]["path"], ".memory-seed/sessions/diagrams/2026-06/2026-06-04.md")
 
     def test_cache_rebuilds_when_session_file_metadata_changes(self):
-        cache = LenseCache(self.cwd, cache_root=self.cache_root)
+        cache = TraceCache(self.cwd, cache_root=self.cache_root)
         cache.rebuild()
         first = cache.status()
 
@@ -542,7 +542,7 @@ class LenseServiceTests(unittest.TestCase):
             "2026-06-05.md",
             "## 2026-06-05 10:00 - Heading without metadata\n\nPath-style chunk id body.\n",
         )
-        cache = LenseCache(self.cwd, cache_root=self.cache_root)
+        cache = TraceCache(self.cwd, cache_root=self.cache_root)
         cache.rebuild()
         chunk_id = next(chunk.chunk_id for chunk in cache.chunks() if "/" in chunk.chunk_id)
 

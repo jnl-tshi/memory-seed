@@ -1,7 +1,7 @@
 """Contract tests for the versioned /api/v1/* surface (roadmap Phase 1).
 
 Two things must hold: (1) v1 routes return response_model-validated data
-matching what LenseService already returns, and (2) the legacy /api/*
+matching what TraceService already returns, and (2) the legacy /api/*
 routes are completely unaffected - the vanilla frontend's contract is
 frozen, v1 is additive alongside it.
 """
@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from memory_trace.lense import create_app
+from memory_trace.service import create_app
 
 
 def _entry(title, entry_id, body, *, agent="codex", related=None, branch=None, supersedes=None, evolves=None, topics=None):

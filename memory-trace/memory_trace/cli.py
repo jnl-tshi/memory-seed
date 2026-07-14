@@ -14,7 +14,7 @@ from typing import Sequence
 from memory_seed import processes as process_tools
 
 from . import __version__
-from .lense import run_server
+from .service import run_server
 
 
 def build_parser() -> argparse.ArgumentParser:

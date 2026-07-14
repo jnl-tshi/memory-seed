@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from memory_trace.lense import _resolve_static_root, create_app
+from memory_trace.service import _resolve_static_root, create_app
 
 
 def _corpus(tmp: Path) -> Path:

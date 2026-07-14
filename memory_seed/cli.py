@@ -1010,7 +1010,7 @@ def main(argv: list[str] | None = None) -> int:
         # Deprecated shim: the review UI now lives behind the `trace` extra and
         # the `memory-trace` command. Plain core installs ship no web stack.
         try:
-            from memory_trace.lense import run_server
+            from memory_trace.service import run_server
         except ModuleNotFoundError:
             print(
                 "Memory Lense has moved to the Memory Trace command.\n"

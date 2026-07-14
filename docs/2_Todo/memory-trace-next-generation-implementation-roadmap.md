@@ -59,7 +59,7 @@ Exit:
 
 > **Status: DELIVERED 2026-07-11.** Evidence: `memory_trace/models.py` (Pydantic models for
 > every existing dict shape, plus the `ProvenanceClass` and `EdgeType` enums), the
-> `/api/v1/{runtime,facets,search,chunks,graph,trail}` routes in `memory_trace/lense.py`
+> `/api/v1/{runtime,facets,search,chunks,graph,trail}` routes in `memory_trace/service.py`
 > (legacy `/api/*` untouched), `memory-trace/tests/test_v1_api_contract.py` and
 > `test_openapi_contract_fixture.py`, and the committed contract fixtures under
 > `memory-trace/tests/contract/` (`openapi.v1.json`, `types.ts`, regeneration documented in

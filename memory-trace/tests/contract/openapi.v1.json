@@ -1377,7 +1377,7 @@
         "type": "object"
       },
       "TrailEvent": {
-        "description": "The Trail's own event contract. Structurally identical to GraphNode\ntoday (both are served by the same LenseService.graph() call, entry\ngranularity) - named distinctly because the product UX treats Trail as\nthe primary surface and Graph as a secondary, general-purpose one; a\nfuture divergence (e.g. Trail-only fields) should widen this model, not\nGraphNode.",
+        "description": "The Trail's own event contract. Structurally identical to GraphNode\ntoday (both are served by the same TraceService.graph() call, entry\ngranularity) - named distinctly because the product UX treats Trail as\nthe primary surface and Graph as a secondary, general-purpose one; a\nfuture divergence (e.g. Trail-only fields) should widen this model, not\nGraphNode.",
         "properties": {
           "agent": {
             "title": "Agent",

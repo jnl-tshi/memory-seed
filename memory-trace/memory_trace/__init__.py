@@ -10,11 +10,11 @@ from __future__ import annotations
 
 __version__ = "0.1.0"
 
-from .lense import LenseCache, LenseService, create_app, missing_optional_dependency_hint, run_server
+from .service import TraceCache, TraceService, create_app, missing_optional_dependency_hint, run_server
 
 __all__ = [
-    "LenseCache",
-    "LenseService",
+    "TraceCache",
+    "TraceService",
     "create_app",
     "run_server",
     "missing_optional_dependency_hint",

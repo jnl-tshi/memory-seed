@@ -28,7 +28,7 @@ sys.path.insert(0, str(FIXTURES))
 
 from generate_synthetic import generate  # noqa: E402
 
-from memory_trace.lense import create_app  # noqa: E402
+from memory_trace.service import create_app  # noqa: E402
 
 OUT_PATH = Path(__file__).resolve().parent / "openapi.v1.json"
 

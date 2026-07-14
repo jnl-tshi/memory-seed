@@ -33,10 +33,10 @@ TRAIL_EDGE_TYPES = ("branch", "supersedes", "evolves", "related")
 
 
 def main() -> int:
-    from memory_trace.lense import LenseCache, LenseService
+    from memory_trace.service import TraceCache, TraceService
 
     # mkdtemp + ignore_errors cleanup, not TemporaryDirectory: on Windows the
-    # lense sqlite cache can still hold its file handle at teardown.
+    # sqlite cache can still hold its file handle at teardown.
     corpus_dir = tempfile.mkdtemp(prefix="mseed-golden-corpus-")
     cache_dir = tempfile.mkdtemp(prefix="mseed-golden-cache-")
     try:
@@ -45,7 +45,7 @@ def main() -> int:
             check=True,
         )
         os.environ["MEMORY_SEED_LENSE_CACHE_ROOT"] = cache_dir
-        service = LenseService(LenseCache(corpus_dir))
+        service = TraceService(TraceCache(corpus_dir))
         graph = service.graph(granularity="entry", edge_types=TRAIL_EDGE_TYPES, limit=1000)
 
         graph_path = Path(cache_dir) / "graph.json"

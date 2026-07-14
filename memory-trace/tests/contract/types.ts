@@ -517,7 +517,7 @@ export interface components {
         /**
          * TrailEvent
          * @description The Trail's own event contract. Structurally identical to GraphNode
-         *     today (both are served by the same LenseService.graph() call, entry
+         *     today (both are served by the same TraceService.graph() call, entry
          *     granularity) - named distinctly because the product UX treats Trail as
          *     the primary surface and Graph as a secondary, general-purpose one; a
          *     future divergence (e.g. Trail-only fields) should widen this model, not
