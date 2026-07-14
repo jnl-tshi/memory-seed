@@ -244,5 +244,69 @@ def _rev_parse(cwd: Path, ref: str) -> str:
     return proc.stdout.strip()
 
 
+class SplitTrailerBlockExtractionTests(unittest.TestCase):
+    """A merge whose Memory-Entry trailers are split across blank-line-separated
+    blocks (git's %(trailers:...) reports only the final block) must still yield
+    EVERY entry id. This is the body-scan that repairs already-committed merges
+    whose own branch entry was stranded in an earlier block - the bug that
+    rendered such branches as positional estimates (parallel) instead of at
+    their real fork/merge (daisy-chained)."""
+
+    def setUp(self):
+        self.cwd = Path(tempfile.mkdtemp(prefix="mtrace-split-trailer-"))
+        self.addCleanup(lambda: shutil.rmtree(self.cwd, ignore_errors=True))
+        env = {
+            **os.environ,
+            "GIT_AUTHOR_NAME": "T", "GIT_AUTHOR_EMAIL": "t@e.com",
+            "GIT_COMMITTER_NAME": "T", "GIT_COMMITTER_EMAIL": "t@e.com",
+        }
+
+        def git(*args):
+            subprocess.run(
+                ["git", "-C", str(self.cwd), *args],
+                check=True, capture_output=True, text=True, env=env,
+            )
+
+        git("init", "-b", "main")
+        (self.cwd / "a.txt").write_text("a\n", encoding="utf-8")
+        git("add", "-A")
+        git("commit", "-m", "base")
+        git("checkout", "-b", "feature")
+        (self.cwd / "b.txt").write_text("b\n", encoding="utf-8")
+        git("add", "-A")
+        git("commit", "-m", "feature work")
+        git("checkout", "main")
+        # The exact production layout: the branch's own entry, a Co-Authored-By,
+        # a BLANK line, then a second Memory-Entry block. git strands the first.
+        msg = (
+            "Merge branch feature\n\n"
+            "Memory-Entry: mse_branchown0001\n"
+            "Co-Authored-By: X <x@e.com>\n\n"
+            "Memory-Entry: mse_fused00000002\n"
+            "Memory-Entry: mse_fused00000003\n"
+        )
+        git("merge", "--no-ff", "feature", "-m", msg)
+
+    def test_body_scan_recovers_every_split_memory_entry(self):
+        from memory_trace.service import _first_parent_trailer_commits
+
+        events = _first_parent_trailer_commits(self.cwd)
+        merge = next(e for e in events if e["subject"].startswith("Merge branch feature"))
+        self.assertEqual(
+            merge["entry_ids"],
+            ["mse_branchown0001", "mse_fused00000002", "mse_fused00000003"],
+        )
+
+    def test_git_strict_parser_would_have_dropped_the_stranded_entry(self):
+        # Guardrail: confirm the layout genuinely defeats %(trailers:...), so the
+        # body-scan is doing real work rather than masking a benign message.
+        out = subprocess.run(
+            ["git", "-C", str(self.cwd), "log", "-1", "--first-parent",
+             "--format=%(trailers:key=Memory-Entry,valueonly,separator=;)"],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        self.assertNotIn("mse_branchown0001", out)
+
+
 if __name__ == "__main__":
     unittest.main()

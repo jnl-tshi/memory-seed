@@ -68,11 +68,19 @@ def main() -> int:
     if not missing:
         return 0
     trailer_block = "\n".join(f"Memory-Entry: {entry_id}" for entry_id in missing)
-    if message and not message.endswith("\n"):
-        message += "\n"
-    # A blank line before the trailers keeps them a distinct trailer block
-    # even when the message body ends in plain prose.
-    message += "\n" + trailer_block + "\n"
+    body = message.rstrip("\n")
+    if not body:
+        message = trailer_block + "\n"
+    else:
+        last_line = body.rsplit("\n", 1)[-1]
+        # Append CONTIGUOUSLY when the message already ends in a trailer line: a
+        # blank line would split the trailer block, and git's trailer parser
+        # (and Memory Trace's commit-accurate merge geometry) reads ONLY the
+        # final contiguous block - silently dropping every earlier Memory-Entry,
+        # including a merge's own branch entry. Separate with a blank line only
+        # when the message ends in prose, so the trailers still form a block.
+        joiner = "\n" if re.match(r"[A-Za-z][A-Za-z0-9-]*: ", last_line) else "\n\n"
+        message = body + joiner + trailer_block + "\n"
     try:
         with open(msg_path, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(message)
