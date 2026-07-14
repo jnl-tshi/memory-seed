@@ -279,6 +279,8 @@ async function selectChunk(chunkId, rerender = true, token = state.loadSeq) {
   if (token !== state.loadSeq) return false;
   state.selected = selected;
   if (state.view === "graph" || state.view === "trail") await loadGraph(token);
+  if (token !== state.loadSeq) return false;
+  if (state.view === "trail") ensureLinkedNeighborsVisible(chunkId);
   if (rerender) render();
   return true;
 }
@@ -1600,6 +1602,34 @@ function ensureTrailVisible(chunkId) {
   const index = trailOrderedNodes().findIndex((node) => node.chunk_id === chunkId);
   if (index >= state.trailWindow) {
     state.trailWindow = Math.ceil((index + 1) / TRAIL_WINDOW_STEP) * TRAIL_WINDOW_STEP;
+  }
+}
+
+// Selecting an entry should reveal its links. An edge only draws between two
+// SHOWN rows, so a lifecycle/related target older than the current window
+// renders as no line at all - the entry looks unlinked despite the edge being
+// present. The full corpus is already loaded client-side, so grow the window to
+// cover the selected entry's linked neighbours (its supersedes/evolves/related
+// edges, inbound or outbound). Branch-lane edges are excluded: they are
+// continuity, not a "link", and would drag the whole branch into view.
+function ensureLinkedNeighborsVisible(chunkId) {
+  const nodes = trailOrderedNodes();
+  const selfIndex = nodes.findIndex((node) => node.chunk_id === chunkId);
+  if (selfIndex < 0) return;
+  const selfId = nodes[selfIndex].entry_id;
+  const neighbors = new Set();
+  for (const edge of state.graph?.edges || []) {
+    if (edge.type === "branch") continue;
+    if (edge.source === selfId) neighbors.add(edge.target);
+    else if (edge.target === selfId) neighbors.add(edge.source);
+  }
+  if (!neighbors.size) return;
+  let maxIndex = selfIndex;
+  nodes.forEach((node, index) => {
+    if (neighbors.has(node.entry_id)) maxIndex = Math.max(maxIndex, index);
+  });
+  if (maxIndex >= state.trailWindow) {
+    state.trailWindow = Math.ceil((maxIndex + 1) / TRAIL_WINDOW_STEP) * TRAIL_WINDOW_STEP;
   }
 }
 
