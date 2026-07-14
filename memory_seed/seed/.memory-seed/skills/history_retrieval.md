@@ -30,6 +30,8 @@ Call `memory_search` before relying on the visible conversation alone when the t
 
 Skip MCP history lookup for small, obvious edits where current source files and the active `index.md` / `policy.md` are enough.
 
+**Carry the retrieval forward.** The entries you fetch to ground a change are not just context for the work — they are the highest-signal lifecycle-link candidates for the entry you are about to write. Keep the ids you actually consulted and hand them to `memory_link_suggest`'s `consulted` axis at authoring time (see Authoring-Support Tools), so link candidacy is based on **both** the current repo (shared files) and memory (what you consulted) — the same two-source discipline you apply to the work itself.
+
 ### Why vs. Current State — Division Of Labor
 
 Files are the authority for what is true *now* (current source, `index.md`, `policy.md`); memory is the authority for *why* (the reasoning, tradeoffs, and rejected paths behind that state). Read files for current state; retrieve memory for the reasoning — never substitute one for the other. A file tells you what the code does now, not which alternatives were rejected or which constraint a terse guard protects; that reasoning lives only in session memory.
@@ -87,7 +89,7 @@ Use the fetched chunk text, not just the excerpt, when making or evaluating a co
 
 These read-only MCP tools close the *authoring* loop — finding what to link and where to write — the counterpart to the search/fetch retrieval loop above. They never write; the agent still appends its own entry and edges.
 
-- `memory_link_suggest`: rank older entries to link from a target entry (default: the newest entry, i.e. "the one I just wrote"). Returns a `target` summary, ranked `suggestions`, and a paste-ready `related_entries` list. Use it when filling an entry's `related_entries` instead of guessing or re-searching. Optional `entry_id` targets a specific entry; `top_k` bounds the candidates.
+- `memory_link_suggest`: rank older entries to link from a target entry (default: the newest entry, i.e. "the one I just wrote"). Returns a `target` summary, ranked `suggestions`, and a paste-ready `related_entries` list. Use it when filling an entry's `related_entries` instead of guessing or re-searching. Optional `entry_id` targets a specific entry; `top_k` bounds the candidates. Pass `consulted: [ids]` — the entries you fetched while grounding this work (above) — to add the **memory axis** of candidacy: those sort first (flagged `consulted`) and are the natural source for the `supersedes`/`evolves` decision-lineage edges that shared-file evidence misses. Candidates only; you still classify.
 
 ```json
 {

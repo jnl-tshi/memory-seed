@@ -4,6 +4,12 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- `memory_link_suggest` (and the underlying `suggest_related_entries`) gained an optional
+  `consulted: [ids]` axis: entry ids you retrieved while grounding the work are flagged `consulted` and
+  sorted ahead of shared-file candidates — the *memory* axis of link candidacy, the natural source for the
+  `supersedes`/`evolves` decision-lineage edges that file overlap misses. Additive and read-only; an
+  empty/omitted `consulted` leaves ordering byte-for-byte identical. The `history_retrieval` and
+  `session_logging` skills now connect the pre-work retrieval loop to write-time link authoring.
 - Renamed the internal Memory Trace backend module `memory_trace/lense.py` → `memory_trace/service.py`
   and its `LenseCache` / `LenseService` classes → `TraceCache` / `TraceService`, dropping the misleading
   legacy "Lense" name from the internals. Purely internal: the public `memory-seed lense` compatibility

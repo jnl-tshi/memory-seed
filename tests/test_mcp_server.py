@@ -1083,6 +1083,54 @@ class MemoryMcpServerTests(unittest.TestCase):
             round(suggestion["score"] + suggestion["file_overlap_bonus"], 6),
         )
 
+    def test_memory_link_suggest_exposes_consulted_param(self):
+        from memory_seed.mcp_server import TOOLS
+
+        tool = next(t for t in TOOLS if t["name"] == "memory_link_suggest")
+        prop = tool["inputSchema"]["properties"].get("consulted")
+        self.assertIsNotNone(prop)
+        self.assertEqual(prop["type"], "array")
+
+    def test_call_tool_memory_link_suggest_consulted_flags_and_ranks_first(self):
+        cwd = self.make_project()
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 08:00 - Lineage parent, no shared file\n\n"
+            "```yaml\n"
+            "entry_id: ms-lineage00\n"
+            "```\n\n"
+            "A prior decision on the same concept, recorded against a different file.\n\n"
+            "- F: `docs/design.md`.\n\n"
+            "## 2026-05-17 09:00 - File sharer\n\n"
+            "```yaml\n"
+            "entry_id: ms-ground000\n"
+            "```\n\n"
+            "Scoring pipeline groundwork.\n\n"
+            "- F: `src/ranker.py`.\n\n"
+            "## 2026-05-17 11:00 - Ranker follow-up\n\n"
+            "```yaml\n"
+            "entry_id: ms-follow000\n"
+            "```\n\n"
+            "Scoring pipeline follow-up.\n\n"
+            "- F: `src/ranker.py`.\n",
+        )
+
+        # Without consulted: the file-sharer leads, nothing flagged.
+        plain = call_tool("memory_link_suggest", {"cwd": str(cwd), "entry_id": "ms-follow000"})
+        self.assertEqual(plain["suggestions"][0]["entry_id"], "ms-ground000")
+        self.assertFalse(any(s["consulted"] for s in plain["suggestions"]))
+
+        # Naming the lineage parent consulted flags it and sorts it first, even
+        # though it shares no file with the target - the axis file overlap misses.
+        out = call_tool(
+            "memory_link_suggest",
+            {"cwd": str(cwd), "entry_id": "ms-follow000", "consulted": ["ms-lineage00"]},
+        )
+        self.assertEqual(out["suggestions"][0]["entry_id"], "ms-lineage00")
+        self.assertTrue(out["suggestions"][0]["consulted"])
+        self.assertEqual(out["related_entries"][0], "ms-lineage00")
+
     def test_call_tool_memory_link_show_raises_on_unknown_entry(self):
         cwd = self.make_project()
         self.write_session(
