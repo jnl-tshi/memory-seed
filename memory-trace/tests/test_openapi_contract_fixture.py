@@ -19,7 +19,7 @@ FIXTURE = CONTRACT_DIR / "openapi.v1.json"
 sys.path.insert(0, str(CONTRACT_DIR))
 from export_openapi import filtered_v1_schema  # noqa: E402
 
-from memory_trace.lense import create_app  # noqa: E402
+from memory_trace.service import create_app  # noqa: E402
 
 
 class OpenApiContractFixtureTests(unittest.TestCase):

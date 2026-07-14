@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from memory_trace.lense import LenseCache, LenseService
+from memory_trace.service import TraceCache, TraceService
 
 FIXTURES = Path(__file__).parent / "fixtures"
 sys.path.insert(0, str(FIXTURES))
@@ -47,9 +47,9 @@ class SyntheticFixtureTests(unittest.TestCase):
     def test_generated_corpus_feeds_the_real_cache(self):
         project = self.out / "proj"
         generate(64, project)
-        cache = LenseCache(project, cache_root=self.cache_root)
+        cache = TraceCache(project, cache_root=self.cache_root)
         cache.rebuild()
-        service = LenseService(cache)
+        service = TraceService(cache)
 
         facets = service.facets()
         self.assertEqual(facets["runtime"]["entry_count"], 64)

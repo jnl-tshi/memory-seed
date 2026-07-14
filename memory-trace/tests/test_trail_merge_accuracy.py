@@ -26,7 +26,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from memory_trace.lense import create_app
+from memory_trace.service import create_app
 
 
 def _entry(title, entry_id, body, *, branch=None, agent="claude", topics=None):

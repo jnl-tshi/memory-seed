@@ -1,7 +1,7 @@
 """Pydantic response models for the versioned (/api/v1/*) Memory Trace API.
 
-These formalize the exact dict shapes the LenseService methods already
-return (see lense.py's _chunk_to_api/_ranked_to_api/_rollup_to_api/_graph_node
+These formalize the exact dict shapes the TraceService methods already
+return (see service.py's _chunk_to_api/_ranked_to_api/_rollup_to_api/_graph_node
 family) - the service itself is untouched and keeps returning plain dicts.
 FastAPI validates/coerces those dicts against these models via response_model
 on the /api/v1/* routes only; the legacy unversioned /api/* routes are
@@ -261,7 +261,7 @@ class GraphResponse(BaseModel):
 
 class TrailEvent(GraphNode):
     """The Trail's own event contract. Structurally identical to GraphNode
-    today (both are served by the same LenseService.graph() call, entry
+    today (both are served by the same TraceService.graph() call, entry
     granularity) - named distinctly because the product UX treats Trail as
     the primary surface and Graph as a secondary, general-purpose one; a
     future divergence (e.g. Trail-only fields) should widen this model, not

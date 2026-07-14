@@ -15,7 +15,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from memory_trace.lense import create_app, list_worktrees
+from memory_trace.service import create_app, list_worktrees
 
 
 def _entry(title, entry_id, body, *, agent="codex", topics=None):

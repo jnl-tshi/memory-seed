@@ -4,6 +4,11 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Renamed the internal Memory Trace backend module `memory_trace/lense.py` → `memory_trace/service.py`
+  and its `LenseCache` / `LenseService` classes → `TraceCache` / `TraceService`, dropping the misleading
+  legacy "Lense" name from the internals. Purely internal: the public `memory-seed lense` compatibility
+  command and the `memory-seed[lense]` extra are unchanged. Regenerated the `/api/v1` OpenAPI + TypeScript
+  contract fixtures.
 - Session entries now have a deterministic **DRAFT-format lint**
   (`core.entry_body_format_issues` / `check_entry_format`): `session append` refuses to write a
   malformed decision record (bare `D:`/`R:` labels that are not `- ` list items, DRAFT prose with no

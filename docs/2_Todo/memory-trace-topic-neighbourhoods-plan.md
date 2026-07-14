@@ -204,7 +204,7 @@ topics:
   MCP write surface exists for the deploy-once project-curated topic index.
 - **IMPLEMENTED (Trace half, unreleased):** Memory Trace now prefers indexed topics when present and
   falls back to current tag/context display topics otherwise. A single `_topics()` chokepoint in
-  `lense.py` returns the authored `topics:` slugs for entries that carry them, never mixing in
+  `service.py` returns the authored `topics:` slugs for entries that carry them, never mixing in
   hashtags/contexts; the fallback covers pre-vocabulary entries. That effective set feeds the topics
   facet, the reader's clickable topic chips (`readerTopics`, `.topic-chip`), the graph's `topic`
   chronological chains (already chained via `chain()`, no full-mesh), and the topic filter. The

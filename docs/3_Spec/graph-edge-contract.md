@@ -108,7 +108,7 @@ Two node-degree metrics exist. They measure different things and must keep disti
   `memory_get_chunk`.
 - **`connectivity`** (Memory Trace graph nodes only) = distinct neighbors via a `related_entries`
   edge in *either* direction (inbound ∪ outbound). An undirected node-sizing weight for the graph
-  view. Computed by `_connectivity_degrees()` in `lense.py`. Never conflate with
+  view. Computed by `_connectivity_degrees()` in `service.py`. Never conflate with
   `inbound_relation_count`.
 
 **`importance_score`** builds on `inbound_relation_count`:

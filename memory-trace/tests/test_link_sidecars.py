@@ -18,7 +18,7 @@ from unittest import mock
 
 from memory_seed.core import iter_link_sidecar_documents
 from memory_seed.retrieval import entry_link_sidecars
-from memory_trace.lense import create_app
+from memory_trace.service import create_app
 
 # entry_id shape is mse_ + 16 Crockford-base32 chars (memory_seed.core
 # _V2_ENTRY_ID_RE); the ref-extraction regex the reader shares with links check

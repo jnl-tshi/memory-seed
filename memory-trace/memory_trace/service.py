@@ -62,7 +62,7 @@ def list_worktrees(cwd: str | Path = ".") -> list[dict[str, Any]]:
 
     Returns ``{path, branch, head, is_primary}`` dicts in git's own order (the
     primary working tree first). Each worktree is a checkout of a different
-    branch with its own ``.memory-seed/sessions``, so pointing a LenseService
+    branch with its own ``.memory-seed/sessions``, so pointing a TraceService
     at one shows that branch's memory. Returns an empty list when git or the
     repository is unavailable - callers fall back to the launch checkout alone.
     """
@@ -101,7 +101,7 @@ def list_worktrees(cwd: str | Path = ".") -> list[dict[str, Any]]:
     return worktrees
 
 
-class LenseCache:
+class TraceCache:
     def __init__(
         self,
         cwd: str | Path = ".",
@@ -308,8 +308,8 @@ class LenseCache:
         )
 
 
-class LenseService:
-    def __init__(self, cache: LenseCache):
+class TraceService:
+    def __init__(self, cache: TraceCache):
         self.cache = cache
 
     def runtime(self) -> dict[str, Any]:
@@ -717,10 +717,10 @@ def create_app(
     except ModuleNotFoundError as exc:
         raise RuntimeError(missing_optional_dependency_hint()) from exc
 
-    cache = LenseCache(cwd)
+    cache = TraceCache(cwd)
     if rebuild_cache:
         cache.rebuild()
-    service = LenseService(cache)
+    service = TraceService(cache)
     app = FastAPI(title="Memory Trace", version="1.0")
 
     static_dir = _resolve_static_root(static_root or os.environ.get("MEMORY_TRACE_STATIC_ROOT"))
@@ -750,11 +750,11 @@ def create_app(
 
     # Worktree switching: one running Trace can show each on-device worktree's
     # branch-specific memory. The launch checkout is the default; other
-    # worktrees get a lazily built, cached LenseService the first time they are
+    # worktrees get a lazily built, cached TraceService the first time they are
     # requested. Services are keyed by resolved path and only paths git reports
     # as worktrees of this repo are ever served (no arbitrary-path reads).
     launch_path = cache.cwd
-    worktree_services: dict[Path, LenseService] = {launch_path: service}
+    worktree_services: dict[Path, TraceService] = {launch_path: service}
     worktree_lock = threading.Lock()
 
     def worktree_entries() -> list[dict[str, Any]]:
@@ -763,7 +763,7 @@ def create_app(
             return [{"path": str(launch_path), "branch": None, "head": None, "is_primary": True}]
         return entries
 
-    def service_for(worktree: str | None) -> LenseService:
+    def service_for(worktree: str | None) -> TraceService:
         if not worktree:
             return service
         target = Path(worktree).resolve()
@@ -775,9 +775,9 @@ def create_app(
         with worktree_lock:
             existing = worktree_services.get(target)
             if existing is None:
-                wt_cache = LenseCache(target)
+                wt_cache = TraceCache(target)
                 wt_cache.rebuild()
-                existing = LenseService(wt_cache)
+                existing = TraceService(wt_cache)
                 worktree_services[target] = existing
             return existing
 
@@ -917,7 +917,7 @@ def create_app(
     def api_rebuild() -> dict[str, Any]:
         return service.rebuild()
 
-    # Versioned contract (roadmap Phase 1): same LenseService, same params,
+    # Versioned contract (roadmap Phase 1): same TraceService, same params,
     # response_model-validated/typed. The legacy /api/* routes above are
     # untouched and keep serving the vanilla frontend unchanged - v1 is
     # additive, not a replacement, so a future React client has something
