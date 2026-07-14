@@ -8,6 +8,9 @@ Updated: 2026-07-14
 > [`docs/CONSTITUTION.md`](../CONSTITUTION.md) — a living document — guided by
 > [`memory-seed-architectural-discovery-proposal.md`](memory-seed-architectural-discovery-proposal.md).
 > Tracks A/B are preserved intact below and resume once the Constitution is ratified (or as it directs).
+> Platform-layer design produced during the pause (blocked on resume): the
+> [derived-projection contract](../3_Spec/draft/derived-read-model-projection-contract.md) + its
+> [implementation plan](derived-projection-implementation-plan.md), under Constitution Invariant #6.
 Source: the `docs/` lifecycle lanes (folder = state — see [`../README.md`](../README.md)), `CHANGELOG.md`,
 and `docs/3_Spec/`. Rebuilt 2026-07-14 from a full inbox+todo evaluation (per-doc status verified against
 CHANGELOG + code, not this file's prior claims).
