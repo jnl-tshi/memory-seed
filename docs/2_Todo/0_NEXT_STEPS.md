@@ -136,8 +136,18 @@ other. Both sit **below Track A's blocking tails** in priority — small, sequen
 
 The **memory-quality trio** (supersession-successor-surfacing, real-corpus-ranking-validation-gate,
 lifecycle-link-authoring-assist) was **promoted to `2_Todo` 2026-07-14** — see the *Ranking & graph
-quality* track above. What remains is the **agent/worktree hygiene** pair: real friction, but developer
-ergonomics (touches none of the five questions), so lower priority. Each a verified genuine gap:
+quality* track above. Remaining captures:
+
+**Graph quality (net-new 2026-07-14):**
+
+- [`grounding-provenance-write-time-links-proposal.md`](../1_Inbox/grounding-provenance-write-time-links-proposal.md)
+  — feed the entries an agent *consulted while grounding* into write-time lifecycle-link candidates
+  (`memory_link_suggest` gains a `consulted:` axis), lifting native `supersedes`/`evolves` density that
+  structural file-overlap candidacy misses. The **write-time** complement to the promoted, retroactive
+  `lifecycle-link-authoring-assist`. P2.
+
+**Agent/worktree hygiene** — real friction, but developer ergonomics (touches none of the five questions),
+so lower priority. Each a verified genuine gap:
 
 - [`worktree-gc-proposal.md`](../1_Inbox/worktree-gc-proposal.md) — a `worktree gc` command with
   lock-aware retry (the namespace guard shipped; removal/GC did not; fixes the recurring OneDrive-lock
