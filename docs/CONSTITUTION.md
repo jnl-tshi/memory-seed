@@ -1,9 +1,10 @@
 # Memory Seed Constitution
 
-**Version:** 1.0 — **RATIFICATION DRAFT** (awaiting the maintainer's ratification; amend freely first)
-**Status:** Living document. It starts tight and grows only by amendment (see [Governance](#11-governance)).
-**Adopted:** 2026-07-14 (draft; revised same day to add the derived-layer / optional-tier model — Invariants
-#1 & #6, §5). **Source:** distilled from demonstrated behaviour across the codebase,
+**Version:** 1.0 — **RATIFIED 2026-07-14** by JNL. Changes now go through [Governance](#11-governance).
+**Status:** Living document. It grows only by amendment (see [Governance](#11-governance)).
+**Adopted:** 2026-07-14 (ratified; includes the same-day derived-layer / optional-tier refinement —
+Invariants #1 & #6, §5, and the open-core principle). **Source:** distilled from demonstrated behaviour
+across the codebase,
 `3_Spec/`, `.memory-seed/agent-rules.md`, and the session-memory corpus — not invented. Framework from the
 [architectural-discovery proposal](2_Todo/memory-seed-architectural-discovery-proposal.md).
 
@@ -163,9 +164,9 @@ If it improves none, it must justify why it belongs in Memory Seed at all.
 
 The live record of what is *not* settled (this is the honest half of "discovery" — kept, not hidden):
 
-- **Governance-first vs. ship-first.** Development of `0_NEXT_STEPS` Tracks A/B is **paused** while this
-  Constitution is drafted and ratified. Open: do we resume A/B after ratification, or gate future work on
-  the Constitution first? *(This is the decision that created this document.)*
+- **Governance-first vs. ship-first — now the live decision.** The Constitution is ratified (2026-07-14);
+  `0_NEXT_STEPS` Tracks A/B remain **paused**. The open call: resume A/B, or gate future work on the
+  Constitution first? *(This is the decision that created this document.)*
 - **The next-generation Trace shell** (React/Vite) and a **VS Code extension** are candidate optional-local
   surfaces (§5), not yet committed.
 - **Trust taxonomy (§7) and quality metrics (§8)** are named but undefined.
@@ -197,4 +198,4 @@ demonstrates them.
 
 | Version | Date | Change | Ratified by |
 |---|---|---|---|
-| 1.0-draft | 2026-07-14 | Initial ratification draft. | _pending_ |
+| 1.0 | 2026-07-14 | **Initial Constitution ratified** — the 7 invariants, principles, policies, four-layer model, five-question test, trust/quality candidates, and governance; includes the same-day derived-layer / optional-tier refinement (Invariants #1 & #6, §5, open-core principle). | JNL |

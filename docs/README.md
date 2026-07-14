@@ -1,8 +1,9 @@
 # Memory Seed docs — lifecycle map
 
 > **Above the lanes:** [`CONSTITUTION.md`](CONSTITUTION.md) is the project's governing document — vision,
-> invariants, principles, trust model. Specs and plans conform to it, not the other way round. Feature
-> development (`2_Todo/0_NEXT_STEPS.md` Tracks A/B) is currently **paused** pending its ratification.
+> invariants, principles, trust model. Specs and plans conform to it, not the other way round. **Ratified
+> v1.0 (2026-07-14).** Feature development (`2_Todo/0_NEXT_STEPS.md` Tracks A/B) remains **paused** pending
+> the maintainer's resume-or-gate decision.
 
 This is the front door to `docs/`. **The folder a document lives in *is* its lifecycle state** — you can
 see the state of everything by browsing the tree, without opening files. YAML frontmatter only carries
