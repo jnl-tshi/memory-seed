@@ -43,6 +43,30 @@ with a byte-identical rebuild, a **git-watermark warm start** (delta, not a whol
 [`derived-projection-implementation-plan.md`](derived-projection-implementation-plan.md). Five-question
 test → **Retrieval** (fast reads) + **Application** (usable Trace on large histories).
 
+### Ranking & graph quality — promoted from inbox 2026-07-14 (sequence: gate → surface → capture)
+
+The memory-quality trio from the 2026-07-13 freshness-ranking session, **approved and promoted from the
+inbox 2026-07-14**. These *are* the product getting better (each answers the five-question test), so they
+sit above the Track A tails; they follow the foundation. Build in this order — the gate first, because the
+successor boost depends on it:
+
+1. **`ranking-ab` + the "expose before you rank" amendment** —
+   [`real-corpus-ranking-validation-gate-proposal.md`](real-corpus-ranking-validation-gate-proposal.md).
+   A reusable `memory-seed ranking-ab` command + a graph-edge-contract rule requiring a real-corpus A/B
+   (not just green fixtures) before any default ranking flip. Five-question → **Validation + Trust**.
+   *Gates item 2's ranking half.*
+2. **`superseding_head` (+ gated replacement boost)** —
+   [`supersession-successor-surfacing-proposal.md`](supersession-successor-surfacing-proposal.md).
+   Closes the supersedes/evolves asymmetry: `supersedes` only *damps* the retired entry while `evolves`
+   *surfaces* its successor via the shipped `evolved_head`. Step 1 (`superseding_head`, additive/read-only)
+   can ship now; step 2 (bounded boost) waits on item 1's A/B gate. Five-question → **Retrieval + Trust**.
+3. **`link audit --apply` sidecar scaffold** —
+   [`lifecycle-link-authoring-assist-proposal.md`](lifecycle-link-authoring-assist-proposal.md).
+   Scaffolds inert `classify_pending` sidecar stubs (never auto-classifies — author judgment stays,
+   append-only) so lifecycle edges stop getting dropped at session end — which matters more now that
+   supersession damping is on by default (a dropped edge is invisible to ranking). Five-question →
+   **Capture**.
+
 ### Track A — close the open tails (small, finish-what-shipped)
 
 1. **`integration_mode` Phases 2–4** — [`configurable-integration-mode-plan.md`](configurable-integration-mode-plan.md).
@@ -110,19 +134,18 @@ other. Both sit **below Track A's blocking tails** in priority — small, sequen
 
 ## Captured proposals — awaiting your approval (`1_Inbox/`)
 
-Raw, unbuilt, each a genuine gap (verified: none redundant with shipped work). Approve to promote into a
-Track above.
+The **memory-quality trio** (supersession-successor-surfacing, real-corpus-ranking-validation-gate,
+lifecycle-link-authoring-assist) was **promoted to `2_Todo` 2026-07-14** — see the *Ranking & graph
+quality* track above. What remains is the **agent/worktree hygiene** pair: real friction, but developer
+ergonomics (touches none of the five questions), so lower priority. Each a verified genuine gap:
 
-- [`supersession-successor-surfacing-proposal.md`](../1_Inbox/supersession-successor-surfacing-proposal.md)
-  — `superseding_head`, the symmetric mirror of the shipped `evolved_head` (retired→its replacement).
-- [`real-corpus-ranking-validation-gate-proposal.md`](../1_Inbox/real-corpus-ranking-validation-gate-proposal.md)
-  — durable `ranking-ab` tooling + a graph-edge-contract rule (the flip's A/B was run once, ad hoc).
-- [`lifecycle-link-authoring-assist-proposal.md`](../1_Inbox/lifecycle-link-authoring-assist-proposal.md)
-  — `link audit --apply` scaffold (audit is read-only today).
-- [`worktree-gc-proposal.md`](../1_Inbox/worktree-gc-proposal.md) — a `worktree gc` command (the namespace
-  guard shipped; removal/GC did not).
+- [`worktree-gc-proposal.md`](../1_Inbox/worktree-gc-proposal.md) — a `worktree gc` command with
+  lock-aware retry (the namespace guard shipped; removal/GC did not; fixes the recurring OneDrive-lock
+  pain). P3. The *executor* the lifecycle proposal below drives — promote it first.
 - [`agent-namespaced-branch-worktree-lifecycle-proposal.md`](../1_Inbox/agent-namespaced-branch-worktree-lifecycle-proposal.md)
-  — session-scoped-worktree / task-owns-branch naming scheme + enforcement (practice is still mixed).
+  — worktree=session / branch=task naming + two decoupled lifecycles + post-merge hygiene. **Needs a
+  decision from you** (slash vs. hyphen branch naming) and sign-off to edit `agent_collaboration.md` (a
+  locked control-plane file); depends on `worktree gc`.
 
 *(The architectural-discovery proposal was approved and promoted to `2_Todo/` — it is the active
 Constitution-first work; see the pause banner above.)*
