@@ -81,6 +81,30 @@ Track above.
   guard shipped; removal/GC did not).
 - [`agent-namespaced-branch-worktree-lifecycle-proposal.md`](../1_Inbox/agent-namespaced-branch-worktree-lifecycle-proposal.md)
   — session-scoped-worktree / task-owns-branch naming scheme + enforcement (practice is still mixed).
+- [`memory-seed-architectural-discovery-proposal.md`](../1_Inbox/memory-seed-architectural-discovery-proposal.md)
+  — a governance "Constitution" derived from evidence (invariant/principle/policy classification + a
+  drift-governance gate). **Decision needed:** it asks to *pause major architectural expansion* first,
+  which conflicts with Tracks A/B above — a sequencing call for you, not a routine approval.
+
+## Captured strategic input — `4_Reference` (2026-07-14 drop, triaged)
+
+A strategy/research set was dropped into the inbox and triaged: the actionable proposal above stayed in
+`1_Inbox`; the three source reports moved to `4_Reference` (source material, not buildable plans). They
+overlap the existing corpus (`memory-seed-market-fit-report.md`, the next-gen blueprint, `agent-rules.md`
+Working Principles) more than they add — the **genuinely net-new** ideas worth mining into proposals:
+
+- [`../4_Reference/memory-seed-gitlens-competitor-report.md`](../4_Reference/memory-seed-gitlens-competitor-report.md)
+  — GitLens as a competitor/integration target; differentiate on decision/reasoning provenance (not
+  Git-history features); "memory beside the commit/PR being viewed" tactics.
+- [`../4_Reference/memory-seed-strategic-synthesis-report.md`](../4_Reference/memory-seed-strategic-synthesis-report.md)
+  — Memory-Quality as a first-class KPI set (stale-rate, orphan-rate, evidence/decision coverage) and a
+  named layered-maturity ladder (raw activity → … → institutional knowledge).
+- [`../4_Reference/memory-seed-rectification-priorities-report.md`](../4_Reference/memory-seed-rectification-priorities-report.md)
+  — an entry-type taxonomy (Evidence/Interpretation/Decision/…), a content-trust-level taxonomy, and an
+  outcome-comparison benchmark (with/without Memory Seed). Several of its 10 items are already
+  shipped/covered (two-stage capture, retrieval-over-graph, trust/security groundwork).
+
+None are promoted to active work — tell me which net-new items to split into `1_Inbox` proposals.
 
 ## Doc-lifecycle Phase 2 (housekeeping)
 
