@@ -15,6 +15,8 @@ const state = {
   worktreeLoading: false,
   worktreeStage: 0,
   worktreeToLabel: "",
+  // Manual data-refresh in flight (spins the topbar refresh control).
+  refreshing: false,
   view: storedView() || "trail",
   theme: localStorage.getItem("ml:theme") || "dark",
   accent: localStorage.getItem("ml:accent") || "indigo",
@@ -343,6 +345,7 @@ function topbar() {
         ${searchDropdown()}
       </div>
       <div class="segmented">${tabs}</div>
+      <button type="button" class="icon-button${state.refreshing ? " is-refreshing" : ""}" data-refresh title="Refresh data (re-read memory, keep filters)" aria-label="Refresh data"${state.refreshing ? " disabled" : ""}>⟳</button>
       <button type="button" class="icon-button" data-theme title="Theme">${state.theme === "dark" ? "◐" : "◑"}</button>
       <div class="palette">${["indigo", "teal", "amber", "ruby", "violet"].map((name) => `<button type="button" class="${state.accent === name ? "active" : ""}" data-accent="${name}" title="${name}" style="background:${palettePreview(name)}"></button>`).join("")}</div>
       <button type="button" class="icon-button" data-toggle-right title="${state.rightCollapsed ? "Show reader" : "Hide reader"}">▤</button>
@@ -1404,6 +1407,10 @@ function installDelegatedEvents() {
     const target = event.target.closest("button, [data-chunk]");
     if (!target) return;
 
+    if (target.dataset.refresh !== undefined) {
+      await refreshData();
+      return;
+    }
     if (target.dataset.theme !== undefined) {
       state.theme = state.theme === "dark" ? "light" : "dark";
       localStorage.setItem("ml:theme", state.theme);
@@ -1884,6 +1891,39 @@ async function reloadCurrentView() {
   const token = ++state.loadSeq;
   await loadView();
   if (token === state.loadSeq) render();
+}
+
+// Manual data refresh: re-read the server's current state (runtime + facets +
+// the active view) WITHOUT a full page reload and WITHOUT discarding the user's
+// filters (view, query, selection, and a manually-narrowed date window all
+// persist). The server rebuilds its projection on demand when the corpus
+// changed, so this surfaces entries added since the page opened. The one
+// filter it nudges: if the user was viewing up to the previous latest, the date
+// window auto-extends to the new latest - otherwise a post-midnight entry would
+// sit silently past a "To = yesterday" bound. loadSeq guards overlapping loads.
+async function refreshData() {
+  if (state.refreshing) return;
+  const token = ++state.loadSeq;
+  state.refreshing = true;
+  render();
+  try {
+    const [oldMin, oldMax] = state.facets?.runtime?.date_bounds || [];
+    const [runtime, facets] = await Promise.all([api("/api/runtime"), api("/api/facets")]);
+    if (token !== state.loadSeq) return;
+    state.runtime = runtime;
+    state.facets = facets;
+    const [newMin, newMax] = facets?.runtime?.date_bounds || [];
+    if (newMax && (!state.dateTo || (oldMax && state.dateTo >= oldMax))) state.dateTo = newMax;
+    if (newMin && (!state.dateFrom || (oldMin && state.dateFrom <= oldMin))) state.dateFrom = newMin;
+    await loadView();
+  } catch {
+    // A failed refresh must never wedge the spinner - fall through and clear it.
+  } finally {
+    if (token === state.loadSeq) {
+      state.refreshing = false;
+      render();
+    }
+  }
 }
 
 async function openGraphChunk(chunkId) {
