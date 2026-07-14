@@ -166,6 +166,22 @@ class GitHookTests(unittest.TestCase):
 
         self.assertNotIn("Memory-Entry:", self._last_message())
 
+    def test_new_trailer_joins_an_existing_trailer_block_contiguously(self):
+        install_git_hooks(self.cwd)
+        (self.sessions / "2026-06-13.md").write_text(_entry("2026-06-13 09:00", EID), encoding="utf-8")
+        self._git("add", "-A")
+        # Message already ends in a Memory-Entry trailer. The new staged entry
+        # must join that block CONTIGUOUSLY (no blank line) - git's parser reads
+        # only the final contiguous block, so a split drops the prior one. Assert
+        # via git's OWN parser that BOTH survive.
+        prior = "mse_0000000000000000"
+        self._git("commit", "-m", f"docs: entry\n\nMemory-Entry: {prior}")
+
+        parsed = self._git(
+            "log", "-1", "--format=%(trailers:key=Memory-Entry,valueonly,separator=;)"
+        ).stdout.strip()
+        self.assertEqual(set(parsed.split(";")), {prior, EID})
+
 
 if __name__ == "__main__":
     unittest.main()

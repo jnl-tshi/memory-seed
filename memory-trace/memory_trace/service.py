@@ -1120,9 +1120,18 @@ def _first_parent_trailer_commits(root: Path) -> list[dict[str, Any]]:
     for ref in ("main", "master", "HEAD"):
         try:
             proc = subprocess.run(
+                # Read the FULL body (%B), NUL-terminated per commit (-z), and scan
+                # every `Memory-Entry:` line ourselves - NOT git's %(trailers:...),
+                # which only parses the final contiguous trailer block. A blank
+                # line (or an interleaved non-Memory-Entry trailer) between
+                # Memory-Entry lines splits the block, and %(trailers:...) would
+                # silently drop every earlier line - losing a merge's own branch
+                # entry, which downgrades the branch to a positional estimate
+                # (rendered parallel instead of at its real fork/merge). Scanning
+                # the body is layout-agnostic and repairs already-committed merges.
                 [
-                    "git", "-C", str(root), "log", "--first-parent", ref,
-                    "--format=%H%x1f%h%x1f%cI%x1f%P%x1f%(trailers:key=Memory-Entry,valueonly,separator=;)%x1f%s",
+                    "git", "-C", str(root), "log", "--first-parent", ref, "-z",
+                    "--format=%H%x1f%h%x1f%cI%x1f%P%x1f%s%x1f%B",
                 ],
                 capture_output=True,
                 timeout=60,
@@ -1132,11 +1141,17 @@ def _first_parent_trailer_commits(root: Path) -> list[dict[str, Any]]:
         if proc.returncode != 0:
             continue
         events: list[dict[str, Any]] = []
-        for line in proc.stdout.decode("utf-8", errors="replace").splitlines():
-            if "\x1f" not in line:
+        for record in proc.stdout.decode("utf-8", errors="replace").split("\x00"):
+            if "\x1f" not in record:
                 continue
-            sha, short, date, parents, trailers, subject = (line.split("\x1f") + [""] * 6)[:6]
-            entry_ids = [item.strip() for item in trailers.split(";") if item.strip()]
+            sha, short, date, parents, subject, body = (record.split("\x1f", 5) + [""] * 6)[:6]
+            entry_ids: list[str] = []
+            for raw in body.splitlines():
+                stripped = raw.strip()
+                if stripped.startswith("Memory-Entry:"):
+                    value = stripped[len("Memory-Entry:"):].strip()
+                    if value and value not in entry_ids:
+                        entry_ids.append(value)
             if not entry_ids:
                 continue
             parent_list = parents.split()

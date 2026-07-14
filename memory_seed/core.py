@@ -2475,9 +2475,26 @@ def _stamp_memory_entry_trailers(root: Path, planned_entries: Sequence[str]) -> 
         return []
     if not message.strip():
         return []
-    trailers = "".join(f"Memory-Entry: {entry_id}\n" for entry_id in stamped)
+    # Dedupe against Memory-Entry trailers already in the message (a hook may
+    # have stamped some) so none is written twice.
+    already = {
+        line.strip()[len("Memory-Entry:"):].strip()
+        for line in message.splitlines()
+        if line.strip().startswith("Memory-Entry:")
+    }
+    missing = [entry_id for entry_id in stamped if entry_id not in already]
+    if not missing:
+        return stamped
+    trailer_block = "".join(f"Memory-Entry: {entry_id}\n" for entry_id in missing)
+    body = message.rstrip("\n")
+    last_line = body.rsplit("\n", 1)[-1] if body else ""
+    # Append CONTIGUOUSLY to an existing trailer block: a blank line splits it,
+    # and git's trailer parser (and Memory Trace's merge geometry) reads only the
+    # final contiguous block, silently dropping every earlier Memory-Entry.
+    # Blank-line-separate only when the message ends in prose.
+    joiner = "\n" if re.match(r"[A-Za-z][A-Za-z0-9-]*: ", last_line) else "\n\n"
     try:
-        merge_msg.write_text(message.rstrip("\n") + "\n\n" + trailers, encoding="utf-8")
+        merge_msg.write_text(body + joiner + trailer_block, encoding="utf-8")
     except OSError:
         return []
     return stamped
