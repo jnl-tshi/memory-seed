@@ -303,6 +303,17 @@ button {
   display: inline-grid;
   place-items: center;
 }
+.icon-button[data-refresh] {
+  font-size: 15px;
+}
+.icon-button.is-refreshing {
+  color: var(--accent);
+  animation: mt-spin 0.7s linear infinite;
+  cursor: default;
+}
+@keyframes mt-spin {
+  to { transform: rotate(360deg); }
+}
 .tab {
   padding: 6px 11px;
   color: var(--muted);
