@@ -898,21 +898,42 @@ function trailView() {
     rows.slice(1).map((row, i) => `<line x1="${laneX(branch)}" y1="${rowY(rows[i])}" x2="${laneX(branch)}" y2="${rowY(row)}" stroke="${colorOf.get(branch)}" stroke-width="2" stroke-opacity="0.55"></line>`)
   );
 
-  // Phantom trunk: main is a single continuous ref, but a stale or
-  // branch-heavy view can carry no main ENTRY in its top region - so the
-  // branches that merged INTO main up there have no visible trunk to land on
-  // (they read as merging into nothing). Where main has real nodes but its
-  // newest sits below the top of the view, extend a DASHED, dimmed spine from
-  // the top edge down to that newest main node. Dashed + faint deliberately
-  // reads as "main continues here, no entries logged at this height" - never
-  // confusable with the solid real trunk, and never asserting a live current
-  // main. Guarded to main-has-nodes, so a filter that hides main (its rows go
-  // empty) draws no phantom rather than a spine through unrelated results.
+  // Main trunk: main is a single continuous ref. Its real commits are the
+  // main-authored ENTRIES *plus* every merge commit that landed on it (the
+  // trunk merge dots). In a feature-branch flow main's newest entry lags its
+  // newest merge - all recent work is authored on branches and merged in - so
+  // entries alone badly understate how far main has advanced. Draw the trunk
+  // SOLID up to main's newest real commit (newest of {main entry, merge dot}),
+  // so the merge dots ride a continuous main line instead of a faint dashed
+  // one. Only ABOVE that newest commit - where unmerged entries sit higher than
+  // anything main has committed (main continues to HEAD with nothing to show) -
+  // keep the DASHED, dimmed phantom spine: it reads "main continues here, no
+  // commit at this height", never confusable with the solid real trunk.
+  // Guarded to main-has-real-commits, so a filter that hides main draws
+  // neither rather than a spine through unrelated results.
   const mainRows = branchRows.get("main") || [];
-  const phantomTrunk =
-    mainRows.length && mainRows[0] > 0
-      ? `<line x1="${laneX("main")}" y1="0" x2="${laneX("main")}" y2="${rowY(mainRows[0])}" stroke="${colorOf.get("main") || trailLaneColorFamilies[0][0]}" stroke-width="2" stroke-opacity="0.3" stroke-dasharray="2 5" stroke-linecap="round"></line>`
-      : "";
+  const mergeRowsForTrunk = (model.mergeEvents || []).map((event) => event.row);
+  const mainTrunkColor = colorOf.get("main") || trailLaneColorFamilies[0][0];
+  const mainTrunkX = laneX("main");
+  let phantomTrunk = "";
+  if (mainRows.length || mergeRowsForTrunk.length) {
+    // Newest real main commit = smallest row among main entries and merge dots
+    // (merge rows are commit-time fractional and can clamp just above row 0).
+    const topRow = Math.min(...(mainRows.length ? [mainRows[0]] : []), ...mergeRowsForTrunk);
+    const topY = Math.max(0, rowY(topRow));
+    // Solid spine from main's newest commit down to its newest entry; the
+    // entry-to-entry laneSegments continue the trunk below. Match their
+    // stroke-width/opacity so the whole trunk reads as one line.
+    const bottomRow = mainRows.length ? mainRows[0] : Math.max(...mergeRowsForTrunk);
+    const bottomY = rowY(bottomRow);
+    if (bottomY > topY) {
+      phantomTrunk += `<line x1="${mainTrunkX}" y1="${topY}" x2="${mainTrunkX}" y2="${bottomY}" stroke="${mainTrunkColor}" stroke-width="2" stroke-opacity="0.55" stroke-linecap="round"></line>`;
+    }
+    // Dashed phantom only above the newest real commit (top edge -> solid top).
+    if (topY > 0) {
+      phantomTrunk += `<line x1="${mainTrunkX}" y1="0" x2="${mainTrunkX}" y2="${topY}" stroke="${mainTrunkColor}" stroke-width="2" stroke-opacity="0.3" stroke-dasharray="2 5" stroke-linecap="round"></line>`;
+    }
+  }
 
   // Gitgraph forking: fork/merge rows come from the model - the same rows
   // that drive lane occupancy, so connectors and lane allocation always
