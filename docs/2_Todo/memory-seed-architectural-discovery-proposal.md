@@ -4,14 +4,16 @@ tags:
   - proposal
   - governance
   - architecture
+priority: P0
+next_action: maintainer ratifies docs/CONSTITUTION.md v1 (drafted 2026-07-14); then decide resume-Tracks-A/B vs Constitution-gated work
 ---
 
-<!-- Triaged 2026-07-14: assessed proposal, kept in 1_Inbox pending approval to promote to 2_Todo.
-     NET-NEW vs the corpus: a versioned "Constitution" artifact + amendment process, the
-     invariant/principle/policy/implementation classification, and an architectural-drift governance gate.
-     OVERLAPS: memory-trace-product-and-system-architecture-blueprint.md, 3_Spec/functionality-audit.md.
-     TENSION: its "pause major architectural expansion" ask conflicts with docs/2_Todo/0_NEXT_STEPS.md Tracks A/B — a
-     sequencing decision for the user. -->
+<!-- Promoted 1_Inbox -> 2_Todo on 2026-07-14: the maintainer approved a Constitution-first pause. ACTIVE.
+     The Constitution is drafted at docs/CONSTITUTION.md (v1 ratification draft). The discovery FRAMEWORK
+     here (invariant/principle/policy/implementation tiering, evidence-grounding, amendment process) is
+     folded INTO that document as inline citations + its "Open Questions" section, rather than shipped as a
+     separate discovery report. Remaining: maintainer ratification, then the resume-A/B-vs-Constitution-gated
+     decision. Development of 0_NEXT_STEPS Tracks A/B is paused. -->
 
 # Proposal: Architectural Discovery Report
 ## Establishing the Foundation for the Memory Seed Constitution

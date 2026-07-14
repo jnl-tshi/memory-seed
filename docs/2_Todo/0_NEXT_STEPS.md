@@ -1,7 +1,13 @@
 # Next Steps
 
-Status: Forward-looking plan (release history lives in `CHANGELOG.md`; this file is the *what's next*).
+Status: **PAUSED for Constitution-first governance** (maintainer decision, 2026-07-14).
 Updated: 2026-07-14
+
+> ⏸ **Development of Tracks A/B below is PAUSED.** The maintainer chose to establish the project's
+> governing principles before further feature expansion. Active work is now authoring and ratifying
+> [`docs/CONSTITUTION.md`](../CONSTITUTION.md) — a living document — guided by
+> [`memory-seed-architectural-discovery-proposal.md`](memory-seed-architectural-discovery-proposal.md).
+> Tracks A/B are preserved intact below and resume once the Constitution is ratified (or as it directs).
 Source: the `docs/` lifecycle lanes (folder = state — see [`../README.md`](../README.md)), `CHANGELOG.md`,
 and `docs/3_Spec/`. Rebuilt 2026-07-14 from a full inbox+todo evaluation (per-doc status verified against
 CHANGELOG + code, not this file's prior claims).
@@ -19,7 +25,7 @@ CHANGELOG + code, not this file's prior claims).
 - **A release cut (2.19) is due** to publish the Unreleased tranche — hold for the user's go (no unprompted
   release).
 
-## Live work — sequenced
+## Live work — sequenced (⏸ PAUSED — resumes after Constitution ratification; see banner above)
 
 Active/approved work with a real remaining tail. Each links its plan. **Recommended order; awaiting your
 go before starting a major track.**
