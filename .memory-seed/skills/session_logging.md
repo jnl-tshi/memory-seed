@@ -174,8 +174,12 @@ Before choosing the entry shape, harvest the durable decisions made this turn.
    consolidation explicit in `R:` or `A:` so future readers know why the choices were treated as one.
 7. Ask: does any harvested decision **replace, remove, or evolve** an earlier entry's decision?
    Replace or remove → `supersedes`; extend-while-still-valid → `evolves`; merely related →
-   `related_entries` only. `memory_link_suggest` surfaces candidates with shared-file evidence to
-   make this concrete.
+   `related_entries` only. **Start from the entries you consulted while grounding this turn** (the
+   pre-work history retrieval): pass their ids as `memory_link_suggest`'s `consulted` set — they are
+   your highest-signal candidates and the primary source for `supersedes`/`evolves`, since deciding you
+   replaced or extended a past decision means you just re-read it. `memory_link_suggest` also surfaces
+   shared-file candidates to make the call concrete. Classify each — most consults are not links; be
+   conservative turning a mere consult into `related_entries` (co-occurrence is not a lifecycle edge).
 8. Ask: did this turn **rename, relocate, or remove any artifact** (file, directory, command,
    concept/product name)? If so, record a `continuity:` block with the old and new names — that
    mapping is what keeps file-overlap ranking and traceability working across the change.

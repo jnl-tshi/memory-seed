@@ -427,13 +427,20 @@ class RelatedEntrySuggestion:
     """One link-suggest candidate: similarity ranking plus D5 file-overlap
     evidence. ``shared_files`` names the (alias-canonicalized) F: paths the
     candidate shares with the target - shown so the agent's
-    evolves/supersedes/related judgment is concrete. ``chunk``/``final_score``
-    pass-throughs keep older consumers of the plain ranked shape working."""
+    evolves/supersedes/related judgment is concrete. ``consulted`` marks a
+    candidate the caller retrieved while grounding the work (the memory axis of
+    candidacy, complementary to structural file overlap); consulted candidates
+    sort first because "I actually used this entry" is a stronger link signal
+    than "it touched the same file" - especially for the decision-lineage edges
+    (``supersedes``/``evolves``) that file overlap is worst at surfacing.
+    ``chunk``/``final_score`` pass-throughs keep older consumers of the plain
+    ranked shape working."""
 
     result: RankedMemoryChunk
     shared_files: tuple[str, ...] = ()
     file_overlap_bonus: float = 0.0
     adjusted_score: float = 0.0
+    consulted: bool = False
 
     @property
     def chunk(self) -> MemoryChunk:
@@ -518,6 +525,7 @@ def suggest_related_entries(
     *,
     entry_id: str | None = None,
     top_k: int = 5,
+    consulted: Sequence[str] | None = None,
     embedding_provider: EmbeddingProvider | None = None,
 ) -> tuple[MemoryChunk, list[RelatedEntrySuggestion]]:
     """Rank candidate prior entries to link from a target entry.
@@ -533,7 +541,19 @@ def suggest_related_entries(
     recorded continuity renames, rarity-weighted so hub files contribute
     ~nothing) raise semantically comparable candidates that touch the same
     decision surface. Entries without ``F:`` paths are never penalized.
+
+    ``consulted`` is the optional *memory axis* of candidacy: entry ids the
+    caller retrieved while grounding the work (from the pre-work history
+    lookup). Any candidate whose id is in this set is flagged ``consulted`` and
+    sorts ahead of purely structural (file-overlap) candidates - "I actually
+    used this entry" outranks "it touched the same file", and it is the natural
+    source for the ``supersedes``/``evolves`` decision-lineage edges that file
+    overlap misses (a lineage parent that shares no file still surfaces here).
+    This only *reorders and labels* candidates - it fabricates no relevance and
+    creates no edge; the caller still classifies. An empty/omitted ``consulted``
+    leaves ordering and output byte-for-byte identical to the file-only path.
     """
+    consulted_ids = {cid for cid in (consulted or []) if cid}
     chunks = [chunk for chunk in extract_memory_chunks(cwd, granularity="entry") if chunk.entry_id]
     if not chunks:
         raise LookupError("no session entries with an entry_id were found")
@@ -592,10 +612,16 @@ def suggest_related_entries(
                 shared_files=shared,
                 file_overlap_bonus=bonus,
                 adjusted_score=item.final_score + bonus,
+                consulted=(item.chunk.entry_id or "") in consulted_ids,
             )
         )
+    # Consulted-first (the memory axis outranks the structural one), then the
+    # existing file-overlap-adjusted order. When ``consulted`` is empty every
+    # flag is False, so this leading key is constant and ordering stays
+    # byte-for-byte identical to the file-only path.
     suggestions.sort(
         key=lambda suggestion: (
+            suggestion.consulted,
             suggestion.adjusted_score,
             suggestion.result.match_score,
             suggestion.result.lexical_score,

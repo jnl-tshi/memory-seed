@@ -102,6 +102,11 @@ TOOLS: list[dict[str, Any]] = [
                     "description": "Entry to suggest links for. Defaults to the newest entry (the one just written).",
                 },
                 "top_k": {"type": "integer", "default": 5},
+                "consulted": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Entry ids you retrieved while grounding this work (the memory axis). Any candidate in this set is flagged `consulted` and sorted first - the natural source for supersedes/evolves lineage edges that shared-file evidence misses. Candidates only; you still classify. Omit for file-overlap-only ranking.",
+                },
             },
         },
     },
@@ -299,6 +304,7 @@ def call_tool(
             cwd=args.get("cwd", "."),
             entry_id=entry_id,
             top_k=int(args.get("top_k", 5)),
+            consulted=list(args.get("consulted") or []) or None,
         )
         return {
             "target": {
@@ -316,6 +322,10 @@ def call_tool(
                     "shared_files": list(item.shared_files),
                     "file_overlap_bonus": round(item.file_overlap_bonus, 6),
                     "adjusted_score": round(item.adjusted_score, 6),
+                    # Provenance: True when this candidate was in the caller's
+                    # `consulted` set (memory axis) vs surfaced by file overlap
+                    # alone (structural axis). Consulted candidates sort first.
+                    "consulted": item.consulted,
                 }
                 for item in ranked
             ],

@@ -978,6 +978,48 @@ class FileOverlapSuggestTests(unittest.TestCase):
         self.assertEqual(old.shared_files, ("ui/trace.py",))
         self.assertGreater(old.file_overlap_bonus, 0.0)
 
+    def test_consulted_axis_surfaces_and_ranks_first_over_file_overlap(self):
+        cwd = self.make_project()
+        # A shares the target's file and topic (a strong structural candidate);
+        # C shares neither - a pure decision-lineage parent that file overlap
+        # cannot see. Without `consulted`, A leads and C trails; naming C as
+        # consulted must lift it to the front and flag its provenance, while A
+        # stays present, unflagged, below it.
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 09:00 - A", "ms-a0000000", "trail lane rendering.", files=["ui/trail.py"]),
+            _entry("2026-05-10 10:00 - C", "ms-c0000000", "database index migration.", files=["db/index.py"]),
+            _entry("2026-05-10 11:00 - Target", "ms-t0000000", "trail lane rendering.", files=["ui/trail.py"]),
+        )
+
+        _, plain = suggest_related_entries(cwd, entry_id="ms-t0000000")
+        self.assertEqual(plain[0].chunk.entry_id, "ms-a0000000")
+        self.assertFalse(any(s.consulted for s in plain))
+
+        _, consulted = suggest_related_entries(cwd, entry_id="ms-t0000000", consulted=["ms-c0000000"])
+        self.assertEqual(consulted[0].chunk.entry_id, "ms-c0000000")
+        self.assertTrue(consulted[0].consulted)
+        order = [s.chunk.entry_id for s in consulted]
+        self.assertLess(order.index("ms-c0000000"), order.index("ms-a0000000"))
+        a = next(s for s in consulted if s.chunk.entry_id == "ms-a0000000")
+        self.assertFalse(a.consulted)
+
+    def test_empty_consulted_is_byte_identical_to_file_only(self):
+        cwd = self.make_project()
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 09:00 - A", "ms-a0000000", "trail lane rendering.", files=["ui/trail.py"]),
+            _entry("2026-05-10 10:00 - B", "ms-b0000000", "trail lane rendering.", files=["ui/other.py"]),
+            _entry("2026-05-10 11:00 - Target", "ms-t0000000", "trail lane rendering.", files=["ui/trail.py"]),
+        )
+        shape = lambda ss: [(s.chunk.entry_id, s.adjusted_score, s.consulted) for s in ss]
+        _, baseline = suggest_related_entries(cwd, entry_id="ms-t0000000")
+        _, none_arg = suggest_related_entries(cwd, entry_id="ms-t0000000", consulted=None)
+        _, empty_arg = suggest_related_entries(cwd, entry_id="ms-t0000000", consulted=[])
+        self.assertEqual(shape(baseline), shape(none_arg))
+        self.assertEqual(shape(baseline), shape(empty_arg))
+        self.assertTrue(all(not s.consulted for s in baseline))
+
 
 if __name__ == "__main__":
     unittest.main()

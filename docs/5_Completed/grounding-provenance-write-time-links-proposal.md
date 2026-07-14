@@ -11,7 +11,13 @@ tags:
 
 # Grounding-provenance → write-time lifecycle links (turn the retrieval you already do into link candidates)
 
-Status: **PROPOSED** (2026-07-14). Inbox.
+Status: **SHIPPED 2026-07-14** (approved + implemented same day). Layers 1–2 built; layer 3 (auto-capture)
+deferred as the optional P3 follow-up it was proposed to be — build only if recall-based `consulted`
+passing proves lossy. **What shipped:** `suggest_related_entries` / `memory_link_suggest` gained the
+`consulted: [ids]` axis (consulted-first, provenance-flagged, byte-identical when empty); the two loops
+were connected in `history_retrieval.md` + `session_logging.md` (+ seed twins). Tests:
+`tests/test_semantic_cache.py` (consulted surfaces a no-file-overlap lineage parent; empty = byte-identical)
+and `tests/test_mcp_server.py` (MCP flag + schema).
 Priority: P2 — graph/retrieval quality. Raises native lifecycle-link density at the point of entry write,
 targeting the sparse decision-lineage edges (`supersedes`/`evolves`) that structural candidacy is worst at.
 Source: User 2026-07-14 — "can the ground-in-both-repo-and-memory procedure be used to improve the amount
