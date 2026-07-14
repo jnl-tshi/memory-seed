@@ -381,6 +381,12 @@ def main(argv: list[str] | None = None) -> int:
     esr_parser.add_argument("--date", default=None, help="session date for the link-gap sweep (default: today)")
     esr_parser.add_argument("--json", action="store_true", help="emit the report as JSON")
 
+    situate_parser = subparsers.add_parser(
+        "situate",
+        help="orientation preflight: local git/version/session/worktree facts in one read-only report",
+    )
+    situate_parser.add_argument("--json", action="store_true", help="emit the report as JSON")
+
     update_parser = subparsers.add_parser("update", help="update reusable control-plane files")
     update_parser.add_argument(
         "--dry-run",
@@ -1269,6 +1275,16 @@ def main(argv: list[str] | None = None) -> int:
         # Preflight, not a gate: only hard integrity failures are fatal -
         # link gaps, stale worktrees, and topic warnings are report lines.
         return 0 if report.integrity_ok else 1
+
+    if args.command == "situate":
+        from .situate import format_situate_report, situate_report
+
+        report = situate_report(cwd=Path(".").resolve())
+        if args.json:
+            print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
+        else:
+            print(format_situate_report(report))
+        return 0
 
     if args.command == "update":
         result = update_project(dry_run=args.dry_run)

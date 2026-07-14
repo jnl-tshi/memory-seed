@@ -158,6 +158,7 @@ Append session entry to `.memory-seed/sessions/YYYY-MM-DD.md` with `agent_name: 
 - After editing any file under `memory_seed/seed/`: copy the live equivalent to the repo root before committing (`cp seed/X live/X`). Skipping this breaks `test_seed_control_plane_matches_live_rationale_guidance`.
 - On Windows: `.agents/` and `.AGENTS/` resolve to the same path (case-insensitive FS). Test legacy-vs-new directory distinction via `resolve_runtime().legacy`, not `.AGENTS` path existence.
 - Before wiring to an external agent/tool's config or hooks, verify current filenames/events/keys from authoritative docs — they change (Gemini has no `Stop`/`UserPromptSubmit` → use `AfterAgent`/`BeforeAgent`; Cursor reads `AGENTS.md` natively, no routing file; Copilot command hooks can't inject context at `sessionStart`).
+- Before asserting project **state** — the published/released version, whether something shipped, or "the latest" entry/branch — verify it from the source of truth, not from an in-context snapshot (which can be frozen from an earlier turn or a stale worktree). Run `memory-seed situate` for local facts and check the published version against PyPI. "Not released yet" / "latest is X" are claims that require a fresh check, not recall.
 
 ---
 
@@ -248,3 +249,8 @@ Rationale: During MCP sidecar-edge work, a stalled pytest path was initially tre
 Session: pending current session entry | Approved by: JNL (proactive-history-retrieval-discipline proposal)
 Section changed: II. Memory Protocol - added "Retrieve the why before changing non-obvious code"
 Rationale: Control-plane proposal made "consult memory for the why before a design/change decision on non-obvious code" a proactive, all-agent behavior (agent-rules Working Principles + `history_retrieval.md` skill). The design/change-heavy developer persona restates it as a standing habit. Base rule stays vendor-neutral in agent-rules; the persona only sharpens. Files remain authority for current state; memory is authority for why.
+
+### 2026-07-14 - Verify ground-truth state (version/release/"latest") from source of truth, not a snapshot
+Session: mse_5p94m2c3rwy7kbtj | Approved by: JNL
+Section changed: VI. Self-Correction - Mandatory checks
+Rationale: The `/insights` usage report named stale environment/version assumptions a top friction class across multiple sessions - repeatedly claiming a version was unreleased when it was already live on PyPI (2.13, then 2.16). Section VI's "execute fresh, not from memory" covered test commands but not state/version assertions, which is exactly what drifted. The disposition sharpens the base orientation rule (agent-rules Operating Mode Start step 7 + the new `.memory-seed/skills/orientation.md`) and is now backed by the `memory-seed situate` command built this session. Live-only adaptation; the seed template stays generic.

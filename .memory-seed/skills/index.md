@@ -81,6 +81,15 @@ skills:
       - the task has no Mermaid, D2, or diagram layout concern
       - editing sequence diagrams without graph or flowchart layout pressure
 
+  - skill: orientation.md
+    required: true
+    load_when:
+      - orienting at the start of a session (running `memory-seed situate` or /situate)
+      - reconciling local git, version, session, and worktree state before acting
+      - a stale in-context snapshot or frozen worktree may misrepresent current state
+    do_not_load_when:
+      - mid-task work after orientation is already established
+
   - skill: end_of_turn.md
     required: true
     load_when:

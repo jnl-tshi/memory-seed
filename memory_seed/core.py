@@ -3046,6 +3046,10 @@ SEED_FILES = [
     # (.gemini/commands/*.toml). Codex/Cursor invoke the routine via agent-rules.md.
     SeedFile(SEED_ROOT / ".claude" / "commands" / "esr.md", ".claude/commands/esr.md", agent="claude"),
     SeedFile(SEED_ROOT / ".gemini" / "commands" / "esr.toml", ".gemini/commands/esr.toml", agent="gemini"),
+    # Start-of-session orientation command shortcuts (routine in
+    # .memory-seed/skills/orientation.md; Codex/Cursor invoke it via agent-rules.md).
+    SeedFile(SEED_ROOT / ".claude" / "commands" / "situate.md", ".claude/commands/situate.md", agent="claude"),
+    SeedFile(SEED_ROOT / ".gemini" / "commands" / "situate.toml", ".gemini/commands/situate.toml", agent="gemini"),
     SeedFile(SEED_ROOT / ".agents" / "README.md", ".agents/README.md"),
     SeedFile(SEED_ROOT / ".agents" / "developer.md", ".agents/developer.md"),
     SeedFile(SEED_ROOT / ".agents" / "content-creator.md", ".agents/content-creator.md"),
@@ -3092,6 +3096,10 @@ SEED_FILES = [
     SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "compact_mermaid_diagrams.md",
         ".memory-seed/skills/compact_mermaid_diagrams.md",
+    ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "orientation.md",
+        ".memory-seed/skills/orientation.md",
     ),
     SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "end_of_turn.md",
@@ -3382,6 +3390,7 @@ def install_git_hooks(cwd: Path | str = ".") -> list[str]:
 CORE_SKILL_NAMES = (
     "session_logging.md",
     "history_retrieval.md",
+    "orientation.md",
     "end_of_turn.md",
     "memory_hygiene.md",
     "risk_signaling.md",
