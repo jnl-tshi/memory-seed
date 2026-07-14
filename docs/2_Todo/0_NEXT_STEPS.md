@@ -1,17 +1,16 @@
 # Next Steps
 
-Status: **PAUSED** — Constitution **ratified** 2026-07-14 (v1.0); awaiting the maintainer's resume-vs-gate decision.
+Status: **ACTIVE — resumed 2026-07-14, Constitution-aligned** (Constitution v1.0 ratified the same day).
 Updated: 2026-07-14
 
-> ⏸ **Development of Tracks A/B below is PAUSED.** The maintainer chose to establish the project's
-> governing principles before further feature expansion. The Constitution is now **RATIFIED — v1.0,
-> 2026-07-14** ([`docs/CONSTITUTION.md`](../CONSTITUTION.md), a living document; framework:
-> [`memory-seed-architectural-discovery-proposal.md`](memory-seed-architectural-discovery-proposal.md)).
-> The live decision is now yours: **resume Tracks A/B, or keep future work gated on the Constitution.**
-> Tracks A/B are preserved intact below.
-> Platform-layer design produced during the pause (blocked on resume): the
-> [derived-projection contract](../3_Spec/draft/derived-read-model-projection-contract.md) + its
-> [implementation plan](derived-projection-implementation-plan.md), under Constitution Invariant #6.
+> ▶ **Development RESUMED 2026-07-14 — Constitution-aligned.** The pause achieved its purpose:
+> [`docs/CONSTITUTION.md`](../CONSTITUTION.md) **v1.0 is ratified**. Work now sequences *under* the
+> Constitution — each item answers the five-question test (Capture / Validation / Retrieval / Trust /
+> Application) and respects Invariant #6 (Markdown = source of truth; every DB/cache is a derived,
+> rebuildable projection). The **foundation item leads** (below): the
+> [derived-projection Phase 1](derived-projection-implementation-plan.md) per its
+> [contract](../3_Spec/draft/derived-read-model-projection-contract.md) — it makes Trace fast and makes the
+> source-of-truth model real, so it precedes the feature tracks.
 Source: the `docs/` lifecycle lanes (folder = state — see [`../README.md`](../README.md)), `CHANGELOG.md`,
 and `docs/3_Spec/`. Rebuilt 2026-07-14 from a full inbox+todo evaluation (per-doc status verified against
 CHANGELOG + code, not this file's prior claims).
@@ -29,10 +28,20 @@ CHANGELOG + code, not this file's prior claims).
 - **A release cut (2.19) is due** to publish the Unreleased tranche — hold for the user's go (no unprompted
   release).
 
-## Live work — sequenced (⏸ PAUSED — resumes after Constitution ratification; see banner above)
+## Live work — sequenced (Constitution-aligned)
 
-Active/approved work with a real remaining tail. Each links its plan. **Recommended order; awaiting your
-go before starting a major track.**
+Active work, sequenced under the Constitution (each item answers the five-question test — Capture /
+Validation / Retrieval / Trust / Application — and respects Invariant #6). The foundation item leads; the
+feature tracks follow.
+
+### Foundation (do first) — derived-projection Phase 1
+
+**Make Trace fast + make Invariant #6 real.** Extend the existing SQLite cache into the read-model per the
+[contract](../3_Spec/draft/derived-read-model-projection-contract.md): explicit Markdown→projection ingest
+with a byte-identical rebuild, a **git-watermark warm start** (delta, not a whole-corpus scan), and
+**atomic build/swap**. Plan:
+[`derived-projection-implementation-plan.md`](derived-projection-implementation-plan.md). Five-question
+test → **Retrieval** (fast reads) + **Application** (usable Trace on large histories).
 
 ### Track A — close the open tails (small, finish-what-shipped)
 
