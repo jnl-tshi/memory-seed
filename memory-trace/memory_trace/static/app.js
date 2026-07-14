@@ -191,10 +191,27 @@ async function switchWorktree(id) {
   render();
 }
 
+// The default upper date bound is TODAY (local), not merely the newest entry's
+// date, so an entry written today - including after midnight, before any refresh
+// - is always inside the initial window. Never below the newest entry (guards a
+// future-dated entry). Routed through one helper so seedDates, the filter chip,
+// and the clear-reset all agree on what "default To" means.
+function todayLocalISO() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function defaultDateTo(bounds) {
+  const maxBound = (bounds && bounds[1]) || "";
+  const today = todayLocalISO();
+  return maxBound && maxBound > today ? maxBound : today;
+}
+
 function seedDates() {
   const bounds = state.facets?.runtime?.date_bounds || [];
   state.dateFrom = bounds[0] || "";
-  state.dateTo = bounds[1] || "";
+  state.dateTo = defaultDateTo(bounds);
 }
 
 async function loadView() {
@@ -470,7 +487,7 @@ function filterChips() {
   if (state.user) chips.push(["user", `user: ${state.user}`]);
   if (state.topic) chips.push(["topic", `#${state.topic}`]);
   if (state.dateFrom && state.dateFrom !== (bounds[0] || "")) chips.push(["dateFrom", `from ${state.dateFrom}`]);
-  if (state.dateTo && state.dateTo !== (bounds[1] || "")) chips.push(["dateTo", `to ${state.dateTo}`]);
+  if (state.dateTo && state.dateTo !== defaultDateTo(bounds)) chips.push(["dateTo", `to ${state.dateTo}`]);
   return chips.map(([key, label]) => `<button type="button" class="chip filter-chip" data-clear-filter="${key}" title="Clear this filter">${esc(label)} ×</button>`).join("");
 }
 
@@ -1513,7 +1530,7 @@ function installDelegatedEvents() {
     if (target.dataset.clearFilter) {
       const key = target.dataset.clearFilter;
       const bounds = state.facets?.runtime?.date_bounds || [];
-      const cleared = key === "dateFrom" ? bounds[0] || "" : key === "dateTo" ? bounds[1] || "" : "";
+      const cleared = key === "dateFrom" ? bounds[0] || "" : key === "dateTo" ? defaultDateTo(bounds) : "";
       await updateFilter(key, cleared);
       return;
     }
@@ -1913,7 +1930,7 @@ async function refreshData() {
     state.runtime = runtime;
     state.facets = facets;
     const [newMin, newMax] = facets?.runtime?.date_bounds || [];
-    if (newMax && (!state.dateTo || (oldMax && state.dateTo >= oldMax))) state.dateTo = newMax;
+    if (!state.dateTo || (oldMax && state.dateTo >= oldMax)) state.dateTo = defaultDateTo([newMin, newMax]);
     if (newMin && (!state.dateFrom || (oldMin && state.dateFrom <= oldMin))) state.dateFrom = newMin;
     await loadView();
   } catch {
