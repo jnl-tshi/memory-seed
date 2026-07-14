@@ -85,6 +85,29 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   Anchors, append-only annotations, SQLite projection — needs the React shell **and** a participant/role
   model first.
 
+### Track C — agent context efficiency (control-plane)
+
+Approved + promoted 2026-07-14 from Inbox. Both P2, small, unblocked, independent of the Foundation and of
+Tracks A/B — control-plane/skill/agent-rules guidance that slims how much context each agent loads. They
+descend from the two-axis persona/orchestration evaluation (session `mse_y7nhd5hcpwa0qb51`):
+"orchestrator/worker/reviewer" and "developer/copywriter" are *different axes*, so the real win is trimming
+context, not renaming roles. Five-question test → **Application** (how agents load and apply memory);
+Markdown-authoritative, so Invariant #6-clean (no derived-state surface).
+
+1. **Worker Context Contract** — [`worker-context-minimisation-proposal.md`](worker-context-minimisation-proposal.md).
+   A packeted subagent worker loads only its Task Packet + at most one domain persona + objective-triggered
+   skills; it skips load-all-personas / full-index / newest-session read, but **still** runs
+   `base_sha`/preflight/worktree-guard. Adds Task Packet fields `persona:` + `context_load:`. Guidance-only
+   (`agent_collaboration.md`, `agent-rules.md`, seed twins).
+2. **ESR Persona Usage Check** — [`persona-usage-deactivation-esr-proposal.md`](persona-usage-deactivation-esr-proposal.md).
+   A new end-of-turn step, the symmetric inverse of the shipped unregistered-persona check: flag active
+   personas with no recorded `agent_name` use over a conservative window and **propose** flipping them to
+   `status: inactive` (approval-gated; never auto-applies; deactivate ≠ delete). **Open user decision:**
+   propose-and-wait (designed) vs automatic deactivation — resolve before build.
+
+The two compound (fewer active personas → lighter worker *and* primary startup load) but neither blocks the
+other. Both sit **below Track A's blocking tails** in priority — small, sequence-flexible guidance changes.
+
 ## Captured proposals — awaiting your approval (`1_Inbox/`)
 
 Raw, unbuilt, each a genuine gap (verified: none redundant with shipped work). Approve to promote into a
