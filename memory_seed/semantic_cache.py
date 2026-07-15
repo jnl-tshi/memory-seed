@@ -26,6 +26,7 @@ STRUCTURAL_QUERY_TERMS = (
     "design",
 )
 ENTRY_DATETIME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s+-\s+.+$")
+ENTRY_TITLE_PREFIX_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}\s+-\s+")
 
 # Multiplier applied to a superseded entry's importance_score (the harmony
 # contract from supersession-edges-plan.md). A superseded decision drops to a
@@ -46,13 +47,12 @@ SUPERSEDED_IMPORTANCE_DAMPING = 0.25
 SUPERSEDED_RANK_DAMPING = 0.25
 
 # Fractional multiplier applied to a live terminal replacement when the caller
-# opts into the bounded successor boost. One contributing retired hit can lift a
-# matching replacement by up to 75%; multiple contributing hits cap at a 2x
-# multiplier. The boost is never a hard injection: only already-matching
-# terminal replacements are eligible, and only when the caller explicitly turns
-# it on.
+# opts into the bounded successor boost. One strongest-matching superseded
+# lineage can lift its terminal replacement by 75%. The boost is never a hard
+# injection: only already-matching terminal replacements are eligible, only the
+# strongest superseded lineage(s) for the query may contribute, and the caller
+# must explicitly turn it on.
 SUPERSEDING_SUCCESSOR_BOOST = 0.75
-SUPERSEDING_SUCCESSOR_BOOST_CAP = 1.0
 
 # Scale applied to the rarity-weighted F:-file-overlap sum when re-ranking
 # link-suggest candidates (evolution-edges-plan.md D5). Overlap is a precision
@@ -743,12 +743,13 @@ def rank_memory_chunks(
         )
 
     if superseding_heads_by_id:
-        ranked = _apply_superseding_successor_boost(ranked, superseding_heads_by_id)
+        ranked = _apply_superseding_successor_boost(query, ranked, superseding_heads_by_id)
     ranked.sort(key=_ranked_result_sort_key, reverse=True)
     return ranked[: max(top_k, 0)]
 
 
 def _apply_superseding_successor_boost(
+    query: str,
     ranked: Sequence[RankedMemoryChunk],
     superseding_heads_by_id: dict[str, tuple[str, ...]],
 ) -> list[RankedMemoryChunk]:
@@ -769,33 +770,65 @@ def _apply_superseding_successor_boost(
         if incumbent is None or _ranked_result_sort_key(result) > _ranked_result_sort_key(incumbent):
             best_by_entry[entry_id] = result
 
-    boost_fraction_by_entry: dict[str, float] = {}
+    candidates: list[tuple[tuple[int, int, float, float], set[str]]] = []
     for predecessor_id, heads in superseding_heads_by_id.items():
         predecessor = best_by_entry.get(predecessor_id)
         if predecessor is None or predecessor.match_score <= 0:
             continue
-        for successor_id in heads:
-            successor = best_by_entry.get(successor_id)
-            if successor is None or successor.match_score <= 0:
-                continue
-            current = boost_fraction_by_entry.get(successor_id, 0.0)
-            boost_fraction_by_entry[successor_id] = min(
-                current + SUPERSEDING_SUCCESSOR_BOOST,
-                SUPERSEDING_SUCCESSOR_BOOST_CAP,
-            )
+        eligible_successors = {
+            successor_id
+            for successor_id in heads
+            if (successor := best_by_entry.get(successor_id)) is not None and successor.match_score > 0
+        }
+        if not eligible_successors:
+            continue
+        candidates.append((_superseding_query_alignment(query, predecessor), set(eligible_successors)))
 
-    if not boost_fraction_by_entry:
+    if not candidates:
         return list(ranked)
+    if len(candidates) == 1:
+        boost_successor_ids = candidates[0][1]
+    else:
+        best_alignment = max(alignment for alignment, _ in candidates)
+        if best_alignment[:3] == (0, 0, 0.0):
+            return list(ranked)
+        top = [successors for alignment, successors in candidates if alignment == best_alignment]
+        if len(top) != 1:
+            return list(ranked)
+        boost_successor_ids = top[0]
 
     boosted: list[RankedMemoryChunk] = []
     for result in ranked:
         entry_id = result.chunk.entry_id or ""
-        fraction = boost_fraction_by_entry.get(entry_id)
-        if fraction and result.match_score > 0:
-            boosted.append(replace(result, final_score=result.final_score * (1.0 + fraction)))
+        if entry_id in boost_successor_ids and result.match_score > 0:
+            boosted.append(replace(result, final_score=result.final_score * (1.0 + SUPERSEDING_SUCCESSOR_BOOST)))
         else:
             boosted.append(result)
     return boosted
+
+
+def _superseding_query_alignment(query: str, predecessor: RankedMemoryChunk) -> tuple[int, int, float, float]:
+    """Score how specifically a query points at a retired predecessor title.
+
+    The successor boost is intentionally fail-closed on ambiguous queries. We
+    strip the timestamp prefix from authored entry titles, then prefer a unique
+    title-level alignment over broad overall relevance so unrelated retired
+    lineages cannot ride shared date/generic tokens into the window.
+    """
+    normalized_query = _normalize(ENTRY_TITLE_PREFIX_RE.sub("", query).strip())
+    stripped_title = ENTRY_TITLE_PREFIX_RE.sub("", predecessor.chunk.title).strip()
+    normalized_title = _normalize(stripped_title)
+    title_terms = {
+        word
+        for word in re.findall(r"[A-Za-z0-9]+", stripped_title.lower())
+        if len(word) > 1
+    }
+    if not normalized_title and not title_terms:
+        return (0, 0, 0.0, predecessor.match_score)
+    exact_phrase_match = int(bool(normalized_title) and normalized_title in normalized_query)
+    overlap_count = sum(1 for term in title_terms if term in normalized_query)
+    overlap_ratio = (overlap_count / len(title_terms)) if title_terms else float(exact_phrase_match)
+    return (exact_phrase_match, overlap_count, overlap_ratio, predecessor.match_score)
 
 
 def _ranked_result_sort_key(result: RankedMemoryChunk) -> tuple[float, float, float, int, str, int]:

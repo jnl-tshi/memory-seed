@@ -560,6 +560,55 @@ class FreshnessRankingTests(unittest.TestCase):
         )
         return cwd, old_id, mid_id, new_id
 
+    def make_independent_lineage_fixture(self):
+        cwd = self.make_project()
+        old_a = "mse_lineagea_old00"
+        new_a = "mse_lineagea_new00"
+        old_b = "mse_lineageb_old00"
+        new_b = "mse_lineageb_new00"
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-06-15 02:15 - Updated 3.0 plan decisions\n\n"
+            "```yaml\n"
+            f"entry_id: {old_a}\n"
+            "user_initials: JN\nagent_type: codex\nproject_path: .\nsubproject_path: null\n"
+            "```\n\n"
+            "Lineage A retired plan decisions.\n\n"
+            "## 2026-07-15 17:46 - Sense-check roadmap plan decisions\n\n"
+            "```yaml\n"
+            f"entry_id: {old_b}\n"
+            "user_initials: JN\nagent_type: codex\nproject_path: .\nsubproject_path: null\n"
+            "```\n\n"
+            "Lineage B also shares plan decisions wording.\n\n"
+            "## 2026-07-10 15:36 - Retirement record: lineage A plan decisions\n\n"
+            "```yaml\n"
+            f"entry_id: {new_a}\n"
+            "user_initials: JN\nagent_type: codex\nproject_path: .\nsubproject_path: null\n"
+            f"supersedes:\n  - {old_a}\n"
+            "```\n\n"
+            "Terminal replacement for lineage A plan decisions.\n\n"
+            "## 2026-07-15 18:05 - Constitution-harden lineage B plan decisions\n\n"
+            "```yaml\n"
+            f"entry_id: {new_b}\n"
+            "user_initials: JN\nagent_type: codex\nproject_path: .\nsubproject_path: null\n"
+            f"supersedes:\n  - {old_b}\n"
+            "```\n\n"
+            "Terminal replacement for lineage B plan decisions.\n",
+        )
+        for i in range(1, 9):
+            self.write_session(
+                cwd,
+                f"2026-05-{17+i}.md",
+                f"## 2026-05-{17+i:02d} 09:00 - Distractor {i}\n\n"
+                "```yaml\n"
+                f"entry_id: mse_distractor_{i:02d}\n"
+                "user_initials: JN\nagent_type: codex\nproject_path: .\nsubproject_path: null\n"
+                "```\n\n"
+                "Plan decisions distractor text.\n",
+            )
+        return cwd, old_a, new_a, old_b, new_b
+
     def search(self, cwd, **kwargs):
         return search_memory(
             self.QUERY, str(cwd), semantic_enabled=False, today=self.TODAY, **kwargs
@@ -661,6 +710,39 @@ class FreshnessRankingTests(unittest.TestCase):
 
         self.assertEqual(default["results"], explicit_on["results"])
         self.assertGreater(by_default[self.NEW]["score"], by_off[self.NEW]["score"])
+
+    def test_query_for_one_lineage_does_not_boost_independent_lineage_head(self):
+        cwd, old_a, new_a, old_b, new_b = self.make_independent_lineage_fixture()
+        query = "2026-06-15 02:15 - Updated 3.0 plan decisions"
+
+        without = search_memory(
+            query,
+            str(cwd),
+            semantic_enabled=False,
+            today=self.TODAY,
+            supersession_damping=True,
+            superseding_successor_boost=False,
+            top_k=8,
+        )
+        with_boost = search_memory(
+            query,
+            str(cwd),
+            semantic_enabled=False,
+            today=self.TODAY,
+            supersession_damping=True,
+            superseding_successor_boost=True,
+            top_k=8,
+        )
+        by_without = {r["entry_id"]: r for r in without["results"]}
+        by_with = {r["entry_id"]: r for r in with_boost["results"]}
+        order_without = [r["entry_id"] for r in without["results"]]
+        order_with = [r["entry_id"] for r in with_boost["results"]]
+
+        self.assertIn(new_a, order_with)
+        self.assertGreater(by_with[new_a]["score"], by_without.get(new_a, {"score": 0})["score"])
+        if new_b in by_without:
+            self.assertEqual(by_with[new_b]["score"], by_without[new_b]["score"])
+            self.assertGreaterEqual(order_with.index(new_b), order_without.index(new_b))
 
     def make_evolves_fixture(self):
         """A three-entry evolves chain: C evolves B, B evolves A. All still

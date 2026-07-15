@@ -65,6 +65,10 @@ class QueryABResult:
     winner_rank_on: int | None = None
     loser_rank_on: int | None = None
     winner_max_rank_on: int | None = None
+    allowed_changed_ids: tuple[str, ...] = ()
+    # Unexpected terminal heads that *benefited* from the signal. Pure
+    # displacement stays visible in ``changes`` but does not fail the gate.
+    unexpected_changed_ids: tuple[str, ...] = ()
 
     @property
     def winner_beats_loser(self) -> bool | None:
@@ -89,6 +93,8 @@ class QueryABResult:
             checks.append(self.winner_beats_loser is True)
         if self.winner_max_rank_on is not None:
             checks.append(self.winner_within_max_rank is True)
+        if self.allowed_changed_ids:
+            checks.append(not self.unexpected_changed_ids)
         if not checks:
             return None
         return all(checks)
@@ -139,6 +145,7 @@ class QuerySpec:
     winner_id: str | None = None  # expected to rank ABOVE loser_id when ON
     loser_id: str | None = None
     winner_max_rank_on: int | None = None
+    allowed_changed_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -178,10 +185,11 @@ def _supersession_lineage_queries(cwd: Path, corpus: Sequence[MemoryChunk]) -> l
         retired = by_id.get(node.entry_id)
         if retired is None or not retired.title.strip():
             continue
+        query = _ENTRY_TITLE_PREFIX_RE.sub("", retired.title).strip() or retired.title
         for replacement_id in node.superseded_by:
             specs.append(
                 QuerySpec(
-                    query=retired.title,
+                    query=query,
                     label=f"{replacement_id} supersedes {node.entry_id}",
                     winner_id=replacement_id,
                     loser_id=node.entry_id,
@@ -210,14 +218,16 @@ def _superseding_head_queries(cwd: Path, corpus: Sequence[MemoryChunk]) -> list[
         retired = by_id.get(node.entry_id)
         if retired is None or not retired.title.strip():
             continue
+        query = _ENTRY_TITLE_PREFIX_RE.sub("", retired.title).strip() or retired.title
         for replacement_id in superseding_lineage_heads(graph, node.entry_id):
             specs.append(
                 QuerySpec(
-                    query=retired.title,
+                    query=query,
                     label=f"{replacement_id} is terminal replacement for {node.entry_id}",
                     winner_id=replacement_id,
                     loser_id=node.entry_id,
                     winner_max_rank_on=8,
+                    allowed_changed_ids=(replacement_id,),
                 )
             )
     return specs
@@ -365,6 +375,20 @@ def _compare_query(
                     score_on=sn,
                 )
             )
+    unexpected_changed_ids = tuple(
+        sorted(
+            change.entry_id
+            for change in changes
+            if (
+                spec.allowed_changed_ids
+                and change.entry_id not in spec.allowed_changed_ids
+                and (
+                    change.score_on > change.score_off
+                    or (change.rank_on and change.rank_off and change.rank_on < change.rank_off)
+                )
+            )
+        )
+    )
 
     return QueryABResult(
         query=spec.query,
@@ -377,6 +401,8 @@ def _compare_query(
         winner_rank_on=pos_on.get(spec.winner_id) if spec.winner_id else None,
         loser_rank_on=pos_on.get(spec.loser_id) if spec.loser_id else None,
         winner_max_rank_on=spec.winner_max_rank_on,
+        allowed_changed_ids=spec.allowed_changed_ids,
+        unexpected_changed_ids=unexpected_changed_ids,
     )
 
 
@@ -457,14 +483,25 @@ def format_ab_report(result: ABResult) -> str:
                 f"    {rank_mark}  replacement {q.winner_id} within top {q.winner_max_rank_on}: "
                 f"#{q.winner_rank_on}"
             )
+        if q.unexpected_changed_ids:
+            lines.append(
+                "    REGRESSION  unexpected affected terminal heads benefited: "
+                + ", ".join(q.unexpected_changed_ids)
+            )
         if not q.has_affected_hit:
             state = "identical off/on" if q.identical else "CHANGED with no affected hit"
             lines.append(f"    no affected entry matched -- {state}")
         for change in q.changes:
             direction = "down" if change.delta > 0 else ("up" if change.delta < 0 else "same")
+            if change.score_on > change.score_off:
+                why = "boosted"
+            elif change.score_on < change.score_off:
+                why = "demoted"
+            else:
+                why = "displaced"
             lines.append(
                 f"    {change.entry_id}  #{change.rank_off} -> #{change.rank_on} "
-                f"({direction} {abs(change.delta)})  score {change.score_off:.3f} -> {change.score_on:.3f}"
+                f"({direction} {abs(change.delta)}, {why})  score {change.score_off:.3f} -> {change.score_on:.3f}"
             )
         lines.append("")
 
