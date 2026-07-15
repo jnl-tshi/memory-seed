@@ -92,6 +92,43 @@ class EsrReportTests(unittest.TestCase):
         # The other direction: nothing new on 06-01, so no gaps under that scope.
         self.assertEqual(esr_report(cwd=self.cwd, session_date="2026-06-01").link_gaps, [])
 
+    def test_open_link_stubs_are_counted_in_lifecycle_section(self):
+        (self.sessions / "2026-06-01.md").write_text(
+            _entry("2026-06-01 09:00", A), encoding="utf-8"
+        )
+        sidecar = self.sessions / "links" / "2026-06" / "2026-06-01.md"
+        sidecar.parent.mkdir(parents=True)
+        sidecar.write_text(
+            "\n".join(
+                [
+                    "---",
+                    "tags:",
+                    "  - session-log-links",
+                    "link_date: 2026-06-01",
+                    "---",
+                    "",
+                    "## 2026-06-01 09:00 - pending classification",
+                    "",
+                    "```yaml",
+                    f"entry_id: {A}",
+                    "classify_pending: true",
+                    "# candidates (evidence):",
+                    "#   - mse_bbbbbbbbbbbbbbbb  # topics: retrieval",
+                    "```",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        report = esr_report(cwd=self.cwd, session_date="2026-06-01")
+        text = format_esr_report(report)
+
+        self.assertTrue(report.integrity_ok)
+        self.assertEqual(report.open_link_stubs, 1)
+        self.assertEqual(report.to_dict()["open_link_stubs"], 1)
+        self.assertIn("Open classification stubs: 1.", text)
+
     def test_non_git_directory_reports_worktrees_unavailable(self):
         (self.sessions / "2026-06-01.md").write_text(_entry("2026-06-01 09:00", A), encoding="utf-8")
 

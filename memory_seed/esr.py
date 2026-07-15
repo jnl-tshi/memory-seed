@@ -50,6 +50,7 @@ class EsrReport:
     topics_ok: bool = True
     topics_issues: list[str] = field(default_factory=list)
     link_gaps: list[dict[str, Any]] = field(default_factory=list)
+    open_link_stubs: int = 0
     worktrees: list[WorktreePosture] = field(default_factory=list)
     worktrees_available: bool = False
     seed_twins_checked: bool = False
@@ -62,6 +63,7 @@ class EsrReport:
             "integrity": {"ok": self.integrity_ok, "issues": self.integrity_issues},
             "topics": {"ok": self.topics_ok, "issues": self.topics_issues},
             "link_gaps": self.link_gaps,
+            "open_link_stubs": self.open_link_stubs,
             "worktrees": {
                 "available": self.worktrees_available,
                 "entries": [
@@ -195,7 +197,14 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
 
     links = check_session_links(cwd=cwd)
     report.integrity_ok = links.ok
-    report.integrity_issues = [f"{issue.file}: {issue.kind}: {issue.detail}" for issue in links.issues]
+    report.integrity_issues = [
+        f"{issue.file}: {issue.kind}: {issue.detail}"
+        for issue in links.issues
+        if issue.severity == "error"
+    ]
+    report.open_link_stubs = sum(
+        issue.kind == "sidecar-unclassified-stub" for issue in links.issues
+    )
 
     topics = check_topics(cwd=cwd)
     report.topics_ok = topics.ok
@@ -245,6 +254,7 @@ def format_esr_report(report: EsrReport) -> str:
     lines.append("")
 
     lines.append("## Lifecycle link gaps (today's entries)")
+    lines.append(f"Open classification stubs: {report.open_link_stubs}.")
     if not report.link_gaps:
         lines.append("None — no unlinked structural neighbours.")
     else:

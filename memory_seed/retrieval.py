@@ -449,6 +449,17 @@ class LinkGap:
     candidates: tuple[LinkGapCandidate, ...]
 
 
+@dataclass(frozen=True)
+class LinkAuditApplyResult:
+    path: Path
+    added_entry_ids: tuple[str, ...]
+    skipped_entry_ids: tuple[str, ...]
+
+    @property
+    def changed(self) -> bool:
+        return bool(self.added_entry_ids)
+
+
 def audit_link_gaps(
     cwd: str | Path = ".",
     *,
@@ -579,6 +590,144 @@ def audit_link_gaps(
                 )
             )
     return gaps
+
+
+def apply_link_gap_stubs(
+    gaps: Iterable[LinkGap],
+    *,
+    session_date: str,
+    cwd: str | Path = ".",
+) -> LinkAuditApplyResult:
+    """Add inert classification stubs to one dated link sidecar.
+
+    Existing sidecar blocks are never changed. New blocks are inserted by the
+    source entry's timestamp, carry only ``classify_pending: true`` plus
+    comment-only candidate evidence, and are skipped when any sidecar block
+    already exists for that source entry. Session entries are read only.
+    """
+    from .core import _parse_frontmatter_scalars, resolve_runtime
+    from .semantic_cache import _entry_order_key, extract_memory_chunks
+    from .text_files import read_text_file, write_text_file
+
+    try:
+        parsed_date = date.fromisoformat(session_date)
+    except ValueError as exc:
+        raise ValueError(f"Invalid session date: {session_date}") from exc
+    if parsed_date.isoformat() != session_date:
+        raise ValueError(f"Invalid session date: {session_date}")
+
+    runtime = resolve_runtime(cwd)
+    target = (
+        runtime.memory_dir
+        / "sessions"
+        / "links"
+        / session_date[:7]
+        / f"{session_date}.md"
+    )
+    gap_list = list(gaps)
+    existing_sources = set(entry_link_sidecars(cwd))
+    pending = [gap for gap in gap_list if gap.entry_id not in existing_sources]
+    skipped = tuple(gap.entry_id for gap in gap_list if gap.entry_id in existing_sources)
+    if not pending:
+        return LinkAuditApplyResult(path=target, added_entry_ids=(), skipped_entry_ids=skipped)
+
+    chunks = {
+        chunk.entry_id: chunk
+        for chunk in extract_memory_chunks(cwd, granularity="entry")
+        if chunk.entry_id
+    }
+    missing = [gap.entry_id for gap in pending if gap.entry_id not in chunks]
+    if missing:
+        raise ValueError(f"Cannot scaffold unknown entry_id(s): {', '.join(missing)}")
+    for gap in pending:
+        chunk = chunks[gap.entry_id]
+        if chunk.session_date.isoformat() != session_date:
+            raise ValueError(
+                f"entry_id {gap.entry_id} belongs to {chunk.session_date.isoformat()}, not {session_date}"
+            )
+        if chunk.entry_datetime is None:
+            raise ValueError(f"entry_id {gap.entry_id} has no parseable heading timestamp")
+
+    frontmatter = "\n".join(
+        [
+            "---",
+            "tags:",
+            "  - session-log-links",
+            f"link_date: {session_date}",
+            "---",
+            "",
+        ]
+    )
+    existing = ""
+    existing_blocks: list[re.Match[str]] = []
+    if target.exists():
+        existing = read_text_file(target)
+        frontmatter_match = re.match(r"\A---\s*\n(.*?)^---\s*\n", existing, re.MULTILINE | re.DOTALL)
+        if frontmatter_match is None:
+            raise ValueError(f"Existing link sidecar has no frontmatter: {target}")
+        scalars = _parse_frontmatter_scalars(frontmatter_match.group(1))
+        has_tag = bool(re.search(r"^\s*-\s*session-log-links\s*$", frontmatter_match.group(1), re.MULTILINE))
+        if scalars.get("link_date") != session_date or not has_tag:
+            raise ValueError(f"Existing link sidecar has incorrect frontmatter: {target}")
+        existing_blocks = list(_LINK_ENTRY_RE.finditer(existing))
+        if existing[frontmatter_match.end():].strip() and not existing_blocks:
+            raise ValueError(f"Existing link sidecar has no parseable entry blocks: {target}")
+        timestamps = [match.group(1) for match in existing_blocks]
+        if timestamps != sorted(timestamps):
+            raise ValueError(f"Existing link sidecar blocks are not chronological: {target}")
+    else:
+        existing = frontmatter
+
+    def render_stub(gap: LinkGap) -> tuple[str, str, str]:
+        chunk = chunks[gap.entry_id]
+        timestamp = chunk.entry_datetime.strftime("%Y-%m-%d %H:%M")
+        lines = [
+            f"## {chunk.title}",
+            "",
+            "```yaml",
+            f"entry_id: {gap.entry_id}",
+            "classify_pending: true",
+            "# candidates (evidence):",
+        ]
+        for candidate in gap.candidates:
+            evidence: list[str] = []
+            if candidate.shared_files:
+                evidence.append(f"files: {', '.join(candidate.shared_files)}")
+            if candidate.shared_topics:
+                evidence.append(f"topics: {', '.join(candidate.shared_topics)}")
+            if candidate.already_related:
+                evidence.append("already related; consider a lifecycle upgrade")
+            suffix = f"  # {' | '.join(evidence)}" if evidence else ""
+            lines.append(f"#   - {candidate.entry_id}{suffix}")
+        lines.extend(["```", ""])
+        return timestamp, gap.entry_id, "\n".join(lines)
+
+    rendered = [render_stub(gap) for gap in sorted(pending, key=lambda gap: _entry_order_key(chunks[gap.entry_id]))]
+    insertions: dict[int, list[tuple[str, str, str]]] = {}
+    for item in rendered:
+        timestamp = item[0]
+        offset = next(
+            (match.start() for match in existing_blocks if match.group(1) > timestamp),
+            len(existing),
+        )
+        insertions.setdefault(offset, []).append(item)
+
+    updated = existing
+    for offset in sorted(insertions, reverse=True):
+        items = sorted(insertions[offset], key=lambda item: (item[0], item[1]))
+        addition = "\n".join(item[2].rstrip("\n") for item in items) + "\n\n"
+        prefix = updated[:offset]
+        suffix = updated[offset:]
+        if prefix and not prefix.endswith("\n\n"):
+            prefix = prefix + ("\n" if prefix.endswith("\n") else "\n\n")
+        updated = prefix + addition + suffix
+
+    write_text_file(target, updated.rstrip("\n") + "\n")
+    return LinkAuditApplyResult(
+        path=target,
+        added_entry_ids=tuple(item[1] for item in rendered),
+        skipped_entry_ids=skipped,
+    )
 
 
 def format_search_results(

@@ -600,12 +600,24 @@ class MemorySeedTests(unittest.TestCase):
 
     # --- Link sidecars: late-authored lifecycle edges join the same checks ---
 
-    def _link_sidecar(self, cwd, file_date, source_entry, *, supersedes=(), evolves=(), heading_time="10:00"):
+    def _link_sidecar(
+        self,
+        cwd,
+        file_date,
+        source_entry,
+        *,
+        supersedes=(),
+        evolves=(),
+        classify_pending=False,
+        heading_time="10:00",
+    ):
         """Write a link sidecar block keyed to ``source_entry`` under
         sessions/links/<month>/<file_date>.md."""
         d = cwd / MEMORY_DIR_NAME / "sessions" / "links" / file_date[:7]
         d.mkdir(parents=True, exist_ok=True)
         lines = [f"## {file_date} {heading_time} - edge", "", "```yaml", f"entry_id: {source_entry}"]
+        if classify_pending:
+            lines.append("classify_pending: true")
         for key, refs in (("supersedes", supersedes), ("evolves", evolves)):
             if refs:
                 lines.append(f"{key}:")
@@ -626,6 +638,68 @@ class MemorySeedTests(unittest.TestCase):
         result = check_session_links(cwd=cwd)
 
         self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+
+    def test_links_check_reports_unclassified_sidecar_stub_as_warning(self):
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 10:00 - pending classification", "mse_ffffffffffffffff", ()),
+        )
+        self._link_sidecar(
+            cwd,
+            "2026-06-13",
+            "mse_ffffffffffffffff",
+            classify_pending=True,
+        )
+        diagram = cwd / MEMORY_DIR_NAME / "sessions" / "diagrams" / "2026-06" / "2026-06-13.md"
+        diagram.parent.mkdir(parents=True)
+        diagram.write_text(
+            "\n".join(
+                [
+                    "## 2026-06-13 10:00 - unrelated diagram metadata",
+                    "",
+                    "```yaml",
+                    "entry_id: mse_ffffffffffffffff",
+                    "classify_pending: true",
+                    "```",
+                    "",
+                    "```mermaid",
+                    "flowchart TD",
+                    "  A --> B",
+                    "```",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        result = check_session_links(cwd=cwd)
+
+        pending = [issue for issue in result.issues if issue.kind == "sidecar-unclassified-stub"]
+        self.assertTrue(result.ok)
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0].severity, "warning")
+        self.assertIn("/sessions/links/", pending[0].file)
+
+        import contextlib
+        import io
+        import os
+
+        from memory_seed.cli import main as cli_main
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        previous = Path.cwd()
+        try:
+            os.chdir(cwd)
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                exit_code = cli_main(["links", "check"])
+        finally:
+            os.chdir(previous)
+        self.assertEqual(exit_code, 0)
+        self.assertIn("[warning] [sidecar-unclassified-stub]", stdout.getvalue())
+        self.assertEqual(stderr.getvalue(), "")
 
     def test_links_check_accepts_backward_evolves_in_sidecar(self):
         cwd = self.make_project()
