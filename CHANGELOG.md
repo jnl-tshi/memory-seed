@@ -13,6 +13,23 @@ All notable changes to Memory Seed are summarized here.
   in the cache is authoritative — it is fully rebuildable from Markdown (Constitution Invariant #6). The
   freshness check is memoized over a short window so a burst of reads (one UI interaction) runs it once, not
   per read — entry switching stays snappy despite git's per-call subprocess cost.
+- **Memory Trace read-path perf (Phase 1 fast-follows).** Two further refinements on the warm-start
+  foundation: the deserialized chunk list is memoized in `TraceCache` (keyed to the rebuild), taking
+  `chunk()` from ~132 ms to ~12.5 ms (JSON deserialization was the dominant per-read cost); and the diagram
+  + link sidecars are now first-class in the freshness signal (git-captured) with a memoized derived
+  bundle (augmented entries + related graph + diagram map), taking `chunk()` to ~3.9 ms — ~34× vs. the
+  pre-Phase-1 read. Nothing here is authoritative; all of it rebuilds from Markdown (Invariant #6).
+- **Memory Trace Trail: commit-accurate merge rendering.** The `Memory-Entry:` trailer parser now scans
+  every trailer line from the commit body (not git's blank-line-terminated `%(trailers)`), so daisy-chained
+  merges that were mis-drawn as parallel lanes now render as the real merge topology. Retroactively repairs
+  live history without a re-commit.
+- **Memory Trace Trail: manual Refresh button** in the topbar — re-reads memory on demand, keeps active
+  filters, and auto-extends the date window to the latest entry.
+- **Memory Trace Trail: the "To" date defaults to today** (not the newest entry's date), via a shared
+  `defaultDateTo` helper across seed/chip/clear/refresh so a just-written entry is always in view.
+- **Memory Trace Trail: selecting an entry reveals its links.** The visible window grows to include the
+  selected entry's linked neighbours, so `supersedes`/`evolves`/`related` edges to off-window targets draw
+  instead of silently dangling.
 - `memory_link_suggest` (and the underlying `suggest_related_entries`) gained an optional
   `consulted: [ids]` axis: entry ids you retrieved while grounding the work are flagged `consulted` and
   sorted ahead of shared-file candidates — the *memory* axis of link candidacy, the natural source for the

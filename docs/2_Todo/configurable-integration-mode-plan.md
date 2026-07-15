@@ -10,9 +10,10 @@ tags:
 
 # Configurable integration mode (`local-merge` vs `pr`)
 
-Status: **IN PROGRESS** (2026-07-13) — P0.1 shipped (the `integration_mode` field in `project.yaml` + core
-reader + `esr` surfacing); P0.2 (agent contract: skills/agent-rules read and follow the mode) pending.
-Stays in `docs/2_Todo/`.
+Status: **IN PROGRESS** (2026-07-13) — **Phase 1 shipped** (the `integration_mode` field in `project.yaml`
++ core reader + `esr` surfacing); **Phases 2–4 pending** (Phase 2 = agent contract: skills/agent-rules read
+and follow the mode; Phase 3 = PR-push/`session integrate` tooling; Phase 4 = bootstrap heuristic — see the
+Phases section below). Stays in `docs/2_Todo/`.
 Priority: P2 — foundational control-plane feature; the OpenSSF credibility work (`openssf-credibility-proposals.md`)
 sits on top of it. Sequence this **before** that plan's PR/branch-protection step (G2), which becomes
 "set this repo to `pr` and follow it."
