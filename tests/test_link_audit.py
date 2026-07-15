@@ -69,12 +69,12 @@ class LinkAuditTests(unittest.TestCase):
         gaps = audit_link_gaps(cwd=self.cwd, entry_id=entry_id)
         return gaps[0] if gaps else None
 
-    def _run_cli(self, *args):
+    def _run_cli(self, *args, cwd=None):
         stdout = io.StringIO()
         stderr = io.StringIO()
         previous = Path.cwd()
         try:
-            os.chdir(self.cwd)
+            os.chdir(cwd or self.cwd)
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 exit_code = cli_main(list(args))
         finally:
@@ -340,6 +340,24 @@ class LinkAuditTests(unittest.TestCase):
         self.assertEqual(second_stderr, "")
         self.assertIn("No stubs added", second_stdout)
         self.assertEqual(sidecar.read_bytes(), before)
+
+    def test_cli_apply_from_nested_directory_reports_workspace_relative_path(self):
+        (self.sessions / "2026-06-01.md").write_text(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"]), encoding="utf-8"
+        )
+        (self.sessions / "2026-06-02.md").write_text(
+            _entry("2026-06-02 09:00", B, files=["pkg/foo.py"]), encoding="utf-8"
+        )
+        nested = self.cwd / "nested" / "directory"
+        nested.mkdir(parents=True)
+
+        exit_code, stdout, stderr = self._run_cli(
+            "link", "audit", "--date", "2026-06-02", "--apply", cwd=nested
+        )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stderr, "")
+        self.assertIn("Applied 1 inert stub(s) to .memory-seed/sessions/links/2026-06/2026-06-02.md.", stdout)
 
     def test_cli_apply_refuses_missing_date_and_for_scope(self):
         self._write(

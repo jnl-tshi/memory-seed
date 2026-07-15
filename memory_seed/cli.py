@@ -27,6 +27,7 @@ from .core import (
     remove_agent,
     remove_skill,
     resolve_agents,
+    resolve_runtime,
     selected_agents,
     session_fuse,
     session_merge_branch,
@@ -990,7 +991,7 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"Could not apply link-audit stubs: {exc}", file=sys.stderr)
                     return 1
                 try:
-                    display_path = applied.path.relative_to(cwd).as_posix()
+                    display_path = applied.path.relative_to(resolve_runtime(cwd).workspace_root).as_posix()
                 except ValueError:
                     display_path = applied.path.as_posix()
                 if applied.changed:
@@ -999,7 +1000,7 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"No stubs added; every audited entry already has a sidecar block in {display_path}.")
             return 0
         if args.link_command == "show":
-            from .core import commit_reference_ids, resolve_runtime
+            from .core import commit_reference_ids
             from .retrieval import augment_chunks_with_link_sidecars
             from .semantic_cache import extract_memory_chunks
 
@@ -1039,7 +1040,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  commit_reference_count: {len(commit_refs)}")
             return 0
         if args.link_command == "commits":
-            from .core import find_trailer_commits, resolve_runtime
+            from .core import find_trailer_commits
             from .semantic_cache import extract_memory_chunks
 
             chunk = next(

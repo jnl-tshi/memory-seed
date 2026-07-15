@@ -1203,8 +1203,9 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     ``classify_pending: true`` link block emits the non-blocking
     ``sidecar-unclassified-stub`` warning.
 
-    Each issue names the source file and the offending value. Returns
-    ``ok=False`` when any error is found so warnings never fail the CLI gate.
+    Each issue names the source file and the offending value. Warnings,
+    including ``sidecar-unclassified-stub``, remain in ``issues`` but do not
+    make ``ok=False``; only error-severity issues fail the CLI gate.
     """
     runtime = resolve_runtime(cwd)
     root = runtime.workspace_root
