@@ -341,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
     link_suggest.add_argument("--top-k", type=int, default=5, help="number of candidates to show (default: 5)")
     link_audit = link_sub.add_parser(
         "audit",
-        help="find entries that share files/topics but have no recorded edge (read-only)",
+        help="find entries that share files/topics but have no recorded edge",
     )
     link_audit.add_argument(
         "--for",
@@ -358,6 +358,11 @@ def main(argv: list[str] | None = None) -> int:
         help="audit only entries from this session date (the end-of-session sweep scope)",
     )
     link_audit.add_argument("--top-k", type=int, default=5, help="candidates per entry (default: 5)")
+    link_audit.add_argument(
+        "--apply",
+        action="store_true",
+        help="write inert classify_pending stubs for --date gaps; never writes a live edge",
+    )
     link_show = link_sub.add_parser(
         "show",
         help="show outbound edges and computed inbound backlinks for an entry",
@@ -796,15 +801,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "links":
         if args.links_command == "check":
             result = check_session_links(cwd=Path(".").resolve())
+            warnings = [issue for issue in result.issues if issue.severity == "warning"]
+            errors = [issue for issue in result.issues if issue.severity == "error"]
+            for issue in warnings:
+                print(f"  [warning] [{issue.kind}] {issue.file}: {issue.detail}")
             if result.ok:
                 print(f"Session memory integrity OK ({result.files_checked} file(s) checked).")
                 return 0
             print(
-                f"Session memory integrity: {len(result.issues)} issue(s) across "
+                f"Session memory integrity: {len(errors)} error(s) across "
                 f"{result.files_checked} file(s):",
                 file=sys.stderr,
             )
-            for issue in result.issues:
+            for issue in errors:
                 print(f"  [{issue.kind}] {issue.file}: {issue.detail}", file=sys.stderr)
             return 1
 
@@ -939,7 +948,14 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  - {item.chunk.entry_id}")
             return 0
         if args.link_command == "audit":
-            from .retrieval import audit_link_gaps
+            from .retrieval import apply_link_gap_stubs, audit_link_gaps
+
+            if args.apply and args.audit_date is None:
+                print("link audit --apply requires --date YYYY-MM-DD", file=sys.stderr)
+                return 2
+            if args.apply and args.for_entry is not None:
+                print("link audit --apply cannot be combined with --for", file=sys.stderr)
+                return 2
 
             try:
                 gaps = audit_link_gaps(
@@ -967,6 +983,20 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"       {' | '.join(evidence)}")
             print()
             print("Litmus: retires it -> supersedes; refines while it stays valid -> evolves; else related.")
+            if args.apply:
+                try:
+                    applied = apply_link_gap_stubs(gaps, session_date=args.audit_date, cwd=cwd)
+                except (OSError, UnicodeDecodeError, ValueError) as exc:
+                    print(f"Could not apply link-audit stubs: {exc}", file=sys.stderr)
+                    return 1
+                try:
+                    display_path = applied.path.relative_to(cwd).as_posix()
+                except ValueError:
+                    display_path = applied.path.as_posix()
+                if applied.changed:
+                    print(f"Applied {len(applied.added_entry_ids)} inert stub(s) to {display_path}.")
+                else:
+                    print(f"No stubs added; every audited entry already has a sidecar block in {display_path}.")
             return 0
         if args.link_command == "show":
             from .core import commit_reference_ids, resolve_runtime

@@ -282,6 +282,7 @@ class LinkIssue:
     file: str
     kind: str
     detail: str
+    severity: Literal["error", "warning"] = "error"
 
 
 @dataclass
@@ -1198,10 +1199,12 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     validated the same way (``orphan-link-sidecar``,
     ``link-sidecar-date-mismatch``, ``malformed-link-sidecar``), and their
     ``supersedes``/``evolves``/``related_entries`` edges join the entry-YAML
-    edges in the dangling and forward-only checks.
+    edges in the dangling and forward-only checks. An unresolved
+    ``classify_pending: true`` link block emits the non-blocking
+    ``sidecar-unclassified-stub`` warning.
 
     Each issue names the source file and the offending value. Returns
-    ``ok=False`` when any issue is found so a CLI gate can exit non-zero.
+    ``ok=False`` when any error is found so warnings never fail the CLI gate.
     """
     runtime = resolve_runtime(cwd)
     root = runtime.workspace_root
@@ -1462,6 +1465,16 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                 issues.append(LinkIssue(rel, "malformed-link-sidecar", f"link block at '{heading_ts}' has no entry_id"))
                 continue
             entry_id = entry_id_match.group(1)
+            scalars = _parse_frontmatter_scalars(yaml_block)
+            if scalars.get("classify_pending", "").lower() == "true":
+                issues.append(
+                    LinkIssue(
+                        rel,
+                        "sidecar-unclassified-stub",
+                        f"entry_id {entry_id} still requires lifecycle classification",
+                        severity="warning",
+                    )
+                )
             if entry_id not in known_entries:
                 issues.append(LinkIssue(rel, "orphan-link-sidecar", f"entry_id -> {entry_id} (no such entry_id)"))
             entry_date = entry_timestamps.get(entry_id, "")[:10]
@@ -1589,7 +1602,11 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     _forward_only_guard(supersedes_edges, "supersedes", "entry supersedes itself", "supersession")
     _forward_only_guard(evolves_edges, "evolves", "entry evolves itself", "evolution")
 
-    return LinksCheckResult(ok=not issues, files_checked=files_checked, issues=issues)
+    return LinksCheckResult(
+        ok=not any(issue.severity == "error" for issue in issues),
+        files_checked=files_checked,
+        issues=issues,
+    )
 
 
 def _utc_timestamp() -> str:
@@ -5474,9 +5491,10 @@ def doctor(cwd: str | Path = ".") -> DoctorResult:
     # offending file and value, and a CI-usable non-zero exit — is
     # `memory-seed links check`; doctor only surfaces the count.
     links = check_session_links(target_root)
-    if links.issues:
+    link_errors = [issue for issue in links.issues if issue.severity == "error"]
+    if link_errors:
         warnings.append(
-            f"Session memory has {len(links.issues)} integrity issue(s) "
+            f"Session memory has {len(link_errors)} integrity issue(s) "
             "(duplicate/dangling IDs or per-user frontmatter problems). Run "
             "`memory-seed links check` for the full report."
         )
