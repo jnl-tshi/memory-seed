@@ -20,6 +20,7 @@ from .semantic_cache import extract_memory_chunks
 # Same pattern family as user slugs (SESSION_USER_SLUG_RE precedent): one convention to
 # maintain. Underscores permitted; observed corpus convention is hyphen-only.
 TOPIC_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+TOPIC_TOKEN_RE = re.compile(r"[a-z0-9]+(?:[_-][a-z0-9]+)*")
 
 # Soft ceiling from the topics plan: meaningful entries carry 1-3 topics. Exceeding it is a
 # warning, never an error - old and over-target entries stay valid.
@@ -66,6 +67,22 @@ class TopicsCheckResult:
     issues: tuple[TopicIssue, ...]
     entries_checked: int
     topics_defined: int
+
+
+@dataclass(frozen=True)
+class TopicSuggestion:
+    topic: TopicRecord
+    score: float
+    matched_terms: tuple[str, ...]
+    matched_fields: tuple[str, ...]
+    evidence: tuple[tuple[str, tuple[str, ...]], ...]
+
+
+class TopicSuggestError(ValueError):
+    def __init__(self, kind: str, detail: str):
+        super().__init__(detail)
+        self.kind = kind
+        self.detail = detail
 
 
 def _parse_alias_value(value: str) -> tuple[str, ...]:
@@ -156,17 +173,8 @@ def load_topic_index(cwd: str | Path = ".") -> TopicIndex:
     return TopicIndex(path=rel, exists=True, schema_version=schema_version, topics=tuple(records))
 
 
-def check_topics(cwd: str | Path = ".") -> TopicsCheckResult:
-    """Validate the vocabulary and every entry's stored ``topics:`` against it.
-
-    Errors (exit non-zero): missing index while entries carry topics, malformed or duplicate
-    slugs, alias collisions, and entry topics found in neither the canonical nor alias column.
-    Warnings: deprecated-topic use and per-entry counts above ``TOPIC_COUNT_TARGET``.
-    Info: defined topics no entry uses yet.
-    """
-    index = load_topic_index(cwd)
+def _validate_topic_index(index: TopicIndex) -> tuple[TopicIssue, ...]:
     issues: list[TopicIssue] = []
-
     seen: dict[str, str] = {}
     for record in index.topics:
         for name, role in ((record.slug, "slug"), *((alias, f"alias of {record.slug}") for alias in record.aliases)):
@@ -178,6 +186,149 @@ def check_topics(cwd: str | Path = ".") -> TopicsCheckResult:
                 issues.append(TopicIssue("error", kind, f"'{name}' appears as both {seen[name]} and {role}", index.path))
             else:
                 seen[name] = role
+    return tuple(issues)
+
+
+def _topic_index_text(cwd: str | Path = ".") -> tuple[TopicIndex, str]:
+    runtime = resolve_runtime(cwd)
+    path = runtime.memory_dir / "topics.yaml"
+    rel = f"{runtime.memory_dir.name}/topics.yaml"
+    if not path.exists():
+        raise TopicSuggestError("missing-topic-index", f"{rel} does not exist")
+    if path.is_dir():
+        raise TopicSuggestError("invalid-topic-index-path", f"{rel} is a directory, not a file")
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise TopicSuggestError("malformed-topic-index", f"{rel} is not valid UTF-8: {exc}") from exc
+    except OSError as exc:
+        raise TopicSuggestError("unreadable-topic-index", f"could not read {rel}: {exc}") from exc
+    index = load_topic_index(cwd)
+    if not raw.strip():
+        raise TopicSuggestError("empty-topic-index", f"{rel} is empty")
+    if not index.topics:
+        if re.search(r"(?m)^\s*topics\s*:\s*(?:\[\s*\])?\s*$", raw):
+            raise TopicSuggestError("empty-topic-index", f"{rel} defines no topics")
+        raise TopicSuggestError("malformed-topic-index", f"{rel} could not be parsed into any topics")
+    issues = [issue for issue in _validate_topic_index(index) if issue.severity == "error"]
+    if issues:
+        detail = "; ".join(f"{issue.kind}: {issue.detail}" for issue in issues)
+        raise TopicSuggestError("malformed-topic-index", detail)
+    return index, raw
+
+
+def _read_suggestion_source(path: str | Path) -> tuple[Path, str]:
+    source = Path(path)
+    if not source.exists():
+        raise TopicSuggestError("missing-input-file", f"{source} does not exist")
+    if source.is_dir():
+        raise TopicSuggestError("input-is-directory", f"{source} is a directory; pass a file path")
+    try:
+        raw = source.read_bytes()
+    except OSError as exc:
+        raise TopicSuggestError("unreadable-input-file", f"could not read {source}: {exc}") from exc
+    if b"\x00" in raw:
+        raise TopicSuggestError("binary-input-file", f"{source} looks like a binary file")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise TopicSuggestError("invalid-input-utf8", f"{source} is not valid UTF-8: {exc}") from exc
+    return source, text
+
+
+def _normalized_topic_tokens(text: str) -> tuple[str, ...]:
+    tokens: set[str] = set()
+    for match in TOPIC_TOKEN_RE.finditer(text.lower()):
+        token = match.group(0).replace("_", "-")
+        tokens.add(token)
+        if "-" in token:
+            tokens.update(part for part in token.split("-") if part)
+    return tuple(sorted(tokens))
+
+
+def suggest_topics_from_file(
+    source_path: str | Path,
+    *,
+    cwd: str | Path = ".",
+    top_k: int = TOPIC_COUNT_TARGET,
+) -> tuple[Path, tuple[TopicSuggestion, ...]]:
+    """Suggest active controlled topics for a file using deterministic lexical overlap."""
+    index, _ = _topic_index_text(cwd)
+    source, text = _read_suggestion_source(source_path)
+    source_terms = tuple(term for term in _normalized_topic_tokens(f"{source.name}\n{text}") if len(term) >= 4)
+    if not source_terms:
+        return source, ()
+
+    weights = {
+        "slug": 12.0,
+        "aliases": 10.0,
+        "label": 8.0,
+        "description": 3.0,
+    }
+    suggestions: list[TopicSuggestion] = []
+    for record in index.topics:
+        if record.status != "active":
+            continue
+        field_values = {
+            "slug": (record.slug,),
+            "aliases": record.aliases,
+            "label": (record.label,) if record.label else (),
+            "description": (record.description,) if record.description else (),
+        }
+        field_tokens = {
+            field: tuple(sorted({token for value in values for token in _normalized_topic_tokens(value)}))
+            for field, values in field_values.items()
+        }
+        score = 0.0
+        matched_terms: set[str] = set()
+        matched_fields: set[str] = set()
+        evidence: list[tuple[str, tuple[str, ...]]] = []
+        for field in ("slug", "aliases", "label", "description"):
+            tokens = field_tokens[field]
+            if not tokens:
+                continue
+            field_terms = tuple(sorted(set(source_terms) & set(tokens)))
+            if not field_terms:
+                continue
+            score += weights[field] * len(field_terms)
+            matched_terms.update(field_terms)
+            matched_fields.add(field)
+            evidence.append((field, field_terms))
+        if score <= 0:
+            continue
+        suggestions.append(
+            TopicSuggestion(
+                topic=record,
+                score=score,
+                matched_terms=tuple(sorted(matched_terms)),
+                matched_fields=tuple(sorted(matched_fields)),
+                evidence=tuple(evidence),
+            )
+        )
+    suggestions.sort(
+        key=lambda item: (
+            -item.score,
+            -len(item.matched_fields),
+            -len(item.matched_terms),
+            item.topic.slug,
+        )
+    )
+    limit = min(max(top_k, 0), TOPIC_COUNT_TARGET)
+    return source, tuple(suggestions[:limit])
+
+
+def check_topics(cwd: str | Path = ".") -> TopicsCheckResult:
+    """Validate the vocabulary and every entry's stored ``topics:`` against it.
+
+    Errors (exit non-zero): missing index while entries carry topics, malformed or duplicate
+    slugs, alias collisions, and entry topics found in neither the canonical nor alias column.
+    Warnings: deprecated-topic use and per-entry counts above ``TOPIC_COUNT_TARGET``.
+    Info: defined topics no entry uses yet.
+    """
+    index = load_topic_index(cwd)
+    issues: list[TopicIssue] = []
+
+    issues.extend(_validate_topic_index(index))
 
     resolution = index.resolution()
     statuses = {record.slug: record.status for record in index.topics}

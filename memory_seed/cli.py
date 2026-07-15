@@ -293,6 +293,17 @@ def main(argv: list[str] | None = None) -> int:
         "check",
         help="validate vocabulary shape and entry topics: usage (exit 1 on any error)",
     )
+    topics_suggest = topics_sub.add_parser(
+        "suggest",
+        help="suggest controlled topics for a UTF-8 file (read-only)",
+    )
+    topics_suggest.add_argument(
+        "--from",
+        dest="from_path",
+        required=True,
+        metavar="FILE",
+        help="file to inspect for topic suggestions",
+    )
 
     links_parser = subparsers.add_parser("links", help="validate session-memory integrity")
     links_sub = links_parser.add_subparsers(dest="links_command", required=True)
@@ -842,7 +853,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
     if args.command == "topics":
-        from .topics import check_topics, load_topic_index
+        from .topics import TopicSuggestError, check_topics, load_topic_index, suggest_topics_from_file
 
         if args.topics_command == "list":
             index = load_topic_index(Path(".").resolve())
@@ -871,6 +882,33 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             print("Topic vocabulary has errors.", file=sys.stderr)
             return 1
+        if args.topics_command == "suggest":
+            try:
+                source, suggestions = suggest_topics_from_file(args.from_path, cwd=Path(".").resolve())
+            except TopicSuggestError as exc:
+                print(exc.detail, file=sys.stderr)
+                return 1
+            print(f"Suggested topics for {source}:")
+            if not suggestions:
+                print("  (no controlled topics matched this file)")
+                return 0
+            for item in suggestions:
+                aliases = f"  aliases: {', '.join(item.topic.aliases)}" if item.topic.aliases else ""
+                print(f"  {item.topic.slug}  (score {item.score:.1f})")
+                if item.topic.label:
+                    print(f"    label: {item.topic.label}")
+                if item.topic.description:
+                    print(f"    description: {item.topic.description}")
+                if aliases:
+                    print(aliases)
+                why = ", ".join(f"{field}: {', '.join(terms)}" for field, terms in item.evidence)
+                print(f"    why: {why}")
+            print()
+            print("Paste into the entry's YAML:")
+            print("topics:")
+            for item in suggestions:
+                print(f"  - {item.topic.slug}")
+            return 0
 
     if args.command == "link":
         from .semantic_cache import build_related_entry_graph, suggest_related_entries
