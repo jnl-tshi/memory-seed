@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from datetime import date
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Sequence
 
-from memory_seed.core import commit_reference_ids, resolve_runtime
+from memory_seed.core import resolve_runtime
 from memory_seed.retrieval import (
     augment_chunks_with_link_sidecars,
     chunk_to_dict,
@@ -61,9 +62,8 @@ def build_timeline_evidence_pack(
     graph readers used by retrieval and Trace, but never touches the SQLite
     projection or any write path.
     """
-
-    root = Path(cwd).resolve()
-    runtime = resolve_runtime(root)
+    runtime = resolve_runtime(Path(cwd).resolve())
+    root = runtime.workspace_root
     normalized_entry_ids = _dedupe_strings(entry_ids)
     normalized_edge_types = tuple(sorted(set(edge_types or DEFAULT_EDGE_TYPES)))
     normalized_date_from = _normalize_date(date_from)
@@ -112,8 +112,8 @@ def build_timeline_evidence_pack(
 
     graph = build_related_entry_graph(chunks=filtered_entries)
     diagram_map = entry_diagram_sidecars(root)
+    commit_ids_by_entry = _commit_reference_map(root, filtered_entries)
     section_ids_by_entry = _section_ids_by_entry(selected_sections)
-    entry_index = {chunk.entry_id: chunk for chunk in filtered_entries if chunk.entry_id}
     edge_sort_keys = {
         chunk.entry_id: (_chunk_datetime(chunk), chunk.start_line, chunk.chunk_id)
         for chunk in filtered_entries
@@ -137,9 +137,9 @@ def build_timeline_evidence_pack(
     entries_payload = [
         _entry_payload(
             chunk,
-            root=root,
             graph=graph,
             diagrams=diagram_map.get(chunk.entry_id or ""),
+            commit_ids=commit_ids_by_entry.get(chunk.entry_id or "", ()),
             section_ids=section_ids_by_entry.get(chunk.entry_id or "", ()),
         )
         for chunk in selected_entries
@@ -221,14 +221,13 @@ def build_timeline_evidence_pack(
 def _entry_payload(
     chunk: MemoryChunk,
     *,
-    root: Path,
     graph: dict[str, Any],
     diagrams: dict[str, Any] | None,
+    commit_ids: Sequence[str],
     section_ids: Sequence[str],
 ) -> dict[str, Any]:
     payload = chunk_to_dict(chunk)
     node = graph.get(chunk.entry_id or "")
-    commit_ids = sorted(commit_reference_ids(root, chunk.entry_id or "", chunk.commits)) if chunk.entry_id else []
     entry_payload = {
         "entry_id": payload["entry_id"],
         "chunk_id": payload["chunk_id"],
@@ -262,6 +261,70 @@ def _entry_payload(
     }
     entry_payload["fingerprint"] = _json_fingerprint(_fingerprintable_chunk_payload(payload))
     return entry_payload
+
+
+def _commit_reference_map(root: Path, entries: Sequence[MemoryChunk]) -> dict[str, tuple[str, ...]]:
+    commit_ids_by_entry: dict[str, set[str]] = {}
+    for chunk in entries:
+        if not chunk.entry_id:
+            continue
+        commit_ids_by_entry[chunk.entry_id] = {
+            sha for sha in chunk.commits if len(sha) == 40 and all(ch in "0123456789abcdef" for ch in sha.lower())
+        }
+
+    if (root / ".git").exists():
+        for entry_id, trailer_ids in _trailer_commit_map(root).items():
+            if entry_id in commit_ids_by_entry:
+                commit_ids_by_entry[entry_id].update(trailer_ids)
+
+    return {
+        entry_id: tuple(sorted(commit_ids))
+        for entry_id, commit_ids in commit_ids_by_entry.items()
+    }
+
+
+def _trailer_commit_map(root: Path) -> dict[str, set[str]]:
+    try:
+        proc = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "log",
+                "--all",
+                "--grep=Memory-Entry:",
+                "--format=%x01%H%x1f%B%x1e",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError):
+        return {}
+    if proc.returncode != 0:
+        return {}
+
+    commit_ids_by_entry: dict[str, set[str]] = {}
+    for record in proc.stdout.split("\x1e"):
+        record = record.lstrip("\n")
+        if not record.startswith("\x01"):
+            continue
+        body_parts = record[1:].split("\x1f", 1)
+        if len(body_parts) != 2:
+            continue
+        sha, body = body_parts
+        sha = sha.strip()
+        if not sha:
+            continue
+        for line in body.splitlines():
+            stripped = line.strip()
+            if not stripped.startswith("Memory-Entry:"):
+                continue
+            entry_id = stripped[len("Memory-Entry:") :].strip()
+            if entry_id:
+                commit_ids_by_entry.setdefault(entry_id, set()).add(sha)
+    return commit_ids_by_entry
 
 
 def _chunk_payload(chunk: MemoryChunk) -> dict[str, Any]:

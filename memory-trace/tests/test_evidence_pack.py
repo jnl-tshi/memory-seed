@@ -187,6 +187,15 @@ class EvidencePackTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def test_build_timeline_evidence_pack_is_runtime_root_stable(self):
+        nested = self.cwd / "memory-trace"
+        nested.mkdir(parents=True, exist_ok=True)
+
+        root_pack = build_timeline_evidence_pack(self.cwd)
+        nested_pack = build_timeline_evidence_pack(nested)
+
+        self.assertEqual(root_pack, nested_pack)
+
     def test_build_timeline_evidence_pack_snapshot(self):
         pack = build_timeline_evidence_pack(self.cwd)
         rendered = json.dumps(pack, sort_keys=True, indent=2)
