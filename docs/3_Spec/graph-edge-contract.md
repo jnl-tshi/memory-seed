@@ -198,12 +198,16 @@ A new edge kind's validation belongs here, reusing the entry-YAML scan, not a pa
   commit/git-derived signal is computed by the caller and passed in, so `memory_search` and other
   frequent readers never shell out to git.
 - **Expose before you rank.** New derived signals are surfaced read-only first; default
-  `memory_search` ranking stays stable until a signal proves useful against fixtures on a branch. This
-  line has **fully graduated for supersession**: `superseded_by` was exposed read-only first, then
-  promoted to the default `memory_search` ranking signal (`supersession_damping` on by default) once
-  fixtures **and** a real-corpus check proved it surfaces the live replacement above the decisions it
-  retires without disturbing queries that lack a superseded hit. `supersession_damping=False` is the
-  opt-out; `evolved_by` remains exposed-only (never a dampener) by design.
+  `memory_search` ranking stays stable until the signal passes both fixtures on a branch and
+  `memory-seed ranking-ab --signal <name>` over the real corpus at full `k`. The A/B must show the
+  intended directional improvement where the signal defines one, and at least one query with no
+  affected hit must remain identical off/on when that signal requires a control. Empty query sets,
+  missing directional entries, and missing required controls fail closed. This line has **fully
+  graduated for supersession**: `superseded_by` was exposed read-only first, then promoted to the
+  default `memory_search` ranking signal (`supersession_damping` on by default) once fixtures and the
+  repeatable real-corpus gate proved it surfaces the live replacement above the decisions it retires
+  without disturbing queries that lack a superseded hit. `supersession_damping=False` is the opt-out;
+  `evolved_by` remains exposed-only (never a dampener) by design.
 - **One name, one meaning.** If two surfaces need different numbers, give them different names (the
   `connectivity` vs `inbound_relation_count` split is the precedent).
 

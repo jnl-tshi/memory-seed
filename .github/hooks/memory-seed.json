@@ -4,7 +4,7 @@
     "sessionStart": [
       {
         "type": "prompt",
-        "prompt": "memory-seed: To establish current project state, read the most recent dated file in .memory-seed/sessions/ (newest YYYY-MM-DD.md) in full, then skim the prior one. Do NOT use memory_search/semantic search to find the most recent work - its ranking can bury the newest entry beneath older topically-similar ones. Use memory_search only for topical 'why was X decided / what do we know about Y' questions."
+        "prompt": "memory-seed: Before any work, locate the nearest applicable AGENTS.md by walking upward from the current directory, read it first, and follow every instruction and routing path it defines. Then read the five newest applicable entries directly from the latest .memory-seed/sessions/ files to establish current project context. Do NOT use memory_search/semantic search to find the most recent work - use it only for topical 'why was X decided / what do we know about Y' questions."
       }
     ]
   }

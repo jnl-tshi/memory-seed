@@ -9,6 +9,8 @@ clutter this one.
 **Contents** (promoted 2026-07-14; `docs index` will render this as a table in P2):
 
 - `freshness-aware-memory-ranking-proposal.md` — supersession dampener + `evolved_head`, on by default.
+- `real-corpus-ranking-validation-gate-proposal.md` — reusable full-corpus ranking A/B gate and binding
+  "expose before you rank" contract.
 - `proactive-history-retrieval-discipline-proposal.md` — retrieve-the-*why* control-plane discipline.
 - `fontjoy-typography-pairing.md` — self-hosted Inter + Space Grotesk pairing.
 - `goal-run-core-parity-codex.md`, `goal-run-trace-surface-claude.md` — spent 2026-07-13 goal-run briefs,

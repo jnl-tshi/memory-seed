@@ -241,7 +241,7 @@ Both reminders are cross-platform Python scripts in `.memory-seed/hooks/`:
 
 - `session-log-check.py` - after a turn, reminds the agent to append a session-log entry if none was written in the last 15 minutes, and warns if the day's entries are out of ascending time order. When the per-user participant gate selects a user file, it checks only that user's grouped file (`sessions/YYYY-MM/YYYY-MM-DD/<user>.md`) so another contributor's recent entry does not suppress the reminder. The staleness check is anchored to the last logged entry's own timestamp, so it always eventually fires once 15 real minutes pass, independent of how many turns ran in between - what it cannot detect is whether a fired reminder was acted on. A gitignored state file (`.memory-seed/.session-log-check-state`, fail-open on corruption) tracks consecutive stale checks with no new entry appearing in between, so a reminder that goes unaddressed escalates to a louder, explicit "repeated" warning on the next check instead of repeating identically.
 - `memory-retrieval-check.py` — before substantive work, reminds the agent to use `memory_search` for topical recall and to read the newest session file directly for current state. Gated by an 8-hour marker file so it fires about once per working session.
-- `session-start-context.py` - at session start, injects the newest relevant session file's entries (path, all headings, and the most recent entry body) so the agent establishes current state by recency rather than semantic search. With a configured user it injects that user's newest entry and lists same-day co-contributor files by path and entry count; without a configured user it preserves legacy flat-file behavior. Fires once per session. Copilot CLI cannot run command hooks at session start, so it gets a static `prompt` hook with the same directive instead.
+- `session-start-context.py` - at session start, first directs the agent to locate, read, and follow the nearest applicable `AGENTS.md`, then injects the five newest applicable session entries across the latest relevant files so project context comes from recency rather than semantic search. Each entry is context-capped and names its source file for a full direct read. With a configured user it reads that user's recent files and lists same-day co-contributor files by path and entry count; without a configured user it preserves legacy flat-file behavior. Empty/new projects still receive the `AGENTS.md` directive. Fires once per session for Claude, Codex, Gemini, and Cursor; Copilot CLI cannot run command hooks at session start, so it gets a static `prompt` hook with the same instructions instead.
 - `prepare-commit-msg.py` - a **git** hook (not an agent hook): stamps one `Memory-Entry: <entry_id>` trailer per staged session entry onto ordinary commits, so the commit<->entry link is true by construction instead of relying on the author to remember. Scoped to session trees only, deduplicated, and it never blocks a commit. `memory-seed init` installs the shim into the git common dir (covering every worktree) when a repository exists; existing checkouts opt in with `memory-seed hooks install`. `memory-seed hooks status` reports missing, stale, broken, current, or foreign hook state; `memory-seed hooks repair` refreshes only missing or Memory Seed-managed hooks. A pre-existing foreign hook is reported, never overwritten. On Windows, the installed shim uses the active Python executable directly to avoid Git-for-Windows shell-startup failures.
 
 The hooks nudge; they never block. The scripts use Python 3.11+, which Memory Seed already requires.
@@ -329,6 +329,7 @@ uvx --from memory-seed memory-seed init --dry-run
 uvx --from memory-seed memory-seed update --dry-run
 uvx --from memory-seed memory-seed compact
 uvx --from memory-seed memory-seed branch status
+uvx --from memory-seed memory-seed ranking-ab --signal supersession_damping
 uvx --from memory-seed memory-seed session merge-branch --branch <branch>
 ```
 
@@ -370,6 +371,11 @@ python -m pip show memory-seed
 `python -m pip show memory-seed` reports the installed Python package version, such as `2.18.0`. `memory-seed version` reports the reusable control-plane version, currently `2.18`; it is not the package-version check.
 
 To discover commands and flags, use `memory-seed help` (also shown when you run `memory-seed` with no command), `memory-seed -h`, or `memory-seed <command> -h` for a specific command.
+
+`memory-seed ranking-ab --signal <name> [--query <q> ...] [--json]` compares a named ranking signal
+off versus on over the full live corpus. It reports directional ranking checks and unaffected-query
+controls, exits `0` only when the gate passes, exits `1` for a regression or incomplete gate, and exits
+`2` for an unknown signal.
 
 Use `memory-seed branch status` before distinct feature or proposal work when you want Git history
 to show clear branch-and-merge structure. It is read-only: it reports the current branch, dirty

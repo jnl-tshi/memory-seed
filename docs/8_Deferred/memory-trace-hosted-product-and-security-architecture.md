@@ -9,13 +9,13 @@ parent: "memory-trace-product-and-system-architecture-blueprint.md"
 
 # Memory Trace Hosted Product and Security Architecture
 
-Status: Active proposal, promoted from inbox on 2026-07-11.
+Status: **DEFERRED** in `8_Deferred/`; promoted from inbox on 2026-07-11 and parked pending the gates below.
 Priority: P5 after local Community/Pro foundations and Evidence Pack/annotation contracts are stable.
 Source reference: `../4_Reference/memory-trace-next-generation-plan-document-set.md`, folded with the commercialisation report and existing local-first security posture.
 Scope: Hosted/local split, threat model, authn/authz, GitHub integration, sync, offline entitlements, premium code placement, web/AI security, audit, and deployment models.
 Non-goals: No immediate hosted implementation, no write-scope GitHub App by default, no full-repository hosted ingestion by default, no network dependency for free local Trail.
-Dependencies: `memory-trace-product-and-system-architecture-blueprint.md`, `memory-trace-commercialisation-and-monetisation-report.md`, `memory-trace-evidence-annotations-and-projection-architecture.md`, and a later security review.
-Acceptance criteria: Tenant isolation, provider permissions, deletion/export, audit, offline entitlement, markdown sanitisation, and managed-AI retention controls are testable before team/private-repo release.
+Dependencies: `memory-trace-product-and-system-architecture-blueprint.md`, `memory-trace-commercialisation-and-monetisation-report.md`, `memory-trace-evidence-annotations-and-projection-architecture.md`, the candidate [`hosted Markdown settlement contract`](../3_Spec/draft/memory-trace-hosted-markdown-settlement-contract.md), an explicit hosted-tier decision, and a later security review.
+Acceptance criteria: Tenant isolation, provider permissions, deletion/export, audit, offline entitlement, Markdown sanitisation, managed-AI retention, append-only settlement, conflict visibility, and projection wipe/rebuild equivalence are testable before team/private-repo release.
 
 ## 1. Scope
 
@@ -139,9 +139,13 @@ Default hosted policy:
 
 ## 9. Synchronisation
 
+The candidate
+[`hosted Markdown settlement and projection contract`](../3_Spec/draft/memory-trace-hosted-markdown-settlement-contract.md)
+owns the constitutional durability gate. This section is directional until that candidate is adopted.
+
 Sync is event-oriented:
 
-- authoritative project records remain file-compatible;
+- project-owned writes settle into append-only Markdown/YAML before they are durable memory;
 - each append-only annotation event has an ID/version;
 - server detects conflicts without overwriting history;
 - client retains offline operation;

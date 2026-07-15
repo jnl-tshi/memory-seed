@@ -358,6 +358,27 @@ def main(argv: list[str] | None = None) -> int:
     )
     link_commits.add_argument("entry_id", help="entry_id to show commits for")
 
+    ranking_ab_parser = subparsers.add_parser(
+        "ranking-ab",
+        help="real-corpus A/B for a ranking signal (the gate before any default flip)",
+    )
+    ranking_ab_parser.add_argument(
+        "--signal",
+        required=True,
+        help="named ranking signal to A/B (e.g. supersession_damping); see the registry for options",
+    )
+    ranking_ab_parser.add_argument(
+        "--query",
+        dest="queries",
+        action="append",
+        default=None,
+        metavar="Q",
+        help="query to A/B (repeatable); default: queries derived from the signal (e.g. supersession lineages)",
+    )
+    ranking_ab_parser.add_argument(
+        "--json", action="store_true", help="emit the machine-readable A/B result"
+    )
+
     hooks_parser = subparsers.add_parser("hooks", help="manage git hooks that keep memory metadata true by construction")
     hooks_sub = hooks_parser.add_subparsers(dest="hooks_command", required=True)
     hooks_status = hooks_sub.add_parser(
@@ -1285,6 +1306,24 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(format_situate_report(report))
         return 0
+
+    if args.command == "ranking-ab":
+        from .ranking_ab import ab_result_to_dict, format_ab_report, run_ab
+
+        try:
+            result = run_ab(
+                args.signal,
+                cwd=Path(".").resolve(),
+                queries=args.queries,
+            )
+        except KeyError as exc:
+            print(exc.args[0], file=sys.stderr)
+            return 2
+        if args.json:
+            print(json.dumps(ab_result_to_dict(result), indent=2, ensure_ascii=False))
+        else:
+            print(format_ab_report(result))
+        return 0 if result.passed else 1
 
     if args.command == "update":
         result = update_project(dry_run=args.dry_run)

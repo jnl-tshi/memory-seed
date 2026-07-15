@@ -13,8 +13,8 @@ Priority: P3 after versioned API and Trail/search parity foundations; prerequisi
 Source reference: `../4_Reference/memory-trace-next-generation-plan-document-set.md`, folded with `memory-trace-ai-timeline-summarisation-plan.md` and `session-decision-diagrams-plan.md`.
 Scope: Evidence Packs, deterministic anchors, append-only decision annotations, projection architecture, provider freshness, and agent feedback surfaces.
 Non-goals: No generated-output authority, no PR-comment replacement, no hidden provider sync, no mutation of historical session entries.
-Dependencies: `memory-trace-product-and-system-architecture-blueprint.md`, `../3_Spec/memory-trace-derived-artifact-provenance-contract.md`, `memory-trace-ai-timeline-summarisation-plan.md`, and `../3_Spec/graph-edge-contract.md`.
-Acceptance criteria: Anchors are deterministic and fingerprinted, shared annotations are append-only and participant-authenticated, SQLite projections rebuild from authoritative files, and Evidence Packs are deterministic and snapshot-tested.
+Dependencies: `memory-trace-product-and-system-architecture-blueprint.md`, `../3_Spec/memory-trace-derived-artifact-provenance-contract.md`, `memory-trace-ai-timeline-summarisation-plan.md`, `../3_Spec/graph-edge-contract.md`, and `memory-provenance-and-authority-taxonomy-proposal.md` before agent actionability.
+Acceptance criteria: Anchors are deterministic and fingerprinted, shared annotations are append-only and participant-authenticated, SQLite projections rebuild from authoritative files, Evidence Packs are deterministic and snapshot-tested, and no annotation becomes agent-actionable before the provenance/authority gate passes.
 
 ## 1. Decision
 
@@ -25,6 +25,12 @@ Introduce three explicit concepts:
 3. **Projection architecture** as rebuildable SQLite views over authoritative records.
 
 ## 2. Provenance classes
+
+The four classes below are conceptual shorthand from the original architecture. The canonical additive
+field model and crosswalk are owned by
+[`memory-provenance-and-authority-taxonomy-proposal.md`](memory-provenance-and-authority-taxonomy-proposal.md),
+which preserves the shipped seven-value API `ProvenanceClass` and keeps provenance, authority, lifecycle,
+confidence, and actionability separate.
 
 Every piece of information belongs to one class:
 
@@ -107,6 +113,9 @@ Example:
 The UI shows the latest version while history remains inspectable.
 
 ## 5. Participant and authority model
+
+Gate: adopt the provenance/authority crosswalk and fail-closed actionability fixtures before exposing any
+annotation to an agent as actionable.
 
 Shared annotations require an author registered in `project.yaml`.
 

@@ -1,11 +1,11 @@
-"""SessionStart hook: inject current project state deterministically.
+"""SessionStart hook: inject startup instructions and recent project state.
 
-Fires once when a session begins. Reads the newest relevant session log directly
-(by filename date) and injects its content so the agent knows the current state
-without any follow-up read. With a configured user, the hook orients on that
-user's newest per-user session file and lists same-day co-contributor files.
-Without a configured user, it reads the shared flat file. Both old flat/day
-paths and new YYYY-MM grouped paths are supported.
+Fires once when a session begins. Directs every agent through AGENTS.md, then
+reads the newest relevant session logs directly (by filename date) and injects
+the five newest entries. With a configured user, the hook orients on that user's
+per-user session files and lists same-day co-contributor files. Without a
+configured user, it reads shared flat files. Both old flat/day paths and new
+YYYY-MM grouped paths are supported.
 """
 
 import json
@@ -14,9 +14,10 @@ import re
 import sys
 from pathlib import Path
 
-# Cap on how much of the most recent entry body to inject, so a long entry
-# cannot blow up session context. Headings (one line each) are always included.
-LATEST_ENTRY_CHAR_CAP = 1500
+# Bound injected startup context while still providing the requested five-entry
+# history window. A truncated entry names the source file for a direct read.
+RECENT_ENTRY_LIMIT = 5
+ENTRY_CHAR_CAP = 1500
 RESERVED_USERS = {"index", "readme", "policy"}
 
 agent = "claude"
@@ -27,8 +28,6 @@ for arg in sys.argv[1:]:
         agent = arg[2:]
 
 sessions = Path(".memory-seed/sessions")
-if not sessions.exists():
-    sys.exit(0)
 
 date_re = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 month_re = re.compile(r"^\d{4}-\d{2}$")
@@ -140,6 +139,8 @@ def heading_count(path):
 
 def session_docs():
     docs = []
+    if not sessions.exists():
+        return docs
     for path in sessions.iterdir():
         if path.is_file() and flat_date_re.match(path.name):
             docs.append({
@@ -200,20 +201,41 @@ def session_docs():
     return sorted(docs, key=lambda doc: (doc["date"], doc["user"] or "", doc["path"].stat().st_mtime))
 
 
-def extract_latest_entry(text):
+def extract_entries(text):
     lines = text.splitlines()
     heading_idx = [i for i, ln in enumerate(lines) if entry_re.match(ln)]
-    headings = [lines[i][3:].strip() for i in heading_idx]
-    if heading_idx:
-        latest_entry = "\n".join(lines[heading_idx[-1]:]).strip()
-    else:
-        latest_entry = text.strip()
-    if len(latest_entry) > LATEST_ENTRY_CHAR_CAP:
-        latest_entry = (
-            latest_entry[:LATEST_ENTRY_CHAR_CAP].rstrip()
-            + "\n... [truncated - read the file for the rest]"
-        )
-    return headings, latest_entry
+    entries = []
+    for pos, start in enumerate(heading_idx):
+        end = heading_idx[pos + 1] if pos + 1 < len(heading_idx) else len(lines)
+        entries.append("\n".join(lines[start:end]).strip())
+    return entries
+
+
+def cap_entry(text):
+    if len(text) <= ENTRY_CHAR_CAP:
+        return text
+    return (
+        text[:ENTRY_CHAR_CAP].rstrip()
+        + "\n... [truncated - read the source file for the rest]"
+    )
+
+
+def collect_recent_entries(candidates, limit=RECENT_ENTRY_LIMIT):
+    """Return newest entries chronologically plus source files newest-first."""
+    newest_first = []
+    source_files = []
+    for doc in reversed(candidates):
+        try:
+            entries = extract_entries(doc["path"].read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError):
+            continue
+        for entry in reversed(entries):
+            newest_first.append({"source": doc["rel"], "text": cap_entry(entry)})
+            if doc["rel"] not in source_files:
+                source_files.append(doc["rel"])
+            if len(newest_first) == limit:
+                return list(reversed(newest_first)), source_files
+    return list(reversed(newest_first)), source_files
 
 
 def emit(text):
@@ -244,37 +266,54 @@ def emit(text):
 docs = session_docs()
 user = configured_user()
 identity_note = offer_identity_setup()
+parts = [
+    "STARTUP INSTRUCTIONS - follow these before planning, editing, reviewing, "
+    "or running project commands.",
+    "",
+    "1. Locate the nearest applicable `AGENTS.md` by walking upward from the "
+    "current working directory. Read it first and follow every instruction and "
+    "routing path it defines.",
+    "2. Read the five newest applicable entries directly from the latest "
+    "`.memory-seed/sessions/` files to establish current project context. Do not "
+    "use semantic or lexical search to determine what is latest.",
+]
 if user:
     candidates = [doc for doc in docs if doc["user"] == user]
 else:
     candidates = [doc for doc in docs if doc["user"] is None]
 
 if not candidates:
+    parts.append("")
+    parts.append("No applicable session entries were found yet.")
     if identity_note:
-        emit(identity_note)
+        parts.append("")
+        parts.append(identity_note)
+    emit("\n".join(parts))
     sys.exit(0)
 
 newest = candidates[-1]
-prior = candidates[-2] if len(candidates) > 1 else None
+recent_entries, source_files = collect_recent_entries(candidates)
 
-text = newest["path"].read_text(encoding="utf-8")
-headings, latest_entry = extract_latest_entry(text)
-
-parts = [
-    "CURRENT PROJECT STATE - injected at session start from the newest session "
-    "log (read directly by date, not via search).",
-    "",
-    f"Newest session file: {newest['rel']} "
-    f"({len(headings)} entr{'y' if len(headings) == 1 else 'ies'}).",
-]
-if headings:
+parts.append("")
+parts.append(
+    "CURRENT PROJECT CONTEXT - the newest session entries are injected below "
+    "in chronological order. Read their source files directly when an entry is "
+    "truncated or when more detail is needed."
+)
+parts.append("")
+parts.append("Session files used (newest first):")
+parts.extend(f"- {source}" for source in source_files)
+parts.append("")
+parts.append(
+    f"Newest {len(recent_entries)} session "
+    f"entr{'y' if len(recent_entries) == 1 else 'ies'} "
+    f"(requested window: {RECENT_ENTRY_LIMIT}):"
+)
+for entry in recent_entries:
     parts.append("")
-    parts.append("Entry headings (oldest first, newest last):")
-    parts.extend(f"- {h}" for h in headings)
-parts.append("")
-parts.append("Most recent entry (verbatim):")
-parts.append("")
-parts.append(latest_entry)
+    parts.append(f"Source: {entry['source']}")
+    parts.append("")
+    parts.append(entry["text"])
 
 if user:
     contributors = [
@@ -288,20 +327,11 @@ if user:
             count = heading_count(doc["path"])
             parts.append(f"- {doc['rel']} ({count} entr{'y' if count == 1 else 'ies'})")
 
-if prior is not None:
-    parts.append("")
-    parts.append(
-        f"Prior session file: {prior['rel']} "
-        "(read it directly if you need more history)."
-    )
 parts.append("")
 parts.append(
-    "Recency vs. topical retrieval: the above is the latest recorded work. To "
-    "answer 'what is the latest / current state', read the newest "
-    ".memory-seed/sessions files directly by date - do NOT use memory_search "
-    "to find the most recent work, because semantic/lexical ranking can bury the "
-    "newest entry beneath older topically-similar ones. Use memory_search only for "
-    "topical questions ('why was X decided', 'what do we know about Y')."
+    "Recency vs. topical retrieval: use the latest session files for current "
+    "state. Use memory_search only for topical questions such as 'why was X "
+    "decided?' or 'what do we know about Y?'."
 )
 
 if identity_note:

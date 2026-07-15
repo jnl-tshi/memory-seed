@@ -139,6 +139,7 @@ until 1–2 prove the ergonomics; only build if recall-based passing leaks.
   context); the `--apply` sweep catches whatever slipped. Could be folded into that plan as its write-time
   channel, but is a distinct mechanism (retrieval capture, not sidecar authoring) — kept standalone.
 - `memory_link_suggest` (shipped) — extended here with the `consulted:` axis, not replaced.
-- `docs/2_Todo/supersession-successor-surfacing-proposal.md` / `real-corpus-ranking-validation-gate-proposal.md`
+- `docs/2_Todo/supersession-successor-surfacing-proposal.md` /
+  `docs/5_Completed/real-corpus-ranking-validation-gate-proposal.md`
   — those improve *retrieval ranking* of lifecycle edges; this improves *creation* of them. Different half
   of the same graph-quality goal.

@@ -4,6 +4,15 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- Added `memory-seed ranking-ab --signal <name> [--query <q> ...] [--json]`, a deterministic
+  full-corpus off/on gate for ranking changes. Supersession checks now derive live lineage queries,
+  require each replacement to out-rank the decision it retires, require an actual unaffected-query
+  control to remain identical, and fail closed on empty or incomplete evidence.
+- **SessionStart orientation now begins at `AGENTS.md` and supplies a five-entry context window.** Claude,
+  Codex, Gemini, and Cursor are directed to locate, read, and follow the nearest applicable `AGENTS.md`,
+  then receive the five newest applicable session entries across recent files instead of every heading plus
+  only the latest body. Empty/new projects still receive the startup directive; long entries are capped and
+  name their source path for a full read. Copilot's static `sessionStart` prompt carries the same instructions.
 - **Memory Trace derived-projection Phase 1 (warm start):** the SQLite cache is now a formalized read-model
   with a **git-watermark warm start**. `ensure_current` proves freshness in O(changes) — HEAD unmoved and
   the git-dirty session files unchanged → serve as-is, with **no whole-corpus scan** and no rebuild

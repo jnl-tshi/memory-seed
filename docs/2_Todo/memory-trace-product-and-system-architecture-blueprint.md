@@ -11,6 +11,7 @@ audience:
 related:
   - "docs/3_Spec/functionality-audit.md"
   - "docs/3_Spec/graph-edge-contract.md"
+  - "docs/3_Spec/draft/memory-trace-hosted-markdown-settlement-contract.md"
   - "docs/2_Todo/memory-trace-ai-timeline-summarisation-plan.md"
 ---
 
@@ -393,6 +394,12 @@ Potential individual paid value:
 
 ### 7.3 Team/Cloud
 
+Team/Cloud remains candidate work. Any project-owned hosted write must satisfy the
+[`hosted Markdown settlement and projection contract`](../3_Spec/draft/memory-trace-hosted-markdown-settlement-contract.md):
+durability occurs in append-only repository Markdown, while hosted databases remain rebuildable
+projections. Authentication, billing, and entitlements may be server-authoritative because they are not
+project memory. Provider records remain provider-owned evidence.
+
 Potential team value:
 
 - hosted workspaces;
@@ -443,7 +450,7 @@ Potential enterprise value:
 8. Treat Evidence Packs as a first-class contract.
 9. Add append-only decision annotations with deterministic anchors.
 10. Keep generated outputs derived and evidence-linked.
-11. Preserve a useful free local Trail; monetise advanced local analysis, collaboration, managed AI and hosted operation.
+11. Preserve complete local history, retrieval, and basic graph access without entitlement; monetise convenience, scale, advanced analysis, collaboration, managed AI and hosted operation.
 12. Require non-regression against the current vanilla implementation before replacement.
 
 ## 10. Document map
@@ -455,8 +462,11 @@ This blueprint is supported by:
 - `memory-trace-commercialisation-and-monetisation-report.md`;
 - `memory-trace-hosted-product-and-security-architecture.md`;
 - `memory-trace-next-generation-implementation-roadmap.md`;
+- `memory-provenance-and-authority-taxonomy-proposal.md`;
+- `memory-quality-metrics-v0-proposal.md`;
 - `../3_Spec/memory-trace-trail-search-and-graph-ux.md`;
 - `../3_Spec/memory-trace-derived-artifact-provenance-contract.md`;
+- `../3_Spec/draft/memory-trace-hosted-markdown-settlement-contract.md`;
 - the existing `memory-trace-ai-timeline-summarisation-plan.md`.
 
 ## 11. Source basis

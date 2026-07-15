@@ -13,12 +13,12 @@ Priority: P0 sequencing document for the next Memory Trace implementation goal.
 Source reference: `../4_Reference/memory-trace-next-generation-plan-document-set.md`, integrated through `memory-trace-next-generation-coverage-matrix.md`.
 Scope: Phase gates from baseline/parity fixtures through versioned API, React shell, Trail/search/graph parity, annotations, Evidence Packs, provider integrations, hosted foundations, and team security.
 Non-goals: No real-time collaborative editing, IDE/source editor, mobile-first authoring, full-repository storage by default, unconfirmed AI writes, or hosted work blocking local migration.
-Dependencies: `memory-trace-product-and-system-architecture-blueprint.md`, `memory-trace-frontend-architecture-and-design-system-proposal.md`, `memory-trace-evidence-annotations-and-projection-architecture.md`, and the two Memory Trace specs in `docs/3_Spec/`.
+Dependencies: `memory-trace-product-and-system-architecture-blueprint.md`, `memory-trace-graph-and-workspace-proposal-set-index.md`, `memory-trace-frontend-architecture-and-design-system-proposal.md`, `memory-trace-evidence-annotations-and-projection-architecture.md`, the Memory Trace specs in `docs/3_Spec/`, and the constitutional gates named below.
 Acceptance criteria: Each phase ships with tests, docs, package/wheel validation, source-of-truth boundaries preserved, parity fixtures where relevant, and session/plan status updates.
 
 ## 1. Goal
 
-Deliver a React-based, Trail-first Memory Trace without regressing the current vanilla application, then add evidence, annotations, AI-derived artefacts and hosted foundations in controlled phases.
+Settle the graph/workspace contract and renderer evidence first, then deliver a React-based, Trail-first Memory Trace without regressing the current vanilla application. Add evidence, annotations, AI-derived artefacts and hosted foundations only through the constitutional gates below.
 
 ## 2. Stage gates
 
@@ -83,6 +83,23 @@ Exit:
 - vanilla frontend can continue operating;
 - React client consumes only versioned API.
 
+## 4.1 B0a — pre-React graph/workspace contract and benchmark
+
+Deliver:
+
+- three-region shell behaviour and shared-selection contract;
+- renderer-neutral graph projection models and common fixtures;
+- vis-network versus Cytoscape.js benchmark on the same bounded fixture;
+- topology-first visual encoding and optional temporal-position rules;
+- vanilla-safe shell clarification and current SVG fallback coverage.
+
+Exit:
+
+- renderer choice is recorded from packaging, accessibility, topology, temporal, hierarchy, and scale evidence;
+- graph semantics and renderer implementation remain separate;
+- the post-shell B0b acceptance path is bound to Phases 3 and 5;
+- no full renderer migration or dockable-inspector implementation is duplicated in vanilla.
+
 ## 5. Phase 2 — React shell and design system
 
 Deliver:
@@ -93,6 +110,7 @@ Deliver:
 - Storybook;
 - Playwright harness;
 - local shell;
+- three-region layout primitives and shared-selection state shaped by B0a;
 - packaged asset pipeline;
 - bundle-size reporting.
 
@@ -100,6 +118,7 @@ Exit:
 
 - built wheel serves React shell;
 - no Node.js required at runtime;
+- B0a shell behaviour is represented without bypassing canonical API services;
 - accessibility baseline established.
 
 ## 6. Phase 3 — search and inspection workspace
@@ -112,11 +131,14 @@ Deliver:
 - ranked results drawer;
 - entry/section highlighting;
 - evidence workspace;
+- independently visible Inspector with right, bottom, auto, and hidden states;
+- persisted layout preference with stable selection and scroll state;
 - wide and reading-mode prototypes.
 
 Exit:
 
 - search-to-reader behaviour equals or exceeds current UI;
+- Inspector docking, keyboard control, and responsive behaviour pass B0b workspace acceptance;
 - reading layout decision recorded.
 
 ## 7. Phase 4 — Trail parity
@@ -142,10 +164,11 @@ Exit:
 
 Deliver:
 
-- React Flow adapter;
+- B0a-selected renderer adapter over the renderer-neutral graph projection;
 - local/topic/file/evolution modes;
 - graph-specific filters;
-- Obsidian-inspired interaction benchmark;
+- topology-first communities, stable colours, typed/curved edges, and optional mild temporal drift;
+- bounded/community overview modes;
 - bounded initial range;
 - list/table alternative;
 - transition from graph node to Trail.
@@ -154,9 +177,13 @@ Exit:
 
 - graph code lazy-loads;
 - graph remains separate from Trail renderer;
+- B0b renderer, offline packaging, accessibility, shared-selection, and scale gates pass;
+- current SVG fallback remains until explicit parity sign-off;
 - default last-seven/last-five-active-day range works.
 
 ## 9. Phase 6 — deterministic anchors and annotations
+
+Gate: adopt [`memory-provenance-and-authority-taxonomy-proposal.md`](memory-provenance-and-authority-taxonomy-proposal.md) before any annotation is surfaced to an agent as actionable. Provenance, lifecycle, participant role, and actionability remain separate fields.
 
 Deliver:
 
@@ -176,6 +203,8 @@ Exit:
 - comments live under `sessions/`.
 
 ## 10. Phase 7 — Evidence Packs and derived artefacts
+
+Gate: establish the read-only baseline from [`memory-quality-metrics-v0-proposal.md`](memory-quality-metrics-v0-proposal.md) before any quality label affects ranking or agent behaviour. Generated output remains non-authoritative unless explicitly promoted.
 
 Deliver:
 
@@ -210,6 +239,11 @@ Exit:
 
 ## 12. Phase 9 — Pro and hosted foundations
 
+Gate: the candidate
+[`hosted Markdown settlement and projection contract`](../3_Spec/draft/memory-trace-hosted-markdown-settlement-contract.md)
+must pass security review, acceptance fixtures, maintainer approval, and promotion into `3_Spec/` before
+hosted project-memory writes are implemented.
+
 Deliver:
 
 - feature entitlement service;
@@ -217,6 +251,8 @@ Deliver:
 - authentication;
 - organisations/workspaces;
 - synchronisation prototype;
+- append-only Markdown settlement and conflict-resolution protocol;
+- projection wipe/rebuild and offline round-trip fixtures;
 - billing integration;
 - managed AI metering.
 
@@ -224,6 +260,11 @@ Exit:
 
 - Community remains fully usable offline;
 - premium checks are server-authoritative where required;
+- project-owned hosted writes are durable only after settlement into append-only Markdown;
+- deleting the hosted project-memory projection and rebuilding from the repository yields equivalent memory;
+- no server database is the only copy of project memory, and complete export survives subscription expiry;
+- authentication, billing, and entitlements are explicitly outside project-memory authority;
+- provider-owned records remain external evidence with source and freshness, never silent Memory Seed truth;
 - data export and subscription-expiry behaviour verified.
 
 ## 13. Phase 10 — security hardening and team release
@@ -249,16 +290,18 @@ Exit:
 ```text
 Phase 0
   -> Phase 1
+  -> B0a
   -> Phase 2
   -> Phase 3
   -> Phase 4
-  -> Phase 5
+  -> Phase 5 (B0b complete)
 
-Phase 1 -> Phase 6 -> Phase 7
-Phase 1 -> Phase 8 -> Phase 9 -> Phase 10
+Phase 1 -> Provenance/authority gate -> Phase 6 -> Phase 7
+Phase 1 -> Memory-quality v0 baseline -> quality-informed ranking or agent behaviour
+Phase 1 -> Phase 8 -> Markdown-settlement candidate adoption -> Phase 9 -> Phase 10
 ```
 
-Graph work may proceed in parallel after the shell and API are stable. Hosted work must not block local migration.
+B0a precedes React feature implementation; B0b is delivered through the post-shell inspection and graph phases. The optional structural-provider tail starts only after B0b acceptance. Hosted work must not block local migration.
 
 ## 15. Out of scope
 
@@ -275,7 +318,8 @@ Graph work may proceed in parallel after the shell and API are stable. Hosted wo
 
 ## 16. Release strategy
 
-- build React in parallel;
+- complete B0a before React feature implementation;
+- build the React shell and B0b in staged parity increments;
 - use feature flags;
 - retain vanilla fallback during parity phase;
 - publish alpha wheels;

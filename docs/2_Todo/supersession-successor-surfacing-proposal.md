@@ -12,7 +12,7 @@ tags:
 Status: **PROMOTED to `2_Todo`** 2026-07-14 (active — approved by JNL). Filed 2026-07-13.
 Priority: P2 — retrieval quality; closes an asymmetry the default-on flip exposed.
 Next action: implement `superseding_head` (step 1 — additive/read-only, mirrors the existing
-`evolved_head`); step 2 (bounded replacement boost) waits on `ranking-ab` (the gate proposal).
+`evolved_head`), then use the shipped `ranking-ab` gate for step 2's bounded replacement boost.
 Source: This session's freshness-ranking validation.
 
 ## Problem — supersession ranking is asymmetric
@@ -51,11 +51,11 @@ default, that's the common case, not an edge case.
    pattern — the palette lineage `mse_903ba3 → mse_jt2rs0 → mse_6dzkmp` is exactly such a chain) and
    attach it to a retired entry's result. Read-only, changes no ordering — the "expose before you rank"
    first step.
-2. **Replacement boost (ranking, behind the same gate).** When a retired entry that matches a query is
+2. **Replacement boost (ranking, behind the shipped gate).** When a retired entry that matches a query is
    damped, apply a small *boost* to its terminal replacement so the **current** decision enters the
    window — the mirror of the dampener. Bounded so it never fabricates relevance (only lifts an entry
    that already matches the query at all); off until fixtures **and** a real-corpus A/B prove it (per
-   the ranking-validation-gate proposal).
+   the completed ranking-validation-gate proposal).
 3. Recency and the dampener are unchanged; this composes with them.
 
 ## Non-goals

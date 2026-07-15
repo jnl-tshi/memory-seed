@@ -1,5 +1,7 @@
 ---
 memory-system-version: 2.18
+implemented_by: mse_hexq9x671dww29te
+shipped: unreleased on `main` (CHANGELOG Unreleased)
 tags:
   - memory-seed
   - proposal
@@ -10,11 +12,11 @@ tags:
 
 # Real-corpus A/B as a required gate before any default ranking flip
 
-Status: **PROMOTED to `2_Todo`** 2026-07-14 (active — approved by JNL). Filed 2026-07-13.
-Priority: P2 — hardens the ranking change-discipline; small tooling + a contract amendment.
-Next action: build `memory-seed ranking-ab` and amend the graph-edge-contract "Expose before you rank"
-rule to require a real-corpus A/B before any default flip. **Sequence first** in the promoted
-ranking/graph-quality track — it is the gate the successor-surfacing replacement boost waits on.
+Status: **SHIPPED** 2026-07-15 — command, fixture harness, fail-closed evidence checks, and contract
+amendment complete. Filed 2026-07-13; approved and promoted 2026-07-14.
+Priority: Completed P2 — hardens the ranking change-discipline.
+Next action: use the gate for the `superseding_head` proposal's bounded replacement boost after its
+additive/read-only surface ships.
 Source: This session — the advisor caught that fixtures alone hadn't proven the flip.
 
 ## Problem — "fixtures on a branch" is necessary but not sufficient
@@ -35,7 +37,7 @@ replacement). Two problems:
 Constructed fixtures prove the *mechanism* fires; only the real corpus proves it *helps live queries
 without regressing ordinary ones*.
 
-## Current behavior (grounded)
+## Prior behavior (grounded)
 
 - `graph-edge-contract.md` "Expose before you rank" gates a default flip on *fixtures on a branch*. The
   supersession graduation note I added this session mentions "fixtures **and** a real-corpus check" —
@@ -64,9 +66,18 @@ without regressing ordinary ones*.
 
 ## Acceptance criteria
 
-- `ranking-ab --signal supersession_damping` reproduces this session's finding (live replacement
+- [x] `ranking-ab --signal supersession_damping` reproduces this session's finding (live replacement
   out-ranks every retired predecessor at full k; no-hit queries byte-identical) as a repeatable command.
-- The contract's "Expose before you rank" rule names the real-corpus A/B as a required pre-flip step.
+- [x] The contract's "Expose before you rank" rule names the real-corpus A/B as a required pre-flip step.
+
+## Implementation result
+
+- `memory_seed/ranking_ab.py` provides the reusable named-signal harness and result model.
+- `memory_seed/cli.py` exposes the human and JSON command with pass/fail/usage exit semantics.
+- `tests/test_ranking_ab.py` covers directional wins, affected-score damping, a real no-hit control,
+  empty and missing evidence, JSON verdicts, CLI exit behavior, and unknown signals.
+- The 2026-07-15 live run passed all three supersession lineages and the unaffected
+  `shipping surfaces profile` control across 428 entries.
 
 ## Relationship to existing coverage (checked — partial, this completes it)
 
