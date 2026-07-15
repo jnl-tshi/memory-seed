@@ -182,6 +182,8 @@ export interface components {
             commit_entry_ids: string[];
             /** Commit Tracking */
             commit_tracking: boolean;
+            /** Continuity */
+            continuity: components["schemas"]["ContinuityItem"][];
             /** Contexts */
             contexts: string[];
             /** Date */
@@ -229,6 +231,15 @@ export interface components {
             topics: string[];
             /** User */
             user: string | null;
+        };
+        /** ContinuityItem */
+        ContinuityItem: {
+            /** From */
+            from: string;
+            /** Kind */
+            kind: string;
+            /** @default null */
+            to?: string | null;
         };
         /** CommitInfo */
         CommitInfo: {
@@ -314,6 +325,8 @@ export interface components {
             branch_inferred: boolean;
             /** Chunk Id */
             chunk_id: string;
+            /** Continuity */
+            continuity: components["schemas"]["ContinuityItem"][];
             /** Connectivity */
             connectivity: number;
             /** Date */
@@ -441,6 +454,8 @@ export interface components {
             branch: string | null;
             /** Chunk Id */
             chunk_id: string;
+            /** Continuity */
+            continuity: components["schemas"]["ContinuityItem"][];
             /** Contexts */
             contexts: string[];
             /** Date */
@@ -532,6 +547,8 @@ export interface components {
             branch_inferred: boolean;
             /** Chunk Id */
             chunk_id: string;
+            /** Continuity */
+            continuity: components["schemas"]["ContinuityItem"][];
             /** Connectivity */
             connectivity: number;
             /** Date */

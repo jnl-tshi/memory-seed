@@ -23,7 +23,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProvenanceClass(str, Enum):
@@ -100,6 +100,7 @@ class ChunkSummary(BaseModel):
     excerpt: str
     granularity: str
     related_entries: list[str]
+    continuity: list["ContinuityItem"]
 
 
 class ChunkBrief(BaseModel):
@@ -112,6 +113,16 @@ class ChunkBrief(BaseModel):
     time: str | None
     agent: str
     topics: list[str]
+
+
+class ContinuityItem(BaseModel):
+    """One authored continuity block exposed through Trace read contracts."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    kind: str
+    from_ref: str = Field(alias="from")
+    to_ref: str | None = Field(default=None, alias="to")
 
 
 class MatchedSection(BaseModel):
@@ -235,6 +246,7 @@ class GraphNode(BaseModel):
     agent: str
     topics: list[str]
     granularity: str
+    continuity: list[ContinuityItem]
     connectivity: int
     importance_score: float
     provenance_class: ProvenanceClass = ProvenanceClass.authored_memory

@@ -14,7 +14,19 @@ from memory_trace.cli import main
 from memory_trace.service import TraceCache, TraceService, create_app, missing_optional_dependency_hint
 
 
-def _entry(title, entry_id, body, *, agent="codex", related=None, branch=None, supersedes=None, evolves=None, topics=None):
+def _entry(
+    title,
+    entry_id,
+    body,
+    *,
+    agent="codex",
+    related=None,
+    branch=None,
+    supersedes=None,
+    evolves=None,
+    continuity=None,
+    topics=None,
+):
     lines = [
         f"## {title}",
         "",
@@ -39,6 +51,13 @@ def _entry(title, entry_id, body, *, agent="codex", related=None, branch=None, s
     if evolves:
         lines.append("evolves:")
         lines.extend(f"  - {ref}" for ref in evolves)
+    if continuity:
+        lines.append("continuity:")
+        for block in continuity:
+            lines.append(f"  - kind: {block['kind']}")
+            lines.append(f"    from: {block['from']}")
+            if "to" in block and block["to"] is not None:
+                lines.append(f"    to: {block['to']}")
     lines += ["```", "", body, ""]
     return "\n".join(lines)
 
@@ -340,6 +359,44 @@ class TraceServiceTests(unittest.TestCase):
         # Asking for evolves alone must not leak other edge kinds.
         evolves_only = service.graph(edge_types=("evolves",))
         self.assertEqual({edge["type"] for edge in evolves_only["edges"]}, {"evolves"})
+
+    def test_graph_and_chunk_expose_authored_continuity_in_order(self):
+        self.write_session(
+            "2026-06-12.md",
+            "\n".join(
+                [
+                    _entry("2026-06-12 09:00 - Baseline", "mse_plain", "Plain.", branch="main"),
+                    _entry(
+                        "2026-06-12 11:00 - Rename and migrate",
+                        "mse_cont",
+                        "Moved the product and runtime.",
+                        branch="main",
+                        continuity=[
+                            {"kind": "rename", "from": "Memory Lense", "to": "Memory Trace"},
+                            {"kind": "migration", "from": ".AGENTS/", "to": ".memory-seed/"},
+                            {"kind": "removal", "from": "memory-seed lense command"},
+                        ],
+                    ),
+                ]
+            ),
+        )
+        service = self.service()
+
+        graph = service.graph(edge_types=("branch",), granularity="entry", limit=100)
+        nodes = {node["id"]: node for node in graph["nodes"]}
+        self.assertEqual(
+            nodes["mse_cont"]["continuity"],
+            [
+                {"kind": "rename", "from": "Memory Lense", "to": "Memory Trace"},
+                {"kind": "migration", "from": ".AGENTS/", "to": ".memory-seed/"},
+                {"kind": "removal", "from": "memory-seed lense command", "to": None},
+            ],
+        )
+        self.assertEqual(nodes["mse_plain"]["continuity"], [])
+
+        chunk = service.chunk("mse_cont")
+        self.assertEqual(chunk["continuity"], nodes["mse_cont"]["continuity"])
+        self.assertEqual(service.chunk("mse_plain")["continuity"], [])
 
     def test_facets_and_filters_include_indexed_topics(self):
         # Indexed topics (entry YAML `topics:`) must feed the topics facet and
@@ -859,6 +916,12 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn("branch:", script)
         self.assertIn("var(--edge-evolves)", script)
         self.assertIn("--edge-evolves:", styles)
+        self.assertIn('const TRAIL_CONTINUITY_KINDS = ["rename", "migration", "removal"]', script)
+        self.assertIn("trail-cont-zone", script)
+        self.assertIn("trail-cont-event", script)
+        self.assertIn("--trail-cont-rename:", styles)
+        self.assertIn("--trail-cont-migration:", styles)
+        self.assertIn("--trail-cont-removal:", styles)
         # Directed lifecycle edges: dashed replaces, dotted refines, arrowed.
         self.assertIn("trail-arrow-supersedes", script)
         self.assertIn("trail-arrow-evolves", script)

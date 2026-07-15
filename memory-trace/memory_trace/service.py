@@ -30,6 +30,7 @@ from memory_seed.core import (
 )
 from memory_seed.retrieval import EntryRollup, entry_diagram_sidecars, entry_link_sidecars, rollup_entry_matches
 from memory_seed.semantic_cache import (
+    ContinuityBlock,
     MemoryChunk,
     RankedMemoryChunk,
     build_related_entry_graph,
@@ -1525,12 +1526,31 @@ def _chunk_from_storage(data: dict[str, Any]) -> MemoryChunk:
         "contexts",
         "lexical_terms",
         "related_entries",
+        "supersedes",
+        "evolves",
+        "commits",
+        "topics",
         "sections",
     ):
         data[key] = tuple(data.get(key) or ())
+    data["continuity"] = tuple(
+        ContinuityBlock(
+            kind=block.get("kind", ""),
+            from_ref=block.get("from_ref") or block.get("from", ""),
+            to_ref=block.get("to_ref") or block.get("to") or None,
+        )
+        for block in (data.get("continuity") or ())
+    )
     if data.get("entry_line_range"):
         data["entry_line_range"] = tuple(data["entry_line_range"])
     return MemoryChunk(**data)
+
+
+def _continuity_to_api(chunk: MemoryChunk) -> list[dict[str, Any]]:
+    return [
+        {"kind": block.kind, "from": block.from_ref, "to": block.to_ref}
+        for block in chunk.continuity
+    ]
 
 
 def _chunk_to_api(chunk: MemoryChunk) -> dict[str, Any]:
@@ -1559,6 +1579,7 @@ def _chunk_to_api(chunk: MemoryChunk) -> dict[str, Any]:
         "excerpt": _excerpt(chunk.text),
         "granularity": chunk.granularity,
         "related_entries": list(chunk.related_entries),
+        "continuity": _continuity_to_api(chunk),
     }
 
 
@@ -1874,6 +1895,7 @@ def _graph_node(
         "agent": chunk.agent_type or chunk.agent_name or "unknown",
         "topics": _topics(chunk),
         "granularity": chunk.granularity,
+        "continuity": _continuity_to_api(chunk),
         "connectivity": connectivity,
         "importance_score": round(importance_score, 3),
         # Class-2 decision-diagram sidecar presence (session-decision-diagrams
