@@ -35,8 +35,8 @@ Resolution:
 | Existing document | Status after integration | Coverage decision | Unique active requirements preserved |
 |---|---|---|---|
 | `docs/2_Todo/memory-trace-distribution-plan.md` | Keep active | Blueprint preserves the separate Trace source/product boundary, public retrieval service, and no-fork parser/ranker rule. | Optional-extra packaging, deprecation shim, no-default-web-dependency guarantees, and release/documentation follow-through remain here. |
-| `docs/2_Todo/memory-trace-ai-timeline-summarisation-plan.md` | Keep active | Derived-artifact provenance contract governs evidence/citation packaging; AI plan remains implementation-specific. | Local/BYOK provider first, terminal-agent adapter later, schema-constrained output, disabled-by-default AI, no session mutation. |
-| `docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md` | Keep active | UX spec governs graph/Trail presentation; topic plan owns core `topics:` contract and remaining Trace/MCP topic work. | Phase 4 indexed-topic rendering, MCP topic-management tools, optional `topics suggest`. |
+| `docs/2_Todo/memory-trace-ai-timeline-summarisation-plan.md` | Keep active; Phase 1 shipped | Deterministic Evidence Pack Phase 1 shipped 2026-07-15; the derived-artifact provenance contract governs evidence/citation packaging and the AI plan remains implementation-specific for Phase 2. | Disabled-by-default provider interface, local-model adapter first, terminal-agent adapter later, schema-constrained cited output, no session mutation. |
+| `docs/5_Completed/memory-trace-topic-neighbourhoods-plan.md` | Completed 2026-07-15 | Core `topics:` contract, retrieval/CLI/MCP surfaces, Trace chronological chains, and optional deterministic suggestions all shipped. | Historical implementation and acceptance record; new UX work consumes the completed topic surface rather than reopening it. |
 | `docs/2_Todo/session-decision-diagrams-plan.md` | Keep active | Derived-artifact contract and evidence-pack plan cover export provenance; diagram plan owns sidecar convention and Phase 3 report/handover pack. | Exportable report/handover pack acceptance criteria and Mermaid sidecar constraints. |
 | `docs/2_Todo/memory-trace-graph-and-workspace-proposal-set-index.md` | Keep active | B0a settles shell/graph contracts and renderer evidence before React; B0b implements the selected renderer and dockable Inspector after the shell. | Renderer-neutral projection, shared selection, benchmark evidence, topology-first graph, and fallback gates. |
 | `docs/2_Todo/memory-provenance-and-authority-taxonomy-proposal.md` | Keep active | Constitutional gate before annotations or generated output become agent-actionable. | One provenance vocabulary; separate authority, lifecycle, confidence, and fail-closed actionability. |
@@ -65,4 +65,5 @@ Resolution:
 3. Complete B0a before React feature implementation; deliver B0b through the post-shell inspection and graph phases.
 4. Adopt the provenance/authority gate before agent actionability and measure quality v0 before quality-informed behaviour.
 5. Keep old active plans linked from the blueprint where their implementation details remain unique.
-6. Do not move distribution, AI summarisation, topic-neighbourhood, or decision-diagram plans to completed until their remaining acceptance criteria are done or explicitly split.
+6. Keep distribution, AI summarisation, and decision-diagram plans active until their remaining acceptance
+   criteria are done or explicitly split. Topic neighbourhoods are complete and remain historical evidence.

@@ -10,11 +10,11 @@ tags:
 
 # Lifecycle-link authoring assist (`link audit --apply` sidecar scaffold + advisory gap warning)
 
-Status: **PROMOTED to `2_Todo`** 2026-07-14 (active — approved by JNL). Filed 2026-07-13.
+Status: **ACTIVE — steps 1–3 SHIPPED 2026-07-15.** Filed 2026-07-13; approved and promoted 2026-07-14.
 Priority: P2 — retrieval/graph quality; removes authoring friction, touches no ranking behavior.
-Next action: build `link audit --date <d> --apply` (inert `classify_pending` sidecar scaffold), the
-`links check` `sidecar-unclassified-stub` warning, and the `esr` open-stub count (steps 1–3). The
-commit-time nudge (4) and MCP `memory_link_record` write tool (5) stay optional/deferred.
+Next action: evaluate the shipped step 1–3 workflow in normal ESR use. The advisory commit-time nudge
+(step 4) and MCP `memory_link_record` write tool (step 5) remain explicitly optional/deferred; neither
+has shipped and neither is required to complete the core authoring-assist workflow.
 Source: User 2026-07-13, after confirming the update flow is deliberately manual.
 
 ## Problem
@@ -51,7 +51,7 @@ never auto-classify or write a live edge.**
 
 ## Proposal
 
-1. **`link audit --date <today> --apply` — scaffold, don't decide.** Ensure the dated sidecar exists
+1. **SHIPPED 2026-07-15 — `link audit --date <today> --apply` scaffolds, never decides.** It ensures the dated sidecar exists
    with correct frontmatter and, for each gap, insert a per-entry block with `entry_id:` filled and the
    candidates recorded as a **machine-detectable, inert stub** the author must resolve — never a live
    edge:
@@ -66,10 +66,10 @@ never auto-classify or write a live edge.**
    edge), the candidate ids sit in comments (also inert), and blocks are inserted in chronological
    order. The author swaps `classify_pending: true` for the real `supersedes:`/`evolves:` list or
    deletes the block. `--apply` refuses to emit a live edge value.
-2. **`links check` gains `sidecar-unclassified-stub` (warning, not error).** Any block still carrying
+2. **SHIPPED 2026-07-15 — `links check` reports `sidecar-unclassified-stub` (warning, not error).** Any block still carrying
    `classify_pending: true` is surfaced so it can't be silently forgotten — warning-level, because
    classification is judgment and must never block a commit or a fuse.
-3. **`esr` counts open stubs** in its existing "Lifecycle link gaps" section (0 open stubs = clean).
+3. **SHIPPED 2026-07-15 — `esr` counts open stubs** in its existing "Lifecycle link gaps" section (0 open stubs = clean).
 4. **(P2, optional) advisory commit-time nudge.** Extend the `prepare-commit-msg` (or a new pre-commit)
    hook to run the today-scoped audit and print a **non-blocking** note when a commit touches the
    session log with unresolved gaps/stubs — advisory only, pointing to `link audit --apply`.
@@ -85,6 +85,9 @@ never auto-classify or write a live edge.**
 - The commit nudge stays advisory; classification never blocks.
 
 ## Acceptance criteria
+
+Steps 1–3 and their round-trip/idempotence/no-live-edge fixtures passed on 2026-07-15. Steps 4–5 are
+optional deferred extensions and are not part of the shipped claim.
 
 - `link audit --date <d> --apply` writes a schema-valid, chronologically-ordered sidecar of
   `classify_pending` stubs with commented candidate evidence; re-running is idempotent (no duplicate

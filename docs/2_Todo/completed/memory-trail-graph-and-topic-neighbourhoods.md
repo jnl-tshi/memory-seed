@@ -1,6 +1,6 @@
 > Status: SOURCE RESOLVED 2026-07-08. Actionable recommendations were refined into the canonical
 > active plan:
-> `docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md`.
+> `docs/5_Completed/memory-trace-topic-neighbourhoods-plan.md`.
 
 # Proposal: Minimal Memory Trail Graph and Topic Neighbourhood Model for Memory Seed
 

@@ -2,7 +2,7 @@
 > Status: SOURCE RESOLVED 2026-07-08. Actionable recommendations were folded into the canonical
 > reference:
 > `docs/4_Reference/graph-architecture-lessons.md`. Canonical active plan:
-> `docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md`.
+> `docs/5_Completed/memory-trace-topic-neighbourhoods-plan.md`.
 
 ### Lessons Learned: Graph Architectures & Implementation
 
