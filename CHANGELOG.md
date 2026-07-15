@@ -10,7 +10,9 @@ All notable changes to Memory Seed are summarized here.
   (measured: ~6.2 s full rebuild → ~78 ms warm start on a real repo). Any real change (commit, uncommitted
   edit, or a `PROJECTION_SCHEMA_VERSION` bump) rebuilds; every git ambiguity fails toward a rebuild; without
   git it degrades to the prior mtime scan. The rebuild stays byte-identical and atomically swapped. Nothing
-  in the cache is authoritative — it is fully rebuildable from Markdown (Constitution Invariant #6).
+  in the cache is authoritative — it is fully rebuildable from Markdown (Constitution Invariant #6). The
+  freshness check is memoized over a short window so a burst of reads (one UI interaction) runs it once, not
+  per read — entry switching stays snappy despite git's per-call subprocess cost.
 - `memory_link_suggest` (and the underlying `suggest_related_entries`) gained an optional
   `consulted: [ids]` axis: entry ids you retrieved while grounding the work are flagged `consulted` and
   sorted ahead of shared-file candidates — the *memory* axis of link candidacy, the natural source for the

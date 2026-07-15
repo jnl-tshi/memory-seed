@@ -184,6 +184,12 @@ def list_worktrees(cwd: str | Path = ".") -> list[dict[str, Any]]:
 
 
 class TraceCache:
+    # How long a positive freshness verdict is trusted before re-checking. The
+    # check reads git (tens of ms on Windows/OneDrive) and runs per read, so a
+    # single interaction fires it several times; memoizing over a short window
+    # keeps switching snappy while a real change is still seen within the TTL.
+    _FRESHNESS_TTL_SECONDS = 2.0
+
     def __init__(
         self,
         cwd: str | Path = ".",
@@ -199,10 +205,19 @@ class TraceCache:
         # same pid-named tmp file ("table meta already exists", then Windows
         # PermissionError on replace/unlink).
         self._rebuild_lock = threading.Lock()
+        # Monotonic deadline until which the projection is trusted current
+        # without re-running the freshness check. The check spawns git (tens of
+        # ms on Windows/OneDrive) and every read calls ensure_current, so a
+        # single UI interaction (several reads) would otherwise pay it many
+        # times over - the switching lag this collapses.
+        self._fresh_until = 0.0
 
     def rebuild(self) -> None:
         with self._rebuild_lock:
             self._rebuild_locked()
+        # A just-built projection is current; open the freshness window so the
+        # first reads after an explicit rebuild don't immediately re-check.
+        self._mark_fresh()
 
     def _rebuild_locked(self) -> None:
         self._ensure_cache_parent()
@@ -315,15 +330,28 @@ class TraceCache:
                     pass
 
     def ensure_current(self) -> None:
+        # Fast path: within the freshness window, trust the last verdict without
+        # re-checking. This is what collapses a burst of reads (one UI
+        # interaction) into a single freshness check instead of one per read.
+        if time.monotonic() < self._fresh_until and self.db_path.exists():
+            return
         # Double-checked around the lock: the common already-current path stays
         # lock-free; racing first-load threads serialize, and the losers see the
         # winner's fresh cache instead of rebuilding again.
         if self.db_path.exists() and self._is_current():
+            self._mark_fresh()
             return
         with self._rebuild_lock:
+            if time.monotonic() < self._fresh_until and self.db_path.exists():
+                return
             if self.db_path.exists() and self._is_current():
+                self._mark_fresh()
                 return
             self._rebuild_locked()
+            self._mark_fresh()
+
+    def _mark_fresh(self) -> None:
+        self._fresh_until = time.monotonic() + self._FRESHNESS_TTL_SECONDS
 
     def _sessions_pathspec(self) -> str:
         """The sessions tree as a git pathspec relative to the workspace root
