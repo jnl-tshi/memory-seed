@@ -359,6 +359,61 @@ class SessionMergeBranchResult:
     issues: list[str] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class _SessionFusePlan:
+    source_label: str
+    source_commit: str
+    base_commit: str
+    changed_paths: tuple[str, ...]
+    import_entries: tuple[_SessionEntryRecord, ...]
+    import_sidecars: tuple[_DiagramSidecarRecord, ...]
+    planned_entries: tuple[str, ...]
+    planned_sidecars: tuple[str, ...]
+    removed_sources: tuple[str, ...]
+
+
+@dataclass
+class SessionPreparePrBranchResult:
+    ready: bool
+    changed: bool = False
+    merge_in_progress: bool = False
+    base_branch: str | None = None
+    source_branch: str | None = None
+    planned_entries: list[str] = field(default_factory=list)
+    planned_sidecars: list[str] = field(default_factory=list)
+    removed_sources: list[str] = field(default_factory=list)
+    already_present: list[str] = field(default_factory=list)
+    stamped_entries: list[str] = field(default_factory=list)
+    conflicts: list[str] = field(default_factory=list)
+    prep_commit: str | None = None
+    branch_head: str | None = None
+    issues: list[str] = field(default_factory=list)
+
+
+@dataclass
+class SessionOpenPrResult:
+    opened: bool
+    dry_run: bool = False
+    base_branch: str | None = None
+    source_branch: str | None = None
+    remote_name: str | None = None
+    remote_url: str | None = None
+    pushed: bool = False
+    pr_created: bool = False
+    pr_title: str | None = None
+    pr_body: str | None = None
+    pr_url: str | None = None
+    planned_entries: list[str] = field(default_factory=list)
+    planned_sidecars: list[str] = field(default_factory=list)
+    removed_sources: list[str] = field(default_factory=list)
+    already_present: list[str] = field(default_factory=list)
+    stamped_entries: list[str] = field(default_factory=list)
+    prep_commit: str | None = field(default=None)
+    branch_head: str | None = field(default=None)
+    conflicts: list[str] = field(default_factory=list)
+    issues: list[str] = field(default_factory=list)
+
+
 def iter_session_documents(sessions_dir: Path) -> Iterator[SessionDocument]:
     documents: list[SessionDocument] = []
     if not sessions_dir.is_dir():
@@ -2518,200 +2573,271 @@ def _resolve_commit(root: Path, ref: str) -> str | None:
     return commit if code == 0 and commit else None
 
 
-def session_fuse(
-    cwd: str | Path = ".",
+def _current_branch_name(root: Path) -> str | None:
+    code, branch = _git_text(root, ("branch", "--show-current"))
+    return branch if code == 0 and branch else None
+
+
+def _git_dirty_paths(root: Path) -> list[str] | None:
+    code, status_out = _git_text(root, ("status", "--short"))
+    if code != 0:
+        return None
+    return [line.strip() for line in status_out.splitlines() if line.strip()]
+
+
+def _format_dirty_paths_issue(dirty_paths: Sequence[str]) -> str:
+    listing = "; ".join(dirty_paths[:10])
+    if len(dirty_paths) > 10:
+        listing += f"; ... ({len(dirty_paths) - 10} more)"
+    return f"working tree is not clean; commit or stash these paths first: {listing}"
+
+
+def _resolve_pr_base_branch(
+    root: Path,
+    explicit_base_branch: str | None,
     *,
-    branch: str,
-    base: str = "HEAD",
-    apply: bool = False,
-) -> SessionFuseResult:
-    """Fuse branch-local session entries into the current working tree.
+    source_branch: str,
+) -> tuple[str | None, str | None, str | None, str | None]:
+    def _candidate(display: str, ref: str) -> tuple[str, str, str] | None:
+        commit = _resolve_commit(root, ref)
+        if commit is None:
+            return None
+        return (display, ref, commit)
 
-    The command is intentionally Memory Seed-aware instead of relying on Git's
-    line-oriented merge drivers: branch-only entries must carry ``branch:
-    <branch>``, existing entries are immutable, target paths normalize to the
-    current month-grouped layout, and apply mode is guarded by an in-progress
-    Git merge.
+    if explicit_base_branch:
+        display = explicit_base_branch.removeprefix("origin/")
+        refs = (explicit_base_branch,) if explicit_base_branch.startswith("origin/") else (f"origin/{display}", explicit_base_branch)
+        for ref in refs:
+            candidate = _candidate(display, ref)
+            if candidate is not None:
+                return candidate[0], candidate[1], candidate[2], None
+        return None, None, None, f"base branch does not resolve to a commit: {explicit_base_branch}"
+
+    ordered: list[tuple[str, str, str]] = []
+    by_display: dict[str, tuple[str, str, str]] = {}
+    for display in ("main", "master"):
+        for ref in (f"origin/{display}", display):
+            candidate = _candidate(display, ref)
+            if candidate is None:
+                continue
+            if display not in by_display:
+                by_display[display] = candidate
+                ordered.append(candidate)
+            break
+
+    code, remote_head = _git_text(root, ("symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"))
+    if code == 0 and remote_head:
+        display = remote_head.rsplit("/", 1)[-1]
+        if display not in by_display:
+            candidate = _candidate(display, f"origin/{display}") or _candidate(display, display)
+            if candidate is not None:
+                by_display[display] = candidate
+                ordered.append(candidate)
+
+    ordered = [item for item in ordered if item[0] != source_branch]
+    if not ordered:
+        return None, None, None, "could not infer a PR base branch; pass --base-branch explicitly"
+    if len(ordered) > 1:
+        names = ", ".join(item[0] for item in ordered)
+        return None, None, None, f"ambiguous PR base branch ({names}); pass --base-branch explicitly"
+    return ordered[0][0], ordered[0][1], ordered[0][2], None
+
+
+def _refresh_pr_base_branch(root: Path, *, remote_name: str, base_branch: str) -> str | None:
+    """Refresh the remote-tracking base used by a real PR preparation.
+
+    Preparing against a stale ``origin/main`` only makes the later host merge
+    *appear* clean. Fetch the selected branch into its normal tracking ref
+    before the task branch is changed; a non-fast-forward remote rewrite fails
+    closed because this refspec deliberately does not force it.
     """
-    runtime = resolve_runtime(cwd)
-    root = runtime.workspace_root
-    if not (root / ".git").exists():
-        return SessionFuseResult(changed=False, issues=["session fuse requires a Git repository"])
-    if branch in {"main", "master"}:
-        return SessionFuseResult(changed=False, issues=["source branch must not be main or master"])
+    refspec = f"refs/heads/{base_branch}:refs/remotes/{remote_name}/{base_branch}"
+    code, output = _git_text(root, ("fetch", "--no-tags", remote_name, refspec))
+    if code == 0:
+        return None
+    detail = f": {output}" if output else ""
+    return (
+        f"could not refresh {remote_name}/{base_branch} before branch preparation; "
+        f"the task branch was not modified{detail}"
+    )
 
-    branch_commit = _resolve_commit(root, branch)
-    if branch_commit is None:
-        return SessionFuseResult(changed=False, issues=[f"source branch does not resolve to a commit: {branch}"])
-    base_commit = _resolve_commit(root, base)
+
+def _plan_session_fuse(
+    root: Path,
+    *,
+    source_ref: str,
+    base_ref: str,
+    source_label: str,
+) -> tuple[_SessionFusePlan | None, list[str]]:
+    source_commit = _resolve_commit(root, source_ref)
+    if source_commit is None:
+        return None, [f"source ref does not resolve to a commit: {source_ref}"]
+    base_commit = _resolve_commit(root, base_ref)
     if base_commit is None:
-        return SessionFuseResult(changed=False, issues=[f"base ref does not resolve to a commit: {base}"])
+        return None, [f"base ref does not resolve to a commit: {base_ref}"]
 
-    if apply:
-        merge_heads = _merge_head_commits(root)
-        if not merge_heads:
-            return SessionFuseResult(changed=False, issues=["--apply requires an in-progress git merge"])
-        if branch_commit not in merge_heads:
-            return SessionFuseResult(
-                changed=False,
-                issues=[f"--apply source branch {branch} ({branch_commit}) is not listed in MERGE_HEAD"],
-            )
-
-    # Branch-side enumeration is scoped to the files the branch actually changed relative to its
-    # merge-base with base; base-side stays full (needed for already-present dedup and sidecar
-    # parent lookups against the complete base corpus).
-    changed_paths = _changed_session_paths(root, base_commit, branch_commit)
+    changed_paths = _changed_session_paths(root, base_commit, source_commit)
     if changed_paths is None:
-        return SessionFuseResult(
-            changed=False,
-            issues=[f"could not compute changed session files for branch {branch} against base {base}"],
-        )
+        return None, [f"could not compute changed session files for source {source_label} against base {base_ref}"]
+
     issues: list[str] = []
     base_paths = set(_git_ref_paths(root, base_commit))
     base_entry_records = _entry_records_from_ref(root, base_commit)
-    branch_entry_records = _entry_records_from_ref(
+    source_entry_records = _entry_records_from_ref(
         root,
-        branch_commit,
+        source_commit,
         only_paths=changed_paths,
         decode_issues=issues,
     )
     base_sidecar_records = _sidecar_records_from_ref(root, base_commit)
-    branch_sidecar_records = _sidecar_records_from_ref(
+    source_sidecar_records = _sidecar_records_from_ref(
         root,
-        branch_commit,
+        source_commit,
         only_paths=changed_paths,
         decode_issues=issues,
     )
 
     base_entries: dict[str, _SessionEntryRecord] = {}
-    branch_entries: dict[str, _SessionEntryRecord] = {}
+    source_entries: dict[str, _SessionEntryRecord] = {}
     base_sidecars: dict[str, _DiagramSidecarRecord] = {}
-    branch_sidecars: dict[str, _DiagramSidecarRecord] = {}
+    source_sidecars: dict[str, _DiagramSidecarRecord] = {}
 
     import_entries: list[_SessionEntryRecord] = []
     imported_ids: set[str] = set()
-    import_sidecar_ids: set[str] = set()
+    import_sidecars: list[_DiagramSidecarRecord] = []
 
-    seen_branch_entries: set[str] = set()
-    duplicate_branch_entries: set[str] = set()
+    seen_source_entries: set[str] = set()
+    duplicate_source_entries: set[str] = set()
     for record in base_entry_records:
         if record.entry_id and record.entry_id not in base_entries:
             base_entries[record.entry_id] = record
-    for record in branch_entry_records:
+    for record in source_entry_records:
         if not record.entry_id:
             issues.append(f"{record.source_path}: session entry at {record.timestamp or '(unknown time)'} has no entry_id")
             continue
-        if record.entry_id in seen_branch_entries:
-            duplicate_branch_entries.add(record.entry_id)
+        if record.entry_id in seen_source_entries:
+            duplicate_source_entries.add(record.entry_id)
             continue
-        seen_branch_entries.add(record.entry_id)
-        branch_entries[record.entry_id] = record
-    for entry_id in sorted(duplicate_branch_entries):
-        issues.append(f"branch {branch}: duplicate session entry_id blocks safe fuse: {entry_id}")
+        seen_source_entries.add(record.entry_id)
+        source_entries[record.entry_id] = record
+    for entry_id in sorted(duplicate_source_entries):
+        issues.append(f"source {source_label}: duplicate session entry_id blocks safe fuse: {entry_id}")
 
-    seen_branch_sidecars: set[str] = set()
-    duplicate_branch_sidecars: set[str] = set()
+    seen_source_sidecars: set[str] = set()
+    duplicate_source_sidecars: set[str] = set()
     for record in base_sidecar_records:
         if record.entry_id and record.entry_id not in base_sidecars:
             base_sidecars[record.entry_id] = record
-    for record in branch_sidecar_records:
+    for record in source_sidecar_records:
         if not record.entry_id:
             issues.append(f"{record.source_path}: diagram sidecar block at {record.timestamp or '(unknown time)'} has no entry_id")
             continue
-        if record.entry_id in seen_branch_sidecars:
-            duplicate_branch_sidecars.add(record.entry_id)
+        if record.entry_id in seen_source_sidecars:
+            duplicate_source_sidecars.add(record.entry_id)
             continue
-        seen_branch_sidecars.add(record.entry_id)
-        branch_sidecars[record.entry_id] = record
-    for entry_id in sorted(duplicate_branch_sidecars):
-        issues.append(f"branch {branch}: duplicate diagram sidecar blocks safe fuse: {entry_id}")
+        seen_source_sidecars.add(record.entry_id)
+        source_sidecars[record.entry_id] = record
+    for entry_id in sorted(duplicate_source_sidecars):
+        issues.append(f"source {source_label}: duplicate diagram sidecar blocks safe fuse: {entry_id}")
 
-    for entry_id, branch_entry in sorted(branch_entries.items(), key=lambda item: (item[1].timestamp or "", item[0])):
+    for entry_id, source_entry in sorted(source_entries.items(), key=lambda item: (item[1].timestamp or "", item[0])):
         base_entry = base_entries.get(entry_id)
         if base_entry is not None:
-            if base_entry.text != branch_entry.text:
-                issues.append(f"{branch_entry.source_path}: existing entry_id modified on branch: {entry_id}")
+            if base_entry.text != source_entry.text:
+                issues.append(f"{source_entry.source_path}: existing entry_id modified on source: {entry_id}")
             continue
-        if not branch_entry.timestamp:
-            issues.append(f"{branch_entry.source_path}: entry_id {entry_id} has no parseable timestamp heading")
+        if not source_entry.timestamp:
+            issues.append(f"{source_entry.source_path}: entry_id {entry_id} has no parseable timestamp heading")
             continue
-        if branch_entry.timestamp[:10] != branch_entry.session_date:
+        if source_entry.timestamp[:10] != source_entry.session_date:
             issues.append(
-                f"{branch_entry.source_path}: entry_id {entry_id} heading date {branch_entry.timestamp[:10]} "
-                f"does not match session date {branch_entry.session_date}"
+                f"{source_entry.source_path}: entry_id {entry_id} heading date {source_entry.timestamp[:10]} "
+                f"does not match session date {source_entry.session_date}"
             )
             continue
-        if branch_entry.branch != branch:
+        if source_entry.branch != source_label:
             issues.append(
-                f"{branch_entry.source_path}: entry_id {entry_id} has branch {branch_entry.branch or '(missing)'}; expected {branch}"
+                f"{source_entry.source_path}: entry_id {entry_id} has branch {source_entry.branch or '(missing)'}; expected {source_label}"
             )
             continue
-        if branch_entry.branch in {"main", "master"}:
-            issues.append(f"{branch_entry.source_path}: entry_id {entry_id} records integration branch {branch_entry.branch}")
+        if source_entry.branch in {"main", "master"}:
+            issues.append(f"{source_entry.source_path}: entry_id {entry_id} records integration branch {source_entry.branch}")
             continue
-        import_entries.append(branch_entry)
+        import_entries.append(source_entry)
         imported_ids.add(entry_id)
 
-    for entry_id, branch_sidecar in sorted(branch_sidecars.items(), key=lambda item: (item[1].timestamp or "", item[0])):
+    for entry_id, source_sidecar in sorted(source_sidecars.items(), key=lambda item: (item[1].timestamp or "", item[0])):
         base_sidecar = base_sidecars.get(entry_id)
         if base_sidecar is not None:
-            if base_sidecar.text != branch_sidecar.text:
-                issues.append(f"{branch_sidecar.source_path}: existing diagram sidecar modified for entry_id {entry_id}")
+            if base_sidecar.text != source_sidecar.text:
+                issues.append(f"{source_sidecar.source_path}: existing diagram sidecar modified for entry_id {entry_id}")
             continue
-        parent_entry = branch_entries.get(entry_id) if entry_id in imported_ids else base_entries.get(entry_id)
+        parent_entry = source_entries.get(entry_id) if entry_id in imported_ids else base_entries.get(entry_id)
         if parent_entry is None:
             issues.append(
-                f"{branch_sidecar.source_path}: diagram sidecar references entry_id {entry_id} "
+                f"{source_sidecar.source_path}: diagram sidecar references entry_id {entry_id} "
                 "without a parent entry on the base branch or accepted for this fuse"
             )
             continue
         if parent_entry.timestamp is None:
-            issues.append(f"{branch_sidecar.source_path}: parent entry_id {entry_id} has no parseable timestamp")
+            issues.append(f"{source_sidecar.source_path}: parent entry_id {entry_id} has no parseable timestamp")
             continue
-        if branch_sidecar.timestamp is None:
-            issues.append(f"{branch_sidecar.source_path}: diagram sidecar for entry_id {entry_id} has no parseable timestamp")
+        if source_sidecar.timestamp is None:
+            issues.append(f"{source_sidecar.source_path}: diagram sidecar for entry_id {entry_id} has no parseable timestamp")
             continue
-        if branch_sidecar.diagram_date and branch_sidecar.diagram_date != parent_entry.timestamp[:10]:
+        if source_sidecar.diagram_date and source_sidecar.diagram_date != parent_entry.timestamp[:10]:
             issues.append(
-                f"{branch_sidecar.source_path}: diagram date {branch_sidecar.diagram_date} does not match "
+                f"{source_sidecar.source_path}: diagram date {source_sidecar.diagram_date} does not match "
                 f"entry date {parent_entry.timestamp[:10]} for {entry_id}"
             )
             continue
-        import_sidecar_ids.add(entry_id)
+        import_sidecars.append(source_sidecar)
 
     if issues:
-        return SessionFuseResult(changed=False, issues=issues)
+        return None, issues
 
     planned_entries: list[str] = []
     planned_sidecars: list[str] = []
     removed_sources: list[str] = []
-    already_present: list[str] = []
 
-    entries_by_target: dict[str, list[_SessionEntryRecord]] = {}
     for entry in import_entries:
-        entries_by_target.setdefault(entry.target_path, []).append(entry)
         planned_entries.append(f"{entry.entry_id} {entry.timestamp} -> {entry.target_path}")
         if entry.source_path != entry.target_path and entry.source_path not in base_paths:
             if entry.source_path not in removed_sources:
                 removed_sources.append(entry.source_path)
 
-    sidecars_by_target: dict[str, list[_DiagramSidecarRecord]] = {}
-    for entry_id, sidecar in sorted(branch_sidecars.items(), key=lambda item: (item[1].timestamp or "", item[0])):
-        if entry_id not in import_sidecar_ids:
-            continue
-        sidecars_by_target.setdefault(sidecar.target_path, []).append(sidecar)
-        planned_sidecars.append(f"{entry_id} {sidecar.timestamp} -> {sidecar.target_path}")
+    for sidecar in import_sidecars:
+        planned_sidecars.append(f"{sidecar.entry_id} {sidecar.timestamp} -> {sidecar.target_path}")
         if sidecar.source_path != sidecar.target_path and sidecar.source_path not in base_paths:
             if sidecar.source_path not in removed_sources:
                 removed_sources.append(sidecar.source_path)
 
-    if not apply:
-        return SessionFuseResult(
-            changed=False,
-            planned_entries=planned_entries,
-            planned_sidecars=planned_sidecars,
-            removed_sources=removed_sources,
-        )
+    return _SessionFusePlan(
+        source_label=source_label,
+        source_commit=source_commit,
+        base_commit=base_commit,
+        changed_paths=tuple(sorted(changed_paths)),
+        import_entries=tuple(import_entries),
+        import_sidecars=tuple(import_sidecars),
+        planned_entries=tuple(planned_entries),
+        planned_sidecars=tuple(planned_sidecars),
+        removed_sources=tuple(removed_sources),
+    ), []
+
+
+def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseResult:
+    planned_entries = list(plan.planned_entries)
+    planned_sidecars = list(plan.planned_sidecars)
+    removed_sources = list(plan.removed_sources)
+    already_present: list[str] = []
+
+    entries_by_target: dict[str, list[_SessionEntryRecord]] = {}
+    for entry in plan.import_entries:
+        entries_by_target.setdefault(entry.target_path, []).append(entry)
+
+    sidecars_by_target: dict[str, list[_DiagramSidecarRecord]] = {}
+    for sidecar in plan.import_sidecars:
+        sidecars_by_target.setdefault(sidecar.target_path, []).append(sidecar)
 
     session_writes: list[tuple[Path, str, str | None, list[_SessionEntryRecord]]] = []
     diagram_writes: list[tuple[Path, str, list[_DiagramSidecarRecord]]] = []
@@ -2781,6 +2907,59 @@ def session_fuse(
         removed_sources=removed_sources,
         already_present=already_present,
     )
+
+
+def session_fuse(
+    cwd: str | Path = ".",
+    *,
+    branch: str,
+    base: str = "HEAD",
+    apply: bool = False,
+) -> SessionFuseResult:
+    """Fuse branch-local session entries into the current working tree.
+
+    The command is intentionally Memory Seed-aware instead of relying on Git's
+    line-oriented merge drivers: branch-only entries must carry ``branch:
+    <branch>``, existing entries are immutable, target paths normalize to the
+    current month-grouped layout, and apply mode is guarded by an in-progress
+    Git merge.
+    """
+    runtime = resolve_runtime(cwd)
+    root = runtime.workspace_root
+    if not (root / ".git").exists():
+        return SessionFuseResult(changed=False, issues=["session fuse requires a Git repository"])
+    if branch in {"main", "master"}:
+        return SessionFuseResult(changed=False, issues=["source branch must not be main or master"])
+
+    branch_commit = _resolve_commit(root, branch)
+    if branch_commit is None:
+        return SessionFuseResult(changed=False, issues=[f"source branch does not resolve to a commit: {branch}"])
+    base_commit = _resolve_commit(root, base)
+    if base_commit is None:
+        return SessionFuseResult(changed=False, issues=[f"base ref does not resolve to a commit: {base}"])
+
+    if apply:
+        merge_heads = _merge_head_commits(root)
+        if not merge_heads:
+            return SessionFuseResult(changed=False, issues=["--apply requires an in-progress git merge"])
+        if branch_commit not in merge_heads:
+            return SessionFuseResult(
+                changed=False,
+                issues=[f"--apply source branch {branch} ({branch_commit}) is not listed in MERGE_HEAD"],
+            )
+
+    plan, issues = _plan_session_fuse(root, source_ref=branch, base_ref=base, source_label=branch)
+    if issues:
+        return SessionFuseResult(changed=False, issues=issues)
+    assert plan is not None
+    if not apply:
+        return SessionFuseResult(
+            changed=False,
+            planned_entries=list(plan.planned_entries),
+            planned_sidecars=list(plan.planned_sidecars),
+            removed_sources=list(plan.removed_sources),
+        )
+    return _apply_session_fuse_plan(root, plan)
 
 
 def session_merge_branch(
@@ -2930,6 +3109,396 @@ def session_merge_branch(
         return result
 
     result.committed = True
+    return result
+
+
+def session_prepare_pr_branch(
+    cwd: str | Path = ".",
+    *,
+    branch: str,
+    base_branch: str | None = None,
+    dry_run: bool = False,
+) -> SessionPreparePrBranchResult:
+    """Prepare a task branch for host-side PR merge by replaying chronology locally.
+
+    The current worktree must already be on ``branch``. The command merges the
+    target base branch into the task branch, resets any branch-touched session
+    files back to base content, reapplies the branch's own session entries in
+    chronological order, and commits the merge. This makes the later host merge
+    trivially clean without teaching GitHub how to reorder append-only logs.
+    """
+    runtime = resolve_runtime(cwd)
+    root = runtime.workspace_root
+    if not (root / ".git").exists():
+        return SessionPreparePrBranchResult(ready=False, issues=["session prepare-pr requires a Git repository"])
+    if branch in {"main", "master"}:
+        return SessionPreparePrBranchResult(ready=False, issues=["source branch must not be main or master"])
+
+    current_branch = _current_branch_name(root)
+    if not current_branch:
+        return SessionPreparePrBranchResult(ready=False, issues=["detached HEAD; switch to the task branch before preparing a PR"])
+    if current_branch != branch:
+        return SessionPreparePrBranchResult(
+            ready=False,
+            issues=[f"current branch is {current_branch}; switch to {branch} before preparing a PR"],
+            source_branch=current_branch,
+        )
+
+    dirty_paths = _git_dirty_paths(root)
+    if dirty_paths is None:
+        return SessionPreparePrBranchResult(ready=False, issues=["could not read git status"], source_branch=branch)
+    if dirty_paths:
+        return SessionPreparePrBranchResult(
+            ready=False,
+            source_branch=branch,
+            issues=[_format_dirty_paths_issue(dirty_paths)],
+        )
+
+    if _merge_head_commits(root):
+        return SessionPreparePrBranchResult(
+            ready=False,
+            merge_in_progress=True,
+            source_branch=branch,
+            issues=["a git merge is already in progress; finish or abort it before session prepare-pr"],
+        )
+
+    resolved_base_branch, base_ref, _base_commit, base_issue = _resolve_pr_base_branch(
+        root,
+        base_branch,
+        source_branch=branch,
+    )
+    if base_issue:
+        return SessionPreparePrBranchResult(ready=False, source_branch=branch, issues=[base_issue])
+    assert resolved_base_branch is not None and base_ref is not None
+    if resolved_base_branch == branch:
+        return SessionPreparePrBranchResult(
+            ready=False,
+            base_branch=resolved_base_branch,
+            source_branch=branch,
+            issues=["source branch and PR base branch must differ"],
+        )
+
+    plan, issues = _plan_session_fuse(root, source_ref=branch, base_ref=base_ref, source_label=branch)
+    if issues:
+        return SessionPreparePrBranchResult(
+            ready=False,
+            base_branch=resolved_base_branch,
+            source_branch=branch,
+            issues=issues,
+        )
+    assert plan is not None
+
+    result = SessionPreparePrBranchResult(
+        ready=False,
+        base_branch=resolved_base_branch,
+        source_branch=branch,
+        planned_entries=list(plan.planned_entries),
+        planned_sidecars=list(plan.planned_sidecars),
+        removed_sources=list(plan.removed_sources),
+    )
+    if dry_run:
+        result.ready = True
+        result.branch_head = plan.source_commit
+        return result
+
+    merge_code, merge_out = _git_text(root, ("merge", "--no-ff", "--no-commit", base_ref))
+    if not _merge_head_commits(root):
+        if merge_code != 0:
+            result.issues.append(f"git merge failed without starting a merge: {merge_out or '(no output)'}")
+            return result
+        # Already up to date with base: nothing to rewrite or commit.
+        result.ready = True
+        result.changed = False
+        result.branch_head = _resolve_commit(root, "HEAD")
+        return result
+
+    code, conflicted = _git_lines(root, ("diff", "--name-only", "--diff-filter=U"))
+    if code != 0:
+        result.merge_in_progress = True
+        result.issues.append("could not enumerate conflicted paths; merge left in progress")
+        return result
+    non_session = [
+        path
+        for path in conflicted
+        if _session_doc_from_relative_path(path) is None and _diagram_doc_from_relative_path(path) is None
+    ]
+    if non_session:
+        result.merge_in_progress = True
+        result.conflicts = non_session
+        return result
+
+    base_paths = set(_git_ref_paths(root, plan.base_commit))
+    for rel_path in sorted(set(plan.changed_paths) & base_paths):
+        code, _ = _git_text(root, ("checkout", plan.base_commit, "--", rel_path))
+        if code != 0:
+            result.merge_in_progress = True
+            result.issues.append(f"could not reset {rel_path} to base content; merge left in progress")
+            return result
+
+    applied = _apply_session_fuse_plan(root, plan)
+    if applied.issues:
+        result.merge_in_progress = True
+        result.issues.extend(applied.issues)
+        return result
+    result.planned_entries = list(applied.planned_entries)
+    result.planned_sidecars = list(applied.planned_sidecars)
+    result.removed_sources = list(applied.removed_sources)
+    result.already_present = list(applied.already_present)
+
+    code, _ = _git_text(root, ("add", "-A", "--", f"{MEMORY_DIR_NAME}/sessions"))
+    if code != 0:
+        result.merge_in_progress = True
+        result.issues.append("could not stage prepared session files; merge left in progress")
+        return result
+
+    code, remaining = _git_lines(root, ("diff", "--name-only", "--diff-filter=U"))
+    if code != 0 or remaining:
+        result.merge_in_progress = True
+        listing = ", ".join(remaining) if remaining else "(unknown)"
+        result.issues.append(f"unmerged paths remain after branch prep; merge left in progress: {listing}")
+        return result
+
+    result.stamped_entries = _stamp_memory_entry_trailers(root, result.planned_entries)
+
+    code, commit_out = _git_text(root, ("commit", "--no-edit"))
+    if code != 0:
+        result.merge_in_progress = bool(_merge_head_commits(root))
+        result.issues.append(f"git commit failed: {commit_out or '(no output)'}")
+        return result
+
+    result.ready = True
+    result.changed = True
+    result.prep_commit = _resolve_commit(root, "HEAD")
+    result.branch_head = result.prep_commit
+    return result
+
+
+def _gh_text(root: Path, args: Sequence[str]) -> tuple[int, str, str]:
+    try:
+        proc = subprocess.run(
+            ["gh", *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=30,
+            cwd=str(root),
+        )
+    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError):
+        return 1, "", ""
+    return proc.returncode, proc.stdout.strip(), proc.stderr.strip()
+
+
+def _gh_json(root: Path, args: Sequence[str]) -> tuple[int, object | None]:
+    code, out, _err = _gh_text(root, args)
+    if code != 0 or not out:
+        return code, None
+    try:
+        return code, json.loads(out)
+    except json.JSONDecodeError:
+        return code, None
+
+
+def _format_pr_body(
+    *,
+    source_branch: str,
+    base_branch: str,
+    planned_entries: Sequence[str],
+    planned_sidecars: Sequence[str],
+    removed_sources: Sequence[str],
+    changed: bool,
+) -> str:
+    lines = [
+        "## Summary",
+        "",
+        f"- Prepared `{source_branch}` for host-side merge into `{base_branch}`.",
+        (
+            "- Branch-side session chronology preparation ran and rewrote branch-local session files as needed."
+            if changed else
+            "- Branch-side session chronology preparation found nothing to rewrite."
+        ),
+        "",
+        "## Session entries",
+        "",
+    ]
+    if planned_entries:
+        lines.extend(f"- `{planned}`" for planned in planned_entries)
+    else:
+        lines.append("- None.")
+    lines.extend(["", "## Diagram sidecars", ""])
+    if planned_sidecars:
+        lines.extend(f"- `{planned}`" for planned in planned_sidecars)
+    else:
+        lines.append("- None.")
+    lines.extend(["", "## Source path removals", ""])
+    if removed_sources:
+        lines.extend(f"- `{source}`" for source in removed_sources)
+    else:
+        lines.append("- None.")
+    lines.extend(
+        [
+            "",
+            "## Validation",
+            "",
+            f"- `memory-seed session prepare-pr --branch {source_branch} --base-branch {base_branch}` passed.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def session_open_pr(
+    cwd: str | Path = ".",
+    *,
+    branch: str,
+    base_branch: str | None = None,
+    remote_name: str = "origin",
+    dry_run: bool = False,
+) -> SessionOpenPrResult:
+    """Prepare a branch, push it normally, and open a PR with `gh`.
+
+    A declared `integration_mode: pr` authorizes this normal non-force path
+    only. Missing origin/gh/auth or a failed fresh-base fetch fail closed before
+    the branch is modified.
+    """
+    runtime = resolve_runtime(cwd)
+    root = runtime.workspace_root
+    if not (root / ".git").exists():
+        return SessionOpenPrResult(opened=False, dry_run=dry_run, issues=["session open-pr requires a Git repository"])
+
+    dirty_paths = _git_dirty_paths(root)
+    if dirty_paths is None:
+        return SessionOpenPrResult(opened=False, dry_run=dry_run, source_branch=branch, issues=["could not read git status"])
+    if dirty_paths:
+        return SessionOpenPrResult(
+            opened=False,
+            dry_run=dry_run,
+            source_branch=branch,
+            issues=[_format_dirty_paths_issue(dirty_paths)],
+        )
+
+    remote_url_code, remote_url = _git_text(root, ("remote", "get-url", remote_name))
+    if remote_url_code != 0 or not remote_url:
+        return SessionOpenPrResult(
+            opened=False,
+            dry_run=dry_run,
+            source_branch=branch,
+            remote_name=remote_name,
+            issues=[f"missing remote '{remote_name}'; use local-merge or add that remote first"],
+        )
+
+    code, _out, _err = _gh_text(root, ("--version",))
+    if code != 0:
+        return SessionOpenPrResult(
+            opened=False,
+            dry_run=dry_run,
+            source_branch=branch,
+            remote_name=remote_name,
+            remote_url=remote_url,
+            issues=["gh is not available; use local-merge or install/authenticate gh first"],
+        )
+    code, _out, _err = _gh_text(root, ("auth", "status"))
+    if code != 0:
+        return SessionOpenPrResult(
+            opened=False,
+            dry_run=dry_run,
+            source_branch=branch,
+            remote_name=remote_name,
+            remote_url=remote_url,
+            issues=["gh is not authenticated; use local-merge or authenticate gh first"],
+        )
+
+    resolved_base_branch, _base_ref, _base_commit, base_issue = _resolve_pr_base_branch(
+        root,
+        base_branch,
+        source_branch=branch,
+    )
+    if base_issue:
+        return SessionOpenPrResult(
+            opened=False,
+            dry_run=dry_run,
+            source_branch=branch,
+            remote_name=remote_name,
+            remote_url=remote_url,
+            issues=[base_issue],
+        )
+    assert resolved_base_branch is not None
+    if not dry_run:
+        refresh_issue = _refresh_pr_base_branch(
+            root,
+            remote_name=remote_name,
+            base_branch=resolved_base_branch,
+        )
+        if refresh_issue:
+            return SessionOpenPrResult(
+                opened=False,
+                base_branch=resolved_base_branch,
+                source_branch=branch,
+                remote_name=remote_name,
+                remote_url=remote_url,
+                issues=[refresh_issue],
+            )
+
+    prepared = session_prepare_pr_branch(root, branch=branch, base_branch=base_branch, dry_run=dry_run)
+    result = SessionOpenPrResult(
+        opened=False,
+        dry_run=dry_run,
+        base_branch=prepared.base_branch,
+        source_branch=prepared.source_branch or branch,
+        remote_name=remote_name,
+        remote_url=remote_url,
+        planned_entries=list(prepared.planned_entries),
+        planned_sidecars=list(prepared.planned_sidecars),
+        removed_sources=list(prepared.removed_sources),
+        already_present=list(prepared.already_present),
+        stamped_entries=list(prepared.stamped_entries),
+        prep_commit=prepared.prep_commit,
+        branch_head=prepared.branch_head,
+        conflicts=list(prepared.conflicts),
+        issues=list(prepared.issues),
+    )
+    if result.issues or result.conflicts or not prepared.ready:
+        return result
+
+    assert result.base_branch is not None
+    result.pr_title = f"Integrate {result.source_branch} into {result.base_branch}"
+    result.pr_body = _format_pr_body(
+        source_branch=result.source_branch or branch,
+        base_branch=result.base_branch,
+        planned_entries=result.planned_entries,
+        planned_sidecars=result.planned_sidecars,
+        removed_sources=result.removed_sources,
+        changed=prepared.changed,
+    )
+    if dry_run:
+        return result
+
+    code, push_out = _git_text(root, ("push", "--set-upstream", remote_name, branch))
+    if code != 0:
+        result.issues.append(push_out or f"git push to {remote_name} failed")
+        return result
+    result.pushed = True
+    result.branch_head = _resolve_commit(root, "HEAD")
+
+    code, pr_out, pr_err = _gh_text(
+        root,
+        (
+            "pr",
+            "create",
+            "--base",
+            result.base_branch,
+            "--head",
+            branch,
+            "--title",
+            result.pr_title,
+            "--body",
+            result.pr_body,
+        ),
+    )
+    if code != 0:
+        result.issues.append(pr_err or pr_out or "gh pr create failed")
+        return result
+    result.pr_created = True
+    result.pr_url = pr_out.splitlines()[-1].strip() if pr_out else None
+    result.opened = True
     return result
 
 
@@ -4604,6 +5173,101 @@ def read_integration_mode(target_root: Path) -> str:
             value = match.group(1).strip().strip("'\"")
             return value if value in INTEGRATION_MODES else DEFAULT_INTEGRATION_MODE
     return DEFAULT_INTEGRATION_MODE
+
+
+def read_declared_integration_mode(target_root: Path) -> str | None:
+    path = _project_config_path(target_root)
+    if not path.exists():
+        return None
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        raise ValueError(f"cannot read existing {path}; integration mode was not changed") from exc
+    for raw in lines:
+        match = re.match(r"^integration_mode\s*:\s*(.+)$", raw.rstrip())
+        if not match:
+            continue
+        value = match.group(1).strip().strip("'\"")
+        return value if value in INTEGRATION_MODES else None
+    return None
+
+
+def _replace_top_level_scalar(text: str, key: str, value: str) -> str:
+    lines = text.splitlines()
+    out: list[str] = []
+    replaced = False
+    for line in lines:
+        if re.match(rf"^{re.escape(key)}\s*:", line):
+            out.append(f"{key}: {value}")
+            replaced = True
+            continue
+        out.append(line)
+    if not replaced:
+        if out and out[-1].strip():
+            out.append("")
+        out.append(f"{key}: {value}")
+    return "\n".join(out).rstrip() + "\n"
+
+
+def write_integration_mode(target_root: Path, mode: str) -> None:
+    if mode not in INTEGRATION_MODES:
+        raise ValueError(f"Unknown integration mode: {mode}. Valid modes: {', '.join(INTEGRATION_MODES)}.")
+    path = _project_config_path(target_root)
+    text = ""
+    if path.exists():
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ValueError(f"cannot read existing {path}; integration mode was not changed") from exc
+    if not text.strip():
+        text = f"schema_version: 1\nproject_id: {target_root.name}\n"
+    text = _replace_top_level_scalar(text, "integration_mode", mode)
+    write_text_file(path, text)
+
+
+def suggest_integration_mode(target_root: Path) -> tuple[str, str]:
+    """Heuristic init-time suggestion for the first integration_mode value.
+
+    Fail open to ``local-merge`` whenever GitHub/provider signals are absent,
+    unreadable, unauthenticated, or not obviously team-oriented. This suggestion
+    never mutates an existing project by itself; callers must still confirm.
+    """
+    if not (target_root / ".git").exists():
+        return DEFAULT_INTEGRATION_MODE, "no git repository detected"
+    code, remote_url = _git_text(target_root, ("remote", "get-url", "origin"))
+    if code != 0 or not remote_url:
+        return DEFAULT_INTEGRATION_MODE, "no origin remote detected"
+    code, _out, _err = _gh_text(target_root, ("--version",))
+    if code != 0:
+        return DEFAULT_INTEGRATION_MODE, "gh is unavailable"
+    code, _out, _err = _gh_text(target_root, ("auth", "status"))
+    if code != 0:
+        return DEFAULT_INTEGRATION_MODE, "gh is unauthenticated"
+    code, repo_payload = _gh_json(
+        target_root,
+        ("repo", "view", "--json", "nameWithOwner,defaultBranchRef,branchProtectionRules"),
+    )
+    repo_name = None
+    if isinstance(repo_payload, dict):
+        repo_name = repo_payload.get("nameWithOwner")
+        if repo_payload.get("branchProtectionRules"):
+            default_branch = (
+                repo_payload.get("defaultBranchRef", {}).get("name")
+                if isinstance(repo_payload.get("defaultBranchRef"), dict) else None
+            )
+            branch_note = f" on {default_branch}" if default_branch else ""
+            return "pr", f"GitHub reports branch protection{branch_note}"
+    code, pr_payload = _gh_json(target_root, ("pr", "list", "--limit", "1", "--json", "number"))
+    if isinstance(pr_payload, list) and pr_payload:
+            return "pr", "existing pull requests were found"
+    if isinstance(repo_name, str) and repo_name:
+        code, collaborator_payload = _gh_json(
+            target_root,
+            ("api", f"repos/{repo_name}/collaborators?per_page=2"),
+        )
+        if isinstance(collaborator_payload, list) and len(collaborator_payload) > 1:
+            return "pr", "GitHub reports more than one collaborator"
+    return DEFAULT_INTEGRATION_MODE, "no team PR signals were detected"
 
 
 def write_project_agents(target_root: Path, agents: set[str]) -> None:

@@ -74,6 +74,8 @@ The selected and ignored optional skills are recorded in `.memory-seed/project.y
 under `skills.profiles`, `skills.selected`, and `skills.ignored`; ignored optional
 skills are not re-added by `memory-seed update`.
 
+For a new or unset project, `memory-seed init` may suggest an `integration_mode` from team signals, but the human confirms the value; failures and no signal default to `local-merge`. A declared mode is preserved by init and update, never silently changed.
+
 Available optional profiles:
 
 - `coding`: `code_search.md`, `local_compilation.md`, `data_architecture.md`

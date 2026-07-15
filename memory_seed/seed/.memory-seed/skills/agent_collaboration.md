@@ -123,6 +123,7 @@ Capability tier guidance: exploration economy/standard; planning **frontier**; i
 
 ## Branch And Worktree Defaults
 
+- Read `.memory-seed/project.yaml` `integration_mode` before integration. Unset/`local-merge` keeps the existing local flow: from the integration/base checkout run `session integrate` or `session merge-branch`, never push. `pr` means from the task branch run `session integrate` or `session open-pr`; the declared mode authorizes only that normal non-force push and PR. A Task Packet's `integration_artifact` is a per-task override; force and destructive operations stay gated.
 - Start from the current integration branch, normally `main`, unless the user or repository names another base.
 - Update from the base branch before starting long-running work.
 - Name branches by repository convention first; otherwise use `<owner>/<kind>/<topic>`.
