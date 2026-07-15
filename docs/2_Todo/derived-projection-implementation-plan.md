@@ -36,14 +36,25 @@ this is a formalize-and-extend, not a greenfield.
 
 ### Phase 1 — Formalize the projection over the existing cache
 Make Markdown→projection the explicit, tested contract on the current SQLite cache.
-- Explicit ingest pipeline (parse MD → projection rows), and a `rebuild` that reproduces byte-identical
-  read results.
-- **Cheap warm start (G5):** store the build watermark (last-built git commit); on start, ingest only
-  `git diff --name-only <watermark>..HEAD` + dirty working-tree files. No whole-corpus scan.
-- **Atomic build & swap (G4):** build to a temp DB, atomic rename; a `build-in-progress` marker so a
-  crashed build discards + rebuilds on next start.
-- *Acceptance:* deleting the DB and restarting yields identical reads; a 1-file change ingests in O(1
-  files), not a full rebuild; a killed mid-build leaves no half-served DB.
+
+**Warm start + atomic swap + schema versioning SHIPPED 2026-07-15** (`TraceCache`):
+- Explicit ingest with a **schema version** (`PROJECTION_SCHEMA_VERSION`) — a bump forces a full rebuild;
+  the `rebuild` reproduces byte-identical read results (G2, tested via an independent-rebuild equivalence).
+- **Cheap warm start (G5) — DONE.** Stores the build watermark (last-built HEAD) + a signature of the
+  git-dirty session files. `ensure_current` proves freshness in **O(changes)**: HEAD unmoved AND the dirty
+  signature unchanged → no rebuild, no whole-corpus scan. Measured on the real repo: full rebuild ~6.2 s →
+  warm `ensure_current` ~78 ms with no rebuild. Every git ambiguity (moved/gone watermark, `git status`
+  error) **fails toward rebuild**; no git → the existing mtime scan (G7 honest degradation).
+- **Atomic build & swap (G4) — DONE.** Temp DB + `os.replace` (Windows-retry) means a crashed build never
+  serves a half-built DB (old DB stays, or cold-rebuilds); the schema-version gate is the validity check.
+- *Acceptance met:* rebuild-from-Markdown is byte-identical; a clean warm start does not rebuild or scan
+  the corpus; a killed mid-build leaves no half-served DB.
+
+**Remaining (fast-follow):** **incremental ingest** — on a change, re-project only the delta files' chunks
+(O(1 files)) and recompute the whole-history git meta (`entry_commits`/`main_commit_entries`/
+`trailer_merges`) only when HEAD moved, instead of the current full rebuild-on-change. Gate it behind an
+**incremental == full-rebuild equivalence test** (that equivalence *is* G2); ship only if it holds. The
+detection is already O(changes); this makes the *ingest* O(changes) too.
 
 ### Phase 2 — Git-rooted historical integrity (G6/G7)
 Detect out-of-band edits to historical Markdown without trusting the disposable projection.

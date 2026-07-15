@@ -36,6 +36,88 @@ from memory_seed.topics import expand_topic_filter
 
 ZOOMS = {"day": 24, "12h": 12, "6h": 6, "3h": 3}
 
+# Derived-projection schema version (contract G4). Bump when the ingest/row
+# shape or stored-meta contract changes so an older cache is fully rebuilt
+# rather than reused. Checked before any git work in ensure_current.
+PROJECTION_SCHEMA_VERSION = 1
+
+
+def _git_head(root: Path) -> str | None:
+    """Current HEAD sha for the repo containing ``root`` - the projection's
+    build watermark (contract G5). None when git is unavailable, which routes
+    ensure_current to the no-git mtime fallback (G7)."""
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    return proc.stdout.strip() or None
+
+
+def _porcelain_paths(output: str) -> list[str]:
+    """Paths from ``git status --porcelain -z`` output. Renames/copies carry a
+    trailing NUL-separated original path; both the new and original path are
+    returned so a rename in or out of the sessions tree still invalidates."""
+    tokens = output.split("\x00")
+    paths: list[str] = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        index += 1
+        if len(token) < 4:
+            continue
+        status, path = token[:2], token[3:]
+        if not path:
+            continue
+        paths.append(path)
+        if status[0] in ("R", "C") or status[1] in ("R", "C"):
+            if index < len(tokens) and tokens[index]:
+                paths.append(tokens[index])
+                index += 1
+    return paths
+
+
+def _working_tree_signature(root: Path, pathspec: str) -> str | None:
+    """Signature of the git-dirty files under ``pathspec`` (relative to
+    ``root``): each dirty path's (path, mtime_ns, size), or a deleted marker.
+
+    This is the uncommitted half of the freshness delta (contract G5): session
+    entries are appended-then-committed-later, so the dirty case is the common
+    one. ``git status`` reports ONLY what changed, so this is O(changes), never
+    a whole-corpus scan - and it detects a re-edit of an already-dirty file
+    (its mtime moves) that the porcelain status alone would miss. None when git
+    is unavailable (caller uses the no-git fallback)."""
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "status", "--porcelain", "-z", "--", pathspec],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    entries: list[tuple[str, Any, Any]] = []
+    seen: set[str] = set()
+    for path in _porcelain_paths(proc.stdout):
+        if path in seen:
+            continue
+        seen.add(path)
+        target = root / path
+        try:
+            stat = target.stat()
+            entries.append((path, stat.st_mtime_ns, stat.st_size))
+        except OSError:
+            entries.append((path, "deleted", "deleted"))
+    return json.dumps(sorted(entries, key=lambda item: item[0]))
+
 
 def missing_optional_dependency_hint() -> str:
     return 'Install with: pip install "memory-seed[trace]"'
@@ -186,6 +268,29 @@ class TraceCache:
                 "insert into meta(key, value) values('trailer_merges', ?)",
                 (json.dumps(_first_parent_trailer_commits(self.runtime.workspace_root)),),
             )
+            # Derived-projection provenance (contract G4/G5): the schema version
+            # (rebuild on bump) and the build watermark (HEAD) + dirty-file
+            # signature, so a warm start proves "nothing changed" from git in
+            # O(changes) instead of scanning the whole corpus. Empty watermark =
+            # built without git; ensure_current then uses the mtime fallback.
+            head = _git_head(self.runtime.workspace_root)
+            conn.execute(
+                "insert into meta(key, value) values('schema_version', ?)",
+                (str(PROJECTION_SCHEMA_VERSION),),
+            )
+            conn.execute(
+                "insert into meta(key, value) values('build_watermark', ?)",
+                (head or "",),
+            )
+            signature = (
+                _working_tree_signature(self.runtime.workspace_root, self._sessions_pathspec())
+                if head
+                else None
+            )
+            conn.execute(
+                "insert into meta(key, value) values('dirty_signature', ?)",
+                (signature if signature is not None else "",),
+            )
             conn.commit()
         finally:
             conn.close()
@@ -213,12 +318,60 @@ class TraceCache:
         # Double-checked around the lock: the common already-current path stays
         # lock-free; racing first-load threads serialize, and the losers see the
         # winner's fresh cache instead of rebuilding again.
-        if self.db_path.exists() and self._metadata_matches():
+        if self.db_path.exists() and self._is_current():
             return
         with self._rebuild_lock:
-            if self.db_path.exists() and self._metadata_matches():
+            if self.db_path.exists() and self._is_current():
                 return
             self._rebuild_locked()
+
+    def _sessions_pathspec(self) -> str:
+        """The sessions tree as a git pathspec relative to the workspace root
+        (git runs with -C workspace_root). Falls back to the absolute path if
+        sessions lives outside the root (unusual runtime layout)."""
+        sessions = self.runtime.memory_dir / "sessions"
+        try:
+            return sessions.relative_to(self.runtime.workspace_root).as_posix()
+        except ValueError:
+            return str(sessions)
+
+    def _is_current(self) -> bool:
+        """Warm-start freshness (contract G5): true iff the projection is
+        provably up to date. With git this is O(changes) - HEAD unmoved AND the
+        dirty sessions signature unchanged - never a whole-corpus scan. Without
+        git it degrades to the mtime scan (G7). Every ambiguity fails toward a
+        rebuild (return False), so stale is never served."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                meta = dict(
+                    conn.execute(
+                        "select key, value from meta where key in "
+                        "('schema_version', 'build_watermark', 'dirty_signature')"
+                    ).fetchall()
+                )
+                has_commits = conn.execute("select 1 from meta where key='entry_commits'").fetchone()
+                has_main = conn.execute("select 1 from meta where key='main_commit_entries'").fetchone()
+                has_merges = conn.execute("select 1 from meta where key='trailer_merges'").fetchone()
+        except sqlite3.Error:
+            return False
+        # Pre-provenance or partial caches (missing any required meta) rebuild once.
+        if not (has_commits and has_main and has_merges):
+            return False
+        if meta.get("schema_version") != str(PROJECTION_SCHEMA_VERSION):
+            return False  # schema bump -> full rebuild, before any git work
+        head = _git_head(self.runtime.workspace_root)
+        if head is None:
+            # No git (G7): the projection self-heals to current Markdown but the
+            # past cannot be proven unaltered; fall back to the mtime scan.
+            return self._metadata_matches()
+        # A moved HEAD (new commit) - or a watermark commit that git can no
+        # longer resolve (rebase/gc left it != HEAD) - is not current: rebuild.
+        if meta.get("build_watermark") != head:
+            return False
+        signature = _working_tree_signature(self.runtime.workspace_root, self._sessions_pathspec())
+        if signature is None:
+            return False  # git status failed unexpectedly -> fail toward rebuild
+        return signature == meta.get("dirty_signature", "")
 
     def status(self) -> dict[str, Any]:
         if not self.db_path.exists():

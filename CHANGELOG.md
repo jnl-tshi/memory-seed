@@ -4,6 +4,13 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- **Memory Trace derived-projection Phase 1 (warm start):** the SQLite cache is now a formalized read-model
+  with a **git-watermark warm start**. `ensure_current` proves freshness in O(changes) — HEAD unmoved and
+  the git-dirty session files unchanged → serve as-is, with **no whole-corpus scan** and no rebuild
+  (measured: ~6.2 s full rebuild → ~78 ms warm start on a real repo). Any real change (commit, uncommitted
+  edit, or a `PROJECTION_SCHEMA_VERSION` bump) rebuilds; every git ambiguity fails toward a rebuild; without
+  git it degrades to the prior mtime scan. The rebuild stays byte-identical and atomically swapped. Nothing
+  in the cache is authoritative — it is fully rebuildable from Markdown (Constitution Invariant #6).
 - `memory_link_suggest` (and the underlying `suggest_related_entries`) gained an optional
   `consulted: [ids]` axis: entry ids you retrieved while grounding the work are flagged `consulted` and
   sorted ahead of shared-file candidates — the *memory* axis of link candidacy, the natural source for the
