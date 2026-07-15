@@ -211,6 +211,12 @@ class TraceCache:
         # single UI interaction (several reads) would otherwise pay it many
         # times over - the switching lag this collapses.
         self._fresh_until = 0.0
+        # Deserialized chunks by granularity, memoized until the next rebuild.
+        # Deserializing all chunks from JSON is the dominant read cost (~60 ms
+        # for the full corpus), and every read endpoint calls chunks() one or
+        # more times per request; the rows only change when the projection
+        # rebuilds, so cache the parsed list and clear it on rebuild.
+        self._chunks_memo: dict[str | None, list[MemoryChunk]] = {}
 
     def rebuild(self) -> None:
         with self._rebuild_lock:
@@ -328,6 +334,10 @@ class TraceCache:
                     tmp.unlink()
                 except OSError:
                     pass
+        # The swap succeeded (a failed swap raises above, never reaching here):
+        # the parsed-chunk memo now describes the previous projection, so drop
+        # it and let the next chunks() call re-read the fresh DB.
+        self._chunks_memo = {}
 
     def ensure_current(self) -> None:
         # Fast path: within the freshness window, trust the last verdict without
@@ -433,7 +443,14 @@ class TraceCache:
         return json.loads(row[0]) if row else []
 
     def chunks(self, *, granularity: str | None = None) -> list[MemoryChunk]:
+        # ensure_current() clears _chunks_memo when it rebuilds, so a hit is
+        # always for the current projection. MemoryChunk is frozen and callers
+        # never mutate the returned list in place (they filter/copy), so the
+        # memoized list is safe to share.
         self.ensure_current()
+        cached = self._chunks_memo.get(granularity)
+        if cached is not None:
+            return cached
         sql = "select json from chunks"
         params: tuple[Any, ...] = ()
         if granularity is not None:
@@ -441,7 +458,9 @@ class TraceCache:
             params = (granularity,)
         with sqlite3.connect(self.db_path) as conn:
             rows = conn.execute(sql, params).fetchall()
-        return [_chunk_from_storage(json.loads(row[0])) for row in rows]
+        result = [_chunk_from_storage(json.loads(row[0])) for row in rows]
+        self._chunks_memo[granularity] = result
+        return result
 
     def _metadata_matches(self) -> bool:
         current = sorted(_file_row(self.runtime.workspace_root, doc.path) for doc in iter_session_documents(self.runtime.memory_dir / "sessions"))
