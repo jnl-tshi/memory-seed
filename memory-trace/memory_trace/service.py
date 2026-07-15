@@ -22,7 +22,12 @@ from typing import Any, Callable, Iterable, Sequence
 # Memory Trace consumes the core control plane's public API only - it never
 # reimplements parsing, ranking, the graph-edge contract, or diagram-sidecar
 # reading. These are the frozen surfaces the distribution split depends on.
-from memory_seed.core import iter_session_documents, resolve_runtime
+from memory_seed.core import (
+    iter_diagram_sidecar_documents,
+    iter_link_sidecar_documents,
+    iter_session_documents,
+    resolve_runtime,
+)
 from memory_seed.retrieval import EntryRollup, entry_diagram_sidecars, entry_link_sidecars, rollup_entry_matches
 from memory_seed.semantic_cache import (
     MemoryChunk,
@@ -217,6 +222,16 @@ class TraceCache:
         # more times per request; the rows only change when the projection
         # rebuilds, so cache the parsed list and clear it on rebuild.
         self._chunks_memo: dict[str | None, list[MemoryChunk]] = {}
+        # Bumped on every rebuild. The derived-bundle memo (TraceService) keys on
+        # it so the sidecar-derived reads (augmented entries, related graph,
+        # diagram badges) refresh exactly when the projection does - safe now
+        # that sidecar changes participate in the freshness signal (see
+        # _tracked_document_paths).
+        self._generation = 0
+
+    def generation(self) -> int:
+        self.ensure_current()
+        return self._generation
 
     def rebuild(self) -> None:
         with self._rebuild_lock:
@@ -233,8 +248,10 @@ class TraceCache:
         conn = sqlite3.connect(tmp)
         try:
             self._create_schema(conn)
-            docs = list(iter_session_documents(self.runtime.memory_dir / "sessions"))
-            file_rows = [_file_row(self.runtime.workspace_root, doc.path) for doc in docs]
+            file_rows = [
+                _file_row(self.runtime.workspace_root, path)
+                for path in _tracked_document_paths(self.runtime)
+            ]
             chunks = [
                 *extract_memory_chunks(self.cwd, granularity="entry"),
             ]
@@ -336,8 +353,9 @@ class TraceCache:
                     pass
         # The swap succeeded (a failed swap raises above, never reaching here):
         # the parsed-chunk memo now describes the previous projection, so drop
-        # it and let the next chunks() call re-read the fresh DB.
+        # it and bump the generation so the derived-bundle memo invalidates too.
         self._chunks_memo = {}
+        self._generation += 1
 
     def ensure_current(self) -> None:
         # Fast path: within the freshness window, trust the last verdict without
@@ -463,7 +481,10 @@ class TraceCache:
         return result
 
     def _metadata_matches(self) -> bool:
-        current = sorted(_file_row(self.runtime.workspace_root, doc.path) for doc in iter_session_documents(self.runtime.memory_dir / "sessions"))
+        current = sorted(
+            _file_row(self.runtime.workspace_root, path)
+            for path in _tracked_document_paths(self.runtime)
+        )
         try:
             with sqlite3.connect(self.db_path) as conn:
                 stored = conn.execute("select path, mtime_ns, size from files order by path").fetchall()
@@ -511,6 +532,27 @@ class TraceCache:
 class TraceService:
     def __init__(self, cache: TraceCache):
         self.cache = cache
+        # (generation, (augmented_entries, related_graph, diagram_map)) memo.
+        # These are the sidecar-derived read structures - the per-request disk
+        # walk + augmentation cost. Now that sidecar changes bump the cache
+        # generation (they participate in the freshness signal), this memo is
+        # safe: it refreshes exactly when Markdown or a sidecar changes.
+        self._derived_memo: tuple[int, tuple[list[MemoryChunk], dict[str, Any], dict[str, Any]]] | None = None
+
+    def _derived(self) -> tuple[list[MemoryChunk], dict[str, Any], dict[str, Any]]:
+        """Augmented all-entry chunks + related graph + diagram-sidecar map,
+        memoized per cache generation. Filtered views (graph()) reuse the
+        augmented entries and build their own small graph; the shared cost saved
+        here is the sidecar disk reads and the whole-corpus augmentation."""
+        generation = self.cache.generation()
+        if self._derived_memo is not None and self._derived_memo[0] == generation:
+            return self._derived_memo[1]
+        entries = _augment_with_link_sidecars(self.cache.chunks(granularity="entry"), self.cache.cwd)
+        graph = build_related_entry_graph(chunks=entries)
+        diagram_map = entry_diagram_sidecars(self.cache.cwd)
+        bundle = (entries, graph, diagram_map)
+        self._derived_memo = (generation, bundle)
+        return bundle
 
     def runtime(self) -> dict[str, Any]:
         self.cache.ensure_current()
@@ -621,17 +663,18 @@ class TraceService:
         }
 
     def chunk(self, chunk_id: str) -> dict[str, Any]:
-        # Same link-sidecar augmentation as graph(), via the same helper, so the
-        # reader's inverse edges (superseded_by/evolved_by) agree with the Trail.
-        entries = _augment_with_link_sidecars(self._entry_chunks(), self.cache.cwd)
-        graph = build_related_entry_graph(self.cache.cwd, chunks=entries)
+        # Augmented entries + related graph from the shared per-generation
+        # derived bundle (same augmentation as graph()), so the reader's inverse
+        # edges (superseded_by/evolved_by) agree with the Trail - without
+        # re-reading sidecars and re-augmenting on every request.
+        entries, graph, diagram_map = self._derived()
         selected = next((chunk for chunk in self.cache.chunks() if chunk.chunk_id == chunk_id), None)
         if selected is None:
             selected = next((chunk for chunk in entries if chunk.entry_id == chunk_id), None)
         if selected is None:
             raise KeyError(chunk_id)
         node = graph.get(selected.entry_id or "")
-        sidecar = entry_diagram_sidecars(self.cache.cwd).get(selected.entry_id or "")
+        sidecar = diagram_map.get(selected.entry_id or "")
         # Commit packaging: which git commit first captured this entry, and
         # which other entries rode the same commit (batch commits on main and
         # pre-branching history included - the map is diff-derived, not
@@ -751,15 +794,16 @@ class TraceService:
         if granularity not in {"entry", "all"}:
             raise ValueError("granularity must be entry or all")
         granularity = "entry"
-        entries = self.cache.chunks(granularity="entry")
+        # Augmented all-entry chunks + diagram map from the shared per-generation
+        # derived bundle. The link-sidecar augmentation is per-entry, so filtering
+        # the already-augmented set yields the same entries (with the same edges)
+        # as augmenting the filtered set - the agent/user/date/topic filters never
+        # touch the augmented edge fields. Sidecar edits still show promptly:
+        # a sidecar change bumps the generation, invalidating this bundle.
+        all_entries, _all_graph, diagram_map = self._derived()
         entries = _filter_chunks(
-            entries, agent=agent, user=user, date_from=date_from, date_to=date_to, topic=topic, cwd=self.cache.cwd
+            all_entries, agent=agent, user=user, date_from=date_from, date_to=date_to, topic=topic, cwd=self.cache.cwd
         )
-        # Fold in late-authored lifecycle edges before edges/nodes are built,
-        # using the per-worktree path so the switcher reads each branch's own
-        # link sidecars. Read at request time (not cached) so sidecar edits are
-        # always fresh - the lense cache invalidates on session-file mtime only.
-        entries = _augment_with_link_sidecars(entries, self.cache.cwd)
         node_id = _graph_node_id_for(granularity)
         by_id = {node_id(chunk): chunk for chunk in entries if node_id(chunk)}
         edge_type_set = set(edge_types)
@@ -773,10 +817,10 @@ class TraceService:
             visible_ids = list(by_id)
         limited_ids = set(visible_ids[: _limit(limit, maximum=1000)])
         inferred_main = self.cache.main_commit_entries()
-        # Entry ids carrying an authored Class-2 decision-diagram sidecar, read
-        # fresh per request (same cadence as link sidecars) so a newly authored
-        # diagram badges immediately.
-        diagram_ids = set(entry_diagram_sidecars(self.cache.cwd))
+        # Entry ids carrying an authored Class-2 decision-diagram sidecar, from
+        # the per-generation derived bundle (a newly authored diagram bumps the
+        # generation, so it still badges promptly).
+        diagram_ids = set(diagram_map)
         displayed = [by_id[item_id] for item_id in visible_ids if item_id in limited_ids and item_id in by_id]
         nodes = [
             _graph_node(
@@ -1247,6 +1291,24 @@ def run_server(args: argparse.Namespace) -> int:
 def _file_row(root: Path, path: Path) -> tuple[str, int, int]:
     stat = path.stat()
     return (path.relative_to(root).as_posix(), stat.st_mtime_ns, stat.st_size)
+
+
+def _tracked_document_paths(runtime: Any) -> list[Path]:
+    """Every file whose content feeds a read result: session documents plus link
+    and diagram sidecars. Sidecars carry lifecycle edges and diagram badges the
+    reader/graph show, so a change to one must invalidate the projection.
+
+    On git this is already caught (sidecars live under the ``.memory-seed/sessions``
+    pathspec the freshness check scopes to); enumerating them here makes the
+    no-git mtime scan catch them too - so ``rebuilt_at`` is a complete generation
+    over ALL inputs, which is what lets the sidecar-derived read structures be
+    memoized safely instead of re-read per request."""
+    sessions = runtime.memory_dir / "sessions"
+    return (
+        [doc.path for doc in iter_session_documents(sessions)]
+        + [doc.path for doc in iter_link_sidecar_documents(sessions)]
+        + [doc.path for doc in iter_diagram_sidecar_documents(sessions)]
+    )
 
 
 def _first_parent_main_shas(root: Path) -> set[str]:

@@ -145,6 +145,36 @@ class ProjectionWarmStartTests(unittest.TestCase):
         self.assertIsNot(third, first)  # rebuilt -> memo dropped -> fresh list
         self.assertIn("mse_new", {c.entry_id for c in third})
 
+    def test_no_git_link_sidecar_change_triggers_rebuild(self):
+        # The closed gap: link/diagram sidecars live under sessions/ but the
+        # no-git mtime scan used to skip them (iter_session_documents ignores
+        # links/ and diagrams/). They are now tracked, so a sidecar edit
+        # invalidates the projection even without git.
+        cache = self.cache()
+        cache.rebuild()
+        before = cache.status()["rebuilt_at"]
+        with mock.patch("memory_trace.service._git_head", return_value=None):
+            cache.ensure_current()
+            self.assertEqual(cache.status()["rebuilt_at"], before)  # nothing changed
+            links = self.sessions / "links" / "2026-06"
+            links.mkdir(parents=True, exist_ok=True)
+            (links / "2026-06-01.md").write_text(
+                "---\ntags:\n  - session-log-links\nlink_date: 2026-06-01\n---\n\n"
+                "## 2026-06-01 09:00 - a\n\n```yaml\nentry_id: mse_a\nrelated_entries:\n  - mse_a\n```\n",
+                encoding="utf-8",
+            )
+            cache.ensure_current()  # no-git scan must now see the new sidecar file
+            self.assertGreater(cache.status()["rebuilt_at"], before)
+
+    def test_derived_bundle_is_memoized_and_invalidated_on_rebuild(self):
+        from memory_trace.service import TraceService
+
+        service = TraceService(self.cache())
+        first = service._derived()
+        self.assertIs(service._derived(), first)  # memo hit within a generation
+        service.cache.rebuild()  # bumps the generation
+        self.assertIsNot(service._derived(), first)  # invalidated -> fresh bundle
+
     def test_rebuild_from_markdown_is_byte_identical(self):
         # G2: the projection is disposable - a fresh rebuild from the same
         # Markdown yields identical reads. Two independent caches (separate
