@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime
 from pathlib import Path
 from functools import lru_cache
@@ -44,6 +44,15 @@ SUPERSEDED_IMPORTANCE_DAMPING = 0.25
 # It composes multiplicatively with recency_multiplier and never hard-excludes
 # (that stays exclude_superseded): a superseded entry is down-ranked, not hidden.
 SUPERSEDED_RANK_DAMPING = 0.25
+
+# Fractional multiplier applied to a live terminal replacement when the caller
+# opts into the bounded successor boost. One contributing retired hit can lift a
+# matching replacement by up to 75%; multiple contributing hits cap at a 2x
+# multiplier. The boost is never a hard injection: only already-matching
+# terminal replacements are eligible, and only when the caller explicitly turns
+# it on.
+SUPERSEDING_SUCCESSOR_BOOST = 0.75
+SUPERSEDING_SUCCESSOR_BOOST_CAP = 1.0
 
 # Scale applied to the rarity-weighted F:-file-overlap sum when re-ranking
 # link-suggest candidates (evolution-edges-plan.md D5). Overlap is a precision
@@ -207,6 +216,7 @@ def rank_session_memory(
     date_to: date | None = None,
     exclude_superseded: bool = False,
     supersession_damping: bool = False,
+    superseding_successor_boost: bool = False,
     chunks: Sequence[MemoryChunk] | None = None,
     topics: set[str] | None = None,
 ) -> list[RankedMemoryChunk]:
@@ -222,11 +232,13 @@ def rank_session_memory(
     # counts. When ``corpus`` is the sidecar-augmented set passed by search_memory,
     # sidecar-authored supersessions are included. Being evolved never lands here -
     # evolution is freshness, not retirement.
+    graph: dict[str, RelatedEntryNode] | None = None
     superseded_ids: set[str] = set()
-    if exclude_superseded or supersession_damping:
+    if exclude_superseded or supersession_damping or superseding_successor_boost:
+        graph = build_related_entry_graph(cwd, chunks=corpus)
         superseded_ids = {
             node.entry_id
-            for node in build_related_entry_graph(cwd, chunks=corpus).values()
+            for node in graph.values()
             if node.superseded_by
         }
     if exclude_superseded:
@@ -236,6 +248,13 @@ def rank_session_memory(
         # retrievable by default (deprioritized via the dampener/importance_score,
         # not hidden).
         chunks = [chunk for chunk in chunks if chunk.entry_id not in superseded_ids]
+    superseding_heads_by_id: dict[str, tuple[str, ...]] | None = None
+    if supersession_damping and superseding_successor_boost and graph is not None:
+        superseding_heads_by_id = {
+            entry_id: heads
+            for entry_id in superseded_ids
+            if (heads := superseding_lineage_heads(graph, entry_id))
+        }
     return rank_memory_chunks(
         query,
         chunks,
@@ -248,6 +267,7 @@ def rank_session_memory(
         # DEFAULT-OFF: only pass the dampener input when the caller opted in, so
         # default ranking order stays byte-for-byte identical to today.
         superseded_ids=superseded_ids if supersession_damping else None,
+        superseding_heads_by_id=superseding_heads_by_id,
     )
 
 
@@ -419,6 +439,37 @@ def evolves_lineage_heads(
             heads.add(current)
         else:
             stack.extend(successor.evolved_by)
+    return tuple(sorted(heads))
+
+
+def superseding_lineage_heads(
+    graph: dict[str, RelatedEntryNode], entry_id: str
+) -> tuple[str, ...]:
+    """Follow the ``superseded_by`` chain from ``entry_id`` to its terminal
+    live replacement(s).
+
+    Symmetric with ``evolves_lineage_heads``: the graph already exposes the
+    computed inverse of ``supersedes`` as ``superseded_by``. This helper makes
+    the current replacement reachable without changing ordering. Returns the
+    terminal successors only (excluding ``entry_id`` itself), empty when the
+    entry is not superseded. A ``seen`` set guards against malformed cycles.
+    """
+    node = graph.get(entry_id)
+    if node is None or not node.superseded_by:
+        return ()
+    heads: set[str] = set()
+    seen: set[str] = {entry_id}
+    stack = list(node.superseded_by)
+    while stack:
+        current = stack.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        successor = graph.get(current)
+        if successor is None or not successor.superseded_by:
+            heads.add(current)
+        else:
+            stack.extend(successor.superseded_by)
     return tuple(sorted(heads))
 
 
@@ -645,6 +696,7 @@ def rank_memory_chunks(
     recency_floor: float = 0.15,
     embedding_provider: EmbeddingProvider | None = None,
     superseded_ids: set[str] | None = None,
+    superseding_heads_by_id: dict[str, tuple[str, ...]] | None = None,
 ) -> list[RankedMemoryChunk]:
     # ``superseded_ids`` is the opt-in supersession rank-dampener input
     # (freshness-aware-memory-ranking-proposal.md): the entry_ids that a later
@@ -690,18 +742,71 @@ def rank_memory_chunks(
             )
         )
 
-    ranked.sort(
-        key=lambda result: (
-            result.final_score,
-            result.match_score,
-            result.lexical_score,
-            -result.age_days,
-            result.chunk.source_file,
-            result.chunk.start_line,
-        ),
-        reverse=True,
-    )
+    if superseding_heads_by_id:
+        ranked = _apply_superseding_successor_boost(ranked, superseding_heads_by_id)
+    ranked.sort(key=_ranked_result_sort_key, reverse=True)
     return ranked[: max(top_k, 0)]
+
+
+def _apply_superseding_successor_boost(
+    ranked: Sequence[RankedMemoryChunk],
+    superseding_heads_by_id: dict[str, tuple[str, ...]],
+) -> list[RankedMemoryChunk]:
+    """Apply a bounded boost to already-matching terminal replacements.
+
+    The signal is explicit and additive to the ranking pipeline: a retired
+    entry must itself positively match the query, and the terminal replacement
+    must also have positive query relevance. We never hard-inject a replacement
+    with zero match score, and we boost by entry id so section-granularity
+    searches keep their within-entry relative order.
+    """
+    best_by_entry: dict[str, RankedMemoryChunk] = {}
+    for result in ranked:
+        entry_id = result.chunk.entry_id
+        if not entry_id:
+            continue
+        incumbent = best_by_entry.get(entry_id)
+        if incumbent is None or _ranked_result_sort_key(result) > _ranked_result_sort_key(incumbent):
+            best_by_entry[entry_id] = result
+
+    boost_fraction_by_entry: dict[str, float] = {}
+    for predecessor_id, heads in superseding_heads_by_id.items():
+        predecessor = best_by_entry.get(predecessor_id)
+        if predecessor is None or predecessor.match_score <= 0:
+            continue
+        for successor_id in heads:
+            successor = best_by_entry.get(successor_id)
+            if successor is None or successor.match_score <= 0:
+                continue
+            current = boost_fraction_by_entry.get(successor_id, 0.0)
+            boost_fraction_by_entry[successor_id] = min(
+                current + SUPERSEDING_SUCCESSOR_BOOST,
+                SUPERSEDING_SUCCESSOR_BOOST_CAP,
+            )
+
+    if not boost_fraction_by_entry:
+        return list(ranked)
+
+    boosted: list[RankedMemoryChunk] = []
+    for result in ranked:
+        entry_id = result.chunk.entry_id or ""
+        fraction = boost_fraction_by_entry.get(entry_id)
+        if fraction and result.match_score > 0:
+            boosted.append(replace(result, final_score=result.final_score * (1.0 + fraction)))
+        else:
+            boosted.append(result)
+    return boosted
+
+
+def _ranked_result_sort_key(result: RankedMemoryChunk) -> tuple[float, float, float, int, str, int]:
+    return (
+        result.final_score,
+        result.match_score,
+        result.lexical_score,
+        -result.age_days,
+        result.chunk.source_file,
+        result.chunk.start_line,
+    )
 
 
 def _extract_chunks_from_file(

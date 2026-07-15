@@ -31,6 +31,7 @@ from .semantic_cache import (
     evolves_lineage_heads,
     extract_memory_chunks,
     rank_session_memory,
+    superseding_lineage_heads,
 )
 
 
@@ -74,6 +75,7 @@ def search_memory(
     date_to: date | None = None,
     exclude_superseded: bool = False,
     supersession_damping: bool = True,
+    superseding_successor_boost: bool = False,
     topics: list[str] | None = None,
 ) -> dict[str, Any]:
     """Search session memory and return the canonical result payload.
@@ -93,6 +95,12 @@ def search_memory(
     Graduated to default-on after validation on the real corpus (both YAML- and
     sidecar-authored supersession lineages surfaced the live replacement above the
     decisions it retired, with no effect on queries lacking a superseded hit).
+
+    ``superseding_successor_boost`` is the separate, bounded successor-lift
+    signal from supersession-successor-surfacing-proposal.md. Default-off here:
+    search still exposes the read-only ``superseding_head`` pointer even when no
+    ranking boost is applied. When enabled, only terminal live replacements that
+    already match the query can be lifted; nothing is hard-injected.
     """
     provider, provider_name, fallback_reason = resolve_semantic_provider(
         query,
@@ -122,6 +130,7 @@ def search_memory(
         date_to=date_to,
         exclude_superseded=exclude_superseded,
         supersession_damping=supersession_damping,
+        superseding_successor_boost=superseding_successor_boost,
         chunks=chunks,
         topics=topic_filter,
     )
@@ -143,6 +152,7 @@ def search_memory(
         entry_id = result.get("entry_id") or ""
         node = graph.get(entry_id)
         result["superseded_by"] = list(node.superseded_by) if node else []
+        result["superseding_head"] = list(superseding_lineage_heads(graph, entry_id))
         result["evolved_by"] = list(node.evolved_by) if node else []
         # Evolves successor-surfacing (freshness-aware-memory-ranking-proposal.md
         # item 2): point an evolved-but-still-valid hit at the head of its
@@ -178,13 +188,16 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
         raise ValueError(f"chunk_id not found: {chunk_id}")
     payload = chunk_to_dict(found)
     superseded_by: list[str] = []
+    superseding_head: list[str] = []
     evolved_by: list[str] = []
     inbound_relation_count = 0
     importance_score = 0.0
+    graph = build_related_entry_graph(chunks=entry_chunks)
     if found.entry_id:
-        node = build_related_entry_graph(chunks=entry_chunks).get(found.entry_id)
+        node = graph.get(found.entry_id)
         if node is not None:
             superseded_by = list(node.superseded_by)
+            superseding_head = list(superseding_lineage_heads(graph, found.entry_id))
             # Read-time-only inverse of evolves: newer entries that extend this
             # decision while it stays valid. Never stored, never dampens.
             evolved_by = list(node.evolved_by)
@@ -204,6 +217,7 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
             commit_reference_ids(resolve_runtime(cwd).workspace_root, found.entry_id, found.commits)
         )
     payload["superseded_by"] = superseded_by
+    payload["superseding_head"] = superseding_head
     payload["evolved_by"] = evolved_by
     payload["inbound_relation_count"] = inbound_relation_count
     payload["importance_score"] = importance_score

@@ -16,6 +16,7 @@ from memory_seed.semantic_cache import (
     rank_memory_chunks,
     rank_session_memory,
     suggest_related_entries,
+    superseding_lineage_heads,
 )
 
 
@@ -881,6 +882,33 @@ class SupersessionRankDampingTests(unittest.TestCase):
         self.assertEqual(evolves_lineage_heads(graph, "ms-b0000000"), ("ms-c0000000",))
         self.assertEqual(evolves_lineage_heads(graph, "ms-c0000000"), ())
         self.assertEqual(evolves_lineage_heads(graph, "ms-missing0"), ())
+
+    def test_superseding_lineage_heads_follows_chain_to_terminal_live_replacement(self):
+        cwd = self.make_project()
+        # C supersedes B, B supersedes A. A and B should both resolve to the
+        # terminal live replacement C, while C resolves to nothing further.
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 09:00 - Base A", "ms-a0000000", "base decision."),
+            _entry(
+                "2026-05-10 10:00 - Replacement B",
+                "ms-b0000000",
+                "replacement.",
+                supersedes=["ms-a0000000"],
+            ),
+            _entry(
+                "2026-05-10 11:00 - Final C",
+                "ms-c0000000",
+                "final replacement.",
+                supersedes=["ms-b0000000"],
+            ),
+        )
+        graph = build_related_entry_graph(cwd)
+
+        self.assertEqual(superseding_lineage_heads(graph, "ms-a0000000"), ("ms-c0000000",))
+        self.assertEqual(superseding_lineage_heads(graph, "ms-b0000000"), ("ms-c0000000",))
+        self.assertEqual(superseding_lineage_heads(graph, "ms-c0000000"), ())
+        self.assertEqual(superseding_lineage_heads(graph, "ms-missing0"), ())
 
 
 class FileOverlapSuggestTests(unittest.TestCase):

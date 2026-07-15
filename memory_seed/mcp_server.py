@@ -32,6 +32,7 @@ from .semantic_cache import (
     build_related_entry_graph,
     extract_memory_chunks,
     suggest_related_entries,
+    superseding_lineage_heads,
 )
 
 
@@ -80,6 +81,11 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "boolean",
                     "default": True,
                     "description": "On by default: down-rank (not drop) entries a later decision superseded, so a live replacement out-ranks the decision it retires. Draws superseded_by from the sidecar-augmented graph. Superseded entries stay fully retrievable (down-rank only, never hidden); pass false to rank them at full weight.",
+                },
+                "superseding_successor_boost": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "Default-off bounded successor lift: when a retired entry matches the query, its terminal live replacement may be boosted only if that replacement already has positive query relevance. Never hard-injects, never bypasses exclude_superseded; pass true to enable the signal.",
                 },
                 "topics": {
                     "type": "array",
@@ -295,6 +301,7 @@ def call_tool(
             date_to=_optional_date(args, "date_to"),
             exclude_superseded=bool(args.get("exclude_superseded", False)),
             supersession_damping=bool(args.get("supersession_damping", True)),
+            superseding_successor_boost=bool(args.get("superseding_successor_boost", False)),
             topics=list(args.get("topics") or []) or None,
         )
 
@@ -358,6 +365,7 @@ def call_tool(
             "inbound": list(node.inbound),
             "supersedes": list(node.supersedes),
             "superseded_by": list(node.superseded_by),
+            "superseding_head": list(superseding_lineage_heads(graph, entry_id)),
             "evolves": list(node.evolves),
             "evolved_by": list(node.evolved_by),
             "continuity": [

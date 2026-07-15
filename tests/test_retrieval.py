@@ -506,6 +506,60 @@ class FreshnessRankingTests(unittest.TestCase):
             )
         return cwd
 
+    def make_superseding_chain_fixture(self):
+        """OLD is superseded by MID in YAML, and MID is superseded by NEW only
+        through a late link sidecar. The effective graph should surface NEW as
+        the terminal live replacement for both retired entries."""
+        cwd = self.make_project()
+        old_id = "mse_oldchain000000"
+        mid_id = "mse_midchain000000"
+        new_id = "mse_newchain000000"
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:15 - Redis cache TTL invalidation strategy\n\n"
+            "```yaml\n"
+            f"entry_id: {old_id}\n"
+            "user_initials: JN\nagent_type: codex\nproject_path: .\nsubproject_path: null\n"
+            "```\n\n"
+            "### Decision\n\n"
+            "- D: Use the first cache ttl invalidation strategy.\n",
+        )
+        self.write_session(
+            cwd,
+            "2026-05-18.md",
+            "## 2026-05-18 10:00 - Cache TTL rework\n\n"
+            "```yaml\n"
+            f"entry_id: {mid_id}\n"
+            "user_initials: JN\nagent_type: codex\nproject_path: .\nsubproject_path: null\n"
+            f"supersedes:\n  - {old_id}\n"
+            "```\n\n"
+            "### Decision\n\n"
+            "- D: Replace the first cache ttl invalidation strategy.\n",
+        )
+        self.write_session(
+            cwd,
+            "2026-05-19.md",
+            "## 2026-05-19 11:00 - Final cache TTL plan\n\n"
+            "```yaml\n"
+            f"entry_id: {new_id}\n"
+            "user_initials: JN\nagent_type: codex\nproject_path: .\nsubproject_path: null\n"
+            "```\n\n"
+            "### Decision\n\n"
+            "- D: Final cache ttl invalidation strategy.\n",
+        )
+        links_dir = cwd / ".memory-seed" / "sessions" / "links" / "2026-05"
+        links_dir.mkdir(parents=True, exist_ok=True)
+        (links_dir / "2026-05-19.md").write_text(
+            "## 2026-05-19 11:05 - late supersedes edge\n\n"
+            "```yaml\n"
+            f"entry_id: {new_id}\n"
+            f"supersedes:\n  - {mid_id}\n"
+            "```\n",
+            encoding="utf-8",
+        )
+        return cwd, old_id, mid_id, new_id
+
     def search(self, cwd, **kwargs):
         return search_memory(
             self.QUERY, str(cwd), semantic_enabled=False, today=self.TODAY, **kwargs
@@ -558,6 +612,30 @@ class FreshnessRankingTests(unittest.TestCase):
         self.assertIn(self.OLD, on_order)
         # The sidecar-authored supersession reached the ranker (and the exposed field).
         self.assertEqual(by_on[self.OLD]["superseded_by"], [self.NEW])
+
+    def test_superseding_head_surfaces_terminal_live_replacement(self):
+        cwd, old_id, mid_id, new_id = self.make_superseding_chain_fixture()
+
+        payload = search_memory(
+            "cache ttl invalidation strategy",
+            str(cwd),
+            semantic_enabled=False,
+            today=self.TODAY,
+            superseding_successor_boost=False,
+        )
+        by_id = {result["entry_id"]: result for result in payload["results"]}
+        old_chunk = get_chunk(old_id, str(cwd))
+        mid_chunk = get_chunk(mid_id, str(cwd))
+        new_chunk = get_chunk(new_id, str(cwd))
+
+        self.assertEqual(by_id[old_id]["superseded_by"], [mid_id])
+        self.assertEqual(by_id[old_id]["superseding_head"], [new_id])
+        self.assertEqual(by_id[mid_id]["superseded_by"], [new_id])
+        self.assertEqual(by_id[mid_id]["superseding_head"], [new_id])
+        self.assertEqual(by_id[new_id]["superseding_head"], [])
+        self.assertEqual(old_chunk["superseding_head"], [new_id])
+        self.assertEqual(mid_chunk["superseding_head"], [new_id])
+        self.assertEqual(new_chunk["superseding_head"], [])
 
     def make_evolves_fixture(self):
         """A three-entry evolves chain: C evolves B, B evolves A. All still

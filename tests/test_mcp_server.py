@@ -471,6 +471,67 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertEqual(original["superseded_by"], [replacement_id])
         self.assertEqual(replacement["supersedes"], [original_id])
 
+    def test_superseding_head_surfaces_terminal_replacement_across_search_chunk_and_graph(self):
+        cwd = self.make_project()
+        old_id = "mse_oldchain000000"
+        mid_id = "mse_midchain000000"
+        new_id = "mse_newchain000000"
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:00 - Original cache policy\n\n"
+            "```yaml\n"
+            f"entry_id: {old_id}\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "```\n\n"
+            "The original cache ttl strategy.\n\n"
+            "## 2026-05-17 10:00 - Intermediate cache policy\n\n"
+            "```yaml\n"
+            f"entry_id: {mid_id}\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "supersedes:\n"
+            f"  - {old_id}\n"
+            "```\n\n"
+            "The second cache ttl strategy.\n\n"
+            "## 2026-05-17 11:00 - Final cache policy\n\n"
+            "```yaml\n"
+            f"entry_id: {new_id}\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "```\n\n"
+            "The final cache ttl strategy.\n",
+        )
+        self.write_link_sidecar(cwd, "2026-05-17", new_id, supersedes=(mid_id,))
+
+        search = call_tool(
+            "memory_search",
+            {
+                "query": "cache ttl strategy",
+                "cwd": str(cwd),
+                "top_k": 10,
+                "semantic_enabled": False,
+                "superseding_successor_boost": False,
+            },
+            today=date(2026, 5, 18),
+        )
+        by_id = {r["entry_id"]: r for r in search["results"]}
+        old_chunk = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": old_id})["chunk"]
+        old_node = call_tool("memory_link_show", {"cwd": str(cwd), "entry_id": old_id})
+
+        self.assertEqual(by_id[old_id]["superseding_head"], [new_id])
+        self.assertEqual(by_id[mid_id]["superseding_head"], [new_id])
+        self.assertEqual(by_id[new_id]["superseding_head"], [])
+        self.assertEqual(old_chunk["superseding_head"], [new_id])
+        self.assertEqual(old_node["superseding_head"], [new_id])
+
     def test_call_tool_ignores_caller_supplied_today_in_arguments(self):
         cwd = self.make_memory_fixture()
 
@@ -511,6 +572,14 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertFalse(payload["semantic_enabled"])
         self.assertIsNone(payload["semantic_provider"])
         self.assertIsNone(payload["results"][0]["semantic_score"])
+
+    def test_memory_search_schema_exposes_superseding_successor_boost(self):
+        from memory_seed.mcp_server import TOOLS
+
+        search_tool = next(t for t in TOOLS if t["name"] == "memory_search")
+        prop = search_tool["inputSchema"]["properties"].get("superseding_successor_boost")
+        self.assertIsNotNone(prop)
+        self.assertEqual(prop["type"], "boolean")
 
     def test_call_tool_memory_search_reports_semantic_fallback(self):
         cwd = self.make_memory_fixture()
