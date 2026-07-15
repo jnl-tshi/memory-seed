@@ -131,7 +131,7 @@ Capability tier guidance: exploration economy/standard; planning **frontier**; i
 - Before editing in a branch/worktree workflow, run `memory-seed worktree guard --agent <agent> --write-intent`. A foreign namespace is a shared-control-plane STOP hazard; move to the correct worktree unless the user explicitly approves a different path.
 - Root checkout is for read-only inspection, mainline integration, and approved cleanup. Routine feature edits should use an agent-owned task worktree; root writes require an explicit guard override (`--allow-root-write`) and should be recorded in the handoff.
 - Do not create a worktree inside a tracked directory unless the worktree directory is ignored.
-- Avoid stacking unrelated features in one branch. Commit or park completed work before starting the next feature.
+- A branch is a **workstream, not a single commit**: keep follow-on fixes, evolutions, and adjacent tweaks of the same goal on the SAME branch — the tell is an `evolves`/`related` lifecycle edge to the entry you just wrote, or the same files/subsystem. Open a new branch only for a genuinely new, independent goal; avoid BOTH stacking unrelated work in one branch AND spawning a fresh branch per commit. Merge the batched workstream at a stable, tested stopping point, never after every commit.
 
 ## Branch History Preservation
 
@@ -140,8 +140,10 @@ multiple writing agents work on different features at the same time.
 
 - A worktree only isolates the working directory; it does not by itself create a visible branch in
   the Git graph. Visible topology requires commits on a task branch plus an integration merge commit.
-- Distinct feature, proposal-implementation, fix, refactor, test, or documentation tasks should use
-  their own task branch unless the user explicitly chooses direct `main` work for that task.
+- A distinct **workstream** (a feature, a proposal implementation, or an unrelated fix/refactor/docs
+  effort) uses its own task branch; a follow-on that fixes or evolves the workstream already in progress
+  stays on that same branch and lands in the same merge. Use direct `main` work only when the user
+  explicitly chooses it for that task.
 - Parallel writing agents get one task branch and one worktree each. Read-only researchers,
   reviewers, and validators may share the current tree because they do not write commits.
 - Integrate completed task branches one at a time with `git merge --no-ff <branch>` when the desired
