@@ -56,7 +56,12 @@ class ProjectionWarmStartTests(unittest.TestCase):
         )
 
     def cache(self):
-        return TraceCache(self.cwd, cache_root=self.cache_root)
+        cache = TraceCache(self.cwd, cache_root=self.cache_root)
+        # These tests exercise the freshness CHECK directly; disable the memo
+        # window so a change made right after a build is seen immediately. The
+        # memoization itself is covered by its own test below.
+        cache._FRESHNESS_TTL_SECONDS = 0
+        return cache
 
     def test_no_op_ensure_current_does_not_rebuild(self):
         cache = self.cache()
@@ -111,6 +116,19 @@ class ProjectionWarmStartTests(unittest.TestCase):
             self.write("2026-06-01.md", _entry("2026-06-01 09:00", "mse_a", "grown."))
             cache.ensure_current()  # changed -> mtime scan detects it
             self.assertGreater(cache.status()["rebuilt_at"], before)
+
+    def test_freshness_verdict_is_memoized_within_the_ttl(self):
+        # Within the TTL window a burst of reads must NOT re-run the freshness
+        # check (git) - the fix for per-read git spawns making entry switching
+        # laggy. rebuild() marks fresh; the following reads stay inside it.
+        cache = TraceCache(self.cwd, cache_root=self.cache_root)
+        cache._FRESHNESS_TTL_SECONDS = 60
+        cache.rebuild()
+        with mock.patch("memory_trace.service._git_head") as head:
+            cache.ensure_current()
+            cache.ensure_current()
+            cache.ensure_current()
+            head.assert_not_called()
 
     def test_rebuild_from_markdown_is_byte_identical(self):
         # G2: the projection is disposable - a fresh rebuild from the same

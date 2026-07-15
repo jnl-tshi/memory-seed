@@ -219,6 +219,10 @@ class TraceServiceTests(unittest.TestCase):
 
     def test_cache_rebuilds_when_session_file_metadata_changes(self):
         cache = TraceCache(self.cwd, cache_root=self.cache_root)
+        # Disable the freshness memo window so a change made immediately after a
+        # build is re-checked (rather than trusted for the TTL); this test pins
+        # the change-detection, not the memoization.
+        cache._FRESHNESS_TTL_SECONDS = 0
         cache.rebuild()
         first = cache.status()
 
