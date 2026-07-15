@@ -84,6 +84,52 @@ class RankingABTests(unittest.TestCase):
         self.assertFalse(control.has_affected_hit)
         self.assertTrue(control.identical)
 
+    def test_superseding_successor_boost_signal_lifts_terminal_replacement_into_window(self):
+        retired = _chunk(
+            "mse_old",
+            "Alpha ranking policy",
+            "Alpha ranking policy keeps the old ordering.",
+            day=1,
+        )
+        middle = _chunk(
+            "mse_mid",
+            "Revise alpha ranking policy",
+            "Alpha ranking policy was revised once.",
+            day=2,
+            supersedes=("mse_old",),
+        )
+        terminal = _chunk(
+            "mse_new",
+            "Final alpha plan",
+            "Alpha policy final plan.",
+            day=3,
+            supersedes=("mse_mid",),
+        )
+        distractors = [
+            _chunk(
+                f"mse_other{i}",
+                f"Alpha distractor {i}",
+                f"Alpha ranking policy distractor {i}.",
+                day=4 + i,
+            )
+            for i in range(8)
+        ]
+
+        result = run_ab(
+            "superseding_successor_boost",
+            corpus=[retired, middle, terminal, *distractors],
+            today=date(2026, 7, 15),
+        )
+
+        self.assertTrue(result.passed)
+        self.assertEqual(result.affected_ids, ("mse_new",))
+        directional = result.queries[0]
+        self.assertTrue(directional.winner_beats_loser)
+        self.assertTrue(directional.winner_within_max_rank)
+        control = result.queries[-1]
+        self.assertFalse(control.has_affected_hit)
+        self.assertTrue(control.identical)
+
     def test_no_query_run_fails_closed(self):
         corpus = [_chunk("mse_one", "One", "One body", day=1)]
 
@@ -112,6 +158,32 @@ class RankingABTests(unittest.TestCase):
         )
 
         self.assertFalse(query.winner_beats_loser)
+        self.assertFalse(result.directional_queries_pass)
+        self.assertFalse(result.passed)
+
+    def test_directional_query_fails_when_winner_stays_outside_required_window(self):
+        query = QueryABResult(
+            query="alpha",
+            label="outside window",
+            identical=False,
+            has_affected_hit=True,
+            changes=(),
+            winner_id="mse_new",
+            loser_id="mse_old",
+            winner_rank_on=9,
+            loser_rank_on=10,
+            winner_max_rank_on=8,
+        )
+        result = ABResult(
+            signal="superseding_successor_boost",
+            corpus_size=12,
+            affected_ids=("mse_new",),
+            queries=(query,),
+            requires_no_hit_control=False,
+        )
+
+        self.assertFalse(query.winner_within_max_rank)
+        self.assertFalse(query.directional_pass)
         self.assertFalse(result.directional_queries_pass)
         self.assertFalse(result.passed)
 
@@ -144,6 +216,7 @@ class RankingABTests(unittest.TestCase):
         self.assertTrue(payload["passed"])
         self.assertTrue(payload["directional_queries_pass"])
         self.assertIsNone(payload["queries"][0]["winner_beats_loser"])
+        self.assertIsNone(payload["queries"][0]["winner_within_max_rank"])
 
 
 class RankingABCliTests(unittest.TestCase):

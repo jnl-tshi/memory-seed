@@ -75,7 +75,7 @@ def search_memory(
     date_to: date | None = None,
     exclude_superseded: bool = False,
     supersession_damping: bool = True,
-    superseding_successor_boost: bool = False,
+    superseding_successor_boost: bool = True,
     topics: list[str] | None = None,
 ) -> dict[str, Any]:
     """Search session memory and return the canonical result payload.
@@ -97,10 +97,11 @@ def search_memory(
     decisions it retired, with no effect on queries lacking a superseded hit).
 
     ``superseding_successor_boost`` is the separate, bounded successor-lift
-    signal from supersession-successor-surfacing-proposal.md. Default-off here:
-    search still exposes the read-only ``superseding_head`` pointer even when no
-    ranking boost is applied. When enabled, only terminal live replacements that
-    already match the query can be lifted; nothing is hard-injected.
+    signal from supersession-successor-surfacing-proposal.md. It is ON by
+    default here after fixture coverage plus the real-corpus ``ranking-ab`` gate
+    passed. Pass ``False`` to restore damp-only ordering. Even when enabled,
+    only terminal live replacements that already match the query can be lifted;
+    nothing is hard-injected.
     """
     provider, provider_name, fallback_reason = resolve_semantic_provider(
         query,

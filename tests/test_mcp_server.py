@@ -580,6 +580,67 @@ class MemoryMcpServerTests(unittest.TestCase):
         prop = search_tool["inputSchema"]["properties"].get("superseding_successor_boost")
         self.assertIsNotNone(prop)
         self.assertEqual(prop["type"], "boolean")
+        self.assertTrue(prop["default"])
+
+    def test_memory_search_defaults_successor_boost_on_and_allows_opt_out(self):
+        cwd = self.make_project()
+        old_id = "mse_oldboost000000"
+        new_id = "mse_newboost000000"
+        self.write_session(
+            cwd,
+            "2026-05-17.md",
+            "## 2026-05-17 09:00 - Redis cache TTL invalidation strategy\n\n"
+            "```yaml\n"
+            f"entry_id: {old_id}\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "```\n\n"
+            "The original cache ttl invalidation strategy.\n\n"
+            "## 2026-05-17 10:00 - Cache TTL rework\n\n"
+            "```yaml\n"
+            f"entry_id: {new_id}\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "project_path: .\n"
+            "subproject_path: null\n"
+            "supersedes:\n"
+            f"  - {old_id}\n"
+            "```\n\n"
+            "A lighter cache ttl plan.\n",
+        )
+
+        default = call_tool(
+            "memory_search",
+            {"query": "redis cache ttl invalidation strategy", "cwd": str(cwd), "semantic_enabled": False},
+            today=date(2026, 5, 18),
+        )
+        explicit_on = call_tool(
+            "memory_search",
+            {
+                "query": "redis cache ttl invalidation strategy",
+                "cwd": str(cwd),
+                "semantic_enabled": False,
+                "superseding_successor_boost": True,
+            },
+            today=date(2026, 5, 18),
+        )
+        explicit_off = call_tool(
+            "memory_search",
+            {
+                "query": "redis cache ttl invalidation strategy",
+                "cwd": str(cwd),
+                "semantic_enabled": False,
+                "superseding_successor_boost": False,
+            },
+            today=date(2026, 5, 18),
+        )
+        by_default = {r["entry_id"]: r for r in default["results"]}
+        by_off = {r["entry_id"]: r for r in explicit_off["results"]}
+
+        self.assertEqual(default["results"], explicit_on["results"])
+        self.assertGreater(by_default[new_id]["score"], by_off[new_id]["score"])
 
     def test_call_tool_memory_search_reports_semantic_fallback(self):
         cwd = self.make_memory_fixture()

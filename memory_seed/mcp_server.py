@@ -84,8 +84,8 @@ TOOLS: list[dict[str, Any]] = [
                 },
                 "superseding_successor_boost": {
                     "type": "boolean",
-                    "default": False,
-                    "description": "Default-off bounded successor lift: when a retired entry matches the query, its terminal live replacement may be boosted only if that replacement already has positive query relevance. Never hard-injects, never bypasses exclude_superseded; pass true to enable the signal.",
+                    "default": True,
+                    "description": "On by default bounded successor lift: when a retired entry matches the query, its terminal live replacement may be boosted only if that replacement already has positive query relevance. Never hard-injects, never bypasses exclude_superseded; pass false to restore damp-only ordering.",
                 },
                 "topics": {
                     "type": "array",
@@ -301,7 +301,7 @@ def call_tool(
             date_to=_optional_date(args, "date_to"),
             exclude_superseded=bool(args.get("exclude_superseded", False)),
             supersession_damping=bool(args.get("supersession_damping", True)),
-            superseding_successor_boost=bool(args.get("superseding_successor_boost", False)),
+            superseding_successor_boost=bool(args.get("superseding_successor_boost", True)),
             topics=list(args.get("topics") or []) or None,
         )
 

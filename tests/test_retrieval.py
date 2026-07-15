@@ -572,11 +572,11 @@ class FreshnessRankingTests(unittest.TestCase):
         cwd = self.make_supersession_fixture()
         # Opting out (supersession_damping=False) is the pre-change baseline: the
         # retired-but-strongly-matching decision out-ranks its replacement.
-        off = self.search(cwd, supersession_damping=False)
+        off = self.search(cwd, supersession_damping=False, superseding_successor_boost=False)
         self.assertEqual([r["entry_id"] for r in off["results"]][0], self.OLD)
         by_off = {r["entry_id"]: r for r in off["results"]}
 
-        on = self.search(cwd, supersession_damping=True)
+        on = self.search(cwd, supersession_damping=True, superseding_successor_boost=False)
         on_order = [r["entry_id"] for r in on["results"]]
         by_on = {r["entry_id"]: r for r in on["results"]}
         # The replacement now ranks above the decision it supersedes...
@@ -602,10 +602,10 @@ class FreshnessRankingTests(unittest.TestCase):
         raw = {c.entry_id: c for c in extract_memory_chunks(str(cwd), granularity="entry")}
         self.assertEqual(raw[self.NEW].supersedes, ())
 
-        off = self.search(cwd, supersession_damping=False)
+        off = self.search(cwd, supersession_damping=False, superseding_successor_boost=False)
         self.assertEqual([r["entry_id"] for r in off["results"]][0], self.OLD)
 
-        on = self.search(cwd, supersession_damping=True)
+        on = self.search(cwd, supersession_damping=True, superseding_successor_boost=False)
         on_order = [r["entry_id"] for r in on["results"]]
         by_on = {r["entry_id"]: r for r in on["results"]}
         self.assertEqual(on_order[0], self.NEW)
@@ -636,6 +636,31 @@ class FreshnessRankingTests(unittest.TestCase):
         self.assertEqual(old_chunk["superseding_head"], [new_id])
         self.assertEqual(mid_chunk["superseding_head"], [new_id])
         self.assertEqual(new_chunk["superseding_head"], [])
+
+    def test_superseding_successor_boost_is_explicit_and_bounded(self):
+        cwd = self.make_supersession_fixture()
+
+        without = self.search(cwd, supersession_damping=True, superseding_successor_boost=False)
+        with_boost = self.search(cwd, supersession_damping=True, superseding_successor_boost=True)
+        by_without = {r["entry_id"]: r for r in without["results"]}
+        by_with = {r["entry_id"]: r for r in with_boost["results"]}
+
+        # The retired entry stays damped exactly as before; only the already-
+        # matching live replacement gets a lift.
+        self.assertEqual(by_with[self.OLD]["score"], by_without[self.OLD]["score"])
+        self.assertGreater(by_with[self.NEW]["score"], by_without[self.NEW]["score"])
+
+    def test_superseding_successor_boost_is_now_on_by_default_with_opt_out(self):
+        cwd = self.make_supersession_fixture()
+
+        default = self.search(cwd)
+        explicit_on = self.search(cwd, superseding_successor_boost=True)
+        explicit_off = self.search(cwd, superseding_successor_boost=False)
+        by_default = {r["entry_id"]: r for r in default["results"]}
+        by_off = {r["entry_id"]: r for r in explicit_off["results"]}
+
+        self.assertEqual(default["results"], explicit_on["results"])
+        self.assertGreater(by_default[self.NEW]["score"], by_off[self.NEW]["score"])
 
     def make_evolves_fixture(self):
         """A three-entry evolves chain: C evolves B, B evolves A. All still
