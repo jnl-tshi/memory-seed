@@ -10,11 +10,14 @@ from __future__ import annotations
 
 __version__ = "0.1.0"
 
+from .evidence import TIMELINE_EVIDENCE_PACK_SCHEMA_VERSION, build_timeline_evidence_pack
 from .service import TraceCache, TraceService, create_app, missing_optional_dependency_hint, run_server
 
 __all__ = [
+    "TIMELINE_EVIDENCE_PACK_SCHEMA_VERSION",
     "TraceCache",
     "TraceService",
+    "build_timeline_evidence_pack",
     "create_app",
     "run_server",
     "missing_optional_dependency_hint",
