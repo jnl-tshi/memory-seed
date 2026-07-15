@@ -25,6 +25,8 @@ from memory_seed.core import (
     remove_skill,
     session_fuse,
     session_merge_branch,
+    session_open_pr,
+    session_prepare_pr_branch,
     session_target,
     skill_status,
     update_project,
@@ -68,6 +70,157 @@ class MemorySeedTests(unittest.TestCase):
         # Quoted value is accepted.
         (mseed / "project.yaml").write_text('integration_mode: "pr"\n', encoding="utf-8")
         self.assertEqual(read_integration_mode(cwd), "pr")
+
+    def test_suggest_integration_mode_uses_collaborator_signal(self):
+        import json
+        import unittest.mock
+
+        from memory_seed.core import suggest_integration_mode
+
+        cwd = self.make_project()
+        self._init_git_project(cwd)
+        self._git(cwd, "remote", "add", "origin", "https://example.com/org/repo.git")
+
+        with unittest.mock.patch(
+            "memory_seed.core._gh_text",
+            side_effect=[
+                (0, "gh version 2.0.0", ""),
+                (0, "", ""),
+                (
+                    0,
+                    json.dumps(
+                        {
+                            "nameWithOwner": "org/repo",
+                            "defaultBranchRef": {"name": "main"},
+                            "branchProtectionRules": [],
+                        }
+                    ),
+                    "",
+                ),
+                (0, "[]", ""),
+                (0, json.dumps([{"login": "alice"}, {"login": "bob"}]), ""),
+            ],
+        ):
+            mode, reason = suggest_integration_mode(cwd)
+
+        self.assertEqual(mode, "pr")
+        self.assertIn("more than one collaborator", reason)
+
+    def test_suggest_integration_mode_fails_open_on_bad_gh_responses(self):
+        import json
+        import unittest.mock
+
+        from memory_seed.core import suggest_integration_mode
+
+        cwd = self.make_project()
+        self._init_git_project(cwd)
+        self._git(cwd, "remote", "add", "origin", "https://example.com/org/repo.git")
+
+        with self.subTest("malformed json"):
+            with unittest.mock.patch(
+                "memory_seed.core._gh_text",
+                side_effect=[
+                    (0, "gh version 2.0.0", ""),
+                    (0, "", ""),
+                    (
+                        0,
+                        json.dumps(
+                            {
+                                "nameWithOwner": "org/repo",
+                                "defaultBranchRef": {"name": "main"},
+                                "branchProtectionRules": [],
+                            }
+                        ),
+                        "",
+                    ),
+                    (0, "{not-json", ""),
+                    (0, "{still-not-json", ""),
+                ],
+            ):
+                mode, reason = suggest_integration_mode(cwd)
+            self.assertEqual(mode, "local-merge")
+            self.assertIn("no team PR signals", reason)
+
+        with self.subTest("failing collaborator query"):
+            with unittest.mock.patch(
+                "memory_seed.core._gh_text",
+                side_effect=[
+                    (0, "gh version 2.0.0", ""),
+                    (0, "", ""),
+                    (
+                        0,
+                        json.dumps(
+                            {
+                                "nameWithOwner": "org/repo",
+                                "defaultBranchRef": {"name": "main"},
+                                "branchProtectionRules": [],
+                            }
+                        ),
+                        "",
+                    ),
+                    (0, "[]", ""),
+                    (1, "", "boom"),
+                ],
+            ):
+                mode, reason = suggest_integration_mode(cwd)
+            self.assertEqual(mode, "local-merge")
+            self.assertIn("no team PR signals", reason)
+
+    def test_integration_mode_contract_has_live_seed_parity(self):
+        pairs = (
+            (
+                Path(".memory-seed/agent-rules.md"),
+                Path("memory_seed/seed/.memory-seed/agent-rules.md"),
+            ),
+            (
+                Path(".memory-seed/project-bootstrap.md"),
+                Path("memory_seed/seed/.memory-seed/project-bootstrap.md"),
+            ),
+            (
+                Path(".memory-seed/skills/agent_collaboration.md"),
+                Path("memory_seed/seed/.memory-seed/skills/agent_collaboration.md"),
+            ),
+            (
+                Path(".memory-seed/skills/session_logging.md"),
+                Path("memory_seed/seed/.memory-seed/skills/session_logging.md"),
+            ),
+        )
+        for live, seed in pairs:
+            self.assertEqual(live.read_text(encoding="utf-8"), seed.read_text(encoding="utf-8"))
+
+        rules = pairs[0][0].read_text(encoding="utf-8")
+        collaboration = pairs[2][0].read_text(encoding="utf-8")
+        bootstrap = pairs[1][0].read_text(encoding="utf-8")
+        self.assertIn("integration_mode", rules)
+        self.assertIn("local-merge", rules)
+        self.assertIn("normal non-force push and PR", rules)
+        self.assertIn("integration_artifact", collaboration)
+        self.assertIn("from the task branch", collaboration)
+        self.assertIn("human confirms", bootstrap)
+        self.assertIn("never silently changed", bootstrap)
+
+    def test_write_integration_mode_refuses_unreadable_existing_config(self):
+        import unittest.mock
+
+        from memory_seed.core import write_integration_mode
+
+        cwd = self.make_project()
+        config = cwd / MEMORY_DIR_NAME / "project.yaml"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        original_bytes = b"participants:\n  - slug: jean\n"
+        config.write_bytes(original_bytes)
+        original_read_text = Path.read_text
+
+        def fail_config_read(path, *args, **kwargs):
+            if path == config:
+                raise OSError("simulated read failure")
+            return original_read_text(path, *args, **kwargs)
+
+        with unittest.mock.patch.object(Path, "read_text", new=fail_config_read):
+            with self.assertRaisesRegex(ValueError, "cannot read existing"):
+                write_integration_mode(cwd, "pr")
+
+        self.assertEqual(config.read_bytes(), original_bytes)
 
     def test_entry_body_format_issues_flags_malformed_draft(self):
         from memory_seed.core import entry_body_format_issues as fmt
@@ -1324,6 +1477,16 @@ class MemorySeedTests(unittest.TestCase):
             "project facts",
         )
         self.assertIn(".memory-seed/backups/", (cwd / ".gitignore").read_text(encoding="utf-8"))
+
+    def test_update_preserves_declared_integration_mode(self):
+        cwd = self.make_project()
+        init_project(cwd=cwd)
+        project_config = cwd / MEMORY_DIR_NAME / "project.yaml"
+        project_config.write_text("integration_mode: pr\n", encoding="utf-8")
+
+        update_project(cwd=cwd)
+
+        self.assertEqual(project_config.read_text(encoding="utf-8"), "integration_mode: pr\n")
 
     def test_update_archives_replaced_control_plane_files_by_old_version(self):
         cwd = self.make_project()
@@ -2878,6 +3041,280 @@ class MemorySeedTests(unittest.TestCase):
         self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-11.md").exists())
         self.assertEqual(self._git(cwd, "log", "--merges", "-1", "--format=%P").stdout.strip(), "")
 
+    def test_session_prepare_pr_branch_commits_chronological_merge_on_task_branch(self):
+        cwd = self.make_project()
+        target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-12.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        entry_a = ("09:00", "Base entry", "mse_aaaaaaaaaaaaaaaa", "main")
+        entry_b = ("10:00", "Later main entry", "mse_bbbbbbbbbbbbbbbb", "main")
+        entry_c = ("09:30", "Branch entry", "mse_cccccccccccccccc", "feature-pr")
+        target.write_text(self._grouped_session_text("2026-07-12", [entry_a]), encoding="utf-8")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-pr")
+        target.write_text(self._grouped_session_text("2026-07-12", [entry_a, entry_c]), encoding="utf-8")
+        self._commit_all(cwd, "branch appends 09:30")
+        self._git(cwd, "switch", "main")
+        target.write_text(self._grouped_session_text("2026-07-12", [entry_a, entry_b]), encoding="utf-8")
+        self._commit_all(cwd, "main appends 10:00")
+        self._git(cwd, "switch", "feature-pr")
+
+        result = session_prepare_pr_branch(cwd=cwd, branch="feature-pr", base_branch="main")
+
+        self.assertEqual(result.issues, [])
+        self.assertEqual(result.conflicts, [])
+        self.assertTrue(result.ready)
+        self.assertTrue(result.changed)
+        self.assertIsNotNone(result.prep_commit)
+        text = target.read_text(encoding="utf-8")
+        pos_a = text.find("## 2026-07-12 09:00")
+        pos_c = text.find("## 2026-07-12 09:30")
+        pos_b = text.find("## 2026-07-12 10:00")
+        self.assertTrue(0 <= pos_a < pos_c < pos_b, f"order wrong: a={pos_a} c={pos_c} b={pos_b}")
+        self.assertNotIn("<<<<<<<", text)
+        message = self._git(cwd, "log", "-1", "--format=%B").stdout
+        self.assertTrue(message.startswith("Merge branch 'main' into feature-pr"))
+        self.assertIn("Memory-Entry: mse_cccccccccccccccc", message)
+
+    def test_session_prepare_pr_branch_refuses_dirty_tree_naming_paths(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-pr")
+        (cwd / "dirty.txt").write_text("dirty\n", encoding="utf-8")
+
+        result = session_prepare_pr_branch(cwd=cwd, branch="feature-pr", base_branch="main")
+
+        self.assertFalse(result.ready)
+        self.assertTrue(result.issues)
+        self.assertIn("working tree is not clean", result.issues[0])
+        self.assertIn("dirty.txt", result.issues[0])
+        self.assertFalse((cwd / ".git" / "MERGE_HEAD").exists())
+
+    def test_session_prepare_pr_branch_prefers_origin_main_when_local_main_is_stale(self):
+        cwd = self.make_project()
+        target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-12.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        entry_a = ("09:00", "Base entry", "mse_aaaaaaaaaaaaaaaa", "main")
+        entry_b = ("10:00", "Origin main entry", "mse_bbbbbbbbbbbbbbbb", "main")
+        entry_c = ("09:30", "Branch entry", "mse_cccccccccccccccc", "feature-pr")
+        target.write_text(self._grouped_session_text("2026-07-12", [entry_a]), encoding="utf-8")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        base_sha = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+        self._git(cwd, "switch", "-c", "feature-pr")
+        target.write_text(self._grouped_session_text("2026-07-12", [entry_a, entry_c]), encoding="utf-8")
+        self._commit_all(cwd, "branch appends 09:30")
+        self._git(cwd, "switch", "main")
+        target.write_text(self._grouped_session_text("2026-07-12", [entry_a, entry_b]), encoding="utf-8")
+        self._commit_all(cwd, "main appends 10:00")
+        origin_main_sha = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+        # Deliberately stale local main while origin/main stays newer.
+        self._git(cwd, "switch", "feature-pr")
+        self._git(cwd, "update-ref", "refs/heads/main", base_sha)
+        self._git(cwd, "update-ref", "refs/remotes/origin/main", origin_main_sha)
+        self._git(cwd, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+
+        result = session_prepare_pr_branch(cwd=cwd, branch="feature-pr")
+
+        self.assertEqual(result.issues, [])
+        self.assertTrue(result.ready)
+        text = target.read_text(encoding="utf-8")
+        self.assertIn("mse_bbbbbbbbbbbbbbbb", text)
+        pos_c = text.find("## 2026-07-12 09:30")
+        pos_b = text.find("## 2026-07-12 10:00")
+        self.assertTrue(0 <= pos_c < pos_b, f"origin/main was not used: c={pos_c} b={pos_b}")
+
+    def test_session_prepare_pr_branch_leaves_non_session_conflicts_in_progress(self):
+        cwd = self.make_project()
+        (cwd / "notes.txt").write_text("base\n", encoding="utf-8")
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-pr")
+        (cwd / "notes.txt").write_text("branch change\n", encoding="utf-8")
+        self._commit_all(cwd, "branch edit")
+        self._git(cwd, "switch", "main")
+        (cwd / "notes.txt").write_text("main change\n", encoding="utf-8")
+        self._commit_all(cwd, "main edit")
+        self._git(cwd, "switch", "feature-pr")
+
+        result = session_prepare_pr_branch(cwd=cwd, branch="feature-pr", base_branch="main")
+
+        self.assertFalse(result.ready)
+        self.assertTrue(result.merge_in_progress)
+        self.assertEqual(result.conflicts, ["notes.txt"])
+        self.assertTrue((cwd / ".git" / "MERGE_HEAD").exists())
+
+    def test_session_open_pr_dry_run_returns_pr_body_plan(self):
+        import unittest.mock
+
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-pr")
+        self._write_grouped_session(cwd, "2026-07-11", "mse_1111111111111111", branch="feature-pr")
+        self._commit_all(cwd, "feature session")
+        self._git(cwd, "remote", "add", "origin", "https://example.com/owner/repo.git")
+
+        def fake_gh(_root, args):
+            if tuple(args) == ("--version",):
+                return 0, "gh version 2.0.0", ""
+            if tuple(args) == ("auth", "status"):
+                return 0, "", ""
+            self.fail(f"unexpected gh call: {args!r}")
+
+        with unittest.mock.patch("memory_seed.core._gh_text", side_effect=fake_gh):
+            result = session_open_pr(cwd=cwd, branch="feature-pr", base_branch="main", dry_run=True)
+
+        self.assertEqual(result.issues, [])
+        self.assertFalse(result.opened)
+        self.assertTrue(result.dry_run)
+        self.assertEqual(result.pr_title, "Integrate feature-pr into main")
+        self.assertIsNotNone(result.pr_body)
+        self.assertIn("memory-seed session prepare-pr --branch feature-pr --base-branch main", result.pr_body)
+        self.assertIn("mse_1111111111111111", result.pr_body)
+        self.assertFalse(result.pushed)
+        self.assertFalse(result.pr_created)
+        self.assertEqual(self._git(cwd, "status", "--short").stdout.strip(), "")
+
+    def test_session_open_pr_refreshes_remote_base_before_preparing_and_pushing(self):
+        import subprocess
+        import unittest.mock
+
+        cwd = self.make_project()
+        target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-12.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        entry_a = ("09:00", "Base entry", "mse_aaaaaaaaaaaaaaaa", "main")
+        entry_b = ("10:00", "Fresh remote entry", "mse_bbbbbbbbbbbbbbbb", "main")
+        entry_c = ("09:30", "Branch entry", "mse_cccccccccccccccc", "feature-pr")
+        target.write_text(self._grouped_session_text("2026-07-12", [entry_a]), encoding="utf-8")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        base_sha = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+
+        remote = self.make_project() / "origin.git"
+        subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True, capture_output=True, text=True)
+        self._git(cwd, "remote", "add", "origin", str(remote))
+        self._git(cwd, "update-ref", "refs/remotes/origin/main", base_sha)
+
+        self._git(cwd, "switch", "-q", "-c", "feature-pr")
+        target.write_text(self._grouped_session_text("2026-07-12", [entry_a, entry_c]), encoding="utf-8")
+        self._commit_all(cwd, "branch appends 09:30")
+
+        self._git(cwd, "switch", "-q", "main")
+        target.write_text(self._grouped_session_text("2026-07-12", [entry_a, entry_b]), encoding="utf-8")
+        self._commit_all(cwd, "fresh remote main")
+        fresh_remote_sha = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+        self._git(cwd, "switch", "-q", "feature-pr")
+        self._git(cwd, "update-ref", "refs/heads/main", base_sha)
+
+        from memory_seed import core as core_module
+
+        original_git_text = core_module._git_text
+        git_commands = []
+
+        def fake_git(root, args):
+            git_commands.append(tuple(args))
+            if tuple(args) == (
+                "fetch",
+                "--no-tags",
+                "origin",
+                "refs/heads/main:refs/remotes/origin/main",
+            ):
+                self._git(cwd, "update-ref", "refs/remotes/origin/main", fresh_remote_sha)
+                return 0, ""
+            if tuple(args) == ("push", "--set-upstream", "origin", "feature-pr"):
+                return 0, ""
+            return original_git_text(root, args)
+
+        def fake_gh(_root, args):
+            if tuple(args) == ("--version",):
+                return 0, "gh version 2.0.0", ""
+            if tuple(args) == ("auth", "status"):
+                return 0, "", ""
+            if tuple(args[:2]) == ("pr", "create"):
+                return 0, "https://example.test/owner/repo/pull/1", ""
+            self.fail(f"unexpected gh call: {args!r}")
+
+        with unittest.mock.patch("memory_seed.core._git_text", side_effect=fake_git), unittest.mock.patch(
+            "memory_seed.core._gh_text", side_effect=fake_gh
+        ):
+            result = session_open_pr(cwd=cwd, branch="feature-pr", base_branch="main")
+
+        self.assertTrue(result.opened)
+        self.assertTrue(result.pushed)
+        self.assertTrue(result.pr_created)
+        self.assertEqual(result.issues, [])
+        pushed_text = target.read_text(encoding="utf-8")
+        pos_c = pushed_text.find("## 2026-07-12 09:30")
+        pos_b = pushed_text.find("## 2026-07-12 10:00")
+        self.assertTrue(0 <= pos_c < pos_b, "fresh origin/main was not prepared before push")
+        self.assertIn(("fetch", "--no-tags", "origin", "refs/heads/main:refs/remotes/origin/main"), git_commands)
+        self.assertIn(("push", "--set-upstream", "origin", "feature-pr"), git_commands)
+        self.assertFalse(any("--force" in args or "-f" in args for args in git_commands))
+
+    def test_session_open_pr_refuses_failed_base_refresh_before_branch_modification(self):
+        import unittest.mock
+
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-q", "-c", "feature-pr")
+        self._write_grouped_session(cwd, "2026-07-11", "mse_1111111111111111", branch="feature-pr")
+        self._commit_all(cwd, "feature session")
+        self._git(cwd, "remote", "add", "origin", str(cwd / "missing-origin.git"))
+        before = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+
+        def fake_gh(_root, args):
+            if tuple(args) == ("--version",):
+                return 0, "gh version 2.0.0", ""
+            if tuple(args) == ("auth", "status"):
+                return 0, "", ""
+            self.fail(f"unexpected gh call: {args!r}")
+
+        with unittest.mock.patch("memory_seed.core._gh_text", side_effect=fake_gh):
+            result = session_open_pr(cwd=cwd, branch="feature-pr", base_branch="main")
+
+        self.assertFalse(result.opened)
+        self.assertFalse(result.pushed)
+        self.assertTrue(result.issues)
+        self.assertIn("could not refresh origin/main", result.issues[0])
+        self.assertEqual(before, self._git(cwd, "rev-parse", "HEAD").stdout.strip())
+        self.assertEqual(self._git(cwd, "status", "--short").stdout.strip(), "")
+
+    def test_session_open_pr_refuses_unauthenticated_gh_before_modifying_branch(self):
+        import unittest.mock
+
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-pr")
+        self._write_grouped_session(cwd, "2026-07-11", "mse_1111111111111111", branch="feature-pr")
+        self._commit_all(cwd, "feature session")
+        self._git(cwd, "remote", "add", "origin", "https://example.com/owner/repo.git")
+        before = self._git(cwd, "rev-parse", "HEAD").stdout.strip()
+
+        def fake_gh(_root, args):
+            if tuple(args) == ("--version",):
+                return 0, "gh version 2.0.0", ""
+            if tuple(args) == ("auth", "status"):
+                return 1, "", "not logged in"
+            self.fail(f"unexpected gh call: {args!r}")
+
+        with unittest.mock.patch("memory_seed.core._gh_text", side_effect=fake_gh):
+            result = session_open_pr(cwd=cwd, branch="feature-pr", base_branch="main", dry_run=False)
+
+        self.assertFalse(result.opened)
+        self.assertTrue(result.issues)
+        self.assertIn("gh is not authenticated", result.issues[0])
+        self.assertEqual(before, self._git(cwd, "rev-parse", "HEAD").stdout.strip())
+        self.assertEqual(self._git(cwd, "status", "--short").stdout.strip(), "")
+
     def test_compact_returns_headings_from_recent_sessions(self):
         cwd = self.make_project()
         today = __import__("datetime").date.today().isoformat()
@@ -4320,6 +4757,200 @@ class CliHelpTests(unittest.TestCase):
         self.assertIn("Recommended default: all", out)
         self.assertIn("Installed agents: (none)", out)
         self.assertIn("Selected optional skills: (none)", out)
+
+    def test_init_refuses_unreadable_existing_integration_config_without_overwrite(self):
+        import contextlib
+        import io
+        import os
+        import unittest.mock
+
+        from memory_seed.cli import main
+
+        project = self.make_project()
+        config = project / MEMORY_DIR_NAME / "project.yaml"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        original_bytes = b"participants:\n  - slug: jean\n"
+        config.write_bytes(original_bytes)
+        original_read_text = Path.read_text
+
+        def fail_config_read(path, *args, **kwargs):
+            if path == config:
+                raise OSError("simulated read failure")
+            return original_read_text(path, *args, **kwargs)
+
+        cwd = Path.cwd()
+        stderr = io.StringIO()
+        try:
+            os.chdir(project)
+            with contextlib.redirect_stderr(stderr), unittest.mock.patch.object(
+                Path, "read_text", new=fail_config_read
+            ):
+                code = main(["init", "--no-agent-prompt", "--no-skill-prompt"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 1)
+        self.assertIn("cannot read existing", stderr.getvalue())
+        self.assertEqual(config.read_bytes(), original_bytes)
+
+    def test_init_noninteractive_writes_default_integration_mode(self):
+        import os
+
+        project = self.make_project()
+        cwd = Path.cwd()
+        try:
+            os.chdir(project)
+            code, _out = self._run(["init", "--no-agent-prompt", "--no-skill-prompt"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 0)
+        config = (project / ".memory-seed" / "project.yaml").read_text(encoding="utf-8")
+        self.assertIn("integration_mode: local-merge", config)
+
+    def test_init_honors_explicit_integration_mode_flag(self):
+        import os
+
+        project = self.make_project()
+        cwd = Path.cwd()
+        try:
+            os.chdir(project)
+            code, _out = self._run(["init", "--no-agent-prompt", "--no-skill-prompt", "--integration-mode", "pr"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 0)
+        config = (project / ".memory-seed" / "project.yaml").read_text(encoding="utf-8")
+        self.assertIn("integration_mode: pr", config)
+
+    def test_interactive_init_prompts_for_integration_mode_suggestion(self):
+        import contextlib
+        import io
+        import os
+        import unittest.mock
+
+        from memory_seed.cli import main
+
+        class TtyInput(io.StringIO):
+            def isatty(self):
+                return True
+
+        project = self.make_project()
+        cwd = Path.cwd()
+        stdout = io.StringIO()
+        try:
+            os.chdir(project)
+            with contextlib.redirect_stdout(stdout), unittest.mock.patch(
+                "sys.stdin", TtyInput("\n")
+            ), unittest.mock.patch(
+                "memory_seed.cli.suggest_integration_mode",
+                return_value=("pr", "GitHub reports more than one collaborator"),
+            ):
+                code = main(["init", "--no-agent-prompt", "--no-skill-prompt"])
+        finally:
+            os.chdir(cwd)
+
+        out = stdout.getvalue()
+        self.assertEqual(code, 0)
+        self.assertIn("How should branch work be integrated?", out)
+        self.assertIn("Suggested: pr (GitHub reports more than one collaborator)", out)
+        config = (project / ".memory-seed" / "project.yaml").read_text(encoding="utf-8")
+        self.assertIn("integration_mode: pr", config)
+
+    def test_init_preserves_declared_integration_mode_without_reprompt(self):
+        import contextlib
+        import io
+        import os
+        import unittest.mock
+
+        from memory_seed.cli import main
+
+        class TtyInput(io.StringIO):
+            def isatty(self):
+                return True
+
+        project = self.make_project()
+        memory_dir = project / ".memory-seed"
+        memory_dir.mkdir(parents=True, exist_ok=True)
+        (memory_dir / "project.yaml").write_text(
+            "integration_mode: pr\nparticipants:\n  - slug: jean\n    initials: JN\n",
+            encoding="utf-8",
+        )
+        cwd = Path.cwd()
+        stdout = io.StringIO()
+        try:
+            os.chdir(project)
+            with contextlib.redirect_stdout(stdout), unittest.mock.patch(
+                "sys.stdin", TtyInput("")
+            ), unittest.mock.patch("memory_seed.cli.suggest_integration_mode") as suggest_mode:
+                code = main(["init", "--no-agent-prompt", "--no-skill-prompt"])
+        finally:
+            os.chdir(cwd)
+
+        out = stdout.getvalue()
+        self.assertEqual(code, 0)
+        suggest_mode.assert_not_called()
+        self.assertNotIn("How should branch work be integrated?", out)
+        config = (project / ".memory-seed" / "project.yaml").read_text(encoding="utf-8")
+        self.assertIn("integration_mode: pr", config)
+
+    def test_session_integrate_cli_dispatches_pr_mode(self):
+        import os
+        import unittest.mock
+
+        from memory_seed.core import SessionOpenPrResult
+
+        project = self.make_project()
+        cwd = Path.cwd()
+        try:
+            os.chdir(project)
+            with unittest.mock.patch("memory_seed.cli.read_integration_mode", return_value="pr"), unittest.mock.patch(
+                "memory_seed.cli.session_open_pr",
+                return_value=SessionOpenPrResult(
+                    opened=False,
+                    dry_run=True,
+                    base_branch="main",
+                    source_branch="feature-pr",
+                    pr_title="Integrate feature-pr into main",
+                    pr_body="planned body",
+                    planned_entries=["mse_1111111111111111 2026-07-11 09:00 -> .memory-seed/sessions/2026-07/2026-07-11.md"],
+                ),
+            ):
+                code, out = self._run(["session", "integrate", "--branch", "feature-pr", "--dry-run"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 0)
+        self.assertIn("Integration mode: pr", out)
+        self.assertIn("Prepared entry:", out)
+        self.assertIn("PR title: Integrate feature-pr into main", out)
+        self.assertIn("Dry run - no push or PR performed.", out)
+
+    def test_session_integrate_cli_dispatches_local_merge_mode(self):
+        import os
+        import unittest.mock
+
+        from memory_seed.core import SessionMergeBranchResult
+
+        project = self.make_project()
+        cwd = Path.cwd()
+        try:
+            os.chdir(project)
+            with unittest.mock.patch("memory_seed.cli.read_integration_mode", return_value="local-merge"), unittest.mock.patch(
+                "memory_seed.cli.session_merge_branch",
+                return_value=SessionMergeBranchResult(
+                    committed=False,
+                    planned_entries=["mse_1111111111111111 2026-07-11 09:00 -> .memory-seed/sessions/2026-07/2026-07-11.md"],
+                ),
+            ):
+                code, out = self._run(["session", "integrate", "--branch", "feature-merge", "--dry-run"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 0)
+        self.assertIn("Integration mode: local-merge", out)
+        self.assertIn("Would import: mse_1111111111111111", out)
+        self.assertIn("Dry run - no merge performed.", out)
 
     def test_user_set_show_clear_and_session_target(self):
         import contextlib
