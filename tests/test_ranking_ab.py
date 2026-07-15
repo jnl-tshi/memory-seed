@@ -52,34 +52,34 @@ def _chunk(
 class RankingABTests(unittest.TestCase):
     def _independent_lineage_corpus(self):
         lineage_a_old = _chunk(
-            "mse_a_old",
+            "ms-a0a0a0a0",
             "2026-06-15 02:15 - Updated 3.0 plan decisions",
             "Lineage A retired plan decisions.",
             day=1,
         )
         lineage_a_new = _chunk(
-            "mse_a_new",
+            "ms-a1a1a1a1",
             "Retirement record: lineage A plan decisions",
             "Lineage A current plan decisions.",
             day=2,
-            supersedes=("mse_a_old",),
+            supersedes=("ms-a0a0a0a0",),
         )
         lineage_b_old = _chunk(
-            "mse_b_old",
+            "ms-b0b0b0b0",
             "2026-07-15 17:46 - Sense-check roadmap plan decisions",
             "Lineage B also shares plan decisions wording.",
             day=3,
         )
         lineage_b_new = _chunk(
-            "mse_b_new",
+            "ms-b1b1b1b1",
             "Constitution-harden lineage B plan decisions",
             "Lineage B current plan decisions.",
             day=4,
-            supersedes=("mse_b_old",),
+            supersedes=("ms-b0b0b0b0",),
         )
         distractors = [
             _chunk(
-                f"mse_noise_{i}",
+                f"ms-d15a00{i:02x}",
                 f"Distractor plan decisions {i}",
                 "Plan decisions distractor text.",
                 day=5 + i,
@@ -178,15 +178,15 @@ class RankingABTests(unittest.TestCase):
         )
 
         by_winner = {query.winner_id: query for query in result.queries if query.winner_id}
-        a_query = by_winner["mse_a_new"]
-        b_query = by_winner["mse_b_new"]
+        a_query = by_winner["ms-a1a1a1a1"]
+        b_query = by_winner["ms-b1b1b1b1"]
         self.assertEqual(a_query.query, "Updated 3.0 plan decisions")
         self.assertEqual(b_query.query, "Sense-check roadmap plan decisions")
         self.assertEqual(a_query.unexpected_changed_ids, ())
         self.assertEqual(b_query.unexpected_changed_ids, ())
         self.assertTrue(
             any(
-                change.entry_id == "mse_b_new"
+                change.entry_id == "ms-b1b1b1b1"
                 and change.score_on == change.score_off
                 and change.rank_on > change.rank_off
                 for change in a_query.changes

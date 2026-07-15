@@ -562,10 +562,10 @@ class FreshnessRankingTests(unittest.TestCase):
 
     def make_independent_lineage_fixture(self):
         cwd = self.make_project()
-        old_a = "mse_lineagea_old00"
-        new_a = "mse_lineagea_new00"
-        old_b = "mse_lineageb_old00"
-        new_b = "mse_lineageb_new00"
+        old_a = "ms-a0a0a0a0"
+        new_a = "ms-a1a1a1a1"
+        old_b = "ms-b0b0b0b0"
+        new_b = "ms-b1b1b1b1"
         self.write_session(
             cwd,
             "2026-05-17.md",
@@ -602,7 +602,7 @@ class FreshnessRankingTests(unittest.TestCase):
                 f"2026-05-{17+i}.md",
                 f"## 2026-05-{17+i:02d} 09:00 - Distractor {i}\n\n"
                 "```yaml\n"
-                f"entry_id: mse_distractor_{i:02d}\n"
+                f"entry_id: ms-d15a00{i:02x}\n"
                 "user_initials: JN\nagent_type: codex\nproject_path: .\nsubproject_path: null\n"
                 "```\n\n"
                 "Plan decisions distractor text.\n",
@@ -715,7 +715,7 @@ class FreshnessRankingTests(unittest.TestCase):
         cwd, old_a, new_a, old_b, new_b = self.make_independent_lineage_fixture()
         query = "2026-06-15 02:15 - Updated 3.0 plan decisions"
 
-        without = search_memory(
+        without_window = search_memory(
             query,
             str(cwd),
             semantic_enabled=False,
@@ -724,7 +724,7 @@ class FreshnessRankingTests(unittest.TestCase):
             superseding_successor_boost=False,
             top_k=8,
         )
-        with_boost = search_memory(
+        with_boost_window = search_memory(
             query,
             str(cwd),
             semantic_enabled=False,
@@ -733,16 +733,45 @@ class FreshnessRankingTests(unittest.TestCase):
             superseding_successor_boost=True,
             top_k=8,
         )
-        by_without = {r["entry_id"]: r for r in without["results"]}
-        by_with = {r["entry_id"]: r for r in with_boost["results"]}
-        order_without = [r["entry_id"] for r in without["results"]]
-        order_with = [r["entry_id"] for r in with_boost["results"]]
+        without_full = search_memory(
+            query,
+            str(cwd),
+            semantic_enabled=False,
+            today=self.TODAY,
+            supersession_damping=True,
+            superseding_successor_boost=False,
+            top_k=32,
+        )
+        with_boost_full = search_memory(
+            query,
+            str(cwd),
+            semantic_enabled=False,
+            today=self.TODAY,
+            supersession_damping=True,
+            superseding_successor_boost=True,
+            top_k=32,
+        )
+        by_without_full = {r["entry_id"]: r for r in without_full["results"]}
+        by_with_full = {r["entry_id"]: r for r in with_boost_full["results"]}
+        order_without_window = [r["entry_id"] for r in without_window["results"]]
+        order_with_window = [r["entry_id"] for r in with_boost_window["results"]]
 
-        self.assertIn(new_a, order_with)
-        self.assertGreater(by_with[new_a]["score"], by_without.get(new_a, {"score": 0})["score"])
-        if new_b in by_without:
-            self.assertEqual(by_with[new_b]["score"], by_without[new_b]["score"])
-            self.assertGreaterEqual(order_with.index(new_b), order_without.index(new_b))
+        self.assertIn(new_a, order_with_window)
+        self.assertGreater(
+            by_with_full[new_a]["score"],
+            by_without_full.get(new_a, {"score": 0})["score"],
+        )
+        self.assertIn(new_b, by_without_full)
+        self.assertIn(new_b, by_with_full)
+        self.assertEqual(by_with_full[new_b]["score"], by_without_full[new_b]["score"])
+        if new_b in order_without_window:
+            self.assertIn(new_b, order_with_window)
+            self.assertGreaterEqual(
+                order_with_window.index(new_b),
+                order_without_window.index(new_b),
+            )
+        else:
+            self.assertNotIn(new_b, order_with_window)
 
     def make_evolves_fixture(self):
         """A three-entry evolves chain: C evolves B, B evolves A. All still
