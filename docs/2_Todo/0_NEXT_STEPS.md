@@ -62,16 +62,17 @@ inbox 2026-07-14**; **it now leads** (the foundation shipped 2026-07-15). These 
 better (each answers the five-question test), so they sit above the Track A tails. Build in this order —
 the gate first, because the successor boost depends on it:
 
-1. **`ranking-ab` + the "expose before you rank" amendment** —
-   [`real-corpus-ranking-validation-gate-proposal.md`](real-corpus-ranking-validation-gate-proposal.md).
-   A reusable `memory-seed ranking-ab` command + a graph-edge-contract rule requiring a real-corpus A/B
-   (not just green fixtures) before any default ranking flip. Five-question → **Validation + Trust**.
-   *Gates item 2's ranking half.*
-2. **`superseding_head` (+ gated replacement boost)** —
+1. **`ranking-ab` + the "expose before you rank" amendment** — ✅ **SHIPPED 2026-07-15**.
+   [`real-corpus-ranking-validation-gate-proposal.md`](../5_Completed/real-corpus-ranking-validation-gate-proposal.md).
+   The reusable `memory-seed ranking-ab` command and graph-edge-contract rule now require a full-corpus
+   off/on comparison, intended directional wins, and an unchanged no-affected-hit control before a
+   default ranking flip. Five-question → **Validation + Trust**. *The gate for item 2 now exists.*
+2. **`superseding_head` (+ gated replacement boost)** ← **NEXT** —
    [`supersession-successor-surfacing-proposal.md`](supersession-successor-surfacing-proposal.md).
    Closes the supersedes/evolves asymmetry: `supersedes` only *damps* the retired entry while `evolves`
    *surfaces* its successor via the shipped `evolved_head`. Step 1 (`superseding_head`, additive/read-only)
-   can ship now; step 2 (bounded boost) waits on item 1's A/B gate. Five-question → **Retrieval + Trust**.
+   can ship now; step 2 (bounded boost) must pass the shipped item 1 A/B gate. Five-question →
+   **Retrieval + Trust**.
 3. **`link audit --apply` sidecar scaffold** —
    [`lifecycle-link-authoring-assist-proposal.md`](lifecycle-link-authoring-assist-proposal.md).
    Scaffolds inert `classify_pending` sidecar stubs (never auto-classifies — author judgment stays,
@@ -110,22 +111,54 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   snapshot-tested, **no write path, no provider**. Owns the near-term "Evidence Pack" implementation; the
   canonical shape is the spec [`../3_Spec/memory-trace-derived-artifact-provenance-contract.md`](../3_Spec/memory-trace-derived-artifact-provenance-contract.md)
   (blueprint §4.5 and the evidence-annotations doc are forward supersets — do not build a second builder).
-- **B0 — Graph-view attention** *(pre-React; JNL-endorsed 2026-07-15)* — the reason React is deferred:
-  JNL wants the Memory Trace **graph view** to get its due attention before any React rebuild. Sits after
-  the trio and **before B2**. "The attention it needs" is deliberately underspecified — this workstream
-  **opens with a taste-elicitation from JNL** (what's wrong / what they want from the graph), not a guess.
-  Vanilla `/api/graph` + `app.js` graph rendering.
-- **B2 — React/Vite shell** *(the strategic bet — DEFERRED 2026-07-15; graph-view attention (B0) comes
-  first)* —
+- **B0a — Graph/workspace contract and benchmark** *(pre-React; JNL-endorsed 2026-07-15; proposal set
+  promoted 2026-07-15)* — the reason React is deferred: the graph gets semantic, interaction, and renderer
+  attention before any React rebuild, without implementing the same UI twice. Sits after the trio and
+  **before B2**. Coordinating index:
+  [`memory-trace-graph-and-workspace-proposal-set-index.md`](memory-trace-graph-and-workspace-proposal-set-index.md).
+  B0a makes the decisions and produces the evidence B2/B0b must consume:
+  1. **Shell behaviour / shared-selection contract** —
+     [`memory-trace-three-region-workspace-and-dockable-inspector-proposal.md`](memory-trace-three-region-workspace-and-dockable-inspector-proposal.md):
+     hamburger toggles only the left pane; Trail and Graph remain centre workspace modes; inspector
+     visibility/dock state is independent. Apply only vanilla-safe clarifications that will not duplicate
+     the React implementation.
+  2. **Renderer-neutral graph contract + fixtures** —
+     [`memory-trace-graph-visualisation-and-temporal-topology-proposal.md`](memory-trace-graph-visualisation-and-temporal-topology-proposal.md):
+     separate graph semantics from renderer implementation while preserving the current SVG renderer as a
+     fallback.
+  3. **Renderer benchmark** — prototype the same bounded fixture in vis-network and Cytoscape.js; choose
+     from evidence (offline packaging, accessibility, temporal topology, hierarchy layout, scale), not
+     preference.
+  4. **Topology-first graph** — stable community colour, stronger node hierarchy, typed/curved edges,
+     optional mild temporal drift, and bounded/community overview modes, specified and fixture-proven but
+     not yet migrated to the selected renderer.
+- **B2 — React/Vite shell** *(the strategic bet — DEFERRED 2026-07-15; B0a comes first)* —
   [`memory-trace-frontend-architecture-and-design-system-proposal.md`](memory-trace-frontend-architecture-and-design-system-proposal.md)
   (roadmap Phase 2). First increment before any component work: stand up the Vite/TS workspace whose
   **built** assets serve from the wheel with **zero Node at runtime** — proving the packaging spine.
   Gated by the `3_Spec` parity fixtures + vanilla fallback. The current vanilla `/api/*` + `app.js` Trail
   stays the shipped UI until parity is proven.
-- **B3 — Evidence annotations & projection** *(long-horizon, after B2)* —
+- **B0b — Native graph/workspace implementation** *(post-shell; implemented through roadmap Phases 3 and
+  5)* — integrate the B0a-selected renderer through the canonical projection; implement topology-first
+  and optional mild-temporal layouts; add the right/bottom/auto dockable Inspector, persisted state,
+  shared selection, accessibility, and scale gates. Keep the SVG renderer until explicit parity sign-off.
+  Only after B0b acceptance may the
+  [`structural-provider proposal`](memory-trace-structural-graph-enrichment-provider-proposal.md) define a
+  provider-neutral contract and pilot optional `code-review-graph`; providers never own canonical decision
+  semantics or alter ranking without exposure and real-corpus validation.
+- **BG1 — Provenance and authority taxonomy** *(constitutional gate before actionable annotations or
+  agent-influencing generated output)* —
+  [`memory-provenance-and-authority-taxonomy-proposal.md`](memory-provenance-and-authority-taxonomy-proposal.md).
+  Extend the shipped seven-value `ProvenanceClass`; keep provenance, lifecycle, and actionability as
+  separate fields; do not create a single trust score.
+- **BG2 — Memory-quality metrics v0** *(read-only baseline; no ranking or automation effect)* —
+  [`memory-quality-metrics-v0-proposal.md`](memory-quality-metrics-v0-proposal.md). Define explicit
+  populations and denominators for unlinked entries, DRAFT reason coverage, generated-claim citations,
+  provenance coverage, and ranking A/B regressions. Measure the real corpus before setting targets.
+- **B3 — Evidence annotations & projection** *(long-horizon, after B2/B0b and BG1)* —
   [`memory-trace-evidence-annotations-and-projection-architecture.md`](memory-trace-evidence-annotations-and-projection-architecture.md).
   Anchors, append-only annotations, SQLite projection — needs the React shell **and** a participant/role
-  model first.
+  model first. No annotation becomes agent-actionable until BG1's authority rules are adopted.
 
 ### Track C — agent context efficiency (control-plane)
 
@@ -170,28 +203,33 @@ of the five questions), so lower priority. Each a verified genuine gap:
   decision from you** (slash vs. hyphen branch naming) and sign-off to edit `agent_collaboration.md` (a
   locked control-plane file); depends on `worktree gc`.
 
-*(The architectural-discovery proposal was approved and promoted to `2_Todo/` — it is the active
-Constitution-first work; see the pause banner above.)*
+*(The architectural-discovery proposal completed with Constitution v1.0 ratification on 2026-07-14;
+development then resumed under its gates.)*
 
 ## Captured strategic input — `4_Reference` (2026-07-14 drop, triaged)
 
-A strategy/research set was dropped into the inbox and triaged: the actionable proposal above stayed in
-`1_Inbox`; the three source reports moved to `4_Reference` (source material, not buildable plans). They
-overlap the existing corpus (`memory-seed-market-fit-report.md`, the next-gen blueprint, `agent-rules.md`
-Working Principles) more than they add — the **genuinely net-new** ideas worth mining into proposals:
+A strategy/research set was dropped into the inbox and triaged: the architectural-discovery proposal was
+promoted and completed through Constitution v1.0; the three source reports moved to `4_Reference` (source
+material, not buildable plans). They overlap the existing corpus (`memory-seed-market-fit-report.md`, the
+next-gen blueprint, `agent-rules.md` Working Principles) more than they add; the useful extracted and
+remaining ideas are:
 
 - [`../4_Reference/memory-seed-gitlens-competitor-report.md`](../4_Reference/memory-seed-gitlens-competitor-report.md)
   — GitLens as a competitor/integration target; differentiate on decision/reasoning provenance (not
   Git-history features); "memory beside the commit/PR being viewed" tactics.
 - [`../4_Reference/memory-seed-strategic-synthesis-report.md`](../4_Reference/memory-seed-strategic-synthesis-report.md)
-  — Memory-Quality as a first-class KPI set (stale-rate, orphan-rate, evidence/decision coverage) and a
-  named layered-maturity ladder (raw activity → … → institutional knowledge).
+  — Memory-Quality as a first-class KPI set and a named layered-maturity ladder (raw activity → … →
+  institutional knowledge). The measurable, non-gameable subset is now active as
+  [`memory-quality-metrics-v0-proposal.md`](memory-quality-metrics-v0-proposal.md).
 - [`../4_Reference/memory-seed-rectification-priorities-report.md`](../4_Reference/memory-seed-rectification-priorities-report.md)
-  — an entry-type taxonomy (Evidence/Interpretation/Decision/…), a content-trust-level taxonomy, and an
-  outcome-comparison benchmark (with/without Memory Seed). Several of its 10 items are already
-  shipped/covered (two-stage capture, retrieval-over-graph, trust/security groundwork).
+  — an entry-type taxonomy (Evidence/Interpretation/Decision/…), content authority, and an
+  outcome-comparison benchmark (with/without Memory Seed). Provenance/authority/actionability is now active
+  as [`memory-provenance-and-authority-taxonomy-proposal.md`](memory-provenance-and-authority-taxonomy-proposal.md);
+  the broader entry-type taxonomy and outcome benchmark remain unpromoted. Several of the report's other
+  items are already shipped/covered (two-stage capture, retrieval-over-graph, trust/security groundwork).
 
-None are promoted to active work — tell me which net-new items to split into `1_Inbox` proposals.
+The GitLens integration tactic, broader entry-type taxonomy, layered-maturity model, and outcome-comparison
+benchmark remain reference input rather than active work.
 
 ## Doc-lifecycle Phase 2 (housekeeping)
 
@@ -219,8 +257,8 @@ docs into `5_Completed/`, and removing the empty `superpowers/specs/`.
 - **Releases:** never cut/publish without the user's explicit go; the PyPI push is a manual-approval gate.
   Current plan: cut 2.19 after the memory-quality trio lands.
 - **Ranking:** keep `main` behavior stable; run ranking experiments on a branch, merge only after **both**
-  fixtures **and** a real-corpus A/B (`ranking-ab`, once built) show a clear win with no text-ranking
-  regression. This is the "expose before you rank" gate the trio's item 1 hardens.
+  fixtures **and** the shipped real-corpus A/B (`ranking-ab`) show a clear win with no text-ranking
+  regression. This is the enforced "expose before you rank" gate from the trio's item 1.
 - **Branches/worktrees: branch = workstream** (policy set 2026-07-15). Batch follow-on fixes/evolutions of
   the *same goal* onto one `claude/<kind>/<topic>` branch — the tell is an `evolves`/`related` edge to the
   entry just written, or the same subsystem — and merge the batch to local `main` at a **stable, tested

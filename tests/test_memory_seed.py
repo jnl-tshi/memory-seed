@@ -3157,6 +3157,8 @@ class HookMergeTests(unittest.TestCase):
         self.assertEqual(hook["version"], 1)
         entry = hook["hooks"]["sessionStart"][0]
         self.assertEqual(entry["type"], "prompt")
+        self.assertIn("AGENTS.md", entry["prompt"])
+        self.assertIn("five newest applicable", entry["prompt"])
         self.assertIn("Do NOT use memory_search", entry["prompt"])
         self.assertIn(".memory-seed/sessions/", entry["prompt"])
 
@@ -4601,13 +4603,18 @@ class SessionStartContextHookTests(unittest.TestCase):
             env=env,
         ).stdout
 
-    def test_injects_newest_file_headings_and_latest_entry(self):
+    def test_injects_five_newest_entries_and_startup_directive(self):
         import json
 
         cwd = self.make_project({
-            "2026-01-01.md": "## 2026-01-01 09:00 - Older work\n\nbody one\n",
+            "2026-01-01.md": (
+                "## 2026-01-01 08:00 - Excluded old work\n\ndrop me\n\n"
+                "## 2026-01-01 09:00 - Prior context\n\nkeep prior\n"
+            ),
             "2026-02-02.md": (
                 "## 2026-02-02 10:00 - First entry\n\nbody A\n\n"
+                "## 2026-02-02 11:00 - Second entry\n\nbody B\n\n"
+                "## 2026-02-02 12:00 - Third entry\n\nbody C\n\n"
                 "## 2026-02-02 14:30 - Latest entry title\n\nthe newest body\n"
             ),
         })
@@ -4615,16 +4622,19 @@ class SessionStartContextHookTests(unittest.TestCase):
         out = self._run(cwd)
         context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
 
-        # Newest file by date is selected, not the older one.
-        self.assertIn("Newest session file: .memory-seed/sessions/2026-02-02.md", context)
-        self.assertIn("Prior session file: .memory-seed/sessions/2026-01-01.md", context)
-        # All headings of the newest file are listed.
+        self.assertIn("`AGENTS.md`", context)
+        self.assertIn("Read the five newest applicable entries", context)
+        self.assertIn("Newest 5 session entries", context)
+        # The window spans files when the newest file has fewer than five entries.
+        self.assertIn(".memory-seed/sessions/2026-02-02.md", context)
+        self.assertIn(".memory-seed/sessions/2026-01-01.md", context)
+        self.assertIn("2026-01-01 09:00 - Prior context", context)
+        self.assertNotIn("Excluded old work", context)
+        self.assertNotIn("drop me", context)
         self.assertIn("2026-02-02 10:00 - First entry", context)
         self.assertIn("2026-02-02 14:30 - Latest entry title", context)
-        # The most recent entry's body is injected verbatim (self-sufficient).
         self.assertIn("the newest body", context)
-        # The recency-vs-search rule is present.
-        self.assertIn("do NOT use memory_search", context)
+        self.assertIn("Use memory_search only for topical questions", context)
 
     def test_cursor_uses_additional_context_field(self):
         import json
@@ -4634,6 +4644,23 @@ class SessionStartContextHookTests(unittest.TestCase):
         data = json.loads(out)
         self.assertIn("additional_context", data)
         self.assertNotIn("hookSpecificOutput", data)
+        self.assertIn("`AGENTS.md`", data["additional_context"])
+
+    def test_all_dynamic_agent_outputs_include_startup_directive(self):
+        import json
+
+        cwd = self.make_project({"2026-02-02.md": "## 2026-02-02 10:00 - X\n\nb\n"})
+        cases = (
+            ((), lambda data: data["hookSpecificOutput"]["additionalContext"]),
+            (("--codex",), lambda data: data["hookSpecificOutput"]["additionalContext"]),
+            (("--gemini",), lambda data: data["hookSpecificOutput"]["additionalContext"]),
+            (("--cursor",), lambda data: data["additional_context"]),
+        )
+        for args, context_from in cases:
+            with self.subTest(agent=args or ("claude",)):
+                context = context_from(json.loads(self._run(cwd, *args)))
+                self.assertIn("`AGENTS.md`", context)
+                self.assertIn("five newest applicable entries", context)
 
     def test_caps_long_latest_entry(self):
         import json
@@ -4644,18 +4671,23 @@ class SessionStartContextHookTests(unittest.TestCase):
         context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
         self.assertIn("truncated", context)
 
-    def test_empty_sessions_dir_emits_nothing(self):
-        # With identity already configured (so the one-time identity offer,
-        # tested separately, doesn't interfere), an empty sessions dir has no
-        # candidates to report and should emit nothing.
+    def test_empty_sessions_dir_still_emits_startup_directive(self):
+        import json
+
         cwd = self.make_project({})
         (cwd / ".memory-seed" / "local.yaml").write_text("user: jean\n", encoding="utf-8")
-        self.assertEqual(self._run(cwd).strip(), "")
+        context = json.loads(self._run(cwd))["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("`AGENTS.md`", context)
+        self.assertIn("No applicable session entries were found yet.", context)
 
-    def test_missing_sessions_dir_emits_nothing(self):
+    def test_missing_sessions_dir_still_emits_startup_directive(self):
+        import json
+
         path = Path(tempfile.mkdtemp(prefix="memory-seed-startup-"))
         self.addCleanup(lambda: shutil.rmtree(path, ignore_errors=True))
-        self.assertEqual(self._run(path).strip(), "")
+        context = json.loads(self._run(path))["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("`AGENTS.md`", context)
+        self.assertIn("No applicable session entries were found yet.", context)
 
     def test_ignores_non_date_filenames(self):
         import json
@@ -4693,7 +4725,7 @@ class SessionStartContextHookTests(unittest.TestCase):
         out = self._run_with_env(cwd, {"MEMORY_SEED_USER": "jean"})
         context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
 
-        self.assertIn("Newest session file: .memory-seed/sessions/2026-02-02/jean.md", context)
+        self.assertIn("Source: .memory-seed/sessions/2026-02-02/jean.md", context)
         self.assertIn("jean newest body", context)
         self.assertIn("Co-contributor session files for 2026-02-02:", context)
         self.assertIn(".memory-seed/sessions/2026-02-02/amina.md (1 entry)", context)
@@ -4704,15 +4736,20 @@ class SessionStartContextHookTests(unittest.TestCase):
 
         # A per-user file exists, but with no participants: registered the
         # env-var user should be gated back to flat lookup - and since there's
-        # no flat file either, the hook should emit nothing.
+        # no flat file either, the hook reports no applicable entries.
         cwd = self.make_project({
             "2026-02-02/jean.md": "## 2026-02-02 10:00 - Jean entry\n\nbody\n",
         })
-        self.assertEqual(self._run_with_env(cwd, {"MEMORY_SEED_USER": "jean"}).strip(), "")
+        out = self._run_with_env(cwd, {"MEMORY_SEED_USER": "jean"})
+        context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("No applicable session entries were found yet.", context)
+        self.assertNotIn("jean body", context)
 
         # With exactly one participant registered, still gated to flat.
         self._write_participants(cwd, count=1)
-        self.assertEqual(self._run_with_env(cwd, {"MEMORY_SEED_USER": "jean"}).strip(), "")
+        out = self._run_with_env(cwd, {"MEMORY_SEED_USER": "jean"})
+        context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("No applicable session entries were found yet.", context)
 
         # A flat file is found once gated back, even though a per-user file
         # for the same date also exists.
@@ -4720,7 +4757,7 @@ class SessionStartContextHookTests(unittest.TestCase):
         flat.write_text("## 2026-02-02 09:00 - Flat entry\n\nflat body\n", encoding="utf-8")
         out = self._run_with_env(cwd, {"MEMORY_SEED_USER": "jean"})
         context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("Newest session file: .memory-seed/sessions/2026-02-02.md", context)
+        self.assertIn("Source: .memory-seed/sessions/2026-02-02.md", context)
         self.assertIn("flat body", context)
 
     def test_explicit_user_arg_bypasses_participant_gate(self):
@@ -4738,16 +4775,18 @@ class SessionStartContextHookTests(unittest.TestCase):
 
         first = self._run(cwd).strip()
         self.assertIn("No local Memory Seed identity is configured", first)
+        self.assertIn("AGENTS.md", first)
         self.assertTrue((cwd / ".memory-seed" / ".identity-offer-stamp").exists())
 
         second = self._run(cwd).strip()
-        self.assertEqual(second, "")
+        self.assertIn("AGENTS.md", second)
+        self.assertNotIn("No local Memory Seed identity is configured", second)
 
     def test_identity_offer_skipped_when_user_already_configured(self):
         cwd = self.make_project({})
         (cwd / ".memory-seed" / "local.yaml").write_text("user: jean\n", encoding="utf-8")
 
-        self.assertEqual(self._run(cwd).strip(), "")
+        self.assertIn("AGENTS.md", self._run(cwd))
         self.assertFalse((cwd / ".memory-seed" / ".identity-offer-stamp").exists())
 
     def test_identity_offer_appended_alongside_project_state(self):
@@ -4755,7 +4794,7 @@ class SessionStartContextHookTests(unittest.TestCase):
 
         out = self._run(cwd)
         self.assertIn("No local Memory Seed identity is configured", out)
-        self.assertIn("Newest session file", out)
+        self.assertIn("Newest 1 session entry", out)
 
     def test_markdown_heading_in_body_is_not_an_entry_boundary(self):
         import json
@@ -4774,10 +4813,10 @@ class SessionStartContextHookTests(unittest.TestCase):
         out = self._run(cwd)
         context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
 
-        # Exactly one real entry heading is listed.
-        self.assertIn("- 2026-02-02 10:00 - Real entry", context)
-        self.assertNotIn("- Not A Real Entry Heading", context)
-        # The latest entry includes content from above the stray "## " line.
+        # The quoted heading stays inside the one real entry rather than
+        # becoming a second context entry.
+        self.assertIn("Newest 1 session entry", context)
+        self.assertEqual(context.count("## 2026-02-02 10:00 - Real entry"), 1)
         self.assertIn("Here is an example heading we quote", context)
         self.assertIn("real entry trailing content", context)
 

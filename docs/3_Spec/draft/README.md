@@ -6,8 +6,12 @@ spec moves up to `3_Spec/`; if abandoned it goes to `6_Rejected/`.
 
 **Required YAML:** `spec_binding: draft` or `candidate`.
 
-**Contents:** _none physically here yet._ Two specs currently in `3_Spec/` are candidates and are marked
-`spec_binding: candidate` in place; they move here in Phase 2 (moving them now would break ~15 inbound
-links, batched into the P2 path sweep):
+**Contents physically here:**
+
+- `derived-read-model-projection-contract.md` - candidate local projection contract;
+- `memory-trace-hosted-markdown-settlement-contract.md` - candidate hosted settlement/rebuildability gate.
+
+Two specs currently in `3_Spec/` are also candidates and are marked `spec_binding: candidate` in place;
+they move here in Phase 2 (moving them now would break ~15 inbound links, batched into the P2 path sweep):
 - `memory-trace-trail-search-and-graph-ux.md`
 - `memory-trace-derived-artifact-provenance-contract.md`

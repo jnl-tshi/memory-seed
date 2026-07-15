@@ -3492,9 +3492,10 @@ _CODEX_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py
 _CURSOR_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py --cursor"
 _GEMINI_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py --gemini"
 
-# SessionStart orientation hook: injects the newest session entries directly so
-# agents do not lean on semantic search (which can bury the newest entry) to
-# establish current state. Fires once per session, unlike the per-prompt reminder.
+# SessionStart orientation hook: routes agents through AGENTS.md and injects the
+# five newest session entries directly so agents do not lean on semantic search
+# (which can bury the newest entry) to establish current state. Fires once per
+# session, unlike the per-prompt reminder.
 _CLAUDE_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py"
 _CODEX_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py --codex"
 _CURSOR_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py --cursor"
@@ -3527,12 +3528,13 @@ _VSCODE_MCP_EXPECTED = {
 }
 _COPILOT_STARTUP_MARKER = "memory-seed:"
 _COPILOT_STARTUP_PROMPT = (
-    "memory-seed: To establish current project state, read the most recent dated "
-    "file in .memory-seed/sessions/ (newest YYYY-MM-DD.md) in full, then skim the "
-    "prior one. Do NOT use memory_search/semantic search to find the most recent "
-    "work - its ranking can bury the newest entry beneath older topically-similar "
-    "ones. Use memory_search only for topical 'why was X decided / what do we know "
-    "about Y' questions."
+    "memory-seed: Before any work, locate the nearest applicable AGENTS.md by "
+    "walking upward from the current directory, read it first, and follow every "
+    "instruction and routing path it defines. Then read the five newest applicable "
+    "entries directly from the latest .memory-seed/sessions/ files to establish "
+    "current project context. Do NOT use memory_search/semantic search to find the "
+    "most recent work - use it only for topical 'why was X decided / what do we "
+    "know about Y' questions."
 )
 
 BOOTSTRAP_GENERATED_FILES = [
