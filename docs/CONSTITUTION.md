@@ -164,16 +164,17 @@ If it improves none, it must justify why it belongs in Memory Seed at all.
 
 The live record of what is *not* settled (this is the honest half of "discovery" — kept, not hidden):
 
-- **Governance-first vs. ship-first — now the live decision.** The Constitution is ratified (2026-07-14);
-  `0_NEXT_STEPS` Tracks A/B remain **paused**. The open call: resume A/B, or gate future work on the
-  Constitution first? *(This is the decision that created this document.)*
+- **Governance-first vs. ship-first — RESOLVED (2026-07-14): resume, sequenced under the Constitution.**
+  The Constitution was ratified 2026-07-14 and development **resumed the same day** — each item now answers
+  the five-question test and respects Invariant #6, rather than gating all work behind further governance.
+  *(This is the decision that created this document; the pause achieved its purpose.)*
 - **The next-generation Trace shell** (React/Vite) and a **VS Code extension** are candidate optional-local
   surfaces (§5), not yet committed.
 - **Trust taxonomy (§7) and quality metrics (§8)** are named but undefined.
 - **Source-of-truth under collaboration — RESOLVED (2026-07-14):** even a future hosted/collaborative tier
   keeps Markdown authoritative; any server database is a derived projection (Invariant #6). *Still open:*
-  **which** commercial tier to reach (local-pro / team-hosted / enterprise) and when — parked while
-  development is paused (`8_Deferred/memory-trace-commercialisation-and-monetisation-report.md`).
+  **which** commercial tier to reach (local-pro / team-hosted / enterprise) and when — parked pending
+  usage + market validation (`8_Deferred/memory-trace-commercialisation-and-monetisation-report.md`).
 - **Where the Constitution sits relative to the locked control plane.** Today it *describes*
   `agent-rules.md`; making agent-rules formally *subordinate* to this document is a future amendment, not
   assumed here.

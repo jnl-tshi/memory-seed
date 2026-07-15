@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.15
+memory-system-version: 2.18
 tags:
   - memory-seed
   - proposal
@@ -10,10 +10,11 @@ tags:
 
 # Related Entries P2 Mutation Plan
 
-> **Status:** ACTIVE - approved 2026-07-05.
-> **Priority:** P4 mutation/convenience work. It is unblocked by user sign-off, but should run after
-> the lower-risk Memory Trace retrieval-service extraction and decision-diagram convention
-> work unless the user explicitly reprioritizes graph curation.
+> **Status:** ACTIVE - approved 2026-07-05, unbuilt. (The retrieval-service extraction and
+> decision-diagram work it was sequenced behind have both shipped.)
+> **Priority:** convenience/mutation increment — Track A item 4 in [`0_NEXT_STEPS.md`](0_NEXT_STEPS.md);
+> a `link add` (current-entry) + explicit historical backfill. Not a blocker; sequence after the
+> Track A tails unless the user reprioritizes graph curation.
 > **Source:** User decision 2026-07-05: implement Related-entries P2, including backfill between older
 > entries and the optional `memory-seed link add` helper.
 > **Scope:** Add controlled mutation helpers for explicit `related_entries` curation while preserving

@@ -6,14 +6,15 @@ tags:
   - architecture
   - projection
   - performance
-priority: P0
-next_action: START Phase 1 — extend the existing SQLite cache into the read-model (git-watermark warm start + atomic build/swap) per the projection contract
+priority: P1
+next_action: Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, low-urgency) = incremental ingest, gated on an incremental==full-rebuild equivalence test; Phase 2 (git-rooted integrity, G6/G7) is the next increment.
 ---
 
 # Derived-projection implementation plan
 
-**Status:** ACTIVE — the **foundation** item; development resumed Constitution-aligned 2026-07-14
-([`0_NEXT_STEPS.md`](0_NEXT_STEPS.md)). Start Phase 1 by extending the existing SQLite cache.
+**Status:** Phase 1 **SHIPPED 2026-07-15**; incremental-ingest fast-follow deferred (low-urgency, reads
+already ~3.9 ms). Development resumed Constitution-aligned 2026-07-14
+([`0_NEXT_STEPS.md`](0_NEXT_STEPS.md)). Next increment: Phase 2 (git-rooted integrity).
 **Priority:** P1 (it is what makes Memory Trace fast on large histories).
 **Source:** the maintainer's design conversation on performance vs. the Markdown source of truth (2026-07-14).
 **Implements:** [`../3_Spec/draft/derived-read-model-projection-contract.md`](../3_Spec/draft/derived-read-model-projection-contract.md)

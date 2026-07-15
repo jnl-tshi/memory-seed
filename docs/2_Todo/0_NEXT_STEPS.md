@@ -1,19 +1,21 @@
 # Next Steps
 
 Status: **ACTIVE — resumed 2026-07-14, Constitution-aligned** (Constitution v1.0 ratified the same day).
-Updated: 2026-07-14
+Updated: 2026-07-15
 
-> ▶ **Development RESUMED 2026-07-14 — Constitution-aligned.** The pause achieved its purpose:
-> [`docs/CONSTITUTION.md`](../CONSTITUTION.md) **v1.0 is ratified**. Work now sequences *under* the
-> Constitution — each item answers the five-question test (Capture / Validation / Retrieval / Trust /
-> Application) and respects Invariant #6 (Markdown = source of truth; every DB/cache is a derived,
-> rebuildable projection). The **foundation item leads** (below): the
-> [derived-projection Phase 1](derived-projection-implementation-plan.md) per its
-> [contract](../3_Spec/draft/derived-read-model-projection-contract.md) — it makes Trace fast and makes the
-> source-of-truth model real, so it precedes the feature tracks.
+> ▶ **Foundation shipped 2026-07-15 → the memory-quality trio now leads.** The
+> [derived-projection Phase 1](derived-projection-implementation-plan.md) (git-watermark warm start +
+> atomic swap + three read-path perf refinements) **shipped 2026-07-15** — the plan's former "do first"
+> foundation is done. Work still sequences *under* [`docs/CONSTITUTION.md`](../CONSTITUTION.md) **v1.0**
+> (each item answers the five-question test — Capture / Validation / Retrieval / Trust / Application — and
+> respects Invariant #6: Markdown = source of truth; every DB/cache is a derived, rebuildable projection).
+> The current lead is the **Ranking & graph quality** trio (below); the projection's remaining
+> incremental-ingest fast-follow is deferred as low-urgency (reads are already ~3.9 ms). **2.19 is cut
+> after the trio lands** (JNL decision 2026-07-15). **React (B2) is deferred** — JNL wants the Trace
+> **graph view** to get its due attention first (a named pre-React workstream, below).
 Source: the `docs/` lifecycle lanes (folder = state — see [`../README.md`](../README.md)), `CHANGELOG.md`,
-and `docs/3_Spec/`. Rebuilt 2026-07-14 from a full inbox+todo evaluation (per-doc status verified against
-CHANGELOG + code, not this file's prior claims).
+and `docs/3_Spec/`. Rebuilt 2026-07-14 from a full inbox+todo evaluation; re-baselined 2026-07-15 after the
+Foundation shipped (per-doc status verified against CHANGELOG + code, not this file's prior claims).
 
 ## Current state
 
@@ -23,32 +25,42 @@ CHANGELOG + code, not this file's prior claims).
   discipline; indexed `topics:` end-to-end incl. Trace rendering; decision-diagram badges in Trail/Graph;
   agent worktree namespace guard; MCP topic + sidecar-edge parity; hardened Memory-Entry trailer hook;
   `link show` now reflects the sidecar-augmented effective graph).
+- **Foundation SHIPPED 2026-07-15:** derived-projection Phase 1 — git-watermark warm start (O(changes)
+  freshness, no whole-corpus scan; ~6.2 s rebuild → ~78 ms warm) + atomic build/swap + schema version, plus
+  three read-path perf refinements (freshness memoize, chunk memoize, sidecar-first-class freshness):
+  `chunk()` 132 ms → 3.9 ms. Only the **incremental-ingest** fast-follow remains, deferred as low-urgency.
 - **Doc lifecycle:** the folder a doc sits in *is* its state. This refresh moved the terminal docs into
   `5_Completed/` / `7_Superseded/` / `8_Deferred/`; only docs with live work remain in `2_Todo/`.
-- **A release cut (2.19) is due** to publish the Unreleased tranche — hold for the user's go (no unprompted
-  release).
+- **Release cadence:** cut **2.19 after the memory-quality trio lands** (JNL decision 2026-07-15) so the
+  release carries the retrieval/capture-quality wins too — then hold for the user's go on the PyPI push (no
+  unprompted release; the publish is a manual-approval gate).
 
 ## Live work — sequenced (Constitution-aligned)
 
 Active work, sequenced under the Constitution (each item answers the five-question test — Capture /
-Validation / Retrieval / Trust / Application — and respects Invariant #6). The foundation item leads; the
-feature tracks follow.
+Validation / Retrieval / Trust / Application — and respects Invariant #6). The **foundation shipped
+2026-07-15**, so the **Ranking & graph quality** trio now leads; the feature tracks follow.
 
-### Foundation (do first) — derived-projection Phase 1
+### Foundation — derived-projection Phase 1 ✅ SHIPPED 2026-07-15
 
-**Make Trace fast + make Invariant #6 real.** Extend the existing SQLite cache into the read-model per the
+**Made Trace fast + made Invariant #6 real.** The SQLite cache is now a formalized read-model per the
 [contract](../3_Spec/draft/derived-read-model-projection-contract.md): explicit Markdown→projection ingest
-with a byte-identical rebuild, a **git-watermark warm start** (delta, not a whole-corpus scan), and
-**atomic build/swap**. Plan:
+with a byte-identical rebuild, a **git-watermark warm start** (O(changes) freshness — no whole-corpus scan)
+and **atomic build/swap**, plus three read-path perf refinements (`chunk()` 132 ms → 3.9 ms). Plan:
 [`derived-projection-implementation-plan.md`](derived-projection-implementation-plan.md). Five-question
 test → **Retrieval** (fast reads) + **Application** (usable Trace on large histories).
+**Remaining fast-follow (deferred, low-urgency):** *incremental ingest* — re-project only the delta files'
+chunks and recompute whole-history git meta only when HEAD moved, gated behind an
+`incremental == full-rebuild` equivalence test. Reads are already ~3.9 ms, so this waits until corpus scale
+demands it. **Phase 2** (git-rooted historical integrity, G6/G7) is the next projection increment after the
+trio.
 
-### Ranking & graph quality — promoted from inbox 2026-07-14 (sequence: gate → surface → capture)
+### Ranking & graph quality ← CURRENT LEAD — promoted from inbox 2026-07-14 (sequence: gate → surface → capture)
 
 The memory-quality trio from the 2026-07-13 freshness-ranking session, **approved and promoted from the
-inbox 2026-07-14**. These *are* the product getting better (each answers the five-question test), so they
-sit above the Track A tails; they follow the foundation. Build in this order — the gate first, because the
-successor boost depends on it:
+inbox 2026-07-14**; **it now leads** (the foundation shipped 2026-07-15). These *are* the product getting
+better (each answers the five-question test), so they sit above the Track A tails. Build in this order —
+the gate first, because the successor boost depends on it:
 
 1. **`ranking-ab` + the "expose before you rank" amendment** —
    [`real-corpus-ranking-validation-gate-proposal.md`](real-corpus-ranking-validation-gate-proposal.md).
@@ -98,7 +110,13 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   snapshot-tested, **no write path, no provider**. Owns the near-term "Evidence Pack" implementation; the
   canonical shape is the spec [`../3_Spec/memory-trace-derived-artifact-provenance-contract.md`](../3_Spec/memory-trace-derived-artifact-provenance-contract.md)
   (blueprint §4.5 and the evidence-annotations doc are forward supersets — do not build a second builder).
-- **B2 — React/Vite shell** *(the strategic bet — needs your greenlight)* —
+- **B0 — Graph-view attention** *(pre-React; JNL-endorsed 2026-07-15)* — the reason React is deferred:
+  JNL wants the Memory Trace **graph view** to get its due attention before any React rebuild. Sits after
+  the trio and **before B2**. "The attention it needs" is deliberately underspecified — this workstream
+  **opens with a taste-elicitation from JNL** (what's wrong / what they want from the graph), not a guess.
+  Vanilla `/api/graph` + `app.js` graph rendering.
+- **B2 — React/Vite shell** *(the strategic bet — DEFERRED 2026-07-15; graph-view attention (B0) comes
+  first)* —
   [`memory-trace-frontend-architecture-and-design-system-proposal.md`](memory-trace-frontend-architecture-and-design-system-proposal.md)
   (roadmap Phase 2). First increment before any component work: stand up the Vite/TS workspace whose
   **built** assets serve from the wheel with **zero Node at runtime** — proving the packaging spine.
@@ -199,10 +217,15 @@ docs into `5_Completed/`, and removing the empty `superpowers/specs/`.
 ## Discipline
 
 - **Releases:** never cut/publish without the user's explicit go; the PyPI push is a manual-approval gate.
-- **Ranking:** keep `main` behavior stable; run ranking experiments on a branch, merge only if fixtures
-  show a clear win with no text-ranking regression.
-- **Branches/worktrees:** non-trivial work on `claude/<kind>/<topic>` → merge to local `main` → delete;
-  writing agents stay in their own `.<agent>/worktrees/` namespace (guard enforced).
+  Current plan: cut 2.19 after the memory-quality trio lands.
+- **Ranking:** keep `main` behavior stable; run ranking experiments on a branch, merge only after **both**
+  fixtures **and** a real-corpus A/B (`ranking-ab`, once built) show a clear win with no text-ranking
+  regression. This is the "expose before you rank" gate the trio's item 1 hardens.
+- **Branches/worktrees: branch = workstream** (policy set 2026-07-15). Batch follow-on fixes/evolutions of
+  the *same goal* onto one `claude/<kind>/<topic>` branch — the tell is an `evolves`/`related` edge to the
+  entry just written, or the same subsystem — and merge the batch to local `main` at a **stable, tested
+  stopping point** (self-gated; no per-merge approval pause). Open a new branch only for a genuinely new
+  goal. Writing agents stay in their own `.<agent>/worktrees/` namespace (guard enforced).
 
 ## Continuity naming
 
