@@ -130,6 +130,21 @@ class ProjectionWarmStartTests(unittest.TestCase):
             cache.ensure_current()
             head.assert_not_called()
 
+    def test_chunks_are_memoized_and_invalidated_on_rebuild(self):
+        # Deserializing chunks is the dominant read cost; the parsed list is
+        # memoized until a rebuild, so repeated reads reuse it (same object),
+        # and a change that rebuilds returns a fresh list reflecting it.
+        cache = self.cache()
+        cache.rebuild()
+        first = cache.chunks(granularity="entry")
+        self.assertIs(cache.chunks(granularity="entry"), first)  # memo hit
+        self.write("2026-06-02.md", _entry("2026-06-02 09:00", "mse_new"))
+        self.git("add", "-A")
+        self.git("commit", "-m", "add")
+        third = cache.chunks(granularity="entry")
+        self.assertIsNot(third, first)  # rebuilt -> memo dropped -> fresh list
+        self.assertIn("mse_new", {c.entry_id for c in third})
+
     def test_rebuild_from_markdown_is_byte_identical(self):
         # G2: the projection is disposable - a fresh rebuild from the same
         # Markdown yields identical reads. Two independent caches (separate
