@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime
 from pathlib import Path
 from functools import lru_cache
@@ -26,6 +26,7 @@ STRUCTURAL_QUERY_TERMS = (
     "design",
 )
 ENTRY_DATETIME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s+-\s+.+$")
+ENTRY_TITLE_PREFIX_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}\s+-\s+")
 
 # Multiplier applied to a superseded entry's importance_score (the harmony
 # contract from supersession-edges-plan.md). A superseded decision drops to a
@@ -44,6 +45,14 @@ SUPERSEDED_IMPORTANCE_DAMPING = 0.25
 # It composes multiplicatively with recency_multiplier and never hard-excludes
 # (that stays exclude_superseded): a superseded entry is down-ranked, not hidden.
 SUPERSEDED_RANK_DAMPING = 0.25
+
+# Fractional multiplier applied to a live terminal replacement when the caller
+# opts into the bounded successor boost. One strongest-matching superseded
+# lineage can lift its terminal replacement by 75%. The boost is never a hard
+# injection: only already-matching terminal replacements are eligible, only the
+# strongest superseded lineage(s) for the query may contribute, and the caller
+# must explicitly turn it on.
+SUPERSEDING_SUCCESSOR_BOOST = 0.75
 
 # Scale applied to the rarity-weighted F:-file-overlap sum when re-ranking
 # link-suggest candidates (evolution-edges-plan.md D5). Overlap is a precision
@@ -207,6 +216,7 @@ def rank_session_memory(
     date_to: date | None = None,
     exclude_superseded: bool = False,
     supersession_damping: bool = False,
+    superseding_successor_boost: bool = False,
     chunks: Sequence[MemoryChunk] | None = None,
     topics: set[str] | None = None,
 ) -> list[RankedMemoryChunk]:
@@ -222,11 +232,13 @@ def rank_session_memory(
     # counts. When ``corpus`` is the sidecar-augmented set passed by search_memory,
     # sidecar-authored supersessions are included. Being evolved never lands here -
     # evolution is freshness, not retirement.
+    graph: dict[str, RelatedEntryNode] | None = None
     superseded_ids: set[str] = set()
-    if exclude_superseded or supersession_damping:
+    if exclude_superseded or supersession_damping or superseding_successor_boost:
+        graph = build_related_entry_graph(cwd, chunks=corpus)
         superseded_ids = {
             node.entry_id
-            for node in build_related_entry_graph(cwd, chunks=corpus).values()
+            for node in graph.values()
             if node.superseded_by
         }
     if exclude_superseded:
@@ -236,6 +248,13 @@ def rank_session_memory(
         # retrievable by default (deprioritized via the dampener/importance_score,
         # not hidden).
         chunks = [chunk for chunk in chunks if chunk.entry_id not in superseded_ids]
+    superseding_heads_by_id: dict[str, tuple[str, ...]] | None = None
+    if supersession_damping and superseding_successor_boost and graph is not None:
+        superseding_heads_by_id = {
+            entry_id: heads
+            for entry_id in superseded_ids
+            if (heads := superseding_lineage_heads(graph, entry_id))
+        }
     return rank_memory_chunks(
         query,
         chunks,
@@ -248,6 +267,7 @@ def rank_session_memory(
         # DEFAULT-OFF: only pass the dampener input when the caller opted in, so
         # default ranking order stays byte-for-byte identical to today.
         superseded_ids=superseded_ids if supersession_damping else None,
+        superseding_heads_by_id=superseding_heads_by_id,
     )
 
 
@@ -419,6 +439,37 @@ def evolves_lineage_heads(
             heads.add(current)
         else:
             stack.extend(successor.evolved_by)
+    return tuple(sorted(heads))
+
+
+def superseding_lineage_heads(
+    graph: dict[str, RelatedEntryNode], entry_id: str
+) -> tuple[str, ...]:
+    """Follow the ``superseded_by`` chain from ``entry_id`` to its terminal
+    live replacement(s).
+
+    Symmetric with ``evolves_lineage_heads``: the graph already exposes the
+    computed inverse of ``supersedes`` as ``superseded_by``. This helper makes
+    the current replacement reachable without changing ordering. Returns the
+    terminal successors only (excluding ``entry_id`` itself), empty when the
+    entry is not superseded. A ``seen`` set guards against malformed cycles.
+    """
+    node = graph.get(entry_id)
+    if node is None or not node.superseded_by:
+        return ()
+    heads: set[str] = set()
+    seen: set[str] = {entry_id}
+    stack = list(node.superseded_by)
+    while stack:
+        current = stack.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        successor = graph.get(current)
+        if successor is None or not successor.superseded_by:
+            heads.add(current)
+        else:
+            stack.extend(successor.superseded_by)
     return tuple(sorted(heads))
 
 
@@ -645,6 +696,7 @@ def rank_memory_chunks(
     recency_floor: float = 0.15,
     embedding_provider: EmbeddingProvider | None = None,
     superseded_ids: set[str] | None = None,
+    superseding_heads_by_id: dict[str, tuple[str, ...]] | None = None,
 ) -> list[RankedMemoryChunk]:
     # ``superseded_ids`` is the opt-in supersession rank-dampener input
     # (freshness-aware-memory-ranking-proposal.md): the entry_ids that a later
@@ -690,18 +742,104 @@ def rank_memory_chunks(
             )
         )
 
-    ranked.sort(
-        key=lambda result: (
-            result.final_score,
-            result.match_score,
-            result.lexical_score,
-            -result.age_days,
-            result.chunk.source_file,
-            result.chunk.start_line,
-        ),
-        reverse=True,
-    )
+    if superseding_heads_by_id:
+        ranked = _apply_superseding_successor_boost(query, ranked, superseding_heads_by_id)
+    ranked.sort(key=_ranked_result_sort_key, reverse=True)
     return ranked[: max(top_k, 0)]
+
+
+def _apply_superseding_successor_boost(
+    query: str,
+    ranked: Sequence[RankedMemoryChunk],
+    superseding_heads_by_id: dict[str, tuple[str, ...]],
+) -> list[RankedMemoryChunk]:
+    """Apply a bounded boost to already-matching terminal replacements.
+
+    The signal is explicit and additive to the ranking pipeline: a retired
+    entry must itself positively match the query, and the terminal replacement
+    must also have positive query relevance. We never hard-inject a replacement
+    with zero match score, and we boost by entry id so section-granularity
+    searches keep their within-entry relative order.
+    """
+    best_by_entry: dict[str, RankedMemoryChunk] = {}
+    for result in ranked:
+        entry_id = result.chunk.entry_id
+        if not entry_id:
+            continue
+        incumbent = best_by_entry.get(entry_id)
+        if incumbent is None or _ranked_result_sort_key(result) > _ranked_result_sort_key(incumbent):
+            best_by_entry[entry_id] = result
+
+    candidates: list[tuple[tuple[int, int, float, float], set[str]]] = []
+    for predecessor_id, heads in superseding_heads_by_id.items():
+        predecessor = best_by_entry.get(predecessor_id)
+        if predecessor is None or predecessor.match_score <= 0:
+            continue
+        eligible_successors = {
+            successor_id
+            for successor_id in heads
+            if (successor := best_by_entry.get(successor_id)) is not None and successor.match_score > 0
+        }
+        if not eligible_successors:
+            continue
+        candidates.append((_superseding_query_alignment(query, predecessor), set(eligible_successors)))
+
+    if not candidates:
+        return list(ranked)
+    if len(candidates) == 1:
+        boost_successor_ids = candidates[0][1]
+    else:
+        best_alignment = max(alignment for alignment, _ in candidates)
+        if best_alignment[:3] == (0, 0, 0.0):
+            return list(ranked)
+        top = [successors for alignment, successors in candidates if alignment == best_alignment]
+        if len(top) != 1:
+            return list(ranked)
+        boost_successor_ids = top[0]
+
+    boosted: list[RankedMemoryChunk] = []
+    for result in ranked:
+        entry_id = result.chunk.entry_id or ""
+        if entry_id in boost_successor_ids and result.match_score > 0:
+            boosted.append(replace(result, final_score=result.final_score * (1.0 + SUPERSEDING_SUCCESSOR_BOOST)))
+        else:
+            boosted.append(result)
+    return boosted
+
+
+def _superseding_query_alignment(query: str, predecessor: RankedMemoryChunk) -> tuple[int, int, float, float]:
+    """Score how specifically a query points at a retired predecessor title.
+
+    The successor boost is intentionally fail-closed on ambiguous queries. We
+    strip the timestamp prefix from authored entry titles, then prefer a unique
+    title-level alignment over broad overall relevance so unrelated retired
+    lineages cannot ride shared date/generic tokens into the window.
+    """
+    normalized_query = _normalize(ENTRY_TITLE_PREFIX_RE.sub("", query).strip())
+    stripped_title = ENTRY_TITLE_PREFIX_RE.sub("", predecessor.chunk.title).strip()
+    normalized_title = _normalize(stripped_title)
+    title_terms = {
+        word
+        for word in re.findall(r"[A-Za-z0-9]+", stripped_title.lower())
+        if len(word) > 1
+    }
+    if not normalized_title and not title_terms:
+        return (0, 0, 0.0, predecessor.match_score)
+    exact_phrase_match = int(bool(normalized_title) and normalized_title in normalized_query)
+    overlap_count = sum(1 for term in title_terms if term in normalized_query)
+    overlap_ratio = (overlap_count / len(title_terms)) if title_terms else float(exact_phrase_match)
+    return (exact_phrase_match, overlap_count, overlap_ratio, predecessor.match_score)
+
+
+def _ranked_result_sort_key(result: RankedMemoryChunk) -> tuple[float, float, float, int, str, int]:
+    return (
+        result.final_score,
+        result.match_score,
+        result.lexical_score,
+        -result.age_days,
+        result.chunk.source_file,
+        result.chunk.start_line,
+    )
 
 
 def _extract_chunks_from_file(

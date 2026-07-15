@@ -16,6 +16,7 @@ from memory_seed.semantic_cache import (
     rank_memory_chunks,
     rank_session_memory,
     suggest_related_entries,
+    superseding_lineage_heads,
 )
 
 
@@ -865,6 +866,123 @@ class SupersessionRankDampingTests(unittest.TestCase):
         # (that stays exclude_superseded).
         self.assertIn("ms-old00000", on)
 
+    def test_rank_memory_chunks_boosts_only_matching_terminal_replacement(self):
+        today = date(2026, 5, 10)
+        old = MemoryChunk(
+            chunk_id="ms-old00000",
+            source_path=".memory-seed/sessions/2026-05/2026-05-10.md",
+            source_file="2026-05-10.md",
+            session_date=today,
+            entry_datetime=None,
+            heading_path=("Retired",),
+            heading_level=2,
+            title="Retired",
+            text="cache ttl invalidation strategy",
+            tags=(),
+            contexts=(),
+            lexical_terms=(),
+            start_line=1,
+            end_line=2,
+            entry_id="ms-old00000",
+        )
+        new = MemoryChunk(
+            chunk_id="ms-new00000",
+            source_path=".memory-seed/sessions/2026-05/2026-05-10.md",
+            source_file="2026-05-10.md",
+            session_date=today,
+            entry_datetime=None,
+            heading_path=("Live",),
+            heading_level=2,
+            title="Live",
+            text="cache ttl plan",
+            tags=(),
+            contexts=(),
+            lexical_terms=(),
+            start_line=3,
+            end_line=4,
+            entry_id="ms-new00000",
+        )
+        baseline = {
+            r.chunk.entry_id: r.final_score
+            for r in rank_memory_chunks(
+                "cache ttl invalidation strategy",
+                [old, new],
+                today=today,
+                superseded_ids={"ms-old00000"},
+            )
+        }
+        boosted = {
+            r.chunk.entry_id: r.final_score
+            for r in rank_memory_chunks(
+                "cache ttl invalidation strategy",
+                [old, new],
+                today=today,
+                superseded_ids={"ms-old00000"},
+                superseding_heads_by_id={"ms-old00000": ("ms-new00000",)},
+            )
+        }
+
+        self.assertEqual(boosted["ms-old00000"], baseline["ms-old00000"])
+        self.assertGreater(boosted["ms-new00000"], baseline["ms-new00000"])
+
+    def test_rank_memory_chunks_never_boosts_zero_match_successor(self):
+        today = date(2026, 5, 10)
+        old = MemoryChunk(
+            chunk_id="ms-old00000",
+            source_path=".memory-seed/sessions/2026-05/2026-05-10.md",
+            source_file="2026-05-10.md",
+            session_date=today,
+            entry_datetime=None,
+            heading_path=("Retired",),
+            heading_level=2,
+            title="Retired",
+            text="cache ttl invalidation strategy",
+            tags=(),
+            contexts=(),
+            lexical_terms=(),
+            start_line=1,
+            end_line=2,
+            entry_id="ms-old00000",
+        )
+        new = MemoryChunk(
+            chunk_id="ms-new00000",
+            source_path=".memory-seed/sessions/2026-05/2026-05-10.md",
+            source_file="2026-05-10.md",
+            session_date=today,
+            entry_datetime=None,
+            heading_path=("Live",),
+            heading_level=2,
+            title="Live",
+            text="unrelated future work",
+            tags=(),
+            contexts=(),
+            lexical_terms=(),
+            start_line=3,
+            end_line=4,
+            entry_id="ms-new00000",
+        )
+        baseline = {
+            r.chunk.entry_id: r.final_score
+            for r in rank_memory_chunks(
+                "cache ttl invalidation strategy",
+                [old, new],
+                today=today,
+                superseded_ids={"ms-old00000"},
+            )
+        }
+        boosted = {
+            r.chunk.entry_id: r.final_score
+            for r in rank_memory_chunks(
+                "cache ttl invalidation strategy",
+                [old, new],
+                today=today,
+                superseded_ids={"ms-old00000"},
+                superseding_heads_by_id={"ms-old00000": ("ms-new00000",)},
+            )
+        }
+
+        self.assertEqual(boosted, baseline)
+
     def test_evolves_lineage_heads_follows_chain_to_head(self):
         cwd = self.make_project()
         # C evolves B, B evolves A. A/B are valid; C is the head of the lineage.
@@ -881,6 +999,33 @@ class SupersessionRankDampingTests(unittest.TestCase):
         self.assertEqual(evolves_lineage_heads(graph, "ms-b0000000"), ("ms-c0000000",))
         self.assertEqual(evolves_lineage_heads(graph, "ms-c0000000"), ())
         self.assertEqual(evolves_lineage_heads(graph, "ms-missing0"), ())
+
+    def test_superseding_lineage_heads_follows_chain_to_terminal_live_replacement(self):
+        cwd = self.make_project()
+        # C supersedes B, B supersedes A. A and B should both resolve to the
+        # terminal live replacement C, while C resolves to nothing further.
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 09:00 - Base A", "ms-a0000000", "base decision."),
+            _entry(
+                "2026-05-10 10:00 - Replacement B",
+                "ms-b0000000",
+                "replacement.",
+                supersedes=["ms-a0000000"],
+            ),
+            _entry(
+                "2026-05-10 11:00 - Final C",
+                "ms-c0000000",
+                "final replacement.",
+                supersedes=["ms-b0000000"],
+            ),
+        )
+        graph = build_related_entry_graph(cwd)
+
+        self.assertEqual(superseding_lineage_heads(graph, "ms-a0000000"), ("ms-c0000000",))
+        self.assertEqual(superseding_lineage_heads(graph, "ms-b0000000"), ("ms-c0000000",))
+        self.assertEqual(superseding_lineage_heads(graph, "ms-c0000000"), ())
+        self.assertEqual(superseding_lineage_heads(graph, "ms-missing0"), ())
 
 
 class FileOverlapSuggestTests(unittest.TestCase):
