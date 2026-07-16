@@ -2040,6 +2040,18 @@ async function openDiagramViewer(entryId) {
   setTimeout(() => document.addEventListener("keydown", _diagramViewerKeydown, true), 0);
 }
 
+function _diagramFitTransform(viewportWidth, viewportHeight, stageWidth, stageHeight, padding = 24, minScale = 0.08, maxScale = 6) {
+  const usableWidth = Math.max(1, viewportWidth - padding);
+  const usableHeight = Math.max(1, viewportHeight - padding);
+  const rawScale = Math.min(usableWidth / Math.max(1, stageWidth), usableHeight / Math.max(1, stageHeight));
+  const scale = Math.min(maxScale, Math.max(minScale, rawScale));
+  return {
+    scale,
+    x: (viewportWidth - stageWidth * scale) / 2,
+    y: (viewportHeight - stageHeight * scale) / 2,
+  };
+}
+
 // Wire wheel-zoom (toward the cursor) + drag-pan + zoom buttons onto one
 // diagram figure. Pointer capture keeps a drag glued to the viewport even when
 // the cursor leaves it, and avoids leaking window listeners across viewers.
@@ -2048,7 +2060,7 @@ function initDiagramPanZoom(figure) {
   const stage = figure.querySelector("[data-stage]");
   if (!viewport || !stage) return;
   const st = { scale: 1, x: 0, y: 0 };
-  const clamp = (s) => Math.min(6, Math.max(0.3, s));
+  const clamp = (s) => Math.min(6, Math.max(0.08, s));
   const apply = () => {
     stage.style.transform = `translate(${st.x}px, ${st.y}px) scale(${st.scale})`;
   };
@@ -2061,9 +2073,14 @@ function initDiagramPanZoom(figure) {
     apply();
   };
   const fit = () => {
-    st.scale = 1;
-    st.x = 0;
-    st.y = 0;
+    // offset/scroll metrics ignore the stage's current CSS transform, so Fit
+    // remains correct after a drag or wheel zoom and never clips a tall chart.
+    const stageWidth = Math.max(stage.offsetWidth, stage.scrollWidth);
+    const stageHeight = Math.max(stage.offsetHeight, stage.scrollHeight);
+    const next = _diagramFitTransform(viewport.clientWidth, viewport.clientHeight, stageWidth, stageHeight);
+    st.scale = next.scale;
+    st.x = next.x;
+    st.y = next.y;
     apply();
   };
   viewport.addEventListener(
@@ -2666,6 +2683,26 @@ function _diagramFlowLayout(nodes, edges, horizontal, rightToLeft) {
       placed.forEach((item) => { item.center -= shift; });
     }
     placed.forEach((item) => crossCenters.set(item.id, item.center));
+  });
+
+  // Pull a linear chain back onto the centre of the fork it leads into. This
+  // removes the left-aligned "spine" of a top-down flowchart without moving a
+  // merge away from the midpoint of its incoming branches.
+  const outgoing = new Map(ids.map((id) => [id, []]));
+  edges.forEach((edge) => outgoing.get(edge.from)?.push(edge.to));
+  const forkCentred = new Set();
+  [...rankValues].reverse().forEach((value) => {
+    const rankIds = byRank.get(value);
+    if (rankIds.length !== 1) return;
+    const id = rankIds[0];
+    const successors = outgoing.get(id);
+    if (successors.length > 1) {
+      crossCenters.set(id, successors.reduce((sum, child) => sum + crossCenters.get(child), 0) / successors.length);
+      forkCentred.add(id);
+    } else if (successors.length === 1 && forkCentred.has(successors[0])) {
+      crossCenters.set(id, crossCenters.get(successors[0]));
+      forkCentred.add(id);
+    }
   });
 
   const rankExtents = new Map(rankValues.map((value) => [value, Math.max(

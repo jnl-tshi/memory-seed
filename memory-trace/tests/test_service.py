@@ -843,6 +843,82 @@ if (new Set([...nodes.values()].map((rect) => rect[2])).size < 2) {
 
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_frontend_flowchart_centres_single_node_vertical_ranks(self):
+        import importlib.resources as resources
+
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("node is not available")
+        script_path = resources.files("memory_trace").joinpath("static/app.js")
+        probe = r"""
+const fs = require("fs");
+const src = fs.readFileSync(process.argv[1], "utf8");
+function pick(name, nextName) {
+  const start = src.indexOf(`function ${name}(`);
+  const end = src.indexOf(`\nfunction ${nextName}`, start);
+  if (start < 0 || end < 0) throw new Error(`missing ${name}`);
+  return src.slice(start, end);
+}
+eval([
+  pick("_diagramNode", "_diagramLabelLines"),
+  pick("_diagramLabelLines", "_diagramNodeSize"),
+  pick("_diagramNodeSize", "_diagramFlowLayout"),
+  pick("_diagramFlowLayout", "_diagramEdgePath"),
+  pick("_diagramEdgePath", "renderFlowchart"),
+  pick("renderFlowchart", "renderSequenceDiagram"),
+  pick("_diagramArrowDefs", "markdown"),
+  pick("esc", "escAttr"),
+  "function escAttr(value) { return esc(value); }",
+].join("\n"));
+const source = `graph TD
+  W["OneDrive worktree<br>write denied"] --> R["Root-branch fallback"]
+  R --> H["Packaged B0a harness"]
+  H --> V["vis-network<br>blank canvas"]
+  H --> C["Cytoscape.js<br>initial pass"]
+  V ~~~ C
+  V --> G["Decision remains open"]
+  C --> G`;
+const svg = renderFlowchart(source);
+const nodes = new Map([...svg.matchAll(/data-diagram-node="([^"]+)"[^>]*><rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"/g)]
+  .map((match) => [match[1], match.slice(2).map(Number)]));
+const centerX = (id) => nodes.get(id)[0] + nodes.get(id)[2] / 2;
+const branchMidpoint = (centerX("V") + centerX("C")) / 2;
+for (const id of ["W", "R", "H", "G"]) {
+  if (Math.abs(centerX(id) - branchMidpoint) > 0.001) {
+    throw new Error(`${id} should share the branch midpoint: ${centerX(id)} vs ${branchMidpoint}`);
+  }
+}
+"""
+        result = subprocess.run([node, "-e", probe, str(script_path)], capture_output=True, text=True)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_frontend_diagram_fit_scales_and_centres_tall_content(self):
+        import importlib.resources as resources
+
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("node is not available")
+        script_path = resources.files("memory_trace").joinpath("static/app.js")
+        probe = r"""
+const fs = require("fs");
+const src = fs.readFileSync(process.argv[1], "utf8");
+function pick(name, nextName) {
+  const start = src.indexOf(`function ${name}(`);
+  const end = src.indexOf(`\nfunction ${nextName}`, start);
+  if (start < 0 || end < 0) throw new Error(`missing ${name}`);
+  return src.slice(start, end);
+}
+eval(pick("_diagramFitTransform", "initDiagramPanZoom"));
+const fit = _diagramFitTransform(1115, 584, 1113, 2064);
+if (!(fit.scale < 0.3 && fit.scale > 0.2)) throw new Error(`unexpected scale ${fit.scale}`);
+if (Math.abs((1115 - 1113 * fit.scale) / 2 - fit.x) > 0.001) throw new Error(`x is not centred: ${fit.x}`);
+if (Math.abs((584 - 2064 * fit.scale) / 2 - fit.y) > 0.001) throw new Error(`y is not centred: ${fit.y}`);
+"""
+        result = subprocess.run([node, "-e", probe, str(script_path)], capture_output=True, text=True)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_frontend_brands_as_memory_trace(self):
         # Arc 2b microcopy: the UI self-identifies as Memory Trace, not the old
         # in-package "Lense" name.
