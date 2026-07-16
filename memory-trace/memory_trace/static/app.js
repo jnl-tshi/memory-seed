@@ -86,7 +86,9 @@ let paneObserver = null;
 let restoringFocus = false;
 
 function api(path) {
-  return fetch(withWorktree(path)).then((response) => {
+  // Runtime, worktree, and evidence data are local project state. Never let a
+  // browser cache make a manual refresh look current when the checkout changed.
+  return fetch(withWorktree(path), { cache: "no-store" }).then((response) => {
     if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
     return response.json();
   });
@@ -123,15 +125,18 @@ async function boot() {
   render();
 }
 
-// Enumerate on-device worktrees once at boot; the dropdown defaults to the
-// launch checkout (main in the normal case). Failures are non-fatal - Trace
-// just runs single-checkout, as it always has.
+// Enumerate on-device worktrees at boot and on manual refresh. Retain the
+// active worktree when it still exists; otherwise fall back to the launch
+// checkout (main in the normal case). Failures are non-fatal - Trace just runs
+// single-checkout, as it always has.
 async function loadWorktrees() {
   try {
+    const prior = state.worktree;
     const data = await api("/api/worktrees");
     state.worktrees = data.worktrees || [];
     state.worktreeDefault = data.default || "";
-    const preferred = state.worktrees.find((w) => w.is_default) || state.worktrees[0];
+    const retained = state.worktrees.find((w) => w.id === prior);
+    const preferred = retained || state.worktrees.find((w) => w.is_default) || state.worktrees[0];
     state.worktree = preferred ? preferred.id : "";
   } catch {
     state.worktrees = [];
@@ -294,11 +299,11 @@ function render() {
     <div class="app">
       ${topbar()}
       <div class="shell ${state.leftCollapsed ? "left-collapsed" : ""} ${state.rightCollapsed ? "right-collapsed" : ""}">
-        <aside class="pane left" data-pane="left">${leftPane()}</aside>
+        <aside id="trace-navigation-pane" class="pane left" data-pane="left" aria-label="Navigation and filters">${leftPane()}</aside>
         <div class="resizer" data-resize="left"></div>
-        <main class="pane center" data-pane="center">${centerPane()}</main>
+        <main id="trace-workspace" class="pane center" data-pane="center" aria-label="${state.view === "graph" ? "Graph workspace" : "Trail workspace"}">${centerPane()}</main>
         <div class="resizer" data-resize="right"></div>
-        <aside class="pane right" data-pane="right">${rightPane()}</aside>
+        <aside id="trace-inspector" class="pane right" data-pane="right" aria-label="Inspector">${rightPane()}</aside>
       </div>
     </div>`;
   bindResizers();
@@ -355,7 +360,7 @@ function topbar() {
     .join("");
   return `
     <header class="topbar">
-      <button type="button" class="icon-button" data-toggle-left title="${state.leftCollapsed ? "Show sidebar" : "Hide sidebar"}">☰</button>
+      <button type="button" class="icon-button" data-toggle-left aria-controls="trace-navigation-pane" aria-expanded="${!state.leftCollapsed}" aria-label="${state.leftCollapsed ? "Show navigation pane" : "Hide navigation pane"}" title="${state.leftCollapsed ? "Show navigation pane" : "Hide navigation pane"}">☰</button>
       <div class="brand"><span class="brand-mark"></span><span>Memory Trace</span></div>
       <div class="runtime-chip"><span class="runtime-dot"></span><span>${esc(state.runtime?.label || "runtime")}</span><span>${state.runtime?.entry_count || 0} entries</span></div>
       ${worktreePicker()}
@@ -367,7 +372,7 @@ function topbar() {
       <button type="button" class="icon-button${state.refreshing ? " is-refreshing" : ""}" data-refresh title="Refresh data (re-read memory, keep filters)" aria-label="Refresh data"${state.refreshing ? " disabled" : ""}>⟳</button>
       <button type="button" class="icon-button" data-theme title="Theme">${state.theme === "dark" ? "◐" : "◑"}</button>
       <div class="palette">${["indigo", "teal", "amber", "ruby", "violet"].map((name) => `<button type="button" class="${state.accent === name ? "active" : ""}" data-accent="${name}" title="${name}" style="background:${palettePreview(name)}"></button>`).join("")}</div>
-      <button type="button" class="icon-button" data-toggle-right title="${state.rightCollapsed ? "Show reader" : "Hide reader"}">▤</button>
+      <button type="button" class="icon-button" data-toggle-right aria-controls="trace-inspector" aria-expanded="${!state.rightCollapsed}" aria-label="${state.rightCollapsed ? "Show inspector" : "Hide inspector"}" title="${state.rightCollapsed ? "Show inspector" : "Hide inspector"}">▤</button>
     </header>`;
 }
 
@@ -381,7 +386,7 @@ function worktreePicker() {
       <span class="worktree-icon" aria-hidden="true">⑃</span>
       <select id="worktree-select" data-worktree-select>
         ${state.worktrees
-          .map((w) => `<option value="${escAttr(w.id)}" ${w.id === state.worktree ? "selected" : ""}>${esc(w.label)}${w.is_primary ? "" : " ·wt"}</option>`)
+          .map((w) => `<option value="${escAttr(w.id)}" ${w.id === state.worktree ? "selected" : ""}>${esc(w.label)}${w.is_primary ? " · current project" : " · worktree"}</option>`)
           .join("")}
       </select>
     </label>`;
@@ -1478,12 +1483,20 @@ function installDelegatedEvents() {
     }
   });
 
-  // "/" focuses search from anywhere (the box is now on every view);
-  // Enter / Shift+Enter cycle matches; Esc closes the dropdown, then leaves.
+  // Ctrl/Cmd+B controls only the navigation pane and Ctrl/Cmd+I only the
+  // Inspector. "/" focuses search from anywhere; Enter / Shift+Enter cycle
+  // matches; Esc closes the dropdown, then leaves.
   window.addEventListener("keydown", async (event) => {
     const tag = event.target?.tagName;
     const typing = tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA";
-    if (event.key === "/" && !typing) {
+    const modifier = event.ctrlKey || event.metaKey;
+    if (modifier && !event.altKey && event.key.toLowerCase() === "b") {
+      event.preventDefault();
+      toggleLeftPane();
+    } else if (modifier && !event.altKey && event.key.toLowerCase() === "i") {
+      event.preventDefault();
+      toggleInspector();
+    } else if (event.key === "/" && !typing) {
       event.preventDefault();
       document.getElementById("query")?.focus();
     } else if (event.key === "Enter" && event.target?.id === "query") {
@@ -1680,15 +1693,11 @@ function installDelegatedEvents() {
       return;
     }
     if (target.dataset.toggleLeft !== undefined) {
-      state.leftCollapsed = !state.leftCollapsed;
-      localStorage.setItem("ml:leftCollapsed", state.leftCollapsed ? "1" : "0");
-      render();
+      toggleLeftPane();
       return;
     }
     if (target.dataset.toggleRight !== undefined) {
-      state.rightCollapsed = !state.rightCollapsed;
-      localStorage.setItem("ml:rightCollapsed", state.rightCollapsed ? "1" : "0");
-      render();
+      toggleInspector();
       return;
     }
     if (target.dataset.section) {
@@ -1749,12 +1758,6 @@ function installDelegatedEvents() {
       const hint = matchHintFor(target.dataset.chunk);
       state.matchHint = hint;
       state.pendingMatchScroll = Boolean(hint);
-      // Selecting an entry is an explicit "inspect this" - reopen the reader
-      // if it was collapsed so the click always produces visible feedback.
-      if (state.rightCollapsed) {
-        state.rightCollapsed = false;
-        localStorage.setItem("ml:rightCollapsed", "0");
-      }
       const token = ++state.loadSeq;
       await selectChunk(target.dataset.chunk, true, token);
     }
@@ -1807,17 +1810,14 @@ function ensureLinkedNeighborsVisible(chunkId) {
   }
 }
 
-// Jump to a searched entry (dropdown click): select it in the current view,
-// reopening the reader and scrolling the Trail to the row.
+// Jump to a searched entry (dropdown click): select it in the current view and
+// scroll the Trail to the row. A hidden Inspector remains hidden; reopening it
+// presents this shared selection without changing the centre workspace.
 async function jumpToChunk(chunkId) {
   state.selectionMuted = false;
   const hint = matchHintFor(chunkId);
   state.matchHint = hint;
   state.pendingMatchScroll = Boolean(hint);
-  if (state.rightCollapsed) {
-    state.rightCollapsed = false;
-    localStorage.setItem("ml:rightCollapsed", "0");
-  }
   if (state.view === "trail") {
     ensureTrailVisible(chunkId);
     state.pendingTrailScroll = true;
@@ -2094,6 +2094,18 @@ async function setView(view) {
   await reloadCurrentView();
 }
 
+function toggleLeftPane() {
+  state.leftCollapsed = !state.leftCollapsed;
+  localStorage.setItem("ml:leftCollapsed", state.leftCollapsed ? "1" : "0");
+  render();
+}
+
+function toggleInspector() {
+  state.rightCollapsed = !state.rightCollapsed;
+  localStorage.setItem("ml:rightCollapsed", state.rightCollapsed ? "1" : "0");
+  render();
+}
+
 async function updateFilter(key, value) {
   state[key] = value;
   await reloadCurrentView();
@@ -2129,6 +2141,7 @@ async function refreshData() {
   render();
   try {
     const [oldMin, oldMax] = state.facets?.runtime?.date_bounds || [];
+    await loadWorktrees();
     const [runtime, facets] = await Promise.all([api("/api/runtime"), api("/api/facets")]);
     if (token !== state.loadSeq) return;
     state.runtime = runtime;

@@ -946,6 +946,35 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn("height: 100%;", styles)
         self.assertIn("overflow: hidden;", styles)
 
+    def test_frontend_workspace_controls_keep_selection_independent(self):
+        import importlib.resources as resources
+
+        script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="trace-navigation-pane"', script)
+        self.assertIn('id="trace-workspace"', script)
+        self.assertIn('id="trace-inspector"', script)
+        self.assertIn('aria-controls="trace-navigation-pane"', script)
+        self.assertIn('aria-controls="trace-inspector"', script)
+        self.assertIn("function toggleLeftPane()", script)
+        self.assertIn("function toggleInspector()", script)
+        self.assertIn('event.key.toLowerCase() === "b"', script)
+        self.assertIn('event.key.toLowerCase() === "i"', script)
+        self.assertNotIn('if (state.rightCollapsed) {\n        state.rightCollapsed = false;', script)
+        self.assertIn("A hidden Inspector remains hidden", script)
+
+    def test_frontend_worktree_refresh_keeps_current_project_state_fresh(self):
+        import importlib.resources as resources
+
+        script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
+
+        self.assertIn("const prior = state.worktree;", script)
+        self.assertIn("const retained = state.worktrees.find((w) => w.id === prior);", script)
+        self.assertIn('fetch(withWorktree(path), { cache: "no-store" })', script)
+        self.assertIn('w.is_primary ? " · current project" : " · worktree"', script)
+        refresh_body = script[script.index("async function refreshData()"):script.index("async function openGraphChunk")]
+        self.assertIn("await loadWorktrees();", refresh_body)
+
     def test_frontend_timeline_and_search_tabs_are_retired(self):
         # Timeline retired 2026-07-11: the Trail (git-graph timeline) is its
         # chronological successor. Search retired as a destination the same
