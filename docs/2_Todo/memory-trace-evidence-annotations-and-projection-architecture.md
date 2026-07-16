@@ -297,6 +297,26 @@ Evidence Packs are consumed by:
 - presentations;
 - export adapters.
 
+### 11.1 Referential Evidence Envelope
+
+After B0b acceptance, the Worker Context Contract, and the provenance/authority crosswalk, define a small
+versioned `EvidenceEnvelope` that refers to a bounded Evidence Pack without copying excerpts or authority
+policy. It carries selection, corpus revision, freshness boundary, canonical evidence references,
+fingerprints where required, constraints, exclusions, and explicit partial/unavailable state.
+
+Task Packets may later carry only an optional `evidence_envelope_ref`; `persona` and `context_load` remain
+owned by the Worker Context Contract. The envelope is not a mutable evidence store.
+
+### 11.2 Shared Capability Status
+
+Optional providers expose one advisory `CapabilityStatus` shape: provider/capability identity and version,
+execution mode, network requirement, privacy scope, revision/freshness, cache location, and explicit
+warning/unavailable state. Availability never upgrades provenance, authority, confidence, or actionability.
+Provider-specific behaviour remains in the timeline-summarisation and structural-enrichment plans.
+
+The separate publishability-check idea is not part of this schema. It remains deferred pending a targeted
+security/privacy review and a concrete publishing workflow.
+
 ## 12. Security and trust
 
 - Validate author identity against participants.
@@ -319,3 +339,5 @@ Evidence Packs are consumed by:
 - SQLite can rebuild project-owned state from files.
 - Provider freshness is visible.
 - Evidence Pack output is deterministic and snapshot-tested.
+- Evidence Envelopes are referential, versioned, and preserve canonical evidence/authority references.
+- Capability status is advisory and cannot confer authority or certify safety.

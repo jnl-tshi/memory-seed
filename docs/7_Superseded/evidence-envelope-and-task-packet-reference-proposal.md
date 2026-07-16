@@ -2,7 +2,7 @@
 title: "Evidence Envelope and Task Packet Reference Proposal"
 date: "2026-07-16"
 project: "memory-seed"
-status: "inbox"
+status: "superseded"
 priority: "P2"
 next_action: "After React Trail parity, decide whether a stable cross-surface evidence hand-off is needed; if so, draft fixtures before changing Task Packets."
 dependencies:
@@ -16,7 +16,8 @@ related:
 
 # Evidence Envelope and Task Packet Reference Proposal
 
-Status: **INBOX**. No Task Packet or runtime behaviour changes are approved.
+Status: **SUPERSEDED 2026-07-16** by section 11.1 of
+[`memory-trace-evidence-annotations-and-projection-architecture.md`](../2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md).
 Priority: P2 after React Trail parity and B0b acceptance.
 Source: The 2026-07-16 post-Trail platform review triage.
 

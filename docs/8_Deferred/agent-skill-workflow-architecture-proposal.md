@@ -1,12 +1,13 @@
 # Initial Proposal: Agent Skill and Workflow Architecture
 
-**Status:** Exploration candidate  
-**Promotion state:** Not ready for `todo`  
+**Status:** Deferred 2026-07-16
+**Reactivation gate:** Worker Context Contract shipped, at least three recurring multi-step workflows
+demonstrated, and a duplication audit showing shared core/CLI/MCP operations cannot meet the need.
 **Related systems:** Agent skills, MCP, CLI, control plane, session logging
 
 > [!IMPORTANT]
-> **Exploration status:** This is an initial proposal, not an approved implementation plan.  
-> It must be researched, stress-tested against the current Memory Seed architecture, and reviewed before any part is promoted into `docs/todo/` or implementation tickets.
+> **Deferred:** keep the core -> adapters -> skills principle, but do not build a router framework before
+> repeated workflow evidence establishes a concrete need.
 
 
 ## 1. Summary

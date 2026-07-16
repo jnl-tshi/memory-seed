@@ -1,9 +1,9 @@
 # Memory Seed Constitution
 
-**Version:** 1.0 — **RATIFIED 2026-07-14** by JNL. Changes now go through [Governance](#11-governance).
+**Version:** 1.1 — **RATIFIED 2026-07-16** by JNL. Changes go through [Governance](#11-governance).
 **Status:** Living document. It grows only by amendment (see [Governance](#11-governance)).
-**Adopted:** 2026-07-14 (ratified; includes the same-day derived-layer / optional-tier refinement —
-Invariants #1 & #6, §5, and the open-core principle). **Source:** distilled from demonstrated behaviour
+**Adopted:** 2026-07-14; amended 2026-07-16 with partitioned Markdown authority for narrowly scoped,
+append-only sidecars (Invariant #6). **Source:** distilled from demonstrated behaviour
 across the codebase,
 `3_Spec/`, `.memory-seed/agent-rules.md`, and the session-memory corpus — not invented. Framework from the
 [architectural-discovery proposal](5_Completed/memory-seed-architectural-discovery-proposal.md).
@@ -48,15 +48,19 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
 5. **Memory is model-independent.** No entry's meaning depends on the agent or model that wrote it; it
    serves any agent and any human. *(Cited: `agent-rules.md` `vendor_neutral: true`; the seed ships for
    Claude, Codex, Gemini, Cursor, and Copilot alike.)*
-6. **Markdown is the single source of truth — human-readable, durable, and authoritative *everywhere*.**
-   Every other store — cache, index, database, embedding, or hosted backend — is a **derived projection**:
-   fully rebuildable from the Markdown, never authoritative, never required for the core to run. This holds
-   even under hosted or collaborative use — concurrent writes resolve *into* Markdown, and a server database
-   is only ever an accelerator over it, never a second source of truth. A person can always read and edit
-   the source directly with no tool; derived layers need not be human-readable. *(Cited: the rebuildable
-   SQLite cache outside the repo; per-user session files + `session merge-branch`/fuse as Markdown-native
-   concurrent-write resolution. "Markdown today, another durable format tomorrow" — the format may change;
-   the source-of-truth role may not.)*
+6. **Markdown is the authoritative memory substrate — human-readable, durable, and authoritative
+   *everywhere*.** Authority may be partitioned across append-only primary entries and narrowly scoped
+   Markdown sidecars, but every authoritative field or lifecycle has exactly one declared owner. Every other
+   store — cache, index, database, embedding, computed snapshot, or hosted backend — is a **derived
+   projection**: fully rebuildable from the authoritative Markdown, never authoritative, and never required
+   for the core to run. This holds even under hosted or collaborative use — concurrent writes resolve *into*
+   Markdown, and a server database is only ever an accelerator over it, never a second source of truth. A
+   person can always read and edit the source directly with no service; derived layers need not be
+   human-readable.
+   Narrow sidecars may own explicit promotion or lifecycle facts while referenced entries own narrative
+   rationale and evidence. *(Cited: the rebuildable SQLite cache outside the repo; per-user session files +
+   `session merge-branch`/fuse; lifecycle and diagram sidecars; Constitution 1.1 amendment. "Markdown today,
+   another durable format tomorrow" — the format may change; the source-of-truth role may not.)*
 7. **Retrieval never hides live history to flatter a ranking.** A superseded entry is down-ranked, never
    removed from results. *(Cited: `SUPERSEDED_RANK_DAMPING` down-rank-only rule in `graph-edge-contract.md`;
    `exclude_superseded` is a separate opt-in filter, never the default.)*
@@ -82,7 +86,7 @@ How we decide. Amending these is heavier than a normal proposal but lighter than
 - **Trust before automation.** Establish that memory is trustworthy before acting on it automatically.
   **[candidate]** — partly aspirational; the content-trust taxonomy that would make it operational is not
   yet built (see [Open Questions](#10-open-questions--unresolved-tensions)).
-- **Open-core, one source of truth.** The local Markdown truth is free and complete on its own; paid or
+- **Open-core, one authoritative substrate.** The local Markdown truth is free and complete on its own; paid or
   hosted tiers add convenience, scale, and collaboration *on top of* it — never a second, authoritative
   store. **[direction — decided 2026-07-14; no paid tier exists yet.]**
 
@@ -200,3 +204,4 @@ demonstrates them.
 | Version | Date | Change | Ratified by |
 |---|---|---|---|
 | 1.0 | 2026-07-14 | **Initial Constitution ratified** — the 7 invariants, principles, policies, four-layer model, five-question test, trust/quality candidates, and governance; includes the same-day derived-layer / optional-tier refinement (Invariants #1 & #6, §5, open-core principle). | JNL |
+| 1.1 | 2026-07-16 | **Partitioned Markdown authority** — Invariant #6 now permits narrowly scoped append-only Markdown sidecars to own declared fields or lifecycles while entries retain rationale/evidence and all indexes, snapshots, databases, and UI views remain derived. | JNL |

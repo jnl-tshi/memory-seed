@@ -167,11 +167,17 @@ Exit:
 
 ### Post-Trail platform proposal gate
 
-The [`post-Trail platform review set`](../1_Inbox/memory-seed-post-trail-platform-review-proposal-set.md)
-is intentionally sequenced after this exit. Its Evidence Envelope, derived review queue/document-lineage,
-and capability-status/publishability candidates must not redefine the Trail, graph, provider, or projection
-contracts while B0b remains incomplete. Each remains an Inbox item requiring separate approval and may be
-promoted only with the established constitutional and source-of-truth gates intact.
+The reviewed Inbox set was triaged on 2026-07-16. This exit now unlocks only the bounded owners below:
+
+- the ADR walking skeleton in
+  [`memory-seed-semantic-record-and-signal-foundation-plan.md`](memory-seed-semantic-record-and-signal-foundation-plan.md),
+  still gated by BG1/BG2;
+- the referential Evidence Envelope and advisory Capability Status phases inside the existing evidence
+  architecture, still gated by Worker Context and BG1;
+- the later workflow-review and semantic-projection plans after their named dependencies.
+
+The extracted source review is archived under `4_Reference/archived/`. Publishability remains deferred for
+security/privacy review and does not ride the general capability schema.
 
 ## 8. Phase 5 — graph page
 
@@ -326,6 +332,14 @@ Phase 0
 Phase 1 -> Provenance/authority gate -> Phase 6 -> Phase 7
 Phase 1 -> Memory-quality v0 baseline -> quality-informed ranking or agent behaviour
 Phase 1 -> Phase 8 -> Markdown-settlement candidate adoption -> Phase 9 -> Phase 10
+
+Phase 4 + Provenance/authority + Memory-quality v0
+  -> Semantic record and ADR sidecar foundation
+  -> Workflow evidence/review workbench
+  -> Semantic Trace projections
+
+Phase 4 + Worker Context + Provenance/authority
+  -> Evidence Envelope and Capability Status
 ```
 
 B0a precedes React feature implementation; B0b is delivered through the post-shell inspection and graph phases. The optional structural-provider tail starts only after B0b acceptance. Hosted work must not block local migration.

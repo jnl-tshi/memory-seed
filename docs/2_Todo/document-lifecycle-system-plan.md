@@ -119,6 +119,10 @@ must each be documented (external mirror / temp agent scratch → `.gitignore`) 
   secondary YAML. Generate all indexes.
 - **P3:** wire `docs check` into `esr` + CI.
 - **P4 (optional):** `entries:` doc↔memory link + a Trace view of the doc lifecycle.
+- **P5 (opt-in planning profile extraction):** only after P2/P3 prove the local commands and migration,
+  extract a project-neutral scaffold into the optional `planning` profile: generic lanes, a human front
+  door, reusable document shapes, and the same `docs index`/`docs check` contracts. Do not seed this
+  repository's numbered paths, Constitution, roadmap, proposal corpus, or product-specific governance.
 
 ## Non-goals
 
@@ -126,6 +130,8 @@ must each be documented (external mirror / temp agent scratch → `.gitignore`) 
 - Folders encode only the **primary lifecycle axis**; secondary attributes stay in YAML + the index
   (a file can't be in `6_Rejected` and `P1/` at once).
 - No big-bang backfill — the check warns; adoption is incremental, enforced for new docs first.
+- No project-specific documentation corpus in the reusable seed; the planning profile installs only generic
+  lifecycle controls after local proof.
 
 ## Relationship to existing coverage (checked)
 

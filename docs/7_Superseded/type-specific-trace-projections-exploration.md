@@ -1,7 +1,7 @@
 # Initial Proposal: Type-Specific Memory Trace Projections
 
-**Status:** Exploration candidate  
-**Promotion state:** Not ready for `todo`  
+**Status:** Superseded 2026-07-16
+**Superseded by:** [`memory-trace-semantic-projections-plan.md`](../2_Todo/memory-trace-semantic-projections-plan.md)
 **Related systems:** Memory Trace, typed entries, topics, ADR sidecars, search
 
 > [!IMPORTANT]

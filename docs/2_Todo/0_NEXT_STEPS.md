@@ -1,12 +1,12 @@
 # Next Steps
 
-Status: **ACTIVE — resumed 2026-07-14, Constitution-aligned** (Constitution v1.0 ratified the same day).
+Status: **ACTIVE — Constitution-aligned** (v1.0 ratified 2026-07-14; v1.1 ratified 2026-07-16).
 Updated: 2026-07-16
 
 > ▶ **Foundation and memory-quality core shipped 2026-07-15.** The
 > [derived-projection Phase 1](derived-projection-implementation-plan.md) (git-watermark warm start +
 > atomic swap + three read-path perf refinements) **shipped 2026-07-15** — the plan's former "do first"
-> foundation is done. Work still sequences *under* [`docs/CONSTITUTION.md`](../CONSTITUTION.md) **v1.0**
+> foundation is done. Work still sequences *under* [`docs/CONSTITUTION.md`](../CONSTITUTION.md) **v1.1**
 > (each item answers the five-question test — Capture / Validation / Retrieval / Trust / Application — and
 > respects Invariant #6: Markdown = source of truth; every DB/cache is a derived, rebuildable projection).
 > The ranking/graph core now includes the full-corpus gate, `superseding_head` plus its bounded boost,
@@ -188,35 +188,40 @@ Markdown-authoritative, so Invariant #6-clean (no derived-state surface).
 The two compound (fewer active personas → lighter worker *and* primary startup load) but neither blocks the
 other. Both sit **below Track A's blocking tails** in priority — small, sequence-flexible guidance changes.
 
-## Captured proposals — awaiting your approval (`1_Inbox/`)
+### Track D — semantic memory and workflow evolution
 
-The **memory-quality trio** (supersession-successor-surfacing, real-corpus-ranking-validation-gate,
-lifecycle-link-authoring-assist) was **promoted to `2_Todo` 2026-07-14** — see the *Ranking & graph
-quality* track above. The **grounding-provenance → write-time links** proposal was **approved and shipped
-the same day** — the `consulted` axis on `memory_link_suggest`/`suggest_related_entries` + the
-`history_retrieval`/`session_logging` guidance that connects the retrieval and link-authoring loops (layer 3
-auto-capture deferred as optional) → [`5_Completed/`](../5_Completed/grounding-provenance-write-time-links-proposal.md).
+Approved 2026-07-16 after full Inbox triage. These plans are dependency-ordered and do not displace B0b:
 
-What remains is the **agent/worktree hygiene** pair: real friction, but developer ergonomics (touches none
-of the five questions), so lower priority. Each a verified genuine gap:
+1. **Semantic record and signal foundation (P1)** —
+   [`memory-seed-semantic-record-and-signal-foundation-plan.md`](memory-seed-semantic-record-and-signal-foundation-plan.md).
+   After B0b plus BG1/BG2, prove authoritative append-only Markdown ADR sidecars on three real decisions.
+   Entries retain rationale/evidence; the sidecar owns promotion/lifecycle; current status and indexes are
+   derived. Historical entries are not rewritten and ranking cannot change before signal exposure plus the
+   real-corpus gate.
+2. **Workflow evidence and review workbench (P2)** —
+   [`memory-seed-workflow-evidence-and-review-workbench-plan.md`](memory-seed-workflow-evidence-and-review-workbench-plan.md).
+   Reconstruct three real idea-to-outcome journeys before defining a deterministic review queue. No raw
+   telemetry, universal workflow, automatic judgement, or new generic graph edges.
+3. **Semantic Trace projections (P3)** —
+   [`memory-trace-semantic-projections-plan.md`](memory-trace-semantic-projections-plan.md). Begin with one
+   validated Decision projection over shared readers; additional projections require user evidence.
 
-- [`worktree-gc-proposal.md`](../1_Inbox/worktree-gc-proposal.md) — a `worktree gc` command with
-  lock-aware retry (the namespace guard shipped; removal/GC did not; fixes the recurring OneDrive-lock
-  pain). P3. The *executor* the lifecycle proposal below drives — promote it first.
-- [`agent-namespaced-branch-worktree-lifecycle-proposal.md`](../1_Inbox/agent-namespaced-branch-worktree-lifecycle-proposal.md)
-  — worktree=session / branch=task naming + two decoupled lifecycles + post-merge hygiene. **Needs a
-  decision from you** (slash vs. hyphen branch naming) and sign-off to edit `agent_collaboration.md` (a
-  locked control-plane file); depends on `worktree gc`.
+The Evidence Envelope and Capability Status were folded into the existing evidence/annotations architecture.
+The seeded document lifecycle was folded into the local lifecycle plan after its Phase 2/3 proof gates.
+Publishability and the generic skill/workflow router are deferred until their explicit reactivation gates.
 
-The rebaselined post-Trail review set is also captured in
-[`memory-seed-post-trail-platform-review-proposal-set.md`](../1_Inbox/memory-seed-post-trail-platform-review-proposal-set.md).
-It proposes bounded P2/P3 follow-ons only after React Trail parity: a referential Evidence Envelope for
-Task Packets, a derived review queue/document-lineage view, and a capability-status/publishability evaluation.
-It does not duplicate the existing provenance, quality-metrics, worker-context, document-lifecycle, provider,
-or VS Code reference owners, and remains Inbox pending separate approval.
+### Track E — worktree and branch hygiene
 
-*(The architectural-discovery proposal completed with Constitution v1.0 ratification on 2026-07-14;
-development then resumed under its gates.)*
+[`agent-worktree-and-branch-hygiene-plan.md`](agent-worktree-and-branch-hygiene-plan.md) combines the two
+former Inbox proposals. Phase 1 is dry-run classification plus Git-native bounded retry with no raw recursive
+deletion fallback. Phase 2 adopts worktree=session and branch=task with new branches named
+`<agent>/<kind>/<topic>`; existing names are grandfathered.
+
+## Inbox disposition — evaluated 2026-07-16
+
+All 14 Inbox documents were evaluated. Actionable work now has one canonical owner in Todo, security- or
+evidence-gated work is Deferred, source indexes are archived/superseded, and `docs/1_Inbox/` is empty pending
+new captures. Constitution v1.1 records the partitioned Markdown-authority decision.
 
 ## Captured strategic input — `4_Reference` (2026-07-14 drop, triaged)
 

@@ -1,7 +1,7 @@
 # Initial Proposal: Memory Signal Hierarchy
 
-**Status:** Exploration candidate  
-**Promotion state:** Not ready for `todo`  
+**Status:** Superseded 2026-07-16
+**Superseded by:** [`memory-seed-semantic-record-and-signal-foundation-plan.md`](../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md)
 **Related systems:** Retrieval, MCP context collection, Memory Trace, entry types, topics
 
 > [!IMPORTANT]

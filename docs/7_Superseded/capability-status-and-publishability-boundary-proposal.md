@@ -2,7 +2,7 @@
 title: "Capability Status and Publishability Boundary Proposal"
 date: "2026-07-16"
 project: "memory-seed"
-status: "inbox"
+status: "superseded"
 priority: "P3"
 next_action: "After React Trail parity, perform an explicit security/privacy review before deciding whether to split and promote either advisory contract."
 dependencies:
@@ -16,8 +16,9 @@ related:
 
 # Capability Status and Publishability Boundary Proposal
 
-Status: **INBOX**. This is an evaluation of two advisory contracts; it authorises neither network use nor
-publication.
+Status: **SUPERSEDED 2026-07-16**. Capability Status moved into section 11.2 of the existing evidence
+architecture; publishability split into
+[`memory-seed-publishability-check-evaluation.md`](../8_Deferred/memory-seed-publishability-check-evaluation.md).
 Priority: P3 after React Trail parity and explicit security/privacy review.
 Source: The 2026-07-16 post-Trail platform review triage.
 

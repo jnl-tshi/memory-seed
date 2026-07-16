@@ -10,7 +10,8 @@ tags:
 
 # Seeded document lifecycle control plane for the planning profile
 
-Status: **PROPOSED** (2026-07-15). Inbox; not approved for implementation.
+Status: **SUPERSEDED 2026-07-16** by Phase P5 of
+[`document-lifecycle-system-plan.md`](../2_Todo/document-lifecycle-system-plan.md).
 Priority: P2 - first prove the local document-lifecycle tooling, then extract it.
 Source: JNL's question about shipping docs and document-management surfaces with Memory Seed, followed by
 the 2026-07-15 review recorded in session entry `mse_wew6nkxc92b2en4k`.

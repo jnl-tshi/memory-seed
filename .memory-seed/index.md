@@ -65,6 +65,11 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Goal run 2026-07-10 COMPLETE: all four phases of `docs/2_Todo/completed/goal-roadmap-refinement-and-staged-implementation.md` executed; v2.17.0 released; Memory Trace packaging now ships through the root `memory-seed[trace]` extra with the `memory-trace` command.
 - Long-horizon Wave 1 shipped 2026-07-15: deterministic topic suggestions, timeline Evidence Pack Phase 1, Trail continuity lanes, `superseding_head` plus the full-corpus-gated successor boost, configurable integration mode through all four phases, and inert lifecycle-link scaffold steps 1–3. The four complete plans live in `docs/5_Completed/`; AI summarisation remains active for provider/local-model Phase 2 and lifecycle-link authoring remains active for evaluation with optional steps 4–5 deferred.
 - Memory Trace next-generation planning promoted 2026-07-11: `docs/2_Todo/memory-trace-product-and-system-architecture-blueprint.md` is the top-level plan, `docs/2_Todo/memory-trace-next-generation-implementation-roadmap.md` sequences future work, and `docs/2_Todo/memory-trace-next-generation-coverage-matrix.md` preserves which older implementation plans remain active. B0a graph/workspace contracts and renderer evidence completed 2026-07-16; Cytoscape.js 3.34.0 is selected. B0b now packages the React/TypeScript `/next` shell with the accepted vanilla graph, search, selection, and workspace interaction rules, while vanilla `/` remains the fallback. Remaining B0b acceptance work is renderer-neutral React diagram rendering, actual topology-community and temporal layout, accessibility, and residual Trail parity; the stated 2.19 memory-quality cut criterion is met, but release/publish still requires explicit user approval.
+- Inbox triage completed 2026-07-16 under Constitution v1.1. After B0b plus the provenance/quality gates,
+  `docs/2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md` leads the semantic program with
+  authoritative append-only Markdown ADR sidecars; workflow evidence/review and one Decision projection
+  follow. Publishability and a generic skill/workflow router remain deferred. The worktree hygiene plan uses
+  worktree=session, branch=task, and `<agent>/<kind>/<topic>` for new branches.
 - Main output: plain-file local memory system for AI agents plus Python package `memory-seed`.
 - Current risk: private/local system design work with possible personal notes because this project lives inside a second-brain folder.
 - Current risk: subagents or isolated worktrees spawned for this repo can silently inherit a stale git worktree pinned to an old commit rather than the live tree, producing fabricated or outdated citations if untrusted.
@@ -103,6 +108,10 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - `.memory-seed/skills/index.md` is the deterministic trigger registry for deciding which lazy-loaded skills apply.
 - `skills/*.md` are lazy-loaded execution runbooks.
 - `.memory-seed/sessions/` is the rationale and audit trail for decisions; `index.md` should store current orientation and durable conclusions, not full decision history.
+- Authoritative memory may be partitioned across append-only Markdown entries and narrowly scoped Markdown
+  sidecars. Under the adopted but not-yet-implemented ADR contract, the sidecar will own promotion and
+  lifecycle while entries own rationale/evidence; current status, registries, indexes, databases, and Trace
+  views are derived.
 - `memory-seed update` archives replaced reusable control-plane files under `.memory-seed/archive/<old-version>/` or `.memory-seed/archive/unknown-<timestamp>/` before refreshing them.
 - MCP memory search uses the Model2Vec static embedding provider `model2vec:minishlab/potion-base-8M` by default and falls back to lexical, metadata, and recency ranking if semantic scoring fails or is disabled.
 - Claude Code reads project-scope MCP servers from a project-root `.mcp.json`, NOT from `.claude/settings.json > mcpServers` (silently ignored). Versions 2.2.0–2.3.0 mis-wrote it to settings.json; `update` now writes `.mcp.json` and strips the dead block (ours-only).
