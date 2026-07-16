@@ -11,8 +11,11 @@ tags:
 
 # Derived Read-Model / Projection Contract  *(draft — candidate)*
 
-**Status:** Candidate spec (`3_Spec/draft/`) — not yet binding; the implementation does not exist beyond the
-current rebuildable SQLite cache. It is the Platform-layer contract that makes
+**Status:** Candidate spec (`3_Spec/draft/`) - not yet binding. Memory Trace now implements the Phase 1
+Markdown-to-SQLite projection: a schema version, Git build watermark, cheap warm path, atomic build/swap,
+and read-path memoisation. The contract remains a candidate because the git-rooted historical-integrity and
+no-git degradation guarantees, progressive loading, and cross-consumer adoption are not yet accepted. It is
+the Platform-layer contract that makes
 [`CONSTITUTION.md`](../../CONSTITUTION.md) **Invariant #6** ("Markdown is the single source of truth; every
 other store is a derived projection") concrete. Implementation plan:
 [`2_Todo/derived-projection-implementation-plan.md`](../../2_Todo/derived-projection-implementation-plan.md).
@@ -94,7 +97,9 @@ The two jobs are complementary and must not be conflated:
 
 ## Already present (build on, don't greenfield)
 
-The rebuildable **SQLite cache** (Memory Trace) is G1–G2 in prototype form; **`Memory-Entry:` trailers**
-bind entries to commits (G6); **`links check` / `esr`** are the integrity surface; **git** is the durable
+The Memory Trace **SQLite projection** now provides the Phase 1 base: Markdown-source rebuilds, a versioned
+schema, Git-watermark warm starts, atomic replacement, and read-path memoisation. **`Memory-Entry:` trailers**
+bind entries to commits; **`links check` / `esr`** are the current integrity surface; **git** is the durable
 ledger + recovery; **per-user session files + `session merge-branch`/fuse** are Markdown-native
-write-resolution primitives. Phase 1 formalizes and extends these rather than starting over.
+write-resolution primitives. G6/G7 and progressive loading remain work to validate rather than guarantees to
+claim.

@@ -56,11 +56,14 @@ move newly finished work directly into `5_Completed/`; the bulk migration of the
 work and agent-namespaced branches/worktrees follow
 [`1_Inbox/agent-namespaced-branch-worktree-lifecycle-proposal.md`](1_Inbox/agent-namespaced-branch-worktree-lifecycle-proposal.md).
 
-## Current B0a status
+## Current Memory Trace status
 
 The B0a shell, renderer-neutral fixture contract, and complete renderer evidence harness are implemented.
-The benchmark decision awaits JNL's side-by-side choice; no renderer has been selected and the vanilla SVG
-graph remains the fallback.
+JNL selected Cytoscape 3.34.0 on 2026-07-16, and the React `/next` workspace now carries the accepted
+graph, search, selection, and Inspector behaviour over the renderer-neutral projection. React Trail parity,
+the Trail transition, React diagram rendering, evidence-backed topology/file/evolution modes, and final
+accessibility/scale acceptance remain open. The vanilla SVG graph and Trail remain the fallback until explicit
+B0b parity sign-off.
 The live specification count is **8** plus **2** drafts. The older generated count in the
 snapshot below remains a Phase 2 `docs index` debt.
 

@@ -208,6 +208,13 @@ of the five questions), so lower priority. Each a verified genuine gap:
   decision from you** (slash vs. hyphen branch naming) and sign-off to edit `agent_collaboration.md` (a
   locked control-plane file); depends on `worktree gc`.
 
+The rebaselined post-Trail review set is also captured in
+[`memory-seed-post-trail-platform-review-proposal-set.md`](../1_Inbox/memory-seed-post-trail-platform-review-proposal-set.md).
+It proposes bounded P2/P3 follow-ons only after React Trail parity: a referential Evidence Envelope for
+Task Packets, a derived review queue/document-lineage view, and a capability-status/publishability evaluation.
+It does not duplicate the existing provenance, quality-metrics, worker-context, document-lifecycle, provider,
+or VS Code reference owners, and remains Inbox pending separate approval.
+
 *(The architectural-discovery proposal completed with Constitution v1.0 ratification on 2026-07-14;
 development then resumed under its gates.)*
 

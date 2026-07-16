@@ -165,6 +165,14 @@ Exit:
 - 10,000-entry target measured;
 - vanilla Trail remains available behind fallback until sign-off.
 
+### Post-Trail platform proposal gate
+
+The [`post-Trail platform review set`](../1_Inbox/memory-seed-post-trail-platform-review-proposal-set.md)
+is intentionally sequenced after this exit. Its Evidence Envelope, derived review queue/document-lineage,
+and capability-status/publishability candidates must not redefine the Trail, graph, provider, or projection
+contracts while B0b remains incomplete. Each remains an Inbox item requiring separate approval and may be
+promoted only with the established constitutional and source-of-truth gates intact.
+
 ## 8. Phase 5 — graph page
 
 Deliver:
