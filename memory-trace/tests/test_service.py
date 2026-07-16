@@ -4,15 +4,16 @@ import os
 import sqlite3
 import subprocess
 import shutil
+import sys
 import tempfile
 import unittest
-from contextlib import redirect_stderr
+from contextlib import nullcontext, redirect_stderr
 from pathlib import Path
 from urllib.parse import quote
 from unittest import mock
 
 from memory_trace.cli import main
-from memory_trace.service import TraceCache, TraceService, create_app, missing_optional_dependency_hint
+from memory_trace.service import _CacheRebuildLease, TraceCache, TraceService, create_app, missing_optional_dependency_hint
 
 
 def _entry(
@@ -173,6 +174,61 @@ class TraceServiceTests(unittest.TestCase):
         self.assertEqual(blocked_swaps, 5)
         self.assertEqual(cache.db_path.parent, fallback_temp / "memory-seed" / "lense")
         self.assertTrue(cache.db_path.is_file())
+
+    def test_cache_rebuild_lease_blocks_an_independent_process(self):
+        lock_path = self.cache_root / "trace.sqlite3.lock"
+        script = "\n".join(
+            [
+                "import sys",
+                "from pathlib import Path",
+                "from memory_trace.service import _CacheRebuildLease",
+                "with _CacheRebuildLease(Path(sys.argv[1])).hold(timeout_seconds=0.1, retry_seconds=0.01) as acquired:",
+                "    print('acquired' if acquired else 'busy')",
+            ]
+        )
+
+        with _CacheRebuildLease(lock_path).hold(timeout_seconds=1, retry_seconds=0.01) as acquired:
+            self.assertTrue(acquired)
+            proc = subprocess.run(
+                [sys.executable, "-c", script, str(lock_path)],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(proc.stdout.strip(), "busy")
+
+    def test_cache_rebuild_uses_isolated_temp_cache_when_rebuild_lease_is_busy(self):
+        primary = self.cwd / "shared" / "trace.sqlite3"
+        fallback_temp = self.cache_root / "temporary-cache"
+        first = TraceCache(self.cwd, db_path=primary)
+        second = TraceCache(self.cwd, db_path=primary)
+
+        with mock.patch("memory_trace.service.tempfile.gettempdir", return_value=str(fallback_temp)):
+            with mock.patch.object(first, "_rebuild_lease", return_value=nullcontext(False)):
+                first.rebuild()
+            with mock.patch.object(second, "_rebuild_lease", return_value=nullcontext(False)):
+                second.rebuild()
+
+        self.assertEqual(first.db_path.parent, fallback_temp / "memory-seed" / "lense")
+        self.assertEqual(second.db_path.parent, fallback_temp / "memory-seed" / "lense")
+        self.assertNotEqual(first.db_path, second.db_path)
+        self.assertTrue(first.db_path.is_file())
+        self.assertTrue(second.db_path.is_file())
+
+    def test_cache_reuses_snapshot_when_another_process_refreshed_under_lease(self):
+        cache = TraceCache(self.cwd, cache_root=self.cache_root)
+        cache.db_path.parent.mkdir(parents=True, exist_ok=True)
+        cache.db_path.touch()
+
+        with (
+            mock.patch.object(cache, "_is_current", side_effect=[False, False, True]),
+            mock.patch.object(cache, "_rebuild_locked") as rebuild,
+        ):
+            cache.ensure_current()
+
+        rebuild.assert_not_called()
 
     def test_empty_entry_search_returns_recent_entries(self):
         service = self.service()
