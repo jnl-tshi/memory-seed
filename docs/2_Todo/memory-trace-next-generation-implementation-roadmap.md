@@ -141,6 +141,11 @@ Exit:
 - Inspector docking, keyboard control, and responsive behaviour pass B0b workspace acceptance;
 - reading layout decision recorded.
 
+Implementation status (2026-07-16): exact `mse_` and legacy `ms-` entry-ID navigation, ranked search
+results, resilient shared selection, persisted Inspector docking, keyboard canvas controls, and responsive
+React workspace controls are implemented. Reader highlighting, evidence workspace, and Trail transition
+remain open, so this phase is not accepted yet.
+
 ## 7. Phase 4 — Trail parity
 
 Deliver:
@@ -180,6 +185,14 @@ Exit:
 - B0b renderer, offline packaging, accessibility, shared-selection, and scale gates pass;
 - current SVG fallback remains until explicit parity sign-off;
 - default last-seven/last-five-active-day range works.
+
+Implementation status (2026-07-16): the lazy Cytoscape adapter consumes the renderer-neutral projection;
+the recent seven-day default range, overview/local/topic filters, edge filters, selected-context lifecycle
+routes, deterministic renderer colour, label policy, curved typed edges, fit/zoom keyboard controls, and
+list alternative are implemented. The current graph deliberately renders only the connected context plus
+the selected node; the bounded list retains unlinked results. Evidence-backed community detection, file and
+evolution modes, optional mild temporal layout, Trail transition, diagram rendering in the React reader,
+and final accessibility/scale acceptance remain open.
 
 ## 9. Phase 6 — deterministic anchors and annotations
 

@@ -34,6 +34,7 @@ class OpenApiContractFixtureTests(unittest.TestCase):
             "/api/v1/search",
             "/api/v1/chunks/{chunk_id}",
             "/api/v1/graph",
+            "/api/v1/graph/projection",
             "/api/v1/trail",
         }
         self.assertEqual(set(self.fixture["paths"]), expected)

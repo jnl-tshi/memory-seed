@@ -11,8 +11,8 @@ Updated: 2026-07-16
 > respects Invariant #6: Markdown = source of truth; every DB/cache is a derived, rebuildable projection).
 > The ranking/graph core now includes the full-corpus gate, `superseding_head` plus its bounded boost,
 > and inert `link audit --apply` scaffolding. The stated **2.19 cut criterion is met**; publishing still
-> waits for explicit user approval. **B0a graph/workspace contracts and renderer evidence are now the
-> current lead. React (B2) remains deferred** until that pre-React work is complete. The projection's
+> waits for explicit user approval. **B0a graph/workspace contracts and renderer evidence are complete;
+> B2/B0b React parity is the current lead.** The projection's
 > incremental-ingest fast-follow remains deferred as low-urgency (reads are already ~3.9 ms).
 Source: the `docs/` lifecycle lanes (folder = state — see [`../README.md`](../README.md)), `CHANGELOG.md`,
 and `docs/3_Spec/`. Rebuilt 2026-07-14 from a full inbox+todo evaluation; re-baselined 2026-07-15 after the
@@ -138,9 +138,15 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
 - **B0b — Native graph/workspace implementation** *(started 2026-07-16; implemented through roadmap
   Phases 3 and 5)* — the first React shell provides a lazy Cytoscape graph, bounded initial graph range,
   shared entry selection, right/bottom/auto/hidden persisted Inspector controls, and the additive
-  `/api/v1/graph/projection` renderer-neutral contract. Next, implement topology-first and optional
-  mild-temporal layouts, graph scope/filter controls, label policy, keyboard canvas alternatives, and
-  scale acceptance. Keep the SVG renderer until explicit parity sign-off.
+  `/api/v1/graph/projection` renderer-neutral contract. The React route now also has exact `mse_` and
+  legacy `ms-` entry-ID navigation, ranked search results feeding shared Inspector selection, a recent
+  seven-day default graph range with an explicit all-dates control, overview/local/topic filters, typed
+  curved edges, selected-context `evolves` routes, focus/minimal/all label policy, keyboard fit/zoom/node
+  cycling, and a complete-list alternative. Failed graph refreshes preserve the current view; graph mode
+  renders connected context while the list retains unlinked records. Remaining: reader highlighting and
+  evidence workspace, Trail transition/parity, file/evolution modes, evidence-backed topology communities
+  and optional mild temporal layout, React diagram rendering, and formal accessibility/scale acceptance.
+  Keep the SVG renderer until explicit parity sign-off.
   Only after B0b acceptance may the
   [`structural-provider proposal`](memory-trace-structural-graph-enrichment-provider-proposal.md) define a
   provider-neutral contract and pilot optional `code-review-graph`; providers never own canonical decision

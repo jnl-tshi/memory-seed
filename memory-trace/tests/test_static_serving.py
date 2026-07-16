@@ -140,6 +140,19 @@ class StaticServingTests(unittest.TestCase):
         self.assertEqual(client.get(f"/assets/react/{script.group(1)}").status_code, 200)
         self.assertEqual(client.get("/assets/react/../../app.js").status_code, 404)
 
+    def test_next_react_bundle_includes_search_and_keyboard_graph_controls(self):
+        client = self._client()
+        html = client.get("/next").text
+        script = re.search(r'src="/assets/react/([^\"]+\.js)"', html)
+
+        self.assertIsNotNone(script)
+        bundle = client.get(f"/assets/react/{script.group(1)}").text
+        self.assertIn("Search memory or entry ID", bundle)
+        graph_bundle = next((Path(__file__).parents[1] / "memory_trace" / "static" / "react" / "assets").glob("GraphWorkspace-*.js"))
+        graph_source = graph_bundle.read_text(encoding="utf-8")
+        self.assertIn("Fit graph", graph_source)
+        self.assertIn("ArrowLeft ArrowRight", graph_source)
+
 
 if __name__ == "__main__":
     unittest.main()
