@@ -6,7 +6,7 @@ tags:
   - documentation
   - lifecycle
 priority: P2
-next_action: execute Phase 2 — `docs index`/`docs check` CLI, bulk-migrate the 43 `2_Todo/completed/` docs to `5_Completed/`, remove the empty `superpowers/specs/`
+next_action: execute Phase 2 — `docs index`/`docs check` CLI, bulk-migrate the 43 `2_Todo/completed/` docs to `5_Completed/`
 ---
 
 # Document lifecycle system — human-discoverable, folder-primary, with a generated index
@@ -99,9 +99,11 @@ check because the folder is the sole state.
 ## 6. Side-folder allowlist (gap #8)
 
 The front door lists legitimate non-lane folders with a one-line reason each (`agent-templates/`,
-`memory-trace-phase0-baseline/`). `docs/superpowers/` and the per-agent `2_Todo/{Claude,codex}/` folders
-must each be documented (external mirror / temp agent scratch → `.gitignore`) or reconciled into a lane;
-`docs check` flags anything else.
+`memory-trace-phase0-baseline/`). Every other non-lane folder must be documented there (external mirror /
+temp agent scratch → `.gitignore`) or reconciled into a lane; `docs check` flags anything else. The
+original offenders are resolved: the per-agent `2_Todo/{Claude,codex}/` folders were reconciled into
+`7_Superseded/` on 2026-07-14, and `docs/superpowers/` exists neither in the working tree nor in git
+history.
 
 ## Migration (phased — the promotion is real `git mv` churn, so stage it)
 
