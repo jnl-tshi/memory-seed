@@ -93,8 +93,18 @@ function renderNodeList(panel, graph) {
   const list = panel.querySelector(".renderer-list");
   list.replaceChildren(...graph.nodes.map((node) => {
     const item = document.createElement("li");
-    item.textContent = `${node.label} (${node.community.label})`;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = `${node.label} (${node.community.label})`;
+    button.setAttribute("aria-pressed", String(node.id === selectedId));
+    button.addEventListener("click", () => {
+      if (node.id !== selectedId) {
+        selectedId = node.id;
+        renderAll();
+      }
+    });
     if (node.id === selectedId) item.classList.add("is-selected");
+    item.append(button);
     return item;
   }));
 }
@@ -161,7 +171,7 @@ function buildApp() {
     <main class="benchmark">
       <header class="benchmark-header"><h1>Renderer evidence harness</h1><p>Both adapters consume <code>${fixture.fixture_id}</code>. This is benchmark evidence, not the shipped graph.</p></header>
       <section class="benchmark-controls" aria-label="Benchmark controls"><fieldset><legend>Layout</legend>${fixture.benchmark_cases.map((item) => `<button type="button" data-case="${item.id}" aria-pressed="${item.id === activeCase}">${item.id}</button>`).join("")}</fieldset><label><input id="connected-filter" type="checkbox"> Connected to selected node</label></section>
-      <p class="benchmark-note">Use pointer or keyboard navigation to pan, zoom, and select. The accessible list records the same visible nodes.</p>
+      <p class="benchmark-note">Use pointer controls to pan and zoom. Layout, filtering, and shared node selection are available through native controls; the visible-node lists mirror the current graph state.</p>
       <section class="renderer-grid" aria-label="Renderer comparison">${["vis", "cytoscape"].map((name) => `<article class="renderer-panel" data-renderer="${name}"><header><h2>${name === "vis" ? "vis-network" : "Cytoscape.js"}</h2><span>${currentCase().layout}</span></header><div class="renderer-surface" tabindex="0" aria-label="${name} graph canvas"></div><p class="renderer-status" role="status">initializing</p><details><summary>Visible nodes</summary><ol class="renderer-list"></ol></details></article>`).join("")}</section>
     </main>`;
   app.querySelectorAll("[data-case]").forEach((button) => button.addEventListener("click", () => { activeCase = button.dataset.case; renderAll(); }));

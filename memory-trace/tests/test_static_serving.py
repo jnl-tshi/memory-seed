@@ -119,6 +119,8 @@ class StaticServingTests(unittest.TestCase):
         self.assertEqual(script.status_code, 200)
         self.assertGreater(len(script.content), 100_000)
         self.assertIn("Visible nodes", script.text)
+        self.assertIn("aria-pressed", script.text)
+        self.assertIn("shared node selection", script.text)
         self.assertIn("vis-network", script.text)
         self.assertIn("Cytoscape.js", script.text)
         self.assertEqual(stylesheet.status_code, 200)

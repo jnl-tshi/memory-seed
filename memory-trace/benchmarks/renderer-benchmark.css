@@ -45,6 +45,8 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .renderer-panel summary { cursor: pointer; }
 .renderer-list { columns: 2; font-size: 13px; margin: 10px 0 0; padding-left: 18px; }
 .renderer-list li { break-inside: avoid; margin: 4px 0; }
+.renderer-list button { background: transparent; border: 0; border-radius: 0; padding: 2px 0; text-align: left; width: 100%; }
+.renderer-list button[aria-pressed="true"] { background: transparent; border-color: transparent; color: var(--accent); }
 .is-selected { color: var(--accent); font-weight: 700; }
 @media (max-width: 900px) { .renderer-grid { grid-template-columns: 1fr; } .renderer-list { columns: 1; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
