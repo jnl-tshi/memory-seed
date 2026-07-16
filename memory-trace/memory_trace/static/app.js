@@ -644,8 +644,8 @@ const TRAIL_CORNER = 7;
 const TRAIL_REL_ZONE = TRAIL_REL_LANES.length * TRAIL_REL_LANE_W + 12;
 // All relationship routes share the clearest dash cadence; color alone
 // separates the types (user decision - replaces' dash won the readability
-// comparison). related routes draw only for the selected entry: as ambient
-// traffic they drowned the lifecycle signal.
+// comparison). Related and evolves routes draw only for the selected entry:
+// as ambient traffic they drowned the lifecycle signal.
 const TRAIL_DASH = { supersedes: "6 4", evolves: "6 4", related: "6 4" };
 const TRAIL_VERB = { supersedes: "replaces", evolves: "evolves", related: "relates to" };
 const TRAIL_CONTINUITY_LABEL = { rename: "rename", migration: "migration", removal: "removal" };
@@ -1244,13 +1244,12 @@ function trailView() {
     const top = rowY(rowsSorted[0]);
     const bot = rowY(rowsSorted[rowsSorted.length - 1]);
     const touched = focusActive && rowsSorted.some((r) => items[r].node.entry_id === selectedEntry);
-    const stroke = touched ? edgeColor("evolves") : "var(--edge-evolves-soft)";
-    const opacity = touched ? 0.95 : focusActive ? 0.5 : 0.9;
+    if (!touched) return "";
     const labels = rowsSorted.map((r) => trailTitle(items[r].node));
     const tip = `<title>evolves chain (${rowsSorted.length}): ${esc(labels.join(" ← "))}</title>`;
     const t = EVOLVES_BRACKET_TICK;
     const d = `M ${x + t} ${top} L ${x} ${top} L ${x} ${bot} L ${x + t} ${bot}`;
-    return `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${touched ? 2.6 : 2}" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="${opacity}">${tip}</path>`;
+    return `<path d="${d}" fill="none" stroke="${edgeColor("evolves")}" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.95">${tip}</path>`;
   });
   const arcs = lifecycle.flatMap((edge) => {
     const touched = focusActive && (edge.source === selectedEntry || edge.target === selectedEntry);
@@ -1258,7 +1257,7 @@ function trailView() {
     if (!winsPair(edge)) return [];
     // Adjacent same-lane evolves are drawn as a chain bracket above, not here.
     if (bracketedEvolves.has(edge)) return [];
-    if (edge.type === "related" && !touched) return [];
+    if ((edge.type === "related" || edge.type === "evolves") && !touched) return [];
     const sourceItem = items[rowOf.get(edge.source)];
     const targetItem = items[rowOf.get(edge.target)];
     // Same-branch related context is bracketed on the rows, never drawn.
@@ -1369,7 +1368,7 @@ function trailView() {
       <span class="legend-item"><span class="trail-cont-legend trail-cont-legend-migration"></span>migration</span>
       <span class="legend-item"><span class="trail-cont-legend trail-cont-legend-removal"></span>removal</span>` : ""}
       <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("supersedes")}"></span>replaces</span>
-      <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("evolves")}"></span>evolves</span>
+      <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("evolves")}"></span>evolves · on select</span>
       <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("related")}"></span>related · on select</span>
       ${shown < total ? `<button type="button" class="chip" data-trail-more>Load older</button>` : ""}
     </div>

@@ -837,6 +837,15 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn("paint-order: stroke;", styles)
         self.assertIn("pointer-events: none;", styles)
 
+    def test_trail_hides_related_and_evolves_connectors_until_selected(self):
+        import importlib.resources as resources
+
+        script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
+
+        self.assertIn('if (!touched) return "";', script)
+        self.assertIn('if ((edge.type === "related" || edge.type === "evolves") && !touched) return [];', script)
+        self.assertIn("evolves · on select", script)
+
     def test_frontend_preserves_center_scroll_when_selecting_entries(self):
         import importlib.resources as resources
 
