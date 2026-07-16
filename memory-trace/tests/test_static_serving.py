@@ -106,6 +106,27 @@ class StaticServingTests(unittest.TestCase):
         self.assertRegex(html, r"app\.js\?v=[0-9a-f]{10}")
         self.assertEqual(client.get("/assets/app.js").status_code, 200)
 
+    def test_renderer_benchmark_is_self_contained_and_served_from_package_assets(self):
+        client = self._client()
+
+        html = client.get("/benchmarks/renderer")
+        script = client.get("/assets/benchmark/renderer-benchmark.js")
+        stylesheet = client.get("/assets/benchmark/renderer-benchmark.css")
+
+        self.assertEqual(html.status_code, 200)
+        self.assertRegex(html.text, r"renderer-benchmark\.js\?v=[0-9a-f]{10}")
+        self.assertIn('id="benchmark-app"', html.text)
+        self.assertEqual(script.status_code, 200)
+        self.assertGreater(len(script.content), 100_000)
+        self.assertIn("Visible nodes", script.text)
+        self.assertIn("aria-pressed", script.text)
+        self.assertIn("shared node selection", script.text)
+        self.assertIn("vis-network", script.text)
+        self.assertIn("Cytoscape.js", script.text)
+        self.assertEqual(stylesheet.status_code, 200)
+        self.assertIn("renderer-grid", stylesheet.text)
+        self.assertEqual(client.get("/assets/benchmark/unlisted.js").status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

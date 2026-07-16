@@ -58,6 +58,10 @@ The benchmark records render, pan/zoom, hover/selection, local expansion, filter
 bundle cost, offline wheel behaviour, and accessibility burden. It must not claim parity or retire SVG
 until the explicit B0b acceptance gate passes.
 
+The local evidence harness is served at `/benchmarks/renderer`. It packages both adapters into the
+wheel and consumes this fixture without calling external resources. It is intentionally separate from
+the shipped Graph tab: its role is to produce comparable evidence, not to select or migrate a renderer.
+
 ## Compatibility
 
 The validator is intentionally outside the API models. `project_trace_graph()` adapts the current

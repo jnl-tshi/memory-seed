@@ -660,6 +660,8 @@ class LenseCliTests(unittest.TestCase):
 
         self.assertEqual(data["name"], "Memory Trace")
         self.assertIn("index.html", data["files"])
+        self.assertIn("benchmark.html", data["files"])
+        self.assertIn("renderer-benchmark.js", data["files"])
 
     def test_frontend_defines_design_token_baseline_and_uses_color_tokens(self):
         # Arc 2b: a small reusable token set (spacing/type/color roles), with the
