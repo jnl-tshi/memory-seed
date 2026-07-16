@@ -2,7 +2,7 @@
 title: "Derived Review Queue and Document Lineage Proposal"
 date: "2026-07-16"
 project: "memory-seed"
-status: "inbox"
+status: "superseded"
 priority: "P3"
 next_action: "After React Trail parity and the named prerequisite contracts, define deterministic fixtures for a read-only review projection."
 dependencies:
@@ -17,7 +17,8 @@ related:
 
 # Derived Review Queue and Document Lineage Proposal
 
-Status: **INBOX**. This is a candidate read model, not an approval to automate review or document movement.
+Status: **SUPERSEDED 2026-07-16** by
+[`memory-seed-workflow-evidence-and-review-workbench-plan.md`](../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md).
 Priority: P3 after React Trail parity, document-lifecycle Phase 2, quality metrics v0, and the provenance gate.
 Source: The 2026-07-16 post-Trail platform review triage.
 

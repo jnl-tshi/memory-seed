@@ -1142,23 +1142,23 @@ Sources: `docs/2_Todo/0_NEXT_STEPS.md`, `CHANGELOG.md`, and the completed-plan l
 is published; the work below is merged locally and documented as shipped-but-unreleased until a user
 explicitly approves the 2.19 release/publish step.
 
-**Current condition (2026-07-16):** Wave 1 is complete. The shipped set is controlled topics through
-Trace plus deterministic `topics suggest --from`; typed evolution with derived Trail continuity lanes;
-deterministic, cited, non-authoritative timeline Evidence Packs; `superseding_head` with a full-corpus-
-gated bounded successor boost; all four configurable integration-mode phases; and `link audit --apply`
-inert scaffolds with `links check` warning and ESR visibility. The release cut criterion is met, but
-push/publish remains an explicit approval gate.
+**Current condition (2026-07-16):** Wave 1 and B0a are complete. The React `/next` workspace now carries
+the accepted vanilla graph/search/selection rules over Cytoscape and the renderer-neutral projection.
+React Trail parity, reader/evidence workspace, React diagram rendering, evidence-backed topology modes,
+and formal accessibility/scale acceptance remain open; vanilla `/` is still the fallback. The 2.19 release
+cut criterion is met, but push/publish remains an explicit approval gate.
 
-**Still active:** B0a graph/workspace contracts and renderer evidence lead before React. Provider/local-
-model summarisation is Phase 2 and remains disabled-by-default/non-authoritative. Lifecycle-link optional
-commit nudging and an MCP write tool remain deferred. Related-entry P2, decision-diagram export packs,
-and OpenSSF credibility work are separate active tracks.
+**Newly planned, not implemented:** Constitution v1.1 permits narrowly scoped append-only Markdown
+sidecars to own declared lifecycles. The active semantic foundation will prove ADR promotion/lifecycle on
+three real decisions after B0b and BG1/BG2; current ADR status and every index/view remain derived. A later
+workflow-review workbench and one Decision projection depend on that proof. Evidence Envelope and Capability
+Status phases were folded into the existing evidence architecture. Publishability and a generic skill/router
+architecture remain deferred.
 
 ### Near term - current lead
 
-- **B0a graph/workspace contract and renderer evidence** - settle the shared-selection, interaction,
-  temporal-topology, structural-provider, and benchmark evidence required before a React rebuild. The
-  coordinating proposal set remains in `docs/2_Todo/` and is sequenced by `0_NEXT_STEPS.md`.
+- **B0b Trail parity and acceptance** - complete the React Trail/reader/diagram/accessibility gaps while
+  retaining vanilla fallback. The semantic-record foundation begins only after this exit and BG1/BG2.
 
 ### Current implementation order
 
@@ -1166,7 +1166,7 @@ and OpenSSF credibility work are separate active tracks.
 graph TD
   subgraph CurrentTier["Current lead"]
     direction LR
-    B0A["B0a graph/workspace<br>contracts + evidence"]
+    B0B["B0b Trail parity<br>and acceptance"]
   end
   subgraph GuardTier["Standing gates"]
     direction LR
@@ -1174,13 +1174,13 @@ graph TD
   end
   subgraph FollowOnTier["Sequenced follow-ons"]
     direction LR
-    B2["React after B0a"] ~~~ AI["AI summary<br>provider Phase 2"] ~~~ LINK["Lifecycle-link<br>optional steps 4-5"]
+    SEM["ADR sidecar<br>foundation"] ~~~ REVIEW["Workflow evidence<br>review workbench"] ~~~ PROJ["Decision<br>projection"]
   end
   CurrentTier ~~~ GuardTier
   GuardTier ~~~ FollowOnTier
-  B0A --> B2
-  B0A --> AI
-  B0A --> LINK
+  B0B --> SEM
+  SEM --> REVIEW
+  SEM --> PROJ
 ```
 
 ---

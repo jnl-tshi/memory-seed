@@ -1,7 +1,7 @@
 # Initial Proposal: Idea-to-Ship Trace Model
 
-**Status:** Exploration candidate  
-**Promotion state:** Not ready for `todo`  
+**Status:** Superseded 2026-07-16
+**Superseded by:** [`memory-seed-workflow-evidence-and-review-workbench-plan.md`](../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md)
 **Related systems:** Entry types, relationships, Memory Trace, issue trackers, Git
 
 > [!IMPORTANT]

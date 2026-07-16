@@ -2,9 +2,13 @@
 title: "Memory Seed Post-Trail Platform Review Proposal Set"
 date: "2026-07-16"
 project: "memory-seed"
-status: "inbox"
+status: "archived-reference"
 priority: "P2-P3"
-next_action: "Complete React Trail parity and B0b acceptance, then review each bounded proposal independently."
+extracted_into:
+  - "docs/2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md"
+  - "docs/2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md"
+  - "docs/2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md"
+  - "docs/8_Deferred/memory-seed-publishability-check-evaluation.md"
 related:
   - "docs/2_Todo/memory-trace-next-generation-implementation-roadmap.md"
   - "docs/2_Todo/memory-provenance-and-authority-taxonomy-proposal.md"
@@ -14,7 +18,7 @@ related:
 
 # Memory Seed Post-Trail Platform Review Proposal Set
 
-Status: **INBOX**. This is a triage record, not approval to implement any item.
+Status: **ARCHIVED SOURCE 2026-07-16**. Its actionable items were extracted into canonical plans.
 Priority: P2/P3 after React Trail parity and B0b acceptance.
 Source: An independent repository review supplied on 2026-07-16. It inspected stale `origin/main` at
 `332c310`; this triage was rebaselined against local `main` at `cd050c9`, which was ahead of that remote.
@@ -30,13 +34,13 @@ that gate.
 | Review recommendation | Disposition on local `main` | Owner / result |
 |---|---|---|
 | Renderer selection and B0b evidence are unresolved | Superseded. Cytoscape 3.34.0 is selected and the React graph/workspace adapter is merged; Trail parity and final acceptance remain. | Roadmap Phases 4-5; docs corrected in this batch. |
-| Evidence Envelope and Task Packets consume Evidence Packs | Retain as a bounded, referential contract. | [`evidence-envelope-and-task-packet-reference-proposal.md`](evidence-envelope-and-task-packet-reference-proposal.md) |
-| Provenance, authority, and actionability platform schema | Already owned by an active constitutional gate. | [`../2_Todo/memory-provenance-and-authority-taxonomy-proposal.md`](../2_Todo/memory-provenance-and-authority-taxonomy-proposal.md) |
-| Human review queue, document lifecycle graph, and quality inspection | Retain as a derived, read-only view that depends on existing lifecycle, quality, and provenance work. | [`derived-review-queue-and-document-lineage-proposal.md`](derived-review-queue-and-document-lineage-proposal.md) |
-| One provider lifecycle and publishability boundary | Retain as an advisory evaluation, without changing existing provider plans. | [`capability-status-and-publishability-boundary-proposal.md`](capability-status-and-publishability-boundary-proposal.md) |
-| Projection modules | Covered by the candidate projection contract and its implementation plan. | [`../3_Spec/draft/derived-read-model-projection-contract.md`](../3_Spec/draft/derived-read-model-projection-contract.md) |
-| Quality metrics inspection lens | Already owned by the active read-only metrics proposal. | [`../2_Todo/memory-quality-metrics-v0-proposal.md`](../2_Todo/memory-quality-metrics-v0-proposal.md) |
-| Thin VS Code / GitLens surface | Keep as reference input until local APIs and Trail parity are accepted. | [`../4_Reference/memory-seed-gitlens-competitor-report.md`](../4_Reference/memory-seed-gitlens-competitor-report.md) |
+| Evidence Envelope and Task Packets consume Evidence Packs | Folded into the existing evidence architecture. | [`memory-trace-evidence-annotations-and-projection-architecture.md`](../../2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md) |
+| Provenance, authority, and actionability platform schema | Already owned by an active constitutional gate. | [`memory-provenance-and-authority-taxonomy-proposal.md`](../../2_Todo/memory-provenance-and-authority-taxonomy-proposal.md) |
+| Human review queue, document lifecycle graph, and quality inspection | Folded into the workflow evidence/review plan. | [`memory-seed-workflow-evidence-and-review-workbench-plan.md`](../../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md) |
+| One provider lifecycle and publishability boundary | Split into shared capability status plus deferred security work. | [`memory-seed-publishability-check-evaluation.md`](../../8_Deferred/memory-seed-publishability-check-evaluation.md) |
+| Projection modules | Covered by the candidate projection contract and its implementation plan. | [`derived-read-model-projection-contract.md`](../../3_Spec/draft/derived-read-model-projection-contract.md) |
+| Quality metrics inspection lens | Already owned by the active read-only metrics proposal. | [`memory-quality-metrics-v0-proposal.md`](../../2_Todo/memory-quality-metrics-v0-proposal.md) |
+| Thin VS Code / GitLens surface | Keep as reference input until local APIs and Trail parity are accepted. | [`memory-seed-gitlens-competitor-report.md`](../memory-seed-gitlens-competitor-report.md) |
 
 ## Corrections made while triaging
 

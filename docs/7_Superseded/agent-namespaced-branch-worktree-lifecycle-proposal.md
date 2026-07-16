@@ -10,7 +10,8 @@ tags:
 
 # Agent-namespaced branch + worktree naming and lifecycle (worktree = session, branch = task)
 
-Status: **PROPOSED** (2026-07-13). Inbox.
+Status: **SUPERSEDED 2026-07-16** by
+[`agent-worktree-and-branch-hygiene-plan.md`](../2_Todo/agent-worktree-and-branch-hygiene-plan.md).
 Priority: P2 — multi-agent hygiene; consolidates and completes scattered, partly-shipped pieces.
 Source: User 2026-07-13 — "worktree and branch naming (both should state agent type), post-merge hygiene
 (clean up old branches/merges no longer needed unless uncommitted), and lifecycle management for both
@@ -145,7 +146,8 @@ when the session itself ends.
 - `.memory-seed/skills/agent_collaboration.md` — the loose branch fallback (line 16/128) and gates 1–9;
   this **amends** the naming and **adds** the two decoupled lifecycles + hygiene rule (implementation
   edits the live skill + seed twin, pending approval — locked control-plane file).
-- `docs/1_Inbox/worktree-gc-proposal.md` — the **executor** this policy drives for session-worktree and
+- `docs/7_Superseded/worktree-gc-proposal.md` — the superseded source for the **executor** this policy
+  drives for session-worktree and
   worker-worktree removal; this proposal adds the per-task **branch-deletion** half and the retire rules.
 - `.memory-seed/skills/end_of_turn.md` "Stale Worktree Sweep" — the manual discipline this formalizes.
 - `docs/2_Todo/completed/worktree-dependency-strategy-plan.md` — isolation/dependency tiers (unchanged).

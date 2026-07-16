@@ -10,7 +10,8 @@ tags:
 
 # `memory-seed worktree gc` — mechanize the stale-worktree sweep (with Windows/OneDrive lock retry)
 
-Status: **PROPOSED** (2026-07-13). Inbox.
+Status: **SUPERSEDED 2026-07-16** by
+[`agent-worktree-and-branch-hygiene-plan.md`](../2_Todo/agent-worktree-and-branch-hygiene-plan.md).
 Priority: P3 — hygiene tooling; the discipline already exists, this mechanizes its one flaky step.
 Source: This session's manual worktree cleanup (used+merged worktrees lingering; `git worktree remove`
 failing on OneDrive locks).
