@@ -993,6 +993,15 @@ def create_app(
                 pass
         return digest.hexdigest()[:10]
 
+    def _benchmark_asset_version() -> str:
+        digest = hashlib.sha256()
+        for name in ("renderer-benchmark.js", "renderer-benchmark.css"):
+            try:
+                digest.update(_static_file(name).read_bytes())
+            except OSError:
+                pass
+        return digest.hexdigest()[:10]
+
     # Worktree switching: one running Trace can show each on-device worktree's
     # branch-specific memory. The launch checkout is the default; other
     # worktrees get a lazily built, cached TraceService the first time they are
@@ -1035,6 +1044,18 @@ def create_app(
     @app.get("/assets/{name}")
     def asset(name: str) -> Any:
         if name not in {"app.js", "styles.css"}:
+            raise HTTPException(status_code=404, detail="asset not found")
+        return FileResponse(_static_file(name))
+
+    @app.get("/benchmarks/renderer", response_class=HTMLResponse)
+    def renderer_benchmark() -> Any:
+        text = _static_file("benchmark.html").read_text(encoding="utf-8")
+        text = re.sub(r"\?v=[^\"']+", f"?v={_benchmark_asset_version()}", text)
+        return HTMLResponse(text)
+
+    @app.get("/assets/benchmark/{name}")
+    def benchmark_asset(name: str) -> Any:
+        if name not in {"renderer-benchmark.js", "renderer-benchmark.css"}:
             raise HTTPException(status_code=404, detail="asset not found")
         return FileResponse(_static_file(name))
 

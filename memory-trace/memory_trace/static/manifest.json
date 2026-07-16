@@ -1,4 +1,4 @@
 {
   "name": "Memory Trace",
-  "files": ["index.html", "app.js", "styles.css"]
+  "files": ["index.html", "app.js", "styles.css", "benchmark.html", "renderer-benchmark.js", "renderer-benchmark.css"]
 }
