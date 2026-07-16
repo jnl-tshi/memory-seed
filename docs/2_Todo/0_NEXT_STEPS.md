@@ -90,6 +90,15 @@ dependency order, and closed on 2026-07-15:
    `SECURITY.md`, a CI gate, and G0–G2 remain approved-not-built. The configurable integration-mode
    foundation is complete, so this work is **unblocked**; adopting `integration_mode: pr` and branch
    protection still requires the documented project/user actions.
+4. **Trace distribution — deprecation-window closeout** —
+   [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md). Both phases shipped (Phase 1
+   released in 2.16.0; the optional-extra fold-in landed 2026-07-12), but the plan stays active for its
+   last obligation: `memory-seed[lense]` and the `memory-seed lense` shim are a deprecated alias kept
+   "for one release window," and that window is **still open** in `pyproject.toml`. **Open user decision:**
+   whether 2.19 is the release that drops them. The coverage matrix
+   ([`memory-trace-next-generation-coverage-matrix.md`](memory-trace-next-generation-coverage-matrix.md))
+   records the optional-extra packaging, deprecation shim, and no-default-web-dependency criteria as owned
+   by that plan — which is why it correctly remains in `2_Todo/`.
 
 ### Track B — Memory Trace next generation (the promoted direction, 2026-07-11)
 
@@ -186,7 +195,7 @@ Markdown-authoritative, so Invariant #6-clean (no derived-state surface).
    propose-and-wait (designed) vs automatic deactivation — resolve before build.
 
 The two compound (fewer active personas → lighter worker *and* primary startup load) but neither blocks the
-other. Both sit **below Track A's blocking tails** in priority — small, sequence-flexible guidance changes.
+other. Both sit **below Track A's open tails** in priority — small, sequence-flexible guidance changes.
 
 ### Track D — semantic memory and workflow evolution
 
@@ -251,8 +260,9 @@ benchmark remain reference input rather than active work.
 ## Doc-lifecycle Phase 2 (housekeeping)
 
 Tracked in [`document-lifecycle-system-plan.md`](document-lifecycle-system-plan.md) (Phase 1 — lanes +
-front door — shipped): the `docs index` / `docs check` CLI, bulk-migrating the 43 `2_Todo/completed/`
-docs into `5_Completed/`, and removing the empty `superpowers/specs/`.
+front door — shipped): the `docs index` / `docs check` CLI, and bulk-migrating the 43 `2_Todo/completed/`
+docs into `5_Completed/`. *(The former third item — removing an empty `superpowers/specs/` — is dropped:
+no such directory exists in the working tree or in git history.)*
 
 ## Parked — needs your judgement / market / accounts (not engineering next-steps)
 

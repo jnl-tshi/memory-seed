@@ -76,7 +76,6 @@ Non-lane folders that are legitimate, with a reason:
 | `2_Todo/completed/` | the existing "shipped" archive (43 docs) | migrates to `5_Completed/` in **P2** |
 | `2_Todo/completed/agent-templates/` | persona template sources | keep (nested reference) |
 | `4_Reference/memory-trace-phase0-baseline/` | captured baseline artifacts | keep |
-| `superpowers/specs/` | empty leftover directory | **remove in P2** |
 
 > `2_Todo/Claude/` and `2_Todo/codex/` (the per-agent proposal-synergy reviews) were reconciled 2026-07-14:
 > both were spent 2.13-era snapshots, moved to `7_Superseded/`, and the empty folders removed.
