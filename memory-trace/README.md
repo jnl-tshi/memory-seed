@@ -59,7 +59,14 @@ Serves the read-only UI on a local port and opens a browser. Nothing is ever
 written back to your session files; every deep link targets a stable
 `chunk_id` / `entry_id`.
 
-Options: `--cwd`, `--host`, `--port`, `--no-open`, `--rebuild-cache`, `--static-root`
+To open both renderer versions at once, use one server and two browser tabs:
+
+```bash
+memory-trace --open-both
+```
+
+Vanilla is served at `/`; the React preview is served at `/next`. Options:
+`--cwd`, `--host`, `--port`, `--no-open`, `--open-both`, `--rebuild-cache`, `--static-root`
 (serve UI assets from another directory or checkout root - e.g. verify a git worktree's UI
 without copying files; also settable as `MEMORY_TRACE_STATIC_ROOT`). Asset `?v=` tags are
 content-hashed at serve time, so edited assets are never masked by a stale browser cache.

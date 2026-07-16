@@ -1,3 +1,4 @@
+import argparse
 import io
 import json
 import os
@@ -12,8 +13,15 @@ from pathlib import Path
 from urllib.parse import quote
 from unittest import mock
 
-from memory_trace.cli import main
-from memory_trace.service import _CacheRebuildLease, TraceCache, TraceService, create_app, missing_optional_dependency_hint
+from memory_trace.cli import build_parser, main
+from memory_trace.service import (
+    _CacheRebuildLease,
+    TraceCache,
+    TraceService,
+    create_app,
+    missing_optional_dependency_hint,
+    run_server,
+)
 
 
 def _entry(
@@ -732,6 +740,51 @@ class TraceServiceTests(unittest.TestCase):
 
 
 class LenseCliTests(unittest.TestCase):
+    def test_open_both_flag_is_available_and_excludes_no_open(self):
+        args = build_parser().parse_args(["--open-both"])
+
+        self.assertTrue(args.open_both)
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            build_parser().parse_args(["--open-both", "--no-open"])
+
+    def test_run_server_opens_vanilla_and_react_tabs_when_requested(self):
+        app = object()
+        uvicorn = mock.Mock()
+        args = argparse.Namespace(
+            cwd=".",
+            host="127.0.0.1",
+            port=8765,
+            no_open=False,
+            open_both=True,
+            rebuild_cache=False,
+            static_root=None,
+        )
+
+        with (
+            mock.patch.dict(sys.modules, {"uvicorn": uvicorn}),
+            mock.patch("memory_trace.service.create_app", return_value=app),
+            mock.patch("memory_trace.service.webbrowser.open") as open_browser,
+        ):
+            code = run_server(args)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            open_browser.call_args_list,
+            [
+                mock.call("http://127.0.0.1:8765", new=2),
+                mock.call("http://127.0.0.1:8765/next", new=2),
+            ],
+        )
+        uvicorn.run.assert_called_once_with(app, host="127.0.0.1", port=8765, log_level="info")
+
+    def test_source_checkout_launcher_opens_both_views(self):
+        launcher = Path(__file__).resolve().parents[2] / "scripts" / "launch-memory-trace.ps1"
+        script = launcher.read_text(encoding="utf-8")
+
+        self.assertIn("--open-both", script)
+        self.assertIn('"$baseUrl/next"', script)
+        self.assertIn("/api/runtime", script)
+
     def test_missing_optional_dependency_hint_is_explicit(self):
         self.assertEqual(
             missing_optional_dependency_hint(),

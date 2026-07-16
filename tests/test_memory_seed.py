@@ -4553,6 +4553,27 @@ class CliHelpTests(unittest.TestCase):
         self.assertIn("memory-trace", stderr.getvalue())
         self.assertIn("moved", stderr.getvalue())
 
+    def test_lense_open_both_is_forwarded_to_trace_service(self):
+        import sys
+        import types
+        from unittest import mock
+
+        from memory_seed.cli import main
+
+        run_server = mock.Mock(return_value=0)
+        trace_module = types.ModuleType("memory_trace")
+        service_module = types.ModuleType("memory_trace.service")
+        service_module.run_server = run_server
+
+        with mock.patch.dict(
+            sys.modules,
+            {"memory_trace": trace_module, "memory_trace.service": service_module},
+        ):
+            code = main(["lense", "--open-both"])
+
+        self.assertEqual(code, 0)
+        self.assertTrue(run_server.call_args.args[0].open_both)
+
     def test_skills_list_shows_profiles_and_current_state(self):
         import os
 

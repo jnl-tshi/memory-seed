@@ -1487,7 +1487,11 @@ def run_server(args: argparse.Namespace) -> int:
         port = _free_port(args.host)
     url = f"http://{args.host}:{port}"
     if not args.no_open and not os.environ.get("MEMORY_SEED_LENSE_SKIP_BROWSER"):
-        webbrowser.open(url)
+        if getattr(args, "open_both", False):
+            webbrowser.open(url, new=2)
+            webbrowser.open(f"{url}/next", new=2)
+        else:
+            webbrowser.open(url)
     print(f"Memory Trace serving {Path(args.cwd).resolve()} at {url}")
     uvicorn.run(app, host=args.host, port=port, log_level="info")
     return 0
