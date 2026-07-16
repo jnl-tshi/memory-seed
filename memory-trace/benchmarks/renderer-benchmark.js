@@ -86,7 +86,7 @@ function cytoscapeElements(graph) {
 function cytoscapeLayout() {
   const mode = currentCase().layout;
   if (mode === "evolution_hierarchy") return { name: "breadthfirst", directed: true, direction: "rightward", padding: 36, spacingFactor: 1.3, animate: false };
-  return { name: "cose", animate: false, randomize: mode !== "temporal_topology", nodeRepulsion: () => 8200, idealEdgeLength: () => 145, padding: 36 };
+  return { name: "cose", animate: false, randomize: mode !== "temporal_topology", nodeRepulsion: () => 16000, idealEdgeLength: () => 190, padding: 54 };
 }
 
 function renderNodeList(panel, graph) {

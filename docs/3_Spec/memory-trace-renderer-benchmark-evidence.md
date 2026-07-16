@@ -9,7 +9,7 @@ parent: "memory-trace-renderer-neutral-graph-projection.md"
 
 # Memory Trace Renderer Benchmark Evidence
 
-Status: **in progress**. This record is evidence for B0a, not a renderer decision.
+Status: **ready for selection**. This record is evidence for B0a, not a renderer decision.
 
 ## Method
 
@@ -25,19 +25,21 @@ Status: **in progress**. This record is evidence for B0a, not a renderer decisio
 
 | Candidate | Result | Evidence |
 | --- | --- | --- |
-| Cytoscape.js 3.34.0 | Passes the current state and visual smoke test. | Rendered the seven-node fixture in topology, temporal-topology, and evolution-hierarchy modes; preserved selection through layout/filter changes; rendered the connected three-node view; and collapsed to one column at the mobile viewport. The native controls and visible-node buttons support keyboard layout, filtering, and selection. Local timings were 10-12ms in the repeat sweep; the original visual smoke timing was 37ms. |
-| vis-network 10.1.0 | Failed the current visual smoke test. | Accepted all seven fixture nodes and produced valid positions in all three modes, but painted zero non-transparent canvas pixels in the local Chrome harness. Replacing `DataSet` input with documented raw node and edge arrays did not change that result. Initial timing is not comparable until this adapter renders visibly. |
+| Cytoscape.js 3.34.0 | Passes the complete harness. | Rendered the seven-node fixture in topology, temporal-topology, and evolution-hierarchy modes; preserved shared selection through layout/filter changes; rendered the connected three-node view; accepted native pan/zoom; and collapsed to one column at the mobile viewport. The native controls and visible-node buttons support keyboard layout, filtering, and selection. Repeat timing: 8-12ms. |
+| vis-network 10.1.0 | Passes the complete harness. | The initial blank canvas was a benchmark container-sizing fault, not a candidate failure. A bounded responsive surface now renders all seven nodes in all three modes, preserves selection/filter parity, accepts native pan/zoom, and collapses at the mobile viewport. Repeat timing: 185-192ms. |
 
-The all-layout keyboard/state sweep completed without browser errors. It verifies the shared node selection,
-the connected filter, three layout controls, and the mobile single-column layout. Pointer panning and zooming
-remain renderer-owned behaviour to be assessed separately; they are not represented as a keyboard feature.
+The repeat sweep completed without browser errors. It verifies shared node selection, the connected filter,
+three layout controls, pointer pan/zoom on direct canvas targets, and the mobile single-column layout.
+The benchmark now constrains each surface to `clamp(420px, 58vh, 560px)`: the previous flexible grid row
+allowed a candidate canvas to outgrow the viewport, which made visual and pointer evidence unreliable.
 
 ## Initial Bundle Accounting
 
 - The harness bundle contains both candidates and is therefore evidence tooling, not a production bundle
-  budget. It is minified before packaging and must later be split into lazy per-candidate measurements.
-- Current combined output: 1,109,930 bytes JavaScript and 2,529 bytes CSS. A candidate cannot claim
-  acceptable packaged cost from this combined output.
+  budget. Its current combined output is 1,110,121 bytes JavaScript and 2,779 bytes CSS.
+- The lazy candidate measurements use the exact harness imports, minified for an ES2020 browser target:
+  vis-network is 654,751 bytes (154,694 gzip); Cytoscape.js is 443,613 bytes (142,333 gzip). These are
+  library-chunk measurements, not a claim about final B0b application cost.
 
 ## Offline Packaging Status
 
@@ -47,9 +49,10 @@ remain renderer-owned behaviour to be assessed separately; they are not represen
   --no-build-isolation` produced `memory_seed-2.18.0-py3-none-any.whl` (733,886 bytes) without a dependency
   download during the build, and the wheel contains all three benchmark assets.
 
-## Decision Boundary
+## Selection Boundary
 
-- Do not select Cytoscape.js yet: the benchmark still needs per-candidate lazy bundle accounting, pointer
-  pan/zoom evidence, and a documented vis-network disposition.
+- The B0a evidence gate is complete. The user must choose the renderer after reviewing the current
+  side-by-side output; the benchmark does not make that product decision automatically.
 - Do not promote or alter the vanilla SVG fallback.
-- The vis-network result is an adapter/runtime failure observation, not a general claim about the library.
+- The earlier vis-network failure was attributable to the benchmark surface sizing and is superseded by this
+  successful bounded-surface result.

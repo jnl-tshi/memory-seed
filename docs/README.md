@@ -58,8 +58,9 @@ work and agent-namespaced branches/worktrees follow
 
 ## Current B0a status
 
-The B0a shell, renderer-neutral fixture contract, and first renderer evidence harness are implemented. The
-benchmark decision remains open; no renderer has been selected and the vanilla SVG graph remains the fallback.
+The B0a shell, renderer-neutral fixture contract, and complete renderer evidence harness are implemented.
+The benchmark decision awaits JNL's side-by-side choice; no renderer has been selected and the vanilla SVG
+graph remains the fallback.
 The live specification count is **8** plus **2** drafts. The older generated count in the
 snapshot below remains a Phase 2 `docs index` debt.
 

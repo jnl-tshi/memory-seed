@@ -35,10 +35,10 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .benchmark-controls legend { color: var(--muted); font-size: 13px; padding-right: 8px; }
 .benchmark-controls label { align-items: center; display: inline-flex; gap: 6px; color: var(--muted); }
 .renderer-grid { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.renderer-panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); display: grid; grid-template-rows: auto minmax(420px, 1fr) auto auto; min-width: 0; overflow: clip; }
+.renderer-panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); display: grid; grid-template-rows: auto auto auto auto; min-width: 0; overflow: clip; }
 .renderer-panel header { border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; }
 .renderer-panel h2 { font-size: 18px; }
-.renderer-surface { min-height: 420px; position: relative; }
+.renderer-surface { height: clamp(420px, 58vh, 560px); min-height: 0; overflow: hidden; position: relative; }
 .renderer-surface canvas, .renderer-surface > div { height: 100%; width: 100%; }
 .renderer-status { border-top: 1px solid var(--border); font-family: ui-monospace, Consolas, monospace; font-size: 12px; padding: 10px 14px; }
 .renderer-panel details { border-top: 1px solid var(--border); padding: 10px 14px; }
