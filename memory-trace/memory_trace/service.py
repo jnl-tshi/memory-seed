@@ -38,6 +38,7 @@ from memory_seed.semantic_cache import (
     rank_memory_chunks,
 )
 from memory_seed.topics import expand_topic_filter
+from .graph_projection import project_trace_graph
 
 
 ZOOMS = {"day": 24, "12h": 12, "6h": 6, "3h": 3}
@@ -1069,6 +1070,24 @@ def create_app(
             raise HTTPException(status_code=404, detail="asset not found")
         return FileResponse(_static_file(name))
 
+    @app.get("/next", response_class=HTMLResponse)
+    def next_index() -> Any:
+        # The React shell is additive while it earns parity. Its Vite output
+        # has content-addressed asset names, so the document itself can be
+        # served directly without the legacy app's mutable-asset rewrite.
+        return HTMLResponse(_static_file("react", "index.html").read_text(encoding="utf-8"))
+
+    @app.get("/assets/react/{asset_path:path}")
+    def next_asset(asset_path: str) -> Any:
+        # Never turn the package/static-root route into arbitrary file access.
+        relative = Path(asset_path)
+        if not asset_path or relative.is_absolute() or ".." in relative.parts:
+            raise HTTPException(status_code=404, detail="asset not found")
+        target = _static_file("react", *relative.parts)
+        if not target.is_file():
+            raise HTTPException(status_code=404, detail="asset not found")
+        return FileResponse(target)
+
     @app.get("/benchmarks/renderer", response_class=HTMLResponse)
     def renderer_benchmark() -> Any:
         text = _static_file("benchmark.html").read_text(encoding="utf-8")
@@ -1211,7 +1230,7 @@ def create_app(
     # additive, not a replacement, so a future React client has something
     # stable to build against. /api/timeline has no v1 counterpart: Trail is
     # its designated successor (roadmap Phase 4) and nothing consumes it.
-    from .models import ChunkResponse, Facets, GraphResponse, RuntimeInfo, SearchResponse, TrailResponse
+    from .models import ChunkResponse, Facets, GraphResponse, RendererGraphResponse, RuntimeInfo, SearchResponse, TrailResponse
 
     @app.get("/api/v1/runtime", response_model=RuntimeInfo)
     def v1_runtime() -> dict[str, Any]:
@@ -1278,6 +1297,34 @@ def create_app(
             date_from=date_from,
             date_to=date_to,
             topic=topic,
+        )
+
+    @app.get("/api/v1/graph/projection", response_model=RendererGraphResponse)
+    def v1_renderer_graph(
+        entry_id: str | None = None,
+        depth: int = 1,
+        edge_types: str = "related,topic,agent,day",
+        limit: int = 80,
+        granularity: str = Query("entry", pattern="^(entry|all)$"),
+        agent: str | None = None,
+        user: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        topic: str | None = None,
+    ) -> dict[str, Any]:
+        return project_trace_graph(
+            service.graph(
+                entry_id=entry_id,
+                depth=depth,
+                edge_types=tuple(x for x in edge_types.split(",") if x),
+                limit=limit,
+                granularity=granularity,
+                agent=agent,
+                user=user,
+                date_from=date_from,
+                date_to=date_to,
+                topic=topic,
+            )
         )
 
     @app.get("/api/v1/trail", response_model=TrailResponse)

@@ -133,6 +133,14 @@ def project_trace_graph(graph: Mapping[str, Any]) -> dict[str, list[dict[str, An
                 "revision": None,
                 "provider": None,
                 "stale": False,
+                # Selection needs a way back to the canonical read API, but
+                # this immutable source context is not renderer state.
+                "source": {
+                    "chunk_id": raw.get("chunk_id"),
+                    "entry_id": raw.get("entry_id"),
+                    "agent": raw.get("agent", "unknown"),
+                    "topics": raw.get("topics", []),
+                },
             }
         )
 

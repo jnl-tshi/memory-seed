@@ -106,6 +106,7 @@ memory_trace = [
   "static/benchmark.html",
   "static/renderer-benchmark.js",
   "static/renderer-benchmark.css",
+  "static/react/**/*",
   "static/manifest.json",
   "static/fonts/inter-var.woff2",
   "static/fonts/space-grotesk-var.woff2",

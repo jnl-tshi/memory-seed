@@ -93,6 +93,7 @@ class GraphProjectionFixtureTests(unittest.TestCase):
         self.assertEqual(projection["edges"][0]["evidence_refs"], ["mse_two", "mse_one"])
         self.assertNotIn("position", projection["nodes"][0])
         self.assertEqual(projection["nodes"][0]["community"]["id"], "community:unassigned")
+        self.assertEqual(projection["nodes"][0]["source"]["chunk_id"], None)
 
     def test_adapter_consumes_a_real_trace_service_graph(self):
         project = Path(tempfile.mkdtemp(prefix="memory-trace-projection-"))

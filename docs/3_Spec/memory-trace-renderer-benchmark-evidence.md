@@ -9,7 +9,7 @@ parent: "memory-trace-renderer-neutral-graph-projection.md"
 
 # Memory Trace Renderer Benchmark Evidence
 
-Status: **ready for selection**. This record is evidence for B0a, not a renderer decision.
+Status: **selection complete**. This record is evidence for the completed B0a renderer gate.
 
 ## Method
 
@@ -51,8 +51,10 @@ allowed a candidate canvas to outgrow the viewport, which made visual and pointe
 
 ## Selection Boundary
 
-- The B0a evidence gate is complete. The user must choose the renderer after reviewing the current
-  side-by-side output; the benchmark does not make that product decision automatically.
-- Do not promote or alter the vanilla SVG fallback.
+- JNL selected Cytoscape.js 3.34.0 for the React and TypeScript B0b implementation on 2026-07-16.
+  Its smaller lazy chunk and 8-12ms repeat timing decided the close benchmark result; label policy remains
+  a B0b implementation responsibility rather than a benchmark claim.
+- Do not promote or alter the vanilla SVG fallback until the React workspace passes the active parity and
+  accessibility gates.
 - The earlier vis-network failure was attributable to the benchmark surface sizing and is superseded by this
   successful bounded-surface result.

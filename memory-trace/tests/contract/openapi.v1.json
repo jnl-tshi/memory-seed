@@ -269,18 +269,18 @@
             "title": "Commit Tracking",
             "type": "boolean"
           },
-          "continuity": {
-            "items": {
-              "$ref": "#/components/schemas/ContinuityItem"
-            },
-            "title": "Continuity",
-            "type": "array"
-          },
           "contexts": {
             "items": {
               "type": "string"
             },
             "title": "Contexts",
+            "type": "array"
+          },
+          "continuity": {
+            "items": {
+              "$ref": "#/components/schemas/ContinuityItem"
+            },
+            "title": "Continuity",
             "type": "array"
           },
           "date": {
@@ -493,36 +493,6 @@
         "title": "ChunkResponse",
         "type": "object"
       },
-      "ContinuityItem": {
-        "properties": {
-          "from": {
-            "title": "From",
-            "type": "string"
-          },
-          "kind": {
-            "title": "Kind",
-            "type": "string"
-          },
-          "to": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "To"
-          }
-        },
-        "required": [
-          "kind",
-          "from"
-        ],
-        "title": "ContinuityItem",
-        "type": "object"
-      },
       "CommitInfo": {
         "properties": {
           "date": {
@@ -549,6 +519,36 @@
           "subject"
         ],
         "title": "CommitInfo",
+        "type": "object"
+      },
+      "ContinuityItem": {
+        "description": "One authored continuity block exposed through Trace read contracts.",
+        "properties": {
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To"
+          }
+        },
+        "required": [
+          "kind",
+          "from"
+        ],
+        "title": "ContinuityItem",
         "type": "object"
       },
       "EdgeType": {
@@ -730,16 +730,16 @@
             "title": "Chunk Id",
             "type": "string"
           },
+          "connectivity": {
+            "title": "Connectivity",
+            "type": "integer"
+          },
           "continuity": {
             "items": {
               "$ref": "#/components/schemas/ContinuityItem"
             },
             "title": "Continuity",
             "type": "array"
-          },
-          "connectivity": {
-            "title": "Connectivity",
-            "type": "integer"
           },
           "date": {
             "title": "Date",
@@ -977,6 +977,237 @@
         "title": "ProvenanceClass",
         "type": "string"
       },
+      "RendererGraphCommunity": {
+        "properties": {
+          "fingerprint": {
+            "title": "Fingerprint",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "fingerprint"
+        ],
+        "title": "RendererGraphCommunity",
+        "type": "object"
+      },
+      "RendererGraphEdge": {
+        "properties": {
+          "directed": {
+            "title": "Directed",
+            "type": "boolean"
+          },
+          "edge_type": {
+            "$ref": "#/components/schemas/EdgeType"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "target",
+          "edge_type",
+          "directed",
+          "evidence_refs"
+        ],
+        "title": "RendererGraphEdge",
+        "type": "object"
+      },
+      "RendererGraphNode": {
+        "properties": {
+          "authority_class": {
+            "title": "Authority Class",
+            "type": "string"
+          },
+          "community": {
+            "$ref": "#/components/schemas/RendererGraphCommunity"
+          },
+          "connectivity": {
+            "title": "Connectivity",
+            "type": "number"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "importance_score": {
+            "title": "Importance Score",
+            "type": "number"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "node_type": {
+            "title": "Node Type",
+            "type": "string"
+          },
+          "provenance_class": {
+            "$ref": "#/components/schemas/ProvenanceClass"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "source": {
+            "$ref": "#/components/schemas/RendererGraphSource"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "temporal": {
+            "$ref": "#/components/schemas/RendererGraphTemporal"
+          }
+        },
+        "required": [
+          "id",
+          "node_type",
+          "label",
+          "provenance_class",
+          "authority_class",
+          "community",
+          "temporal",
+          "connectivity",
+          "importance_score",
+          "revision",
+          "provider",
+          "stale",
+          "source"
+        ],
+        "title": "RendererGraphNode",
+        "type": "object"
+      },
+      "RendererGraphResponse": {
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/RendererGraphEdge"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/RendererGraphNode"
+            },
+            "title": "Nodes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "nodes",
+          "edges"
+        ],
+        "title": "RendererGraphResponse",
+        "type": "object"
+      },
+      "RendererGraphSource": {
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "chunk_id": {
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "entry_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Id"
+          },
+          "topics": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Topics",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "entry_id",
+          "agent",
+          "topics"
+        ],
+        "title": "RendererGraphSource",
+        "type": "object"
+      },
+      "RendererGraphTemporal": {
+        "properties": {
+          "precision": {
+            "title": "Precision",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "source",
+          "precision"
+        ],
+        "title": "RendererGraphTemporal",
+        "type": "object"
+      },
       "RuntimeInfo": {
         "properties": {
           "cache_path": {
@@ -1135,18 +1366,18 @@
             "title": "Chunk Id",
             "type": "string"
           },
-          "continuity": {
-            "items": {
-              "$ref": "#/components/schemas/ContinuityItem"
-            },
-            "title": "Continuity",
-            "type": "array"
-          },
           "contexts": {
             "items": {
               "type": "string"
             },
             "title": "Contexts",
+            "type": "array"
+          },
+          "continuity": {
+            "items": {
+              "$ref": "#/components/schemas/ContinuityItem"
+            },
+            "title": "Continuity",
             "type": "array"
           },
           "date": {
@@ -1456,16 +1687,16 @@
             "title": "Chunk Id",
             "type": "string"
           },
+          "connectivity": {
+            "title": "Connectivity",
+            "type": "integer"
+          },
           "continuity": {
             "items": {
               "$ref": "#/components/schemas/ContinuityItem"
             },
             "title": "Continuity",
             "type": "array"
-          },
-          "connectivity": {
-            "title": "Connectivity",
-            "type": "integer"
           },
           "date": {
             "title": "Date",
@@ -1875,6 +2106,173 @@
           }
         },
         "summary": "V1 Graph"
+      }
+    },
+    "/api/v1/graph/projection": {
+      "get": {
+        "operationId": "v1_renderer_graph_api_v1_graph_projection_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "entry_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entry Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "depth",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Depth",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "edge_types",
+            "required": false,
+            "schema": {
+              "default": "related,topic,agent,day",
+              "title": "Edge Types",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 80,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "granularity",
+            "required": false,
+            "schema": {
+              "default": "entry",
+              "pattern": "^(entry|all)$",
+              "title": "Granularity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent"
+            }
+          },
+          {
+            "in": "query",
+            "name": "user",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "topic",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Topic"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RendererGraphResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "V1 Renderer Graph"
       }
     },
     "/api/v1/runtime": {

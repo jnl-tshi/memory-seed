@@ -10,6 +10,7 @@ copy-into-primary-then-restore verification dance.
 
 import hashlib
 import os
+import re
 import shutil
 import tempfile
 import unittest
@@ -126,6 +127,31 @@ class StaticServingTests(unittest.TestCase):
         self.assertEqual(stylesheet.status_code, 200)
         self.assertIn("renderer-grid", stylesheet.text)
         self.assertEqual(client.get("/assets/benchmark/unlisted.js").status_code, 404)
+
+    def test_next_react_shell_and_hashed_assets_are_served_separately(self):
+        client = self._client()
+
+        html = client.get("/next")
+        script = re.search(r'src="/assets/react/([^\"]+\.js)"', html.text)
+
+        self.assertEqual(html.status_code, 200)
+        self.assertIn('<div id="root"></div>', html.text)
+        self.assertIsNotNone(script)
+        self.assertEqual(client.get(f"/assets/react/{script.group(1)}").status_code, 200)
+        self.assertEqual(client.get("/assets/react/../../app.js").status_code, 404)
+
+    def test_next_react_bundle_includes_search_and_keyboard_graph_controls(self):
+        client = self._client()
+        html = client.get("/next").text
+        script = re.search(r'src="/assets/react/([^\"]+\.js)"', html)
+
+        self.assertIsNotNone(script)
+        bundle = client.get(f"/assets/react/{script.group(1)}").text
+        self.assertIn("Search memory or entry ID", bundle)
+        graph_bundle = next((Path(__file__).parents[1] / "memory_trace" / "static" / "react" / "assets").glob("GraphWorkspace-*.js"))
+        graph_source = graph_bundle.read_text(encoding="utf-8")
+        self.assertIn("Fit graph", graph_source)
+        self.assertIn("ArrowLeft ArrowRight", graph_source)
 
 
 if __name__ == "__main__":
