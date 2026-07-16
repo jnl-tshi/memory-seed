@@ -3,7 +3,8 @@
 > **Above the lanes:** [`CONSTITUTION.md`](CONSTITUTION.md) is the project's governing document — vision,
 > invariants, principles, trust model. Specs and plans conform to it, not the other way round. **Ratified
 > v1.0 (2026-07-14).** Feature development (`2_Todo/0_NEXT_STEPS.md`) has **resumed** Constitution-aligned;
-> the derived-projection foundation has shipped and the memory-quality trio is the current lead.
+> the derived-projection foundation and memory-quality trio have shipped; B0a graph/workspace contracts
+> and renderer evidence are the current lead.
 
 This is the front door to `docs/`. **The folder a document lives in *is* its lifecycle state** — you can
 see the state of everything by browsing the tree, without opening files. YAML frontmatter only carries
@@ -54,6 +55,13 @@ move newly finished work directly into `5_Completed/`; the bulk migration of the
 `<topic>-<kind>.md` where `<kind>` ∈ `proposal | plan | spec | contract | report | evaluation`. Session
 work and agent-namespaced branches/worktrees follow
 [`1_Inbox/agent-namespaced-branch-worktree-lifecycle-proposal.md`](1_Inbox/agent-namespaced-branch-worktree-lifecycle-proposal.md).
+
+## Current B0a status
+
+The B0a shell and renderer-neutral fixture contract are implemented. The next gate is the shared-fixture
+benchmark of vis-network and Cytoscape.js; no renderer has been selected and the vanilla SVG graph remains
+the fallback. The live specification count is **7** plus **2** drafts. The older generated count in the
+snapshot below remains a Phase 2 `docs index` debt.
 
 ## Side-folder allowlist
 

@@ -119,7 +119,9 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   2. **Renderer-neutral graph contract + fixtures** —
      [`memory-trace-graph-visualisation-and-temporal-topology-proposal.md`](memory-trace-graph-visualisation-and-temporal-topology-proposal.md):
      separate graph semantics from renderer implementation while preserving the current SVG renderer as a
-     fallback.
+     fallback. The first bounded B0a fixture contract is now implemented in
+     [`../3_Spec/memory-trace-renderer-neutral-graph-projection.md`](../3_Spec/memory-trace-renderer-neutral-graph-projection.md);
+     the renderer benchmark remains the next gate.
   3. **Renderer benchmark** — prototype the same bounded fixture in vis-network and Cytoscape.js; choose
      from evidence (offline packaging, accessibility, temporal topology, hierarchy layout, scale), not
      preference.
