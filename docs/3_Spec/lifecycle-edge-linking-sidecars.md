@@ -1,12 +1,13 @@
 # Lifecycle-edge linking sidecars + end-of-session sweep
 
-Status: IMPLEMENTED 2026-07-12 (all phases merged to main; this document is now the live
-contract for the sidecar format + read/validation semantics, plus the design record).
+Status: IMPLEMENTED and reconciled 2026-07-16. This document is the live contract for the sidecar
+format, read/validation semantics, and the inert `link audit --apply` scaffold workflow.
 As-built deviations from the original draft: ref extraction uses the wider
 `_TRAILER_ENTRY_ID_RE` (real corpus ids include non-Crockford letters; a strict regex silently
 dropped edges), and `link audit` generates candidates from topic/file overlap (no all-pairs
 semantic scan) with `--for <entry_id>` and `--date YYYY-MM-DD` scoping (the sweep audits only the
-session's own entries against the full corpus).
+session's own entries against the full corpus). Since 2026-07-15, `--apply` may create inert,
+idempotent `classify_pending` stubs; it never writes a live edge.
 Related: [graph-edge-contract.md](graph-edge-contract.md)
 
 ## Problem
@@ -61,6 +62,19 @@ supersedes:
 
 `supersedes` / `evolves` / `related_entries` lists allowed; every ref is a
 backward edge from the source entry to an older target.
+
+An unresolved scaffold block is also valid sidecar structure:
+
+```
+entry_id: mse_xxxx
+classify_pending: true
+# candidates (evidence):
+#   - mse_yyyy  # files: path/to/file.py | topics: graph
+```
+
+`classify_pending: true` and the commented evidence are intentionally ignored by graph readers, so a
+stub creates zero edges. `links check` reports `sidecar-unclassified-stub` as a warning and ESR counts
+open stubs; neither result blocks a merge or commit.
 
 ### Reader (layered exactly like the diagram sidecars)
 - `iter_link_sidecar_documents(sessions_dir)` in **`core.py`** — the file
@@ -117,7 +131,7 @@ New `links check` issue kinds: `orphan-link-sidecar` (block whose `entry_id`
 matches no entry), `link-sidecar-date-mismatch`, `malformed-link-sidecar`.
 Sidecars always optional.
 
-### End-of-session sweep (skill step, `end_of_turn`)
+### Historical pre-apply sweep (superseded 2026-07-15)
 After the session's entries are written, for each entry **authored this
 session**: run `link suggest` (similarity + shared-`F:` evidence), classify each
 strong candidate by the litmus — *retires it* → `supersedes`, *refines while it
@@ -125,6 +139,18 @@ stays valid* → `evolves`, otherwise `related_entries` — and write the result
 the day's link sidecar. **User approval before writing** (same gate as
 persona/session-log evolution). Author-time YAML remains the first line; the
 sweep is the safety net.
+
+### End-of-session sweep (current)
+
+After the session's entries are written, run `memory-seed link audit --date <today> --apply`. The
+command may mechanically create chronologically ordered, idempotent `classify_pending` stubs with
+commented file/topic evidence. This mechanical scaffold needs no relationship decision and never
+writes a live edge.
+
+A human then classifies each candidate: retire -> `supersedes`, refine while still valid -> `evolves`,
+otherwise `related_entries` or no edge. **User approval is required before replacing a stub with a live
+edge.** Author-time YAML remains the first line; the sidecar sweep is the append-only safety net for
+later discoveries.
 
 ## Layer 2 — Detection (`memory-seed link audit`)
 
@@ -136,6 +162,10 @@ printing the candidate, the shared-`F:` evidence, and the suggested edge type.
 It is both the standalone "did we miss links?" check and the discovery step the
 end-of-session sweep consumes. An already-declared edge (either source)
 suppresses the flag.
+
+With `--date <date> --apply`, the command writes only the inert scaffold above; without `--apply` it
+is read-only. An already-declared edge or existing stub suppresses the candidate, making repeat
+application idempotent.
 
 ## Scope
 
@@ -171,6 +201,12 @@ Prove that before building anything else:
 
 Each numbered phase is its own commit.
 
+### Current extension (2026-07-15)
+
+The detection phase now includes a dated `--apply` scaffold, `sidecar-unclassified-stub` warning, and
+ESR open-stub count. The process phase separates safe scaffold creation from approval-gated live-edge
+classification.
+
 ## Non-goals
 
 - **No backfill** of historical entries (deferred; separate decision).
@@ -192,6 +228,9 @@ Each numbered phase is its own commit.
   YAML-only behavior unchanged when no sidecar present.
 - `link audit`: flags a high-overlap uncaptured candidate; silent once the edge
   is declared in YAML or sidecar.
+- `link audit --apply`: creates one chronological inert stub with commented evidence, never a live
+  edge; re-applying is idempotent; readers treat a stub as zero edges; `links check` warns and ESR
+  counts it until a human classifies or deletes the stub.
 - Regression: `test_trail_golden`, v1 contract, OpenAPI fixture unchanged.
 
 ## Verification
