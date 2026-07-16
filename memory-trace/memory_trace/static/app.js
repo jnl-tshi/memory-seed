@@ -243,8 +243,14 @@ const TRAIL_EDGE_TYPES = "branch,supersedes,evolves,related";
 
 // Search over the current view: server-side ranking (sections and files
 // included) produces the ranked dropdown plus the entry match set that the
-// Trail and Graph highlight in place. Typing never selects or navigates.
+// Trail and Graph highlight in place. Ordinary text never selects while the
+// user types; exact entry IDs use the deterministic identity path below.
 const SEARCH_LIMIT = 50;
+
+function entryIdFromQuery(value) {
+  const query = String(value || "").trim().toLowerCase();
+  return /^(?:mse_[a-z0-9][a-z0-9_-]*|ms-[a-z0-9][a-z0-9-]*)$/.test(query) ? query : "";
+}
 
 async function refreshSearch(token = state.loadSeq) {
   if (!state.query.trim()) {
@@ -291,9 +297,9 @@ async function loadGraph(token = state.loadSeq) {
 }
 
 async function selectChunk(chunkId, rerender = true, token = state.loadSeq) {
-  state.selectedId = chunkId;
   const selected = await api(`/api/chunks/${encodeURIComponent(chunkId)}`);
   if (token !== state.loadSeq) return false;
+  state.selectedId = chunkId;
   state.selected = selected;
   if (state.view === "graph" || state.view === "trail") await loadGraph(token);
   if (token !== state.loadSeq) return false;
@@ -414,7 +420,11 @@ function searchDropdown() {
   if (!state.searchOpen || !state.query.trim()) return "";
   const top = state.results.slice(0, 10);
   if (!top.length) {
-    return `<div class="search-dropdown"><div class="search-empty">No matches for "${esc(state.query.trim())}" with the current filters.</div></div>`;
+    const entryId = entryIdFromQuery(state.query);
+    const message = entryId
+      ? `No entry found for "${esc(entryId)}" in this worktree.`
+      : `No matches for "${esc(state.query.trim())}" with the current filters.`;
+    return `<div class="search-dropdown"><div class="search-empty">${message}</div></div>`;
   }
   const more = state.matchEntries.size - top.length;
   return `
@@ -1471,6 +1481,7 @@ function rightPane() {
 function installDelegatedEvents() {
   const queryInput = debounce(async (value) => {
     state.query = value;
+    if (await jumpToEntryIdQuery(value)) return;
     const token = ++state.loadSeq;
     const ok = await refreshSearch(token);
     if (!ok || token !== state.loadSeq) return;
@@ -1515,6 +1526,7 @@ function installDelegatedEvents() {
       document.getElementById("query")?.focus();
     } else if (event.key === "Enter" && event.target?.id === "query") {
       event.preventDefault();
+      if (await jumpToEntryIdQuery(event.target.value)) return;
       await jumpToMatch(event.shiftKey ? -1 : 1);
     } else if (event.key === "Escape" && event.target?.id === "query") {
       if (state.searchOpen) {
@@ -1838,6 +1850,38 @@ async function jumpToChunk(chunkId) {
   }
   const token = ++state.loadSeq;
   await selectChunk(chunkId, true, token);
+}
+
+// Entry IDs are identities, not relevance queries. Resolve them against the
+// selected worktree and navigate immediately; a missing ID stays in exact-ID
+// mode instead of producing semantically related suggestions.
+async function jumpToEntryIdQuery(value) {
+  const entryId = entryIdFromQuery(value);
+  if (!entryId) return false;
+  const token = ++state.loadSeq;
+  state.selectionMuted = false;
+  state.matchHint = null;
+  state.pendingMatchScroll = false;
+  try {
+    const selected = await selectChunk(entryId, false, token);
+    if (!selected || token !== state.loadSeq) return true;
+    state.results = [state.selected];
+    state.matchEntries = new Set([state.selected.entry_id]);
+    state.searchOpen = false;
+    if (state.view === "trail") {
+      ensureTrailVisible(state.selected.chunk_id);
+      state.pendingTrailScroll = true;
+    }
+    render();
+  } catch (error) {
+    if (token !== state.loadSeq) return true;
+    if (!String(error?.message || "").startsWith("404 ")) throw error;
+    state.results = [];
+    state.matchEntries = new Set();
+    state.searchOpen = true;
+    render();
+  }
+  return true;
 }
 
 // Cycle matches in Trail order (newest first): Enter / next steps down the

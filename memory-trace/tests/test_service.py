@@ -1152,6 +1152,11 @@ if (new Set([...nodes.values()].map((rect) => rect[2])).size < 2) {
         self.assertIn("data-match-prev", script)
         self.assertIn("data-search-clear", script)
         self.assertIn("function jumpToMatch(", script)
+        self.assertIn("function entryIdFromQuery(", script)
+        self.assertIn("function jumpToEntryIdQuery(", script)
+        self.assertIn("if (await jumpToEntryIdQuery(value)) return;", script)
+        self.assertIn("if (await jumpToEntryIdQuery(event.target.value)) return;", script)
+        self.assertIn('No entry found for', script)
         self.assertIn("function ensureTrailVisible(", script)
         self.assertIn("applyTrailScroll();", script)  # wired into render()
         # In-place highlighting, never removal: the Trail keeps its structure.
@@ -1170,7 +1175,8 @@ if (new Set([...nodes.values()].map((rect) => rect[2])).size < 2) {
         self.assertIn("let restoringFocus = false;", script)
         self.assertIn("restoringFocus = true;\n  el.focus();\n  restoringFocus = false;", script)
         self.assertIn("if (restoringFocus) return;", script)
-        # Typing must never select or navigate (the old focus-steal bug class)
+        # Ranked text typing must never select the first result (the old
+        # focus-steal bug class); exact entry IDs have a separate identity path.
         self.assertNotIn("await selectChunk(state.results[0]", script)
 
 
