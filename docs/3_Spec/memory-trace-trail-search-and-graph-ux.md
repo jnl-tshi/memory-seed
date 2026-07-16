@@ -9,7 +9,8 @@ parent: "../2_Todo/memory-trace-product-and-system-architecture-blueprint.md"
 
 # Memory Trace Trail, Search and Graph UX Specification
 
-Status: Active proposed specification, promoted from inbox on 2026-07-11.
+Status: Active proposed specification, promoted from inbox on 2026-07-11. B0a shell clarification
+implemented in the vanilla UI on 2026-07-16; renderer and dock-layout work remain separately gated.
 Priority: P1 UX contract for Trail/search/graph parity before frontend replacement.
 Source reference: `../4_Reference/memory-trace-next-generation-plan-document-set.md`, reconciled with current Trail UI decisions and completed product/trail plan.
 Scope: Trail-first hierarchy, search-to-Trail contract, range/scale behaviour, inspection workspace, graph page, cross-tab selection, and accessibility.
@@ -32,6 +33,18 @@ The primary hierarchy is:
 5. AI and export actions.
 
 The Trail is not a secondary tab. It is the primary chronological context through which project memory is understood.
+
+### 2.1 Current B0a shell contract
+
+The vanilla shell has three independent regions: **Navigation and filters** on the left, the **Trail or
+Graph workspace** in the centre, and the **Inspector** on the right. The navigation control toggles
+only the left region; it never hides or changes the centre workspace. The Inspector control is
+independent: selection continues to update shared state while it is hidden, and reopening it presents
+that selection without changing the Trail position or Graph viewport. `Ctrl/Cmd+B` toggles navigation;
+`Ctrl/Cmd+I` toggles the Inspector. This is the B0a clarification only, not the later dockable-Inspector
+implementation.
+
+Manual refresh also re-enumerates local worktrees without using a browser-cached response. It retains the active worktree while it exists, otherwise falls back to the root checkout, labelled **current project**; non-root checkouts are labelled **worktree**.
 
 ## 3. Trail model
 
