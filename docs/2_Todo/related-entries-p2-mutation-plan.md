@@ -24,7 +24,7 @@ tags:
 > proves insufficient during implementation.
 > **Boundary with the evolution-edges seeding pass (reconciled 2026-07-10):** the two mechanisms
 > are complementary and must not blur. The lineage seeding pass in
-> [`evolution-edges-plan.md`](evolution-edges-plan.md) writes **new** clarification entries that
+> [`evolution-edges-plan.md`](../5_Completed/evolution-edges-plan.md) writes **new** clarification entries that
 > declare typed `evolves`/`supersedes`/`continuity` against old entries - zero bytes of history
 > change, no mutation machinery needed. This plan's backfill mutates **existing** old entries'
 > YAML for untyped `related_entries` only. Typed lifecycle history always goes through the seeding

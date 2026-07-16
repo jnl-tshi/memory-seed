@@ -53,12 +53,15 @@ protection will require and that the Badge/Scorecard **CI-Tests** check rewards.
 
 ### G2 — PR + branch-protection workflow (via the integration-mode foundation)
 Rather than a bespoke one-off switch, this repo adopts the PR flow by **declaring
-`integration_mode: pr`** per `configurable-integration-mode-plan.md` (the foundational proposal this
-plan sits on). The agent + tooling then follow it: feature branch → push origin → PR → required CI
+`integration_mode: pr`** per the shipped
+[`configurable-integration-mode-plan.md`](../5_Completed/configurable-integration-mode-plan.md). The
+agent + tooling then follow it: feature branch → push origin → PR → required CI
 green → merge on GitHub. Branch protection on `main`: require a PR, require the `ci` status check.
 Solo maintainer: a second-reviewer requirement is not achievable, so code review stays self-review —
 **documented, not faked**. A declared `pr` mode is the standing push authorization.
-- **Depends on:** `configurable-integration-mode-plan.md` Phases 1–3 (landed first).
+- **Foundation status:** all configurable integration-mode phases shipped 2026-07-15. This proposal is
+  no longer blocked on tooling; changing this repository to `integration_mode: pr` remains an explicit
+  project decision, and branch protection remains a user-administered GitHub setting.
 - **Needs user:** configure branch protection on `main` (*Settings → Branches*; I provide the exact
   settings).
 

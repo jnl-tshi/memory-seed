@@ -64,23 +64,24 @@ this sweep is the safety net for edges you could not know at authoring time. It 
 lifecycle edges rot silently otherwise: genuine supersessions get logged as generic
 `related_entries` and the distinction collapses.
 
-- Start from the "Lifecycle link gaps" section of the `memory-seed esr` report (step 0) - it is
-  `link audit --date <today>`: this session's entries (targets) against the full corpus
-  (candidates), flagging pairs that share `F:` files or topics with no recorded edge. File overlap
-  surfaces a candidate even when a `related_entries` link already exists (the upgrade case);
-  topic-only overlap is suppressed by any existing edge. Run `memory-seed link audit` directly only
-  when you need a different scope or more candidates per entry.
-- Classify each flagged candidate with the litmus: the new entry *retires* it -> `supersedes`;
-  *refines it while it stays valid* -> `evolves`; genuinely just connected -> `related_entries`.
-  Not every flag deserves an edge - shared files can be coincidental; skip those.
-- Record the accepted edges in the day's link sidecar
+- After reviewing the "Lifecycle link gaps" section of the `memory-seed esr` report (step 0), run
+  `memory-seed link audit --date <today> --apply` with today's concrete date. It compares this
+  session's entries (targets) against the full corpus (candidates) and creates chronologically ordered,
+  machine-detectable `classify_pending: true` sidecar stubs. The candidate ids remain comments: the
+  command never auto-classifies a relationship and never writes a live edge.
+- A human must classify each stub with the litmus: the new entry *retires* the candidate ->
+  `supersedes`; *refines it while it stays valid* -> `evolves`; genuinely just connected ->
+  `related_entries`. Not every candidate deserves an edge - shared files can be coincidental, so delete
+  or leave unresolved stubs rather than inventing a relationship.
+- After human approval, replace the accepted stubs with live edges in the day's link sidecar
   `.memory-seed/sessions/links/YYYY-MM/YYYY-MM-DD.md` - never by reopening a written entry
   (append-only). Each block is keyed to the SOURCE (newer) entry:
   `## <entry's timestamp> - <short label>` + a fenced yaml with `entry_id:` and the
   `supersedes:`/`evolves:`/`related_entries:` lists pointing at older targets.
-- Ask the user for approval before writing the sidecar (same gate as persona evolution): show the
-  proposed edges with their evidence and classification.
-- Finish with `memory-seed links check` - sidecar edges join the dangling and forward-only guards.
+- Stub creation itself is mechanical and safe; ask the user for approval before converting any stub
+  into a live edge (same gate as persona evolution), showing the evidence and proposed classification.
+- Finish with `memory-seed links check` - live sidecar edges join the dangling and forward-only guards,
+  while unresolved stubs remain warning-only and inert.
 
 Skip silently when the audit reports no gaps.
 

@@ -6,13 +6,18 @@ related_to: "docs/2_Todo/completed/memory-trace-product-and-trail-view-plan.md; 
 author_context: "Prepared for Jean Nathan Tshibuyi"
 format: "Markdown product and architecture proposal"
 status: "active-todo"
+phase_1_shipped: "2026-07-15"
+next_action: "Phase 2: implement a disabled-by-default provider interface and local-model adapter over deterministic Evidence Packs"
 ---
 
 # Proposal: Optional Local-AI Summarisation Layer for Memory Trace Decision Timelines
 
-Status: ACTIVE - promoted from inbox on 2026-07-07 as the canonical Memory Trace AI-summary plan.
+Status: **ACTIVE — Phase 1 SHIPPED 2026-07-15; Phase 2 NEXT.** The deterministic Evidence Pack Builder
+is implemented and snapshot-tested. Provider-backed/local-model summarisation has not shipped.
 Priority: P3 - after Memory Trace packaging/release ordering and before any AI-assisted paid report
 pack; terminal-agent adapters remain P4.
+Next action: Phase 2 — implement a disabled-by-default provider interface and one local-model adapter
+that consumes only deterministic Evidence Packs and emits schema-valid, cited, visibly generated output.
 Source: promoted from the inbox; the original proposal content is consolidated into this active todo file.
 Scope: Optional, read-only Memory Trace explanation layer that builds deterministic evidence packs
 from the public retrieval/graph surface, sends them to a configured local model first, validates
@@ -35,8 +40,9 @@ adapters consume validated summary JSON rather than performing AI-driven tool ca
 > **Project:** `jnl-tshi/memory-seed`
 > **Target product:** Memory Trace companion UI
 > **Feature area:** Decision timeline summarisation, stakeholder review, local agent-assisted explanation
-> **Disposition:** Promoted to `docs/2_Todo/memory-trace-ai-timeline-summarisation-plan.md` on
-> 2026-07-07 after scope and safety posture were accepted for planning.
+> **Disposition:** Remains active in `docs/2_Todo/`. Deterministic Evidence Pack Phase 1 shipped
+> 2026-07-15; provider-backed/local-model summarisation begins at Phase 2. Generated summaries are
+> derived, cited explanation artifacts and are never authoritative memory unless explicitly promoted.
 
 ---
 
@@ -533,30 +539,26 @@ Acceptance criteria:
 
 ---
 
-### Phase 1 - Evidence Pack Builder
+### Phase 1 - Evidence Pack Builder — SHIPPED 2026-07-15
 
 Add a deterministic evidence-pack builder to Memory Trace or, if still in-package, behind the retrieval service.
 
-Candidate module while still in-package:
-
-```text
-memory_seed/trace_evidence.py
-```
-
-Candidate module after package extraction:
+Shipped module in the companion package:
 
 ```text
 memory_trace/evidence.py
 ```
 
-Candidate functions:
+Shipped function:
 
 ```python
 def build_timeline_evidence_pack(...) -> EvidencePack: ...
-def build_entry_evidence_pack(...) -> EvidencePack: ...
-def build_trail_evidence_pack(...) -> EvidencePack: ...
-def build_handover_evidence_pack(...) -> EvidencePack: ...
 ```
+
+The builder accepts date, entry, topic, user, agent, and bounded graph-neighbourhood selectors;
+normalizes ordering and provenance; emits stable selection/pack fingerprints; includes entry/section,
+edge, commit, and diagram evidence; and has a committed snapshot fixture. It is read-only and does not
+invoke a model or claim that a generated summary is authoritative.
 
 Acceptance criteria:
 
@@ -569,7 +571,7 @@ Acceptance criteria:
 
 ---
 
-### Phase 2 - Local AI Provider Adapter
+### Phase 2 - Local AI Provider Adapter — NEXT
 
 Add a provider interface and one local-model adapter.
 

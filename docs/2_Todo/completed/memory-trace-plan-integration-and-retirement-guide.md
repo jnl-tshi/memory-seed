@@ -100,7 +100,7 @@ Do not use `completed/` for work that was abandoned or merely replaced.
 | `memory-trace-product-and-trail-view-plan.md` | Preserve as completed history; new blueprint/UX spec govern future evolution |
 | `memory-trace-distribution-plan.md` | Keep active until remaining package/release acceptance criteria are complete; add blueprint cross-link |
 | `memory-trace-ai-timeline-summarisation-plan.md` | Keep active and canonical for AI implementation; add derived-artifact contract link |
-| `memory-trace-topic-neighbourhoods-plan.md` | Keep active for core topic implementation; new UX spec governs graph presentation |
+| `memory-trace-topic-neighbourhoods-plan.md` | Completed 2026-07-15; preserve as the shipped core topic implementation record while the UX spec governs future graph presentation |
 | `session-decision-diagrams-plan.md` | Keep active if acceptance criteria remain; cross-link derived exports |
 | `memory-seed-market-fit-report.md` | Move to reference/retired research after commercial report is installed and its source value is preserved |
 | `graph-edge-contract.md` | Remains canonical; never supersede with UI documents |

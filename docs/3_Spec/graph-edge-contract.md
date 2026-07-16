@@ -97,7 +97,7 @@ predating the field - never mixing the two. That effective set feeds the topics 
 topic chips, the graph's `topic` chronological chains, and the topic filter, and the filter is
 alias-expanded through `topics.yaml` (via `expand_topic_filter`, fail-open) so a canonical slug
 matches alias-stored entries and vice versa. The MCP-topic-management half of Phase 4 is tracked
-separately (`docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md`).
+separately (`docs/5_Completed/memory-trace-topic-neighbourhoods-plan.md`).
 
 ## Derived metrics - two distinct numbers, distinct names
 

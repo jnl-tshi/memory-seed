@@ -206,6 +206,12 @@ Exit:
 
 Gate: establish the read-only baseline from [`memory-quality-metrics-v0-proposal.md`](memory-quality-metrics-v0-proposal.md) before any quality label affects ranking or agent behaviour. Generated output remains non-authoritative unless explicitly promoted.
 
+> **Partial delivery 2026-07-15:** the deterministic timeline Evidence Pack builder and committed
+> snapshot fixture shipped as Phase 1 of
+> [`memory-trace-ai-timeline-summarisation-plan.md`](memory-trace-ai-timeline-summarisation-plan.md).
+> Provider/local-model summarisation, broader export adapters, and explicit promotion remain future work;
+> generated output is still derived and non-authoritative.
+
 Deliver:
 
 - deterministic evidence-pack builders;

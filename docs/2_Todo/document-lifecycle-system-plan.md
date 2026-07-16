@@ -11,8 +11,9 @@ next_action: execute Phase 2 — `docs index`/`docs check` CLI, bulk-migrate the
 
 # Document lifecycle system — human-discoverable, folder-primary, with a generated index
 
-Status folder: `2_Todo` (Phase 1 — lanes + front door — shipped 2026-07-13; this doc now tracks the
-remaining Phase 2 work, and moved here from `1_Inbox` on 2026-07-14 to reflect that it is mid-execution).
+Status folder: `2_Todo` (Phase 1 — lanes + front door — shipped 2026-07-13; incremental lifecycle
+closeouts are in use, including four Todo → Completed moves on 2026-07-15; this doc tracks the remaining
+Phase 2 bulk migration and tooling work).
 Source: objective `docs/` review (agent) + user's gap analysis + user's human-discoverability direction, all
 2026-07-13.
 
@@ -107,9 +108,12 @@ must each be documented (external mirror / temp agent scratch → `.gitignore`) 
 - **P1 (small, high-value):** create the new lane folders + `docs/README.md` + the `docs index`/`docs
   check` skeleton; move the **three live drifts** into correct lanes
   (`proactive-history-retrieval-discipline-proposal.md`, `freshness-aware-memory-ranking-proposal.md` →
-  `5_Completed`; `configurable-integration-mode-plan.md` stays in `2_Todo` with `next_action`); move the
+  `5_Completed`; the then-partial integration-mode plan stayed in Todo); move the
   **two draft specs** (`memory-trace-trail-search-and-graph-ux.md`,
   `memory-trace-derived-artifact-provenance-contract.md`) → `3_Spec/draft/`; reconcile the side folders.
+- **Incremental closeout (2026-07-15):** after implementation completed,
+  `configurable-integration-mode-plan.md` moved to `docs/5_Completed/` alongside the completed topic,
+  evolution-edge, and supersession-successor plans. This does not replace P2's 43-document bulk migration.
 - **P2:** bulk-migrate the 43 `2_Todo/completed/` files → `5_Completed/` (+ any `6_Rejected`/`7_Superseded`
   reclassification), and **update every `docs/2_Todo/completed/` reference** across the repo. Backfill
   secondary YAML. Generate all indexes.

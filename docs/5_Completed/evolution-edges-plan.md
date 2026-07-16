@@ -1,5 +1,7 @@
 ---
 memory-system-version: 2.18
+implemented_by: 558cc63
+shipped: 2026-07-15
 tags:
   - memory-seed
   - plan
@@ -9,14 +11,14 @@ tags:
 
 # Typed Evolution Edges (`evolves` / `evolved_by`) - Scope
 
-> **Status:** P1 + lineage-seeding **SHIPPED in 2.18.0** (built 2026-07-10 on branch
+> **Status:** **SHIPPED 2026-07-15.** P1 + lineage-seeding shipped in 2.18.0 (built 2026-07-10 on branch
 > `claude-feature-evolution-edges`): D1-D7 with tests (evolves edge + inverse, authored-inverse-field
 > guard, continuity field + malformed-continuity, F-overlap ranking with alias table and shared-file
 > evidence, search freshness fields, harvest prompts in live + seed skills, graph-edge-contract updated).
-> **Only genuine tail before this file moves to completed/:** the **Trace lineage pass** — render
-> `continuity:`/`evolves` chains as a Trail display axis (the `next_action`).
-> **Priority:** P1-adjacent - same low-risk graph-semantics tier as the shipped `supersedes` P1;
-> sequence after the currently active retrieval/topic work unless reprioritized.
+> The final Trace lineage pass shipped 2026-07-15: Trail renders typed `evolves` chain brackets and
+> derived rename/migration/removal continuity lanes without adding authored graph edges.
+> **Disposition:** Completed and moved from `docs/2_Todo/` to `docs/5_Completed/` on 2026-07-15.
+> **Priority:** Completed P1-adjacent graph-semantics work.
 > **Source:** User observation 2026-07-10: the `session merge-branch` work evolved the fuse
 > integration workflow, but the history shows no typed lifecycle signal - `supersedes` would have
 > been wrong (fuse is not retired), so the relationship collapsed into untyped `related_entries`.
@@ -332,16 +334,15 @@ forward-only; nothing historical is edited) typing known history:
 
 Each seeded entry is a normal dated session entry citing its evidence.
 
-Boundary with [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md)
+Boundary with [`related-entries-p2-mutation-plan.md`](../2_Todo/related-entries-p2-mutation-plan.md)
 (reconciled 2026-07-10): this pass writes new entries only and owns all typed lifecycle history;
 the P2 plan's explicit backfill mutates existing entries' YAML for untyped `related_entries` only.
 Neither substitutes for the other.
 
-## Explicitly deferred
+## Shipped Trace Lineage Pass And Deferred Extensions
 
-- **Trace lineage pass** (one named follow-up, not scattered notes): render `evolves` edges and
-  derived continuity chains in the Trail view. Supersedes rendering already shipped with the Arc 2
-  Trace work, so this is the remaining UI surfacing for the two new layers, done as a single pass.
+- **Trace lineage pass shipped 2026-07-15:** Trail renders `evolves` edges as typed chain brackets and
+  derives continuity lanes for rename, migration, and removal events. The display remains read-only.
 - Any ranking/retrieval *behavior* change keyed off `evolved_by` (per "expose before you rank") -
-  D7 surfaces status; it never re-ranks.
+  remains outside this completed plan; D7 surfaces status and never re-ranks.
 - Term-level query expansion from `rename` mappings (stated in D6).
