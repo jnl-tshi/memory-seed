@@ -122,6 +122,15 @@ python -m pip install "memory-seed[trace]"
 memory-trace --cwd . --host 127.0.0.1 --port 8765 --no-open
 ```
 
+To open both the vanilla and React versions from one local server, run:
+
+```powershell
+memory-trace --cwd . --host 127.0.0.1 --port 8770 --open-both
+```
+
+For this source checkout on Windows, `.\scripts\launch-memory-trace.ps1` supplies the local
+`PYTHONPATH`, reuses a healthy Trace server already on its requested port, and opens `/` plus `/next`.
+
 For `uv` tool installs, install the owning package with the extra. To add Trace
 to an existing core-only tool install, reinstall the tool with `--force`:
 
