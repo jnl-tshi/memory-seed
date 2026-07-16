@@ -105,9 +105,9 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   non-authoritative. The canonical shape is the spec
   [`../3_Spec/memory-trace-derived-artifact-provenance-contract.md`](../3_Spec/memory-trace-derived-artifact-provenance-contract.md)
   (blueprint §4.5 and the evidence-annotations doc are forward supersets — do not build a second builder).
-- **B0a — Graph/workspace contract and benchmark** ← **CURRENT LEAD** *(pre-React; JNL-endorsed
-  2026-07-15; proposal set promoted 2026-07-15)* — the reason React is deferred: the graph gets semantic,
-  interaction, and renderer attention before any React rebuild, without implementing the same UI twice.
+- **B0a — Graph/workspace contract and benchmark** — **COMPLETE 2026-07-16** *(pre-React; JNL-endorsed
+  2026-07-15; proposal set promoted 2026-07-15)*. The graph received semantic, interaction, and renderer
+  attention before any React rebuild, without implementing the same UI twice.
   Sits **before B2**. Coordinating index:
   [`memory-trace-graph-and-workspace-proposal-set-index.md`](memory-trace-graph-and-workspace-proposal-set-index.md).
   B0a makes the decisions and produces the evidence B2/B0b must consume:
@@ -121,23 +121,26 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
      separate graph semantics from renderer implementation while preserving the current SVG renderer as a
      fallback. The first bounded B0a fixture contract is now implemented in
      [`../3_Spec/memory-trace-renderer-neutral-graph-projection.md`](../3_Spec/memory-trace-renderer-neutral-graph-projection.md);
-     the packaged side-by-side renderer harness has completed its evidence sweep; selection is pending
-     JNL's side-by-side review.
-  3. **Renderer benchmark** — the same bounded fixture now passes the evidence sweep in vis-network and
-     Cytoscape.js. Record JNL's renderer selection from the side-by-side review before B0b implementation.
+     the packaged side-by-side renderer harness completed its evidence sweep; JNL selected Cytoscape.js
+     3.34.0 for B0b while retaining the SVG fallback.
+  3. **Renderer benchmark** — the same bounded fixture passes the evidence sweep in vis-network and
+     Cytoscape.js. Cytoscape.js is the selected B0b renderer.
   4. **Topology-first graph** — stable community colour, stronger node hierarchy, typed/curved edges,
      optional mild temporal drift, and bounded/community overview modes, specified and fixture-proven but
      not yet migrated to the selected renderer.
-- **B2 — React/Vite shell** *(the strategic bet — DEFERRED 2026-07-15; B0a comes first)* —
+- **B2 — React/Vite shell** *(first implementation slice landed 2026-07-16)* —
   [`memory-trace-frontend-architecture-and-design-system-proposal.md`](memory-trace-frontend-architecture-and-design-system-proposal.md)
-  (roadmap Phase 2). First increment before any component work: stand up the Vite/TS workspace whose
-  **built** assets serve from the wheel with **zero Node at runtime** — proving the packaging spine.
-  Gated by the `3_Spec` parity fixtures + vanilla fallback. The current vanilla `/api/*` + `app.js` Trail
-  stays the shipped UI until parity is proven.
-- **B0b — Native graph/workspace implementation** *(post-shell; implemented through roadmap Phases 3 and
-  5)* — integrate the B0a-selected renderer through the canonical projection; implement topology-first
-  and optional mild-temporal layouts; add the right/bottom/auto dockable Inspector, persisted state,
-  shared selection, accessibility, and scale gates. Keep the SVG renderer until explicit parity sign-off.
+  (roadmap Phase 2). `memory-trace/client/` now builds a TypeScript React shell to packaged `/next` assets;
+  it consumes only `/api/v1/*`, lazy-loads Cytoscape.js, and needs no Node.js at runtime. The first
+  three-region shell has independent navigation and persisted Inspector dock state. Storybook, the formal
+  Playwright harness, Trail/search parity, and accessibility acceptance remain open. The current vanilla
+  `/` UI remains the supported fallback until explicit parity sign-off.
+- **B0b — Native graph/workspace implementation** *(started 2026-07-16; implemented through roadmap
+  Phases 3 and 5)* — the first React shell provides a lazy Cytoscape graph, bounded initial graph range,
+  shared entry selection, and right/bottom/auto/hidden persisted Inspector controls. Next, adapt the
+  B0a renderer-neutral projection to the v1 client, then implement topology-first and optional
+  mild-temporal layouts, graph scope/filter controls, label policy, keyboard canvas alternatives, and
+  scale acceptance. Keep the SVG renderer until explicit parity sign-off.
   Only after B0b acceptance may the
   [`structural-provider proposal`](memory-trace-structural-graph-enrichment-provider-proposal.md) define a
   provider-neutral contract and pilot optional `code-review-graph`; providers never own canonical decision

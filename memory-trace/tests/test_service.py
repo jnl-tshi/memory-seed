@@ -662,6 +662,7 @@ class LenseCliTests(unittest.TestCase):
         self.assertIn("index.html", data["files"])
         self.assertIn("benchmark.html", data["files"])
         self.assertIn("renderer-benchmark.js", data["files"])
+        self.assertIn("react/index.html", data["files"])
 
     def test_frontend_defines_design_token_baseline_and_uses_color_tokens(self):
         # Arc 2b: a small reusable token set (spacing/type/color roles), with the

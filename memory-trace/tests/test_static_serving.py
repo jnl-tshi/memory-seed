@@ -10,6 +10,7 @@ copy-into-primary-then-restore verification dance.
 
 import hashlib
 import os
+import re
 import shutil
 import tempfile
 import unittest
@@ -126,6 +127,18 @@ class StaticServingTests(unittest.TestCase):
         self.assertEqual(stylesheet.status_code, 200)
         self.assertIn("renderer-grid", stylesheet.text)
         self.assertEqual(client.get("/assets/benchmark/unlisted.js").status_code, 404)
+
+    def test_next_react_shell_and_hashed_assets_are_served_separately(self):
+        client = self._client()
+
+        html = client.get("/next")
+        script = re.search(r'src="/assets/react/([^\"]+\.js)"', html.text)
+
+        self.assertEqual(html.status_code, 200)
+        self.assertIn('<div id="root"></div>', html.text)
+        self.assertIsNotNone(script)
+        self.assertEqual(client.get(f"/assets/react/{script.group(1)}").status_code, 200)
+        self.assertEqual(client.get("/assets/react/../../app.js").status_code, 404)
 
 
 if __name__ == "__main__":

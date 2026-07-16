@@ -64,6 +64,21 @@ Options: `--cwd`, `--host`, `--port`, `--no-open`, `--rebuild-cache`, `--static-
 without copying files; also settable as `MEMORY_TRACE_STATIC_ROOT`). Asset `?v=` tags are
 content-hashed at serve time, so edited assets are never masked by a stale browser cache.
 
+## Next frontend preview
+
+`/next` serves the packaged React and TypeScript workspace shell. It consumes
+only the versioned `/api/v1/*` contract and lazy-loads Cytoscape.js for the
+Graph workspace. The existing `/` route remains the supported vanilla fallback
+until the parity checklist is signed off.
+
+Build the preview assets before package validation:
+
+```bash
+cd memory-trace/client
+npm ci
+npm run build
+```
+
 ## Upgrade preparation
 
 Memory Trace delegates the same safe process-management workflow as Memory Seed:

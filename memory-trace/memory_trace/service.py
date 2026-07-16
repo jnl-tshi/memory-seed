@@ -1047,6 +1047,24 @@ def create_app(
             raise HTTPException(status_code=404, detail="asset not found")
         return FileResponse(_static_file(name))
 
+    @app.get("/next", response_class=HTMLResponse)
+    def next_index() -> Any:
+        # The React shell is additive while it earns parity. Its Vite output
+        # has content-addressed asset names, so the document itself can be
+        # served directly without the legacy app's mutable-asset rewrite.
+        return HTMLResponse(_static_file("react", "index.html").read_text(encoding="utf-8"))
+
+    @app.get("/assets/react/{asset_path:path}")
+    def next_asset(asset_path: str) -> Any:
+        # Never turn the package/static-root route into arbitrary file access.
+        relative = Path(asset_path)
+        if not asset_path or relative.is_absolute() or ".." in relative.parts:
+            raise HTTPException(status_code=404, detail="asset not found")
+        target = _static_file("react", *relative.parts)
+        if not target.is_file():
+            raise HTTPException(status_code=404, detail="asset not found")
+        return FileResponse(target)
+
     @app.get("/benchmarks/renderer", response_class=HTMLResponse)
     def renderer_benchmark() -> Any:
         text = _static_file("benchmark.html").read_text(encoding="utf-8")
