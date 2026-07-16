@@ -1,5 +1,7 @@
 ---
 memory-system-version: 2.18
+implemented_by: 220a665
+shipped: 2026-07-15
 tags:
   - memory-seed
   - proposal
@@ -11,7 +13,11 @@ tags:
 
 # Memory Trace Topic Neighbourhoods Plan
 
-Status: **Phases 0-3 IMPLEMENTED 2026-07-10** (goal-run stage S5, unreleased): contract updated,
+Status: **SHIPPED 2026-07-15.** Phases 0-3 shipped 2026-07-10 (goal-run stage S5), Phase 4 then
+shipped the Trace indexed-topic chains and read-only MCP topic tools, and the final optional
+`topics suggest --from <file>` command shipped on 2026-07-15 with deterministic read-only ranking.
+Disposition: Completed and moved from `docs/2_Todo/` to `docs/5_Completed/` on 2026-07-15.
+Delivered surface: contract updated,
 `.memory-seed/topics.yaml` live (this repo: user-approved 19-canonical vocabulary derived from
 the 62 slugs already in use, every observed slug canonical or alias; seed: minimal generic
 starter, deploy-once), `MemoryChunk.topics` parsing, retrieval-dict exposure, alias-expanded
@@ -19,11 +25,10 @@ opt-in `memory_search` topics filter, `memory-seed topics list`/`topics check` (
 `^[a-z0-9][a-z0-9_-]{0,63}$`; unknown/malformed/duplicate/collision errors, deprecated/count
 warnings), and `session_logging.md` authoring guidance (live + seed). Phase 4 is now implemented:
 Trace renders indexed topics as chronological chains and MCP exposes read-only topic-management
-tools (`memory_topics_list`, `memory_topic_inspect`, `memory_topics_check`). Remaining optional
-follow-up before this file moves to completed/: `topics suggest --from <file>`.
-Priority: P3 after release-safety, encoding hardening, and Memory Trace package release ordering. It
-should run before AI timeline summarisation because topic filters become part of the evidence-pack
-contract.
+tools (`memory_topics_list`, `memory_topic_inspect`, `memory_topics_check`), plus
+`memory-seed topics suggest --from <file>`.
+Priority: Completed P3. Topic filters and deterministic suggestions now form part of the evidence-pack
+input contract.
 Source: Promoted from `docs/2_Todo/completed/memory-trail-graph-and-topic-neighbourhoods.md` and
 folded with `docs/2_Todo/completed/graph recommendations.md` on 2026-07-08. Clarified by user
 decision on 2026-07-08:
@@ -40,13 +45,12 @@ Dependencies: `docs/3_Spec/graph-edge-contract.md`, `docs/3_Spec/memory-trace-tr
 and the live/seed `session_logging.md` skill.
 Acceptance criteria: See "Acceptance Criteria" below.
 
-## Assessment
+## Outcome
 
-The proposal is accepted as the desired direction, but the code path has not been implemented yet. It
-changes the authored session metadata surface by introducing controlled `topics:` fields and a
-project topic index. That crosses from derived UI behavior into Memory Seed's durable session
-contract, so implementation must touch seed/init, session logging guidance, parsing, retrieval,
-validation, MCP, and Memory Trace deliberately.
+The accepted direction is fully implemented. Controlled `topics:` fields and a project topic index
+crossed from derived UI behavior into Memory Seed's durable session contract through seed/init,
+session logging guidance, parsing, retrieval, validation, MCP, Memory Trace, and the final read-only
+suggestion command.
 
 The useful core is:
 
@@ -63,17 +67,17 @@ Memory Trace graph = derived read-only view
 That is aligned with the current architecture: Markdown stays authoritative, graph state is derived,
 and Memory Trace remains read-only.
 
-## Current Implementation Truth
+## Pre-Implementation Baseline
 
-Memory Trace already has "topic" facets and graph edges, but they are not authored YAML topics.
-Today they are display topics derived from:
+Before this plan shipped, Memory Trace had "topic" facets and graph edges that were not authored YAML
+topics. They were display topics derived from:
 
 ```python
 sorted(set(chunk.tags) | set(chunk.contexts))
 ```
 
-So the proposed `topics:` field is not just documentation. It would create a new controlled topic
-surface that should either supersede or augment the current tag/context-derived display topics.
+The shipped `topics:` field created the controlled topic surface; tag/context-derived display topics
+remain only as a fallback for entries that predate indexed topics.
 
 ## Recommended Shape
 
@@ -127,13 +131,11 @@ topics:
 - Historical backfill is out of scope for the first implementation; old entries without `topics`
   remain valid.
 
-## Remaining Design Details
+## Resolved Design Details
 
-- First implementation should ship CLI validation before MCP topic-management tools. MCP topic tools
-  can follow once `topics list/check` semantics are stable.
-- Decide whether the starter `topics.yaml` is a minimal generic file or generated from project
-  bootstrap context. Either way, it must be deploy-once/project-local, not a version-overwritten
-  seed/live twin.
+- CLI validation shipped before MCP topic-management tools.
+- The seed uses a minimal generic starter; each project owns a deploy-once/project-local topic index
+  that update does not overwrite.
 - No core continuity topics need seeding: `evolution-edges-plan.md` D6 (revised 2026-07-10) records
   rename/migration/removal events as a structured `continuity:` entry field (kind/from/to) rather
   than topic vocabulary, so continuity membership is derivable from that field. If Trace later wants
@@ -157,13 +159,13 @@ topics:
 
 ## Implementation Plan
 
-### Phase 0 - Accepted Contract
+### Phase 0 - Accepted Contract - SHIPPED
 
 - Update `docs/3_Spec/graph-edge-contract.md` to define display topics versus indexed topics and
   mark indexed topics as accepted but unimplemented.
 - Update `docs/3_Spec/functionality-audit.md` with the accepted topic contract.
 
-### Phase 1 - Core Topic Index And Session Metadata
+### Phase 1 - Core Topic Index And Session Metadata - SHIPPED
 
 - Add `topics:` guidance to live and seed `session_logging.md`: meaningful entries should include
   1-3 canonical topics.
@@ -172,7 +174,7 @@ topics:
 - Keep old entries without topics valid.
 - Do not backfill historical entries.
 
-### Phase 2 - Parser And Retrieval
+### Phase 2 - Parser And Retrieval - SHIPPED
 
 - Add `topics: tuple[str, ...] = ()` to `MemoryChunk`.
 - Parse entry YAML `topics:`.
@@ -180,7 +182,7 @@ topics:
 - Add an optional topic filter after the field is available.
 - Keep `topics`, Markdown hashtags, and heading contexts distinct.
 
-### Phase 3 - CLI Validation
+### Phase 3 - CLI Validation - SHIPPED
 
 - Add `memory-seed topics list`.
 - Add `memory-seed topics check` for duplicate slugs, malformed slugs, unknown entry topics,
@@ -190,13 +192,14 @@ topics:
   precedent in `memory_seed/core.py`), reusing one convention rather than inventing a third.
   Every slug observed in the 42 live entries already passes. Underscores are permitted for
   consistency with the user-slug rule even though the observed convention is hyphen-only.
-- Optionally add read-only `topics suggest --from <file>` after validation exists.
+- Added read-only `topics suggest --from <file>` after validation, with deterministic ranking,
+  canonical/alias evidence, a paste-ready 1-3 topic snippet, strict file/index errors, and no writes.
 - **Test-infra note (2026-07-10 review):** validator/parse/CLI/MCP phases all have existing test
   patterns to extend; the Memory Trace topic-chain rendering and `topics suggest --from <file>`
   have no analog in the current suites and need novel fixtures - budget for that in Phase 3/4
   estimates.
 
-### Phase 4 - MCP And Memory Trace
+### Phase 4 - MCP And Memory Trace - SHIPPED
 
 - **IMPLEMENTED (MCP half, unreleased):** `memory_topics_list` lists `.memory-seed/topics.yaml`,
   `memory_topic_inspect` resolves canonical slugs/aliases and reports matching entry usage, and

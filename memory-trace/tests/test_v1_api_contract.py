@@ -16,7 +16,19 @@ from unittest import mock
 from memory_trace.service import create_app
 
 
-def _entry(title, entry_id, body, *, agent="codex", related=None, branch=None, supersedes=None, evolves=None, topics=None):
+def _entry(
+    title,
+    entry_id,
+    body,
+    *,
+    agent="codex",
+    related=None,
+    branch=None,
+    supersedes=None,
+    evolves=None,
+    continuity=None,
+    topics=None,
+):
     lines = [
         f"## {title}",
         "",
@@ -41,6 +53,13 @@ def _entry(title, entry_id, body, *, agent="codex", related=None, branch=None, s
     if evolves:
         lines.append("evolves:")
         lines.extend(f"  - {ref}" for ref in evolves)
+    if continuity:
+        lines.append("continuity:")
+        for block in continuity:
+            lines.append(f"  - kind: {block['kind']}")
+            lines.append(f"    from: {block['from']}")
+            if "to" in block and block["to"] is not None:
+                lines.append(f"    to: {block['to']}")
     lines += ["```", "", body, ""]
     return "\n".join(lines)
 
@@ -69,6 +88,10 @@ class V1ApiContractTests(unittest.TestCase):
                         "Designed #ui filters and Memory Lense panes.",
                         related=["mse_bootstrap"],
                         branch="feature-ui",
+                        continuity=[
+                            {"kind": "rename", "from": "Memory Lense", "to": "Memory Trace"},
+                            {"kind": "removal", "from": "memory-seed lense command"},
+                        ],
                         topics=["ui"],
                     ),
                 ]
@@ -130,9 +153,35 @@ class V1ApiContractTests(unittest.TestCase):
 
         self.assertEqual(legacy["chunk_id"], v1["chunk_id"])
         self.assertEqual(v1["related_entries"], ["mse_bootstrap"])
+        self.assertEqual(
+            v1["continuity"],
+            [
+                {"kind": "rename", "from": "Memory Lense", "to": "Memory Trace"},
+                {"kind": "removal", "from": "memory-seed lense command", "to": None},
+            ],
+        )
         self.assertEqual(v1["backlinks"], [])
         self.assertIn("source", v1["metadata"])
         self.assertEqual(v1["suggestions"]["same_topic"], [])
+
+    def test_v1_graph_and_trail_nodes_carry_ordered_continuity_and_absence(self):
+        client = self.client()
+
+        graph = client.get("/api/v1/graph", params={"granularity": "entry", "limit": 100}).json()
+        by_entry = {node["entry_id"]: node for node in graph["nodes"]}
+        self.assertEqual(
+            by_entry["mse_ui"]["continuity"],
+            [
+                {"kind": "rename", "from": "Memory Lense", "to": "Memory Trace"},
+                {"kind": "removal", "from": "memory-seed lense command", "to": None},
+            ],
+        )
+        self.assertEqual(by_entry["mse_bootstrap"]["continuity"], [])
+
+        trail = client.get("/api/v1/trail", params={"limit": 100}).json()
+        trail_by_entry = {node["entry_id"]: node for node in trail["nodes"]}
+        self.assertEqual(trail_by_entry["mse_ui"]["continuity"], by_entry["mse_ui"]["continuity"])
+        self.assertEqual(trail_by_entry["mse_bootstrap"]["continuity"], [])
 
     def test_v1_chunk_404_matches_legacy(self):
         client = self.client()
@@ -214,6 +263,7 @@ class V1ApiContractTests(unittest.TestCase):
             "TrailEvent",
             "ProvenanceClass",
             "EdgeType",
+            "ContinuityItem",
             "MergeEvent",
             "BranchInfo",
             "ForkPoint",

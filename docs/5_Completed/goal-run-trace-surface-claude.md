@@ -32,7 +32,7 @@ survived a full release cycle - the polish condition is met. Extend the versione
 
 ### 2. Topics Phase 4, Trace half: indexed-topic rendering
 
-Read `docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md` Phase 4 for the intended scope
+Read `docs/5_Completed/memory-trace-topic-neighbourhoods-plan.md` Phase 4 for the intended scope
 (Codex owns the MCP-topic-tools half - do not build those). Render stored `topics:` as
 first-class UI: topic chips on entries/reader sourced from the indexed field (with the
 tag/context derivation kept as the fallback for old entries), vocabulary-aware filtering, and

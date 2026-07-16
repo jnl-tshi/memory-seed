@@ -1,18 +1,19 @@
 # Next Steps
 
 Status: **ACTIVE — resumed 2026-07-14, Constitution-aligned** (Constitution v1.0 ratified the same day).
-Updated: 2026-07-15
+Updated: 2026-07-16
 
-> ▶ **Foundation shipped 2026-07-15 → the memory-quality trio now leads.** The
+> ▶ **Foundation and memory-quality core shipped 2026-07-15.** The
 > [derived-projection Phase 1](derived-projection-implementation-plan.md) (git-watermark warm start +
 > atomic swap + three read-path perf refinements) **shipped 2026-07-15** — the plan's former "do first"
 > foundation is done. Work still sequences *under* [`docs/CONSTITUTION.md`](../CONSTITUTION.md) **v1.0**
 > (each item answers the five-question test — Capture / Validation / Retrieval / Trust / Application — and
 > respects Invariant #6: Markdown = source of truth; every DB/cache is a derived, rebuildable projection).
-> The current lead is the **Ranking & graph quality** trio (below); the projection's remaining
-> incremental-ingest fast-follow is deferred as low-urgency (reads are already ~3.9 ms). **2.19 is cut
-> after the trio lands** (JNL decision 2026-07-15). **React (B2) is deferred** — JNL wants the Trace
-> **graph view** to get its due attention first (a named pre-React workstream, below).
+> The ranking/graph core now includes the full-corpus gate, `superseding_head` plus its bounded boost,
+> and inert `link audit --apply` scaffolding. The stated **2.19 cut criterion is met**; publishing still
+> waits for explicit user approval. **B0a graph/workspace contracts and renderer evidence are now the
+> current lead. React (B2) remains deferred** until that pre-React work is complete. The projection's
+> incremental-ingest fast-follow remains deferred as low-urgency (reads are already ~3.9 ms).
 Source: the `docs/` lifecycle lanes (folder = state — see [`../README.md`](../README.md)), `CHANGELOG.md`,
 and `docs/3_Spec/`. Rebuilt 2026-07-14 from a full inbox+todo evaluation; re-baselined 2026-07-15 after the
 Foundation shipped (per-doc status verified against CHANGELOG + code, not this file's prior claims).
@@ -31,15 +32,17 @@ Foundation shipped (per-doc status verified against CHANGELOG + code, not this f
   `chunk()` 132 ms → 3.9 ms. Only the **incremental-ingest** fast-follow remains, deferred as low-urgency.
 - **Doc lifecycle:** the folder a doc sits in *is* its state. This refresh moved the terminal docs into
   `5_Completed/` / `7_Superseded/` / `8_Deferred/`; only docs with live work remain in `2_Todo/`.
-- **Release cadence:** cut **2.19 after the memory-quality trio lands** (JNL decision 2026-07-15) so the
-  release carries the retrieval/capture-quality wins too — then hold for the user's go on the PyPI push (no
-  unprompted release; the publish is a manual-approval gate).
+- **Wave 1 + closeout SHIPPED 2026-07-15:** `topics suggest --from`, deterministic timeline Evidence
+  Packs, the Trail continuity axis, `superseding_head` plus the gated boost, all four configurable
+  integration-mode phases, and lifecycle-link scaffold steps 1–3.
+- **Release cadence:** the memory-quality trio has landed, so the stated **2.19 cut criterion is met**.
+  Hold for the user's go on the release and PyPI push; publishing remains a manual-approval gate.
 
 ## Live work — sequenced (Constitution-aligned)
 
 Active work, sequenced under the Constitution (each item answers the five-question test — Capture /
-Validation / Retrieval / Trust / Application — and respects Invariant #6). The **foundation shipped
-2026-07-15**, so the **Ranking & graph quality** trio now leads; the feature tracks follow.
+Validation / Retrieval / Trust / Application — and respects Invariant #6). The foundation and
+memory-quality core shipped 2026-07-15, so **B0a graph/workspace work now leads**.
 
 ### Foundation — derived-projection Phase 1 ✅ SHIPPED 2026-07-15
 
@@ -55,49 +58,38 @@ chunks and recompute whole-history git meta only when HEAD moved, gated behind a
 demands it. **Phase 2** (git-rooted historical integrity, G6/G7) is the next projection increment after the
 trio.
 
-### Ranking & graph quality ← CURRENT LEAD — promoted from inbox 2026-07-14 (sequence: gate → surface → capture)
+### Ranking & graph quality — core SHIPPED 2026-07-15 (gate → surface → capture)
 
-The memory-quality trio from the 2026-07-13 freshness-ranking session, **approved and promoted from the
-inbox 2026-07-14**; **it now leads** (the foundation shipped 2026-07-15). These *are* the product getting
-better (each answers the five-question test), so they sit above the Track A tails. Build in this order —
-the gate first, because the successor boost depends on it:
+The memory-quality trio from the 2026-07-13 freshness-ranking session was approved, implemented in
+dependency order, and closed on 2026-07-15:
 
 1. **`ranking-ab` + the "expose before you rank" amendment** — ✅ **SHIPPED 2026-07-15**.
    [`real-corpus-ranking-validation-gate-proposal.md`](../5_Completed/real-corpus-ranking-validation-gate-proposal.md).
    The reusable `memory-seed ranking-ab` command and graph-edge-contract rule now require a full-corpus
    off/on comparison, intended directional wins, and an unchanged no-affected-hit control before a
    default ranking flip. Five-question → **Validation + Trust**. *The gate for item 2 now exists.*
-2. **`superseding_head` (+ gated replacement boost)** ← **NEXT** —
-   [`supersession-successor-surfacing-proposal.md`](supersession-successor-surfacing-proposal.md).
-   Closes the supersedes/evolves asymmetry: `supersedes` only *damps* the retired entry while `evolves`
-   *surfaces* its successor via the shipped `evolved_head`. Step 1 (`superseding_head`, additive/read-only)
-   can ship now; step 2 (bounded boost) must pass the shipped item 1 A/B gate. Five-question →
-   **Retrieval + Trust**.
-3. **`link audit --apply` sidecar scaffold** —
+2. **`superseding_head` + lineage-bounded replacement boost** — ✅ **SHIPPED 2026-07-15**.
+   [`supersession-successor-surfacing-proposal.md`](../5_Completed/supersession-successor-surfacing-proposal.md).
+   Additive successor exposure shipped first; the bounded boost then passed the full-corpus A/B gate.
+   Five-question → **Retrieval + Trust**.
+3. **`link audit --apply` sidecar scaffold, steps 1–3** — ✅ **SHIPPED 2026-07-15**.
    [`lifecycle-link-authoring-assist-proposal.md`](lifecycle-link-authoring-assist-proposal.md).
-   Scaffolds inert `classify_pending` sidecar stubs (never auto-classifies — author judgment stays,
-   append-only) so lifecycle edges stop getting dropped at session end — which matters more now that
-   supersession damping is on by default (a dropped edge is invisible to ranking). Five-question →
-   **Capture**.
+   Scaffolds inert `classify_pending` sidecar stubs, warns on unresolved stubs, and reports them in ESR.
+   It never auto-classifies or emits a live edge; human classification remains mandatory. Optional steps
+   4–5 are deferred while the shipped workflow is evaluated. Five-question → **Capture**.
 
-### Track A — close the open tails (small, finish-what-shipped)
+### Track A — remaining open tails
 
-1. **`integration_mode` Phases 2–4** — [`configurable-integration-mode-plan.md`](configurable-integration-mode-plan.md).
-   P0.1 (setting + reader + `esr` surfacing) shipped; remaining: the agent contract reads/obeys the mode
-   (skills/agent-rules), PR/`session integrate` tooling, and a bootstrap heuristic. *Unblocks OpenSSF.*
-2. **`topics suggest --from <file>`** — [`memory-trace-topic-neighbourhoods-plan.md`](memory-trace-topic-neighbourhoods-plan.md).
-   The single named item left before that plan is fully done (Phases 0–4 shipped).
-3. **Evolution-edges continuity display in Trail** — [`evolution-edges-plan.md`](evolution-edges-plan.md).
-   P1 + lineage-seeding shipped (2.18.0); the last sub-item of the Trace lineage pass — render
-   `continuity:` chains as a Trail display axis — is unbuilt.
-4. **Related-entries P2** — [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md).
+1. **Related-entries P2** — [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md).
    Approved 2026-07-05, unbuilt: controlled `link add` (current-entry) + explicit historical backfill.
-   Sequence after 1–3; it's a convenience increment, not a blocker.
-5. **Session decision diagrams Phase 3** — [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md).
+   It is a convenience increment, not a blocker.
+2. **Session decision diagrams Phase 3** — [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md).
    Phases 1–2b shipped (sidecars, validation, reader + Trail/Graph badge & zoom viewer). Phase 3
    (exportable report / handover pack) is sizable and **gated on a product greenlight**.
-6. **OpenSSF credibility** — [`openssf-credibility-proposals.md`](openssf-credibility-proposals.md).
-   `SECURITY.md`, a CI gate, G0–G2. Approved-not-built and **blocked on integration-mode Phases 2–3**.
+3. **OpenSSF credibility** — [`openssf-credibility-proposals.md`](openssf-credibility-proposals.md).
+   `SECURITY.md`, a CI gate, and G0–G2 remain approved-not-built. The configurable integration-mode
+   foundation is complete, so this work is **unblocked**; adopting `integration_mode: pr` and branch
+   protection still requires the documented project/user actions.
 
 ### Track B — Memory Trace next generation (the promoted direction, 2026-07-11)
 
@@ -105,16 +97,18 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
 (entry point) → [`memory-trace-next-generation-implementation-roadmap.md`](memory-trace-next-generation-implementation-roadmap.md)
 (Phase 0–10 spine; Phases 0–1 delivered) → [`memory-trace-next-generation-coverage-matrix.md`](memory-trace-next-generation-coverage-matrix.md).
 
-- **B1 — Evidence Pack Builder** *(startable now, small, backend-only)* —
-  [`memory-trace-ai-timeline-summarisation-plan.md`](memory-trace-ai-timeline-summarisation-plan.md) Phase 1.
-  `build_timeline_evidence_pack()`: deterministic JSON over the already-delivered retrieval/graph readers,
-  snapshot-tested, **no write path, no provider**. Owns the near-term "Evidence Pack" implementation; the
-  canonical shape is the spec [`../3_Spec/memory-trace-derived-artifact-provenance-contract.md`](../3_Spec/memory-trace-derived-artifact-provenance-contract.md)
+- **B1 — Evidence Pack Builder** — ✅ **PHASE 1 SHIPPED 2026-07-15**.
+  [`memory-trace-ai-timeline-summarisation-plan.md`](memory-trace-ai-timeline-summarisation-plan.md).
+  `build_timeline_evidence_pack()` now emits deterministic, snapshot-tested JSON over the delivered
+  retrieval/graph readers with **no write path and no provider**. The plan remains active for Phase 2: a
+  disabled-by-default provider interface and local-model adapter whose cited generated output remains
+  non-authoritative. The canonical shape is the spec
+  [`../3_Spec/memory-trace-derived-artifact-provenance-contract.md`](../3_Spec/memory-trace-derived-artifact-provenance-contract.md)
   (blueprint §4.5 and the evidence-annotations doc are forward supersets — do not build a second builder).
-- **B0a — Graph/workspace contract and benchmark** *(pre-React; JNL-endorsed 2026-07-15; proposal set
-  promoted 2026-07-15)* — the reason React is deferred: the graph gets semantic, interaction, and renderer
-  attention before any React rebuild, without implementing the same UI twice. Sits after the trio and
-  **before B2**. Coordinating index:
+- **B0a — Graph/workspace contract and benchmark** ← **CURRENT LEAD** *(pre-React; JNL-endorsed
+  2026-07-15; proposal set promoted 2026-07-15)* — the reason React is deferred: the graph gets semantic,
+  interaction, and renderer attention before any React rebuild, without implementing the same UI twice.
+  Sits **before B2**. Coordinating index:
   [`memory-trace-graph-and-workspace-proposal-set-index.md`](memory-trace-graph-and-workspace-proposal-set-index.md).
   B0a makes the decisions and produces the evidence B2/B0b must consume:
   1. **Shell behaviour / shared-selection contract** —

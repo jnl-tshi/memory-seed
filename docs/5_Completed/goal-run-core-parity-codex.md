@@ -17,7 +17,7 @@ run (`goal-run-trace-surface-claude.md`) - different packages, minimal collision
   workflow contract, heavily updated in 2.18.
 - `docs/3_Spec/lifecycle-edge-linking-sidecars.md` - your item 1's spec, including the stated MCP
   scope boundary you are removing.
-- `docs/2_Todo/memory-trace-topic-neighbourhoods-plan.md` Phase 4 - your item 2 (the MCP half
+- `docs/5_Completed/memory-trace-topic-neighbourhoods-plan.md` Phase 4 - your item 2 (the MCP half
   only; Claude owns the Trace-rendering half - do not touch `memory-trace/`).
 - `docs/2_Todo/residual-fuse-non-utf8-silent-skip.md` - your item 3.
 - `docs/2_Todo/agent-worktree-namespace-guard-plan.md` - your item 4.

@@ -69,6 +69,18 @@ class OpenApiContractFixtureTests(unittest.TestCase):
         for name in ("GraphNode", "TrailEvent"):
             self.assertIn("provenance_class", schemas[name]["properties"], name)
 
+    def test_continuity_schema_uses_ordered_kind_from_to_shape(self):
+        schemas = self.fixture["components"]["schemas"]
+        continuity = schemas["ContinuityItem"]
+        self.assertEqual(set(continuity["required"]), {"kind", "from"})
+        self.assertIn("to", continuity["properties"])
+        self.assertEqual(
+            set(continuity["properties"]),
+            {"kind", "from", "to"},
+        )
+        for name in ("ChunkResponse", "GraphNode", "TrailEvent", "SearchResult"):
+            self.assertIn("continuity", schemas[name]["properties"], name)
+
     def test_fixture_matches_live_app_filtering(self):
         import os
         import shutil

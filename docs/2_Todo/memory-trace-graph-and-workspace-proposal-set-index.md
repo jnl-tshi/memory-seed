@@ -294,7 +294,9 @@ Structural providers extend decisions into implementation evidence without weake
 
 ### 6.5 Impact plus Evidence Packs
 
-A selected decision can generate a bounded evidence chain:
+The deterministic timeline Evidence Pack builder shipped 2026-07-15. B0a/B0b should reuse that builder
+and extend its bounded structural inputs rather than create a second evidence-pack authority. A selected
+decision can later generate a richer chain:
 
 ```text
 Decision → Commit → File → Symbol → Dependants → Tests
@@ -302,7 +304,9 @@ Decision → Commit → File → Symbol → Dependants → Tests
 
 ### 6.6 Drift detection plus continuity
 
-Continuity mappings and structural indexes can identify removed, renamed, or replaced implementation artifacts that no longer match active decisions.
+The shipped Trail continuity axis already derives rename, migration, and removal lanes from authored
+`continuity:` records without inventing graph edges. Future structural indexes may identify drift against
+those records, but must preserve that authored/derived boundary.
 
 ## 7. Decisions that should remain open until prototyping
 

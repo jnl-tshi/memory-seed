@@ -1,5 +1,7 @@
 ---
 memory-system-version: 2.18
+implemented_by: 46c69a6
+shipped: 2026-07-15
 tags:
   - memory-seed
   - proposal
@@ -10,13 +12,12 @@ tags:
 
 # Configurable integration mode (`local-merge` vs `pr`)
 
-Status: **IN PROGRESS** (2026-07-13) — **Phase 1 shipped** (the `integration_mode` field in `project.yaml`
-+ core reader + `esr` surfacing); **Phases 2–4 pending** (Phase 2 = agent contract: skills/agent-rules read
-and follow the mode; Phase 3 = PR-push/`session integrate` tooling; Phase 4 = bootstrap heuristic — see the
-Phases section below). Stays in `docs/2_Todo/`.
-Priority: P2 — foundational control-plane feature; the OpenSSF credibility work (`openssf-credibility-proposals.md`)
-sits on top of it. Sequence this **before** that plan's PR/branch-protection step (G2), which becomes
-"set this repo to `pr` and follow it."
+Status: **SHIPPED 2026-07-15.** All four phases landed: setting/readers/health surfacing, live+seed agent
+contract, mode-aware `session integrate` plus `session open-pr` branch preparation/push/PR tooling, and
+the human-confirmed bootstrap suggestion heuristic.
+Disposition: Completed and moved from `docs/2_Todo/` to `docs/5_Completed/` on 2026-07-15.
+Priority: Completed P2 foundational control-plane feature. The OpenSSF credibility plan may now consume
+`integration_mode: pr` for its PR/branch-protection work.
 Source: User 2026-07-13 — "have the option to support both the PR + branch-protection workflow and
 the direct-merge-to-local-main flow… based on user decision and whether it's a solo dev or a team."
 Scope: Add a declared, project-local **integration mode** that governs how branch work lands, and make
@@ -67,7 +68,7 @@ session entries in chronological order, **resets session paths to defeat git's s
 auto-merge**, and stamps trailers. In `pr` mode the actual merge happens on GitHub, which runs none of
 that — so a naïve "just push and PR" risks interleaved/out-of-order session entries on merge.
 
-**Proposed resolution: prepare the branch so the host merge is trivially clean.** Before pushing, the
+**Implemented resolution: prepare the branch so the host merge is trivially clean.** Before pushing, the
 `pr`-mode integrate step brings the branch up to date with `main` and lays its session entries into
 their correct chronological position **as commits on the branch** (reusing the fuse's chronology
 logic, applied branch-side rather than merge-side), with trailers stamped by the existing
@@ -76,41 +77,42 @@ logic, applied branch-side rather than merge-side), with trailers stamped by the
 This branch-prep is the main implementation risk and should be prototyped first.
 
 ## Tooling
-A mode-aware entry point dispatches on `integration_mode`:
+A shipped mode-aware entry point dispatches on `integration_mode`:
 - `local-merge` → the existing `session merge-branch` (unchanged).
-- `pr` → a new push→PR primitive: fuse **dry-run as a gate** (must pass), branch-prep (above), push,
+- `pr` → the `session open-pr` push→PR primitive: fuse **dry-run as a gate** (must pass), branch-prep, push,
   then `gh pr create` with a body summarising the branch's session entries + validation evidence.
 - **Preflight for `pr`:** an `origin` remote must exist and `gh` be available/authenticated; fail with
   a clear message if not (a purely local project cannot PR — tell the user to use `local-merge`).
 
-Naming is open — either a unified `session integrate --branch <b>` that dispatches, keeping
-`merge-branch` as the explicit local primitive and adding e.g. `session open-pr`; or teaching
-`merge-branch` the mode (rejected: "merge-branch" is the wrong name for a flow that doesn't merge
-locally). Recommendation: `session integrate` dispatcher + `merge-branch` (local) + `open-pr` (pr).
+The shipped command set is `session integrate` (dispatcher), `session merge-branch` (local primitive),
+and `session open-pr` (PR primitive).
 
 ## Bootstrap heuristic (suggest, never switch)
-At bootstrap/init, detect team signals — branch protection already on `main`, >1 collaborator, or
+At bootstrap/init, the shipped heuristic detects team signals — branch protection on `main`, >1 collaborator, or
 existing PRs (via `gh`, fail-open) — and **suggest** `pr`; otherwise default `local-merge`. The human
 confirms the written value. Never flip an existing project's mode automatically.
 
 ## Agent contract (skills)
-`agent-rules.md` + `agent_collaboration.md` (live + seed) gain a short rule: **read
+`agent-rules.md` + `agent_collaboration.md` (live + seed) now require agents to **read
 `project.yaml: integration_mode` and follow it.** In `local-merge`, integrate via `session
 merge-branch` and do not push. In `pr`, integrate via the push→PR primitive; the declared mode is the
 standing push authorization for that normal flow. `session_logging.md`'s handoff guidance references
 whichever integration artifact the mode produces. Unset ⇒ `local-merge`.
 
 ## Phases
-1. **Setting + readers:** `integration_mode` in `project.yaml`; a core reader (fail-open, default
+1. **SHIPPED — setting + readers:** `integration_mode` in `project.yaml`; a core reader (fail-open, default
    `local-merge`); `esr`/`doctor` surface the active mode. Tests.
-2. **Agent contract:** skills + agent-rules read and follow the mode (live + seed twins); safety-rule
+2. **SHIPPED — agent contract:** skills + agent-rules read and follow the mode (live + seed twins); safety-rule
    interaction documented. Tests / startup-contract line-budget check.
-3. **`pr` tooling:** the branch-prep + push + `gh pr create` primitive and the `session integrate`
+3. **SHIPPED — `pr` tooling:** the branch-prep + push + `gh pr create` primitive and the `session integrate`
    dispatcher, with the `origin`/`gh` preflight. Tests over a temp git repo (mock/skip the actual
    `gh` call; assert the prepared branch and the PR-body plan).
-4. **Bootstrap heuristic:** suggest-`pr` detection at init; `update` preserves the field.
+4. **SHIPPED — bootstrap heuristic:** suggest-`pr` detection at init; `update` preserves the field.
 
 ## Acceptance criteria
+
+All criteria passed on 2026-07-15 in temporary-repository, CLI-dispatch, bootstrap, preservation,
+preflight, and live/seed parity tests.
 - `project.yaml` carries `integration_mode`; default and unset both behave as `local-merge` (no
   regression to current flows).
 - The agent contract makes `local-merge` (no push) vs `pr` (push→PR) unambiguous, and a declared `pr`
@@ -123,5 +125,5 @@ whichever integration artifact the mode produces. Unset ⇒ `local-merge`.
 ## Relationship to the OpenSSF credibility plan
 This is the foundation that plan's **G2** consumes: rather than a one-off "adopt PR flow," this repo
 simply declares `integration_mode: pr` and everything (agent + tooling + the OpenSSF branch-protection
-step) follows. A solo project stays `local-merge`. Sequence: this proposal's Phases 1–3, then the
-OpenSSF plan.
+step) follows. A solo project stays `local-merge`. The dependency is now satisfied; the OpenSSF plan
+can proceed independently.

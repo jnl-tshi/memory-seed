@@ -31,6 +31,7 @@ from .semantic_cache import (
     evolves_lineage_heads,
     extract_memory_chunks,
     rank_session_memory,
+    superseding_lineage_heads,
 )
 
 
@@ -74,6 +75,7 @@ def search_memory(
     date_to: date | None = None,
     exclude_superseded: bool = False,
     supersession_damping: bool = True,
+    superseding_successor_boost: bool = True,
     topics: list[str] | None = None,
 ) -> dict[str, Any]:
     """Search session memory and return the canonical result payload.
@@ -93,6 +95,13 @@ def search_memory(
     Graduated to default-on after validation on the real corpus (both YAML- and
     sidecar-authored supersession lineages surfaced the live replacement above the
     decisions it retired, with no effect on queries lacking a superseded hit).
+
+    ``superseding_successor_boost`` is the separate, bounded successor-lift
+    signal from supersession-successor-surfacing-proposal.md. It is ON by
+    default here after fixture coverage plus the real-corpus ``ranking-ab`` gate
+    passed. Pass ``False`` to restore damp-only ordering. Even when enabled,
+    only terminal live replacements that already match the query can be lifted;
+    nothing is hard-injected.
     """
     provider, provider_name, fallback_reason = resolve_semantic_provider(
         query,
@@ -122,6 +131,7 @@ def search_memory(
         date_to=date_to,
         exclude_superseded=exclude_superseded,
         supersession_damping=supersession_damping,
+        superseding_successor_boost=superseding_successor_boost,
         chunks=chunks,
         topics=topic_filter,
     )
@@ -143,6 +153,7 @@ def search_memory(
         entry_id = result.get("entry_id") or ""
         node = graph.get(entry_id)
         result["superseded_by"] = list(node.superseded_by) if node else []
+        result["superseding_head"] = list(superseding_lineage_heads(graph, entry_id))
         result["evolved_by"] = list(node.evolved_by) if node else []
         # Evolves successor-surfacing (freshness-aware-memory-ranking-proposal.md
         # item 2): point an evolved-but-still-valid hit at the head of its
@@ -178,13 +189,16 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
         raise ValueError(f"chunk_id not found: {chunk_id}")
     payload = chunk_to_dict(found)
     superseded_by: list[str] = []
+    superseding_head: list[str] = []
     evolved_by: list[str] = []
     inbound_relation_count = 0
     importance_score = 0.0
+    graph = build_related_entry_graph(chunks=entry_chunks)
     if found.entry_id:
-        node = build_related_entry_graph(chunks=entry_chunks).get(found.entry_id)
+        node = graph.get(found.entry_id)
         if node is not None:
             superseded_by = list(node.superseded_by)
+            superseding_head = list(superseding_lineage_heads(graph, found.entry_id))
             # Read-time-only inverse of evolves: newer entries that extend this
             # decision while it stays valid. Never stored, never dampens.
             evolved_by = list(node.evolved_by)
@@ -204,6 +218,7 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
             commit_reference_ids(resolve_runtime(cwd).workspace_root, found.entry_id, found.commits)
         )
     payload["superseded_by"] = superseded_by
+    payload["superseding_head"] = superseding_head
     payload["evolved_by"] = evolved_by
     payload["inbound_relation_count"] = inbound_relation_count
     payload["importance_score"] = importance_score
@@ -434,6 +449,17 @@ class LinkGap:
     candidates: tuple[LinkGapCandidate, ...]
 
 
+@dataclass(frozen=True)
+class LinkAuditApplyResult:
+    path: Path
+    added_entry_ids: tuple[str, ...]
+    skipped_entry_ids: tuple[str, ...]
+
+    @property
+    def changed(self) -> bool:
+        return bool(self.added_entry_ids)
+
+
 def audit_link_gaps(
     cwd: str | Path = ".",
     *,
@@ -564,6 +590,144 @@ def audit_link_gaps(
                 )
             )
     return gaps
+
+
+def apply_link_gap_stubs(
+    gaps: Iterable[LinkGap],
+    *,
+    session_date: str,
+    cwd: str | Path = ".",
+) -> LinkAuditApplyResult:
+    """Add inert classification stubs to one dated link sidecar.
+
+    Existing sidecar blocks are never changed. New blocks are inserted by the
+    source entry's timestamp, carry only ``classify_pending: true`` plus
+    comment-only candidate evidence, and are skipped when any sidecar block
+    already exists for that source entry. Session entries are read only.
+    """
+    from .core import _parse_frontmatter_scalars, resolve_runtime
+    from .semantic_cache import _entry_order_key, extract_memory_chunks
+    from .text_files import read_text_file, write_text_file
+
+    try:
+        parsed_date = date.fromisoformat(session_date)
+    except ValueError as exc:
+        raise ValueError(f"Invalid session date: {session_date}") from exc
+    if parsed_date.isoformat() != session_date:
+        raise ValueError(f"Invalid session date: {session_date}")
+
+    runtime = resolve_runtime(cwd)
+    target = (
+        runtime.memory_dir
+        / "sessions"
+        / "links"
+        / session_date[:7]
+        / f"{session_date}.md"
+    )
+    gap_list = list(gaps)
+    existing_sources = set(entry_link_sidecars(cwd))
+    pending = [gap for gap in gap_list if gap.entry_id not in existing_sources]
+    skipped = tuple(gap.entry_id for gap in gap_list if gap.entry_id in existing_sources)
+    if not pending:
+        return LinkAuditApplyResult(path=target, added_entry_ids=(), skipped_entry_ids=skipped)
+
+    chunks = {
+        chunk.entry_id: chunk
+        for chunk in extract_memory_chunks(cwd, granularity="entry")
+        if chunk.entry_id
+    }
+    missing = [gap.entry_id for gap in pending if gap.entry_id not in chunks]
+    if missing:
+        raise ValueError(f"Cannot scaffold unknown entry_id(s): {', '.join(missing)}")
+    for gap in pending:
+        chunk = chunks[gap.entry_id]
+        if chunk.session_date.isoformat() != session_date:
+            raise ValueError(
+                f"entry_id {gap.entry_id} belongs to {chunk.session_date.isoformat()}, not {session_date}"
+            )
+        if chunk.entry_datetime is None:
+            raise ValueError(f"entry_id {gap.entry_id} has no parseable heading timestamp")
+
+    frontmatter = "\n".join(
+        [
+            "---",
+            "tags:",
+            "  - session-log-links",
+            f"link_date: {session_date}",
+            "---",
+            "",
+        ]
+    )
+    existing = ""
+    existing_blocks: list[re.Match[str]] = []
+    if target.exists():
+        existing = read_text_file(target)
+        frontmatter_match = re.match(r"\A---\s*\n(.*?)^---\s*\n", existing, re.MULTILINE | re.DOTALL)
+        if frontmatter_match is None:
+            raise ValueError(f"Existing link sidecar has no frontmatter: {target}")
+        scalars = _parse_frontmatter_scalars(frontmatter_match.group(1))
+        has_tag = bool(re.search(r"^\s*-\s*session-log-links\s*$", frontmatter_match.group(1), re.MULTILINE))
+        if scalars.get("link_date") != session_date or not has_tag:
+            raise ValueError(f"Existing link sidecar has incorrect frontmatter: {target}")
+        existing_blocks = list(_LINK_ENTRY_RE.finditer(existing))
+        if existing[frontmatter_match.end():].strip() and not existing_blocks:
+            raise ValueError(f"Existing link sidecar has no parseable entry blocks: {target}")
+        timestamps = [match.group(1) for match in existing_blocks]
+        if timestamps != sorted(timestamps):
+            raise ValueError(f"Existing link sidecar blocks are not chronological: {target}")
+    else:
+        existing = frontmatter
+
+    def render_stub(gap: LinkGap) -> tuple[str, str, str]:
+        chunk = chunks[gap.entry_id]
+        timestamp = chunk.entry_datetime.strftime("%Y-%m-%d %H:%M")
+        lines = [
+            f"## {chunk.title}",
+            "",
+            "```yaml",
+            f"entry_id: {gap.entry_id}",
+            "classify_pending: true",
+            "# candidates (evidence):",
+        ]
+        for candidate in gap.candidates:
+            evidence: list[str] = []
+            if candidate.shared_files:
+                evidence.append(f"files: {', '.join(candidate.shared_files)}")
+            if candidate.shared_topics:
+                evidence.append(f"topics: {', '.join(candidate.shared_topics)}")
+            if candidate.already_related:
+                evidence.append("already related; consider a lifecycle upgrade")
+            suffix = f"  # {' | '.join(evidence)}" if evidence else ""
+            lines.append(f"#   - {candidate.entry_id}{suffix}")
+        lines.extend(["```", ""])
+        return timestamp, gap.entry_id, "\n".join(lines)
+
+    rendered = [render_stub(gap) for gap in sorted(pending, key=lambda gap: _entry_order_key(chunks[gap.entry_id]))]
+    insertions: dict[int, list[tuple[str, str, str]]] = {}
+    for item in rendered:
+        timestamp = item[0]
+        offset = next(
+            (match.start() for match in existing_blocks if match.group(1) > timestamp),
+            len(existing),
+        )
+        insertions.setdefault(offset, []).append(item)
+
+    updated = existing
+    for offset in sorted(insertions, reverse=True):
+        items = sorted(insertions[offset], key=lambda item: (item[0], item[1]))
+        addition = "\n".join(item[2].rstrip("\n") for item in items) + "\n\n"
+        prefix = updated[:offset]
+        suffix = updated[offset:]
+        if prefix and not prefix.endswith("\n\n"):
+            prefix = prefix + ("\n" if prefix.endswith("\n") else "\n\n")
+        updated = prefix + addition + suffix
+
+    write_text_file(target, updated.rstrip("\n") + "\n")
+    return LinkAuditApplyResult(
+        path=target,
+        added_entry_ids=tuple(item[1] for item in rendered),
+        skipped_entry_ids=skipped,
+    )
 
 
 def format_search_results(

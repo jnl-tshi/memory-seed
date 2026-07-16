@@ -22,19 +22,26 @@ from .core import (
     init_project,
     migrate_session_month_layout,
     migrate_session_layout,
+    read_declared_integration_mode,
+    read_integration_mode,
     read_local_user,
     read_project_agents,
     remove_agent,
     remove_skill,
     resolve_agents,
+    resolve_runtime,
     selected_agents,
     session_fuse,
+    session_open_pr,
+    session_prepare_pr_branch,
     session_merge_branch,
     session_target,
     skill_status,
+    suggest_integration_mode,
     update_project,
     worktree_guard,
     write_local_user,
+    write_integration_mode,
 )
 from .text_files import (
     encoding_issue_to_dict,
@@ -80,6 +87,35 @@ def _split_csv(value: str | None) -> set[str]:
 def _format_agents(agents: set[str]) -> str:
     ordered = [agent for agent in KNOWN_AGENTS if agent in agents]
     return ", ".join(ordered) if ordered else "(none)"
+
+
+def _resolve_init_integration_mode(
+    target_root: Path,
+    *,
+    requested_mode: str | None,
+    isatty: bool,
+) -> tuple[str, bool]:
+    declared_mode = read_declared_integration_mode(target_root)
+    if declared_mode is not None:
+        return declared_mode, False
+    if requested_mode is not None:
+        return requested_mode, True
+    if not isatty:
+        return "local-merge", True
+
+    suggested_mode, reason = suggest_integration_mode(target_root)
+    print("How should branch work be integrated?")
+    print("  - local-merge: merge into local main only; never pushes")
+    print("  - pr: prepare the branch, push it normally, and open a pull request")
+    print(f"Suggested: {suggested_mode} ({reason}). Existing projects are never switched automatically.")
+    try:
+        response = input(f"integration-mode [{suggested_mode}]> ")
+    except EOFError:
+        response = ""
+    chosen_mode = response.strip().lower() or suggested_mode
+    if chosen_mode not in {"local-merge", "pr"}:
+        raise ValueError("Unknown integration mode. Valid modes: local-merge, pr.")
+    return chosen_mode, True
 
 
 def _print_skill_status(status) -> None:
@@ -152,6 +188,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="skip interactive skill selection and install the minimal core unless flags are supplied",
     )
+    init_parser.add_argument(
+        "--integration-mode",
+        choices=["local-merge", "pr"],
+        default=None,
+        help="write .memory-seed/project.yaml integration_mode explicitly (default: prompt in interactive init, else local-merge)",
+    )
 
     skills_parser = subparsers.add_parser("skills", help="manage optional Memory Seed skills")
     skills_sub = skills_parser.add_subparsers(dest="skills_command", required=True)
@@ -220,6 +262,39 @@ def main(argv: list[str] | None = None) -> int:
     )
     session_merge_parser.add_argument("--branch", required=True, help="task branch to merge into the current branch")
     session_merge_parser.add_argument("--dry-run", action="store_true", help="preview the fuse plan without merging")
+    session_prepare_pr_parser = session_sub.add_parser(
+        "prepare-pr",
+        help="prepare the current task branch for a host-side PR merge by replaying session chronology locally",
+    )
+    session_prepare_pr_parser.add_argument("--branch", required=True, help="current task branch to prepare")
+    session_prepare_pr_parser.add_argument(
+        "--base-branch",
+        default=None,
+        help="target integration branch (default: infer from main/master/origin HEAD; fail closed when ambiguous)",
+    )
+    session_prepare_pr_parser.add_argument("--dry-run", action="store_true", help="preview the preparation plan without merging")
+    session_open_pr_parser = session_sub.add_parser(
+        "open-pr",
+        help="prepare the current task branch, push it normally, and create a PR with gh",
+    )
+    session_open_pr_parser.add_argument("--branch", required=True, help="current task branch to push and open as a PR")
+    session_open_pr_parser.add_argument(
+        "--base-branch",
+        default=None,
+        help="target integration branch (default: infer from main/master/origin HEAD; fail closed when ambiguous)",
+    )
+    session_open_pr_parser.add_argument("--dry-run", action="store_true", help="preview the PR plan without pushing or creating it")
+    session_integrate_parser = session_sub.add_parser(
+        "integrate",
+        help="dispatch branch integration according to .memory-seed/project.yaml integration_mode",
+    )
+    session_integrate_parser.add_argument("--branch", required=True, help="task branch to integrate")
+    session_integrate_parser.add_argument(
+        "--base-branch",
+        default=None,
+        help="PR-mode target branch (default: infer from main/master/origin HEAD; ignored by local-merge)",
+    )
+    session_integrate_parser.add_argument("--dry-run", action="store_true", help="preview the chosen integration flow without writing")
     session_append_parser = session_sub.add_parser(
         "append",
         help="append a session entry with structure enforced (id, chronology, refs, topics); body from --body-file or stdin",
@@ -293,6 +368,17 @@ def main(argv: list[str] | None = None) -> int:
         "check",
         help="validate vocabulary shape and entry topics: usage (exit 1 on any error)",
     )
+    topics_suggest = topics_sub.add_parser(
+        "suggest",
+        help="suggest controlled topics for a UTF-8 file (read-only)",
+    )
+    topics_suggest.add_argument(
+        "--from",
+        dest="from_path",
+        required=True,
+        metavar="FILE",
+        help="file to inspect for topic suggestions",
+    )
 
     links_parser = subparsers.add_parser("links", help="validate session-memory integrity")
     links_sub = links_parser.add_subparsers(dest="links_command", required=True)
@@ -330,7 +416,7 @@ def main(argv: list[str] | None = None) -> int:
     link_suggest.add_argument("--top-k", type=int, default=5, help="number of candidates to show (default: 5)")
     link_audit = link_sub.add_parser(
         "audit",
-        help="find entries that share files/topics but have no recorded edge (read-only)",
+        help="find entries that share files/topics but have no recorded edge",
     )
     link_audit.add_argument(
         "--for",
@@ -347,6 +433,11 @@ def main(argv: list[str] | None = None) -> int:
         help="audit only entries from this session date (the end-of-session sweep scope)",
     )
     link_audit.add_argument("--top-k", type=int, default=5, help="candidates per entry (default: 5)")
+    link_audit.add_argument(
+        "--apply",
+        action="store_true",
+        help="write inert classify_pending stubs for --date gaps; never writes a live edge",
+    )
     link_show = link_sub.add_parser(
         "show",
         help="show outbound edges and computed inbound backlinks for an entry",
@@ -528,6 +619,181 @@ def main(argv: list[str] | None = None) -> int:
             )
             if result.issues:
                 print("Session merge-branch blocked:", file=sys.stderr)
+                for issue in result.issues:
+                    print(f"  - {issue}", file=sys.stderr)
+                if result.merge_in_progress:
+                    print(
+                        "The git merge was left in progress; resolve and commit manually, or git merge --abort.",
+                        file=sys.stderr,
+                    )
+                return 1
+            if result.conflicts:
+                print("Non-session conflicts require manual resolution:", file=sys.stderr)
+                for path in result.conflicts:
+                    print(f"  - {path}", file=sys.stderr)
+                print(
+                    "The git merge was left in progress; resolve these paths, then run "
+                    "'memory-seed session fuse --branch <branch> --apply' and commit.",
+                    file=sys.stderr,
+                )
+                return 1
+            entry_verb = "Would import" if args.dry_run else "Imported"
+            diagram_verb = "Would import diagram" if args.dry_run else "Imported diagram"
+            remove_verb = "Would remove source" if args.dry_run else "Removed source"
+            for planned in result.planned_entries:
+                print(f"{entry_verb}: {planned}")
+            for planned in result.planned_sidecars:
+                print(f"{diagram_verb}: {planned}")
+            for source in result.removed_sources:
+                print(f"{remove_verb}: {source}")
+            if result.already_present:
+                for entry_id in sorted(set(result.already_present)):
+                    if entry_id:
+                        print(f"Already present: {entry_id}")
+            if args.dry_run:
+                print("Dry run - no merge performed. Rerun without --dry-run to merge and fuse.")
+            elif result.committed:
+                print("Merge committed.")
+                if result.stamped_entries:
+                    print(f"Stamped {len(result.stamped_entries)} Memory-Entry trailer(s) on the merge commit.")
+            else:
+                print(f"Branch {args.branch} is already merged into HEAD; nothing to do.")
+            return 0
+        if args.session_command == "prepare-pr":
+            result = session_prepare_pr_branch(
+                cwd=Path(".").resolve(),
+                branch=args.branch,
+                base_branch=args.base_branch,
+                dry_run=args.dry_run,
+            )
+            if result.issues:
+                print("Session prepare-pr blocked:", file=sys.stderr)
+                for issue in result.issues:
+                    print(f"  - {issue}", file=sys.stderr)
+                if result.merge_in_progress:
+                    print(
+                        "The git merge was left in progress; resolve and commit manually, or git merge --abort.",
+                        file=sys.stderr,
+                    )
+                return 1
+            if result.conflicts:
+                print("Non-session conflicts require manual resolution:", file=sys.stderr)
+                for path in result.conflicts:
+                    print(f"  - {path}", file=sys.stderr)
+                print(
+                    "The git merge was left in progress; resolve these paths on the task branch, then rerun "
+                    "'memory-seed session prepare-pr --branch <branch>'.",
+                    file=sys.stderr,
+                )
+                return 1
+            entry_verb = "Would prepare" if args.dry_run else "Prepared"
+            diagram_verb = "Would prepare diagram" if args.dry_run else "Prepared diagram"
+            remove_verb = "Would remove source" if args.dry_run else "Removed source"
+            for planned in result.planned_entries:
+                print(f"{entry_verb}: {planned}")
+            for planned in result.planned_sidecars:
+                print(f"{diagram_verb}: {planned}")
+            for source in result.removed_sources:
+                print(f"{remove_verb}: {source}")
+            if result.already_present:
+                for entry_id in sorted(set(result.already_present)):
+                    if entry_id:
+                        print(f"Already present: {entry_id}")
+            if args.dry_run:
+                print("Dry run - no branch merge performed.")
+            elif result.changed:
+                print("Branch prep committed.")
+                if result.stamped_entries:
+                    print(f"Stamped {len(result.stamped_entries)} Memory-Entry trailer(s) on the prep commit.")
+            else:
+                print(f"Branch {args.branch} is already up to date with {result.base_branch}; nothing to do.")
+            return 0
+        if args.session_command == "open-pr":
+            result = session_open_pr(
+                cwd=Path(".").resolve(),
+                branch=args.branch,
+                base_branch=args.base_branch,
+                dry_run=args.dry_run,
+            )
+            if result.issues:
+                print("Session open-pr blocked:", file=sys.stderr)
+                for issue in result.issues:
+                    print(f"  - {issue}", file=sys.stderr)
+                return 1
+            if result.conflicts:
+                print("Non-session conflicts require manual resolution:", file=sys.stderr)
+                for path in result.conflicts:
+                    print(f"  - {path}", file=sys.stderr)
+                return 1
+            for planned in result.planned_entries:
+                print(f"Prepared entry: {planned}")
+            for planned in result.planned_sidecars:
+                print(f"Prepared diagram: {planned}")
+            for source in result.removed_sources:
+                print(f"Removed source: {source}")
+            if result.already_present:
+                for entry_id in sorted(set(result.already_present)):
+                    if entry_id:
+                        print(f"Already present: {entry_id}")
+            if result.pr_title:
+                print(f"PR title: {result.pr_title}")
+            if result.pr_body:
+                print("PR body:")
+                print(result.pr_body)
+            if args.dry_run:
+                print("Dry run - no push or PR performed.")
+            else:
+                if result.pushed:
+                    print(f"Pushed branch {args.branch} to {result.remote_name}.")
+                if result.opened:
+                    print(f"PR created: {result.pr_url or '(no URL reported)'}")
+            return 0
+        if args.session_command == "integrate":
+            mode = read_integration_mode(Path(".").resolve())
+            print(f"Integration mode: {mode}")
+            if mode == "pr":
+                result = session_open_pr(
+                    cwd=Path(".").resolve(),
+                    branch=args.branch,
+                    base_branch=args.base_branch,
+                    dry_run=args.dry_run,
+                )
+                if result.issues:
+                    print("Session integrate blocked:", file=sys.stderr)
+                    for issue in result.issues:
+                        print(f"  - {issue}", file=sys.stderr)
+                    return 1
+                if result.conflicts:
+                    print("Non-session conflicts require manual resolution:", file=sys.stderr)
+                    for path in result.conflicts:
+                        print(f"  - {path}", file=sys.stderr)
+                    return 1
+                for planned in result.planned_entries:
+                    print(f"Prepared entry: {planned}")
+                for planned in result.planned_sidecars:
+                    print(f"Prepared diagram: {planned}")
+                for source in result.removed_sources:
+                    print(f"Removed source: {source}")
+                if result.pr_title:
+                    print(f"PR title: {result.pr_title}")
+                if result.pr_body:
+                    print("PR body:")
+                    print(result.pr_body)
+                if args.dry_run:
+                    print("Dry run - no push or PR performed.")
+                else:
+                    if result.pushed:
+                        print(f"Pushed branch {args.branch} to {result.remote_name}.")
+                    if result.opened:
+                        print(f"PR created: {result.pr_url or '(no URL reported)'}")
+                return 0
+            result = session_merge_branch(
+                cwd=Path(".").resolve(),
+                branch=args.branch,
+                dry_run=args.dry_run,
+            )
+            if result.issues:
+                print("Session integrate blocked:", file=sys.stderr)
                 for issue in result.issues:
                     print(f"  - {issue}", file=sys.stderr)
                 if result.merge_in_progress:
@@ -785,15 +1051,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "links":
         if args.links_command == "check":
             result = check_session_links(cwd=Path(".").resolve())
+            warnings = [issue for issue in result.issues if issue.severity == "warning"]
+            errors = [issue for issue in result.issues if issue.severity == "error"]
+            for issue in warnings:
+                print(f"  [warning] [{issue.kind}] {issue.file}: {issue.detail}")
             if result.ok:
                 print(f"Session memory integrity OK ({result.files_checked} file(s) checked).")
                 return 0
             print(
-                f"Session memory integrity: {len(result.issues)} issue(s) across "
+                f"Session memory integrity: {len(errors)} error(s) across "
                 f"{result.files_checked} file(s):",
                 file=sys.stderr,
             )
-            for issue in result.issues:
+            for issue in errors:
                 print(f"  [{issue.kind}] {issue.file}: {issue.detail}", file=sys.stderr)
             return 1
 
@@ -842,7 +1112,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
     if args.command == "topics":
-        from .topics import check_topics, load_topic_index
+        from .topics import TopicSuggestError, check_topics, load_topic_index, suggest_topics_from_file
 
         if args.topics_command == "list":
             index = load_topic_index(Path(".").resolve())
@@ -871,6 +1141,33 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             print("Topic vocabulary has errors.", file=sys.stderr)
             return 1
+        if args.topics_command == "suggest":
+            try:
+                source, suggestions = suggest_topics_from_file(args.from_path, cwd=Path(".").resolve())
+            except TopicSuggestError as exc:
+                print(exc.detail, file=sys.stderr)
+                return 1
+            print(f"Suggested topics for {source}:")
+            if not suggestions:
+                print("  (no controlled topics matched this file)")
+                return 0
+            for item in suggestions:
+                aliases = f"  aliases: {', '.join(item.topic.aliases)}" if item.topic.aliases else ""
+                print(f"  {item.topic.slug}  (score {item.score:.1f})")
+                if item.topic.label:
+                    print(f"    label: {item.topic.label}")
+                if item.topic.description:
+                    print(f"    description: {item.topic.description}")
+                if aliases:
+                    print(aliases)
+                why = ", ".join(f"{field}: {', '.join(terms)}" for field, terms in item.evidence)
+                print(f"    why: {why}")
+            print()
+            print("Paste into the entry's YAML:")
+            print("topics:")
+            for item in suggestions:
+                print(f"  - {item.topic.slug}")
+            return 0
 
     if args.command == "link":
         from .semantic_cache import build_related_entry_graph, suggest_related_entries
@@ -901,7 +1198,14 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  - {item.chunk.entry_id}")
             return 0
         if args.link_command == "audit":
-            from .retrieval import audit_link_gaps
+            from .retrieval import apply_link_gap_stubs, audit_link_gaps
+
+            if args.apply and args.audit_date is None:
+                print("link audit --apply requires --date YYYY-MM-DD", file=sys.stderr)
+                return 2
+            if args.apply and args.for_entry is not None:
+                print("link audit --apply cannot be combined with --for", file=sys.stderr)
+                return 2
 
             try:
                 gaps = audit_link_gaps(
@@ -929,9 +1233,23 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"       {' | '.join(evidence)}")
             print()
             print("Litmus: retires it -> supersedes; refines while it stays valid -> evolves; else related.")
+            if args.apply:
+                try:
+                    applied = apply_link_gap_stubs(gaps, session_date=args.audit_date, cwd=cwd)
+                except (OSError, UnicodeDecodeError, ValueError) as exc:
+                    print(f"Could not apply link-audit stubs: {exc}", file=sys.stderr)
+                    return 1
+                try:
+                    display_path = applied.path.relative_to(resolve_runtime(cwd).workspace_root).as_posix()
+                except ValueError:
+                    display_path = applied.path.as_posix()
+                if applied.changed:
+                    print(f"Applied {len(applied.added_entry_ids)} inert stub(s) to {display_path}.")
+                else:
+                    print(f"No stubs added; every audited entry already has a sidecar block in {display_path}.")
             return 0
         if args.link_command == "show":
-            from .core import commit_reference_ids, resolve_runtime
+            from .core import commit_reference_ids
             from .retrieval import augment_chunks_with_link_sidecars
             from .semantic_cache import extract_memory_chunks
 
@@ -971,7 +1289,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  commit_reference_count: {len(commit_refs)}")
             return 0
         if args.link_command == "commits":
-            from .core import find_trailer_commits, resolve_runtime
+            from .core import find_trailer_commits
             from .semantic_cache import extract_memory_chunks
 
             chunk = next(
@@ -1146,6 +1464,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
     if args.command == "init":
+        target_root = Path(".").resolve()
         isatty = sys.stdin.isatty() and not args.dry_run
         prompt_response = None
         if not args.agents and isatty and not args.no_agent_prompt:
@@ -1202,7 +1521,17 @@ def main(argv: list[str] | None = None) -> int:
             except EOFError:
                 skills = set()
         try:
+            integration_mode, should_write_integration_mode = _resolve_init_integration_mode(
+                target_root,
+                requested_mode=args.integration_mode,
+                isatty=isatty,
+            )
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        try:
             result = init_project(
+                cwd=target_root,
                 dry_run=args.dry_run,
                 force=args.force,
                 agents=agents,
@@ -1222,8 +1551,17 @@ def main(argv: list[str] | None = None) -> int:
         if args.dry_run:
             for planned in result.planned:
                 print(f"Would copy: {planned}")
+            if should_write_integration_mode:
+                print(f"Would set integration mode: {integration_mode}")
             print("No files changed.")
             return 0
+
+        if should_write_integration_mode:
+            try:
+                write_integration_mode(target_root, integration_mode)
+            except (OSError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
 
         for created in result.created:
             print(f"Copied: {created}")
@@ -1233,12 +1571,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Archived: {archived}")
         if result.backed_up:
             print("Added .memory-seed/backups/ to .gitignore to reduce accidental backup leaks.")
-        agent_selection = selected_agents(Path(".").resolve())
+        agent_selection = selected_agents(target_root)
         ignored_agents = set(KNOWN_AGENTS) - agent_selection
         print("Installed agents: " + _format_agents(agent_selection))
         print("Ignored agents: " + _format_agents(ignored_agents))
         print("Always installed: AGENTS.md, .memory-seed/, and .agents/ personas.")
-        status = skill_status(Path(".").resolve())
+        status = skill_status(target_root)
         print("Installed core skills: " + ", ".join(status.core))
         if status.installed_optional:
             print("Selected optional skills: " + ", ".join(status.installed_optional))
@@ -1246,6 +1584,7 @@ def main(argv: list[str] | None = None) -> int:
             print("Selected optional skills: (none)")
         if status.ignored:
             print("Ignored optional skills: " + ", ".join(status.ignored))
+        print(f"Integration mode: {integration_mode}")
         print("Next: open AGENTS.md and follow nearest-runtime mode.")
         return 0
 

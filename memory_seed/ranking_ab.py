@@ -25,6 +25,7 @@ from .semantic_cache import (
     build_related_entry_graph,
     extract_memory_chunks,
     rank_session_memory,
+    superseding_lineage_heads,
 )
 
 
@@ -63,6 +64,11 @@ class QueryABResult:
     loser_id: str | None = None
     winner_rank_on: int | None = None
     loser_rank_on: int | None = None
+    winner_max_rank_on: int | None = None
+    allowed_changed_ids: tuple[str, ...] = ()
+    # Unexpected terminal heads that *benefited* from the signal. Pure
+    # displacement stays visible in ``changes`` but does not fail the gate.
+    unexpected_changed_ids: tuple[str, ...] = ()
 
     @property
     def winner_beats_loser(self) -> bool | None:
@@ -71,6 +77,27 @@ class QueryABResult:
         if self.winner_rank_on is None or self.loser_rank_on is None:
             return False
         return self.winner_rank_on < self.loser_rank_on
+
+    @property
+    def winner_within_max_rank(self) -> bool | None:
+        if self.winner_max_rank_on is None:
+            return None
+        if self.winner_rank_on is None:
+            return False
+        return self.winner_rank_on <= self.winner_max_rank_on
+
+    @property
+    def directional_pass(self) -> bool | None:
+        checks: list[bool] = []
+        if self.winner_id is not None or self.loser_id is not None:
+            checks.append(self.winner_beats_loser is True)
+        if self.winner_max_rank_on is not None:
+            checks.append(self.winner_within_max_rank is True)
+        if self.allowed_changed_ids:
+            checks.append(not self.unexpected_changed_ids)
+        if not checks:
+            return None
+        return all(checks)
 
 
 @dataclass(frozen=True)
@@ -93,9 +120,9 @@ class ABResult:
     def directional_queries_pass(self) -> bool:
         """Every directional query has its winner out-ranking its loser."""
         verdicts = [
-            q.winner_beats_loser
+            q.directional_pass
             for q in self.queries
-            if q.winner_id is not None or q.loser_id is not None
+            if q.directional_pass is not None
         ]
         return all(verdicts) if verdicts else True
 
@@ -117,6 +144,8 @@ class QuerySpec:
     label: str
     winner_id: str | None = None  # expected to rank ABOVE loser_id when ON
     loser_id: str | None = None
+    winner_max_rank_on: int | None = None
+    allowed_changed_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -156,13 +185,49 @@ def _supersession_lineage_queries(cwd: Path, corpus: Sequence[MemoryChunk]) -> l
         retired = by_id.get(node.entry_id)
         if retired is None or not retired.title.strip():
             continue
+        query = _ENTRY_TITLE_PREFIX_RE.sub("", retired.title).strip() or retired.title
         for replacement_id in node.superseded_by:
             specs.append(
                 QuerySpec(
-                    query=retired.title,
+                    query=query,
                     label=f"{replacement_id} supersedes {node.entry_id}",
                     winner_id=replacement_id,
                     loser_id=node.entry_id,
+                )
+            )
+    return specs
+
+
+def _terminal_superseding_heads(cwd: Path, corpus: Sequence[MemoryChunk]) -> set[str]:
+    graph = build_related_entry_graph(cwd, chunks=corpus)
+    heads: set[str] = set()
+    for node in graph.values():
+        heads.update(superseding_lineage_heads(graph, node.entry_id))
+    return heads
+
+
+def _superseding_head_queries(cwd: Path, corpus: Sequence[MemoryChunk]) -> list[QuerySpec]:
+    """One query per retired entry, expecting the terminal live replacement to
+    enter the default result window."""
+    graph = build_related_entry_graph(cwd, chunks=corpus)
+    by_id = {c.entry_id: c for c in corpus if c.entry_id}
+    specs: list[QuerySpec] = []
+    for node in graph.values():
+        if not node.superseded_by:
+            continue
+        retired = by_id.get(node.entry_id)
+        if retired is None or not retired.title.strip():
+            continue
+        query = _ENTRY_TITLE_PREFIX_RE.sub("", retired.title).strip() or retired.title
+        for replacement_id in superseding_lineage_heads(graph, node.entry_id):
+            specs.append(
+                QuerySpec(
+                    query=query,
+                    label=f"{replacement_id} is terminal replacement for {node.entry_id}",
+                    winner_id=replacement_id,
+                    loser_id=node.entry_id,
+                    winner_max_rank_on=8,
+                    allowed_changed_ids=(replacement_id,),
                 )
             )
     return specs
@@ -188,6 +253,15 @@ SIGNAL_REGISTRY: dict[str, Signal] = {
         affected=lambda cwd, corpus: {c.entry_id for c in corpus if c.entry_id},
         default_queries=lambda cwd, corpus: [],
         requires_no_hit_control=False,
+    ),
+    "superseding_successor_boost": Signal(
+        name="superseding_successor_boost",
+        describe="bounded lift for a matching terminal replacement of a superseded entry",
+        off_kwargs={"supersession_damping": True, "superseding_successor_boost": False},
+        on_kwargs={"supersession_damping": True, "superseding_successor_boost": True},
+        affected=_terminal_superseding_heads,
+        default_queries=_superseding_head_queries,
+        requires_no_hit_control=True,
     ),
 }
 
@@ -301,6 +375,20 @@ def _compare_query(
                     score_on=sn,
                 )
             )
+    unexpected_changed_ids = tuple(
+        sorted(
+            change.entry_id
+            for change in changes
+            if (
+                spec.allowed_changed_ids
+                and change.entry_id not in spec.allowed_changed_ids
+                and (
+                    change.score_on > change.score_off
+                    or (change.rank_on and change.rank_off and change.rank_on < change.rank_off)
+                )
+            )
+        )
+    )
 
     return QueryABResult(
         query=spec.query,
@@ -312,6 +400,9 @@ def _compare_query(
         loser_id=spec.loser_id,
         winner_rank_on=pos_on.get(spec.winner_id) if spec.winner_id else None,
         loser_rank_on=pos_on.get(spec.loser_id) if spec.loser_id else None,
+        winner_max_rank_on=spec.winner_max_rank_on,
+        allowed_changed_ids=spec.allowed_changed_ids,
+        unexpected_changed_ids=unexpected_changed_ids,
     )
 
 
@@ -386,14 +477,31 @@ def format_ab_report(result: ABResult) -> str:
                 f"    {mark}  replacement {q.winner_id} #{q.winner_rank_on} vs "
                 f"retired {q.loser_id} #{q.loser_rank_on}"
             )
+        if q.winner_within_max_rank is not None:
+            rank_mark = "PASS" if q.winner_within_max_rank else "REGRESSION"
+            lines.append(
+                f"    {rank_mark}  replacement {q.winner_id} within top {q.winner_max_rank_on}: "
+                f"#{q.winner_rank_on}"
+            )
+        if q.unexpected_changed_ids:
+            lines.append(
+                "    REGRESSION  unexpected affected terminal heads benefited: "
+                + ", ".join(q.unexpected_changed_ids)
+            )
         if not q.has_affected_hit:
             state = "identical off/on" if q.identical else "CHANGED with no affected hit"
             lines.append(f"    no affected entry matched -- {state}")
         for change in q.changes:
             direction = "down" if change.delta > 0 else ("up" if change.delta < 0 else "same")
+            if change.score_on > change.score_off:
+                why = "boosted"
+            elif change.score_on < change.score_off:
+                why = "demoted"
+            else:
+                why = "displaced"
             lines.append(
                 f"    {change.entry_id}  #{change.rank_off} -> #{change.rank_on} "
-                f"({direction} {abs(change.delta)})  score {change.score_off:.3f} -> {change.score_on:.3f}"
+                f"({direction} {abs(change.delta)}, {why})  score {change.score_off:.3f} -> {change.score_on:.3f}"
             )
         lines.append("")
 
@@ -409,6 +517,8 @@ def ab_result_to_dict(result: ABResult) -> dict:
     payload = asdict(result)
     for query_payload, query in zip(payload["queries"], result.queries):
         query_payload["winner_beats_loser"] = query.winner_beats_loser
+        query_payload["winner_within_max_rank"] = query.winner_within_max_rank
+        query_payload["directional_pass"] = query.directional_pass
     payload.update(
         {
             "no_hit_queries_identical": result.no_hit_queries_identical,

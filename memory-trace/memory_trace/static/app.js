@@ -622,6 +622,9 @@ function graphView() {
 const TRAIL_ROW = 30;
 const TRAIL_LANE_W = 14;
 const TRAIL_WINDOW_STEP = 60;
+const TRAIL_CONTINUITY_KINDS = ["rename", "migration", "removal"];
+const TRAIL_CONT_LANE_W = 14;
+const TRAIL_CONT_ZONE_PAD = 14;
 // Relationship lanes sit left of main, always dotted: replaces | evolves |
 // related. Under the two-rule model related routes are pure branch hops -
 // the rarest, densest signal - so they take the innermost lane next to main
@@ -640,6 +643,7 @@ const TRAIL_REL_ZONE = TRAIL_REL_LANES.length * TRAIL_REL_LANE_W + 12;
 // traffic they drowned the lifecycle signal.
 const TRAIL_DASH = { supersedes: "6 4", evolves: "6 4", related: "6 4" };
 const TRAIL_VERB = { supersedes: "replaces", evolves: "evolves", related: "relates to" };
+const TRAIL_CONTINUITY_LABEL = { rename: "rename", migration: "migration", removal: "removal" };
 // Each of the first four lanes owns a "pack" of three distinct colors rather
 // than one flat color: lanes are already collision-free for anything parallel
 // or adjacent, but branches that daisy-chain through the same lane one after
@@ -665,6 +669,11 @@ function trailStamp(node) {
 
 function trailTitle(node) {
   return stripTitleStamp(node.title);
+}
+
+function continuityTip(block) {
+  const label = TRAIL_CONTINUITY_LABEL[block.kind] || block.kind || "continuity";
+  return block.to ? `${label} · ${block.from} -> ${block.to}` : `${label} · ${block.from}`;
 }
 
 function trailModel(graph) {
@@ -851,7 +860,122 @@ function trailModel(graph) {
   const lifecycle = (graph.edges || []).filter(
     (edge) => TRAIL_REL_LANES.includes(edge.type) && rowOf.has(edge.source) && rowOf.has(edge.target)
   );
-  return { items, total, rowOf, spans, laneOf, colorOf, laneCount: laneIntervals.length, lifecycle, linkRows, mergeEvents };
+  const continuityEvents = [];
+  items.forEach((item, index) => {
+    if (item.kind !== "node") return;
+    const blocks = Array.isArray(item.node.continuity) ? item.node.continuity : [];
+    blocks.forEach((block, blockIndex) => {
+      if (!block || !TRAIL_CONTINUITY_KINDS.includes(block.kind) || !block.from) return;
+      continuityEvents.push({
+        key: `${item.node.id}:${blockIndex}`,
+        row: index,
+        entryId: item.node.entry_id || item.node.id,
+        kind: block.kind,
+        from: block.from,
+        to: block.to || null,
+      });
+    });
+  });
+  const continuityParent = new Map();
+  const continuityTouch = (label) => {
+    if (label && !continuityParent.has(label)) continuityParent.set(label, label);
+  };
+  const continuityFind = (label) => {
+    let cur = label;
+    while (continuityParent.get(cur) !== cur) {
+      continuityParent.set(cur, continuityParent.get(continuityParent.get(cur)));
+      cur = continuityParent.get(cur);
+    }
+    return cur;
+  };
+  const continuityUnion = (left, right) => {
+    if (!left || !right) return;
+    continuityTouch(left);
+    continuityTouch(right);
+    const a = continuityFind(left);
+    const b = continuityFind(right);
+    if (a !== b) continuityParent.set(a, b);
+  };
+  continuityEvents.forEach((event) => {
+    continuityTouch(event.from);
+    if (event.to) continuityUnion(event.from, event.to);
+  });
+  const continuityChainsByKey = new Map();
+  continuityEvents.forEach((event) => {
+    const chainKey = continuityFind(event.from);
+    event.chainKey = chainKey;
+    const chain = continuityChainsByKey.get(chainKey) || {
+      chainKey,
+      rows: [],
+      events: [],
+      labels: new Set(),
+      kinds: new Set(),
+    };
+    chain.rows.push(event.row);
+    chain.events.push(event);
+    chain.labels.add(event.from);
+    if (event.to) chain.labels.add(event.to);
+    chain.kinds.add(event.kind);
+    continuityChainsByKey.set(chainKey, chain);
+  });
+  const continuityIntervals = [];
+  const continuityLaneOf = new Map();
+  [...continuityChainsByKey.values()]
+    .map((chain) => ({
+      ...chain,
+      first: Math.min(...chain.rows),
+      last: Math.max(...chain.rows),
+    }))
+    .sort((a, b) => (b.first - a.first) || (a.last - a.first) - (b.last - b.first) || a.chainKey.localeCompare(b.chainKey))
+    .forEach((chain) => {
+      let lane = continuityIntervals.findIndex((intervals) =>
+        intervals.every((occupied) => chain.last < occupied.first || chain.first > occupied.last)
+      );
+      if (lane === -1) {
+        lane = continuityIntervals.length;
+        continuityIntervals.push([]);
+      }
+      continuityIntervals[lane].push({ first: chain.first, last: chain.last });
+      continuityLaneOf.set(chain.chainKey, lane);
+    });
+  const continuityChains = [...continuityChainsByKey.values()]
+    .map((chain) => ({
+      chainKey: chain.chainKey,
+      lane: continuityLaneOf.get(chain.chainKey) || 0,
+      rows: chain.rows.slice().sort((a, b) => a - b),
+      labels: [...chain.labels],
+      kinds: [...chain.kinds],
+      events: chain.events
+        .slice()
+        .sort((a, b) => a.row - b.row)
+        .map((event) => ({
+          entryId: event.entryId,
+          row: event.row,
+          kind: event.kind,
+          from: event.from,
+          to: event.to,
+          chainKey: event.chainKey,
+        })),
+    }))
+    .sort((a, b) => a.lane - b.lane || a.rows[0] - b.rows[0]);
+  continuityEvents.forEach((event) => {
+    event.lane = continuityLaneOf.get(event.chainKey) || 0;
+  });
+  return {
+    items,
+    total,
+    rowOf,
+    spans,
+    laneOf,
+    colorOf,
+    laneCount: laneIntervals.length,
+    lifecycle,
+    linkRows,
+    mergeEvents,
+    continuityEvents,
+    continuityChains,
+    continuityLaneCount: continuityIntervals.length,
+  };
 }
 
 function trailView() {
@@ -860,13 +984,15 @@ function trailView() {
   const model = trailModel(graph);
   const { items, total, rowOf, spans, laneOf, colorOf, lifecycle, linkRows } = model;
   if (!items.length) return `<div class="empty">No entries with lineage data yet.</div>`;
-  const laneX = (branch) => TRAIL_REL_ZONE + (laneOf.get(branch) || 0) * TRAIL_LANE_W + 7;
-  const laneCenterX = (lane) => TRAIL_REL_ZONE + lane * TRAIL_LANE_W + 7;
-  const relLaneX = (type) => 8 + TRAIL_REL_LANES.indexOf(type) * TRAIL_REL_LANE_W;
+  const continuityZoneWidth = model.continuityLaneCount ? model.continuityLaneCount * TRAIL_CONT_LANE_W + TRAIL_CONT_ZONE_PAD : 0;
+  const laneX = (branch) => continuityZoneWidth + TRAIL_REL_ZONE + (laneOf.get(branch) || 0) * TRAIL_LANE_W + 7;
+  const laneCenterX = (lane) => continuityZoneWidth + TRAIL_REL_ZONE + lane * TRAIL_LANE_W + 7;
+  const relLaneX = (type) => continuityZoneWidth + 8 + TRAIL_REL_LANES.indexOf(type) * TRAIL_REL_LANE_W;
+  const continuityLaneX = (lane) => 8 + lane * TRAIL_CONT_LANE_W + 6;
   const rowY = (index) => index * TRAIL_ROW + TRAIL_ROW / 2;
   // Rail width reacts to both zones, so the text column shifts right as more
   // branches run in parallel.
-  const railWidth = TRAIL_REL_ZONE + model.laneCount * TRAIL_LANE_W + 12;
+  const railWidth = continuityZoneWidth + TRAIL_REL_ZONE + model.laneCount * TRAIL_LANE_W + 12;
 
   // Per-row text indent follows the git-graph silhouette: each row's time+title
   // start just right of the rightmost lane actually alive at that row, so the
@@ -903,6 +1029,14 @@ function trailView() {
   });
   const height = items.length * TRAIL_ROW;
   const selectedEntry = state.selected?.entry_id || "";
+  const focusActive = Boolean(selectedEntry) && !state.selectionMuted;
+  const selectedContinuityChains = new Set(
+    focusActive
+      ? (model.continuityEvents || [])
+          .filter((event) => event.entryId === selectedEntry)
+          .map((event) => event.chainKey)
+      : []
+  );
 
   // Lane continuity: connect consecutive visible rows of the same branch.
   // Entries with no recorded branch get a dot but no line - continuity that
@@ -1003,7 +1137,6 @@ function trailView() {
   // the target dot. Lifecycle routes rest in their pastel variants; an
   // active (unmuted) selection saturates the routes it touches and reveals
   // its related routes.
-  const focusActive = Boolean(selectedEntry) && !state.selectionMuted;
   // Two-rule related model (user-finalised): routes are reserved for
   // branch-hopping relationships; ALL same-branch related context renders as
   // row brackets instead. Full bracket = outbound (entries the selection
@@ -1153,6 +1286,41 @@ function trailView() {
     const path = `M ${sx} ${sy} L ${lx + r} ${sy} Q ${lx} ${sy} ${lx} ${sy + r * dir} L ${lx} ${ty - r * dir} Q ${lx} ${ty} ${lx + r} ${ty} L ${tx} ${ty}`;
     return [`<path d="${path}" fill="none" stroke="${stroke}" stroke-width="${touched ? 2.6 : 2}" stroke-dasharray="${TRAIL_DASH[edge.type]}" stroke-opacity="${opacity}" marker-end="url(#${marker})">${tip}</path>`];
   });
+  const continuityChainLines = (model.continuityChains || []).flatMap((chain) => {
+    if (chain.rows.length < 2) return [];
+    const x = continuityLaneX(chain.lane);
+    const top = rowY(chain.rows[0]);
+    const bottom = rowY(chain.rows[chain.rows.length - 1]);
+    const touched = selectedContinuityChains.has(chain.chainKey);
+    const stroke = touched ? "var(--text)" : "var(--border)";
+    const opacity = touched ? 0.95 : focusActive ? 0.42 : 0.72;
+    const labels = chain.events.map((event) => continuityTip(event));
+    const tip = `<title>continuity chain (${chain.events.length}): ${esc(labels.join(" · "))}</title>`;
+    return [`<line class="trail-cont-line" x1="${x}" y1="${top}" x2="${x}" y2="${bottom}" stroke="${stroke}" stroke-width="1.75" stroke-opacity="${opacity}" stroke-linecap="round">${tip}</line>`];
+  });
+  const continuityMarkers = (model.continuityEvents || []).flatMap((event) => {
+    const x = continuityLaneX(event.lane);
+    const y = rowY(event.row);
+    const touched = selectedContinuityChains.has(event.chainKey);
+    const opacity = touched ? 1 : focusActive ? 0.5 : 0.95;
+    const strokeWidth = touched ? 2.2 : 1.6;
+    const tip = `<title>${esc(continuityTip(event))}</title>`;
+    if (event.kind === "migration") {
+      return [
+        `<path class="trail-cont-event" d="M ${x} ${y - 5} L ${x + 5} ${y} L ${x} ${y + 5} L ${x - 5} ${y} Z" fill="var(--bg)" stroke="var(--trail-cont-migration)" stroke-width="${strokeWidth}" stroke-opacity="${opacity}">${tip}</path>`,
+      ];
+    }
+    if (event.kind === "removal") {
+      return [
+        `<rect class="trail-cont-event" x="${x - 4.5}" y="${y - 4.5}" width="9" height="9" rx="2" fill="var(--bg)" stroke="var(--trail-cont-removal)" stroke-width="${strokeWidth}" stroke-opacity="${opacity}">${tip}</rect>`,
+        `<line class="trail-cont-event" x1="${x - 2.4}" y1="${y - 2.4}" x2="${x + 2.4}" y2="${y + 2.4}" stroke="var(--trail-cont-removal)" stroke-width="1.5" stroke-opacity="${opacity}"></line>`,
+        `<line class="trail-cont-event" x1="${x - 2.4}" y1="${y + 2.4}" x2="${x + 2.4}" y2="${y - 2.4}" stroke="var(--trail-cont-removal)" stroke-width="1.5" stroke-opacity="${opacity}"></line>`,
+      ];
+    }
+    return [
+      `<circle class="trail-cont-event" cx="${x}" cy="${y}" r="4.2" fill="var(--bg)" stroke="var(--trail-cont-rename)" stroke-width="${strokeWidth}" stroke-opacity="${opacity}">${tip}</circle>`,
+    ];
+  });
 
   // Search as a function over the Trail: matching rows get a marker dot and
   // keep full presence, everything else dims - the graph structure stays
@@ -1192,6 +1360,9 @@ function trailView() {
       <span class="meta"><strong>${shown}</strong> of ${total} entries · newest first</span>
       ${searchStatus()}
       <span class="spacer"></span>
+      ${model.continuityLaneCount ? `<span class="legend-item"><span class="trail-cont-legend trail-cont-legend-rename"></span>rename</span>
+      <span class="legend-item"><span class="trail-cont-legend trail-cont-legend-migration"></span>migration</span>
+      <span class="legend-item"><span class="trail-cont-legend trail-cont-legend-removal"></span>removal</span>` : ""}
       <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("supersedes")}"></span>replaces</span>
       <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("evolves")}"></span>evolves</span>
       <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("related")}"></span>related · on select</span>
@@ -1207,12 +1378,15 @@ function trailView() {
             <marker id="trail-arrow-supersedes-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-supersedes-soft)"></path></marker>
             <marker id="trail-arrow-evolves-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-evolves-soft)"></path></marker>
           </defs>
-          <rect class="trail-rel-zone" x="0" y="0" width="${TRAIL_REL_ZONE - 5}" height="${height}" rx="6"></rect>
+          ${model.continuityLaneCount ? `<rect class="trail-cont-zone" x="0" y="0" width="${continuityZoneWidth - 4}" height="${height}" rx="6"></rect>` : ""}
+          <rect class="trail-rel-zone" x="${continuityZoneWidth}" y="0" width="${TRAIL_REL_ZONE - 5}" height="${height}" rx="6"></rect>
           ${phantomTrunk}
+          ${continuityChainLines.join("")}
           ${connectors.join("")}
           ${laneSegments.join("")}
           ${evolvesBrackets.join("")}
           ${arcs.join("")}
+          ${continuityMarkers.join("")}
           ${dots.join("")}
           ${mergeDots.join("")}
         </svg>

@@ -66,6 +66,9 @@
   --edge-evolves-soft: #92b9dd;
   --edge-branch: #3fa66a;
   --status-superseded: #d94b63;
+  --trail-cont-rename: #8f63e8;
+  --trail-cont-migration: #18a999;
+  --trail-cont-removal: #d94b63;
 }
 
 [data-theme="light"] {
@@ -679,6 +682,51 @@ option {
 .trail-rel-zone {
   fill: var(--panel-2);
   opacity: 0.6;
+}
+.trail-cont-zone {
+  fill: color-mix(in srgb, var(--panel-2) 82%, transparent);
+  opacity: 0.6;
+}
+.trail-cont-event {
+  pointer-events: stroke;
+}
+.trail-cont-legend {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+.trail-cont-legend-rename {
+  color: var(--trail-cont-rename);
+}
+.trail-cont-legend-migration {
+  color: var(--trail-cont-migration);
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+.trail-cont-legend-removal {
+  color: var(--trail-cont-removal);
+  border-radius: 2px;
+  position: relative;
+}
+.trail-cont-legend-removal::before,
+.trail-cont-legend-removal::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 1.5px;
+  background: currentColor;
+  transform-origin: center;
+}
+.trail-cont-legend-removal::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.trail-cont-legend-removal::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 .trail-rows {
   position: relative;

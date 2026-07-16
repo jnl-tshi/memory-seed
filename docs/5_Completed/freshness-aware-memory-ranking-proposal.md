@@ -112,5 +112,5 @@ Supersession was exposed first, on purpose. This proposal is the next stage of t
 - `proactive-history-retrieval-discipline-proposal.md` (the behavior half - retrieve the why; this is
   the ranking half - make the *current* why surface).
 - `docs/2_Todo/completed/supersession-edges-plan.md` (the ×0.25 harmony constant + exposure staging).
-- `docs/2_Todo/evolution-edges-plan.md` (evolves-stays-valid semantics this must preserve).
+- `docs/5_Completed/evolution-edges-plan.md` (evolves-stays-valid semantics this must preserve).
 - `docs/3_Spec/graph-edge-contract.md` (the ranking-change discipline and the edge definitions).

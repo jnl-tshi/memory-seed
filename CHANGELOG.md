@@ -4,6 +4,24 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- **Supersession successors now surface directly in retrieval.** `memory_search` results carry the
+  lineage terminal `superseding_head`, and the default-on successor boost is bounded to affected
+  supersession lineages. The additive field shipped before ranking changed; fixtures and the full-corpus
+  `ranking-ab` gate then proved every replacement beats its retired predecessors while an unaffected
+  control remains unchanged.
+- Added deterministic `memory-seed topics suggest --from <file>` topic recommendations. Suggestions are
+  read-only, vocabulary-aware, stably ranked, and do not mutate the project-owned topic index.
+- **Memory Trace deterministic Evidence Pack Phase 1.** `memory_trace.evidence` now builds stable timeline
+  evidence packs from bounded date, entry, topic, user, agent, and graph-neighbourhood selections, with
+  normalized provenance, selection/pack fingerprints, and a committed snapshot fixture. It invokes no
+  model, writes no memory, and remains a non-authoritative derived artifact.
+- **Memory Trace Trail continuity axis.** Authored `continuity:` rename, migration, and removal events now
+  render as derived lineage lanes in the Trail and versioned API without inventing graph edges or changing
+  Markdown authority.
+- `memory-seed link audit --date <date> --apply` now creates idempotent, chronologically ordered
+  `classify_pending: true` sidecar stubs with candidate evidence left in comments. It never writes a live
+  edge or auto-classifies a relationship; `links check` warns on unresolved stubs and ESR reports their
+  count for explicit human review.
 - Added `memory-seed ranking-ab --signal <name> [--query <q> ...] [--json]`, a deterministic
   full-corpus off/on gate for ranking changes. Supersession checks now derive live lineage queries,
   require each replacement to out-rank the decision it retires, require an actual unaffected-query
@@ -59,10 +77,11 @@ All notable changes to Memory Seed are summarized here.
   whether a turn should be one decision or several. Ships in core, so every project inherits it; six
   historical malformed entries were reformatted. (Follow-ons: blocking git commit hook, `session
   append` decision-scaffolding flags, and a read-only `memory_entry_format_preview` MCP tool.)
-- Added a project-local `integration_mode` (`local-merge` | `pr`) setting in `project.yaml`
-  (`read_integration_mode`, default `local-merge`, fail-open), surfaced by `esr` - the foundation for
-  a configurable PR/branch-protection vs. direct-merge workflow (see
-  `docs/2_Todo/configurable-integration-mode-plan.md`).
+- **Configurable integration mode completed.** A project-local `integration_mode` (`local-merge` | `pr`)
+  setting in `project.yaml` is read fail-open with a `local-merge` default and surfaced by ESR. The live
+  and seeded agent contracts obey it; mode-aware `session integrate` and `session open-pr` implement local
+  merge or normal push/PR preparation; bootstrap can suggest a mode but requires human confirmation.
+  See `docs/5_Completed/configurable-integration-mode-plan.md`.
 - **Freshness-aware `memory_search` ranking (supersession dampener, on by default).** A replaced
   decision no longer out-ranks its live replacement: entries with a non-empty `superseded_by` (drawn
   from the sidecar-augmented graph, so sidecar-authored supersessions count too) are multiplicatively
@@ -73,7 +92,8 @@ All notable changes to Memory Seed are summarized here.
   default-off with fixtures, then turned **on by default** in `search_memory` + the MCP `memory_search`
   tool after a real-corpus A/B on both live supersession lineages proved the replacement surfaces above
   every retired predecessor while queries with no superseded hit in-window stay byte-identical;
-  `supersession_damping=false` opts out. From `docs/2_Todo/freshness-aware-memory-ranking-proposal.md`.
+  `supersession_damping=false` opts out. From
+  `docs/5_Completed/freshness-aware-memory-ranking-proposal.md`.
 - **Retrieve the *why* before changing non-obvious code**, now a portable control-plane discipline:
   `agent-rules.md` Working Principles, `skills/history_retrieval.md`, and the developer persona (all
   with seed twins, so every project inherits it) direct every agent to `memory_search` the prior
