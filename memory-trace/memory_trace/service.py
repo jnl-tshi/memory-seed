@@ -246,7 +246,15 @@ class TraceCache:
         # Unique per attempt (not just per pid): concurrent threads share a pid,
         # and a crashed run's stale tmp must never be another rebuild's target.
         tmp = self.db_path.with_name(f"{self.db_path.name}.{uuid.uuid4().hex}.tmp")
-        conn = sqlite3.connect(tmp)
+        try:
+            conn = sqlite3.connect(tmp)
+        except sqlite3.OperationalError:
+            # Sandboxed desktop launches can permit directory creation beneath
+            # LOCALAPPDATA but still deny SQLite's file handle. Keep the cache
+            # derived and disposable by retrying in the system temp directory.
+            self._use_temporary_cache()
+            tmp = self.db_path.with_name(f"{self.db_path.name}.{uuid.uuid4().hex}.tmp")
+            conn = sqlite3.connect(tmp)
         try:
             self._create_schema(conn)
             file_rows = [
@@ -344,7 +352,11 @@ class TraceCache:
                     break
                 except PermissionError:
                     if attempt == 4:
-                        raise
+                        if self._is_temporary_cache():
+                            raise
+                        self._use_temporary_cache()
+                        self._rebuild_locked()
+                        return
                     time.sleep(0.1 * (attempt + 1))
         finally:
             if tmp.exists():
@@ -504,10 +516,20 @@ class TraceCache:
     def _ensure_cache_parent(self) -> None:
         try:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        except PermissionError:
-            fallback = Path(tempfile.gettempdir()) / "memory-seed" / "lense"
-            fallback.mkdir(parents=True, exist_ok=True)
-            self.db_path = fallback / self.db_path.name
+        except OSError:
+            self._use_temporary_cache()
+
+    def _use_temporary_cache(self) -> None:
+        fallback = self._temporary_cache_dir()
+        fallback.mkdir(parents=True, exist_ok=True)
+        self.db_path = fallback / self.db_path.name
+
+    def _is_temporary_cache(self) -> bool:
+        return self.db_path.parent.resolve() == self._temporary_cache_dir().resolve()
+
+    @staticmethod
+    def _temporary_cache_dir() -> Path:
+        return Path(tempfile.gettempdir()) / "memory-seed" / "lense"
 
     @staticmethod
     def _create_schema(conn: sqlite3.Connection) -> None:

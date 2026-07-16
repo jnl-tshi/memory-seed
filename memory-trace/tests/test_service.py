@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import sqlite3
 import subprocess
 import shutil
 import tempfile
@@ -126,6 +127,52 @@ class TraceServiceTests(unittest.TestCase):
         self.assertEqual(len(page["results"]), 1)
         self.assertEqual(page["results"][0]["chunk_id"], "mse_ui")
         self.assertIsNotNone(page["next_cursor"])
+
+    def test_cache_rebuild_falls_back_when_sqlite_cannot_open_default_path(self):
+        primary = self.cwd / "restricted" / "trace.sqlite3"
+        fallback_temp = self.cache_root / "temporary-cache"
+        cache = TraceCache(self.cwd, db_path=primary)
+        real_connect = sqlite3.connect
+        attempts = iter([sqlite3.OperationalError("unable to open database file")])
+
+        def fail_once_then_connect(*args, **kwargs):
+            try:
+                raise next(attempts)
+            except StopIteration:
+                return real_connect(*args, **kwargs)
+
+        with (
+            mock.patch("memory_trace.service.tempfile.gettempdir", return_value=str(fallback_temp)),
+            mock.patch("memory_trace.service.sqlite3.connect", side_effect=fail_once_then_connect),
+        ):
+            cache.rebuild()
+
+        self.assertEqual(cache.db_path.parent, fallback_temp / "memory-seed" / "lense")
+        self.assertTrue(cache.db_path.is_file())
+
+    def test_cache_rebuild_falls_back_when_atomic_swap_is_denied(self):
+        primary = self.cwd / "restricted" / "trace.sqlite3"
+        fallback_temp = self.cache_root / "temporary-cache"
+        cache = TraceCache(self.cwd, db_path=primary)
+        real_replace = os.replace
+        blocked_swaps = 0
+
+        def deny_primary_swap(source, destination):
+            nonlocal blocked_swaps
+            if Path(destination) == primary:
+                blocked_swaps += 1
+                raise PermissionError("access denied")
+            return real_replace(source, destination)
+
+        with (
+            mock.patch("memory_trace.service.tempfile.gettempdir", return_value=str(fallback_temp)),
+            mock.patch("memory_trace.service.os.replace", side_effect=deny_primary_swap),
+        ):
+            cache.rebuild()
+
+        self.assertEqual(blocked_swaps, 5)
+        self.assertEqual(cache.db_path.parent, fallback_temp / "memory-seed" / "lense")
+        self.assertTrue(cache.db_path.is_file())
 
     def test_empty_entry_search_returns_recent_entries(self):
         service = self.service()
@@ -985,6 +1032,21 @@ if (coords.some((value, index) => value !== expected[index])) {
         self.assertIn('w.is_primary ? " · current project" : " · worktree"', script)
         refresh_body = script[script.index("async function refreshData()"):script.index("async function openGraphChunk")]
         self.assertIn("await loadWorktrees();", refresh_body)
+
+    def test_frontend_worktree_switch_recovers_from_a_failed_branch_load(self):
+        import importlib.resources as resources
+
+        script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
+        styles = resources.files("memory_trace").joinpath("static/styles.css").read_text(encoding="utf-8")
+
+        switch_body = script[script.index("async function switchWorktree("):script.index("// The default upper date bound")]
+        self.assertIn("const priorWorktree = state.worktree;", switch_body)
+        self.assertIn("} catch (error) {", switch_body)
+        self.assertIn("state.worktree = priorWorktree;", switch_body)
+        self.assertIn("state.worktreeLoading = false;", switch_body)
+        self.assertIn("state.worktreeError", switch_body)
+        self.assertIn('class="worktree-error"', script)
+        self.assertIn(".worktree-error", styles)
 
     def test_frontend_timeline_and_search_tabs_are_retired(self):
         # Timeline retired 2026-07-11: the Trail (git-graph timeline) is its

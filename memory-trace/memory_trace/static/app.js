@@ -15,6 +15,7 @@ const state = {
   worktreeLoading: false,
   worktreeStage: 0,
   worktreeToLabel: "",
+  worktreeError: "",
   // Manual data-refresh in flight (spins the topbar refresh control).
   refreshing: false,
   view: storedView() || "trail",
@@ -164,9 +165,11 @@ function setWorktreeStage(n) {
 // checkout's branch memory. The subway loader shows for the whole trip.
 async function switchWorktree(id) {
   if (id === state.worktree) return;
+  const priorWorktree = state.worktree;
   const target = state.worktrees.find((w) => w.id === id);
   state.worktree = id;
   state.worktreeToLabel = target ? target.label : "";
+  state.worktreeError = "";
   state.selected = null;
   state.selectedId = null;
   state.graph = null;
@@ -181,19 +184,28 @@ async function switchWorktree(id) {
   const startedAt = Date.now();
   const token = ++state.loadSeq;
   render();
-  const [runtime, facets] = await Promise.all([api("/api/runtime"), api("/api/facets")]);
-  if (token !== state.loadSeq) return;
-  state.runtime = runtime;
-  state.facets = facets;
-  seedDates();
-  setWorktreeStage(1);
-  await loadView();
-  if (token !== state.loadSeq) return;
-  setWorktreeStage(2);
-  await sleep(Math.max(0, WORKTREE_LOADER_MIN_MS - (Date.now() - startedAt)));
-  if (token !== state.loadSeq) return;
-  state.worktreeLoading = false;
-  render();
+  try {
+    const [runtime, facets] = await Promise.all([api("/api/runtime"), api("/api/facets")]);
+    if (token !== state.loadSeq) return;
+    state.runtime = runtime;
+    state.facets = facets;
+    seedDates();
+    setWorktreeStage(1);
+    await loadView();
+    if (token !== state.loadSeq) return;
+    setWorktreeStage(2);
+    await sleep(Math.max(0, WORKTREE_LOADER_MIN_MS - (Date.now() - startedAt)));
+    if (token !== state.loadSeq) return;
+    state.worktreeLoading = false;
+    render();
+  } catch (error) {
+    if (token !== state.loadSeq) return;
+    state.worktree = priorWorktree;
+    state.worktreeLoading = false;
+    state.worktreeToLabel = "";
+    state.worktreeError = `Could not open ${target?.label || "that worktree"}: ${error.message}.`;
+    render();
+  }
 }
 
 // The default upper date bound is TODAY (local), not merely the newest entry's
@@ -382,14 +394,17 @@ function topbar() {
 function worktreePicker() {
   if (state.worktrees.length < 2) return "";
   return `
-    <label class="worktree-picker" title="Show the Trail for another on-device worktree">
-      <span class="worktree-icon" aria-hidden="true">⑃</span>
-      <select id="worktree-select" data-worktree-select>
-        ${state.worktrees
-          .map((w) => `<option value="${escAttr(w.id)}" ${w.id === state.worktree ? "selected" : ""}>${esc(w.label)}${w.is_primary ? " · current project" : " · worktree"}</option>`)
-          .join("")}
-      </select>
-    </label>`;
+    <div class="worktree-control">
+      <label class="worktree-picker" title="Show the Trail for another on-device worktree">
+        <span class="worktree-icon" aria-hidden="true">⑃</span>
+        <select id="worktree-select" data-worktree-select>
+          ${state.worktrees
+            .map((w) => `<option value="${escAttr(w.id)}" ${w.id === state.worktree ? "selected" : ""}>${esc(w.label)}${w.is_primary ? " · current project" : " · worktree"}</option>`)
+            .join("")}
+        </select>
+      </label>
+      ${state.worktreeError ? `<span class="worktree-error" role="status">${esc(state.worktreeError)}</span>` : ""}
+    </div>`;
 }
 
 // Ranked results dropdown under the search box: the relevance-ordered jump
