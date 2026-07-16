@@ -38,6 +38,7 @@ from memory_seed.semantic_cache import (
     rank_memory_chunks,
 )
 from memory_seed.topics import expand_topic_filter
+from .graph_projection import project_trace_graph
 
 
 ZOOMS = {"day": 24, "12h": 12, "6h": 6, "3h": 3}
@@ -1207,7 +1208,7 @@ def create_app(
     # additive, not a replacement, so a future React client has something
     # stable to build against. /api/timeline has no v1 counterpart: Trail is
     # its designated successor (roadmap Phase 4) and nothing consumes it.
-    from .models import ChunkResponse, Facets, GraphResponse, RuntimeInfo, SearchResponse, TrailResponse
+    from .models import ChunkResponse, Facets, GraphResponse, RendererGraphResponse, RuntimeInfo, SearchResponse, TrailResponse
 
     @app.get("/api/v1/runtime", response_model=RuntimeInfo)
     def v1_runtime() -> dict[str, Any]:
@@ -1274,6 +1275,34 @@ def create_app(
             date_from=date_from,
             date_to=date_to,
             topic=topic,
+        )
+
+    @app.get("/api/v1/graph/projection", response_model=RendererGraphResponse)
+    def v1_renderer_graph(
+        entry_id: str | None = None,
+        depth: int = 1,
+        edge_types: str = "related,topic,agent,day",
+        limit: int = 80,
+        granularity: str = Query("entry", pattern="^(entry|all)$"),
+        agent: str | None = None,
+        user: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        topic: str | None = None,
+    ) -> dict[str, Any]:
+        return project_trace_graph(
+            service.graph(
+                entry_id=entry_id,
+                depth=depth,
+                edge_types=tuple(x for x in edge_types.split(",") if x),
+                limit=limit,
+                granularity=granularity,
+                agent=agent,
+                user=user,
+                date_from=date_from,
+                date_to=date_to,
+                topic=topic,
+            )
         )
 
     @app.get("/api/v1/trail", response_model=TrailResponse)

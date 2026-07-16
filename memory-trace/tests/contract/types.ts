@@ -55,6 +55,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/graph/projection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** V1 Renderer Graph */
+        get: operations["v1_renderer_graph_api_v1_graph_projection_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runtime": {
         parameters: {
             query?: never;
@@ -182,10 +199,10 @@ export interface components {
             commit_entry_ids: string[];
             /** Commit Tracking */
             commit_tracking: boolean;
-            /** Continuity */
-            continuity: components["schemas"]["ContinuityItem"][];
             /** Contexts */
             contexts: string[];
+            /** Continuity */
+            continuity: components["schemas"]["ContinuityItem"][];
             /** Date */
             date: string;
             /** Diagrams */
@@ -232,15 +249,6 @@ export interface components {
             /** User */
             user: string | null;
         };
-        /** ContinuityItem */
-        ContinuityItem: {
-            /** From */
-            from: string;
-            /** Kind */
-            kind: string;
-            /** @default null */
-            to?: string | null;
-        };
         /** CommitInfo */
         CommitInfo: {
             /** Date */
@@ -251,6 +259,18 @@ export interface components {
             short: string;
             /** Subject */
             subject: string;
+        };
+        /**
+         * ContinuityItem
+         * @description One authored continuity block exposed through Trace read contracts.
+         */
+        ContinuityItem: {
+            /** From */
+            from: string;
+            /** Kind */
+            kind: string;
+            /** To */
+            to?: string | null;
         };
         /**
          * EdgeType
@@ -325,10 +345,10 @@ export interface components {
             branch_inferred: boolean;
             /** Chunk Id */
             chunk_id: string;
-            /** Continuity */
-            continuity: components["schemas"]["ContinuityItem"][];
             /** Connectivity */
             connectivity: number;
+            /** Continuity */
+            continuity: components["schemas"]["ContinuityItem"][];
             /** Date */
             date: string;
             /** Datetime */
@@ -410,6 +430,81 @@ export interface components {
          * @enum {string}
          */
         ProvenanceClass: "authored_memory" | "source_control" | "pr_review" | "automation_ci" | "annotation" | "release" | "generated_artefact";
+        /** RendererGraphCommunity */
+        RendererGraphCommunity: {
+            /** Fingerprint */
+            fingerprint: string;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+        };
+        /** RendererGraphEdge */
+        RendererGraphEdge: {
+            /** Directed */
+            directed: boolean;
+            edge_type: components["schemas"]["EdgeType"];
+            /** Evidence Refs */
+            evidence_refs: string[];
+            /** Id */
+            id: string;
+            /** Source */
+            source: string;
+            /** Target */
+            target: string;
+        };
+        /** RendererGraphNode */
+        RendererGraphNode: {
+            /** Authority Class */
+            authority_class: string;
+            community: components["schemas"]["RendererGraphCommunity"];
+            /** Connectivity */
+            connectivity: number;
+            /** Id */
+            id: string;
+            /** Importance Score */
+            importance_score: number;
+            /** Label */
+            label: string;
+            /** Node Type */
+            node_type: string;
+            provenance_class: components["schemas"]["ProvenanceClass"];
+            /** Provider */
+            provider: string | null;
+            /** Revision */
+            revision: string | null;
+            source: components["schemas"]["RendererGraphSource"];
+            /** Stale */
+            stale: boolean;
+            temporal: components["schemas"]["RendererGraphTemporal"];
+        };
+        /** RendererGraphResponse */
+        RendererGraphResponse: {
+            /** Edges */
+            edges: components["schemas"]["RendererGraphEdge"][];
+            /** Nodes */
+            nodes: components["schemas"]["RendererGraphNode"][];
+        };
+        /** RendererGraphSource */
+        RendererGraphSource: {
+            /** Agent */
+            agent: string;
+            /** Chunk Id */
+            chunk_id: string;
+            /** Entry Id */
+            entry_id: string | null;
+            /** Topics */
+            topics: string[];
+        };
+        /** RendererGraphTemporal */
+        RendererGraphTemporal: {
+            /** Precision */
+            precision: string;
+            /** Source */
+            source: string;
+            /** Value */
+            value: string;
+        };
         /** RuntimeInfo */
         RuntimeInfo: {
             /** Cache Path */
@@ -454,10 +549,10 @@ export interface components {
             branch: string | null;
             /** Chunk Id */
             chunk_id: string;
-            /** Continuity */
-            continuity: components["schemas"]["ContinuityItem"][];
             /** Contexts */
             contexts: string[];
+            /** Continuity */
+            continuity: components["schemas"]["ContinuityItem"][];
             /** Date */
             date: string;
             /** Entry Datetime */
@@ -547,10 +642,10 @@ export interface components {
             branch_inferred: boolean;
             /** Chunk Id */
             chunk_id: string;
-            /** Continuity */
-            continuity: components["schemas"]["ContinuityItem"][];
             /** Connectivity */
             connectivity: number;
+            /** Continuity */
+            continuity: components["schemas"]["ContinuityItem"][];
             /** Date */
             date: string;
             /** Datetime */
@@ -689,6 +784,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GraphResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    v1_renderer_graph_api_v1_graph_projection_get: {
+        parameters: {
+            query?: {
+                entry_id?: string | null;
+                depth?: number;
+                edge_types?: string;
+                limit?: number;
+                granularity?: string;
+                agent?: string | null;
+                user?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                topic?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RendererGraphResponse"];
                 };
             };
             /** @description Validation Error */

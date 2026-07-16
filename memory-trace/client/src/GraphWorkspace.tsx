@@ -1,15 +1,15 @@
 import { useEffect, useRef } from "react";
 import type { Core } from "cytoscape";
-import type { GraphNode, GraphResponse } from "./api";
+import type { RendererGraphNode, RendererGraphResponse } from "./api";
 
 type GraphWorkspaceProps = {
-  graph: GraphResponse;
+  graph: RendererGraphResponse;
   selectedId: string | null;
-  onSelect: (node: GraphNode) => void;
+  onSelect: (node: RendererGraphNode) => void;
 };
 
-function visibleLabel(node: GraphNode, selectedId: string | null, labelIds: Set<string>) {
-  return node.id === selectedId || labelIds.has(node.id) ? node.title : "";
+function visibleLabel(node: RendererGraphNode, selectedId: string | null, labelIds: Set<string>) {
+  return node.id === selectedId || labelIds.has(node.id) ? node.label : "";
 }
 
 export function GraphWorkspace({ graph, selectedId, onSelect }: GraphWorkspaceProps) {
@@ -35,13 +35,13 @@ export function GraphWorkspace({ graph, selectedId, onSelect }: GraphWorkspacePr
             data: {
               id: node.id,
               label: visibleLabel(node, selectedId, labelIds),
-              title: node.title,
-              agent: node.agent,
+              title: node.label,
+              agent: node.source.agent,
               selected: node.id === selectedId ? "yes" : "no",
             },
           })),
           ...graph.edges.map((edge, index) => ({
-            data: { id: `${edge.source}-${edge.target}-${index}`, source: edge.source, target: edge.target, type: edge.type },
+            data: { id: edge.id || `${edge.source}-${edge.target}-${index}`, source: edge.source, target: edge.target, type: edge.edge_type },
           })),
         ],
         style: [

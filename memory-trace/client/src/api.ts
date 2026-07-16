@@ -2,8 +2,8 @@ import type { components } from "../../tests/contract/types";
 
 export type RuntimeInfo = components["schemas"]["RuntimeInfo"];
 export type Facets = components["schemas"]["Facets"];
-export type GraphResponse = components["schemas"]["GraphResponse"];
-export type GraphNode = components["schemas"]["GraphNode"];
+export type RendererGraphResponse = components["schemas"]["RendererGraphResponse"];
+export type RendererGraphNode = components["schemas"]["RendererGraphNode"];
 export type ChunkResponse = components["schemas"]["ChunkResponse"];
 
 export async function api<T>(path: string): Promise<T> {
@@ -12,6 +12,6 @@ export async function api<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function graphQuery(): Promise<GraphResponse> {
-  return api<GraphResponse>("/graph?edge_types=related,supersedes,evolves,topic&limit=60");
+export function graphQuery(): Promise<RendererGraphResponse> {
+  return api<RendererGraphResponse>("/graph/projection?edge_types=related,supersedes,evolves,topic&limit=60");
 }

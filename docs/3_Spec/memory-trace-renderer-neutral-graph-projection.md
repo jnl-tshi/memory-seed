@@ -64,9 +64,10 @@ the shipped Graph tab: its role is to produce comparable evidence, not to select
 
 ## Compatibility
 
-The validator is intentionally outside the API models. `project_trace_graph()` adapts the current
-`TraceService.graph()` response into the same renderer-facing node and edge shape, using an explicit
-derived `unassigned` community until B0b adds evidence-backed community detection. Existing vanilla SVG
-rendering and `/api/graph` remain the shipped fallback, and future renderer adapters receive a detached
-fixture copy through `renderer_input()`. A future API expansion may consume this contract only additively
-and with the normal OpenAPI/parity fixtures.
+The validator remains outside the legacy API models. `project_trace_graph()` adapts the current
+`TraceService.graph()` response into renderer-facing node and edge shape, using an explicit derived
+`unassigned` community until B0b adds evidence-backed community detection. The additive
+`/api/v1/graph/projection` route exposes that shape with immutable `source` context for canonical chunk
+selection; it carries no renderer positions, colours, physics, or viewport state. Existing vanilla SVG
+rendering and `/api/graph` remain the shipped fallback, and benchmark adapters receive a detached fixture
+copy through `renderer_input()`.

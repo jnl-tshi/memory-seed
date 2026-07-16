@@ -202,6 +202,16 @@ class V1ApiContractTests(unittest.TestCase):
                 {"related", "supersedes", "evolves", "branch", "topic", "agent", "day"},
             )
 
+    def test_v1_renderer_projection_is_additive_and_has_no_renderer_state(self):
+        client = self.client()
+        projection = client.get("/api/v1/graph/projection", params={"limit": 100}).json()
+
+        self.assertEqual(len(projection["nodes"]), 2)
+        self.assertEqual(projection["nodes"][0]["community"]["id"], "community:unassigned")
+        self.assertIn("chunk_id", projection["nodes"][0]["source"])
+        self.assertNotIn("position", projection["nodes"][0])
+        self.assertTrue({edge["edge_type"] for edge in projection["edges"]} <= {"related", "topic", "agent", "day"})
+
     def test_v1_trail_fixes_edge_types_to_trail_set(self):
         client = self.client()
 
@@ -251,6 +261,7 @@ class V1ApiContractTests(unittest.TestCase):
             "/api/v1/facets",
             "/api/v1/search",
             "/api/v1/graph",
+            "/api/v1/graph/projection",
             "/api/v1/trail",
         ):
             self.assertIn(path, schema["paths"], path)

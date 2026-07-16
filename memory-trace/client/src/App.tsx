@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { LayoutPanelLeft, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, X } from "lucide-react";
-import { api, graphQuery, type ChunkResponse, type Facets, type GraphNode, type GraphResponse, type RuntimeInfo } from "./api";
+import { api, graphQuery, type ChunkResponse, type Facets, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo } from "./api";
 
 const GraphWorkspace = lazy(() => import("./GraphWorkspace").then((module) => ({ default: module.GraphWorkspace })));
 type InspectorDock = "auto" | "right" | "bottom" | "hidden";
@@ -10,15 +10,15 @@ function readDock(): InspectorDock {
   return value === "right" || value === "bottom" || value === "hidden" ? value : "auto";
 }
 
-function titleFor(node: GraphNode | null) {
-  return node ? node.title : "No entry selected";
+function titleFor(node: RendererGraphNode | null) {
+  return node ? node.label : "No entry selected";
 }
 
 export default function App() {
   const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
   const [facets, setFacets] = useState<Facets | null>(null);
-  const [graph, setGraph] = useState<GraphResponse | null>(null);
-  const [selected, setSelected] = useState<GraphNode | null>(null);
+  const [graph, setGraph] = useState<RendererGraphResponse | null>(null);
+  const [selected, setSelected] = useState<RendererGraphNode | null>(null);
   const [chunk, setChunk] = useState<ChunkResponse | null>(null);
   const [leftOpen, setLeftOpen] = useState(true);
   const [dock, setDock] = useState<InspectorDock>(readDock);
@@ -41,10 +41,10 @@ export default function App() {
   useEffect(() => { localStorage.setItem("memory-trace:inspector-dock", dock); }, [dock]);
   useEffect(() => {
     if (!selected) { setChunk(null); return; }
-    void api<ChunkResponse>(`/chunks/${encodeURIComponent(selected.chunk_id)}`).then(setChunk).catch(() => setChunk(null));
+    void api<ChunkResponse>(`/chunks/${encodeURIComponent(selected.source.chunk_id)}`).then(setChunk).catch(() => setChunk(null));
   }, [selected]);
 
-  const select = useCallback((node: GraphNode) => setSelected(node), []);
+  const select = useCallback((node: RendererGraphNode) => setSelected(node), []);
   const topics = useMemo(() => Object.entries(facets?.topics ?? {}).slice(0, 10), [facets]);
   const inspectorVisible = dock !== "hidden";
 
@@ -68,7 +68,7 @@ export default function App() {
         <div className="pane-heading"><LayoutPanelLeft size={16} aria-hidden="true" /> <span>Project</span></div>
         <dl className="metric-list"><div><dt>Entries</dt><dd>{runtime?.entry_count ?? "-"}</dd></div><div><dt>Chunks</dt><dd>{facets?.runtime.chunk_count ?? "-"}</dd></div></dl>
         <section className="navigation-section"><h2>Topics</h2><div className="topic-list">{topics.map(([topic, count]) => <span className="topic" key={topic}>{topic}<b>{count}</b></span>)}</div></section>
-        <section className="navigation-section entry-list"><h2>Entries</h2>{graph?.nodes.slice(0, 24).map((node) => <button key={node.id} type="button" className={node.id === selected?.id ? "entry selected" : "entry"} aria-pressed={node.id === selected?.id} onClick={() => select(node)}><span>{node.title}</span><small>{node.date}</small></button>)}</section>
+        <section className="navigation-section entry-list"><h2>Entries</h2>{graph?.nodes.slice(0, 24).map((node) => <button key={node.id} type="button" className={node.id === selected?.id ? "entry selected" : "entry"} aria-pressed={node.id === selected?.id} onClick={() => select(node)}><span>{node.label}</span><small>{node.temporal.value}</small></button>)}</section>
       </aside>}
 
       <main className="workspace" id="trace-workspace">
@@ -81,7 +81,7 @@ export default function App() {
       {inspectorVisible && <aside className="inspector" id="trace-inspector" aria-label="Inspector">
         <div className="inspector-bar"><div><span className="eyebrow">Inspector</span><h2>{titleFor(selected)}</h2></div><button className="icon-button" type="button" onClick={() => setDock("hidden")} aria-label="Hide inspector" title="Hide inspector"><X size={17} /></button></div>
         <div className="dock-control" aria-label="Inspector position"><span>Dock</span>{(["auto", "right", "bottom"] as const).map((option) => <button key={option} type="button" aria-pressed={dock === option} onClick={() => setDock(option)}>{option}</button>)}</div>
-        {selected && <div className="inspector-content"><dl className="metadata"><div><dt>Date</dt><dd>{selected.datetime ?? selected.date}</dd></div><div><dt>Agent</dt><dd>{selected.agent}</dd></div><div><dt>Links</dt><dd>{selected.connectivity}</dd></div><div><dt>Topics</dt><dd>{selected.topics.join(", ") || "None"}</dd></div></dl><p>{chunk?.excerpt ?? "Loading entry details"}</p></div>}
+        {selected && <div className="inspector-content"><dl className="metadata"><div><dt>Date</dt><dd>{selected.temporal.value}</dd></div><div><dt>Agent</dt><dd>{selected.source.agent}</dd></div><div><dt>Links</dt><dd>{selected.connectivity}</dd></div><div><dt>Topics</dt><dd>{selected.source.topics.join(", ") || "None"}</dd></div></dl><p>{chunk?.excerpt ?? "Loading entry details"}</p></div>}
       </aside>}
     </div>
   );

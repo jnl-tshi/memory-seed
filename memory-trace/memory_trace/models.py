@@ -258,6 +258,55 @@ class GraphEdge(BaseModel):
     type: EdgeType
 
 
+class RendererGraphSource(BaseModel):
+    chunk_id: str
+    entry_id: str | None
+    agent: str
+    topics: list[str]
+
+
+class RendererGraphCommunity(BaseModel):
+    id: str
+    label: str
+    fingerprint: str
+
+
+class RendererGraphTemporal(BaseModel):
+    value: str
+    source: str
+    precision: str
+
+
+class RendererGraphNode(BaseModel):
+    id: str
+    node_type: str
+    label: str
+    provenance_class: ProvenanceClass
+    authority_class: str
+    community: RendererGraphCommunity
+    temporal: RendererGraphTemporal
+    connectivity: float
+    importance_score: float
+    revision: str | None
+    provider: str | None
+    stale: bool
+    source: RendererGraphSource
+
+
+class RendererGraphEdge(BaseModel):
+    id: str
+    source: str
+    target: str
+    edge_type: EdgeType
+    directed: bool
+    evidence_refs: list[str]
+
+
+class RendererGraphResponse(BaseModel):
+    nodes: list[RendererGraphNode]
+    edges: list[RendererGraphEdge]
+
+
 class GraphResponse(BaseModel):
     entry_id: str | None
     granularity: str
