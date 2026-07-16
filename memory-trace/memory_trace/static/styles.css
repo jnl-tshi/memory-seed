@@ -994,6 +994,13 @@ option {
 .diagram-svg { max-width: 100%; height: auto; font-size: var(--fs-meta, 12px); }
 .diagram-node rect { fill: var(--panel-2); stroke: var(--border); stroke-width: 1; }
 .diagram-node text { fill: var(--text); font-size: var(--fs-meta, 12px); }
+.diagram-edge {
+  fill: none;
+  stroke: var(--edge-related);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .diagram-edge-label { fill: var(--muted); font-size: var(--fs-label, 11px); }
 .diagram-lifeline { stroke: var(--border); }
 .diagram-source {
@@ -1050,8 +1057,8 @@ option {
 .diagram-viewer {
   display: flex;
   flex-direction: column;
-  width: min(880px, 92vw);
-  max-height: 88vh;
+  width: min(1240px, 96vw);
+  max-height: 92vh;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius, 8px);
@@ -1084,7 +1091,7 @@ option {
 .diagram-view:last-child { margin-bottom: 0; }
 .diagram-viewport {
   position: relative;
-  height: min(60vh, 520px);
+  height: min(64vh, 620px);
   overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--border);

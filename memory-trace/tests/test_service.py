@@ -759,25 +759,84 @@ function pick(name, nextName) {
   return src.slice(start, end);
 }
 eval([
-  pick("_diagramNode", "renderFlowchart"),
-  pick("renderFlowchart", "renderSequenceDiagram"),
-  pick("_diagramArrowDefs", "markdown"),
-  pick("esc", "escAttr"),
+        pick("_diagramNode", "_diagramLabelLines"),
+        pick("_diagramLabelLines", "_diagramNodeSize"),
+        pick("_diagramNodeSize", "_diagramFlowLayout"),
+        pick("_diagramFlowLayout", "_diagramEdgePath"),
+        pick("_diagramEdgePath", "renderFlowchart"),
+        pick("renderFlowchart", "renderSequenceDiagram"),
+        pick("_diagramArrowDefs", "markdown"),
+        pick("esc", "escAttr"),
+        "function escAttr(value) { return esc(value); }",
 ].join("\n"));
 const svg = renderFlowchart("flowchart LR\n  A[Alpha] --> B[Beta]");
 const rects = [...svg.matchAll(/<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"/g)]
   .map((match) => match.slice(1).map(Number));
-const line = svg.match(/<line x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)"/);
-if (rects.length !== 2 || !line) throw new Error(svg);
+const path = svg.match(/<path class="diagram-edge" d="M ([^ ]+) ([^ ]+) C ([^ ]+) ([^,]+), ([^ ]+) ([^,]+), ([^ ]+) ([^"]+)"/);
+if (rects.length !== 2 || !path) throw new Error(svg);
 const [a, b] = rects;
-const coords = line.slice(1).map(Number);
+const coords = path.slice(1).map(Number);
 const horizontalOverlap = Math.max(0, Math.min(a[0] + a[2], b[0] + b[2]) - Math.max(a[0], b[0]));
 if (horizontalOverlap > 0) {
   throw new Error(`LR nodes overlap by ${horizontalOverlap}px`);
 }
+const endpoints = [coords[0], coords[1], coords[6], coords[7]];
 const expected = [a[0] + a[2], a[1] + a[3] / 2, b[0], b[1] + b[3] / 2];
-if (coords.some((value, index) => value !== expected[index])) {
-  throw new Error(`LR edge ${coords.join(",")} should be ${expected.join(",")}`);
+if (endpoints.some((value, index) => value !== expected[index])) {
+  throw new Error(`LR path ${endpoints.join(",")} should be ${expected.join(",")}`);
+}
+"""
+        result = subprocess.run([node, "-e", probe, str(script_path)], capture_output=True, text=True)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_frontend_flowchart_centres_merge_nodes_and_routes_curves(self):
+        import importlib.resources as resources
+
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("node is not available")
+        script_path = resources.files("memory_trace").joinpath("static/app.js")
+        probe = r"""
+const fs = require("fs");
+const src = fs.readFileSync(process.argv[1], "utf8");
+function pick(name, nextName) {
+  const start = src.indexOf(`function ${name}(`);
+  const end = src.indexOf(`\nfunction ${nextName}`, start);
+  if (start < 0 || end < 0) throw new Error(`missing ${name}`);
+  return src.slice(start, end);
+}
+eval([
+  pick("_diagramNode", "_diagramLabelLines"),
+  pick("_diagramLabelLines", "_diagramNodeSize"),
+  pick("_diagramNodeSize", "_diagramFlowLayout"),
+  pick("_diagramFlowLayout", "_diagramEdgePath"),
+  pick("_diagramEdgePath", "renderFlowchart"),
+  pick("renderFlowchart", "renderSequenceDiagram"),
+  pick("_diagramArrowDefs", "markdown"),
+  pick("esc", "escAttr"),
+  "function escAttr(value) { return esc(value); }",
+].join("\n"));
+const source = `flowchart LR
+  H["Malformed main session headings"] --> R["Structural heading repair"]
+  R --> B["Rebase B0a branch"]
+  B --> F["Session-aware fuse"]
+  F --> M["B0a merge on main"]
+  E["Completed renderer evidence"] --> S["Select Cytoscape.js"]
+  S --> M
+  M --> P["Approved push to origin/main"]`;
+const svg = renderFlowchart(source);
+const nodes = new Map([...svg.matchAll(/data-diagram-node="([^"]+)"[^>]*><rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"/g)]
+  .map((match) => [match[1], match.slice(2).map(Number)]));
+const paths = [...svg.matchAll(/<path class="diagram-edge"[^>]+marker-end=/g)];
+if (nodes.size !== 8 || paths.length !== 7) throw new Error(svg);
+const centerY = (id) => nodes.get(id)[1] + nodes.get(id)[3] / 2;
+const expectedMergeY = (centerY("F") + centerY("S")) / 2;
+if (centerY("M") !== expectedMergeY || centerY("P") !== expectedMergeY) {
+  throw new Error(`merge chain ${centerY("M")},${centerY("P")} should be ${expectedMergeY}`);
+}
+if (new Set([...nodes.values()].map((rect) => rect[2])).size < 2) {
+  throw new Error("node widths should reflect their labels");
 }
 """
         result = subprocess.run([node, "-e", probe, str(script_path)], capture_output=True, text=True)

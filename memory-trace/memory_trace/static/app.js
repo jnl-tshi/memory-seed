@@ -2542,6 +2542,122 @@ function _diagramNode(token) {
   return { id: match[1], label: (match[2] || match[3] || match[4] || match[1]).trim() };
 }
 
+function _diagramLabelLines(label, fallback) {
+  const lines = String(label || fallback)
+    .replace(/^["']|["']$/g, "")
+    .split(/<br\s*\/?>/i)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.length ? lines : [fallback];
+}
+
+function _diagramNodeSize(lines) {
+  const longest = Math.max(1, ...lines.map((line) => line.length));
+  return {
+    width: Math.min(260, Math.max(116, longest * 7 + 30)),
+    height: Math.max(40, 14 + lines.length * 16),
+  };
+}
+
+// Compact Sugiyama-style coordinate assignment. Ranks establish the primary
+// direction; each later rank is centred on its incoming neighbours, with a
+// separation pass preventing overlaps. This keeps merge nodes between their
+// contributing branches instead of pinning every rank to its first row.
+function _diagramFlowLayout(nodes, edges, horizontal, rightToLeft) {
+  const margin = 24;
+  const rankGap = 78;
+  const crossGap = 26;
+  const ids = [...nodes.keys()];
+  const order = new Map(ids.map((id, index) => [id, index]));
+  const lines = new Map(ids.map((id) => [id, _diagramLabelLines(nodes.get(id), id)]));
+  const sizes = new Map(ids.map((id) => [id, _diagramNodeSize(lines.get(id))]));
+  const rank = new Map(ids.map((id) => [id, 0]));
+  for (let pass = 0; pass < ids.length; pass += 1) {
+    let changed = false;
+    edges.forEach((edge) => {
+      const next = Math.min(ids.length - 1, rank.get(edge.from) + 1);
+      if (next > rank.get(edge.to)) {
+        rank.set(edge.to, next);
+        changed = true;
+      }
+    });
+    if (!changed) break;
+  }
+
+  const byRank = new Map();
+  ids.forEach((id) => {
+    const value = rank.get(id);
+    if (!byRank.has(value)) byRank.set(value, []);
+    byRank.get(value).push(id);
+  });
+  const rankValues = [...byRank.keys()].sort((a, b) => a - b);
+  const incoming = new Map(ids.map((id) => [id, []]));
+  edges.forEach((edge) => incoming.get(edge.to)?.push(edge.from));
+  const crossCenters = new Map();
+
+  rankValues.forEach((value, rankIndex) => {
+    const rankIds = byRank.get(value);
+    const crossSize = (id) => horizontal ? sizes.get(id).height : sizes.get(id).width;
+    const desired = new Map(rankIds.map((id, index) => {
+      const predecessors = incoming.get(id).filter((parent) => crossCenters.has(parent));
+      const center = predecessors.length
+        ? predecessors.reduce((sum, parent) => sum + crossCenters.get(parent), 0) / predecessors.length
+        : margin + crossSize(id) / 2 + index * (crossSize(id) + crossGap);
+      return [id, center];
+    }));
+    rankIds.sort((a, b) => desired.get(a) - desired.get(b) || order.get(a) - order.get(b));
+    let cursor = margin;
+    const placed = [];
+    rankIds.forEach((id) => {
+      const half = crossSize(id) / 2;
+      const center = Math.max(desired.get(id), cursor + half);
+      placed.push({ id, center, half });
+      cursor = center + half + crossGap;
+    });
+    if (rankIndex > 0 && placed.length) {
+      const desiredMean = placed.reduce((sum, item) => sum + desired.get(item.id), 0) / placed.length;
+      const actualMean = placed.reduce((sum, item) => sum + item.center, 0) / placed.length;
+      const availableShift = placed[0].center - placed[0].half - margin;
+      const shift = Math.min(Math.max(0, actualMean - desiredMean), Math.max(0, availableShift));
+      placed.forEach((item) => { item.center -= shift; });
+    }
+    placed.forEach((item) => crossCenters.set(item.id, item.center));
+  });
+
+  const rankExtents = new Map(rankValues.map((value) => [value, Math.max(
+    ...byRank.get(value).map((id) => horizontal ? sizes.get(id).width : sizes.get(id).height),
+  )]));
+  const rankStarts = new Map();
+  let mainCursor = margin;
+  rankValues.forEach((value) => {
+    rankStarts.set(value, mainCursor);
+    mainCursor += rankExtents.get(value) + rankGap;
+  });
+  const mainExtent = mainCursor - rankGap + margin;
+  const crossExtent = Math.max(...ids.map((id) => crossCenters.get(id) + (horizontal ? sizes.get(id).height : sizes.get(id).width) / 2)) + margin;
+  const width = horizontal ? mainExtent : crossExtent;
+  const height = horizontal ? crossExtent : mainExtent;
+  const positions = new Map();
+  ids.forEach((id) => {
+    const size = sizes.get(id);
+    const normalMain = rankStarts.get(rank.get(id));
+    let x = horizontal ? normalMain : crossCenters.get(id) - size.width / 2;
+    const y = horizontal ? crossCenters.get(id) - size.height / 2 : normalMain;
+    if (horizontal && rightToLeft) x = width - margin - size.width - (normalMain - margin);
+    positions.set(id, { x, y });
+  });
+  return { height, lines, positions, sizes, width };
+}
+
+function _diagramEdgePath(from, to, horizontal) {
+  if (horizontal) {
+    const delta = (to.x - from.x) / 2;
+    return `M ${from.x} ${from.y} C ${from.x + delta} ${from.y}, ${to.x - delta} ${to.y}, ${to.x} ${to.y}`;
+  }
+  const delta = (to.y - from.y) / 2;
+  return `M ${from.x} ${from.y} C ${from.x} ${from.y + delta}, ${to.x} ${to.y - delta}, ${to.x} ${to.y}`;
+}
+
 function renderFlowchart(text) {
   const lines = text.split("\n").slice(1).map((line) => line.trim()).filter(Boolean);
   const horizontal = /^(flowchart|graph)\s+(lr|rl)/i.test(text.split("\n")[0]);
@@ -2564,75 +2680,28 @@ function renderFlowchart(text) {
     if (a && b) edges.push({ from: a.id, to: b.id, label });
   }
   if (!nodes.size) throw new Error("no nodes");
-  // Longest-path layering from roots (nodes with no incoming edge).
-  const indeg = new Map([...nodes.keys()].map((id) => [id, 0]));
-  edges.forEach((edge) => indeg.set(edge.to, (indeg.get(edge.to) || 0) + 1));
-  const layer = new Map([...nodes.keys()].map((id) => [id, 0]));
-  for (let pass = 0; pass < nodes.size; pass += 1) {
-    let changed = false;
-    edges.forEach((edge) => {
-      const next = layer.get(edge.from) + 1;
-      if (next > layer.get(edge.to)) { layer.set(edge.to, next); changed = true; }
-    });
-    if (!changed) break;
-  }
-  const byLayer = new Map();
-  [...nodes.keys()].forEach((id) => {
-    const key = layer.get(id);
-    if (!byLayer.has(key)) byLayer.set(key, []);
-    byLayer.get(key).push(id);
-  });
-  // Honour mermaid's <br/> line breaks (authored so long labels wrap) and size
-  // the uniform box to the widest line + tallest label - otherwise long labels
-  // overflow their box, which is invisible at thumbnail size but glaring once
-  // the diagram is opened full-size in the zoom viewer.
-  const labelLines = (label) =>
-    String(label)
-      .replace(/^["']|["']$/g, "")
-      .split(/<br\s*\/?>/i)
-      .map((s) => s.trim())
-      .filter(Boolean);
-  const nodeLines = new Map([...nodes.entries()].map(([id, label]) => [id, labelLines(label).length ? labelLines(label) : [id]]));
-  const maxLines = Math.max(1, ...[...nodeLines.values()].map((l) => l.length));
-  const longestChars = Math.max(8, ...[...nodeLines.values()].flat().map((l) => l.length));
-  const lineH = 16;
-  const boxW = Math.min(300, Math.max(130, longestChars * 7 + 22));
-  const boxH = Math.max(40, 14 + maxLines * lineH);
-  const gapMain = 78, gapCross = 26;
-  const pos = new Map();
-  let maxCross = 0;
-  [...byLayer.entries()].sort((a, b) => a[0] - b[0]).forEach(([lyr, ids]) => {
-    ids.forEach((id, i) => {
-      const mainSize = horizontal ? boxW : boxH;
-      const crossSize = horizontal ? boxH : boxW;
-      const effectiveLayer = horizontal && rightToLeft ? byLayer.size - 1 - lyr : lyr;
-      const main = 24 + effectiveLayer * (mainSize + gapMain);
-      const cross = 24 + i * (crossSize + gapCross);
-      pos.set(id, horizontal ? { x: main, y: cross } : { x: cross, y: main });
-    });
-    maxCross = Math.max(maxCross, ids.length);
-  });
-  const layers = byLayer.size;
-  const width = horizontal ? 48 + layers * boxW + Math.max(0, layers - 1) * gapMain : 48 + maxCross * boxW + Math.max(0, maxCross - 1) * gapCross;
-  const height = horizontal ? 48 + maxCross * boxH + Math.max(0, maxCross - 1) * gapCross : 48 + layers * boxH + Math.max(0, layers - 1) * gapMain;
+  const layout = _diagramFlowLayout(nodes, edges, horizontal, rightToLeft);
   const edgeSvg = edges.map((edge) => {
-    const a = pos.get(edge.from), b = pos.get(edge.to);
+    const a = layout.positions.get(edge.from), b = layout.positions.get(edge.to);
     if (!a || !b) return "";
-    const x1 = horizontal ? (rightToLeft ? a.x : a.x + boxW) : a.x + boxW / 2;
-    const y1 = horizontal ? a.y + boxH / 2 : a.y + boxH;
-    const x2 = horizontal ? (rightToLeft ? b.x + boxW : b.x) : b.x + boxW / 2;
-    const y2 = horizontal ? b.y + boxH / 2 : b.y;
-    const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
-    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--edge-related)" stroke-width="1.5" marker-end="url(#diagram-arrow)"></line>${edge.label ? `<text class="diagram-edge-label" x="${midX}" y="${midY}" text-anchor="middle">${esc(edge.label)}</text>` : ""}`;
+    const aSize = layout.sizes.get(edge.from), bSize = layout.sizes.get(edge.to);
+    const from = horizontal
+      ? { x: rightToLeft ? a.x : a.x + aSize.width, y: a.y + aSize.height / 2 }
+      : { x: a.x + aSize.width / 2, y: a.y + aSize.height };
+    const to = horizontal
+      ? { x: rightToLeft ? b.x + bSize.width : b.x, y: b.y + bSize.height / 2 }
+      : { x: b.x + bSize.width / 2, y: b.y };
+    const midX = (from.x + to.x) / 2, midY = (from.y + to.y) / 2;
+    return `<path class="diagram-edge" d="${_diagramEdgePath(from, to, horizontal)}" marker-end="url(#diagram-arrow)"></path>${edge.label ? `<text class="diagram-edge-label" x="${midX}" y="${midY - 5}" text-anchor="middle">${esc(edge.label)}</text>` : ""}`;
   }).join("");
-  const nodeSvg = [...nodeLines.entries()].map(([id, lns]) => {
-    const p = pos.get(id);
-    const cx = p.x + boxW / 2;
-    const startY = p.y + boxH / 2 - ((lns.length - 1) * lineH) / 2 + 4;
-    const tspans = lns.map((ln, i) => `<tspan x="${cx}" y="${startY + i * lineH}">${esc(ln)}</tspan>`).join("");
-    return `<g class="diagram-node"><rect x="${p.x}" y="${p.y}" width="${boxW}" height="${boxH}" rx="6"></rect><text text-anchor="middle">${tspans}</text></g>`;
+  const nodeSvg = [...layout.lines.entries()].map(([id, lines]) => {
+    const p = layout.positions.get(id), size = layout.sizes.get(id);
+    const cx = p.x + size.width / 2;
+    const startY = p.y + size.height / 2 - ((lines.length - 1) * 16) / 2 + 4;
+    const tspans = lines.map((line, index) => `<tspan x="${cx}" y="${startY + index * 16}">${esc(line)}</tspan>`).join("");
+    return `<g class="diagram-node" data-diagram-node="${escAttr(id)}"><rect x="${p.x}" y="${p.y}" width="${size.width}" height="${size.height}" rx="4"></rect><text text-anchor="middle">${tspans}</text></g>`;
   }).join("");
-  return `<svg class="diagram-svg" viewBox="0 0 ${width} ${height}" role="img" preserveAspectRatio="xMidYMid meet">${_diagramArrowDefs()}${edgeSvg}${nodeSvg}</svg>`;
+  return `<svg class="diagram-svg" viewBox="0 0 ${layout.width} ${layout.height}" role="img" preserveAspectRatio="xMidYMid meet">${_diagramArrowDefs()}${edgeSvg}${nodeSvg}</svg>`;
 }
 
 function renderSequenceDiagram(text) {
