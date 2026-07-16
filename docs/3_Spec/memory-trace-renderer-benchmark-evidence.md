@@ -43,13 +43,13 @@ remain renderer-owned behaviour to be assessed separately; they are not represen
 
 - The static service and package manifest tests verify that `benchmark.html`, `renderer-benchmark.js`, and
   `renderer-benchmark.css` are included and served without external resources.
-- Actual offline wheel inspection is **blocked in this local environment**, not passed: isolated builds cannot
-  obtain `setuptools>=68` without network access, and the installed local setuptools has no `bdist_wheel`
-  command. Re-run this check in the release build environment with its wheel backend already provisioned.
+- Local offline wheel inspection now passes after provisioning the local build backend. `pip wheel --no-deps
+  --no-build-isolation` produced `memory_seed-2.18.0-py3-none-any.whl` (733,886 bytes) without a dependency
+  download during the build, and the wheel contains all three benchmark assets.
 
 ## Decision Boundary
 
-- Do not select Cytoscape.js yet: the benchmark still needs offline wheel inspection, per-candidate lazy
-  bundle accounting, pointer pan/zoom evidence, and a documented vis-network disposition.
+- Do not select Cytoscape.js yet: the benchmark still needs per-candidate lazy bundle accounting, pointer
+  pan/zoom evidence, and a documented vis-network disposition.
 - Do not promote or alter the vanilla SVG fallback.
 - The vis-network result is an adapter/runtime failure observation, not a general claim about the library.
