@@ -13,6 +13,7 @@ import time
 import uuid
 import webbrowser
 import gc
+from contextlib import contextmanager
 from dataclasses import asdict, replace
 from datetime import date, datetime, time as datetime_time, timedelta
 from importlib import resources
@@ -146,6 +147,83 @@ def default_cache_path(cwd: str | Path = ".", *, cache_root: str | Path | None =
     return root / f"{digest}.sqlite3"
 
 
+class _CacheRebuildLease:
+    """A short-lived, cross-process writer lease for one derived cache file.
+
+    SQLite connections are deliberately short lived, but Windows can still deny
+    ``os.replace`` while a second Trace process is rebuilding the same cache.
+    An advisory lock next to the cache serializes writers without making the
+    Markdown source or normal read paths depend on a daemon.
+    """
+
+    def __init__(self, path: Path):
+        self.path = path
+
+    @contextmanager
+    def hold(self, *, timeout_seconds: float, retry_seconds: float):
+        fd: int | None = None
+        locked = False
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o600)
+            if os.fstat(fd).st_size == 0:
+                os.write(fd, b"0")
+        except OSError:
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+            yield False
+            return
+
+        try:
+            deadline = time.monotonic() + timeout_seconds
+            while True:
+                if self._try_lock(fd):
+                    locked = True
+                    break
+                if time.monotonic() >= deadline:
+                    break
+                time.sleep(retry_seconds)
+            yield locked
+        finally:
+            if locked:
+                self._unlock(fd)
+            os.close(fd)
+
+    @staticmethod
+    def _try_lock(fd: int) -> bool:
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (ImportError, OSError):
+            return False
+        return True
+
+    @staticmethod
+    def _unlock(fd: int) -> None:
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(fd, fcntl.LOCK_UN)
+        except (ImportError, OSError):
+            pass
+
+
 def list_worktrees(cwd: str | Path = ".") -> list[dict[str, Any]]:
     """Enumerate the git worktrees for the repository containing ``cwd``.
 
@@ -196,6 +274,11 @@ class TraceCache:
     # single interaction fires it several times; memoizing over a short window
     # keeps switching snappy while a real change is still seen within the TTL.
     _FRESHNESS_TTL_SECONDS = 2.0
+    # A normal full rebuild is much shorter than this. A bounded wait lets a
+    # second server reuse the first server's fresh projection; if that server
+    # does not release the lease, it builds an isolated disposable projection.
+    _REBUILD_LEASE_TIMEOUT_SECONDS = 5.0
+    _REBUILD_LEASE_RETRY_SECONDS = 0.05
 
     def __init__(
         self,
@@ -207,6 +290,9 @@ class TraceCache:
         self.cwd = Path(cwd).resolve()
         self.runtime = resolve_runtime(self.cwd)
         self.db_path = Path(db_path) if db_path is not None else default_cache_path(self.cwd, cache_root=cache_root)
+        self._primary_db_path = self.db_path
+        self._rebuild_lease_path = self._primary_db_path.with_name(f"{self._primary_db_path.name}.lock")
+        self._using_temporary_cache = False
         # Serializes rebuilds within this process. The UI fires several API
         # calls concurrently on first load; without this, two threads raced the
         # same pid-named tmp file ("table meta already exists", then Windows
@@ -237,7 +323,7 @@ class TraceCache:
 
     def rebuild(self) -> None:
         with self._rebuild_lock:
-            self._rebuild_locked()
+            self._rebuild_coordinated(force=True)
         # A just-built projection is current; open the freshness window so the
         # first reads after an explicit rebuild don't immediately re-check.
         self._mark_fresh()
@@ -371,6 +457,25 @@ class TraceCache:
         self._chunks_memo = {}
         self._generation += 1
 
+    def _rebuild_coordinated(self, *, force: bool) -> None:
+        with self._rebuild_lease() as acquired:
+            if not acquired:
+                # A separate server owns the shared cache. Never make a UI
+                # request fail because its rebuild is slow or wedged: build an
+                # isolated, disposable projection instead.
+                self._use_temporary_cache()
+            elif not force and self.db_path.exists() and self._is_current():
+                # Another server may have refreshed the projection while this
+                # process waited for the lease. Reuse that winning snapshot.
+                return
+            self._rebuild_locked()
+
+    def _rebuild_lease(self):
+        return _CacheRebuildLease(self._rebuild_lease_path).hold(
+            timeout_seconds=self._REBUILD_LEASE_TIMEOUT_SECONDS,
+            retry_seconds=self._REBUILD_LEASE_RETRY_SECONDS,
+        )
+
     def ensure_current(self) -> None:
         # Fast path: within the freshness window, trust the last verdict without
         # re-checking. This is what collapses a burst of reads (one UI
@@ -389,7 +494,7 @@ class TraceCache:
             if self.db_path.exists() and self._is_current():
                 self._mark_fresh()
                 return
-            self._rebuild_locked()
+            self._rebuild_coordinated(force=False)
             self._mark_fresh()
 
     def _mark_fresh(self) -> None:
@@ -523,10 +628,19 @@ class TraceCache:
     def _use_temporary_cache(self) -> None:
         fallback = self._temporary_cache_dir()
         fallback.mkdir(parents=True, exist_ok=True)
-        self.db_path = fallback / self.db_path.name
+        if not self._using_temporary_cache:
+            # A generic tempfile fallback used the same filename for every
+            # Trace process, reproducing the original shared-cache race in the
+            # fallback directory. Keep it derived and disposable, but make it
+            # process/attempt specific so a blocked primary cache cannot cause
+            # another server's UI to fail.
+            self.db_path = fallback / (
+                f"{self._primary_db_path.stem}.{os.getpid()}.{uuid.uuid4().hex}{self._primary_db_path.suffix}"
+            )
+            self._using_temporary_cache = True
 
     def _is_temporary_cache(self) -> bool:
-        return self.db_path.parent.resolve() == self._temporary_cache_dir().resolve()
+        return self._using_temporary_cache
 
     @staticmethod
     def _temporary_cache_dir() -> Path:
