@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.15
+memory-system-version: 2.18
 tags:
   - memory-seed
   - architecture
@@ -9,7 +9,7 @@ tags:
 
 # Decision-Graph Edge Contract
 
-**As of:** 2026-07-10 - control-plane `2.16` (+ unreleased `evolves`/`continuity`/D5-D7 additions)
+**As of:** 2026-07-16 - control-plane `2.18` plus the shipped-but-unreleased long-horizon Wave 1.
 
 This is the single reference for how Memory Seed's decision-graph edges and derived metrics are
 defined, computed, and read across every surface (CLI, MCP, Memory Trace, `links check`). It exists
@@ -42,6 +42,12 @@ entry file (append-only). `links check` flags a stored `superseded_by:`/`evolved
 
 Inbound-style fields are computed only from refs that resolve to a known `entry_id`; stored fields are
 reported as-is (`links check` flags dangling stored refs).
+
+`superseding_head` is a separate derived read surface, not a stored field or a `RelatedEntryNode`
+field. For an entry retired through one or more `supersedes` hops it lists the terminal live
+replacement id(s); terminal/live entries return an empty list. It is computed from the same
+sidecar-augmented graph as `superseded_by`, so a later sidecar edge participates without rewriting the
+original entry.
 
 ## Edge kinds - never merged
 
@@ -160,6 +166,17 @@ replacement out-ranks the decision it retires. It:
   `evolved_by` chain resolves to, so the current fuller form is reachable without burying the
   still-valid original.
 
+### Supersession terminal-head and bounded successor lift - on by default
+
+`superseding_head` exposes the terminal replacement before it affects ranking. The separate
+`superseding_successor_boost=True` search/MCP option is now default-on only after the full-corpus
+`ranking-ab` gate passed. It may lift a terminal live replacement when the query matched a retired
+entry **and** that replacement already has positive query relevance. It never hard-injects a result,
+never bypasses `exclude_superseded`, never changes unrelated/no-affected-hit controls, and can be
+disabled with `superseding_successor_boost=False` to recover damp-only ordering. This is distinct from
+the dampener: the dampener lowers the retired entry; the bounded lift makes a relevant live successor
+easier to reach.
+
 ## Validation authority
 
 `links check` (`check_session_links()` in `core.py`) is the single validator, run over both session
@@ -173,6 +190,8 @@ layouts. Issue kinds it owns:
 - `authored-inverse-field` (a stored `superseded_by:`/`evolved_by:` key - append-only enforcement)
 - `malformed-continuity` (unknown kind, missing `from`, `to` on removal, missing `to` on
   rename/migration)
+- `sidecar-unclassified-stub` (warning only: an inert `classify_pending: true` sidecar block is still
+  awaiting human judgment; it adds no graph edge and does not fail the integrity gate)
 - `malformed-commit-hash` (always), `unknown-commit` (only when a `.git` repo is present)
 - per-user-file frontmatter checks (user/date/schema/hash)
 
@@ -182,11 +201,11 @@ A new edge kind's validation belongs here, reusing the entry-YAML scan, not a pa
 
 | Surface | Exposes |
 |---|---|
-| `memory-seed link show <id>` | outbound, inbound, `supersedes`, `superseded_by`, `evolves`, `evolved_by`, `continuity`, `inbound_relation_count`, `importance_score`, `commit_reference_count` |
+| `memory-seed link show <id>` | outbound, inbound, `supersedes`, `superseded_by`, `superseding_head`, `evolves`, `evolved_by`, `continuity`, `inbound_relation_count`, `importance_score`, `commit_reference_count` |
 | `memory-seed link commits <id>` | `commits:` field + `Memory-Entry:` trailer scan |
 | `memory-seed link suggest` | ranked older candidates to link (read-only), re-ranked by the rarity-weighted `F:` file-overlap boost (alias-resolved through recorded `continuity` renames, transitively) with shared-file evidence shown; boost-only, never a gate |
-| MCP `memory_get_chunk` | `superseded_by`, `evolved_by`, `inbound_relation_count`, `importance_score`, `commit_reference_count` (+ stored fields incl. `evolves`, `continuity`) |
-| MCP `memory_search` | results carry stored `supersedes`/`evolves`/`continuity` **and computed `superseded_by`/`evolved_by`/`evolved_head`** (freshness at the moment of consumption - additive fields; default order untouched); opt-in `exclude_superseded` hard filter and the `supersession_damping` rank-dampener (**on by default**; down-ranks superseded entries so a live replacement out-ranks the decision it retires, `supersession_damping=False` opts out - see the harmony contract above) |
+| MCP `memory_get_chunk` | `superseded_by`, `superseding_head`, `evolved_by`, `inbound_relation_count`, `importance_score`, `commit_reference_count` (+ stored fields incl. `evolves`, `continuity`) |
+| MCP `memory_search` | results carry stored `supersedes`/`evolves`/`continuity` and computed `superseded_by`/`superseding_head`/`evolved_by`/`evolved_head`; default-on `supersession_damping` down-ranks retired entries and default-on `superseding_successor_boost` may lift an already relevant terminal replacement. `exclude_superseded` remains an opt-in hard filter; either ranking signal has an explicit false opt-out. |
 | Memory Trace graph | `connectivity` (its own metric) and `importance_score` per node; a "Size:" toggle sizes nodes by either; `has_diagram` per node (Class-2 decision-diagram sidecar presence) drives a badge on Trail rows / Graph nodes whose popover lazy-loads the diagram - legacy `/api` surface only, the v1 `GraphNode` model strips it until polished |
 | Memory Trace `/api/graph` + `/api/chunks` **and** `/api/v1/{graph,trail,chunks}` | additionally `merges` / `branches` (commit-accurate Trail merge events from `Memory-Entry` trailers) and `merged_by` per chunk. Shipped legacy-only under "vanilla only, polish first"; promoted onto the versioned surface in 2.18 (the `MergeEvent` / `BranchInfo` / `ForkPoint` response models, `merged_by: CommitInfo`) once the vanilla implementation had survived a release cycle - additive, so the promotion breaks no existing v1 client |
 
@@ -203,10 +222,10 @@ A new edge kind's validation belongs here, reusing the entry-YAML scan, not a pa
   intended directional improvement where the signal defines one, and at least one query with no
   affected hit must remain identical off/on when that signal requires a control. Empty query sets,
   missing directional entries, and missing required controls fail closed. This line has **fully
-  graduated for supersession**: `superseded_by` was exposed read-only first, then promoted to the
-  default `memory_search` ranking signal (`supersession_damping` on by default) once fixtures and the
-  repeatable real-corpus gate proved it surfaces the live replacement above the decisions it retires
-  without disturbing queries that lack a superseded hit. `supersession_damping=False` is the opt-out;
+  graduated for supersession**: `superseded_by` and `superseding_head` were exposed read-only first;
+  the dampener then became default-on, followed by the lineage-bounded successor lift only after the
+  repeatable real-corpus gate proved intended replacements win while unaffected controls remain
+  identical. `supersession_damping=False` and `superseding_successor_boost=False` are the opt-outs;
   `evolved_by` remains exposed-only (never a dampener) by design.
 - **One name, one meaning.** If two surfaces need different numbers, give them different names (the
   `connectivity` vs `inbound_relation_count` split is the precedent).
@@ -219,4 +238,6 @@ linking, `inbound_relation_count`/`importance_score`, the `connectivity` rename,
 `git-commit-entry-linking-plan.md`, `interaction-frequency-ranking-plan.md`, and
 `exclude-superseded-filter-plan.md`. The `supersession_damping` rank-dampener (exposed in 2.18, then
 turned **on by default** after real-corpus validation) and `evolved_head` successor-surfacing come from
-`docs/5_Completed/freshness-aware-memory-ranking-proposal.md`.
+`docs/5_Completed/freshness-aware-memory-ranking-proposal.md`. `superseding_head` plus the
+lineage-bounded default-on successor boost come from
+`docs/5_Completed/supersession-successor-surfacing-proposal.md`.

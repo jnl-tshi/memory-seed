@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.15
+memory-system-version: 2.18
 tags:
   - memory-seed
   - audit
@@ -8,7 +8,8 @@ tags:
 
 # Memory Seed - Functionality Audit
 
-> **Addendum 2026-07-13:** this inventory's as-of date predates the 2026-07-11/12 feature batch.
+> **Historical addendum 2026-07-13:** retained for provenance; its former stale as-of condition is
+> superseded by the 2026-07-16 reconciliation and current roadmap appendix below.
 > For the newer surface see `CHANGELOG.md` (Unreleased): lifecycle-edge link sidecars +
 > `memory-seed link audit` + the end-of-turn Lifecycle Link Sweep, `session append` /
 > `session reorder` / `session entry-id` (+ `memory_entry_id` MCP tool), `memory-seed esr`,
@@ -17,7 +18,7 @@ tags:
 > browserless golden-fixture harness. Test counts have grown accordingly (413 core + 92 trace as
 > of 2026-07-13).
 >
-> **Addendum 2026-07-13 (later):** also unreleased - a project-local `integration_mode`
+> **Historical addendum 2026-07-13 (later):** also unreleased at that time - a project-local `integration_mode`
 > (`local-merge` | `pr`) in `project.yaml` read by `read_integration_mode` and surfaced by `esr`
 > (foundation for a configurable PR/branch-protection workflow); and a deterministic **entry DRAFT
 > format lint** (`core.entry_body_format_issues` / `check_entry_format`) that `session append`
@@ -26,14 +27,15 @@ tags:
 > `### Decision`, `D:` without `R:`). See `docs/5_Completed/configurable-integration-mode-plan.md` and
 > `docs/2_Todo/openssf-credibility-proposals.md`.
 >
-> **Addendum 2026-07-16:** the long-horizon Wave 1 surface is shipped-but-unreleased: deterministic
+> **Reconciliation 2026-07-16:** the long-horizon Wave 1 surface is shipped-but-unreleased: deterministic
 > `topics suggest --from`, timeline Evidence Packs, Trail continuity lanes, `superseding_head` plus a
 > full-corpus-gated lineage boost, all configurable integration-mode phases, and inert
 > `link audit --date <date> --apply` stubs with warning/ESR visibility. The four fully complete plans now
 > live in `docs/5_Completed/`; AI summarisation remains active for provider/local-model Phase 2 and the
 > lifecycle-link plan remains active for evaluation with optional steps 4–5 deferred.
 
-**As of:** 2026-07-05 - control-plane `2.16` - package `2.16.0`
+**As of:** 2026-07-16 - control-plane and published package `2.18.0`, plus the shipped-but-unreleased
+long-horizon Wave 1 surface.
 **Scope:** every current feature, how the subsystems relate, how data flows, plus a roadmap section for upcoming work.
 
 ---
@@ -1042,11 +1044,15 @@ Measured on this repository's own corpus on 2026-06-14 (Windows, Python 3.11). I
 - **Persona** - a vendor-neutral `.agents/*.md` role profile; evolution is approval-gated.
 - **Orphan skill** - a `skills/*.md` runbook not registered in `skills/index.md` (flagged by `doctor`).
 - **Memory Trace** - the companion local read-only browser UI (`memory-trace`; legacy `memory-seed lense` shim, section 3O), backed by a rebuildable SQLite cache stored outside the repository.
-- **Related-entry graph** - the graph `build_related_entry_graph()` computes at read time from entries' stored `related_entries` (outbound), computed backlinks (inbound), typed `supersedes`, computed `superseded_by`, `inbound_relation_count`, and `importance_score`; surfaced via `link suggest`/`link show` and MCP metadata.
+- **Related-entry graph** - the graph `build_related_entry_graph()` computes at read time from entries'
+  stored `related_entries` (outbound), computed backlinks (inbound), typed `supersedes`/`evolves`, and
+  computed `superseded_by`/`evolved_by`. Read surfaces also derive terminal `superseding_head` and
+  `evolved_head`; ranking uses default-on supersession damping plus a bounded, relevance-preserving
+  successor lift. `link suggest`/`link show` and MCP metadata expose the same sidecar-augmented graph.
 
 ---
 
-## 14. Upcoming / roadmap features
+## Appendix A. Historical roadmap snapshot (superseded 2026-07-16)
 
 Sources: `docs/2_Todo/0_NEXT_STEPS.md` and `docs/2_Todo/`. Status reflects package `2.16.0`
 plus verified unreleased work through `5daa3d6`.
@@ -1102,7 +1108,7 @@ graph TD
   G -- Yes --> SPLIT
 ```
 
-### Current implementation order
+### Historical implementation order (superseded 2026-07-16)
 
 ```mermaid
 graph TD
@@ -1130,14 +1136,63 @@ graph TD
 
 ---
 
+## 14. Current roadmap appendix
+
+Sources: `docs/2_Todo/0_NEXT_STEPS.md`, `CHANGELOG.md`, and the completed-plan lane. Package `2.18.0`
+is published; the work below is merged locally and documented as shipped-but-unreleased until a user
+explicitly approves the 2.19 release/publish step.
+
+**Current condition (2026-07-16):** Wave 1 is complete. The shipped set is controlled topics through
+Trace plus deterministic `topics suggest --from`; typed evolution with derived Trail continuity lanes;
+deterministic, cited, non-authoritative timeline Evidence Packs; `superseding_head` with a full-corpus-
+gated bounded successor boost; all four configurable integration-mode phases; and `link audit --apply`
+inert scaffolds with `links check` warning and ESR visibility. The release cut criterion is met, but
+push/publish remains an explicit approval gate.
+
+**Still active:** B0a graph/workspace contracts and renderer evidence lead before React. Provider/local-
+model summarisation is Phase 2 and remains disabled-by-default/non-authoritative. Lifecycle-link optional
+commit nudging and an MCP write tool remain deferred. Related-entry P2, decision-diagram export packs,
+and OpenSSF credibility work are separate active tracks.
+
+### Near term - current lead
+
+- **B0a graph/workspace contract and renderer evidence** - settle the shared-selection, interaction,
+  temporal-topology, structural-provider, and benchmark evidence required before a React rebuild. The
+  coordinating proposal set remains in `docs/2_Todo/` and is sequenced by `0_NEXT_STEPS.md`.
+
+### Current implementation order
+
+```mermaid
+graph TD
+  subgraph CurrentTier["Current lead"]
+    direction LR
+    B0A["B0a graph/workspace<br>contracts + evidence"]
+  end
+  subgraph GuardTier["Standing gates"]
+    direction LR
+    QUALITY["Markdown authority<br>derived projections"] ~~~ RELEASE["2.19 publish<br>explicit approval"]
+  end
+  subgraph FollowOnTier["Sequenced follow-ons"]
+    direction LR
+    B2["React after B0a"] ~~~ AI["AI summary<br>provider Phase 2"] ~~~ LINK["Lifecycle-link<br>optional steps 4-5"]
+  end
+  CurrentTier ~~~ GuardTier
+  GuardTier ~~~ FollowOnTier
+  B0A --> B2
+  B0A --> AI
+  B0A --> LINK
+```
+
+---
+
 ## 15. Test & verification surface
 
-- `tests/test_memory_seed.py`, `tests/test_session_schema.py`, `tests/test_semantic_cache.py`,
-  `tests/test_mcp_server.py`, `tests/test_retrieval.py`, `tests/test_processes.py`,
-  `tests/test_text_files.py`, and `memory-trace/tests/` cover
-  init/update/doctor, session schema, links validation (incl. diagram sidecars),
-  related/supersession/commit graph metadata, MCP exposure, MCP/retrieval-service parity and one-way
-  dependency, entry-level rollup, Memory Trace graph field naming, the `exclude_superseded` search
-  filter, process shutdown/upgrade flows, encoding checks, and seed/live parity. Current suite:
-  **276 core tests + 35 Memory Trace tests** (verified 2026-07-08).
-- `memory-seed doctor` is the runtime health gate; `memory-seed-mcp-validate` validates retrieval end-to-end.
+- `tests/` and `memory-trace/tests/` cover init/update/doctor, session schema and chronology, link
+  sidecars (including inert stubs), ESR, integration-mode selection and PR preflight, topics, retrieval
+  and full-corpus ranking gates, successor-head/boost behavior, MCP/retrieval parity, Evidence Packs,
+  Trail continuity, process controls, encoding checks, and live/seed parity. Current merged-head run:
+  **517 core tests with one known Windows-only skip, plus 121 Memory Trace tests** (verified
+  2026-07-16).
+- `memory-seed doctor` is the runtime health gate; `links check`, `topics check`, and the named
+  `ranking-ab` signal gates are the corresponding corpus/contract checks. The local Memory Trace server
+  is verified separately against its served HTTP surface.
