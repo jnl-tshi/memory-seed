@@ -42,8 +42,8 @@ All notable changes to Memory Seed are summarized here.
   broken relative links to **0** (the pre-existing breaks were depth errors left by the previous move into
   `completed/`). Session logs keep their original paths — they are append-only history — and the move is
   recorded as a `continuity:` migration event instead.
-- **`memory-seed worktree classify [--agent <a>] [--integration-branch <b>] [--json]`** — Track E Phase 1's
-  dry-run worktree classifier. Classifies every registered worktree as `root`, `active`, `dirty`,
+- **`memory-seed worktree classify [--apply]`** — Track E Phase 1. Without `--apply` it is the read-only
+  dry-run classifier. Classifies every registered worktree as `root`, `active`, `dirty`,
   `unmerged`, `locked`, `foreign`, `unknown`, or `removable`, and shows the evidence behind every verdict.
   **Read-only: it removes nothing**, and `--apply` does not exist yet — removal is destructive and lands as
   its own increment. A worktree is `removable` only when every safety question answers yes at once; being
@@ -51,7 +51,11 @@ All notable changes to Memory Seed are summarized here.
   HEAD, indeterminate merge status) fails closed to `unknown`, which refuses removal. Worktrees in another
   agent's namespace report `foreign` — clean and merged, but not yours to remove. Branch deletion stays a
   separate, approval-gated concern. Distinct from the existing `worktree guard`/`status`, which inspect only
-  the current worktree for the namespace guard.
+  the current worktree for the namespace guard. **`--apply` (destructive, shipped under live user
+  consent) removes what a *fresh* classification calls removable** — reclassifying at apply time so a
+  stale verdict is never trusted, via `git worktree remove` with bounded retry on a lock and no
+  raw-filesystem fallback; branches are never touched, and a refused removal leaves the worktree intact.
+  Exercised end-to-end against a throwaway worktree; the retry-on-lock path is unit-tested by injection.
 - **`memory-seed quality report [--json]`** — memory-quality metrics v0: a deterministic, local,
   read-only measurement over the Markdown corpus, and the measurable subset of Constitution §8 (still a
   `[candidate]` clause this report exists to produce evidence for). Every metric declares its population,

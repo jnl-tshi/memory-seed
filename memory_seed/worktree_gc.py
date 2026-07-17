@@ -347,6 +347,138 @@ def classify_worktrees(
     )
 
 
+@dataclass(frozen=True)
+class WorktreeRemoval:
+    path: str
+    branch: str | None
+    removed: bool
+    attempts: int
+    detail: str
+
+
+@dataclass(frozen=True)
+class WorktreeGcApplyResult:
+    removed: tuple[WorktreeRemoval, ...]
+    refused: tuple[WorktreeRemoval, ...]
+    skipped_non_removable: tuple[WorktreeClassification, ...]
+
+    def to_dict(self) -> dict:
+        def _r(x: WorktreeRemoval) -> dict:
+            return {
+                "path": x.path,
+                "branch": x.branch,
+                "removed": x.removed,
+                "attempts": x.attempts,
+                "detail": x.detail,
+            }
+
+        return {
+            "removed": [_r(x) for x in self.removed],
+            "refused": [_r(x) for x in self.refused],
+            "skipped_non_removable": [x.path for x in self.skipped_non_removable],
+        }
+
+
+def _remove_one_worktree(
+    repo_root: Path,
+    path: str,
+    *,
+    max_attempts: int,
+    remover: "Callable[[Path, str], tuple[int, str]] | None" = None,
+) -> tuple[bool, int, str]:
+    """Remove one worktree with git, retrying a locked path a bounded number of
+    times. Returns (removed, attempts, detail).
+
+    ``remover`` is injectable so the retry/failure path can be tested without a
+    real OS lock (which cannot be summoned on demand). It defaults to
+    ``git worktree remove`` and is the *only* removal mechanism — there is no
+    raw-filesystem fallback, by design: the plan forbids raw recursive deletion,
+    and an escape hatch is how that rule gets bypassed later.
+    """
+    from .core import _git_text
+
+    def _default(root: Path, target: str) -> tuple[int, str]:
+        return _git_text(root, ("worktree", "remove", target))
+
+    run = remover or _default
+    detail = ""
+    for attempt in range(1, max_attempts + 1):
+        code, out = run(repo_root, path)
+        if code == 0:
+            return True, attempt, "removed"
+        detail = out or "git worktree remove failed"
+        # A lock is the retryable case; anything else is a hard failure now.
+        if "locked" not in detail.lower() and "denied" not in detail.lower():
+            break
+    return False, attempt, detail
+
+
+def apply_worktree_gc(
+    cwd: str | Path = ".",
+    *,
+    agent_type: str | None = None,
+    integration_branch: str = "main",
+    max_attempts: int = 3,
+    remover: "Callable[[Path, str], tuple[int, str]] | None" = None,
+) -> WorktreeGcApplyResult:
+    """Remove the worktrees a fresh classification calls ``removable``.
+
+    **Destructive.** It reclassifies immediately before acting — a stale
+    ``removable`` verdict is never trusted for a delete — and removes only what
+    that live pass still calls removable, through git, with bounded retry on a
+    lock and no raw-filesystem fallback. Branch deletion is deliberately out of
+    scope: a worktree and its branch are independent objects.
+    """
+    from .core import _git_text
+
+    root = Path(cwd).resolve()
+    code, top = _git_text(root, ("rev-parse", "--show-toplevel"))
+    repo_root = Path(top).resolve() if code == 0 and top else root
+
+    # Re-derive the truth now, at apply time. Do not accept a caller's report.
+    report = classify_worktrees(
+        root, agent_type=agent_type, integration_branch=integration_branch
+    )
+    removed: list[WorktreeRemoval] = []
+    refused: list[WorktreeRemoval] = []
+    for item in report.classifications:
+        if not item.removable:
+            continue
+        ok, attempts, detail = _remove_one_worktree(
+            repo_root, item.path, max_attempts=max_attempts, remover=remover
+        )
+        record = WorktreeRemoval(
+            path=item.path, branch=item.branch, removed=ok, attempts=attempts, detail=detail
+        )
+        (removed if ok else refused).append(record)
+
+    return WorktreeGcApplyResult(
+        removed=tuple(removed),
+        refused=tuple(refused),
+        skipped_non_removable=tuple(i for i in report.classifications if not i.removable),
+    )
+
+
+def format_worktree_gc_apply(result: WorktreeGcApplyResult) -> str:
+    lines: list[str] = []
+    for x in result.removed:
+        lines.append(f"REMOVED  {x.path}  (branch {x.branch or '-'}; {x.attempts} attempt(s))")
+    for x in result.refused:
+        lines.append(f"REFUSED  {x.path}: {x.detail}")
+        lines.append(
+            "  → left intact. Resolve the lock or condition and re-run; "
+            "never delete the directory by hand."
+        )
+    if not result.removed and not result.refused:
+        lines.append("No removable worktree to act on.")
+    else:
+        lines.append(
+            f"{len(result.removed)} removed, {len(result.refused)} refused. "
+            "Branch deletion is separate and was not touched."
+        )
+    return "\n".join(lines)
+
+
 def format_worktree_gc_report(report: WorktreeGcReport) -> str:
     """Human surface. Shows the evidence for every verdict, per the plan's
     "show the evidence for every classification"."""

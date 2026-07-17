@@ -4,7 +4,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from memory_seed.worktree_gc import classify_worktrees, format_worktree_gc_report
+from memory_seed.worktree_gc import (
+    apply_worktree_gc,
+    classify_worktrees,
+    format_worktree_gc_apply,
+    format_worktree_gc_report,
+)
 
 
 def _git(cwd, *args):
@@ -177,6 +182,100 @@ class WorktreeClassifyTests(unittest.TestCase):
 
         self.assertEqual(report.classifications, ())
         self.assertIn("No worktrees found", format_worktree_gc_report(report))
+
+    # --- apply / removal ---------------------------------------------------
+
+    def test_apply_removes_a_removable_worktree_and_leaves_its_branch(self):
+        repo = self.make_repo()
+        wt = self.add_worktree(repo, ".claude/worktrees/done", "claude/feature/done")
+        _git(repo, "merge", "--no-ff", "claude/feature/done", "-m", "merge")
+
+        result = apply_worktree_gc(repo, agent_type="claude")
+
+        self.assertEqual([r.path for r in result.removed], [str(wt.resolve())])
+        self.assertEqual(result.refused, ())
+        self.assertFalse(wt.exists())
+        self.assertNotIn(wt.resolve().as_posix(), _git(repo, "worktree", "list").stdout)
+        # The branch is a separate object and must survive.
+        self.assertIn("claude/feature/done", _git(repo, "branch").stdout)
+
+    def test_apply_reclassifies_and_never_removes_a_dirty_worktree(self):
+        repo = self.make_repo()
+        wt = self.add_worktree(repo, ".claude/worktrees/dirty", "claude/feature/dirty")
+        _git(repo, "merge", "--no-ff", "claude/feature/dirty", "-m", "merge")
+        (wt / "SCRATCH.txt").write_text("uncommitted\n", encoding="utf-8")
+
+        result = apply_worktree_gc(repo, agent_type="claude")
+
+        # A stale "removable" verdict must never be trusted; apply reclassifies.
+        self.assertEqual(result.removed, ())
+        self.assertTrue(wt.exists())
+
+    def test_apply_never_touches_another_agents_worktree(self):
+        repo = self.make_repo()
+        wt = self.add_worktree(repo, ".codex/worktrees/theirs", "codex/feature/theirs")
+        _git(repo, "merge", "--no-ff", "codex/feature/theirs", "-m", "merge")
+
+        result = apply_worktree_gc(repo, agent_type="claude")
+
+        self.assertEqual(result.removed, ())
+        self.assertTrue(wt.exists())
+
+    def test_apply_retries_a_locked_worktree_then_refuses_without_raw_deletion(self):
+        repo = self.make_repo()
+        wt = self.add_worktree(repo, ".claude/worktrees/locked", "claude/feature/locked")
+        _git(repo, "merge", "--no-ff", "claude/feature/locked", "-m", "merge")
+
+        # Simulate the OneDrive lock the remover exists for -- it cannot be
+        # summoned on demand, so inject a remover that always reports it locked.
+        calls = {"n": 0}
+
+        def always_locked(root, target):
+            calls["n"] += 1
+            return 1, "fatal: ... : Permission denied (locked)"
+
+        result = apply_worktree_gc(
+            repo, agent_type="claude", max_attempts=3, remover=always_locked
+        )
+
+        # Bounded retry: exactly max_attempts, then refuse.
+        self.assertEqual(calls["n"], 3)
+        self.assertEqual(result.removed, ())
+        self.assertEqual(len(result.refused), 1)
+        self.assertEqual(result.refused[0].attempts, 3)
+        self.assertIn("denied", result.refused[0].detail.lower())
+        # The guarantee: a refused removal leaves the worktree entirely intact.
+        # There is no raw-filesystem fallback, so the directory still exists.
+        self.assertTrue(wt.exists())
+        self.assertIn("left intact", format_worktree_gc_apply(result))
+
+    def test_apply_does_not_retry_a_non_lock_failure(self):
+        repo = self.make_repo()
+        self.add_worktree(repo, ".claude/worktrees/x", "claude/feature/x")
+        _git(repo, "merge", "--no-ff", "claude/feature/x", "-m", "merge")
+
+        calls = {"n": 0}
+
+        def hard_fail(root, target):
+            calls["n"] += 1
+            return 1, "fatal: some other git error"
+
+        result = apply_worktree_gc(
+            repo, agent_type="claude", max_attempts=5, remover=hard_fail
+        )
+
+        # A non-lock failure is not retryable -- fail fast, don't spin 5 times.
+        self.assertEqual(calls["n"], 1)
+        self.assertEqual(len(result.refused), 1)
+
+    def test_apply_on_nothing_removable_is_a_clean_noop(self):
+        repo = self.make_repo()  # only the primary worktree exists
+
+        result = apply_worktree_gc(repo, agent_type="claude")
+
+        self.assertEqual(result.removed, ())
+        self.assertEqual(result.refused, ())
+        self.assertIn("No removable worktree", format_worktree_gc_apply(result))
 
 
 if __name__ == "__main__":

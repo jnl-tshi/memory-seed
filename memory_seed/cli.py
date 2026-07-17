@@ -480,6 +480,12 @@ def main(argv: list[str] | None = None) -> int:
     worktree_classify.add_argument(
         "--json", action="store_true", help="emit the machine-readable classification"
     )
+    worktree_classify.add_argument(
+        "--apply",
+        action="store_true",
+        help="DESTRUCTIVE: remove the worktrees a fresh classification calls removable "
+        "(git-native, bounded retry, no raw deletion; branches untouched)",
+    )
 
     docs_parser = subparsers.add_parser("docs", help="validate the docs/ lifecycle lanes")
     docs_sub = docs_parser.add_subparsers(dest="docs_command", required=True)
@@ -1001,6 +1007,20 @@ def main(argv: list[str] | None = None) -> int:
         # worktree vs. this one) and carries its own flags, so it must be
         # handled before the guard call reads guard-only args.
         if args.worktree_command == "classify":
+            if args.apply:
+                from .worktree_gc import apply_worktree_gc, format_worktree_gc_apply
+
+                result = apply_worktree_gc(
+                    cwd=Path(".").resolve(),
+                    agent_type=args.gc_agent,
+                    integration_branch=args.gc_integration_branch,
+                )
+                if args.json:
+                    print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+                else:
+                    print(format_worktree_gc_apply(result))
+                return 1 if result.refused else 0
+
             from .worktree_gc import classify_worktrees, format_worktree_gc_report
 
             report = classify_worktrees(
