@@ -625,9 +625,11 @@ def add_related_entry(
         if source.entry_id != newest.entry_id:
             raise ValueError(
                 f"refusing to edit {source.entry_id}: it is not the newest entry "
-                f"({newest.entry_id}). Editing an older entry is historical curation, which "
-                "Constitution Invariant #2 (append-only) forbids. Record the link in a new "
-                "entry instead."
+                f"({newest.entry_id}). Editing an older entry is historical curation. "
+                "Constitution Invariant #2 permits that only as a one-off, per-edge-approved "
+                "human procedure - never as a standing command, which is what this is. Record "
+                "the link in a new entry instead, or follow the curation procedure in "
+                "docs/2_Todo/related-entries-p2-mutation-plan.md."
             )
 
     target = next((chunk for chunk in chunks if chunk.entry_id == target_entry_id), None)

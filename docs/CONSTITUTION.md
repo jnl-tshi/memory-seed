@@ -1,9 +1,10 @@
 # Memory Seed Constitution
 
-**Version:** 1.1 — **RATIFIED 2026-07-16** by JNL. Changes go through [Governance](#11-governance).
+**Version:** 1.2 — **RATIFIED 2026-07-17** by JNL. Changes go through [Governance](#11-governance).
 **Status:** Living document. It grows only by amendment (see [Governance](#11-governance)).
 **Adopted:** 2026-07-14; amended 2026-07-16 with partitioned Markdown authority for narrowly scoped,
-append-only sidecars (Invariant #6). **Source:** distilled from demonstrated behaviour
+append-only sidecars (Invariant #6); amended 2026-07-17 with a human-gated, one-off exception for
+untyped `related_entries` metadata curation (Invariant #2). **Source:** distilled from demonstrated behaviour
 across the codebase,
 `3_Spec/`, `.memory-seed/agent-rules.md`, and the session-memory corpus — not invented. Framework from the
 [architectural-discovery proposal](5_Completed/memory-seed-architectural-discovery-proposal.md).
@@ -40,6 +41,16 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    corrections are new entries that point back. *(Cited: append-only session logs; `links check`
    forward-only/acyclic guards; supersede-don't-delete in `.memory-seed/skills/proposal_lifecycle.md` and
    the memory graph.)*
+   **Narrow exception — human-gated metadata curation (1.2):** an existing entry's **untyped
+   `related_entries` metadata** may be curated after the fact, under all of these conditions at once:
+   it is a **one-off procedure, never core functionality** — no standing command, no automation, no
+   batch pass; **each individual edge is approved by the user at the moment it is added**; only the
+   entry's YAML metadata is touched, **never its prose**; and **typed lifecycle edges
+   (`supersedes`/`evolves`/`continuity`) are never written into history** — those go through the
+   evolution-edges seeding pass, which records them in *new* entries and rewrites nothing. If any
+   condition fails, the invariant applies unchanged. The exception exists because an untyped "these two
+   relate" pointer is a navigational aid rather than a claim about what was decided or why; it does not
+   license editing the record of a decision.
 3. **Memory is explainable and attributable.** Every decision can be traced to who/what/when and the
    reasoning behind it. *(Cited: `Memory-Entry:` commit trailers; the decision-graph edges in
    `3_Spec/graph-edge-contract.md`; `3_Spec/memory-trace-derived-artifact-provenance-contract.md`.)*
@@ -205,3 +216,4 @@ demonstrates them.
 |---|---|---|---|
 | 1.0 | 2026-07-14 | **Initial Constitution ratified** — the 7 invariants, principles, policies, four-layer model, five-question test, trust/quality candidates, and governance; includes the same-day derived-layer / optional-tier refinement (Invariants #1 & #6, §5, open-core principle). | JNL |
 | 1.1 | 2026-07-16 | **Partitioned Markdown authority** — Invariant #6 now permits narrowly scoped append-only Markdown sidecars to own declared fields or lifecycles while entries retain rationale/evidence and all indexes, snapshots, databases, and UI views remain derived. | JNL |
+| 1.2 | 2026-07-17 | **Human-gated metadata curation** — Invariant #2 now permits after-the-fact curation of an existing entry's *untyped* `related_entries` metadata, as a one-off, per-edge-approved procedure only: never core functionality, never automatic or batch, never touching prose, and never writing typed lifecycle edges into history. Raised by the Related-entries P2 plan, which was approved 2026-07-05 — before v1.0 — and whose backfill half conflicted with Invariant #2 as ratified. Rather than honour a pre-constitutional sign-off or silently override the invariant (§11 forbids both), the invariant was amended to the narrowest shape that permits the capability. | JNL |

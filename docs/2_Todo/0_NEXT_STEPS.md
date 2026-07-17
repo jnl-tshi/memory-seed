@@ -1,12 +1,12 @@
 # Next Steps
 
-Status: **ACTIVE — Constitution-aligned** (v1.0 ratified 2026-07-14; v1.1 ratified 2026-07-16).
+Status: **ACTIVE — Constitution-aligned** (v1.0 ratified 2026-07-14; v1.1 2026-07-16; v1.2 2026-07-17).
 Updated: 2026-07-16
 
 > ▶ **Foundation and memory-quality core shipped 2026-07-15.** The
 > [derived-projection Phase 1](derived-projection-implementation-plan.md) (git-watermark warm start +
 > atomic swap + three read-path perf refinements) **shipped 2026-07-15** — the plan's former "do first"
-> foundation is done. Work still sequences *under* [`docs/CONSTITUTION.md`](../CONSTITUTION.md) **v1.1**
+> foundation is done. Work still sequences *under* [`docs/CONSTITUTION.md`](../CONSTITUTION.md) **v1.2**
 > (each item answers the five-question test — Capture / Validation / Retrieval / Trust / Application — and
 > respects Invariant #6: Markdown = source of truth; every DB/cache is a derived, rebuildable projection).
 > The ranking/graph core now includes the full-corpus gate, `superseding_head` plus its bounded boost,
@@ -80,9 +80,13 @@ dependency order, and closed on 2026-07-15:
 
 ### Track A — remaining open tails
 
-1. **Related-entries P2** — [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md).
-   Approved 2026-07-05, unbuilt: controlled `link add` (current-entry) + explicit historical backfill.
-   It is a convenience increment, not a blocker.
+1. **Related-entries P2** — ✅ **RESOLVED 2026-07-17**.
+   [`related-entries-p2-mutation-plan.md`](related-entries-p2-mutation-plan.md). `memory-seed link add`
+   ships (newest-entry only: forward-only, idempotent, YAML-only, `links check`-gated). The historical
+   backfill is **permitted but deliberately not a command** — Constitution **v1.2** amended Invariant #2
+   with a one-off, per-edge-approved, metadata-only exception, which a standing command would violate by
+   definition. The sanctioned hand procedure is in the plan; prefer the evolution-edges seeding pass,
+   which adds edges to history by writing *new* entries and rewrites nothing.
 2. **Session decision diagrams Phase 3** — [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md).
    Phases 1–2b shipped (sidecars, validation, reader + Trail/Graph badge & zoom viewer). Phase 3
    (exportable report / handover pack) is sizable and **gated on a product greenlight**.
