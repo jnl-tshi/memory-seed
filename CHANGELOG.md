@@ -4,6 +4,8 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+## 2.19.0 - 2026-07-17
+
 - **`memory-seed docs index` + `docs check` wired into `esr` and CI** — document-lifecycle Phases 2–3
   complete. `docs index` generates each lane's `README.md` table (document · priority · blocked-by ·
   next-action, Todo sorted by priority) and a front-door counts + top-open-items roll-up. Generation is
