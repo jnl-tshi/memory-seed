@@ -11,7 +11,7 @@ import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Iterator, Literal, Sequence
+from typing import Callable, Iterator, Literal, Sequence
 
 from .text_files import (
     read_json_file,
@@ -1175,6 +1175,7 @@ _BULLET_DRAFT_RE = re.compile(r"^-\s+(D|R|A|F|T)\d*\s*:")   # '- D:' list item
 _INLINE_NUMBERED_DECISION_RE = re.compile(r"^-\s+D\d+\s*:")  # '- D1:' inline (should be '#### Dn')
 _ENTRY_SECTION_RE = re.compile(r"^#{2,4}\s+(Summary|Decision|Decisions|Implementation|Validation|Follow-up)", re.I)
 _SINGULAR_DECISION_HEADING_RE = re.compile(r"^###\s+Decision\s*$")
+_NUMBERED_DECISION_HEADING_RE = re.compile(r"^####\s+D\d+\s*[-–]")  # '#### D1 - name'
 # Indent-aware: a nested '  - R:' under a '- D1:' is still a reason present.
 _ANY_D_LABEL_RE = re.compile(r"^\s*-?\s*D\d*\s*:")
 _ANY_R_LABEL_RE = re.compile(r"^\s*-?\s*R\d*\s*:")
@@ -1213,12 +1214,12 @@ def entry_body_format_issues(body: str) -> list[str]:
     return issues
 
 
-def check_entry_format(text: str) -> list[tuple[str, str]]:
-    """Run ``entry_body_format_issues`` over every entry in a session-file's
-    ``text``, returning ``(entry_id, issue)`` pairs. Shared by ``links check``
-    (audit over the corpus) and available for any surface that has raw text; the
-    write-time gate in ``session append`` calls ``entry_body_format_issues`` on
-    the single body it is about to write."""
+def _walk_entry_bodies(
+    text: str, inspect: Callable[[str], list[str]]
+) -> list[tuple[str, str]]:
+    """Apply ``inspect`` to every entry body in a session file's ``text``,
+    returning ``(entry_id, finding)`` pairs. Shared by the format check and its
+    advisory twin so both see exactly the same body boundaries."""
     lines = text.splitlines()
     heads = [i for i, ln in enumerate(lines) if _ENTRY_HEADING_RE.match(ln)]
     out: list[tuple[str, str]] = []
@@ -1231,9 +1232,64 @@ def check_entry_format(text: str) -> list[tuple[str, str]]:
         )
         fences = [i for i, ln in enumerate(block) if ln.strip() == "```"]
         body = "\n".join(block[fences[1] + 1:] if len(fences) >= 2 else block[1:])
-        for issue in entry_body_format_issues(body):
-            out.append((entry_id, issue))
+        for finding in inspect(body):
+            out.append((entry_id, finding))
     return out
+
+
+# A decision count at or above this is a *smell*, not an error: the corpus norm
+# is ~1.0-1.5 decisions per entry across both agents and every recent day, so an
+# entry carrying three or more usually means several milestones were batched at
+# merge time instead of appended as they happened.
+DECISION_DENSITY_ADVISORY_THRESHOLD = 3
+
+
+def entry_body_decision_count(body: str) -> int:
+    """Count the durable decisions an entry body records.
+
+    Counts ``#### Dn - name`` subsections (the multi-decision shape) and falls
+    back to ``- D:`` / ``- Dn:`` bullets, so both the current and the older
+    readable styles are measured the same way.
+    """
+    lines = body.splitlines()
+    numbered = [ln for ln in lines if _NUMBERED_DECISION_HEADING_RE.match(ln)]
+    if numbered:
+        return len(numbered)
+    return len([ln for ln in lines if _ANY_D_LABEL_RE.match(ln)])
+
+
+def entry_body_advisories(body: str) -> list[str]:
+    """Return non-blocking *advisories* about one entry body.
+
+    Deliberately separate from ``entry_body_format_issues``: that function is a
+    write-time gate — ``session append`` refuses a body it rejects — and these
+    are judgement calls that must never block a write or fail a check. An entry
+    can be perfectly well formed and still be worth splitting.
+    """
+    advisories: list[str] = []
+    count = entry_body_decision_count(body)
+    if count >= DECISION_DENSITY_ADVISORY_THRESHOLD:
+        advisories.append(
+            f"{count} decisions in one entry - if they were made at different times "
+            "(work happened between them), append each at its milestone instead of "
+            "batching them at merge; see session_logging.md 'When to append'"
+        )
+    return advisories
+
+
+def check_entry_advisories(text: str) -> list[tuple[str, str]]:
+    """``check_entry_format``'s advisory twin: (entry_id, advisory) pairs over a
+    session file's text. Reported as warnings, never errors."""
+    return _walk_entry_bodies(text, entry_body_advisories)
+
+
+def check_entry_format(text: str) -> list[tuple[str, str]]:
+    """Run ``entry_body_format_issues`` over every entry in a session-file's
+    ``text``, returning ``(entry_id, issue)`` pairs. Shared by ``links check``
+    (audit over the corpus) and available for any surface that has raw text; the
+    write-time gate in ``session append`` calls ``entry_body_format_issues`` on
+    the single body it is about to write."""
+    return _walk_entry_bodies(text, entry_body_format_issues)
 
 
 def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
@@ -1301,6 +1357,14 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
         # runs links check. Structural only; see entry_body_format_issues.
         for entry_id, issue in check_entry_format(text):
             issues.append(LinkIssue(rel, "malformed-entry-format", f"{entry_id}: {issue}"))
+
+        # Advisory, never an error: a well-formed entry can still be worth
+        # splitting. Batching milestones is a judgement call, so this prompts
+        # and never blocks a commit.
+        for entry_id, advisory in check_entry_advisories(text):
+            issues.append(
+                LinkIssue(rel, "entry-decision-density", f"{entry_id}: {advisory}", "warning")
+            )
 
         # Entry-level related_entries/supersedes live inside each entry's fenced
         # ```yaml block, the same shape in both layouts - scan them regardless

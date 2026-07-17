@@ -158,6 +158,38 @@ DRAFT is the baseline decision-record format for session entries. A DRAFT decisi
 - Use `D1`, `D2`, and similar labels only inside a multi-decision entry.
 - Do not rewrite old logs solely to match the newest schema unless the user explicitly asks.
 
+## When To Append
+
+**Append at the milestone, not at the merge.** A long-running branch earns several entries, not one
+summary written just before it merges.
+
+The multi-decision shape (`D1`, `D2`, ...) is for decisions taken in **one deliberation** — you weighed
+them together and settled them together. If substantive work happened *between* two decisions — you
+implemented, reviewed, tested, or discovered something — they are **separate milestones and get separate
+entries**, even on one branch, in one subsystem, in one turn.
+
+The test: **could you have written the first entry before you knew the second decision?** If yes, you
+should have. Batching them afterwards silently reframes a discovery as something you knew all along,
+and buries the sequence that made it a discovery.
+
+Worked example — a branch that implements a writer, then a review finds a crash in it:
+
+- *One entry, two decisions* — "ship the writer" and "refuse the unratified half" were settled together
+  at design time, before any code. ✅ multi-decision shape.
+- *A second entry* — "fixed the crash the review found" happened after implementing, running, and
+  reviewing. It is a milestone, not a rationale bullet on the first decision. ✅ its own entry.
+
+Batching all three would be well-formed and still wrong: it hides that the crash was *found*, not
+foreseen.
+
+Calibration: the corpus norm is **~1.0–1.5 decisions per entry**. Three or more usually means milestones
+were batched; `links check` warns (`entry-decision-density`) so the smell is visible. It is a warning,
+never an error — a genuine three-decision deliberation is legitimate, and the check cannot tell the
+difference. You can.
+
+This is not a licence to log noise. A milestone is a *durable decision plus the work that settled it* —
+not every commit, file touched, or command run.
+
 ## Decision Harvest
 
 Before choosing the entry shape, harvest the durable decisions made this turn.
@@ -167,11 +199,12 @@ Before choosing the entry shape, harvest the durable decisions made this turn.
 2. Count rejected alternatives, failed attempts, and compatibility constraints separately; they belong
    under `A:` unless they became their own accepted decision.
 3. If exactly one durable choice remains, use the single-decision shape.
-4. If two or more durable choices belong to one coherent task, use the multi-decision shape with
-   `D1`, `D2`, and so on. Do not bury accepted decisions as rationale, implementation detail, or
-   alternatives under one broad `D:`.
-5. If durable choices affect unrelated subsystems, write separate entries instead of one
-   over-compressed multi-decision entry.
+4. If two or more durable choices belong to one coherent task **and were settled in the same
+   deliberation**, use the multi-decision shape with `D1`, `D2`, and so on. Do not bury accepted
+   decisions as rationale, implementation detail, or alternatives under one broad `D:`.
+5. Write separate entries when durable choices affect unrelated subsystems, **or when work happened
+   between them** — see "When To Append". One coherent task is not, by itself, one entry: a task that
+   spans implement → review → fix spans milestones, and each is its own entry.
 6. If a single-decision entry is still used after considering multiple candidate decisions, make the
    consolidation explicit in `R:` or `A:` so future readers know why the choices were treated as one.
 7. Ask: does any harvested decision **replace, remove, or evolve** an earlier entry's decision?

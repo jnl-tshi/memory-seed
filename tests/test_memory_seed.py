@@ -246,6 +246,76 @@ class MemorySeedTests(unittest.TestCase):
         # A decision with no reason.
         self.assertTrue(any("no reason (R:)" in i for i in fmt("### Decision\n\n- D: only a decision")))
 
+    def test_decision_density_advisory_warns_but_never_errors(self):
+        from memory_seed.core import check_session_links
+
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        three = (
+            "## 2026-06-01 09:00 - Batched\n\n```yaml\nentry_id: ms-aaaaaaaa\n```\n\n"
+            "### Decisions\n\n"
+            "#### D1 - one\n\n- D: a\n- R: r\n\n"
+            "#### D2 - two\n\n- D: b\n- R: r\n\n"
+            "#### D3 - three\n\n- D: c\n- R: r\n"
+        )
+        (sessions / "2026-06-01.md").write_text(three, encoding="utf-8")
+
+        result = check_session_links(cwd=cwd)
+
+        # A well-formed entry can still be worth splitting: advise, never fail.
+        self.assertTrue(result.ok)
+        self.assertEqual([i.severity for i in result.issues], ["warning"])
+        self.assertEqual(result.issues[0].kind, "entry-decision-density")
+        self.assertIn("3 decisions", result.issues[0].detail)
+
+    def test_decision_density_advisory_is_quiet_below_the_threshold(self):
+        from memory_seed.core import check_session_links
+
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        two = (
+            "## 2026-06-01 09:00 - One deliberation\n\n```yaml\nentry_id: ms-aaaaaaaa\n```\n\n"
+            "### Decisions\n\n"
+            "#### D1 - one\n\n- D: a\n- R: r\n\n"
+            "#### D2 - two\n\n- D: b\n- R: r\n"
+        )
+        (sessions / "2026-06-01.md").write_text(two, encoding="utf-8")
+
+        result = check_session_links(cwd=cwd)
+
+        # Two decisions settled together is the sanctioned multi-decision shape.
+        self.assertTrue(result.ok)
+        self.assertEqual(result.issues, [])
+
+    def test_decision_density_never_blocks_session_append(self):
+        from memory_seed.core import entry_body_advisories, entry_body_format_issues
+
+        body = (
+            "### Decisions\n\n"
+            "#### D1 - one\n\n- D: a\n- R: r\n\n"
+            "#### D2 - two\n\n- D: b\n- R: r\n\n"
+            "#### D3 - three\n\n- D: c\n- R: r\n"
+        )
+
+        # The write-time gate must stay silent; only the advisory path speaks.
+        # session append calls entry_body_format_issues and refuses on any hit.
+        self.assertEqual(entry_body_format_issues(body), [])
+        self.assertEqual(len(entry_body_advisories(body)), 1)
+
+    def test_decision_count_reads_both_entry_styles(self):
+        from memory_seed.core import entry_body_decision_count
+
+        headings = "#### D1 - a\n\n- D: x\n- R: y\n\n#### D2 - b\n\n- D: z\n- R: y\n"
+        bullets = "### Decision\n\n- D: only one\n- R: y\n"
+
+        # '#### Dn' subsections win; older '- D:' bullets are the fallback, so
+        # the count is not inflated by counting both in the same entry.
+        self.assertEqual(entry_body_decision_count(headings), 2)
+        self.assertEqual(entry_body_decision_count(bullets), 1)
+        self.assertEqual(entry_body_decision_count("### Summary\n\n- just a note\n"), 0)
+
     def test_links_check_flags_malformed_entry_format(self):
         from memory_seed.core import check_session_links
 
