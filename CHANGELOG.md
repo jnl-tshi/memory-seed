@@ -4,6 +4,19 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+### Added
+
+- Memory Trace `/next` React workspace: the Inspector now renders a full entry
+  reader — markdown-rendered body (frontmatter code block, headings, bullets,
+  inline code/bold), search-match subsection highlighting at parity with the
+  legacy reader, an evidence strip (commit + `path:line`), and navigable
+  linked-memories and related-activity cards.
+
+### Changed
+
+- CI now gates on `docs index --check`, so a stale generated docs index fails
+  verification instead of drifting silently.
+
 ## 2.19.0 - 2026-07-17
 
 - **`memory-seed docs index` + `docs check` wired into `esr` and CI** — document-lifecycle Phases 2–3

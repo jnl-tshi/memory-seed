@@ -39,6 +39,9 @@ jobs:
       - name: Validate docs lifecycle
         run: python -m memory_seed.cli docs check
 
+      - name: Validate docs index is current
+        run: python -m memory_seed.cli docs index --check
+
       - name: Install package with Trace extra
         run: python -m pip install -e ".[trace]"
 

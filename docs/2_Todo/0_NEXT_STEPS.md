@@ -39,6 +39,35 @@ Foundation shipped (per-doc status verified against CHANGELOG + code, not this f
 - **Release cadence:** 2.19.0 is **released** (2026-07-17). The next tranche accumulates under
   `CHANGELOG.md` "## Unreleased"; publishing remains a manual-approval gate at the pypi environment.
 
+## Open decisions — ready for your call
+
+Engineering gates that autonomous work has pushed as far as it reasonably can; each needs one decision
+before its next step. (Market/account items live under "Parked" below.)
+
+1. **BG1 steps 5–7 — actionability policy + §7 graduation.** Step 4 (display authority/provenance in the
+   inspector) ships without you (additive, fail-closed, no ranking/contract change). Step 5–6 add an
+   `actionability` field computed by policy with machine-readable reason codes, plus fixtures proving
+   generated/provider content **cannot** become actionable on its own; step 7 is the Constitution §7
+   amendment that would let annotation/generated content become agent-actionable.
+   *Options:* **(a)** build 5–6 now as additive/advisory — everything stays non-actionable in effect,
+   fail-closed by construction *(recommended: keeps momentum, adds no trust the model doesn't already
+   grant)*; **(b)** hold 5–6 until the participant/role model (B3/Phase 6) exists. Step 7 needs your
+   explicit amendment approval regardless of (a)/(b).
+2. **Track C.2 — ESR Persona Usage Check.** Flag active personas with no recorded `agent_name` use over a
+   conservative window. *Options:* **(a)** propose-and-wait — flag and you approve each deactivation
+   *(recommended: consistent with append-only + the live-consent rule; deactivate ≠ delete)*; **(b)**
+   automatic deactivation. Resolve before build.
+3. **Track A.4 — `memory-seed[lense]` deprecation window.** The deprecated alias + `lense` shim shipped
+   intact 2.16→2.19. *Options:* **(a)** announce **2.20** as the drop and remove the alias/shim now the
+   window has elapsed *(recommended)*; **(b)** keep one more window. It is a published install path, so
+   the call is yours.
+4. **Track A.2 — Session decision diagrams Phase 3** (exportable report / handover pack) — sizable, needs
+   a product greenlight. *Recommendation:* hold until a concrete handover-pack need surfaces (no current
+   pull).
+5. **OpenSSF remainder — your GitHub clicks** (only you can do these): enable private vulnerability
+   reporting; add branch protection + set `integration_mode: pr` (G2); submit to bestpractices.dev
+   (answers drafted on request); confirm PyPI attestations at the next cut.
+
 ## Live work — sequenced (Constitution-aligned)
 
 Active work, sequenced under the Constitution (each item answers the five-question test — Capture /
@@ -179,11 +208,13 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   [`memory-provenance-and-authority-taxonomy-proposal.md`](memory-provenance-and-authority-taxonomy-proposal.md).
   Extend the shipped seven-value `ProvenanceClass`; keep provenance, lifecycle, and actionability as
   separate fields; do not create a single trust score.
-- **BG2 — Memory-quality metrics v0** — ✅ **v0 SHIPPED 2026-07-17; blocked on the usefulness review**
+- **BG2 — Memory-quality metrics v0** — ✅ **v0 SHIPPED 2026-07-17; usefulness review COMPLETE**
   (proposal step 6). [`memory-quality-metrics-v0-proposal.md`](memory-quality-metrics-v0-proposal.md).
   `memory-seed quality report [--json]`; first baseline at
   [`../4_Reference/memory-quality-v0-baseline.md`](../4_Reference/memory-quality-v0-baseline.md)
   (unlinked 95/431 = 22.0%; DRAFT reason coverage 403/403; BG1-dependent metrics honestly `unavailable`).
+  **Review (JNL, 2026-07-17):** the baseline is useful as-is — keep it, set **no** targets. BG2 is done;
+  the BG1-dependent metrics stay `unavailable` until BG1 lands (see the open-decisions gate for BG1).
 - **B3 — Evidence annotations & projection** *(long-horizon, after B2/B0b and BG1)* —
   [`memory-trace-evidence-annotations-and-projection-architecture.md`](memory-trace-evidence-annotations-and-projection-architecture.md).
   Anchors, append-only annotations, SQLite projection — needs the React shell **and** a participant/role
@@ -303,7 +334,7 @@ exists in the working tree or in git history.)*
 ## Discipline
 
 - **Releases:** never cut/publish without the user's explicit go; the PyPI push is a manual-approval gate.
-  Current plan: cut 2.19 after the memory-quality trio lands.
+  2.19.0 released 2026-07-17; the next tranche accumulates under `CHANGELOG.md` "## Unreleased".
 - **Ranking:** keep `main` behavior stable; run ranking experiments on a branch, merge only after **both**
   fixtures **and** the shipped real-corpus A/B (`ranking-ab`) show a clear win with no text-ranking
   regression. This is the enforced "expose before you rank" gate from the trio's item 1.
