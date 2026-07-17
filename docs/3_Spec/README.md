@@ -23,3 +23,16 @@ Candidate specs that are **not yet binding** live in [`draft/`](draft/); retired
 
 These files are not completed proposals. Completed proposal and source-plan documents belong in
 `docs/5_Completed/`; source-only research belongs in `docs/4_Reference/`.
+
+<!-- docs-index:begin -->
+| Document | Priority | Blocked by | Next action / pointer |
+|---|---|---|---|
+| [functionality-audit.md](functionality-audit.md) | — | — | — |
+| [graph-edge-contract.md](graph-edge-contract.md) | — | — | — |
+| [lifecycle-edge-linking-sidecars.md](lifecycle-edge-linking-sidecars.md) | — | — | — |
+| [memory-trace-derived-artifact-provenance-contract.md](memory-trace-derived-artifact-provenance-contract.md) | — | — | proposed-specification |
+| [memory-trace-renderer-benchmark-evidence.md](memory-trace-renderer-benchmark-evidence.md) | — | — | active-evidence |
+| [memory-trace-renderer-neutral-graph-projection.md](memory-trace-renderer-neutral-graph-projection.md) | — | — | active-specification |
+| [memory-trace-trail-search-and-graph-ux.md](memory-trace-trail-search-and-graph-ux.md) | — | — | proposed-specification |
+| [memory-trace-vanilla-parity-checklist.md](memory-trace-vanilla-parity-checklist.md) | — | — | active-parity-gate |
+<!-- docs-index:end -->
