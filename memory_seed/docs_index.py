@@ -66,8 +66,14 @@ def _frontmatter(path: Path) -> dict[str, str]:
 
 
 def _lane_docs(lane_dir: Path) -> list[Path]:
+    # Sort by an explicit name key, NOT by the Path objects themselves: Path
+    # ordering is case-insensitive on Windows and case-sensitive on Linux, so a
+    # lane with mixed-case filenames would generate a different table order per
+    # platform and break `--check` across a Windows author / Linux CI split.
+    # (casefold(), name) is a stable, platform-independent total order.
     return sorted(
-        p for p in lane_dir.glob("*.md") if p.name != "README.md"
+        (p for p in lane_dir.glob("*.md") if p.name != "README.md"),
+        key=lambda p: (p.name.casefold(), p.name),
     )
 
 
