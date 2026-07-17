@@ -18,7 +18,7 @@ tags:
 > **Source:** [`confidence-signaling-protocol-proposal.md`](confidence-signaling-protocol-proposal.md)
 > and [`stop-trigger-taxonomy-proposal.md`](stop-trigger-taxonomy-proposal.md),
 > derived from the competitor-analysis follow-up in
-> [`../../4_Reference/memory-trail-competitor-analysis.md`](../../4_Reference/memory-trail-competitor-analysis.md).
+> [`../../4_Reference/memory-trail-competitor-analysis.md`](../4_Reference/memory-trail-competitor-analysis.md).
 > **Scope:** Add vendor-neutral agent guidance for when to proceed, flag, propose-and-wait, or stop;
 > define STOP categories; wire the guidance into lazy-skill routing and relevant existing skills.
 > **Non-goals:** No numeric confidence percentages. No emoji protocol. No new session-entry YAML

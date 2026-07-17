@@ -84,5 +84,5 @@ regressions, and the full-corpus `superseding_successor_boost` A/B gate.
   `evolved_head`). This is the **missing symmetric item 3** (supersedes successor), not a re-proposal.
 - `docs/3_Spec/graph-edge-contract.md` — "Supersession rank-dampener" section documents damp-only for
   supersedes and `evolved_head` for evolves; this closes that asymmetry.
-- `docs/5_Completed/evolution-edges-plan.md` / `docs/2_Todo/completed/supersession-edges-plan.md` — the
+- `docs/5_Completed/evolution-edges-plan.md` / `docs/5_Completed/supersession-edges-plan.md` — the
   `evolved_head` precedent and the harmony constant this mirrors.

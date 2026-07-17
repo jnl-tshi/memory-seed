@@ -12,5 +12,7 @@ intact; each points forward to what replaced it.
   self-declare "no further research loop is open," so they are superseded by the shipped work plus the
   refreshed `2_Todo/0_NEXT_STEPS.md`.
 
-More `2_Todo/completed/` docs marked "SOURCE RESOLVED / folded into <canonical>" may be reclassified here
-during the P2 migration.
+The P2 migration (2026-07-17) moved the whole `2_Todo/completed/` archive into `5_Completed/` as-is and
+retired the folder. Docs there marked "SOURCE RESOLVED / folded into <canonical>" may still deserve
+reclassification into this lane — that is a per-doc judgement call, deliberately not folded into the
+mechanical migration.

@@ -2,7 +2,7 @@
 title: "Proposal: Optional Local-AI Summarisation Layer for Memory Trace Decision Timelines"
 date: "2026-07-07"
 project: "memory-seed"
-related_to: "docs/2_Todo/completed/memory-trace-product-and-trail-view-plan.md; docs/2_Todo/memory-trace-distribution-plan.md; docs/2_Todo/session-decision-diagrams-plan.md; docs/3_Spec/memory-trace-derived-artifact-provenance-contract.md"
+related_to: "docs/5_Completed/memory-trace-product-and-trail-view-plan.md; docs/2_Todo/memory-trace-distribution-plan.md; docs/2_Todo/session-decision-diagrams-plan.md; docs/3_Spec/memory-trace-derived-artifact-provenance-contract.md"
 author_context: "Prepared for Jean Nathan Tshibuyi"
 format: "Markdown product and architecture proposal"
 status: "active-todo"
@@ -28,7 +28,7 @@ inside the core summarisation engine.
 Dependencies: [`memory-trace-product-and-system-architecture-blueprint.md`](memory-trace-product-and-system-architecture-blueprint.md),
 [`../3_Spec/memory-trace-derived-artifact-provenance-contract.md`](../3_Spec/memory-trace-derived-artifact-provenance-contract.md),
 [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md),
-[`completed/memory-trace-product-and-trail-view-plan.md`](completed/memory-trace-product-and-trail-view-plan.md),
+[`completed/memory-trace-product-and-trail-view-plan.md`](../5_Completed/memory-trace-product-and-trail-view-plan.md),
 [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md), and
 [`../3_Spec/graph-edge-contract.md`](../3_Spec/graph-edge-contract.md).
 Acceptance criteria: Evidence packs are deterministic JSON over selected entries/graphs; summaries
@@ -392,7 +392,7 @@ Example shape:
       "agent_type": "claude",
       "summary": "...",
       "decisions": ["..."],
-      "files": ["docs/2_Todo/completed/memory-trace-product-and-trail-view-plan.md"],
+      "files": ["docs/5_Completed/memory-trace-product-and-trail-view-plan.md"],
       "tests": ["Full suite 257/257"],
       "related_entries": ["mse_j6m9c19ghfxwwbbw"],
       "supersedes": [],
@@ -455,7 +455,7 @@ Example:
       "entry_ids": ["mse_x82bptzravde7h4x"],
       "source_paths": [
         ".memory-seed/sessions/2026-07-05.md",
-        "docs/2_Todo/completed/memory-trace-product-and-trail-view-plan.md"
+        "docs/5_Completed/memory-trace-product-and-trail-view-plan.md"
       ]
     }
   ],
@@ -734,7 +734,7 @@ Document-generation integrations should be treated as export surfaces, not as pa
 
 ## References / Cross-References
 
-- [`docs/2_Todo/completed/memory-trace-product-and-trail-view-plan.md`](completed/memory-trace-product-and-trail-view-plan.md) - Trace as product, Trail as branch/supersession evolution view.
+- [`docs/5_Completed/memory-trace-product-and-trail-view-plan.md`](../5_Completed/memory-trace-product-and-trail-view-plan.md) - Trace as product, Trail as branch/supersession evolution view.
 - [`docs/2_Todo/memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md) - companion distribution split and public retrieval-service seam.
 - [`docs/2_Todo/session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md) - two-class diagram model and no-LLM reasoning-diagram constraint.
 - [`docs/3_Spec/graph-edge-contract.md`](../3_Spec/graph-edge-contract.md) - canonical graph/edge/metric contract.

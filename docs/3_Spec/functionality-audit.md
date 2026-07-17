@@ -294,7 +294,7 @@ graph TD
 - Nearest-runtime discovery (`resolve_runtime`) supports nested sub-project runtimes; legacy `.AGENTS/` remains a code-level fallback.
 - **Lazy-skill extraction (new in 2.13).** Detailed procedures that used to live directly in `agent-rules.md` were moved out into seeded skills - `history_retrieval.md`, `session_logging.md`, `end_of_turn.md`, `memory_hygiene.md`, `subproject_runtime.md` - so `agent-rules.md` now keeps startup-safe summaries plus explicit skill pointers, and seeded ESR commands point at `end_of_turn.md` for the full checklist.
 - **Working Principles gained guard-preservation bullets (new in 2.14).** Follow-up to a fan-out evaluation of a third-party code-simplification plugin proposal (rejected as redundant with the built-in `code-review`/`simplify` skills and the existing orphan sweep): a decision-ladder-before-adding-code habit, and a reminder not to strip terse validation/ownership guards (a date-format check, an `is_ours` MCP-ownership check, an `isinstance` guard) without understanding what they protect against. Landed in Working Principles rather than a new skill file, since the risk applies to any incidental edit, not just tasks that self-identify as "code simplification." Backed by new regression tests for the two guards a codebase audit found genuinely untested (`_valid_session_date`; the `is_ours` check in the claude/cursor/gemini MCP-merge functions).
-- **Mermaid usage guidance bullet (new in 2.14).** A third new Working Principles bullet: default to plain text; reserve Mermaid for genuinely spatial, temporal, or concurrent structure; keep blocks small; check syntax *and* semantic freshness (roadmap diagrams must be updated when shipped work changes status). From `docs/2_Todo/completed/mermaid-usage-guidance-plan.md`. `session_logging.md`'s Reason Rules simultaneously gained the failed-approaches rule: an attempted-and-failed or incompatible approach must be logged under `A` even unprompted (`docs/2_Todo/completed/failed-approaches-logging-plan.md`).
+- **Mermaid usage guidance bullet (new in 2.14).** A third new Working Principles bullet: default to plain text; reserve Mermaid for genuinely spatial, temporal, or concurrent structure; keep blocks small; check syntax *and* semantic freshness (roadmap diagrams must be updated when shipped work changes status). From `docs/5_Completed/mermaid-usage-guidance-plan.md`. `session_logging.md`'s Reason Rules simultaneously gained the failed-approaches rule: an attempted-and-failed or incompatible approach must be logged under `A` even unprompted (`docs/5_Completed/failed-approaches-logging-plan.md`).
 - **Visible branch history guidance (unreleased).** Working Principles now tell agents to load
   `agent_collaboration.md` before distinct feature/proposal/fix/refactor/test/docs work where the
   user expects the Git graph to show branch evolution. The default is task branch/worktree plus
@@ -387,10 +387,10 @@ graph TD
   `subproject_runtime`, plus
   persona-scoped `copywriter-conversion` and `developer-rendered-ui-debugging`.
 - `proposal_lifecycle` is path-aware: this repository uses `docs/1_Inbox/` -> `docs/2_Todo/` ->
-  `docs/2_Todo/completed/` with `docs/3_Spec/` and `docs/4_Reference/`; newly initialized projects
+  `docs/5_Completed/` with `docs/3_Spec/` and `docs/4_Reference/`; newly initialized projects
   can still use the generic bootstrap anchors `docs/inbox/`, `docs/todo/`, `docs/todo/completed/`,
   and `docs/reference/`.
-- **Fan-Out Recipe in `agent_collaboration` (new in 2.14).** A named "Explore / Plan / Implement / Validate" 9-gate pipeline (Scope, Exploration, Plan, Worker Identity, Worktree, Pre-Review Validation, Integration, Bounded Review-to-Rework Loop capped at 2 iterations, Final Handoff), new task-packet fields (`base_sha`, `expected_pwd`, `integration_artifact`, `capability_tier`, `shared_file_policy`, `conflict_owner`, `preflight`, `review_loop`), and vendor-neutral capability-tier guidance (planning and review both frontier-tier). From `docs/2_Todo/completed/agent-fanout-workflow-plan.md`.
+- **Fan-Out Recipe in `agent_collaboration` (new in 2.14).** A named "Explore / Plan / Implement / Validate" 9-gate pipeline (Scope, Exploration, Plan, Worker Identity, Worktree, Pre-Review Validation, Integration, Bounded Review-to-Rework Loop capped at 2 iterations, Final Handoff), new task-packet fields (`base_sha`, `expected_pwd`, `integration_artifact`, `capability_tier`, `shared_file_policy`, `conflict_owner`, `preflight`, `review_loop`), and vendor-neutral capability-tier guidance (planning and review both frontier-tier). From `docs/5_Completed/agent-fanout-workflow-plan.md`.
 - **Branch history preservation (unreleased).** `agent_collaboration.md` now distinguishes worktree
   isolation from visible Git topology: a worktree alone does not create a branch in the graph.
   Distinct parallel writing tasks get separate branches/worktrees, and integration uses
@@ -1067,7 +1067,7 @@ Additional unreleased control-plane documentation: `proposal_lifecycle.md` now g
 through inbox -> todo -> completed -> reference/spec lanes, with repo-numbered and generic bootstrap
 path conventions; worktree dependency strategy Phase 1 (dependency tiers,
 dependency task-packet fields, and optional tmux control-room guidance) shipped into
-`agent_collaboration.md` - see [docs/2_Todo/completed/worktree-dependency-strategy-plan.md](../2_Todo/completed/worktree-dependency-strategy-plan.md);
+`agent_collaboration.md` - see [docs/5_Completed/worktree-dependency-strategy-plan.md](../5_Completed/worktree-dependency-strategy-plan.md);
 `risk_signaling.md` now provides qualitative risk tiers and STOP categories; and the seeded
 `docx_render_windows.md` skill (Windows DOCX render fallback) joined the seed inventory and trigger
 registry. The accepted topic-neighbourhood plan will make `topics:` a normal 1-3-topic field on new
@@ -1081,7 +1081,7 @@ meaningful entries and `.memory-seed/topics.yaml` a project-local core index onc
 ### Completed 3.0 foundation
 
 **Multi-user per-day session memory** is complete
-(`docs/2_Todo/completed/multi-user-session-memory-proposal.md`). Phase 1 dual-read (2.9), Phase 2
+(`docs/5_Completed/multi-user-session-memory-proposal.md`). Phase 1 dual-read (2.9), Phase 2
 opt-in user-aware targets and hooks (2.10), integrity validation, 80-bit `mse_` IDs, MCP
 metadata/filters, participant parsing, and explicit session-layout migration all landed through
 2.12. The participant-count gate keeps a one-person project on the simpler shared file.

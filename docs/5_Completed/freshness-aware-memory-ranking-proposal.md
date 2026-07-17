@@ -96,7 +96,7 @@ Supersession was exposed first, on purpose. This proposal is the next stage of t
   opt-out.
 - `exclude_superseded` remains the caller's hard-filter escape hatch; this changes *order*, not
   *membership*.
-- Update `graph-edge-contract.md`'s ranking section + `docs/2_Todo/completed/supersession-edges-plan.md`
+- Update `graph-edge-contract.md`'s ranking section + `docs/5_Completed/supersession-edges-plan.md`
   provenance when it lands (the "expose before you rank" line graduates for supersession).
 
 ## Acceptance criteria
@@ -111,6 +111,6 @@ Supersession was exposed first, on purpose. This proposal is the next stage of t
 ## Dependencies / relationship
 - `proactive-history-retrieval-discipline-proposal.md` (the behavior half - retrieve the why; this is
   the ranking half - make the *current* why surface).
-- `docs/2_Todo/completed/supersession-edges-plan.md` (the ×0.25 harmony constant + exposure staging).
+- `docs/5_Completed/supersession-edges-plan.md` (the ×0.25 harmony constant + exposure staging).
 - `docs/5_Completed/evolution-edges-plan.md` (evolves-stays-valid semantics this must preserve).
 - `docs/3_Spec/graph-edge-contract.md` (the ranking-change discipline and the edge definitions).

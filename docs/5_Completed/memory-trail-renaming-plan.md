@@ -22,7 +22,7 @@ tags:
 > below. Phase 1 (docs rename) was paused pending the user's naming call; the distribution plan's
 > retrieval-service work continued under a temporary package placeholder until `memory-trace` was selected.
 > **Priority:** P2 companion to
-> [`../memory-trace-distribution-plan.md`](../memory-trace-distribution-plan.md). Decide and
+> [`../memory-trace-distribution-plan.md`](../2_Todo/memory-trace-distribution-plan.md). Decide and
 > apply the naming transition before the separate UI distribution becomes a public package.
 > **Source:** User decisions 2026-07-05: rename the Explorer/Lense workstream to **Memory Trail**;
 > use `memory-seed-trail` as the target package/command unless availability checks show a problem;
@@ -72,7 +72,7 @@ evolved, and which entries support it. "Trail" better matches that job:
   subsection matches highlighted inside the entry rather than presented as separate objects.
 
 The name also fits the UI source-learning guidance already captured in
-[`designing-user-interfaces-source-learnings.md`](../../4_Reference/designing-user-interfaces-source-learnings.md):
+[`designing-user-interfaces-source-learnings.md`](../4_Reference/designing-user-interfaces-source-learnings.md):
 clear hierarchy, direct navigation, consistent component language, and microcopy that names the
 user's task instead of exposing implementation details.
 
@@ -104,7 +104,7 @@ not a squatter or an unrelated tool - the same-niche positioning ("decision memo
 logging for AI-assisted development - track architectural decisions across sessions") overlaps
 Memory Seed's own product space, not merely its candidate name.
 
-**Refined 2026-07-05** by [`memory-trail-competitor-analysis.md`](../../4_Reference/memory-trail-competitor-analysis.md)
+**Refined 2026-07-05** by [`memory-trail-competitor-analysis.md`](../4_Reference/memory-trail-competitor-analysis.md)
 (full evaluation): the PyPI package itself is an inert placeholder (`log()`/`recall()` both raise
 `NotImplementedError`; CLI prints "Coming Soon") reserving a name inside a different product line
 (Clarity Gate). The actual functioning artifact is a **separate GitHub repo**
@@ -164,11 +164,11 @@ When extracting the separate distribution:
 
 ## Dependencies
 
-- [`../memory-trace-distribution-plan.md`](../memory-trace-distribution-plan.md): package
+- [`../memory-trace-distribution-plan.md`](../2_Todo/memory-trace-distribution-plan.md): package
   split and deprecation-window mechanics.
 - [`memory-explorer-entry-level-ui-results-plan.md`](memory-explorer-entry-level-ui-results-plan.md):
   user-facing object model for search, graph, timeline, and reader results.
-- [`../../4_Reference/designing-user-interfaces-source-learnings.md`](../../4_Reference/designing-user-interfaces-source-learnings.md):
+- [`../../4_Reference/designing-user-interfaces-source-learnings.md`](../4_Reference/designing-user-interfaces-source-learnings.md):
   UI naming and hierarchy principles.
 
 ## Acceptance Criteria
@@ -187,8 +187,8 @@ When extracting the separate distribution:
 
 - User naming decision, 2026-07-05.
 - Companion distribution plan:
-  [`../memory-trace-distribution-plan.md`](../memory-trace-distribution-plan.md).
+  [`../memory-trace-distribution-plan.md`](../2_Todo/memory-trace-distribution-plan.md).
 - Entry-level result proposal:
   [`memory-explorer-entry-level-ui-results-plan.md`](memory-explorer-entry-level-ui-results-plan.md).
 - UI design source learnings:
-  [`designing-user-interfaces-source-learnings.md`](../../4_Reference/designing-user-interfaces-source-learnings.md).
+  [`designing-user-interfaces-source-learnings.md`](../4_Reference/designing-user-interfaces-source-learnings.md).

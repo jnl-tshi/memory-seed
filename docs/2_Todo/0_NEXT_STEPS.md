@@ -260,9 +260,11 @@ benchmark remain reference input rather than active work.
 ## Doc-lifecycle Phase 2 (housekeeping)
 
 Tracked in [`document-lifecycle-system-plan.md`](document-lifecycle-system-plan.md) (Phase 1 — lanes +
-front door — shipped): the `docs index` / `docs check` CLI, and bulk-migrating the 43 `2_Todo/completed/`
-docs into `5_Completed/`. *(The former third item — removing an empty `superpowers/specs/` — is dropped:
-no such directory exists in the working tree or in git history.)*
+front door — shipped). **The bulk migration shipped 2026-07-17:** all 43 `2_Todo/completed/` docs plus the
+nested `agent-templates/` moved to `5_Completed/`, every inbound reference was repaired, and the folder is
+retired — so no legacy archive sits beside the lanes any more. Remaining: the `docs index` / `docs check`
+CLI. *(The former third item — removing an empty `superpowers/specs/` — is dropped: no such directory
+exists in the working tree or in git history.)*
 
 ## Parked — needs your judgement / market / accounts (not engineering next-steps)
 

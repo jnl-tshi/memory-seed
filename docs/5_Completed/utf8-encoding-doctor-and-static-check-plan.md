@@ -3,7 +3,7 @@
 Status: COMPLETED 2026-07-08 - check, repair, static implicit-I/O enforcement, and doctor summary
 are implemented in unreleased changes.
 Priority: Medium
-Source: Split from `docs/2_Todo/completed/memory-seed-utf8-encoding-policy-phase-1.md` on 2026-07-07.
+Source: Split from `docs/5_Completed/memory-seed-utf8-encoding-policy-phase-1.md` on 2026-07-07.
 Scope: Add explicit validation and repair tooling for the UTF-8/LF/NFC text contract after the Phase 1 helper and documentation work.
 Non-goals: Do not silently rewrite user files; do not repair suspected mojibake without an explicit command and backup path.
 Dependencies: Phase 1 helper module `memory_seed.text_files`. Encoding commands remain owned by

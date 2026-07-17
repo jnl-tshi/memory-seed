@@ -6,7 +6,7 @@ tags:
   - documentation
   - lifecycle
 priority: P2
-next_action: execute Phase 2 — `docs index`/`docs check` CLI, bulk-migrate the 43 `2_Todo/completed/` docs to `5_Completed/`
+next_action: "Phase 2 bulk migration SHIPPED 2026-07-17 (43 docs + agent-templates -> 5_Completed/, folder retired, all inbound refs repaired). Remaining Phase 2: the `docs index`/`docs check` CLI."
 ---
 
 # Document lifecycle system — human-discoverable, folder-primary, with a generated index
@@ -116,9 +116,17 @@ history.
 - **Incremental closeout (2026-07-15):** after implementation completed,
   `configurable-integration-mode-plan.md` moved to `docs/5_Completed/` alongside the completed topic,
   evolution-edge, and supersession-successor plans. This does not replace P2's 43-document bulk migration.
-- **P2:** bulk-migrate the 43 `2_Todo/completed/` files → `5_Completed/` (+ any `6_Rejected`/`7_Superseded`
-  reclassification), and **update every `docs/2_Todo/completed/` reference** across the repo. Backfill
-  secondary YAML. Generate all indexes.
+- **P2 migration — SHIPPED 2026-07-17.** All 43 `2_Todo/completed/` files plus the nested
+  `agent-templates/` moved to `5_Completed/`; the folder is retired. Every inbound reference was repaired
+  by resolving each broken link to its real target rather than by pattern substitution: **docs went from
+  20 broken relative links to 0**, because the pre-existing breaks were depth errors left by the *previous*
+  move into `completed/` and the new depth is correct. Session logs were deliberately **not** rewritten —
+  they are append-only history (Invariant #2) and their old `2_Todo/completed/...` paths are true
+  statements about the past; the move is recorded as a `continuity:` migration event instead. Still open
+  from P2: the `docs index`/`docs check` CLI, secondary-YAML backfill, generated indexes, and any
+  `6_Rejected`/`7_Superseded` reclassification (deliberately skipped — the source folder was named
+  `completed`, so `5_Completed` is the faithful lane; reclassifying 43 docs is a per-doc judgement call,
+  not a migration).
 - **P3:** wire `docs check` into `esr` + CI.
 - **P4 (optional):** `entries:` doc↔memory link + a Trace view of the doc lifecycle.
 - **P5 (opt-in planning profile extraction):** only after P2/P3 prove the local commands and migration,

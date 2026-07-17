@@ -85,7 +85,7 @@ created: 2026-07-04
 - If promoted, the likely active proposal should be narrow: either "Memory Trace UI audit checklist"
   or "Memory Trace design-token baseline", not a broad redesign.
 - Partially promoted 2026-07-05 into
-  [`../2_Todo/completed/memory-explorer-entry-level-ui-results-plan.md`](../2_Todo/completed/memory-explorer-entry-level-ui-results-plan.md),
+  [`../5_Completed/memory-explorer-entry-level-ui-results-plan.md`](../5_Completed/memory-explorer-entry-level-ui-results-plan.md),
   applying the hierarchy/navigation/component-consistency principles to Memory Trace result granularity.
 - Any future proposal should avoid importing copyrighted book content; use these extracted principles
   as summarized rationale only.

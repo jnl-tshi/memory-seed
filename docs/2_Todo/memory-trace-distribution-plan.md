@@ -35,8 +35,8 @@ tags:
 > deprecated alias to `trace`, and removed the obsolete standalone Trace PyPI workflow/project
 > metadata.
 > This is the canonical plan for Pillar B distribution.
-> Supersedes the "open evaluation" framing in [`3.0-plan.md`](completed/3.0-plan.md) section "Pillar B" and closes the
-> block in [`user-interface-deep-research-report.md`](completed/user-interface-deep-research-report.md).
+> Supersedes the "open evaluation" framing in [`3.0-plan.md`](../5_Completed/3.0-plan.md) section "Pillar B" and closes the
+> block in [`user-interface-deep-research-report.md`](../5_Completed/user-interface-deep-research-report.md).
 > **Priority:** P2 (after the unreleased ranking/supersession/commit-linking batch releases; not a
 > blocker for any shipped surface).
 > **Source:** User decision 2026-07-05 (JNL) that the review UI should have a clear product/source
@@ -58,9 +58,9 @@ tags:
 > done 2026-07-04) - Memory Trace builds on the same edge/metric contract. Phase 2 followed Phase 1
 > proving the retrieval-service seam holds while it is still cheap to move (in-package).
 > UI result granularity is governed by
-> [`completed/memory-explorer-entry-level-ui-results-plan.md`](completed/memory-explorer-entry-level-ui-results-plan.md):
+> [`completed/memory-explorer-entry-level-ui-results-plan.md`](../5_Completed/memory-explorer-entry-level-ui-results-plan.md):
 > entries are the selectable UI object; subsection matches are highlighted inside entries.
-> Naming transition is governed by [`completed/memory-trace-product-and-trail-view-plan.md`](completed/memory-trace-product-and-trail-view-plan.md):
+> Naming transition is governed by [`completed/memory-trace-product-and-trail-view-plan.md`](../5_Completed/memory-trace-product-and-trail-view-plan.md):
 > Memory Trace is the intended product name for the companion UI line and `memory-trace` remains the
 > command. Phase 1 shipped in 2.16.0, Phase 2 source extraction is merged, and the 2026-07-12 fold-in
 > changed the install path to `pip install "memory-seed[trace]"`. Do not ask users to create a
@@ -222,11 +222,11 @@ package extra.
 ## Provenance
 
 - User decision 2026-07-05 (JNL).
-- Companion-package intent: [`3.0-plan.md`](completed/3.0-plan.md) section "Pillar B".
+- Companion-package intent: [`3.0-plan.md`](../5_Completed/3.0-plan.md) section "Pillar B".
 - Decision inputs and evaluation loop: [`../7_Superseded/codex-proposal-synergy-evaluation.md`](../7_Superseded/codex-proposal-synergy-evaluation.md)
   section "Pillar B Distribution Decision".
-- Retrieval-seam analysis: [`3.0-plan.md`](completed/3.0-plan.md) section "Review Correction: Retrieval Is Already
+- Retrieval-seam analysis: [`3.0-plan.md`](../5_Completed/3.0-plan.md) section "Review Correction: Retrieval Is Already
   Mostly Shared".
 - Shared edge/metric contract: [`../3_Spec/graph-edge-contract.md`](../3_Spec/graph-edge-contract.md).
 - Decision-diagram surfacing + paid report pack: [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md).
-- Historical research (now completed): [`user-interface-deep-research-report.md`](completed/user-interface-deep-research-report.md).
+- Historical research (now completed): [`user-interface-deep-research-report.md`](../5_Completed/user-interface-deep-research-report.md).

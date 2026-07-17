@@ -98,7 +98,7 @@ tags:
 3. Between stages, report progress tersely: what shipped, what's next, anything discovered that
    changes the plan (which routes back through user approval, never silent scope growth).
 4. **After all stages ship - docs-folder accuracy pass:** move completed plans to
-   `docs/2_Todo/completed/` with final dispositions near the top; refresh `0_NEXT_STEPS.md`,
+   `docs/5_Completed/` with final dispositions near the top; refresh `0_NEXT_STEPS.md`,
    `functionality-audit.md`, `README.md`, `CHANGELOG.md`, and `.memory-seed/index.md` to the new
    condition; repair any links that pointed at moved files; log the closing entry with the full
    stage-to-merge-commit map.

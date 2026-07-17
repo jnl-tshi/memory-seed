@@ -140,7 +140,7 @@ when the session itself ends.
 
 ## Relationship to existing coverage (checked — consolidates, does not duplicate)
 
-- `docs/2_Todo/completed/agent-worktree-namespace-guard-plan.md` — worktree namespace/guard (kept; this
+- `docs/5_Completed/agent-worktree-namespace-guard-plan.md` — worktree namespace/guard (kept; this
   **re-scopes the leaf from `<task>` to `<session>`** to match practice, and adds the symmetric **branch**
   naming it left unspecified).
 - `.memory-seed/skills/agent_collaboration.md` — the loose branch fallback (line 16/128) and gates 1–9;
@@ -150,7 +150,7 @@ when the session itself ends.
   drives for session-worktree and
   worker-worktree removal; this proposal adds the per-task **branch-deletion** half and the retire rules.
 - `.memory-seed/skills/end_of_turn.md` "Stale Worktree Sweep" — the manual discipline this formalizes.
-- `docs/2_Todo/completed/worktree-dependency-strategy-plan.md` — isolation/dependency tiers (unchanged).
-- `docs/2_Todo/completed/multi-user-session-memory-proposal.md` + the `session_target()` participant-count
+- `docs/5_Completed/worktree-dependency-strategy-plan.md` — isolation/dependency tiers (unchanged).
+- `docs/5_Completed/multi-user-session-memory-proposal.md` + the `session_target()` participant-count
   gate — the multi-user mechanism the `<user>` worktree segment reuses (same 2+-participant trigger as
   per-user session files), so worktree and session-log user-scoping activate together.

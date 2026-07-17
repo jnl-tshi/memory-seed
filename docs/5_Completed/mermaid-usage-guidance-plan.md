@@ -18,7 +18,7 @@ tags:
 
 Nothing in `agent-rules.md`, `session_logging.md`, or any skill states when Mermaid is or isn't
 appropriate. Mermaid is already used ad hoc in this repo's own docs (`docs/2_Todo/3.0-plan.md`,
-`docs/3_Spec/functionality-audit.md`, `docs/2_Todo/completed/multi-user-deep-research-report.md`,
+`docs/3_Spec/functionality-audit.md`, `docs/5_Completed/multi-user-deep-research-report.md`,
 `docs/2_Todo/user-interface-deep-research-report.md`) with no consistent rule for when it earns its
 keep versus when a plain sentence or list would communicate the same thing with less risk. A broken
 Mermaid block (a stray bracket, an unclosed string, a wrong arrow direction) degrades to raw,

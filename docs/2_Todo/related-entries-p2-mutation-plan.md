@@ -125,6 +125,6 @@ dedicated `link backfill` subcommand is acceptable if it makes the risk clearer 
 
 - User sign-off 2026-07-05.
 - Completed P1 source plan:
-  [`completed/related-entries-generation-plan.md`](completed/related-entries-generation-plan.md).
+  [`completed/related-entries-generation-plan.md`](../5_Completed/related-entries-generation-plan.md).
 - Current 3.0 coordination:
-  [`3.0-plan.md`](completed/3.0-plan.md), [`0_NEXT_STEPS.md`](0_NEXT_STEPS.md).
+  [`3.0-plan.md`](../5_Completed/3.0-plan.md), [`0_NEXT_STEPS.md`](0_NEXT_STEPS.md).

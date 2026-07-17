@@ -27,4 +27,4 @@ clutter this one.
 - `goal-run-core-parity-codex.md`, `goal-run-trace-surface-claude.md` — spent 2026-07-13 goal-run briefs,
   fully executed and merged.
 
-The larger archive in `docs/2_Todo/completed/` (43 docs) migrates here in the P2 bulk move.
+The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk move.

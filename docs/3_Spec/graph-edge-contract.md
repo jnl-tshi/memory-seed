@@ -234,7 +234,7 @@ A new edge kind's validation belongs here, reusing the entry-YAML scan, not a pa
 
 Consolidates the graph/ranking work shipped in 2.15.0: typed supersession edges, git↔entry commit
 linking, `inbound_relation_count`/`importance_score`, the `connectivity` rename, and the
-`exclude_superseded` filter. Plans in `docs/2_Todo/completed/supersession-edges-plan.md`,
+`exclude_superseded` filter. Plans in `docs/5_Completed/supersession-edges-plan.md`,
 `git-commit-entry-linking-plan.md`, `interaction-frequency-ranking-plan.md`, and
 `exclude-superseded-filter-plan.md`. The `supersession_damping` rank-dampener (exposed in 2.18, then
 turned **on by default** after real-corpus validation) and `evolved_head` successor-surfacing come from
