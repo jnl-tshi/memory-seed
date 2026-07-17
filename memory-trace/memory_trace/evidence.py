@@ -527,8 +527,23 @@ def _document_kind(path: str) -> str:
 
 
 def _file_fingerprint(path: Path) -> str:
+    """Fingerprint a tracked document by its canonical text form.
+
+    Hashing raw bytes made the fingerprint platform-dependent: the same
+    logical document is CRLF in a Windows working copy and LF on a Linux
+    checkout, so packs built from identical corpora disagreed (caught by the
+    snapshot test the first time CI ever ran it). Text documents hash their
+    `normalize_text` canonical form (NFC + LF - the same canonicalization
+    every Memory Seed write already applies); unreadable/binary content falls
+    back to raw bytes, where no canonical text form exists.
+    """
+    from memory_seed.text_files import normalize_text
+
     digest = hashlib.sha256()
-    digest.update(path.read_bytes())
+    try:
+        digest.update(normalize_text(path.read_text(encoding="utf-8")).encode("utf-8"))
+    except (UnicodeDecodeError, OSError):
+        digest.update(path.read_bytes())
     return f"sha256:{digest.hexdigest()}"
 
 
