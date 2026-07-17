@@ -4,6 +4,17 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- **Memory Trace tolerates concurrent cache rebuilds.** Two local server processes projecting the same
+  workspace no longer produce a Windows file-lock 500. Each rebuild takes a short-lived OS-level writer
+  lease per primary cache path; a waiting process rechecks the winner's snapshot once the lease frees, and
+  if the lease stays unavailable past a bounded wait it builds an isolated temporary projection rather than
+  contending for the shared cache. The observed failure was an `os.replace` denial during concurrent
+  rebuild, not a Markdown or UI data error — Markdown stays authoritative, and both the shared SQLite cache
+  and any emergency temporary projection remain disposable derived state (Invariant #6).
+- **`memory-trace --open-both`** opens the vanilla `/` and React `/next` renderer views as two browser tabs
+  against a single server, so the two can be compared side by side during B0b parity work. Mutually
+  exclusive with `--no-open`; available on `memory-seed lense` too. `scripts/launch-memory-trace.ps1` wraps
+  the same flow for Windows.
 - **Supersession successors now surface directly in retrieval.** `memory_search` results carry the
   lineage terminal `superseding_head`, and the default-on successor boost is bounded to affected
   supersession lineages. The additive field shipped before ranking changed; fixtures and the full-corpus
