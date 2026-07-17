@@ -1514,7 +1514,7 @@ def main(argv: list[str] | None = None) -> int:
         # the `memory-trace` command. Plain core installs ship no web stack.
         try:
             from memory_trace.service import run_server
-        except ModuleNotFoundError:
+        except ImportError:
             print(
                 "Memory Lense has moved to the Memory Trace command.\n"
                 "  Install:  pip install \"memory-seed[trace]\"\n"

@@ -4641,12 +4641,22 @@ class CliHelpTests(unittest.TestCase):
         # exits non-zero - core ships no web stack.
         import contextlib
         import io
+        import sys
+        from unittest import mock
 
         from memory_seed.cli import main
 
+        # Simulate the core-only environment deterministically: memory_trace
+        # ships in the wheel (only fastapi is the extra), so on a dev machine
+        # with the extra installed this test would otherwise take the
+        # with-trace path and even start a real server. None in sys.modules
+        # makes the service import raise ImportError in every environment.
         stderr = io.StringIO()
-        with contextlib.redirect_stderr(stderr):
-            code = main(["lense", "--no-open"])
+        with mock.patch.dict(
+            sys.modules, {"memory_trace": None, "memory_trace.service": None}
+        ):
+            with contextlib.redirect_stderr(stderr):
+                code = main(["lense", "--no-open"])
         self.assertEqual(code, 1)
         self.assertIn("memory-trace", stderr.getvalue())
         self.assertIn("moved", stderr.getvalue())
