@@ -45,7 +45,7 @@ Engineering gates that autonomous work has pushed as far as it reasonably can; e
 before its next step. (Market/account items live under "Parked" below.)
 
 1. **BG1 steps 5–7 — actionability policy + §7 graduation.** Step 4 (display authority/provenance in the
-   inspector) ships without you (additive, fail-closed, no ranking/contract change). Step 5–6 add an
+   inspector) **shipped 2026-07-17**. Step 5–6 add an
    `actionability` field computed by policy with machine-readable reason codes, plus fixtures proving
    generated/provider content **cannot** become actionable on its own; step 7 is the Constitution §7
    amendment that would let annotation/generated content become agent-actionable.
@@ -206,8 +206,10 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
 - **BG1 — Provenance and authority taxonomy** *(constitutional gate before actionable annotations or
   agent-influencing generated output)* —
   [`memory-provenance-and-authority-taxonomy-proposal.md`](memory-provenance-and-authority-taxonomy-proposal.md).
-  Extend the shipped seven-value `ProvenanceClass`; keep provenance, lifecycle, and actionability as
-  separate fields; do not create a single trust score.
+  Keep provenance, authority, lifecycle, and actionability as separate fields; do not create a single
+  trust score. **Steps 1–4 SHIPPED** — the enum-constrained `AuthorityClass`/`ProvenanceClass` on the
+  node (2.19), and the inspector now displays authority + provenance distinctly (2026-07-17). Steps 5–7
+  (actionability policy, fail-closed fixtures, §7 graduation) are the **open-decisions gate #1** above.
 - **BG2 — Memory-quality metrics v0** — ✅ **v0 SHIPPED 2026-07-17; usefulness review COMPLETE**
   (proposal step 6). [`memory-quality-metrics-v0-proposal.md`](memory-quality-metrics-v0-proposal.md).
   `memory-seed quality report [--json]`; first baseline at

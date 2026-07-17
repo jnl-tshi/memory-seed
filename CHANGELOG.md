@@ -11,6 +11,10 @@ All notable changes to Memory Seed are summarized here.
   inline code/bold), search-match subsection highlighting at parity with the
   legacy reader, an evidence strip (commit + `path:line`), and navigable
   linked-memories and related-activity cards.
+- Memory Trace Inspector surfaces the BG1 provenance/authority taxonomy: an
+  entry's `Authority` and `Provenance` classes display as distinct rows (never a
+  merged trust score), with `Provider`/revision and a `stale` flag when present,
+  and a muted advisory band for provider/generated authority (BG1 step 4).
 
 ### Changed
 
