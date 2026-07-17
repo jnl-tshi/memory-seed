@@ -380,7 +380,7 @@ class SessionSchemaTests(unittest.TestCase):
         self.assertNotIn("merge queue is required", agent_rules)
 
     def test_agent_rules_lazy_loading_recommendations_doc_exists(self):
-        path = Path("docs/2_Todo/completed/agent-rules-lazy-loading-recommendations.md")
+        path = Path("docs/5_Completed/agent-rules-lazy-loading-recommendations.md")
         self.assertTrue(path.exists(), "agent-rules lazy-loading recommendations doc missing")
         content = path.read_text(encoding="utf-8")
 

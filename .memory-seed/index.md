@@ -89,7 +89,7 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Seed templates: `memory_seed/seed/`.
 - Tests: `tests/`.
 - Public docs: `README.md`, `CHANGELOG.md`, `docs/2_Todo/0_NEXT_STEPS.md`.
-- Docs taxonomy: `docs/1_Inbox/` holds unassessed incoming material; `docs/2_Todo/` holds active roadmap proposals; `docs/3_Spec/` holds live normative specs (with candidates in `draft/`); `docs/4_Reference/` holds source research; and terminal outcomes live in `docs/5_Completed/`, `6_Rejected/`, `7_Superseded/`, or `8_Deferred/`. The legacy `docs/2_Todo/completed/` archive still contains 43 documents pending the lifecycle plan's Phase 2 bulk migration.
+- Docs taxonomy: `docs/1_Inbox/` holds unassessed incoming material; `docs/2_Todo/` holds active roadmap proposals; `docs/3_Spec/` holds live normative specs (with candidates in `draft/`); `docs/4_Reference/` holds source research; and terminal outcomes live in `docs/5_Completed/`, `6_Rejected/`, `7_Superseded/`, or `8_Deferred/`. The legacy `docs/2_Todo/completed/` archive was retired 2026-07-17: its 43 documents and nested `agent-templates/` moved to `docs/5_Completed/`, so every terminal doc now sits in a lane.
 - **Sub-project: `demo/`** — HyperFrames video composition (30 s product demo, MP4). Has its own `.memory-seed/` runtime; inherits root policy. HyperFrames owns `demo/AGENTS.md` and `demo/CLAUDE.md`; each now carries an injected `<!-- BEGIN memory-seed -->` routing block (2.8) so agents are routed into the demo runtime without clobbering HyperFrames content.
 
 ## Design Decisions

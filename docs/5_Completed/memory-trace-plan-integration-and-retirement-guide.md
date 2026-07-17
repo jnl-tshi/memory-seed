@@ -10,7 +10,7 @@ status: "execution-guide"
 > **Status:** COMPLETED 2026-07-11. The imported Memory Trace next-generation document set was
 > promoted into `docs/2_Todo/` and `docs/3_Spec/`; source provenance moved to `docs/4_Reference/`;
 > and the coverage/retirement decision was captured in
-> [`../memory-trace-next-generation-coverage-matrix.md`](../memory-trace-next-generation-coverage-matrix.md).
+> [`../memory-trace-next-generation-coverage-matrix.md`](../2_Todo/memory-trace-next-generation-coverage-matrix.md).
 > No active implementation plan was retired unless its remaining requirements were preserved
 > elsewhere.
 
@@ -82,7 +82,7 @@ Where an older plan contains a unique active requirement:
 
 Use these statuses:
 
-- **Historical completed plan:** keep in `docs/2_Todo/completed/`; add `superseded_by` only if the new document now governs future work.
+- **Historical completed plan:** keep in `docs/5_Completed/`; add `superseded_by` only if the new document now governs future work.
 - **Superseded but not completed:** move to `docs/4_Reference/retired/` (create only if consistent with proposal-lifecycle policy), add:
   - `status: superseded`;
   - `superseded_by`;

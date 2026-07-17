@@ -49,7 +49,7 @@ tags:
 > governs Evidence Packs and projection state for future export work.
 > [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md) Phase 1 (the
 > public retrieval service must surface sidecar diagrams and structured fields these views consume).
-> [`completed/memory-explorer-entry-level-ui-results-plan.md`](completed/memory-explorer-entry-level-ui-results-plan.md)
+> [`completed/memory-explorer-entry-level-ui-results-plan.md`](../5_Completed/memory-explorer-entry-level-ui-results-plan.md)
 > (the entry is the primary selectable object; diagrams attach to entries, not to section chunks).
 > **Acceptance criteria:** see per-phase gates below.
 
@@ -225,4 +225,4 @@ The uniform, non-technical-facing deliverable and the one genuinely new Class-1 
   `docs/4_Reference/memory-seed-market-fit-visual-appendix.md` (Diagram 11, Trace as commercial wedge).
 - Class-1 substrate and canonical reader: [`../3_Spec/graph-edge-contract.md`](../3_Spec/graph-edge-contract.md).
 - Consumers: [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md),
-  [`completed/memory-explorer-entry-level-ui-results-plan.md`](completed/memory-explorer-entry-level-ui-results-plan.md).
+  [`completed/memory-explorer-entry-level-ui-results-plan.md`](../5_Completed/memory-explorer-entry-level-ui-results-plan.md).

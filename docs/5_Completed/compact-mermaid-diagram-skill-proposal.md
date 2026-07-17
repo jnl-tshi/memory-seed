@@ -9,14 +9,14 @@ tags:
 
 # Compact Mermaid Diagram Skill Proposal
 
-> Status: IMPLEMENTED 2026-07-07 (unreleased), moved to `docs/2_Todo/completed/`.
+> Status: IMPLEMENTED 2026-07-07 (unreleased), moved to `docs/5_Completed/`.
 > Priority: P3.
 > Source: User-supplied runbook for compact rectangular Mermaid diagram generation.
 > Scope: Add a lazy-loaded Memory Seed skill that teaches agents how to structure Mermaid diagrams
 > into compact rectangular layouts, avoiding runaway horizontal rows and isolated bottom nodes.
 > Non-goals: Do not add Mermaid rendering, semantic validation, or a new diagram parser. Do not change
 > the existing rule that Mermaid should be reserved for spatial, temporal, or concurrent structure.
-> Dependencies: Existing Mermaid usage guidance in `docs/2_Todo/completed/mermaid-usage-guidance-plan.md`;
+> Dependencies: Existing Mermaid usage guidance in `docs/5_Completed/mermaid-usage-guidance-plan.md`;
 > existing skill registry at `.memory-seed/skills/index.md`; seed skill registry at
 > `memory_seed/seed/.memory-seed/skills/index.md`.
 > Acceptance criteria: Done - `compact_mermaid_diagrams.md` exists in live and seed skill directories;

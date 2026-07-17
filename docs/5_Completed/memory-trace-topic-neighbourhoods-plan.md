@@ -29,8 +29,8 @@ tools (`memory_topics_list`, `memory_topic_inspect`, `memory_topics_check`), plu
 `memory-seed topics suggest --from <file>`.
 Priority: Completed P3. Topic filters and deterministic suggestions now form part of the evidence-pack
 input contract.
-Source: Promoted from `docs/2_Todo/completed/memory-trail-graph-and-topic-neighbourhoods.md` and
-folded with `docs/2_Todo/completed/graph recommendations.md` on 2026-07-08. Clarified by user
+Source: Promoted from `docs/5_Completed/memory-trail-graph-and-topic-neighbourhoods.md` and
+folded with `docs/5_Completed/graph recommendations.md` on 2026-07-08. Clarified by user
 decision on 2026-07-08:
 indexed topics should become the normal session-entry model, with 1-3 topics per entry and a unique
 topic index per project.

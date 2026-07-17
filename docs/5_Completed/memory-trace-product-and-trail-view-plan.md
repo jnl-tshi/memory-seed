@@ -2,7 +2,7 @@
 title: "Proposal: Memory Trace (product) with Trail as a Branch/Supersession Evolution View"
 date: "2026-07-05"
 project: "memory-seed"
-related_to: "docs/2_Todo/completed/memory-trail-renaming-plan.md; docs/2_Todo/memory-trace-distribution-plan.md"
+related_to: "docs/5_Completed/memory-trail-renaming-plan.md; docs/2_Todo/memory-trace-distribution-plan.md"
 author_context: "Prepared for Jean Nathan Tshibuyi"
 format: "Markdown research proposal"
 ---
@@ -11,25 +11,25 @@ format: "Markdown research proposal"
 
 > **Status:** COMPLETED 2026-07-06 - promoted from inbox on 2026-07-05 as the canonical naming/product plan for
 > the companion UI workstream. Supersedes the Trail-only naming plan now archived at
-> [`completed/memory-trail-renaming-plan.md`](completed/memory-trail-renaming-plan.md).
+> [`completed/memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md).
 > Future Memory Trace product/system evolution is now governed by
-> [`../memory-trace-product-and-system-architecture-blueprint.md`](../memory-trace-product-and-system-architecture-blueprint.md)
-> and [`../../3_Spec/memory-trace-trail-search-and-graph-ux.md`](../../3_Spec/memory-trace-trail-search-and-graph-ux.md).
+> [`../memory-trace-product-and-system-architecture-blueprint.md`](../2_Todo/memory-trace-product-and-system-architecture-blueprint.md)
+> and [`../../3_Spec/memory-trace-trail-search-and-graph-ux.md`](../3_Spec/memory-trace-trail-search-and-graph-ux.md).
 > **Priority:** Resolved. Naming, branch capture, package extraction, and the Trail view are present
 > in the unpushed Memory Trace worktree.
 > **Source:** Conversation 2026-07-05 (JNL): use **Memory Trace** as the overall package/product name,
 > with **Memory Trail** as a core feature inside Trace for branch and supersession evolution.
-> Prior source notes: [`../../4_Reference/memory-trail-competitor-analysis.md`](../../4_Reference/memory-trail-competitor-analysis.md)
-> and [`completed/memory-trail-renaming-plan.md`](completed/memory-trail-renaming-plan.md).
+> Prior source notes: [`../../4_Reference/memory-trail-competitor-analysis.md`](../4_Reference/memory-trail-competitor-analysis.md)
+> and [`completed/memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md).
 > **Scope:** Product/package naming, package extraction gate, the Trail feature concept, and the
 > minimal data-model/API/UI work needed to show feature evolution from branch labels plus
 > supersession links.
 > **Non-goals:** No immediate package extraction. No rewrite of historical session entries. No
 > branch-existence validation. No write/curation UI. No fork of parser/ranker/retrieval logic.
-> **Dependencies:** [`../memory-trace-distribution-plan.md`](../memory-trace-distribution-plan.md),
+> **Dependencies:** [`../memory-trace-distribution-plan.md`](../2_Todo/memory-trace-distribution-plan.md),
 > [`memory-explorer-entry-level-ui-results-plan.md`](memory-explorer-entry-level-ui-results-plan.md),
-> [`../session-decision-diagrams-plan.md`](../session-decision-diagrams-plan.md), and
-> [`../../3_Spec/graph-edge-contract.md`](../../3_Spec/graph-edge-contract.md).
+> [`../session-decision-diagrams-plan.md`](../2_Todo/session-decision-diagrams-plan.md), and
+> [`../../3_Spec/graph-edge-contract.md`](../3_Spec/graph-edge-contract.md).
 > **Acceptance criteria:** see "Acceptance Criteria" below.
 
 > **Provenance note:** this file was originally drafted as inbox research on 2026-07-05, then promoted
@@ -38,9 +38,9 @@ format: "Markdown research proposal"
 
 ## Part 1 - Naming: Trace as the product, Trail as a feature within it
 
-[`completed/memory-trail-renaming-plan.md`](completed/memory-trail-renaming-plan.md)'s Phase-0 check found
+[`completed/memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md)'s Phase-0 check found
 `memory-seed-trail` free on PyPI but "Memory Trail" already the name of a real (if small) same-niche
-product ([analyzed here](../../4_Reference/memory-trail-competitor-analysis.md)). This proposal offers a resolution:
+product ([analyzed here](../4_Reference/memory-trail-competitor-analysis.md)). This proposal offers a resolution:
 
 - **Product/package name: Memory Trace.** Names the whole thing - durable, cross-agent, human-
   auditable project memory.
@@ -175,7 +175,7 @@ though the decision and commit both still exist.
   branch, replaced an earlier one) - the actual "branching of features and their evolution" the user
   described, rather than a generic graph with two more edge-type checkboxes buried among four others.
 - This is a **Memory Trace product surface**, per the already-decided split in
-  [`memory-trace-distribution-plan.md`](../memory-trace-distribution-plan.md) -
+  [`memory-trace-distribution-plan.md`](../2_Todo/memory-trace-distribution-plan.md) -
   it belongs on the companion package's roadmap (post Phase-1 retrieval-service work, which already
   ships the shared service this view would consume), not as new in-package Lense feature work (Lense
   is maintenance-only per that plan's Phase 1).
@@ -261,13 +261,13 @@ though the decision and commit both still exist.
 
 - Conversation 2026-07-05 (JNL): the Trace/Trail naming refinement and the record-time capture
   preference.
-- [`memory-trail-competitor-analysis.md`](../../4_Reference/memory-trail-competitor-analysis.md) - the positioning-
+- [`memory-trail-competitor-analysis.md`](../4_Reference/memory-trail-competitor-analysis.md) - the positioning-
   collision finding this proposal's naming half resolves.
-- [`memory-trail-renaming-plan.md`](completed/memory-trail-renaming-plan.md) - the open naming decision
+- [`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md) - the open naming decision
   this proposal offers a resolution path for, without deciding it here.
-- [`memory-trace-distribution-plan.md`](../memory-trace-distribution-plan.md) -
+- [`memory-trace-distribution-plan.md`](../2_Todo/memory-trace-distribution-plan.md) -
   the product/package split Trail would live inside.
-- [`../../3_Spec/graph-edge-contract.md`](../../3_Spec/graph-edge-contract.md) - the existing edge-kind contract a new
+- [`../../3_Spec/graph-edge-contract.md`](../3_Spec/graph-edge-contract.md) - the existing edge-kind contract a new
   `branch` field and rendered `supersedes` edge type would extend.
 - Verified directly against code: `memory_seed/semantic_cache.py` (`MemoryChunk` fields),
   `memory_seed/core.py` (`check_session_links()` entry schema), `memory-trace/memory_trace/lense.py`

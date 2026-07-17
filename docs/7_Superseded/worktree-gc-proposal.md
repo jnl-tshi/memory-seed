@@ -78,11 +78,11 @@ The broader "orchestration contract" I first drafted was **already shipped**; na
 duplication check:
 
 - **Worker identity / commit-stamped validation / one-at-a-time integration** →
-  `docs/2_Todo/completed/agent-fanout-workflow-plan.md` (Worker Identity Gate, Integration Gate,
+  `docs/5_Completed/agent-fanout-workflow-plan.md` (Worker Identity Gate, Integration Gate,
   `base_sha`/preflight task-packet fields) — live in `.memory-seed/skills/agent_collaboration.md`.
-- **Worktree isolation + dependency tiers** → `docs/2_Todo/completed/worktree-dependency-strategy-plan.md`.
+- **Worktree isolation + dependency tiers** → `docs/5_Completed/worktree-dependency-strategy-plan.md`.
 - **Wrong-namespace / peer-agent write coordination** →
-  `docs/2_Todo/completed/agent-worktree-namespace-guard-plan.md` + `memory-seed worktree guard` /
+  `docs/5_Completed/agent-worktree-namespace-guard-plan.md` + `memory-seed worktree guard` /
   `memory_worktree_guard` (implemented 2026-07-13).
 - **The end-of-turn cleanup discipline** → `.memory-seed/skills/end_of_turn.md` "Stale Worktree Sweep".
 

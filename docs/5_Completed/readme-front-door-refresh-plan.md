@@ -21,7 +21,7 @@ slimming it into `docs/` remains an optional follow-up, and real screenshots/GIF
 placeholders whenever the user captures them.
 Priority: P6 documentation polish after release-safety, encoding hardening, and Memory Trace release
 ordering unless the user reprioritizes launch-readiness.
-Source: Promoted from `docs/2_Todo/completed/README Improvements.md` on 2026-07-08. Clarified by user
+Source: Promoted from `docs/5_Completed/README Improvements.md` on 2026-07-08. Clarified by user
 decision on 2026-07-08: include screenshots/GIFs, but placeholders are acceptable when real assets
 are not ready.
 Scope: Refresh the root `README.md` so new users can understand, install, initialize, and trust

@@ -22,4 +22,4 @@ Candidate specs that are **not yet binding** live in [`draft/`](draft/); retired
   finished plan.
 
 These files are not completed proposals. Completed proposal and source-plan documents belong in
-`docs/2_Todo/completed/`; source-only research belongs in `docs/4_Reference/`.
+`docs/5_Completed/`; source-only research belongs in `docs/4_Reference/`.
