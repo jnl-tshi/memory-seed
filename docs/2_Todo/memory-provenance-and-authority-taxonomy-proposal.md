@@ -2,9 +2,9 @@
 title: "Memory Provenance and Authority Taxonomy Proposal"
 date: "2026-07-15"
 project: "memory-seed"
-status: "steps-1-3-shipped"
+status: "steps-1-4-shipped"
 priority: "P1"
-next_action: "Steps 4–6: display provenance and authority distinctly in Trace/evidence views; implement actionability as a policy result with reason codes; add fail-closed fixtures proving generated/provider content cannot become actionable on its own."
+next_action: "Steps 5–6 (GATED on the participant/role model + a user go): implement actionability as a policy result with reason codes; add fail-closed fixtures proving generated/provider content cannot become actionable on its own. Step 7 (Constitution §7 graduation) needs explicit maintainer approval."
 related:
   - "docs/CONSTITUTION.md"
   - "docs/3_Spec/draft/provenance-authority-crosswalk.md"
@@ -20,10 +20,12 @@ Status: **Steps 1–3 DONE (shipped in 2.19.0, 2026-07-17).** Step 1–2: the in
 (§5 resolved with option (a)). Step 3: the additive `/api/v1` change landed — `authority_class` is now
 the enum-constrained `AuthorityClass` (the undocumented `canonical_memory` value renamed to the canonical
 `authored`; `RendererGraphNode` carries both `authority_class` and `provenance_class`), regenerated into
-`openapi.v1.json` + `types.ts`. **Step 4 (display provenance and authority distinctly in the Trace
-inspector) is the next unblocked increment** — additive UI, no ranking or contract change. Steps 5–7
-(actionability policy + fail-closed fixtures + the §7 constitutional graduation) stay gated on the
-participant/role model and maintainer approval; see the roadmap's open-decisions gate.
+`openapi.v1.json` + `types.ts`. **Step 4 DONE 2026-07-17** — the Trace inspector now shows
+`Authority` and `Provenance` as distinct rows (never a merged score), plus `Provider`/`revision` and a
+`stale` flag when present; the advisory band (provider/generated authority) is muted but not collapsed
+into the authored/canonical band. Additive UI, no ranking or contract change. Steps 5–7 (actionability
+policy + fail-closed fixtures + the §7 constitutional graduation) stay gated on the participant/role model
+and maintainer approval; see the roadmap's open-decisions gate.
 
 **What the inventory found — this proposal's own premise needs a correction.** `authority_class` is not
 an unbuilt field: it already exists on `RendererGraphNode` as a **bare `str`** validated only as

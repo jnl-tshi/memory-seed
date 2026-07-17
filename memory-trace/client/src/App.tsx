@@ -21,6 +21,40 @@ const EDGE_LABELS: Record<RendererGraphEdge["edge_type"], string> = {
   day: "Day",
 };
 
+// BG1 taxonomy: authority (what authority an item's meaning carries) and
+// provenance (where it came from) are SEPARATE axes — surfaced distinctly, never
+// merged into a single trust score. "authored"/"authored_memory" is all that is
+// emitted today; the labels make the UI ready for non-authored items.
+const AUTHORITY_LABELS: Record<RendererGraphNode["authority_class"], string> = {
+  authored: "Authored",
+  computed_canonical: "Computed · canonical",
+  git_derived: "Git-derived",
+  provider_extracted: "Provider · extracted",
+  provider_resolved: "Provider · resolved",
+  provider_inferred: "Provider · inferred",
+  generated: "Generated · advisory",
+};
+
+const PROVENANCE_LABELS: Record<RendererGraphNode["provenance_class"], string> = {
+  authored_memory: "Authored memory",
+  source_control: "Source control",
+  pr_review: "PR review",
+  automation_ci: "Automation · CI",
+  annotation: "Annotation",
+  release: "Release",
+  generated_artefact: "Generated artefact",
+};
+
+// Authored/canonical/git-derived meanings are trusted project record; provider
+// and generated meanings are advisory until promoted. A muted class marks the
+// advisory band without collapsing the two axes into one score.
+const ADVISORY_AUTHORITY = new Set<RendererGraphNode["authority_class"]>([
+  "provider_extracted",
+  "provider_resolved",
+  "provider_inferred",
+  "generated",
+]);
+
 function readDock(): InspectorDock {
   const value = localStorage.getItem("memory-trace:inspector-dock");
   return value === "right" || value === "bottom" || value === "hidden" ? value : "auto";
@@ -261,7 +295,7 @@ export default function App() {
       {inspectorVisible && <aside className="inspector" id="trace-inspector" aria-label="Inspector">
         <div className="inspector-bar"><div><span className="eyebrow">Inspector</span><h2>{titleFor(selected)}</h2></div><button className="icon-button" type="button" onClick={() => setDock("hidden")} aria-label="Hide inspector" title="Hide inspector"><X size={17} /></button></div>
         <div className="dock-control" aria-label="Inspector position"><span>Dock</span>{(["auto", "right", "bottom"] as const).map((option) => <button key={option} type="button" aria-pressed={dock === option} onClick={() => setDock(option)}>{option}</button>)}</div>
-        {selected && <div className="inspector-content"><dl className="metadata"><div><dt>Entry ID</dt><dd>{selected.source.entry_id || "Not recorded"}</dd></div><div><dt>Date</dt><dd>{selected.temporal.value}</dd></div><div><dt>Agent</dt><dd>{selected.source.agent}</dd></div><div><dt>Links</dt><dd>{selected.connectivity}</dd></div><div><dt>Topics</dt><dd>{selected.source.topics.join(", ") || "None"}</dd></div><div><dt>Diagrams</dt><dd>{chunk?.diagrams.length ?? 0}</dd></div></dl><EntryReader chunk={chunk} matchHeading={matchHint && selected.source.entry_id === matchHint.entryId ? matchHint.heading : null} onOpenEntry={(entryId) => void focusEntry(entryId)} /></div>}
+        {selected && <div className="inspector-content"><dl className="metadata"><div><dt>Entry ID</dt><dd>{selected.source.entry_id || "Not recorded"}</dd></div><div><dt>Date</dt><dd>{selected.temporal.value}</dd></div><div><dt>Agent</dt><dd>{selected.source.agent}</dd></div><div><dt>Authority</dt><dd><span className={ADVISORY_AUTHORITY.has(selected.authority_class) ? "authority-badge advisory" : "authority-badge"}>{AUTHORITY_LABELS[selected.authority_class]}</span></dd></div><div><dt>Provenance</dt><dd>{PROVENANCE_LABELS[selected.provenance_class]}</dd></div>{selected.provider && <div><dt>Provider</dt><dd>{selected.provider}{selected.revision ? ` · ${selected.revision}` : ""}</dd></div>}{selected.stale && <div><dt>Freshness</dt><dd className="stale-flag">Stale — projection behind source</dd></div>}<div><dt>Links</dt><dd>{selected.connectivity}</dd></div><div><dt>Topics</dt><dd>{selected.source.topics.join(", ") || "None"}</dd></div><div><dt>Diagrams</dt><dd>{chunk?.diagrams.length ?? 0}</dd></div></dl><EntryReader chunk={chunk} matchHeading={matchHint && selected.source.entry_id === matchHint.entryId ? matchHint.heading : null} onOpenEntry={(entryId) => void focusEntry(entryId)} /></div>}
       </aside>}
     </div>
   );
