@@ -9,3 +9,7 @@ rule.
 **Contents:** _none yet._ (Note: `subagent-orchestration-contract-proposal.md`, retracted earlier this
 session, was `git rm`'d before this lane existed — it is recoverable from git history and belongs here;
 see Phase 2.)
+
+<!-- docs-index:begin -->
+_(no documents in this lane)_
+<!-- docs-index:end -->

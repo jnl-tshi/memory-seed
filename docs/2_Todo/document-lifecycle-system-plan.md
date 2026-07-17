@@ -6,7 +6,7 @@ tags:
   - documentation
   - lifecycle
 priority: P2
-next_action: "Phase 2: migration + `docs check` SHIPPED 2026-07-17. Remaining: `docs index` (generated per-lane README tables), secondary-YAML backfill, and P3 (wire `docs check` into esr + CI)."
+next_action: "Phases 2-3 COMPLETE 2026-07-17: migration, `docs check` (also in esr + CI), and `docs index` (marker-scoped lane tables + front-door roll-up, `--check` staleness gate) all shipped. Remaining: secondary-YAML backfill (the 28 warnings), P4 optional `entries:` doc-memory link, P5 opt-in planning-profile extraction."
 ---
 
 # Document lifecycle system — human-discoverable, folder-primary, with a generated index
@@ -134,7 +134,7 @@ history.
   `6_Rejected`/`7_Superseded` reclassification (deliberately skipped — the source folder was named
   `completed`, so `5_Completed` is the faithful lane; reclassifying 43 docs is a per-doc judgement call,
   not a migration).
-- **P3:** wire `docs check` into `esr` + CI.
+- **P3 — SHIPPED 2026-07-17.** `docs check` runs as an `esr` section ("Docs lifecycle"; errors surface there while only links check fails the esr exit code) and as a `verify.yml` CI step (where errors do fail). `docs index` shipped the same day: marker-scoped generation (`<!-- docs-index:begin/end -->`) so hand-written lane prose is never touched, per-lane tables from frontmatter, a front-door counts + top-open-items roll-up, and `docs index --check` as the stale-index gate the check rule asked for.
 - **P4 (optional):** `entries:` doc↔memory link + a Trace view of the doc lifecycle.
 - **P5 (opt-in planning profile extraction):** only after P2/P3 prove the local commands and migration,
   extract a project-neutral scaffold into the optional `planning` profile: generic lanes, a human front

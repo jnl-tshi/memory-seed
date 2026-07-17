@@ -493,6 +493,15 @@ def main(argv: list[str] | None = None) -> int:
         "check",
         help="read-only lane/link/pointer validation over docs/",
     )
+    docs_index = docs_sub.add_parser(
+        "index",
+        help="regenerate the lane README tables and front-door roll-up (marker-scoped)",
+    )
+    docs_index.add_argument(
+        "--check",
+        action="store_true",
+        help="write nothing; exit 1 if the generated index is stale",
+    )
 
     quality_parser = subparsers.add_parser(
         "quality",
@@ -1272,6 +1281,12 @@ def main(argv: list[str] | None = None) -> int:
             text = format_docs_check(result)
             print(text) if result.ok else print(text, file=sys.stderr)
             return 0 if result.ok else 1
+        if args.docs_command == "index":
+            from .docs_index import apply_docs_index, format_docs_index
+
+            result = apply_docs_index(Path(".").resolve(), check=args.check)
+            print(format_docs_index(result, check=args.check))
+            return 1 if (args.check and result.stale) else 0
 
     if args.command == "quality":
         if args.quality_command == "report":

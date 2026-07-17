@@ -49,8 +49,32 @@ class EsrReportTests(unittest.TestCase):
         self.assertEqual(report.link_gaps, [])
         self.assertFalse(report.seed_twins_checked)
         # Sections print even when clean - a skipped step cannot hide.
-        for section in ("Integrity", "Topics", "Lifecycle link gaps", "Integration mode", "Worktrees", "Seed twins"):
+        for section in ("Integrity", "Topics", "Lifecycle link gaps", "Integration mode", "Worktrees", "Seed twins", "Docs lifecycle"):
             self.assertIn(section, text)
+
+    def test_docs_lifecycle_section_skips_without_docs_and_reports_errors_with(self):
+        (self.sessions / "2026-06-01.md").write_text(_entry("2026-06-01 09:00", A), encoding="utf-8")
+
+        # No docs/ at all -> skipped, honestly.
+        report = esr_report(cwd=self.cwd, session_date="2026-06-01")
+        self.assertFalse(report.docs_checked)
+        self.assertIn("No docs/ directory", format_esr_report(report))
+
+        # A docs tree with a broken link -> surfaced in the section, but the
+        # integrity contract holds: only links check fails the esr exit code.
+        docs = self.cwd / "docs" / "2_Todo"
+        docs.mkdir(parents=True)
+        (docs / "a.md").write_text(
+            "---\npriority: P1\nnext_action: x\n---\n\n[gone](../5_Completed/missing.md)\n",
+            encoding="utf-8",
+        )
+        report = esr_report(cwd=self.cwd, session_date="2026-06-01")
+        self.assertTrue(report.docs_checked)
+        self.assertFalse(report.docs_ok)
+        self.assertTrue(any("broken-link" in e for e in report.docs_errors))
+        self.assertTrue(report.integrity_ok)  # docs errors do not fail integrity
+        self.assertIn("broken-link", format_esr_report(report))
+        self.assertEqual(report.to_dict()["docs"]["ok"], False)
 
     def test_integration_mode_surfaced_defaulting_to_local_merge(self):
         (self.sessions / "2026-06-01.md").write_text(_entry("2026-06-01 09:00", A), encoding="utf-8")

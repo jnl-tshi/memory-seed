@@ -55,6 +55,10 @@ class EsrReport:
     worktrees_available: bool = False
     seed_twins_checked: bool = False
     seed_twin_drift: list[str] = field(default_factory=list)
+    docs_checked: bool = False
+    docs_ok: bool = True
+    docs_errors: list[str] = field(default_factory=list)
+    docs_warning_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -79,6 +83,12 @@ class EsrReport:
                 ],
             },
             "seed_twins": {"checked": self.seed_twins_checked, "drift": self.seed_twin_drift},
+            "docs": {
+                "checked": self.docs_checked,
+                "ok": self.docs_ok,
+                "errors": self.docs_errors,
+                "warning_count": self.docs_warning_count,
+            },
         }
 
 
@@ -233,6 +243,14 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
 
     report.worktrees_available, report.worktrees = _worktree_posture(root)
     report.seed_twins_checked, report.seed_twin_drift = _seed_twin_drift(root)
+
+    from .docs_check import check_docs
+
+    docs = check_docs(root)
+    report.docs_checked = docs.files_checked > 0
+    report.docs_ok = docs.ok
+    report.docs_errors = [f"{i.file}: {i.kind}: {i.detail}" for i in docs.errors]
+    report.docs_warning_count = len(docs.warnings)
     return report
 
 
@@ -294,6 +312,16 @@ def format_esr_report(report: EsrReport) -> str:
             dirty = "?" if wt.dirty is None else wt.dirty
             marker = "  STALE CANDIDATE (merged + clean)" if wt.stale_candidate else ""
             lines.append(f"- {wt.path}  [{wt.branch or 'detached'}]  ahead: {ahead}  dirty: {dirty}{marker}")
+    lines.append("")
+
+    lines.append("## Docs lifecycle")
+    if not report.docs_checked:
+        lines.append("No docs/ directory — skipped.")
+    elif report.docs_ok:
+        suffix = f" ({report.docs_warning_count} warning(s) — incomplete, not broken)" if report.docs_warning_count else ""
+        lines.append(f"OK — links, lifecycle pointers, and spec bindings agree with the lanes{suffix}.")
+    else:
+        lines.extend(f"- {item}" for item in report.docs_errors)
     lines.append("")
 
     lines.append("## Seed twins")

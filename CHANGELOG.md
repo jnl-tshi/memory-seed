@@ -4,6 +4,15 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- **`memory-seed docs index` + `docs check` wired into `esr` and CI** — document-lifecycle Phases 2–3
+  complete. `docs index` generates each lane's `README.md` table (document · priority · blocked-by ·
+  next-action, Todo sorted by priority) and a front-door counts + top-open-items roll-up. Generation is
+  **marker-scoped**: only the region between `<!-- docs-index:begin/end -->` is ever rewritten, so
+  hand-written lane prose survives regeneration byte-for-byte; a missing README is created, a marker-less
+  one gets the block appended. Deterministic and idempotent, so `docs index --check` is a real staleness
+  gate (exit 1, writes nothing) — the "stale generated index" rule the check spec asked for. `docs check`
+  now also runs as an `esr` section ("Docs lifecycle" — errors surface there while links check alone still
+  owns the esr exit code) and as a `verify.yml` CI step, where errors do fail the build.
 - **OpenSSF credibility, in-repo slice.** `SECURITY.md` lands the vulnerability-disclosure policy
   (GitHub private reporting), a short threat model, and a "Verifying a release" section covering the
   PEP 740/Sigstore attestations Trusted Publishing already emits (SLSA Build L3-shaped provenance,

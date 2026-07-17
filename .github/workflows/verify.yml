@@ -32,6 +32,9 @@ jobs:
       - name: Validate repository session links
         run: python -m memory_seed.cli links check
 
+      - name: Validate docs lifecycle
+        run: python -m memory_seed.cli docs check
+
       - name: Install package with Trace extra
         run: python -m pip install -e ".[trace]"
 
