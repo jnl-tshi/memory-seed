@@ -128,6 +128,17 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AuthorityClass
+         * @description What authority an item's *meaning* carries — a separate axis from
+         *     ``ProvenanceClass`` (where it came from). Fixed vocabulary from the
+         *     provenance/authority taxonomy (BG1) so generated or provider-derived content
+         *     can never masquerade as authored project memory.
+         *
+         *     Confidence is separate metadata and can never upgrade authority.
+         * @enum {string}
+         */
+        AuthorityClass: "authored" | "computed_canonical" | "git_derived" | "provider_extracted" | "provider_resolved" | "provider_inferred" | "generated";
+        /**
          * BranchInfo
          * @description Per-branch Trail geometry recovered from trailer ground truth: the merge
          *     event that closed the branch's newest displayed entry (``merge`` is None when
@@ -455,8 +466,7 @@ export interface components {
         };
         /** RendererGraphNode */
         RendererGraphNode: {
-            /** Authority Class */
-            authority_class: string;
+            authority_class: components["schemas"]["AuthorityClass"];
             community: components["schemas"]["RendererGraphCommunity"];
             /** Connectivity */
             connectivity: number;

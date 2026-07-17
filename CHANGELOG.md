@@ -4,6 +4,16 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- **⚠️ Breaking (`/api/v1`): `RendererGraphNode.authority_class` is now a closed enum, and its value
+  `canonical_memory` was renamed to `authored`.** The field shipped as a free-form string validated only
+  as "non-empty", which let it emit `canonical_memory` — a value from no declared vocabulary, exactly the
+  drift the BG1 provenance/authority taxonomy exists to prevent. It is now a typed `AuthorityClass` enum
+  (`authored`, `computed_canonical`, `git_derived`, `provider_extracted`, `provider_resolved`,
+  `provider_inferred`, `generated`), enforced by an `AUTHORITY_CLASSES` frozenset the same way
+  `provenance_class` already was, and published as a real enum in the OpenAPI/TypeScript contract instead
+  of `"type": "string"`. **Blast radius was verified nil before the break:** no code branches on the
+  value and the React client does not read the field; the OpenAPI fixture, TypeScript types, bounded
+  graph fixture, and bundled renderer-benchmark were all regenerated. This unblocks BG1 steps 3–6.
 - **Session entries are appended at the milestone, not at the merge.** `session_logging.md` gained a
   "When To Append" rule (+ seed twin, so every agent inherits it): the multi-decision shape is for
   decisions settled in *one deliberation*; if substantive work happened between two decisions —

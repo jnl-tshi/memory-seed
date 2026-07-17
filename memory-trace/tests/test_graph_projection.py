@@ -60,6 +60,28 @@ class GraphProjectionFixtureTests(unittest.TestCase):
         with self.assertRaisesRegex(GraphProjectionContractError, "canonical graph edge"):
             renderer_input(invalid)
 
+    def test_undeclared_authority_class_is_rejected(self):
+        fixture = load_graph_fixture(FIXTURE)
+        invalid = copy.deepcopy(fixture)
+        # The exact value this field shipped with before the vocabulary existed.
+        # It validated fine as "a non-empty string" -- which is how an
+        # undeclared value reached the frozen v1 contract in the first place.
+        invalid["nodes"][0]["authority_class"] = "canonical_memory"
+
+        with self.assertRaisesRegex(GraphProjectionContractError, "authority_class is not recognised"):
+            renderer_input(invalid)
+
+    def test_authority_class_is_a_closed_vocabulary_like_provenance(self):
+        fixture = load_graph_fixture(FIXTURE)
+        invalid = copy.deepcopy(fixture)
+        invalid["nodes"][0]["authority_class"] = "totally_made_up"
+
+        # The debt this closes: authority was the one axis with no vocabulary,
+        # so any string at all passed. It is now enforced exactly as provenance
+        # already was.
+        with self.assertRaisesRegex(GraphProjectionContractError, "authority_class is not recognised"):
+            renderer_input(invalid)
+
     def test_live_trace_graph_adapts_without_renderer_state(self):
         projection = project_trace_graph(
             {

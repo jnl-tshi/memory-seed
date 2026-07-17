@@ -1,6 +1,20 @@
 {
   "components": {
     "schemas": {
+      "AuthorityClass": {
+        "description": "What authority an item's *meaning* carries \u2014 a separate axis from\n``ProvenanceClass`` (where it came from). Fixed vocabulary from the\nprovenance/authority taxonomy (BG1) so generated or provider-derived content\ncan never masquerade as authored project memory.\n\nConfidence is separate metadata and can never upgrade authority.",
+        "enum": [
+          "authored",
+          "computed_canonical",
+          "git_derived",
+          "provider_extracted",
+          "provider_resolved",
+          "provider_inferred",
+          "generated"
+        ],
+        "title": "AuthorityClass",
+        "type": "string"
+      },
       "BranchInfo": {
         "description": "Per-branch Trail geometry recovered from trailer ground truth: the merge\nevent that closed the branch's newest displayed entry (``merge`` is None when\nthat newest entry is still open - the branch dangles, no fabricated merge),\nthe fork point, and ``estimated`` (True only in the pre-trailer era, where the\nfrontend keeps its positional heuristic).",
         "properties": {
@@ -1043,8 +1057,7 @@
       "RendererGraphNode": {
         "properties": {
           "authority_class": {
-            "title": "Authority Class",
-            "type": "string"
+            "$ref": "#/components/schemas/AuthorityClass"
           },
           "community": {
             "$ref": "#/components/schemas/RendererGraphCommunity"
