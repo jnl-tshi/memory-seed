@@ -1,8 +1,10 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { LayoutPanelLeft, List, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, X } from "lucide-react";
 import { api, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, searchQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult } from "./api";
+import { EntryReader } from "./EntryReader";
 
 const GraphWorkspace = lazy(() => import("./GraphWorkspace").then((module) => ({ default: module.GraphWorkspace })));
+type MatchHint = { entryId: string; heading: string };
 type InspectorDock = "auto" | "right" | "bottom" | "hidden";
 type GraphScope = "overview" | "local";
 type GraphViewMode = "graph" | "list";
@@ -42,6 +44,7 @@ export default function App() {
   const [graph, setGraph] = useState<RendererGraphResponse | null>(null);
   const [selected, setSelected] = useState<RendererGraphNode | null>(null);
   const [chunk, setChunk] = useState<ChunkResponse | null>(null);
+  const [matchHint, setMatchHint] = useState<MatchHint | null>(null);
   const [leftOpen, setLeftOpen] = useState(true);
   const [dock, setDock] = useState<InspectorDock>(readDock);
   const [error, setError] = useState<string | null>(null);
@@ -125,7 +128,7 @@ export default function App() {
     return () => { cancelled = true; };
   }, [selected]);
 
-  const select = useCallback((node: RendererGraphNode) => { setSelected(node); setSearch(null); }, []);
+  const select = useCallback((node: RendererGraphNode) => { setSelected(node); setSearch(null); setMatchHint(null); }, []);
   const topics = useMemo(() => Object.entries(facets?.topics ?? {}).slice(0, 10), [facets]);
   const inspectorVisible = dock !== "hidden";
 
@@ -133,7 +136,8 @@ export default function App() {
     return loadGraph({ nextScope, nextTopic, nextEdgeTypes, entryId, preferredEntryId: preferredEntryId ?? selected?.source.entry_id, keepCurrentOnEmpty, dateFrom });
   }
 
-  async function focusEntry(entryId: string) {
+  async function focusEntry(entryId: string, keepHint = false) {
+    if (!keepHint) setMatchHint(null);
     const nextGraph = await requestGraph("local", null, edgeTypes, entryId, entryId, true, null);
     if (!nextGraph) return;
     if (!nextGraph.nodes.some((node) => node.source.entry_id === entryId)) {
@@ -168,14 +172,29 @@ export default function App() {
     await runSearch(searchInput.current?.value ?? query);
   }
 
+  // Best matched subsection for a search result: the section whose chunk_id is
+  // the best match (else the first), reduced to its leaf heading. Entry-level
+  // matches with no subsection return null (no highlight).
+  function hintFor(result: SearchResult, entryId: string): MatchHint | null {
+    const sections = result.matched_sections ?? [];
+    const best = sections.find((section) => section.chunk_id === result.best_match_chunk_id) ?? sections[0];
+    const heading = best?.heading_path?.[best.heading_path.length - 1];
+    return heading ? { entryId, heading } : null;
+  }
+
   async function chooseSearchResult(result: SearchResult) {
     if (result.entry_id) {
       setQuery(result.entry_id);
-      await focusEntry(result.entry_id);
+      setMatchHint(hintFor(result, result.entry_id));
+      await focusEntry(result.entry_id, true);
       return;
     }
     const node = graph?.nodes.find((item) => item.source.chunk_id === result.chunk_id);
-    if (node) select(node);
+    if (node) {
+      const entryId = node.source.entry_id;
+      select(node);
+      if (entryId) setMatchHint(hintFor(result, entryId));
+    }
   }
 
   async function changeScope(nextScope: GraphScope) {
@@ -242,7 +261,7 @@ export default function App() {
       {inspectorVisible && <aside className="inspector" id="trace-inspector" aria-label="Inspector">
         <div className="inspector-bar"><div><span className="eyebrow">Inspector</span><h2>{titleFor(selected)}</h2></div><button className="icon-button" type="button" onClick={() => setDock("hidden")} aria-label="Hide inspector" title="Hide inspector"><X size={17} /></button></div>
         <div className="dock-control" aria-label="Inspector position"><span>Dock</span>{(["auto", "right", "bottom"] as const).map((option) => <button key={option} type="button" aria-pressed={dock === option} onClick={() => setDock(option)}>{option}</button>)}</div>
-        {selected && <div className="inspector-content"><dl className="metadata"><div><dt>Entry ID</dt><dd>{selected.source.entry_id || "Not recorded"}</dd></div><div><dt>Date</dt><dd>{selected.temporal.value}</dd></div><div><dt>Agent</dt><dd>{selected.source.agent}</dd></div><div><dt>Links</dt><dd>{selected.connectivity}</dd></div><div><dt>Topics</dt><dd>{selected.source.topics.join(", ") || "None"}</dd></div><div><dt>Diagrams</dt><dd>{chunk?.diagrams.length ?? 0}</dd></div></dl><p>{chunk?.excerpt ?? "Loading entry details"}</p></div>}
+        {selected && <div className="inspector-content"><dl className="metadata"><div><dt>Entry ID</dt><dd>{selected.source.entry_id || "Not recorded"}</dd></div><div><dt>Date</dt><dd>{selected.temporal.value}</dd></div><div><dt>Agent</dt><dd>{selected.source.agent}</dd></div><div><dt>Links</dt><dd>{selected.connectivity}</dd></div><div><dt>Topics</dt><dd>{selected.source.topics.join(", ") || "None"}</dd></div><div><dt>Diagrams</dt><dd>{chunk?.diagrams.length ?? 0}</dd></div></dl><EntryReader chunk={chunk} matchHeading={matchHint && selected.source.entry_id === matchHint.entryId ? matchHint.heading : null} onOpenEntry={(entryId) => void focusEntry(entryId)} /></div>}
       </aside>}
     </div>
   );

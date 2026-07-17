@@ -162,9 +162,13 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   seven-day default graph range with an explicit all-dates control, overview/local/topic filters, typed
   curved edges, selected-context `evolves` routes, focus/minimal/all label policy, keyboard fit/zoom/node
   cycling, and a complete-list alternative. Failed graph refreshes preserve the current view; graph mode
-  renders connected context while the list retains unlinked records. Remaining: reader highlighting and
-  evidence workspace, Trail transition/parity, file/evolution modes, evidence-backed topology communities
-  and optional mild temporal layout, React diagram rendering, and formal accessibility/scale acceptance.
+  renders connected context while the list retains unlinked records. **The Inspector reader shipped
+  2026-07-17** — a markdown-rendered entry body (frontmatter code block, headings, bullets, inline
+  code/bold), search-match subsection highlighting at parity with the vanilla reader, an evidence strip
+  (commit + `path:line`), and navigable linked-memories/related-activity cards. Remaining: Trail
+  transition/parity, file/evolution modes, evidence-backed topology communities and optional mild temporal
+  layout, React diagram rendering (decision-diagram sidecars, currently count-only), and formal
+  accessibility/scale acceptance.
   Keep the SVG renderer until explicit parity sign-off.
   Only after B0b acceptance may the
   [`structural-provider proposal`](memory-trace-structural-graph-enrichment-provider-proposal.md) define a
