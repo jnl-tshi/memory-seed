@@ -2,11 +2,13 @@
 title: "Memory Provenance and Authority Taxonomy Proposal"
 date: "2026-07-15"
 project: "memory-seed"
-status: "promoted-to-todo"
+status: "crosswalk-published-blocked-on-contract-decision"
 priority: "P1"
-next_action: "Reconcile the existing ProvenanceClass enum, annotation authority rules, and provider authority classes into one versioned crosswalk and fixture set before Phase 6 actionability."
+blocked_by: "user decision — the shipped authority_class value `canonical_memory` is not in this proposal's vocabulary, and correcting it is an /api/v1 contract break. See the crosswalk §5 options (a)–(d)."
+next_action: "JNL picks an option in docs/3_Spec/draft/provenance-authority-crosswalk.md §5. Steps 3–6 then proceed in order."
 related:
   - "docs/CONSTITUTION.md"
+  - "docs/3_Spec/draft/provenance-authority-crosswalk.md"
   - "docs/3_Spec/memory-trace-trail-search-and-graph-ux.md"
   - "docs/2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md"
   - "docs/2_Todo/memory-trace-structural-graph-enrichment-provider-proposal.md"
@@ -14,10 +16,26 @@ related:
 
 # Memory Provenance and Authority Taxonomy Proposal
 
-Status: **PROMOTED to `2_Todo`** 2026-07-15; active constitutional gate before actionable annotations or generated output can influence agents.
+Status: **Steps 1–2 DONE 2026-07-17 (crosswalk published); step 3 BLOCKED on one user decision.**
+The inventory and alias map are at
+[`../3_Spec/draft/provenance-authority-crosswalk.md`](../3_Spec/draft/provenance-authority-crosswalk.md)
+(draft = candidate, not binding; no code or default changed, per this proposal's own instruction).
+
+**What the inventory found — this proposal's own premise needs a correction.** `authority_class` is not
+an unbuilt field: it already exists on `RendererGraphNode` as a **bare `str`** validated only as
+"non-empty" (`graph_projection.py:218`), and it emits **`canonical_memory`** (L120) — a value **absent
+from the seven-value vocabulary below**. The authority axis is therefore already carrying an
+undocumented parallel vocabulary, which is the exact failure this proposal exists to prevent.
+Semantically `canonical_memory` on a memory-entry node means `authored`.
+
+**Open user decision (blocks step 3):** constraining `authority_class` to an enum, or renaming its
+emitted value, is **not additive** — it is an `/api/v1` contract break (`openapi.v1.json:1045` publishes
+it as `"type": "string"`). Crosswalk §5 lays out four options: (a) rename + enum in v1, (b) admit
+`canonical_memory` as a synonym, (c) defer the enum to `/api/v2`, (d) keep the v1 wire value and map at
+the boundary. Pick one and steps 3–6 proceed in order.
+
 Priority: P1 after the memory-quality trio and before Memory Trace Phase 6 actionability.
 Source: JNL-approved constitutional hardening on 2026-07-15, grounded in Constitution section 7, the shipped `ProvenanceClass`, the annotation architecture, and the structural-provider proposal.
-Next action: Produce an additive model/crosswalk proposal and fixtures; do not change ranking or actionability defaults in the taxonomy-definition step.
 
 ## Scope
 
