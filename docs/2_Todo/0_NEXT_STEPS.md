@@ -90,10 +90,15 @@ dependency order, and closed on 2026-07-15:
 2. **Session decision diagrams Phase 3** — [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md).
    Phases 1–2b shipped (sidecars, validation, reader + Trail/Graph badge & zoom viewer). Phase 3
    (exportable report / handover pack) is sizable and **gated on a product greenlight**.
-3. **OpenSSF credibility** — [`openssf-credibility-proposals.md`](openssf-credibility-proposals.md).
-   `SECURITY.md`, a CI gate, and G0–G2 remain approved-not-built. The configurable integration-mode
-   foundation is complete, so this work is **unblocked**; adopting `integration_mode: pr` and branch
-   protection still requires the documented project/user actions.
+3. **OpenSSF credibility** — **in-repo slice SHIPPED 2026-07-17** (greenlit by JNL after the
+   implementation-plan checkpoint). [`openssf-credibility-proposals.md`](openssf-credibility-proposals.md).
+   Landed: `SECURITY.md` (G0), `CONTRIBUTING.md`, CodeQL + Scorecard workflows, README badges, and both
+   workflows hardened (every action SHA-pinned from upstream; least-privilege tokens; OIDC preserved).
+   G1 CI was already delivered by codex's `verify.yml`. Expected-score notes:
+   [`../4_Reference/openssf-scorecard-notes.md`](../4_Reference/openssf-scorecard-notes.md).
+   **Remaining is yours:** enable private vulnerability reporting, branch protection + `integration_mode:
+   pr` (G2), the bestpractices.dev submission (answers drafted on request), and attestation confirmation
+   at the next release cut.
 4. **Trace distribution — deprecation-window closeout** —
    [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md). Both phases shipped (Phase 1
    released in 2.16.0; the optional-extra fold-in landed 2026-07-12), but the plan stays active for its
