@@ -461,6 +461,26 @@ def main(argv: list[str] | None = None) -> int:
     )
     link_commits.add_argument("entry_id", help="entry_id to show commits for")
 
+    worktree_classify = worktree_sub.add_parser(
+        "classify",
+        help="classify every registered worktree for cleanup (read-only dry run)",
+    )
+    worktree_classify.add_argument(
+        "--agent",
+        dest="gc_agent",
+        default=None,
+        help="scope ownership to this agent (worktrees in other namespaces report foreign)",
+    )
+    worktree_classify.add_argument(
+        "--integration-branch",
+        dest="gc_integration_branch",
+        default="main",
+        help="branch to check merge status against (default: main)",
+    )
+    worktree_classify.add_argument(
+        "--json", action="store_true", help="emit the machine-readable classification"
+    )
+
     quality_parser = subparsers.add_parser(
         "quality",
         help="read-only memory-quality measurement over the corpus",
@@ -970,6 +990,23 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
     if args.command == "worktree":
+        # `classify` is a different capability from guard/status (every
+        # worktree vs. this one) and carries its own flags, so it must be
+        # handled before the guard call reads guard-only args.
+        if args.worktree_command == "classify":
+            from .worktree_gc import classify_worktrees, format_worktree_gc_report
+
+            report = classify_worktrees(
+                cwd=Path(".").resolve(),
+                agent_type=args.gc_agent,
+                integration_branch=args.gc_integration_branch,
+            )
+            if args.json:
+                print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
+            else:
+                print(format_worktree_gc_report(report))
+            return 0
+
         result = worktree_guard(
             cwd=Path(".").resolve(),
             agent_type=args.agent,
