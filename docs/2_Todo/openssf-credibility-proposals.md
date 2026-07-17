@@ -10,7 +10,13 @@ tags:
 
 # OpenSSF credibility proposals (4 tracks)
 
-Status: **PROPOSED** (2026-07-13, user-approved scope via Q&A) — awaiting implementation-plan approval.
+Status: **IN-REPO SLICE SHIPPED 2026-07-17** (JNL greenlit the implementation plan after the
+checkpoint this line used to gate). Landed: G0 `SECURITY.md`, `CONTRIBUTING.md`, CodeQL + Scorecard
+workflows, README badges, SHA-pinned + least-privilege `verify.yml`/`publish.yml` (G1 itself was
+delivered by `verify.yml`, 2026-07-17, codex). Sigstore/SLSA (Proposals 3–4) are documented in
+`SECURITY.md` "Verifying a release", confirmed at the next cut. **Open user actions:** private
+vulnerability reporting toggle, G2 (`integration_mode: pr` + branch protection), bestpractices.dev
+submission.
 Priority: P2 — credibility/adoption; low runtime blast radius (additive governance files + CI +
 workflow change; no change to Memory Seed's runtime behaviour or public API).
 Source: User request 2026-07-13 following an OpenSSF overview ("which programs should Memory Seed be

@@ -4,6 +4,19 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- **OpenSSF credibility, in-repo slice.** `SECURITY.md` lands the vulnerability-disclosure policy
+  (GitHub private reporting), a short threat model, and a "Verifying a release" section covering the
+  PEP 740/Sigstore attestations Trusted Publishing already emits (SLSA Build L3-shaped provenance,
+  claimed conservatively and confirmed per release). `CONTRIBUTING.md` documents how changes land —
+  including, honestly, that review on a solo-maintained project is self-review plus the automated gate.
+  New CodeQL (python + javascript-typescript, push/PR/weekly) and Scorecard (publishing to the API,
+  SARIF to code scanning) workflows. `verify.yml` and `publish.yml` are hardened: **every third-party
+  action pinned to a full commit SHA resolved from its upstream tag** (same versions, immutable refs) and
+  least-privilege tokens throughout (`contents: read` default; per-job `id-token: write` for OIDC
+  publish, `security-events: write` for SARIF). Expected Scorecard results — including which checks are
+  deliberately capped by the project's solo shape — are recorded in
+  `docs/4_Reference/openssf-scorecard-notes.md`. User-side settings (private-reporting toggle, branch
+  protection/G2, bestpractices.dev registration) remain open and documented.
 - **One entry-boundary grammar everywhere.** `core.py` defined `_ENTRY_HEADING_RE` twice: a strict
   timestamped pattern (used by append/format checks) that a later broad `^##` redefinition silently
   shadowed for reorder and the branch-fuse flows. The result: `session append` accepted an entry body

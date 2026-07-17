@@ -4,6 +4,9 @@
 [![Python](https://img.shields.io/pypi/pyversions/memory-seed.svg)](https://pypi.org/project/memory-seed/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Publish to PyPI](https://github.com/jnl-tshi/memory-seed/actions/workflows/publish.yml/badge.svg)](https://github.com/jnl-tshi/memory-seed/actions/workflows/publish.yml)
+[![Verify](https://github.com/jnl-tshi/memory-seed/actions/workflows/verify.yml/badge.svg)](https://github.com/jnl-tshi/memory-seed/actions/workflows/verify.yml)
+[![CodeQL](https://github.com/jnl-tshi/memory-seed/actions/workflows/codeql.yml/badge.svg)](https://github.com/jnl-tshi/memory-seed/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/jnl-tshi/memory-seed/badge)](https://scorecard.dev/viewer/?uri=github.com/jnl-tshi/memory-seed)
 
 Memory Seed is a portable local memory system for AI coding agents. It plants a small Markdown control plane into a project so agents can recover project purpose, conventions, risks, decisions, and recent work without depending on vendor-hosted memory.
 
