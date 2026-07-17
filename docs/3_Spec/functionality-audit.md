@@ -130,6 +130,7 @@ graph TD
 
 ### A. Distribution & packaging
 - Python package `memory-seed` (`pyproject.toml`, setuptools), Python >= 3.11, published to PyPI via GitHub Release -> `.github/workflows/publish.yml` with an OIDC **manual-approval `pypi` gate**.
+- **Verification gates.** `.github/workflows/verify.yml` runs on pushes to `main`, pull requests, and reusable-workflow calls: the full root `pytest tests` suite, repository `links check`, all Memory Trace tests, and the React `npm ci`/typecheck/build gate. The React build must leave `memory-trace/memory_trace/static/react/` unchanged, proving packaged assets are current; `publish.yml` calls the same workflow before packaging.
 - Console entry points: `memory-seed` (CLI), `memory-seed-mcp` (MCP stdio server), `memory-seed-mcp-validate` (retrieval validation harness).
 - Seed templates under `memory_seed/seed/` are the source of truth installed into projects; the repo dogfoods its own seed (live `.memory-seed/` must stay in sync with the seed twin - enforced by tests).
 - **Download footprint:** the `memory-seed` artifact itself remains small and pure Python +
