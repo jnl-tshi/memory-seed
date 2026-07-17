@@ -2,10 +2,9 @@
 title: "Memory Provenance and Authority Taxonomy Proposal"
 date: "2026-07-15"
 project: "memory-seed"
-status: "crosswalk-published-blocked-on-contract-decision"
+status: "steps-1-3-shipped"
 priority: "P1"
-blocked_by: "user decision — the shipped authority_class value `canonical_memory` is not in this proposal's vocabulary, and correcting it is an /api/v1 contract break. See the crosswalk §5 options (a)–(d)."
-next_action: "JNL picks an option in docs/3_Spec/draft/provenance-authority-crosswalk.md §5. Steps 3–6 then proceed in order."
+next_action: "Steps 4–6: display provenance and authority distinctly in Trace/evidence views; implement actionability as a policy result with reason codes; add fail-closed fixtures proving generated/provider content cannot become actionable on its own."
 related:
   - "docs/CONSTITUTION.md"
   - "docs/3_Spec/draft/provenance-authority-crosswalk.md"

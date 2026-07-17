@@ -100,18 +100,31 @@ fixtures"). `authority_class` is published as `"type": "string"` in the frozen
 free string to an enum, or changing the emitted value, is a **v1 contract break** — not a decision an
 agent should make unilaterally.
 
-**Open user decision — pick one:**
+**RESOLVED 2026-07-17 — JNL chose (a): rename and enum-constrain in v1**, with the standing instruction
+to "fix it so the foundation of the system inherits less debt in the future".
 
 | Option | Effect | Cost |
 |---|---|---|
-| **(a)** Rename the emitted value `canonical_memory` → `authored` and enum-constrain in v1 | one vocabulary immediately | breaks any v1 consumer reading the current value |
-| **(b)** Add `canonical_memory` to the authority vocabulary as a synonym for `authored` | no break | keeps two names for one concept — the thing BG1 forbids |
-| **(c)** Leave v1's `authority_class` a free string; introduce the enum in `/api/v2`, with this crosswalk as the migration map | no break, one vocabulary eventually | the gate waits on v2 |
-| **(d)** Keep v1's wire value, but validate against the enum *internally* and map at the boundary | no break, internal correctness now | a mapping layer to maintain |
+| **(a) ✅ CHOSEN** Rename `canonical_memory` → `authored` and enum-constrain in v1 | one vocabulary immediately | breaks any v1 consumer reading the current value |
+| ~~(b)~~ Add `canonical_memory` as a synonym | no break | keeps two names for one concept — the thing BG1 forbids |
+| ~~(c)~~ Defer the enum to `/api/v2` | no break | the gate waits on v2 |
+| ~~(d)~~ Keep the v1 wire value, map at the boundary | no break | a mapping layer to maintain |
 
-There is a real argument for **(c)** or **(d)**: only one consumer exists (the bundled React client), the
-value has never varied, and BG1's own non-goals forbid breaking changes made for tidiness. But the API is
-versioned precisely so this kind of correction has a home — which is why this is yours, not mine.
+**The blast radius turned out to be nil.** Before breaking the wire value, every consumer was
+enumerated: the React client **does not read `authority_class` at all**, and no `.py`/`.ts` code
+anywhere branches on `canonical_memory` — the only occurrence was the emit site itself. The rest were
+generated artefacts (the OpenAPI/TS fixtures, the bounded fixture, the bundled benchmark), all
+regenerated. So (a) cost nothing that (c) or (d) would have saved, and it is the only option that leaves
+one vocabulary.
+
+**What actually closed the debt** is not the rename — it is that `authority_class` is now enforced the
+way `provenance_class` always was: a closed `AUTHORITY_CLASSES` frozenset in `graph_projection.py`, a
+typed `AuthorityClass` enum on the model, and a published enum (not `"type": "string"`) in the v1
+contract. The undeclared value existed *because* the field was validated only as "a non-empty string";
+a closed set is what stops that recurring. Two tests pin it, one of them asserting the exact old value
+is now rejected.
+
+Steps 3–6 of the BG1 proposal are unblocked.
 
 ## 6. What is unblocked once §5 is answered
 

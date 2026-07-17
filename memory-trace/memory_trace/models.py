@@ -40,6 +40,24 @@ class ProvenanceClass(str, Enum):
     generated_artefact = "generated_artefact"
 
 
+class AuthorityClass(str, Enum):
+    """What authority an item's *meaning* carries — a separate axis from
+    ``ProvenanceClass`` (where it came from). Fixed vocabulary from the
+    provenance/authority taxonomy (BG1) so generated or provider-derived content
+    can never masquerade as authored project memory.
+
+    Confidence is separate metadata and can never upgrade authority.
+    """
+
+    authored = "authored"  # explicit project memory, or an authorised annotation
+    computed_canonical = "computed_canonical"  # deterministic Memory Seed semantics (inverse edges)
+    git_derived = "git_derived"  # deterministic repository evidence tied to a revision
+    provider_extracted = "provider_extracted"  # external observation, highest certainty
+    provider_resolved = "provider_resolved"
+    provider_inferred = "provider_inferred"  # external observation, lowest certainty
+    generated = "generated"  # model/rule-generated interpretation; advisory until promoted
+
+
 class EdgeType(str, Enum):
     """Every edge kind _graph_edges() can produce (graph-edge-contract.md)."""
 
@@ -282,7 +300,7 @@ class RendererGraphNode(BaseModel):
     node_type: str
     label: str
     provenance_class: ProvenanceClass
-    authority_class: str
+    authority_class: AuthorityClass
     community: RendererGraphCommunity
     temporal: RendererGraphTemporal
     connectivity: float

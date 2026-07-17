@@ -37,6 +37,21 @@ PROVENANCE_CLASSES = frozenset(
         "generated_artefact",
     }
 )
+# The authority axis gets the same enum enforcement provenance already had.
+# It previously shipped as a free-form string validated only as "non-empty",
+# which is how it came to emit `canonical_memory` - a value from no declared
+# vocabulary at all. A closed set is what stops that recurring.
+AUTHORITY_CLASSES = frozenset(
+    {
+        "authored",
+        "computed_canonical",
+        "git_derived",
+        "provider_extracted",
+        "provider_resolved",
+        "provider_inferred",
+        "generated",
+    }
+)
 EDGE_TYPES = frozenset({"related", "supersedes", "evolves", "branch", "topic", "agent", "day"})
 TEMPORAL_SOURCES = {
     "memory_entry": "authored_timestamp",
@@ -117,7 +132,7 @@ def project_trace_graph(graph: Mapping[str, Any]) -> dict[str, list[dict[str, An
                 "node_type": "memory_entry",
                 "label": raw.get("title") or node_id,
                 "provenance_class": raw.get("provenance_class", "authored_memory"),
-                "authority_class": "canonical_memory",
+                "authority_class": "authored",
                 "community": {
                     "id": "community:unassigned",
                     "label": "Unassigned",
@@ -215,8 +230,8 @@ def validate_graph_fixture(payload: Mapping[str, Any]) -> None:
             raise GraphProjectionContractError(f"nodes[{index}].node_type is not recognised: {node_type!r}")
         if node["provenance_class"] not in PROVENANCE_CLASSES:
             raise GraphProjectionContractError(f"nodes[{index}].provenance_class is not recognised")
-        if not isinstance(node["authority_class"], str) or not node["authority_class"]:
-            raise GraphProjectionContractError(f"nodes[{index}].authority_class must be a non-empty string")
+        if node["authority_class"] not in AUTHORITY_CLASSES:
+            raise GraphProjectionContractError(f"nodes[{index}].authority_class is not recognised")
         _validate_community(node["community"], f"nodes[{index}].community")
         _validate_temporal(node["temporal"], node_type, f"nodes[{index}].temporal")
         if not _non_negative_number(node["connectivity"]):
