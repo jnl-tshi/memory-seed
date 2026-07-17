@@ -1,7 +1,7 @@
 # Next Steps
 
 Status: **ACTIVE — Constitution-aligned** (v1.0 ratified 2026-07-14; v1.1 2026-07-16; v1.2 2026-07-17).
-Updated: 2026-07-16
+Updated: 2026-07-17
 
 > ▶ **Foundation and memory-quality core shipped 2026-07-15.** The
 > [derived-projection Phase 1](derived-projection-implementation-plan.md) (git-watermark warm start +
@@ -169,10 +169,11 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   [`memory-provenance-and-authority-taxonomy-proposal.md`](memory-provenance-and-authority-taxonomy-proposal.md).
   Extend the shipped seven-value `ProvenanceClass`; keep provenance, lifecycle, and actionability as
   separate fields; do not create a single trust score.
-- **BG2 — Memory-quality metrics v0** *(read-only baseline; no ranking or automation effect)* —
-  [`memory-quality-metrics-v0-proposal.md`](memory-quality-metrics-v0-proposal.md). Define explicit
-  populations and denominators for unlinked entries, DRAFT reason coverage, generated-claim citations,
-  provenance coverage, and ranking A/B regressions. Measure the real corpus before setting targets.
+- **BG2 — Memory-quality metrics v0** — ✅ **v0 SHIPPED 2026-07-17; blocked on the usefulness review**
+  (proposal step 6). [`memory-quality-metrics-v0-proposal.md`](memory-quality-metrics-v0-proposal.md).
+  `memory-seed quality report [--json]`; first baseline at
+  [`../4_Reference/memory-quality-v0-baseline.md`](../4_Reference/memory-quality-v0-baseline.md)
+  (unlinked 95/431 = 22.0%; DRAFT reason coverage 403/403; BG1-dependent metrics honestly `unavailable`).
 - **B3 — Evidence annotations & projection** *(long-horizon, after B2/B0b and BG1)* —
   [`memory-trace-evidence-annotations-and-projection-architecture.md`](memory-trace-evidence-annotations-and-projection-architecture.md).
   Anchors, append-only annotations, SQLite projection — needs the React shell **and** a participant/role
@@ -187,11 +188,12 @@ descend from the two-axis persona/orchestration evaluation (session `mse_y7nhd5h
 context, not renaming roles. Five-question test → **Application** (how agents load and apply memory);
 Markdown-authoritative, so Invariant #6-clean (no derived-state surface).
 
-1. **Worker Context Contract** — [`worker-context-minimisation-proposal.md`](worker-context-minimisation-proposal.md).
-   A packeted subagent worker loads only its Task Packet + at most one domain persona + objective-triggered
-   skills; it skips load-all-personas / full-index / newest-session read, but **still** runs
-   `base_sha`/preflight/worktree-guard. Adds Task Packet fields `persona:` + `context_load:`. Guidance-only
-   (`agent_collaboration.md`, `agent-rules.md`, seed twins).
+1. **Worker Context Contract** — ✅ **SHIPPED 2026-07-17** under live user consent (locked-file edit).
+   [`../5_Completed/worker-context-minimisation-proposal.md`](../5_Completed/worker-context-minimisation-proposal.md).
+   A packeted worker loads only its Task Packet + at most one domain persona + objective-triggered skills
+   (`persona:` + `context_load:` packet fields), skipping load-all-personas / full-index / newest-session
+   read while **still** running `base_sha`/preflight/worktree-guard. Lives in `agent_collaboration.md`;
+   `agent-rules.md` carries one clause (its 260-line startup budget is now exactly full).
 2. **ESR Persona Usage Check** — [`persona-usage-deactivation-esr-proposal.md`](persona-usage-deactivation-esr-proposal.md).
    A new end-of-turn step, the symmetric inverse of the shipped unregistered-persona check: flag active
    personas with no recorded `agent_name` use over a conservative window and **propose** flipping them to
@@ -226,9 +228,11 @@ Publishability and the generic skill/workflow router are deferred until their ex
 ### Track E — worktree and branch hygiene
 
 [`agent-worktree-and-branch-hygiene-plan.md`](agent-worktree-and-branch-hygiene-plan.md) combines the two
-former Inbox proposals. Phase 1 is dry-run classification plus Git-native bounded retry with no raw recursive
-deletion fallback. Phase 2 adopts worktree=session and branch=task with new branches named
-`<agent>/<kind>/<topic>`; existing names are grandfathered.
+former Inbox proposals. **Phase 1 COMPLETE 2026-07-17**: `memory-seed worktree classify` (dry-run,
+evidence per verdict, fails closed) and `--apply` (destructive; shipped under live consent; reclassifies at
+apply time, git-native with bounded retry, no raw deletion, branches untouched). Phase 2 — lifecycle
+guidance adopting worktree=session and branch=task with `<agent>/<kind>/<topic>` names — remains; existing
+names are grandfathered.
 
 ## Inbox disposition — evaluated 2026-07-16
 
@@ -266,8 +270,9 @@ benchmark remain reference input rather than active work.
 Tracked in [`document-lifecycle-system-plan.md`](document-lifecycle-system-plan.md) (Phase 1 — lanes +
 front door — shipped). **The bulk migration shipped 2026-07-17:** all 43 `2_Todo/completed/` docs plus the
 nested `agent-templates/` moved to `5_Completed/`, every inbound reference was repaired, and the folder is
-retired — so no legacy archive sits beside the lanes any more. Remaining: the `docs index` / `docs check`
-CLI. *(The former third item — removing an empty `superpowers/specs/` — is dropped: no such directory
+retired — so no legacy archive sits beside the lanes any more. **`docs check` SHIPPED 2026-07-17** (0
+errors / 29 warnings on the live tree; its first run caught three real `spec_binding` defects). Remaining:
+`docs index`, secondary-YAML backfill, and P3 (wire `docs check` into `esr` + CI). *(The former third item — removing an empty `superpowers/specs/` — is dropped: no such directory
 exists in the working tree or in git history.)*
 
 ## Parked — needs your judgement / market / accounts (not engineering next-steps)

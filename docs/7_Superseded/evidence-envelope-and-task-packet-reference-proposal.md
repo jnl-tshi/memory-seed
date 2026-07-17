@@ -7,7 +7,7 @@ priority: "P2"
 next_action: "After React Trail parity, decide whether a stable cross-surface evidence hand-off is needed; if so, draft fixtures before changing Task Packets."
 dependencies:
   - "React Trail parity and B0b acceptance"
-  - "docs/2_Todo/worker-context-minimisation-proposal.md"
+  - "docs/5_Completed/worker-context-minimisation-proposal.md"
   - "docs/2_Todo/memory-provenance-and-authority-taxonomy-proposal.md"
 related:
   - "docs/2_Todo/memory-trace-ai-timeline-summarisation-plan.md"
