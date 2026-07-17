@@ -10,6 +10,7 @@ from memory_seed.semantic_cache import (
     SUPERSEDED_IMPORTANCE_DAMPING,
     SUPERSEDED_RANK_DAMPING,
     MemoryChunk,
+    add_related_entry,
     build_related_entry_graph,
     evolves_lineage_heads,
     extract_memory_chunks,
@@ -537,6 +538,9 @@ class RelatedEntryGraphTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def read_day(self, cwd):
+        return (cwd / ".memory-seed" / "sessions" / "2026-05-10.md").read_text(encoding="utf-8")
+
     def seed_three(self, cwd):
         # C (09:00) oldest, B (10:00), A (11:00) newest; A links back to B.
         self.write_day(
@@ -606,6 +610,119 @@ class RelatedEntryGraphTests(unittest.TestCase):
 
         with self.assertRaises(LookupError):
             suggest_related_entries(cwd, entry_id="ms-99999999")
+
+    def test_add_appends_edge_to_newest_entry_and_leaves_prose_intact(self):
+        cwd = self.make_project()
+        self.seed_three(cwd)
+        before = self.read_day(cwd)
+
+        result = add_related_entry(cwd, target_entry_id="ms-c0000000")
+
+        self.assertTrue(result.added)
+        self.assertEqual(result.source.entry_id, "ms-a0000000")  # newest by default
+        graph = build_related_entry_graph(cwd)
+        # The new edge joins the existing one; order is preserved, not replaced.
+        self.assertEqual(graph["ms-a0000000"].outbound, ("ms-b0000000", "ms-c0000000"))
+        # Only YAML metadata changed: every prose line survives byte-for-byte.
+        after = self.read_day(cwd)
+        self.assertEqual(
+            [line for line in before.splitlines() if not line.startswith("  - ms-")],
+            [line for line in after.splitlines() if not line.startswith("  - ms-")],
+        )
+
+    def test_add_creates_related_entries_key_when_absent(self):
+        cwd = self.make_project()
+        # Newest entry carries no related_entries: key at all, so the writer
+        # has to create it rather than extend an existing list.
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 09:00 - Oldest C", "ms-c0000000", "caching notes."),
+            _entry("2026-05-10 11:00 - Newest A", "ms-a0000000", "caching follow-up."),
+        )
+
+        result = add_related_entry(cwd, target_entry_id="ms-c0000000")
+
+        self.assertTrue(result.added)
+        self.assertEqual(build_related_entry_graph(cwd)["ms-a0000000"].outbound, ("ms-c0000000",))
+
+    def test_add_is_idempotent(self):
+        cwd = self.make_project()
+        self.seed_three(cwd)
+
+        first = add_related_entry(cwd, target_entry_id="ms-c0000000")
+        text_after_first = self.read_day(cwd)
+        second = add_related_entry(cwd, target_entry_id="ms-c0000000")
+
+        self.assertTrue(first.added)
+        self.assertFalse(second.added)  # reported as a no-op...
+        self.assertEqual(text_after_first, self.read_day(cwd))  # ...and wrote nothing
+
+    def test_add_refuses_to_edit_an_older_entry(self):
+        cwd = self.make_project()
+        self.seed_three(cwd)
+
+        # B is real but not the newest, so editing it is historical curation,
+        # which Invariant #2 (append-only) forbids. This is the guard that keeps
+        # `link add` from quietly becoming the unratified `link backfill`.
+        with self.assertRaises(ValueError) as ctx:
+            add_related_entry(cwd, target_entry_id="ms-c0000000", from_entry_id="ms-b0000000")
+        self.assertIn("not the newest entry", str(ctx.exception))
+
+    def test_add_refuses_self_link_and_forward_edge(self):
+        cwd = self.make_project()
+        self.seed_three(cwd)
+        before = self.read_day(cwd)
+
+        with self.assertRaises(ValueError):
+            add_related_entry(cwd, target_entry_id="ms-a0000000")  # self
+        with self.assertRaises(ValueError):
+            # C is older than A, so C -> A would point forward in time.
+            add_related_entry(cwd, target_entry_id="ms-a0000000", from_entry_id="ms-c0000000")
+        self.assertEqual(before, self.read_day(cwd))
+
+    def test_add_preserves_file_ending_and_adds_exactly_one_line(self):
+        cwd = self.make_project()
+        self.seed_three(cwd)
+        before = self.read_day(cwd)
+
+        add_related_entry(cwd, target_entry_id="ms-c0000000")
+
+        after = self.read_day(cwd)
+        # Exactly one line added, and the file's ending is unchanged (no
+        # doubled or stripped trailing newline).
+        self.assertEqual(len(after.split("\n")), len(before.split("\n")) + 1)
+        self.assertEqual(before.endswith("\n"), after.endswith("\n"))
+
+    def test_add_refuses_unterminated_yaml_block_without_crashing(self):
+        cwd = self.make_project()
+        sessions = cwd / ".memory-seed" / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        # Newest entry's yaml fence is never closed and runs to EOF. Scanning
+        # for the close beyond the entry would walk off the end of the file.
+        (sessions / "2026-05-10.md").write_text(
+            "# Session Log\n\n"
+            + _entry("2026-05-10 09:00 - Oldest C", "ms-c0000000", "caching notes.")
+            + "\n## 2026-05-10 11:00 - Newest A\n\n```yaml\nentry_id: ms-a0000000\n",
+            encoding="utf-8",
+        )
+        before = self.read_day(cwd)
+
+        with self.assertRaises(ValueError) as ctx:
+            add_related_entry(cwd, target_entry_id="ms-c0000000")
+
+        self.assertIn("unterminated", str(ctx.exception))
+        self.assertEqual(before, self.read_day(cwd))
+
+    def test_add_unknown_ids_raise_and_write_nothing(self):
+        cwd = self.make_project()
+        self.seed_three(cwd)
+        before = self.read_day(cwd)
+
+        with self.assertRaises(LookupError):
+            add_related_entry(cwd, target_entry_id="ms-99999999")
+        with self.assertRaises(LookupError):
+            add_related_entry(cwd, target_entry_id="ms-c0000000", from_entry_id="ms-99999999")
+        self.assertEqual(before, self.read_day(cwd))
 
     def test_graph_accepts_preextracted_chunks(self):
         cwd = self.make_project()

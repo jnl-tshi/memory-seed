@@ -571,6 +571,134 @@ def _continuity_alias_map(chunks: Sequence[MemoryChunk]) -> dict[str, str]:
     return resolved
 
 
+@dataclass(frozen=True)
+class RelatedEntryAddResult:
+    """Outcome of ``add_related_entry``. ``added`` is False when the edge was
+    already present (the idempotent no-op path)."""
+
+    source: MemoryChunk
+    target: MemoryChunk
+    added: bool
+    path: Path
+
+
+def add_related_entry(
+    cwd: str | Path = ".",
+    *,
+    target_entry_id: str,
+    from_entry_id: str | None = None,
+) -> RelatedEntryAddResult:
+    """Add one ``related_entries`` edge to the current/newest entry.
+
+    The append-only-safe half of Related-entries P2. The default (and only
+    permitted) source is the **newest** entry - "link the entry I just wrote to
+    the prior one it builds on". That entry is still being authored, so adding
+    to its YAML does not rewrite history and stays clean under Constitution
+    Invariant #2.
+
+    Editing an *older* entry is refused: that is historical curation, and
+    Invariant #2 ("the past is append-only - extend and supersede, never
+    rewrite") forbids it. The plan's `link backfill` half therefore needs an
+    explicit constitutional ruling before it can exist; this writer will not
+    silently become it.
+
+    Forward-only by construction, matching ``suggest_related_entries`` and the
+    graph-edge contract: the target must be older than the source, so an edge
+    can never point forward in time or create a cycle. Idempotent - re-adding an
+    existing edge rewrites nothing and reports ``added=False``. Only the entry's
+    YAML metadata is touched; prose is never modified.
+    """
+    from .text_files import read_text_file, write_text_file
+
+    root = Path(cwd).resolve()
+    chunks = [chunk for chunk in extract_memory_chunks(root, granularity="entry") if chunk.entry_id]
+    if not chunks:
+        raise LookupError("no session entries with an entry_id were found")
+
+    newest = max(chunks, key=_entry_order_key)
+    if from_entry_id is None:
+        source = newest
+    else:
+        source = next((chunk for chunk in chunks if chunk.entry_id == from_entry_id), None)
+        if source is None:
+            raise LookupError(f"entry_id {from_entry_id} not found")
+        if source.entry_id != newest.entry_id:
+            raise ValueError(
+                f"refusing to edit {source.entry_id}: it is not the newest entry "
+                f"({newest.entry_id}). Editing an older entry is historical curation, which "
+                "Constitution Invariant #2 (append-only) forbids. Record the link in a new "
+                "entry instead."
+            )
+
+    target = next((chunk for chunk in chunks if chunk.entry_id == target_entry_id), None)
+    if target is None:
+        raise LookupError(f"entry_id {target_entry_id} not found")
+    if target.entry_id == source.entry_id:
+        raise ValueError(f"refusing to self-link {source.entry_id}")
+    if _entry_order_key(target) >= _entry_order_key(source):
+        raise ValueError(
+            f"refusing to link {source.entry_id} to {target.entry_id}: edges are forward-only, "
+            "so the target must be older than the source"
+        )
+
+    path = root / source.source_path
+    if target.entry_id in source.related_entries:
+        return RelatedEntryAddResult(source=source, target=target, added=False, path=path)
+
+    text = read_text_file(path)
+    # read_text_file reads with universal newlines and write_text_file re-emits
+    # the canonical LF, so line endings are normalized either way - don't try to
+    # preserve them here.
+    lines = text.split("\n")
+    # ``start_line`` is the entry heading's 1-based line number, so slicing the
+    # 0-based ``lines`` at it yields the entry body *after* the heading - the
+    # same convention ``_find_entry_ranges``/``_extract_entry_metadata`` use.
+    body_start = source.start_line
+    entry_lines = lines[body_start : source.end_line]
+    fence_offset = next(
+        (i for i, line in enumerate(entry_lines) if line.strip() in ("```yaml", "```yml")),
+        None,
+    )
+    if fence_offset is None:
+        raise ValueError(f"entry {source.entry_id} has no fenced yaml metadata block to edit")
+    # Bound the search for the closing fence to this entry. Scanning ``lines``
+    # instead would run past EOF on an unterminated block, and could swallow a
+    # later entry's fence and splice metadata into someone else's prose.
+    close_offset = next(
+        (
+            i
+            for i in range(fence_offset + 1, len(entry_lines))
+            if entry_lines[i].strip() == "```"
+        ),
+        None,
+    )
+    if close_offset is None:
+        raise ValueError(
+            f"entry {source.entry_id} has an unterminated yaml metadata block; "
+            "refusing to edit it"
+        )
+    yaml_start = body_start + fence_offset + 1
+    yaml_end = body_start + close_offset  # exclusive: the closing fence line
+
+    block = list(lines[yaml_start:yaml_end])
+    key_index = next(
+        (i for i, line in enumerate(block) if line.strip() == "related_entries:"), None
+    )
+    if key_index is None:
+        block.extend(["related_entries:", f"  - {target.entry_id}"])
+    else:
+        insert_at = key_index + 1
+        while insert_at < len(block) and block[insert_at][:1] in (" ", "\t"):
+            insert_at += 1
+        block.insert(insert_at, f"  - {target.entry_id}")
+
+    # split("\n")/join("\n") round-trips the trailing newline as its own final
+    # element, so the file's ending is preserved without special-casing it.
+    updated = lines[:yaml_start] + block + lines[yaml_end:]
+    write_text_file(path, "\n".join(updated))
+    return RelatedEntryAddResult(source=source, target=target, added=True, path=path)
+
+
 def suggest_related_entries(
     cwd: str | Path = ".",
     *,
