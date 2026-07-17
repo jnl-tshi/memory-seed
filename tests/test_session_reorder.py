@@ -97,15 +97,36 @@ class SessionReorderTests(unittest.TestCase):
         titles = [item.split(" - ", 1)[1] for item in result.order_after]
         self.assertEqual(titles, ["earlier", "tie-logged-first", "tie-logged-second"])
 
-    def test_refuses_non_timestamped_heading(self):
+    def test_non_timestamped_heading_is_body_content_not_a_boundary(self):
+        # Under the unified entry grammar a plain `##` heading inside an entry
+        # is body content. Reorder no longer refuses the file (the old refusal
+        # guarded the broad `^##` grammar that could not tell body from
+        # boundary) - it succeeds and leaves the heading attached to its entry.
         text = _entry("2026-06-13 10:00", B, "fine") + "## A stray heading\n\ncontent\n"
         self.path.write_text(text, encoding="utf-8")
 
         result = session_reorder(self.cwd, date_str="2026-06-13", apply=True)
 
-        self.assertFalse(result.ok)
-        self.assertTrue(any("not a timestamped entry" in issue for issue in result.issues))
+        self.assertTrue(result.ok)
+        self.assertFalse(result.changed)  # one entry: already in order
         self.assertEqual(self.path.read_text(encoding="utf-8"), text)
+
+    def test_stray_heading_travels_with_its_entry_through_reorder(self):
+        # Two out-of-order entries; the LATER-written, earlier-timestamped one
+        # carries a stray `##` heading in its body. After reorder the stray
+        # heading must still sit inside that entry's block, not become its own.
+        late = _entry("2026-06-13 11:00", B, "late entry")
+        early = _entry("2026-06-13 10:00", A, "early entry") + "## Stray note\n\nbody content\n"
+        self.path.write_text(late + early, encoding="utf-8")
+
+        result = session_reorder(self.cwd, date_str="2026-06-13", apply=True)
+
+        self.assertTrue(result.ok)
+        self.assertTrue(result.changed)
+        reordered = self.path.read_text(encoding="utf-8")
+        # The early entry now comes first and still owns its stray heading.
+        self.assertLess(reordered.index("10:00"), reordered.index("11:00"))
+        self.assertLess(reordered.index("## Stray note"), reordered.index("11:00"))
 
     def test_missing_file_reports_cleanly(self):
         result = session_reorder(self.cwd, date_str="2026-06-14")

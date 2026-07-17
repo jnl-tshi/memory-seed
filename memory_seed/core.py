@@ -1169,7 +1169,16 @@ def worktree_guard(
 # decision or several (that is authoring judgement) - only that the chosen shape
 # is well formed. High precision (6/348 real-corpus entries flag), so it is safe
 # to gate a write on. See session_logging.md for the authored templates.
-_ENTRY_HEADING_RE = re.compile(r"^## \d{4}-\d{2}-\d{2} \d{2}:\d{2} - .+$")
+# THE entry-boundary grammar - defined once, used by append, integrity/format
+# checks, reorder, and the branch-fuse flows alike. An entry heading is a
+# timestamped `## YYYY-MM-DD HH:MM - title` line and nothing else: a plain `##`
+# heading inside an entry body is body content, not a boundary. (This module
+# once carried a second, broader `^##` definition of the same name further
+# down; the two grammars disagreed, so `session append` accepted a body that
+# `session merge-branch` then split into a phantom ID-less entry.)
+_ENTRY_HEADING_RE = re.compile(
+    r"^##\s+\d{4}-\d{2}-\d{2} \d{2}:\d{2}\s+-\s*.*$", re.MULTILINE
+)
 _BARE_DRAFT_RE = re.compile(r"^(D|R|A|F|T)\d*\s*:")         # column-0 label with no '- '
 _BULLET_DRAFT_RE = re.compile(r"^-\s+(D|R|A|F|T)\d*\s*:")   # '- D:' list item
 _INLINE_NUMBERED_DECISION_RE = re.compile(r"^-\s+D\d+\s*:")  # '- D1:' inline (should be '#### Dn')
@@ -1792,7 +1801,6 @@ def session_target(
     return SessionTarget(path=path, session_date=date_value, user=user, layout="month-user")
 
 
-_ENTRY_HEADING_RE = re.compile(r"^##\s+.+$", re.MULTILINE)
 _USER_INITIALS_RE = re.compile(r"^user_initials:\s*(\S+)\s*$", re.MULTILINE)
 _REORDER_HEADING_RE = re.compile(r"^##\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s+-\s*(.*)$")
 _APPEND_TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$")

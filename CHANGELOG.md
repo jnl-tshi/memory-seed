@@ -4,6 +4,15 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- **One entry-boundary grammar everywhere.** `core.py` defined `_ENTRY_HEADING_RE` twice: a strict
+  timestamped pattern (used by append/format checks) that a later broad `^##` redefinition silently
+  shadowed for reorder and the branch-fuse flows. The result: `session append` accepted an entry body
+  containing an `## Summary` heading, but `session merge-branch` split that same body into a phantom
+  ID-less entry and blocked the merge. There is now exactly one definition — an entry heading is a
+  timestamped `## YYYY-MM-DD HH:MM - title` line and nothing else; a plain `##` heading inside a body is
+  body content in every flow. `session reorder` consequently no longer refuses files with stray `##`
+  headings (that refusal guarded the ambiguity the unification removes) — the heading now travels with
+  its entry, and regression tests pin the fuse, reorder, and travels-with-entry behaviours.
 - **⚠️ Breaking (`/api/v1`): `RendererGraphNode.authority_class` is now a closed enum, and its value
   `canonical_memory` was renamed to `authored`.** The field shipped as a free-form string validated only
   as "non-empty", which let it emit `canonical_memory` — a value from no declared vocabulary, exactly the
