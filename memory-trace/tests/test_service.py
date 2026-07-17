@@ -739,7 +739,7 @@ class TraceServiceTests(unittest.TestCase):
         self.assertIn("source", chunk["metadata"])
 
 
-class LenseCliTests(unittest.TestCase):
+class MemoryTraceCliAndVanillaUiTests(unittest.TestCase):
     def test_open_both_flag_is_available_and_excludes_no_open(self):
         args = build_parser().parse_args(["--open-both"])
 
