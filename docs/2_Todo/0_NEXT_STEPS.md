@@ -10,8 +10,8 @@ Updated: 2026-07-17
 > (each item answers the five-question test — Capture / Validation / Retrieval / Trust / Application — and
 > respects Invariant #6: Markdown = source of truth; every DB/cache is a derived, rebuildable projection).
 > The ranking/graph core now includes the full-corpus gate, `superseding_head` plus its bounded boost,
-> and inert `link audit --apply` scaffolding. The stated **2.19 cut criterion is met**; publishing still
-> waits for explicit user approval. **B0a graph/workspace contracts and renderer evidence are complete;
+> and inert `link audit --apply` scaffolding. **2.19.0 released 2026-07-17** (live on PyPI). **B0a
+> graph/workspace contracts and renderer evidence are complete;
 > B2/B0b React parity is the current lead.** The projection's
 > incremental-ingest fast-follow remains deferred as low-urgency (reads are already ~3.9 ms).
 Source: the `docs/` lifecycle lanes (folder = state — see [`../README.md`](../README.md)), `CHANGELOG.md`,
@@ -20,12 +20,13 @@ Foundation shipped (per-doc status verified against CHANGELOG + code, not this f
 
 ## Current state
 
-- **Released: v2.18.0.** A large tranche is **shipped-but-unreleased on `main`** — see `CHANGELOG.md`
-  "## Unreleased" for the authoritative list (highlights: DRAFT-format entry lint; `integration_mode`
-  setting; freshness-aware `memory_search` ranking on by default + `evolved_head`; retrieve-the-*why*
-  discipline; indexed `topics:` end-to-end incl. Trace rendering; decision-diagram badges in Trail/Graph;
-  agent worktree namespace guard; MCP topic + sidecar-edge parity; hardened Memory-Entry trailer hook;
-  `link show` now reflects the sidecar-augmented effective graph).
+- **Released: v2.19.0 (2026-07-17)** — live on PyPI, both wheel + sdist; see `CHANGELOG.md`
+  "## 2.19.0" for the authoritative list (highlights: memory-quality report/baseline; `link add`;
+  `worktree classify --apply`; `docs check`/`docs index`; unified entry grammar + decision-density
+  advisory; the breaking `/api/v1` `authority_class` enum rename; OpenSSF hardening — SHA-pinned
+  actions, CodeQL, Scorecard, SECURITY/CONTRIBUTING; plus the full 2.18→2.19 tranche folded in).
+  The `memory-seed[lense]` deprecated alias **shipped intact in 2.19** (removal never consented) — the
+  deprecation-window decision stays open.
 - **Foundation SHIPPED 2026-07-15:** derived-projection Phase 1 — git-watermark warm start (O(changes)
   freshness, no whole-corpus scan; ~6.2 s rebuild → ~78 ms warm) + atomic build/swap + schema version, plus
   three read-path perf refinements (freshness memoize, chunk memoize, sidecar-first-class freshness):
@@ -35,8 +36,8 @@ Foundation shipped (per-doc status verified against CHANGELOG + code, not this f
 - **Wave 1 + closeout SHIPPED 2026-07-15:** `topics suggest --from`, deterministic timeline Evidence
   Packs, the Trail continuity axis, `superseding_head` plus the gated boost, all four configurable
   integration-mode phases, and lifecycle-link scaffold steps 1–3.
-- **Release cadence:** the memory-quality trio has landed, so the stated **2.19 cut criterion is met**.
-  Hold for the user's go on the release and PyPI push; publishing remains a manual-approval gate.
+- **Release cadence:** 2.19.0 is **released** (2026-07-17). The next tranche accumulates under
+  `CHANGELOG.md` "## Unreleased"; publishing remains a manual-approval gate at the pypi environment.
 
 ## Live work — sequenced (Constitution-aligned)
 
