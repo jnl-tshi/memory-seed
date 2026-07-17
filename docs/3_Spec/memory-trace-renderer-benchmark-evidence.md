@@ -3,7 +3,8 @@ title: "Memory Trace Renderer Benchmark Evidence"
 date: "2026-07-16"
 project: "memory-seed"
 status: "active-evidence"
-spec_binding: "B0a renderer selection gate"
+spec_binding: "live"
+role: "B0a renderer selection gate"
 parent: "memory-trace-renderer-neutral-graph-projection.md"
 ---
 

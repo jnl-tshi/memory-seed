@@ -481,6 +481,13 @@ def main(argv: list[str] | None = None) -> int:
         "--json", action="store_true", help="emit the machine-readable classification"
     )
 
+    docs_parser = subparsers.add_parser("docs", help="validate the docs/ lifecycle lanes")
+    docs_sub = docs_parser.add_subparsers(dest="docs_command", required=True)
+    docs_sub.add_parser(
+        "check",
+        help="read-only lane/link/pointer validation over docs/",
+    )
+
     quality_parser = subparsers.add_parser(
         "quality",
         help="read-only memory-quality measurement over the corpus",
@@ -1236,6 +1243,15 @@ def main(argv: list[str] | None = None) -> int:
             for item in suggestions:
                 print(f"  - {item.topic.slug}")
             return 0
+
+    if args.command == "docs":
+        if args.docs_command == "check":
+            from .docs_check import check_docs, format_docs_check
+
+            result = check_docs(Path(".").resolve())
+            text = format_docs_check(result)
+            print(text) if result.ok else print(text, file=sys.stderr)
+            return 0 if result.ok else 1
 
     if args.command == "quality":
         if args.quality_command == "report":

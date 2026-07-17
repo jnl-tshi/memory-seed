@@ -6,7 +6,7 @@ tags:
   - documentation
   - lifecycle
 priority: P2
-next_action: "Phase 2 bulk migration SHIPPED 2026-07-17 (43 docs + agent-templates -> 5_Completed/, folder retired, all inbound refs repaired). Remaining Phase 2: the `docs index`/`docs check` CLI."
+next_action: "Phase 2: migration + `docs check` SHIPPED 2026-07-17. Remaining: `docs index` (generated per-lane README tables), secondary-YAML backfill, and P3 (wire `docs check` into esr + CI)."
 ---
 
 # Document lifecycle system — human-discoverable, folder-primary, with a generated index
@@ -89,6 +89,13 @@ Hand-written, small: the lane map above, the promotion rules (`Inbox → Todo �
 lanes** distinction so the numbering is never mistaken for a strict order.
 
 ## 5. `memory-seed docs check` (enforcement, mirrors `links check`/`esr`)
+
+> **SHIPPED 2026-07-17** (`memory_seed/docs_check.py`). Read-only. Errors on broken relative links,
+> dangling `superseded_by`/`extracted_into` pointers, a `spec_binding` that contradicts its folder,
+> and off-allowlist nested folders; warns on missing secondary YAML, because backfilling that is
+> still-open work and failing on it would keep the check permanently red. The stale-generated-index
+> rule waits on `docs index`. First run caught three real `spec_binding` defects (prose and a
+> filename in an enum field), now fixed.
 
 Read-only, fails/warns on: a doc missing a lane's **required YAML** (a `7_Superseded` doc with no
 `superseded_by`; a `2_Todo` doc with no `priority`/`next_action`; a `3_Spec` doc whose `spec_binding`
