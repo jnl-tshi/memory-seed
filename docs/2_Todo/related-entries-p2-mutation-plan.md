@@ -10,29 +10,52 @@ tags:
 
 # Related Entries P2 Mutation Plan
 
-> **Status:** ACTIVE - **`link add` shipped 2026-07-17; `link backfill` BLOCKED on a constitutional
-> ruling.** This plan was approved 2026-07-05, nine days before the Constitution was ratified
-> (2026-07-14), and its two halves have since diverged:
+> **Status:** RESOLVED 2026-07-17. `link add` shipped; backfill is **permitted but deliberately not a
+> command** — see the procedure below.
 >
-> - **`link add` (current/newest entry) - SHIPPED.** Adding to the entry being authored does not rewrite
+> - **`link add` (current/newest entry) — SHIPPED.** Adding to the entry being authored does not rewrite
 >   history, so it is clean under Invariant #2. Forward-only, idempotent, YAML-only, `links check`-gated.
-> - **Backfill between older entries - BLOCKED, needs the user.** It mutates *existing* entries' YAML,
->   which collides head-on with **Invariant #2** ("the past is append-only - extend and supersede, never
->   rewrite or delete"). Constitution §11 is explicit: *"A proposal that conflicts with a live invariant
->   is rejected or must first amend the invariant - it cannot silently override it."* The 2026-07-05
->   sign-off predates that invariant and cannot authorise it retroactively.
+> - **Backfill between older entries — RESOLVED by Constitution 1.2 (2026-07-17).** JNL chose to amend
+>   Invariant #2 rather than reject the capability, but scoped it far tighter than this plan originally
+>   proposed: *"this should not be part of the core functionality, it's a one-off procedure that needs to
+>   be done with explicit user permission and gating of each item that will be added to the metadata."*
 >
-> **Open user decision - pick one:** (a) **reject** the backfill and treat the shipped
-> [`evolution-edges-plan.md`](../5_Completed/evolution-edges-plan.md) seeding pass as the only sanctioned
-> way to add edges to history (it writes *new* entries declaring edges against old ones - zero history
-> rewritten, and it already exists); (b) **amend Invariant #2** to carve out an explicit
-> metadata-only exception for untyped `related_entries`, via the §11 amendment process; or (c) confirm
-> that YAML-metadata curation was never "rewriting the past" in the invariant's intended sense, and record
-> that reading as an amendment note. Until one is chosen, `link add` refuses any non-newest source and
-> `link backfill` does not exist.
+> **So there is no `memory-seed link backfill` command, and there should not be one.** A standing command
+> is exactly what the amendment excludes: it would make one-off curation into core functionality, and a
+> command that asks per-edge permission is a worse version of doing it by hand. The plan's original §
+> "Backfill Between Older Entries" (flags, backups, idempotency) is **superseded** by the procedure below
+> — it described a command shape the amendment does not permit.
 >
 > *(The retrieval-service extraction and decision-diagram work this plan was sequenced behind have both
 > shipped.)*
+
+## The sanctioned backfill procedure (one-off, per-edge approval)
+
+Constitution 1.2 permits curating an **existing** entry's **untyped `related_entries`** only under all of
+these at once. Any one failing means Invariant #2 applies unchanged and the edit must not happen.
+
+**Before you start — is this the right tool at all?** The shipped
+[evolution-edges seeding pass](../5_Completed/evolution-edges-plan.md) adds edges to history by writing a
+**new** entry that declares them against old ones. History is untouched, and the graph reader computes the
+inverse at read time, so the old entry shows the backlink anyway. **Prefer it.** Reach for curation only
+when you specifically want an untyped `related_entries` pointer recorded on the old entry itself.
+
+The procedure:
+
+1. **Identify candidates** with `memory-seed link suggest --for <entry_id>` (read-only; ranks older
+   entries and prints a paste-ready snippet). Never act on its output automatically — it ranks
+   candidates, it does not decide.
+2. **Present each proposed edge to the user individually**, with both entry titles and why they relate.
+   One approval per edge. A blanket "yes, do them all" does not satisfy the amendment — per-item gating is
+   the condition that makes this permissible.
+3. **Edit by hand**, in the session file, adding only the approved id under `related_entries:` in that
+   entry's YAML block. Touch nothing else. Never prose. Never `supersedes`/`evolves`/`continuity` — typed
+   lifecycle edges in history go through the seeding pass, always.
+4. **Verify** with `memory-seed links check` (dangling refs, forward-only, acyclic) and commit the edit on
+   its own, with a message naming the user approval that authorised it.
+
+**Do not automate any step of this.** If you find yourself scripting it, you have left the exception and
+re-entered the invariant.
 > **Priority:** convenience/mutation increment — Track A item 4 in [`0_NEXT_STEPS.md`](0_NEXT_STEPS.md);
 > a `link add` (current-entry) + explicit historical backfill. Not a blocker; sequence after the
 > Track A tails unless the user reprioritizes graph curation.

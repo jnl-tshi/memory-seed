@@ -2,7 +2,7 @@
 
 > **Above the lanes:** [`CONSTITUTION.md`](CONSTITUTION.md) is the project's governing document — vision,
 > invariants, principles, trust model. Specs and plans conform to it, not the other way round. **Ratified
-> v1.0 (2026-07-14), amended to v1.1 (2026-07-16).** The amendment permits partitioned authority across
+> v1.0 (2026-07-14), amended to v1.1 (2026-07-16) and v1.2 (2026-07-17).** v1.1 permits partitioned authority across
 > append-only Markdown entries and narrowly scoped Markdown sidecars while every index and snapshot remains
 > derived. B0b Trail parity remains the current product gate.
 
@@ -89,9 +89,10 @@ Anything not on this list should be a lane or listed here; `memory-seed docs che
 
 Updated 2026-07-17 after the Phase 2 bulk migration retired `2_Todo/completed/`. Every terminal document
 now sits in a lane, so the folder-is-the-state rule holds with no legacy archive beside it. The Inbox
-remains clear; Constitution v1.1 records the append-only Markdown sidecar authority boundary.
+remains clear; Constitution v1.1 records the append-only Markdown sidecar authority boundary, and v1.2
+the human-gated one-off exception for untyped `related_entries` curation.
 
 Counts from Markdown files directly in each lane, excluding lane `README.md` files: **Inbox 0 · Todo 26**
 (including `0_NEXT_STEPS.md`) **· Completed 56** (+ nested `agent-templates/`) **· Rejected 0 ·
 Superseded 14 · Deferred 4 · Spec 8 live + 4 draft · Reference 13 + 2 archived** · plus top-level
-`CONSTITUTION.md` v1.1.
+`CONSTITUTION.md` v1.2.
