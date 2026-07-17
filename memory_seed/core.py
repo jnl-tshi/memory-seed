@@ -1648,6 +1648,15 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     # package works outside git repos, so absence skips, never fails.
     if commit_refs:
         git_present = (root / ".git").exists()
+        # A shallow clone (CI checkouts default to depth 1) genuinely lacks
+        # historical commits, so "no such commit" cannot be distinguished from
+        # "outside the fetched window". Absence of evidence is not evidence of
+        # absence there - skip unknown-commit validation rather than raise
+        # false integrity errors. Malformed-hash checks still run.
+        if git_present:
+            code, shallow = _git_text(root, ("rev-parse", "--is-shallow-repository"))
+            if code == 0 and shallow.strip() == "true":
+                git_present = False
         commit_known: dict[str, bool | None] = {}
         for rel_path, token in commit_refs:
             if not _FULL_COMMIT_SHA_RE.match(token):
