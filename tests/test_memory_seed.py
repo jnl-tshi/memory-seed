@@ -40,7 +40,7 @@ class MemorySeedTests(unittest.TestCase):
         return path
 
     def test_version_reads_reusable_control_plane_version(self):
-        self.assertEqual(get_version(), "2.18")
+        self.assertEqual(get_version(), "2.19")
 
     def test_read_integration_mode_defaults_parses_and_fails_open(self):
         from memory_seed.core import DEFAULT_INTEGRATION_MODE, read_integration_mode
