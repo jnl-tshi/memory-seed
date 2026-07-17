@@ -15,10 +15,15 @@ related:
 
 # Memory Provenance and Authority Taxonomy Proposal
 
-Status: **Steps 1–2 DONE 2026-07-17 (crosswalk published); step 3 BLOCKED on one user decision.**
-The inventory and alias map are at
+Status: **Steps 1–3 DONE (shipped in 2.19.0, 2026-07-17).** Step 1–2: the inventory and alias map are at
 [`../3_Spec/draft/provenance-authority-crosswalk.md`](../3_Spec/draft/provenance-authority-crosswalk.md)
-(draft = candidate, not binding; no code or default changed, per this proposal's own instruction).
+(§5 resolved with option (a)). Step 3: the additive `/api/v1` change landed — `authority_class` is now
+the enum-constrained `AuthorityClass` (the undocumented `canonical_memory` value renamed to the canonical
+`authored`; `RendererGraphNode` carries both `authority_class` and `provenance_class`), regenerated into
+`openapi.v1.json` + `types.ts`. **Step 4 (display provenance and authority distinctly in the Trace
+inspector) is the next unblocked increment** — additive UI, no ranking or contract change. Steps 5–7
+(actionability policy + fail-closed fixtures + the §7 constitutional graduation) stay gated on the
+participant/role model and maintainer approval; see the roadmap's open-decisions gate.
 
 **What the inventory found — this proposal's own premise needs a correction.** `authority_class` is not
 an unbuilt field: it already exists on `RendererGraphNode` as a **bare `str`** validated only as
