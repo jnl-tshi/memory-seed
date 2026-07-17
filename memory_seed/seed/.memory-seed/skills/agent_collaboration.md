@@ -52,6 +52,41 @@ Load this skill when the task involves any of:
 - Prefer pull requests, protected integration branches, CI, and merge queues when the hosting provider supports them.
 - Treat GitHub, GitLab, and similar PR systems as optional integration layers; the portable contract is Git branch, worktree, validation, and handoff evidence.
 
+## Worker Context Contract
+
+A worker loads its **Task Packet + at most one domain persona + objective-triggered skills**. Nothing
+else.
+
+`agent-rules.md` "Operating Mode Start" is written for the **primary** agent, which has to establish
+current project state for itself. A worker does not: the orchestrator already holds that state and
+distilled it into the packet. So a worker **skips** the full index read (step 4), the newest-session
+recency read (step 7), the whole skill registry as a read-everything pass (step 8), and
+load-all-active-personas (step 10).
+
+It **still runs** `base_sha` verification, the packet's `preflight`, and the worktree guard. The
+exemption is about *context volume*, never about safety rails — a worker that skips the guard is not
+slim, it is unsafe.
+
+Two reasons this is a contract and not an optimisation:
+
+- **Waste.** Four persona operating systems and a whole-project index are irrelevant to "edit these two
+  files and run these checks".
+- **Coordination risk.** A worker steeped in whole-project context is likelier to act outside its
+  `allowed_files` or re-derive a safeguard the packet already fixed — it starts *reasoning about the
+  project* instead of executing a bounded objective.
+
+Two packet fields carry it:
+
+- **`persona:`** — the single domain persona to load, or `none`. Not a role/orchestration label:
+  "orchestrator/worker/reviewer" and "developer/copywriter" are different axes, and conflating them is
+  what this contract exists to avoid. `role:` already carries the orchestration axis.
+- **`context_load:`** — `packet` (the contract above) or `full` (run Operating Mode Start as a primary
+  would). Default to `packet` for a bounded objective. Use `full` only when the objective genuinely
+  needs project-wide state, e.g. "reconcile the roadmap against the corpus".
+
+Set `context_load: full` deliberately, not defensively. If a worker truly needs whole-project state,
+the packet is probably under-specified.
+
 ## Task Packet
 
 Every worker packet should include:
@@ -60,6 +95,8 @@ Every worker packet should include:
 owner: "<human-or-agent-slug>"
 agent_type: "codex|claude|gemini|cursor|other"
 role: "worker|validator|researcher"
+persona: "<one domain persona slug, or 'none'>"
+context_load: "packet|full"
 base_branch: "<branch to start from>"
 base_sha: "<commit hash the worker must verify before editing>"
 working_branch: "<branch to write to, or read-only>"
