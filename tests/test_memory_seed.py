@@ -2647,6 +2647,34 @@ class MemorySeedTests(unittest.TestCase):
         )
         self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-11.md").exists())
 
+    def test_session_fuse_treats_h2_heading_in_body_as_content_not_an_entry(self):
+        # Regression for the divergent entry-grammar incident: `session append`
+        # accepted a body containing an `## Summary` heading, but the fuse path
+        # (via the old broad `^##` boundary regex) split it into a phantom
+        # ID-less entry and blocked the merge. One strict timestamped grammar
+        # now governs both, so the heading is body content.
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-fuse")
+        self._write_grouped_session(
+            cwd,
+            "2026-07-11",
+            "mse_1111111111111111",
+            branch="feature-fuse",
+            body="- Body.\n\n## Summary\n\nAn h2 heading inside the body, not a new entry.",
+        )
+        self._commit_all(cwd, "feature session")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="feature-fuse")
+
+        # Exactly one planned entry; no phantom ID-less record, no blocking issue.
+        self.assertEqual(result.issues, [])
+        self.assertEqual(len(result.planned_entries), 1)
+        self.assertIn("mse_1111111111111111", result.planned_entries[0])
+
     def test_session_fuse_apply_requires_in_progress_merge(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
