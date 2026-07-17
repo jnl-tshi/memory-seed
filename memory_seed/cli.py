@@ -438,6 +438,18 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="write inert classify_pending stubs for --date gaps; never writes a live edge",
     )
+    link_add = link_sub.add_parser(
+        "add",
+        help="add a related_entries edge to the current/newest entry",
+    )
+    link_add.add_argument("target_entry_id", help="older entry_id to link to")
+    link_add.add_argument(
+        "--from",
+        dest="from_entry",
+        default=None,
+        metavar="ENTRY_ID",
+        help="source entry (default: the newest entry; older entries are refused)",
+    )
     link_show = link_sub.add_parser(
         "show",
         help="show outbound edges and computed inbound backlinks for an entry",
@@ -1176,9 +1188,41 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
     if args.command == "link":
-        from .semantic_cache import build_related_entry_graph, suggest_related_entries
+        from .semantic_cache import (
+            add_related_entry,
+            build_related_entry_graph,
+            suggest_related_entries,
+        )
 
         cwd = Path(".").resolve()
+        if args.link_command == "add":
+            try:
+                result = add_related_entry(
+                    cwd=cwd,
+                    target_entry_id=args.target_entry_id,
+                    from_entry_id=args.from_entry,
+                )
+            except LookupError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            except ValueError as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            source_id = result.source.entry_id
+            target_id = result.target.entry_id
+            if not result.added:
+                print(f"{source_id} already links to {target_id}; nothing to do.")
+                return 0
+            print(f"Added related_entries edge {source_id} -> {target_id}")
+            print(f"  {result.path}")
+            check = check_session_links(cwd=cwd)
+            errors = [issue for issue in check.issues if issue.severity == "error"]
+            if errors:
+                print("links check reported errors after the write:", file=sys.stderr)
+                for issue in errors:
+                    print(f"  [{issue.kind}] {issue.file}: {issue.detail}", file=sys.stderr)
+                return 1
+            return 0
         if args.link_command == "suggest":
             try:
                 target, ranked = suggest_related_entries(

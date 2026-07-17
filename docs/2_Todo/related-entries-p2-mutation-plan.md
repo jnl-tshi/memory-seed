@@ -10,8 +10,29 @@ tags:
 
 # Related Entries P2 Mutation Plan
 
-> **Status:** ACTIVE - approved 2026-07-05, unbuilt. (The retrieval-service extraction and
-> decision-diagram work it was sequenced behind have both shipped.)
+> **Status:** ACTIVE - **`link add` shipped 2026-07-17; `link backfill` BLOCKED on a constitutional
+> ruling.** This plan was approved 2026-07-05, nine days before the Constitution was ratified
+> (2026-07-14), and its two halves have since diverged:
+>
+> - **`link add` (current/newest entry) - SHIPPED.** Adding to the entry being authored does not rewrite
+>   history, so it is clean under Invariant #2. Forward-only, idempotent, YAML-only, `links check`-gated.
+> - **Backfill between older entries - BLOCKED, needs the user.** It mutates *existing* entries' YAML,
+>   which collides head-on with **Invariant #2** ("the past is append-only - extend and supersede, never
+>   rewrite or delete"). Constitution §11 is explicit: *"A proposal that conflicts with a live invariant
+>   is rejected or must first amend the invariant - it cannot silently override it."* The 2026-07-05
+>   sign-off predates that invariant and cannot authorise it retroactively.
+>
+> **Open user decision - pick one:** (a) **reject** the backfill and treat the shipped
+> [`evolution-edges-plan.md`](../5_Completed/evolution-edges-plan.md) seeding pass as the only sanctioned
+> way to add edges to history (it writes *new* entries declaring edges against old ones - zero history
+> rewritten, and it already exists); (b) **amend Invariant #2** to carve out an explicit
+> metadata-only exception for untyped `related_entries`, via the §11 amendment process; or (c) confirm
+> that YAML-metadata curation was never "rewriting the past" in the invariant's intended sense, and record
+> that reading as an amendment note. Until one is chosen, `link add` refuses any non-newest source and
+> `link backfill` does not exist.
+>
+> *(The retrieval-service extraction and decision-diagram work this plan was sequenced behind have both
+> shipped.)*
 > **Priority:** convenience/mutation increment — Track A item 4 in [`0_NEXT_STEPS.md`](0_NEXT_STEPS.md);
 > a `link add` (current-entry) + explicit historical backfill. Not a blocker; sequence after the
 > Track A tails unless the user reprioritizes graph curation.

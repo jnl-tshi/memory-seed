@@ -4,6 +4,16 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- **`memory-seed link add <target> [--from <entry_id>]`** writes an explicit `related_entries` edge from
+  the current/newest entry to an older one — the append-only-safe half of Related-entries P2. It creates
+  the `related_entries:` key when absent, appends without reordering existing links, is idempotent
+  (re-adding reports a no-op and rewrites nothing), touches only the entry's YAML and never its prose, and
+  re-runs `links check` after the write. Forward-only by construction: the target must be older than the
+  source, so an edge can never point forward in time or form a cycle. Unknown ids, self-links, and
+  forward edges are refused before any write. **Editing a non-newest entry is refused** — that is
+  historical curation, which Constitution Invariant #2 (the past is append-only) forbids; the plan's
+  `link backfill` counterpart is deliberately not implemented and needs an explicit constitutional ruling
+  first.
 - **Memory Trace tolerates concurrent cache rebuilds.** Two local server processes projecting the same
   workspace no longer produce a Windows file-lock 500. Each rebuild takes a short-lived OS-level writer
   lease per primary cache path; a waiting process rechecks the winner's snapshot once the lease frees, and
