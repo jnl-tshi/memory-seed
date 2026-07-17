@@ -1,7 +1,8 @@
 ---
 title: ADR lifecycle sidecar contract
 status: draft
-spec_binding: memory-seed-semantic-record-and-signal-foundation-plan.md
+spec_binding: draft
+parent: ../../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md
 ---
 
 # ADR Lifecycle Sidecar Contract

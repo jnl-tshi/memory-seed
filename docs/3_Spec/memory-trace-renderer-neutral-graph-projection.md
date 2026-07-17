@@ -3,7 +3,8 @@ title: "Memory Trace Renderer-Neutral Graph Projection"
 date: "2026-07-16"
 project: "memory-seed"
 status: "active-specification"
-spec_binding: "B0a benchmark contract"
+spec_binding: "live"
+role: "B0a benchmark contract"
 parent: "../2_Todo/memory-trace-graph-visualisation-and-temporal-topology-proposal.md"
 ---
 

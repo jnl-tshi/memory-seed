@@ -4,6 +4,23 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- **`memory-seed docs check`** — read-only enforcement for the `docs/` lifecycle lanes, the check half of
+  the document-lifecycle Phase 2 tooling. Validates that every relative link resolves, that lifecycle
+  pointers (`superseded_by`, `extracted_into`) aim at real files, that a spec's `spec_binding` agrees with
+  the folder it sits in, and that nested folders are on the side-folder allowlist. Severity is deliberate:
+  **errors** are broken facts (a dead link, a dangling pointer, a draft claiming to be live), while
+  **warnings** are merely incomplete (missing `priority`/`next_action`/`superseded_by`) — backfilling that
+  YAML is separate open work, and failing on it would keep the check red for a known-unfinished task. On
+  its first run it caught three real defects: two specs with prose in `spec_binding` and one with a
+  filename there; all three are fixed, and the descriptive text moved to a `role:` field. The 2026-07-17
+  lane migration had to hand-roll a throwaway link checker because this did not exist — that gap is what
+  this closes. (`docs index` remains the other half of Phase 2.)
+- **Legacy `docs/2_Todo/completed/` retired** — its 43 documents and the nested `agent-templates/` moved to
+  `docs/5_Completed/`, so the folder-is-the-state rule now holds with no legacy archive beside the lanes.
+  Every inbound reference was repaired by resolving each link to its real target, taking `docs/` from 20
+  broken relative links to **0** (the pre-existing breaks were depth errors left by the previous move into
+  `completed/`). Session logs keep their original paths — they are append-only history — and the move is
+  recorded as a `continuity:` migration event instead.
 - **`memory-seed worktree classify [--agent <a>] [--integration-branch <b>] [--json]`** — Track E Phase 1's
   dry-run worktree classifier. Classifies every registered worktree as `root`, `active`, `dirty`,
   `unmerged`, `locked`, `foreign`, `unknown`, or `removable`, and shows the evidence behind every verdict.
