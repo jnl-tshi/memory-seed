@@ -4,6 +4,17 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- **Session entries are appended at the milestone, not at the merge.** `session_logging.md` gained a
+  "When To Append" rule (+ seed twin, so every agent inherits it): the multi-decision shape is for
+  decisions settled in *one deliberation*; if substantive work happened between two decisions —
+  implementing, reviewing, testing, discovering — they are separate milestones and get separate entries,
+  even on one branch in one subsystem. The Decision Harvest previously keyed only on *subsystem*
+  ("choices belonging to one coherent task" → one entry), which actively endorsed batching a whole
+  branch's milestones into one summary entry. It now keys on elapsed work too. `links check` reports a
+  new **`entry-decision-density` warning** at 3+ decisions per entry (corpus norm is ~1.0–1.5), routed
+  through a separate advisory path (`entry_body_advisories`) so it can **never** block `session append`
+  or fail a check — a genuine three-decision deliberation is legitimate, and only a human can tell the
+  difference.
 - **`memory-seed docs check`** — read-only enforcement for the `docs/` lifecycle lanes, the check half of
   the document-lifecycle Phase 2 tooling. Validates that every relative link resolves, that lifecycle
   pointers (`superseded_by`, `extracted_into`) aim at real files, that a spec's `spec_binding` agrees with
