@@ -10,7 +10,11 @@ tags:
 
 # Worker Context Contract — subagent workers load a slim packet, not full operating-mode startup
 
-Status: **TODO** — approved 2026-07-14; promoted from Inbox (`2_Todo`).
+Status: **SHIPPED 2026-07-17** under live user consent (the `agent-rules.md` edit is a locked-file
+change; the 2026-07-14 approval authorised the work, the user authorised the edit on the day). The
+Worker Context Contract lives in `.memory-seed/skills/agent_collaboration.md` with Task Packet fields
+`persona:` + `context_load:`; `agent-rules.md` step 10 carries a single worker-exemption clause (its
+260-line startup budget is now exactly full). Seed twins synced. Session: `mse_5ekvf2d0h5e2gw3y`.
 Priority: P2 — recurring efficiency + coordination friction on every fan-out; guidance-only change (no code strictly required).
 Next action: draft the "Worker Context Contract" section in `.memory-seed/skills/agent_collaboration.md` and the two Task Packet fields (`persona:`, `context_load:`), add the worker-exemption note to `agent-rules.md` "Operating Mode Start", then mirror both into the `memory_seed/seed/` twins.
 Dependencies: none hard. The companion `persona-usage-deactivation-esr-proposal.md` compounds the win (fewer active personas) but is not a blocker; either can land first.

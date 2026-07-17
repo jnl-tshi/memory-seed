@@ -12,7 +12,7 @@ tags:
 Status: **TODO** — approved 2026-07-14; promoted from Inbox (`2_Todo`).
 Priority: P2 — keeps the active-persona set honest so startup + worker load stay lean; approval-gated, low blast radius.
 Next action: add the "Persona Usage Check" step to `.memory-seed/skills/end_of_turn.md` and the `agent-rules.md` "End Of Turn" list, mirror the seed twins; the optional `memory-seed persona usage` report is a sequenced sub-item after the step lands.
-Dependencies: none hard. Companion to `worker-context-minimisation-proposal.md` (shared provenance); either can land first.
+Dependencies: none hard. Companion to `../5_Completed/worker-context-minimisation-proposal.md` (shared provenance; **landed 2026-07-17**).
 Scope: control-plane — `end_of_turn.md`, `agent-rules.md`, seed twins; optional `persona usage` CLI report + tests. Out of scope: any auto-apply / deletion path.
 Open decision for the user: this is designed **propose-and-wait** (never auto-deactivate), consistent with every other persona step. If automatic deactivation on detection is wanted instead, that changes the design — resolve before build.
 Source: The two-axis persona/orchestration evaluation (`mse_y7nhd5hcpwa0qb51`). User: persona slimming is key "but needs to be well thought through — it should be part of the ESR so that active personas that aren't used get turned off."
@@ -70,5 +70,5 @@ A `memory-seed persona usage [--days N] [--json]` report — counts `agent_name`
 ## Relationship to existing coverage (checked)
 
 - No prior proposal or session decision covers unused-persona deactivation (memory search on persona deactivation/usage returned only the *unregistered* onboarding path and unrelated worktree/ranking work) — genuinely uncovered.
-- Companion: `worker-context-minimisation-proposal.md` — fewer active personas directly lightens both worker and primary startup load; the two share the `mse_y7nhd5hcpwa0qb51` provenance and the `mse_jh2n9x7p5bq4r6cd` friction.
+- Companion: `../5_Completed/worker-context-minimisation-proposal.md` (shipped 2026-07-17) — fewer active personas directly lightens both worker and primary startup load; the two share the `mse_y7nhd5hcpwa0qb51` provenance and the `mse_jh2n9x7p5bq4r6cd` friction.
 - Frames as the mirror of `end_of_turn.md` step 15 (unregistered-persona onboarding), so it slots into an established, approval-gated pattern rather than introducing a new gate.

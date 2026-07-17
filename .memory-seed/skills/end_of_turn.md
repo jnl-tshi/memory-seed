@@ -15,7 +15,7 @@ Use this skill when running the Memory Seed end-of-turn routine, `/esr`, or any 
 0. Run `memory-seed esr` (add `--date YYYY-MM-DD` for a session crossing midnight): one read-only
    report covering integrity, topics, lifecycle link gaps, worktree posture, and seed-twin drift.
    Read every section - each prints even when clean, so a skipped check is visible. Use its
-   sections for steps 5, 11, and 12 instead of re-running the underlying commands one by one.
+   sections for steps 5, 12, and 13 instead of re-running the underlying commands one by one.
 1. Resolve the active session target with `memory-seed session target` when the target is uncertain.
 2. Run the Decision Harvest from `.memory-seed/skills/session_logging.md` before composing the entry:
    identify every durable accepted choice, then choose single-decision, multi-decision, or separate
@@ -36,14 +36,22 @@ Use this skill when running the Memory Seed end-of-turn routine, `/esr`, or any 
 6. Review whether `.memory-seed/index.md` needs updated topology, active state, inheritance, current risk, or skill pointers.
 7. Review whether `.memory-seed/policy.md` needs durable behavioral-policy changes.
 8. Review whether any `.memory-seed/skills/*.md` runbook changed.
-9. If work occurred in a sub-project runtime, review whether the parent or root runtime needs a brief coordination summary.
-10. Run the smallest verification that proves the work.
-11. Run the orphan & artifact sweep for files, features, commands, generated artifacts, and scratch output touched by this session.
-12. Run the Stale Worktree Sweep when the project uses git worktrees.
-13. Run the Persona evolution check when a persona is active.
-14. Run the Skill evolution check when a persona is active.
-15. Check for unregistered persona files and escalate to persona onboarding when files exist without registry entries.
-16. Run the Baseline-promotion check for general rules, skills, or runbooks worth promoting beyond this project.
+9. **Roadmap reconciliation (human question, never automated):** did this turn implement, resolve,
+   or unblock anything a roadmap/plan document still presents as pending — `docs/2_Todo/0_NEXT_STEPS.md`,
+   the item's own plan/proposal doc, or a lane README? If yes, update those lines **in the same
+   workstream** (and move the doc to its outcome lane when its work is done), or record in the session
+   entry why the prose is deliberately left unchanged. Structural checks cannot catch this: `docs check`
+   validates links and YAML, not whether narrative delivery state matches reality — a shipped item that
+   the roadmap still calls pending misleads the next session's orientation read. Never edit roadmap
+   prose by automation; this is a judgement question asked of a human (or answered in the entry).
+10. If work occurred in a sub-project runtime, review whether the parent or root runtime needs a brief coordination summary.
+11. Run the smallest verification that proves the work.
+12. Run the orphan & artifact sweep for files, features, commands, generated artifacts, and scratch output touched by this session.
+13. Run the Stale Worktree Sweep when the project uses git worktrees.
+14. Run the Persona evolution check when a persona is active.
+15. Run the Skill evolution check when a persona is active.
+16. Check for unregistered persona files and escalate to persona onboarding when files exist without registry entries.
+17. Run the Baseline-promotion check for general rules, skills, or runbooks worth promoting beyond this project.
 
 ## Consolidation Review
 
