@@ -2,11 +2,13 @@
 title: "Memory Quality Metrics v0 Proposal"
 date: "2026-07-15"
 project: "memory-seed"
-status: "promoted-to-todo"
+status: "v0-shipped-awaiting-usefulness-review"
 priority: "P1"
-next_action: "Define a versioned read-only report schema, fixture populations, and a real-corpus baseline using the shipped ranking-ab result model, with no targets or behavioural effects."
+blocked_by: "user review — is the baseline useful and repeatable? (proposal step 6 / promotion gate)"
+next_action: "JNL reviews docs/4_Reference/memory-quality-v0-baseline.md. Only then propose targets, ESR surfacing, further metrics, or §8 graduation."
 related:
   - "docs/CONSTITUTION.md"
+  - "docs/4_Reference/memory-quality-v0-baseline.md"
   - "docs/5_Completed/real-corpus-ranking-validation-gate-proposal.md"
   - "docs/3_Spec/memory-trace-derived-artifact-provenance-contract.md"
   - "docs/4_Reference/memory-seed-strategic-synthesis-report.md"
@@ -14,10 +16,18 @@ related:
 
 # Memory Quality Metrics v0 Proposal
 
-Status: **PROMOTED to `2_Todo`** 2026-07-15; active read-only measurement proposal.
+Status: **v0 SHIPPED 2026-07-17 — implementation sequence steps 1–5 complete; step 6 (usefulness review)
+is an open user decision.** `memory-seed quality report [--json]` implements the metric set below; the
+first real-corpus baseline is recorded at
+[`../4_Reference/memory-quality-v0-baseline.md`](../4_Reference/memory-quality-v0-baseline.md)
+(revision `bc9b174`: unlinked 95/431 = 22.0%; DRAFT reason coverage 403/403 with 28 excluded; citation and
+provenance coverage `unavailable` pending BG1; ranking A/B `not_applicable` with no run supplied).
+**Stays in `2_Todo` because what remains is yours, not buildable:** per step 6 and the promotion gate
+below, review whether the baseline is useful and repeatable *before* anyone proposes targets, ESR
+surfacing, further metrics, or graduating Constitution §8. The command deliberately does nothing with
+its own numbers until you say so.
 Priority: P1 after the shipped `ranking-ab` gate, before any quality label changes ranking or agent behaviour.
 Source: JNL-approved constitutional hardening on 2026-07-15, extracting the measurable subset of Constitution section 8 and the strategic-synthesis report.
-Next action: Specify deterministic metric populations and JSON fixtures, then record a real-corpus baseline before setting targets.
 
 ## Scope
 

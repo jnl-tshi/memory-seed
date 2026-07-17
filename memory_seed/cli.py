@@ -461,6 +461,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     link_commits.add_argument("entry_id", help="entry_id to show commits for")
 
+    quality_parser = subparsers.add_parser(
+        "quality",
+        help="read-only memory-quality measurement over the corpus",
+    )
+    quality_sub = quality_parser.add_subparsers(dest="quality_command", required=True)
+    quality_report = quality_sub.add_parser(
+        "report",
+        help="measure corpus quality metrics (read-only; never feeds ranking)",
+    )
+    quality_report.add_argument(
+        "--json", action="store_true", help="emit the versioned machine-readable report"
+    )
+
     ranking_ab_parser = subparsers.add_parser(
         "ranking-ab",
         help="real-corpus A/B for a ranking signal (the gate before any default flip)",
@@ -1185,6 +1198,19 @@ def main(argv: list[str] | None = None) -> int:
             print("topics:")
             for item in suggestions:
                 print(f"  - {item.topic.slug}")
+            return 0
+
+    if args.command == "quality":
+        if args.quality_command == "report":
+            import json as _json
+
+            from .quality import build_quality_report, format_quality_report
+
+            report = build_quality_report(Path(".").resolve())
+            if args.json:
+                print(_json.dumps(report.to_dict(), indent=2))
+            else:
+                print(format_quality_report(report))
             return 0
 
     if args.command == "link":

@@ -4,6 +4,17 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- **`memory-seed quality report [--json]`** — memory-quality metrics v0: a deterministic, local,
+  read-only measurement over the Markdown corpus, and the measurable subset of Constitution §8 (still a
+  `[candidate]` clause this report exists to produce evidence for). Every metric declares its population,
+  numerator, denominator, and exclusions. A metric with no eligible population reports `not_applicable`
+  and one whose input does not exist reports `unavailable` — **never 100% coverage**, which would read as
+  perfect when it means "nothing to measure". v0 measures unlinked-entry rate (by age band) and DRAFT
+  reason coverage; citation and provenance coverage report `unavailable` pending the BG1 taxonomy, and
+  ranking-A/B regression reports `not_applicable` until a completed `ranking-ab` run is supplied (it never
+  reimplements that scoring). No composite score, no targets, no telemetry; nothing feeds ranking,
+  filtering, or automation. The first real-corpus baseline is recorded in
+  `docs/4_Reference/memory-quality-v0-baseline.md`.
 - **`memory-seed link add <target> [--from <entry_id>]`** writes an explicit `related_entries` edge from
   the current/newest entry to an older one — the append-only-safe half of Related-entries P2. It creates
   the `related_entries:` key when absent, appends without reordering existing links, is idempotent
