@@ -4,6 +4,16 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+- **`memory-seed worktree classify [--agent <a>] [--integration-branch <b>] [--json]`** — Track E Phase 1's
+  dry-run worktree classifier. Classifies every registered worktree as `root`, `active`, `dirty`,
+  `unmerged`, `locked`, `foreign`, `unknown`, or `removable`, and shows the evidence behind every verdict.
+  **Read-only: it removes nothing**, and `--apply` does not exist yet — removal is destructive and lands as
+  its own increment. A worktree is `removable` only when every safety question answers yes at once; being
+  *merged* never implies a clean working tree, and anything unanswerable (unreadable `git status`, detached
+  HEAD, indeterminate merge status) fails closed to `unknown`, which refuses removal. Worktrees in another
+  agent's namespace report `foreign` — clean and merged, but not yours to remove. Branch deletion stays a
+  separate, approval-gated concern. Distinct from the existing `worktree guard`/`status`, which inspect only
+  the current worktree for the namespace guard.
 - **`memory-seed quality report [--json]`** — memory-quality metrics v0: a deterministic, local,
   read-only measurement over the Markdown corpus, and the measurable subset of Constitution §8 (still a
   `[candidate]` clause this report exists to produce evidence for). Every metric declares its population,

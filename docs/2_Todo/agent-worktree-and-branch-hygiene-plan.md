@@ -2,7 +2,7 @@
 title: Agent worktree and branch hygiene
 status: active
 priority: P3
-next_action: Implement a dry-run classifier and Git-native bounded removal retry before changing lifecycle guidance.
+next_action: "Phase 1 classifier SHIPPED 2026-07-17 (`memory-seed worktree classify`). Next: the Git-native bounded removal retry (`--apply`), then Phase 2 lifecycle guidance."
 sources:
   - ../7_Superseded/worktree-gc-proposal.md
   - ../7_Superseded/agent-namespaced-branch-worktree-lifecycle-proposal.md
@@ -21,9 +21,23 @@ Status: **ACTIVE, P3**. This plan combines the cleanup executor and the policy t
 
 ## Phase 1 - safe executor
 
-- Classify each worktree as active, dirty, unmerged, removable, locked, or unknown.
-- Default to dry-run and show the evidence for every classification.
-- Remove only clean, merged, registered worktrees through Git-native operations.
+> **Classifier SHIPPED 2026-07-17** as `memory-seed worktree classify [--agent] [--integration-branch]
+> [--json]` (`memory_seed/worktree_gc.py`). It is read-only and removes nothing. States: `root`,
+> `active`, `dirty`, `unmerged`, `locked`, `foreign`, `unknown`, `removable` — every non-`removable`
+> verdict carries its evidence. Anything unanswerable (unreadable `git status`, detached HEAD, unknown
+> merge status) fails closed to `unknown`, which refuses removal. `foreign` was added beyond the listed
+> states: a worktree in another agent's namespace is clean-and-merged yet still not ours to remove.
+>
+> **The remover (`--apply`) is NOT built.** Classification is the safe half and lands on its own; actual
+> removal is destructive and wants a supervised implementation. It is the next increment on this plan.
+>
+> *Field note validating the premise:* running `git worktree prune` on this repo during implementation
+> failed with `Permission denied` on four stale `.git/worktrees/*` admin directories. The lock case below
+> is real and routine here, not hypothetical.
+
+- Classify each worktree as active, dirty, unmerged, removable, locked, or unknown. ✅
+- Default to dry-run and show the evidence for every classification. ✅ (dry-run is the *only* mode today)
+- Remove only clean, merged, registered worktrees through Git-native operations. — not built
 - On Windows/OneDrive locks, use bounded retry with clear process guidance.
 - If Git-native removal still fails, stop with a manual next step. Do not fall back to raw recursive deletion.
 - Keep branch deletion separate and approval-gated.
