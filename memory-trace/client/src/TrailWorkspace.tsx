@@ -461,10 +461,14 @@ export function TrailWorkspace({
         <span className="trail-time">{time}</span>
         {matched && <span className="trail-match-dot" aria-hidden="true" />}
         <span className="trail-title">{stripTitleStamp(node.title)}</span>
-        {node.has_diagram && <span className="trail-diagram-badge" title="Has a decision diagram (open the entry to view)" aria-label="Has decision diagram">{"◇"}</span>}
-        {showPill && (
-          <span className="trail-branch" style={{ color: colorOf.get(branch) }}>
-            {branch}
+        {(node.has_diagram || showPill) && (
+          <span className="trail-row-end">
+            {node.has_diagram && <span className="trail-diagram-badge" title="Has a decision diagram (open the entry to view)" aria-label="Has decision diagram">{"◇"}</span>}
+            {showPill && (
+              <span className="trail-branch" style={{ color: colorOf.get(branch) }}>
+                {branch}
+              </span>
+            )}
           </span>
         )}
       </button>
