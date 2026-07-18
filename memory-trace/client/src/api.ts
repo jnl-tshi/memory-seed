@@ -8,6 +8,12 @@ export type RendererGraphEdge = components["schemas"]["RendererGraphEdge"];
 export type ChunkResponse = components["schemas"]["ChunkResponse"];
 export type SearchResponse = components["schemas"]["SearchResponse"];
 export type SearchResult = components["schemas"]["SearchResult"];
+export type TrailResponse = components["schemas"]["TrailResponse"];
+export type TrailEvent = components["schemas"]["TrailEvent"];
+export type BranchInfo = components["schemas"]["BranchInfo"];
+export type MergeEvent = components["schemas"]["MergeEvent"];
+export type ContinuityItem = components["schemas"]["ContinuityItem"];
+export type TrailEdge = components["schemas"]["GraphEdge"];
 
 export type GraphQueryOptions = {
   entryId?: string | null;
@@ -45,4 +51,17 @@ export function graphQuery(options: GraphQueryOptions = {}): Promise<RendererGra
 export function searchQuery(query: string): Promise<SearchResponse> {
   const params = new URLSearchParams({ q: query.trim(), limit: "12", granularity: "entry" });
   return api<SearchResponse>(`/search?${params.toString()}`);
+}
+
+export type TrailQueryOptions = { topic?: string | null; dateFrom?: string | null; limit?: number };
+
+// The Trail is a dedicated product surface: /api/v1/trail fixes its own edge set
+// (branch/supersedes/evolves/related) and entry granularity, so — unlike the
+// graph — it takes no edge_types parameter.
+export function trailQuery(options: TrailQueryOptions = {}): Promise<TrailResponse> {
+  const params = new URLSearchParams();
+  params.set("limit", String(options.limit ?? 1000));
+  if (options.topic) params.set("topic", options.topic);
+  if (options.dateFrom) params.set("date_from", options.dateFrom);
+  return api<TrailResponse>(`/trail?${params.toString()}`);
 }
