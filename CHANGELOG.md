@@ -15,6 +15,12 @@ All notable changes to Memory Seed are summarized here.
   entry's `Authority` and `Provenance` classes display as distinct rows (never a
   merged trust score), with `Provider`/revision and a `stale` flag when present,
   and a muted advisory band for provider/generated authority (BG1 step 4).
+- Memory Trace `/next` adds a **Trail** presentation mode: a git-graph decision
+  timeline over `/api/v1/trail` — day-grouped newest-first rows in branch lanes,
+  a rendered rail (main spine, rounded-elbow fork/merge connectors, clickable
+  trunk merge dots), row-click selection into the Inspector, and client-side
+  windowing. The layout model is a pure, invariant-checked port of the vanilla
+  Trail.
 
 ### Changed
 

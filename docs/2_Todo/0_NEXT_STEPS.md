@@ -194,10 +194,18 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   renders connected context while the list retains unlinked records. **The Inspector reader shipped
   2026-07-17** — a markdown-rendered entry body (frontmatter code block, headings, bullets, inline
   code/bold), search-match subsection highlighting at parity with the vanilla reader, an evidence strip
-  (commit + `path:line`), and navigable linked-memories/related-activity cards. Remaining: Trail
-  transition/parity, file/evolution modes, evidence-backed topology communities and optional mild temporal
-  layout, React diagram rendering (decision-diagram sidecars, currently count-only), and formal
-  accessibility/scale acceptance.
+  (commit + `path:line`), and navigable linked-memories/related-activity cards. **The Trail view shipped
+  2026-07-18** (first slice) — a `Trail` presentation mode over `/api/v1/trail` with a pure, testable
+  `trailModel` (day-grouped newest-first rows, greedy branch-lane interval packing with the main-lane-0
+  guard, commit-time `interpRow`), rendering the git-graph rail (lane segments, solid+phantom main spine,
+  rounded-elbow fork/merge connectors, clickable trunk merge dots), row-click selection into the shared
+  Inspector, and client-side windowing (Load older). Verified by model invariants on live 458-entry data
+  (main alone in lane 0; per-lane disjoint; sane laneCount) via the `window.memoryTraceNextDebug` parity
+  harness. **Remaining Trail slices:** two-stage selection + lifecycle-edge arrows/brackets (Slice 4),
+  continuity lanes + search-dimming + legend (Slice 5), diagram badges (needs `has_diagram` on the
+  contract). Other B0b remainders: file/evolution modes, evidence-backed topology communities and optional
+  mild temporal layout, React diagram rendering (the bespoke Arc-2d renderer — a ~250-line port), and
+  formal accessibility/scale acceptance.
   Keep the SVG renderer until explicit parity sign-off.
   Only after B0b acceptance may the
   [`structural-provider proposal`](memory-trace-structural-graph-enrichment-provider-proposal.md) define a

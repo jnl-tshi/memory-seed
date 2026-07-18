@@ -1,13 +1,15 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { LayoutPanelLeft, List, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, X } from "lucide-react";
-import { api, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, searchQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult } from "./api";
+import { GitBranch, LayoutPanelLeft, List, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, X } from "lucide-react";
+import { api, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, searchQuery, trailQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse } from "./api";
 import { EntryReader } from "./EntryReader";
+import { TRAIL_WINDOW_STEP } from "./trailModel";
 
 const GraphWorkspace = lazy(() => import("./GraphWorkspace").then((module) => ({ default: module.GraphWorkspace })));
+const TrailWorkspace = lazy(() => import("./TrailWorkspace").then((module) => ({ default: module.TrailWorkspace })));
 type MatchHint = { entryId: string; heading: string };
 type InspectorDock = "auto" | "right" | "bottom" | "hidden";
 type GraphScope = "overview" | "local";
-type GraphViewMode = "graph" | "list";
+type GraphViewMode = "graph" | "list" | "trail";
 type LabelMode = "focus" | "minimal" | "all";
 type GraphRange = "recent" | "all";
 
@@ -84,6 +86,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [scope, setScope] = useState<GraphScope>("overview");
   const [viewMode, setViewMode] = useState<GraphViewMode>("graph");
+  const [trail, setTrail] = useState<TrailResponse | null>(null);
+  const [trailWindow, setTrailWindow] = useState(TRAIL_WINDOW_STEP);
+  const [trailError, setTrailError] = useState<string | null>(null);
   const [labelMode, setLabelMode] = useState<LabelMode>("focus");
   const [range, setRange] = useState<GraphRange>("recent");
   const [edgeTypes, setEdgeTypes] = useState<RendererGraphEdge["edge_type"][]>(DEFAULT_GRAPH_EDGE_TYPES);
@@ -153,7 +158,24 @@ export default function App() {
     }
   }, [activeTopic, edgeTypes, loadGraph, range, scope, selected?.source.entry_id]);
 
+  // The Trail is a full-history timeline with its own client-side window, so it
+  // ignores the graph's recent-range control and fetches the whole corpus (up to
+  // the endpoint cap), respecting only the active topic filter.
+  const loadTrail = useCallback(async () => {
+    try {
+      setTrailError(null);
+      setTrail(await trailQuery({ topic: activeTopic, limit: 1000 }));
+    } catch (reason) {
+      setTrailError(reason instanceof Error ? reason.message : "Unable to load the Trail.");
+    }
+  }, [activeTopic]);
+
   useEffect(() => { void load(); }, []); // Initial project load only; controls issue deliberate scoped requests.
+  useEffect(() => {
+    if (viewMode !== "trail") return;
+    setTrailWindow(TRAIL_WINDOW_STEP);
+    void loadTrail();
+  }, [viewMode, loadTrail]);
   useEffect(() => { localStorage.setItem("memory-trace:inspector-dock", dock); }, [dock]);
   useEffect(() => {
     if (!selected) { setChunk(null); return; }
@@ -181,6 +203,15 @@ export default function App() {
     setScope("local");
     setActiveTopic(null);
     setSearch(null);
+  }
+
+  // Trail selection: reuse the already-loaded graph node when present (cheap,
+  // keeps the Inspector's full metadata); otherwise pull the entry into the
+  // graph via focusEntry so the Inspector can render it.
+  function selectFromTrail(entryId: string | null, chunkId: string) {
+    const node = graph?.nodes.find((item) => (entryId != null && item.source.entry_id === entryId) || item.source.chunk_id === chunkId);
+    if (node) { select(node); return; }
+    if (entryId) void focusEntry(entryId);
   }
 
   async function runSearch(rawValue: string) {
@@ -285,11 +316,26 @@ export default function App() {
       </aside>}
 
       <main className="workspace" id="trace-workspace">
-        <div className="workspace-bar"><div><span className="eyebrow">Graph workspace</span><h1>Relationship map</h1></div><div className="workspace-actions"><div className="segment-control" aria-label="Graph scope"><button type="button" aria-pressed={scope === "overview"} onClick={() => void changeScope("overview")}>Overview</button><button type="button" aria-pressed={scope === "local"} onClick={() => void changeScope("local")}>Local</button></div><div className="segment-control" aria-label="Graph date range"><button type="button" aria-pressed={range === "recent"} onClick={() => void changeRange("recent")}>Recent</button><button type="button" aria-pressed={range === "all"} onClick={() => void changeRange("all")}>All dates</button></div><div className="segment-control" aria-label="Graph presentation"><button type="button" aria-pressed={viewMode === "graph"} onClick={() => setViewMode("graph")}><Network size={14} aria-hidden="true" /><span>Graph</span></button><button type="button" aria-pressed={viewMode === "list"} onClick={() => setViewMode("list")}><List size={14} aria-hidden="true" /><span>List</span></button></div><label className="label-menu"><span>Labels</span><select value={labelMode} onChange={(event) => setLabelMode(event.target.value as LabelMode)} aria-label="Graph labels"><option value="focus">Focus</option><option value="minimal">Minimal</option><option value="all">All</option></select></label><span className="status-pill">{isLoading ? "Updating" : "Cytoscape.js"}</span></div></div>
-        <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{DEFAULT_GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => void toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>
-        {error && <div className="error-state" role="alert">{error}</div>}
-        {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} viewMode={viewMode} /></Suspense>}
-        {!graph && <div className="loading-state">Loading graph</div>}
+        <div className="workspace-bar"><div><span className="eyebrow">{viewMode === "trail" ? "Trail" : "Graph workspace"}</span><h1>{viewMode === "trail" ? "Decision timeline" : "Relationship map"}</h1></div><div className="workspace-actions"><div className="segment-control" aria-label="Graph scope"><button type="button" aria-pressed={scope === "overview"} onClick={() => void changeScope("overview")}>Overview</button><button type="button" aria-pressed={scope === "local"} onClick={() => void changeScope("local")}>Local</button></div><div className="segment-control" aria-label="Graph date range"><button type="button" aria-pressed={range === "recent"} onClick={() => void changeRange("recent")}>Recent</button><button type="button" aria-pressed={range === "all"} onClick={() => void changeRange("all")}>All dates</button></div><div className="segment-control" aria-label="Graph presentation"><button type="button" aria-pressed={viewMode === "graph"} onClick={() => setViewMode("graph")}><Network size={14} aria-hidden="true" /><span>Graph</span></button><button type="button" aria-pressed={viewMode === "list"} onClick={() => setViewMode("list")}><List size={14} aria-hidden="true" /><span>List</span></button><button type="button" aria-pressed={viewMode === "trail"} onClick={() => setViewMode("trail")}><GitBranch size={14} aria-hidden="true" /><span>Trail</span></button></div><label className="label-menu"><span>Labels</span><select value={labelMode} onChange={(event) => setLabelMode(event.target.value as LabelMode)} aria-label="Graph labels"><option value="focus">Focus</option><option value="minimal">Minimal</option><option value="all">All</option></select></label><span className="status-pill">{viewMode === "trail" ? "Trail" : isLoading ? "Updating" : "Cytoscape.js"}</span></div></div>
+        {viewMode !== "trail" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{DEFAULT_GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => void toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
+        {viewMode === "trail" ? (
+          <>
+            {trailError && <div className="error-state" role="alert">{trailError}</div>}
+            {trail ? (
+              <Suspense fallback={<div className="loading-state">Loading trail</div>}>
+                <TrailWorkspace trail={trail} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={selected?.source.chunk_id ?? null} onSelectEntry={selectFromTrail} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
+              </Suspense>
+            ) : (
+              <div className="loading-state">Loading trail</div>
+            )}
+          </>
+        ) : (
+          <>
+            {error && <div className="error-state" role="alert">{error}</div>}
+            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} viewMode={viewMode === "list" ? "list" : "graph"} /></Suspense>}
+            {!graph && <div className="loading-state">Loading graph</div>}
+          </>
+        )}
       </main>
 
       {inspectorVisible && <aside className="inspector" id="trace-inspector" aria-label="Inspector">
