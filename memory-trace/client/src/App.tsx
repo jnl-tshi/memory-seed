@@ -365,7 +365,7 @@ export default function App() {
         <div className="pane-heading"><LayoutPanelLeft size={16} aria-hidden="true" /> <span>Project</span></div>
         <dl className="metric-list"><div><dt>Entries</dt><dd>{runtime?.entry_count ?? "-"}</dd></div><div><dt>Chunks</dt><dd>{facets?.runtime.chunk_count ?? "-"}</dd></div></dl>
         <section className="navigation-section"><h2>Topics</h2><div className="topic-list"><button type="button" className={activeTopic === null ? "topic active" : "topic"} onClick={() => void chooseTopic(null)} aria-pressed={activeTopic === null}>All</button>{topics.map(([topic, count]) => <button type="button" className={activeTopic === topic ? "topic active" : "topic"} key={topic} onClick={() => void chooseTopic(topic)} aria-pressed={activeTopic === topic}>{topic}<b>{count}</b></button>)}</div></section>
-        <section className="navigation-section entry-list"><h2>Entries</h2>{graph?.nodes.slice(0, 24).map((node) => <button key={node.id} type="button" className={node.id === selected?.id ? "entry selected" : "entry"} aria-pressed={node.id === selected?.id} onClick={() => select(node)}><span>{node.label}</span><small>{node.temporal.value}</small></button>)}</section>
+        <section className="navigation-section entry-list"><h2>Entries</h2>{graph?.nodes.slice(0, 24).map((node) => <button key={node.id} type="button" className={node.id === selected?.id ? "entry selected" : "entry"} aria-pressed={node.id === selected?.id} onClick={() => select(node)}><span>{node.label}</span></button>)}</section>
       </aside>}
 
       <main className="workspace" id="trace-workspace">
