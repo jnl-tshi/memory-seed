@@ -22,7 +22,10 @@ All notable changes to Memory Seed are summarized here.
   windowing. The layout model is a pure, invariant-checked port of the vanilla
   Trail. Lifecycle-edge arrows (`supersedes`/`evolves`/`related`) route through
   the relationship zone with pair precedence and soft variants — `supersedes`
-  always shown, `evolves`/`related` on selection.
+  always shown, `evolves`/`related` on selection. A relationship legend and
+  search-as-a-function (a client-side substring filter over the visible window
+  that dims non-matching rows and shows a live match count) complete the
+  readable Trail.
 
 ### Changed
 

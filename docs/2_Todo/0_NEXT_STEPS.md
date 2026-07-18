@@ -204,9 +204,12 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   harness. **Slice 4a shipped 2026-07-18** — lifecycle-edge arrows: `supersedes`/`evolves`/`related` edges
   route through the reserved relationship zone as dashed arrows with pair precedence (replaces > evolves >
   related), soft/pastel variants, and an adjacent-`supersedes` bow; `supersedes` always shows, `evolves`
-  and `related` draw for the selected entry. **Remaining Trail slices:** de-clutter brackets (same-branch
+  and `related` draw for the selected entry. **Slice 5a shipped 2026-07-18** — a relationship legend
+  (replaces/evolves/related dashed keys) and search-as-a-function-over-the-Trail: a client-side substring
+  filter over the visible window (title/branch/entry-id) dims non-matching rows and dots, marks matches
+  with a dot, and shows a live match count. **Remaining Trail slices:** de-clutter brackets (same-branch
   related/evolves row brackets + commit-siblings) and two-stage muted/pinned selection (Slice 4b),
-  continuity lanes + search-dimming + legend (Slice 5), diagram badges (needs `has_diagram` on the
+  continuity lanes (rename/migration/removal glyphs, Slice 5b), diagram badges (needs `has_diagram` on the
   contract). Other B0b remainders: file/evolution modes, evidence-backed topology communities and optional
   mild temporal layout, React diagram rendering (the bespoke Arc-2d renderer — a ~250-line port), and
   formal accessibility/scale acceptance.

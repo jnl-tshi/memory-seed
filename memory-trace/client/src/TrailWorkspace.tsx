@@ -23,6 +23,7 @@ export function TrailWorkspace({
   windowSize,
   selectedEntryId,
   selectedChunkId,
+  query,
   onSelectEntry,
   onLoadMore,
 }: {
@@ -30,6 +31,7 @@ export function TrailWorkspace({
   windowSize: number;
   selectedEntryId: string | null;
   selectedChunkId: string | null;
+  query: string;
   onSelectEntry: (entryId: string | null, chunkId: string) => void;
   onLoadMore: () => void;
 }) {
@@ -44,6 +46,18 @@ export function TrailWorkspace({
   }, [model]);
 
   if (!items.length) return <div className="loading-state">No entries with lineage data yet.</div>;
+
+  // Search as a function over the Trail: a client-side substring filter over the
+  // visible window (title, branch, or entry id). Matching rows keep full
+  // presence and gain a marker dot; the rest dim, so lineage context never
+  // disappears under a query.
+  const searchTerm = query.trim().toLowerCase();
+  const searching = searchTerm !== "";
+  const rowMatch = (node: TrailEvent) =>
+    searching &&
+    (stripTitleStamp(node.title).toLowerCase().includes(searchTerm) ||
+      (node.branch || "").toLowerCase().includes(searchTerm) ||
+      (node.entry_id || "").toLowerCase().includes(searchTerm));
 
   // Continuity zone is deferred (0 for now); the relationship zone is kept
   // reserved so lifecycle-arrow lanes slot in later without re-laying-out.
@@ -241,6 +255,7 @@ export function TrailWorkspace({
     if (item.kind !== "node") return [];
     const branch = item.node.branch || "";
     const selected = isSelected(item.node.entry_id, item.node.chunk_id);
+    const miss = searching && !rowMatch(item.node) && !selected;
     return [
       <circle
         key={`dot-${item.node.id}`}
@@ -248,6 +263,7 @@ export function TrailWorkspace({
         cy={rowY(index)}
         r={selected ? 6.5 : 4.5}
         fill={branch ? colorOf.get(branch) : "var(--trail-faint)"}
+        fillOpacity={miss ? 0.35 : 1}
         stroke={selected ? "var(--accent-strong)" : "var(--trail-bg)"}
         strokeWidth={selected ? 2.5 : 2}
       />,
@@ -266,17 +282,20 @@ export function TrailWorkspace({
     const branch = node.branch || "";
     const showPill = Boolean(branch) && spans.get(branch)?.first === index;
     const selected = isSelected(node.entry_id, node.chunk_id);
+    const matched = rowMatch(node);
+    const miss = searching && !matched && !selected;
     const time = node.datetime ? node.datetime.slice(11, 16) : "";
     return (
       <button
         key={`row-${node.id}`}
         type="button"
-        className={`trail-row${selected ? " selected" : ""}`}
+        className={`trail-row${selected ? " selected" : ""}${matched ? " search-match" : ""}${miss ? " search-miss" : ""}`}
         style={{ paddingLeft: rowIndent(envelopeLane[index]) }}
         title={`${node.title}${branch ? ` · ${branch}` : ""}`}
         onClick={() => onSelectEntry(node.entry_id, node.chunk_id)}
       >
         <span className="trail-time">{time}</span>
+        {matched && <span className="trail-match-dot" aria-hidden="true" />}
         <span className="trail-title">{stripTitleStamp(node.title)}</span>
         {showPill && (
           <span className="trail-branch" style={{ color: colorOf.get(branch) }}>
@@ -288,12 +307,19 @@ export function TrailWorkspace({
   });
 
   const shown = items.filter((item) => item.kind === "node").length;
+  const matchCount = searching ? items.filter((item) => item.kind === "node" && rowMatch(item.node)).length : 0;
 
   return (
     <div className="trail-workspace">
       <div className="trail-viewbar">
         <span className="trail-meta">
           <strong>{shown}</strong> of {total} entries · newest first
+          {searching && <> · <strong>{matchCount}</strong> match{matchCount === 1 ? "" : "es"}</>}
+        </span>
+        <span className="trail-legend" aria-label="Relationship legend">
+          <span className="trail-legend-item"><span className="trail-legend-line" style={{ borderColor: "var(--edge-supersedes)" }} />replaces</span>
+          <span className="trail-legend-item"><span className="trail-legend-line" style={{ borderColor: "var(--edge-evolves)" }} />evolves · on select</span>
+          <span className="trail-legend-item"><span className="trail-legend-line" style={{ borderColor: "var(--edge-related)" }} />related · on select</span>
         </span>
         {shown < total && (
           <button type="button" className="trail-more" onClick={onLoadMore}>
