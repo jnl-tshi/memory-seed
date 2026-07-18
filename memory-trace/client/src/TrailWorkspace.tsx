@@ -1,14 +1,20 @@
 import { useEffect, useMemo, type ReactElement } from "react";
-import type { TrailResponse } from "./api";
+import type { TrailResponse, TrailEdge, TrailEvent } from "./api";
 import {
   buildTrailModel,
   laneColorFamily,
   stripTitleStamp,
   TRAIL_CORNER,
   TRAIL_LANE_W,
+  TRAIL_REL_LANE_W,
+  TRAIL_REL_LANES,
   TRAIL_REL_ZONE,
   TRAIL_ROW,
 } from "./trailModel";
+
+const EDGE_INFO_RANK: Record<string, number> = { supersedes: 3, evolves: 2, related: 1 };
+const TRAIL_DASH = "6 4";
+const TRAIL_VERB: Record<string, string> = { supersedes: "replaces", evolves: "evolves", related: "relates to" };
 
 const TEXT_CLEAR = 18; // dot radius + breathing gap past the last lane
 
@@ -28,7 +34,7 @@ export function TrailWorkspace({
   onLoadMore: () => void;
 }) {
   const model = useMemo(() => buildTrailModel(trail, windowSize), [trail, windowSize]);
-  const { items, total, spans, laneOf, colorOf, linkRows, mergeEvents } = model;
+  const { items, total, rowOf, spans, laneOf, colorOf, linkRows, mergeEvents, lifecycle } = model;
 
   // React-parity harness (mirrors the vanilla `window.memoryTraceDebug`): a
   // read-only surface so the layout model can be invariant-checked and
@@ -162,6 +168,72 @@ export function TrailWorkspace({
     </circle>
   ));
 
+  // Lifecycle arcs — routed lineage arrows through the reserved relationship
+  // zone. Precedence: only the strongest edge per pair draws (replaces >
+  // evolves > related). supersedes always shows (soft/pastel until the
+  // selection touches it); evolves/related draw only for the selected entry.
+  // Adjacent supersedes renders as a short bow beside the dots, not a route.
+  const focusActive = selectedEntryId != null;
+  const nodeAt = (id: string): TrailEvent | null => {
+    const item = items[rowOf.get(id) ?? -1];
+    return item && item.kind === "node" ? item.node : null;
+  };
+  const relLaneX = (type: string) => 8 + TRAIL_REL_LANES.indexOf(type as (typeof TRAIL_REL_LANES)[number]) * TRAIL_REL_LANE_W;
+  const pairKey = (a: string, b: string) => (a < b ? `${a} ${b}` : `${b} ${a}`);
+  const strongestByPair = new Map<string, TrailEdge>();
+  lifecycle.forEach((edge) => {
+    const key = pairKey(edge.source, edge.target);
+    const cur = strongestByPair.get(key);
+    if (!cur || EDGE_INFO_RANK[edge.type] > EDGE_INFO_RANK[cur.type]) strongestByPair.set(key, edge);
+  });
+  const winsPair = (edge: TrailEdge) => strongestByPair.get(pairKey(edge.source, edge.target)) === edge;
+  const adjacentRows = (rowA: number, rowB: number) => {
+    const lo = Math.min(rowA, rowB);
+    const hi = Math.max(rowA, rowB);
+    return items.slice(lo + 1, hi).every((item) => item.kind !== "node");
+  };
+  const arcs: ReactElement[] = [];
+  lifecycle.forEach((edge) => {
+    if (!winsPair(edge)) return;
+    const touched = focusActive && (edge.source === selectedEntryId || edge.target === selectedEntryId);
+    if ((edge.type === "related" || edge.type === "evolves") && !touched) return;
+    const source = nodeAt(edge.source);
+    const target = nodeAt(edge.target);
+    if (!source || !target) return;
+    const sRow = rowOf.get(edge.source)!;
+    const tRow = rowOf.get(edge.target)!;
+    const sx = laneX(source.branch || "");
+    const sy = rowY(sRow);
+    const tx = laneX(target.branch || "");
+    const ty = rowY(tRow);
+    const soft = edge.type !== "related" && !touched;
+    const stroke = soft ? `var(--edge-${edge.type}-soft)` : `var(--edge-${edge.type})`;
+    const marker = soft ? `trail-arrow-${edge.type}-soft` : `trail-arrow-${edge.type}`;
+    const opacity = touched ? 0.95 : focusActive ? 0.5 : 0.9;
+    const width = touched ? 2.6 : 2;
+    const tip = `${stripTitleStamp(source.title)} ${TRAIL_VERB[edge.type]} ${stripTitleStamp(target.title)}`;
+    const key = `arc-${edge.source}-${edge.target}-${edge.type}`;
+    if (edge.type === "supersedes" && adjacentRows(sRow, tRow)) {
+      const bow = 11;
+      const d = `M ${sx} ${sy} C ${sx - bow} ${sy + (ty - sy) * 0.3}, ${tx - bow} ${ty - (ty - sy) * 0.3}, ${tx} ${ty}`;
+      arcs.push(
+        <path key={key} d={d} fill="none" stroke={stroke} strokeWidth={width} strokeDasharray={TRAIL_DASH} strokeOpacity={opacity} markerEnd={`url(#${marker})`}>
+          <title>{tip}</title>
+        </path>,
+      );
+      return;
+    }
+    const lx = relLaneX(edge.type);
+    const r = TRAIL_CORNER;
+    const dir = ty > sy ? 1 : -1;
+    const d = `M ${sx} ${sy} L ${lx + r} ${sy} Q ${lx} ${sy} ${lx} ${sy + r * dir} L ${lx} ${ty - r * dir} Q ${lx} ${ty} ${lx + r} ${ty} L ${tx} ${ty}`;
+    arcs.push(
+      <path key={key} d={d} fill="none" stroke={stroke} strokeWidth={width} strokeDasharray={TRAIL_DASH} strokeOpacity={opacity} markerEnd={`url(#${marker})`}>
+        <title>{tip}</title>
+      </path>,
+    );
+  });
+
   const isSelected = (entryId: string | null, chunkId: string) =>
     (entryId !== null && entryId === selectedEntryId) || chunkId === selectedChunkId;
 
@@ -232,9 +304,22 @@ export function TrailWorkspace({
       <div className="trail-scroll">
         <div className="trail-body" style={{ height }}>
           <svg className="trail-rail" width={railWidth} height={height} viewBox={`0 0 ${railWidth} ${height}`} aria-hidden="true">
+            <defs>
+              {(["supersedes", "evolves", "related"] as const).map((type) => (
+                <marker key={`m-${type}`} id={`trail-arrow-${type}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z" fill={`var(--edge-${type})`} />
+                </marker>
+              ))}
+              {(["supersedes", "evolves"] as const).map((type) => (
+                <marker key={`m-${type}-soft`} id={`trail-arrow-${type}-soft`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z" fill={`var(--edge-${type}-soft)`} />
+                </marker>
+              ))}
+            </defs>
             {trunk}
             {connectors}
             {laneSegments}
+            {arcs}
             {dots}
             {mergeDots}
           </svg>

@@ -5,7 +5,7 @@
 // assignment (greedy interval packing over fork-to-merge occupancy), colours,
 // fork/merge connector rows, and trunk merge dots. Lifecycle-edge arrows and
 // continuity lanes are deferred to later slices and are NOT computed here.
-import type { TrailResponse, TrailEvent, MergeEvent } from "./api";
+import type { TrailResponse, TrailEvent, MergeEvent, TrailEdge } from "./api";
 
 export const TRAIL_ROW = 30;
 export const TRAIL_LANE_W = 14;
@@ -46,7 +46,10 @@ export type TrailModel = {
   laneCount: number;
   linkRows: Map<string, LinkRow>;
   mergeEvents: MergeDot[];
+  lifecycle: TrailEdge[];
 };
+
+const REL_LANE_SET = new Set<string>(TRAIL_REL_LANES);
 
 function trailStamp(node: TrailEvent): number {
   return Date.parse(node.datetime || `${node.date}T00:00:00`) || 0;
@@ -220,6 +223,12 @@ export function buildTrailModel(trail: TrailResponse, window: number): TrailMode
       .forEach((branch, i) => colorOf.set(branch, lane < 4 ? family[i % family.length] : family[1]));
   });
 
+  // Lifecycle edges (supersedes/evolves/related) whose endpoints are both
+  // visible — the routed arrows the view draws through the relationship zone.
+  const lifecycle = (trail.edges || []).filter(
+    (edge) => REL_LANE_SET.has(edge.type) && rowOf.has(edge.source) && rowOf.has(edge.target),
+  );
+
   return {
     items,
     total,
@@ -230,6 +239,7 @@ export function buildTrailModel(trail: TrailResponse, window: number): TrailMode
     laneCount: laneIntervals.length,
     linkRows,
     mergeEvents,
+    lifecycle,
   };
 }
 
