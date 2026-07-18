@@ -207,10 +207,15 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   and `related` draw for the selected entry. **Slice 5a shipped 2026-07-18** — a relationship legend
   (replaces/evolves/related dashed keys) and search-as-a-function-over-the-Trail: a client-side substring
   filter over the visible window (title/branch/entry-id) dims non-matching rows and dots, marks matches
-  with a dot, and shows a live match count. **Remaining Trail slices:** de-clutter brackets (same-branch
-  related/evolves row brackets + commit-siblings) and two-stage muted/pinned selection (Slice 4b),
-  continuity lanes (rename/migration/removal glyphs, Slice 5b), diagram badges (needs `has_diagram` on the
-  contract). Other B0b remainders: file/evolution modes, evidence-backed topology communities and optional
+  with a dot, and shows a live match count. **Slices 4b + 5b + diagram badges shipped 2026-07-18 —
+  the Trail is at full parity with the vanilla feature set**: the two-rule related model (same-branch
+  related as chain-primary/secondary row brackets, adjacent same-lane evolves as chain brackets,
+  commit-sibling right-edge brackets), two-stage muted/pinned selection, continuity lanes
+  (rename/migration/removal glyphs in their own band), and `has_diagram` diamond badges (the field the
+  service always computed is now declared on the v1 `GraphNode` — additive contract change, fixtures
+  regenerated). The left pane is now a **selection context panel** (typed lifecycle links + commit
+  siblings + similar entries; recent entries when nothing is selected), replacing the placeholder
+  graph-slice list. Other B0b remainders: file/evolution modes, evidence-backed topology communities and optional
   mild temporal layout, React diagram rendering (the bespoke Arc-2d renderer — a ~250-line port), and
   formal accessibility/scale acceptance.
   Keep the SVG renderer until explicit parity sign-off.

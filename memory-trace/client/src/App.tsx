@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 import { GitBranch, LayoutPanelLeft, List, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, Sun, X } from "lucide-react";
 import { api, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, searchQuery, trailQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse } from "./api";
 import { EntryReader } from "./EntryReader";
-import { TRAIL_WINDOW_STEP } from "./trailModel";
+import { stripTitleStamp, TRAIL_WINDOW_STEP } from "./trailModel";
 
 const GraphWorkspace = lazy(() => import("./GraphWorkspace").then((module) => ({ default: module.GraphWorkspace })));
 const TrailWorkspace = lazy(() => import("./TrailWorkspace").then((module) => ({ default: module.TrailWorkspace })));
@@ -110,6 +110,9 @@ export default function App() {
   const [scope, setScope] = useState<GraphScope>("overview");
   const [viewMode, setViewMode] = useState<GraphViewMode>("graph");
   const [trail, setTrail] = useState<TrailResponse | null>(null);
+  // Full-corpus entry index (one fetch at load): resolves ids to titles for the
+  // left pane's context panel and supplies typed lifecycle edges.
+  const [entryIndex, setEntryIndex] = useState<TrailResponse | null>(null);
   const [trailWindow, setTrailWindow] = useState(TRAIL_WINDOW_STEP);
   const [trailError, setTrailError] = useState<string | null>(null);
   const [labelMode, setLabelMode] = useState<LabelMode>("focus");
@@ -169,6 +172,7 @@ export default function App() {
       const [nextRuntime, nextFacets] = await Promise.all([api<RuntimeInfo>("/runtime"), api<Facets>("/facets")]);
       setRuntime(nextRuntime);
       setFacets(nextFacets);
+      void trailQuery({ limit: 1000 }).then(setEntryIndex).catch(() => {});
       await loadGraph({
         nextScope: scope,
         nextTopic: activeTopic,
@@ -245,6 +249,50 @@ export default function App() {
     setSearch(null);
     setMatchHint(null);
   }, []);
+  const indexById = useMemo(() => {
+    const map = new Map<string, { title: string; date: string; datetime: string | null }>();
+    entryIndex?.nodes.forEach((node) => map.set(node.id, { title: node.title, date: node.date, datetime: node.datetime }));
+    return map;
+  }, [entryIndex]);
+
+  type ContextItem = { key: string; entryId: string; kind: string; title: string };
+  // The left pane shows the selection's context: typed lifecycle links (from
+  // the entry index's edges), commit siblings, and topic-similar entries.
+  // With nothing selected it falls back to the newest entries.
+  const contextItems = useMemo<ContextItem[]>(() => {
+    const entryId = selected?.source.entry_id;
+    if (!entryId) {
+      return (entryIndex?.nodes ?? [])
+        .slice()
+        .sort((a, b) => (b.datetime || b.date).localeCompare(a.datetime || a.date))
+        .slice(0, 24)
+        .map((node) => ({ key: `r-${node.id}`, entryId: node.id, kind: "recent", title: stripTitleStamp(node.title) }));
+    }
+    const TYPE_LABEL: Record<string, string> = { evolves: "evolves", supersedes: "replaces", related: "related" };
+    const items: ContextItem[] = [];
+    const seen = new Set<string>([entryId]);
+    (entryIndex?.edges ?? []).forEach((edge) => {
+      if (!(edge.type in TYPE_LABEL)) return;
+      const other = edge.source === entryId ? edge.target : edge.target === entryId ? edge.source : null;
+      if (!other || seen.has(other)) return;
+      const node = indexById.get(other);
+      if (!node) return;
+      seen.add(other);
+      items.push({ key: `e-${other}`, entryId: other, kind: TYPE_LABEL[edge.type], title: stripTitleStamp(node.title) });
+    });
+    (chunk?.commit_entries ?? []).forEach((brief) => {
+      if (!brief.entry_id || seen.has(brief.entry_id)) return;
+      seen.add(brief.entry_id);
+      items.push({ key: `c-${brief.chunk_id}`, entryId: brief.entry_id, kind: "commit", title: stripTitleStamp(brief.title) });
+    });
+    (chunk?.suggestions?.same_topic ?? []).slice(0, 5).forEach((brief) => {
+      if (!brief.entry_id || seen.has(brief.entry_id)) return;
+      seen.add(brief.entry_id);
+      items.push({ key: `s-${brief.chunk_id}`, entryId: brief.entry_id, kind: "similar", title: stripTitleStamp(brief.title) });
+    });
+    return items;
+  }, [selected?.source.entry_id, entryIndex, indexById, chunk]);
+
   const topics = useMemo(() => Object.entries(facets?.topics ?? {}).slice(0, 10), [facets]);
   const inspectorVisible = dock !== "hidden";
 
@@ -377,7 +425,7 @@ export default function App() {
         <div className="pane-heading"><LayoutPanelLeft size={16} aria-hidden="true" /> <span>Project</span></div>
         <dl className="metric-list"><div><dt>Entries</dt><dd>{runtime?.entry_count ?? "-"}</dd></div><div><dt>Chunks</dt><dd>{facets?.runtime.chunk_count ?? "-"}</dd></div></dl>
         <section className="navigation-section"><h2>Topics</h2><div className="topic-list"><button type="button" className={activeTopic === null ? "topic active" : "topic"} onClick={() => void chooseTopic(null)} aria-pressed={activeTopic === null}>All</button>{topics.map(([topic, count]) => <button type="button" className={activeTopic === topic ? "topic active" : "topic"} key={topic} onClick={() => void chooseTopic(topic)} aria-pressed={activeTopic === topic}>{topic}<b>{count}</b></button>)}</div></section>
-        <section className="navigation-section entry-list"><h2>Entries</h2>{graph?.nodes.slice(0, 24).map((node) => <button key={node.id} type="button" className={node.id === selected?.id ? "entry selected" : "entry"} aria-pressed={node.id === selected?.id} onClick={() => select(node)}><span>{node.label}</span></button>)}</section>
+        <section className="navigation-section entry-list"><h2>{selected?.source.entry_id ? "Context" : "Recent"}</h2>{selected?.source.entry_id && <p className="context-subject" title={selected.label}>{stripTitleStamp(selected.label)}</p>}{contextItems.length ? contextItems.map((item) => <button key={item.key} type="button" className="entry" title={item.title} onClick={() => void focusEntry(item.entryId)}>{item.kind !== "recent" && <span className={`context-type context-type-${item.kind}`}>{item.kind}</span>}<span>{item.title}</span></button>) : <p className="context-empty">{selected?.source.entry_id ? "No linked context for this entry." : "Loading entries"}</p>}</section>
       </aside>}
 
       <main className="workspace" id="trace-workspace">
