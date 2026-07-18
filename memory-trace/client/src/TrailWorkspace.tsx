@@ -331,6 +331,13 @@ export function TrailWorkspace({
         <div className="trail-body" style={{ height }}>
           <svg className="trail-rail" width={railWidth} height={height} viewBox={`0 0 ${railWidth} ${height}`} aria-hidden="true">
             <defs>
+              {/* Hand-drawn voice: a fixed-seed turbulence displacement gives every
+                  stroke a slight, deterministic pen wobble — sketchy warmth without
+                  losing legibility. Dots and text stay crisp (outside the group). */}
+              <filter id="trail-rough" x="-4%" y="-1%" width="108%" height="102%">
+                <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves={2} seed={7} result="noise" />
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale={2.4} xChannelSelector="R" yChannelSelector="G" />
+              </filter>
               {(["supersedes", "evolves", "related"] as const).map((type) => (
                 <marker key={`m-${type}`} id={`trail-arrow-${type}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                   <path d="M0,0 L10,5 L0,10 z" fill={`var(--edge-${type})`} />
@@ -342,10 +349,12 @@ export function TrailWorkspace({
                 </marker>
               ))}
             </defs>
-            {trunk}
-            {connectors}
-            {laneSegments}
-            {arcs}
+            <g filter="url(#trail-rough)">
+              {trunk}
+              {connectors}
+              {laneSegments}
+              {arcs}
+            </g>
             {dots}
             {mergeDots}
           </svg>
