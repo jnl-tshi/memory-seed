@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactElement } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { Settings2 } from "lucide-react";
 import type { TrailResponse, TrailEdge, TrailEvent } from "./api";
 import {
@@ -81,21 +81,32 @@ export function TrailWorkspace({
     (window as unknown as { memoryTraceNextDebug?: unknown }).memoryTraceNextDebug = { trailModel: model };
   }, [model]);
 
+  // Clicks that originate inside the Trail select a row that is already on
+  // screen — recentring it would yank the list out from under the user. Only
+  // outside-origin selections (context panel, search) auto-scroll.
+  const suppressScroll = useRef(false);
+
   // Bring the selection into view: if the selected entry is older than the
   // loaded window, grow the window to include it; once its row exists, scroll
   // it to the centre of the pane.
+  const scrollHandledFor = useRef<string | null>(null);
   useEffect(() => {
-    if (!selectedEntryId) return;
+    if (!selectedEntryId) { scrollHandledFor.current = null; return; }
+    if (suppressScroll.current) { suppressScroll.current = false; scrollHandledFor.current = selectedEntryId; return; }
+    // One auto-scroll per selection: re-renders (chunk loads, prop identity
+    // churn) must never re-centre a selection that was already handled.
+    if (scrollHandledFor.current === selectedEntryId) return;
     if (!model.rowOf.has(selectedEntryId)) {
       const ordered = (trail.nodes || [])
         .filter((node) => node.entry_id)
         .sort((a, b) => trailStamp(b) - trailStamp(a) || String(a.id).localeCompare(String(b.id)));
       const index = ordered.findIndex((node) => node.id === selectedEntryId);
       if (index >= 0) onEnsureVisible(index + 1);
-      return;
+      return; // not handled yet — the window grows, the effect re-runs, then scrolls
     }
     const row = document.querySelector(`.trail-rows [data-entry="${selectedEntryId}"]`);
     row?.scrollIntoView({ block: "center" });
+    scrollHandledFor.current = selectedEntryId;
   }, [selectedEntryId, model, trail, onEnsureVisible]);
 
   if (!items.length) return <div className="loading-state">No entries with lineage data yet.</div>;
@@ -231,7 +242,7 @@ export function TrailWorkspace({
       fill="var(--trail-bg)"
       stroke={mainColor}
       strokeWidth={2}
-      onClick={() => onSelectEntry(entryIdForChunk(event.chunkId), event.chunkId)}
+      onClick={() => { suppressScroll.current = true; onSelectEntry(entryIdForChunk(event.chunkId), event.chunkId); }}
     >
       <title>{`${event.short} ${event.subject} · ${event.count} ${event.count === 1 ? "entry" : "entries"}`}</title>
     </circle>
@@ -456,7 +467,7 @@ export function TrailWorkspace({
         className={`trail-row${selected ? (selectionMuted ? " pinned" : " selected") : ""}${matched ? " search-match" : ""}${miss ? " search-miss" : ""}${chainPrimary.has(node.id) ? " chain-primary" : chainSecondary.has(node.id) ? " chain-secondary" : ""}${commitSiblings.has(node.id) ? " commit-sibling" : ""}`}
         style={{ "--indent": `${rowIndent(envelopeLane[index])}px` } as CSSProperties}
         title={`${node.title}${branch ? ` · ${branch}` : ""}`}
-        onClick={() => onSelectEntry(node.entry_id, node.chunk_id)}
+        onClick={() => { suppressScroll.current = true; onSelectEntry(node.entry_id, node.chunk_id); }}
       >
         <span className="trail-time">{time}</span>
         {matched && <span className="trail-match-dot" aria-hidden="true" />}

@@ -302,6 +302,8 @@ export default function App() {
     return order.filter((kind) => groups.has(kind)).map((kind) => [kind, groups.get(kind)!]);
   }, [contextItems]);
 
+  const ensureTrailVisible = useCallback((count: number) => setTrailWindow((value) => Math.max(value, count)), []);
+
   // Opening from the context panel selects the entry and, in Trail mode, the
   // Trail scrolls to it (TrailWorkspace watches the selection).
   async function openContextEntry(entryId: string) {
@@ -451,7 +453,7 @@ export default function App() {
             {trailError && <div className="error-state" role="alert">{trailError}</div>}
             {trail ? (
               <Suspense fallback={<div className="loading-state">Loading trail</div>}>
-                <TrailWorkspace trail={trail} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={selected?.source.chunk_id ?? null} query={query} selectionMuted={selectionMuted} commitSiblingIds={chunk?.commit_entry_ids ?? []} onSelectEntry={selectFromTrail} onEnsureVisible={(count) => setTrailWindow((value) => Math.max(value, count))} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
+                <TrailWorkspace trail={trail} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={selected?.source.chunk_id ?? null} query={query} selectionMuted={selectionMuted} commitSiblingIds={chunk?.commit_entry_ids ?? []} onSelectEntry={selectFromTrail} onEnsureVisible={ensureTrailVisible} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
               </Suspense>
             ) : (
               <div className="loading-state">Loading trail</div>
