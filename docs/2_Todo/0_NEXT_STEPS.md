@@ -201,7 +201,11 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   rounded-elbow fork/merge connectors, clickable trunk merge dots), row-click selection into the shared
   Inspector, and client-side windowing (Load older). Verified by model invariants on live 458-entry data
   (main alone in lane 0; per-lane disjoint; sane laneCount) via the `window.memoryTraceNextDebug` parity
-  harness. **Remaining Trail slices:** two-stage selection + lifecycle-edge arrows/brackets (Slice 4),
+  harness. **Slice 4a shipped 2026-07-18** — lifecycle-edge arrows: `supersedes`/`evolves`/`related` edges
+  route through the reserved relationship zone as dashed arrows with pair precedence (replaces > evolves >
+  related), soft/pastel variants, and an adjacent-`supersedes` bow; `supersedes` always shows, `evolves`
+  and `related` draw for the selected entry. **Remaining Trail slices:** de-clutter brackets (same-branch
+  related/evolves row brackets + commit-siblings) and two-stage muted/pinned selection (Slice 4b),
   continuity lanes + search-dimming + legend (Slice 5), diagram badges (needs `has_diagram` on the
   contract). Other B0b remainders: file/evolution modes, evidence-backed topology communities and optional
   mild temporal layout, React diagram rendering (the bespoke Arc-2d renderer — a ~250-line port), and

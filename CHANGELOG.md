@@ -20,7 +20,9 @@ All notable changes to Memory Seed are summarized here.
   a rendered rail (main spine, rounded-elbow fork/merge connectors, clickable
   trunk merge dots), row-click selection into the Inspector, and client-side
   windowing. The layout model is a pure, invariant-checked port of the vanilla
-  Trail.
+  Trail. Lifecycle-edge arrows (`supersedes`/`evolves`/`related`) route through
+  the relationship zone with pair precedence and soft variants — `supersedes`
+  always shown, `evolves`/`related` on selection.
 
 ### Changed
 
