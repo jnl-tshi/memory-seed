@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { Settings2 } from "lucide-react";
 import type { TrailResponse, TrailEdge, TrailEvent } from "./api";
 import {
   buildTrailModel,
@@ -35,13 +36,29 @@ export function TrailWorkspace({
   onSelectEntry: (entryId: string | null, chunkId: string) => void;
   onLoadMore: () => void;
 }) {
-  // TEMPORARY tuning panel (remove once JNL settles on values): stroke width
-  // and wobble scale, persisted so experiments survive reloads.
-  const [tune, setTune] = useState(() => {
-    try { return { width: 2.4, wobble: 3.2, ...JSON.parse(localStorage.getItem("memory-trace:trail-tune") || "{}") }; }
-    catch { return { width: 2.4, wobble: 3.2 }; }
+  // Trail presentation settings (chosen by JNL from the tuning experiments):
+  // line thickness Fine 1.8 / Thick 2.5, and Hand-drawn (wobble) vs Slick.
+  // Arrowheads use userSpaceOnUse so they stay the same size in both
+  // thicknesses (calibrated to the fine line).
+  type TrailSettings = { thickness: "fine" | "thick"; style: "hand" | "slick" };
+  const [settings, setSettings] = useState<TrailSettings>(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("memory-trace:trail-settings") || "{}");
+      return {
+        thickness: stored.thickness === "thick" ? "thick" : "fine",
+        style: stored.style === "slick" ? "slick" : "hand",
+      };
+    } catch {
+      return { thickness: "fine", style: "hand" };
+    }
   });
-  useEffect(() => { localStorage.setItem("memory-trace:trail-tune", JSON.stringify(tune)); }, [tune]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  useEffect(() => {
+    localStorage.setItem("memory-trace:trail-settings", JSON.stringify(settings));
+    localStorage.removeItem("memory-trace:trail-tune");
+  }, [settings]);
+  const strokeW = settings.thickness === "thick" ? 2.5 : 1.8;
+  const handDrawn = settings.style === "hand";
 
   const model = useMemo(() => buildTrailModel(trail, windowSize), [trail, windowSize]);
   const { items, total, rowOf, spans, laneOf, colorOf, linkRows, mergeEvents, lifecycle } = model;
@@ -114,7 +131,7 @@ export function TrailWorkspace({
           x2={laneX(branch)}
           y2={rowY(rows[i])}
           stroke={colorOf.get(branch)}
-          strokeWidth={tune.width}
+          strokeWidth={strokeW}
           strokeOpacity={0.55}
         />,
       );
@@ -133,10 +150,10 @@ export function TrailWorkspace({
     const bottomRow = mainRows.length ? mainRows[0] : Math.max(...mergeRowsForTrunk);
     const bottomY = rowY(bottomRow);
     if (bottomY > topY) {
-      trunk.push(<line key="trunk-solid" x1={mainX} y1={topY} x2={mainX} y2={bottomY} stroke={mainColor} strokeWidth={tune.width} strokeOpacity={0.55} strokeLinecap="round" />);
+      trunk.push(<line key="trunk-solid" x1={mainX} y1={topY} x2={mainX} y2={bottomY} stroke={mainColor} strokeWidth={strokeW} strokeOpacity={0.55} strokeLinecap="round" />);
     }
     if (topY > 0) {
-      trunk.push(<line key="trunk-phantom" x1={mainX} y1={0} x2={mainX} y2={topY} stroke={mainColor} strokeWidth={tune.width} strokeOpacity={0.3} strokeDasharray="2 5" strokeLinecap="round" />);
+      trunk.push(<line key="trunk-phantom" x1={mainX} y1={0} x2={mainX} y2={topY} stroke={mainColor} strokeWidth={strokeW} strokeOpacity={0.3} strokeDasharray="2 5" strokeLinecap="round" />);
     }
   }
 
@@ -156,7 +173,7 @@ export function TrailWorkspace({
       const yf = rowY(forkRow);
       const yb = rowY(oldest);
       connectors.push(
-        <path key={`fork-${branch}`} className="trail-link" d={`M ${mx} ${yf} L ${bx - r} ${yf} Q ${bx} ${yf} ${bx} ${yf - r} L ${bx} ${yb}`} fill="none" stroke={stroke} strokeWidth={tune.width} strokeOpacity={0.55}>
+        <path key={`fork-${branch}`} className="trail-link" d={`M ${mx} ${yf} L ${bx - r} ${yf} Q ${bx} ${yf} ${bx} ${yf - r} L ${bx} ${yb}`} fill="none" stroke={stroke} strokeWidth={strokeW} strokeOpacity={0.55}>
           <title>{`${branch} · ${forkLabel ? `forked after ${forkLabel}` : estimated ? "fork point estimated" : "fork point"}`}</title>
         </path>,
       );
@@ -165,7 +182,7 @@ export function TrailWorkspace({
       const yb = rowY(newest);
       const ym = rowY(mergeRow);
       connectors.push(
-        <path key={`merge-${branch}`} className="trail-link" d={`M ${bx} ${yb} L ${bx} ${ym + r} Q ${bx} ${ym} ${bx - r} ${ym} L ${mx} ${ym}`} fill="none" stroke={stroke} strokeWidth={tune.width} strokeOpacity={0.55}>
+        <path key={`merge-${branch}`} className="trail-link" d={`M ${bx} ${yb} L ${bx} ${ym + r} Q ${bx} ${ym} ${bx - r} ${ym} L ${mx} ${ym}`} fill="none" stroke={stroke} strokeWidth={strokeW} strokeOpacity={0.55}>
           <title>{`${branch} · ${mergeLabel ? `merged by ${mergeLabel}` : estimated ? "merge point estimated" : "merge point"}`}</title>
         </path>,
       );
@@ -201,7 +218,7 @@ export function TrailWorkspace({
     return item && item.kind === "node" ? item.node : null;
   };
   const relLaneX = (type: string) => 8 + TRAIL_REL_LANES.indexOf(type as (typeof TRAIL_REL_LANES)[number]) * TRAIL_REL_LANE_W;
-  const pairKey = (a: string, b: string) => (a < b ? `${a} ${b}` : `${b} ${a}`);
+  const pairKey = (a: string, b: string) => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`);
   const strongestByPair = new Map<string, TrailEdge>();
   lifecycle.forEach((edge) => {
     const key = pairKey(edge.source, edge.target);
@@ -232,7 +249,7 @@ export function TrailWorkspace({
     const stroke = soft ? `var(--edge-${edge.type}-soft)` : `var(--edge-${edge.type})`;
     const marker = soft ? `trail-arrow-${edge.type}-soft` : `trail-arrow-${edge.type}`;
     const opacity = touched ? 0.95 : focusActive ? 0.5 : 0.9;
-    const width = touched ? tune.width + 0.6 : tune.width;
+    const width = touched ? strokeW + 0.6 : strokeW;
     const tip = `${stripTitleStamp(source.title)} ${TRAIL_VERB[edge.type]} ${stripTitleStamp(target.title)}`;
     const key = `arc-${edge.source}-${edge.target}-${edge.type}`;
     if (edge.type === "supersedes" && adjacentRows(sRow, tRow)) {
@@ -324,9 +341,28 @@ export function TrailWorkspace({
           <strong>{shown}</strong> of {total} entries · newest first
           {searching && <> · <strong>{matchCount}</strong> match{matchCount === 1 ? "" : "es"}</>}
         </span>
-        <span className="trail-tune" title="Temporary tuning controls">
-          <label>line <input type="range" min={1.4} max={4} step={0.1} value={tune.width} onChange={(e) => setTune({ ...tune, width: Number(e.target.value) })} /> {tune.width.toFixed(1)}</label>
-          <label>wobble <input type="range" min={0} max={7} step={0.2} value={tune.wobble} onChange={(e) => setTune({ ...tune, wobble: Number(e.target.value) })} /> {tune.wobble.toFixed(1)}</label>
+        <span className="trail-settings">
+          <button type="button" className="trail-more" aria-expanded={settingsOpen} aria-label="Trail settings" title="Trail settings" onClick={() => setSettingsOpen((open) => !open)}>
+            <Settings2 size={13} aria-hidden="true" /> Style
+          </button>
+          {settingsOpen && (
+            <div className="trail-settings-menu" role="menu" aria-label="Trail presentation settings">
+              <div className="trail-settings-row">
+                <span>Line</span>
+                <div className="segment-control">
+                  <button type="button" aria-pressed={settings.thickness === "fine"} onClick={() => setSettings((prev) => ({ ...prev, thickness: "fine" }))}>Fine</button>
+                  <button type="button" aria-pressed={settings.thickness === "thick"} onClick={() => setSettings((prev) => ({ ...prev, thickness: "thick" }))}>Thick</button>
+                </div>
+              </div>
+              <div className="trail-settings-row">
+                <span>Stroke style</span>
+                <div className="segment-control">
+                  <button type="button" aria-pressed={settings.style === "hand"} onClick={() => setSettings((prev) => ({ ...prev, style: "hand" }))}>Hand-drawn</button>
+                  <button type="button" aria-pressed={settings.style === "slick"} onClick={() => setSettings((prev) => ({ ...prev, style: "slick" }))}>Slick</button>
+                </div>
+              </div>
+            </div>
+          )}
         </span>
         <span className="trail-legend" aria-label="Relationship legend">
           <span className="trail-legend-item"><span className="trail-legend-line" style={{ borderColor: "var(--edge-supersedes)" }} />replaces</span>
@@ -348,20 +384,20 @@ export function TrailWorkspace({
                   losing legibility. Dots and text stay crisp (outside the group). */}
               <filter id="trail-rough" x="-4%" y="-1%" width="108%" height="102%">
                 <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves={2} seed={7} result="noise" />
-                <feDisplacementMap in="SourceGraphic" in2="noise" scale={tune.wobble} xChannelSelector="R" yChannelSelector="G" />
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale={7} xChannelSelector="R" yChannelSelector="G" />
               </filter>
               {(["supersedes", "evolves", "related"] as const).map((type) => (
-                <marker key={`m-${type}`} id={`trail-arrow-${type}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <marker key={`m-${type}`} id={`trail-arrow-${type}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
                   <path d="M0,0 L10,5 L0,10 z" fill={`var(--edge-${type})`} />
                 </marker>
               ))}
               {(["supersedes", "evolves"] as const).map((type) => (
-                <marker key={`m-${type}-soft`} id={`trail-arrow-${type}-soft`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <marker key={`m-${type}-soft`} id={`trail-arrow-${type}-soft`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
                   <path d="M0,0 L10,5 L0,10 z" fill={`var(--edge-${type}-soft)`} />
                 </marker>
               ))}
             </defs>
-            <g filter="url(#trail-rough)">
+            <g filter={handDrawn ? "url(#trail-rough)" : undefined}>
               {trunk}
               {connectors}
               {laneSegments}
