@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type ReactElement } from "react";
+import { useEffect, useMemo, useState, type ReactElement } from "react";
 import type { TrailResponse, TrailEdge, TrailEvent } from "./api";
 import {
   buildTrailModel,
@@ -35,6 +35,14 @@ export function TrailWorkspace({
   onSelectEntry: (entryId: string | null, chunkId: string) => void;
   onLoadMore: () => void;
 }) {
+  // TEMPORARY tuning panel (remove once JNL settles on values): stroke width
+  // and wobble scale, persisted so experiments survive reloads.
+  const [tune, setTune] = useState(() => {
+    try { return { width: 2.4, wobble: 3.2, ...JSON.parse(localStorage.getItem("memory-trace:trail-tune") || "{}") }; }
+    catch { return { width: 2.4, wobble: 3.2 }; }
+  });
+  useEffect(() => { localStorage.setItem("memory-trace:trail-tune", JSON.stringify(tune)); }, [tune]);
+
   const model = useMemo(() => buildTrailModel(trail, windowSize), [trail, windowSize]);
   const { items, total, rowOf, spans, laneOf, colorOf, linkRows, mergeEvents, lifecycle } = model;
 
@@ -106,7 +114,7 @@ export function TrailWorkspace({
           x2={laneX(branch)}
           y2={rowY(rows[i])}
           stroke={colorOf.get(branch)}
-          strokeWidth={2}
+          strokeWidth={tune.width}
           strokeOpacity={0.55}
         />,
       );
@@ -125,10 +133,10 @@ export function TrailWorkspace({
     const bottomRow = mainRows.length ? mainRows[0] : Math.max(...mergeRowsForTrunk);
     const bottomY = rowY(bottomRow);
     if (bottomY > topY) {
-      trunk.push(<line key="trunk-solid" x1={mainX} y1={topY} x2={mainX} y2={bottomY} stroke={mainColor} strokeWidth={2} strokeOpacity={0.55} strokeLinecap="round" />);
+      trunk.push(<line key="trunk-solid" x1={mainX} y1={topY} x2={mainX} y2={bottomY} stroke={mainColor} strokeWidth={tune.width} strokeOpacity={0.55} strokeLinecap="round" />);
     }
     if (topY > 0) {
-      trunk.push(<line key="trunk-phantom" x1={mainX} y1={0} x2={mainX} y2={topY} stroke={mainColor} strokeWidth={2} strokeOpacity={0.3} strokeDasharray="2 5" strokeLinecap="round" />);
+      trunk.push(<line key="trunk-phantom" x1={mainX} y1={0} x2={mainX} y2={topY} stroke={mainColor} strokeWidth={tune.width} strokeOpacity={0.3} strokeDasharray="2 5" strokeLinecap="round" />);
     }
   }
 
@@ -148,7 +156,7 @@ export function TrailWorkspace({
       const yf = rowY(forkRow);
       const yb = rowY(oldest);
       connectors.push(
-        <path key={`fork-${branch}`} className="trail-link" d={`M ${mx} ${yf} L ${bx - r} ${yf} Q ${bx} ${yf} ${bx} ${yf - r} L ${bx} ${yb}`} fill="none" stroke={stroke} strokeWidth={2} strokeOpacity={0.55}>
+        <path key={`fork-${branch}`} className="trail-link" d={`M ${mx} ${yf} L ${bx - r} ${yf} Q ${bx} ${yf} ${bx} ${yf - r} L ${bx} ${yb}`} fill="none" stroke={stroke} strokeWidth={tune.width} strokeOpacity={0.55}>
           <title>{`${branch} · ${forkLabel ? `forked after ${forkLabel}` : estimated ? "fork point estimated" : "fork point"}`}</title>
         </path>,
       );
@@ -157,7 +165,7 @@ export function TrailWorkspace({
       const yb = rowY(newest);
       const ym = rowY(mergeRow);
       connectors.push(
-        <path key={`merge-${branch}`} className="trail-link" d={`M ${bx} ${yb} L ${bx} ${ym + r} Q ${bx} ${ym} ${bx - r} ${ym} L ${mx} ${ym}`} fill="none" stroke={stroke} strokeWidth={2} strokeOpacity={0.55}>
+        <path key={`merge-${branch}`} className="trail-link" d={`M ${bx} ${yb} L ${bx} ${ym + r} Q ${bx} ${ym} ${bx - r} ${ym} L ${mx} ${ym}`} fill="none" stroke={stroke} strokeWidth={tune.width} strokeOpacity={0.55}>
           <title>{`${branch} · ${mergeLabel ? `merged by ${mergeLabel}` : estimated ? "merge point estimated" : "merge point"}`}</title>
         </path>,
       );
@@ -224,7 +232,7 @@ export function TrailWorkspace({
     const stroke = soft ? `var(--edge-${edge.type}-soft)` : `var(--edge-${edge.type})`;
     const marker = soft ? `trail-arrow-${edge.type}-soft` : `trail-arrow-${edge.type}`;
     const opacity = touched ? 0.95 : focusActive ? 0.5 : 0.9;
-    const width = touched ? 2.6 : 2;
+    const width = touched ? tune.width + 0.6 : tune.width;
     const tip = `${stripTitleStamp(source.title)} ${TRAIL_VERB[edge.type]} ${stripTitleStamp(target.title)}`;
     const key = `arc-${edge.source}-${edge.target}-${edge.type}`;
     if (edge.type === "supersedes" && adjacentRows(sRow, tRow)) {
@@ -316,6 +324,10 @@ export function TrailWorkspace({
           <strong>{shown}</strong> of {total} entries · newest first
           {searching && <> · <strong>{matchCount}</strong> match{matchCount === 1 ? "" : "es"}</>}
         </span>
+        <span className="trail-tune" title="Temporary tuning controls">
+          <label>line <input type="range" min={1.4} max={4} step={0.1} value={tune.width} onChange={(e) => setTune({ ...tune, width: Number(e.target.value) })} /> {tune.width.toFixed(1)}</label>
+          <label>wobble <input type="range" min={0} max={7} step={0.2} value={tune.wobble} onChange={(e) => setTune({ ...tune, wobble: Number(e.target.value) })} /> {tune.wobble.toFixed(1)}</label>
+        </span>
         <span className="trail-legend" aria-label="Relationship legend">
           <span className="trail-legend-item"><span className="trail-legend-line" style={{ borderColor: "var(--edge-supersedes)" }} />replaces</span>
           <span className="trail-legend-item"><span className="trail-legend-line" style={{ borderColor: "var(--edge-evolves)" }} />evolves · on select</span>
@@ -336,7 +348,7 @@ export function TrailWorkspace({
                   losing legibility. Dots and text stay crisp (outside the group). */}
               <filter id="trail-rough" x="-4%" y="-1%" width="108%" height="102%">
                 <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves={2} seed={7} result="noise" />
-                <feDisplacementMap in="SourceGraphic" in2="noise" scale={2.4} xChannelSelector="R" yChannelSelector="G" />
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale={tune.wobble} xChannelSelector="R" yChannelSelector="G" />
               </filter>
               {(["supersedes", "evolves", "related"] as const).map((type) => (
                 <marker key={`m-${type}`} id={`trail-arrow-${type}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">

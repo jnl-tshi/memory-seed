@@ -340,6 +340,9 @@ export default function App() {
   return (
     <div className={`trace-shell inspector-${dock} ${leftOpen ? "navigation-open" : "navigation-hidden"}`} style={{ "--nav-w": `${navWidth}px`, "--insp-w": `${inspectorWidth}px` } as CSSProperties}>
       <header className="topbar">
+        <button className="icon-button" type="button" onClick={() => setLeftOpen((value) => !value)} aria-label="Toggle navigation" title="Toggle navigation">
+          {leftOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+        </button>
         <div className="brand"><Network size={19} aria-hidden="true" /><span>Memory Trace</span><small>Next</small></div>
         <div className="project-summary">{runtime ? `${runtime.label} · ${runtime.entry_count} entries` : "Loading project"}</div>
         <div className="trace-search-wrap">
@@ -349,9 +352,6 @@ export default function App() {
         <div className="topbar-actions">
           <button className="icon-button" type="button" onClick={() => setTheme((value) => value === "light" ? "dark" : "light")} aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"} title={theme === "light" ? "Dark mode" : "Light mode"}>
             {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
-          </button>
-          <button className="icon-button" type="button" onClick={() => setLeftOpen((value) => !value)} aria-label="Toggle navigation" title="Toggle navigation">
-            {leftOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
           </button>
           <button className="icon-button" type="button" onClick={() => setDock((value) => value === "hidden" ? "auto" : "hidden")} aria-label="Toggle inspector" title="Toggle inspector">
             {inspectorVisible ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
