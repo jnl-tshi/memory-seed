@@ -115,6 +115,11 @@ export default function App() {
   const [entryIndex, setEntryIndex] = useState<TrailResponse | null>(null);
   const [worktrees, setWorktrees] = useState<WorktreesResponse | null>(null);
   const [worktree, setWorktree] = useState<string | null>(null);
+  // The vanilla "train of thought" worktree loader, kept with a fixed rhythm:
+  // the ride always lasts at least the baseline so it stays readable now that
+  // switches are fast; only genuinely longer compute extends the middle leg.
+  const [switchLabel, setSwitchLabel] = useState<string | null>(null);
+  const [switchStage, setSwitchStage] = useState(0);
   const [trailWindow, setTrailWindow] = useState(TRAIL_WINDOW_STEP);
   const [trailError, setTrailError] = useState<string | null>(null);
   const [labelMode, setLabelMode] = useState<LabelMode>("focus");
@@ -310,21 +315,41 @@ export default function App() {
   // view (different branches carry different session entries).
   async function chooseWorktree(path: string) {
     const next = worktrees && path === worktrees.default ? null : path;
-    setWorktree(next);
-    setActiveWorktree(next);
-    setSelected(null);
-    setChunk(null);
-    setMatchHint(null);
-    setSelectionMuted(false);
-    setSearch(null);
-    setQuery("");
-    setTrail(null);
-    setEntryIndex(null);
-    setTrailWindow(TRAIL_WINDOW_STEP);
-    setActiveTopic(null);
-    setScope("overview");
-    await load();
-    if (viewMode === "trail") await loadTrail();
+    const label = worktrees?.worktrees.find((item) => item.path === path)?.label ?? "";
+    const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+    setSwitchLabel(label);
+    setSwitchStage(0);
+    const startedAt = performance.now();
+    // Fixed rhythm: depart at 600ms regardless of compute speed.
+    const departTimer = setTimeout(() => setSwitchStage((stage) => Math.max(stage, 1)), 600);
+    try {
+      setWorktree(next);
+      setActiveWorktree(next);
+      setSelected(null);
+      setChunk(null);
+      setMatchHint(null);
+      setSelectionMuted(false);
+      setSearch(null);
+      setQuery("");
+      setTrail(null);
+      setEntryIndex(null);
+      setTrailWindow(TRAIL_WINDOW_STEP);
+      setActiveTopic(null);
+      setScope("overview");
+      await load();
+      if (viewMode === "trail") await loadTrail();
+      // Arrival never before 1250ms (readable ride); a slow cold rebuild holds
+      // the middle leg until the data is truly loaded.
+      const beforeArrival = performance.now() - startedAt;
+      if (beforeArrival < 1250) await wait(1250 - beforeArrival);
+      setSwitchStage(2);
+      const total = performance.now() - startedAt;
+      await wait(Math.max(350, 1600 - total));
+    } finally {
+      clearTimeout(departTimer);
+      setSwitchLabel(null);
+      setSwitchStage(0);
+    }
   }
 
   const ensureTrailVisible = useCallback((count: number) => setTrailWindow((value) => Math.max(value, count)), []);
@@ -483,6 +508,23 @@ export default function App() {
       </aside>}
 
       <main className="workspace" id="trace-workspace">
+        {switchLabel !== null && (
+          <div className="worktree-loader" data-stage={switchStage} role="status" aria-live="polite">
+            <svg className="wt-map" viewBox="0 0 240 240" width="240" height="240" aria-hidden="true">
+              <line className="wt-track" x1={34} y1={30} x2={34} y2={210} />
+              <line className="wt-track-lit" x1={34} y1={30} x2={34} y2={210} pathLength={1} />
+              {[30, 120, 210].map((y, i) => <circle key={y} className="wt-station" data-i={i} cx={34} cy={y} r={5.5} />)}
+              {["Leaving the platform", "Reading branch memory", `Arriving${switchLabel ? ` at ${switchLabel}` : ""}`].map((text, i) => (
+                <text key={text} className="wt-label" data-i={i} x={52} y={[30, 120, 210][i] + 4}>{text}</text>
+              ))}
+              <g className="wt-train"><circle className="wt-train-halo" cx={34} cy={0} r={11} /><rect x={25} y={-6} width={18} height={12} rx={4} /></g>
+            </svg>
+            <div className="wt-caption">
+              <div className="wt-title">Switching worktree{switchLabel ? ` \u00b7 ${switchLabel}` : ""}</div>
+              <div className="wt-sub">following the train of thought\u2026</div>
+            </div>
+          </div>
+        )}
         <div className="workspace-bar"><div><span className="eyebrow">{viewMode === "trail" ? "Trail" : "Graph workspace"}</span><h1>{viewMode === "trail" ? "Decision timeline" : "Relationship map"}</h1></div><div className="workspace-actions"><div className="segment-control" aria-label="Graph scope"><button type="button" aria-pressed={scope === "overview"} onClick={() => void changeScope("overview")}>Overview</button><button type="button" aria-pressed={scope === "local"} onClick={() => void changeScope("local")}>Local</button></div><div className="segment-control" aria-label="Graph date range"><button type="button" aria-pressed={range === "recent"} onClick={() => void changeRange("recent")}>Recent</button><button type="button" aria-pressed={range === "all"} onClick={() => void changeRange("all")}>All dates</button></div><div className="segment-control" aria-label="Graph presentation"><button type="button" aria-pressed={viewMode === "trail"} onClick={() => setViewMode("trail")}><GitBranch size={14} aria-hidden="true" /><span>Trail</span></button><button type="button" aria-pressed={viewMode === "graph"} onClick={() => setViewMode("graph")}><Network size={14} aria-hidden="true" /><span>Graph</span></button></div><label className="label-menu"><span>Labels</span><select value={labelMode} onChange={(event) => setLabelMode(event.target.value as LabelMode)} aria-label="Graph labels"><option value="focus">Focus</option><option value="minimal">Minimal</option><option value="all">All</option></select></label><span className="status-pill">{viewMode === "trail" ? "Trail" : isLoading ? "Updating" : "Cytoscape.js"}</span></div></div>
         {viewMode !== "trail" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{DEFAULT_GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => void toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
         {viewMode === "trail" ? (

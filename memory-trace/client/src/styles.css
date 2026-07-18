@@ -118,6 +118,30 @@ button { font: inherit; }
 .trail-row.commit-sibling::after { content: ""; position: absolute; right: 0; top: 5px; bottom: 5px; width: 3px; border-radius: 999px; background: var(--faint); opacity: 0.75; }.trail-row.search-match { background: var(--hover); }.trail-diagram-badge { flex: none; color: var(--accent-strong); font-size: 13px; line-height: 1; }
 .trail-match-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 @media (max-width: 1080px) { .trail-legend { display: none; } }
+
+/* Worktree "train of thought" loader (ported from the vanilla UI): fixed-
+   rhythm ride over the workspace while the corpus switches. */
+.worktree-loader { position: absolute; inset: 0; z-index: 9; display: grid; grid-auto-flow: column; place-content: center; align-items: center; gap: 10px; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(2px); }
+.wt-track { stroke: var(--border-2); stroke-width: 3; stroke-linecap: round; }
+.wt-track-lit { stroke: var(--accent); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 0.55s cubic-bezier(0.5, 0.05, 0.2, 1); }
+.worktree-loader[data-stage="1"] .wt-track-lit { stroke-dashoffset: 0.5; }
+.worktree-loader[data-stage="2"] .wt-track-lit { stroke-dashoffset: 0; }
+.wt-station { fill: var(--bg); stroke: var(--border-2); stroke-width: 2; transition: stroke 0.3s ease; }
+.worktree-loader .wt-station[data-i="0"] { stroke: var(--accent); }
+.worktree-loader[data-stage="1"] .wt-station[data-i="1"], .worktree-loader[data-stage="2"] .wt-station[data-i="1"], .worktree-loader[data-stage="2"] .wt-station[data-i="2"] { stroke: var(--accent); }
+.wt-label { fill: var(--muted); font-size: 13px; transition: fill 0.4s ease; }
+.worktree-loader .wt-label[data-i="0"] { fill: var(--text); }
+.worktree-loader[data-stage="1"] .wt-label[data-i="1"], .worktree-loader[data-stage="2"] .wt-label[data-i="1"], .worktree-loader[data-stage="2"] .wt-label[data-i="2"] { fill: var(--text); }
+.wt-train { transform: translateY(30px); transition: transform 0.55s cubic-bezier(0.5, 0.05, 0.2, 1); }
+.wt-train rect { fill: var(--accent); }
+.wt-train-halo { fill: var(--accent); animation: wt-pulse 1.15s ease-in-out infinite; }
+.worktree-loader[data-stage="1"] .wt-train { transform: translateY(120px); }
+.worktree-loader[data-stage="2"] .wt-train { transform: translateY(210px); }
+@keyframes wt-pulse { 0%, 100% { opacity: 0.1; } 50% { opacity: 0.36; } }
+.wt-caption { display: grid; gap: 4px; }
+.wt-title { font-family: var(--font-display); font-size: 17px; color: var(--text-bright); }
+.wt-sub { color: var(--muted); font-size: 12px; font-style: italic; }
+@media (prefers-reduced-motion: reduce) { .wt-train, .wt-track-lit { transition: none; } .wt-train-halo { animation: none; } }
 @media (max-width: 1080px) { .project-summary { display: none; }.trace-search-wrap { max-width: none; }.workspace-bar { align-items: flex-start; }.workspace-actions { max-width: 72%; } }
 @media (max-width: 860px) { .topbar { gap: 10px; padding: 0 10px; }.trace-search-wrap { flex-basis: auto; }.brand small { display: none; }.workspace-bar { min-height: auto; align-items: flex-start; padding: 12px; }.workspace-actions { max-width: none; justify-content: flex-start; }.graph-filter-bar { padding: 6px 12px; }.error-state { top: 150px; right: 12px; left: 12px; }.graph-list-view { padding: 12px; } }
 @media (max-width: 580px) { .trace-search-wrap { min-width: 0; }.trace-search input { font-size: 12px; }.topbar-actions { gap: 3px; }.workspace-actions { gap: 5px; }.label-menu span { display: none; }.segment-control button { padding: 4px 6px; }.graph-filter-bar { gap: 4px; }.edge-filter { padding: 4px 6px; } }
