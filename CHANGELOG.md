@@ -35,6 +35,11 @@ All notable changes to Memory Seed are summarized here.
 
 ### Changed
 
+- `memory_entry_id` (MCP) now owns the clock: omit `timestamp` and the server
+  stamps from its machine clock, returning the value for verbatim write-back.
+  Explicitly supplied timestamps remain allowed for sanctioned backfill but
+  earn a `clock_drift_warning` when far from the server clock — agents must
+  never estimate entry times by hand.
 - CI now gates on `docs index --check`, so a stale generated docs index fails
   verification instead of drifting silently.
 

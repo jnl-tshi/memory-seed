@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -250,13 +250,13 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "memory_entry_id",
-        "description": "Compute the canonical entry_id for a new session entry from its metadata (deterministic sha256, no randomness). Closes the authoring loop: call this instead of inventing an id - hand-rolled ids drift outside the canonical Crockford alphabet and are not reproducible. Read-only; the agent writes the id into its own new entry.",
+        "description": "Compute the canonical entry_id for a new session entry from its metadata (deterministic sha256, no randomness). Closes the authoring loop: call this instead of inventing an id - hand-rolled ids drift outside the canonical Crockford alphabet and are not reproducible. Omit timestamp: the server stamps from its machine clock and RETURNS the timestamp - write it into the entry heading verbatim, never estimate times by hand. Read-only; the agent writes the id into its own new entry.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "timestamp": {
                     "type": "string",
-                    "description": "Entry heading timestamp, e.g. '2026-07-12 14:45'.",
+                    "description": "Entry heading timestamp, e.g. '2026-07-12 14:45'. OMIT in normal use: the server stamps from its own clock and returns the value to write verbatim. Supply explicitly only for sanctioned backfill/corrections; values far from the server clock earn a drift warning.",
                 },
                 "title": {
                     "type": "string",
@@ -270,7 +270,7 @@ TOOLS: list[dict[str, Any]] = [
                     "description": "subproject_path field; omit for null.",
                 },
             },
-            "required": ["timestamp", "title", "user_initials", "agent_type"],
+            "required": ["title", "user_initials", "agent_type"],
         },
     },
 ]
@@ -506,18 +506,43 @@ def call_tool(
         }
 
     if name == "memory_entry_id":
+        # The clock is the server's, not the caller's: authored timestamps
+        # drifted hours from reality in practice (agents estimating elapsed
+        # time), and the Trail renders them as fact. Omitting timestamp is the
+        # normal path - the server stamps and the caller writes it back
+        # verbatim. Explicit timestamps stay allowed for sanctioned backfill,
+        # but anything far from the server clock earns a drift warning.
+        now = args.get("_now") or datetime.now().strftime("%Y-%m-%d %H:%M")
+        supplied = _optional_str(args, "timestamp")
+        timestamp = supplied or now
         entry_id = generate_session_entry_id(
-            timestamp=_required_str(args, "timestamp"),
+            timestamp=timestamp,
             title=_required_str(args, "title"),
             user_initials=_required_str(args, "user_initials"),
             agent_type=_required_str(args, "agent_type"),
             project_path=str(args.get("project_path", ".")),
             subproject_path=_optional_str(args, "subproject_path"),
         )
-        return {
+        result: dict[str, Any] = {
             "entry_id": entry_id,
-            "write_surface": "Agent writes this id into its own new entry; MCP never writes session files.",
+            "timestamp": timestamp,
+            "write_surface": "Agent writes this id AND this timestamp into its own new entry, verbatim; MCP never writes session files.",
         }
+        if supplied:
+            try:
+                drift_minutes = abs(
+                    (datetime.strptime(supplied, "%Y-%m-%d %H:%M") - datetime.strptime(now, "%Y-%m-%d %H:%M")).total_seconds()
+                ) / 60
+            except ValueError:
+                drift_minutes = None
+            if drift_minutes is None:
+                result["clock_drift_warning"] = f"timestamp {supplied!r} does not parse as 'YYYY-MM-DD HH:MM'; server clock reads {now}."
+            elif drift_minutes > 10:
+                result["clock_drift_warning"] = (
+                    f"supplied timestamp is {drift_minutes:.0f} minutes from the server clock ({now}); "
+                    "session entries must carry real wall-clock times - omit timestamp to let the server stamp."
+                )
+        return result
 
     raise ValueError(f"Unknown tool: {name}")
 
