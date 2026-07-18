@@ -1185,7 +1185,12 @@ def create_app(
             existing = worktree_services.get(target)
             if existing is None:
                 wt_cache = TraceCache(target)
-                wt_cache.rebuild()
+                # ensure_current, not rebuild: a worktree whose persisted
+                # projection matches its git watermark warm-starts in
+                # milliseconds; only genuinely changed corpora rebuild (and the
+                # fork-point memo makes that rebuild pay only for the
+                # worktree's own divergence from the shared trunk).
+                wt_cache.ensure_current()
                 existing = TraceService(wt_cache)
                 worktree_services[target] = existing
             return existing
@@ -1605,6 +1610,16 @@ def _entry_commit_map(root: Path) -> dict[str, dict[str, str]]:
     return mapping
 
 
+# A merge commit's fork point (merge-base of its parents) is an immutable fact
+# of the object database, and every worktree of a repository shares that
+# database - so fork points computed for the shared trunk are valid for every
+# checkout. Memoizing by merge sha turns the per-worktree rebuild's dominant
+# cost (one merge-base subprocess per trailer merge, ~10s for ~190 merges on
+# Windows) into a one-time cost: switching to another worktree only computes
+# the merges unique to its own divergence.
+_FORK_POINT_MEMO: dict[str, dict[str, str] | None] = {}
+
+
 def _first_parent_trailer_commits(root: Path) -> list[dict[str, Any]]:
     """Merge-commit ground truth for the Trail: trunk first-parent commits
     carrying ``Memory-Entry:`` trailers, newest-first.
@@ -1661,11 +1676,19 @@ def _first_parent_trailer_commits(root: Path) -> list[dict[str, Any]]:
                     "date": date,
                     "subject": subject,
                     "entry_ids": entry_ids,
-                    "fork": _merge_fork_point(root, parent_list[0], parent_list[1]) if len(parent_list) >= 2 else None,
+                    "fork": _memoized_fork_point(root, sha, parent_list) if len(parent_list) >= 2 else None,
                 }
             )
         return events
     return []
+
+
+def _memoized_fork_point(root: Path, sha: str, parent_list: list[str]) -> dict[str, str] | None:
+    if sha in _FORK_POINT_MEMO:
+        return _FORK_POINT_MEMO[sha]
+    fork = _merge_fork_point(root, parent_list[0], parent_list[1])
+    _FORK_POINT_MEMO[sha] = fork
+    return fork
 
 
 def _merge_fork_point(root: Path, parent_a: str, parent_b: str) -> dict[str, str] | None:

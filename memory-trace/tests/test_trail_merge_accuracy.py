@@ -308,5 +308,31 @@ class SplitTrailerBlockExtractionTests(unittest.TestCase):
         self.assertNotIn("mse_branchown0001", out)
 
 
+class ForkPointMemoTests(unittest.TestCase):
+    def test_fork_points_memoize_by_merge_sha(self):
+        # A merge's fork point is an object-database fact shared by every
+        # worktree: the second walk (same repo or another checkout) must not
+        # spawn merge-base subprocesses again.
+        from memory_trace import service as svc
+
+        svc._FORK_POINT_MEMO.clear()
+        calls = []
+        original = svc._merge_fork_point
+
+        def counting(root, a, b):
+            calls.append((a, b))
+            return original(root, a, b)
+
+        svc._merge_fork_point = counting
+        try:
+            first = svc._memoized_fork_point(Path("."), "deadbeef", ["a" * 40, "b" * 40])
+            again = svc._memoized_fork_point(Path("."), "deadbeef", ["a" * 40, "b" * 40])
+        finally:
+            svc._merge_fork_point = original
+            svc._FORK_POINT_MEMO.clear()
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(first, again)
+
+
 if __name__ == "__main__":
     unittest.main()

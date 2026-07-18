@@ -35,6 +35,12 @@ All notable changes to Memory Seed are summarized here.
 
 ### Changed
 
+- Worktree switching reuses shared history: merge fork points (the dominant
+  rebuild cost — one `git merge-base` subprocess per trailer merge) memoize
+  process-wide by commit sha, since every checkout shares the object database;
+  switching worktrees now only computes the target's own divergence, and
+  unchanged worktrees warm-start from their persisted projection instead of
+  rebuilding.
 - Memory Trace `/api/v1` is now worktree-scoped: every v1 endpoint accepts an
   additive `worktree` query parameter and a typed `/api/v1/worktrees` endpoint
   enumerates the repository's checkouts; the `/next` React workspace gains a
