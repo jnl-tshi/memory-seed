@@ -32,6 +32,16 @@ All notable changes to Memory Seed are summarized here.
 - CI now gates on `docs index --check`, so a stale generated docs index fails
   verification instead of drifting silently.
 
+### Fixed
+
+- Memory Trace graph/projection overview (no focus entry, no date filter): the
+  node slice is now chosen by connectivity — deterministic greedy expansion from
+  high-degree seeds with newest-first tie-breaks — instead of truncating in
+  corpus order. The old positional cut kept the oldest entries, which largely
+  predate lifecycle links and authored topics, so `GET /api/v1/graph/projection`
+  with a limit below the corpus size returned an edgeless slice and the React
+  "All dates" overview rendered a disconnected map.
+
 ## 2.19.0 - 2026-07-17
 
 - **`memory-seed docs index` + `docs check` wired into `esr` and CI** — document-lifecycle Phases 2–3
