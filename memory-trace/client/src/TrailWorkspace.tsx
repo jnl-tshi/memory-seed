@@ -357,7 +357,7 @@ export function TrailWorkspace({
               <div className="trail-settings-row">
                 <span>Stroke style</span>
                 <div className="segment-control">
-                  <button type="button" aria-pressed={settings.style === "hand"} onClick={() => setSettings((prev) => ({ ...prev, style: "hand" }))}>Hand-drawn</button>
+                  <button type="button" aria-pressed={settings.style === "hand"} onClick={() => setSettings((prev) => ({ ...prev, style: "hand" }))}>Drawn</button>
                   <button type="button" aria-pressed={settings.style === "slick"} onClick={() => setSettings((prev) => ({ ...prev, style: "slick" }))}>Slick</button>
                 </div>
               </div>
