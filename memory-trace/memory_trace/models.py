@@ -70,6 +70,20 @@ class EdgeType(str, Enum):
     day = "day"
 
 
+class WorktreeInfo(BaseModel):
+    id: str
+    path: str
+    branch: str | None
+    label: str
+    is_primary: bool
+    is_default: bool
+
+
+class WorktreesResponse(BaseModel):
+    worktrees: list[WorktreeInfo]
+    default: str
+
+
 class RuntimeInfo(BaseModel):
     label: str
     workspace_root: str

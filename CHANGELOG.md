@@ -35,6 +35,10 @@ All notable changes to Memory Seed are summarized here.
 
 ### Changed
 
+- Memory Trace `/api/v1` is now worktree-scoped: every v1 endpoint accepts an
+  additive `worktree` query parameter and a typed `/api/v1/worktrees` endpoint
+  enumerates the repository's checkouts; the `/next` React workspace gains a
+  worktree picker that switches the whole app between corpora.
 - `memory_entry_id` (MCP) now owns the clock: omit `timestamp` and the server
   stamps from its machine clock, returning the value for verbatim write-back.
   Explicitly supplied timestamps remain allowed for sanctioned backfill but

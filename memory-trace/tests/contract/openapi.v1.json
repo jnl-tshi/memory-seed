@@ -1898,6 +1898,72 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "WorktreeInfo": {
+        "properties": {
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_default": {
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "is_primary": {
+            "title": "Is Primary",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "path",
+          "branch",
+          "label",
+          "is_primary",
+          "is_default"
+        ],
+        "title": "WorktreeInfo",
+        "type": "object"
+      },
+      "WorktreesResponse": {
+        "properties": {
+          "default": {
+            "title": "Default",
+            "type": "string"
+          },
+          "worktrees": {
+            "items": {
+              "$ref": "#/components/schemas/WorktreeInfo"
+            },
+            "title": "Worktrees",
+            "type": "array"
+          }
+        },
+        "required": [
+          "worktrees",
+          "default"
+        ],
+        "title": "WorktreesResponse",
+        "type": "object"
       }
     }
   },
@@ -1918,6 +1984,22 @@
             "schema": {
               "title": "Chunk Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "worktree",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Worktree"
             }
           }
         ],
@@ -1949,6 +2031,24 @@
     "/api/v1/facets": {
       "get": {
         "operationId": "v1_facets_api_v1_facets_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "worktree",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Worktree"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1959,6 +2059,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "V1 Facets"
@@ -2103,6 +2213,22 @@
                 }
               ],
               "title": "Topic"
+            }
+          },
+          {
+            "in": "query",
+            "name": "worktree",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Worktree"
             }
           }
         ],
@@ -2271,6 +2397,22 @@
               ],
               "title": "Topic"
             }
+          },
+          {
+            "in": "query",
+            "name": "worktree",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Worktree"
+            }
           }
         ],
         "responses": {
@@ -2301,6 +2443,24 @@
     "/api/v1/runtime": {
       "get": {
         "operationId": "v1_runtime_api_v1_runtime_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "worktree",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Worktree"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -2311,6 +2471,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "V1 Runtime"
@@ -2454,6 +2624,22 @@
               "default": "relevance",
               "title": "Sort",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "worktree",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Worktree"
             }
           }
         ],
@@ -2601,6 +2787,22 @@
               ],
               "title": "Topic"
             }
+          },
+          {
+            "in": "query",
+            "name": "worktree",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Worktree"
+            }
           }
         ],
         "responses": {
@@ -2626,6 +2828,24 @@
           }
         },
         "summary": "V1 Trail"
+      }
+    },
+    "/api/v1/worktrees": {
+      "get": {
+        "operationId": "v1_worktrees_api_v1_worktrees_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorktreesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "V1 Worktrees"
       }
     }
   }

@@ -53,6 +53,7 @@ button { font: inherit; }
 .pane-heading { gap: 8px; font-size: 13px; font-weight: 700; color: var(--text-3); }
 .metric-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 18px 0; }
 .metric-list div { padding: 10px; background: var(--chip); border: 1px solid var(--border); border-radius: 4px; }
+.worktree-picker { display: grid; gap: 4px; margin: 0 0 14px; color: var(--muted); font-size: 12px; }.worktree-picker select { width: 100%; min-width: 0; height: 30px; border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip); color: var(--text); padding: 0 6px; font: inherit; font-size: 12px; }
 .metric-list dt, .metadata dt { color: var(--muted); font-size: 12px; }.metric-list dd, .metadata dd { margin: 4px 0 0; font-weight: 700; }
 .navigation-section { margin-top: 22px; }.navigation-section h2 { margin: 0 0 9px; font-size: 13px; color: var(--text-3); }
 .topic-list { display: flex; flex-wrap: wrap; gap: 6px; }.topic { display: inline-flex; gap: 5px; align-items: center; font-size: 12px; color: var(--text-2); background: var(--hover); border-radius: 4px; padding: 4px 6px; }.topic b { color: var(--accent); }

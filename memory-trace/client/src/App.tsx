@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { GitBranch, LayoutPanelLeft, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, Sun, X } from "lucide-react";
-import { api, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, searchQuery, trailQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse } from "./api";
+import { api, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
 import { EntryReader } from "./EntryReader";
 import { stripTitleStamp, TRAIL_WINDOW_STEP } from "./trailModel";
 
@@ -113,6 +113,8 @@ export default function App() {
   // Full-corpus entry index (one fetch at load): resolves ids to titles for the
   // left pane's context panel and supplies typed lifecycle edges.
   const [entryIndex, setEntryIndex] = useState<TrailResponse | null>(null);
+  const [worktrees, setWorktrees] = useState<WorktreesResponse | null>(null);
+  const [worktree, setWorktree] = useState<string | null>(null);
   const [trailWindow, setTrailWindow] = useState(TRAIL_WINDOW_STEP);
   const [trailError, setTrailError] = useState<string | null>(null);
   const [labelMode, setLabelMode] = useState<LabelMode>("focus");
@@ -173,6 +175,7 @@ export default function App() {
       setRuntime(nextRuntime);
       setFacets(nextFacets);
       void trailQuery({ limit: 1000 }).then(setEntryIndex).catch(() => {});
+      void worktreesQuery().then(setWorktrees).catch(() => {});
       await loadGraph({
         nextScope: scope,
         nextTopic: activeTopic,
@@ -301,6 +304,28 @@ export default function App() {
     contextItems.forEach((item) => groups.set(item.kind, [...(groups.get(item.kind) ?? []), item]));
     return order.filter((kind) => groups.has(kind)).map((kind) => [kind, groups.get(kind)!]);
   }, [contextItems]);
+
+  // Switching worktree swaps the entire corpus: scope the API, clear every
+  // per-corpus piece of state, and reload. Each checkout is its own memory
+  // view (different branches carry different session entries).
+  async function chooseWorktree(path: string) {
+    const next = worktrees && path === worktrees.default ? null : path;
+    setWorktree(next);
+    setActiveWorktree(next);
+    setSelected(null);
+    setChunk(null);
+    setMatchHint(null);
+    setSelectionMuted(false);
+    setSearch(null);
+    setQuery("");
+    setTrail(null);
+    setEntryIndex(null);
+    setTrailWindow(TRAIL_WINDOW_STEP);
+    setActiveTopic(null);
+    setScope("overview");
+    await load();
+    if (viewMode === "trail") await loadTrail();
+  }
 
   const ensureTrailVisible = useCallback((count: number) => setTrailWindow((value) => Math.max(value, count)), []);
 
@@ -441,6 +466,18 @@ export default function App() {
         <div className="pane-resize pane-resize-nav" role="separator" aria-orientation="vertical" aria-label="Resize navigation" title="Drag to resize" onPointerDown={startPaneResize("nav")} />
         <div className="pane-heading"><LayoutPanelLeft size={16} aria-hidden="true" /> <span>Project</span></div>
         <dl className="metric-list"><div><dt>Entries</dt><dd>{runtime?.entry_count ?? "-"}</dd></div><div><dt>Chunks</dt><dd>{facets?.runtime.chunk_count ?? "-"}</dd></div></dl>
+        {worktrees && worktrees.worktrees.length > 1 && (
+          <label className="worktree-picker">
+            <span>Worktree</span>
+            <select value={worktree ?? worktrees.default} onChange={(event) => void chooseWorktree(event.target.value)} aria-label="Worktree">
+              {worktrees.worktrees.map((item) => (
+                <option key={item.id} value={item.path}>
+                  {item.label}{item.is_primary ? " (primary)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <section className="navigation-section"><h2>Topics</h2><div className="topic-list"><button type="button" className={activeTopic === null ? "topic active" : "topic"} onClick={() => void chooseTopic(null)} aria-pressed={activeTopic === null}>All</button>{topics.map(([topic, count]) => <button type="button" className={activeTopic === topic ? "topic active" : "topic"} key={topic} onClick={() => void chooseTopic(topic)} aria-pressed={activeTopic === topic}>{topic}<b>{count}</b></button>)}</div></section>
         <section className="navigation-section entry-list"><h2>{selected?.source.entry_id ? "Context" : "Recent"}</h2>{selected?.source.entry_id && <p className="context-subject" title={selected.label}>{stripTitleStamp(selected.label)}</p>}{contextGroups.length ? contextGroups.map(([kind, group]) => <div key={kind} className="context-group">{kind !== "recent" && <h3 className={`context-group-h context-type-${kind}`}>{kind === "commit" ? "same commit" : kind}</h3>}{group.map((item) => <button key={item.key} type="button" className="entry" title={item.title} onClick={() => void openContextEntry(item.entryId)}><span>{item.title}</span></button>)}</div>) : <p className="context-empty">{selected?.source.entry_id ? "No linked context for this entry." : "Loading entries"}</p>}</section>
       </aside>}

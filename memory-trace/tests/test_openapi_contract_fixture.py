@@ -29,6 +29,7 @@ class OpenApiContractFixtureTests(unittest.TestCase):
 
     def test_v1_paths_present(self):
         expected = {
+            "/api/v1/worktrees",
             "/api/v1/runtime",
             "/api/v1/facets",
             "/api/v1/search",

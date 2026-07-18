@@ -1362,15 +1362,21 @@ def create_app(
     # additive, not a replacement, so a future React client has something
     # stable to build against. /api/timeline has no v1 counterpart: Trail is
     # its designated successor (roadmap Phase 4) and nothing consumes it.
-    from .models import ChunkResponse, Facets, GraphResponse, RendererGraphResponse, RuntimeInfo, SearchResponse, TrailResponse
+    from .models import ChunkResponse, Facets, GraphResponse, RendererGraphResponse, RuntimeInfo, SearchResponse, TrailResponse, WorktreesResponse
+
+    @app.get("/api/v1/worktrees", response_model=WorktreesResponse)
+    def v1_worktrees() -> dict[str, Any]:
+        # Same enumeration as the legacy surface, typed: every git worktree of
+        # the launch repository is a switchable corpus view.
+        return api_worktrees()
 
     @app.get("/api/v1/runtime", response_model=RuntimeInfo)
-    def v1_runtime() -> dict[str, Any]:
-        return service.runtime()
+    def v1_runtime(worktree: str | None = None) -> dict[str, Any]:
+        return service_for(worktree).runtime()
 
     @app.get("/api/v1/facets", response_model=Facets)
-    def v1_facets() -> dict[str, Any]:
-        return service.facets()
+    def v1_facets(worktree: str | None = None) -> dict[str, Any]:
+        return service_for(worktree).facets()
 
     @app.get("/api/v1/search", response_model=SearchResponse)
     def v1_search(
@@ -1384,8 +1390,9 @@ def create_app(
         date_to: str | None = None,
         topic: str | None = None,
         sort: str = "relevance",
+        worktree: str | None = None,
     ) -> dict[str, Any]:
-        return service.search(
+        return service_for(worktree).search(
             q=q,
             limit=limit,
             cursor=cursor,
@@ -1399,9 +1406,9 @@ def create_app(
         )
 
     @app.get("/api/v1/chunks/{chunk_id:path}", response_model=ChunkResponse)
-    def v1_chunk(chunk_id: str) -> dict[str, Any]:
+    def v1_chunk(chunk_id: str, worktree: str | None = None) -> dict[str, Any]:
         try:
-            return service.chunk(chunk_id)
+            return service_for(worktree).chunk(chunk_id)
         except KeyError:
             raise HTTPException(status_code=404, detail="chunk not found") from None
 
@@ -1417,8 +1424,9 @@ def create_app(
         date_from: str | None = None,
         date_to: str | None = None,
         topic: str | None = None,
+        worktree: str | None = None,
     ) -> dict[str, Any]:
-        return service.graph(
+        return service_for(worktree).graph(
             entry_id=entry_id,
             depth=depth,
             edge_types=tuple(x for x in edge_types.split(",") if x),
@@ -1443,9 +1451,10 @@ def create_app(
         date_from: str | None = None,
         date_to: str | None = None,
         topic: str | None = None,
+        worktree: str | None = None,
     ) -> dict[str, Any]:
         return project_trace_graph(
-            service.graph(
+            service_for(worktree).graph(
                 entry_id=entry_id,
                 depth=depth,
                 edge_types=tuple(x for x in edge_types.split(",") if x),
@@ -1469,11 +1478,12 @@ def create_app(
         date_from: str | None = None,
         date_to: str | None = None,
         topic: str | None = None,
+        worktree: str | None = None,
     ) -> dict[str, Any]:
         # Fixed to the Trail's own edge set (app.js TRAIL_EDGE_TYPES) - the
         # Trail is a dedicated product surface, not a parameterization of the
         # general graph, so its contract doesn't expose edge_types at all.
-        return service.graph(
+        return service_for(worktree).graph(
             entry_id=entry_id,
             depth=depth,
             edge_types=("branch", "supersedes", "evolves", "related"),
