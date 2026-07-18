@@ -137,6 +137,7 @@ The session file is strictly append-only and must stay in ascending time order.
 - Never reuse a time from context, memory, or an earlier message.
 - Never backdate an entry to when the work happened.
 - If recording work completed earlier, still stamp the heading with the current time and describe the original timing in the entry body if it matters.
+- Read the real wall clock before stamping — authored times are inputs and nothing validates them at write time. `links check` warns (`entry-future-timestamp`) when a heading is more than ~10 minutes ahead of the clock at check time. It is a warning, never an error: published drifted stamps stay as they are (append-only); restamp only entries that are still unpublished.
 
 ## Reason Rules
 

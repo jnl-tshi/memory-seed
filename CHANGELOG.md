@@ -6,6 +6,12 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- New **`entry-future-timestamp` warning** in `links check` / `esr`: an entry
+  whose `## YYYY-MM-DD HH:MM` heading is more than 10 minutes ahead of the wall
+  clock at check time is flagged (heading timestamps are authored inputs and
+  nothing validated temporal sanity, so an agent once stamped entries hours into
+  the future). Advisory only, never blocking — append-only forbids restamping
+  published entries, so historical corpora with known drifted stamps stay valid.
 - Memory Trace `/next` React workspace: the Inspector now renders a full entry
   reader — markdown-rendered body (frontmatter code block, headings, bullets,
   inline code/bold), search-match subsection highlighting at parity with the

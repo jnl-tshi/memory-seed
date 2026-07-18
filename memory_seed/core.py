@@ -1292,6 +1292,52 @@ def check_entry_advisories(text: str) -> list[tuple[str, str]]:
     return _walk_entry_bodies(text, entry_body_advisories)
 
 
+# Heading timestamps are authored inputs: the entry lint validates DRAFT shape
+# and grammar but nothing checks temporal sanity, so a stamp hours in the future
+# passes silently. The grace window absorbs ordinary clock skew between
+# machines; anything beyond it means the author did not read the wall clock.
+ENTRY_FUTURE_TIMESTAMP_GRACE_MINUTES = 10
+
+
+def check_entry_timestamp_advisories(
+    text: str, now: datetime | None = None
+) -> list[tuple[str, str]]:
+    """Advisory twin over entry *headings* (the body twins inspect DRAFT prose):
+    (entry_id, advisory) pairs for entries whose ``## YYYY-MM-DD HH:MM`` heading
+    datetime lies beyond ``now`` plus the clock-skew grace window. Advisory,
+    never blocking: append-only forbids restamping published entries, so a
+    historical corpus may legitimately contain known drifted stamps."""
+    moment = now if now is not None else datetime.now()
+    limit = moment + timedelta(minutes=ENTRY_FUTURE_TIMESTAMP_GRACE_MINUTES)
+    lines = text.splitlines()
+    heads = [i for i, ln in enumerate(lines) if _ENTRY_HEADING_RE.match(ln)]
+    out: list[tuple[str, str]] = []
+    for k, start in enumerate(heads):
+        ts_match = _SESSION_ENTRY_HEADING_TS_RE.match(lines[start])
+        if not ts_match:
+            continue
+        try:
+            stamped = datetime.strptime(ts_match.group(1), "%Y-%m-%d %H:%M")
+        except ValueError:
+            continue  # an impossible date is not a *future* stamp
+        if stamped <= limit:
+            continue
+        end = heads[k + 1] if k + 1 < len(heads) else len(lines)
+        entry_id = next(
+            (m.group(1) for ln in lines[start:end] if (m := re.match(r"\s*entry_id:\s*(\S+)", ln))),
+            "?",
+        )
+        out.append(
+            (
+                entry_id,
+                f"heading timestamp {ts_match.group(1)} is in the future "
+                f"(checked at {moment:%Y-%m-%d %H:%M}) - read the wall clock "
+                "before stamping; restamp only if the entry is still unpublished",
+            )
+        )
+    return out
+
+
 def check_entry_format(text: str) -> list[tuple[str, str]]:
     """Run ``entry_body_format_issues`` over every entry in a session-file's
     ``text``, returning ``(entry_id, issue)`` pairs. Shared by ``links check``
@@ -1373,6 +1419,15 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
         for entry_id, advisory in check_entry_advisories(text):
             issues.append(
                 LinkIssue(rel, "entry-decision-density", f"{entry_id}: {advisory}", "warning")
+            )
+
+        # Also advisory, never an error: heading timestamps are authored inputs
+        # and append-only forbids restamping published entries, so a known
+        # drifted-but-published stamp in a historical corpus must warn, not
+        # block. Catches an agent stamping entries ahead of the wall clock.
+        for entry_id, advisory in check_entry_timestamp_advisories(text):
+            issues.append(
+                LinkIssue(rel, "entry-future-timestamp", f"{entry_id}: {advisory}", "warning")
             )
 
         # Entry-level related_entries/supersedes live inside each entry's fenced
