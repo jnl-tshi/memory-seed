@@ -9,7 +9,16 @@ type GraphWorkspaceProps = {
   onSelect: (node: RendererGraphNode) => void;
   labelMode: "focus" | "minimal" | "all";
   viewMode: "graph" | "list";
+  theme: "light" | "dark";
 };
+
+// Cytoscape styles can't consume CSS custom properties, so resolve the theme
+// tokens at mount time; the mount effect re-runs on theme change (safe — the
+// deterministic layout reproduces identical positions).
+function themeToken(name: string, fallback: string) {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
 
 const COMMUNITY_COLOURS = ["#23a99a", "#6688e8", "#d99a2b", "#c76d99", "#8f76d4", "#6aa869"];
 
@@ -56,7 +65,7 @@ function initialPositions(nodes: RendererGraphNode[]) {
   return positions;
 }
 
-export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, viewMode }: GraphWorkspaceProps) {
+export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, viewMode, theme }: GraphWorkspaceProps) {
   const container = useRef<HTMLDivElement>(null);
   const cytoscape = useRef<Core | null>(null);
   // Refs so the tap handler and selection effect never force an instance remount.
@@ -121,6 +130,14 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, viewMod
       const { default: createCytoscape } = await import("cytoscape");
       if (disposed || !container.current) return;
       const positions = initialPositions(renderedNodes);
+      const nodeBorder = themeToken("--panel", "#142a26");
+      const nodeText = themeToken("--text-bright", "#e9f3f0");
+      const nodeOutline = themeToken("--bg", "#10201e");
+      const selectedRing = themeToken("--accent-strong", "#efb345");
+      const edgeRelated = themeToken("--edge-related", "#74a6ce");
+      const edgeSupersedes = themeToken("--edge-supersedes", "#e18494");
+      const edgeEvolves = themeToken("--edge-evolves", "#7cc6e8");
+      const edgeTopic = themeToken("--edge-topic", "#a88acc");
       const cy = createCytoscape({
         container: container.current,
         elements: [
@@ -145,16 +162,16 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, viewMod
             selector: "node",
             style: {
               "background-color": "data(colour)",
-              "border-color": "#d9f1ec",
+              "border-color": nodeBorder,
               "border-width": 2,
               "label": "data(label)",
               "font-family": "Inter, sans-serif",
               "font-size": 11,
               "font-weight": 600,
-              "color": "#e9f3f0",
+              "color": nodeText,
               "text-wrap": "ellipsis",
               "text-max-width": "132px",
-              "text-outline-color": "#10201e",
+              "text-outline-color": nodeOutline,
               "text-outline-width": 3,
               "text-valign": "bottom",
               "text-margin-y": 8,
@@ -164,14 +181,14 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, viewMod
           },
           {
             selector: 'node[selected = "yes"]',
-            style: { "border-color": "#ffe4a2", "border-width": 5, "overlay-color": "#efb345", "overlay-opacity": 0.26, "overlay-padding": 5 },
+            style: { "border-color": selectedRing, "border-width": 5, "overlay-color": selectedRing, "overlay-opacity": 0.26, "overlay-padding": 5 },
           },
           // Straight edges: curvature carried no information and read as noise.
-          { selector: "edge", style: { "curve-style": "straight", "line-color": "#7a9cba", "target-arrow-color": "#7a9cba", "target-arrow-shape": "triangle", "width": 2, "opacity": 0.85 } },
-          { selector: 'edge[type = "related"]', style: { "line-color": "#74a6ce", "target-arrow-color": "#74a6ce" } },
-          { selector: 'edge[type = "supersedes"]', style: { "line-style": "dashed", "line-color": "#e18494", "target-arrow-color": "#e18494" } },
-          { selector: 'edge[type = "evolves"]', style: { "line-style": "dotted", "line-color": "#7cc6e8", "target-arrow-color": "#7cc6e8", "width": 2.5 } },
-          { selector: 'edge[type = "topic"]', style: { "line-style": "dotted", "line-color": "#a88acc", "target-arrow-color": "#a88acc", "opacity": 0.58 } },
+          { selector: "edge", style: { "curve-style": "straight", "line-color": edgeRelated, "target-arrow-color": edgeRelated, "target-arrow-shape": "triangle", "width": 2, "opacity": 0.85 } },
+          { selector: 'edge[type = "related"]', style: { "line-color": edgeRelated, "target-arrow-color": edgeRelated } },
+          { selector: 'edge[type = "supersedes"]', style: { "line-style": "dashed", "line-color": edgeSupersedes, "target-arrow-color": edgeSupersedes } },
+          { selector: 'edge[type = "evolves"]', style: { "line-style": "dotted", "line-color": edgeEvolves, "target-arrow-color": edgeEvolves, "width": 2.5 } },
+          { selector: 'edge[type = "topic"]', style: { "line-style": "dotted", "line-color": edgeTopic, "target-arrow-color": edgeTopic, "opacity": 0.58 } },
           { selector: "edge.hidden-until-selected", style: { display: "none" } },
         ],
         layout: { name: "preset" },
@@ -201,7 +218,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, viewMod
       cytoscape.current?.destroy();
       cytoscape.current = null;
     };
-  }, [graph, renderedNodes, viewMode]);
+  }, [graph, renderedNodes, viewMode, theme]);
 
   // Presentation updates on selection/label changes: in place, no element
   // churn, no layout, no camera movement.

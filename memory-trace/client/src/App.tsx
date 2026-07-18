@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { GitBranch, LayoutPanelLeft, List, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, X } from "lucide-react";
+import { GitBranch, LayoutPanelLeft, List, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, Sun, X } from "lucide-react";
 import { api, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, searchQuery, trailQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse } from "./api";
 import { EntryReader } from "./EntryReader";
 import { TRAIL_WINDOW_STEP } from "./trailModel";
@@ -71,6 +71,16 @@ function readPaneWidth(key: string, bounds: { min: number; max: number; fallback
   return Number.isFinite(value) && value >= bounds.min && value <= bounds.max ? value : bounds.fallback;
 }
 
+type Theme = "light" | "dark";
+
+// Light (the warm humanist default) unless the user chose otherwise or their
+// system prefers dark.
+function readTheme(): Theme {
+  const stored = localStorage.getItem("memory-trace:theme");
+  if (stored === "light" || stored === "dark") return stored;
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
 function titleFor(node: RendererGraphNode | null) {
   return node ? node.label : "No entry selected";
 }
@@ -94,6 +104,7 @@ export default function App() {
   const [dock, setDock] = useState<InspectorDock>(readDock);
   const [navWidth, setNavWidth] = useState(() => readPaneWidth("memory-trace:nav-width", NAV_WIDTH));
   const [inspectorWidth, setInspectorWidth] = useState(() => readPaneWidth("memory-trace:inspector-width", INSPECTOR_WIDTH));
+  const [theme, setTheme] = useState<Theme>(readTheme);
   const [error, setError] = useState<string | null>(null);
   const [scope, setScope] = useState<GraphScope>("overview");
   const [viewMode, setViewMode] = useState<GraphViewMode>("graph");
@@ -189,6 +200,10 @@ export default function App() {
   }, [viewMode, loadTrail]);
   useEffect(() => { localStorage.setItem("memory-trace:inspector-dock", dock); }, [dock]);
   useEffect(() => { localStorage.setItem("memory-trace:nav-width", String(navWidth)); }, [navWidth]);
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("memory-trace:theme", theme);
+  }, [theme]);
   useEffect(() => { localStorage.setItem("memory-trace:inspector-width", String(inspectorWidth)); }, [inspectorWidth]);
 
   // Pointer-driven pane resize: capture moves on window for the drag's
@@ -332,6 +347,9 @@ export default function App() {
           {search && <div className="search-results" role="listbox" aria-label="Search results">{search.results.length ? search.results.map((result) => <button type="button" key={result.chunk_id} className="search-result" onClick={() => void chooseSearchResult(result)}><strong>{result.entry_title || result.heading_path[result.heading_path.length - 1] || result.chunk_id}</strong><small>{result.entry_id || result.date}</small></button>) : <div className="search-empty">No matching entries</div>}</div>}
         </div>
         <div className="topbar-actions">
+          <button className="icon-button" type="button" onClick={() => setTheme((value) => value === "light" ? "dark" : "light")} aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"} title={theme === "light" ? "Dark mode" : "Light mode"}>
+            {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
+          </button>
           <button className="icon-button" type="button" onClick={() => setLeftOpen((value) => !value)} aria-label="Toggle navigation" title="Toggle navigation">
             {leftOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
           </button>
@@ -367,7 +385,7 @@ export default function App() {
         ) : (
           <>
             {error && <div className="error-state" role="alert">{error}</div>}
-            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} viewMode={viewMode === "list" ? "list" : "graph"} /></Suspense>}
+            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} viewMode={viewMode === "list" ? "list" : "graph"} theme={theme} /></Suspense>}
             {!graph && <div className="loading-state">Loading graph</div>}
           </>
         )}
