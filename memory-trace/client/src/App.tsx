@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { GitBranch, LayoutPanelLeft, List, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, X } from "lucide-react";
 import { api, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, searchQuery, trailQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse } from "./api";
 import { EntryReader } from "./EntryReader";
@@ -62,6 +62,15 @@ function readDock(): InspectorDock {
   return value === "right" || value === "bottom" || value === "hidden" ? value : "auto";
 }
 
+// User-adjustable pane widths (parity with the vanilla UI's draggable panes).
+const NAV_WIDTH = { min: 200, max: 460, fallback: 264 };
+const INSPECTOR_WIDTH = { min: 260, max: 620, fallback: 340 };
+
+function readPaneWidth(key: string, bounds: { min: number; max: number; fallback: number }) {
+  const value = Number(localStorage.getItem(key));
+  return Number.isFinite(value) && value >= bounds.min && value <= bounds.max ? value : bounds.fallback;
+}
+
 function titleFor(node: RendererGraphNode | null) {
   return node ? node.label : "No entry selected";
 }
@@ -83,6 +92,8 @@ export default function App() {
   const [matchHint, setMatchHint] = useState<MatchHint | null>(null);
   const [leftOpen, setLeftOpen] = useState(true);
   const [dock, setDock] = useState<InspectorDock>(readDock);
+  const [navWidth, setNavWidth] = useState(() => readPaneWidth("memory-trace:nav-width", NAV_WIDTH));
+  const [inspectorWidth, setInspectorWidth] = useState(() => readPaneWidth("memory-trace:inspector-width", INSPECTOR_WIDTH));
   const [error, setError] = useState<string | null>(null);
   const [scope, setScope] = useState<GraphScope>("overview");
   const [viewMode, setViewMode] = useState<GraphViewMode>("graph");
@@ -177,6 +188,29 @@ export default function App() {
     void loadTrail();
   }, [viewMode, loadTrail]);
   useEffect(() => { localStorage.setItem("memory-trace:inspector-dock", dock); }, [dock]);
+  useEffect(() => { localStorage.setItem("memory-trace:nav-width", String(navWidth)); }, [navWidth]);
+  useEffect(() => { localStorage.setItem("memory-trace:inspector-width", String(inspectorWidth)); }, [inspectorWidth]);
+
+  // Pointer-driven pane resize: capture moves on window for the drag's
+  // duration; widths clamp to sane bounds and persist across sessions.
+  function startPaneResize(kind: "nav" | "inspector") {
+    return (event: ReactPointerEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      const handle = event.currentTarget;
+      handle.classList.add("dragging");
+      const move = (pointer: PointerEvent) => {
+        if (kind === "nav") setNavWidth(Math.min(NAV_WIDTH.max, Math.max(NAV_WIDTH.min, pointer.clientX)));
+        else setInspectorWidth(Math.min(INSPECTOR_WIDTH.max, Math.max(INSPECTOR_WIDTH.min, window.innerWidth - pointer.clientX)));
+      };
+      const stop = () => {
+        handle.classList.remove("dragging");
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", stop);
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", stop);
+    };
+  }
   useEffect(() => {
     if (!selected) { setChunk(null); return; }
     let cancelled = false;
@@ -289,7 +323,7 @@ export default function App() {
   }
 
   return (
-    <div className={`trace-shell inspector-${dock} ${leftOpen ? "navigation-open" : "navigation-hidden"}`}>
+    <div className={`trace-shell inspector-${dock} ${leftOpen ? "navigation-open" : "navigation-hidden"}`} style={{ "--nav-w": `${navWidth}px`, "--insp-w": `${inspectorWidth}px` } as CSSProperties}>
       <header className="topbar">
         <div className="brand"><Network size={19} aria-hidden="true" /><span>Memory Trace</span><small>Next</small></div>
         <div className="project-summary">{runtime ? `${runtime.label} · ${runtime.entry_count} entries` : "Loading project"}</div>
@@ -309,6 +343,7 @@ export default function App() {
       </header>
 
       {leftOpen && <aside className="navigation-pane" aria-label="Navigation">
+        <div className="pane-resize pane-resize-nav" role="separator" aria-orientation="vertical" aria-label="Resize navigation" title="Drag to resize" onPointerDown={startPaneResize("nav")} />
         <div className="pane-heading"><LayoutPanelLeft size={16} aria-hidden="true" /> <span>Project</span></div>
         <dl className="metric-list"><div><dt>Entries</dt><dd>{runtime?.entry_count ?? "-"}</dd></div><div><dt>Chunks</dt><dd>{facets?.runtime.chunk_count ?? "-"}</dd></div></dl>
         <section className="navigation-section"><h2>Topics</h2><div className="topic-list"><button type="button" className={activeTopic === null ? "topic active" : "topic"} onClick={() => void chooseTopic(null)} aria-pressed={activeTopic === null}>All</button>{topics.map(([topic, count]) => <button type="button" className={activeTopic === topic ? "topic active" : "topic"} key={topic} onClick={() => void chooseTopic(topic)} aria-pressed={activeTopic === topic}>{topic}<b>{count}</b></button>)}</div></section>
@@ -339,6 +374,7 @@ export default function App() {
       </main>
 
       {inspectorVisible && <aside className="inspector" id="trace-inspector" aria-label="Inspector">
+        {dock !== "bottom" && <div className="pane-resize pane-resize-inspector" role="separator" aria-orientation="vertical" aria-label="Resize inspector" title="Drag to resize" onPointerDown={startPaneResize("inspector")} />}
         <div className="inspector-bar"><div><span className="eyebrow">Inspector</span><h2>{titleFor(selected)}</h2></div><button className="icon-button" type="button" onClick={() => setDock("hidden")} aria-label="Hide inspector" title="Hide inspector"><X size={17} /></button></div>
         <div className="dock-control" aria-label="Inspector position"><span>Dock</span>{(["auto", "right", "bottom"] as const).map((option) => <button key={option} type="button" aria-pressed={dock === option} onClick={() => setDock(option)}>{option}</button>)}</div>
         {selected && <div className="inspector-content"><dl className="metadata"><div><dt>Entry ID</dt><dd>{selected.source.entry_id || "Not recorded"}</dd></div><div><dt>Date</dt><dd>{selected.temporal.value}</dd></div><div><dt>Agent</dt><dd>{selected.source.agent}</dd></div><div><dt>Authority</dt><dd><span className={ADVISORY_AUTHORITY.has(selected.authority_class) ? "authority-badge advisory" : "authority-badge"}>{AUTHORITY_LABELS[selected.authority_class]}</span></dd></div><div><dt>Provenance</dt><dd>{PROVENANCE_LABELS[selected.provenance_class]}</dd></div>{selected.provider && <div><dt>Provider</dt><dd>{selected.provider}{selected.revision ? ` · ${selected.revision}` : ""}</dd></div>}{selected.stale && <div><dt>Freshness</dt><dd className="stale-flag">Stale — projection behind source</dd></div>}<div><dt>Links</dt><dd>{selected.connectivity}</dd></div><div><dt>Topics</dt><dd>{selected.source.topics.join(", ") || "None"}</dd></div><div><dt>Diagrams</dt><dd>{chunk?.diagrams.length ?? 0}</dd></div></dl><EntryReader chunk={chunk} matchHeading={matchHint && selected.source.entry_id === matchHint.entryId ? matchHint.heading : null} onOpenEntry={(entryId) => void focusEntry(entryId)} /></div>}
