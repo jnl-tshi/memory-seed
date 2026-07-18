@@ -368,6 +368,11 @@ export interface components {
             entry_id: string | null;
             /** Granularity */
             granularity: string;
+            /**
+             * Has Diagram
+             * @default false
+             */
+            has_diagram: boolean;
             /** Id */
             id: string;
             /** Importance Score */
@@ -664,6 +669,11 @@ export interface components {
             entry_id: string | null;
             /** Granularity */
             granularity: string;
+            /**
+             * Has Diagram
+             * @default false
+             */
+            has_diagram: boolean;
             /** Id */
             id: string;
             /** Importance Score */

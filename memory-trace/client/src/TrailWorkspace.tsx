@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactElement } from "react";
 import { Settings2 } from "lucide-react";
 import type { TrailResponse, TrailEdge, TrailEvent } from "./api";
 import {
   buildTrailModel,
   laneColorFamily,
   stripTitleStamp,
+  TRAIL_CONT_LANE_W,
+  TRAIL_CONT_ZONE_PAD,
   TRAIL_CORNER,
   TRAIL_LANE_W,
   TRAIL_REL_LANE_W,
@@ -12,6 +14,8 @@ import {
   TRAIL_REL_ZONE,
   TRAIL_ROW,
 } from "./trailModel";
+
+const CONTINUITY_COLOR: Record<string, string> = { rename: "var(--accent)", migration: "var(--edge-evolves)", removal: "var(--edge-supersedes)" };
 
 const EDGE_INFO_RANK: Record<string, number> = { supersedes: 3, evolves: 2, related: 1 };
 const TRAIL_DASH = "6 4";
@@ -25,6 +29,8 @@ export function TrailWorkspace({
   selectedEntryId,
   selectedChunkId,
   query,
+  selectionMuted,
+  commitSiblingIds,
   onSelectEntry,
   onLoadMore,
 }: {
@@ -33,6 +39,8 @@ export function TrailWorkspace({
   selectedEntryId: string | null;
   selectedChunkId: string | null;
   query: string;
+  selectionMuted: boolean;
+  commitSiblingIds: string[];
   onSelectEntry: (entryId: string | null, chunkId: string) => void;
   onLoadMore: () => void;
 }) {
@@ -61,7 +69,7 @@ export function TrailWorkspace({
   const handDrawn = settings.style === "hand";
 
   const model = useMemo(() => buildTrailModel(trail, windowSize), [trail, windowSize]);
-  const { items, total, rowOf, spans, laneOf, colorOf, linkRows, mergeEvents, lifecycle } = model;
+  const { items, total, rowOf, spans, laneOf, colorOf, linkRows, mergeEvents, lifecycle, continuityEvents, continuityChains, continuityLaneCount } = model;
 
   // React-parity harness (mirrors the vanilla `window.memoryTraceDebug`): a
   // read-only surface so the layout model can be invariant-checked and
@@ -86,10 +94,12 @@ export function TrailWorkspace({
 
   // Continuity zone is deferred (0 for now); the relationship zone is kept
   // reserved so lifecycle-arrow lanes slot in later without re-laying-out.
-  const laneX = (branch: string) => TRAIL_REL_ZONE + (laneOf.get(branch) || 0) * TRAIL_LANE_W + 7;
-  const laneCenterX = (lane: number) => TRAIL_REL_ZONE + lane * TRAIL_LANE_W + 7;
+  const continuityZoneWidth = continuityLaneCount ? continuityLaneCount * TRAIL_CONT_LANE_W + TRAIL_CONT_ZONE_PAD : 0;
+  const laneX = (branch: string) => continuityZoneWidth + TRAIL_REL_ZONE + (laneOf.get(branch) || 0) * TRAIL_LANE_W + 7;
+  const laneCenterX = (lane: number) => continuityZoneWidth + TRAIL_REL_ZONE + lane * TRAIL_LANE_W + 7;
+  const continuityLaneX = (lane: number) => 8 + lane * TRAIL_CONT_LANE_W + 6;
   const rowY = (index: number) => index * TRAIL_ROW + TRAIL_ROW / 2;
-  const railWidth = TRAIL_REL_ZONE + model.laneCount * TRAIL_LANE_W + 12;
+  const railWidth = continuityZoneWidth + TRAIL_REL_ZONE + model.laneCount * TRAIL_LANE_W + 12;
   const rowIndent = (lane: number) => Math.round(laneCenterX(lane) + TEXT_CLEAR);
   const height = items.length * TRAIL_ROW;
   const mainColor = colorOf.get("main") || laneColorFamily(0);
@@ -212,12 +222,12 @@ export function TrailWorkspace({
   // evolves > related). supersedes always shows (soft/pastel until the
   // selection touches it); evolves/related draw only for the selected entry.
   // Adjacent supersedes renders as a short bow beside the dots, not a route.
-  const focusActive = selectedEntryId != null;
+  const focusActive = selectedEntryId != null && !selectionMuted;
   const nodeAt = (id: string): TrailEvent | null => {
     const item = items[rowOf.get(id) ?? -1];
     return item && item.kind === "node" ? item.node : null;
   };
-  const relLaneX = (type: string) => 8 + TRAIL_REL_LANES.indexOf(type as (typeof TRAIL_REL_LANES)[number]) * TRAIL_REL_LANE_W;
+  const relLaneX = (type: string) => continuityZoneWidth + 8 + TRAIL_REL_LANES.indexOf(type as (typeof TRAIL_REL_LANES)[number]) * TRAIL_REL_LANE_W;
   const pairKey = (a: string, b: string) => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`);
   const strongestByPair = new Map<string, TrailEdge>();
   lifecycle.forEach((edge) => {
@@ -231,11 +241,46 @@ export function TrailWorkspace({
     const hi = Math.max(rowA, rowB);
     return items.slice(lo + 1, hi).every((item) => item.kind !== "node");
   };
+  // Two-rule related model: routes are reserved for branch hops; same-branch
+  // related context renders as row brackets. Adjacent same-lane evolves chains
+  // render as a single SVG bracket beside the dots instead of out-and-back hops.
+  const sameBranch = (a: string, b: string) => (nodeAt(a)?.branch || "") === (nodeAt(b)?.branch || "");
+  const adjacentRowsOf = (a: string, b: string) => adjacentRows(rowOf.get(a)!, rowOf.get(b)!);
+  const bracketEvolves = new Set(
+    lifecycle.filter(
+      (edge) => edge.type === "evolves" && winsPair(edge) && adjacentRowsOf(edge.source, edge.target) && sameBranch(edge.source, edge.target),
+    ),
+  );
+  const chainPrimary = new Set<string>();
+  const chainSecondary = new Set<string>();
+  if (focusActive && selectedEntryId && rowOf.has(selectedEntryId)) {
+    const selectedBranch = nodeAt(selectedEntryId)?.branch || "";
+    const related = lifecycle.filter((edge) => edge.type === "related");
+    const firstOrder = new Set<string>();
+    related.forEach((edge) => {
+      if (edge.source === selectedEntryId) firstOrder.add(edge.target);
+      if (edge.target === selectedEntryId) firstOrder.add(edge.source);
+    });
+    related.forEach((edge) => {
+      if (edge.source === selectedEntryId && (nodeAt(edge.target)?.branch || "") === selectedBranch) chainPrimary.add(edge.target);
+      else if (edge.target === selectedEntryId && (nodeAt(edge.source)?.branch || "") === selectedBranch) chainSecondary.add(edge.source);
+    });
+    related.forEach((edge) => {
+      if (firstOrder.has(edge.source) && edge.target !== selectedEntryId && !firstOrder.has(edge.target) && (nodeAt(edge.target)?.branch || "") === selectedBranch) chainSecondary.add(edge.target);
+      if (firstOrder.has(edge.target) && edge.source !== selectedEntryId && !firstOrder.has(edge.source) && (nodeAt(edge.source)?.branch || "") === selectedBranch) chainSecondary.add(edge.source);
+    });
+    chainPrimary.forEach((id) => chainSecondary.delete(id));
+    chainSecondary.delete(selectedEntryId);
+  }
+  const commitSiblings = new Set(focusActive ? commitSiblingIds.filter((id) => id !== selectedEntryId) : []);
+
   const arcs: ReactElement[] = [];
   lifecycle.forEach((edge) => {
     if (!winsPair(edge)) return;
+    if (bracketEvolves.has(edge)) return;
     const touched = focusActive && (edge.source === selectedEntryId || edge.target === selectedEntryId);
     if ((edge.type === "related" || edge.type === "evolves") && !touched) return;
+    if (edge.type === "related" && sameBranch(edge.source, edge.target)) return;
     const source = nodeAt(edge.source);
     const target = nodeAt(edge.target);
     if (!source || !target) return;
@@ -273,6 +318,79 @@ export function TrailWorkspace({
     );
   });
 
+  // Daisy-chained adjacent evolves within one lane: one square bracket per
+  // maximal chain, drawn only when the chain touches the active selection.
+  const evolvesBrackets: ReactElement[] = [];
+  if (bracketEvolves.size) {
+    const parent = new Map<number, number>();
+    const find = (x: number): number => {
+      while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x)!)!); x = parent.get(x)!; }
+      return x;
+    };
+    bracketEvolves.forEach((edge) => {
+      const ra = rowOf.get(edge.source)!;
+      const rb = rowOf.get(edge.target)!;
+      if (!parent.has(ra)) parent.set(ra, ra);
+      if (!parent.has(rb)) parent.set(rb, rb);
+      parent.set(find(ra), find(rb));
+    });
+    const chains = new Map<number, number[]>();
+    [...parent.keys()].forEach((row) => {
+      const root = find(row);
+      chains.set(root, [...(chains.get(root) ?? []), row]);
+    });
+    chains.forEach((rowsIn, root) => {
+      const rowsSorted = rowsIn.slice().sort((a, b) => a - b);
+      const first = items[rowsSorted[0]];
+      if (first.kind !== "node") return;
+      const touched = focusActive && rowsSorted.some((r) => { const it = items[r]; return it.kind === "node" && it.node.entry_id === selectedEntryId; });
+      if (!touched) return;
+      const x = laneX(first.node.branch || "") - 9;
+      const top = rowY(rowsSorted[0]);
+      const bot = rowY(rowsSorted[rowsSorted.length - 1]);
+      evolvesBrackets.push(
+        <path key={`ebr-${root}`} d={`M ${x + 5} ${top} L ${x} ${top} L ${x} ${bot} L ${x + 5} ${bot}`} fill="none" stroke="var(--edge-evolves)" strokeWidth={strokeW + 0.2} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={0.95}>
+          <title>{`evolves chain (${rowsSorted.length})`}</title>
+        </path>,
+      );
+    });
+  }
+
+  // Continuity chains: a vertical line per multi-row chain in the left band,
+  // with per-event glyphs (rename circle, migration diamond, removal square+X).
+  const continuityMarks: ReactElement[] = [];
+  continuityChains.forEach((chain) => {
+    const x = continuityLaneX(chain.lane);
+    const touched = focusActive && chain.events.some((event) => event.entryId === selectedEntryId);
+    if (chain.rows.length > 1) {
+      continuityMarks.push(
+        <line key={`cchain-${chain.chainKey}`} x1={x} y1={rowY(chain.rows[0])} x2={x} y2={rowY(chain.rows[chain.rows.length - 1])} stroke={touched ? "var(--text)" : "var(--border-2)"} strokeWidth={1.75} strokeOpacity={touched ? 0.9 : 0.6} strokeLinecap="round" />,
+      );
+    }
+    chain.events.forEach((event) => {
+      const y = rowY(event.row);
+      const colour = CONTINUITY_COLOR[event.kind] || "var(--muted)";
+      const tip = `${event.kind} - ${event.from}${event.to ? ` -> ${event.to}` : ""}`;
+      if (event.kind === "migration") {
+        continuityMarks.push(
+          <path key={`cev-${event.key}`} d={`M ${x} ${y - 5} L ${x + 5} ${y} L ${x} ${y + 5} L ${x - 5} ${y} Z`} fill="var(--bg)" stroke={colour} strokeWidth={1.6}><title>{tip}</title></path>,
+        );
+      } else if (event.kind === "removal") {
+        continuityMarks.push(
+          <g key={`cev-${event.key}`}>
+            <rect x={x - 4.5} y={y - 4.5} width={9} height={9} rx={2} fill="var(--bg)" stroke={colour} strokeWidth={1.6}><title>{tip}</title></rect>
+            <line x1={x - 2.4} y1={y - 2.4} x2={x + 2.4} y2={y + 2.4} stroke={colour} strokeWidth={1.4} />
+            <line x1={x - 2.4} y1={y + 2.4} x2={x + 2.4} y2={y - 2.4} stroke={colour} strokeWidth={1.4} />
+          </g>,
+        );
+      } else {
+        continuityMarks.push(
+          <circle key={`cev-${event.key}`} cx={x} cy={y} r={4.2} fill="var(--bg)" stroke={colour} strokeWidth={1.6}><title>{tip}</title></circle>,
+        );
+      }
+    });
+  });
+
   const isSelected = (entryId: string | null, chunkId: string) =>
     (entryId !== null && entryId === selectedEntryId) || chunkId === selectedChunkId;
 
@@ -298,7 +416,7 @@ export function TrailWorkspace({
   const rows = items.map((item, index) => {
     if (item.kind === "day") {
       return (
-        <div key={`day-${index}`} className="trail-day" style={{ paddingLeft: rowIndent(envelopeLane[index]) }}>
+        <div key={`day-${index}`} className="trail-day" style={{ "--indent": `${rowIndent(envelopeLane[index])}px` } as CSSProperties}>
           {item.label}
         </div>
       );
@@ -314,14 +432,15 @@ export function TrailWorkspace({
       <button
         key={`row-${node.id}`}
         type="button"
-        className={`trail-row${selected ? " selected" : ""}${matched ? " search-match" : ""}${miss ? " search-miss" : ""}`}
-        style={{ paddingLeft: rowIndent(envelopeLane[index]) }}
+        className={`trail-row${selected ? (selectionMuted ? " pinned" : " selected") : ""}${matched ? " search-match" : ""}${miss ? " search-miss" : ""}${chainPrimary.has(node.id) ? " chain-primary" : chainSecondary.has(node.id) ? " chain-secondary" : ""}${commitSiblings.has(node.id) ? " commit-sibling" : ""}`}
+        style={{ "--indent": `${rowIndent(envelopeLane[index])}px` } as CSSProperties}
         title={`${node.title}${branch ? ` · ${branch}` : ""}`}
         onClick={() => onSelectEntry(node.entry_id, node.chunk_id)}
       >
         <span className="trail-time">{time}</span>
         {matched && <span className="trail-match-dot" aria-hidden="true" />}
         <span className="trail-title">{stripTitleStamp(node.title)}</span>
+        {node.has_diagram && <span className="trail-diagram-badge" title="Has a decision diagram (open the entry to view)" aria-label="Has decision diagram">{"◇"}</span>}
         {showPill && (
           <span className="trail-branch" style={{ color: colorOf.get(branch) }}>
             {branch}
@@ -365,6 +484,13 @@ export function TrailWorkspace({
           )}
         </span>
         <span className="trail-legend" aria-label="Relationship legend">
+          {continuityLaneCount > 0 && (
+            <>
+              <span className="trail-legend-item"><span className="trail-cont-key" style={{ borderColor: "var(--accent)" }} />rename</span>
+              <span className="trail-legend-item"><span className="trail-cont-key trail-cont-key-diamond" style={{ borderColor: "var(--edge-evolves)" }} />migration</span>
+              <span className="trail-legend-item"><span className="trail-cont-key" style={{ borderColor: "var(--edge-supersedes)" }} />removal</span>
+            </>
+          )}
           <span className="trail-legend-item"><span className="trail-legend-line" style={{ borderColor: "var(--edge-supersedes)" }} />replaces</span>
           <span className="trail-legend-item"><span className="trail-legend-line" style={{ borderColor: "var(--edge-evolves)" }} />evolves · on select</span>
           <span className="trail-legend-item"><span className="trail-legend-line" style={{ borderColor: "var(--edge-related)" }} />related · on select</span>
@@ -403,6 +529,9 @@ export function TrailWorkspace({
               {laneSegments}
               {arcs}
             </g>
+            {continuityLaneCount > 0 && <rect className="trail-cont-zone" x={0} y={0} width={continuityZoneWidth - 4} height={height} rx={6} />}
+            {continuityMarks}
+            {evolvesBrackets}
             {dots}
             {mergeDots}
           </svg>

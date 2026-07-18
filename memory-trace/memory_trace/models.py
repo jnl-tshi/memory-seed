@@ -268,6 +268,10 @@ class GraphNode(BaseModel):
     connectivity: int
     importance_score: float
     provenance_class: ProvenanceClass = ProvenanceClass.authored_memory
+    # Whether the entry carries an authored Class-2 decision-diagram sidecar.
+    # The service has always computed this; declaring it stops the v1
+    # response_model from stripping it (additive, defaulted).
+    has_diagram: bool = False
 
 
 class GraphEdge(BaseModel):

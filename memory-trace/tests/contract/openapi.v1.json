@@ -785,6 +785,11 @@
             "title": "Granularity",
             "type": "string"
           },
+          "has_diagram": {
+            "default": false,
+            "title": "Has Diagram",
+            "type": "boolean"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -1740,6 +1745,11 @@
           "granularity": {
             "title": "Granularity",
             "type": "string"
+          },
+          "has_diagram": {
+            "default": false,
+            "title": "Has Diagram",
+            "type": "boolean"
           },
           "id": {
             "title": "Id",

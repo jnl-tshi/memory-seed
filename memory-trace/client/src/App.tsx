@@ -100,6 +100,7 @@ export default function App() {
   const [selected, setSelected] = useState<RendererGraphNode | null>(null);
   const [chunk, setChunk] = useState<ChunkResponse | null>(null);
   const [matchHint, setMatchHint] = useState<MatchHint | null>(null);
+  const [selectionMuted, setSelectionMuted] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
   const [dock, setDock] = useState<InspectorDock>(readDock);
   const [navWidth, setNavWidth] = useState(() => readPaneWidth("memory-trace:nav-width", NAV_WIDTH));
@@ -233,7 +234,17 @@ export default function App() {
     return () => { cancelled = true; };
   }, [selected]);
 
-  const select = useCallback((node: RendererGraphNode) => { setSelected(node); setSearch(null); setMatchHint(null); }, []);
+  // Two-stage selection: clicking the already-selected entry mutes the focus
+  // emphasis (pinned) without losing the selection; clicking again unmutes.
+  const select = useCallback((node: RendererGraphNode) => {
+    setSelected((prior) => {
+      if (prior?.id === node.id) { setSelectionMuted((muted) => !muted); return prior; }
+      setSelectionMuted(false);
+      return node;
+    });
+    setSearch(null);
+    setMatchHint(null);
+  }, []);
   const topics = useMemo(() => Object.entries(facets?.topics ?? {}).slice(0, 10), [facets]);
   const inspectorVisible = dock !== "hidden";
 
@@ -258,6 +269,7 @@ export default function App() {
   // keeps the Inspector's full metadata); otherwise pull the entry into the
   // graph via focusEntry so the Inspector can render it.
   function selectFromTrail(entryId: string | null, chunkId: string) {
+    if (entryId != null && selected?.source.entry_id === entryId) { setSelectionMuted((muted) => !muted); return; }
     const node = graph?.nodes.find((item) => (entryId != null && item.source.entry_id === entryId) || item.source.chunk_id === chunkId);
     if (node) { select(node); return; }
     if (entryId) void focusEntry(entryId);
@@ -376,7 +388,7 @@ export default function App() {
             {trailError && <div className="error-state" role="alert">{trailError}</div>}
             {trail ? (
               <Suspense fallback={<div className="loading-state">Loading trail</div>}>
-                <TrailWorkspace trail={trail} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={selected?.source.chunk_id ?? null} query={query} onSelectEntry={selectFromTrail} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
+                <TrailWorkspace trail={trail} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={selected?.source.chunk_id ?? null} query={query} selectionMuted={selectionMuted} commitSiblingIds={chunk?.commit_entry_ids ?? []} onSelectEntry={selectFromTrail} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
               </Suspense>
             ) : (
               <div className="loading-state">Loading trail</div>
