@@ -59,7 +59,7 @@ export type TrailModel = {
 
 const REL_LANE_SET = new Set<string>(TRAIL_REL_LANES);
 
-function trailStamp(node: TrailEvent): number {
+export function trailStamp(node: TrailEvent): number {
   return Date.parse(node.datetime || `${node.date}T00:00:00`) || 0;
 }
 

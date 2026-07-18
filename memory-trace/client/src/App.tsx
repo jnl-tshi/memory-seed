@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { GitBranch, LayoutPanelLeft, List, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, Sun, X } from "lucide-react";
+import { GitBranch, LayoutPanelLeft, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, Sun, X } from "lucide-react";
 import { api, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, searchQuery, trailQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse } from "./api";
 import { EntryReader } from "./EntryReader";
 import { stripTitleStamp, TRAIL_WINDOW_STEP } from "./trailModel";
@@ -9,7 +9,7 @@ const TrailWorkspace = lazy(() => import("./TrailWorkspace").then((module) => ({
 type MatchHint = { entryId: string; heading: string };
 type InspectorDock = "auto" | "right" | "bottom" | "hidden";
 type GraphScope = "overview" | "local";
-type GraphViewMode = "graph" | "list" | "trail";
+type GraphViewMode = "graph" | "trail";
 type LabelMode = "focus" | "minimal" | "all";
 type GraphRange = "recent" | "all";
 
@@ -293,6 +293,21 @@ export default function App() {
     return items;
   }, [selected?.source.entry_id, entryIndex, indexById, chunk]);
 
+  // Grouped by relationship for the panel: one header per kind, not a chip
+  // per row.
+  const contextGroups = useMemo<[string, ContextItem[]][]>(() => {
+    const order = ["related", "replaces", "evolves", "commit", "similar", "recent"];
+    const groups = new Map<string, ContextItem[]>();
+    contextItems.forEach((item) => groups.set(item.kind, [...(groups.get(item.kind) ?? []), item]));
+    return order.filter((kind) => groups.has(kind)).map((kind) => [kind, groups.get(kind)!]);
+  }, [contextItems]);
+
+  // Opening from the context panel selects the entry and, in Trail mode, the
+  // Trail scrolls to it (TrailWorkspace watches the selection).
+  async function openContextEntry(entryId: string) {
+    await focusEntry(entryId);
+  }
+
   const topics = useMemo(() => Object.entries(facets?.topics ?? {}).slice(0, 10), [facets]);
   const inspectorVisible = dock !== "hidden";
 
@@ -425,18 +440,18 @@ export default function App() {
         <div className="pane-heading"><LayoutPanelLeft size={16} aria-hidden="true" /> <span>Project</span></div>
         <dl className="metric-list"><div><dt>Entries</dt><dd>{runtime?.entry_count ?? "-"}</dd></div><div><dt>Chunks</dt><dd>{facets?.runtime.chunk_count ?? "-"}</dd></div></dl>
         <section className="navigation-section"><h2>Topics</h2><div className="topic-list"><button type="button" className={activeTopic === null ? "topic active" : "topic"} onClick={() => void chooseTopic(null)} aria-pressed={activeTopic === null}>All</button>{topics.map(([topic, count]) => <button type="button" className={activeTopic === topic ? "topic active" : "topic"} key={topic} onClick={() => void chooseTopic(topic)} aria-pressed={activeTopic === topic}>{topic}<b>{count}</b></button>)}</div></section>
-        <section className="navigation-section entry-list"><h2>{selected?.source.entry_id ? "Context" : "Recent"}</h2>{selected?.source.entry_id && <p className="context-subject" title={selected.label}>{stripTitleStamp(selected.label)}</p>}{contextItems.length ? contextItems.map((item) => <button key={item.key} type="button" className="entry" title={item.title} onClick={() => void focusEntry(item.entryId)}>{item.kind !== "recent" && <span className={`context-type context-type-${item.kind}`}>{item.kind}</span>}<span>{item.title}</span></button>) : <p className="context-empty">{selected?.source.entry_id ? "No linked context for this entry." : "Loading entries"}</p>}</section>
+        <section className="navigation-section entry-list"><h2>{selected?.source.entry_id ? "Context" : "Recent"}</h2>{selected?.source.entry_id && <p className="context-subject" title={selected.label}>{stripTitleStamp(selected.label)}</p>}{contextGroups.length ? contextGroups.map(([kind, group]) => <div key={kind} className="context-group">{kind !== "recent" && <h3 className={`context-group-h context-type-${kind}`}>{kind === "commit" ? "same commit" : kind}</h3>}{group.map((item) => <button key={item.key} type="button" className="entry" title={item.title} onClick={() => void openContextEntry(item.entryId)}><span>{item.title}</span></button>)}</div>) : <p className="context-empty">{selected?.source.entry_id ? "No linked context for this entry." : "Loading entries"}</p>}</section>
       </aside>}
 
       <main className="workspace" id="trace-workspace">
-        <div className="workspace-bar"><div><span className="eyebrow">{viewMode === "trail" ? "Trail" : "Graph workspace"}</span><h1>{viewMode === "trail" ? "Decision timeline" : "Relationship map"}</h1></div><div className="workspace-actions"><div className="segment-control" aria-label="Graph scope"><button type="button" aria-pressed={scope === "overview"} onClick={() => void changeScope("overview")}>Overview</button><button type="button" aria-pressed={scope === "local"} onClick={() => void changeScope("local")}>Local</button></div><div className="segment-control" aria-label="Graph date range"><button type="button" aria-pressed={range === "recent"} onClick={() => void changeRange("recent")}>Recent</button><button type="button" aria-pressed={range === "all"} onClick={() => void changeRange("all")}>All dates</button></div><div className="segment-control" aria-label="Graph presentation"><button type="button" aria-pressed={viewMode === "graph"} onClick={() => setViewMode("graph")}><Network size={14} aria-hidden="true" /><span>Graph</span></button><button type="button" aria-pressed={viewMode === "list"} onClick={() => setViewMode("list")}><List size={14} aria-hidden="true" /><span>List</span></button><button type="button" aria-pressed={viewMode === "trail"} onClick={() => setViewMode("trail")}><GitBranch size={14} aria-hidden="true" /><span>Trail</span></button></div><label className="label-menu"><span>Labels</span><select value={labelMode} onChange={(event) => setLabelMode(event.target.value as LabelMode)} aria-label="Graph labels"><option value="focus">Focus</option><option value="minimal">Minimal</option><option value="all">All</option></select></label><span className="status-pill">{viewMode === "trail" ? "Trail" : isLoading ? "Updating" : "Cytoscape.js"}</span></div></div>
+        <div className="workspace-bar"><div><span className="eyebrow">{viewMode === "trail" ? "Trail" : "Graph workspace"}</span><h1>{viewMode === "trail" ? "Decision timeline" : "Relationship map"}</h1></div><div className="workspace-actions"><div className="segment-control" aria-label="Graph scope"><button type="button" aria-pressed={scope === "overview"} onClick={() => void changeScope("overview")}>Overview</button><button type="button" aria-pressed={scope === "local"} onClick={() => void changeScope("local")}>Local</button></div><div className="segment-control" aria-label="Graph date range"><button type="button" aria-pressed={range === "recent"} onClick={() => void changeRange("recent")}>Recent</button><button type="button" aria-pressed={range === "all"} onClick={() => void changeRange("all")}>All dates</button></div><div className="segment-control" aria-label="Graph presentation"><button type="button" aria-pressed={viewMode === "graph"} onClick={() => setViewMode("graph")}><Network size={14} aria-hidden="true" /><span>Graph</span></button><button type="button" aria-pressed={viewMode === "trail"} onClick={() => setViewMode("trail")}><GitBranch size={14} aria-hidden="true" /><span>Trail</span></button></div><label className="label-menu"><span>Labels</span><select value={labelMode} onChange={(event) => setLabelMode(event.target.value as LabelMode)} aria-label="Graph labels"><option value="focus">Focus</option><option value="minimal">Minimal</option><option value="all">All</option></select></label><span className="status-pill">{viewMode === "trail" ? "Trail" : isLoading ? "Updating" : "Cytoscape.js"}</span></div></div>
         {viewMode !== "trail" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{DEFAULT_GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => void toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
         {viewMode === "trail" ? (
           <>
             {trailError && <div className="error-state" role="alert">{trailError}</div>}
             {trail ? (
               <Suspense fallback={<div className="loading-state">Loading trail</div>}>
-                <TrailWorkspace trail={trail} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={selected?.source.chunk_id ?? null} query={query} selectionMuted={selectionMuted} commitSiblingIds={chunk?.commit_entry_ids ?? []} onSelectEntry={selectFromTrail} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
+                <TrailWorkspace trail={trail} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={selected?.source.chunk_id ?? null} query={query} selectionMuted={selectionMuted} commitSiblingIds={chunk?.commit_entry_ids ?? []} onSelectEntry={selectFromTrail} onEnsureVisible={(count) => setTrailWindow((value) => Math.max(value, count))} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
               </Suspense>
             ) : (
               <div className="loading-state">Loading trail</div>
@@ -445,7 +460,7 @@ export default function App() {
         ) : (
           <>
             {error && <div className="error-state" role="alert">{error}</div>}
-            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} viewMode={viewMode === "list" ? "list" : "graph"} theme={theme} /></Suspense>}
+            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} theme={theme} /></Suspense>}
             {!graph && <div className="loading-state">Loading graph</div>}
           </>
         )}

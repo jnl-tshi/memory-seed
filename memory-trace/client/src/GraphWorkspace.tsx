@@ -8,7 +8,6 @@ type GraphWorkspaceProps = {
   selectedId: string | null;
   onSelect: (node: RendererGraphNode) => void;
   labelMode: "focus" | "minimal" | "all";
-  viewMode: "graph" | "list";
   theme: "light" | "dark";
 };
 
@@ -39,15 +38,6 @@ function labelIdsFor(graph: RendererGraphResponse, selectedId: string | null, la
   );
 }
 
-function groupedNodes(graph: RendererGraphResponse) {
-  const groups = new Map<string, RendererGraphNode[]>();
-  for (const node of graph.nodes) {
-    const key = `${node.community.label}\u0000${node.community.id}`;
-    groups.set(key, [...(groups.get(key) ?? []), node]);
-  }
-  return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right));
-}
-
 // Deterministic initial positions: nodes ordered by community then id, placed on
 // a circle. cose is a physics simulation — from a fixed starting arrangement it
 // settles to the same layout every time, so the map holds still across loads
@@ -65,7 +55,7 @@ function initialPositions(nodes: RendererGraphNode[]) {
   return positions;
 }
 
-export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, viewMode, theme }: GraphWorkspaceProps) {
+export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme }: GraphWorkspaceProps) {
   const container = useRef<HTMLDivElement>(null);
   const cytoscape = useRef<Core | null>(null);
   // Refs so the tap handler and selection effect never force an instance remount.
@@ -212,40 +202,21 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, viewMod
       layout.run();
     }
 
-    if (viewMode === "graph") void mount();
+    void mount();
     return () => {
       disposed = true;
       cytoscape.current?.destroy();
       cytoscape.current = null;
     };
-  }, [graph, renderedNodes, viewMode, theme]);
+  }, [graph, renderedNodes, theme]);
 
   // Presentation updates on selection/label changes: in place, no element
   // churn, no layout, no camera movement.
   useEffect(() => {
     const cy = cytoscape.current;
-    if (!cy || viewMode !== "graph") return;
+    if (!cy) return;
     applyPresentation(cy);
-  }, [labelIds, selectedId, viewMode, graph]);
-
-  if (viewMode === "list") {
-    return <section className="graph-list-view" aria-label="Memory graph list">
-      {groupedNodes(graph).map(([key, nodes]) => {
-        const [community] = key.split("\u0000");
-        return (
-          <section className="community-group" key={key}>
-            <h2>{community}</h2>
-            {nodes.map((node) => (
-              <button key={node.id} type="button" className={node.id === selectedId ? "graph-list-item selected" : "graph-list-item"} aria-pressed={node.id === selectedId} onClick={() => onSelect(node)}>
-                <span>{node.label}</span>
-                <small>{node.temporal.value} - {node.connectivity} links</small>
-              </button>
-            ))}
-          </section>
-        );
-      })}
-    </section>;
-  }
+  }, [labelIds, selectedId, graph]);
 
   return <section className="graph-workspace" aria-label="Memory graph workspace">
     <div className="graph-controls" aria-label="Graph view controls">

@@ -3,6 +3,7 @@ import { Settings2 } from "lucide-react";
 import type { TrailResponse, TrailEdge, TrailEvent } from "./api";
 import {
   buildTrailModel,
+  trailStamp,
   laneColorFamily,
   stripTitleStamp,
   TRAIL_CONT_LANE_W,
@@ -31,6 +32,7 @@ export function TrailWorkspace({
   query,
   selectionMuted,
   commitSiblingIds,
+  onEnsureVisible,
   onSelectEntry,
   onLoadMore,
 }: {
@@ -41,6 +43,7 @@ export function TrailWorkspace({
   query: string;
   selectionMuted: boolean;
   commitSiblingIds: string[];
+  onEnsureVisible: (count: number) => void;
   onSelectEntry: (entryId: string | null, chunkId: string) => void;
   onLoadMore: () => void;
 }) {
@@ -77,6 +80,23 @@ export function TrailWorkspace({
   useEffect(() => {
     (window as unknown as { memoryTraceNextDebug?: unknown }).memoryTraceNextDebug = { trailModel: model };
   }, [model]);
+
+  // Bring the selection into view: if the selected entry is older than the
+  // loaded window, grow the window to include it; once its row exists, scroll
+  // it to the centre of the pane.
+  useEffect(() => {
+    if (!selectedEntryId) return;
+    if (!model.rowOf.has(selectedEntryId)) {
+      const ordered = (trail.nodes || [])
+        .filter((node) => node.entry_id)
+        .sort((a, b) => trailStamp(b) - trailStamp(a) || String(a.id).localeCompare(String(b.id)));
+      const index = ordered.findIndex((node) => node.id === selectedEntryId);
+      if (index >= 0) onEnsureVisible(index + 1);
+      return;
+    }
+    const row = document.querySelector(`.trail-rows [data-entry="${selectedEntryId}"]`);
+    row?.scrollIntoView({ block: "center" });
+  }, [selectedEntryId, model, trail, onEnsureVisible]);
 
   if (!items.length) return <div className="loading-state">No entries with lineage data yet.</div>;
 
@@ -431,6 +451,7 @@ export function TrailWorkspace({
     return (
       <button
         key={`row-${node.id}`}
+        data-entry={node.entry_id || undefined}
         type="button"
         className={`trail-row${selected ? (selectionMuted ? " pinned" : " selected") : ""}${matched ? " search-match" : ""}${miss ? " search-miss" : ""}${chainPrimary.has(node.id) ? " chain-primary" : chainSecondary.has(node.id) ? " chain-secondary" : ""}${commitSiblings.has(node.id) ? " commit-sibling" : ""}`}
         style={{ "--indent": `${rowIndent(envelopeLane[index])}px` } as CSSProperties}
