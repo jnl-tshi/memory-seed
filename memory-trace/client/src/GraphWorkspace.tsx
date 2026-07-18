@@ -19,10 +19,6 @@ function colourForCommunity(node: RendererGraphNode) {
   return COMMUNITY_COLOURS[Math.abs(hash) % COMMUNITY_COLOURS.length];
 }
 
-function visibleEdges(graph: RendererGraphResponse, selectedId: string | null) {
-  return graph.edges.filter((edge) => edge.edge_type !== "evolves" || (selectedId !== null && (edge.source === selectedId || edge.target === selectedId)));
-}
-
 function labelIdsFor(graph: RendererGraphResponse, selectedId: string | null, labelMode: GraphWorkspaceProps["labelMode"]) {
   if (labelMode === "all") return new Set(graph.nodes.map((node) => node.id));
   if (labelMode === "minimal") return new Set(selectedId ? [selectedId] : []);
@@ -43,14 +39,63 @@ function groupedNodes(graph: RendererGraphResponse) {
   return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right));
 }
 
+// Deterministic initial positions: nodes ordered by community then id, placed on
+// a circle. cose is a physics simulation — from a fixed starting arrangement it
+// settles to the same layout every time, so the map holds still across loads
+// and reloads instead of scrambling.
+function initialPositions(nodes: RendererGraphNode[]) {
+  const ordered = [...nodes].sort(
+    (left, right) => left.community.id.localeCompare(right.community.id) || left.id.localeCompare(right.id),
+  );
+  const radius = Math.max(220, ordered.length * 14);
+  const positions = new Map<string, { x: number; y: number }>();
+  ordered.forEach((node, index) => {
+    const angle = (index / Math.max(1, ordered.length)) * Math.PI * 2;
+    positions.set(node.id, { x: Math.round(Math.cos(angle) * radius), y: Math.round(Math.sin(angle) * radius) });
+  });
+  return positions;
+}
+
 export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, viewMode }: GraphWorkspaceProps) {
   const container = useRef<HTMLDivElement>(null);
   const cytoscape = useRef<Core | null>(null);
-  const visible = useMemo(() => visibleEdges(graph, selectedId), [graph, selectedId]);
-  const renderedNodeIds = useMemo(() => new Set([...visible.flatMap((edge) => [edge.source, edge.target]), ...(selectedId ? [selectedId] : [])]), [selectedId, visible]);
-  const renderedNodes = useMemo(() => graph.nodes.filter((node) => renderedNodeIds.has(node.id)), [graph.nodes, renderedNodeIds]);
-  const renderedEdges = visible;
+  // Refs so the tap handler and selection effect never force an instance remount.
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
+  const graphRef = useRef(graph);
+  graphRef.current = graph;
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+  const labelIdsRef = useRef<Set<string>>(new Set());
+
+  // In-place presentation pass — selection ring, labels, evolves reveal. Reads
+  // current state from refs so both the mount (async) and the update effect can
+  // apply it without racing each other.
+  const applyPresentation = (cy: Core) => {
+    const currentSelected = selectedIdRef.current;
+    const currentLabels = labelIdsRef.current;
+    cy.batch(() => {
+      cy.nodes().forEach((node) => {
+        const id = node.id();
+        node.data("selected", id === currentSelected ? "yes" : "no");
+        node.data("label", id === currentSelected || currentLabels.has(id) ? node.data("title") : "");
+      });
+      cy.edges('[type = "evolves"]').forEach((edge) => {
+        const touched = currentSelected !== null && (edge.data("source") === currentSelected || edge.data("target") === currentSelected);
+        edge.toggleClass("hidden-until-selected", !touched);
+      });
+    });
+  };
+
+  // The rendered element set is SELECTION-INDEPENDENT: every node that carries
+  // any edge renders, always. Selecting must never add/remove elements or move
+  // the map — evolves edges reveal via style, not element churn.
+  const renderedNodes = useMemo(() => {
+    const connected = new Set(graph.edges.flatMap((edge) => [edge.source, edge.target]));
+    return graph.nodes.filter((node) => connected.has(node.id));
+  }, [graph]);
   const labelIds = useMemo(() => labelIdsFor(graph, selectedId, labelMode), [graph, labelMode, selectedId]);
+  labelIdsRef.current = labelIds;
 
   const fit = () => cytoscape.current?.fit(cytoscape.current.elements(), 52);
   const zoom = (factor: number) => {
@@ -66,27 +111,32 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, viewMod
     onSelect(ordered[(currentIndex + direction + ordered.length) % ordered.length]);
   };
 
+  // Mount ONCE per graph payload. Selection, label mode, and evolves visibility
+  // are applied in place by the effect below — never by rebuilding the instance,
+  // never by re-running layout. The map only moves when the data changes.
   useEffect(() => {
     let disposed = false;
 
     async function mount() {
       const { default: createCytoscape } = await import("cytoscape");
       if (disposed || !container.current) return;
+      const positions = initialPositions(renderedNodes);
       const cy = createCytoscape({
         container: container.current,
         elements: [
           ...renderedNodes.map((node) => ({
             data: {
               id: node.id,
-              label: node.id === selectedId || labelIds.has(node.id) ? node.label : "",
+              label: "",
               title: node.label,
               agent: node.source.agent,
-              selected: node.id === selectedId ? "yes" : "no",
+              selected: "no",
               colour: colourForCommunity(node),
               size: 22 + Math.min(18, node.connectivity * 3),
             },
+            position: positions.get(node.id),
           })),
-          ...renderedEdges.map((edge, index) => ({
+          ...graph.edges.map((edge, index) => ({
             data: { id: edge.id || `${edge.source}-${edge.target}-${index}`, source: edge.source, target: edge.target, type: edge.edge_type },
           })),
         ],
@@ -116,11 +166,13 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, viewMod
             selector: 'node[selected = "yes"]',
             style: { "border-color": "#ffe4a2", "border-width": 5, "overlay-color": "#efb345", "overlay-opacity": 0.26, "overlay-padding": 5 },
           },
-          { selector: "edge", style: { "curve-style": "unbundled-bezier", "control-point-distances": 38, "control-point-weights": 0.5, "line-color": "#7a9cba", "target-arrow-color": "#7a9cba", "target-arrow-shape": "triangle", "width": 2, "opacity": 0.85 } },
+          // Straight edges: curvature carried no information and read as noise.
+          { selector: "edge", style: { "curve-style": "straight", "line-color": "#7a9cba", "target-arrow-color": "#7a9cba", "target-arrow-shape": "triangle", "width": 2, "opacity": 0.85 } },
           { selector: 'edge[type = "related"]', style: { "line-color": "#74a6ce", "target-arrow-color": "#74a6ce" } },
           { selector: 'edge[type = "supersedes"]', style: { "line-style": "dashed", "line-color": "#e18494", "target-arrow-color": "#e18494" } },
           { selector: 'edge[type = "evolves"]', style: { "line-style": "dotted", "line-color": "#7cc6e8", "target-arrow-color": "#7cc6e8", "width": 2.5 } },
           { selector: 'edge[type = "topic"]', style: { "line-style": "dotted", "line-color": "#a88acc", "target-arrow-color": "#a88acc", "opacity": 0.58 } },
+          { selector: "edge.hidden-until-selected", style: { display: "none" } },
         ],
         layout: { name: "preset" },
         minZoom: 0.35,
@@ -128,11 +180,17 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, viewMod
         wheelSensitivity: 0.16,
       });
       cy.on("tap", "node", (event) => {
-        const node = graph.nodes.find((item) => item.id === event.target.id());
-        if (node) onSelect(node);
+        const node = graphRef.current.nodes.find((item) => item.id === event.target.id());
+        if (node) onSelectRef.current(node);
       });
       cytoscape.current = cy;
-      const layout = cy.layout({ name: "cose", animate: false, padding: 52, nodeRepulsion: () => 12_000, idealEdgeLength: () => 150, gravity: 0.3, numIter: 900 });
+      // Debug/parity surface (same pattern as the Trail's memoryTraceNextDebug
+      // harness): lets stability be asserted from outside — positions must not
+      // move on selection.
+      const debugHost = window as unknown as { memoryTraceNextDebug?: Record<string, unknown> };
+      debugHost.memoryTraceNextDebug = { ...(debugHost.memoryTraceNextDebug ?? {}), graphCy: cy };
+      applyPresentation(cy);
+      const layout = cy.layout({ name: "cose", animate: false, padding: 52, randomize: false, nodeRepulsion: () => 12_000, idealEdgeLength: () => 150, gravity: 0.3, numIter: 900 });
       layout.one("layoutstop", () => { if (!disposed) cy.fit(cy.elements(), 52); });
       layout.run();
     }
@@ -143,7 +201,15 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, viewMod
       cytoscape.current?.destroy();
       cytoscape.current = null;
     };
-  }, [graph, labelIds, onSelect, renderedEdges, renderedNodes, selectedId, viewMode]);
+  }, [graph, renderedNodes, viewMode]);
+
+  // Presentation updates on selection/label changes: in place, no element
+  // churn, no layout, no camera movement.
+  useEffect(() => {
+    const cy = cytoscape.current;
+    if (!cy || viewMode !== "graph") return;
+    applyPresentation(cy);
+  }, [labelIds, selectedId, viewMode, graph]);
 
   if (viewMode === "list") {
     return <section className="graph-list-view" aria-label="Memory graph list">
