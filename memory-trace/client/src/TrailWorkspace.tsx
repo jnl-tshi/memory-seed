@@ -545,8 +545,12 @@ export function TrailWorkspace({
                   stroke a slight, deterministic pen wobble — sketchy warmth without
                   losing legibility. Dots and text stay crisp (outside the group). */}
               <filter id="trail-rough" x="-4%" y="-1%" width="108%" height="102%">
-                <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves={2} seed={7} result="noise" />
-                <feDisplacementMap in="SourceGraphic" in2="noise" scale={7} xChannelSelector="R" yChannelSelector="G" />
+                {/* Single-octave, long-wave noise reads as a pen's drift rather
+                    than pixel jitter; the light blur anti-aliases the stepped
+                    edges displacement leaves behind. */}
+                <feTurbulence type="fractalNoise" baseFrequency="0.007" numOctaves={1} seed={7} result="noise" />
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale={7} xChannelSelector="R" yChannelSelector="G" result="displaced" />
+                <feGaussianBlur in="displaced" stdDeviation={0.4} />
               </filter>
               {(["supersedes", "evolves", "related"] as const).map((type) => (
                 <marker key={`m-${type}`} id={`trail-arrow-${type}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
