@@ -709,6 +709,57 @@ class TraceServiceTests(unittest.TestCase):
         self.assertEqual([node["entry_id"] for node in agent_graph["nodes"]], ["mse_graph"])
         self.assertEqual({node["entry_id"] for node in topic_graph["nodes"]}, {"mse_ui", "mse_graph"})
 
+    def test_graph_overview_slice_prefers_connected_subgraph(self):
+        # Regression: the all-dates overview (no entry_id, no date filter) used
+        # to truncate nodes in corpus order, so a limit smaller than the corpus
+        # kept the oldest - edgeless - entries and rendered a disconnected map.
+        self.write_session(
+            "2026-05-01.md",
+            "\n".join(
+                _entry(
+                    f"2026-05-01 0{index}:00 - Isolated note {index}",
+                    f"mse_iso{index}",
+                    "Standalone note without lifecycle links.",
+                    topics=[f"iso{index}"],
+                )
+                for index in range(1, 9)
+            ),
+        )
+        self.write_session(
+            "2026-06-05.md",
+            "\n".join(
+                _entry(
+                    f"2026-06-05 1{index}:00 - Cluster step {index}",
+                    f"mse_cluster{index}",
+                    "Connected lineage work.",
+                    related=[f"mse_cluster{index - 1}"] if index else None,
+                    topics=["cluster"],
+                )
+                for index in range(5)
+            ),
+        )
+        service = self.service()
+        edge_types = ("related", "supersedes", "evolves", "topic")
+
+        overview = service.graph(edge_types=edge_types, limit=6)
+        repeat = service.graph(edge_types=edge_types, limit=6)
+
+        node_ids = [node["id"] for node in overview["nodes"]]
+        self.assertEqual(len(node_ids), 6)
+        # The slice keeps the connected cluster instead of the oldest rows, so
+        # the intra-slice edge set is non-trivial on a corpus that has edges.
+        self.assertGreaterEqual(len(overview["edges"]), 4)
+        self.assertTrue({f"mse_cluster{index}" for index in range(5)}.issubset(set(node_ids)))
+        # Deterministic: the same request always selects the same slice.
+        self.assertEqual(node_ids, [node["id"] for node in repeat["nodes"]])
+        self.assertEqual(overview["edges"], repeat["edges"])
+
+        from memory_trace.graph_projection import project_trace_graph
+
+        projection = project_trace_graph(overview)
+        self.assertEqual(len(projection["nodes"]), 6)
+        self.assertEqual(len(projection["edges"]), len(overview["edges"]))
+
     def test_chunk_api_accepts_encoded_path_chunk_ids(self):
         self.write_session(
             "2026-06-05.md",

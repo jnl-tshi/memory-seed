@@ -18,7 +18,7 @@ from dataclasses import asdict, replace
 from datetime import date, datetime, time as datetime_time, timedelta
 from importlib import resources
 from pathlib import Path
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 # Memory Trace consumes the core control plane's public API only - it never
 # reimplements parsing, ranking, the graph-edge contract, or diagram-sidecar
@@ -951,9 +951,27 @@ class TraceService:
         importance = _importance_scores(entries, node_id=node_id, graph=graph)
         if entry_id and entry_id in by_id:
             visible_ids = _neighborhood(entry_id, edges, depth=max(depth, 1))
+            limited_ids = set(visible_ids[: _limit(limit, maximum=1000)])
         else:
+            # Overview (no focus entry): corpus order starts at the oldest
+            # entries, which largely predate lifecycle links and authored
+            # topics, so a positional cut used to yield an edgeless slice.
+            # Prefer a connected subgraph instead, expanding from high-degree
+            # seeds with newest-first tie-breaks.
             visible_ids = list(by_id)
-        limited_ids = set(visible_ids[: _limit(limit, maximum=1000)])
+            recency_rank = {
+                item_id: rank
+                for rank, (item_id, _chunk) in enumerate(
+                    sorted(
+                        by_id.items(),
+                        key=lambda item: (_chunk_datetime(item[1]), item[1].start_line),
+                        reverse=True,
+                    )
+                )
+            }
+            limited_ids = _overview_slice(
+                visible_ids, edges, limit=_limit(limit, maximum=1000), recency_rank=recency_rank
+            )
         inferred_main = self.cache.main_commit_entries()
         # Entry ids carrying an authored Class-2 decision-diagram sidecar, from
         # the per-generation derived bundle (a newly authored diagram bumps the
@@ -2052,6 +2070,55 @@ def _importance_scores(
         if source in node_ids:
             scores[source] = graph_node.importance_score
     return scores
+
+
+def _overview_slice(
+    candidate_ids: Sequence[str],
+    edges: Sequence[dict[str, str]],
+    *,
+    limit: int,
+    recency_rank: Mapping[str, int],
+) -> set[str]:
+    """Pick the overview node slice by connectivity instead of corpus order.
+
+    Greedy deterministic expansion: seed with the highest-degree node, then
+    repeatedly take the best-ranked node adjacent to the current selection,
+    starting a new component from the next-best seed only when the frontier is
+    exhausted. Ranking is (degree desc, newest first, node id), a total order,
+    so the same corpus and edge set always select the same slice. Isolated
+    nodes only enter once every reachable connected node is in.
+    """
+    if len(candidate_ids) <= limit:
+        return set(candidate_ids)
+    candidates = set(candidate_ids)
+    adjacency: dict[str, set[str]] = {item_id: set() for item_id in candidates}
+    for edge in edges:
+        source, target = edge["source"], edge["target"]
+        if source in candidates and target in candidates and source != target:
+            adjacency[source].add(target)
+            adjacency[target].add(source)
+
+    def rank(item_id: str) -> tuple[int, int, str]:
+        return (-len(adjacency[item_id]), recency_rank.get(item_id, 0), item_id)
+
+    seeds = sorted(candidates, key=rank)
+    seed_index = 0
+    selected: set[str] = set()
+    frontier: set[str] = set()
+    while len(selected) < limit:
+        if frontier:
+            item_id = min(frontier, key=rank)
+            frontier.remove(item_id)
+        else:
+            while seed_index < len(seeds) and seeds[seed_index] in selected:
+                seed_index += 1
+            if seed_index >= len(seeds):
+                break
+            item_id = seeds[seed_index]
+            seed_index += 1
+        selected.add(item_id)
+        frontier |= adjacency[item_id] - selected
+    return selected
 
 
 def _neighborhood(entry_id: str, edges: Sequence[dict[str, str]], *, depth: int) -> list[str]:
