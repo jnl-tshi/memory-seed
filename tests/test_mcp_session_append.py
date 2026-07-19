@@ -183,9 +183,12 @@ class McpWriteSurfaceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 call_tool(name, {"cwd": ".", "entry_id": "x", "title": "t", "user_initials": "J", "agent_type": "c"})
 
-    def test_append_is_the_only_tool_that_declares_a_write(self):
-        writers = [tool["name"] for tool in TOOLS if "dry_run" in tool["inputSchema"]["properties"]]
-        self.assertEqual(writers, ["memory_session_append"])
+    def test_exactly_two_tools_can_write(self):
+        # Pins the write surface: authoring an entry, and integrating a branch.
+        # Anything else gaining a dry_run flag means a tool grew a write path
+        # that this change did not sanction.
+        writers = sorted(tool["name"] for tool in TOOLS if "dry_run" in tool["inputSchema"]["properties"])
+        self.assertEqual(writers, ["memory_session_append", "memory_session_integrate"])
 
 
 if __name__ == "__main__":

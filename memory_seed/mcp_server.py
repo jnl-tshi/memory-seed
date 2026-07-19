@@ -9,6 +9,7 @@ from typing import Any
 
 from .core import (
     MEMORY_DIR_NAME,
+    _git_text,
     branch_status,
     commit_reference_ids,
     resolve_runtime,
@@ -276,6 +277,26 @@ TOOLS: list[dict[str, Any]] = [
             "required": ["title", "body", "user_initials", "agent_type"],
         },
     },
+    {
+        "name": "memory_session_integrate",
+        "description": (
+            "Merge a task branch and fuse its branch-local session memory in one step, so branch entries land in "
+            "chronological order on the trunk instead of wherever a raw line-merge puts them. Fails closed: any session "
+            "problem (modified existing entry, missing entry_id, duplicate ids) aborts before the git merge starts, and "
+            "a conflict outside session files aborts the merge and restores a clean tree rather than leaving one "
+            "half-merged. Refused when the project's integration_mode is 'pr', because that path pushes and opens a "
+            "pull request. Set dry_run to see the plan without merging."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "default": "."},
+                "branch": {"type": "string", "description": "Task branch to merge and fuse."},
+                "dry_run": {"type": "boolean", "default": False, "description": "Report the fuse plan without merging or writing."},
+            },
+            "required": ["branch"],
+        },
+    },
 ]
 
 
@@ -484,6 +505,56 @@ def call_tool(
                 for issue in result.issues
             ],
             "write_surface": "Read-only. Use CLI/project file edits with user approval to change topics.yaml.",
+        }
+
+    if name == "memory_session_integrate":
+        from .core import read_integration_mode, session_merge_branch
+
+        cwd = Path(str(args.get("cwd", "."))).resolve()
+        runtime = resolve_runtime(cwd)
+        root = runtime.workspace_root
+        branch = _required_str(args, "branch")
+        dry_run = bool(args.get("dry_run", False))
+
+        # PR mode pushes and opens a pull request - outward-facing actions that
+        # should not happen unattended. Hand the operator the command instead.
+        mode = read_integration_mode(root)
+        if mode == "pr":
+            return {
+                "ok": False,
+                "committed": False,
+                "integration_mode": mode,
+                "issues": ["project integration_mode is 'pr'; opening a pull request pushes and is not run unattended"],
+                "cli_command": f"memory-seed session integrate --branch {branch}",
+            }
+
+        result = session_merge_branch(root, branch=branch, dry_run=dry_run)
+
+        # session_merge_branch deliberately parks a non-session conflict for a
+        # human to resolve. An autonomous caller cannot resolve one and must not
+        # walk away from a half-merged tree, so abort back to a clean state and
+        # report - the branch is untouched and the operator can retry by hand.
+        aborted = False
+        if result.merge_in_progress:
+            abort_code, abort_out = _git_text(root, ("merge", "--abort"))
+            aborted = abort_code == 0
+            if not aborted:
+                result.issues.append(f"merge left in progress and could not be aborted: {abort_out or '(no output)'}")
+
+        return {
+            "ok": result.committed or (dry_run and not result.issues),
+            "committed": result.committed,
+            "integration_mode": mode,
+            "dry_run": dry_run,
+            "planned_entries": result.planned_entries,
+            "planned_sidecars": result.planned_sidecars,
+            "removed_sources": result.removed_sources,
+            "already_present": result.already_present,
+            "stamped_entries": result.stamped_entries,
+            "conflicts": result.conflicts,
+            "merge_aborted": aborted,
+            "merge_in_progress": result.merge_in_progress and not aborted,
+            "issues": result.issues,
         }
 
     if name == "memory_session_append":
