@@ -289,6 +289,73 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(result.ok)
         self.assertEqual(result.issues, [])
 
+    def test_future_timestamp_advisory_warns_but_never_errors(self):
+        from memory_seed.core import check_session_links
+
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        future = (
+            "## 2126-01-01 09:00 - Stamped a century ahead\n\n"
+            "```yaml\nentry_id: ms-aaaaaaaa\n```\n\n"
+            "### Decision\n\n- D: a\n- R: r\n"
+        )
+        (sessions / "2126-01-01.md").write_text(future, encoding="utf-8")
+
+        result = check_session_links(cwd=cwd)
+
+        # A drifted stamp is a smell, never an integrity failure: historical
+        # corpora may contain known drifted-but-published entries and
+        # append-only forbids restamping them.
+        self.assertTrue(result.ok)
+        self.assertEqual([i.severity for i in result.issues], ["warning"])
+        self.assertEqual(result.issues[0].kind, "entry-future-timestamp")
+        self.assertIn("ms-aaaaaaaa", result.issues[0].detail)
+        self.assertIn("2126-01-01 09:00", result.issues[0].detail)
+
+    def test_future_timestamp_advisory_grace_window_and_past_are_quiet(self):
+        from datetime import datetime, timedelta
+
+        from memory_seed.core import check_entry_timestamp_advisories
+
+        now = datetime(2026, 7, 18, 22, 0)
+
+        def text_at(stamp):
+            return (
+                f"## {stamp:%Y-%m-%d %H:%M} - Entry\n\n"
+                "```yaml\nentry_id: mse_aaaaaaaaaaaaaaaa\n```\n\n"
+                "### Summary\n\n- a note\n"
+            )
+
+        # Past and present stamps are the normal case.
+        self.assertEqual(check_entry_timestamp_advisories(text_at(now - timedelta(hours=2)), now=now), [])
+        self.assertEqual(check_entry_timestamp_advisories(text_at(now), now=now), [])
+        # Inside (and exactly at) the clock-skew grace window: quiet.
+        self.assertEqual(check_entry_timestamp_advisories(text_at(now + timedelta(minutes=10)), now=now), [])
+        # Beyond the grace window: flagged, attributed to the entry id.
+        flagged = check_entry_timestamp_advisories(text_at(now + timedelta(minutes=11)), now=now)
+        self.assertEqual(len(flagged), 1)
+        self.assertEqual(flagged[0][0], "mse_aaaaaaaaaaaaaaaa")
+        self.assertIn("in the future", flagged[0][1])
+
+    def test_future_timestamp_advisory_flags_only_the_drifted_entry(self):
+        from datetime import datetime, timedelta
+
+        from memory_seed.core import check_entry_timestamp_advisories
+
+        now = datetime(2026, 7, 18, 22, 0)
+        future = now + timedelta(hours=2)
+        text = (
+            "## 2026-07-18 09:00 - Fine\n\n```yaml\nentry_id: ms-aaaaaaaa\n```\n\n"
+            "### Summary\n\n- ok\n\n"
+            f"## {future:%Y-%m-%d %H:%M} - Drifted\n\n```yaml\nentry_id: ms-bbbbbbbb\n```\n\n"
+            "### Summary\n\n- stamped ahead\n"
+        )
+
+        flagged = check_entry_timestamp_advisories(text, now=now)
+
+        self.assertEqual([entry_id for entry_id, _ in flagged], ["ms-bbbbbbbb"])
+
     def test_decision_density_never_blocks_session_append(self):
         from memory_seed.core import entry_body_advisories, entry_body_format_issues
 
