@@ -72,6 +72,7 @@ function renderMarkdown(text: string, highlight: string | null): ReactNode[] {
   let code: string[] = [];
   let inMatch = false;
   let key = 0;
+  let draft: string | null = null;
   for (const line of lines) {
     if (line.trim().startsWith("```")) {
       if (inCode) {
@@ -92,16 +93,47 @@ function renderMarkdown(text: string, highlight: string | null): ReactNode[] {
     const heading = line.match(/^(#{3,6})\s+(.+)/);
     if (heading) {
       inMatch = highlight != null && heading[2].trim() === highlight;
+      draft = null;
       out.push(
         <h4 key={key++} className={inMatch ? "match-highlight" : undefined}>
           {heading[2]}
         </h4>,
       );
-    } else if (line.trim().startsWith("- ")) {
+      continue;
+    }
+    const draftBullet = line.trim().match(DRAFT_BULLET);
+    if (draftBullet) {
+      draft = draftBullet[1];
+      const body = draftBullet[2].trim();
+      // "Decision" is already the heading above; labelling it again is noise.
+      if (draft !== "D") {
+        out.push(<h5 key={key++} className={`draft-label draft-${draft.toLowerCase()}`}>{DRAFT_LABELS[draft]}</h5>);
+      }
+      if (!body) continue;
+      if (draft === "F") {
+        const files = fileTokens(body);
+        out.push(files.length
+          ? <div key={key++} className="file-pills">{files.map((file) => <span key={file} className="file-pill" title={file}>{file}</span>)}</div>
+          : <p key={key++} className="draft-body">{inline(body)}</p>);
+      } else {
+        out.push(<p key={key++} className={`draft-body${inMatch ? " match-highlight-body" : ""}`}>{inline(body)}</p>);
+      }
+      continue;
+    }
+    if (line.trim().startsWith("- ")) {
+      const body = line.trim().slice(2);
+      // Sub-bullets belong to the DRAFT block they sit under.
+      if (draft === "F") {
+        const files = fileTokens(body);
+        if (files.length) {
+          out.push(<div key={key++} className="file-pills">{files.map((file) => <span key={file} className="file-pill" title={file}>{file}</span>)}</div>);
+          continue;
+        }
+      }
       out.push(
-        <p key={key++} className={inMatch ? "match-highlight-body" : undefined}>
+        <p key={key++} className={`${draft ? "draft-body " : ""}${inMatch ? "match-highlight-body" : ""}`.trim() || undefined}>
           {"• "}
-          {inline(line.trim().slice(2))}
+          {inline(body)}
         </p>,
       );
     } else if (line.trim()) {
@@ -113,6 +145,27 @@ function renderMarkdown(text: string, highlight: string | null): ReactNode[] {
     }
   }
   return out;
+}
+
+// DRAFT is the entry grammar: Decision, Reason, Alternatives, Files, Tests.
+// Stored as terse "- D:" / "- R:" bullets, which is compact to author and
+// unreadable to scan — so the reader spells them out. D carries no label of its
+// own: the "Decision" heading above it already names it.
+const DRAFT_LABELS: Record<string, string> = { D: "Decision", R: "Reason", A: "Alternatives", F: "Files", T: "Tests" };
+const DRAFT_BULLET = /^-\s*([DRAFT]):\s*(.*)$/;
+
+/**
+ * File references out of an F block. Entries write them as backticked paths,
+ * usually comma-separated and sometimes annotated ("(new)"); fall back to
+ * comma splitting so an unbackticked list still yields pills.
+ */
+function fileTokens(text: string): string[] {
+  const backticked = [...text.matchAll(/`([^`]+)`/g)].map((match) => match[1].trim()).filter(Boolean);
+  if (backticked.length) return backticked;
+  return text
+    .split(/,\s+/)
+    .map((token) => token.trim().replace(/[.,;]$/, ""))
+    .filter((token) => token.length > 1 && /[/\\]|\.\w{1,5}$/.test(token));
 }
 
 function lineRangeLabel(range: number[]): string {

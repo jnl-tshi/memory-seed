@@ -25,6 +25,8 @@ export type HandDrawnOptions = {
   lockZone?: number;
   /** Catmull-Rom tangent scale: lower is tighter to the control polygon. */
   tension?: number;
+  /** Distance between width samples along a pressure ribbon, in px. */
+  ribbonStep?: number;
 };
 
 export const HAND_DRAWN_DEFAULTS: Required<HandDrawnOptions> = {
@@ -32,6 +34,9 @@ export const HAND_DRAWN_DEFAULTS: Required<HandDrawnOptions> = {
   spacing: 65,
   lockZone: 18,
   tension: 0.45,
+  // Much finer than `spacing`: drift wants long wavelengths, but pressure has
+  // to register on a 30px lane segment too, and that needs samples along it.
+  ribbonStep: 16,
 };
 
 /** FNV-1a. Stable across runs and platforms — unlike String.hashCode idioms. */
@@ -180,6 +185,43 @@ export function runBody(
 }
 
 /**
+ * Walk a polyline and emit a point roughly every `step`, always keeping the
+ * exact first and last. Corners are preserved: original vertices are kept, so a
+ * fork elbow stays an elbow.
+ */
+export function resample(points: Point[], step: number): Point[] {
+  if (points.length < 2 || !(step > 0)) return points.slice();
+  const out: Point[] = [points[0]];
+  for (let i = 1; i < points.length; i += 1) {
+    const from = points[i - 1];
+    const to = points[i];
+    const span = Math.hypot(to.x - from.x, to.y - from.y);
+    const cuts = Math.floor(span / step);
+    for (let c = 1; c <= cuts; c += 1) {
+      const t = (c * step) / span;
+      if (t >= 1) break;
+      out.push({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t });
+    }
+    out.push(to);
+  }
+  return out;
+}
+
+/** Points along a quadratic Bezier — used to flatten fork/merge elbows. */
+export function sampleQuadratic(from: Point, control: Point, to: Point, steps = 8): Point[] {
+  const out: Point[] = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const t = i / steps;
+    const inverse = 1 - t;
+    out.push({
+      x: inverse * inverse * from.x + 2 * inverse * t * control.x + t * t * to.x,
+      y: inverse * inverse * from.y + 2 * inverse * t * control.y + t * t * to.y,
+    });
+  }
+  return out;
+}
+
+/**
  * A closed, variable-width outline around a centerline — the "pressure" of a
  * real pen, which a constant `stroke-width` cannot express.
  *
@@ -193,14 +235,20 @@ export function runBody(
  * an ordinary stroke, which also keeps the round caps that short runs want.
  */
 export function ribbonEdges(
-  points: Point[],
+  rawPoints: Point[],
   baseWidth: number,
   variation: number,
   seedKey: string,
   options: HandDrawnOptions = {},
 ): { left: Point[]; right: Point[]; half: number[] } | null {
-  const { spacing, lockZone } = { ...HAND_DRAWN_DEFAULTS, ...options };
-  if (points.length < 3 || !(baseWidth > 0) || !(variation > 0)) return null;
+  const { spacing, lockZone, ribbonStep } = { ...HAND_DRAWN_DEFAULTS, ...options };
+  if (rawPoints.length < 2 || !(baseWidth > 0) || !(variation > 0)) return null;
+
+  // Resample along the centerline so width can vary even where the drift only
+  // needed two control points — a short lane segment is straight, but a real
+  // pen still varies its pressure across it.
+  const points = resample(rawPoints, ribbonStep);
+  if (points.length < 3) return null;
 
   const distances = [0];
   for (let i = 1; i < points.length; i += 1) {
@@ -212,9 +260,12 @@ export function ribbonEdges(
   // A separate seed from the drift: pen pressure and pen drift are unrelated,
   // and sharing a wave would make every stroke thickest exactly where it bends.
   const wave = driftWave(`${seedKey}:pressure`, spacing);
+  // On a short run a full-size lock zone would taper the whole stroke back to
+  // base width, flattening the pressure away entirely.
+  const taperZone = Math.min(lockZone, length * 0.25);
   const half = points.map((_, index) => {
     const distance = distances[index];
-    const swing = variation * wave(distance) * endpointTaper(distance, length, lockZone);
+    const swing = variation * wave(distance) * endpointTaper(distance, length, taperZone);
     return (baseWidth / 2) * (1 + swing);
   });
 

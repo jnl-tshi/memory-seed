@@ -204,10 +204,34 @@ test("the ribbon leaves the centerline untouched", () => {
   assert.deepEqual(after, before);
 });
 
-test("short or flat runs decline the ribbon so the caller strokes instead", () => {
-  assert.equal(pressurePath(100, 15, 100, 45, "main:lane", BASE_WIDTH, 0.35), "", "a single row gap is too short");
+test("even a single row gap carries pressure", () => {
+  // The whole rail must read as hand-sketched, not just its long runs: a 30px
+  // lane segment is resampled so width can still vary across it.
+  const short = pressurePath(100, 15, 100, 45, "main:lane", BASE_WIDTH, 0.35);
+  assert.ok(short.startsWith("M ") && short.trimEnd().endsWith("Z"), "a row gap should still be a ribbon");
+  const points = handDrawnPoints(100, 15, 100, 45, "main:lane");
+  const widths = halfWidths(points, BASE_WIDTH, 0.35, "main:lane");
+  assert.ok(Math.max(...widths) - Math.min(...widths) > 0.01, "short runs must still vary in width");
+});
+
+test("degenerate or disabled runs decline the ribbon so the caller strokes instead", () => {
+  assert.equal(pressurePath(100, 15, 100, 21, "main:lane", BASE_WIDTH, 0.35), "", "below one sample step");
   assert.equal(ribbon("main:lane", 0), "", "zero variation means no ribbon");
   assert.equal(pressurePath(100, 15, 100, 615, "main:lane", 0, 0.35), "", "zero width means no ribbon");
+});
+
+test("the ribbon stays centred on the run's exact endpoints", () => {
+  // The two edges rotate with the stroke direction, so an end CAP need not be
+  // axis-aligned — but its midpoint must still be the anchor the dots use.
+  for (const [x1, y1, x2, y2] of [[100, 15, 100, 45], [100, 0, 100, 1200]]) {
+    const edges = ribbonEdges(handDrawnPoints(x1, y1, x2, y2, "main:lane"), BASE_WIDTH, 0.35, "main:lane");
+    assert.ok(edges);
+    const last = edges.left.length - 1;
+    const startMid = { x: (edges.left[0].x + edges.right[0].x) / 2, y: (edges.left[0].y + edges.right[0].y) / 2 };
+    const endMid = { x: (edges.left[last].x + edges.right[last].x) / 2, y: (edges.left[last].y + edges.right[last].y) / 2 };
+    assert.ok(Math.hypot(startMid.x - x1, startMid.y - y1) < 1e-6, "start must stay on the anchor");
+    assert.ok(Math.hypot(endMid.x - x2, endMid.y - y2) < 1e-6, "end must stay on the anchor");
+  }
 });
 
 test("pressure never applies to Slick geometry", () => {

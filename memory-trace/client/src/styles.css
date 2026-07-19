@@ -140,6 +140,17 @@ button { font: inherit; }
 .graph-workspace { position: relative; min-width: 0; min-height: 0; }.graph-controls { position: absolute; z-index: 2; top: 12px; right: 14px; display: flex; gap: 5px; }.graph-canvas { outline: none; }.graph-canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }.graph-list-view { min-height: 0; overflow: auto; padding: 16px 18px 28px; background: var(--bg); }.community-group { margin: 0 0 22px; }.community-group h2 { margin: 0 0 8px; color: var(--accent-bright); font-size: 12px; font-weight: 700; }.graph-list-item { width: 100%; display: grid; gap: 3px; margin-top: 4px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); text-align: left; cursor: pointer; }.graph-list-item:hover, .graph-list-item:focus-visible, .graph-list-item.selected { border-color: var(--accent-strong); background: var(--selected-bg); outline: 0; }.graph-list-item span, .graph-list-item small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.graph-list-item small { color: var(--muted); font-size: 11px; }
 
 .reader { display: grid; gap: 18px; }.reader-empty, .reader-note { margin: 0; color: var(--muted); font-size: 13px; }.reader-note { padding-top: 4px; border-top: 1px dashed var(--border); }
+/* DRAFT grammar in the reader: terse "- R:" bullets become named subheadings,
+   and the Files block becomes one pill per path. */
+.draft-label { margin: 12px 0 3px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.draft-label::before { content: ""; display: inline-block; width: 12px; margin-right: 6px; border-top: 2px solid currentColor; vertical-align: middle; }
+.draft-r { color: var(--edge-evolves); }
+.draft-a { color: var(--edge-supersedes); }
+.draft-f { color: var(--accent); }
+.draft-t { color: var(--edge-related); }
+.markdown p.draft-body { margin: 0 0 6px; }
+.file-pills { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
+.file-pill { max-width: 100%; overflow: hidden; border: 1px solid var(--border-2); border-radius: 3px; background: var(--code-bg); color: var(--text-2); padding: 2px 6px; font-family: ui-monospace, Consolas, monospace; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .chip-list { display: flex; flex-wrap: wrap; gap: 5px; }.chip { border: 1px solid var(--border-2); border-radius: 3px; background: var(--chip); color: var(--text-3); padding: 2px 7px; font-size: 11px; }
 .markdown { display: grid; gap: 9px; overflow-wrap: anywhere; }.markdown h4 { margin: 8px 0 0; color: var(--accent-bright); font-size: 13px; font-weight: 700; }.markdown p { margin: 0; }.markdown code { border-radius: 3px; background: var(--code-bg); padding: 1px 4px; font-size: 12px; }.markdown pre { margin: 0; overflow: auto; border: 1px solid var(--border); border-radius: 4px; background: var(--code-bg); padding: 10px; }.markdown pre code { padding: 0; background: none; }
 .markdown .match-highlight { padding: 3px 6px; border-left: 2px solid var(--accent-strong); background: var(--match-bg); color: var(--match-text); border-radius: 0 3px 3px 0; }.markdown .match-highlight-body { padding: 0 6px; border-left: 2px solid var(--match-border); }
@@ -194,5 +205,6 @@ button { font: inherit; }
 .wt-sub { color: var(--muted); font-size: 12px; font-style: italic; }
 @media (prefers-reduced-motion: reduce) { .wt-train, .wt-track-lit { transition: none; } .wt-train-halo { animation: none; } }
 @media (max-width: 1080px) { .project-summary { display: none; }.trace-search-wrap { max-width: none; }.workspace-bar { align-items: flex-start; }.workspace-actions { max-width: 72%; } }
-@media (max-width: 860px) { .topbar { gap: 10px; padding: 0 10px; }.trace-search-wrap { flex-basis: auto; }.brand small { display: none; }.workspace-bar { min-height: auto; align-items: flex-start; padding: 12px; }.workspace-actions { max-width: none; justify-content: flex-start; }.graph-filter-bar { padding: 6px 12px; }.error-state { top: 150px; right: 12px; left: 12px; }.graph-list-view { padding: 12px; } }
+@media (max-width: 860px) { .topbar { gap: 10px; padding: 0 10px; }.trace-search-wrap { flex-basis: auto; }.view-switch { flex: none; margin-left: auto; }
+@media (max-width: 700px) { .view-switch span { display: none; } }.workspace-bar { min-height: auto; align-items: flex-start; padding: 12px; }.workspace-actions { max-width: none; justify-content: flex-start; }.graph-filter-bar { padding: 6px 12px; }.error-state { top: 150px; right: 12px; left: 12px; }.graph-list-view { padding: 12px; } }
 @media (max-width: 580px) { .trace-search-wrap { min-width: 0; }.trace-search input { font-size: 12px; }.topbar-actions { gap: 3px; }.workspace-actions { gap: 5px; }.label-menu span { display: none; }.segment-control button { padding: 4px 6px; }.graph-filter-bar { gap: 4px; }.edge-filter { padding: 4px 6px; } }

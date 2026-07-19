@@ -15,7 +15,7 @@ import {
   TRAIL_REL_ZONE,
   TRAIL_ROW,
 } from "./trailModel";
-import { elbowTo, moveTo, pressurePath, runBody, runPath } from "./trailPath";
+import { elbowTo, handDrawnPoints, moveTo, pressurePath, ribbonPath, runBody, runPath, sampleQuadratic } from "./trailPath";
 import { animateScrollTo, bandScrollTarget, scrollDurationFor } from "./trailScroll";
 
 const CONTINUITY_COLOR: Record<string, string> = { rename: "var(--accent)", migration: "var(--edge-evolves)", removal: "var(--edge-supersedes)" };
@@ -62,14 +62,16 @@ export function TrailWorkspace({
   const [settings, setSettings] = useState<TrailSettings>(() => {
     try {
       const stored = JSON.parse(localStorage.getItem("memory-trace:trail-settings") || "{}");
+      // Defaults are JNL's chosen combination: Thick + Drawn, wobble 1.60,
+      // pressure 0.30.
       return {
-        thickness: stored.thickness === "thick" ? "thick" : "fine",
+        thickness: stored.thickness === "fine" ? "fine" : "thick",
         style: stored.style === "slick" ? "slick" : "hand",
-        wobble: clampDial(stored.wobble, 0.9, 3),
-        pressure: clampDial(stored.pressure, 0.35, 1),
+        wobble: clampDial(stored.wobble, 1.6, 3),
+        pressure: clampDial(stored.pressure, 0.3, 1),
       };
     } catch {
-      return { thickness: "fine", style: "hand", wobble: 0.9, pressure: 0.35 };
+      return { thickness: "thick", style: "hand", wobble: 1.6, pressure: 0.3 };
     }
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -218,6 +220,16 @@ export function TrailWorkspace({
     return <path key={key} d={runPath(x1, y1, x2, y2, seedKey, handDrawn)} fill="none" stroke={colour} strokeWidth={strokeW} strokeOpacity={0.55} strokeLinecap="round" strokeLinejoin="round" {...extra} />;
   };
 
+  // Connectors carry pressure too, otherwise fork/merge runs read as machine
+  // strokes next to hand-drawn lanes and the sketch illusion breaks. The elbow
+  // is flattened into the same polyline so the ribbon turns the corner with it.
+  const connectorRibbon = (points: { x: number; y: number }[], seedKey: string) =>
+    pressure > 0 ? ribbonPath(points, strokeW, pressure, seedKey) : "";
+  const connectorProps = (ribbon: string, d: string, colour: string | undefined) =>
+    ribbon
+      ? ({ d: ribbon, fill: colour, fillOpacity: 0.55 } as const)
+      : ({ d, fill: "none", stroke: colour, strokeWidth: strokeW, strokeOpacity: 0.55, strokeLinecap: "round", strokeLinejoin: "round" } as const);
+
   const laneSegments: ReactElement[] = [];
   branchRows.forEach((rows, branch) => {
     if (branch === "" || rows.length < 2) return;
@@ -266,8 +278,16 @@ export function TrailWorkspace({
         runBody(mx, yf, bx - r, yf, `${branch}:fork-leg`, handDrawn) +
         elbowTo(bx, yf, bx, yf - r) +
         runBody(bx, yf - r, bx, yb, `${branch}:fork`, handDrawn);
+      const ribbon = connectorRibbon(
+        [
+          ...handDrawnPoints(mx, yf, bx - r, yf, `${branch}:fork-leg`),
+          ...sampleQuadratic({ x: bx - r, y: yf }, { x: bx, y: yf }, { x: bx, y: yf - r }).slice(1),
+          ...handDrawnPoints(bx, yf - r, bx, yb, `${branch}:fork`).slice(1),
+        ],
+        `${branch}:fork`,
+      );
       connectors.push(
-        <path key={`fork-${branch}`} className="trail-link" d={d} fill="none" stroke={stroke} strokeWidth={strokeW} strokeOpacity={0.55} strokeLinecap="round" strokeLinejoin="round">
+        <path key={`fork-${branch}`} className="trail-link" {...connectorProps(ribbon, d, stroke)}>
           <title>{`${branch} · ${forkLabel ? `forked after ${forkLabel}` : estimated ? "fork point estimated" : "fork point"}`}</title>
         </path>,
       );
@@ -280,8 +300,16 @@ export function TrailWorkspace({
         runBody(bx, yb, bx, ym + r, `${branch}:merge`, handDrawn) +
         elbowTo(bx, ym, bx - r, ym) +
         runBody(bx - r, ym, mx, ym, `${branch}:merge-leg`, handDrawn);
+      const ribbon = connectorRibbon(
+        [
+          ...handDrawnPoints(bx, yb, bx, ym + r, `${branch}:merge`),
+          ...sampleQuadratic({ x: bx, y: ym + r }, { x: bx, y: ym }, { x: bx - r, y: ym }).slice(1),
+          ...handDrawnPoints(bx - r, ym, mx, ym, `${branch}:merge-leg`).slice(1),
+        ],
+        `${branch}:merge`,
+      );
       connectors.push(
-        <path key={`merge-${branch}`} className="trail-link" d={d} fill="none" stroke={stroke} strokeWidth={strokeW} strokeOpacity={0.55} strokeLinecap="round" strokeLinejoin="round">
+        <path key={`merge-${branch}`} className="trail-link" {...connectorProps(ribbon, d, stroke)}>
           <title>{`${branch} · ${mergeLabel ? `merged by ${mergeLabel}` : estimated ? "merge point estimated" : "merge point"}`}</title>
         </path>,
       );
