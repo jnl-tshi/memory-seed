@@ -597,6 +597,14 @@ export default function App() {
         <div className="trace-search-wrap">
           <form className="trace-search" onSubmit={submitSearch} role="search"><Search size={16} aria-hidden="true" /><input ref={searchInput} value={query} onChange={(event) => { setQuery(event.target.value); setSearch(null); }} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); if (matchEntries.length) { void jumpToMatch(event.shiftKey ? -1 : 1); return; } void runSearch(event.currentTarget.value); }} placeholder="Search memory or entry ID" aria-label="Search memory or entry ID" />{query && <button className="icon-button search-clear" type="button" onClick={() => { setQuery(""); setSearch(null); }} aria-label="Clear search" title="Clear search"><X size={14} /></button>}</form>
           {search && <div className="search-results" role="listbox" aria-label="Search results">{search.results.length ? search.results.map((result) => <button type="button" key={result.chunk_id} className="search-result" onClick={() => void chooseSearchResult(result)}><strong>{result.entry_title || result.heading_path[result.heading_path.length - 1] || result.chunk_id}</strong><small>{result.entry_id || result.date}</small></button>) : <div className="search-empty">No matching entries</div>}</div>}
+          {viewMode === "trail" && findOpen && matchEntries.length > 0 && (
+            <div className="find-bar" role="status" aria-live="polite" aria-label="Search matches">
+              <span className="find-count">{matchPosition >= 0 ? matchPosition + 1 : "–"}<span className="find-sep">/</span>{matchEntries.length}</span>
+              <button type="button" className="find-step" onClick={() => void jumpToMatch(-1)} aria-label="Previous match" title="Previous match (Shift+Enter)"><ChevronUp size={14} /></button>
+              <button type="button" className="find-step" onClick={() => void jumpToMatch(1)} aria-label="Next match" title="Next match (Enter)"><ChevronDown size={14} /></button>
+              <button type="button" className="find-step" onClick={() => setFindOpen(false)} aria-label="Dismiss find bar" title="Dismiss (Esc)"><X size={13} /></button>
+            </div>
+          )}
         </div>
         {/* The view switch lives here, above both workspaces: it chooses which
             workspace you are in, so it does not belong to either one's own bar
@@ -657,16 +665,6 @@ export default function App() {
             are hidden in Trail view rather than sitting there inert. */}
         <div className="workspace-bar"><div><span className="eyebrow">{viewMode === "trail" ? "Trail" : "Graph workspace"}</span><h1>{viewMode === "trail" ? "Decision timeline" : "Relationship map"}</h1></div><div className="workspace-actions">{viewMode !== "trail" && <><div className="segment-control" aria-label="Graph scope"><button type="button" aria-pressed={scope === "overview"} onClick={() => void changeScope("overview")}>Overview</button><button type="button" aria-pressed={scope === "local"} onClick={() => void changeScope("local")}>Local</button></div><div className="segment-control" aria-label="Graph date range"><button type="button" aria-pressed={range === "recent"} onClick={() => void changeRange("recent")}>Recent</button><button type="button" aria-pressed={range === "all"} onClick={() => void changeRange("all")}>All dates</button></div><label className="label-menu"><span>Labels</span><select value={labelMode} onChange={(event) => setLabelMode(event.target.value as LabelMode)} aria-label="Graph labels"><option value="focus">Focus</option><option value="minimal">Minimal</option><option value="all">All</option></select></label></>}<span className="status-pill">{viewMode === "trail" ? "Trail" : isLoading ? "Updating" : "Cytoscape.js"}</span></div></div>
         {viewMode !== "trail" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{DEFAULT_GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => void toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
-        {viewMode === "trail" && findOpen && matchEntries.length > 0 && (
-          <div className="find-bar" role="status" aria-live="polite" aria-label="Search matches">
-            <Search size={13} aria-hidden="true" />
-            <span className="find-term" title={query.trim()}>{query.trim()}</span>
-            <span className="find-count">{matchPosition >= 0 ? matchPosition + 1 : "–"}<span className="find-sep">/</span>{matchEntries.length}</span>
-            <button type="button" className="find-step" onClick={() => void jumpToMatch(-1)} aria-label="Previous match" title="Previous match (Shift+Enter)"><ChevronUp size={14} /></button>
-            <button type="button" className="find-step" onClick={() => void jumpToMatch(1)} aria-label="Next match" title="Next match (Enter)"><ChevronDown size={14} /></button>
-            <button type="button" className="find-step" onClick={() => setFindOpen(false)} aria-label="Dismiss find bar" title="Dismiss (Esc)"><X size={13} /></button>
-          </div>
-        )}
         {viewMode === "trail" ? (
           <>
             {trailError && <div className="error-state" role="alert">{trailError}</div>}

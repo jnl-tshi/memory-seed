@@ -131,11 +131,10 @@ button { font: inherit; }
 .workspace { position: relative; grid-template-rows: auto auto minmax(0, 1fr); }
 /* Floating Ctrl-F find bar: sits over the Trail rather than in the view bar so
    it can be dismissed once you have found what you came for. */
-/* Anchored to the BOTTOM right: the Trail's view bar wraps its legend and
-   controls at narrow widths, so any fixed offset from the top eventually
-   collides with them. */
-.find-bar { position: absolute; z-index: 9; bottom: 18px; right: 18px; display: flex; align-items: center; gap: 7px; padding: 5px 6px 5px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--panel); box-shadow: 0 6px 20px #0000002e; color: var(--muted); font-size: 11px; }
-.find-term { max-width: 160px; overflow: hidden; color: var(--text); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+/* Anchored under the search box it belongs to, where the results dropdown also
+   appears — the two are mutually exclusive, since Enter only runs the server
+   search when the Trail has no local match. */
+.find-bar { position: absolute; z-index: 9; top: calc(100% + 6px); right: 0; display: flex; align-items: center; gap: 7px; padding: 5px 6px 5px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--panel); box-shadow: 0 6px 20px #0000002e; color: var(--muted); font-size: 11px; }
 .find-count { color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .find-sep { margin: 0 2px; color: var(--faint); }
 .find-step { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: 0; border-radius: 4px; background: transparent; color: var(--text-2); cursor: pointer; }
