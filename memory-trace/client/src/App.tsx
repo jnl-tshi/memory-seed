@@ -463,10 +463,11 @@ export default function App() {
       if (inSearch) searchInput.current?.blur();
       return;
     }
-    if (event.key === "Enter" && matchEntries.length && (inSearch || !typing)) {
-      event.preventDefault();
-      void jumpToMatch(event.shiftKey ? -1 : 1);
-    }
+    // Enter is deliberately NOT handled here. The search box sits inside a
+    // <form>, so a real Enter would fire both this listener and the form's
+    // implicit submission — stepping twice, or cycling and opening the dropdown
+    // at once. It is handled in exactly one place: the input's own onKeyDown,
+    // which can preventDefault the submit and read shiftKey.
   };
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => keyHandler.current(event);
@@ -557,7 +558,7 @@ export default function App() {
         <div className="brand"><Network size={19} aria-hidden="true" /><span>Memory Trace</span><small>Next</small></div>
         <div className="project-summary">{runtime ? `${runtime.label} · ${runtime.entry_count} entries` : "Loading project"}</div>
         <div className="trace-search-wrap">
-          <form className="trace-search" onSubmit={submitSearch} role="search"><Search size={16} aria-hidden="true" /><input ref={searchInput} value={query} onChange={(event) => { setQuery(event.target.value); setSearch(null); }} onKeyDown={(event) => { if (event.key === "Enter" && !matchEntries.length) { event.preventDefault(); void runSearch(event.currentTarget.value); } }} placeholder="Search memory or entry ID" aria-label="Search memory or entry ID" />{query && <button className="icon-button search-clear" type="button" onClick={() => { setQuery(""); setSearch(null); }} aria-label="Clear search" title="Clear search"><X size={14} /></button>}</form>
+          <form className="trace-search" onSubmit={submitSearch} role="search"><Search size={16} aria-hidden="true" /><input ref={searchInput} value={query} onChange={(event) => { setQuery(event.target.value); setSearch(null); }} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); if (matchEntries.length) { void jumpToMatch(event.shiftKey ? -1 : 1); return; } void runSearch(event.currentTarget.value); }} placeholder="Search memory or entry ID" aria-label="Search memory or entry ID" />{query && <button className="icon-button search-clear" type="button" onClick={() => { setQuery(""); setSearch(null); }} aria-label="Clear search" title="Clear search"><X size={14} /></button>}</form>
           {search && <div className="search-results" role="listbox" aria-label="Search results">{search.results.length ? search.results.map((result) => <button type="button" key={result.chunk_id} className="search-result" onClick={() => void chooseSearchResult(result)}><strong>{result.entry_title || result.heading_path[result.heading_path.length - 1] || result.chunk_id}</strong><small>{result.entry_id || result.date}</small></button>) : <div className="search-empty">No matching entries</div>}</div>}
         </div>
         <div className="topbar-actions">
