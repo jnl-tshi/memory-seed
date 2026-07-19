@@ -40,6 +40,9 @@ SIDE_FOLDER_ALLOWLIST: frozenset[str] = frozenset(
         "4_Reference/archived",
         "3_Spec/draft",
         "3_Spec/deprecated",
+        "1_Inbox/memory-seed-ontology-evidence-proposals",
+        "1_Inbox/memory-seed-relevance-proposals",
+        "1_Inbox/trace-humanised-dashboard-references",
     }
 )
 

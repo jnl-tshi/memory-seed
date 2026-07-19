@@ -156,6 +156,14 @@ class DocsCheckTests(unittest.TestCase):
 
         self.assertNotIn("off-allowlist-folder", self.kinds(check_docs(root)))
 
+    def test_allowlisted_inbox_proposal_and_design_groups_are_not_flagged(self):
+        root = self.make_docs()
+        self.write(root, "1_Inbox/memory-seed-ontology-evidence-proposals/00-index.md", "# Index\n")
+        self.write(root, "1_Inbox/memory-seed-relevance-proposals/00-index.md", "# Index\n")
+        self.write(root, "1_Inbox/trace-humanised-dashboard-references/README.md", "# References\n")
+
+        self.assertNotIn("off-allowlist-folder", self.kinds(check_docs(root)))
+
     def test_lane_readme_is_not_a_lifecycle_document(self):
         root = self.make_docs()
         self.write(root, "2_Todo/README.md", "# Todo lane\n")
