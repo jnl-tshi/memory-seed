@@ -1952,7 +1952,12 @@ def session_append_entry(
     path and ``rendered`` - the exact entry block a real call would append -
     without touching the filesystem. It answers "what id will this get, would
     it be accepted, and what will it look like?" in one step - the pre-flight
-    an agent needs before committing to the write.
+    an agent needs before committing to the write. To commit to the previewed
+    bytes, pass the previewed ``timestamp`` back on the real call: the id is a
+    hash of the timestamp, so letting the clock stamp afresh across a minute
+    boundary mints a different id than the one inspected. The echo is still
+    the server's clock, one call older; the chronology guard still refuses it
+    loudly if the file moved on in between.
     """
     issues: list[str] = []
     ts = timestamp or datetime.now().strftime("%Y-%m-%d %H:%M")

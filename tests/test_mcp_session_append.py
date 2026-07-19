@@ -143,6 +143,42 @@ class MemorySessionAppendTests(unittest.TestCase):
         self.assertEqual(planned["entry_id"], actual["entry_id"])
         self.assertEqual(planned["path"], actual["path"])
 
+    def test_echoing_the_previewed_timestamp_survives_a_minute_tick(self):
+        # The id hashes the timestamp, so a preview at :59 and a write at :01
+        # get different server stamps — and would mint different ids. The
+        # sanctioned pattern is echoing the previewed timestamp back on the
+        # real call, which pins preview and write to the same bytes and earns
+        # no drift warning (it is the server's own stamp, one call older).
+        planned = self._append(dry_run=True, _now="2026-06-13 09:00")
+
+        committed = self._append(timestamp=planned["timestamp"], _now="2026-06-13 09:01")
+        self.assertTrue(committed["ok"], committed["issues"])
+        self.assertEqual(committed["entry_id"], planned["entry_id"])
+        self.assertEqual(committed["timestamp"], planned["timestamp"])
+        self.assertNotIn("clock_drift_warning", committed)
+        self.assertIn(planned["entry_id"], Path(committed["path"]).read_text(encoding="utf-8"))
+
+    def test_without_the_echo_a_minute_tick_mints_a_different_id(self):
+        # The race the echo exists for, pinned so it stays documented: letting
+        # the server stamp afresh across a minute boundary silently diverges
+        # from the preview. Nothing corrupts — the write is valid — but the
+        # inspected bytes are not the written bytes.
+        planned = self._append(dry_run=True, _now="2026-06-13 09:00")
+        drifted = self._append(_now="2026-06-13 09:01")
+        self.assertTrue(drifted["ok"], drifted["issues"])
+        self.assertNotEqual(drifted["entry_id"], planned["entry_id"])
+
+    def test_a_stale_echo_is_refused_when_the_file_moved_on(self):
+        # The failure mode of echoing fails LOUDLY, not silently: inspect too
+        # long, another entry lands, and the chronology guard refuses the now
+        # backdated write instead of slotting it out of order.
+        planned = self._append(dry_run=True, _now="2026-06-13 09:00")
+        self._append(title="Someone else landed first", _now="2026-06-13 09:02")
+
+        stale = self._append(timestamp=planned["timestamp"], _now="2026-06-13 09:03")
+        self.assertFalse(stale["ok"])
+        self.assertTrue(any("chronology conflict" in issue for issue in stale["issues"]))
+
     # --- the cwd hazard MCP introduces ----------------------------------
 
     def test_a_cwd_with_no_runtime_is_refused_rather_than_created(self):

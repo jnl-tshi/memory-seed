@@ -241,7 +241,7 @@ TOOLS: list[dict[str, Any]] = [
             "refused), forward-only lifecycle edges, controlled topic vocabulary, id collision, and DRAFT body format. "
             "Refusals come back as ok=false with an issues list, each independently fixable. Pair with "
             "memory_link_suggest / memory_link_show to choose related_entries, supersedes and evolves before calling. "
-            "Set dry_run to run every guard and get the id, timestamp, target path and the rendered entry back without writing - inspect the final output, then commit."
+            "Set dry_run to run every guard and get the id, timestamp, target path and the rendered entry back without writing - inspect the final output, then commit by calling again WITH the returned timestamp, so a minute tick between preview and write cannot change the id."
         ),
         "inputSchema": {
             "type": "object",
@@ -269,7 +269,7 @@ TOOLS: list[dict[str, Any]] = [
                 "auto_branch": {"type": "boolean", "default": True, "description": "Set false to omit the branch field entirely."},
                 "timestamp": {
                     "type": "string",
-                    "description": "Heading timestamp 'YYYY-MM-DD HH:MM'. OMIT in normal use: the server stamps from its own clock. Supply only for sanctioned backfill; values far from the server clock earn a drift warning.",
+                    "description": "Heading timestamp 'YYYY-MM-DD HH:MM'. OMIT in normal use: the server stamps from its own clock. Two sanctioned explicit uses: echoing a dry_run's returned timestamp back on the real write (the id is a hash of the timestamp, so a fresh stamp that ticks to the next minute mints a DIFFERENT id than previewed - echoing pins preview and write to the same bytes), and backfill. Values far from the server clock earn a drift warning.",
                 },
                 "user": {"type": "string", "description": "Override the active user slug when resolving a per-user target."},
                 "dry_run": {"type": "boolean", "default": False, "description": "Run every guard and report entry_id, timestamp, path and `rendered` - the exact entry block a real call would append - without writing."},
