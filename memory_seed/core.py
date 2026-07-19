@@ -1897,6 +1897,12 @@ class SessionAppendResult:
     timestamp: str | None = None
     issues: tuple[str, ...] = ()
     written: bool = False
+    # The exact entry block a real call would append — heading, YAML, body.
+    # Populated only on a passing dry run: that is the moment an agent needs to
+    # SEE the final output before committing to the write; a real write already
+    # confirms itself with id/path, and echoing the body back would just bloat
+    # every payload with text the caller sent in.
+    rendered: str | None = None
 
 
 def session_append_entry(
@@ -1942,10 +1948,11 @@ def session_append_entry(
     - ``branch`` is captured from git automatically unless supplied or
       ``auto_branch=False`` (omitted when detached or not a repository).
 
-    ``dry_run=True`` runs every guard and returns the id, timestamp and target
-    path the real call would use, without touching the filesystem. It answers
-    "what id will this get, and would it be accepted?" in one step - the
-    pre-flight an agent needs when it cannot call the writer itself.
+    ``dry_run=True`` runs every guard and returns the id, timestamp, target
+    path and ``rendered`` - the exact entry block a real call would append -
+    without touching the filesystem. It answers "what id will this get, would
+    it be accepted, and what will it look like?" in one step - the pre-flight
+    an agent needs before committing to the write.
     """
     issues: list[str] = []
     ts = timestamp or datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -2026,12 +2033,6 @@ def session_append_entry(
     if issues:
         return SessionAppendResult(ok=False, path=target.path, timestamp=ts, issues=tuple(issues))
 
-    # Every guard has passed. A dry run reports what the write WOULD produce and
-    # stops here - still short of the only write in this function, and short of
-    # the create=True re-resolution below, so it cannot bring a file into being.
-    if dry_run:
-        return SessionAppendResult(ok=True, path=target.path, entry_id=entry_id, timestamp=ts, written=False)
-
     yaml_lines = [
         f"entry_id: {entry_id}",
         f"user_initials: {user_initials}",
@@ -2055,6 +2056,14 @@ def session_append_entry(
     block = "\n".join(
         [f"## {ts} - {title}", "", "```yaml", *yaml_lines, "```", "", body.strip(), ""]
     )
+    # Every guard has passed and the block is assembled. A dry run stops here
+    # with the exact bytes a real call would append - still short of the only
+    # write in this function, and short of the create=True re-resolution below,
+    # so it cannot bring a file into being. Seeing the final output before
+    # committing to the write is the point of the dummy pass.
+    if dry_run:
+        return SessionAppendResult(ok=True, path=target.path, entry_id=entry_id, timestamp=ts, written=False, rendered=block)
+
     target = session_target(cwd, date_str=date_part, explicit_user=explicit_user, create=True)
     existing = read_text_file(target.path) if target.path.exists() else ""
     if existing.strip():

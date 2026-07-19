@@ -241,7 +241,7 @@ TOOLS: list[dict[str, Any]] = [
             "refused), forward-only lifecycle edges, controlled topic vocabulary, id collision, and DRAFT body format. "
             "Refusals come back as ok=false with an issues list, each independently fixable. Pair with "
             "memory_link_suggest / memory_link_show to choose related_entries, supersedes and evolves before calling. "
-            "Set dry_run to run every guard and get the id, timestamp and target path back without writing."
+            "Set dry_run to run every guard and get the id, timestamp, target path and the rendered entry back without writing - inspect the final output, then commit."
         ),
         "inputSchema": {
             "type": "object",
@@ -272,7 +272,7 @@ TOOLS: list[dict[str, Any]] = [
                     "description": "Heading timestamp 'YYYY-MM-DD HH:MM'. OMIT in normal use: the server stamps from its own clock. Supply only for sanctioned backfill; values far from the server clock earn a drift warning.",
                 },
                 "user": {"type": "string", "description": "Override the active user slug when resolving a per-user target."},
-                "dry_run": {"type": "boolean", "default": False, "description": "Run every guard and report entry_id, timestamp and path without writing."},
+                "dry_run": {"type": "boolean", "default": False, "description": "Run every guard and report entry_id, timestamp, path and `rendered` - the exact entry block a real call would append - without writing."},
             },
             "required": ["title", "body", "user_initials", "agent_type"],
         },
@@ -624,6 +624,11 @@ def call_tool(
             "path": str(result.path) if result.path else None,
             "issues": list(result.issues),
         }
+        # Only a dry run carries the rendered block: pre-commit inspection is
+        # its purpose, while echoing the body back after a real write would
+        # bloat every payload with text the caller already has.
+        if result.rendered is not None:
+            payload["rendered"] = result.rendered
         if supplied:
             drift = _clock_drift_warning(supplied, now)
             if drift:

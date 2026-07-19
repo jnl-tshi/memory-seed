@@ -17,8 +17,9 @@ All notable changes to Memory Seed are summarized here.
   server stamps the timestamp from its own clock (drift warning on far-off
   explicit values, carried over from the retired id tool). A new **`dry_run`**
   on both the tool and `session append` runs every guard and returns the id,
-  timestamp and target path without writing — the pre-flight the removed pair
-  used to provide. Constitution Invariant #2 gains **write-surface parity**:
+  timestamp, target path and the rendered entry block — the final output,
+  inspectable before committing to the write — the pre-flight the removed
+  pair used to provide. Constitution Invariant #2 gains **write-surface parity**:
   every write passes identical validation on any surface.
 
 ### Added

@@ -116,6 +116,20 @@ class MemorySessionAppendTests(unittest.TestCase):
         self.assertEqual(result["timestamp"], "2026-06-13 09:00")
         self.assertTrue(result["path"].endswith("2026-06-13.md"))
         self.assertEqual(self._session_files(), [], "a dry run must not create a session file")
+        # The dummy write shows the final output: heading, YAML and body exactly
+        # as a real call would append them.
+        rendered = result["rendered"]
+        self.assertIn("## 2026-06-13 09:00 - Gated append", rendered)
+        self.assertIn(f"entry_id: {result['entry_id']}", rendered)
+        self.assertIn("- D: Ship the gated append path.", rendered)
+
+    def test_rendered_is_only_returned_on_a_passing_dry_run(self):
+        written = self._append(_now="2026-06-13 09:00")
+        self.assertNotIn("rendered", written, "a real write must not echo the body back")
+
+        refused = self._append(title="Second", _now="2026-06-13 08:00", dry_run=True)
+        self.assertFalse(refused["ok"])
+        self.assertNotIn("rendered", refused, "a refused write has no final output to preview")
 
     def test_dry_run_still_reports_guard_failures(self):
         self._append(title="First", _now="2026-06-13 12:00")

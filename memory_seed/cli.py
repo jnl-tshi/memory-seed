@@ -948,6 +948,11 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
             if args.dry_run:
                 print(f"Would append {result.entry_id} ({result.timestamp}) to {result.path}")
+                if result.rendered:
+                    # The exact block a real call would append — inspect, then
+                    # rerun without --dry-run to commit to it.
+                    print()
+                    print(result.rendered, end="")
                 return 0
             print(f"Appended {result.entry_id} ({result.timestamp}) to {result.path}")
             return 0

@@ -729,8 +729,8 @@ entry's graph node (outbound/inbound edges, supersession and evolution edges wit
 inverses, continuity blocks, importance, linked-commit count), and `memory_session_append` appends
 the entry itself through every structural guard (chronology, ref existence, forward-only
 `supersedes`/`evolves` edges, controlled topics, id collision, DRAFT body), stamping the heading
-timestamp from the server clock; a `dry_run` returns the `entry_id`, timestamp, and target path
-without writing. They are routed through `history_retrieval.md`. `memory_session_append` is the only
+timestamp from the server clock; a `dry_run` returns the `entry_id`, timestamp, target path, and
+`rendered` - the exact entry block a real call would append - without writing. They are routed through `history_retrieval.md`. `memory_session_append` is the only
 sanctioned way to author an entry, so agents no longer hand-write session files.
 
 `memory_topics_list`, `memory_topic_inspect`, and `memory_topics_check` are read-only topic-management
