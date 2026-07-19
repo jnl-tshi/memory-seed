@@ -16,6 +16,7 @@ import {
   TRAIL_ROW,
 } from "./trailModel";
 import { elbowTo, moveTo, runBody, runPath } from "./trailPath";
+import { animateScrollTo, bandScrollTarget, scrollDurationFor } from "./trailScroll";
 
 const CONTINUITY_COLOR: Record<string, string> = { rename: "var(--accent)", migration: "var(--edge-evolves)", removal: "var(--edge-supersedes)" };
 
@@ -84,30 +85,64 @@ export function TrailWorkspace({
 
   // Clicks that originate inside the Trail select a row that is already on
   // screen — recentring it would yank the list out from under the user. Only
-  // outside-origin selections (context panel, search) auto-scroll.
+  // outside-origin selections (context panel, find bar) auto-scroll.
   const suppressScroll = useRef(false);
+  const scroller = useRef<HTMLDivElement>(null);
+  const cancelScroll = useRef<(() => void) | null>(null);
+  const scrollHandledFor = useRef<string | null>(null);
+  // Loading a corpus auto-selects a graph node, and that selection must NOT
+  // drag the Trail to wherever that entry happens to sit — a new corpus opens
+  // at the top. The first selection after a reset is adopted silently; every
+  // later one scrolls normally.
+  const adoptWithoutScroll = useRef(true);
+  useEffect(() => () => cancelScroll.current?.(), []);
+
+  // Starting Trace, or switching worktree/topic, presents a new corpus. A new
+  // `trail` object is exactly that signal — growing the window (Load older)
+  // keeps the same object, so paging never jumps back to the top.
+  useEffect(() => {
+    cancelScroll.current?.();
+    if (scroller.current) scroller.current.scrollTop = 0;
+    scrollHandledFor.current = null;
+    adoptWithoutScroll.current = true;
+  }, [trail]);
 
   // Bring the selection into view: if the selected entry is older than the
-  // loaded window, grow the window to include it; once its row exists, scroll
-  // it to the centre of the pane.
-  const scrollHandledFor = useRef<string | null>(null);
+  // loaded window, grow the window to include it; once its row exists, ease it
+  // to the near edge of the middle third (see trailScroll.ts).
   useEffect(() => {
     if (!selectedEntryId) { scrollHandledFor.current = null; return; }
     if (suppressScroll.current) { suppressScroll.current = false; scrollHandledFor.current = selectedEntryId; return; }
+    // The corpus's opening selection is adopted where it stands, leaving the
+    // Trail at the top (see adoptWithoutScroll).
+    if (adoptWithoutScroll.current) { adoptWithoutScroll.current = false; scrollHandledFor.current = selectedEntryId; return; }
     // One auto-scroll per selection: re-renders (chunk loads, prop identity
-    // churn) must never re-centre a selection that was already handled.
+    // churn) must never re-scroll a selection that was already handled.
     if (scrollHandledFor.current === selectedEntryId) return;
-    if (!model.rowOf.has(selectedEntryId)) {
+    const index = model.rowOf.get(selectedEntryId);
+    if (index === undefined) {
       const ordered = (trail.nodes || [])
         .filter((node) => node.entry_id)
         .sort((a, b) => trailStamp(b) - trailStamp(a) || String(a.id).localeCompare(String(b.id)));
-      const index = ordered.findIndex((node) => node.id === selectedEntryId);
-      if (index >= 0) onEnsureVisible(index + 1);
+      const position = ordered.findIndex((node) => node.id === selectedEntryId);
+      // Grow past the target by a viewport's worth of rows. Loading exactly up
+      // to it would leave it as the very last row, pinned to the bottom of the
+      // pane with nothing beneath it to scroll against — it could never reach
+      // the band edge.
+      const headroom = Math.ceil((scroller.current?.clientHeight ?? 0) / TRAIL_ROW);
+      if (position >= 0) onEnsureVisible(position + 1 + headroom);
       return; // not handled yet — the window grows, the effect re-runs, then scrolls
     }
-    const row = document.querySelector(`.trail-rows [data-entry="${selectedEntryId}"]`);
-    row?.scrollIntoView({ block: "center" });
     scrollHandledFor.current = selectedEntryId;
+    const element = scroller.current;
+    if (!element) return;
+    // Row geometry is known exactly from the model, so no DOM measurement:
+    // every row is TRAIL_ROW tall and the rail shares these coordinates.
+    const rowCenter = index * TRAIL_ROW + TRAIL_ROW / 2;
+    const target = bandScrollTarget(rowCenter, element.scrollTop, element.clientHeight, element.scrollHeight - element.clientHeight);
+    if (target === null) return; // already inside the stable band
+    cancelScroll.current?.();
+    cancelScroll.current = animateScrollTo(element, target, scrollDurationFor(target - element.scrollTop));
   }, [selectedEntryId, model, trail, onEnsureVisible]);
 
   if (!items.length) return <div className="loading-state">No entries with lineage data yet.</div>;
@@ -554,7 +589,7 @@ export function TrailWorkspace({
           </button>
         )}
       </div>
-      <div className="trail-scroll">
+      <div className="trail-scroll" ref={scroller}>
         <div className="trail-body" style={{ height }}>
           <svg className="trail-rail" width={railWidth} height={height} viewBox={`0 0 ${railWidth} ${height}`} aria-hidden="true">
             <defs>

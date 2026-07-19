@@ -1,8 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { GitBranch, LayoutPanelLeft, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, Sun, X } from "lucide-react";
+import { ChevronDown, ChevronUp, GitBranch, LayoutPanelLeft, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, Sun, X } from "lucide-react";
 import { api, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
 import { EntryReader } from "./EntryReader";
-import { stripTitleStamp, TRAIL_WINDOW_STEP } from "./trailModel";
+import { stripTitleStamp, trailStamp, TRAIL_WINDOW_STEP } from "./trailModel";
 
 const GraphWorkspace = lazy(() => import("./GraphWorkspace").then((module) => ({ default: module.GraphWorkspace })));
 const TrailWorkspace = lazy(() => import("./TrailWorkspace").then((module) => ({ default: module.TrailWorkspace })));
@@ -128,6 +128,9 @@ export default function App() {
   const [activeTopic, setActiveTopic] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchResponse | null>(null);
+  // Ctrl-F-style find bar over the Trail. Dismissing hides it until the query
+  // changes again, so it never nags once you have found what you came for.
+  const [findOpen, setFindOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const graphRequest = useRef(0);
@@ -310,6 +313,44 @@ export default function App() {
     return order.filter((kind) => groups.has(kind)).map((kind) => [kind, groups.get(kind)!]);
   }, [contextItems]);
 
+  // Find-bar matches run over the WHOLE corpus (entryIndex), not the Trail's
+  // loaded window — otherwise "next match" could not reach an entry that has
+  // not been paged in yet, which is exactly what a Ctrl-F is for. Ordered
+  // newest-first to match the Trail's own row order.
+  const matchEntries = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term || isCanonicalEntryId(term)) return [];
+    return (entryIndex?.nodes ?? [])
+      .filter((node) => node.entry_id)
+      .slice()
+      .sort((a, b) => trailStamp(b) - trailStamp(a) || String(a.id).localeCompare(String(b.id)))
+      .filter((node) =>
+        stripTitleStamp(node.title).toLowerCase().includes(term) ||
+        (node.branch || "").toLowerCase().includes(term) ||
+        (node.entry_id || "").toLowerCase().includes(term))
+      .map((node) => node.id);
+  }, [query, entryIndex]);
+  // The cursor advances SYNCHRONOUSLY in a ref, because selecting an entry is
+  // async: deriving the position from `selected` alone made held Enter (or fast
+  // clicks) step only once, since every repeat read the same stale position.
+  const matchCursorRef = useRef(-1);
+  const [matchPosition, setMatchPosition] = useState(-1);
+  const setMatchCursor = useCallback((index: number) => {
+    matchCursorRef.current = index;
+    setMatchPosition(index);
+  }, []);
+  // A fresh query re-opens the bar even if the last one was dismissed, and
+  // restarts the cycle.
+  useEffect(() => { setFindOpen(true); setMatchCursor(-1); }, [query, setMatchCursor]);
+  // Selecting from anywhere else (a Trail row, the context panel) re-homes the
+  // cursor so the next step continues from what is actually on screen.
+  const selectedEntryId = selected?.source.entry_id;
+  useEffect(() => {
+    if (!selectedEntryId || !matchEntries.length) return;
+    if (matchEntries[matchCursorRef.current] === selectedEntryId) return;
+    setMatchCursor(matchEntries.indexOf(selectedEntryId));
+  }, [selectedEntryId, matchEntries, setMatchCursor]);
+
   // Switching worktree swaps the entire corpus: scope the API, clear every
   // per-corpus piece of state, and reload. Each checkout is its own memory
   // view (different branches carry different session entries).
@@ -389,6 +430,49 @@ export default function App() {
     if (node) { select(node); return; }
     if (entryId) void focusEntry(entryId);
   }
+
+  // Cycle to the next/previous match, wrapping around. Selecting the entry is
+  // all this does — the Trail watches the selection and eases the row into
+  // view, growing its window first when the match is older than what is loaded.
+  async function jumpToMatch(step: number) {
+    if (!matchEntries.length) return;
+    const from = matchCursorRef.current >= 0 ? matchCursorRef.current : step > 0 ? -1 : 0;
+    const next = (from + step + matchEntries.length) % matchEntries.length;
+    setMatchCursor(next);
+    setFindOpen(true);
+    await focusEntry(matchEntries[next], true);
+  }
+
+  // Keyboard grammar ported from the vanilla UI, which the React workspace had
+  // dropped: "/" focuses search from anywhere, Enter/Shift+Enter cycle matches,
+  // Escape dismisses. Held in a ref so the listener subscribes once but never
+  // reads stale state (same pattern as GraphWorkspace's tap handler).
+  const keyHandler = useRef<(event: KeyboardEvent) => void>(() => {});
+  keyHandler.current = (event: KeyboardEvent) => {
+    const target = event.target as HTMLElement | null;
+    const inSearch = target === searchInput.current;
+    const typing = target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.tagName === "SELECT";
+    if (event.key === "/" && !typing) {
+      event.preventDefault();
+      searchInput.current?.focus();
+      return;
+    }
+    if (event.key === "Escape") {
+      if (search) { setSearch(null); return; }
+      setFindOpen(false);
+      if (inSearch) searchInput.current?.blur();
+      return;
+    }
+    if (event.key === "Enter" && matchEntries.length && (inSearch || !typing)) {
+      event.preventDefault();
+      void jumpToMatch(event.shiftKey ? -1 : 1);
+    }
+  };
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => keyHandler.current(event);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   async function runSearch(rawValue: string) {
     const value = rawValue.trim();
@@ -473,7 +557,7 @@ export default function App() {
         <div className="brand"><Network size={19} aria-hidden="true" /><span>Memory Trace</span><small>Next</small></div>
         <div className="project-summary">{runtime ? `${runtime.label} · ${runtime.entry_count} entries` : "Loading project"}</div>
         <div className="trace-search-wrap">
-          <form className="trace-search" onSubmit={submitSearch} role="search"><Search size={16} aria-hidden="true" /><input ref={searchInput} value={query} onChange={(event) => { setQuery(event.target.value); setSearch(null); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void runSearch(event.currentTarget.value); } }} placeholder="Search memory or entry ID" aria-label="Search memory or entry ID" />{query && <button className="icon-button search-clear" type="button" onClick={() => { setQuery(""); setSearch(null); }} aria-label="Clear search" title="Clear search"><X size={14} /></button>}</form>
+          <form className="trace-search" onSubmit={submitSearch} role="search"><Search size={16} aria-hidden="true" /><input ref={searchInput} value={query} onChange={(event) => { setQuery(event.target.value); setSearch(null); }} onKeyDown={(event) => { if (event.key === "Enter" && !matchEntries.length) { event.preventDefault(); void runSearch(event.currentTarget.value); } }} placeholder="Search memory or entry ID" aria-label="Search memory or entry ID" />{query && <button className="icon-button search-clear" type="button" onClick={() => { setQuery(""); setSearch(null); }} aria-label="Clear search" title="Clear search"><X size={14} /></button>}</form>
           {search && <div className="search-results" role="listbox" aria-label="Search results">{search.results.length ? search.results.map((result) => <button type="button" key={result.chunk_id} className="search-result" onClick={() => void chooseSearchResult(result)}><strong>{result.entry_title || result.heading_path[result.heading_path.length - 1] || result.chunk_id}</strong><small>{result.entry_id || result.date}</small></button>) : <div className="search-empty">No matching entries</div>}</div>}
         </div>
         <div className="topbar-actions">
@@ -527,6 +611,16 @@ export default function App() {
         )}
         <div className="workspace-bar"><div><span className="eyebrow">{viewMode === "trail" ? "Trail" : "Graph workspace"}</span><h1>{viewMode === "trail" ? "Decision timeline" : "Relationship map"}</h1></div><div className="workspace-actions"><div className="segment-control" aria-label="Graph scope"><button type="button" aria-pressed={scope === "overview"} onClick={() => void changeScope("overview")}>Overview</button><button type="button" aria-pressed={scope === "local"} onClick={() => void changeScope("local")}>Local</button></div><div className="segment-control" aria-label="Graph date range"><button type="button" aria-pressed={range === "recent"} onClick={() => void changeRange("recent")}>Recent</button><button type="button" aria-pressed={range === "all"} onClick={() => void changeRange("all")}>All dates</button></div><div className="segment-control" aria-label="Graph presentation"><button type="button" aria-pressed={viewMode === "trail"} onClick={() => setViewMode("trail")}><GitBranch size={14} aria-hidden="true" /><span>Trail</span></button><button type="button" aria-pressed={viewMode === "graph"} onClick={() => setViewMode("graph")}><Network size={14} aria-hidden="true" /><span>Graph</span></button></div><label className="label-menu"><span>Labels</span><select value={labelMode} onChange={(event) => setLabelMode(event.target.value as LabelMode)} aria-label="Graph labels"><option value="focus">Focus</option><option value="minimal">Minimal</option><option value="all">All</option></select></label><span className="status-pill">{viewMode === "trail" ? "Trail" : isLoading ? "Updating" : "Cytoscape.js"}</span></div></div>
         {viewMode !== "trail" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{DEFAULT_GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => void toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
+        {viewMode === "trail" && findOpen && matchEntries.length > 0 && (
+          <div className="find-bar" role="status" aria-live="polite" aria-label="Search matches">
+            <Search size={13} aria-hidden="true" />
+            <span className="find-term" title={query.trim()}>{query.trim()}</span>
+            <span className="find-count">{matchPosition >= 0 ? matchPosition + 1 : "–"}<span className="find-sep">/</span>{matchEntries.length}</span>
+            <button type="button" className="find-step" onClick={() => void jumpToMatch(-1)} aria-label="Previous match" title="Previous match (Shift+Enter)"><ChevronUp size={14} /></button>
+            <button type="button" className="find-step" onClick={() => void jumpToMatch(1)} aria-label="Next match" title="Next match (Enter)"><ChevronDown size={14} /></button>
+            <button type="button" className="find-step" onClick={() => setFindOpen(false)} aria-label="Dismiss find bar" title="Dismiss (Esc)"><X size={13} /></button>
+          </div>
+        )}
         {viewMode === "trail" ? (
           <>
             {trailError && <div className="error-state" role="alert">{trailError}</div>}
@@ -551,7 +645,26 @@ export default function App() {
         {dock !== "bottom" && <div className="pane-resize pane-resize-inspector" role="separator" aria-orientation="vertical" aria-label="Resize inspector" title="Drag to resize" onPointerDown={startPaneResize("inspector")} />}
         <div className="inspector-bar"><div><span className="eyebrow">Inspector</span><h2>{titleFor(selected)}</h2></div><button className="icon-button" type="button" onClick={() => setDock("hidden")} aria-label="Hide inspector" title="Hide inspector"><X size={17} /></button></div>
         <div className="dock-control" aria-label="Inspector position"><span>Dock</span>{(["auto", "right", "bottom"] as const).map((option) => <button key={option} type="button" aria-pressed={dock === option} onClick={() => setDock(option)}>{option}</button>)}</div>
-        {selected && <div className="inspector-content"><dl className="metadata"><div><dt>Entry ID</dt><dd>{selected.source.entry_id || "Not recorded"}</dd></div><div><dt>Date</dt><dd>{selected.temporal.value}</dd></div><div><dt>Agent</dt><dd>{selected.source.agent}</dd></div><div><dt>Authority</dt><dd><span className={ADVISORY_AUTHORITY.has(selected.authority_class) ? "authority-badge advisory" : "authority-badge"}>{AUTHORITY_LABELS[selected.authority_class]}</span></dd></div><div><dt>Provenance</dt><dd>{PROVENANCE_LABELS[selected.provenance_class]}</dd></div>{selected.provider && <div><dt>Provider</dt><dd>{selected.provider}{selected.revision ? ` · ${selected.revision}` : ""}</dd></div>}{selected.stale && <div><dt>Freshness</dt><dd className="stale-flag">Stale — projection behind source</dd></div>}<div><dt>Links</dt><dd>{selected.connectivity}</dd></div><div><dt>Topics</dt><dd>{selected.source.topics.join(", ") || "None"}</dd></div><div><dt>Diagrams</dt><dd>{chunk?.diagrams.length ?? 0}</dd></div></dl><EntryReader chunk={chunk} matchHeading={matchHint && selected.source.entry_id === matchHint.entryId ? matchHint.heading : null} onOpenEntry={(entryId) => void focusEntry(entryId)} /></div>}
+        {selected && <div className="inspector-content">
+          {/* Metadata is grouped rather than one long column, and the grid is a
+              CSS container query on the pane itself — so it reflows as the
+              inspector is dragged wider/narrower and when it docks to the
+              bottom, independently of the viewport. Authority and provenance
+              stay on separate lines: they are distinct axes (BG1), never merged. */}
+          <dl className="metadata">
+            <div className="meta-item meta-wide"><dt>Entry ID</dt><dd className="meta-mono">{selected.source.entry_id || "Not recorded"}</dd></div>
+            <div className="meta-item"><dt>Date</dt><dd>{selected.temporal.value}</dd></div>
+            <div className="meta-item"><dt>Agent</dt><dd>{selected.source.agent}</dd></div>
+            <div className="meta-item"><dt>Authority</dt><dd><span className={ADVISORY_AUTHORITY.has(selected.authority_class) ? "authority-badge advisory" : "authority-badge"}>{AUTHORITY_LABELS[selected.authority_class]}</span></dd></div>
+            <div className="meta-item"><dt>Provenance</dt><dd>{PROVENANCE_LABELS[selected.provenance_class]}</dd></div>
+            {selected.provider && <div className="meta-item"><dt>Provider</dt><dd>{selected.provider}{selected.revision ? ` · ${selected.revision}` : ""}</dd></div>}
+            {selected.stale && <div className="meta-item meta-wide"><dt>Freshness</dt><dd className="stale-flag">Stale — projection behind source</dd></div>}
+            <div className="meta-item"><dt>Links</dt><dd>{selected.connectivity}</dd></div>
+            <div className="meta-item"><dt>Diagrams</dt><dd>{chunk?.diagrams.length ?? 0}</dd></div>
+            <div className="meta-item meta-wide"><dt>Topics</dt><dd>{selected.source.topics.length ? <span className="meta-topics">{selected.source.topics.map((topic) => <span className="meta-topic" key={topic}>{topic}</span>)}</span> : "None"}</dd></div>
+          </dl>
+          <EntryReader chunk={chunk} matchHeading={matchHint && selected.source.entry_id === matchHint.entryId ? matchHint.heading : null} onOpenEntry={(entryId) => void focusEntry(entryId)} />
+        </div>}
       </aside>}
     </div>
   );

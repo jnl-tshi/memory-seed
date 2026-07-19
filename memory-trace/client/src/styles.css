@@ -91,7 +91,19 @@ button { font: inherit; }
    background it inherited --chip, leaving --on-accent unreadable in both themes
    (cream on cream in light, near-black on charcoal in dark). Matching
    .segment-control here is also what makes the two control clusters cohere. */
-.dock-control button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-chip-bg); color: var(--on-accent); }.inspector-content { overflow: auto; padding: 14px; color: var(--text-2); font-size: 14px; line-height: 1.55; }.metadata { display: grid; gap: 12px; margin: 0 0 18px; }.metadata dd { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.dock-control button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-chip-bg); color: var(--on-accent); }.inspector-content { overflow: auto; padding: 14px; color: var(--text-2); font-size: 14px; line-height: 1.55; container-type: inline-size; container-name: inspector; }
+/* One column when the pane is narrow; two, then three, as it widens. A
+   container query (not a media query) because the inspector is user-resizable
+   and can dock to the bottom — its width is independent of the viewport's. */
+.metadata { display: grid; grid-template-columns: 1fr; gap: 9px 16px; margin: 0 0 14px; padding: 0 0 12px; border-bottom: 1px solid var(--border); }
+.metadata .meta-item { min-width: 0; }
+@container inspector (min-width: 300px) { .metadata { grid-template-columns: repeat(2, minmax(0, 1fr)); } .metadata .meta-wide { grid-column: 1 / -1; } }
+@container inspector (min-width: 520px) { .metadata { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.metadata dt { color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+.metadata dd { margin: 2px 0 0; font-size: 12.5px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.meta-mono { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; font-weight: 500; }
+.meta-topics { display: flex; flex-wrap: wrap; gap: 4px; }
+.meta-topic { border: 1px solid var(--border-2); border-radius: 3px; background: var(--chip); color: var(--text-2); padding: 1px 6px; font-size: 11px; font-weight: 500; }
 .trace-shell.inspector-bottom { grid-template-columns: var(--nav-w, 264px) minmax(0, 1fr); grid-template-rows: 56px minmax(0, 1fr) minmax(200px, 32vh); }.trace-shell.inspector-bottom .inspector { grid-column: 1 / -1; grid-row: 3; border-left: 0; border-top: 1px solid var(--border); }.trace-shell.inspector-bottom.navigation-hidden { grid-template-columns: minmax(0, 1fr); }.trace-shell.inspector-bottom .inspector { grid-template-columns: minmax(220px, .8fr) 1fr; grid-template-rows: auto minmax(0, 1fr); }.trace-shell.inspector-bottom .inspector-bar { grid-row: 1 / -1; border-bottom: 0; border-right: 1px solid var(--border); }.trace-shell.inspector-bottom .dock-control { grid-column: 2; }.trace-shell.inspector-bottom .inspector-content { grid-column: 2; }
 @media (max-width: 860px) { body { overflow: auto; }.trace-shell, .trace-shell.navigation-hidden, .trace-shell.inspector-hidden { height: auto; min-height: 100vh; grid-template-columns: minmax(0, 1fr); grid-template-rows: 56px auto minmax(420px, 1fr) auto; }.navigation-pane { border-right: 0; border-bottom: 1px solid var(--border); max-height: 230px; }.workspace { grid-row: 3; }.inspector { grid-row: 4; border-left: 0; border-top: 1px solid var(--border); min-height: 240px; }.trace-shell.inspector-hidden .workspace { grid-row: 3; }.trace-shell.inspector-bottom .inspector { grid-column: 1; grid-row: 4; display: grid; grid-template-columns: 1fr; grid-template-rows: auto auto minmax(0, 1fr); }.trace-shell.inspector-bottom .inspector-bar { grid-row: auto; border-right: 0; border-bottom: 1px solid var(--border); }.trace-shell.inspector-bottom .dock-control, .trace-shell.inspector-bottom .inspector-content { grid-column: auto; }.project-summary { display: none; }.graph-canvas { min-height: 420px; } }
 
@@ -109,6 +121,18 @@ button { font: inherit; }
    hover/focus keep the normal --hover background and so need normal ink. */
 .topic:hover, .topic:focus-visible { border-color: var(--accent); color: var(--text); outline: 0; }.topic.active { border-color: var(--accent); background: var(--accent-chip-bg); color: var(--on-accent); outline: 0; }
 .workspace { position: relative; grid-template-rows: auto auto minmax(0, 1fr); }
+/* Floating Ctrl-F find bar: sits over the Trail rather than in the view bar so
+   it can be dismissed once you have found what you came for. */
+/* Anchored to the BOTTOM right: the Trail's view bar wraps its legend and
+   controls at narrow widths, so any fixed offset from the top eventually
+   collides with them. */
+.find-bar { position: absolute; z-index: 9; bottom: 18px; right: 18px; display: flex; align-items: center; gap: 7px; padding: 5px 6px 5px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--panel); box-shadow: 0 6px 20px #0000002e; color: var(--muted); font-size: 11px; }
+.find-term { max-width: 160px; overflow: hidden; color: var(--text); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.find-count { color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.find-sep { margin: 0 2px; color: var(--faint); }
+.find-step { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: 0; border-radius: 4px; background: transparent; color: var(--text-2); cursor: pointer; }
+.find-step:hover { background: var(--hover); color: var(--text-bright); }
+.find-step:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .workspace-bar { min-height: 76px; gap: 14px; }.workspace-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }.segment-control { display: inline-flex; border: 1px solid var(--border-2); border-radius: 4px; overflow: hidden; }.segment-control button { min-height: 28px; display: inline-flex; align-items: center; gap: 5px; border: 0; border-right: 1px solid var(--border-2); background: var(--chip); color: var(--text-3); padding: 4px 8px; font-size: 11px; cursor: pointer; }.segment-control button:last-child { border-right: 0; }.segment-control button[aria-pressed="true"] { background: var(--accent-chip-bg); color: var(--on-accent); }.segment-control button:focus-visible { outline: 1px solid var(--accent-bright); outline-offset: -2px; }
 .label-menu { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }.label-menu select { height: 28px; border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip); color: var(--text); padding: 0 6px; font: inherit; }
 .graph-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 39px; padding: 6px 18px; border-bottom: 1px solid var(--border); background: var(--bar); color: var(--muted); font-size: 11px; }.edge-filter, .active-topic { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip); color: var(--text-3); padding: 4px 7px; font: inherit; font-size: 11px; cursor: pointer; }.edge-filter[aria-pressed="true"] { color: var(--text-bright); background: var(--selected-bg); }.edge-related[aria-pressed="true"] { border-color: var(--edge-related); }.edge-supersedes[aria-pressed="true"] { border-color: var(--edge-supersedes); }.edge-evolves[aria-pressed="true"] { border-color: var(--edge-evolves); }.edge-topic[aria-pressed="true"] { border-color: var(--edge-topic); }.active-topic { border-color: var(--accent); color: var(--text-2); }
