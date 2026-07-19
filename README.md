@@ -574,7 +574,7 @@ When run in a project that already has Memory Seed files:
 - `memory-seed link audit [--for <entry_id>] [--date YYYY-MM-DD]` finds entry pairs that share `F:` files or topics but carry no recorded edge - file overlap surfaces a candidate even when a `related_entries` link already exists (a lifecycle-upgrade hint), topic-only overlap is suppressed by any edge, and IDF weighting keeps hub files from dominating. `--date` scopes targets to one session (the end-of-turn sweep's input). Read-only.
 - `memory-seed session append --title ... --user-initials ... --agent-type ... [--topics a,b] [--supersedes id] [--evolves id] [--related id] [--body-file f]` appends a session entry with structure enforced: target resolution, heading timestamp (refusing out-of-order appends loudly), canonical deterministic `entry_id`, YAML shape, ref validation (fabricated or forward-pointing ids refused), controlled-topic resolution, and git branch auto-capture. The body prose passes through verbatim.
 - `memory-seed session reorder --date YYYY-MM-DD [--apply]` repairs a misordered day's log as a pure block permutation - entries are stably re-sorted by heading timestamp with their bytes untouched. Dry-run by default.
-- `memory-seed session entry-id --timestamp ... --title ... --user-initials ... --agent-type ...` computes the canonical deterministic entry id (also available as the `memory_entry_id` MCP tool) - ids are a metadata hash, never invented by hand.
+- `memory-seed session entry-id --timestamp ... --title ... --user-initials ... --agent-type ...` computes the canonical deterministic entry id (also surfaced by a `memory_session_append` `dry_run` over MCP) - ids are a metadata hash, never invented by hand.
 - `memory-seed hooks install` writes the `prepare-commit-msg` git shim (see Agent Hooks) into the git common dir; idempotent, and it never overwrites a hook it did not write.
 - `memory-seed hooks status [--json]` reports whether the Memory-Entry trailer hook is current, missing, stale, broken, or blocked by a foreign hook.
 - `memory-seed hooks repair` installs or refreshes only missing or Memory Seed-managed trailer hooks; foreign hooks are reported and left untouched.
@@ -704,8 +704,8 @@ memory_search(query, cwd=".", top_k=8, lambda_days=0.01, recency_enabled=true, r
 memory_get_chunk(chunk_id, cwd=".")
 memory_link_suggest(cwd=".", entry_id=null, top_k=5)
 memory_link_show(entry_id, cwd=".")
-memory_session_target(cwd=".", date=null, user=null)
-memory_entry_id(timestamp, title, user_initials, agent_type, project_path=".", subproject_path=null)
+memory_session_append(title, body, user_initials, agent_type, cwd=".", agent_name=null, topics=null, related_entries=null, supersedes=null, evolves=null, project_path=".", subproject_path=null, branch=null, auto_branch=true, timestamp=null, user=null, dry_run=false)
+memory_session_integrate(branch, cwd=".", dry_run=false)
 memory_topics_list(cwd=".")
 memory_topic_inspect(topic, cwd=".")
 memory_topics_check(cwd=".")
@@ -720,15 +720,18 @@ memory_session_fuse_preview(branch, cwd=".", base="HEAD")
 
 The ranking engine stays local and CPU-friendly. MCP search uses a Model2Vec static embedding provider by default with the general-purpose `minishlab/potion-base-8M` model, combines semantic score with lexical and metadata scoring, then applies recency. If Model2Vec or the model cannot load or score a query, the server falls back to lexical, metadata, and recency ranking without failing the request. Use `--no-semantic` on `memory-seed-mcp --stdio` or `semantic_enabled=false` in `memory_search` to force fallback behavior.
 
-`memory_link_suggest`, `memory_link_show`, and `memory_session_target` are read-only authoring-support
-tools: they close the write-side loop that `memory_search`/`memory_get_chunk` open on the read side.
-`memory_link_suggest` ranks older entries to link (paste-ready `related_entries` for the entry just
-written, with the rarity-weighted `F:` file-overlap boost and per-suggestion `shared_files`
-evidence), `memory_link_show` returns one entry's graph node (outbound/inbound edges, supersession
-and evolution edges with their computed inverses, continuity blocks, importance, linked-commit
-count), and `memory_session_target` resolves where a new entry should be
-appended without ever creating the file. They are routed through `history_retrieval.md`. The agent
-still authors and appends the entry itself; MCP never writes session files.
+`memory_link_suggest` and `memory_link_show` are read-only authoring-support tools and
+`memory_session_append` is the write path: together they close the authoring loop that
+`memory_search`/`memory_get_chunk` open on the read side. `memory_link_suggest` ranks older entries
+to link (paste-ready `related_entries` for the entry just written, with the rarity-weighted `F:`
+file-overlap boost and per-suggestion `shared_files` evidence), `memory_link_show` returns one
+entry's graph node (outbound/inbound edges, supersession and evolution edges with their computed
+inverses, continuity blocks, importance, linked-commit count), and `memory_session_append` appends
+the entry itself through every structural guard (chronology, ref existence, forward-only
+`supersedes`/`evolves` edges, controlled topics, id collision, DRAFT body), stamping the heading
+timestamp from the server clock; a `dry_run` returns the `entry_id`, timestamp, target path, and
+`rendered` - the exact entry block a real call would append - without writing. They are routed through `history_retrieval.md`. `memory_session_append` is the only
+sanctioned way to author an entry, so agents no longer hand-write session files.
 
 `memory_topics_list`, `memory_topic_inspect`, and `memory_topics_check` are read-only topic-management
 tools for agents. They expose the project topic index, resolve canonical slugs/aliases with entry
@@ -736,13 +739,16 @@ usage, and mirror `memory-seed topics check` validation without adding a write s
 project-curated `.memory-seed/topics.yaml` file.
 
 `memory_branch_status`, `memory_worktree_guard`, and `memory_session_fuse_preview` are read-only
-collaboration tools for LLM orchestrators. The skill registry routes them through
-`agent_collaboration.md`, which tells agents when to use the MCP guard/preview and when to fall back
-to CLI commands. `memory_worktree_guard` classifies the current checkout as an owned worktree,
-foreign worktree, root checkout, unmanaged worktree, or non-worktree for a named agent. Fuse preview
-reports planned entries, planned sidecars, source removals, blockers, and the gated CLI apply
-command; it does not write files. Applying a fuse remains CLI-only during an inspected
-`git merge --no-ff --no-commit`.
+collaboration tools for LLM orchestrators, and `memory_session_integrate` is the write path that
+applies a branch merge+fuse. The skill registry routes them through `agent_collaboration.md`, which
+tells agents when to use the MCP guard/preview/integrate and when to fall back to CLI commands.
+`memory_worktree_guard` classifies the current checkout as an owned worktree, foreign worktree, root
+checkout, unmanaged worktree, or non-worktree for a named agent. Fuse preview reports planned
+entries, planned sidecars, source removals, blockers, and the gated CLI apply command without
+writing files. `memory_session_integrate` then applies that plan autonomously — the fuse gate, the
+`--no-ff` merge, chronological session fusion, and the commit in one step — aborting and restoring a
+clean tree on a non-session conflict and declining `pr` mode; the lower-level `session fuse --apply`
+during an inspected `git merge --no-ff --no-commit` remains available for a hand-driven merge.
 
 ### Performance characteristics
 

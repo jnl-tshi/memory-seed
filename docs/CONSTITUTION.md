@@ -1,10 +1,11 @@
 # Memory Seed Constitution
 
-**Version:** 1.2 — **RATIFIED 2026-07-17** by JNL. Changes go through [Governance](#11-governance).
+**Version:** 1.3 — **RATIFIED 2026-07-19** by JNL. Changes go through [Governance](#11-governance).
 **Status:** Living document. It grows only by amendment (see [Governance](#11-governance)).
 **Adopted:** 2026-07-14; amended 2026-07-16 with partitioned Markdown authority for narrowly scoped,
 append-only sidecars (Invariant #6); amended 2026-07-17 with a human-gated, one-off exception for
-untyped `related_entries` metadata curation (Invariant #2). **Source:** distilled from demonstrated behaviour
+untyped `related_entries` metadata curation (Invariant #2); amended 2026-07-19 with write-surface
+parity — every write passes identical validation on any surface (Invariant #2). **Source:** distilled from demonstrated behaviour
 across the codebase,
 `3_Spec/`, `.memory-seed/agent-rules.md`, and the session-memory corpus — not invented. Framework from the
 [architectural-discovery proposal](5_Completed/memory-seed-architectural-discovery-proposal.md).
@@ -51,6 +52,15 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    condition fails, the invariant applies unchanged. The exception exists because an untyped "these two
    relate" pointer is a navigational aid rather than a claim about what was decided or why; it does not
    license editing the record of a decision.
+   **Write-surface parity (1.3):** every write to memory passes the same validation, whatever surface
+   performs it. No tool may author or integrate an entry by a path that skips the guards another
+   surface enforces — chronology, ref existence, forward-only lifecycle edges, topic vocabulary, id
+   collision, and DRAFT format hold identically over the CLI and MCP. This **strengthens** the
+   invariant rather than relaxing it: a surface that could write without the guards was a standing way
+   to add unvalidated history, which is precisely what append-only exists to prevent. A write surface
+   is an [Implementation](#5-implementations) and owes no allegiance to any particular tool, but the
+   guards a write passes are not implementation detail — they are how "extend, never corrupt" is kept
+   true no matter who is holding the pen.
 3. **Memory is explainable and attributable.** Every decision can be traced to who/what/when and the
    reasoning behind it. *(Cited: `Memory-Entry:` commit trailers; the decision-graph edges in
    `3_Spec/graph-edge-contract.md`; `3_Spec/memory-trace-derived-artifact-provenance-contract.md`.)*
@@ -217,3 +227,4 @@ demonstrates them.
 | 1.0 | 2026-07-14 | **Initial Constitution ratified** — the 7 invariants, principles, policies, four-layer model, five-question test, trust/quality candidates, and governance; includes the same-day derived-layer / optional-tier refinement (Invariants #1 & #6, §5, open-core principle). | JNL |
 | 1.1 | 2026-07-16 | **Partitioned Markdown authority** — Invariant #6 now permits narrowly scoped append-only Markdown sidecars to own declared fields or lifecycles while entries retain rationale/evidence and all indexes, snapshots, databases, and UI views remain derived. | JNL |
 | 1.2 | 2026-07-17 | **Human-gated metadata curation** — Invariant #2 now permits after-the-fact curation of an existing entry's *untyped* `related_entries` metadata, as a one-off, per-edge-approved procedure only: never core functionality, never automatic or batch, never touching prose, and never writing typed lifecycle edges into history. Raised by the Related-entries P2 plan, which was approved 2026-07-05 — before v1.0 — and whose backfill half conflicted with Invariant #2 as ratified. Rather than honour a pre-constitutional sign-off or silently override the invariant (§11 forbids both), the invariant was amended to the narrowest shape that permits the capability. | JNL |
+| 1.3 | 2026-07-19 | **Write-surface parity** — Invariant #2 now requires every write to memory to pass identical validation on any surface. Prompted by a tool-surface audit that found two authoring paths of unequal strength: the CLI `session append` enforced nine guards atomically, while the MCP path (`memory_entry_id` + `memory_session_target` + a hand-written file) enforced none, so violations only surfaced later in `links check`. The read-only-MCP posture that created the gap was a 2026-07-10 session decision, not constitutional law — Invariant #2 governed *what* is written, never *which surface* writes. Rather than leave the parity rule as convention an agent could route around (as one did), it was written into the invariant it protects: the fix added a gated MCP write surface and retired the ungated pair, and the invariant now forbids any future bypass. Additive (1.x), not a changed invariant — it strengthens #2 rather than altering its meaning, following the v1.1/v1.2 precedent for narrowing/hardening under a minor bump. | JNL |

@@ -221,11 +221,15 @@ falling back to shell commands:
 - `memory_session_fuse_preview` replaces the dry-run CLI preview for agents that can call MCP. Use it
   before promoting a task branch that may contain branch-local session entries or diagram sidecars.
   Treat `ok: false` or any `issues` as a merge blocker until the orchestrator or user resolves them.
-- MCP remains read-only for this workflow. Do not expect it to apply a fuse, delete source files, or
-  complete a merge. Use the returned `merge_checkpoint_command` and `apply_command` as operator
-  guidance, then either run `memory-seed session merge-branch --branch <branch>` for the one-step
-  merge+fuse+commit, or apply through `session fuse --apply` only during an in-progress inspected
-  merge.
+- `memory_session_integrate` applies a branch merge+fuse autonomously — the MCP counterpart to
+  `memory-seed session merge-branch`. It runs the fuse gate, performs the `--no-ff` merge, fuses
+  branch-local session memory in chronological order, and commits, with no in-progress-merge
+  precondition. It fails closed: a non-session conflict aborts the merge and restores a clean tree
+  (retry by hand, or let the named conflict owner resolve it), and `integration_mode: pr` is declined
+  (that path pushes and opens a PR) with the `memory-seed session integrate --branch <branch>` command
+  handed back instead. `memory_session_fuse_preview` above stays the read-only dry-run for inspecting
+  the plan first; its returned `merge_checkpoint_command`/`apply_command` remain operator guidance for
+  a manually inspected merge applied through `session fuse --apply`.
 - A previewed diagram sidecar is valid only when its parent entry already exists on the base/main tree
   or the parent branch entry is accepted for promotion in the same preview. Orphan or malformed
   sidecars must block promotion.

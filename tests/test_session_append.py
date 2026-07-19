@@ -152,6 +152,28 @@ class SessionAppendTests(unittest.TestCase):
         result = self._append(branch="feature-x")
         self.assertIn("branch: feature-x", result.path.read_text(encoding="utf-8"))
 
+    def test_dry_run_rendered_is_byte_identical_to_the_real_append(self):
+        # The dummy write's whole value is fidelity: on a fresh file the block
+        # IS the file, so the preview must match the real write byte for byte.
+        preview = self._append(dry_run=True)
+
+        self.assertTrue(preview.ok, preview.issues)
+        self.assertFalse(preview.written)
+        self.assertIsNotNone(preview.rendered)
+        self.assertFalse(preview.path.exists(), "a dry run must not create the file")
+
+        real = self._append()
+        self.assertEqual(real.path.read_text(encoding="utf-8"), preview.rendered)
+        self.assertEqual(real.entry_id, preview.entry_id)
+
+    def test_rendered_is_absent_outside_a_passing_dry_run(self):
+        written = self._append()
+        self.assertIsNone(written.rendered, "a real write confirms with id/path, not an echo of the body")
+
+        refused = self._append(title="Out of order", timestamp="2026-06-13 08:00", dry_run=True)
+        self.assertFalse(refused.ok)
+        self.assertIsNone(refused.rendered, "a refused write has no final output to preview")
+
 
 if __name__ == "__main__":
     unittest.main()

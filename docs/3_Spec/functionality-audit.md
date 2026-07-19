@@ -948,7 +948,8 @@ The qualities the design optimises for (the "why it is shaped this way"):
   - `memory_get_chunk(chunk_id, cwd=".")` -> full entry/section text for one id.
   - `memory_link_suggest(cwd=".", entry_id=null, top_k=5)` -> `target` summary + ranked `suggestions` + paste-ready `related_entries` (read-only).
   - `memory_link_show(entry_id, cwd=".")` -> one entry's graph node: `outbound`/`inbound`/`supersedes`/`superseded_by`, `importance_score`, `commit_reference_count` (read-only).
-  - `memory_session_target(cwd=".", date=null, user=null)` -> active session-log target (`path`, `layout`, `user`, `exists`); never creates the file.
+  - `memory_session_append(title, body, user_initials, agent_type, ...)` -> appends a session entry through every write-time guard (chronology, ref existence, forward-only edges, topic vocabulary, id collision, DRAFT format); refusals return `{ok: false, issues}`. `dry_run` returns the id, timestamp and target path without writing. The only MCP path that authors an entry.
+  - `memory_session_integrate(branch, cwd=".", dry_run=false)` -> merges a task branch and fuses its branch-local session memory into the trunk in chronological order; aborts to a clean tree on a non-session conflict, declines `pr` integration mode.
   - `memory_topics_list(cwd=".")`, `memory_topic_inspect(topic, cwd=".")`, and `memory_topics_check(cwd=".")` -> read-only topic vocabulary listing, alias-aware single-topic inspection with entry usage, and validation mirroring `memory-seed topics check`.
   - `memory_branch_status(cwd=".")`, `memory_worktree_guard(agent_type, write_intent=false, allow_root_write=false, cwd=".")`, and `memory_session_fuse_preview(branch, cwd=".", base="HEAD")` -> read-only branch posture, agent worktree namespace classification, and branch-local fuse plan.
 - **CLI exit codes:** `0` success, `1` failure (e.g. nothing to do, invalid agent slug, unhealthy runtime).

@@ -8,12 +8,12 @@ from pathlib import Path
 from typing import Any
 
 from .core import (
+    MEMORY_DIR_NAME,
+    _git_text,
     branch_status,
     commit_reference_ids,
-    generate_session_entry_id,
     resolve_runtime,
     session_fuse,
-    session_target,
     worktree_guard,
 )
 # The MCP server is a thin JSON-RPC wrapper over the public retrieval service
@@ -231,46 +231,70 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
-        "name": "memory_session_target",
-        "description": "Resolve the active session-log target path (where a new entry should be appended) for the nearest runtime. Read-only; never creates the file. The agent appends the entry itself.",
+        "name": "memory_session_append",
+        "description": (
+            "Append a session entry with every structural guarantee enforced. THIS IS THE ONLY WAY TO AUTHOR AN ENTRY - "
+            "do not hand-write session files. The tool owns structure (target path, heading timestamp from the server "
+            "clock, canonical entry_id, YAML shape, chronological ordering) and refuses malformed or out-of-order writes; "
+            "you own voice (title, topics, lifecycle classification, and the D/R/A/F/T body prose, all taken verbatim). "
+            "Guards run together and nothing is written when any fails: chronology, ref existence (fabricated ids are "
+            "refused), forward-only lifecycle edges, controlled topic vocabulary, id collision, and DRAFT body format. "
+            "Refusals come back as ok=false with an issues list, each independently fixable. Pair with "
+            "memory_link_suggest / memory_link_show to choose related_entries, supersedes and evolves before calling. "
+            "Set dry_run to run every guard and get the id, timestamp, target path and the rendered entry back without writing - inspect the final output, then commit by calling again WITH the returned timestamp, so a minute tick between preview and write cannot change the id."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "cwd": {"type": "string", "default": "."},
-                "date": {
+                "title": {"type": "string", "description": "Entry title (the text after 'YYYY-MM-DD HH:MM - ')."},
+                "body": {
                     "type": "string",
-                    "description": "Target session date in YYYY-MM-DD format. Defaults to today (system clock).",
-                },
-                "user": {
-                    "type": "string",
-                    "description": "Override the active user slug when resolving a per-user target.",
-                },
-            },
-        },
-    },
-    {
-        "name": "memory_entry_id",
-        "description": "Compute the canonical entry_id for a new session entry from its metadata (deterministic sha256, no randomness). Closes the authoring loop: call this instead of inventing an id - hand-rolled ids drift outside the canonical Crockford alphabet and are not reproducible. Omit timestamp: the server stamps from its machine clock and RETURNS the timestamp - write it into the entry heading verbatim, never estimate times by hand. Read-only; the agent writes the id into its own new entry.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "timestamp": {
-                    "type": "string",
-                    "description": "Entry heading timestamp, e.g. '2026-07-12 14:45'. OMIT in normal use: the server stamps from its own clock and returns the value to write verbatim. Supply explicitly only for sanctioned backfill/corrections; values far from the server clock earn a drift warning.",
-                },
-                "title": {
-                    "type": "string",
-                    "description": "Entry title (the text after 'YYYY-MM-DD HH:MM - ').",
+                    "description": "The entry body, verbatim. DRAFT shape: '### Decision' (or '### Decisions' with '#### Dn - name' subsections) then '- D:' and a mandatory '- R:', optionally '- A:', '- F:', '- T:'.",
                 },
                 "user_initials": {"type": "string", "description": "user_initials field, e.g. JNL."},
                 "agent_type": {"type": "string", "description": "agent_type field, e.g. claude."},
-                "project_path": {"type": "string", "default": "."},
-                "subproject_path": {
-                    "type": "string",
-                    "description": "subproject_path field; omit for null.",
+                "agent_name": {"type": "string", "description": "Active .agents/ persona slug; omit for null."},
+                "topics": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Controlled-vocabulary slugs or aliases; aliases are stored canonically. Unknown slugs are refused.",
                 },
+                "related_entries": {"type": "array", "items": {"type": "string"}, "description": "entry_id values this entry relates to. Must already exist and predate it."},
+                "supersedes": {"type": "array", "items": {"type": "string"}, "description": "entry_id values this entry retires (the old decision is now wrong or dead)."},
+                "evolves": {"type": "array", "items": {"type": "string"}, "description": "entry_id values this entry refines (the old decision stays valid but incomplete)."},
+                "project_path": {"type": "string", "default": "."},
+                "subproject_path": {"type": "string", "description": "subproject_path field; omit for null."},
+                "branch": {"type": "string", "description": "branch field; omit to auto-capture from git."},
+                "auto_branch": {"type": "boolean", "default": True, "description": "Set false to omit the branch field entirely."},
+                "timestamp": {
+                    "type": "string",
+                    "description": "Heading timestamp 'YYYY-MM-DD HH:MM'. OMIT in normal use: the server stamps from its own clock. Two sanctioned explicit uses: echoing a dry_run's returned timestamp back on the real write (the id is a hash of the timestamp, so a fresh stamp that ticks to the next minute mints a DIFFERENT id than previewed - echoing pins preview and write to the same bytes), and backfill. Values far from the server clock earn a drift warning.",
+                },
+                "user": {"type": "string", "description": "Override the active user slug when resolving a per-user target."},
+                "dry_run": {"type": "boolean", "default": False, "description": "Run every guard and report entry_id, timestamp, path and `rendered` - the exact entry block a real call would append - without writing."},
             },
-            "required": ["title", "user_initials", "agent_type"],
+            "required": ["title", "body", "user_initials", "agent_type"],
+        },
+    },
+    {
+        "name": "memory_session_integrate",
+        "description": (
+            "Merge a task branch and fuse its branch-local session memory in one step, so branch entries land in "
+            "chronological order on the trunk instead of wherever a raw line-merge puts them. Fails closed: any session "
+            "problem (modified existing entry, missing entry_id, duplicate ids) aborts before the git merge starts, and "
+            "a conflict outside session files aborts the merge and restores a clean tree rather than leaving one "
+            "half-merged. Refused when the project's integration_mode is 'pr', because that path pushes and opens a "
+            "pull request. Set dry_run to see the plan without merging."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "default": "."},
+                "branch": {"type": "string", "description": "Task branch to merge and fuse."},
+                "dry_run": {"type": "boolean", "default": False, "description": "Report the fuse plan without merging or writing."},
+            },
+            "required": ["branch"],
         },
     },
 ]
@@ -483,66 +507,133 @@ def call_tool(
             "write_surface": "Read-only. Use CLI/project file edits with user approval to change topics.yaml.",
         }
 
-    if name == "memory_session_target":
-        root = Path(args.get("cwd", ".")).resolve()
-        target = session_target(
-            cwd=root,
-            date_str=_optional_str(args, "date"),
-            explicit_user=_optional_str(args, "user"),
-            create=False,
-        )
-        try:
-            rel_path = target.path.relative_to(root).as_posix()
-        except ValueError:
-            rel_path = target.path.as_posix()
+    if name == "memory_session_integrate":
+        from .core import read_integration_mode, session_merge_branch
+
+        cwd = Path(str(args.get("cwd", "."))).resolve()
+        runtime = resolve_runtime(cwd)
+        root = runtime.workspace_root
+        branch = _required_str(args, "branch")
+        dry_run = bool(args.get("dry_run", False))
+
+        # PR mode pushes and opens a pull request - outward-facing actions that
+        # should not happen unattended. Hand the operator the command instead.
+        mode = read_integration_mode(root)
+        if mode == "pr":
+            return {
+                "ok": False,
+                "committed": False,
+                "integration_mode": mode,
+                "issues": ["project integration_mode is 'pr'; opening a pull request pushes and is not run unattended"],
+                "cli_command": f"memory-seed session integrate --branch {branch}",
+            }
+
+        result = session_merge_branch(root, branch=branch, dry_run=dry_run)
+
+        # session_merge_branch deliberately parks a non-session conflict for a
+        # human to resolve. An autonomous caller cannot resolve one and must not
+        # walk away from a half-merged tree, so abort back to a clean state and
+        # report - the branch is untouched and the operator can retry by hand.
+        aborted = False
+        if result.merge_in_progress:
+            abort_code, abort_out = _git_text(root, ("merge", "--abort"))
+            aborted = abort_code == 0
+            if not aborted:
+                result.issues.append(f"merge left in progress and could not be aborted: {abort_out or '(no output)'}")
+
         return {
-            "path": rel_path,
-            "absolute_path": target.path.as_posix(),
-            "session_date": target.session_date,
-            "user": target.user,
-            "layout": target.layout,
-            "exists": target.path.exists(),
-            "write_surface": "Agent appends the entry directly; MCP never writes session files.",
+            "ok": result.committed or (dry_run and not result.issues),
+            "committed": result.committed,
+            "integration_mode": mode,
+            "dry_run": dry_run,
+            "planned_entries": result.planned_entries,
+            "planned_sidecars": result.planned_sidecars,
+            "removed_sources": result.removed_sources,
+            "already_present": result.already_present,
+            "stamped_entries": result.stamped_entries,
+            "conflicts": result.conflicts,
+            "merge_aborted": aborted,
+            "merge_in_progress": result.merge_in_progress and not aborted,
+            "issues": result.issues,
         }
 
-    if name == "memory_entry_id":
-        # The clock is the server's, not the caller's: authored timestamps
-        # drifted hours from reality in practice (agents estimating elapsed
-        # time), and the Trail renders them as fact. Omitting timestamp is the
-        # normal path - the server stamps and the caller writes it back
-        # verbatim. Explicit timestamps stay allowed for sanctioned backfill,
-        # but anything far from the server clock earns a drift warning.
+    if name == "memory_session_append":
+        # Deferred import for the writer only. `resolve_runtime` must NOT be
+        # re-imported here: a function-local import binds the name for the whole
+        # function scope, shadowing the module-level one and leaving every
+        # earlier branch that uses it reading an unassigned local.
+        from .core import session_append_entry
+
+        cwd = Path(str(args.get("cwd", "."))).resolve()
+        # The one hazard MCP adds that the CLI does not have. resolve_runtime
+        # fails open and the writer does mkdir(parents=True), so a wrong cwd
+        # would not error - it would create a phantom .memory-seed tree and
+        # write a real-looking entry into it. Worse, the id-collision and
+        # fabricated-ref guards read that empty tree and pass vacuously, so the
+        # entry would look clean. The CLI is immune because it hardcodes its own
+        # directory; a server started from an arbitrary cwd is not.
+        runtime = resolve_runtime(cwd)
+        if not runtime.memory_dir.is_dir():
+            return {
+                "ok": False,
+                "written": False,
+                "issues": [
+                    f"no Memory Seed runtime at {cwd} (looked for {MEMORY_DIR_NAME}/); "
+                    "pass cwd pointing at the project root - refusing rather than creating an empty one"
+                ],
+            }
+
+        # Same clock discipline the id tool carried: the server stamps, because
+        # authored timestamps drifted hours from reality in practice and the
+        # Trail renders them as fact. Explicit stamps stay allowed for sanctioned
+        # backfill and earn a drift warning.
         now = args.get("_now") or datetime.now().strftime("%Y-%m-%d %H:%M")
         supplied = _optional_str(args, "timestamp")
-        timestamp = supplied or now
-        entry_id = generate_session_entry_id(
-            timestamp=timestamp,
+
+        body = args.get("body")
+        if not isinstance(body, str) or not body.strip():
+            return {"ok": False, "written": False, "issues": ["body is empty - pass the D/R/A/F/T prose"]}
+
+        result = session_append_entry(
+            cwd,
             title=_required_str(args, "title"),
+            body=body,
             user_initials=_required_str(args, "user_initials"),
             agent_type=_required_str(args, "agent_type"),
+            agent_name=_optional_str(args, "agent_name"),
+            topics=list(args.get("topics") or []),
+            related_entries=list(args.get("related_entries") or []),
+            supersedes=list(args.get("supersedes") or []),
+            evolves=list(args.get("evolves") or []),
             project_path=str(args.get("project_path", ".")),
             subproject_path=_optional_str(args, "subproject_path"),
+            branch=_optional_str(args, "branch"),
+            auto_branch=bool(args.get("auto_branch", True)),
+            timestamp=supplied or now,
+            explicit_user=_optional_str(args, "user"),
+            dry_run=bool(args.get("dry_run", False)),
         )
-        result: dict[str, Any] = {
-            "entry_id": entry_id,
-            "timestamp": timestamp,
-            "write_surface": "Agent writes this id AND this timestamp into its own new entry, verbatim; MCP never writes session files.",
+        # Refusals are results, not JSON-RPC errors: the guards report several
+        # independently-fixable problems at once, and an error string would
+        # flatten them into one line the caller cannot act on item by item.
+        payload: dict[str, Any] = {
+            "ok": result.ok,
+            "written": result.written,
+            "entry_id": result.entry_id,
+            "timestamp": result.timestamp,
+            "path": str(result.path) if result.path else None,
+            "issues": list(result.issues),
         }
+        # Only a dry run carries the rendered block: pre-commit inspection is
+        # its purpose, while echoing the body back after a real write would
+        # bloat every payload with text the caller already has.
+        if result.rendered is not None:
+            payload["rendered"] = result.rendered
         if supplied:
-            try:
-                drift_minutes = abs(
-                    (datetime.strptime(supplied, "%Y-%m-%d %H:%M") - datetime.strptime(now, "%Y-%m-%d %H:%M")).total_seconds()
-                ) / 60
-            except ValueError:
-                drift_minutes = None
-            if drift_minutes is None:
-                result["clock_drift_warning"] = f"timestamp {supplied!r} does not parse as 'YYYY-MM-DD HH:MM'; server clock reads {now}."
-            elif drift_minutes > 10:
-                result["clock_drift_warning"] = (
-                    f"supplied timestamp is {drift_minutes:.0f} minutes from the server clock ({now}); "
-                    "session entries must carry real wall-clock times - omit timestamp to let the server stamp."
-                )
-        return result
+            drift = _clock_drift_warning(supplied, now)
+            if drift:
+                payload["clock_drift_warning"] = drift
+        return payload
 
     raise ValueError(f"Unknown tool: {name}")
 
@@ -634,6 +725,27 @@ def main(argv: list[str] | None = None) -> int:
         return serve_stdio(semantic_enabled=not args.no_semantic)
     parser.print_help()
     return 0
+
+
+def _clock_drift_warning(supplied: str, now: str) -> str | None:
+    """Flag an authored timestamp that is far from the server clock.
+
+    Advisory, never fatal: explicit stamps are legitimate for sanctioned
+    backfill. The threshold exists because agents estimating elapsed time
+    drifted hours in practice, and the Trail renders those stamps as fact.
+    """
+    try:
+        drift_minutes = abs(
+            (datetime.strptime(supplied, "%Y-%m-%d %H:%M") - datetime.strptime(now, "%Y-%m-%d %H:%M")).total_seconds()
+        ) / 60
+    except ValueError:
+        return f"timestamp {supplied!r} does not parse as 'YYYY-MM-DD HH:MM'; server clock reads {now}."
+    if drift_minutes > 10:
+        return (
+            f"supplied timestamp is {drift_minutes:.0f} minutes from the server clock ({now}); "
+            "session entries must carry real wall-clock times - omit timestamp to let the server stamp."
+        )
+    return None
 
 
 def _required_str(arguments: dict[str, Any], key: str) -> str:

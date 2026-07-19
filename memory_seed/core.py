@@ -1897,6 +1897,12 @@ class SessionAppendResult:
     timestamp: str | None = None
     issues: tuple[str, ...] = ()
     written: bool = False
+    # The exact entry block a real call would append — heading, YAML, body.
+    # Populated only on a passing dry run: that is the moment an agent needs to
+    # SEE the final output before committing to the write; a real write already
+    # confirms itself with id/path, and echoing the body back would just bloat
+    # every payload with text the caller sent in.
+    rendered: str | None = None
 
 
 def session_append_entry(
@@ -1917,6 +1923,7 @@ def session_append_entry(
     auto_branch: bool = True,
     timestamp: str | None = None,
     explicit_user: str | None = None,
+    dry_run: bool = False,
 ) -> SessionAppendResult:
     """Append a session entry with every structural guarantee enforced.
 
@@ -1940,6 +1947,17 @@ def session_append_entry(
       metadata - almost certainly a double-append - and errors.
     - ``branch`` is captured from git automatically unless supplied or
       ``auto_branch=False`` (omitted when detached or not a repository).
+
+    ``dry_run=True`` runs every guard and returns the id, timestamp, target
+    path and ``rendered`` - the exact entry block a real call would append -
+    without touching the filesystem. It answers "what id will this get, would
+    it be accepted, and what will it look like?" in one step - the pre-flight
+    an agent needs before committing to the write. To commit to the previewed
+    bytes, pass the previewed ``timestamp`` back on the real call: the id is a
+    hash of the timestamp, so letting the clock stamp afresh across a minute
+    boundary mints a different id than the one inspected. The echo is still
+    the server's clock, one call older; the chronology guard still refuses it
+    loudly if the file moved on in between.
     """
     issues: list[str] = []
     ts = timestamp or datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -2043,6 +2061,14 @@ def session_append_entry(
     block = "\n".join(
         [f"## {ts} - {title}", "", "```yaml", *yaml_lines, "```", "", body.strip(), ""]
     )
+    # Every guard has passed and the block is assembled. A dry run stops here
+    # with the exact bytes a real call would append - still short of the only
+    # write in this function, and short of the create=True re-resolution below,
+    # so it cannot bring a file into being. Seeing the final output before
+    # committing to the write is the point of the dummy pass.
+    if dry_run:
+        return SessionAppendResult(ok=True, path=target.path, entry_id=entry_id, timestamp=ts, written=False, rendered=block)
+
     target = session_target(cwd, date_str=date_part, explicit_user=explicit_user, create=True)
     existing = read_text_file(target.path) if target.path.exists() else ""
     if existing.strip():
@@ -2111,7 +2137,11 @@ def session_reorder(
         return SessionReorderResult(path=path, ok=True, changed=False, applied=False, issues=("no entries found",))
 
     issues: list[str] = []
-    blocks: list[tuple[str, int, str]] = []  # (timestamp, original_index, bytes)
+    # (timestamp, original_index, bytes). Ties keep their original relative
+    # order, matching the stable tie-break every session writer uses - see
+    # _session_record_sort_key. Sorting ties on entry_id would be deterministic
+    # but arbitrary, and would discard real append order.
+    blocks: list[tuple[str, int, str]] = []
     for index, match in enumerate(matches):
         heading = match.group(0)
         parsed = _REORDER_HEADING_RE.match(heading)
@@ -2620,6 +2650,28 @@ def _working_tree_sidecars(root: Path, rel_path: str, *, diagram_date: str) -> l
     return _split_diagram_records(text, source_path=rel_path, diagram_date=diagram_date)
 
 
+# The one ordering every session-file writer uses. Timestamps are fixed-width,
+# so lexicographic equals chronological.
+#
+# Ties are broken by INPUT ORDER, not by any field. Heading stamps are
+# minute-resolution, so ties are common, and callers build the list as
+# [existing-file-order..., incoming...]:
+#
+#   * `sorted` is stable, so entries already in the file keep their relative
+#     order - a fuse never re-positions history it did not touch;
+#   * incoming entries land after existing ones sharing that minute, which is
+#     what "append" means;
+#   * both inputs are themselves deterministic (file order; `import_entries` is
+#     pre-sorted by (timestamp, entry_id)), so the result is reproducible.
+#
+# Tie-breaking on entry_id instead would be deterministic but semantically
+# arbitrary - ids are metadata hashes, so it reorders same-minute entries into a
+# meaningless sequence and discards the append order, which is real evidence of
+# what happened first.
+def _session_record_sort_key(record: _SessionEntryRecord | _DiagramSidecarRecord) -> tuple[str]:
+    return (record.timestamp or "",)
+
+
 def _records_are_chronological(records: Sequence[_SessionEntryRecord | _DiagramSidecarRecord]) -> bool:
     timestamps = [record.timestamp for record in records]
     if any(timestamp is None for timestamp in timestamps):
@@ -2630,7 +2682,7 @@ def _records_are_chronological(records: Sequence[_SessionEntryRecord | _DiagramS
 def _write_chronological_session_file(path: Path, date_str: str, records: Sequence[_SessionEntryRecord], *, user: str | None = None) -> None:
     existing_text = read_text_file(path) if path.exists() else ""
     prefix = _session_file_prefix(existing_text, date_str, user=user)
-    ordered = sorted(records, key=lambda record: (record.timestamp or "", record.entry_id or ""))
+    ordered = sorted(records, key=_session_record_sort_key)
     # Records are rstripped, so a double newline leaves exactly one blank line
     # between entries - the same separation a hand-appended log has. A single
     # "\n" here butts each heading against the previous entry's last line.
@@ -2641,7 +2693,7 @@ def _write_chronological_session_file(path: Path, date_str: str, records: Sequen
 def _write_chronological_diagram_file(path: Path, date_str: str, records: Sequence[_DiagramSidecarRecord]) -> None:
     existing_text = read_text_file(path) if path.exists() else ""
     prefix = _diagram_file_prefix(existing_text, date_str)
-    ordered = sorted(records, key=lambda record: (record.timestamp or "", record.entry_id or ""))
+    ordered = sorted(records, key=_session_record_sort_key)
     # Same blank-line separation contract as the session-file writer above.
     body = "\n\n".join(record.text.rstrip() for record in ordered).rstrip()
     write_text_file(path, prefix + body + "\n")
@@ -3013,7 +3065,7 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
                     continue
                 return SessionFuseResult(changed=False, issues=[f"{target_rel}: entry_id {record.entry_id} already exists with different text"])
             writable_records.append(record)
-        writable_records = sorted(writable_records, key=lambda item: (item.timestamp or "", item.entry_id or ""))
+        writable_records = sorted(writable_records, key=_session_record_sort_key)
         if not _records_are_chronological(writable_records):
             return SessionFuseResult(changed=False, issues=[f"{target_rel}: imported entries are not chronological"])
         session_writes.append((target_path, date_str, user, writable_records))
@@ -3034,7 +3086,7 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
                     continue
                 return SessionFuseResult(changed=False, issues=[f"{target_rel}: diagram for entry_id {record.entry_id} already exists with different text"])
             writable_records.append(record)
-        writable_records = sorted(writable_records, key=lambda item: (item.timestamp or "", item.entry_id or ""))
+        writable_records = sorted(writable_records, key=_session_record_sort_key)
         if not _records_are_chronological(writable_records):
             return SessionFuseResult(changed=False, issues=[f"{target_rel}: imported diagram blocks are not chronological"])
         diagram_writes.append((target_path, date_str, writable_records))
