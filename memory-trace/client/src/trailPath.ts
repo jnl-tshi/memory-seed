@@ -179,6 +179,97 @@ export function runBody(
   return pathBody(handDrawnPoints(x1, y1, x2, y2, seedKey, options), tension);
 }
 
+/**
+ * A closed, variable-width outline around a centerline — the "pressure" of a
+ * real pen, which a constant `stroke-width` cannot express.
+ *
+ * The centerline is passed in unchanged (it is exactly `handDrawnPoints`
+ * output), so the wander and this width modulation stay independent concerns:
+ * every geometry guarantee about the centerline still holds.
+ *
+ * Width tapers back to `baseWidth` at both ends so a ribbon meets a
+ * constant-width neighbour — a fork elbow, a merge leg — without a visible step.
+ * Returns "" when the run is too short to carry variation; callers fall back to
+ * an ordinary stroke, which also keeps the round caps that short runs want.
+ */
+export function ribbonEdges(
+  points: Point[],
+  baseWidth: number,
+  variation: number,
+  seedKey: string,
+  options: HandDrawnOptions = {},
+): { left: Point[]; right: Point[]; half: number[] } | null {
+  const { spacing, lockZone } = { ...HAND_DRAWN_DEFAULTS, ...options };
+  if (points.length < 3 || !(baseWidth > 0) || !(variation > 0)) return null;
+
+  const distances = [0];
+  for (let i = 1; i < points.length; i += 1) {
+    distances.push(distances[i - 1] + Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y));
+  }
+  const length = distances[distances.length - 1];
+  if (!(length > 0)) return null;
+
+  // A separate seed from the drift: pen pressure and pen drift are unrelated,
+  // and sharing a wave would make every stroke thickest exactly where it bends.
+  const wave = driftWave(`${seedKey}:pressure`, spacing);
+  const half = points.map((_, index) => {
+    const distance = distances[index];
+    const swing = variation * wave(distance) * endpointTaper(distance, length, lockZone);
+    return (baseWidth / 2) * (1 + swing);
+  });
+
+  // Central-difference normals so the offset follows the curve smoothly rather
+  // than kinking at every control point.
+  const left: Point[] = [];
+  const right: Point[] = [];
+  points.forEach((point, index) => {
+    const previous = points[Math.max(0, index - 1)];
+    const next = points[Math.min(points.length - 1, index + 1)];
+    const dx = next.x - previous.x;
+    const dy = next.y - previous.y;
+    const magnitude = Math.hypot(dx, dy) || 1;
+    const normalX = -dy / magnitude;
+    const normalY = dx / magnitude;
+    left.push({ x: point.x + normalX * half[index], y: point.y + normalY * half[index] });
+    right.push({ x: point.x - normalX * half[index], y: point.y - normalY * half[index] });
+  });
+  return { left, right, half };
+}
+
+export function ribbonPath(
+  points: Point[],
+  baseWidth: number,
+  variation: number,
+  seedKey: string,
+  options: HandDrawnOptions = {},
+): string {
+  const edges = ribbonEdges(points, baseWidth, variation, seedKey, options);
+  if (!edges) return "";
+  const tension = options.tension ?? HAND_DRAWN_DEFAULTS.tension;
+  const back = edges.right.slice().reverse();
+  return (
+    `M ${fmt(edges.left[0].x)} ${fmt(edges.left[0].y)}` +
+    pathBody(edges.left, tension) +
+    ` L ${fmt(back[0].x)} ${fmt(back[0].y)}` +
+    pathBody(back, tension) +
+    " Z"
+  );
+}
+
+/** Convenience: hand-drawn centerline plus pressure, in one call. */
+export function pressurePath(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  seedKey: string,
+  baseWidth: number,
+  variation: number,
+  options: HandDrawnOptions = {},
+): string {
+  return ribbonPath(handDrawnPoints(x1, y1, x2, y2, seedKey, options), baseWidth, variation, seedKey, options);
+}
+
 /** A move command, formatted identically to the one `runPath` emits. */
 export function moveTo(x: number, y: number): string {
   return `M ${fmt(x)} ${fmt(y)}`;

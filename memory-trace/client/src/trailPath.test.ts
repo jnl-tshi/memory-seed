@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 // Explicit .ts extension: node's ESM resolver does not guess extensions. These
 // files sit outside the app tsconfig (see `exclude`), so the app build and
 // typecheck never see this import style.
-import { HAND_DRAWN_DEFAULTS, handDrawnPoints, runBody, runPath, seedHash } from "./trailPath.ts";
+import { HAND_DRAWN_DEFAULTS, handDrawnPoints, pressurePath, ribbonEdges, runBody, runPath, seedHash } from "./trailPath.ts";
 
 /** Every coordinate pair in a `d` string, in order. */
 function coordinates(d: string): number[] {
@@ -136,4 +136,83 @@ test("Slick mode ignores seed and options entirely", () => {
 test("a hand-drawn run is curved, and a slick one is not", () => {
   assert.ok(long("main:lane").includes("C "), "long hand-drawn runs should emit Beziers");
   assert.ok(!runPath(LONG.x1, LONG.y1, LONG.x2, LONG.y2, "main:lane", false).includes("C "));
+});
+
+// --- pressure ribbons -------------------------------------------------------
+
+const BASE_WIDTH = 1.8;
+const ribbon = (seed: string, variation = 0.35) =>
+  pressurePath(LONG.x1, LONG.y1, LONG.x2, LONG.y2, seed, BASE_WIDTH, variation);
+
+/** Half-widths the ribbon actually applied, straight from the edge builder. */
+function halfWidths(points: { x: number; y: number }[], baseWidth: number, variation: number, seed: string) {
+  const edges = ribbonEdges(points, baseWidth, variation, seed);
+  assert.ok(edges, "expected a ribbon for this run");
+  // Cross-check: the edges really are `half` either side of the centerline.
+  edges.left.forEach((point, index) => {
+    const spread = Math.hypot(point.x - edges.right[index].x, point.y - edges.right[index].y);
+    assert.ok(Math.abs(spread - edges.half[index] * 2) < 1e-6, `edge spread disagrees at ${index}`);
+  });
+  return edges.half;
+}
+
+test("a pressure ribbon is a closed filled outline", () => {
+  const d = ribbon("claude/feature/worktree-nav:lane");
+  assert.ok(d.startsWith("M "), "must start with a move");
+  assert.ok(d.trimEnd().endsWith("Z"), "must close so it can be filled");
+  assert.ok(d.includes("C "), "must follow the curved centerline");
+});
+
+test("ribbons are deterministic and differ per branch", () => {
+  assert.equal(ribbon("a:lane"), ribbon("a:lane"));
+  assert.notEqual(ribbon("a:lane"), ribbon("b:lane"));
+});
+
+test("width variation stays inside its configured bound", () => {
+  for (const variation of [0.2, 0.35, 0.8]) {
+    for (const seed of ["main:lane", "claude/feature/a:lane", "zz:lane"]) {
+      const points = handDrawnPoints(100, 0, 100, 1200, seed);
+      const widths = halfWidths(points, BASE_WIDTH, variation, seed);
+      const max = Math.max(...widths);
+      const min = Math.min(...widths);
+      assert.ok(max <= (BASE_WIDTH / 2) * (1 + variation) + 1e-6, `${seed} exceeded max width (${max})`);
+      assert.ok(min >= (BASE_WIDTH / 2) * (1 - variation) - 1e-6, `${seed} fell below min width (${min})`);
+    }
+  }
+});
+
+test("width actually varies rather than sitting flat", () => {
+  const seed = "claude/feature/worktree-nav:lane";
+  const points = handDrawnPoints(100, 0, 100, 1200, seed);
+  const widths = halfWidths(points, BASE_WIDTH, 0.35, seed);
+  assert.ok(Math.max(...widths) - Math.min(...widths) > 0.05, "pressure should be visible, not flat");
+});
+
+test("ends taper back to the base width so ribbons meet plain strokes", () => {
+  const seed = "main:lane";
+  const points = handDrawnPoints(100, 0, 100, 1200, seed);
+  const widths = halfWidths(points, BASE_WIDTH, 0.6, seed);
+  assert.ok(Math.abs(widths[0] - BASE_WIDTH / 2) < 1e-6, "start must be base width");
+  assert.ok(Math.abs(widths[widths.length - 1] - BASE_WIDTH / 2) < 1e-6, "end must be base width");
+});
+
+test("the ribbon leaves the centerline untouched", () => {
+  // The exact points the constant-width path uses must be unchanged by pressure.
+  const before = handDrawnPoints(100, 15, 100, 615, "main:lane");
+  ribbon("main:lane", 0.9);
+  const after = handDrawnPoints(100, 15, 100, 615, "main:lane");
+  assert.deepEqual(after, before);
+});
+
+test("short or flat runs decline the ribbon so the caller strokes instead", () => {
+  assert.equal(pressurePath(100, 15, 100, 45, "main:lane", BASE_WIDTH, 0.35), "", "a single row gap is too short");
+  assert.equal(ribbon("main:lane", 0), "", "zero variation means no ribbon");
+  assert.equal(pressurePath(100, 15, 100, 615, "main:lane", 0, 0.35), "", "zero width means no ribbon");
+});
+
+test("pressure never applies to Slick geometry", () => {
+  // Slick asks runPath for a straight line and never calls pressurePath; assert
+  // the constant-width path is still byte-exact alongside a ribbon existing.
+  assert.equal(runPath(100, 15, 100, 615, "main:lane", false), "M 100 15 L 100 615");
+  assert.ok(ribbon("main:lane").length > 0, "hand-drawn mode still produces a ribbon");
 });

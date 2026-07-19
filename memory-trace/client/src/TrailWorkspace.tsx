@@ -15,7 +15,7 @@ import {
   TRAIL_REL_ZONE,
   TRAIL_ROW,
 } from "./trailModel";
-import { elbowTo, moveTo, runBody, runPath } from "./trailPath";
+import { elbowTo, moveTo, pressurePath, runBody, runPath } from "./trailPath";
 import { animateScrollTo, bandScrollTarget, scrollDurationFor } from "./trailScroll";
 
 const CONTINUITY_COLOR: Record<string, string> = { rename: "var(--accent)", migration: "var(--edge-evolves)", removal: "var(--edge-supersedes)" };
@@ -53,16 +53,23 @@ export function TrailWorkspace({
   // line thickness Fine 1.8 / Thick 2.5, and Hand-drawn (wobble) vs Slick.
   // Arrowheads use userSpaceOnUse so they stay the same size in both
   // thicknesses (calibrated to the fine line).
-  type TrailSettings = { thickness: "fine" | "thick"; style: "hand" | "slick" };
+  // `wobble` (turbulence displacement) and `pressure` (stroke-width variation)
+  // are live tuning dials, kept on the front end so JNL can settle on values
+  // before they are baked in — same arrangement as the earlier tuning pass.
+  type TrailSettings = { thickness: "fine" | "thick"; style: "hand" | "slick"; wobble: number; pressure: number };
+  const clampDial = (value: unknown, fallback: number, max: number) =>
+    typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(0, value)) : fallback;
   const [settings, setSettings] = useState<TrailSettings>(() => {
     try {
       const stored = JSON.parse(localStorage.getItem("memory-trace:trail-settings") || "{}");
       return {
         thickness: stored.thickness === "thick" ? "thick" : "fine",
         style: stored.style === "slick" ? "slick" : "hand",
+        wobble: clampDial(stored.wobble, 0.9, 3),
+        pressure: clampDial(stored.pressure, 0.35, 1),
       };
     } catch {
-      return { thickness: "fine", style: "hand" };
+      return { thickness: "fine", style: "hand", wobble: 0.9, pressure: 0.35 };
     }
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -72,6 +79,7 @@ export function TrailWorkspace({
   }, [settings]);
   const strokeW = settings.thickness === "thick" ? 2.5 : 1.8;
   const handDrawn = settings.style === "hand";
+  const pressure = handDrawn ? settings.pressure : 0;
 
   const model = useMemo(() => buildTrailModel(trail, windowSize), [trail, windowSize]);
   const { items, total, rowOf, spans, laneOf, colorOf, linkRows, mergeEvents, lifecycle, continuityEvents, continuityChains, continuityLaneCount } = model;
@@ -201,22 +209,20 @@ export function TrailWorkspace({
   // vertical line — but a 30px segment is far too short to carry a believable
   // pen drift, so drawing the whole run as one path is what lets a long branch
   // read as one confident stroke instead of a nervous polyline.
+  // A pressure ribbon when the run is long enough to carry width variation,
+  // otherwise an ordinary stroke — which is also what keeps round caps on the
+  // short runs that want them.
+  const railStroke = (key: string, x1: number, y1: number, x2: number, y2: number, seedKey: string, colour: string | undefined, extra: Record<string, unknown> = {}) => {
+    const ribbon = pressure > 0 ? pressurePath(x1, y1, x2, y2, seedKey, strokeW, pressure) : "";
+    if (ribbon) return <path key={key} d={ribbon} fill={colour} fillOpacity={0.55} {...extra} />;
+    return <path key={key} d={runPath(x1, y1, x2, y2, seedKey, handDrawn)} fill="none" stroke={colour} strokeWidth={strokeW} strokeOpacity={0.55} strokeLinecap="round" strokeLinejoin="round" {...extra} />;
+  };
+
   const laneSegments: ReactElement[] = [];
   branchRows.forEach((rows, branch) => {
     if (branch === "" || rows.length < 2) return;
     const x = laneX(branch);
-    laneSegments.push(
-      <path
-        key={`seg-${branch}`}
-        d={runPath(x, rowY(rows[0]), x, rowY(rows[rows.length - 1]), `${branch}:lane`, handDrawn)}
-        fill="none"
-        stroke={colorOf.get(branch)}
-        strokeWidth={strokeW}
-        strokeOpacity={0.55}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />,
-    );
+    laneSegments.push(railStroke(`seg-${branch}`, x, rowY(rows[0]), x, rowY(rows[rows.length - 1]), `${branch}:lane`, colorOf.get(branch)));
   });
 
   // Main trunk: solid spine from main's newest real commit (newest of {main
@@ -231,7 +237,7 @@ export function TrailWorkspace({
     const bottomRow = mainRows.length ? mainRows[0] : Math.max(...mergeRowsForTrunk);
     const bottomY = rowY(bottomRow);
     if (bottomY > topY) {
-      trunk.push(<path key="trunk-solid" d={runPath(mainX, topY, mainX, bottomY, "main:trunk", handDrawn)} fill="none" stroke={mainColor} strokeWidth={strokeW} strokeOpacity={0.55} strokeLinecap="round" strokeLinejoin="round" />);
+      trunk.push(railStroke("trunk-solid", mainX, topY, mainX, bottomY, "main:trunk", mainColor));
     }
     if (topY > 0) {
       trunk.push(<path key="trunk-phantom" d={runPath(mainX, 0, mainX, topY, "main:phantom", handDrawn)} fill="none" stroke={mainColor} strokeWidth={strokeW} strokeOpacity={0.3} strokeDasharray="2 5" strokeLinecap="round" strokeLinejoin="round" />);
@@ -568,6 +574,20 @@ export function TrailWorkspace({
                   <button type="button" aria-pressed={settings.style === "slick"} onClick={() => setSettings((prev) => ({ ...prev, style: "slick" }))}>Slick</button>
                 </div>
               </div>
+              {/* Tuning dials — only meaningful in Drawn mode. Once JNL settles
+                  on a combination these become the baked constants. */}
+              {handDrawn && (
+                <>
+                  <div className="trail-settings-row">
+                    <span>Wobble <b>{settings.wobble.toFixed(2)}</b></span>
+                    <input type="range" min={0} max={3} step={0.05} value={settings.wobble} aria-label="Wobble" onChange={(event) => setSettings((prev) => ({ ...prev, wobble: Number(event.target.value) }))} />
+                  </div>
+                  <div className="trail-settings-row">
+                    <span>Pressure <b>{settings.pressure.toFixed(2)}</b></span>
+                    <input type="range" min={0} max={1} step={0.05} value={settings.pressure} aria-label="Pressure" onChange={(event) => setSettings((prev) => ({ ...prev, pressure: Number(event.target.value) }))} />
+                  </div>
+                </>
+              )}
             </div>
           )}
         </span>
@@ -609,7 +629,7 @@ export function TrailWorkspace({
                   line this treatment set out to remove. */}
               <filter id="trail-rough" x="-2%" y="-1%" width="104%" height="102%">
                 <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves={2} seed={7} result="noise" />
-                <feDisplacementMap in="SourceGraphic" in2="noise" scale={0.9} xChannelSelector="R" yChannelSelector="G" />
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale={settings.wobble} xChannelSelector="R" yChannelSelector="G" />
               </filter>
               {(["supersedes", "evolves", "related"] as const).map((type) => (
                 <marker key={`m-${type}`} id={`trail-arrow-${type}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
