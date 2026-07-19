@@ -14,6 +14,9 @@ export const TRAIL_REL_LANES = ["supersedes", "evolves", "related"] as const;
 export const TRAIL_REL_LANE_W = 12;
 export const TRAIL_CORNER = 7;
 export const TRAIL_REL_ZONE = TRAIL_REL_LANES.length * TRAIL_REL_LANE_W + 12;
+export const TRAIL_CONT_LANE_W = 14;
+export const TRAIL_CONT_ZONE_PAD = 14;
+const TRAIL_CONTINUITY_KINDS = new Set(["rename", "migration", "removal"]);
 
 // Four packs of three bright, well-separated hues. Lane 0 leads with main's
 // indigo; each of the first four lanes cycles its pack across daisy-chained
@@ -35,6 +38,8 @@ export type LinkRow = {
   forkLabel: string | null;
 };
 export type MergeDot = { row: number; sha: string; short: string; subject: string; count: number; chunkId: string };
+export type ContinuityEvent = { key: string; row: number; entryId: string; kind: string; from: string; to: string | null; chainKey: string; lane: number };
+export type ContinuityChain = { chainKey: string; lane: number; rows: number[]; events: ContinuityEvent[] };
 
 export type TrailModel = {
   items: TrailItem[];
@@ -47,11 +52,14 @@ export type TrailModel = {
   linkRows: Map<string, LinkRow>;
   mergeEvents: MergeDot[];
   lifecycle: TrailEdge[];
+  continuityEvents: ContinuityEvent[];
+  continuityChains: ContinuityChain[];
+  continuityLaneCount: number;
 };
 
 const REL_LANE_SET = new Set<string>(TRAIL_REL_LANES);
 
-function trailStamp(node: TrailEvent): number {
+export function trailStamp(node: TrailEvent): number {
   return Date.parse(node.datetime || `${node.date}T00:00:00`) || 0;
 }
 
@@ -229,6 +237,67 @@ export function buildTrailModel(trail: TrailResponse, window: number): TrailMode
     (edge) => REL_LANE_SET.has(edge.type) && rowOf.has(edge.source) && rowOf.has(edge.target),
   );
 
+  // Continuity events (rename/migration/removal blocks on entries), grouped
+  // into chains by shared labels (union-find over from/to), then greedy
+  // interval-packed into their own lane band left of the relationship zone.
+  const continuityEvents: ContinuityEvent[] = [];
+  items.forEach((item, index) => {
+    if (item.kind !== "node") return;
+    const blocks = Array.isArray(item.node.continuity) ? item.node.continuity : [];
+    blocks.forEach((block, blockIndex) => {
+      if (!block || !TRAIL_CONTINUITY_KINDS.has(block.kind) || !block.from) return;
+      continuityEvents.push({
+        key: `${item.node.id}:${blockIndex}`,
+        row: index,
+        entryId: item.node.entry_id || item.node.id,
+        kind: block.kind,
+        from: block.from,
+        to: block.to || null,
+        chainKey: "",
+        lane: 0,
+      });
+    });
+  });
+  const contParent = new Map<string, string>();
+  const contTouch = (label: string) => { if (label && !contParent.has(label)) contParent.set(label, label); };
+  const contFind = (label: string): string => {
+    let cur = label;
+    while (contParent.get(cur) !== cur) { contParent.set(cur, contParent.get(contParent.get(cur)!)!); cur = contParent.get(cur)!; }
+    return cur;
+  };
+  continuityEvents.forEach((event) => {
+    contTouch(event.from);
+    if (event.to) { contTouch(event.to); const a = contFind(event.from); const b = contFind(event.to); if (a !== b) contParent.set(a, b); }
+  });
+  const chainsByKey = new Map<string, { rows: number[]; events: ContinuityEvent[] }>();
+  continuityEvents.forEach((event) => {
+    event.chainKey = contFind(event.from);
+    const chain = chainsByKey.get(event.chainKey) || { rows: [], events: [] };
+    chain.rows.push(event.row);
+    chain.events.push(event);
+    chainsByKey.set(event.chainKey, chain);
+  });
+  const contIntervals: Span[][] = [];
+  const contLaneOf = new Map<string, number>();
+  [...chainsByKey.entries()]
+    .map(([chainKey, chain]) => ({ chainKey, first: Math.min(...chain.rows), last: Math.max(...chain.rows) }))
+    .sort((a, b) => (b.first - a.first) || (a.last - a.first) - (b.last - b.first) || a.chainKey.localeCompare(b.chainKey))
+    .forEach((chain) => {
+      let lane = contIntervals.findIndex((intervals) => intervals.every((occupied) => chain.last < occupied.first || chain.first > occupied.last));
+      if (lane === -1) { lane = contIntervals.length; contIntervals.push([]); }
+      contIntervals[lane].push({ first: chain.first, last: chain.last });
+      contLaneOf.set(chain.chainKey, lane);
+    });
+  continuityEvents.forEach((event) => { event.lane = contLaneOf.get(event.chainKey) || 0; });
+  const continuityChains: ContinuityChain[] = [...chainsByKey.entries()]
+    .map(([chainKey, chain]) => ({
+      chainKey,
+      lane: contLaneOf.get(chainKey) || 0,
+      rows: chain.rows.slice().sort((a, b) => a - b),
+      events: chain.events.slice().sort((a, b) => a.row - b.row),
+    }))
+    .sort((a, b) => a.lane - b.lane || a.rows[0] - b.rows[0]);
+
   return {
     items,
     total,
@@ -240,6 +309,9 @@ export function buildTrailModel(trail: TrailResponse, window: number): TrailMode
     linkRows,
     mergeEvents,
     lifecycle,
+    continuityEvents,
+    continuityChains,
+    continuityLaneCount: contIntervals.length,
   };
 }
 

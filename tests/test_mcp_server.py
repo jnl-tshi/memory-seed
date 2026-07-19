@@ -1333,6 +1333,33 @@ class MemoryMcpServerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             call_tool("memory_entry_id", {"timestamp": "2026-07-12 12:15", "title": "x", "user_initials": "JNL"})
 
+    def test_call_tool_memory_entry_id_stamps_from_server_clock_when_omitted(self):
+        # The normal path: no timestamp supplied - the server stamps from its
+        # clock (injected here for determinism), returns it for verbatim
+        # write-back, and the id derives from that stamped value.
+        args = {"title": "Clock test", "user_initials": "JNL", "agent_type": "claude", "_now": "2026-07-18 22:30"}
+
+        result = call_tool("memory_entry_id", args)
+
+        self.assertEqual(result["timestamp"], "2026-07-18 22:30")
+        self.assertNotIn("clock_drift_warning", result)
+        explicit = call_tool("memory_entry_id", {**args, "timestamp": "2026-07-18 22:30"})
+        self.assertEqual(result["entry_id"], explicit["entry_id"])
+        self.assertIn("timestamp", result["write_surface"].lower() + " timestamp")
+
+    def test_call_tool_memory_entry_id_warns_on_clock_drift(self):
+        base = {"title": "Drift test", "user_initials": "JNL", "agent_type": "claude", "_now": "2026-07-18 22:13"}
+
+        # Hours-in-the-future authored stamp (the incident this guards): warn.
+        future = call_tool("memory_entry_id", {**base, "timestamp": "2026-07-19 00:05"})
+        self.assertIn("clock_drift_warning", future)
+        # Within the grace window: no warning.
+        near = call_tool("memory_entry_id", {**base, "timestamp": "2026-07-18 22:10"})
+        self.assertNotIn("clock_drift_warning", near)
+        # Unparseable authored stamp: warn rather than crash.
+        broken = call_tool("memory_entry_id", {**base, "timestamp": "sometime tonight"})
+        self.assertIn("clock_drift_warning", broken)
+
     def test_call_tool_memory_topics_list_returns_vocabulary(self):
         cwd = self.make_project()
         self.write_topics_index(cwd)

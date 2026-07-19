@@ -20,7 +20,13 @@ All notable changes to Memory Seed are summarized here.
   a rendered rail (main spine, rounded-elbow fork/merge connectors, clickable
   trunk merge dots), row-click selection into the Inspector, and client-side
   windowing. The layout model is a pure, invariant-checked port of the vanilla
-  Trail. Lifecycle-edge arrows (`supersedes`/`evolves`/`related`) route through
+  Trail. Full vanilla parity landed in the same cycle: the two-rule related
+  model (row brackets + evolves chain brackets + commit siblings), two-stage
+  muted selection, continuity lanes, decision-diagram badges (`has_diagram` is
+  now declared on the v1 `GraphNode` — additive), a humanist light/dark theme
+  with resizable panes and a stable deterministic graph, and a left-pane
+  selection-context panel (typed lifecycle links, commit siblings, similar
+  entries). Lifecycle-edge arrows (`supersedes`/`evolves`/`related`) route through
   the relationship zone with pair precedence and soft variants — `supersedes`
   always shown, `evolves`/`related` on selection. A relationship legend and
   search-as-a-function (a client-side substring filter over the visible window
@@ -29,6 +35,21 @@ All notable changes to Memory Seed are summarized here.
 
 ### Changed
 
+- Worktree switching reuses shared history: merge fork points (the dominant
+  rebuild cost — one `git merge-base` subprocess per trailer merge) memoize
+  process-wide by commit sha, since every checkout shares the object database;
+  switching worktrees now only computes the target's own divergence, and
+  unchanged worktrees warm-start from their persisted projection instead of
+  rebuilding.
+- Memory Trace `/api/v1` is now worktree-scoped: every v1 endpoint accepts an
+  additive `worktree` query parameter and a typed `/api/v1/worktrees` endpoint
+  enumerates the repository's checkouts; the `/next` React workspace gains a
+  worktree picker that switches the whole app between corpora.
+- `memory_entry_id` (MCP) now owns the clock: omit `timestamp` and the server
+  stamps from its machine clock, returning the value for verbatim write-back.
+  Explicitly supplied timestamps remain allowed for sanctioned backfill but
+  earn a `clock_drift_warning` when far from the server clock — agents must
+  never estimate entry times by hand.
 - CI now gates on `docs index --check`, so a stale generated docs index fails
   verification instead of drifting silently.
 

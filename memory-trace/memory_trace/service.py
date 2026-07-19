@@ -1185,7 +1185,12 @@ def create_app(
             existing = worktree_services.get(target)
             if existing is None:
                 wt_cache = TraceCache(target)
-                wt_cache.rebuild()
+                # ensure_current, not rebuild: a worktree whose persisted
+                # projection matches its git watermark warm-starts in
+                # milliseconds; only genuinely changed corpora rebuild (and the
+                # fork-point memo makes that rebuild pay only for the
+                # worktree's own divergence from the shared trunk).
+                wt_cache.ensure_current()
                 existing = TraceService(wt_cache)
                 worktree_services[target] = existing
             return existing
@@ -1362,15 +1367,21 @@ def create_app(
     # additive, not a replacement, so a future React client has something
     # stable to build against. /api/timeline has no v1 counterpart: Trail is
     # its designated successor (roadmap Phase 4) and nothing consumes it.
-    from .models import ChunkResponse, Facets, GraphResponse, RendererGraphResponse, RuntimeInfo, SearchResponse, TrailResponse
+    from .models import ChunkResponse, Facets, GraphResponse, RendererGraphResponse, RuntimeInfo, SearchResponse, TrailResponse, WorktreesResponse
+
+    @app.get("/api/v1/worktrees", response_model=WorktreesResponse)
+    def v1_worktrees() -> dict[str, Any]:
+        # Same enumeration as the legacy surface, typed: every git worktree of
+        # the launch repository is a switchable corpus view.
+        return api_worktrees()
 
     @app.get("/api/v1/runtime", response_model=RuntimeInfo)
-    def v1_runtime() -> dict[str, Any]:
-        return service.runtime()
+    def v1_runtime(worktree: str | None = None) -> dict[str, Any]:
+        return service_for(worktree).runtime()
 
     @app.get("/api/v1/facets", response_model=Facets)
-    def v1_facets() -> dict[str, Any]:
-        return service.facets()
+    def v1_facets(worktree: str | None = None) -> dict[str, Any]:
+        return service_for(worktree).facets()
 
     @app.get("/api/v1/search", response_model=SearchResponse)
     def v1_search(
@@ -1384,8 +1395,9 @@ def create_app(
         date_to: str | None = None,
         topic: str | None = None,
         sort: str = "relevance",
+        worktree: str | None = None,
     ) -> dict[str, Any]:
-        return service.search(
+        return service_for(worktree).search(
             q=q,
             limit=limit,
             cursor=cursor,
@@ -1399,9 +1411,9 @@ def create_app(
         )
 
     @app.get("/api/v1/chunks/{chunk_id:path}", response_model=ChunkResponse)
-    def v1_chunk(chunk_id: str) -> dict[str, Any]:
+    def v1_chunk(chunk_id: str, worktree: str | None = None) -> dict[str, Any]:
         try:
-            return service.chunk(chunk_id)
+            return service_for(worktree).chunk(chunk_id)
         except KeyError:
             raise HTTPException(status_code=404, detail="chunk not found") from None
 
@@ -1417,8 +1429,9 @@ def create_app(
         date_from: str | None = None,
         date_to: str | None = None,
         topic: str | None = None,
+        worktree: str | None = None,
     ) -> dict[str, Any]:
-        return service.graph(
+        return service_for(worktree).graph(
             entry_id=entry_id,
             depth=depth,
             edge_types=tuple(x for x in edge_types.split(",") if x),
@@ -1443,9 +1456,10 @@ def create_app(
         date_from: str | None = None,
         date_to: str | None = None,
         topic: str | None = None,
+        worktree: str | None = None,
     ) -> dict[str, Any]:
         return project_trace_graph(
-            service.graph(
+            service_for(worktree).graph(
                 entry_id=entry_id,
                 depth=depth,
                 edge_types=tuple(x for x in edge_types.split(",") if x),
@@ -1469,11 +1483,12 @@ def create_app(
         date_from: str | None = None,
         date_to: str | None = None,
         topic: str | None = None,
+        worktree: str | None = None,
     ) -> dict[str, Any]:
         # Fixed to the Trail's own edge set (app.js TRAIL_EDGE_TYPES) - the
         # Trail is a dedicated product surface, not a parameterization of the
         # general graph, so its contract doesn't expose edge_types at all.
-        return service.graph(
+        return service_for(worktree).graph(
             entry_id=entry_id,
             depth=depth,
             edge_types=("branch", "supersedes", "evolves", "related"),
@@ -1595,6 +1610,16 @@ def _entry_commit_map(root: Path) -> dict[str, dict[str, str]]:
     return mapping
 
 
+# A merge commit's fork point (merge-base of its parents) is an immutable fact
+# of the object database, and every worktree of a repository shares that
+# database - so fork points computed for the shared trunk are valid for every
+# checkout. Memoizing by merge sha turns the per-worktree rebuild's dominant
+# cost (one merge-base subprocess per trailer merge, ~10s for ~190 merges on
+# Windows) into a one-time cost: switching to another worktree only computes
+# the merges unique to its own divergence.
+_FORK_POINT_MEMO: dict[str, dict[str, str] | None] = {}
+
+
 def _first_parent_trailer_commits(root: Path) -> list[dict[str, Any]]:
     """Merge-commit ground truth for the Trail: trunk first-parent commits
     carrying ``Memory-Entry:`` trailers, newest-first.
@@ -1651,11 +1676,19 @@ def _first_parent_trailer_commits(root: Path) -> list[dict[str, Any]]:
                     "date": date,
                     "subject": subject,
                     "entry_ids": entry_ids,
-                    "fork": _merge_fork_point(root, parent_list[0], parent_list[1]) if len(parent_list) >= 2 else None,
+                    "fork": _memoized_fork_point(root, sha, parent_list) if len(parent_list) >= 2 else None,
                 }
             )
         return events
     return []
+
+
+def _memoized_fork_point(root: Path, sha: str, parent_list: list[str]) -> dict[str, str] | None:
+    if sha in _FORK_POINT_MEMO:
+        return _FORK_POINT_MEMO[sha]
+    fork = _merge_fork_point(root, parent_list[0], parent_list[1])
+    _FORK_POINT_MEMO[sha] = fork
+    return fork
 
 
 def _merge_fork_point(root: Path, parent_a: str, parent_b: str) -> dict[str, str] | None:

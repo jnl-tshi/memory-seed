@@ -14,6 +14,8 @@ export type BranchInfo = components["schemas"]["BranchInfo"];
 export type MergeEvent = components["schemas"]["MergeEvent"];
 export type ContinuityItem = components["schemas"]["ContinuityItem"];
 export type TrailEdge = components["schemas"]["GraphEdge"];
+export type WorktreesResponse = components["schemas"]["WorktreesResponse"];
+export type WorktreeInfo = components["schemas"]["WorktreeInfo"];
 
 export type GraphQueryOptions = {
   entryId?: string | null;
@@ -30,10 +32,26 @@ export function isCanonicalEntryId(value: string): boolean {
   return /^(?:mse_[A-Za-z0-9_-]+|ms-[A-Za-z0-9_-]+)$/.test(value.trim());
 }
 
+// Active worktree scope: when set, every v1 request carries it, so the whole
+// app reads one checkout's corpus at a time.
+let activeWorktree: string | null = null;
+
+export function setActiveWorktree(path: string | null) {
+  activeWorktree = path;
+}
+
 export async function api<T>(path: string): Promise<T> {
-  const response = await fetch(`/api/v1${path}`, { cache: "no-store" });
+  let scoped = path;
+  if (activeWorktree) {
+    scoped += `${path.includes("?") ? "&" : "?"}worktree=${encodeURIComponent(activeWorktree)}`;
+  }
+  const response = await fetch(`/api/v1${scoped}`, { cache: "no-store" });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
   return response.json() as Promise<T>;
+}
+
+export function worktreesQuery(): Promise<WorktreesResponse> {
+  return api<WorktreesResponse>("/worktrees");
 }
 
 export function graphQuery(options: GraphQueryOptions = {}): Promise<RendererGraphResponse> {

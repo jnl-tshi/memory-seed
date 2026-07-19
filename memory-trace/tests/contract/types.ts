@@ -123,6 +123,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/worktrees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** V1 Worktrees */
+        get: operations["v1_worktrees_api_v1_worktrees_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -368,6 +385,11 @@ export interface components {
             entry_id: string | null;
             /** Granularity */
             granularity: string;
+            /**
+             * Has Diagram
+             * @default false
+             */
+            has_diagram: boolean;
             /** Id */
             id: string;
             /** Importance Score */
@@ -664,6 +686,11 @@ export interface components {
             entry_id: string | null;
             /** Granularity */
             granularity: string;
+            /**
+             * Has Diagram
+             * @default false
+             */
+            has_diagram: boolean;
             /** Id */
             id: string;
             /** Importance Score */
@@ -707,6 +734,28 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** WorktreeInfo */
+        WorktreeInfo: {
+            /** Branch */
+            branch: string | null;
+            /** Id */
+            id: string;
+            /** Is Default */
+            is_default: boolean;
+            /** Is Primary */
+            is_primary: boolean;
+            /** Label */
+            label: string;
+            /** Path */
+            path: string;
+        };
+        /** WorktreesResponse */
+        WorktreesResponse: {
+            /** Default */
+            default: string;
+            /** Worktrees */
+            worktrees: components["schemas"]["WorktreeInfo"][];
+        };
     };
     responses: never;
     parameters: never;
@@ -718,7 +767,9 @@ export type $defs = Record<string, never>;
 export interface operations {
     v1_chunk_api_v1_chunks__chunk_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                worktree?: string | null;
+            };
             header?: never;
             path: {
                 chunk_id: string;
@@ -749,7 +800,9 @@ export interface operations {
     };
     v1_facets_api_v1_facets_get: {
         parameters: {
-            query?: never;
+            query?: {
+                worktree?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -763,6 +816,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Facets"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -780,6 +842,7 @@ export interface operations {
                 date_from?: string | null;
                 date_to?: string | null;
                 topic?: string | null;
+                worktree?: string | null;
             };
             header?: never;
             path?: never;
@@ -820,6 +883,7 @@ export interface operations {
                 date_from?: string | null;
                 date_to?: string | null;
                 topic?: string | null;
+                worktree?: string | null;
             };
             header?: never;
             path?: never;
@@ -849,7 +913,9 @@ export interface operations {
     };
     v1_runtime_api_v1_runtime_get: {
         parameters: {
-            query?: never;
+            query?: {
+                worktree?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -863,6 +929,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RuntimeInfo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -880,6 +955,7 @@ export interface operations {
                 date_to?: string | null;
                 topic?: string | null;
                 sort?: string;
+                worktree?: string | null;
             };
             header?: never;
             path?: never;
@@ -918,6 +994,7 @@ export interface operations {
                 date_from?: string | null;
                 date_to?: string | null;
                 topic?: string | null;
+                worktree?: string | null;
             };
             header?: never;
             path?: never;
@@ -941,6 +1018,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    v1_worktrees_api_v1_worktrees_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorktreesResponse"];
                 };
             };
         };

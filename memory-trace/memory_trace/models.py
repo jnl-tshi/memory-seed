@@ -70,6 +70,20 @@ class EdgeType(str, Enum):
     day = "day"
 
 
+class WorktreeInfo(BaseModel):
+    id: str
+    path: str
+    branch: str | None
+    label: str
+    is_primary: bool
+    is_default: bool
+
+
+class WorktreesResponse(BaseModel):
+    worktrees: list[WorktreeInfo]
+    default: str
+
+
 class RuntimeInfo(BaseModel):
     label: str
     workspace_root: str
@@ -268,6 +282,10 @@ class GraphNode(BaseModel):
     connectivity: int
     importance_score: float
     provenance_class: ProvenanceClass = ProvenanceClass.authored_memory
+    # Whether the entry carries an authored Class-2 decision-diagram sidecar.
+    # The service has always computed this; declaring it stops the v1
+    # response_model from stripping it (additive, defaulted).
+    has_diagram: bool = False
 
 
 class GraphEdge(BaseModel):

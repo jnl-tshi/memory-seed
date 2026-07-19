@@ -1,15 +1,15 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { GitBranch, LayoutPanelLeft, List, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, Sun, X } from "lucide-react";
-import { api, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, searchQuery, trailQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse } from "./api";
+import { GitBranch, LayoutPanelLeft, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, Sun, X } from "lucide-react";
+import { api, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
 import { EntryReader } from "./EntryReader";
-import { TRAIL_WINDOW_STEP } from "./trailModel";
+import { stripTitleStamp, TRAIL_WINDOW_STEP } from "./trailModel";
 
 const GraphWorkspace = lazy(() => import("./GraphWorkspace").then((module) => ({ default: module.GraphWorkspace })));
 const TrailWorkspace = lazy(() => import("./TrailWorkspace").then((module) => ({ default: module.TrailWorkspace })));
 type MatchHint = { entryId: string; heading: string };
 type InspectorDock = "auto" | "right" | "bottom" | "hidden";
 type GraphScope = "overview" | "local";
-type GraphViewMode = "graph" | "list" | "trail";
+type GraphViewMode = "graph" | "trail";
 type LabelMode = "focus" | "minimal" | "all";
 type GraphRange = "recent" | "all";
 
@@ -100,6 +100,7 @@ export default function App() {
   const [selected, setSelected] = useState<RendererGraphNode | null>(null);
   const [chunk, setChunk] = useState<ChunkResponse | null>(null);
   const [matchHint, setMatchHint] = useState<MatchHint | null>(null);
+  const [selectionMuted, setSelectionMuted] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
   const [dock, setDock] = useState<InspectorDock>(readDock);
   const [navWidth, setNavWidth] = useState(() => readPaneWidth("memory-trace:nav-width", NAV_WIDTH));
@@ -107,8 +108,18 @@ export default function App() {
   const [theme, setTheme] = useState<Theme>(readTheme);
   const [error, setError] = useState<string | null>(null);
   const [scope, setScope] = useState<GraphScope>("overview");
-  const [viewMode, setViewMode] = useState<GraphViewMode>("graph");
+  const [viewMode, setViewMode] = useState<GraphViewMode>("trail");
   const [trail, setTrail] = useState<TrailResponse | null>(null);
+  // Full-corpus entry index (one fetch at load): resolves ids to titles for the
+  // left pane's context panel and supplies typed lifecycle edges.
+  const [entryIndex, setEntryIndex] = useState<TrailResponse | null>(null);
+  const [worktrees, setWorktrees] = useState<WorktreesResponse | null>(null);
+  const [worktree, setWorktree] = useState<string | null>(null);
+  // The vanilla "train of thought" worktree loader, kept with a fixed rhythm:
+  // the ride always lasts at least the baseline so it stays readable now that
+  // switches are fast; only genuinely longer compute extends the middle leg.
+  const [switchLabel, setSwitchLabel] = useState<string | null>(null);
+  const [switchStage, setSwitchStage] = useState(0);
   const [trailWindow, setTrailWindow] = useState(TRAIL_WINDOW_STEP);
   const [trailError, setTrailError] = useState<string | null>(null);
   const [labelMode, setLabelMode] = useState<LabelMode>("focus");
@@ -168,6 +179,8 @@ export default function App() {
       const [nextRuntime, nextFacets] = await Promise.all([api<RuntimeInfo>("/runtime"), api<Facets>("/facets")]);
       setRuntime(nextRuntime);
       setFacets(nextFacets);
+      void trailQuery({ limit: 1000 }).then(setEntryIndex).catch(() => {});
+      void worktreesQuery().then(setWorktrees).catch(() => {});
       await loadGraph({
         nextScope: scope,
         nextTopic: activeTopic,
@@ -233,7 +246,120 @@ export default function App() {
     return () => { cancelled = true; };
   }, [selected]);
 
-  const select = useCallback((node: RendererGraphNode) => { setSelected(node); setSearch(null); setMatchHint(null); }, []);
+  // Two-stage selection: clicking the already-selected entry mutes the focus
+  // emphasis (pinned) without losing the selection; clicking again unmutes.
+  const select = useCallback((node: RendererGraphNode) => {
+    setSelected((prior) => {
+      if (prior?.id === node.id) { setSelectionMuted((muted) => !muted); return prior; }
+      setSelectionMuted(false);
+      return node;
+    });
+    setSearch(null);
+    setMatchHint(null);
+  }, []);
+  const indexById = useMemo(() => {
+    const map = new Map<string, { title: string; date: string; datetime: string | null }>();
+    entryIndex?.nodes.forEach((node) => map.set(node.id, { title: node.title, date: node.date, datetime: node.datetime }));
+    return map;
+  }, [entryIndex]);
+
+  type ContextItem = { key: string; entryId: string; kind: string; title: string };
+  // The left pane shows the selection's context: typed lifecycle links (from
+  // the entry index's edges), commit siblings, and topic-similar entries.
+  // With nothing selected it falls back to the newest entries.
+  const contextItems = useMemo<ContextItem[]>(() => {
+    const entryId = selected?.source.entry_id;
+    if (!entryId) {
+      return (entryIndex?.nodes ?? [])
+        .slice()
+        .sort((a, b) => (b.datetime || b.date).localeCompare(a.datetime || a.date))
+        .slice(0, 24)
+        .map((node) => ({ key: `r-${node.id}`, entryId: node.id, kind: "recent", title: stripTitleStamp(node.title) }));
+    }
+    const TYPE_LABEL: Record<string, string> = { evolves: "evolves", supersedes: "replaces", related: "related" };
+    const items: ContextItem[] = [];
+    const seen = new Set<string>([entryId]);
+    (entryIndex?.edges ?? []).forEach((edge) => {
+      if (!(edge.type in TYPE_LABEL)) return;
+      const other = edge.source === entryId ? edge.target : edge.target === entryId ? edge.source : null;
+      if (!other || seen.has(other)) return;
+      const node = indexById.get(other);
+      if (!node) return;
+      seen.add(other);
+      items.push({ key: `e-${other}`, entryId: other, kind: TYPE_LABEL[edge.type], title: stripTitleStamp(node.title) });
+    });
+    (chunk?.commit_entries ?? []).forEach((brief) => {
+      if (!brief.entry_id || seen.has(brief.entry_id)) return;
+      seen.add(brief.entry_id);
+      items.push({ key: `c-${brief.chunk_id}`, entryId: brief.entry_id, kind: "commit", title: stripTitleStamp(brief.title) });
+    });
+    (chunk?.suggestions?.same_topic ?? []).slice(0, 5).forEach((brief) => {
+      if (!brief.entry_id || seen.has(brief.entry_id)) return;
+      seen.add(brief.entry_id);
+      items.push({ key: `s-${brief.chunk_id}`, entryId: brief.entry_id, kind: "similar", title: stripTitleStamp(brief.title) });
+    });
+    return items;
+  }, [selected?.source.entry_id, entryIndex, indexById, chunk]);
+
+  // Grouped by relationship for the panel: one header per kind, not a chip
+  // per row.
+  const contextGroups = useMemo<[string, ContextItem[]][]>(() => {
+    const order = ["related", "replaces", "evolves", "commit", "similar", "recent"];
+    const groups = new Map<string, ContextItem[]>();
+    contextItems.forEach((item) => groups.set(item.kind, [...(groups.get(item.kind) ?? []), item]));
+    return order.filter((kind) => groups.has(kind)).map((kind) => [kind, groups.get(kind)!]);
+  }, [contextItems]);
+
+  // Switching worktree swaps the entire corpus: scope the API, clear every
+  // per-corpus piece of state, and reload. Each checkout is its own memory
+  // view (different branches carry different session entries).
+  async function chooseWorktree(path: string) {
+    const next = worktrees && path === worktrees.default ? null : path;
+    const label = worktrees?.worktrees.find((item) => item.path === path)?.label ?? "";
+    const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+    setSwitchLabel(label);
+    setSwitchStage(0);
+    const startedAt = performance.now();
+    // Fixed rhythm: depart at 600ms regardless of compute speed.
+    const departTimer = setTimeout(() => setSwitchStage((stage) => Math.max(stage, 1)), 600);
+    try {
+      setWorktree(next);
+      setActiveWorktree(next);
+      setSelected(null);
+      setChunk(null);
+      setMatchHint(null);
+      setSelectionMuted(false);
+      setSearch(null);
+      setQuery("");
+      setTrail(null);
+      setEntryIndex(null);
+      setTrailWindow(TRAIL_WINDOW_STEP);
+      setActiveTopic(null);
+      setScope("overview");
+      await load();
+      if (viewMode === "trail") await loadTrail();
+      // Arrival never before 1250ms (readable ride); a slow cold rebuild holds
+      // the middle leg until the data is truly loaded.
+      const beforeArrival = performance.now() - startedAt;
+      if (beforeArrival < 1250) await wait(1250 - beforeArrival);
+      setSwitchStage(2);
+      const total = performance.now() - startedAt;
+      await wait(Math.max(350, 1600 - total));
+    } finally {
+      clearTimeout(departTimer);
+      setSwitchLabel(null);
+      setSwitchStage(0);
+    }
+  }
+
+  const ensureTrailVisible = useCallback((count: number) => setTrailWindow((value) => Math.max(value, count)), []);
+
+  // Opening from the context panel selects the entry and, in Trail mode, the
+  // Trail scrolls to it (TrailWorkspace watches the selection).
+  async function openContextEntry(entryId: string) {
+    await focusEntry(entryId);
+  }
+
   const topics = useMemo(() => Object.entries(facets?.topics ?? {}).slice(0, 10), [facets]);
   const inspectorVisible = dock !== "hidden";
 
@@ -258,6 +384,7 @@ export default function App() {
   // keeps the Inspector's full metadata); otherwise pull the entry into the
   // graph via focusEntry so the Inspector can render it.
   function selectFromTrail(entryId: string | null, chunkId: string) {
+    if (entryId != null && selected?.source.entry_id === entryId) { setSelectionMuted((muted) => !muted); return; }
     const node = graph?.nodes.find((item) => (entryId != null && item.source.entry_id === entryId) || item.source.chunk_id === chunkId);
     if (node) { select(node); return; }
     if (entryId) void focusEntry(entryId);
@@ -364,19 +491,48 @@ export default function App() {
         <div className="pane-resize pane-resize-nav" role="separator" aria-orientation="vertical" aria-label="Resize navigation" title="Drag to resize" onPointerDown={startPaneResize("nav")} />
         <div className="pane-heading"><LayoutPanelLeft size={16} aria-hidden="true" /> <span>Project</span></div>
         <dl className="metric-list"><div><dt>Entries</dt><dd>{runtime?.entry_count ?? "-"}</dd></div><div><dt>Chunks</dt><dd>{facets?.runtime.chunk_count ?? "-"}</dd></div></dl>
+        {worktrees && worktrees.worktrees.length > 1 && (
+          <label className="worktree-picker">
+            <span>Worktree</span>
+            <select value={worktree ?? worktrees.default} onChange={(event) => void chooseWorktree(event.target.value)} aria-label="Worktree">
+              {worktrees.worktrees.map((item) => (
+                <option key={item.id} value={item.path}>
+                  {item.label}{item.is_primary ? " (primary)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <section className="navigation-section"><h2>Topics</h2><div className="topic-list"><button type="button" className={activeTopic === null ? "topic active" : "topic"} onClick={() => void chooseTopic(null)} aria-pressed={activeTopic === null}>All</button>{topics.map(([topic, count]) => <button type="button" className={activeTopic === topic ? "topic active" : "topic"} key={topic} onClick={() => void chooseTopic(topic)} aria-pressed={activeTopic === topic}>{topic}<b>{count}</b></button>)}</div></section>
-        <section className="navigation-section entry-list"><h2>Entries</h2>{graph?.nodes.slice(0, 24).map((node) => <button key={node.id} type="button" className={node.id === selected?.id ? "entry selected" : "entry"} aria-pressed={node.id === selected?.id} onClick={() => select(node)}><span>{node.label}</span></button>)}</section>
+        <section className="navigation-section entry-list"><h2>{selected?.source.entry_id ? "Context" : "Recent"}</h2>{selected?.source.entry_id && <p className="context-subject" title={selected.label}>{stripTitleStamp(selected.label)}</p>}{contextGroups.length ? contextGroups.map(([kind, group]) => <div key={kind} className="context-group">{kind !== "recent" && <h3 className={`context-group-h context-type-${kind}`}>{kind === "commit" ? "same commit" : kind}</h3>}{group.map((item) => <button key={item.key} type="button" className="entry" title={item.title} onClick={() => void openContextEntry(item.entryId)}><span>{item.title}</span></button>)}</div>) : <p className="context-empty">{selected?.source.entry_id ? "No linked context for this entry." : "Loading entries"}</p>}</section>
       </aside>}
 
       <main className="workspace" id="trace-workspace">
-        <div className="workspace-bar"><div><span className="eyebrow">{viewMode === "trail" ? "Trail" : "Graph workspace"}</span><h1>{viewMode === "trail" ? "Decision timeline" : "Relationship map"}</h1></div><div className="workspace-actions"><div className="segment-control" aria-label="Graph scope"><button type="button" aria-pressed={scope === "overview"} onClick={() => void changeScope("overview")}>Overview</button><button type="button" aria-pressed={scope === "local"} onClick={() => void changeScope("local")}>Local</button></div><div className="segment-control" aria-label="Graph date range"><button type="button" aria-pressed={range === "recent"} onClick={() => void changeRange("recent")}>Recent</button><button type="button" aria-pressed={range === "all"} onClick={() => void changeRange("all")}>All dates</button></div><div className="segment-control" aria-label="Graph presentation"><button type="button" aria-pressed={viewMode === "graph"} onClick={() => setViewMode("graph")}><Network size={14} aria-hidden="true" /><span>Graph</span></button><button type="button" aria-pressed={viewMode === "list"} onClick={() => setViewMode("list")}><List size={14} aria-hidden="true" /><span>List</span></button><button type="button" aria-pressed={viewMode === "trail"} onClick={() => setViewMode("trail")}><GitBranch size={14} aria-hidden="true" /><span>Trail</span></button></div><label className="label-menu"><span>Labels</span><select value={labelMode} onChange={(event) => setLabelMode(event.target.value as LabelMode)} aria-label="Graph labels"><option value="focus">Focus</option><option value="minimal">Minimal</option><option value="all">All</option></select></label><span className="status-pill">{viewMode === "trail" ? "Trail" : isLoading ? "Updating" : "Cytoscape.js"}</span></div></div>
+        {switchLabel !== null && (
+          <div className="worktree-loader" data-stage={switchStage} role="status" aria-live="polite">
+            <svg className="wt-map" viewBox="0 0 240 240" width="240" height="240" aria-hidden="true">
+              <line className="wt-track" x1={34} y1={30} x2={34} y2={210} />
+              <line className="wt-track-lit" x1={34} y1={30} x2={34} y2={210} pathLength={1} />
+              {[30, 120, 210].map((y, i) => <circle key={y} className="wt-station" data-i={i} cx={34} cy={y} r={5.5} />)}
+              {["Leaving the platform", "Reading branch memory", `Arriving${switchLabel ? ` at ${switchLabel}` : ""}`].map((text, i) => (
+                <text key={text} className="wt-label" data-i={i} x={52} y={[30, 120, 210][i] + 4}>{text}</text>
+              ))}
+              <g className="wt-train"><circle className="wt-train-halo" cx={34} cy={0} r={11} /><rect x={25} y={-6} width={18} height={12} rx={4} /></g>
+            </svg>
+            <div className="wt-caption">
+              <div className="wt-title">Switching worktree{switchLabel ? ` \u00b7 ${switchLabel}` : ""}</div>
+              <div className="wt-sub">following the train of thought\u2026</div>
+            </div>
+          </div>
+        )}
+        <div className="workspace-bar"><div><span className="eyebrow">{viewMode === "trail" ? "Trail" : "Graph workspace"}</span><h1>{viewMode === "trail" ? "Decision timeline" : "Relationship map"}</h1></div><div className="workspace-actions"><div className="segment-control" aria-label="Graph scope"><button type="button" aria-pressed={scope === "overview"} onClick={() => void changeScope("overview")}>Overview</button><button type="button" aria-pressed={scope === "local"} onClick={() => void changeScope("local")}>Local</button></div><div className="segment-control" aria-label="Graph date range"><button type="button" aria-pressed={range === "recent"} onClick={() => void changeRange("recent")}>Recent</button><button type="button" aria-pressed={range === "all"} onClick={() => void changeRange("all")}>All dates</button></div><div className="segment-control" aria-label="Graph presentation"><button type="button" aria-pressed={viewMode === "trail"} onClick={() => setViewMode("trail")}><GitBranch size={14} aria-hidden="true" /><span>Trail</span></button><button type="button" aria-pressed={viewMode === "graph"} onClick={() => setViewMode("graph")}><Network size={14} aria-hidden="true" /><span>Graph</span></button></div><label className="label-menu"><span>Labels</span><select value={labelMode} onChange={(event) => setLabelMode(event.target.value as LabelMode)} aria-label="Graph labels"><option value="focus">Focus</option><option value="minimal">Minimal</option><option value="all">All</option></select></label><span className="status-pill">{viewMode === "trail" ? "Trail" : isLoading ? "Updating" : "Cytoscape.js"}</span></div></div>
         {viewMode !== "trail" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{DEFAULT_GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => void toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
         {viewMode === "trail" ? (
           <>
             {trailError && <div className="error-state" role="alert">{trailError}</div>}
             {trail ? (
               <Suspense fallback={<div className="loading-state">Loading trail</div>}>
-                <TrailWorkspace trail={trail} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={selected?.source.chunk_id ?? null} query={query} onSelectEntry={selectFromTrail} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
+                <TrailWorkspace trail={trail} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={selected?.source.chunk_id ?? null} query={query} selectionMuted={selectionMuted} commitSiblingIds={chunk?.commit_entry_ids ?? []} onSelectEntry={selectFromTrail} onEnsureVisible={ensureTrailVisible} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
               </Suspense>
             ) : (
               <div className="loading-state">Loading trail</div>
@@ -385,7 +541,7 @@ export default function App() {
         ) : (
           <>
             {error && <div className="error-state" role="alert">{error}</div>}
-            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} viewMode={viewMode === "list" ? "list" : "graph"} theme={theme} /></Suspense>}
+            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} theme={theme} /></Suspense>}
             {!graph && <div className="loading-state">Loading graph</div>}
           </>
         )}
