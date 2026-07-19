@@ -7,3 +7,14 @@
 *.ico binary
 *.pdf binary
 *.sqlite binary
+
+# Session memory is append-only and chronologically ordered, and every entry
+# shares the same line-identical `topics:`/`related_entries:` scaffolding. That
+# makes git's line-based three-way merge actively dangerous here: it anchors on
+# the shared lines, treats them as agreed content, and splices one entry's body
+# into another while stranding a YAML fence - a silent corruption, not a
+# conflict. `-merge` makes concurrent edits conflict wholesale instead, so the
+# structural merge (`session merge-branch`, which rebuilds the file from parsed
+# entry records) is the only way through. The tool itself is unaffected: it
+# already resets branch-touched session files to base content before fusing.
+.memory-seed/sessions/** -merge
