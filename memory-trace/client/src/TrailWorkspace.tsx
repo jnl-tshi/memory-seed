@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
-import { Settings2 } from "lucide-react";
+import { useEffect, useMemo, useRef, type CSSProperties, type ReactElement } from "react";
 import type { TrailResponse, TrailEdge, TrailEvent } from "./api";
+import type { TrailStyle } from "./SettingsMenu";
 import {
   buildTrailModel,
   trailStamp,
@@ -15,6 +15,8 @@ import {
   TRAIL_REL_ZONE,
   TRAIL_ROW,
 } from "./trailModel";
+import { elbowTo, handDrawnPoints, moveTo, pressurePath, ribbonPath, runBody, runPath, sampleQuadratic } from "./trailPath";
+import { animateScrollTo, bandScrollTarget, scrollDurationFor } from "./trailScroll";
 
 const CONTINUITY_COLOR: Record<string, string> = { rename: "var(--accent)", migration: "var(--edge-evolves)", removal: "var(--edge-supersedes)" };
 
@@ -26,6 +28,7 @@ const TEXT_CLEAR = 18; // dot radius + breathing gap past the last lane
 
 export function TrailWorkspace({
   trail,
+  trailStyle,
   windowSize,
   selectedEntryId,
   selectedChunkId,
@@ -37,6 +40,7 @@ export function TrailWorkspace({
   onLoadMore,
 }: {
   trail: TrailResponse;
+  trailStyle: TrailStyle;
   windowSize: number;
   selectedEntryId: string | null;
   selectedChunkId: string | null;
@@ -47,29 +51,13 @@ export function TrailWorkspace({
   onSelectEntry: (entryId: string | null, chunkId: string) => void;
   onLoadMore: () => void;
 }) {
-  // Trail presentation settings (chosen by JNL from the tuning experiments):
-  // line thickness Fine 1.8 / Thick 2.5, and Hand-drawn (wobble) vs Slick.
-  // Arrowheads use userSpaceOnUse so they stay the same size in both
-  // thicknesses (calibrated to the fine line).
-  type TrailSettings = { thickness: "fine" | "thick"; style: "hand" | "slick" };
-  const [settings, setSettings] = useState<TrailSettings>(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("memory-trace:trail-settings") || "{}");
-      return {
-        thickness: stored.thickness === "thick" ? "thick" : "fine",
-        style: stored.style === "slick" ? "slick" : "hand",
-      };
-    } catch {
-      return { thickness: "fine", style: "hand" };
-    }
-  });
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  useEffect(() => {
-    localStorage.setItem("memory-trace:trail-settings", JSON.stringify(settings));
-    localStorage.removeItem("memory-trace:trail-tune");
-  }, [settings]);
-  const strokeW = settings.thickness === "thick" ? 2.5 : 1.8;
-  const handDrawn = settings.style === "hand";
+  // Stroke presentation is owned by the settings menu (App); the Trail keeps
+  // only the derivations its geometry needs. Line thickness Fine 1.8 / Thick
+  // 2.5; arrowheads use userSpaceOnUse so they stay the same size in both
+  // (calibrated to the fine line).
+  const strokeW = trailStyle.thickness === "thick" ? 2.5 : 1.8;
+  const handDrawn = trailStyle.style === "hand";
+  const pressure = handDrawn ? trailStyle.pressure : 0;
 
   const model = useMemo(() => buildTrailModel(trail, windowSize), [trail, windowSize]);
   const { items, total, rowOf, spans, laneOf, colorOf, linkRows, mergeEvents, lifecycle, continuityEvents, continuityChains, continuityLaneCount } = model;
@@ -83,30 +71,64 @@ export function TrailWorkspace({
 
   // Clicks that originate inside the Trail select a row that is already on
   // screen — recentring it would yank the list out from under the user. Only
-  // outside-origin selections (context panel, search) auto-scroll.
+  // outside-origin selections (context panel, find bar) auto-scroll.
   const suppressScroll = useRef(false);
+  const scroller = useRef<HTMLDivElement>(null);
+  const cancelScroll = useRef<(() => void) | null>(null);
+  const scrollHandledFor = useRef<string | null>(null);
+  // Loading a corpus auto-selects a graph node, and that selection must NOT
+  // drag the Trail to wherever that entry happens to sit — a new corpus opens
+  // at the top. The first selection after a reset is adopted silently; every
+  // later one scrolls normally.
+  const adoptWithoutScroll = useRef(true);
+  useEffect(() => () => cancelScroll.current?.(), []);
+
+  // Starting Trace, or switching worktree/topic, presents a new corpus. A new
+  // `trail` object is exactly that signal — growing the window (Load older)
+  // keeps the same object, so paging never jumps back to the top.
+  useEffect(() => {
+    cancelScroll.current?.();
+    if (scroller.current) scroller.current.scrollTop = 0;
+    scrollHandledFor.current = null;
+    adoptWithoutScroll.current = true;
+  }, [trail]);
 
   // Bring the selection into view: if the selected entry is older than the
-  // loaded window, grow the window to include it; once its row exists, scroll
-  // it to the centre of the pane.
-  const scrollHandledFor = useRef<string | null>(null);
+  // loaded window, grow the window to include it; once its row exists, ease it
+  // to the near edge of the middle third (see trailScroll.ts).
   useEffect(() => {
     if (!selectedEntryId) { scrollHandledFor.current = null; return; }
     if (suppressScroll.current) { suppressScroll.current = false; scrollHandledFor.current = selectedEntryId; return; }
+    // The corpus's opening selection is adopted where it stands, leaving the
+    // Trail at the top (see adoptWithoutScroll).
+    if (adoptWithoutScroll.current) { adoptWithoutScroll.current = false; scrollHandledFor.current = selectedEntryId; return; }
     // One auto-scroll per selection: re-renders (chunk loads, prop identity
-    // churn) must never re-centre a selection that was already handled.
+    // churn) must never re-scroll a selection that was already handled.
     if (scrollHandledFor.current === selectedEntryId) return;
-    if (!model.rowOf.has(selectedEntryId)) {
+    const index = model.rowOf.get(selectedEntryId);
+    if (index === undefined) {
       const ordered = (trail.nodes || [])
         .filter((node) => node.entry_id)
         .sort((a, b) => trailStamp(b) - trailStamp(a) || String(a.id).localeCompare(String(b.id)));
-      const index = ordered.findIndex((node) => node.id === selectedEntryId);
-      if (index >= 0) onEnsureVisible(index + 1);
+      const position = ordered.findIndex((node) => node.id === selectedEntryId);
+      // Grow past the target by a viewport's worth of rows. Loading exactly up
+      // to it would leave it as the very last row, pinned to the bottom of the
+      // pane with nothing beneath it to scroll against — it could never reach
+      // the band edge.
+      const headroom = Math.ceil((scroller.current?.clientHeight ?? 0) / TRAIL_ROW);
+      if (position >= 0) onEnsureVisible(position + 1 + headroom);
       return; // not handled yet — the window grows, the effect re-runs, then scrolls
     }
-    const row = document.querySelector(`.trail-rows [data-entry="${selectedEntryId}"]`);
-    row?.scrollIntoView({ block: "center" });
     scrollHandledFor.current = selectedEntryId;
+    const element = scroller.current;
+    if (!element) return;
+    // Row geometry is known exactly from the model, so no DOM measurement:
+    // every row is TRAIL_ROW tall and the rail shares these coordinates.
+    const rowCenter = index * TRAIL_ROW + TRAIL_ROW / 2;
+    const target = bandScrollTarget(rowCenter, element.scrollTop, element.clientHeight, element.scrollHeight - element.clientHeight);
+    if (target === null) return; // already inside the stable band
+    cancelScroll.current?.();
+    cancelScroll.current = animateScrollTo(element, target, scrollDurationFor(target - element.scrollTop));
   }, [selectedEntryId, model, trail, onEnsureVisible]);
 
   if (!items.length) return <div className="loading-state">No entries with lineage data yet.</div>;
@@ -160,23 +182,35 @@ export function TrailWorkspace({
     branchRows.get(branch)!.push(index);
   });
 
+  // One stroke per branch, not one per row gap. The old per-pair <line>s were
+  // collinear and shared endpoints, so their union was already a single
+  // vertical line — but a 30px segment is far too short to carry a believable
+  // pen drift, so drawing the whole run as one path is what lets a long branch
+  // read as one confident stroke instead of a nervous polyline.
+  // A pressure ribbon when the run is long enough to carry width variation,
+  // otherwise an ordinary stroke — which is also what keeps round caps on the
+  // short runs that want them.
+  const railStroke = (key: string, x1: number, y1: number, x2: number, y2: number, seedKey: string, colour: string | undefined, extra: Record<string, unknown> = {}) => {
+    const ribbon = pressure > 0 ? pressurePath(x1, y1, x2, y2, seedKey, strokeW, pressure) : "";
+    if (ribbon) return <path key={key} d={ribbon} fill={colour} fillOpacity={0.55} {...extra} />;
+    return <path key={key} d={runPath(x1, y1, x2, y2, seedKey, handDrawn)} fill="none" stroke={colour} strokeWidth={strokeW} strokeOpacity={0.55} strokeLinecap="round" strokeLinejoin="round" {...extra} />;
+  };
+
+  // Connectors carry pressure too, otherwise fork/merge runs read as machine
+  // strokes next to hand-drawn lanes and the sketch illusion breaks. The elbow
+  // is flattened into the same polyline so the ribbon turns the corner with it.
+  const connectorRibbon = (points: { x: number; y: number }[], seedKey: string) =>
+    pressure > 0 ? ribbonPath(points, strokeW, pressure, seedKey) : "";
+  const connectorProps = (ribbon: string, d: string, colour: string | undefined) =>
+    ribbon
+      ? ({ d: ribbon, fill: colour, fillOpacity: 0.55 } as const)
+      : ({ d, fill: "none", stroke: colour, strokeWidth: strokeW, strokeOpacity: 0.55, strokeLinecap: "round", strokeLinejoin: "round" } as const);
+
   const laneSegments: ReactElement[] = [];
   branchRows.forEach((rows, branch) => {
-    if (branch === "") return;
-    for (let i = 1; i < rows.length; i += 1) {
-      laneSegments.push(
-        <line
-          key={`seg-${branch}-${i}`}
-          x1={laneX(branch)}
-          y1={rowY(rows[i - 1])}
-          x2={laneX(branch)}
-          y2={rowY(rows[i])}
-          stroke={colorOf.get(branch)}
-          strokeWidth={strokeW}
-          strokeOpacity={0.55}
-        />,
-      );
-    }
+    if (branch === "" || rows.length < 2) return;
+    const x = laneX(branch);
+    laneSegments.push(railStroke(`seg-${branch}`, x, rowY(rows[0]), x, rowY(rows[rows.length - 1]), `${branch}:lane`, colorOf.get(branch)));
   });
 
   // Main trunk: solid spine from main's newest real commit (newest of {main
@@ -191,10 +225,10 @@ export function TrailWorkspace({
     const bottomRow = mainRows.length ? mainRows[0] : Math.max(...mergeRowsForTrunk);
     const bottomY = rowY(bottomRow);
     if (bottomY > topY) {
-      trunk.push(<line key="trunk-solid" x1={mainX} y1={topY} x2={mainX} y2={bottomY} stroke={mainColor} strokeWidth={strokeW} strokeOpacity={0.55} strokeLinecap="round" />);
+      trunk.push(railStroke("trunk-solid", mainX, topY, mainX, bottomY, "main:trunk", mainColor));
     }
     if (topY > 0) {
-      trunk.push(<line key="trunk-phantom" x1={mainX} y1={0} x2={mainX} y2={topY} stroke={mainColor} strokeWidth={strokeW} strokeOpacity={0.3} strokeDasharray="2 5" strokeLinecap="round" />);
+      trunk.push(<path key="trunk-phantom" d={runPath(mainX, 0, mainX, topY, "main:phantom", handDrawn)} fill="none" stroke={mainColor} strokeWidth={strokeW} strokeOpacity={0.3} strokeDasharray="2 5" strokeLinecap="round" strokeLinejoin="round" />);
     }
   }
 
@@ -213,8 +247,23 @@ export function TrailWorkspace({
     if (forkRow !== undefined) {
       const yf = rowY(forkRow);
       const yb = rowY(oldest);
+      // Legs drift; the elbow between them stays exact, so the corner radius
+      // still reads as a deliberate gitgraph turn rather than a wobble.
+      const d =
+        moveTo(mx, yf) +
+        runBody(mx, yf, bx - r, yf, `${branch}:fork-leg`, handDrawn) +
+        elbowTo(bx, yf, bx, yf - r) +
+        runBody(bx, yf - r, bx, yb, `${branch}:fork`, handDrawn);
+      const ribbon = connectorRibbon(
+        [
+          ...handDrawnPoints(mx, yf, bx - r, yf, `${branch}:fork-leg`),
+          ...sampleQuadratic({ x: bx - r, y: yf }, { x: bx, y: yf }, { x: bx, y: yf - r }).slice(1),
+          ...handDrawnPoints(bx, yf - r, bx, yb, `${branch}:fork`).slice(1),
+        ],
+        `${branch}:fork`,
+      );
       connectors.push(
-        <path key={`fork-${branch}`} className="trail-link" d={`M ${mx} ${yf} L ${bx - r} ${yf} Q ${bx} ${yf} ${bx} ${yf - r} L ${bx} ${yb}`} fill="none" stroke={stroke} strokeWidth={strokeW} strokeOpacity={0.55}>
+        <path key={`fork-${branch}`} className="trail-link" {...connectorProps(ribbon, d, stroke)}>
           <title>{`${branch} · ${forkLabel ? `forked after ${forkLabel}` : estimated ? "fork point estimated" : "fork point"}`}</title>
         </path>,
       );
@@ -222,8 +271,21 @@ export function TrailWorkspace({
     if (mergeRow !== undefined) {
       const yb = rowY(newest);
       const ym = rowY(mergeRow);
+      const d =
+        moveTo(bx, yb) +
+        runBody(bx, yb, bx, ym + r, `${branch}:merge`, handDrawn) +
+        elbowTo(bx, ym, bx - r, ym) +
+        runBody(bx - r, ym, mx, ym, `${branch}:merge-leg`, handDrawn);
+      const ribbon = connectorRibbon(
+        [
+          ...handDrawnPoints(bx, yb, bx, ym + r, `${branch}:merge`),
+          ...sampleQuadratic({ x: bx, y: ym + r }, { x: bx, y: ym }, { x: bx - r, y: ym }).slice(1),
+          ...handDrawnPoints(bx - r, ym, mx, ym, `${branch}:merge-leg`).slice(1),
+        ],
+        `${branch}:merge`,
+      );
       connectors.push(
-        <path key={`merge-${branch}`} className="trail-link" d={`M ${bx} ${yb} L ${bx} ${ym + r} Q ${bx} ${ym} ${bx - r} ${ym} L ${mx} ${ym}`} fill="none" stroke={stroke} strokeWidth={strokeW} strokeOpacity={0.55}>
+        <path key={`merge-${branch}`} className="trail-link" {...connectorProps(ribbon, d, stroke)}>
           <title>{`${branch} · ${mergeLabel ? `merged by ${mergeLabel}` : estimated ? "merge point estimated" : "merge point"}`}</title>
         </path>,
       );
@@ -496,29 +558,6 @@ export function TrailWorkspace({
           <strong>{shown}</strong> of {total} entries · newest first
           {searching && <> · <strong>{matchCount}</strong> match{matchCount === 1 ? "" : "es"}</>}
         </span>
-        <span className="trail-settings">
-          <button type="button" className="trail-more" aria-expanded={settingsOpen} aria-label="Trail settings" title="Trail settings" onClick={() => setSettingsOpen((open) => !open)}>
-            <Settings2 size={13} aria-hidden="true" /> Style
-          </button>
-          {settingsOpen && (
-            <div className="trail-settings-menu" role="menu" aria-label="Trail presentation settings">
-              <div className="trail-settings-row">
-                <span>Line</span>
-                <div className="segment-control">
-                  <button type="button" aria-pressed={settings.thickness === "fine"} onClick={() => setSettings((prev) => ({ ...prev, thickness: "fine" }))}>Fine</button>
-                  <button type="button" aria-pressed={settings.thickness === "thick"} onClick={() => setSettings((prev) => ({ ...prev, thickness: "thick" }))}>Thick</button>
-                </div>
-              </div>
-              <div className="trail-settings-row">
-                <span>Stroke style</span>
-                <div className="segment-control">
-                  <button type="button" aria-pressed={settings.style === "hand"} onClick={() => setSettings((prev) => ({ ...prev, style: "hand" }))}>Drawn</button>
-                  <button type="button" aria-pressed={settings.style === "slick"} onClick={() => setSettings((prev) => ({ ...prev, style: "slick" }))}>Slick</button>
-                </div>
-              </div>
-            </div>
-          )}
-        </span>
         <span className="trail-legend" aria-label="Relationship legend">
           {continuityLaneCount > 0 && (
             <>
@@ -537,20 +576,27 @@ export function TrailWorkspace({
           </button>
         )}
       </div>
-      <div className="trail-scroll">
+      <div className="trail-scroll" ref={scroller}>
         <div className="trail-body" style={{ height }}>
           <svg className="trail-rail" width={railWidth} height={height} viewBox={`0 0 ${railWidth} ${height}`} aria-hidden="true">
             <defs>
-              {/* Hand-drawn voice: a fixed-seed turbulence displacement gives every
-                  stroke a slight, deterministic pen wobble — sketchy warmth without
-                  losing legibility. Dots and text stay crisp (outside the group). */}
-              <filter id="trail-rough" x="-4%" y="-1%" width="108%" height="102%">
-                {/* Single-octave, long-wave noise reads as a pen's drift rather
-                    than pixel jitter; the light blur anti-aliases the stepped
-                    edges displacement leaves behind. */}
-                <feTurbulence type="fractalNoise" baseFrequency="0.007" numOctaves={1} seed={7} result="noise" />
-                <feDisplacementMap in="SourceGraphic" in2="noise" scale={7} xChannelSelector="R" yChannelSelector="G" result="displaced" />
-                <feGaussianBlur in="displaced" stdDeviation={0.4} />
+              {/* Surface grain only. The pen's *drift* now lives in the path
+                  geometry (trailPath.ts), which is what stops neighbouring lanes
+                  reading as offset copies of one straight line. This filter is
+                  demoted to the ink texture on top of it: short-wave noise at a
+                  sub-pixel scale, so it roughens edges without bending strokes.
+                  A long-wave, high-scale displacement here would reintroduce
+                  exactly the correlated sideways shift we removed. No blur —
+                  the spline already carries the smooth character, and blurring
+                  only costs legibility. Dots and text stay outside the group. */}
+              {/* Tuned against the magnified rail: displacement is +/- scale/2,
+                  so scale 0.9 keeps the edge within half a pixel of the true
+                  spline — grain, not a second wobble. Longer waves (or a bigger
+                  scale) visibly rippled a 1.8px stroke and read as the jagged
+                  line this treatment set out to remove. */}
+              <filter id="trail-rough" x="-2%" y="-1%" width="104%" height="102%">
+                <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves={2} seed={7} result="noise" />
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale={trailStyle.wobble} xChannelSelector="R" yChannelSelector="G" />
               </filter>
               {(["supersedes", "evolves", "related"] as const).map((type) => (
                 <marker key={`m-${type}`} id={`trail-arrow-${type}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto-start-reverse">

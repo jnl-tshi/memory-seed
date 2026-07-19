@@ -1,13 +1,13 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { GitBranch, LayoutPanelLeft, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, Sun, X } from "lucide-react";
+import { ChevronDown, ChevronUp, GitBranch, LayoutPanelLeft, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, X } from "lucide-react";
+import { SettingsMenu, type InspectorDock, type Theme, type TrailStyle } from "./SettingsMenu";
 import { api, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
 import { EntryReader } from "./EntryReader";
-import { stripTitleStamp, TRAIL_WINDOW_STEP } from "./trailModel";
+import { stripTitleStamp, trailStamp, TRAIL_WINDOW_STEP } from "./trailModel";
 
 const GraphWorkspace = lazy(() => import("./GraphWorkspace").then((module) => ({ default: module.GraphWorkspace })));
 const TrailWorkspace = lazy(() => import("./TrailWorkspace").then((module) => ({ default: module.TrailWorkspace })));
 type MatchHint = { entryId: string; heading: string };
-type InspectorDock = "auto" | "right" | "bottom" | "hidden";
 type GraphScope = "overview" | "local";
 type GraphViewMode = "graph" | "trail";
 type LabelMode = "focus" | "minimal" | "all";
@@ -71,14 +71,32 @@ function readPaneWidth(key: string, bounds: { min: number; max: number; fallback
   return Number.isFinite(value) && value >= bounds.min && value <= bounds.max ? value : bounds.fallback;
 }
 
-type Theme = "light" | "dark";
-
 // Light (the warm humanist default) unless the user chose otherwise or their
 // system prefers dark.
 function readTheme(): Theme {
   const stored = localStorage.getItem("memory-trace:theme");
   if (stored === "light" || stored === "dark") return stored;
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+// Trail stroke presentation. Lifted out of TrailWorkspace so the settings menu
+// can own every preference in one place; the Trail keeps only its derivations.
+// Defaults are JNL's chosen combination: Thick + Drawn, wobble 1.60, pressure
+// 0.30.
+function readTrailStyle(): TrailStyle {
+  const clamp = (value: unknown, fallback: number, max: number) =>
+    typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(0, value)) : fallback;
+  try {
+    const stored = JSON.parse(localStorage.getItem("memory-trace:trail-settings") || "{}");
+    return {
+      thickness: stored.thickness === "fine" ? "fine" : "thick",
+      style: stored.style === "slick" ? "slick" : "hand",
+      wobble: clamp(stored.wobble, 1.6, 3),
+      pressure: clamp(stored.pressure, 0.3, 1),
+    };
+  } catch {
+    return { thickness: "thick", style: "hand", wobble: 1.6, pressure: 0.3 };
+  }
 }
 
 function titleFor(node: RendererGraphNode | null) {
@@ -106,6 +124,7 @@ export default function App() {
   const [navWidth, setNavWidth] = useState(() => readPaneWidth("memory-trace:nav-width", NAV_WIDTH));
   const [inspectorWidth, setInspectorWidth] = useState(() => readPaneWidth("memory-trace:inspector-width", INSPECTOR_WIDTH));
   const [theme, setTheme] = useState<Theme>(readTheme);
+  const [trailStyle, setTrailStyle] = useState<TrailStyle>(readTrailStyle);
   const [error, setError] = useState<string | null>(null);
   const [scope, setScope] = useState<GraphScope>("overview");
   const [viewMode, setViewMode] = useState<GraphViewMode>("trail");
@@ -128,6 +147,9 @@ export default function App() {
   const [activeTopic, setActiveTopic] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchResponse | null>(null);
+  // Ctrl-F-style find bar over the Trail. Dismissing hides it until the query
+  // changes again, so it never nags once you have found what you came for.
+  const [findOpen, setFindOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const graphRequest = useRef(0);
@@ -218,6 +240,10 @@ export default function App() {
     localStorage.setItem("memory-trace:theme", theme);
   }, [theme]);
   useEffect(() => { localStorage.setItem("memory-trace:inspector-width", String(inspectorWidth)); }, [inspectorWidth]);
+  useEffect(() => {
+    localStorage.setItem("memory-trace:trail-settings", JSON.stringify(trailStyle));
+    localStorage.removeItem("memory-trace:trail-tune"); // legacy tuning-panel key
+  }, [trailStyle]);
 
   // Pointer-driven pane resize: capture moves on window for the drag's
   // duration; widths clamp to sane bounds and persist across sessions.
@@ -258,8 +284,8 @@ export default function App() {
     setMatchHint(null);
   }, []);
   const indexById = useMemo(() => {
-    const map = new Map<string, { title: string; date: string; datetime: string | null }>();
-    entryIndex?.nodes.forEach((node) => map.set(node.id, { title: node.title, date: node.date, datetime: node.datetime }));
+    const map = new Map<string, { title: string; date: string; datetime: string | null; branch: string | null }>();
+    entryIndex?.nodes.forEach((node) => map.set(node.id, { title: node.title, date: node.date, datetime: node.datetime, branch: node.branch ?? null }));
     return map;
   }, [entryIndex]);
 
@@ -309,6 +335,58 @@ export default function App() {
     contextItems.forEach((item) => groups.set(item.kind, [...(groups.get(item.kind) ?? []), item]));
     return order.filter((kind) => groups.has(kind)).map((kind) => [kind, groups.get(kind)!]);
   }, [contextItems]);
+
+  // Branch and evolves live only in the entry's YAML block, which is now
+  // collapsed — so surface them in the metadata grid instead. Both come from
+  // `entryIndex` (the full-corpus Trail response the context panel already
+  // uses), which carries `branch` per node and typed lifecycle edges; the graph
+  // projection exposes neither, and this avoids widening the v1 contract.
+  const selectedBranch = selected?.source.entry_id ? indexById.get(selected.source.entry_id)?.branch ?? null : null;
+  const selectedEvolves = useMemo(() => {
+    const entryId = selected?.source.entry_id;
+    if (!entryId) return [] as { entryId: string; title: string }[];
+    return (entryIndex?.edges ?? [])
+      .filter((edge) => edge.type === "evolves" && edge.source === entryId)
+      .map((edge) => ({ entryId: edge.target, title: stripTitleStamp(indexById.get(edge.target)?.title ?? edge.target) }));
+  }, [selected?.source.entry_id, entryIndex, indexById]);
+
+  // Find-bar matches run over the WHOLE corpus (entryIndex), not the Trail's
+  // loaded window — otherwise "next match" could not reach an entry that has
+  // not been paged in yet, which is exactly what a Ctrl-F is for. Ordered
+  // newest-first to match the Trail's own row order.
+  const matchEntries = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term || isCanonicalEntryId(term)) return [];
+    return (entryIndex?.nodes ?? [])
+      .filter((node) => node.entry_id)
+      .slice()
+      .sort((a, b) => trailStamp(b) - trailStamp(a) || String(a.id).localeCompare(String(b.id)))
+      .filter((node) =>
+        stripTitleStamp(node.title).toLowerCase().includes(term) ||
+        (node.branch || "").toLowerCase().includes(term) ||
+        (node.entry_id || "").toLowerCase().includes(term))
+      .map((node) => node.id);
+  }, [query, entryIndex]);
+  // The cursor advances SYNCHRONOUSLY in a ref, because selecting an entry is
+  // async: deriving the position from `selected` alone made held Enter (or fast
+  // clicks) step only once, since every repeat read the same stale position.
+  const matchCursorRef = useRef(-1);
+  const [matchPosition, setMatchPosition] = useState(-1);
+  const setMatchCursor = useCallback((index: number) => {
+    matchCursorRef.current = index;
+    setMatchPosition(index);
+  }, []);
+  // A fresh query re-opens the bar even if the last one was dismissed, and
+  // restarts the cycle.
+  useEffect(() => { setFindOpen(true); setMatchCursor(-1); }, [query, setMatchCursor]);
+  // Selecting from anywhere else (a Trail row, the context panel) re-homes the
+  // cursor so the next step continues from what is actually on screen.
+  const selectedEntryId = selected?.source.entry_id;
+  useEffect(() => {
+    if (!selectedEntryId || !matchEntries.length) return;
+    if (matchEntries[matchCursorRef.current] === selectedEntryId) return;
+    setMatchCursor(matchEntries.indexOf(selectedEntryId));
+  }, [selectedEntryId, matchEntries, setMatchCursor]);
 
   // Switching worktree swaps the entire corpus: scope the API, clear every
   // per-corpus piece of state, and reload. Each checkout is its own memory
@@ -390,6 +468,50 @@ export default function App() {
     if (entryId) void focusEntry(entryId);
   }
 
+  // Cycle to the next/previous match, wrapping around. Selecting the entry is
+  // all this does — the Trail watches the selection and eases the row into
+  // view, growing its window first when the match is older than what is loaded.
+  async function jumpToMatch(step: number) {
+    if (!matchEntries.length) return;
+    const from = matchCursorRef.current >= 0 ? matchCursorRef.current : step > 0 ? -1 : 0;
+    const next = (from + step + matchEntries.length) % matchEntries.length;
+    setMatchCursor(next);
+    setFindOpen(true);
+    await focusEntry(matchEntries[next], true);
+  }
+
+  // Keyboard grammar ported from the vanilla UI, which the React workspace had
+  // dropped: "/" focuses search from anywhere, Enter/Shift+Enter cycle matches,
+  // Escape dismisses. Held in a ref so the listener subscribes once but never
+  // reads stale state (same pattern as GraphWorkspace's tap handler).
+  const keyHandler = useRef<(event: KeyboardEvent) => void>(() => {});
+  keyHandler.current = (event: KeyboardEvent) => {
+    const target = event.target as HTMLElement | null;
+    const inSearch = target === searchInput.current;
+    const typing = target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.tagName === "SELECT";
+    if (event.key === "/" && !typing) {
+      event.preventDefault();
+      searchInput.current?.focus();
+      return;
+    }
+    if (event.key === "Escape") {
+      if (search) { setSearch(null); return; }
+      setFindOpen(false);
+      if (inSearch) searchInput.current?.blur();
+      return;
+    }
+    // Enter is deliberately NOT handled here. The search box sits inside a
+    // <form>, so a real Enter would fire both this listener and the form's
+    // implicit submission — stepping twice, or cycling and opening the dropdown
+    // at once. It is handled in exactly one place: the input's own onKeyDown,
+    // which can preventDefault the submit and read shiftKey.
+  };
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => keyHandler.current(event);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   async function runSearch(rawValue: string) {
     const value = rawValue.trim();
     if (!value) { setSearch(null); return; }
@@ -470,16 +592,40 @@ export default function App() {
         <button className="icon-button" type="button" onClick={() => setLeftOpen((value) => !value)} aria-label="Toggle navigation" title="Toggle navigation">
           {leftOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
         </button>
-        <div className="brand"><Network size={19} aria-hidden="true" /><span>Memory Trace</span><small>Next</small></div>
+        <div className="brand"><Network size={19} aria-hidden="true" /><span>Memory Trace</span></div>
         <div className="project-summary">{runtime ? `${runtime.label} · ${runtime.entry_count} entries` : "Loading project"}</div>
         <div className="trace-search-wrap">
-          <form className="trace-search" onSubmit={submitSearch} role="search"><Search size={16} aria-hidden="true" /><input ref={searchInput} value={query} onChange={(event) => { setQuery(event.target.value); setSearch(null); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void runSearch(event.currentTarget.value); } }} placeholder="Search memory or entry ID" aria-label="Search memory or entry ID" />{query && <button className="icon-button search-clear" type="button" onClick={() => { setQuery(""); setSearch(null); }} aria-label="Clear search" title="Clear search"><X size={14} /></button>}</form>
+          <form className="trace-search" onSubmit={submitSearch} role="search"><Search size={16} aria-hidden="true" /><input ref={searchInput} value={query} onChange={(event) => { setQuery(event.target.value); setSearch(null); }} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); if (event.ctrlKey || event.metaKey) { void runSearch(event.currentTarget.value); return; } if (matchEntries.length) { void jumpToMatch(event.shiftKey ? -1 : 1); return; } void runSearch(event.currentTarget.value); }} placeholder="Search memory or entry ID" aria-label="Search memory or entry ID" />{query && <button className="icon-button search-clear" type="button" onClick={() => { setQuery(""); setSearch(null); }} aria-label="Clear search" title="Clear search"><X size={14} /></button>}</form>
           {search && <div className="search-results" role="listbox" aria-label="Search results">{search.results.length ? search.results.map((result) => <button type="button" key={result.chunk_id} className="search-result" onClick={() => void chooseSearchResult(result)}><strong>{result.entry_title || result.heading_path[result.heading_path.length - 1] || result.chunk_id}</strong><small>{result.entry_id || result.date}</small></button>) : <div className="search-empty">No matching entries</div>}</div>}
+          {/* `!search` is load-bearing: the dropdown sits at top:40px and this bar
+              at top:100%+6px, so while full-text results are up the bar stands
+              down rather than stacking under them. Escape clears `search` first,
+              which brings the bar straight back at the same match position. */}
+          {viewMode === "trail" && findOpen && matchEntries.length > 0 && !search && (
+            <div className="find-bar" role="status" aria-live="polite" aria-label="Search matches">
+              <span className="find-count">{matchPosition >= 0 ? matchPosition + 1 : "–"}<span className="find-sep">/</span>{matchEntries.length}</span>
+              <button type="button" className="find-step" onClick={() => void jumpToMatch(-1)} aria-label="Previous match" title="Previous match (Shift+Enter)"><ChevronUp size={14} /></button>
+              <button type="button" className="find-step" onClick={() => void jumpToMatch(1)} aria-label="Next match" title="Next match (Enter)"><ChevronDown size={14} /></button>
+              {/* Local matching only sees titles, branches and ids. This is the only
+                  route to the server's full-text search, which reads entry bodies. */}
+              <button type="button" className="find-all" onClick={() => void runSearch(query)}
+                      aria-label="Search full text including entry bodies"
+                      title="Search full text, including entry bodies (Ctrl+Enter)">
+                <Search size={12} aria-hidden="true" />all text
+              </button>
+              <button type="button" className="find-step" onClick={() => setFindOpen(false)} aria-label="Dismiss find bar" title="Dismiss (Esc)"><X size={13} /></button>
+            </div>
+          )}
+        </div>
+        {/* The view switch lives here, above both workspaces: it chooses which
+            workspace you are in, so it does not belong to either one's own bar
+            of view-specific controls. */}
+        <div className="segment-control view-switch" aria-label="Workspace view">
+          <button type="button" aria-pressed={viewMode === "trail"} onClick={() => setViewMode("trail")}><GitBranch size={14} aria-hidden="true" /><span>Trail</span></button>
+          <button type="button" aria-pressed={viewMode === "graph"} onClick={() => setViewMode("graph")}><Network size={14} aria-hidden="true" /><span>Graph</span></button>
         </div>
         <div className="topbar-actions">
-          <button className="icon-button" type="button" onClick={() => setTheme((value) => value === "light" ? "dark" : "light")} aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"} title={theme === "light" ? "Dark mode" : "Light mode"}>
-            {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
-          </button>
+          <SettingsMenu trailStyle={trailStyle} onTrailStyle={setTrailStyle} dock={dock} onDock={setDock} theme={theme} onTheme={setTheme} />
           <button className="icon-button" type="button" onClick={() => setDock((value) => value === "hidden" ? "auto" : "hidden")} aria-label="Toggle inspector" title="Toggle inspector">
             {inspectorVisible ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
           </button>
@@ -525,14 +671,17 @@ export default function App() {
             </div>
           </div>
         )}
-        <div className="workspace-bar"><div><span className="eyebrow">{viewMode === "trail" ? "Trail" : "Graph workspace"}</span><h1>{viewMode === "trail" ? "Decision timeline" : "Relationship map"}</h1></div><div className="workspace-actions"><div className="segment-control" aria-label="Graph scope"><button type="button" aria-pressed={scope === "overview"} onClick={() => void changeScope("overview")}>Overview</button><button type="button" aria-pressed={scope === "local"} onClick={() => void changeScope("local")}>Local</button></div><div className="segment-control" aria-label="Graph date range"><button type="button" aria-pressed={range === "recent"} onClick={() => void changeRange("recent")}>Recent</button><button type="button" aria-pressed={range === "all"} onClick={() => void changeRange("all")}>All dates</button></div><div className="segment-control" aria-label="Graph presentation"><button type="button" aria-pressed={viewMode === "trail"} onClick={() => setViewMode("trail")}><GitBranch size={14} aria-hidden="true" /><span>Trail</span></button><button type="button" aria-pressed={viewMode === "graph"} onClick={() => setViewMode("graph")}><Network size={14} aria-hidden="true" /><span>Graph</span></button></div><label className="label-menu"><span>Labels</span><select value={labelMode} onChange={(event) => setLabelMode(event.target.value as LabelMode)} aria-label="Graph labels"><option value="focus">Focus</option><option value="minimal">Minimal</option><option value="all">All</option></select></label><span className="status-pill">{viewMode === "trail" ? "Trail" : isLoading ? "Updating" : "Cytoscape.js"}</span></div></div>
+        {/* Scope, date range and labels only shape the GRAPH projection — the
+            Trail always renders full history through its own window — so they
+            are hidden in Trail view rather than sitting there inert. */}
+        <div className="workspace-bar"><div><span className="eyebrow">{viewMode === "trail" ? "Trail" : "Graph workspace"}</span><h1>{viewMode === "trail" ? "Decision timeline" : "Relationship map"}</h1></div><div className="workspace-actions">{viewMode !== "trail" && <><div className="segment-control" aria-label="Graph scope"><button type="button" aria-pressed={scope === "overview"} onClick={() => void changeScope("overview")}>Overview</button><button type="button" aria-pressed={scope === "local"} onClick={() => void changeScope("local")}>Local</button></div><div className="segment-control" aria-label="Graph date range"><button type="button" aria-pressed={range === "recent"} onClick={() => void changeRange("recent")}>Recent</button><button type="button" aria-pressed={range === "all"} onClick={() => void changeRange("all")}>All dates</button></div><label className="label-menu"><span>Labels</span><select value={labelMode} onChange={(event) => setLabelMode(event.target.value as LabelMode)} aria-label="Graph labels"><option value="focus">Focus</option><option value="minimal">Minimal</option><option value="all">All</option></select></label></>}<span className="status-pill">{viewMode === "trail" ? "Trail" : isLoading ? "Updating" : "Cytoscape.js"}</span></div></div>
         {viewMode !== "trail" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{DEFAULT_GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => void toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
         {viewMode === "trail" ? (
           <>
             {trailError && <div className="error-state" role="alert">{trailError}</div>}
             {trail ? (
               <Suspense fallback={<div className="loading-state">Loading trail</div>}>
-                <TrailWorkspace trail={trail} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={selected?.source.chunk_id ?? null} query={query} selectionMuted={selectionMuted} commitSiblingIds={chunk?.commit_entry_ids ?? []} onSelectEntry={selectFromTrail} onEnsureVisible={ensureTrailVisible} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
+                <TrailWorkspace trail={trail} trailStyle={trailStyle} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={selected?.source.chunk_id ?? null} query={query} selectionMuted={selectionMuted} commitSiblingIds={chunk?.commit_entry_ids ?? []} onSelectEntry={selectFromTrail} onEnsureVisible={ensureTrailVisible} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
               </Suspense>
             ) : (
               <div className="loading-state">Loading trail</div>
@@ -550,8 +699,32 @@ export default function App() {
       {inspectorVisible && <aside className="inspector" id="trace-inspector" aria-label="Inspector">
         {dock !== "bottom" && <div className="pane-resize pane-resize-inspector" role="separator" aria-orientation="vertical" aria-label="Resize inspector" title="Drag to resize" onPointerDown={startPaneResize("inspector")} />}
         <div className="inspector-bar"><div><span className="eyebrow">Inspector</span><h2>{titleFor(selected)}</h2></div><button className="icon-button" type="button" onClick={() => setDock("hidden")} aria-label="Hide inspector" title="Hide inspector"><X size={17} /></button></div>
-        <div className="dock-control" aria-label="Inspector position"><span>Dock</span>{(["auto", "right", "bottom"] as const).map((option) => <button key={option} type="button" aria-pressed={dock === option} onClick={() => setDock(option)}>{option}</button>)}</div>
-        {selected && <div className="inspector-content"><dl className="metadata"><div><dt>Entry ID</dt><dd>{selected.source.entry_id || "Not recorded"}</dd></div><div><dt>Date</dt><dd>{selected.temporal.value}</dd></div><div><dt>Agent</dt><dd>{selected.source.agent}</dd></div><div><dt>Authority</dt><dd><span className={ADVISORY_AUTHORITY.has(selected.authority_class) ? "authority-badge advisory" : "authority-badge"}>{AUTHORITY_LABELS[selected.authority_class]}</span></dd></div><div><dt>Provenance</dt><dd>{PROVENANCE_LABELS[selected.provenance_class]}</dd></div>{selected.provider && <div><dt>Provider</dt><dd>{selected.provider}{selected.revision ? ` · ${selected.revision}` : ""}</dd></div>}{selected.stale && <div><dt>Freshness</dt><dd className="stale-flag">Stale — projection behind source</dd></div>}<div><dt>Links</dt><dd>{selected.connectivity}</dd></div><div><dt>Topics</dt><dd>{selected.source.topics.join(", ") || "None"}</dd></div><div><dt>Diagrams</dt><dd>{chunk?.diagrams.length ?? 0}</dd></div></dl><EntryReader chunk={chunk} matchHeading={matchHint && selected.source.entry_id === matchHint.entryId ? matchHint.heading : null} onOpenEntry={(entryId) => void focusEntry(entryId)} /></div>}
+        {selected && <div className="inspector-content">
+          {/* Metadata is grouped rather than one long column, and the grid is a
+              CSS container query on the pane itself — so it reflows as the
+              inspector is dragged wider/narrower and when it docks to the
+              bottom, independently of the viewport. Authority and provenance
+              stay on separate lines: they are distinct axes (BG1), never merged. */}
+          <dl className="metadata">
+            <div className="meta-item meta-wide"><dt>Entry ID</dt><dd className="meta-mono">{selected.source.entry_id || "Not recorded"}</dd></div>
+            <div className="meta-item"><dt>Date</dt><dd>{selected.temporal.value}</dd></div>
+            <div className="meta-item"><dt>Agent</dt><dd>{selected.source.agent}</dd></div>
+            <div className="meta-item"><dt>Authority</dt><dd><span className={ADVISORY_AUTHORITY.has(selected.authority_class) ? "authority-badge advisory" : "authority-badge"}>{AUTHORITY_LABELS[selected.authority_class]}</span></dd></div>
+            <div className="meta-item"><dt>Provenance</dt><dd>{PROVENANCE_LABELS[selected.provenance_class]}</dd></div>
+            {selected.provider && <div className="meta-item"><dt>Provider</dt><dd>{selected.provider}{selected.revision ? ` · ${selected.revision}` : ""}</dd></div>}
+            {selected.stale && <div className="meta-item meta-wide"><dt>Freshness</dt><dd className="stale-flag">Stale — projection behind source</dd></div>}
+            {selectedBranch && <div className="meta-item meta-wide"><dt>Branch</dt><dd className="meta-mono">{selectedBranch}</dd></div>}
+            <div className="meta-item"><dt>Links</dt><dd>{selected.connectivity}</dd></div>
+            <div className="meta-item"><dt>Diagrams</dt><dd>{chunk?.diagrams.length ?? 0}</dd></div>
+            {selectedEvolves.length > 0 && (
+              <div className="meta-item meta-wide"><dt>Evolves</dt><dd><span className="meta-links">{selectedEvolves.map((item) => (
+                <button key={item.entryId} type="button" className="meta-link" title={item.entryId} onClick={() => void focusEntry(item.entryId)}>{item.title}</button>
+              ))}</span></dd></div>
+            )}
+            <div className="meta-item meta-wide"><dt>Topics</dt><dd>{selected.source.topics.length ? <span className="meta-topics">{selected.source.topics.map((topic) => <span className="meta-topic" key={topic}>{topic}</span>)}</span> : "None"}</dd></div>
+          </dl>
+          <EntryReader chunk={chunk} matchHeading={matchHint && selected.source.entry_id === matchHint.entryId ? matchHint.heading : null} onOpenEntry={(entryId) => void focusEntry(entryId)} />
+        </div>}
       </aside>}
     </div>
   );

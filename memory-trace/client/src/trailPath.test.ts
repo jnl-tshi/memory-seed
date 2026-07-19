@@ -1,0 +1,242 @@
+// Geometry contract for the Trail's hand-drawn rail.
+//
+// Run with `npm test` (node:test, native TypeScript stripping — no runner
+// dependency). These assert the properties the rail depends on: identical
+// output across renders, per-branch distinctness, exact endpoints so dots and
+// elbows still meet, a hard drift bound, and Slick geometry left untouched.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+// Explicit .ts extension: node's ESM resolver does not guess extensions. These
+// files sit outside the app tsconfig (see `exclude`), so the app build and
+// typecheck never see this import style.
+import { HAND_DRAWN_DEFAULTS, handDrawnPoints, pressurePath, ribbonEdges, runBody, runPath, seedHash } from "./trailPath.ts";
+
+/** Every coordinate pair in a `d` string, in order. */
+function coordinates(d: string): number[] {
+  return (d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+}
+
+/** Perpendicular distance of each point from the straight line start->end. */
+function drifts(points: { x: number; y: number }[]): number[] {
+  const first = points[0];
+  const last = points[points.length - 1];
+  const dx = last.x - first.x;
+  const dy = last.y - first.y;
+  const length = Math.hypot(dx, dy);
+  return points.map((point) => Math.abs((point.x - first.x) * (dy / length) - (point.y - first.y) * (dx / length)));
+}
+
+const LONG = { x1: 100, y1: 15, x2: 100, y2: 615 } as const;
+const long = (seed: string) => runPath(LONG.x1, LONG.y1, LONG.x2, LONG.y2, seed, true);
+
+test("seedHash is stable and distinguishes near-identical keys", () => {
+  assert.equal(seedHash("main:lane"), seedHash("main:lane"));
+  assert.notEqual(seedHash("main:lane"), seedHash("main:trunk"));
+  assert.notEqual(seedHash("claude/feature/a"), seedHash("claude/feature/b"));
+});
+
+test("identical inputs produce identical paths across calls", () => {
+  assert.equal(long("claude/feature/worktree-nav:lane"), long("claude/feature/worktree-nav:lane"));
+});
+
+test("different branch seeds produce different paths", () => {
+  const branches = ["main", "claude/feature/worktree-nav", "claude/feature/trail-parity", "claude/docs/inbox", "claude/fix/a"];
+  const paths = branches.map((branch) => long(`${branch}:lane`));
+  assert.equal(new Set(paths).size, branches.length, "neighbouring lanes must not share a drift pattern");
+});
+
+test("the same branch differs by path role", () => {
+  assert.notEqual(long("main:lane"), long("main:trunk"));
+});
+
+test("endpoints are exact", () => {
+  const d = long("claude/feature/worktree-nav:lane");
+  const numbers = coordinates(d);
+  assert.deepEqual(numbers.slice(0, 2), [LONG.x1, LONG.y1], "path must start on the exact anchor");
+  assert.deepEqual(numbers.slice(-2), [LONG.x2, LONG.y2], "path must end on the exact anchor");
+});
+
+test("endpoints stay exact for horizontal and diagonal runs", () => {
+  for (const [x1, y1, x2, y2] of [
+    [12, 40, 512, 40],
+    [30, 20, 430, 420],
+  ]) {
+    const numbers = coordinates(runPath(x1, y1, x2, y2, "seed:run", true));
+    assert.deepEqual(numbers.slice(0, 2), [x1, y1]);
+    assert.deepEqual(numbers.slice(-2), [x2, y2]);
+  }
+});
+
+test("drift stays inside the configured bound", () => {
+  for (const branch of ["main", "claude/feature/a", "claude/feature/b", "zzz", "1"]) {
+    const points = handDrawnPoints(100, 0, 100, 900, `${branch}:lane`);
+    const maximum = Math.max(...drifts(points));
+    assert.ok(maximum <= HAND_DRAWN_DEFAULTS.maxDrift + 1e-9, `${branch} drifted ${maximum}`);
+    assert.ok(maximum > 0, `${branch} produced no drift at all`);
+  }
+});
+
+test("drift is zero at the endpoints and tapers within the lock zone", () => {
+  const points = handDrawnPoints(100, 0, 100, 900, "main:lane");
+  const offsets = drifts(points);
+  assert.equal(offsets[0], 0);
+  assert.equal(offsets[offsets.length - 1], 0);
+  // Any point inside the lock zone must be closer to the line than the bound.
+  points.forEach((point, index) => {
+    const fromEnd = Math.min(point.y - points[0].y, points[points.length - 1].y - point.y);
+    if (fromEnd < HAND_DRAWN_DEFAULTS.lockZone) {
+      assert.ok(offsets[index] < HAND_DRAWN_DEFAULTS.maxDrift, `point ${index} ignored the lock zone`);
+    }
+  });
+});
+
+test("drift is low-frequency, not per-row jitter", () => {
+  // Successive control points must move together: the step-to-step change is a
+  // fraction of the full range, which is what separates a pen drift from noise.
+  const points = handDrawnPoints(100, 0, 100, 1200, "claude/feature/worktree-nav:lane");
+  const offsets = drifts(points);
+  const steps = offsets.slice(1).map((value, index) => Math.abs(value - offsets[index]));
+  assert.ok(Math.max(...steps) < HAND_DRAWN_DEFAULTS.maxDrift, "a single step swung the full drift range");
+});
+
+test("control point spacing stays near the configured target", () => {
+  const points = handDrawnPoints(100, 0, 100, 600, "main:lane");
+  const gaps = points.slice(1).map((point, index) => point.y - points[index].y);
+  for (const gap of gaps) {
+    assert.ok(gap >= 45 && gap <= 95, `control points ${gap}px apart`);
+  }
+});
+
+test("short spans degrade to a straight line", () => {
+  // A single 30px row gap — the common case for adjacent entries on one lane.
+  const short = runPath(100, 15, 100, 45, "main:lane", true);
+  assert.equal(short, "M 100 15 L 100 45");
+  assert.equal(handDrawnPoints(100, 15, 100, 45, "main:lane").length, 2);
+});
+
+test("degenerate runs do not throw or emit NaN", () => {
+  for (const d of [runPath(50, 50, 50, 50, "s", true), runPath(0, 0, 0, 4, "s", true)]) {
+    assert.ok(!d.includes("NaN"), d);
+  }
+});
+
+test("Slick mode keeps exact straight geometry", () => {
+  // Same coordinates the previous <line> elements used, for any length.
+  assert.equal(runPath(100, 15, 100, 615, "main:lane", false), "M 100 15 L 100 615");
+  assert.equal(runBody(100, 15, 100, 615, "main:lane", false), " L 100 615");
+});
+
+test("Slick mode ignores seed and options entirely", () => {
+  const a = runPath(10, 20, 10, 800, "branch-a:lane", false);
+  const b = runPath(10, 20, 10, 800, "branch-b:trunk", false, { maxDrift: 40 });
+  assert.equal(a, b);
+});
+
+test("a hand-drawn run is curved, and a slick one is not", () => {
+  assert.ok(long("main:lane").includes("C "), "long hand-drawn runs should emit Beziers");
+  assert.ok(!runPath(LONG.x1, LONG.y1, LONG.x2, LONG.y2, "main:lane", false).includes("C "));
+});
+
+// --- pressure ribbons -------------------------------------------------------
+
+const BASE_WIDTH = 1.8;
+const ribbon = (seed: string, variation = 0.35) =>
+  pressurePath(LONG.x1, LONG.y1, LONG.x2, LONG.y2, seed, BASE_WIDTH, variation);
+
+/** Half-widths the ribbon actually applied, straight from the edge builder. */
+function halfWidths(points: { x: number; y: number }[], baseWidth: number, variation: number, seed: string) {
+  const edges = ribbonEdges(points, baseWidth, variation, seed);
+  assert.ok(edges, "expected a ribbon for this run");
+  // Cross-check: the edges really are `half` either side of the centerline.
+  edges.left.forEach((point, index) => {
+    const spread = Math.hypot(point.x - edges.right[index].x, point.y - edges.right[index].y);
+    assert.ok(Math.abs(spread - edges.half[index] * 2) < 1e-6, `edge spread disagrees at ${index}`);
+  });
+  return edges.half;
+}
+
+test("a pressure ribbon is a closed filled outline", () => {
+  const d = ribbon("claude/feature/worktree-nav:lane");
+  assert.ok(d.startsWith("M "), "must start with a move");
+  assert.ok(d.trimEnd().endsWith("Z"), "must close so it can be filled");
+  assert.ok(d.includes("C "), "must follow the curved centerline");
+});
+
+test("ribbons are deterministic and differ per branch", () => {
+  assert.equal(ribbon("a:lane"), ribbon("a:lane"));
+  assert.notEqual(ribbon("a:lane"), ribbon("b:lane"));
+});
+
+test("width variation stays inside its configured bound", () => {
+  for (const variation of [0.2, 0.35, 0.8]) {
+    for (const seed of ["main:lane", "claude/feature/a:lane", "zz:lane"]) {
+      const points = handDrawnPoints(100, 0, 100, 1200, seed);
+      const widths = halfWidths(points, BASE_WIDTH, variation, seed);
+      const max = Math.max(...widths);
+      const min = Math.min(...widths);
+      assert.ok(max <= (BASE_WIDTH / 2) * (1 + variation) + 1e-6, `${seed} exceeded max width (${max})`);
+      assert.ok(min >= (BASE_WIDTH / 2) * (1 - variation) - 1e-6, `${seed} fell below min width (${min})`);
+    }
+  }
+});
+
+test("width actually varies rather than sitting flat", () => {
+  const seed = "claude/feature/worktree-nav:lane";
+  const points = handDrawnPoints(100, 0, 100, 1200, seed);
+  const widths = halfWidths(points, BASE_WIDTH, 0.35, seed);
+  assert.ok(Math.max(...widths) - Math.min(...widths) > 0.05, "pressure should be visible, not flat");
+});
+
+test("ends taper back to the base width so ribbons meet plain strokes", () => {
+  const seed = "main:lane";
+  const points = handDrawnPoints(100, 0, 100, 1200, seed);
+  const widths = halfWidths(points, BASE_WIDTH, 0.6, seed);
+  assert.ok(Math.abs(widths[0] - BASE_WIDTH / 2) < 1e-6, "start must be base width");
+  assert.ok(Math.abs(widths[widths.length - 1] - BASE_WIDTH / 2) < 1e-6, "end must be base width");
+});
+
+test("the ribbon leaves the centerline untouched", () => {
+  // The exact points the constant-width path uses must be unchanged by pressure.
+  const before = handDrawnPoints(100, 15, 100, 615, "main:lane");
+  ribbon("main:lane", 0.9);
+  const after = handDrawnPoints(100, 15, 100, 615, "main:lane");
+  assert.deepEqual(after, before);
+});
+
+test("even a single row gap carries pressure", () => {
+  // The whole rail must read as hand-sketched, not just its long runs: a 30px
+  // lane segment is resampled so width can still vary across it.
+  const short = pressurePath(100, 15, 100, 45, "main:lane", BASE_WIDTH, 0.35);
+  assert.ok(short.startsWith("M ") && short.trimEnd().endsWith("Z"), "a row gap should still be a ribbon");
+  const points = handDrawnPoints(100, 15, 100, 45, "main:lane");
+  const widths = halfWidths(points, BASE_WIDTH, 0.35, "main:lane");
+  assert.ok(Math.max(...widths) - Math.min(...widths) > 0.01, "short runs must still vary in width");
+});
+
+test("degenerate or disabled runs decline the ribbon so the caller strokes instead", () => {
+  assert.equal(pressurePath(100, 15, 100, 21, "main:lane", BASE_WIDTH, 0.35), "", "below one sample step");
+  assert.equal(ribbon("main:lane", 0), "", "zero variation means no ribbon");
+  assert.equal(pressurePath(100, 15, 100, 615, "main:lane", 0, 0.35), "", "zero width means no ribbon");
+});
+
+test("the ribbon stays centred on the run's exact endpoints", () => {
+  // The two edges rotate with the stroke direction, so an end CAP need not be
+  // axis-aligned — but its midpoint must still be the anchor the dots use.
+  for (const [x1, y1, x2, y2] of [[100, 15, 100, 45], [100, 0, 100, 1200]]) {
+    const edges = ribbonEdges(handDrawnPoints(x1, y1, x2, y2, "main:lane"), BASE_WIDTH, 0.35, "main:lane");
+    assert.ok(edges);
+    const last = edges.left.length - 1;
+    const startMid = { x: (edges.left[0].x + edges.right[0].x) / 2, y: (edges.left[0].y + edges.right[0].y) / 2 };
+    const endMid = { x: (edges.left[last].x + edges.right[last].x) / 2, y: (edges.left[last].y + edges.right[last].y) / 2 };
+    assert.ok(Math.hypot(startMid.x - x1, startMid.y - y1) < 1e-6, "start must stay on the anchor");
+    assert.ok(Math.hypot(endMid.x - x2, endMid.y - y2) < 1e-6, "end must stay on the anchor");
+  }
+});
+
+test("pressure never applies to Slick geometry", () => {
+  // Slick asks runPath for a straight line and never calls pressurePath; assert
+  // the constant-width path is still byte-exact alongside a ribbon existing.
+  assert.equal(runPath(100, 15, 100, 615, "main:lane", false), "M 100 15 L 100 615");
+  assert.ok(ribbon("main:lane").length > 0, "hand-drawn mode still produces a ribbon");
+});

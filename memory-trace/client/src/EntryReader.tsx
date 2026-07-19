@@ -1,5 +1,29 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useId, useState, type ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
 import type { ChunkResponse } from "./api";
+
+// Every entry body opens with a fenced YAML metadata block. Most of it is
+// either shown in the inspector's metadata grid or rarely needed, so it is
+// folded away by default rather than sitting at the top of every entry.
+function CollapsibleMeta({ yaml }: { yaml: string }) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  const fieldCount = yaml.split("\n").filter((line) => /^[\w-]+:/.test(line)).length;
+  return (
+    <div className="meta-fold">
+      <button type="button" className="meta-fold-toggle" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen((value) => !value)}>
+        <ChevronRight size={13} aria-hidden="true" />
+        <span>Entry metadata</span>
+        <span className="count">{fieldCount} field{fieldCount === 1 ? "" : "s"}</span>
+      </button>
+      <div className="meta-fold-panel" id={panelId} data-open={open}>
+        <div className="meta-fold-inner">
+          <pre><code>{yaml}</code></pre>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Source entries are hard-wrapped at an authoring column (~100 chars) but the
 // reader pane is narrower and its width varies. Rejoin continuation lines back
@@ -70,19 +94,29 @@ function renderMarkdown(text: string, highlight: string | null): ReactNode[] {
   const out: ReactNode[] = [];
   let inCode = false;
   let code: string[] = [];
+  let fence = "";
   let inMatch = false;
   let key = 0;
+  let draft: string | null = null;
   for (const line of lines) {
     if (line.trim().startsWith("```")) {
       if (inCode) {
+        const body = code.join("\n");
+        // The entry's own metadata block, not just any YAML: the writer emits
+        // ```yaml (core.py accepts ya?ml) and entry_id is always present.
+        const isMetadata = /^ya?ml$/i.test(fence) && /(^|\n)entry_id:/.test(body);
         out.push(
-          <pre key={key++} className={inMatch ? "match-highlight-body" : undefined}>
-            <code>{code.join("\n")}</code>
-          </pre>,
+          isMetadata
+            ? <CollapsibleMeta key={key++} yaml={body} />
+            : <pre key={key++} className={inMatch ? "match-highlight-body" : undefined}><code>{body}</code></pre>,
         );
         code = [];
+        fence = "";
+        inCode = false;
+      } else {
+        fence = line.trim().match(/^```\s*([\w-]+)/)?.[1] ?? "";
+        inCode = true;
       }
-      inCode = !inCode;
       continue;
     }
     if (inCode) {
@@ -92,16 +126,47 @@ function renderMarkdown(text: string, highlight: string | null): ReactNode[] {
     const heading = line.match(/^(#{3,6})\s+(.+)/);
     if (heading) {
       inMatch = highlight != null && heading[2].trim() === highlight;
+      draft = null;
       out.push(
         <h4 key={key++} className={inMatch ? "match-highlight" : undefined}>
           {heading[2]}
         </h4>,
       );
-    } else if (line.trim().startsWith("- ")) {
+      continue;
+    }
+    const draftBullet = line.trim().match(DRAFT_BULLET);
+    if (draftBullet) {
+      draft = draftBullet[1];
+      const body = draftBullet[2].trim();
+      // "Decision" is already the heading above; labelling it again is noise.
+      if (draft !== "D") {
+        out.push(<h5 key={key++} className={`draft-label draft-${draft.toLowerCase()}`}>{DRAFT_LABELS[draft]}</h5>);
+      }
+      if (!body) continue;
+      if (draft === "F") {
+        const files = fileTokens(body);
+        out.push(files.length
+          ? <div key={key++} className="file-pills">{files.map((file) => <span key={file} className="file-pill" title={file}>{file}</span>)}</div>
+          : <p key={key++} className="draft-body">{inline(body)}</p>);
+      } else {
+        out.push(<p key={key++} className={`draft-body${inMatch ? " match-highlight-body" : ""}`}>{inline(body)}</p>);
+      }
+      continue;
+    }
+    if (line.trim().startsWith("- ")) {
+      const body = line.trim().slice(2);
+      // Sub-bullets belong to the DRAFT block they sit under.
+      if (draft === "F") {
+        const files = fileTokens(body);
+        if (files.length) {
+          out.push(<div key={key++} className="file-pills">{files.map((file) => <span key={file} className="file-pill" title={file}>{file}</span>)}</div>);
+          continue;
+        }
+      }
       out.push(
-        <p key={key++} className={inMatch ? "match-highlight-body" : undefined}>
+        <p key={key++} className={`${draft ? "draft-body " : ""}${inMatch ? "match-highlight-body" : ""}`.trim() || undefined}>
           {"• "}
-          {inline(line.trim().slice(2))}
+          {inline(body)}
         </p>,
       );
     } else if (line.trim()) {
@@ -113,6 +178,27 @@ function renderMarkdown(text: string, highlight: string | null): ReactNode[] {
     }
   }
   return out;
+}
+
+// DRAFT is the entry grammar: Decision, Reason, Alternatives, Files, Tests.
+// Stored as terse "- D:" / "- R:" bullets, which is compact to author and
+// unreadable to scan — so the reader spells them out. D carries no label of its
+// own: the "Decision" heading above it already names it.
+const DRAFT_LABELS: Record<string, string> = { D: "Decision", R: "Reason", A: "Alternatives", F: "Files", T: "Tests" };
+const DRAFT_BULLET = /^-\s*([DRAFT]):\s*(.*)$/;
+
+/**
+ * File references out of an F block. Entries write them as backticked paths,
+ * usually comma-separated and sometimes annotated ("(new)"); fall back to
+ * comma splitting so an unbackticked list still yields pills.
+ */
+function fileTokens(text: string): string[] {
+  const backticked = [...text.matchAll(/`([^`]+)`/g)].map((match) => match[1].trim()).filter(Boolean);
+  if (backticked.length) return backticked;
+  return text
+    .split(/,\s+/)
+    .map((token) => token.trim().replace(/[.,;]$/, ""))
+    .filter((token) => token.length > 1 && /[/\\]|\.\w{1,5}$/.test(token));
 }
 
 function lineRangeLabel(range: number[]): string {
