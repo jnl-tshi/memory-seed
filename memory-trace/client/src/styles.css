@@ -122,9 +122,12 @@ button { font: inherit; }
 .trace-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--text-bright); font: inherit; font-size: 13px; }
 .trace-search input::placeholder { color: var(--faint); }
 .search-clear { width: 24px; height: 24px; border-color: transparent; background: transparent; }
-.search-results { position: absolute; z-index: 10; top: 40px; right: 0; left: 0; max-height: min(62vh, 480px); overflow: auto; border: 1px solid var(--border-2); border-radius: 4px; background: var(--panel); box-shadow: 0 14px 30px var(--scrim); }
+.search-results { position: absolute; z-index: 10; top: 40px; right: 0; left: 0; max-height: min(62vh, 480px); display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; border: 1px solid var(--border-2); border-radius: 4px; background: var(--panel); box-shadow: 0 14px 30px var(--scrim); }
+.search-results-nav { min-height: 34px; display: flex; align-items: center; gap: 5px; padding: 4px 6px 4px 10px; border-bottom: 1px solid var(--border); background: var(--panel-2); color: var(--muted); font-size: 11px; }
+.search-results-label { margin-left: auto; color: var(--accent-bright); }
+.search-result-list { min-height: 0; overflow: auto; }
 .search-result { width: 100%; display: grid; gap: 3px; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
-.search-result:last-child { border-bottom: 0; }.search-result:hover, .search-result:focus-visible { background: var(--selected-bg); outline: 0; }.search-result strong, .search-result small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.search-result strong { font-size: 13px; }.search-result small, .search-empty { color: var(--muted); font-size: 11px; }.search-empty { padding: 12px; }
+.search-result:last-child { border-bottom: 0; }.search-result:hover, .search-result:focus-visible, .search-result.active { background: var(--selected-bg); outline: 0; }.search-result.active { box-shadow: inset 2px 0 0 var(--accent-strong); }.search-result strong, .search-result small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.search-result strong { font-size: 13px; }.search-result small, .search-empty { color: var(--muted); font-size: 11px; }.search-empty { padding: 12px; }
 .topic { border: 1px solid var(--border-2); cursor: pointer; }/* Only .active gets the accent surface, so only .active may use --on-accent:
    hover/focus keep the normal --hover background and so need normal ink. */
 .topic:hover, .topic:focus-visible { border-color: var(--accent); color: var(--text); outline: 0; }.topic.active { border-color: var(--accent); background: var(--accent-chip-bg); color: var(--on-accent); outline: 0; }

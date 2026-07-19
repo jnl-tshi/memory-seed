@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, GitBranch, LayoutPanelLeft, Network, PanelLeftC
 import { SettingsMenu, type InspectorDock, type Theme, type TrailStyle } from "./SettingsMenu";
 import { api, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
 import { EntryReader } from "./EntryReader";
+import { searchResultCursor, stepSearchCursor } from "./searchNavigation";
 import { stripTitleStamp, trailStamp, TRAIL_WINDOW_STEP } from "./trailModel";
 
 const GraphWorkspace = lazy(() => import("./GraphWorkspace").then((module) => ({ default: module.GraphWorkspace })));
@@ -147,6 +148,8 @@ export default function App() {
   const [activeTopic, setActiveTopic] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchResponse | null>(null);
+  const fullTextCursorRef = useRef(-1);
+  const [fullTextPosition, setFullTextPosition] = useState(-1);
   // Ctrl-F-style find bar over the Trail. Dismissing hides it until the query
   // changes again, so it never nags once you have found what you came for.
   const [findOpen, setFindOpen] = useState(true);
@@ -274,14 +277,18 @@ export default function App() {
 
   // Two-stage selection: clicking the already-selected entry mutes the focus
   // emphasis (pinned) without losing the selection; clicking again unmutes.
-  const select = useCallback((node: RendererGraphNode) => {
+  const select = useCallback((node: RendererGraphNode, options: { preserveSearch?: boolean; preserveHint?: boolean } = {}) => {
     setSelected((prior) => {
       if (prior?.id === node.id) { setSelectionMuted((muted) => !muted); return prior; }
       setSelectionMuted(false);
       return node;
     });
-    setSearch(null);
-    setMatchHint(null);
+    if (!options.preserveSearch) {
+      setSearch(null);
+      fullTextCursorRef.current = -1;
+      setFullTextPosition(-1);
+    }
+    if (!options.preserveHint) setMatchHint(null);
   }, []);
   const indexById = useMemo(() => {
     const map = new Map<string, { title: string; date: string; datetime: string | null; branch: string | null }>();
@@ -376,6 +383,10 @@ export default function App() {
     matchCursorRef.current = index;
     setMatchPosition(index);
   }, []);
+  const setFullTextCursor = useCallback((index: number) => {
+    fullTextCursorRef.current = index;
+    setFullTextPosition(index);
+  }, []);
   // A fresh query re-opens the bar even if the last one was dismissed, and
   // restarts the cycle.
   useEffect(() => { setFindOpen(true); setMatchCursor(-1); }, [query, setMatchCursor]);
@@ -408,6 +419,7 @@ export default function App() {
       setMatchHint(null);
       setSelectionMuted(false);
       setSearch(null);
+      setFullTextCursor(-1);
       setQuery("");
       setTrail(null);
       setEntryIndex(null);
@@ -445,8 +457,8 @@ export default function App() {
     return loadGraph({ nextScope, nextTopic, nextEdgeTypes, entryId, preferredEntryId: preferredEntryId ?? selected?.source.entry_id, keepCurrentOnEmpty, dateFrom });
   }
 
-  async function focusEntry(entryId: string, keepHint = false) {
-    if (!keepHint) setMatchHint(null);
+  async function focusEntry(entryId: string, options: { preserveHint?: boolean; preserveSearch?: boolean } = {}) {
+    if (!options.preserveHint) setMatchHint(null);
     const nextGraph = await requestGraph("local", null, edgeTypes, entryId, entryId, true, null);
     if (!nextGraph) return;
     if (!nextGraph.nodes.some((node) => node.source.entry_id === entryId)) {
@@ -455,7 +467,10 @@ export default function App() {
     }
     setScope("local");
     setActiveTopic(null);
-    setSearch(null);
+    if (!options.preserveSearch) {
+      setSearch(null);
+      setFullTextCursor(-1);
+    }
   }
 
   // Trail selection: reuse the already-loaded graph node when present (cheap,
@@ -477,7 +492,34 @@ export default function App() {
     const next = (from + step + matchEntries.length) % matchEntries.length;
     setMatchCursor(next);
     setFindOpen(true);
-    await focusEntry(matchEntries[next], true);
+    await focusEntry(matchEntries[next], { preserveHint: true });
+  }
+
+  async function chooseFullTextResult(result: SearchResult, index: number) {
+    setFullTextCursor(index);
+    if (result.entry_id) {
+      setMatchHint(hintFor(result, result.entry_id));
+      await focusEntry(result.entry_id, { preserveHint: true, preserveSearch: true });
+      return;
+    }
+    const node = graph?.nodes.find((item) => item.source.chunk_id === result.chunk_id);
+    if (node) {
+      const entryId = node.source.entry_id;
+      if (entryId) setMatchHint(hintFor(result, entryId));
+      select(node, { preserveHint: true, preserveSearch: true });
+    }
+  }
+
+  async function jumpToFullTextResult(step: number) {
+    const results = search?.results ?? [];
+    if (!results.length) return;
+    const next = stepSearchCursor(fullTextCursorRef.current, results.length, step);
+    await chooseFullTextResult(results[next], next);
+  }
+
+  function dismissFullTextSearch() {
+    setSearch(null);
+    setFullTextCursor(-1);
   }
 
   // Keyboard grammar ported from the vanilla UI, which the React workspace had
@@ -495,7 +537,7 @@ export default function App() {
       return;
     }
     if (event.key === "Escape") {
-      if (search) { setSearch(null); return; }
+      if (search) { dismissFullTextSearch(); return; }
       setFindOpen(false);
       if (inSearch) searchInput.current?.blur();
       return;
@@ -514,7 +556,7 @@ export default function App() {
 
   async function runSearch(rawValue: string) {
     const value = rawValue.trim();
-    if (!value) { setSearch(null); return; }
+    if (!value) { dismissFullTextSearch(); return; }
     if (isCanonicalEntryId(value)) {
       await focusEntry(value);
       return;
@@ -522,7 +564,9 @@ export default function App() {
     try {
       setError(null);
       setIsSearching(true);
-      setSearch(await searchQuery(value));
+      const response = await searchQuery(value);
+      setSearch(response);
+      setFullTextCursor(-1);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to search Memory Trace.");
     } finally {
@@ -543,21 +587,6 @@ export default function App() {
     const best = sections.find((section) => section.chunk_id === result.best_match_chunk_id) ?? sections[0];
     const heading = best?.heading_path?.[best.heading_path.length - 1];
     return heading ? { entryId, heading } : null;
-  }
-
-  async function chooseSearchResult(result: SearchResult) {
-    if (result.entry_id) {
-      setQuery(result.entry_id);
-      setMatchHint(hintFor(result, result.entry_id));
-      await focusEntry(result.entry_id, true);
-      return;
-    }
-    const node = graph?.nodes.find((item) => item.source.chunk_id === result.chunk_id);
-    if (node) {
-      const entryId = node.source.entry_id;
-      select(node);
-      if (entryId) setMatchHint(hintFor(result, entryId));
-    }
   }
 
   async function changeScope(nextScope: GraphScope) {
@@ -595,8 +624,27 @@ export default function App() {
         <div className="brand"><Network size={19} aria-hidden="true" /><span>Memory Trace</span></div>
         <div className="project-summary">{runtime ? `${runtime.label} · ${runtime.entry_count} entries` : "Loading project"}</div>
         <div className="trace-search-wrap">
-          <form className="trace-search" onSubmit={submitSearch} role="search"><Search size={16} aria-hidden="true" /><input ref={searchInput} value={query} onChange={(event) => { setQuery(event.target.value); setSearch(null); }} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); if (event.ctrlKey || event.metaKey) { void runSearch(event.currentTarget.value); return; } if (matchEntries.length) { void jumpToMatch(event.shiftKey ? -1 : 1); return; } void runSearch(event.currentTarget.value); }} placeholder="Search memory or entry ID" aria-label="Search memory or entry ID" />{query && <button className="icon-button search-clear" type="button" onClick={() => { setQuery(""); setSearch(null); }} aria-label="Clear search" title="Clear search"><X size={14} /></button>}</form>
-          {search && <div className="search-results" role="listbox" aria-label="Search results">{search.results.length ? search.results.map((result) => <button type="button" key={result.chunk_id} className="search-result" onClick={() => void chooseSearchResult(result)}><strong>{result.entry_title || result.heading_path[result.heading_path.length - 1] || result.chunk_id}</strong><small>{result.entry_id || result.date}</small></button>) : <div className="search-empty">No matching entries</div>}</div>}
+          <form className="trace-search" onSubmit={submitSearch} role="search"><Search size={16} aria-hidden="true" /><input ref={searchInput} value={query} onChange={(event) => { setQuery(event.target.value); dismissFullTextSearch(); }} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); if (event.ctrlKey || event.metaKey) { void runSearch(event.currentTarget.value); return; } if (search?.results.length) { void jumpToFullTextResult(event.shiftKey ? -1 : 1); return; } if (matchEntries.length) { void jumpToMatch(event.shiftKey ? -1 : 1); return; } void runSearch(event.currentTarget.value); }} placeholder="Search memory or entry ID" aria-label="Search memory or entry ID" />{query && <button className="icon-button search-clear" type="button" onClick={() => { setQuery(""); dismissFullTextSearch(); }} aria-label="Clear search" title="Clear search"><X size={14} /></button>}</form>
+          {search && (
+            <div className="search-results" aria-label="Full-text search results">
+              <div className="search-results-nav" role="status" aria-live="polite">
+                <span className="find-count">{fullTextPosition >= 0 ? fullTextPosition + 1 : "–"}<span className="find-sep">/</span>{search.results.length}</span>
+                <button type="button" className="find-step" onClick={() => void jumpToFullTextResult(-1)} disabled={!search.results.length} aria-label="Previous full-text result" title="Previous result (Shift+Enter)"><ChevronUp size={14} /></button>
+                <button type="button" className="find-step" onClick={() => void jumpToFullTextResult(1)} disabled={!search.results.length} aria-label="Next full-text result" title="Next result (Enter)"><ChevronDown size={14} /></button>
+                <span className="search-results-label">all text</span>
+                <button type="button" className="find-step" onClick={dismissFullTextSearch} aria-label="Dismiss full-text results" title="Dismiss (Esc)"><X size={13} /></button>
+              </div>
+              {search.results.length ? (
+                <div className="search-result-list" role="listbox" aria-label="Search results">
+                  {search.results.map((result) => {
+                    const index = searchResultCursor(search.results, result);
+                    const active = index === fullTextPosition;
+                    return <button type="button" role="option" key={result.chunk_id} className={`search-result${active ? " active" : ""}`} aria-selected={active} onClick={() => void chooseFullTextResult(result, index)}><strong>{result.entry_title || result.heading_path[result.heading_path.length - 1] || result.chunk_id}</strong><small>{result.entry_id || result.date}</small></button>;
+                  })}
+                </div>
+              ) : <div className="search-empty">No matching entries</div>}
+            </div>
+          )}
           {/* `!search` is load-bearing: the dropdown sits at top:40px and this bar
               at top:100%+6px, so while full-text results are up the bar stands
               down rather than stacking under them. Escape clears `search` first,
