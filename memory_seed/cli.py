@@ -314,6 +314,7 @@ def main(argv: list[str] | None = None) -> int:
     session_append_parser.add_argument("--timestamp", default=None, help="override heading timestamp 'YYYY-MM-DD HH:MM' (default: now)")
     session_append_parser.add_argument("--user", default=None, help="override the active user slug")
     session_append_parser.add_argument("--body-file", default=None, help="file containing the entry body (default: read stdin)")
+    session_append_parser.add_argument("--dry-run", action="store_true", help="run every guard and report the id, timestamp and target path without writing")
     session_reorder_parser = session_sub.add_parser(
         "reorder",
         help="restore chronological entry order in one day's session file (pure block permutation)",
@@ -938,12 +939,16 @@ def main(argv: list[str] | None = None) -> int:
                 auto_branch=not args.no_branch,
                 timestamp=args.timestamp,
                 explicit_user=args.user,
+                dry_run=args.dry_run,
             )
             if not result.ok:
                 print("Append refused:", file=sys.stderr)
                 for issue in result.issues:
                     print(f"  - {issue}", file=sys.stderr)
                 return 1
+            if args.dry_run:
+                print(f"Would append {result.entry_id} ({result.timestamp}) to {result.path}")
+                return 0
             print(f"Appended {result.entry_id} ({result.timestamp}) to {result.path}")
             return 0
         if args.session_command == "reorder":

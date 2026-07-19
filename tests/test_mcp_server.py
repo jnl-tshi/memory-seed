@@ -1272,94 +1272,6 @@ class MemoryMcpServerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             call_tool("memory_link_show", {"cwd": str(cwd), "entry_id": "ms-missing00"})
 
-    def test_call_tool_memory_session_target_resolves_read_only(self):
-        cwd = self.make_project()
-        (cwd / ".memory-seed" / "sessions").mkdir(parents=True)
-
-        payload = call_tool("memory_session_target", {"cwd": str(cwd), "date": "2026-06-21"})
-
-        self.assertEqual(payload["path"], ".memory-seed/sessions/2026-06/2026-06-21.md")
-        self.assertEqual(payload["session_date"], "2026-06-21")
-        self.assertIsNone(payload["user"])
-        self.assertEqual(payload["layout"], "month-flat")
-        # Read-only contract: resolving the target must never create the file.
-        self.assertFalse(payload["exists"])
-        self.assertFalse((cwd / ".memory-seed" / "sessions" / "2026-06" / "2026-06-21.md").exists())
-
-    def test_call_tool_memory_session_target_rejects_bad_date(self):
-        cwd = self.make_project()
-        (cwd / ".memory-seed" / "sessions").mkdir(parents=True)
-
-        with self.assertRaises(ValueError):
-            call_tool("memory_session_target", {"cwd": str(cwd), "date": "2026-13-40"})
-
-    def test_memory_session_target_schema_has_no_create_flag(self):
-        from memory_seed.mcp_server import TOOLS
-
-        tool = next(t for t in TOOLS if t["name"] == "memory_session_target")
-        self.assertNotIn("create", tool["inputSchema"]["properties"])
-
-    def test_call_tool_memory_entry_id_is_deterministic_and_canonical(self):
-        args = {
-            "timestamp": "2026-07-12 12:15",
-            "title": "Fuse Codex branches and align Trace packaging docs",
-            "user_initials": "JNL",
-            "agent_type": "codex",
-        }
-
-        first = call_tool("memory_entry_id", args)
-        second = call_tool("memory_entry_id", args)
-
-        # Deterministic: same metadata, same id - and it matches the library
-        # generator (this exact tuple reproduces a real corpus id).
-        self.assertEqual(first["entry_id"], "mse_kq3ba0cy9nkpqkm0")
-        self.assertEqual(first["entry_id"], second["entry_id"])
-        # Canonical Crockford alphabet: never o/u/i/l.
-        self.assertNotRegex(first["entry_id"][4:], r"[oiul]")
-
-    def test_call_tool_memory_entry_id_metadata_changes_the_id(self):
-        base = {
-            "timestamp": "2026-07-12 12:15",
-            "title": "Some title",
-            "user_initials": "JNL",
-            "agent_type": "claude",
-        }
-
-        changed = call_tool("memory_entry_id", {**base, "title": "Another title"})
-
-        self.assertNotEqual(call_tool("memory_entry_id", base)["entry_id"], changed["entry_id"])
-
-    def test_call_tool_memory_entry_id_requires_core_fields(self):
-        with self.assertRaises(ValueError):
-            call_tool("memory_entry_id", {"timestamp": "2026-07-12 12:15", "title": "x", "user_initials": "JNL"})
-
-    def test_call_tool_memory_entry_id_stamps_from_server_clock_when_omitted(self):
-        # The normal path: no timestamp supplied - the server stamps from its
-        # clock (injected here for determinism), returns it for verbatim
-        # write-back, and the id derives from that stamped value.
-        args = {"title": "Clock test", "user_initials": "JNL", "agent_type": "claude", "_now": "2026-07-18 22:30"}
-
-        result = call_tool("memory_entry_id", args)
-
-        self.assertEqual(result["timestamp"], "2026-07-18 22:30")
-        self.assertNotIn("clock_drift_warning", result)
-        explicit = call_tool("memory_entry_id", {**args, "timestamp": "2026-07-18 22:30"})
-        self.assertEqual(result["entry_id"], explicit["entry_id"])
-        self.assertIn("timestamp", result["write_surface"].lower() + " timestamp")
-
-    def test_call_tool_memory_entry_id_warns_on_clock_drift(self):
-        base = {"title": "Drift test", "user_initials": "JNL", "agent_type": "claude", "_now": "2026-07-18 22:13"}
-
-        # Hours-in-the-future authored stamp (the incident this guards): warn.
-        future = call_tool("memory_entry_id", {**base, "timestamp": "2026-07-19 00:05"})
-        self.assertIn("clock_drift_warning", future)
-        # Within the grace window: no warning.
-        near = call_tool("memory_entry_id", {**base, "timestamp": "2026-07-18 22:10"})
-        self.assertNotIn("clock_drift_warning", near)
-        # Unparseable authored stamp: warn rather than crash.
-        broken = call_tool("memory_entry_id", {**base, "timestamp": "sometime tonight"})
-        self.assertIn("clock_drift_warning", broken)
-
     def test_call_tool_memory_topics_list_returns_vocabulary(self):
         cwd = self.make_project()
         self.write_topics_index(cwd)
@@ -1449,8 +1361,11 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertIn("memory_session_fuse_preview", listed_names)
         self.assertIn("memory_link_suggest", listed_names)
         self.assertIn("memory_link_show", listed_names)
-        self.assertIn("memory_session_target", listed_names)
-        self.assertIn("memory_entry_id", listed_names)
+        self.assertIn("memory_session_append", listed_names)
+        # The ungated authoring pair is gone: no tool hands out a bare id or
+        # a write target for an agent to hand-write a session file with.
+        self.assertNotIn("memory_session_target", listed_names)
+        self.assertNotIn("memory_entry_id", listed_names)
         self.assertIn("memory_topics_list", listed_names)
         self.assertIn("memory_topic_inspect", listed_names)
         self.assertIn("memory_topics_check", listed_names)

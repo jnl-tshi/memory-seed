@@ -1917,6 +1917,7 @@ def session_append_entry(
     auto_branch: bool = True,
     timestamp: str | None = None,
     explicit_user: str | None = None,
+    dry_run: bool = False,
 ) -> SessionAppendResult:
     """Append a session entry with every structural guarantee enforced.
 
@@ -1940,6 +1941,11 @@ def session_append_entry(
       metadata - almost certainly a double-append - and errors.
     - ``branch`` is captured from git automatically unless supplied or
       ``auto_branch=False`` (omitted when detached or not a repository).
+
+    ``dry_run=True`` runs every guard and returns the id, timestamp and target
+    path the real call would use, without touching the filesystem. It answers
+    "what id will this get, and would it be accepted?" in one step - the
+    pre-flight an agent needs when it cannot call the writer itself.
     """
     issues: list[str] = []
     ts = timestamp or datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -2019,6 +2025,12 @@ def session_append_entry(
 
     if issues:
         return SessionAppendResult(ok=False, path=target.path, timestamp=ts, issues=tuple(issues))
+
+    # Every guard has passed. A dry run reports what the write WOULD produce and
+    # stops here - still short of the only write in this function, and short of
+    # the create=True re-resolution below, so it cannot bring a file into being.
+    if dry_run:
+        return SessionAppendResult(ok=True, path=target.path, entry_id=entry_id, timestamp=ts, written=False)
 
     yaml_lines = [
         f"entry_id: {entry_id}",
