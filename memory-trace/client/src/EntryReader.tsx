@@ -1,5 +1,29 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useId, useState, type ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
 import type { ChunkResponse } from "./api";
+
+// Every entry body opens with a fenced YAML metadata block. Most of it is
+// either shown in the inspector's metadata grid or rarely needed, so it is
+// folded away by default rather than sitting at the top of every entry.
+function CollapsibleMeta({ yaml }: { yaml: string }) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  const fieldCount = yaml.split("\n").filter((line) => /^[\w-]+:/.test(line)).length;
+  return (
+    <div className="meta-fold">
+      <button type="button" className="meta-fold-toggle" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen((value) => !value)}>
+        <ChevronRight size={13} aria-hidden="true" />
+        <span>Entry metadata</span>
+        <span className="count">{fieldCount} field{fieldCount === 1 ? "" : "s"}</span>
+      </button>
+      <div className="meta-fold-panel" id={panelId} data-open={open}>
+        <div className="meta-fold-inner">
+          <pre><code>{yaml}</code></pre>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Source entries are hard-wrapped at an authoring column (~100 chars) but the
 // reader pane is narrower and its width varies. Rejoin continuation lines back
@@ -70,20 +94,29 @@ function renderMarkdown(text: string, highlight: string | null): ReactNode[] {
   const out: ReactNode[] = [];
   let inCode = false;
   let code: string[] = [];
+  let fence = "";
   let inMatch = false;
   let key = 0;
   let draft: string | null = null;
   for (const line of lines) {
     if (line.trim().startsWith("```")) {
       if (inCode) {
+        const body = code.join("\n");
+        // The entry's own metadata block, not just any YAML: the writer emits
+        // ```yaml (core.py accepts ya?ml) and entry_id is always present.
+        const isMetadata = /^ya?ml$/i.test(fence) && /(^|\n)entry_id:/.test(body);
         out.push(
-          <pre key={key++} className={inMatch ? "match-highlight-body" : undefined}>
-            <code>{code.join("\n")}</code>
-          </pre>,
+          isMetadata
+            ? <CollapsibleMeta key={key++} yaml={body} />
+            : <pre key={key++} className={inMatch ? "match-highlight-body" : undefined}><code>{body}</code></pre>,
         );
         code = [];
+        fence = "";
+        inCode = false;
+      } else {
+        fence = line.trim().match(/^```\s*([\w-]+)/)?.[1] ?? "";
+        inCode = true;
       }
-      inCode = !inCode;
       continue;
     }
     if (inCode) {

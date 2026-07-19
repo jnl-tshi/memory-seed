@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { ChevronDown, ChevronUp, GitBranch, LayoutPanelLeft, Moon, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, Sun, X } from "lucide-react";
+import { ChevronDown, ChevronUp, GitBranch, LayoutPanelLeft, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, X } from "lucide-react";
+import { SettingsMenu, type InspectorDock, type Theme, type TrailStyle } from "./SettingsMenu";
 import { api, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
 import { EntryReader } from "./EntryReader";
 import { stripTitleStamp, trailStamp, TRAIL_WINDOW_STEP } from "./trailModel";
@@ -7,7 +8,6 @@ import { stripTitleStamp, trailStamp, TRAIL_WINDOW_STEP } from "./trailModel";
 const GraphWorkspace = lazy(() => import("./GraphWorkspace").then((module) => ({ default: module.GraphWorkspace })));
 const TrailWorkspace = lazy(() => import("./TrailWorkspace").then((module) => ({ default: module.TrailWorkspace })));
 type MatchHint = { entryId: string; heading: string };
-type InspectorDock = "auto" | "right" | "bottom" | "hidden";
 type GraphScope = "overview" | "local";
 type GraphViewMode = "graph" | "trail";
 type LabelMode = "focus" | "minimal" | "all";
@@ -71,14 +71,32 @@ function readPaneWidth(key: string, bounds: { min: number; max: number; fallback
   return Number.isFinite(value) && value >= bounds.min && value <= bounds.max ? value : bounds.fallback;
 }
 
-type Theme = "light" | "dark";
-
 // Light (the warm humanist default) unless the user chose otherwise or their
 // system prefers dark.
 function readTheme(): Theme {
   const stored = localStorage.getItem("memory-trace:theme");
   if (stored === "light" || stored === "dark") return stored;
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+// Trail stroke presentation. Lifted out of TrailWorkspace so the settings menu
+// can own every preference in one place; the Trail keeps only its derivations.
+// Defaults are JNL's chosen combination: Thick + Drawn, wobble 1.60, pressure
+// 0.30.
+function readTrailStyle(): TrailStyle {
+  const clamp = (value: unknown, fallback: number, max: number) =>
+    typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(0, value)) : fallback;
+  try {
+    const stored = JSON.parse(localStorage.getItem("memory-trace:trail-settings") || "{}");
+    return {
+      thickness: stored.thickness === "fine" ? "fine" : "thick",
+      style: stored.style === "slick" ? "slick" : "hand",
+      wobble: clamp(stored.wobble, 1.6, 3),
+      pressure: clamp(stored.pressure, 0.3, 1),
+    };
+  } catch {
+    return { thickness: "thick", style: "hand", wobble: 1.6, pressure: 0.3 };
+  }
 }
 
 function titleFor(node: RendererGraphNode | null) {
@@ -106,6 +124,7 @@ export default function App() {
   const [navWidth, setNavWidth] = useState(() => readPaneWidth("memory-trace:nav-width", NAV_WIDTH));
   const [inspectorWidth, setInspectorWidth] = useState(() => readPaneWidth("memory-trace:inspector-width", INSPECTOR_WIDTH));
   const [theme, setTheme] = useState<Theme>(readTheme);
+  const [trailStyle, setTrailStyle] = useState<TrailStyle>(readTrailStyle);
   const [error, setError] = useState<string | null>(null);
   const [scope, setScope] = useState<GraphScope>("overview");
   const [viewMode, setViewMode] = useState<GraphViewMode>("trail");
@@ -221,6 +240,10 @@ export default function App() {
     localStorage.setItem("memory-trace:theme", theme);
   }, [theme]);
   useEffect(() => { localStorage.setItem("memory-trace:inspector-width", String(inspectorWidth)); }, [inspectorWidth]);
+  useEffect(() => {
+    localStorage.setItem("memory-trace:trail-settings", JSON.stringify(trailStyle));
+    localStorage.removeItem("memory-trace:trail-tune"); // legacy tuning-panel key
+  }, [trailStyle]);
 
   // Pointer-driven pane resize: capture moves on window for the drag's
   // duration; widths clamp to sane bounds and persist across sessions.
@@ -261,8 +284,8 @@ export default function App() {
     setMatchHint(null);
   }, []);
   const indexById = useMemo(() => {
-    const map = new Map<string, { title: string; date: string; datetime: string | null }>();
-    entryIndex?.nodes.forEach((node) => map.set(node.id, { title: node.title, date: node.date, datetime: node.datetime }));
+    const map = new Map<string, { title: string; date: string; datetime: string | null; branch: string | null }>();
+    entryIndex?.nodes.forEach((node) => map.set(node.id, { title: node.title, date: node.date, datetime: node.datetime, branch: node.branch ?? null }));
     return map;
   }, [entryIndex]);
 
@@ -312,6 +335,20 @@ export default function App() {
     contextItems.forEach((item) => groups.set(item.kind, [...(groups.get(item.kind) ?? []), item]));
     return order.filter((kind) => groups.has(kind)).map((kind) => [kind, groups.get(kind)!]);
   }, [contextItems]);
+
+  // Branch and evolves live only in the entry's YAML block, which is now
+  // collapsed — so surface them in the metadata grid instead. Both come from
+  // `entryIndex` (the full-corpus Trail response the context panel already
+  // uses), which carries `branch` per node and typed lifecycle edges; the graph
+  // projection exposes neither, and this avoids widening the v1 contract.
+  const selectedBranch = selected?.source.entry_id ? indexById.get(selected.source.entry_id)?.branch ?? null : null;
+  const selectedEvolves = useMemo(() => {
+    const entryId = selected?.source.entry_id;
+    if (!entryId) return [] as { entryId: string; title: string }[];
+    return (entryIndex?.edges ?? [])
+      .filter((edge) => edge.type === "evolves" && edge.source === entryId)
+      .map((edge) => ({ entryId: edge.target, title: stripTitleStamp(indexById.get(edge.target)?.title ?? edge.target) }));
+  }, [selected?.source.entry_id, entryIndex, indexById]);
 
   // Find-bar matches run over the WHOLE corpus (entryIndex), not the Trail's
   // loaded window — otherwise "next match" could not reach an entry that has
@@ -569,9 +606,7 @@ export default function App() {
           <button type="button" aria-pressed={viewMode === "graph"} onClick={() => setViewMode("graph")}><Network size={14} aria-hidden="true" /><span>Graph</span></button>
         </div>
         <div className="topbar-actions">
-          <button className="icon-button" type="button" onClick={() => setTheme((value) => value === "light" ? "dark" : "light")} aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"} title={theme === "light" ? "Dark mode" : "Light mode"}>
-            {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
-          </button>
+          <SettingsMenu trailStyle={trailStyle} onTrailStyle={setTrailStyle} dock={dock} onDock={setDock} theme={theme} onTheme={setTheme} />
           <button className="icon-button" type="button" onClick={() => setDock((value) => value === "hidden" ? "auto" : "hidden")} aria-label="Toggle inspector" title="Toggle inspector">
             {inspectorVisible ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
           </button>
@@ -637,7 +672,7 @@ export default function App() {
             {trailError && <div className="error-state" role="alert">{trailError}</div>}
             {trail ? (
               <Suspense fallback={<div className="loading-state">Loading trail</div>}>
-                <TrailWorkspace trail={trail} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={selected?.source.chunk_id ?? null} query={query} selectionMuted={selectionMuted} commitSiblingIds={chunk?.commit_entry_ids ?? []} onSelectEntry={selectFromTrail} onEnsureVisible={ensureTrailVisible} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
+                <TrailWorkspace trail={trail} trailStyle={trailStyle} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={selected?.source.chunk_id ?? null} query={query} selectionMuted={selectionMuted} commitSiblingIds={chunk?.commit_entry_ids ?? []} onSelectEntry={selectFromTrail} onEnsureVisible={ensureTrailVisible} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
               </Suspense>
             ) : (
               <div className="loading-state">Loading trail</div>
@@ -655,7 +690,6 @@ export default function App() {
       {inspectorVisible && <aside className="inspector" id="trace-inspector" aria-label="Inspector">
         {dock !== "bottom" && <div className="pane-resize pane-resize-inspector" role="separator" aria-orientation="vertical" aria-label="Resize inspector" title="Drag to resize" onPointerDown={startPaneResize("inspector")} />}
         <div className="inspector-bar"><div><span className="eyebrow">Inspector</span><h2>{titleFor(selected)}</h2></div><button className="icon-button" type="button" onClick={() => setDock("hidden")} aria-label="Hide inspector" title="Hide inspector"><X size={17} /></button></div>
-        <div className="dock-control" aria-label="Inspector position"><span>Dock</span>{(["auto", "right", "bottom"] as const).map((option) => <button key={option} type="button" aria-pressed={dock === option} onClick={() => setDock(option)}>{option}</button>)}</div>
         {selected && <div className="inspector-content">
           {/* Metadata is grouped rather than one long column, and the grid is a
               CSS container query on the pane itself — so it reflows as the
@@ -670,8 +704,14 @@ export default function App() {
             <div className="meta-item"><dt>Provenance</dt><dd>{PROVENANCE_LABELS[selected.provenance_class]}</dd></div>
             {selected.provider && <div className="meta-item"><dt>Provider</dt><dd>{selected.provider}{selected.revision ? ` · ${selected.revision}` : ""}</dd></div>}
             {selected.stale && <div className="meta-item meta-wide"><dt>Freshness</dt><dd className="stale-flag">Stale — projection behind source</dd></div>}
+            {selectedBranch && <div className="meta-item meta-wide"><dt>Branch</dt><dd className="meta-mono">{selectedBranch}</dd></div>}
             <div className="meta-item"><dt>Links</dt><dd>{selected.connectivity}</dd></div>
             <div className="meta-item"><dt>Diagrams</dt><dd>{chunk?.diagrams.length ?? 0}</dd></div>
+            {selectedEvolves.length > 0 && (
+              <div className="meta-item meta-wide"><dt>Evolves</dt><dd><span className="meta-links">{selectedEvolves.map((item) => (
+                <button key={item.entryId} type="button" className="meta-link" title={item.entryId} onClick={() => void focusEntry(item.entryId)}>{item.title}</button>
+              ))}</span></dd></div>
+            )}
             <div className="meta-item meta-wide"><dt>Topics</dt><dd>{selected.source.topics.length ? <span className="meta-topics">{selected.source.topics.map((topic) => <span className="meta-topic" key={topic}>{topic}</span>)}</span> : "None"}</dd></div>
           </dl>
           <EntryReader chunk={chunk} matchHeading={matchHint && selected.source.entry_id === matchHint.entryId ? matchHint.heading : null} onOpenEntry={(entryId) => void focusEntry(entryId)} />

@@ -1,0 +1,167 @@
+import { useEffect, useId, useRef, useState } from "react";
+import { SlidersHorizontal } from "lucide-react";
+
+// One home for preferences that used to be scattered across three surfaces:
+// dock buttons pinned inside the inspector, a Style menu in the Trail's view
+// bar, and a theme icon in the top bar. Each was permanently on screen for a
+// setting you change rarely.
+
+export type TrailStyle = { thickness: "fine" | "thick"; style: "hand" | "slick"; wobble: number; pressure: number };
+export type InspectorDock = "auto" | "right" | "bottom" | "hidden";
+export type Theme = "light" | "dark";
+
+const TABS = ["Trail", "Inspector", "Appearance"] as const;
+type Tab = (typeof TABS)[number];
+
+export function SettingsMenu({
+  trailStyle,
+  onTrailStyle,
+  dock,
+  onDock,
+  theme,
+  onTheme,
+}: {
+  trailStyle: TrailStyle;
+  onTrailStyle: (next: TrailStyle) => void;
+  dock: InspectorDock;
+  onDock: (next: InspectorDock) => void;
+  theme: Theme;
+  onTheme: (next: Theme) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<Tab>("Trail");
+  const container = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const baseId = useId();
+
+  // Dismiss on a click anywhere outside. Registered only while open, so the
+  // closed menu costs nothing.
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!container.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  // Focus the active tab on open so Escape and arrow keys have somewhere to
+  // land; hand focus back to the trigger on close.
+  useEffect(() => {
+    if (open) tabRefs.current[TABS.indexOf(tab)]?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const close = () => {
+    setOpen(false);
+    trigger.current?.focus();
+  };
+
+  // Roving tabindex: only the selected tab is tabbable, arrows move between
+  // them — the standard tablist pattern.
+  const onTabKeyDown = (event: React.KeyboardEvent) => {
+    const index = TABS.indexOf(tab);
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+    event.preventDefault();
+    const next = (index + (event.key === "ArrowRight" ? 1 : -1) + TABS.length) % TABS.length;
+    setTab(TABS[next]);
+    tabRefs.current[next]?.focus();
+  };
+
+  const set = (patch: Partial<TrailStyle>) => onTrailStyle({ ...trailStyle, ...patch });
+  const handDrawn = trailStyle.style === "hand";
+
+  return (
+    <div className="settings-menu" ref={container} onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); close(); } }}>
+      <button
+        ref={trigger}
+        className="icon-button"
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label="Settings"
+        title="Settings"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <SlidersHorizontal size={17} />
+      </button>
+      {open && (
+        <div className="settings-popover" role="dialog" aria-label="Settings">
+          <div className="settings-tabs" role="tablist" aria-label="Settings sections" onKeyDown={onTabKeyDown}>
+            {TABS.map((name, index) => (
+              <button
+                key={name}
+                ref={(element) => { tabRefs.current[index] = element; }}
+                type="button"
+                role="tab"
+                id={`${baseId}-tab-${name}`}
+                aria-selected={tab === name}
+                aria-controls={`${baseId}-panel-${name}`}
+                tabIndex={tab === name ? 0 : -1}
+                onClick={() => setTab(name)}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+
+          <div className="settings-panel" role="tabpanel" id={`${baseId}-panel-${tab}`} aria-labelledby={`${baseId}-tab-${tab}`}>
+            {tab === "Trail" && (
+              <>
+                <div className="trail-settings-row">
+                  <span>Line</span>
+                  <div className="segment-control">
+                    <button type="button" aria-pressed={trailStyle.thickness === "fine"} onClick={() => set({ thickness: "fine" })}>Fine</button>
+                    <button type="button" aria-pressed={trailStyle.thickness === "thick"} onClick={() => set({ thickness: "thick" })}>Thick</button>
+                  </div>
+                </div>
+                <div className="trail-settings-row">
+                  <span>Stroke style</span>
+                  <div className="segment-control">
+                    <button type="button" aria-pressed={handDrawn} onClick={() => set({ style: "hand" })}>Drawn</button>
+                    <button type="button" aria-pressed={!handDrawn} onClick={() => set({ style: "slick" })}>Slick</button>
+                  </div>
+                </div>
+                {/* Wobble and pressure only mean anything to a drawn stroke. */}
+                {handDrawn && (
+                  <>
+                    <div className="trail-settings-row">
+                      <span>Wobble <b>{trailStyle.wobble.toFixed(2)}</b></span>
+                      <input type="range" min={0} max={3} step={0.05} value={trailStyle.wobble} aria-label="Wobble" onChange={(event) => set({ wobble: Number(event.target.value) })} />
+                    </div>
+                    <div className="trail-settings-row">
+                      <span>Pressure <b>{trailStyle.pressure.toFixed(2)}</b></span>
+                      <input type="range" min={0} max={1} step={0.05} value={trailStyle.pressure} aria-label="Pressure" onChange={(event) => set({ pressure: Number(event.target.value) })} />
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {tab === "Inspector" && (
+              <div className="trail-settings-row">
+                <span>Dock position</span>
+                <div className="segment-control">
+                  {(["auto", "right", "bottom"] as const).map((option) => (
+                    <button key={option} type="button" aria-pressed={dock === option} onClick={() => onDock(option)}>{option}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {tab === "Appearance" && (
+              <div className="trail-settings-row">
+                <span>Theme</span>
+                <div className="segment-control">
+                  <button type="button" aria-pressed={theme === "light"} onClick={() => onTheme("light")}>Light</button>
+                  <button type="button" aria-pressed={theme === "dark"} onClick={() => onTheme("dark")}>Dark</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

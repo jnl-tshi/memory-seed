@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
-import { Settings2 } from "lucide-react";
 import type { TrailResponse, TrailEdge, TrailEvent } from "./api";
+import type { TrailStyle } from "./SettingsMenu";
 import {
   buildTrailModel,
   trailStamp,
@@ -28,6 +28,7 @@ const TEXT_CLEAR = 18; // dot radius + breathing gap past the last lane
 
 export function TrailWorkspace({
   trail,
+  trailStyle,
   windowSize,
   selectedEntryId,
   selectedChunkId,
@@ -39,6 +40,7 @@ export function TrailWorkspace({
   onLoadMore,
 }: {
   trail: TrailResponse;
+  trailStyle: TrailStyle;
   windowSize: number;
   selectedEntryId: string | null;
   selectedChunkId: string | null;
@@ -49,39 +51,13 @@ export function TrailWorkspace({
   onSelectEntry: (entryId: string | null, chunkId: string) => void;
   onLoadMore: () => void;
 }) {
-  // Trail presentation settings (chosen by JNL from the tuning experiments):
-  // line thickness Fine 1.8 / Thick 2.5, and Hand-drawn (wobble) vs Slick.
-  // Arrowheads use userSpaceOnUse so they stay the same size in both
-  // thicknesses (calibrated to the fine line).
-  // `wobble` (turbulence displacement) and `pressure` (stroke-width variation)
-  // are live tuning dials, kept on the front end so JNL can settle on values
-  // before they are baked in — same arrangement as the earlier tuning pass.
-  type TrailSettings = { thickness: "fine" | "thick"; style: "hand" | "slick"; wobble: number; pressure: number };
-  const clampDial = (value: unknown, fallback: number, max: number) =>
-    typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(0, value)) : fallback;
-  const [settings, setSettings] = useState<TrailSettings>(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("memory-trace:trail-settings") || "{}");
-      // Defaults are JNL's chosen combination: Thick + Drawn, wobble 1.60,
-      // pressure 0.30.
-      return {
-        thickness: stored.thickness === "fine" ? "fine" : "thick",
-        style: stored.style === "slick" ? "slick" : "hand",
-        wobble: clampDial(stored.wobble, 1.6, 3),
-        pressure: clampDial(stored.pressure, 0.3, 1),
-      };
-    } catch {
-      return { thickness: "thick", style: "hand", wobble: 1.6, pressure: 0.3 };
-    }
-  });
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  useEffect(() => {
-    localStorage.setItem("memory-trace:trail-settings", JSON.stringify(settings));
-    localStorage.removeItem("memory-trace:trail-tune");
-  }, [settings]);
-  const strokeW = settings.thickness === "thick" ? 2.5 : 1.8;
-  const handDrawn = settings.style === "hand";
-  const pressure = handDrawn ? settings.pressure : 0;
+  // Stroke presentation is owned by the settings menu (App); the Trail keeps
+  // only the derivations its geometry needs. Line thickness Fine 1.8 / Thick
+  // 2.5; arrowheads use userSpaceOnUse so they stay the same size in both
+  // (calibrated to the fine line).
+  const strokeW = trailStyle.thickness === "thick" ? 2.5 : 1.8;
+  const handDrawn = trailStyle.style === "hand";
+  const pressure = handDrawn ? trailStyle.pressure : 0;
 
   const model = useMemo(() => buildTrailModel(trail, windowSize), [trail, windowSize]);
   const { items, total, rowOf, spans, laneOf, colorOf, linkRows, mergeEvents, lifecycle, continuityEvents, continuityChains, continuityLaneCount } = model;
@@ -582,43 +558,6 @@ export function TrailWorkspace({
           <strong>{shown}</strong> of {total} entries · newest first
           {searching && <> · <strong>{matchCount}</strong> match{matchCount === 1 ? "" : "es"}</>}
         </span>
-        <span className="trail-settings">
-          <button type="button" className="trail-more" aria-expanded={settingsOpen} aria-label="Trail settings" title="Trail settings" onClick={() => setSettingsOpen((open) => !open)}>
-            <Settings2 size={13} aria-hidden="true" /> Style
-          </button>
-          {settingsOpen && (
-            <div className="trail-settings-menu" role="menu" aria-label="Trail presentation settings">
-              <div className="trail-settings-row">
-                <span>Line</span>
-                <div className="segment-control">
-                  <button type="button" aria-pressed={settings.thickness === "fine"} onClick={() => setSettings((prev) => ({ ...prev, thickness: "fine" }))}>Fine</button>
-                  <button type="button" aria-pressed={settings.thickness === "thick"} onClick={() => setSettings((prev) => ({ ...prev, thickness: "thick" }))}>Thick</button>
-                </div>
-              </div>
-              <div className="trail-settings-row">
-                <span>Stroke style</span>
-                <div className="segment-control">
-                  <button type="button" aria-pressed={settings.style === "hand"} onClick={() => setSettings((prev) => ({ ...prev, style: "hand" }))}>Drawn</button>
-                  <button type="button" aria-pressed={settings.style === "slick"} onClick={() => setSettings((prev) => ({ ...prev, style: "slick" }))}>Slick</button>
-                </div>
-              </div>
-              {/* Tuning dials — only meaningful in Drawn mode. Once JNL settles
-                  on a combination these become the baked constants. */}
-              {handDrawn && (
-                <>
-                  <div className="trail-settings-row">
-                    <span>Wobble <b>{settings.wobble.toFixed(2)}</b></span>
-                    <input type="range" min={0} max={3} step={0.05} value={settings.wobble} aria-label="Wobble" onChange={(event) => setSettings((prev) => ({ ...prev, wobble: Number(event.target.value) }))} />
-                  </div>
-                  <div className="trail-settings-row">
-                    <span>Pressure <b>{settings.pressure.toFixed(2)}</b></span>
-                    <input type="range" min={0} max={1} step={0.05} value={settings.pressure} aria-label="Pressure" onChange={(event) => setSettings((prev) => ({ ...prev, pressure: Number(event.target.value) }))} />
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </span>
         <span className="trail-legend" aria-label="Relationship legend">
           {continuityLaneCount > 0 && (
             <>
@@ -657,7 +596,7 @@ export function TrailWorkspace({
                   line this treatment set out to remove. */}
               <filter id="trail-rough" x="-2%" y="-1%" width="104%" height="102%">
                 <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves={2} seed={7} result="noise" />
-                <feDisplacementMap in="SourceGraphic" in2="noise" scale={settings.wobble} xChannelSelector="R" yChannelSelector="G" />
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale={trailStyle.wobble} xChannelSelector="R" yChannelSelector="G" />
               </filter>
               {(["supersedes", "evolves", "related"] as const).map((type) => (
                 <marker key={`m-${type}`} id={`trail-arrow-${type}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto-start-reverse">

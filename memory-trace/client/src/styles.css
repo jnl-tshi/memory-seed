@@ -63,6 +63,14 @@ button { font: inherit; }
 .brand small, .status-pill { color: var(--accent-bright); border: 1px solid var(--border-2); border-radius: 4px; padding: 2px 6px; font-size: 12px; font-weight: 600; }
 .project-summary { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .topbar-actions { margin-left: auto; gap: 6px; }
+/* One popover for every preference that used to be pinned to a pane. */
+.settings-menu { position: relative; display: inline-flex; }
+.settings-popover { position: absolute; z-index: 20; top: calc(100% + 8px); right: 0; display: grid; gap: 10px; min-width: 236px; padding: 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--panel); box-shadow: 0 10px 30px #00000038; }
+.settings-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); }
+.settings-tabs button { flex: 1; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); padding: 6px 4px; font-size: 11px; font-weight: 600; cursor: pointer; }
+.settings-tabs button[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--text-bright); }
+.settings-tabs button:focus-visible { outline: 1px solid var(--accent-bright); outline-offset: -2px; }
+.settings-panel { display: grid; gap: 10px; }
 .icon-button { width: 32px; height: 32px; display: inline-grid; place-items: center; padding: 0; border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip); color: var(--text-bright); cursor: pointer; }
 .icon-button:hover, .icon-button:focus-visible { border-color: var(--accent-bright); background: var(--chip); outline: none; }
 .navigation-pane, .inspector { position: relative; min-height: 0; overflow: auto; background: var(--panel); }
@@ -87,11 +95,11 @@ button { font: inherit; }
 .context-group { display: grid; gap: 2px; margin-bottom: 8px; }
 .context-group-h { margin: 4px 0 2px; padding: 0 8px; border: 0; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
 .workspace { min-height: 0; display: grid; grid-template-rows: 76px minmax(0, 1fr); background: var(--bg); }.workspace-bar { justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); }.eyebrow { display: block; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }.workspace h1, .inspector h2 { margin: 2px 0 0; font-family: var(--font-display); font-size: 19px; line-height: 1.2; letter-spacing: 0; }.graph-canvas { min-width: 0; min-height: 0; height: 100%; background-image: linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px); background-size: 24px 24px; }.loading-state, .error-state { display: grid; place-items: center; min-height: 320px; color: var(--text-3); }.error-state { color: var(--danger-text); }
-.inspector { display: grid; grid-template-rows: auto auto minmax(0, 1fr); }.inspector-bar { justify-content: space-between; gap: 10px; padding: 14px 14px 12px; border-bottom: 1px solid var(--border); }.inspector h2 { max-width: none; font-size: 15px; overflow-wrap: anywhere; }.dock-control { display: flex; align-items: center; gap: 4px; padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 12px; }.dock-control span { margin-right: auto; }.dock-control button { border: 1px solid var(--border-2); border-radius: 3px; background: var(--chip); color: var(--text-2); padding: 3px 6px; font-size: 11px; cursor: pointer; }/* The pressed state needs the accent SURFACE, not just accent ink: without a
+.inspector { display: grid; grid-template-rows: auto minmax(0, 1fr); }.inspector-bar { justify-content: space-between; gap: 10px; padding: 14px 14px 12px; border-bottom: 1px solid var(--border); }.inspector h2 { max-width: none; font-size: 15px; overflow-wrap: anywhere; }/* The pressed state needs the accent SURFACE, not just accent ink: without a
    background it inherited --chip, leaving --on-accent unreadable in both themes
    (cream on cream in light, near-black on charcoal in dark). Matching
    .segment-control here is also what makes the two control clusters cohere. */
-.dock-control button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-chip-bg); color: var(--on-accent); }.inspector-content { overflow: auto; padding: 14px; color: var(--text-2); font-size: 14px; line-height: 1.55; container-type: inline-size; container-name: inspector; }
+.inspector-content { overflow: auto; padding: 14px; color: var(--text-2); font-size: 14px; line-height: 1.55; container-type: inline-size; container-name: inspector; }
 /* One column when the pane is narrow; two, then three, as it widens. A
    container query (not a media query) because the inspector is user-resizable
    and can dock to the bottom — its width is independent of the viewport's. */
@@ -104,8 +112,8 @@ button { font: inherit; }
 .meta-mono { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; font-weight: 500; }
 .meta-topics { display: flex; flex-wrap: wrap; gap: 4px; }
 .meta-topic { border: 1px solid var(--border-2); border-radius: 3px; background: var(--chip); color: var(--text-2); padding: 1px 6px; font-size: 11px; font-weight: 500; }
-.trace-shell.inspector-bottom { grid-template-columns: var(--nav-w, 264px) minmax(0, 1fr); grid-template-rows: 56px minmax(0, 1fr) minmax(200px, 32vh); }.trace-shell.inspector-bottom .inspector { grid-column: 1 / -1; grid-row: 3; border-left: 0; border-top: 1px solid var(--border); }.trace-shell.inspector-bottom.navigation-hidden { grid-template-columns: minmax(0, 1fr); }.trace-shell.inspector-bottom .inspector { grid-template-columns: minmax(220px, .8fr) 1fr; grid-template-rows: auto minmax(0, 1fr); }.trace-shell.inspector-bottom .inspector-bar { grid-row: 1 / -1; border-bottom: 0; border-right: 1px solid var(--border); }.trace-shell.inspector-bottom .dock-control { grid-column: 2; }.trace-shell.inspector-bottom .inspector-content { grid-column: 2; }
-@media (max-width: 860px) { body { overflow: auto; }.trace-shell, .trace-shell.navigation-hidden, .trace-shell.inspector-hidden { height: auto; min-height: 100vh; grid-template-columns: minmax(0, 1fr); grid-template-rows: 56px auto minmax(420px, 1fr) auto; }.navigation-pane { border-right: 0; border-bottom: 1px solid var(--border); max-height: 230px; }.workspace { grid-row: 3; }.inspector { grid-row: 4; border-left: 0; border-top: 1px solid var(--border); min-height: 240px; }.trace-shell.inspector-hidden .workspace { grid-row: 3; }.trace-shell.inspector-bottom .inspector { grid-column: 1; grid-row: 4; display: grid; grid-template-columns: 1fr; grid-template-rows: auto auto minmax(0, 1fr); }.trace-shell.inspector-bottom .inspector-bar { grid-row: auto; border-right: 0; border-bottom: 1px solid var(--border); }.trace-shell.inspector-bottom .dock-control, .trace-shell.inspector-bottom .inspector-content { grid-column: auto; }.project-summary { display: none; }.graph-canvas { min-height: 420px; } }
+.trace-shell.inspector-bottom { grid-template-columns: var(--nav-w, 264px) minmax(0, 1fr); grid-template-rows: 56px minmax(0, 1fr) minmax(200px, 32vh); }.trace-shell.inspector-bottom .inspector { grid-column: 1 / -1; grid-row: 3; border-left: 0; border-top: 1px solid var(--border); }.trace-shell.inspector-bottom.navigation-hidden { grid-template-columns: minmax(0, 1fr); }.trace-shell.inspector-bottom .inspector { grid-template-columns: minmax(220px, .8fr) 1fr; grid-template-rows: minmax(0, 1fr); }.trace-shell.inspector-bottom .inspector-bar { grid-row: 1; border-bottom: 0; border-right: 1px solid var(--border); }.trace-shell.inspector-bottom .inspector-content { grid-column: 2; grid-row: 1; }
+@media (max-width: 860px) { body { overflow: auto; }.trace-shell, .trace-shell.navigation-hidden, .trace-shell.inspector-hidden { height: auto; min-height: 100vh; grid-template-columns: minmax(0, 1fr); grid-template-rows: 56px auto minmax(420px, 1fr) auto; }.navigation-pane { border-right: 0; border-bottom: 1px solid var(--border); max-height: 230px; }.workspace { grid-row: 3; }.inspector { grid-row: 4; border-left: 0; border-top: 1px solid var(--border); min-height: 240px; }.trace-shell.inspector-hidden .workspace { grid-row: 3; }.trace-shell.inspector-bottom .inspector { grid-column: 1; grid-row: 4; display: grid; grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }.trace-shell.inspector-bottom .inspector-bar { grid-row: auto; border-right: 0; border-bottom: 1px solid var(--border); }.trace-shell.inspector-bottom .inspector-content { grid-column: auto; grid-row: auto; }.project-summary { display: none; }.graph-canvas { min-height: 420px; } }
 
 .topbar { position: relative; }
 .trace-search-wrap { position: relative; flex: 1 1 360px; max-width: 430px; min-width: 180px; }
@@ -140,6 +148,30 @@ button { font: inherit; }
 .graph-workspace { position: relative; min-width: 0; min-height: 0; }.graph-controls { position: absolute; z-index: 2; top: 12px; right: 14px; display: flex; gap: 5px; }.graph-canvas { outline: none; }.graph-canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }.graph-list-view { min-height: 0; overflow: auto; padding: 16px 18px 28px; background: var(--bg); }.community-group { margin: 0 0 22px; }.community-group h2 { margin: 0 0 8px; color: var(--accent-bright); font-size: 12px; font-weight: 700; }.graph-list-item { width: 100%; display: grid; gap: 3px; margin-top: 4px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); text-align: left; cursor: pointer; }.graph-list-item:hover, .graph-list-item:focus-visible, .graph-list-item.selected { border-color: var(--accent-strong); background: var(--selected-bg); outline: 0; }.graph-list-item span, .graph-list-item small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.graph-list-item small { color: var(--muted); font-size: 11px; }
 
 .reader { display: grid; gap: 18px; }.reader-empty, .reader-note { margin: 0; color: var(--muted); font-size: 13px; }.reader-note { padding-top: 4px; border-top: 1px dashed var(--border); }
+/* Collapsible entry metadata. The grid 0fr->1fr trick animates to auto height,
+   which a plain max-height cannot do honestly; <details> was rejected because
+   the browser hides its content the moment it closes, so the closing animation
+   never runs. Delayed `visibility` takes collapsed content out of the
+   accessibility tree once the fold has finished. */
+.meta-fold { margin: 0 0 10px; border: 1px solid var(--border); border-radius: 5px; background: var(--code-bg); }
+.meta-fold-toggle { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; border-radius: 5px; background: none; color: var(--text-3); padding: 6px 9px; font-size: 11px; font-weight: 600; text-align: left; cursor: pointer; }
+.meta-fold-toggle:hover { color: var(--text-bright); }
+.meta-fold-toggle:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
+.meta-fold-toggle .count { margin-left: auto; color: var(--muted); font-weight: 500; }
+.meta-fold-toggle svg { flex: none; transition: transform 180ms ease; }
+.meta-fold-toggle[aria-expanded="true"] svg { transform: rotate(90deg); }
+.meta-fold-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 220ms ease; }
+.meta-fold-panel[data-open="true"] { grid-template-rows: 1fr; }
+/* min-width:0 stops a long YAML line forcing the pane wider; the <pre> keeps
+   its own horizontal scrollbar instead. */
+.meta-fold-inner { overflow: hidden; min-height: 0; min-width: 0; visibility: hidden; transition: visibility 0s linear 220ms; }
+.meta-fold-panel[data-open="true"] .meta-fold-inner { visibility: visible; transition-delay: 0s; }
+.meta-fold-inner > pre { max-width: 100%; margin: 0; overflow-x: auto; border: 0; border-top: 1px solid var(--border); border-radius: 0; }
+@media (prefers-reduced-motion: reduce) { .meta-fold-panel, .meta-fold-inner, .meta-fold-toggle svg { transition: none; } }
+/* Evolves targets in the metadata grid, navigable like the context panel. */
+.meta-links { display: flex; flex-wrap: wrap; gap: 4px; }
+.meta-link { max-width: 100%; overflow: hidden; border: 1px solid var(--border-2); border-radius: 3px; background: var(--chip); color: var(--text-2); padding: 1px 6px; font-size: 11px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.meta-link:hover, .meta-link:focus-visible { border-color: var(--accent); color: var(--text-bright); outline: none; }
 /* DRAFT grammar in the reader: terse "- R:" bullets become named subheadings,
    and the Files block becomes one pill per path. */
 .draft-label { margin: 12px 0 3px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
