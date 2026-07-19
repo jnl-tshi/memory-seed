@@ -401,6 +401,30 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(fmt_issues)
         self.assertTrue(any("ms-bbbbbbbb" in i.detail for i in fmt_issues))
 
+    def test_the_body_lint_sees_past_a_code_fence_in_the_body(self):
+        # Regression: the body used to be split on fences[1], but the metadata
+        # opener is '```yaml' and never equals a bare '```', so fences[1] was
+        # really the opening fence of a code block in the BODY - everything
+        # before it was discarded and the DRAFT lint audited only the tail. Any
+        # entry quoting code was therefore exempt from the format check. This
+        # entry's violation sits ahead of its code block, so it is only visible
+        # if the body is anchored to the metadata closer.
+        from memory_seed.core import check_entry_format
+
+        text = (
+            "## 2026-06-05 09:00 - Quotes code after a bad DRAFT body\n\n"
+            "```yaml\nentry_id: ms-ffffffff\n```\n\n"
+            "### Decision\n\n- D: A decision with no reason.\n\n"
+            "```\nsome illustrative snippet\n```\n"
+        )
+
+        findings = check_entry_format(text)
+
+        self.assertTrue(
+            any("R is mandatory" in issue for _, issue in findings),
+            "a code fence in the body must not hide the DRAFT lint from the body above it",
+        )
+
     def test_links_check_flags_an_unclosed_metadata_fence(self):
         # The exact shape a bad three-way merge left in the corpus: git anchored
         # on the line-identical `topics:`/`related_entries:` run every entry
@@ -3219,6 +3243,157 @@ class MemorySeedTests(unittest.TestCase):
         # The committed tree matches the working tree (fuse result was staged).
         committed = self._git(cwd, "show", "HEAD:.memory-seed/sessions/2026-07/2026-07-12.md").stdout
         self.assertEqual(committed, text)
+
+    def _concurrent_session_branches(self, cwd, *, gitattributes=None):
+        """Base and branch both append to one dated file after a shared
+        ancestor - the shape that produced the 2026-07-19 corruption. Returns
+        the target path, with `main` checked out and `feature-merge` ready."""
+        target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-12.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        entry_a = ("09:00", "Base entry", "mse_aaaaaaaaaaaaaaaa", "main")
+        entry_b = ("10:00", "Later main entry", "mse_bbbbbbbbbbbbbbbb", "main")
+        entry_c = ("09:30", "Branch entry", "mse_cccccccccccccccc", "feature-merge")
+        target.write_text(self._grouped_session_text("2026-07-12", [entry_a]), encoding="utf-8")
+        if gitattributes is not None:
+            (cwd / ".gitattributes").write_text(gitattributes, encoding="utf-8")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        target.write_text(self._grouped_session_text("2026-07-12", [entry_a, entry_c]), encoding="utf-8")
+        self._commit_all(cwd, "branch appends 09:30")
+        self._git(cwd, "switch", "main")
+        target.write_text(self._grouped_session_text("2026-07-12", [entry_a, entry_b]), encoding="utf-8")
+        self._commit_all(cwd, "main appends 10:00")
+        return target
+
+    # The repo ships `.memory-seed/sessions/** -merge` so git cannot line-merge
+    # session files. These two pin both halves of that guard.
+    NO_MERGE_ATTR = ".memory-seed/sessions/** -merge\n"
+
+    def test_session_merge_branch_still_fuses_under_the_no_merge_attribute(self):
+        # The guard must not break the sanctioned path. `-merge` makes git
+        # conflict on the session file, but session_merge_branch resets
+        # branch-touched session paths to base and rebuilds from parsed records,
+        # so a session-only conflict is expected input, not a failure.
+        cwd = self.make_project()
+        target = self._concurrent_session_branches(cwd, gitattributes=self.NO_MERGE_ATTR)
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertEqual(result.issues, [])
+        self.assertTrue(result.committed)
+        text = target.read_text(encoding="utf-8")
+        self.assertNotIn("<<<<<<<", text)
+        pos_a = text.find("## 2026-07-12 09:00")
+        pos_c = text.find("## 2026-07-12 09:30")
+        pos_b = text.find("## 2026-07-12 10:00")
+        self.assertTrue(0 <= pos_a < pos_c < pos_b, f"order wrong: a={pos_a} c={pos_c} b={pos_b}")
+        committed = self._git(cwd, "show", "HEAD:.memory-seed/sessions/2026-07/2026-07-12.md").stdout
+        self.assertEqual(committed, text)
+
+    def test_the_no_merge_attribute_stops_git_line_merging_session_files(self):
+        # The other half: a raw `git merge` - the bypass that caused the
+        # corruption - must now fail loudly instead of silently splicing
+        # entries. Without the attribute git merges these cleanly by position;
+        # with it, the file conflicts and demands the structural merge.
+        import subprocess
+
+        cwd = self.make_project()
+        self._concurrent_session_branches(cwd, gitattributes=self.NO_MERGE_ATTR)
+
+        merged = subprocess.run(
+            ["git", "-C", str(cwd), "merge", "--no-ff", "--no-commit", "feature-merge"],
+            capture_output=True, text=True,
+        )
+
+        self.assertNotEqual(merged.returncode, 0, "a raw line-merge of session files must not succeed")
+        conflicted = self._git(cwd, "diff", "--name-only", "--diff-filter=U").stdout.split()
+        self.assertIn(".memory-seed/sessions/2026-07/2026-07-12.md", conflicted)
+
+    def _false_anchor_branches(self, cwd, *, gitattributes=None):
+        """The 2026-07-19 corruption shape: two entries whose `topics:` /
+        `related_entries:` scaffolding is byte-identical, appended concurrently.
+        Those shared lines are what git anchors on."""
+        def entry(time, title, eid):
+            return (
+                f"## 2026-07-19 {time} - {title}\n\n"
+                f"```yaml\nentry_id: mse_{eid}\n"
+                "topics:\n  - memory-trace\n  - ui-design\n"
+                "related_entries:\n  - mse_zzzzzzzzzzzzzzzz\n```\n\n"
+                f"### Decision\n\n- D: {title}\n- R: {title}\n\n"
+            )
+
+        target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-19.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        base = entry("09:00", "Base", "a" * 16)
+        target.write_text(base, encoding="utf-8")
+        if gitattributes is not None:
+            (cwd / ".gitattributes").write_text(gitattributes, encoding="utf-8")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        target.write_text(base + entry("11:33", "BranchOne", "c" * 16), encoding="utf-8")
+        self._commit_all(cwd, "branch appends 11:33")
+        self._git(cwd, "switch", "main")
+        target.write_text(base + entry("12:02", "MainOne", "b" * 16), encoding="utf-8")
+        self._commit_all(cwd, "main appends 12:02")
+        return target
+
+    def test_without_the_attribute_git_interleaves_the_conflict_dangerously(self):
+        # Control, and the actual mechanism behind the 2026-07-19 corruption.
+        # Git does not merge these silently - it does something worse: it
+        # anchors on the byte-identical topics:/related_entries: scaffolding,
+        # treats those lines as AGREED content outside the markers, and splits
+        # one logical conflict into two interleaved regions. The result has
+        # fewer closing fences than entries, so stripping the markers and
+        # re-splitting on '##' headings - the obvious hand-resolution, and the
+        # one that caused the incident - strands a fence and splices bodies.
+        import subprocess
+
+        cwd = self.make_project()
+        target = self._false_anchor_branches(cwd)
+
+        subprocess.run(
+            ["git", "-C", str(cwd), "merge", "--no-ff", "--no-commit", "feature-merge"],
+            capture_output=True, text=True,
+        )
+        text = target.read_text(encoding="utf-8")
+
+        self.assertGreater(text.count("<<<<<<<"), 1, "the danger is interleaving: >1 conflict region")
+        # The shared scaffolding escaped the markers entirely, so the two
+        # entries now share a single metadata fence between them.
+        both_headings = text.count("## 2026-07-19 11:33") and text.count("## 2026-07-19 12:02")
+        self.assertTrue(both_headings, "both entries are present...")
+        stripped = "\n".join(
+            ln for ln in text.splitlines()
+            if not ln.startswith(("<<<<<<<", "=======", ">>>>>>>"))
+        )
+        from memory_seed.core import check_entry_metadata_fences
+        self.assertTrue(
+            check_entry_metadata_fences(stripped),
+            "...and naive marker-stripping yields the unclosed fence links check now catches",
+        )
+
+    def test_the_attribute_keeps_the_conflicted_file_structurally_intact(self):
+        # With the guard, the same merge conflicts as a UNIT: git writes no
+        # markers into the file at all, so no entry is ever left half-formed.
+        # The structural merge is then the only way forward.
+        import subprocess
+
+        from memory_seed.core import check_entry_metadata_fences
+
+        cwd = self.make_project()
+        target = self._false_anchor_branches(cwd, gitattributes=self.NO_MERGE_ATTR)
+
+        merged = subprocess.run(
+            ["git", "-C", str(cwd), "merge", "--no-ff", "--no-commit", "feature-merge"],
+            capture_output=True, text=True,
+        )
+        text = target.read_text(encoding="utf-8")
+
+        self.assertNotEqual(merged.returncode, 0)
+        self.assertEqual(text.count("<<<<<<<"), 0, "no markers spliced into the file")
+        self.assertFalse(check_entry_metadata_fences(text), "every entry left well formed")
 
     def test_session_merge_branch_fails_closed_before_merge_on_modified_entry(self):
         cwd = self.make_project()

@@ -1244,14 +1244,24 @@ def _walk_entry_bodies(
             (m.group(1) for ln in block if (m := re.match(r"\s*entry_id:\s*(\S+)", ln))),
             "?",
         )
-        # KNOWN BUG (held for review, not fixed here): the opener is '```yaml',
-        # which never equals a bare '```', so fences[1] is not the metadata
-        # closer but the opening fence of any code block in the *body* - an
-        # entry that quotes code has its whole DRAFT body dropped by this lint.
-        # Fixing it un-blinds the audit on published entries, so it is a
-        # separate decision from the corruption detection above.
-        fences = [i for i, ln in enumerate(block) if ln.strip() == "```"]
-        body = "\n".join(block[fences[1] + 1:] if len(fences) >= 2 else block[1:])
+        # The body is whatever follows the metadata block. Anchor to the opener
+        # and its matching closer rather than counting fences: the opener is
+        # '```yaml' and never equals a bare '```', so an index-based split took
+        # fences[1] to be the metadata closer when it is really the opening
+        # fence of a code block in the *body* - and every entry that quotes code
+        # had its whole DRAFT body dropped by this lint. Entries with no
+        # metadata block (the corpus predates the convention) keep everything
+        # after the heading.
+        opener = next(
+            (i for i, ln in enumerate(block[1:], 1) if _METADATA_FENCE_OPEN_RE.match(ln)),
+            None,
+        )
+        closer = (
+            next((i for i, ln in enumerate(block) if i > opener and _FENCE_CLOSE_RE.match(ln)), None)
+            if opener is not None
+            else None
+        )
+        body = "\n".join(block[closer + 1:] if closer is not None else block[1:])
         for finding in inspect(body):
             out.append((entry_id, finding))
     return out
