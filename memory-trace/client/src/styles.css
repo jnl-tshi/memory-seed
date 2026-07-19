@@ -60,7 +60,7 @@ button { font: inherit; }
 .topbar { grid-column: 1 / -1; display: flex; gap: 20px; align-items: center; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--bar); }
 .brand, .topbar-actions, .pane-heading, .workspace-bar, .inspector-bar { display: flex; align-items: center; }
 .brand { gap: 8px; color: var(--text-bright); font-weight: 700; letter-spacing: 0; }
-.brand small, .status-pill { color: var(--accent-bright); border: 1px solid var(--border-2); border-radius: 4px; padding: 2px 6px; font-size: 12px; font-weight: 600; }
+.status-pill { color: var(--accent-bright); border: 1px solid var(--border-2); border-radius: 4px; padding: 2px 6px; font-size: 12px; font-weight: 600; }
 .project-summary { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .topbar-actions { margin-left: auto; gap: 6px; }
 /* One popover for every preference that used to be pinned to a pane. */

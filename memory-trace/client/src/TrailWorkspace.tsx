@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
+import { useEffect, useMemo, useRef, type CSSProperties, type ReactElement } from "react";
 import type { TrailResponse, TrailEdge, TrailEvent } from "./api";
 import type { TrailStyle } from "./SettingsMenu";
 import {
