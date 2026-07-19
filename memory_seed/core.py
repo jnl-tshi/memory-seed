@@ -2111,7 +2111,11 @@ def session_reorder(
         return SessionReorderResult(path=path, ok=True, changed=False, applied=False, issues=("no entries found",))
 
     issues: list[str] = []
-    blocks: list[tuple[str, int, str]] = []  # (timestamp, original_index, bytes)
+    # (timestamp, original_index, bytes). Ties keep their original relative
+    # order, matching the stable tie-break every session writer uses - see
+    # _session_record_sort_key. Sorting ties on entry_id would be deterministic
+    # but arbitrary, and would discard real append order.
+    blocks: list[tuple[str, int, str]] = []
     for index, match in enumerate(matches):
         heading = match.group(0)
         parsed = _REORDER_HEADING_RE.match(heading)
@@ -2620,6 +2624,28 @@ def _working_tree_sidecars(root: Path, rel_path: str, *, diagram_date: str) -> l
     return _split_diagram_records(text, source_path=rel_path, diagram_date=diagram_date)
 
 
+# The one ordering every session-file writer uses. Timestamps are fixed-width,
+# so lexicographic equals chronological.
+#
+# Ties are broken by INPUT ORDER, not by any field. Heading stamps are
+# minute-resolution, so ties are common, and callers build the list as
+# [existing-file-order..., incoming...]:
+#
+#   * `sorted` is stable, so entries already in the file keep their relative
+#     order - a fuse never re-positions history it did not touch;
+#   * incoming entries land after existing ones sharing that minute, which is
+#     what "append" means;
+#   * both inputs are themselves deterministic (file order; `import_entries` is
+#     pre-sorted by (timestamp, entry_id)), so the result is reproducible.
+#
+# Tie-breaking on entry_id instead would be deterministic but semantically
+# arbitrary - ids are metadata hashes, so it reorders same-minute entries into a
+# meaningless sequence and discards the append order, which is real evidence of
+# what happened first.
+def _session_record_sort_key(record: _SessionEntryRecord | _DiagramSidecarRecord) -> tuple[str]:
+    return (record.timestamp or "",)
+
+
 def _records_are_chronological(records: Sequence[_SessionEntryRecord | _DiagramSidecarRecord]) -> bool:
     timestamps = [record.timestamp for record in records]
     if any(timestamp is None for timestamp in timestamps):
@@ -2630,7 +2656,7 @@ def _records_are_chronological(records: Sequence[_SessionEntryRecord | _DiagramS
 def _write_chronological_session_file(path: Path, date_str: str, records: Sequence[_SessionEntryRecord], *, user: str | None = None) -> None:
     existing_text = read_text_file(path) if path.exists() else ""
     prefix = _session_file_prefix(existing_text, date_str, user=user)
-    ordered = sorted(records, key=lambda record: (record.timestamp or "", record.entry_id or ""))
+    ordered = sorted(records, key=_session_record_sort_key)
     # Records are rstripped, so a double newline leaves exactly one blank line
     # between entries - the same separation a hand-appended log has. A single
     # "\n" here butts each heading against the previous entry's last line.
@@ -2641,7 +2667,7 @@ def _write_chronological_session_file(path: Path, date_str: str, records: Sequen
 def _write_chronological_diagram_file(path: Path, date_str: str, records: Sequence[_DiagramSidecarRecord]) -> None:
     existing_text = read_text_file(path) if path.exists() else ""
     prefix = _diagram_file_prefix(existing_text, date_str)
-    ordered = sorted(records, key=lambda record: (record.timestamp or "", record.entry_id or ""))
+    ordered = sorted(records, key=_session_record_sort_key)
     # Same blank-line separation contract as the session-file writer above.
     body = "\n\n".join(record.text.rstrip() for record in ordered).rstrip()
     write_text_file(path, prefix + body + "\n")
@@ -3013,7 +3039,7 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
                     continue
                 return SessionFuseResult(changed=False, issues=[f"{target_rel}: entry_id {record.entry_id} already exists with different text"])
             writable_records.append(record)
-        writable_records = sorted(writable_records, key=lambda item: (item.timestamp or "", item.entry_id or ""))
+        writable_records = sorted(writable_records, key=_session_record_sort_key)
         if not _records_are_chronological(writable_records):
             return SessionFuseResult(changed=False, issues=[f"{target_rel}: imported entries are not chronological"])
         session_writes.append((target_path, date_str, user, writable_records))
@@ -3034,7 +3060,7 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
                     continue
                 return SessionFuseResult(changed=False, issues=[f"{target_rel}: diagram for entry_id {record.entry_id} already exists with different text"])
             writable_records.append(record)
-        writable_records = sorted(writable_records, key=lambda item: (item.timestamp or "", item.entry_id or ""))
+        writable_records = sorted(writable_records, key=_session_record_sort_key)
         if not _records_are_chronological(writable_records):
             return SessionFuseResult(changed=False, issues=[f"{target_rel}: imported diagram blocks are not chronological"])
         diagram_writes.append((target_path, date_str, writable_records))

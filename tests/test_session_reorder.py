@@ -11,6 +11,53 @@ from pathlib import Path
 
 from memory_seed.core import MEMORY_DIR_NAME, check_session_links, session_reorder
 
+
+class SessionWriterOrderingTests(unittest.TestCase):
+    """The tie-break contract the fuse writers depend on.
+
+    Callers hand the writer [existing-file-order..., incoming...]. A stable sort
+    on the timestamp alone must therefore leave existing entries exactly where
+    they were and append incoming ones after any same-minute neighbours. This is
+    what stops a fuse from re-positioning history it never touched.
+    """
+
+    def _records(self, pairs):
+        from memory_seed.core import _SessionEntryRecord
+
+        return [
+            _SessionEntryRecord(
+                entry_id=eid, timestamp=ts, session_date=ts[:10], user=None,
+                branch=None, source_path="x.md", target_path="x.md", text=f"## {ts} - {eid}\n",
+            )
+            for ts, eid in pairs
+        ]
+
+    def test_existing_ties_keep_their_order_regardless_of_entry_id(self):
+        from memory_seed.core import _session_record_sort_key
+
+        # ids descending against file order: an entry_id tie-break would swap
+        # these two, silently rewriting the position of untouched history.
+        existing = self._records([("2026-06-13 10:00", C), ("2026-06-13 10:00", B)])
+        ordered = sorted(existing, key=_session_record_sort_key)
+        self.assertEqual([r.entry_id for r in ordered], [C, B])
+
+    def test_incoming_entries_land_after_existing_ones_at_the_same_minute(self):
+        from memory_seed.core import _session_record_sort_key
+
+        existing = self._records([("2026-06-13 10:00", C)])
+        incoming = self._records([("2026-06-13 10:00", A)])
+        ordered = sorted(existing + incoming, key=_session_record_sort_key)
+        self.assertEqual([r.entry_id for r in ordered], [C, A], "append means after, even for a lower id")
+
+    def test_ordering_is_a_fixed_point(self):
+        from memory_seed.core import _session_record_sort_key
+
+        records = self._records([("2026-06-13 11:00", A), ("2026-06-13 10:00", C), ("2026-06-13 10:00", B)])
+        once = sorted(records, key=_session_record_sort_key)
+        twice = sorted(once, key=_session_record_sort_key)
+        self.assertEqual([r.entry_id for r in once], [r.entry_id for r in twice])
+        self.assertEqual([r.entry_id for r in once], [C, B, A])
+
 A = "mse_" + "a" * 16
 B = "mse_" + "b" * 16
 C = "mse_" + "c" * 16
@@ -96,6 +143,55 @@ class SessionReorderTests(unittest.TestCase):
 
         titles = [item.split(" - ", 1)[1] for item in result.order_after]
         self.assertEqual(titles, ["earlier", "tie-logged-first", "tie-logged-second"])
+
+    def test_equal_timestamps_ignore_entry_id_when_breaking_ties(self):
+        # The discriminating case: ids run OPPOSITE to file order. Sorting ties
+        # on entry_id would swap these; append order must win, because an id is
+        # a metadata hash and carries no information about what happened first,
+        # while the order the entries were written in does.
+        text = (
+            _entry("2026-06-13 10:00", C, "logged-first-higher-id")
+            + _entry("2026-06-13 10:00", B, "logged-second-lower-id")
+        )
+        self.path.write_text(text, encoding="utf-8")
+
+        result = session_reorder(self.cwd, date_str="2026-06-13")
+
+        titles = [item.split(" - ", 1)[1] for item in result.order_after]
+        self.assertEqual(titles, ["logged-first-higher-id", "logged-second-lower-id"])
+        self.assertFalse(result.changed, "already in order; nothing to permute")
+
+    def test_tied_entries_without_ids_keep_their_original_order(self):
+        # Nothing to break the tie with, so the final key (original index)
+        # preserves the file's order rather than shuffling on an empty string.
+        text = (
+            "## 2026-06-13 10:00 - no-id-first\n\n- note\n\n"
+            "## 2026-06-13 10:00 - no-id-second\n\n- note\n\n"
+            "## 2026-06-13 09:00 - earlier\n\n- note\n\n"
+        )
+        self.path.write_text(text, encoding="utf-8")
+
+        result = session_reorder(self.cwd, date_str="2026-06-13")
+
+        titles = [item.split(" - ", 1)[1] for item in result.order_after]
+        self.assertEqual(titles, ["earlier", "no-id-first", "no-id-second"])
+
+    def test_reordered_output_is_stable_under_a_second_pass(self):
+        # Ordering must be a fixed point: reorder twice, no further change.
+        text = (
+            _entry("2026-06-13 10:00", C, "tie-first")
+            + _entry("2026-06-13 10:00", B, "tie-second")
+            + _entry("2026-06-13 09:00", A, "earlier")
+        )
+        self.path.write_text(text, encoding="utf-8")
+
+        first = session_reorder(self.cwd, date_str="2026-06-13", apply=True)
+        self.assertTrue(first.applied)
+        settled = self.path.read_text(encoding="utf-8")
+
+        second = session_reorder(self.cwd, date_str="2026-06-13", apply=True)
+        self.assertFalse(second.changed, "canonical order should be a fixed point")
+        self.assertEqual(self.path.read_text(encoding="utf-8"), settled)
 
     def test_non_timestamped_heading_is_body_content_not_a_boundary(self):
         # Under the unified entry grammar a plain `##` heading inside an entry
