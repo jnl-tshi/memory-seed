@@ -173,6 +173,37 @@ The shared language should include:
 - exact, accessible selected/focus states that do not rely on colour alone;
 - a restrained paper texture that can be disabled and never reduces contrast.
 
+### 6.1 Dark-mode design contract
+
+Dark mode is a first-class expression of the same editorial system, not a photographic negative of the
+light theme. It should preserve hierarchy, evidence semantics, and product parity while changing the
+material character from warm paper to warm ink.
+
+![Living Archive dark-mode direction](trace-humanised-dashboard-references/mockup-04-living-archive-dark.png)
+
+![Editorial Focus dark-mode direction](trace-humanised-dashboard-references/mockup-05-editorial-focus-dark.png)
+
+- Use warm charcoal or espresso for the canvas, with stepped graphite/deep-olive surfaces; avoid pure
+  black and bright-white glare.
+- Use warm ivory for primary text and muted sand for metadata. Fine rules and disabled states must remain
+  visible without becoming luminous chrome.
+- Recalibrate forest, ochre, terracotta, dusty cyan, and mineral blue relationship colours independently
+  for dark surfaces. `replaces`, `evolves`, `related`, focus, authority, and provenance must retain the
+  same meaning in both themes.
+- Selected, focused, warning, and generated states must combine colour with a marker, border, fill, icon,
+  label, or typography change. Theme switching must never make colour the only signal.
+- Keep reading surfaces matte. Reduce or disable texture at low contrast, high zoom, or when the user
+  requests reduced visual effects; do not use glow, glass, or heavy shadows to separate panes.
+- Community and Pro use the same semantic tokens. Editorial Focus may feel quieter and more concentrated,
+  but generated synthesis must not become visually more authoritative than authored evidence.
+- Support `light`, `dark`, and `system` preferences, persist an explicit choice locally, and update a
+  `system` choice when the operating-system preference changes.
+
+Dark-mode acceptance should cover both editions at normal and narrow pane widths, 200% zoom, keyboard-only
+navigation, Windows high-contrast/forced-colours behaviour, and reduced texture/motion. Screenshot regression
+fixtures should exercise the same representative Trail and inspector state in light and dark themes so
+semantic drift is visible rather than hidden by different data.
+
 ## 7. Shared Decision Brief contract
 
 Both editions should render the same versioned shape. Community produces a deterministic subset; Pro may
@@ -270,9 +301,11 @@ subscription. Entitlement gates the synthesis service or advanced module, never 
 
 ### Phase 0 — validate the reading model
 
-- Test the three mockups against five real decision trails.
-- Confirm that the Living Archive hierarchy survives long titles, dense branches, missing rationale, dark
-  mode, keyboard navigation, and narrow panes.
+- Test the light and dark Community/Pro mockups against five real decision trails.
+- Confirm that the Living Archive hierarchy survives long titles, dense branches, missing rationale,
+  keyboard navigation, and narrow panes in both themes.
+- Test whether relationship recognition and reading comfort survive dark mode and whether generated content
+  remains appropriately advisory.
 - User-test the wording “Living Archive,” “Decision Brief,” and “Editorial Focus.”
 
 **Exit:** one accepted Community information architecture and a measured comprehension improvement over the
@@ -280,8 +313,11 @@ current layout.
 
 ### Phase 1 — Community visual foundation
 
-- Convert existing theme tokens into a documented editorial token set.
+- Convert existing theme tokens into a documented semantic editorial token set with light and dark values;
+  components consume semantic roles rather than literal palette colours.
 - Implement chapter rhythm, quieter navigation, inspector sections, and progressive disclosure.
+- Add `light`/`dark`/`system` selection, local preference persistence, operating-system change handling, and
+  paired screenshot fixtures for shared Trail, reader, and inspector states.
 - Preserve every current B0b parity and accessibility requirement.
 
 **Exit:** the current Trail functions identically, with no provider or new data contract required.
@@ -327,6 +363,10 @@ current layout.
 - “Why” is rendered only from authored rationale; missing rationale is explicit.
 - A citation or relationship focuses its exact source.
 - The interface passes keyboard, contrast, zoom, pane-resize, and large-history acceptance.
+- Light, dark, and system themes expose identical capabilities and relationship semantics; explicit choice
+  persists locally and `system` follows operating-system changes.
+- Representative states pass contrast and screenshot-regression checks in both themes, including narrow
+  panes, 200% zoom, and forced colours.
 
 ### Pro
 
@@ -336,6 +376,8 @@ current layout.
 - No generated brief edits session history or becomes authoritative automatically.
 - Provider absence, timeout, or invalid output leaves the Community experience intact.
 - Cost/usage is visible before managed generation.
+- Editorial Focus passes the same paired-theme checks, and dark treatment does not visually elevate
+  generated synthesis above authored evidence, authority, provenance, or unsupported-claim warnings.
 
 ## 12. Risks and mitigations
 
@@ -349,6 +391,7 @@ current layout.
 | “Open questions” duplicates Todo | Pilot against real records; admit only questions that qualify a decision or evidence scope. |
 | Premium architecture arrives before demand | Build Community first; validate willingness to pay before managed AI. |
 | Humanised styling harms dense technical use | Test long real entries, reduced motion/texture, high contrast, zoom, and keyboard operation. |
+| Dark mode becomes a palette inversion or changes semantics | Use semantic tokens, paired-state fixtures, non-colour cues, and edition-parity review. |
 
 ## 13. Inbox ideas incorporated—and bounded
 
@@ -387,4 +430,3 @@ Promote this proposal only when:
 4. Community scope is demonstrably useful without AI.
 5. Pro synthesis reuses the shipped Evidence Pack and planned provider boundary.
 6. Free/Pro wording is tested with prospective users before licensing or managed-AI implementation.
-
