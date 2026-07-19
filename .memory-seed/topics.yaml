@@ -5,6 +5,8 @@ schema_version: 1
 # 2026-07-12 added Memory Trace UI and core Memory Seed slugs used by later entries.
 # Deploy-once: `memory-seed update` never overwrites this file. Aliases resolve at read time;
 # `memory-seed topics check` errors only on slugs found in neither column.
+# 2026-07-19 added security and performance (user-approved): both were already in use by merged
+# entries (the OpenSSF slice and the fork-point memo) and had no home in the vocabulary.
 topics:
   - slug: git-workflow
     label: Git Workflow
@@ -111,3 +113,13 @@ topics:
     description: External tool/library assessment and licensing checks.
     status: active
     aliases: [design-evaluation, licensing]
+  - slug: security
+    label: Security
+    description: Supply-chain and repo hardening - OpenSSF posture, CI security gates, permissions.
+    status: active
+    aliases: [openssf, supply-chain]
+  - slug: performance
+    label: Performance
+    description: Profiling, caching, and speed work across core and Trace.
+    status: active
+    aliases: [perf, profiling]
