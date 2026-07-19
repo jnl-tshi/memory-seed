@@ -401,6 +401,75 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(fmt_issues)
         self.assertTrue(any("ms-bbbbbbbb" in i.detail for i in fmt_issues))
 
+    def test_links_check_flags_an_unclosed_metadata_fence(self):
+        # The exact shape a bad three-way merge left in the corpus: git anchored
+        # on the line-identical `topics:`/`related_entries:` run every entry
+        # shares, spliced the first entry's body away and stranded its fence.
+        # links check PASSED that file - the ids still regexed out of raw text -
+        # and only the fuse's stricter parser objected. This pins the gap.
+        from memory_seed.core import check_session_links
+
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        corrupted = (
+            "## 2026-06-03 11:33 - Stranded by a merge\n\n"
+            "```yaml\n"
+            "entry_id: ms-cccccccc\n"
+            "topics:\n  - memory-trace\n"
+            "## 2026-06-03 12:02 - The entry that swallowed it\n\n"
+            "```yaml\nentry_id: ms-dddddddd\n```\n\n"
+            "### Decision\n\n- D: x\n- R: y\n"
+        )
+        (sessions / "2026-06-03.md").write_text(corrupted, encoding="utf-8")
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertFalse(result.ok)
+        fence_issues = [i for i in result.issues if i.kind == "malformed-entry-yaml"]
+        self.assertTrue(fence_issues, "an unclosed metadata fence must be an error")
+        self.assertTrue(any("ms-cccccccc" in i.detail for i in fence_issues))
+        # The intact entry that followed it is not collateral.
+        self.assertFalse(any("ms-dddddddd" in i.detail for i in fence_issues))
+
+    def test_a_yaml_example_in_the_body_is_not_an_unclosed_fence(self):
+        # The discriminating case. Entries legitimately quote YAML in their
+        # prose, so a fence-balance count across the whole block would flag
+        # well-formed history. The check anchors to the FIRST opener after the
+        # heading and asks only whether that one closes.
+        from memory_seed.core import check_session_links
+
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        with_example = (
+            "## 2026-06-04 09:00 - Quotes YAML in its body\n\n"
+            "```yaml\nentry_id: ms-eeeeeeee\n```\n\n"
+            "### Decision\n\n- D: Documented the shape.\n- R: Future readers need it.\n\n"
+            "```yaml\ntopics:\n  - example\n```\n"
+        )
+        (sessions / "2026-06-04.md").write_text(with_example, encoding="utf-8")
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertFalse([i for i in result.issues if i.kind == "malformed-entry-yaml"])
+
+    def test_a_legacy_entry_with_no_metadata_block_is_left_alone(self):
+        # The corpus's first two days predate the metadata convention (15 such
+        # entries). Append-only forbids retrofitting published history, so their
+        # absence of a fence must stay silent rather than red the whole check.
+        from memory_seed.core import check_session_links
+
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        legacy = "## 2026-05-19 20:35 - Before metadata existed\n\n- Just a note.\n"
+        (sessions / "2026-05-19.md").write_text(legacy, encoding="utf-8")
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertFalse([i for i in result.issues if i.kind == "malformed-entry-yaml"])
+
     # --- A-P3 session integrity validation (memory-seed links check) ---
 
     def _per_user_session(self, cwd, date, user, *, fm_user=None, fm_date=None,

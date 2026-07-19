@@ -1179,6 +1179,11 @@ def worktree_guard(
 _ENTRY_HEADING_RE = re.compile(
     r"^##\s+\d{4}-\d{2}-\d{2} \d{2}:\d{2}\s+-\s*.*$", re.MULTILINE
 )
+# An entry's metadata block opens with a *tagged* fence and closes with a bare
+# one. Keeping the two distinct is what lets a body quote fenced code without
+# being mistaken for the end of the metadata.
+_METADATA_FENCE_OPEN_RE = re.compile(r"^\s*```ya?ml\s*$")
+_FENCE_CLOSE_RE = re.compile(r"^\s*```\s*$")
 _BARE_DRAFT_RE = re.compile(r"^(D|R|A|F|T)\d*\s*:")         # column-0 label with no '- '
 _BULLET_DRAFT_RE = re.compile(r"^-\s+(D|R|A|F|T)\d*\s*:")   # '- D:' list item
 _INLINE_NUMBERED_DECISION_RE = re.compile(r"^-\s+D\d+\s*:")  # '- D1:' inline (should be '#### Dn')
@@ -1239,6 +1244,12 @@ def _walk_entry_bodies(
             (m.group(1) for ln in block if (m := re.match(r"\s*entry_id:\s*(\S+)", ln))),
             "?",
         )
+        # KNOWN BUG (held for review, not fixed here): the opener is '```yaml',
+        # which never equals a bare '```', so fences[1] is not the metadata
+        # closer but the opening fence of any code block in the *body* - an
+        # entry that quotes code has its whole DRAFT body dropped by this lint.
+        # Fixing it un-blinds the audit on published entries, so it is a
+        # separate decision from the corruption detection above.
         fences = [i for i, ln in enumerate(block) if ln.strip() == "```"]
         body = "\n".join(block[fences[1] + 1:] if len(fences) >= 2 else block[1:])
         for finding in inspect(body):
@@ -1347,6 +1358,57 @@ def check_entry_format(text: str) -> list[tuple[str, str]]:
     return _walk_entry_bodies(text, entry_body_format_issues)
 
 
+def check_entry_metadata_fences(text: str) -> list[tuple[str, str]]:
+    """Return ``(entry_id, issue)`` pairs for entries whose ``​```yaml`` metadata
+    block is opened but never closed.
+
+    This is the *structural* twin of the DRAFT-body lints: those inspect prose
+    inside a well-formed entry, and this one asks whether the entry is well
+    formed at all. An unclosed metadata fence is the signature a bad three-way
+    merge leaves behind - git anchors on the line-identical
+    ``topics:``/``related_entries:`` runs that every entry shares, splices one
+    entry's body into another, and strands the fence. Nothing else caught that:
+    the ref extractors regex over raw text so the ids still resolve, the body
+    lints tolerate a missing fence by shifting where the body starts, and the
+    strict entry parser the fuse uses simply skips an entry it cannot parse. So
+    ``links check`` passed a corrupted file and only a merge dry run objected.
+
+    Anchoring to the *first* opener after the heading is load-bearing: an entry
+    body may legitimately contain a ``​```yaml`` example, so counting fences
+    across the whole block would flag well-formed entries. Entries with no
+    metadata block at all are silent - the corpus predates the convention and
+    append-only forbids retrofitting published history.
+    """
+    lines = text.splitlines()
+    heads = [i for i, ln in enumerate(lines) if _ENTRY_HEADING_RE.match(ln)]
+    out: list[tuple[str, str]] = []
+    for k, start in enumerate(heads):
+        end = heads[k + 1] if k + 1 < len(heads) else len(lines)
+        block = lines[start:end]
+        opener = next(
+            (i for i, ln in enumerate(block[1:], 1) if _METADATA_FENCE_OPEN_RE.match(ln)),
+            None,
+        )
+        if opener is None:
+            continue
+        if any(_FENCE_CLOSE_RE.match(ln) for ln in block[opener + 1:]):
+            continue
+        entry_id = next(
+            (m.group(1) for ln in block if (m := re.match(r"\s*entry_id:\s*(\S+)", ln))),
+            "?",
+        )
+        out.append(
+            (
+                entry_id,
+                f"metadata block opened at '{block[opener].strip()}' under heading "
+                f"'{block[0].strip()}' is never closed - the entry is unparseable to "
+                "the fuse and its body may have been spliced from another entry by a "
+                "bad merge; repair it from the merge parents rather than by hand",
+            )
+        )
+    return out
+
+
 def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     """Validate session-memory integrity across both legacy-flat and per-user
     layouts (multi-user Phase 3). Detects duplicate entry/file IDs, dangling
@@ -1405,6 +1467,13 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
 
         for entry_id in _ENTRY_ID_RE.findall(text):
             entry_id_files.setdefault(entry_id, []).append(rel)
+
+        # Structural integrity first: an unclosed metadata fence means the entry
+        # cannot be parsed at all, so every lint below it is reasoning about a
+        # body it cannot trust. Error severity - this shape only ever arrives
+        # via corruption, never by authoring.
+        for entry_id, issue in check_entry_metadata_fences(text):
+            issues.append(LinkIssue(rel, "malformed-entry-yaml", f"{entry_id}: {issue}"))
 
         # DRAFT-body format lint: a malformed decision record (bare labels, no
         # section heading, wrong multi-decision shape, D: without R:) is an
