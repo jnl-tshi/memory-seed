@@ -72,6 +72,11 @@ jobs:
       - name: Type-check React source
         run: npm run typecheck
 
+      # node:test with no runner dependency: the suites are TypeScript and rely
+      # on Node's native type stripping, which is on by default from 22.18.
+      - name: Run React unit tests
+        run: npm test
+
       - name: Build packaged React assets
         run: npm run build
 

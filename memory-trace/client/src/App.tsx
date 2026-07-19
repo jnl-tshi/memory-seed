@@ -595,13 +595,24 @@ export default function App() {
         <div className="brand"><Network size={19} aria-hidden="true" /><span>Memory Trace</span></div>
         <div className="project-summary">{runtime ? `${runtime.label} · ${runtime.entry_count} entries` : "Loading project"}</div>
         <div className="trace-search-wrap">
-          <form className="trace-search" onSubmit={submitSearch} role="search"><Search size={16} aria-hidden="true" /><input ref={searchInput} value={query} onChange={(event) => { setQuery(event.target.value); setSearch(null); }} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); if (matchEntries.length) { void jumpToMatch(event.shiftKey ? -1 : 1); return; } void runSearch(event.currentTarget.value); }} placeholder="Search memory or entry ID" aria-label="Search memory or entry ID" />{query && <button className="icon-button search-clear" type="button" onClick={() => { setQuery(""); setSearch(null); }} aria-label="Clear search" title="Clear search"><X size={14} /></button>}</form>
+          <form className="trace-search" onSubmit={submitSearch} role="search"><Search size={16} aria-hidden="true" /><input ref={searchInput} value={query} onChange={(event) => { setQuery(event.target.value); setSearch(null); }} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); if (event.ctrlKey || event.metaKey) { void runSearch(event.currentTarget.value); return; } if (matchEntries.length) { void jumpToMatch(event.shiftKey ? -1 : 1); return; } void runSearch(event.currentTarget.value); }} placeholder="Search memory or entry ID" aria-label="Search memory or entry ID" />{query && <button className="icon-button search-clear" type="button" onClick={() => { setQuery(""); setSearch(null); }} aria-label="Clear search" title="Clear search"><X size={14} /></button>}</form>
           {search && <div className="search-results" role="listbox" aria-label="Search results">{search.results.length ? search.results.map((result) => <button type="button" key={result.chunk_id} className="search-result" onClick={() => void chooseSearchResult(result)}><strong>{result.entry_title || result.heading_path[result.heading_path.length - 1] || result.chunk_id}</strong><small>{result.entry_id || result.date}</small></button>) : <div className="search-empty">No matching entries</div>}</div>}
-          {viewMode === "trail" && findOpen && matchEntries.length > 0 && (
+          {/* `!search` is load-bearing: the dropdown sits at top:40px and this bar
+              at top:100%+6px, so while full-text results are up the bar stands
+              down rather than stacking under them. Escape clears `search` first,
+              which brings the bar straight back at the same match position. */}
+          {viewMode === "trail" && findOpen && matchEntries.length > 0 && !search && (
             <div className="find-bar" role="status" aria-live="polite" aria-label="Search matches">
               <span className="find-count">{matchPosition >= 0 ? matchPosition + 1 : "–"}<span className="find-sep">/</span>{matchEntries.length}</span>
               <button type="button" className="find-step" onClick={() => void jumpToMatch(-1)} aria-label="Previous match" title="Previous match (Shift+Enter)"><ChevronUp size={14} /></button>
               <button type="button" className="find-step" onClick={() => void jumpToMatch(1)} aria-label="Next match" title="Next match (Enter)"><ChevronDown size={14} /></button>
+              {/* Local matching only sees titles, branches and ids. This is the only
+                  route to the server's full-text search, which reads entry bodies. */}
+              <button type="button" className="find-all" onClick={() => void runSearch(query)}
+                      aria-label="Search full text including entry bodies"
+                      title="Search full text, including entry bodies (Ctrl+Enter)">
+                <Search size={12} aria-hidden="true" />all text
+              </button>
               <button type="button" className="find-step" onClick={() => setFindOpen(false)} aria-label="Dismiss find bar" title="Dismiss (Esc)"><X size={13} /></button>
             </div>
           )}
