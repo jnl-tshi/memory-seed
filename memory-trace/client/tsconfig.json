@@ -16,5 +16,9 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "vite.config.ts"],
+  // Unit tests run on node:test with native type stripping, so they import
+  // with explicit .ts extensions and pull in node builtins. Keeping them out
+  // of the app compile keeps `npm run typecheck` and `vite build` clean.
+  "exclude": ["**/*.test.ts"]
 }

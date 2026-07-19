@@ -2,6 +2,10 @@
    warmed charcoal. Every surface colour routes through these so both modes stay
    coherent. --font-display carries the humanist serif voice for headings. */
 :root {
+  /* color-scheme drives the *native* widget palette — scrollbars above all.
+     Without it the UA paints light scrollbars regardless of our tokens, which
+     is why dark mode showed bright white/grey bars against warm charcoal. */
+  color-scheme: light;
   --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
   --bg: #f5f0e6; --panel: #eee7d8; --bar: #eae2d0; --chip: #e7dec9; --hover: #ece4d2;
   --selected-bg: #e9dfc8; --border: #d9cdb4; --border-2: #ccbd9f;
@@ -16,10 +20,15 @@
   --accent-chip-bg: #3f7a68; --scrim: #3a3122aa;
 }
 [data-theme="dark"] {
+  color-scheme: dark;
   --bg: #221d15; --panel: #2b241a; --bar: #282218; --chip: #322a1e; --hover: #2e2719;
   --selected-bg: #383021; --border: #4a4030; --border-2: #5a4e3a;
   --muted: #a5967c; --faint: #6f634e;
-  --text: #eae0cc; --text-2: #ddd2bb; --text-3: #cbbfa5; --text-bright: #f4ecda; --on-accent: #1d1811;
+  /* --on-accent is the ink for pressed/active chips, which sit on the DARK
+     teal --accent-chip-bg in this theme. A dark ink there was near-invisible
+     (~2.5:1); light mode already pairs a medium surface with light ink, so this
+     mirrors it rather than brightening the surface into a loud pill. */
+  --text: #eae0cc; --text-2: #ddd2bb; --text-3: #cbbfa5; --text-bright: #f4ecda; --on-accent: #f2ece0;
   --accent: #7fbfa0; --accent-bright: #a4d8bc; --accent-strong: #e0af59;
   --code-bg: #1c1710; --grid-line: #4a40302e;
   --danger-border: #a45c64; --danger-bg: #3a2026f0; --danger-text: #ffc3c3;
@@ -30,6 +39,16 @@
 }
 :root { color: var(--text-bright); background: var(--bg); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
 * { box-sizing: border-box; }
+/* Warm the scrollbars into the palette. color-scheme alone gets the right
+   light/dark polarity but leaves a neutral grey bar in a warm-toned UI; these
+   route the track and thumb through the same tokens as every other surface.
+   The ::-webkit- block is the fallback for engines predating scrollbar-color. */
+* { scrollbar-width: thin; scrollbar-color: var(--border-2) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-2); border: 2px solid transparent; background-clip: content-box; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: content-box; }
+::-webkit-scrollbar-corner { background: transparent; }
 html, body, #root { height: 100%; }
 body { margin: 0; min-width: 320px; min-height: 100vh; overflow: hidden; }
 button { font: inherit; }
@@ -68,7 +87,11 @@ button { font: inherit; }
 .context-group { display: grid; gap: 2px; margin-bottom: 8px; }
 .context-group-h { margin: 4px 0 2px; padding: 0 8px; border: 0; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
 .workspace { min-height: 0; display: grid; grid-template-rows: 76px minmax(0, 1fr); background: var(--bg); }.workspace-bar { justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); }.eyebrow { display: block; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }.workspace h1, .inspector h2 { margin: 2px 0 0; font-family: var(--font-display); font-size: 19px; line-height: 1.2; letter-spacing: 0; }.graph-canvas { min-width: 0; min-height: 0; height: 100%; background-image: linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px); background-size: 24px 24px; }.loading-state, .error-state { display: grid; place-items: center; min-height: 320px; color: var(--text-3); }.error-state { color: var(--danger-text); }
-.inspector { display: grid; grid-template-rows: auto auto minmax(0, 1fr); }.inspector-bar { justify-content: space-between; gap: 10px; padding: 14px 14px 12px; border-bottom: 1px solid var(--border); }.inspector h2 { max-width: none; font-size: 15px; overflow-wrap: anywhere; }.dock-control { display: flex; align-items: center; gap: 4px; padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 12px; }.dock-control span { margin-right: auto; }.dock-control button { border: 1px solid var(--border-2); border-radius: 3px; background: var(--chip); color: var(--text-2); padding: 3px 6px; font-size: 11px; cursor: pointer; }.dock-control button[aria-pressed="true"] { border-color: var(--accent); color: var(--on-accent); }.inspector-content { overflow: auto; padding: 14px; color: var(--text-2); font-size: 14px; line-height: 1.55; }.metadata { display: grid; gap: 12px; margin: 0 0 18px; }.metadata dd { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.inspector { display: grid; grid-template-rows: auto auto minmax(0, 1fr); }.inspector-bar { justify-content: space-between; gap: 10px; padding: 14px 14px 12px; border-bottom: 1px solid var(--border); }.inspector h2 { max-width: none; font-size: 15px; overflow-wrap: anywhere; }.dock-control { display: flex; align-items: center; gap: 4px; padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 12px; }.dock-control span { margin-right: auto; }.dock-control button { border: 1px solid var(--border-2); border-radius: 3px; background: var(--chip); color: var(--text-2); padding: 3px 6px; font-size: 11px; cursor: pointer; }/* The pressed state needs the accent SURFACE, not just accent ink: without a
+   background it inherited --chip, leaving --on-accent unreadable in both themes
+   (cream on cream in light, near-black on charcoal in dark). Matching
+   .segment-control here is also what makes the two control clusters cohere. */
+.dock-control button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-chip-bg); color: var(--on-accent); }.inspector-content { overflow: auto; padding: 14px; color: var(--text-2); font-size: 14px; line-height: 1.55; }.metadata { display: grid; gap: 12px; margin: 0 0 18px; }.metadata dd { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
 .trace-shell.inspector-bottom { grid-template-columns: var(--nav-w, 264px) minmax(0, 1fr); grid-template-rows: 56px minmax(0, 1fr) minmax(200px, 32vh); }.trace-shell.inspector-bottom .inspector { grid-column: 1 / -1; grid-row: 3; border-left: 0; border-top: 1px solid var(--border); }.trace-shell.inspector-bottom.navigation-hidden { grid-template-columns: minmax(0, 1fr); }.trace-shell.inspector-bottom .inspector { grid-template-columns: minmax(220px, .8fr) 1fr; grid-template-rows: auto minmax(0, 1fr); }.trace-shell.inspector-bottom .inspector-bar { grid-row: 1 / -1; border-bottom: 0; border-right: 1px solid var(--border); }.trace-shell.inspector-bottom .dock-control { grid-column: 2; }.trace-shell.inspector-bottom .inspector-content { grid-column: 2; }
 @media (max-width: 860px) { body { overflow: auto; }.trace-shell, .trace-shell.navigation-hidden, .trace-shell.inspector-hidden { height: auto; min-height: 100vh; grid-template-columns: minmax(0, 1fr); grid-template-rows: 56px auto minmax(420px, 1fr) auto; }.navigation-pane { border-right: 0; border-bottom: 1px solid var(--border); max-height: 230px; }.workspace { grid-row: 3; }.inspector { grid-row: 4; border-left: 0; border-top: 1px solid var(--border); min-height: 240px; }.trace-shell.inspector-hidden .workspace { grid-row: 3; }.trace-shell.inspector-bottom .inspector { grid-column: 1; grid-row: 4; display: grid; grid-template-columns: 1fr; grid-template-rows: auto auto minmax(0, 1fr); }.trace-shell.inspector-bottom .inspector-bar { grid-row: auto; border-right: 0; border-bottom: 1px solid var(--border); }.trace-shell.inspector-bottom .dock-control, .trace-shell.inspector-bottom .inspector-content { grid-column: auto; }.project-summary { display: none; }.graph-canvas { min-height: 420px; } }
 
@@ -82,7 +105,9 @@ button { font: inherit; }
 .search-results { position: absolute; z-index: 10; top: 40px; right: 0; left: 0; max-height: min(62vh, 480px); overflow: auto; border: 1px solid var(--border-2); border-radius: 4px; background: var(--panel); box-shadow: 0 14px 30px var(--scrim); }
 .search-result { width: 100%; display: grid; gap: 3px; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
 .search-result:last-child { border-bottom: 0; }.search-result:hover, .search-result:focus-visible { background: var(--selected-bg); outline: 0; }.search-result strong, .search-result small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.search-result strong { font-size: 13px; }.search-result small, .search-empty { color: var(--muted); font-size: 11px; }.search-empty { padding: 12px; }
-.topic { border: 1px solid var(--border-2); cursor: pointer; }.topic:hover, .topic:focus-visible, .topic.active { border-color: var(--accent); color: var(--on-accent); outline: 0; }.topic.active { background: var(--accent-chip-bg); }
+.topic { border: 1px solid var(--border-2); cursor: pointer; }/* Only .active gets the accent surface, so only .active may use --on-accent:
+   hover/focus keep the normal --hover background and so need normal ink. */
+.topic:hover, .topic:focus-visible { border-color: var(--accent); color: var(--text); outline: 0; }.topic.active { border-color: var(--accent); background: var(--accent-chip-bg); color: var(--on-accent); outline: 0; }
 .workspace { position: relative; grid-template-rows: auto auto minmax(0, 1fr); }
 .workspace-bar { min-height: 76px; gap: 14px; }.workspace-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }.segment-control { display: inline-flex; border: 1px solid var(--border-2); border-radius: 4px; overflow: hidden; }.segment-control button { min-height: 28px; display: inline-flex; align-items: center; gap: 5px; border: 0; border-right: 1px solid var(--border-2); background: var(--chip); color: var(--text-3); padding: 4px 8px; font-size: 11px; cursor: pointer; }.segment-control button:last-child { border-right: 0; }.segment-control button[aria-pressed="true"] { background: var(--accent-chip-bg); color: var(--on-accent); }.segment-control button:focus-visible { outline: 1px solid var(--accent-bright); outline-offset: -2px; }
 .label-menu { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }.label-menu select { height: 28px; border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip); color: var(--text); padding: 0 6px; font: inherit; }

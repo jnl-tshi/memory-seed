@@ -15,6 +15,7 @@ import {
   TRAIL_REL_ZONE,
   TRAIL_ROW,
 } from "./trailModel";
+import { elbowTo, moveTo, runBody, runPath } from "./trailPath";
 
 const CONTINUITY_COLOR: Record<string, string> = { rename: "var(--accent)", migration: "var(--edge-evolves)", removal: "var(--edge-supersedes)" };
 
@@ -160,23 +161,27 @@ export function TrailWorkspace({
     branchRows.get(branch)!.push(index);
   });
 
+  // One stroke per branch, not one per row gap. The old per-pair <line>s were
+  // collinear and shared endpoints, so their union was already a single
+  // vertical line — but a 30px segment is far too short to carry a believable
+  // pen drift, so drawing the whole run as one path is what lets a long branch
+  // read as one confident stroke instead of a nervous polyline.
   const laneSegments: ReactElement[] = [];
   branchRows.forEach((rows, branch) => {
-    if (branch === "") return;
-    for (let i = 1; i < rows.length; i += 1) {
-      laneSegments.push(
-        <line
-          key={`seg-${branch}-${i}`}
-          x1={laneX(branch)}
-          y1={rowY(rows[i - 1])}
-          x2={laneX(branch)}
-          y2={rowY(rows[i])}
-          stroke={colorOf.get(branch)}
-          strokeWidth={strokeW}
-          strokeOpacity={0.55}
-        />,
-      );
-    }
+    if (branch === "" || rows.length < 2) return;
+    const x = laneX(branch);
+    laneSegments.push(
+      <path
+        key={`seg-${branch}`}
+        d={runPath(x, rowY(rows[0]), x, rowY(rows[rows.length - 1]), `${branch}:lane`, handDrawn)}
+        fill="none"
+        stroke={colorOf.get(branch)}
+        strokeWidth={strokeW}
+        strokeOpacity={0.55}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />,
+    );
   });
 
   // Main trunk: solid spine from main's newest real commit (newest of {main
@@ -191,10 +196,10 @@ export function TrailWorkspace({
     const bottomRow = mainRows.length ? mainRows[0] : Math.max(...mergeRowsForTrunk);
     const bottomY = rowY(bottomRow);
     if (bottomY > topY) {
-      trunk.push(<line key="trunk-solid" x1={mainX} y1={topY} x2={mainX} y2={bottomY} stroke={mainColor} strokeWidth={strokeW} strokeOpacity={0.55} strokeLinecap="round" />);
+      trunk.push(<path key="trunk-solid" d={runPath(mainX, topY, mainX, bottomY, "main:trunk", handDrawn)} fill="none" stroke={mainColor} strokeWidth={strokeW} strokeOpacity={0.55} strokeLinecap="round" strokeLinejoin="round" />);
     }
     if (topY > 0) {
-      trunk.push(<line key="trunk-phantom" x1={mainX} y1={0} x2={mainX} y2={topY} stroke={mainColor} strokeWidth={strokeW} strokeOpacity={0.3} strokeDasharray="2 5" strokeLinecap="round" />);
+      trunk.push(<path key="trunk-phantom" d={runPath(mainX, 0, mainX, topY, "main:phantom", handDrawn)} fill="none" stroke={mainColor} strokeWidth={strokeW} strokeOpacity={0.3} strokeDasharray="2 5" strokeLinecap="round" strokeLinejoin="round" />);
     }
   }
 
@@ -213,8 +218,15 @@ export function TrailWorkspace({
     if (forkRow !== undefined) {
       const yf = rowY(forkRow);
       const yb = rowY(oldest);
+      // Legs drift; the elbow between them stays exact, so the corner radius
+      // still reads as a deliberate gitgraph turn rather than a wobble.
+      const d =
+        moveTo(mx, yf) +
+        runBody(mx, yf, bx - r, yf, `${branch}:fork-leg`, handDrawn) +
+        elbowTo(bx, yf, bx, yf - r) +
+        runBody(bx, yf - r, bx, yb, `${branch}:fork`, handDrawn);
       connectors.push(
-        <path key={`fork-${branch}`} className="trail-link" d={`M ${mx} ${yf} L ${bx - r} ${yf} Q ${bx} ${yf} ${bx} ${yf - r} L ${bx} ${yb}`} fill="none" stroke={stroke} strokeWidth={strokeW} strokeOpacity={0.55}>
+        <path key={`fork-${branch}`} className="trail-link" d={d} fill="none" stroke={stroke} strokeWidth={strokeW} strokeOpacity={0.55} strokeLinecap="round" strokeLinejoin="round">
           <title>{`${branch} · ${forkLabel ? `forked after ${forkLabel}` : estimated ? "fork point estimated" : "fork point"}`}</title>
         </path>,
       );
@@ -222,8 +234,13 @@ export function TrailWorkspace({
     if (mergeRow !== undefined) {
       const yb = rowY(newest);
       const ym = rowY(mergeRow);
+      const d =
+        moveTo(bx, yb) +
+        runBody(bx, yb, bx, ym + r, `${branch}:merge`, handDrawn) +
+        elbowTo(bx, ym, bx - r, ym) +
+        runBody(bx - r, ym, mx, ym, `${branch}:merge-leg`, handDrawn);
       connectors.push(
-        <path key={`merge-${branch}`} className="trail-link" d={`M ${bx} ${yb} L ${bx} ${ym + r} Q ${bx} ${ym} ${bx - r} ${ym} L ${mx} ${ym}`} fill="none" stroke={stroke} strokeWidth={strokeW} strokeOpacity={0.55}>
+        <path key={`merge-${branch}`} className="trail-link" d={d} fill="none" stroke={stroke} strokeWidth={strokeW} strokeOpacity={0.55} strokeLinecap="round" strokeLinejoin="round">
           <title>{`${branch} · ${mergeLabel ? `merged by ${mergeLabel}` : estimated ? "merge point estimated" : "merge point"}`}</title>
         </path>,
       );
@@ -541,16 +558,23 @@ export function TrailWorkspace({
         <div className="trail-body" style={{ height }}>
           <svg className="trail-rail" width={railWidth} height={height} viewBox={`0 0 ${railWidth} ${height}`} aria-hidden="true">
             <defs>
-              {/* Hand-drawn voice: a fixed-seed turbulence displacement gives every
-                  stroke a slight, deterministic pen wobble — sketchy warmth without
-                  losing legibility. Dots and text stay crisp (outside the group). */}
-              <filter id="trail-rough" x="-4%" y="-1%" width="108%" height="102%">
-                {/* Single-octave, long-wave noise reads as a pen's drift rather
-                    than pixel jitter; the light blur anti-aliases the stepped
-                    edges displacement leaves behind. */}
-                <feTurbulence type="fractalNoise" baseFrequency="0.007" numOctaves={1} seed={7} result="noise" />
-                <feDisplacementMap in="SourceGraphic" in2="noise" scale={7} xChannelSelector="R" yChannelSelector="G" result="displaced" />
-                <feGaussianBlur in="displaced" stdDeviation={0.4} />
+              {/* Surface grain only. The pen's *drift* now lives in the path
+                  geometry (trailPath.ts), which is what stops neighbouring lanes
+                  reading as offset copies of one straight line. This filter is
+                  demoted to the ink texture on top of it: short-wave noise at a
+                  sub-pixel scale, so it roughens edges without bending strokes.
+                  A long-wave, high-scale displacement here would reintroduce
+                  exactly the correlated sideways shift we removed. No blur —
+                  the spline already carries the smooth character, and blurring
+                  only costs legibility. Dots and text stay outside the group. */}
+              {/* Tuned against the magnified rail: displacement is +/- scale/2,
+                  so scale 0.9 keeps the edge within half a pixel of the true
+                  spline — grain, not a second wobble. Longer waves (or a bigger
+                  scale) visibly rippled a 1.8px stroke and read as the jagged
+                  line this treatment set out to remove. */}
+              <filter id="trail-rough" x="-2%" y="-1%" width="104%" height="102%">
+                <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves={2} seed={7} result="noise" />
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale={0.9} xChannelSelector="R" yChannelSelector="G" />
               </filter>
               {(["supersedes", "evolves", "related"] as const).map((type) => (
                 <marker key={`m-${type}`} id={`trail-arrow-${type}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
