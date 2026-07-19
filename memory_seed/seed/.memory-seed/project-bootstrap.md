@@ -461,7 +461,7 @@ subproject_path: null
 ```
 ````
 
-Generate `entry_id` with the canonical generator - `memory-seed session entry-id --timestamp ... --title ... --user-initials ... --agent-type ...` (or the `memory_entry_id` MCP tool), or simply author the whole entry with `memory-seed session append`, which computes it for you. The id is a deterministic 80-bit `mse_` hash of metadata only (timestamp, title, user initials, agent type, project path, subproject path - never the body); do not invent it by hand. Legacy `ms-` IDs remain valid and must not be rewritten.
+Generate `entry_id` with the canonical generator - `memory-seed session entry-id --timestamp ... --title ... --user-initials ... --agent-type ...` (or a `memory_session_append` `dry_run` over MCP for just the id), or simply author the whole entry with `memory-seed session append`, which computes it for you. The id is a deterministic 80-bit `mse_` hash of metadata only (timestamp, title, user initials, agent type, project path, subproject path - never the body); do not invent it by hand. Legacy `ms-` IDs remain valid and must not be rewritten.
 
 Record the bootstrap entry using DRAFT decision records in the meaningful decision or multi-decision shape from `.memory-seed/agent-rules.md`.
 

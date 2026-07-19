@@ -4,8 +4,35 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+### Changed
+
+- **Gated MCP write surface (Constitution 1.3).** MCP could not write session
+  files, so agents authored entries by hand with `memory_entry_id` +
+  `memory_session_target` — an id and a target path — which enforced none of the
+  guards `session append` does; violations only surfaced later in `links check`.
+  Those two tools are **removed** and replaced by **`memory_session_append`**,
+  which wraps `session_append_entry` so every MCP write passes the same nine
+  guards (chronology, ref existence, forward-only edges, topic vocabulary, id
+  collision, DRAFT format) and returns refusals as `{ok: false, issues}`. The
+  server stamps the timestamp from its own clock (drift warning on far-off
+  explicit values, carried over from the retired id tool). A new **`dry_run`**
+  on both the tool and `session append` runs every guard and returns the id,
+  timestamp and target path without writing — the pre-flight the removed pair
+  used to provide. Constitution Invariant #2 gains **write-surface parity**:
+  every write passes identical validation on any surface.
+
 ### Added
 
+- **`memory_session_integrate`** MCP tool: merges a task branch and fuses its
+  branch-local session memory into the trunk in chronological order, applying
+  autonomously (no in-progress-merge precondition). Aborts and restores a clean
+  tree on a non-session conflict rather than stranding a half-merged repo, and
+  declines when the project's `integration_mode` is `pr` (which pushes).
+- Session-file ordering is now stable across the fuse and reorder paths: both
+  break same-minute timestamp ties by input order (existing entries keep their
+  positions, incoming ones append after), so a fuse can no longer silently
+  re-position trunk history it never touched. Previously the two paths disagreed
+  and each could undo the other.
 - New **`entry-future-timestamp` warning** in `links check` / `esr`: an entry
   whose `## YYYY-MM-DD HH:MM` heading is more than 10 minutes ahead of the wall
   clock at check time is flagged (heading timestamps are authored inputs and

@@ -87,7 +87,7 @@ Use the fetched chunk text, not just the excerpt, when making or evaluating a co
 
 ## Authoring-Support Tools
 
-These read-only MCP tools close the *authoring* loop — finding what to link and where to write — the counterpart to the search/fetch retrieval loop above. They never write; the agent still appends its own entry and edges.
+These MCP tools close the *authoring* loop — find what to link, then write the entry — the counterpart to the search/fetch retrieval loop above. Finding what to link stays read-only (`memory_link_suggest`, `memory_link_show`); authoring the entry now goes through `memory_session_append`, which **writes** it through the structural guards. Agents no longer hand-append their own session files.
 
 - `memory_link_suggest`: rank older entries to link from a target entry (default: the newest entry, i.e. "the one I just wrote"). Returns a `target` summary, ranked `suggestions`, and a paste-ready `related_entries` list. Use it when filling an entry's `related_entries` instead of guessing or re-searching. Optional `entry_id` targets a specific entry; `top_k` bounds the candidates. Pass `consulted: [ids]` — the entries you fetched while grounding this work (above) — to add the **memory axis** of candidacy: those sort first (flagged `consulted`) and are the natural source for the `supersedes`/`evolves` decision-lineage edges that shared-file evidence misses. Candidates only; you still classify.
 
@@ -100,16 +100,18 @@ These read-only MCP tools close the *authoring* loop — finding what to link an
 ```
 
 - `memory_link_show`: show one entry's graph node — stored `outbound` edges, computed `inbound` backlinks, `supersedes`/`superseded_by`, `importance_score`, and `commit_reference_count`. Use it to traverse the related-entry graph structurally instead of re-running a topical search.
-- `memory_entry_id`: compute the canonical deterministic `entry_id` for a new entry from its metadata (timestamp, title, user initials, agent type, paths). Call this instead of inventing an id when authoring an entry by hand - hand-rolled ids are irreproducible. The agent writes the id into its own entry; the tool never writes files.
+- `memory_session_append`: append a session entry with every structural guard enforced — chronology, ref existence (fabricated ids refused), forward-only `supersedes`/`evolves` edges, controlled topic vocabulary, id collision, and DRAFT body format. This is the **only** sanctioned way to author an entry; do not hand-write session files. The server stamps the heading timestamp from its own clock — omit `timestamp` in normal use (an explicit far-off value earns a drift warning). Refusals come back as `{ok: false, issues: [...]}`, each independently fixable. Required: `title`, `body`, `user_initials`, `agent_type`; common options are `topics`, `related_entries`/`supersedes`/`evolves`, `branch`, and `dry_run`. A `dry_run` runs every guard and returns the `entry_id`, timestamp, and target path **without writing** — the id/target pre-flight the removed `memory_entry_id`/`memory_session_target` tools used to provide, so pre-flight then write. Choose the edges with `memory_link_suggest`/`memory_link_show` above first.
 
 ```json
 {
-  "entry_id": "mse_...",
-  "cwd": "."
+  "cwd": ".",
+  "title": "Switch cache key to content hash",
+  "body": "### Decision\n\n- D: ...\n- R: ...",
+  "user_initials": "JNL",
+  "agent_type": "claude",
+  "dry_run": true
 }
 ```
-
-- `memory_session_target`: resolve the active session-log target path for the nearest runtime (where a new entry should be appended). Read-only — it never creates the file. Use it at end-of-turn to find the append target instead of shelling out to `memory-seed session target`. Optional `date` (default today) and `user` (per-user override).
 
 ## Fallback
 

@@ -152,7 +152,7 @@ Append session entry to `.memory-seed/sessions/YYYY-MM-DD.md` with `agent_name: 
 - Linter passes
 - No new warnings
 - Works with real data, not just happy-path test data
-- Test fixtures use canonical project generators and validators for structured IDs or schema-bound data. Never invent plausible-looking IDs when the project provides an ID tool (`memory_entry_id`, `session entry-id`, etc.).
+- Test fixtures use canonical project generators and validators for structured IDs or schema-bound data. Never invent plausible-looking IDs when the project provides an ID tool (`memory_session_append`, `session entry-id`, etc.).
 - Hung or suspiciously slow validation is itself a defect until proven otherwise. Use bounded diagnostics (single-test runs, progress prints, tracebacks/timeouts, process inspection) to identify whether the issue is code, fixture data, test runner/plugin behavior, subprocess I/O, or environment; then fix or explicitly log the unresolved blocker before proceeding.
 - After JS/CSS changes to rendered UI, verify the browser loaded the updated asset URL/content; for SVG/canvas/pane interactions, inspect the topmost hit target (`elementFromPoint`, bounds, `pointer-events`, overflow, z-index) before changing event logic. Unit/static tests alone are not enough when browser tooling is available.
 - After editing any file under `memory_seed/seed/`: copy the live equivalent to the repo root before committing (`cp seed/X live/X`). Skipping this breaks `test_seed_control_plane_matches_live_rationale_guidance`.

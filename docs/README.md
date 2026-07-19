@@ -2,9 +2,10 @@
 
 > **Above the lanes:** [`CONSTITUTION.md`](CONSTITUTION.md) is the project's governing document — vision,
 > invariants, principles, trust model. Specs and plans conform to it, not the other way round. **Ratified
-> v1.0 (2026-07-14), amended to v1.1 (2026-07-16) and v1.2 (2026-07-17).** v1.1 permits partitioned authority across
-> append-only Markdown entries and narrowly scoped Markdown sidecars while every index and snapshot remains
-> derived. B0b Trail parity remains the current product gate.
+> v1.0 (2026-07-14), amended to v1.1 (2026-07-16), v1.2 (2026-07-17) and v1.3 (2026-07-19).** v1.1 permits
+> partitioned authority across append-only Markdown entries and narrowly scoped Markdown sidecars while every
+> index and snapshot remains derived; v1.3 requires every write to memory to pass identical validation on any
+> surface. B0b Trail parity remains the current product gate.
 
 This is the front door to `docs/`. **The folder a document lives in *is* its lifecycle state** — you can
 see the state of everything by browsing the tree, without opening files. YAML frontmatter only carries
