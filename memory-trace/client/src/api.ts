@@ -66,8 +66,15 @@ export function graphQuery(options: GraphQueryOptions = {}): Promise<RendererGra
   return api<RendererGraphResponse>(`/graph/projection?${params.toString()}`);
 }
 
+// The old limit of 12 was sized for a dropdown you scrolled by eye. Cycling
+// walks the whole set, and genuine hits are now separated from the server's
+// score-0 filler client-side (see searchResults.ts), so asking for 12 would
+// truncate real matches before the filter ever ran. Not the full corpus:
+// every result carries an excerpt, so the payload grows quickly.
+export const SEARCH_LIMIT = 100;
+
 export function searchQuery(query: string): Promise<SearchResponse> {
-  const params = new URLSearchParams({ q: query.trim(), limit: "12", granularity: "entry" });
+  const params = new URLSearchParams({ q: query.trim(), limit: String(SEARCH_LIMIT), granularity: "entry" });
   return api<SearchResponse>(`/search?${params.toString()}`);
 }
 

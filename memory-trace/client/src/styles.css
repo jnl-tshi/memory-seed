@@ -122,21 +122,15 @@ button { font: inherit; }
 .trace-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--text-bright); font: inherit; font-size: 13px; }
 .trace-search input::placeholder { color: var(--faint); }
 .search-clear { width: 24px; height: 24px; border-color: transparent; background: transparent; }
-.search-results { position: absolute; z-index: 10; top: 40px; right: 0; left: 0; max-height: min(62vh, 480px); display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; border: 1px solid var(--border-2); border-radius: 4px; background: var(--panel); box-shadow: 0 14px 30px var(--scrim); }
-.search-results-nav { min-height: 34px; display: flex; align-items: center; gap: 5px; padding: 4px 6px 4px 10px; border-bottom: 1px solid var(--border); background: var(--panel-2); color: var(--muted); font-size: 11px; }
-.search-results-label { margin-left: auto; color: var(--accent-bright); }
-.search-result-list { min-height: 0; overflow: auto; }
-.search-result { width: 100%; display: grid; gap: 3px; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
-.search-result:last-child { border-bottom: 0; }.search-result:hover, .search-result:focus-visible, .search-result.active { background: var(--selected-bg); outline: 0; }.search-result.active { box-shadow: inset 2px 0 0 var(--accent-strong); }.search-result strong, .search-result small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.search-result strong { font-size: 13px; }.search-result small, .search-empty { color: var(--muted); font-size: 11px; }.search-empty { padding: 12px; }
 .topic { border: 1px solid var(--border-2); cursor: pointer; }/* Only .active gets the accent surface, so only .active may use --on-accent:
    hover/focus keep the normal --hover background and so need normal ink. */
 .topic:hover, .topic:focus-visible { border-color: var(--accent); color: var(--text); outline: 0; }.topic.active { border-color: var(--accent); background: var(--accent-chip-bg); color: var(--on-accent); outline: 0; }
 .workspace { position: relative; grid-template-rows: auto auto minmax(0, 1fr); }
-/* Floating Ctrl-F find bar: sits over the Trail rather than in the view bar so
-   it can be dismissed once you have found what you came for. */
-/* Anchored under the search box it belongs to, where the results dropdown also
-   appears — the two are mutually exclusive, since Enter only runs the server
-   search when the Trail has no local match. */
+/* Floating Ctrl-F find bar: sits over the workspace rather than in the view bar
+   so it can be dismissed once you have found what you came for. Anchored under
+   the search box it belongs to. It is the single navigation surface for both
+   search modes — full-text results used to open a competing dropdown here, and
+   removing it is what lets one counter and one pair of chevrons serve both. */
 .find-bar { position: absolute; z-index: 9; top: calc(100% + 6px); right: 0; display: flex; align-items: center; gap: 7px; padding: 5px 6px 5px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--panel); box-shadow: 0 6px 20px #0000002e; color: var(--muted); font-size: 11px; }
 .find-count { color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .find-sep { margin: 0 2px; color: var(--faint); }
@@ -145,6 +139,11 @@ button { font: inherit; }
 .find-step:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .find-all { display: inline-flex; align-items: center; gap: 4px; border: 0; border-left: 1px solid var(--border); border-radius: 0; background: none; color: var(--muted); padding: 2px 4px 2px 8px; font-size: 11px; cursor: pointer; }
 .find-all:hover, .find-all:focus-visible { color: var(--accent-bright); outline: none; }
+/* Same slot as .find-all, but in full-text mode it is a label, not a control:
+   the search has already run, so it reports the source of what you are
+   stepping through. */
+.find-mode { display: inline-flex; align-items: center; gap: 4px; border-left: 1px solid var(--border); padding: 2px 4px 2px 8px; color: var(--accent-bright); font-size: 11px; }
+.find-note { color: var(--muted); white-space: nowrap; }
 .workspace-bar { min-height: 76px; gap: 14px; }.workspace-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }.segment-control { display: inline-flex; border: 1px solid var(--border-2); border-radius: 4px; overflow: hidden; }.segment-control button { min-height: 28px; display: inline-flex; align-items: center; gap: 5px; border: 0; border-right: 1px solid var(--border-2); background: var(--chip); color: var(--text-3); padding: 4px 8px; font-size: 11px; cursor: pointer; }.segment-control button:last-child { border-right: 0; }.segment-control button[aria-pressed="true"] { background: var(--accent-chip-bg); color: var(--on-accent); }.segment-control button:focus-visible { outline: 1px solid var(--accent-bright); outline-offset: -2px; }
 .label-menu { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }.label-menu select { height: 28px; border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip); color: var(--text); padding: 0 6px; font: inherit; }
 .graph-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 39px; padding: 6px 18px; border-bottom: 1px solid var(--border); background: var(--bar); color: var(--muted); font-size: 11px; }.edge-filter, .active-topic { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip); color: var(--text-3); padding: 4px 7px; font: inherit; font-size: 11px; cursor: pointer; }.edge-filter[aria-pressed="true"] { color: var(--text-bright); background: var(--selected-bg); }.edge-related[aria-pressed="true"] { border-color: var(--edge-related); }.edge-supersedes[aria-pressed="true"] { border-color: var(--edge-supersedes); }.edge-evolves[aria-pressed="true"] { border-color: var(--edge-evolves); }.edge-topic[aria-pressed="true"] { border-color: var(--edge-topic); }.active-topic { border-color: var(--accent); color: var(--text-2); }

@@ -1,9 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { ChevronDown, ChevronUp, GitBranch, LayoutPanelLeft, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, X } from "lucide-react";
 import { SettingsMenu, type InspectorDock, type Theme, type TrailStyle } from "./SettingsMenu";
-import { api, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
+import { api, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, SEARCH_LIMIT, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
 import { EntryReader } from "./EntryReader";
+import { readerScrollTarget } from "./inspectorScroll";
 import { searchResultCursor, stepSearchCursor } from "./searchNavigation";
+import { genuineSearchResults } from "./searchResults";
+import { animateScrollTo, scrollDurationFor } from "./trailScroll";
 import { stripTitleStamp, trailStamp, TRAIL_WINDOW_STEP } from "./trailModel";
 
 const GraphWorkspace = lazy(() => import("./GraphWorkspace").then((module) => ({ default: module.GraphWorkspace })));
@@ -150,13 +153,16 @@ export default function App() {
   const [search, setSearch] = useState<SearchResponse | null>(null);
   const fullTextCursorRef = useRef(-1);
   const [fullTextPosition, setFullTextPosition] = useState(-1);
-  // Ctrl-F-style find bar over the Trail. Dismissing hides it until the query
-  // changes again, so it never nags once you have found what you came for.
+  // Ctrl-F-style find bar. Dismissing hides it until the query changes again,
+  // so it never nags once you have found what you came for.
   const [findOpen, setFindOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const graphRequest = useRef(0);
   const searchInput = useRef<HTMLInputElement>(null);
+  const inspectorContent = useRef<HTMLDivElement>(null);
+  const cancelInspectorScroll = useRef<(() => void) | null>(null);
+  const inspectorScrollFor = useRef<string | null>(null);
 
   const loadGraph = useCallback(async ({
     nextScope,
@@ -374,6 +380,23 @@ export default function App() {
         (node.entry_id || "").toLowerCase().includes(term))
       .map((node) => node.id);
   }, [query, entryIndex]);
+  // Every full-text consumer reads THIS, never `search.results` — the server
+  // returns the whole corpus ranked, so the raw list tails off into score-0
+  // filler that cycling would otherwise march straight through.
+  const fullTextResults = useMemo(() => genuineSearchResults(search?.results ?? []), [search]);
+  // Which list the find bar's counter and chevrons are driving. One bar, one
+  // pair of buttons; the two cursors below are internal and never both on
+  // screen. Running a full-text search switches the source, Escape switches it
+  // back.
+  //
+  // Escape does not restore the local POSITION, and should not: full-text
+  // navigation moved the selection, and the re-homing effect below re-points
+  // the local cursor at whatever is on screen — which for a body-only match is
+  // not a title match at all, so it lands on -1. The bar then reads "–/n",
+  // meaning "you are not on one of these"; stepping starts from the top. That
+  // is honest, where holding the old position would claim you were on match 2
+  // while the reader showed something else entirely.
+  const findMode: "title" | "text" = search ? "text" : "title";
   // The cursor advances SYNCHRONOUSLY in a ref, because selecting an entry is
   // async: deriving the position from `selected` alone made held Enter (or fast
   // clicks) step only once, since every repeat read the same stale position.
@@ -495,8 +518,10 @@ export default function App() {
     await focusEntry(matchEntries[next], { preserveHint: true });
   }
 
-  async function chooseFullTextResult(result: SearchResult, index: number) {
-    setFullTextCursor(index);
+  // Index is derived, not passed: it must be a position in the FILTERED list,
+  // which is the only list the counter and the cursor ever speak about.
+  async function chooseFullTextResult(result: SearchResult) {
+    setFullTextCursor(searchResultCursor(fullTextResults, result));
     if (result.entry_id) {
       setMatchHint(hintFor(result, result.entry_id));
       await focusEntry(result.entry_id, { preserveHint: true, preserveSearch: true });
@@ -511,10 +536,19 @@ export default function App() {
   }
 
   async function jumpToFullTextResult(step: number) {
-    const results = search?.results ?? [];
-    if (!results.length) return;
-    const next = stepSearchCursor(fullTextCursorRef.current, results.length, step);
-    await chooseFullTextResult(results[next], next);
+    if (!fullTextResults.length) return;
+    const next = stepSearchCursor(fullTextCursorRef.current, fullTextResults.length, step);
+    await chooseFullTextResult(fullTextResults[next]);
+  }
+
+  // The single entry point behind the find bar's chevrons and Enter/Shift+Enter.
+  function jumpToFind(step: number) {
+    return findMode === "text" ? jumpToFullTextResult(step) : jumpToMatch(step);
+  }
+
+  /** Whether the active mode has anything to step through. */
+  function findCount(): number {
+    return findMode === "text" ? fullTextResults.length : matchEntries.length;
   }
 
   function dismissFullTextSearch() {
@@ -615,6 +649,36 @@ export default function App() {
     await requestGraph(scope, activeTopic, edgeTypes, scope === "local" ? selected?.source.entry_id : null, undefined, false, nextRange === "recent" ? recentDateFrom(runtime) : null);
   }
 
+  // The hint only applies to the entry it was computed for — a stale hint from
+  // the previous result must not highlight a same-named heading in this one.
+  const matchHeading = matchHint && selected?.source.entry_id === matchHint.entryId ? matchHint.heading : null;
+
+  // Bring the matched section into view. Rendering the highlight is not enough:
+  // the band is often far down a long entry, so without this you cycle results
+  // and the reader just sits at the top showing no visible reason it moved.
+  useEffect(() => {
+    const container = inspectorContent.current;
+    if (!container || !chunk) return;
+    // A section that matched gets anchored under the top edge; an entry-level
+    // match (no matching subsection, so nothing to point at) goes to the head
+    // of the entry rather than inheriting the last one's scroll offset.
+    const element = matchHeading ? container.querySelector<HTMLElement>(".match-highlight") : null;
+    if (matchHeading && !element) return;
+    const key = `${chunk.chunk_id}::${matchHeading ?? ""}`;
+    if (inspectorScrollFor.current === key) return;
+    inspectorScrollFor.current = key;
+    const top = element
+      ? element.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop
+      : 0;
+    const target = element
+      ? readerScrollTarget(top, container.scrollTop, container.clientHeight, container.scrollHeight - container.clientHeight)
+      : (container.scrollTop === 0 ? null : 0);
+    if (target === null) return;
+    cancelInspectorScroll.current?.();
+    cancelInspectorScroll.current = animateScrollTo(container, target, scrollDurationFor(target - container.scrollTop));
+  }, [chunk, matchHeading]);
+  useEffect(() => () => cancelInspectorScroll.current?.(), []);
+
   return (
     <div className={`trace-shell inspector-${dock} ${leftOpen ? "navigation-open" : "navigation-hidden"}`} style={{ "--nav-w": `${navWidth}px`, "--insp-w": `${inspectorWidth}px` } as CSSProperties}>
       <header className="topbar">
@@ -624,44 +688,45 @@ export default function App() {
         <div className="brand"><Network size={19} aria-hidden="true" /><span>Memory Trace</span></div>
         <div className="project-summary">{runtime ? `${runtime.label} · ${runtime.entry_count} entries` : "Loading project"}</div>
         <div className="trace-search-wrap">
-          <form className="trace-search" onSubmit={submitSearch} role="search"><Search size={16} aria-hidden="true" /><input ref={searchInput} value={query} onChange={(event) => { setQuery(event.target.value); dismissFullTextSearch(); }} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); if (event.ctrlKey || event.metaKey) { void runSearch(event.currentTarget.value); return; } if (search?.results.length) { void jumpToFullTextResult(event.shiftKey ? -1 : 1); return; } if (matchEntries.length) { void jumpToMatch(event.shiftKey ? -1 : 1); return; } void runSearch(event.currentTarget.value); }} placeholder="Search memory or entry ID" aria-label="Search memory or entry ID" />{query && <button className="icon-button search-clear" type="button" onClick={() => { setQuery(""); dismissFullTextSearch(); }} aria-label="Clear search" title="Clear search"><X size={14} /></button>}</form>
-          {search && (
-            <div className="search-results" aria-label="Full-text search results">
-              <div className="search-results-nav" role="status" aria-live="polite">
-                <span className="find-count">{fullTextPosition >= 0 ? fullTextPosition + 1 : "–"}<span className="find-sep">/</span>{search.results.length}</span>
-                <button type="button" className="find-step" onClick={() => void jumpToFullTextResult(-1)} disabled={!search.results.length} aria-label="Previous full-text result" title="Previous result (Shift+Enter)"><ChevronUp size={14} /></button>
-                <button type="button" className="find-step" onClick={() => void jumpToFullTextResult(1)} disabled={!search.results.length} aria-label="Next full-text result" title="Next result (Enter)"><ChevronDown size={14} /></button>
-                <span className="search-results-label">all text</span>
-                <button type="button" className="find-step" onClick={dismissFullTextSearch} aria-label="Dismiss full-text results" title="Dismiss (Esc)"><X size={13} /></button>
-              </div>
-              {search.results.length ? (
-                <div className="search-result-list" role="listbox" aria-label="Search results">
-                  {search.results.map((result) => {
-                    const index = searchResultCursor(search.results, result);
-                    const active = index === fullTextPosition;
-                    return <button type="button" role="option" key={result.chunk_id} className={`search-result${active ? " active" : ""}`} aria-selected={active} onClick={() => void chooseFullTextResult(result, index)}><strong>{result.entry_title || result.heading_path[result.heading_path.length - 1] || result.chunk_id}</strong><small>{result.entry_id || result.date}</small></button>;
-                  })}
-                </div>
-              ) : <div className="search-empty">No matching entries</div>}
-            </div>
-          )}
-          {/* `!search` is load-bearing: the dropdown sits at top:40px and this bar
-              at top:100%+6px, so while full-text results are up the bar stands
-              down rather than stacking under them. Escape clears `search` first,
-              which brings the bar straight back at the same match position. */}
-          {viewMode === "trail" && findOpen && matchEntries.length > 0 && !search && (
+          <form className="trace-search" onSubmit={submitSearch} role="search"><Search size={16} aria-hidden="true" /><input ref={searchInput} value={query} onChange={(event) => { setQuery(event.target.value); dismissFullTextSearch(); }} onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); if (event.ctrlKey || event.metaKey) { void runSearch(event.currentTarget.value); return; } if (findCount()) { void jumpToFind(event.shiftKey ? -1 : 1); return; } if (findMode === "text") return; void runSearch(event.currentTarget.value); }} placeholder="Search memory or entry ID" aria-label="Search memory or entry ID" />{query && <button className="icon-button search-clear" type="button" onClick={() => { setQuery(""); dismissFullTextSearch(); }} aria-label="Clear search" title="Clear search"><X size={14} /></button>}</form>
+          {/* One bar for both search modes. Full-text used to open a dropdown
+              here instead, which meant reaching entry bodies cost you the
+              counter, the chevrons and the Trail's scroll animation — you were
+              back to picking from a list. Now "all text" only switches what
+              this bar is stepping through.
+
+              It renders whenever there is a query, not only when something
+              matched: the "all text" button lives INSIDE the bar, so gating on
+              local matches left a query that hit no title with no route to
+              full-text at all except Ctrl+Enter. */}
+          {findOpen && (search !== null || query.trim() !== "") && (
             <div className="find-bar" role="status" aria-live="polite" aria-label="Search matches">
-              <span className="find-count">{matchPosition >= 0 ? matchPosition + 1 : "–"}<span className="find-sep">/</span>{matchEntries.length}</span>
-              <button type="button" className="find-step" onClick={() => void jumpToMatch(-1)} aria-label="Previous match" title="Previous match (Shift+Enter)"><ChevronUp size={14} /></button>
-              <button type="button" className="find-step" onClick={() => void jumpToMatch(1)} aria-label="Next match" title="Next match (Enter)"><ChevronDown size={14} /></button>
-              {/* Local matching only sees titles, branches and ids. This is the only
-                  route to the server's full-text search, which reads entry bodies. */}
-              <button type="button" className="find-all" onClick={() => void runSearch(query)}
-                      aria-label="Search full text including entry bodies"
-                      title="Search full text, including entry bodies (Ctrl+Enter)">
-                <Search size={12} aria-hidden="true" />all text
-              </button>
-              <button type="button" className="find-step" onClick={() => setFindOpen(false)} aria-label="Dismiss find bar" title="Dismiss (Esc)"><X size={13} /></button>
+              {isSearching ? <span className="find-note">searching…</span> : findCount() === 0 ? (
+                <span className="find-note">{findMode === "text" ? "no matches" : "no title matches"}</span>
+              ) : (
+                <span className="find-count">
+                  {(findMode === "text" ? fullTextPosition : matchPosition) + 1 || "–"}
+                  <span className="find-sep">/</span>
+                  {/* The server ranks the whole corpus, so a full page of hits
+                      may not be all of them — say so rather than claim 100. */}
+                  {findMode === "text" && fullTextResults.length === SEARCH_LIMIT ? `${SEARCH_LIMIT}+` : findCount()}
+                </span>
+              )}
+              <button type="button" className="find-step" onClick={() => void jumpToFind(-1)} disabled={findCount() === 0} aria-label="Previous match" title="Previous match (Shift+Enter)"><ChevronUp size={14} /></button>
+              <button type="button" className="find-step" onClick={() => void jumpToFind(1)} disabled={findCount() === 0} aria-label="Next match" title="Next match (Enter)"><ChevronDown size={14} /></button>
+              {/* In title mode this is the route to entry bodies; in text mode
+                  it stops being a button and becomes the label that tells you
+                  where the results in the counter came from. */}
+              {findMode === "text" ? (
+                <span className="find-mode" aria-label="Showing full-text results"><Search size={12} aria-hidden="true" />all text</span>
+              ) : (
+                <button type="button" className="find-all" onClick={() => void runSearch(query)}
+                        aria-label="Search full text including entry bodies"
+                        title="Search full text, including entry bodies (Ctrl+Enter)">
+                  <Search size={12} aria-hidden="true" />all text
+                </button>
+              )}
+              <button type="button" className="find-step" onClick={() => { if (findMode === "text") dismissFullTextSearch(); else setFindOpen(false); }} aria-label={findMode === "text" ? "Dismiss full-text results" : "Dismiss find bar"} title="Dismiss (Esc)"><X size={13} /></button>
             </div>
           )}
         </div>
@@ -747,7 +812,7 @@ export default function App() {
       {inspectorVisible && <aside className="inspector" id="trace-inspector" aria-label="Inspector">
         {dock !== "bottom" && <div className="pane-resize pane-resize-inspector" role="separator" aria-orientation="vertical" aria-label="Resize inspector" title="Drag to resize" onPointerDown={startPaneResize("inspector")} />}
         <div className="inspector-bar"><div><span className="eyebrow">Inspector</span><h2>{titleFor(selected)}</h2></div><button className="icon-button" type="button" onClick={() => setDock("hidden")} aria-label="Hide inspector" title="Hide inspector"><X size={17} /></button></div>
-        {selected && <div className="inspector-content">
+        {selected && <div className="inspector-content" ref={inspectorContent}>
           {/* Metadata is grouped rather than one long column, and the grid is a
               CSS container query on the pane itself — so it reflows as the
               inspector is dragged wider/narrower and when it docks to the
@@ -771,7 +836,7 @@ export default function App() {
             )}
             <div className="meta-item meta-wide"><dt>Topics</dt><dd>{selected.source.topics.length ? <span className="meta-topics">{selected.source.topics.map((topic) => <span className="meta-topic" key={topic}>{topic}</span>)}</span> : "None"}</dd></div>
           </dl>
-          <EntryReader chunk={chunk} matchHeading={matchHint && selected.source.entry_id === matchHint.entryId ? matchHint.heading : null} onOpenEntry={(entryId) => void focusEntry(entryId)} />
+          <EntryReader chunk={chunk} matchHeading={matchHeading} onOpenEntry={(entryId) => void focusEntry(entryId)} />
         </div>}
       </aside>}
     </div>
