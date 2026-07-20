@@ -68,7 +68,7 @@ This is partitioned authority, not dual authority: each field has one declared o
 - Promote three decisions spanning a direct decision entry, a multi-decision entry, and a legacy entry.
 - Prove exact source resolution, append-only transition order, and full context retrieval.
 - **Also measure, added 2026-07-20:** ambiguity reduction against authoring cost. This phase *is* step 2
-  of the corrected pre-triage sequence in [INBOX-ASSESSMENT.md](../1_Inbox/INBOX-ASSESSMENT.md) — same
+  of the corrected pre-triage sequence in [INBOX-ASSESSMENT.md](../4_Reference/INBOX-ASSESSMENT.md) — same
   three decisions, same contract, same decision-level identity — so step 2 discharges here rather than as
   separate work. The natural subject is the entry-level supersession collateral recorded in
   `mse_mkxdvaxvw99dz4s0`, and the natural target shape is the contract's own `source_decision` anchor.

@@ -4,7 +4,7 @@ date: "2026-07-18"
 project: "memory-seed"
 status: "superseded"
 superseded_on: "2026-07-20"
-superseded_by: "../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md"
+superseded_by: "../4_Reference/INBOX-CAPABILITY-CROSSWALK.md"
 ---
 
 # Memory Seed Ontology, Evidence, and Decision-Efficiency Proposals
@@ -15,7 +15,7 @@ superseded_by: "../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md"
 **Promotion rule:** None of these documents should be treated as an accepted ADR until the relevant design has been tested and explicitly promoted.
 
 > **Pre-triage correction (2026-07-18):** This set predates or overlooks several shipped/current
-> capabilities. Read [`../INBOX-ASSESSMENT.md`](../1_Inbox/INBOX-ASSESSMENT.md) before evaluating it. Entry-level
+> capabilities. Read [`../INBOX-ASSESSMENT.md`](../4_Reference/INBOX-ASSESSMENT.md) before evaluating it. Entry-level
 > supersession/evolution, the canonical graph reader, append-only Markdown sidecars, Evidence Pack Phase 1,
 > and the active ADR sidecar foundation are baselines—not work this set may recreate. The promotable unit is
 > a proven missing delta, not this programme as a whole.

@@ -38,9 +38,9 @@ SIDE_FOLDER_ALLOWLIST: frozenset[str] = frozenset(
         "5_Completed/agent-templates",
         "4_Reference/memory-trace-phase0-baseline",
         "4_Reference/archived",
+        "4_Reference/trace-humanised-dashboard-references",
         "3_Spec/draft",
         "3_Spec/deprecated",
-        "1_Inbox/trace-humanised-dashboard-references",
     }
 )
 

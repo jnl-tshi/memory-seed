@@ -4,7 +4,7 @@ date: "2026-07-18"
 project: "memory-seed"
 status: "superseded"
 superseded_on: "2026-07-20"
-superseded_by: "../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md"
+superseded_by: "../4_Reference/INBOX-CAPABILITY-CROSSWALK.md"
 ---
 
 # Proposal: Deterministic Context Assembly

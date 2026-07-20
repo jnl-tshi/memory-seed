@@ -156,9 +156,9 @@ class DocsCheckTests(unittest.TestCase):
 
         self.assertNotIn("off-allowlist-folder", self.kinds(check_docs(root)))
 
-    def test_allowlisted_inbox_design_group_is_not_flagged(self):
+    def test_allowlisted_reference_design_group_is_not_flagged(self):
         root = self.make_docs()
-        self.write(root, "1_Inbox/trace-humanised-dashboard-references/README.md", "# References\n")
+        self.write(root, "4_Reference/trace-humanised-dashboard-references/README.md", "# References\n")
 
         self.assertNotIn("off-allowlist-folder", self.kinds(check_docs(root)))
 

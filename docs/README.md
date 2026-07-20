@@ -81,10 +81,14 @@ what enforces it; anything here that the code does not list is a hard `off-allow
 | `4_Reference/archived/` | sources whose actionable items were extracted; each carries `extracted_into` | keep |
 | `3_Spec/draft/` | candidate contracts, not yet binding (`spec_binding: draft` or `candidate`) | keep |
 | `3_Spec/deprecated/` | retired contracts kept for provenance (`spec_binding: deprecated`) | keep |
-| `1_Inbox/trace-humanised-dashboard-references/` | generated Trace design mockups; raw captures archived 2026-07-20 | keep in Inbox until design triage |
+| `4_Reference/trace-humanised-dashboard-references/` | generated Trace design mockups cited by the Living Archive proposal; raw captures archived 2026-07-20 | keep |
 
 > The two `1_Inbox/memory-seed-*-proposals/` entries were removed 2026-07-20 when both sets were retired
 > to `7_Superseded/`. Superseded documents sit flat in their lane, so no replacement entry is needed.
+> `1_Inbox/trace-humanised-dashboard-references/` moved to `4_Reference/` the same day, once its
+> mockups were confirmed fully triaged (extracted themes recorded, actively cited by a `2_Todo/`
+> proposal) rather than awaiting further design decisions — Inbox holds untriaged captures, not
+> reference material for already-scoped work.
 
 > `2_Todo/completed/` was retired 2026-07-17: its 43 documents and the nested `agent-templates/` moved to
 > `5_Completed/`, so the folder-is-the-state rule now holds with no legacy archive beside it.
@@ -103,7 +107,7 @@ untyped `related_entries` curation. The counts below are generated — hand-edit
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 2 · 2_Todo 27 · 3_Spec 8 · 4_Reference 14 · 5_Completed 57 · 6_Rejected 0 · 7_Superseded 28 · 8_Deferred 4
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 0 · 2_Todo 27 · 3_Spec 8 · 4_Reference 16 · 5_Completed 57 · 6_Rejected 0 · 7_Superseded 28 · 8_Deferred 4
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P1** [derived-projection-implementation-plan.md](2_Todo/derived-projection-implementation-plan.md) — Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, low-urgency) = incremental ingest, gated on …
