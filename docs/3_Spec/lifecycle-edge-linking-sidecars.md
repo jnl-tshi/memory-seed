@@ -76,6 +76,45 @@ classify_pending: true
 stub creates zero edges. `links check` reports `sidecar-unclassified-stub` as a warning and ESR counts
 open stubs; neither result blocks a merge or commit.
 
+#### Recording "examined, no edge warranted" (`edge_status`, 2026-07-20)
+
+A stub can be resolved two ways, and until now only one was expressible. Adding edges says "I looked
+and found relationships". Saying **"I looked and there are none"** had no spelling — the only ways to
+clear the warning were to invent an edge or delete the block, and deleting it destroys the evidence
+that anyone looked. Every examined-but-empty entry therefore stayed indistinguishable from an
+un-examined one, which is why an open-stub count says less than it appears to.
+
+```
+entry_id: mse_xxxx
+edge_status: not_applicable
+note: candidates shared topics only; no lifecycle relationship
+```
+
+`edge_status` takes the same three values as `MetricStatus` in `memory_seed/quality.py`, deliberately —
+the distinction it draws is identical, and that module's own comment states it: *"`unavailable` — the
+input does not exist yet — rather than `not_applicable`, which would claim we looked and found an empty
+population."*
+
+| Value | Means | Warning |
+|---|---|---|
+| *(edges listed, no `edge_status`)* | examined; relationships found | none |
+| `not_applicable` | **examined; no relationship warranted** | none |
+| `unavailable` | not yet examined — the explicit spelling of `classify_pending: true` | `sidecar-unclassified-stub` |
+
+Rules:
+- `edge_status` is **optional and additive**. `classify_pending: true` keeps its meaning, so no existing
+  sidecar needs migrating.
+- When both are present, `edge_status` governs — it is the later, more specific statement.
+- `not_applicable` creates zero edges, exactly like a stub. It records a judgement, not a relationship,
+  so graph readers ignore it for the same reason they ignore `classify_pending`.
+- `note:` is free text and optional, but it is the whole value of the state: record *why* nothing was
+  warranted, so the next reader need not redo the judgement.
+
+This is a per-entry judgement recorded in the file that already owns that entry's edges. It deliberately
+does **not** introduce a separate manifest owning evaluation state — that would put the same fact in two
+places and collide with the one-owner rule (Invariant #6). "No edge warranted" is an answer to the
+question this sidecar already answers, not a new fact needing a new home.
+
 ### Reader (layered exactly like the diagram sidecars)
 - `iter_link_sidecar_documents(sessions_dir)` in **`core.py`** — the file
   discoverer, one-for-one with `iter_diagram_sidecar_documents`.
