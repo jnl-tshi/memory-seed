@@ -26,7 +26,6 @@
 | [memory-trace-next-generation-implementation-roadmap.md](memory-trace-next-generation-implementation-roadmap.md) | — | — | proposed |
 | [memory-trace-product-and-system-architecture-blueprint.md](memory-trace-product-and-system-architecture-blueprint.md) | — | — | proposed-canonical-plan |
 | [openssf-credibility-proposals.md](openssf-credibility-proposals.md) | — | — | — |
-| [persona-usage-deactivation-esr-proposal.md](persona-usage-deactivation-esr-proposal.md) | — | — | — |
 | [related-entries-p2-mutation-plan.md](related-entries-p2-mutation-plan.md) | — | — | — |
 | [session-decision-diagrams-plan.md](session-decision-diagrams-plan.md) | — | — | — |
 <!-- docs-index:end -->

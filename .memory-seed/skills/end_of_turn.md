@@ -51,7 +51,9 @@ Use this skill when running the Memory Seed end-of-turn routine, `/esr`, or any 
 14. Run the Persona evolution check when a persona is active.
 15. Run the Skill evolution check when a persona is active.
 16. Check for unregistered persona files and escalate to persona onboarding when files exist without registry entries.
-17. Run the Baseline-promotion check for general rules, skills, or runbooks worth promoting beyond this project.
+17. Run the Persona Usage Check: propose deactivating (never delete) an active persona with no recorded
+    `agent_name` use across a long, conservative window - the symmetric inverse of step 16.
+18. Run the Baseline-promotion check for general rules, skills, or runbooks worth promoting beyond this project.
 
 ## Consolidation Review
 
@@ -151,6 +153,30 @@ When a persona is active and a repeated workflow pattern is not covered by an ex
 - On approval, add the skill file, register it in `skills/index.md` with `persona: <slug>`, update the persona's role-specific skills section, and log the change.
 
 Skip silently when no reusable skill gap emerged.
+
+## Persona Usage Check
+
+The symmetric inverse of the unregistered-persona check (step 16): that one handles used-but-unregistered
+-> activate; this one handles registered-active-but-unused -> propose deactivate. Deactivation is never
+delete - the persona file stays, only `status` in `.agents/_registry.yaml` flips, and reactivation is a
+one-line revert.
+
+- **Detect:** an active persona whose `agent_name` shows no use across a conservative window (default:
+  the last ~30 days *or* ~20 session entries, whichever is longer).
+- **Grace period:** never flag a persona activated or created inside the window - it hasn't had a chance
+  to be used yet.
+- **Lossy-signal caution:** `agent_name: null` entries are evidence of neither use nor non-use (many solo
+  entries never set it). Bias toward keeping a persona active when in doubt - a false "keep" costs
+  nothing; a false "deactivate" costs a user correction.
+- **Propose, never auto-apply.** Show the evidence (last-seen date, usage count in the window) and ask
+  before flipping `status: active` to `status: inactive` in `.agents/_registry.yaml`. Identical
+  approval gate to the Persona Evolution Check above.
+- **Solo-user degradation:** with one human, the signal is weak by construction - phrase the proposal as
+  "these personas show no recorded use in the window, keep them active?" rather than a confident
+  retirement recommendation.
+
+Skip silently when every active persona shows recent use, or when only one persona is active (nothing to
+prune).
 
 ## Baseline-Promotion Check
 

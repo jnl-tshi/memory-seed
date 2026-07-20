@@ -150,10 +150,14 @@ before its next step. (Market/account items live under "Parked" below.)
    fail-closed by construction *(recommended: keeps momentum, adds no trust the model doesn't already
    grant)*; **(b)** hold 5–6 until the participant/role model (B3/Phase 6) exists. Step 7 needs your
    explicit amendment approval regardless of (a)/(b).
-2. **Track C.2 — ESR Persona Usage Check.** Flag active personas with no recorded `agent_name` use over a
-   conservative window. *Options:* **(a)** propose-and-wait — flag and you approve each deactivation
-   *(recommended: consistent with append-only + the live-consent rule; deactivate ≠ delete)*; **(b)**
-   automatic deactivation. Resolve before build.
+2. ~~**Track C.2 — ESR Persona Usage Check.**~~ **RESOLVED 2026-07-20** — option (a): propose-and-wait,
+   built. Step 17 (its own subsection) landed in `.memory-seed/skills/end_of_turn.md`, mirrored to the
+   seed twin; `agent-rules.md`'s "End Of Turn" summary lists it. Conservative window (30 days or 20
+   entries, whichever is longer), grace period for newly-activated personas, and the lossy-`agent_name`
+   caution are all built in per the proposal's own subtleties section. Never auto-deactivates.
+   Moved [`persona-usage-deactivation-esr-proposal.md`](../5_Completed/persona-usage-deactivation-esr-proposal.md)
+   to `5_Completed/`; its one remaining item — an optional deterministic `memory-seed persona usage`
+   CLI report — is a follow-up enhancement, not a blocker.
 3. ~~**Track A.4 — `memory-seed[lense]` deprecation window.**~~ **RESOLVED 2026-07-20** — option (a):
    announced 2.20 as the drop and removed the alias/shim now. `pyproject.toml`'s `lense` extra and
    `cli.py`'s `lense` subcommand are gone; `README.md`, `functionality-audit.md` (bumped to 2.20), and
@@ -367,11 +371,12 @@ Markdown-authoritative, so Invariant #6-clean (no derived-state surface).
    (`persona:` + `context_load:` packet fields), skipping load-all-personas / full-index / newest-session
    read while **still** running `base_sha`/preflight/worktree-guard. Lives in `agent_collaboration.md`;
    `agent-rules.md` carries one clause (its 260-line startup budget is now exactly full).
-2. **ESR Persona Usage Check** — [`persona-usage-deactivation-esr-proposal.md`](persona-usage-deactivation-esr-proposal.md).
-   A new end-of-turn step, the symmetric inverse of the shipped unregistered-persona check: flag active
-   personas with no recorded `agent_name` use over a conservative window and **propose** flipping them to
-   `status: inactive` (approval-gated; never auto-applies; deactivate ≠ delete). **Open user decision:**
-   propose-and-wait (designed) vs automatic deactivation — resolve before build.
+2. **ESR Persona Usage Check** — ✅ **SHIPPED 2026-07-20**.
+   [`../5_Completed/persona-usage-deactivation-esr-proposal.md`](../5_Completed/persona-usage-deactivation-esr-proposal.md).
+   A new end-of-turn step, the symmetric inverse of the shipped unregistered-persona check: flags active
+   personas with no recorded `agent_name` use over a conservative window and **proposes** flipping them to
+   `status: inactive` (approval-gated; never auto-applies; deactivate ≠ delete). Built as propose-and-wait
+   per the open-decisions gate above.
 
 The two compound (fewer active personas → lighter worker *and* primary startup load) but neither blocks the
 other. Both sit **below Track A's open tails** in priority — small, sequence-flexible guidance changes.

@@ -185,7 +185,7 @@ Cross-cutting principles that apply to any agent and any task:
 ## End Of Turn
 After any turn where meaningful work was completed, append a concise entry to the active session target before the turn ends. Deferring or batching session log writes is a discipline failure.
 
-Start with `memory-seed esr` - one read-only report covering the mechanical checks (links, topics, session-scoped link audit, worktree posture, seed-twin drift). Then load `.memory-seed/skills/end_of_turn.md` for the full ESR checklist: session entry, lifecycle link sweep, consolidation review, policy/index/skill review, verification, orphan and artifact sweep, stale worktree sweep, persona evolution, skill evolution, unregistered persona check, and baseline-promotion review.
+Start with `memory-seed esr` - one read-only report covering the mechanical checks (links, topics, session-scoped link audit, worktree posture, seed-twin drift). Then load `.memory-seed/skills/end_of_turn.md` for the full ESR checklist: session entry, lifecycle link sweep, consolidation review, policy/index/skill review, verification, orphan and artifact sweep, stale worktree sweep, persona evolution, skill evolution, unregistered persona check, persona usage check (propose deactivating an active-but-unused persona, never auto-applied), and baseline-promotion review.
 
 Load `.memory-seed/skills/session_logging.md` for session frontmatter, entry YAML, DRAFT labels, entry shapes, append-only chronology, `related_entries`, and examples.
 
