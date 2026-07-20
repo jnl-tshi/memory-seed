@@ -351,6 +351,18 @@ Requirements:
 
 Maintain stories for reusable UI and domain components. Storybook becomes the component inventory for humans and agents.
 
+**Harness landed 2026-07-20:** `storybook@10` + `@storybook/react-vite`, wired to `vitest` via
+`@storybook/addon-vitest` (`npx vitest --project storybook run`) so stories run as real tests, not just
+a visual sandbox. `@storybook/addon-a11y` is installed and set to `test: "error"` in
+`.storybook/preview.tsx` — a genuine gate, not just a visibility panel — and it immediately caught a
+real WCAG AA violation (see the Accessibility subsection below). One fully-storied component so far,
+`SettingsMenu` (7 stories including keyboard-navigation and focus-restoration `play` functions).
+**Not yet done:** the reusable primitive/token layer this section's migration step 3 calls for doesn't
+exist yet — `App.tsx`/`EntryReader.tsx`/`GraphWorkspace.tsx`/`TrailWorkspace.tsx` are each one large
+page-level component (167-844 lines), not a set of small composable pieces, so writing "component
+inventory" stories for them the way this section intends isn't meaningful until that extraction happens.
+Treat full story coverage as gated on that refactor, not as a checklist item to force now.
+
 ### End-to-end tests
 
 Playwright must cover:
@@ -367,6 +379,15 @@ Playwright must cover:
 ### Accessibility
 
 Target WCAG 2.2 AA. Automated checks are necessary but not sufficient. Manually test keyboard order, focus restoration, screen-reader labels and graph alternatives.
+
+**Automated gate landed 2026-07-20** via `@storybook/addon-a11y` (see Storybook subsection above). Its
+first real run found a genuine violation: the light-theme `--muted` text token (`#8a7c66` on `#eee7d8`,
+used in 26 places across `styles.css`) measured 3.3:1 contrast against the 4.5:1 AA minimum for text
+under 18pt. Darkened to `#70624d` (computed to ~4.8:1 against both `--panel` and `--bg`); dark-theme
+`--muted` was checked and already passes (~5.3:1). The manual obligations above (keyboard order, focus
+restoration, screen-reader labels, graph alternatives) remain fully unaddressed beyond what
+`SettingsMenu`'s own `play` functions incidentally proved for that one component - this is not yet a
+project-wide manual accessibility pass.
 
 ## 12. AI-agent development constraints
 
