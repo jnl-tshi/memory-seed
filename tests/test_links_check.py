@@ -7,8 +7,6 @@ from pathlib import Path
 from memory_seed.core import (
     MEMORY_DIR_NAME,
     check_session_links,
-    migrate_session_month_layout,
-    migrate_session_layout,
 )
 
 
@@ -110,91 +108,6 @@ class LinksCheckTests(unittest.TestCase):
             ["git", "-C", str(cwd), "rev-parse", "HEAD"], check=True, capture_output=True, text=True
         ).stdout.strip()
         return head
-
-    def _write_participants(self, cwd):
-        cfg = cwd / MEMORY_DIR_NAME / "project.yaml"
-        cfg.parent.mkdir(parents=True, exist_ok=True)
-        cfg.write_text(
-            "\n".join(
-                [
-                    "schema_version: 1",
-                    "participants:",
-                    "  - slug: jean",
-                    "    initials: JN",
-                    "    display_name: Jean",
-                    "  - slug: amina",
-                    "    initials: AM",
-                    "    display_name: Amina",
-                    "",
-                ]
-            ),
-            encoding="utf-8",
-        )
-
-    def _write_flat_session(self, cwd, date_str="2026-06-21"):
-        sessions = cwd / MEMORY_DIR_NAME / "sessions"
-        sessions.mkdir(parents=True, exist_ok=True)
-        path = sessions / f"{date_str}.md"
-        path.write_text(
-            "\n".join(
-                [
-                    "# 2026-06-21",
-                    "",
-                    "## 2026-06-21 09:00 - Jean entry",
-                    "",
-                    "```yaml",
-                    "entry_id: ms-11111111",
-                    "user_initials: JN",
-                    "agent_type: codex",
-                    "```",
-                    "",
-                    "- Jean body.",
-                    "",
-                    "## 2026-06-21 10:00 - Amina entry",
-                    "",
-                    "```yaml",
-                    "entry_id: mse_0123456789abcdef",
-                    "user_initials: AM",
-                    "agent_type: codex",
-                    "```",
-                    "",
-                    "- Amina body.",
-                ]
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        return path
-
-    def _write_old_diagram_sidecar(self, cwd, date_str="2026-06-21", entry_id="ms-11111111"):
-        diagrams = cwd / MEMORY_DIR_NAME / "sessions" / "diagrams"
-        diagrams.mkdir(parents=True, exist_ok=True)
-        path = diagrams / f"{date_str}.md"
-        path.write_text(
-            "\n".join(
-                [
-                    "---",
-                    "tags:",
-                    "  - session-log-diagrams",
-                    f"diagram_date: {date_str}",
-                    "---",
-                    "",
-                    f"## {date_str} 09:00 - Diagram",
-                    "",
-                    "```yaml",
-                    f"entry_id: {entry_id}",
-                    "```",
-                    "",
-                    "```mermaid",
-                    "flowchart TD",
-                    "  A --> B",
-                    "```",
-                    "",
-                ]
-            ),
-            encoding="utf-8",
-        )
-        return path
 
     def test_links_check_flags_malformed_entry_format(self):
         from memory_seed.core import check_session_links
@@ -969,57 +882,3 @@ class LinksCheckTests(unittest.TestCase):
         cycle_issue = next(i for i in issues if i.kind == "supersedes-cycle")
         self.assertIn("mse_0123456789abcdef", cycle_issue.detail)
         self.assertIn("mse_ffffffffffffffff", cycle_issue.detail)
-
-    def test_migrate_sessions_layout_apply_splits_entries_and_backs_up_source(self):
-        cwd = self.make_project()
-        self._write_participants(cwd)
-        flat = self._write_flat_session(cwd)
-
-        result = migrate_session_layout(cwd=cwd)
-
-        self.assertTrue(result.changed)
-        self.assertFalse(flat.exists())
-        self.assertEqual(result.migrated, ["2026-06/2026-06-21/amina.md", "2026-06/2026-06-21/jean.md"])
-        self.assertEqual(len(result.backed_up), 1)
-        backup = cwd / result.backed_up[0]
-        self.assertTrue(backup.exists())
-        jean = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21" / "jean.md").read_text(encoding="utf-8")
-        amina = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21" / "amina.md").read_text(encoding="utf-8")
-        self.assertIn("schema_version: 2", jean)
-        self.assertIn("hash_id: msm_", jean)
-        self.assertIn("user: jean", jean)
-        self.assertIn("entry_id: ms-11111111", jean)
-        self.assertNotIn("entry_id: mse_0123456789abcdef", jean)
-        self.assertIn("entry_id: mse_0123456789abcdef", amina)
-        self.assertTrue(check_session_links(cwd=cwd).ok)
-
-    def test_migrate_sessions_month_layout_apply_moves_sources_and_backs_up(self):
-        cwd = self.make_project()
-        flat = self._write_flat_session(cwd)
-        self._per_user_session(cwd, "2026-06-22", "jean", hash_id="msm_" + "c" * 32, entries=("ms-33333333",))
-        diagram = self._write_old_diagram_sidecar(cwd)
-
-        result = migrate_session_month_layout(cwd=cwd)
-
-        self.assertTrue(result.changed)
-        self.assertEqual(
-            result.migrated,
-            [
-                "2026-06/2026-06-21.md",
-                "2026-06/2026-06-22/jean.md",
-                "diagrams/2026-06/2026-06-21.md",
-            ],
-        )
-        self.assertFalse(flat.exists())
-        self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-22" / "jean.md").exists())
-        self.assertFalse(diagram.exists())
-        self.assertEqual(len(result.backed_up), 3)
-        for backup in result.backed_up:
-            self.assertTrue((cwd / backup).exists())
-        moved_flat = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21.md").read_text(encoding="utf-8")
-        moved_user = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-22" / "jean.md").read_text(encoding="utf-8")
-        moved_diagram = (cwd / MEMORY_DIR_NAME / "sessions" / "diagrams" / "2026-06" / "2026-06-21.md").read_text(encoding="utf-8")
-        self.assertIn("entry_id: ms-11111111", moved_flat)
-        self.assertIn("hash_id: msm_" + "c" * 32, moved_user)
-        self.assertIn("```mermaid", moved_diagram)
-        self.assertTrue(check_session_links(cwd=cwd).ok)

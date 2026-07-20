@@ -5,6 +5,7 @@ from pathlib import Path
 
 from memory_seed.core import (
     MEMORY_DIR_NAME,
+    check_session_links,
     migrate_session_month_layout,
     migrate_session_layout,
     session_target,
@@ -260,3 +261,57 @@ class SessionLayoutMigrationTests(unittest.TestCase):
         self.assertTrue(result.issues)
         self.assertIn("ms-11111111", result.issues[0])
         self.assertTrue(flat.exists())
+
+    def test_migrate_sessions_layout_apply_splits_entries_and_backs_up_source(self):
+        cwd = self.make_project()
+        self._write_participants(cwd)
+        flat = self._write_flat_session(cwd)
+
+        result = migrate_session_layout(cwd=cwd)
+
+        self.assertTrue(result.changed)
+        self.assertFalse(flat.exists())
+        self.assertEqual(result.migrated, ["2026-06/2026-06-21/amina.md", "2026-06/2026-06-21/jean.md"])
+        self.assertEqual(len(result.backed_up), 1)
+        backup = cwd / result.backed_up[0]
+        self.assertTrue(backup.exists())
+        jean = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21" / "jean.md").read_text(encoding="utf-8")
+        amina = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21" / "amina.md").read_text(encoding="utf-8")
+        self.assertIn("schema_version: 2", jean)
+        self.assertIn("hash_id: msm_", jean)
+        self.assertIn("user: jean", jean)
+        self.assertIn("entry_id: ms-11111111", jean)
+        self.assertNotIn("entry_id: mse_0123456789abcdef", jean)
+        self.assertIn("entry_id: mse_0123456789abcdef", amina)
+        self.assertTrue(check_session_links(cwd=cwd).ok)
+
+    def test_migrate_sessions_month_layout_apply_moves_sources_and_backs_up(self):
+        cwd = self.make_project()
+        flat = self._write_flat_session(cwd)
+        self._per_user_session(cwd, "2026-06-22", "jean", hash_id="msm_" + "c" * 32, entries=("ms-33333333",))
+        diagram = self._write_old_diagram_sidecar(cwd)
+
+        result = migrate_session_month_layout(cwd=cwd)
+
+        self.assertTrue(result.changed)
+        self.assertEqual(
+            result.migrated,
+            [
+                "2026-06/2026-06-21.md",
+                "2026-06/2026-06-22/jean.md",
+                "diagrams/2026-06/2026-06-21.md",
+            ],
+        )
+        self.assertFalse(flat.exists())
+        self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-22" / "jean.md").exists())
+        self.assertFalse(diagram.exists())
+        self.assertEqual(len(result.backed_up), 3)
+        for backup in result.backed_up:
+            self.assertTrue((cwd / backup).exists())
+        moved_flat = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21.md").read_text(encoding="utf-8")
+        moved_user = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-22" / "jean.md").read_text(encoding="utf-8")
+        moved_diagram = (cwd / MEMORY_DIR_NAME / "sessions" / "diagrams" / "2026-06" / "2026-06-21.md").read_text(encoding="utf-8")
+        self.assertIn("entry_id: ms-11111111", moved_flat)
+        self.assertIn("hash_id: msm_" + "c" * 32, moved_user)
+        self.assertIn("```mermaid", moved_diagram)
+        self.assertTrue(check_session_links(cwd=cwd).ok)
