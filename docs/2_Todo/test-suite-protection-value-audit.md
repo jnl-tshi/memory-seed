@@ -2,7 +2,7 @@
 title: Test-suite protection-value audit
 status: active
 priority: P2
-next_action: Phase 2c content cull — test_links_check.py done; next is test_session_fuse_and_merge.py (Keep/Consolidate/Replace/Move/Delete per test).
+next_action: Phase 2c content cull — test_links_check.py and test_session_fuse_and_merge.py done; next is test_project_lifecycle.py (Keep/Consolidate/Replace/Move/Delete per test).
 blocked_by: []
 ---
 
@@ -177,8 +177,7 @@ Cull order (highest test count / runtime / duplication / maintenance pain first,
 invariants last):
 
 1. `test_links_check.py` (44 tests) — **done, 2026-07-20**, see below.
-2. `test_session_fuse_and_merge.py` (69 tests) — largest file, but this is the P1-bug-catching
-   machinery; expect mostly Keep, look for genuine duplication only.
+2. `test_session_fuse_and_merge.py` (69 tests) — **done, 2026-07-20**, see below.
 3. `test_project_lifecycle.py` (39 tests).
 4. `test_cli_help.py` (28 tests) — given the coverage finding above (`cli.py` at 54%), likely needs
    *expansion* on real command paths as much as consolidation of help-text checks.
@@ -219,7 +218,45 @@ coverage for a validator, which is what a validator's test suite *should* look l
 - Verified: 635 → 635 collected (count-neutral, a Move not a deletion); both touched files' full suites
   (`test_links_check.py` 42, `test_session_layout_migration.py` 11) pass, 53/53.
 
-## Delete candidates (accumulated, not yet actioned)
+### test_session_fuse_and_merge.py — done, 2026-07-20
 
-Empty so far. Populated as later files are culled; reviewed with JNL as one batch before anything in
-this list is actually removed — see the authorization split above.
+Read all 69 tests. **Verdict: 69 Keep, 0 Move, 0 Consolidate, 0 Delete.** This is the file the 2026-07-20
+P1 sidecar-loss fix (this session, tasks #1-8 above) added its regression coverage to, plus the
+`-merge` gitattribute proof suite and the general fuse/merge-branch/prepare-pr/open-pr machinery.
+Consistently high-quality: nearly every test carries an inline comment naming the exact incident or
+mechanism it guards (the `-merge` attribute quartet is a deliberate mechanism/regression/control/outcome
+proof structure, not repetition; the link-sidecar tests are the literal regression proof for this
+session's own P1 fix). No true duplicates found. Considered and rejected the same YAML/sidecar-pair
+consolidation temptation as file 1, for the same reason (distinct extraction paths).
+
+**Structural finding, surfaced not actioned:** despite its name, ~28 of the 69 tests are not fuse/merge
+tests at all — they cover five distinct other concerns that happen to share the file's real-git fixture
+harness: `integration_mode` read/suggest/write (5), `decision_density`/`future_timestamp` advisories (6,
+see note below), `branch_status` (3), `worktree_guard` (4), `session_target` routing (8), plus
+`update_preserves_declared_integration_mode` and `_merge_routing_stanza` (2). Checked with advisor
+before acting: this is **not** the same class of change as the file-1 migrate-tests move — that
+relocated 2 tests into a file that already existed with identical helpers, this would mean inventing
+5-6 new files, re-opening the Phase 2a structural split JNL already approved. Recommend a targeted
+further split by concern; **not done autonomously, needs a go-ahead.**
+
+Sub-finding on the 6 `decision_density`/`future_timestamp` tests specifically: on inspection they split
+further — 3 call `check_session_links(cwd=...)` and assert on its `entry-decision-density`/
+`entry-future-timestamp` issue kinds (arguably belong in `test_links_check.py`, just closed), and 3 call
+the underlying advisory/gate functions (`check_entry_timestamp_advisories`, `entry_body_advisories`,
+`entry_body_format_issues`) directly, one of which explicitly documents the write-time gate
+`session_append_entry` uses (arguably belongs in `test_session_append.py`). Not a single clean
+destination, so left in place pending the same go-ahead rather than guessing.
+
+Verified: no files changed in this file's review, so nothing to re-run — confirmed by inspection only.
+
+## Findings awaiting a review checkpoint (not yet actioned)
+
+Structural-split and Delete candidates accumulate here as later files are culled, and are reviewed with
+JNL as one batch before anything in this section is acted on — see the authorization split above.
+
+1. **Structural split of `test_session_fuse_and_merge.py`** — see above. Would carve out
+   `integration_mode` (5), `decision_density`/`future_timestamp` (6, itself split two ways),
+   `branch_status` (3), `worktree_guard` (4), `session_target` (8) into their own file(s); needs a
+   decision on destinations for the decision_density/future_timestamp sub-split first.
+
+No Delete candidates yet.
