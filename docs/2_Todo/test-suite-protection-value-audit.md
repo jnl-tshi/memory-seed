@@ -2,7 +2,7 @@
 title: Test-suite protection-value audit
 status: active
 priority: P2
-next_action: Phase 2c content cull — test_links_check.py and test_session_fuse_and_merge.py done; next is test_project_lifecycle.py (Keep/Consolidate/Replace/Move/Delete per test).
+next_action: Phase 2c content cull — 3 files done (links_check, session_fuse_and_merge, project_lifecycle); next is test_cli_help.py (Keep/Consolidate/Replace/Move/Delete per test).
 blocked_by: []
 ---
 
@@ -178,7 +178,7 @@ invariants last):
 
 1. `test_links_check.py` (44 tests) — **done, 2026-07-20**, see below.
 2. `test_session_fuse_and_merge.py` (69 tests) — **done, 2026-07-20**, see below.
-3. `test_project_lifecycle.py` (39 tests).
+3. `test_project_lifecycle.py` (39 tests) — **done, 2026-07-20**, see below.
 4. `test_cli_help.py` (28 tests) — given the coverage finding above (`cli.py` at 54%), likely needs
    *expansion* on real command paths as much as consolidation of help-text checks.
 5. `test_mcp_merge.py`, `test_hook_merge.py`, `test_session_log_ordering_hook.py`,
@@ -248,6 +248,24 @@ the underlying advisory/gate functions (`check_entry_timestamp_advisories`, `ent
 destination, so left in place pending the same go-ahead rather than guessing.
 
 Verified: no files changed in this file's review, so nothing to re-run — confirmed by inspection only.
+
+### test_project_lifecycle.py — done, 2026-07-20
+
+Read all 39 tests. **Verdict: 39 Keep, 0 Move, 0 Consolidate, 0 Delete.** Covers `init_project`/
+`update_project` (foreign-vs-owned routing file handling, force/backup/archive semantics, version
+comparison, idempotency, dry-run), `doctor` (missing/mismatched files, bootstrap-vs-control-plane
+health), skills (profiles, add/remove, status), and control-plane packaging invariants (seed manifest,
+`pyproject.toml` package-data parity, per-agent command deployment). Each test targets a genuinely
+distinct edge case in what is a real, non-trivial config-management system (owned vs. foreign files,
+force vs. no-force, newer-vs-older version handling) — no duplication found.
+
+Two tests worth naming even though both are Keep: `test_repo_root_control_plane_files_match_version`
+explicitly documents that it pins a regression that "happened in 2.2.3 / 2.3.0" (the version-bump sed
+missing this repo's own root routing files) — a real historical-bug test that's earned its place because
+the systemic fix (`doctor()`) only catches it at runtime, not at release time. `test_seed_files_use_memory_seed_runtime`
+is a ~40-line exact-manifest snapshot of every seed file destination — higher maintenance cost than
+most tests here (any new seed file requires updating it), but it protects the actual packaging list, so
+left as Keep rather than flagged for replacement.
 
 ## Findings awaiting a review checkpoint (not yet actioned)
 
