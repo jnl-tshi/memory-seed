@@ -304,7 +304,14 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   proving "packaged-wheel loading" for real. 3 of 8 required flows covered (search-to-match, next/prev
   navigation, keyboard-only Enter-to-cycle); 4 more are buildable now (selection/inspector persistence,
   graph search/focus, offline startup) and 1 (annotation creation/version resolution) can't be tested
-  until B3 ships the feature. **The manual accessibility pass remains open.** The current
+  until B3 ships the feature. **First manual accessibility pass done 2026-07-20**, against the live
+  packaged app over real data: found and fixed a systemic WCAG 2.4.7 (Focus Visible) violation — 8
+  interactive element classes had `outline: none` on `:focus-visible`, relying only on a subtle
+  border/background/text-color shift as the sole keyboard-focus signal (some with no visual change at
+  all). Added a real outline to each, matching the pattern other elements already used correctly.
+  **Still open:** focus restoration and screen-reader labels beyond one component's Storybook coverage,
+  and graph alternatives (no non-visual equivalent for the Cytoscape canvas evaluated yet) — this was a
+  first pass, not the completed audit. The current
   vanilla `/` UI remains the supported fallback until explicit
   parity sign-off.
 - **B0b — Native graph/workspace implementation** *(started 2026-07-16; implemented through roadmap
