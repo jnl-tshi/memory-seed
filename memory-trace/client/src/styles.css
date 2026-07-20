@@ -151,7 +151,7 @@ button { font: inherit; }
 .error-state { position: absolute; z-index: 2; top: 126px; right: 18px; left: 18px; min-height: 0; justify-content: start; padding: 8px 10px; border: 1px solid var(--danger-border); border-radius: 4px; background: var(--danger-bg); color: var(--danger-text); pointer-events: none; }
 .graph-workspace { position: relative; min-width: 0; min-height: 0; }.graph-controls { position: absolute; z-index: 2; top: 12px; right: 14px; display: flex; gap: 5px; }.graph-canvas { outline: none; }.graph-canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }.graph-list-view { min-height: 0; overflow: auto; padding: 16px 18px 28px; background: var(--bg); }.community-group { margin: 0 0 22px; }.community-group h2 { margin: 0 0 8px; color: var(--accent-bright); font-size: 12px; font-weight: 700; }.graph-list-item { width: 100%; display: grid; gap: 3px; margin-top: 4px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); text-align: left; cursor: pointer; }.graph-list-item:hover, .graph-list-item:focus-visible, .graph-list-item.selected { border-color: var(--accent-strong); background: var(--selected-bg); }.graph-list-item:focus-visible { outline: 1px solid var(--accent-strong); outline-offset: -1px; }.graph-list-item span, .graph-list-item small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.graph-list-item small { color: var(--muted); font-size: 11px; }
 
-.reader { display: grid; gap: 18px; }.reader-empty, .reader-note { margin: 0; color: var(--muted); font-size: 13px; }.reader-note { padding-top: 4px; border-top: 1px dashed var(--border); }
+.reader { display: grid; gap: 18px; }.reader-empty { margin: 0; color: var(--muted); font-size: 13px; }
 /* Collapsible entry metadata. The grid 0fr->1fr trick animates to auto height,
    which a plain max-height cannot do honestly; <details> was rejected because
    the browser hides its content the moment it closes, so the closing animation
@@ -195,6 +195,16 @@ button { font: inherit; }
 .link-group { display: grid; gap: 5px; }.link-card { display: grid; gap: 2px; width: 100%; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); padding: 7px 9px; font: inherit; font-size: 12px; text-align: left; cursor: pointer; overflow-wrap: anywhere; }.link-card:hover:not(:disabled), .link-card:focus-visible { border-color: var(--accent); }.link-card:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }.link-card:disabled { opacity: 0.55; cursor: default; }.link-card small { color: var(--muted); }
 .count { color: var(--muted); font-size: 11px; }
 .authority-badge { display: inline-block; border: 1px solid var(--border-2); border-radius: 3px; background: var(--chip); color: var(--text-2); padding: 1px 7px; font-size: 12px; font-weight: 600; }.authority-badge.advisory { border-color: var(--match-border); background: var(--match-bg); color: var(--advisory-text); }.stale-flag { color: var(--accent-strong); font-weight: 600; }
+/* Arc 2d: built-in decision-diagram rendering (flowchart/sequence subset), ported from the vanilla reader. */
+.diagram { margin: 0 0 12px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); overflow-x: auto; }
+.diagram figcaption { margin-bottom: 4px; }
+.diagram-svg { max-width: 100%; height: auto; font-size: 12px; }
+.diagram-node rect { fill: var(--chip); stroke: var(--border); stroke-width: 1; }
+.diagram-node text { fill: var(--text); font-size: 12px; }
+.diagram-edge { fill: none; stroke: var(--edge-related); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.diagram-edge-label { fill: var(--muted); font-size: 11px; }
+.diagram-lifeline { stroke: var(--border); }
+.diagram-source { margin: 0; padding: 8px; background: var(--code-bg); border-radius: 4px; overflow-x: auto; font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--muted); white-space: pre; }
 .trail-workspace { --trail-bg: var(--bg); --trail-faint: var(--faint); min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--bg); }
 .trail-viewbar { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 12px; }.trail-viewbar strong { color: var(--text); }.trail-more { margin-left: auto; border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip); color: var(--text-2); padding: 3px 9px; font: inherit; font-size: 11px; cursor: pointer; }.trail-more:hover, .trail-more:focus-visible { border-color: var(--accent); }.trail-more:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
 .trail-scroll { min-height: 0; overflow: auto; }.trail-body { position: relative; min-width: 100%; width: max-content; }

@@ -62,10 +62,11 @@ work and agent-namespaced branches/worktrees follow the policy shipped in
 
 The B0a shell, renderer-neutral fixture contract, and complete renderer evidence harness are implemented.
 JNL selected Cytoscape 3.34.0 on 2026-07-16, and the React `/next` workspace now carries the accepted
-graph, search, selection, and Inspector behaviour over the renderer-neutral projection. React Trail parity,
-the Trail transition, React diagram rendering, evidence-backed topology/file/evolution modes, and final
-accessibility/scale acceptance remain open. The vanilla SVG graph and Trail remain the fallback until explicit
-B0b parity sign-off.
+graph, search, selection, and Inspector behaviour over the renderer-neutral projection. React diagram
+rendering shipped 2026-07-20 (the Arc-2d flowchart/sequence-diagram engine ported to `arc2d.ts` +
+`DiagramView.tsx`). React Trail parity, the Trail transition, evidence-backed topology/file/evolution
+modes, and final accessibility/scale acceptance remain open. The vanilla SVG graph and Trail remain the
+fallback until explicit B0b parity sign-off.
 
 ## Side-folder allowlist
 

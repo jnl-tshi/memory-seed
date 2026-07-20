@@ -346,9 +346,16 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   service always computed is now declared on the v1 `GraphNode` — additive contract change, fixtures
   regenerated). The left pane is now a **selection context panel** (typed lifecycle links + commit
   siblings + similar entries; recent entries when nothing is selected), replacing the placeholder
-  graph-slice list. Other B0b remainders: file/evolution modes, evidence-backed topology communities and optional
-  mild temporal layout, React diagram rendering (the bespoke Arc-2d renderer — a ~250-line port), and
-  formal accessibility/scale acceptance.
+  graph-slice list. **React diagram rendering shipped 2026-07-20**: the Arc-2d flowchart/sequence-diagram
+  engine ported from the vanilla reader to `arc2d.ts` (pure parsing/layout, 16 unit tests) +
+  `DiagramView.tsx` (React SVG renderer, JSX escapes text automatically — no HTML-string injection
+  surface to manage), replacing `EntryReader.tsx`'s "in-reader rendering lands in a later slice"
+  placeholder. Verified against the real packaged app on a real 16-node flowchart entry
+  (`mse_v26pem9hsvsbjbge`): correct multi-rank layout, 13 nodes/17 edges rendered, matching the vanilla
+  parser's own edge-syntax limitation (dotted `-.->` mermaid edges aren't recognized by either
+  implementation — faithful port, not a regression). Other B0b remainders: file/evolution modes,
+  evidence-backed topology communities and optional mild temporal layout, and formal accessibility/scale
+  acceptance.
   Keep the SVG renderer until explicit parity sign-off.
   Only after B0b acceptance may the
   [`structural-provider proposal`](memory-trace-structural-graph-enrichment-provider-proposal.md) define a
