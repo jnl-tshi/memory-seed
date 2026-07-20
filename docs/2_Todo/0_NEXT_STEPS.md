@@ -294,8 +294,13 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   with eased Trail scrolling, server full-text search reachable from the same bar, one counter and one
   pair of chevrons serving both modes, and the reader easing to the matched section as results are
   stepped. Genuine hits are separated from the ranker's score-0 filler client-side, so the counter reports
-  matches rather than corpus size. **Storybook, the formal Playwright harness, and accessibility
-  acceptance remain open.** The current vanilla `/` UI remains the supported fallback until explicit
+  matches rather than corpus size. **Storybook harness landed 2026-07-20** (`storybook@10` +
+  `@storybook/react-vite`, wired to `vitest` so stories run as real tests, `@storybook/addon-a11y` set
+  to a hard gate) — one component (`SettingsMenu`) fully storied as proof; full component-inventory
+  coverage waits on the primitive/token extraction the design-system proposal calls for. The a11y gate's
+  first run caught and fixed a real WCAG contrast violation (light-theme `--muted` token, 26 call sites).
+  **The formal Playwright e2e harness and the manual accessibility pass remain open.** The current
+  vanilla `/` UI remains the supported fallback until explicit
   parity sign-off.
 - **B0b — Native graph/workspace implementation** *(started 2026-07-16; implemented through roadmap
   Phases 3 and 5)* — the first React shell provides a lazy Cytoscape graph, bounded initial graph range,
