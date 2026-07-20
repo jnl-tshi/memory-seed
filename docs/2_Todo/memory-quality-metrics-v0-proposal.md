@@ -155,7 +155,7 @@ targets. Do not promote the metric set merely because the command exists.
 ## Inherited candidate — decision quality under constrained context
 
 *Folded in 2026-07-20 from the retired inbox proposal sets; see
-[the capability crosswalk](../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md) delta 2, adversarially verified.*
+[the capability crosswalk](../4_Reference/INBOX-CAPABILITY-CROSSWALK.md) delta 2, adversarially verified.*
 
 **The gap.** Nothing measures whether a *grounded decision was reached*. v0 measures corpus health; the
 `ranking-ab` gate measures retrieval ordering. Neither scores the outcome the memory exists to serve.

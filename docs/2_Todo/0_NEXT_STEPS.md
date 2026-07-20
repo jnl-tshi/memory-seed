@@ -417,7 +417,7 @@ Constitution v1.1 records the partitioned Markdown-authority decision.
 
 A new drop arrived 2026-07-18 (two 7-document proposal sets, a product proposal, and a design-reference
 folder) and was assessed but deliberately not promoted — see
-[`INBOX-ASSESSMENT.md`](../1_Inbox/INBOX-ASSESSMENT.md). Triaged 2026-07-20:
+[`INBOX-ASSESSMENT.md`](../4_Reference/INBOX-ASSESSMENT.md). Triaged 2026-07-20:
 
 - **Living Archive / Editorial Focus product proposal → `2_Todo`; §14 answered the same day.**
   [The proposal](memory-trace-living-archive-and-editorial-focus-proposal.md) was the most mature document
@@ -433,7 +433,7 @@ folder) and was assessed but deliberately not promoted — see
   parked; `8_Deferred/` is untouched.
 - **Both proposal sets (14 documents) → `7_Superseded`, retired 2026-07-20.** Step 1 of the assessment's
   corrected sequence ran first as
-  [a current-capability crosswalk](../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md): 82 claims scored against the
+  [a current-capability crosswalk](../4_Reference/INBOX-CAPABILITY-CROSSWALK.md): 82 claims scored against the
   owner documents and shipped code rather than the proposals' own account of the status quo. Most were
   already constitutional law or already-shipped capability the proposals understated — the Evidence Pack,
   typed `supersedes`/`evolves`, blended retrieval — and five conflicted with explicit owner non-goals.
@@ -470,8 +470,20 @@ folder) and was assessed but deliberately not promoted — see
   step 4 pilots the open-questions lens under its new owner, step 5 decides promotions. The inbox is
   clear regardless — that is the stop rule.
 - **Raw design captures → `4_Reference/archived`.** Seven mood-board screenshots were archived once their
-  palette and hierarchy themes had been extracted into the folder README; the five generated mockups stay
-  in `1_Inbox` because live documents cite them.
+  palette and hierarchy themes had been extracted into the folder README; the five generated mockups
+  stayed alongside them, cited by live documents (see the follow-up correction directly below).
+- **Follow-up correction, same day: the crosswalk, the assessment doc, and the mockups folder itself
+  moved from `1_Inbox/` to `4_Reference/`.** JNL caught that all three were still sitting in Inbox despite
+  being fully evaluated — the crosswalk and assessment are completed evaluation records other documents
+  already cite, and the mockups folder's themes are already extracted and cited by the Living Archive
+  proposal in `2_Todo/`. Per the project's own lane rule, `1_Inbox/` holds raw untriaged captures and
+  `4_Reference/` holds source material — none of the three still fit the former. `2_Todo/` was considered
+  and rejected: that lane is for active work carrying `priority`/`next_action`, and the actual work item
+  consuming the mockups (the Living Archive proposal) already correctly lives there; the mockups
+  themselves are reference material for that work, not a work item in their own right. Every citing link
+  (14 `7_Superseded/` pointers, three `2_Todo/` plans, the archived-captures cross-reference, the
+  `docs_check.py` allowlist + its test) was updated; `docs index`/`docs check`/`links check` all clean,
+  full suite unaffected.
 
 ## Captured strategic input — `4_Reference` (2026-07-14 drop, triaged)
 

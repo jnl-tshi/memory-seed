@@ -23,7 +23,7 @@ sources:
   - ../8_Deferred/memory-trace-commercialisation-and-monetisation-report.md
   - ../1_Inbox/memory-seed-ontology-evidence-proposals/00-index.md
   - ../1_Inbox/memory-seed-relevance-proposals/00-proposal-set-index.md
-  - ../1_Inbox/INBOX-ASSESSMENT.md
+  - ../4_Reference/INBOX-ASSESSMENT.md
 ---
 
 # Proposal: Living Archive for Community, Editorial Focus for Pro
@@ -96,7 +96,7 @@ authored facts in Community and enriched by a cited model result in Pro.
 Living Archive transforms the current diagnostic-style workspace into a readable project chronicle while
 remaining completely local and deterministic.
 
-![Living Archive product direction](../1_Inbox/trace-humanised-dashboard-references/mockup-02-living-archive.png)
+![Living Archive product direction](../4_Reference/trace-humanised-dashboard-references/mockup-02-living-archive.png)
 
 ### 4.1 Main workspace
 
@@ -142,7 +142,7 @@ Editorial Focus adds a generated narrative beneath or alongside the selected Tra
 when the question spans many records: “What happened?”, “Why did this direction win?”, “How did the decision
 evolve?”, or “What remains uncertain?”
 
-![Editorial Focus product direction](../1_Inbox/trace-humanised-dashboard-references/mockup-03-editorial-focus.png)
+![Editorial Focus product direction](../4_Reference/trace-humanised-dashboard-references/mockup-03-editorial-focus.png)
 
 ### 5.1 Focus interaction
 
@@ -181,7 +181,7 @@ The brief must visibly say **AI-generated synthesis** and show:
 
 The first mockup remains useful as the design-system bridge between the two editions.
 
-![Shared Field Notes design foundation](../1_Inbox/trace-humanised-dashboard-references/mockup-01-field-notes.png)
+![Shared Field Notes design foundation](../4_Reference/trace-humanised-dashboard-references/mockup-01-field-notes.png)
 
 The shared language should include:
 
@@ -199,9 +199,9 @@ Dark mode is a first-class expression of the same editorial system, not a photog
 light theme. It should preserve hierarchy, evidence semantics, and product parity while changing the
 material character from warm paper to warm ink.
 
-![Living Archive dark-mode direction](../1_Inbox/trace-humanised-dashboard-references/mockup-04-living-archive-dark.png)
+![Living Archive dark-mode direction](../4_Reference/trace-humanised-dashboard-references/mockup-04-living-archive-dark.png)
 
-![Editorial Focus dark-mode direction](../1_Inbox/trace-humanised-dashboard-references/mockup-05-editorial-focus-dark.png)
+![Editorial Focus dark-mode direction](../4_Reference/trace-humanised-dashboard-references/mockup-05-editorial-focus-dark.png)
 
 - Use warm charcoal or espresso for the canvas, with stepped graphite/deep-olive surfaces; avoid pure
   black and bright-white glare.
