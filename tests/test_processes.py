@@ -159,6 +159,84 @@ class ProcessMatchingTests(unittest.TestCase):
         self.assertEqual([process.pid for process in result.remaining], [701])
 
 
+class ProcessListingTests(unittest.TestCase):
+    # Coverage gap closed: iter_system_processes() prefers psutil when it is
+    # importable, but no test exercised that branch or _iter_psutil_processes
+    # itself - every other test in this file bypasses process listing
+    # entirely (find_managed_processes(snapshots=...)) or mocks the
+    # platform-specific subprocess fallbacks. psutil is an optional,
+    # soft-imported dependency (not installed in this environment), so the
+    # "available" path is faked via sys.modules the same way test_cli_help.py
+    # fakes memory_trace.
+
+    def test_psutil_process_iter_translates_to_process_info_when_available(self):
+        import sys
+        import types
+        from unittest import mock
+
+        from memory_seed.processes import _iter_psutil_processes
+
+        fake_proc = types.SimpleNamespace(
+            info={"pid": 555, "name": "memory-seed-mcp.exe", "exe": None, "cmdline": ["memory-seed-mcp", "--stdio"]}
+        )
+        fake_psutil = types.ModuleType("psutil")
+        fake_psutil.Error = Exception
+        fake_psutil.process_iter = mock.Mock(return_value=[fake_proc])
+
+        with mock.patch.dict(sys.modules, {"psutil": fake_psutil}):
+            processes = _iter_psutil_processes()
+
+        self.assertEqual(len(processes), 1)
+        self.assertEqual(processes[0].pid, 555)
+        self.assertEqual(processes[0].name, "memory-seed-mcp.exe")
+        self.assertEqual(processes[0].cmdline, ("memory-seed-mcp", "--stdio"))
+
+    def test_psutil_process_iter_skips_processes_that_vanish_mid_scan(self):
+        import sys
+        import types
+        from unittest import mock
+
+        from memory_seed.processes import _iter_psutil_processes
+
+        class VanishingProc:
+            @property
+            def info(self):
+                raise Exception("process vanished mid-scan")
+
+        fake_psutil = types.ModuleType("psutil")
+        fake_psutil.Error = Exception  # the code catches (psutil.Error, ValueError, TypeError)
+        fake_psutil.process_iter = mock.Mock(return_value=[VanishingProc()])
+
+        with mock.patch.dict(sys.modules, {"psutil": fake_psutil}):
+            processes = _iter_psutil_processes()
+
+        self.assertEqual(processes, [])
+
+    def test_iter_system_processes_prefers_psutil_when_available(self):
+        import sys
+        import types
+        from unittest import mock
+
+        from memory_seed.processes import ProcessInfo, iter_system_processes
+
+        fake_psutil = types.ModuleType("psutil")
+        fake_psutil.Error = Exception
+        fake_psutil.process_iter = mock.Mock(
+            return_value=[types.SimpleNamespace(info={"pid": 1, "name": "x", "exe": None, "cmdline": []})]
+        )
+
+        with (
+            mock.patch.dict(sys.modules, {"psutil": fake_psutil}),
+            mock.patch("memory_seed.processes._iter_windows_processes") as windows,
+            mock.patch("memory_seed.processes._iter_posix_processes") as posix,
+        ):
+            processes = iter_system_processes()
+
+        self.assertEqual(processes, [ProcessInfo(pid=1, name="x", exe=None, cmdline=())])
+        windows.assert_not_called()
+        posix.assert_not_called()
+
+
 class ProcessEncodingTests(unittest.TestCase):
     # Regression for the Windows cp1252/OEM-codepage decode crash and mojibake already
     # fixed for the git helpers in core.py (mse_azn6bejpd9xpmh3f): subprocess.run(text=True)
