@@ -311,7 +311,10 @@ through the sanctioned path and is caught everywhere else:
   heading, several decisions crammed under a singular `### Decision`, or a `D:`
   with no `R:`. The error names the fix.
 - `links check` (surfaced by `esr`, merge-blocking under CI) flags the same across
-  the whole corpus as `malformed-entry-format`.
+  the whole corpus as `malformed-entry-format`, and separately flags an entry whose
+  YAML metadata fence is opened but never closed as `malformed-entry-yaml` - an
+  unterminated fence swallows the following text and leaves the entry unparseable
+  to the fuse. The fix is to close the fence, never to delete the metadata.
 
 The check (`core.entry_body_format_issues`) is **structural only** - it never
 decides whether a turn is one decision or several (that stays authoring

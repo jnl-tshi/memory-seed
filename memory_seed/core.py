@@ -4005,6 +4005,10 @@ SEED_FILES = [
         ".memory-seed/skills/data_architecture.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "developer-rendered-ui-debugging.md",
+        ".memory-seed/skills/developer-rendered-ui-debugging.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "local_compilation.md",
         ".memory-seed/skills/local_compilation.md",
     ),
@@ -4272,8 +4276,13 @@ CORE_SKILL_NAMES = (
 
 SKILL_PROFILES: dict[str, SkillProfile] = {
     "coding": SkillProfile(
-        "Source exploration, local validation, and durable data-structure work.",
-        ("code_search.md", "local_compilation.md", "data_architecture.md"),
+        "Source exploration, local validation, rendered-UI debugging, and durable data-structure work.",
+        (
+            "code_search.md",
+            "local_compilation.md",
+            "data_architecture.md",
+            "developer-rendered-ui-debugging.md",
+        ),
     ),
     "security": SkillProfile(
         "Security-sensitive review, secret handling, and permission-risk triage.",
@@ -4319,6 +4328,7 @@ SKILL_DESCRIPTIONS = {
     "compact_mermaid_diagrams.md": "Produce compact Mermaid diagrams and decide when D2 is justified.",
     "copywriter-conversion.md": "Write conversion-focused product and launch copy.",
     "data_architecture.md": "Handle durable schema, cache, ranking, and retrieval-contract changes.",
+    "developer-rendered-ui-debugging.md": "Debug rendered browser UI: stale assets, hit targets, SVG/canvas, panes.",
     "docx_render_windows.md": "Render DOCX pages to images for Windows visual QA.",
     "document_ingestion.md": "Convert binary documents into readable Markdown/text.",
     "local_compilation.md": "Validate local build, test, package, and CLI behavior.",
