@@ -1,7 +1,16 @@
+---
+title: "Memory Seed Relevance and Deterministic Agent Behaviour"
+date: "2026-07-18"
+project: "memory-seed"
+status: "superseded"
+superseded: "2026-07-20"
+superseded_by: "../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md"
+---
+
 # Memory Seed Relevance and Deterministic Agent Behaviour
 
 > **Pre-triage correction (2026-07-18):** Treat this set as a hypothesis library, not an integrated
-> implementation programme. See [`../INBOX-ASSESSMENT.md`](../INBOX-ASSESSMENT.md). Existing narrow sidecar
+> implementation programme. See [`../INBOX-ASSESSMENT.md`](../1_Inbox/INBOX-ASSESSMENT.md). Existing narrow sidecar
 > contracts and append-only Markdown authority remain binding; a common manifest may only be a rebuildable
 > coverage projection. Mandatory intent metadata, historical backfill, and constitutional wording require
 > separate evidence and approval.

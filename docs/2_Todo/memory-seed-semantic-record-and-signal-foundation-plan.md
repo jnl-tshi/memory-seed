@@ -63,6 +63,18 @@ This is partitioned authority, not dual authority: each field has one declared o
 - Adopt `docs/3_Spec/draft/adr-lifecycle-sidecar-contract.md` as the candidate contract.
 - Promote three decisions spanning a direct decision entry, a multi-decision entry, and a legacy entry.
 - Prove exact source resolution, append-only transition order, and full context retrieval.
+- **Also measure, added 2026-07-20:** ambiguity reduction against authoring cost. This phase *is* step 2
+  of the corrected pre-triage sequence in [INBOX-ASSESSMENT.md](../1_Inbox/INBOX-ASSESSMENT.md) — same
+  three decisions, same contract, same decision-level identity — so step 2 discharges here rather than as
+  separate work. The natural subject is the entry-level supersession collateral recorded in
+  `mse_mkxdvaxvw99dz4s0`, and the natural target shape is the contract's own `source_decision` anchor.
+- **Record eligibility, not just outcome** *(crosswalk delta 3/10, adversarially verified)*: when a record
+  is evaluated and found **not to need** a sidecar, say so. Today `classify_pending` means "undecided",
+  which is not the same claim. The vocabulary already exists and is proven — `memory_seed/quality.py:35`
+  ships `measured | not_applicable | unavailable`, and its own comment draws exactly this line
+  ("`unavailable` — the input does not exist yet — rather than `not_applicable`, which would claim we
+  looked and found an empty population"). This is extending a proven pattern to record level, not a new
+  design.
 
 ### Phase 2 - Deterministic writers and integrity
 

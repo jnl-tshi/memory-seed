@@ -1,8 +1,17 @@
+---
+title: "Proposal: A Minimal Operational Ontology for Memory Seed"
+date: "2026-07-18"
+project: "memory-seed"
+status: "superseded"
+superseded: "2026-07-20"
+superseded_by: "../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md"
+---
+
 # Proposal: A Minimal Operational Ontology for Memory Seed
 
 **Status:** Explore further before promotion to ADR  
 **Date:** 2026-07-18  
-**Related documents:** [Index](00-index.md), [Evidence Model](02-evidence-model-and-packets-proposal.md), [Decision Supersession](03-decision-supersession-and-evolution-proposal.md)
+**Related documents:** [Index](memory-seed-ontology-evidence-set-index-exploration.md), [Evidence Model](evidence-model-and-packets-exploration.md), [Decision Supersession](decision-supersession-and-evolution-exploration.md)
 
 ## Summary
 

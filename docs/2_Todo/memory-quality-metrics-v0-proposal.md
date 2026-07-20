@@ -151,3 +151,25 @@ revision, fixtures, and tool version apart from `generated_at`.
 Memory quality remains a Constitution section 8 candidate. After the v0 report ships and produces useful,
 repeatable evidence, propose whether section 8 should graduate and which individual metrics deserve durable
 targets. Do not promote the metric set merely because the command exists.
+
+## Inherited candidate — decision quality under constrained context
+
+*Folded in 2026-07-20 from the retired inbox proposal sets; see
+[the capability crosswalk](../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md) delta 2, adversarially verified.*
+
+**The gap.** Nothing measures whether a *grounded decision was reached*. v0 measures corpus health; the
+`ranking-ab` gate measures retrieval ordering. Neither scores the outcome the memory exists to serve.
+
+**The candidate.** A small gold set of real questions ("why did X change, and what replaced it?"), scored
+on task completion — time and accuracy — against a bounded context. Two things make it cheap: the Evidence
+Pack already supplies a deterministic, fingerprinted structural-expansion arm with no new building, and
+[the Living Archive proposal](memory-trace-living-archive-and-editorial-focus-proposal.md) §14.6 already
+commits to running exactly this test as its own B0b adoption gate. **This plan owns the measurement; that
+proposal is its first caller.**
+
+**Explicitly not a composite score.** This plan's non-goals reject one, and folding this in does not
+reopen that — A5's composite efficiency metric was declined on those grounds and stays declined.
+
+**Gated behind the existing review.** This is a candidate, not a queued task: it waits on the same
+usefulness review as everything else here. Constitutional codification of *minimal-but-sufficient context*
+(crosswalk delta 9) waits on evidence this benchmark would produce — that ordering is deliberate.

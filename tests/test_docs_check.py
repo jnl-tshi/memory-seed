@@ -156,13 +156,22 @@ class DocsCheckTests(unittest.TestCase):
 
         self.assertNotIn("off-allowlist-folder", self.kinds(check_docs(root)))
 
-    def test_allowlisted_inbox_proposal_and_design_groups_are_not_flagged(self):
+    def test_allowlisted_inbox_design_group_is_not_flagged(self):
         root = self.make_docs()
-        self.write(root, "1_Inbox/memory-seed-ontology-evidence-proposals/00-index.md", "# Index\n")
-        self.write(root, "1_Inbox/memory-seed-relevance-proposals/00-index.md", "# Index\n")
         self.write(root, "1_Inbox/trace-humanised-dashboard-references/README.md", "# References\n")
 
         self.assertNotIn("off-allowlist-folder", self.kinds(check_docs(root)))
+
+    def test_retired_inbox_proposal_group_is_flagged_again(self):
+        # The two `memory-seed-*-proposals/` groups left the allowlist on
+        # 2026-07-20 when both sets were retired to `7_Superseded/`. Superseded
+        # documents sit flat in their lane, so nothing should recreate these
+        # folders — and if something does, it is drift worth failing on rather
+        # than a grandfathered exception.
+        root = self.make_docs()
+        self.write(root, "1_Inbox/memory-seed-ontology-evidence-proposals/00-index.md", "# Index\n")
+
+        self.assertIn("off-allowlist-folder", self.kinds(check_docs(root)))
 
     def test_lane_readme_is_not_a_lifecycle_document(self):
         root = self.make_docs()

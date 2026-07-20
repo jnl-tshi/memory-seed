@@ -390,13 +390,44 @@ folder) and was assessed but deliberately not promoted — see
   boundary (§14.3), because that *is* the commercialisation question and this proposal cites the deferred
   report as a source; and both naming questions, until a first brief exists to name. Sections 5 and 9 stay
   parked; `8_Deferred/` is untouched.
-- **Both proposal sets stay in `1_Inbox`; disposition deferred.** Step 1 of the assessment's corrected
-  five-step sequence was executed instead —
-  [a current-capability crosswalk](../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md) mapping each claim against
-  what already exists and who owns it, so a later promotion decision is about a real delta rather than a
-  proposal's self-description. Steps 2–5 (hand-model three multi-decision entries, build a constrained-
-  context gold set, pilot one open-question lens, then decide) remain undone. **No proposal has been
-  promoted or rejected.**
+- **Both proposal sets (14 documents) → `7_Superseded`, retired 2026-07-20.** Step 1 of the assessment's
+  corrected sequence ran first as
+  [a current-capability crosswalk](../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md): 82 claims scored against the
+  owner documents and shipped code rather than the proposals' own account of the status quo. Most were
+  already constitutional law or already-shipped capability the proposals understated — the Evidence Pack,
+  typed `supersedes`/`evolves`, blended retrieval — and five conflicted with explicit owner non-goals.
+  A6 and B1 turned out to be the same document written twice. The sets were then de-numbered, renamed
+  `-exploration`, and retired pointing back at the crosswalk, which is now the more accurate record.
+  **Nothing was deleted and nothing was promoted.**
+
+  The ten claimed deltas were **adversarially re-verified before retirement** — a pass told to falsify
+  each rather than confirm it. Five survived clean; five were true only under a narrow reading and were
+  reworded; **one was outright false** (the crosswalk asserted evidence-proportional-to-consequence was
+  absent from every constitutional layer, missing a *cited* §3 principle at `CONSTITUTION.md:105-106`).
+  The crosswalk was corrected before it became the supersession target.
+
+  **Where the surviving residues went:** the constrained-context decision-quality benchmark into
+  [memory-quality-metrics-v0-proposal.md](memory-quality-metrics-v0-proposal.md); record-level queryable
+  absence into [the semantic-record plan](memory-seed-semantic-record-and-signal-foundation-plan.md)
+  Phase 1, which also now discharges step 2 of the sequence — it already models three decisions against
+  the ADR contract, so only the ambiguity-vs-cost measurement was added. Open-question and assumption
+  lenses gained an owner on the same day when
+  [the Living Archive proposal](memory-trace-living-archive-and-editorial-focus-proposal.md) was promoted.
+
+  **Still ownerless — three candidates, recorded so they are not lost:**
+  1. **Decision-change impact report** — propagating a decision change to the plans, specs and tasks it
+     affects. `link audit` detects uncaptured structural neighbours only. Large and genuinely unowned;
+     the assessment's scope-multiplication warning applies directly, so this is a candidate, not a queue
+     item.
+  2. **Cross-provider output conformance suite** — Invariant #5 makes model independence law, and nothing
+     tests it: no fixture corpus, no threshold. Downstream of an extraction pipeline that does not exist.
+  3. **Declared entry `intent` field** — genuinely uncovered (no such field; stage is inferred from
+     prose), but its *value* is contested. Do not make it mandatory without evidence it beats existing
+     topics, DRAFT sections, branch and `F:` evidence.
+
+  **Steps 3–5 remain undone** and no longer gate anything: step 3's gold set is the benchmark above,
+  step 4 pilots the open-questions lens under its new owner, step 5 decides promotions. The inbox is
+  clear regardless — that is the stop rule.
 - **Raw design captures → `4_Reference/archived`.** Seven mood-board screenshots were archived once their
   palette and hierarchy themes had been extracted into the folder README; the five generated mockups stay
   in `1_Inbox` because live documents cite them.

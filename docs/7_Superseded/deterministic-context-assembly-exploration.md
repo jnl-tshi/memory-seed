@@ -1,8 +1,17 @@
+---
+title: "Proposal: Deterministic Context Assembly"
+date: "2026-07-18"
+project: "memory-seed"
+status: "superseded"
+superseded: "2026-07-20"
+superseded_by: "../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md"
+---
+
 # Proposal: Deterministic Context Assembly
 
 **Status:** Explore further before promotion to ADR  
 **Date:** 2026-07-18  
-**Related documents:** [Evidence Model](02-evidence-model-and-packets-proposal.md), [Benchmarking](05-benchmarking-decision-quality-under-constrained-context.md)
+**Related documents:** [Evidence Model](evidence-model-and-packets-exploration.md), [Benchmarking](benchmarking-decision-quality-exploration.md)
 
 ## Summary
 

@@ -5,20 +5,20 @@ date: 2026-07-20
 promotion: not applicable
 sources:
   - INBOX-ASSESSMENT.md
-  - memory-seed-ontology-evidence-proposals/00-index.md
-  - memory-seed-ontology-evidence-proposals/01-memory-seed-ontology-proposal.md
-  - memory-seed-ontology-evidence-proposals/02-evidence-model-and-packets-proposal.md
-  - memory-seed-ontology-evidence-proposals/03-decision-supersession-and-evolution-proposal.md
-  - memory-seed-ontology-evidence-proposals/04-deterministic-context-assembly-proposal.md
-  - memory-seed-ontology-evidence-proposals/05-benchmarking-decision-quality-under-constrained-context.md
-  - memory-seed-ontology-evidence-proposals/06-constitutional-principles-for-decision-efficiency.md
-  - memory-seed-relevance-proposals/00-proposal-set-index.md
-  - memory-seed-relevance-proposals/01-constitutional-principles-for-deterministic-agent-systems.md
-  - memory-seed-relevance-proposals/02-sidecar-lens-architecture.md
-  - memory-seed-relevance-proposals/03-deterministic-sidecar-generation-and-reconciliation.md
-  - memory-seed-relevance-proposals/04-entry-intent-metadata-and-branch-lifecycle.md
-  - memory-seed-relevance-proposals/05-high-signal-knowledge-lenses-roadmap.md
-  - memory-seed-relevance-proposals/06-integrated-implementation-sequence.md
+  - ../7_Superseded/memory-seed-ontology-evidence-set-index-exploration.md
+  - ../7_Superseded/memory-seed-ontology-exploration.md
+  - ../7_Superseded/evidence-model-and-packets-exploration.md
+  - ../7_Superseded/decision-supersession-and-evolution-exploration.md
+  - ../7_Superseded/deterministic-context-assembly-exploration.md
+  - ../7_Superseded/benchmarking-decision-quality-exploration.md
+  - ../7_Superseded/constitutional-principles-decision-efficiency-exploration.md
+  - ../7_Superseded/memory-seed-relevance-set-index-exploration.md
+  - ../7_Superseded/constitutional-principles-deterministic-agents-exploration.md
+  - ../7_Superseded/sidecar-lens-architecture-exploration.md
+  - ../7_Superseded/deterministic-sidecar-generation-exploration.md
+  - ../7_Superseded/entry-intent-metadata-exploration.md
+  - ../7_Superseded/high-signal-knowledge-lenses-exploration.md
+  - ../7_Superseded/integrated-implementation-sequence-exploration.md
   - ../CONSTITUTION.md
   - ../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md
   - ../2_Todo/memory-provenance-and-authority-taxonomy-proposal.md
@@ -39,8 +39,14 @@ This is step 1 of the corrected pre-triage sequence in
 against the active semantic-record plan, the graph-edge contract, the provenance and authority taxonomy,
 the Evidence Pack, the topic vocabulary, and the existing sidecar contracts. Each claimed capability is
 scored against what the owner documents and the shipped code actually do, not against the proposals'
-own characterisation of the status quo. Disposition of both sets remains deferred. Nothing here promotes,
-rejects, or moves any proposal; steps 2 through 5 of the corrected sequence are undone.
+own characterisation of the status quo.
+
+**Disposition, 2026-07-20.** Both sets have now been retired to `7_Superseded/` — de-numbered, renamed
+`-exploration`, each pointing back here. This document is the surviving record of what they claimed and
+what already covered it; it is more accurate than the sources were, since they systematically understate
+shipped capability. Nothing was promoted, and nothing was deleted. The ten deltas below were adversarially
+re-verified before the retirement (see the verification note at the end of Findings); their surviving
+residues are recorded in the owner plans named in each row.
 
 ## Reading the tables
 
@@ -48,20 +54,20 @@ Proposal codes:
 
 | Code | Document |
 |---|---|
-| A0 | [00-index.md](memory-seed-ontology-evidence-proposals/00-index.md) |
-| A1 | [01-memory-seed-ontology-proposal.md](memory-seed-ontology-evidence-proposals/01-memory-seed-ontology-proposal.md) |
-| A2 | [02-evidence-model-and-packets-proposal.md](memory-seed-ontology-evidence-proposals/02-evidence-model-and-packets-proposal.md) |
-| A3 | [03-decision-supersession-and-evolution-proposal.md](memory-seed-ontology-evidence-proposals/03-decision-supersession-and-evolution-proposal.md) |
-| A4 | [04-deterministic-context-assembly-proposal.md](memory-seed-ontology-evidence-proposals/04-deterministic-context-assembly-proposal.md) |
-| A5 | [05-benchmarking-decision-quality-under-constrained-context.md](memory-seed-ontology-evidence-proposals/05-benchmarking-decision-quality-under-constrained-context.md) |
-| A6 | [06-constitutional-principles-for-decision-efficiency.md](memory-seed-ontology-evidence-proposals/06-constitutional-principles-for-decision-efficiency.md) |
-| B0 | [00-proposal-set-index.md](memory-seed-relevance-proposals/00-proposal-set-index.md) |
-| B1 | [01-constitutional-principles-for-deterministic-agent-systems.md](memory-seed-relevance-proposals/01-constitutional-principles-for-deterministic-agent-systems.md) |
-| B2 | [02-sidecar-lens-architecture.md](memory-seed-relevance-proposals/02-sidecar-lens-architecture.md) |
-| B3 | [03-deterministic-sidecar-generation-and-reconciliation.md](memory-seed-relevance-proposals/03-deterministic-sidecar-generation-and-reconciliation.md) |
-| B4 | [04-entry-intent-metadata-and-branch-lifecycle.md](memory-seed-relevance-proposals/04-entry-intent-metadata-and-branch-lifecycle.md) |
-| B5 | [05-high-signal-knowledge-lenses-roadmap.md](memory-seed-relevance-proposals/05-high-signal-knowledge-lenses-roadmap.md) |
-| B6 | [06-integrated-implementation-sequence.md](memory-seed-relevance-proposals/06-integrated-implementation-sequence.md) |
+| A0 | [memory-seed-ontology-evidence-set-index-exploration.md](../7_Superseded/memory-seed-ontology-evidence-set-index-exploration.md) |
+| A1 | [memory-seed-ontology-exploration.md](../7_Superseded/memory-seed-ontology-exploration.md) |
+| A2 | [evidence-model-and-packets-exploration.md](../7_Superseded/evidence-model-and-packets-exploration.md) |
+| A3 | [decision-supersession-and-evolution-exploration.md](../7_Superseded/decision-supersession-and-evolution-exploration.md) |
+| A4 | [deterministic-context-assembly-exploration.md](../7_Superseded/deterministic-context-assembly-exploration.md) |
+| A5 | [benchmarking-decision-quality-exploration.md](../7_Superseded/benchmarking-decision-quality-exploration.md) |
+| A6 | [constitutional-principles-decision-efficiency-exploration.md](../7_Superseded/constitutional-principles-decision-efficiency-exploration.md) |
+| B0 | [memory-seed-relevance-set-index-exploration.md](../7_Superseded/memory-seed-relevance-set-index-exploration.md) |
+| B1 | [constitutional-principles-deterministic-agents-exploration.md](../7_Superseded/constitutional-principles-deterministic-agents-exploration.md) |
+| B2 | [sidecar-lens-architecture-exploration.md](../7_Superseded/sidecar-lens-architecture-exploration.md) |
+| B3 | [deterministic-sidecar-generation-exploration.md](../7_Superseded/deterministic-sidecar-generation-exploration.md) |
+| B4 | [entry-intent-metadata-exploration.md](../7_Superseded/entry-intent-metadata-exploration.md) |
+| B5 | [high-signal-knowledge-lenses-exploration.md](../7_Superseded/high-signal-knowledge-lenses-exploration.md) |
+| B6 | [integrated-implementation-sequence-exploration.md](../7_Superseded/integrated-implementation-sequence-exploration.md) |
 
 `Delta` values:
 
@@ -246,17 +252,44 @@ than capabilities:
 5. **B4 — declared `intent` entry field.** No field records intent; stage must be inferred from prose.
    The capability is uncovered; its *value* is contested — the assessment requires proof that it beats
    existing topics, DRAFT sections, branch, and `F:` file evidence before it becomes mandatory.
-6. **B5 — open-questions and unresolved-tensions lens.** Constitution §10 is one hand-maintained
-   section; nothing addresses an open question to an entry or resolves it over time.
-7. **B5 — assumptions and validity-conditions lens.** DRAFT `A:` records alternatives, not assumptions;
-   no validity condition or its validation result is recorded anywhere.
-8. **A6-4 — evidence proportional to consequence.** Not present at any constitutional layer; §7 remains
-   `[candidate]`.
-9. **A6-5 / A6 decision-quality rule — minimal-but-sufficient context, and decision quality under
-   constrained context as a design objective.** Neither appears in the Constitution. Both are the
-   principles A5's benchmark would supply evidence for, which is the correct order.
-10. **B1-6 — absence should be queryable when meaningful.** The principle form of delta 3, and the item
-    the assessment independently flagged as additive.
+6. **B5 — open-questions lens, addressed to an entry.** *(narrowed 2026-07-20)* Constitution §10 is one
+   hand-maintained section and nothing addresses an open question to an **entry**. The original wording
+   here also claimed nothing "resolves it over time", which is false: §10 carries dated resolutions
+   (`CONSTITUTION.md:192,199`, both "RESOLVED (2026-07-14)"), and `blocked_by`/`next_action` are enforced
+   per document by `docs_check.py`. The table row above was accurate; this prose was not.
+7. **B5 — assumptions and validity-conditions lens.** *(narrowed 2026-07-20)* The residue is a validity
+   condition **bound to a stated assumption**. The original "no validation result is recorded anywhere"
+   is false — DRAFT `T:` records validation results per entry, as the table row itself concedes. Stating
+   an assumption is also live practice in the `risk_signaling` Proceed-and-flag tier, but it is spoken,
+   not durably recorded.
+8. **A6-4 — graded evidence requirements across decisions.** *(corrected 2026-07-20)* The original claim
+   — "not present at any constitutional layer" — was **false**. `CONSTITUTION.md:105-106` carries a
+   *cited* §3 principle, "Prove risky automation on a small case; don't remove guards you don't
+   understand", which is consequence-proportional evidence at the Principles layer; the crosswalk weighed
+   only §7 and the `risk_signaling` skill. The real residue is narrower: §3 covers the risky-automation
+   *instance*, while A6-4 grades evidence across five axes (consequence, irreversibility, reach,
+   uncertainty, dispute) as a general rule — and §4's DRAFT policy requires D/R/A/F/T *uniformly*
+   regardless of consequence, which is the opposite of graded.
+9. **A6-5 — minimal-but-sufficient context as constitutional text.** *(narrowed 2026-07-20)* Literally
+   true that neither appears in the Constitution, but "as a design objective" is falsified by shipped
+   work: `docs/5_Completed/worker-context-minimisation-proposal.md` (SHIPPED 2026-07-17) defines a Worker
+   Context Contract with `context_load: minimal` and an explicit sufficiency guard. The residue is
+   constitutional codification, plus decision-quality-under-constrained-context as a stated objective —
+   which is what delta 2's benchmark would supply evidence for.
+10. **B1-6 — authored, record-level queryable absence.** *(narrowed 2026-07-20)* Two shipped forms of
+    meaningful absence already exist: `missing_evidence[]` with reasons in the Evidence Pack, and the
+    `unavailable` vs `not_applicable` split in `memory_seed/quality.py:35` — which *is* the
+    not-evaluated/not-applicable distinction B1-6 asks for. The residue is applying it at record level to
+    authored entries. Extension of a proven pattern, not a new design.
+
+**Verification note (2026-07-20).** An adversarial pass tried to falsify all ten before these documents
+were retired on their basis. Deltas 1–5 survived clean. Deltas 6–10 were true only under a narrow reading
+of their own wording and are reworded above; delta 8 was outright false and is corrected. In two cases
+(6, 7) the crosswalk's own table rows were more accurate than this Findings prose, so the tables above
+stand as written. Deltas 2, 3, 6, 7 and 10 additionally gained a named active owner on 2026-07-20 when
+[the Living Archive proposal](../2_Todo/memory-trace-living-archive-and-editorial-focus-proposal.md) was
+promoted — it proposes an Open Questions Brief, open-question metadata, assumption lenses, queryable
+absence, and a task-completion test for decision quality.
 
 ## What step 2 would need
 
