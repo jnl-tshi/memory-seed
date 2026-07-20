@@ -882,3 +882,64 @@ class LinksCheckTests(unittest.TestCase):
         cycle_issue = next(i for i in issues if i.kind == "supersedes-cycle")
         self.assertIn("mse_0123456789abcdef", cycle_issue.detail)
         self.assertIn("mse_ffffffffffffffff", cycle_issue.detail)
+
+    def test_decision_density_advisory_warns_but_never_errors(self):
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        three = (
+            "## 2026-06-01 09:00 - Batched\n\n```yaml\nentry_id: ms-aaaaaaaa\n```\n\n"
+            "### Decisions\n\n"
+            "#### D1 - one\n\n- D: a\n- R: r\n\n"
+            "#### D2 - two\n\n- D: b\n- R: r\n\n"
+            "#### D3 - three\n\n- D: c\n- R: r\n"
+        )
+        (sessions / "2026-06-01.md").write_text(three, encoding="utf-8")
+
+        result = check_session_links(cwd=cwd)
+
+        # A well-formed entry can still be worth splitting: advise, never fail.
+        self.assertTrue(result.ok)
+        self.assertEqual([i.severity for i in result.issues], ["warning"])
+        self.assertEqual(result.issues[0].kind, "entry-decision-density")
+        self.assertIn("3 decisions", result.issues[0].detail)
+
+    def test_decision_density_advisory_is_quiet_below_the_threshold(self):
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        two = (
+            "## 2026-06-01 09:00 - One deliberation\n\n```yaml\nentry_id: ms-aaaaaaaa\n```\n\n"
+            "### Decisions\n\n"
+            "#### D1 - one\n\n- D: a\n- R: r\n\n"
+            "#### D2 - two\n\n- D: b\n- R: r\n"
+        )
+        (sessions / "2026-06-01.md").write_text(two, encoding="utf-8")
+
+        result = check_session_links(cwd=cwd)
+
+        # Two decisions settled together is the sanctioned multi-decision shape.
+        self.assertTrue(result.ok)
+        self.assertEqual(result.issues, [])
+
+    def test_future_timestamp_advisory_warns_but_never_errors(self):
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        future = (
+            "## 2126-01-01 09:00 - Stamped a century ahead\n\n"
+            "```yaml\nentry_id: ms-aaaaaaaa\n```\n\n"
+            "### Decision\n\n- D: a\n- R: r\n"
+        )
+        (sessions / "2126-01-01.md").write_text(future, encoding="utf-8")
+
+        result = check_session_links(cwd=cwd)
+
+        # A drifted stamp is a smell, never an integrity failure: historical
+        # corpora may contain known drifted-but-published entries and
+        # append-only forbids restamping them.
+        self.assertTrue(result.ok)
+        self.assertEqual([i.severity for i in result.issues], ["warning"])
+        self.assertEqual(result.issues[0].kind, "entry-future-timestamp")
+        self.assertIn("ms-aaaaaaaa", result.issues[0].detail)
+        self.assertIn("2126-01-01 09:00", result.issues[0].detail)

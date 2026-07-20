@@ -1,8 +1,8 @@
 ---
 title: Test-suite protection-value audit
 status: active
-priority: P2
-next_action: Phase 2c content cull is complete (all 635 original tests + the 18-file remainder reviewed). Awaiting JNL's review of the "Findings awaiting a review checkpoint" section below before any structural split or deletion proceeds.
+priority: P3
+next_action: Audit fully closed 2026-07-20 (content cull + the deferred structural split, both resolved). No outstanding action; periodic flakiness/coverage re-checks only (see Measurements).
 blocked_by: []
 ---
 
@@ -345,28 +345,41 @@ structural-split recommendation) were the only real issues in the whole suite.
 Verified: `pytest tests/test_processes.py` 25/25 passed; full `pytest tests` 639 passed (was 636), 14
 subtests passed.
 
-## Findings awaiting a review checkpoint (not yet actioned)
+## Findings awaiting a review checkpoint (resolved 2026-07-20)
 
-Structural-split and Delete candidates accumulate here as later files are culled, and are reviewed with
-JNL as one batch before anything in this section is acted on — see the authorization split above.
-**Phase 2c is now complete; this is the full and final list.**
+Structural-split and Delete candidates accumulated here as later files were culled, for review with
+JNL as one batch before anything in this section was acted on — see the authorization split above.
 
-1. **Structural split of `test_session_fuse_and_merge.py`.** ~28 of its 69 tests cover 5 concerns
-   unrelated to fuse/merge (`integration_mode` read/suggest/write, `decision_density`/`future_timestamp`
-   advisories, `branch_status`, `worktree_guard`, `session_target`) that share the file's real-git
-   fixture harness. Recommend carving these into their own file(s), but this reopens the Phase 2a
-   structural split JNL already approved, so it needs a go/no-go rather than proceeding on the same
-   autonomous footing as the file-1 migrate-tests move.
-   - Sub-question: the 6 `decision_density`/`future_timestamp` tests don't have one clean destination
-     even within that split — 3 call `check_session_links` directly (arguably belong with
-     `test_links_check.py`), 3 call the underlying advisory/gate functions used by
-     `session_append_entry` (arguably belong with `test_session_append.py`). Needs a decision before
-     any move happens.
+1. **Structural split of `test_session_fuse_and_merge.py` — done, 2026-07-20.** JNL: "make a reasonable
+   call." ~28 of its 69 tests covered 5 concerns unrelated to fuse/merge and shared only the file's
+   real-git fixture harness — a contiguous block (lines 279-895, right before the genuine fuse/merge
+   tests start), which made the split mechanical rather than a judgment call about scattering tests
+   across the file. Split into:
+   - `test_integration_mode.py` (6: read/suggest ×2/contract/write, + `update_preserves_declared_integration_mode`)
+   - `test_branch_status.py` (3)
+   - `test_worktree_guard.py` (4)
+   - `test_session_target.py` (8)
+   - The 6 `decision_density`/`future_timestamp` tests, per the sub-question below: 3 that called
+     `check_session_links` directly moved to `test_links_check.py` (now 45 tests); 3 that called the
+     underlying advisory/gate functions directly moved to `test_session_append.py` (now 15 tests).
+   - `test_merge_routing_stanza_resyncs_on_body_change_only` (unrelated to fuse/merge or integration
+     mode — a `_merge_routing_stanza` core-function unit test) moved to `test_core_misc.py` (now 19
+     tests), the file's existing grab-bag-of-small-core-functions home.
+   - `test_session_fuse_and_merge.py` itself: 69 → 41, now purely fuse/merge/prepare-pr/open-pr, plus
+     the two now-unused fixture helpers (`_git_repo_with_commit`, `_write_participants`) removed along
+     with the tests that were their only callers.
+   Verified: each new/edited file's own tests pass in isolation before the source file was trimmed;
+   `pytest --collect-only` reports exactly 639 both before and after (a pure reorganization, no test
+   gained or lost); full suite **639 passed, 14 subtests passed**, unchanged from before the split.
 
 **No Delete candidates were found anywhere in the 635-test suite.** Every test mapped to a distinct,
 currently-protected behaviour; the only content-level issues across the whole audit were the 2
 misclassified migration tests in file 1 (already moved) and the one coverage gap already closed above.
 The suite's actual problem, confirmed by this full pass, was organizational (one 6,533-line grab-bag
-file), not volume or duplication — which Phase 2a already fixed. 635 → 639 is the current test count
-after this session's one Move and two Expands (`test_cli_help.py` +1, `test_processes.py` +3, net of no
-deletions).
+file, and — as of this split — one 69-test file that still bundled 5 unrelated concerns), not volume or
+duplication. 635 → 639 is the current test count after this session's one Move, two Expands
+(`test_cli_help.py` +1, `test_processes.py` +3), and one structural split (net zero — 28 tests
+relocated, not added or removed).
+
+Phase 2c is now fully closed — content cull, the review-checkpoint findings, and the one deferred
+structural split are all resolved.

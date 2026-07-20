@@ -164,17 +164,13 @@ before its next step. (Market/account items live under "Parked" below.)
 5. **OpenSSF remainder — your GitHub clicks** (only you can do these): enable private vulnerability
    reporting; add branch protection + set `integration_mode: pr` (G2); submit to bestpractices.dev
    (answers drafted on request); confirm PyPI attestations at the next cut.
-6. **Structural split of `test_session_fuse_and_merge.py`.** ~28 of its 69 tests cover 5 concerns
-   unrelated to fuse/merge (`integration_mode`, `decision_density`/`future_timestamp` advisories,
-   `branch_status`, `worktree_guard`, `session_target`) that only share the file's real-git fixture
-   harness. *Options:* **(a)** carve them into their own file(s) per concern *(recommended: matches
-   the Phase 2a split's own logic — one file, one concern)*; **(b)** leave as-is — the tests are all
-   Keep-worthy, this is navigability only, not a defect. Sub-question either way: 6 of those tests
-   (`decision_density`/`future_timestamp`) split further on inspection — 3 call `check_session_links`
-   directly (natural home: `test_links_check.py`), 3 call the write-time advisory/gate functions
-   directly (natural home: `test_session_append.py`) — so "one new file for all 28" isn't quite right
-   either. Full detail: [`test-suite-protection-value-audit.md`](test-suite-protection-value-audit.md)
-   § "Findings awaiting a review checkpoint".
+6. ~~**Structural split of `test_session_fuse_and_merge.py`.**~~ **RESOLVED 2026-07-20** — JNL: "make a
+   reasonable call." Split into `test_integration_mode.py` (6), `test_branch_status.py` (3),
+   `test_worktree_guard.py` (4), `test_session_target.py` (8); the 6 `decision_density`/
+   `future_timestamp` tests split further, 3 into `test_links_check.py` and 3 into
+   `test_session_append.py` per their actual call target; one `_merge_routing_stanza` test into
+   `test_core_misc.py`. `test_session_fuse_and_merge.py` itself: 69 → 41, now purely fuse/merge. Pure
+   reorganization — 639 tests collected before and after, full suite unchanged at 639 passed.
 
 ## Live work — sequenced (Constitution-aligned)
 

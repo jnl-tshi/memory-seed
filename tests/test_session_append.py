@@ -174,6 +174,64 @@ class SessionAppendTests(unittest.TestCase):
         self.assertFalse(refused.ok)
         self.assertIsNone(refused.rendered, "a refused write has no final output to preview")
 
+    def test_decision_density_never_blocks_session_append(self):
+        from memory_seed.core import entry_body_advisories, entry_body_format_issues
+
+        body = (
+            "### Decisions\n\n"
+            "#### D1 - one\n\n- D: a\n- R: r\n\n"
+            "#### D2 - two\n\n- D: b\n- R: r\n\n"
+            "#### D3 - three\n\n- D: c\n- R: r\n"
+        )
+
+        # The write-time gate must stay silent; only the advisory path speaks.
+        # session append calls entry_body_format_issues and refuses on any hit.
+        self.assertEqual(entry_body_format_issues(body), [])
+        self.assertEqual(len(entry_body_advisories(body)), 1)
+
+    def test_future_timestamp_advisory_grace_window_and_past_are_quiet(self):
+        from datetime import datetime, timedelta
+
+        from memory_seed.core import check_entry_timestamp_advisories
+
+        now = datetime(2026, 7, 18, 22, 0)
+
+        def text_at(stamp):
+            return (
+                f"## {stamp:%Y-%m-%d %H:%M} - Entry\n\n"
+                "```yaml\nentry_id: mse_aaaaaaaaaaaaaaaa\n```\n\n"
+                "### Summary\n\n- a note\n"
+            )
+
+        # Past and present stamps are the normal case.
+        self.assertEqual(check_entry_timestamp_advisories(text_at(now - timedelta(hours=2)), now=now), [])
+        self.assertEqual(check_entry_timestamp_advisories(text_at(now), now=now), [])
+        # Inside (and exactly at) the clock-skew grace window: quiet.
+        self.assertEqual(check_entry_timestamp_advisories(text_at(now + timedelta(minutes=10)), now=now), [])
+        # Beyond the grace window: flagged, attributed to the entry id.
+        flagged = check_entry_timestamp_advisories(text_at(now + timedelta(minutes=11)), now=now)
+        self.assertEqual(len(flagged), 1)
+        self.assertEqual(flagged[0][0], "mse_aaaaaaaaaaaaaaaa")
+        self.assertIn("in the future", flagged[0][1])
+
+    def test_future_timestamp_advisory_flags_only_the_drifted_entry(self):
+        from datetime import datetime, timedelta
+
+        from memory_seed.core import check_entry_timestamp_advisories
+
+        now = datetime(2026, 7, 18, 22, 0)
+        future = now + timedelta(hours=2)
+        text = (
+            "## 2026-07-18 09:00 - Fine\n\n```yaml\nentry_id: ms-aaaaaaaa\n```\n\n"
+            "### Summary\n\n- ok\n\n"
+            f"## {future:%Y-%m-%d %H:%M} - Drifted\n\n```yaml\nentry_id: ms-bbbbbbbb\n```\n\n"
+            "### Summary\n\n- stamped ahead\n"
+        )
+
+        flagged = check_entry_timestamp_advisories(text, now=now)
+
+        self.assertEqual([entry_id for entry_id, _ in flagged], ["ms-bbbbbbbb"])
+
 
 if __name__ == "__main__":
     unittest.main()

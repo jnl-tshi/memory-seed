@@ -331,3 +331,20 @@ class CoreMiscTests(unittest.TestCase):
 
         self.assertEqual(result.sessions_scanned, [f"{today}.md"])
         self.assertNotIn("Should be ignored", result.full_text)
+
+    def test_merge_routing_stanza_resyncs_on_body_change_only(self):
+        # The no-churn guarantee: the block is rewritten only when its body
+        # differs, not on a bare version bump (the block carries no version).
+        from memory_seed.core import _merge_routing_stanza
+
+        cwd = self.make_project()
+        f = cwd / "HOST.md"
+        f.write_text("# Host\n\nhost content\n", encoding="utf-8")
+
+        self.assertTrue(_merge_routing_stanza(f))            # injected
+        self.assertFalse(_merge_routing_stanza(f))           # identical -> no write
+        # A different stanza body forces an in-place re-sync.
+        changed = "<!-- BEGIN memory-seed -->\nnew body\n<!-- END memory-seed -->"
+        self.assertTrue(_merge_routing_stanza(f, changed))
+        self.assertFalse(_merge_routing_stanza(f, changed))
+        self.assertIn("host content", f.read_text(encoding="utf-8"))
