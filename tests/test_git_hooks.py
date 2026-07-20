@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import pytest
 from pathlib import Path
 
 from memory_seed.core import (
@@ -86,6 +87,7 @@ class GitHookTests(unittest.TestCase):
         self.assertTrue(any("NOT installed" in action for action in actions))
         self.assertIn("echo custom", hook.read_text(encoding="utf-8"))
 
+    @pytest.mark.integration
     def test_update_refreshes_managed_stale_hook(self):
         project = Path(tempfile.mkdtemp(prefix="mseed-hook-update-"))
         self.addCleanup(lambda: shutil.rmtree(project, ignore_errors=True))
@@ -105,6 +107,7 @@ class GitHookTests(unittest.TestCase):
         self.assertEqual(git_hook_status(project).state, "current")
         self.assertTrue(any(item.startswith("git-hook: prepare-commit-msg: refreshed") for item in result.created))
 
+    @pytest.mark.integration
     def test_update_preserves_foreign_hook(self):
         project = Path(tempfile.mkdtemp(prefix="mseed-hook-foreign-"))
         self.addCleanup(lambda: shutil.rmtree(project, ignore_errors=True))
@@ -120,6 +123,7 @@ class GitHookTests(unittest.TestCase):
         self.assertEqual(git_hook_status(project).state, "foreign")
         self.assertFalse(any(item.startswith("git-hook:") for item in result.created))
 
+    @pytest.mark.integration
     def test_commit_carrying_an_entry_gets_the_trailer_end_to_end(self):
         install_git_hooks(self.cwd)
         (self.sessions / "2026-06-13.md").write_text(_entry("2026-06-13 09:00", EID), encoding="utf-8")
@@ -130,6 +134,7 @@ class GitHookTests(unittest.TestCase):
 
         self.assertIn(f"Memory-Entry: {EID}", message)
 
+    @pytest.mark.integration
     def test_existing_trailer_is_not_duplicated(self):
         install_git_hooks(self.cwd)
         (self.sessions / "2026-06-13.md").write_text(_entry("2026-06-13 09:00", EID), encoding="utf-8")
@@ -140,6 +145,7 @@ class GitHookTests(unittest.TestCase):
 
         self.assertEqual(message.count(f"Memory-Entry: {EID}"), 1)
 
+    @pytest.mark.integration
     def test_wider_id_shape_is_stamped(self):
         install_git_hooks(self.cwd)
         (self.sessions / "2026-06-13.md").write_text(_entry("2026-06-13 09:00", EID2), encoding="utf-8")
@@ -148,6 +154,7 @@ class GitHookTests(unittest.TestCase):
 
         self.assertIn(f"Memory-Entry: {EID2}", self._last_message())
 
+    @pytest.mark.integration
     def test_commit_without_session_changes_is_untouched(self):
         install_git_hooks(self.cwd)
         (self.cwd / "README.md").write_text("hello\n", encoding="utf-8")
@@ -156,6 +163,7 @@ class GitHookTests(unittest.TestCase):
 
         self.assertNotIn("Memory-Entry:", self._last_message())
 
+    @pytest.mark.integration
     def test_fixture_like_entry_ids_outside_session_tree_are_not_stamped(self):
         install_git_hooks(self.cwd)
         tests_dir = self.cwd / "tests"
@@ -166,6 +174,7 @@ class GitHookTests(unittest.TestCase):
 
         self.assertNotIn("Memory-Entry:", self._last_message())
 
+    @pytest.mark.integration
     def test_new_trailer_joins_an_existing_trailer_block_contiguously(self):
         install_git_hooks(self.cwd)
         (self.sessions / "2026-06-13.md").write_text(_entry("2026-06-13 09:00", EID), encoding="utf-8")

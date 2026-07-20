@@ -2,6 +2,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import pytest
 from pathlib import Path
 
 from memory_seed.worktree_gc import (
@@ -55,6 +56,7 @@ class WorktreeClassifyTests(unittest.TestCase):
         self.assertEqual(root.state, "root")
         self.assertFalse(root.removable)
 
+    @pytest.mark.integration
     def test_clean_merged_owned_worktree_is_removable(self):
         repo = self.make_repo()
         wt = self.add_worktree(repo, ".claude/worktrees/done", "claude/feature/done")
@@ -67,6 +69,7 @@ class WorktreeClassifyTests(unittest.TestCase):
         self.assertEqual(self.state_of(report, wt), "removable")
         self.assertEqual([i.path for i in report.removable], [str(wt.resolve())])
 
+    @pytest.mark.integration
     def test_dirty_worktree_is_never_removable_even_when_merged(self):
         repo = self.make_repo()
         wt = self.add_worktree(repo, ".claude/worktrees/dirty", "claude/feature/dirty")
@@ -79,6 +82,7 @@ class WorktreeClassifyTests(unittest.TestCase):
         self.assertEqual(self.state_of(report, wt), "dirty")
         self.assertEqual(report.removable, ())
 
+    @pytest.mark.integration
     def test_unmerged_worktree_is_not_removable(self):
         repo = self.make_repo()
         wt = self.add_worktree(repo, ".claude/worktrees/wip", "claude/feature/wip")
@@ -91,6 +95,7 @@ class WorktreeClassifyTests(unittest.TestCase):
         self.assertEqual(self.state_of(report, wt), "unmerged")
         self.assertEqual(report.removable, ())
 
+    @pytest.mark.integration
     def test_other_agents_worktree_is_foreign(self):
         repo = self.make_repo()
         wt = self.add_worktree(repo, ".codex/worktrees/theirs", "codex/feature/theirs")
@@ -102,6 +107,7 @@ class WorktreeClassifyTests(unittest.TestCase):
         self.assertEqual(self.state_of(report, wt), "foreign")
         self.assertEqual(report.removable, ())
 
+    @pytest.mark.integration
     def test_worktree_outside_any_namespace_is_foreign(self):
         repo = self.make_repo()
         wt = self.add_worktree(repo, "stray", "claude/feature/stray")
@@ -111,6 +117,7 @@ class WorktreeClassifyTests(unittest.TestCase):
 
         self.assertEqual(self.state_of(report, wt), "foreign")
 
+    @pytest.mark.integration
     def test_detached_head_fails_closed_to_unknown(self):
         repo = self.make_repo()
         wt = self.add_worktree(repo, ".claude/worktrees/detached", "claude/feature/detached")
@@ -124,6 +131,7 @@ class WorktreeClassifyTests(unittest.TestCase):
         self.assertEqual(self.state_of(report, wt), "unknown")
         self.assertEqual(report.removable, ())
 
+    @pytest.mark.integration
     def test_active_worktree_is_not_removable(self):
         repo = self.make_repo()
         wt = self.add_worktree(repo, ".claude/worktrees/here", "claude/feature/here")
@@ -136,6 +144,7 @@ class WorktreeClassifyTests(unittest.TestCase):
         self.assertEqual(self.state_of(report, wt), "active")
         self.assertEqual(report.removable, ())
 
+    @pytest.mark.integration
     def test_classification_is_deterministic(self):
         repo = self.make_repo()
         self.add_worktree(repo, ".claude/worktrees/done", "claude/feature/done")
@@ -146,6 +155,7 @@ class WorktreeClassifyTests(unittest.TestCase):
             classify_worktrees(repo, agent_type="claude").to_dict(),
         )
 
+    @pytest.mark.integration
     def test_report_removes_nothing(self):
         repo = self.make_repo()
         wt = self.add_worktree(repo, ".claude/worktrees/done", "claude/feature/done")
@@ -161,6 +171,7 @@ class WorktreeClassifyTests(unittest.TestCase):
         self.assertIn(wt.resolve().as_posix(), _git(repo, "worktree", "list").stdout)
         self.assertIn("nothing has been removed", text)
 
+    @pytest.mark.integration
     def test_no_agent_scope_still_reports_owner_without_foreign_verdict(self):
         repo = self.make_repo()
         wt = self.add_worktree(repo, ".codex/worktrees/theirs", "codex/feature/theirs")
@@ -185,6 +196,7 @@ class WorktreeClassifyTests(unittest.TestCase):
 
     # --- apply / removal ---------------------------------------------------
 
+    @pytest.mark.integration
     def test_apply_removes_a_removable_worktree_and_leaves_its_branch(self):
         repo = self.make_repo()
         wt = self.add_worktree(repo, ".claude/worktrees/done", "claude/feature/done")
@@ -199,6 +211,7 @@ class WorktreeClassifyTests(unittest.TestCase):
         # The branch is a separate object and must survive.
         self.assertIn("claude/feature/done", _git(repo, "branch").stdout)
 
+    @pytest.mark.integration
     def test_apply_reclassifies_and_never_removes_a_dirty_worktree(self):
         repo = self.make_repo()
         wt = self.add_worktree(repo, ".claude/worktrees/dirty", "claude/feature/dirty")
@@ -211,6 +224,7 @@ class WorktreeClassifyTests(unittest.TestCase):
         self.assertEqual(result.removed, ())
         self.assertTrue(wt.exists())
 
+    @pytest.mark.integration
     def test_apply_never_touches_another_agents_worktree(self):
         repo = self.make_repo()
         wt = self.add_worktree(repo, ".codex/worktrees/theirs", "codex/feature/theirs")
@@ -221,6 +235,7 @@ class WorktreeClassifyTests(unittest.TestCase):
         self.assertEqual(result.removed, ())
         self.assertTrue(wt.exists())
 
+    @pytest.mark.integration
     def test_apply_retries_a_locked_worktree_then_refuses_without_raw_deletion(self):
         repo = self.make_repo()
         wt = self.add_worktree(repo, ".claude/worktrees/locked", "claude/feature/locked")
@@ -249,6 +264,7 @@ class WorktreeClassifyTests(unittest.TestCase):
         self.assertTrue(wt.exists())
         self.assertIn("left intact", format_worktree_gc_apply(result))
 
+    @pytest.mark.integration
     def test_apply_does_not_retry_a_non_lock_failure(self):
         repo = self.make_repo()
         self.add_worktree(repo, ".claude/worktrees/x", "claude/feature/x")

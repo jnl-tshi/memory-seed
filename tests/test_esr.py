@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import pytest
 from pathlib import Path
 
 from memory_seed.core import MEMORY_DIR_NAME
@@ -178,6 +179,7 @@ class EsrReportTests(unittest.TestCase):
         self.assertTrue(report.seed_twins_checked)
         self.assertEqual(report.seed_twin_drift, ["end_of_turn.md: live and seed twin differ"])
 
+    @pytest.mark.integration
     def test_git_worktree_posture_marks_merged_clean_as_stale_candidate(self):
         (self.sessions / "2026-06-01.md").write_text(_entry("2026-06-01 09:00", A), encoding="utf-8")
 

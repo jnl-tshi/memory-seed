@@ -5,6 +5,7 @@ import subprocess
 import sys
 import time
 import unittest
+import pytest
 from unittest import mock
 
 
@@ -238,6 +239,7 @@ class ProcessEncodingTests(unittest.TestCase):
 
 @unittest.skipUnless(sys.platform == "win32", "real Windows process listing requires PowerShell/WMI")
 class WindowsProcessListingIntegrationTests(unittest.TestCase):
+    @pytest.mark.integration
     def test_real_powershell_round_trips_non_ascii_command_line(self):
         # Real (non-mocked) round trip: without forcing PowerShell's own OutputEncoding to
         # UTF-8, non-ASCII bytes are mangled or lost by PowerShell itself before Python ever
