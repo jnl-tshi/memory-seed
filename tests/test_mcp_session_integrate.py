@@ -1,24 +1,24 @@
 """`memory_session_integrate`: autonomous branch integration over MCP.
 
 The merge machinery itself is `session_merge_branch`, already covered in
-test_memory_seed.py. These tests cover what the MCP surface changes about it:
+test_session_fuse_and_merge.py. These tests cover what the MCP surface changes about it:
 it applies without waiting for a human, so it must never walk away from a
 half-merged tree, and it must decline the PR path outright.
 """
 
 import shutil
-import subprocess
 import tempfile
 import unittest
 import pytest
 from pathlib import Path
 
+from _git_helpers import run_git
 from memory_seed.core import MEMORY_DIR_NAME
 from memory_seed.mcp_server import call_tool
 
 
 def _git(root, *args):
-    return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, check=False)
+    return run_git(root, *args, check=False)
 
 
 def _entry(ts, eid, title, branch):
