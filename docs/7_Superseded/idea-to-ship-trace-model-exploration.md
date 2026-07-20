@@ -1,3 +1,10 @@
+---
+title: "Initial Proposal: Idea-to-Ship Trace Model"
+status: "superseded"
+superseded_by: "../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md"
+superseded_on: "2026-07-16"
+---
+
 # Initial Proposal: Idea-to-Ship Trace Model
 
 **Status:** Superseded 2026-07-16

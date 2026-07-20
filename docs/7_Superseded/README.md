@@ -20,8 +20,8 @@ mechanical migration.
 <!-- docs-index:begin -->
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
-| [agent-namespaced-branch-worktree-lifecycle-proposal.md](agent-namespaced-branch-worktree-lifecycle-proposal.md) | — | — | — |
-| [agent-workflow-observability-exploration.md](agent-workflow-observability-exploration.md) | — | — | — |
+| [agent-namespaced-branch-worktree-lifecycle-proposal.md](agent-namespaced-branch-worktree-lifecycle-proposal.md) | — | — | ../2_Todo/agent-worktree-and-branch-hygiene-plan.md |
+| [agent-workflow-observability-exploration.md](agent-workflow-observability-exploration.md) | — | — | ../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md |
 | [benchmarking-decision-quality-exploration.md](benchmarking-decision-quality-exploration.md) | — | — | ../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md |
 | [capability-status-and-publishability-boundary-proposal.md](capability-status-and-publishability-boundary-proposal.md) | P3 | — | After React Trail parity, perform an explicit security/privacy review before deciding whether t… |
 | [claude-proposal-synergy-evaluation.md](claude-proposal-synergy-evaluation.md) | — | — | shipped implementations of every evaluated proposal + `docs/2_Todo/0_NEXT_STEPS.md` (2026-07-14… |
@@ -36,16 +36,16 @@ mechanical migration.
 | [evidence-envelope-and-task-packet-reference-proposal.md](evidence-envelope-and-task-packet-reference-proposal.md) | P2 | — | After React Trail parity, decide whether a stable cross-surface evidence hand-off is needed; if… |
 | [evidence-model-and-packets-exploration.md](evidence-model-and-packets-exploration.md) | — | — | ../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md |
 | [high-signal-knowledge-lenses-exploration.md](high-signal-knowledge-lenses-exploration.md) | — | — | ../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md |
-| [idea-to-ship-trace-model-exploration.md](idea-to-ship-trace-model-exploration.md) | — | — | — |
+| [idea-to-ship-trace-model-exploration.md](idea-to-ship-trace-model-exploration.md) | — | — | ../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md |
 | [integrated-implementation-sequence-exploration.md](integrated-implementation-sequence-exploration.md) | — | — | ../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md |
 | [memory-seed-ontology-evidence-set-index-exploration.md](memory-seed-ontology-evidence-set-index-exploration.md) | — | — | ../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md |
 | [memory-seed-ontology-exploration.md](memory-seed-ontology-exploration.md) | — | — | ../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md |
 | [memory-seed-relevance-set-index-exploration.md](memory-seed-relevance-set-index-exploration.md) | — | — | ../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md |
-| [memory-seed-semantic-workflow-exploration-index.md](memory-seed-semantic-workflow-exploration-index.md) | — | — | — |
-| [memory-seed-typed-entries-adr-sidecar-proposal.md](memory-seed-typed-entries-adr-sidecar-proposal.md) | — | — | — |
-| [memory-signal-hierarchy-exploration.md](memory-signal-hierarchy-exploration.md) | — | — | — |
-| [seeded-document-lifecycle-control-plane-proposal.md](seeded-document-lifecycle-control-plane-proposal.md) | — | — | — |
+| [memory-seed-semantic-workflow-exploration-index.md](memory-seed-semantic-workflow-exploration-index.md) | — | — | mse_ddba1ztxqhasfbwf |
+| [memory-seed-typed-entries-adr-sidecar-proposal.md](memory-seed-typed-entries-adr-sidecar-proposal.md) | — | — | ../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md |
+| [memory-signal-hierarchy-exploration.md](memory-signal-hierarchy-exploration.md) | — | — | ../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md |
+| [seeded-document-lifecycle-control-plane-proposal.md](seeded-document-lifecycle-control-plane-proposal.md) | — | — | ../2_Todo/document-lifecycle-system-plan.md |
 | [sidecar-lens-architecture-exploration.md](sidecar-lens-architecture-exploration.md) | — | — | ../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md |
-| [type-specific-trace-projections-exploration.md](type-specific-trace-projections-exploration.md) | — | — | — |
-| [worktree-gc-proposal.md](worktree-gc-proposal.md) | — | — | — |
+| [type-specific-trace-projections-exploration.md](type-specific-trace-projections-exploration.md) | — | — | ../2_Todo/memory-trace-semantic-projections-plan.md |
+| [worktree-gc-proposal.md](worktree-gc-proposal.md) | — | — | ../2_Todo/agent-worktree-and-branch-hygiene-plan.md |
 <!-- docs-index:end -->

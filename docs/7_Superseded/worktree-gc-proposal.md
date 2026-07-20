@@ -6,6 +6,8 @@ tags:
   - agent-collaboration
   - worktrees
   - git-workflow
+superseded_by: "../2_Todo/agent-worktree-and-branch-hygiene-plan.md"
+superseded_on: "2026-07-16"
 ---
 
 # `memory-seed worktree gc` — mechanize the stale-worktree sweep (with Windows/OneDrive lock retry)

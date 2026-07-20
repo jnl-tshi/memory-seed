@@ -1,3 +1,10 @@
+---
+title: "Memory Seed Initial Exploration Proposals"
+status: "superseded"
+superseded_by: "mse_ddba1ztxqhasfbwf"
+superseded_on: "2026-07-16"
+---
+
 # Memory Seed Initial Exploration Proposals
 
 **Status:** Superseded 2026-07-16

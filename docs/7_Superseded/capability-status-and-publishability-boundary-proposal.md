@@ -12,6 +12,8 @@ related:
   - "docs/2_Todo/memory-trace-ai-timeline-summarisation-plan.md"
   - "docs/2_Todo/memory-trace-structural-graph-enrichment-provider-proposal.md"
   - "docs/CONSTITUTION.md"
+superseded_by: "../2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md"
+superseded_on: "2026-07-16"
 ---
 
 # Capability Status and Publishability Boundary Proposal
