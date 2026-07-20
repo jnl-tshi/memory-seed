@@ -6,14 +6,15 @@ tags:
   - agent-collaboration
   - worktrees
   - git-workflow
-superseded_by: "../2_Todo/agent-worktree-and-branch-hygiene-plan.md"
+superseded_by: "../5_Completed/agent-worktree-and-branch-hygiene-plan.md"
 superseded_on: "2026-07-16"
 ---
 
 # `memory-seed worktree gc` — mechanize the stale-worktree sweep (with Windows/OneDrive lock retry)
 
 Status: **SUPERSEDED 2026-07-16** by
-[`agent-worktree-and-branch-hygiene-plan.md`](../2_Todo/agent-worktree-and-branch-hygiene-plan.md).
+[`agent-worktree-and-branch-hygiene-plan.md`](../5_Completed/agent-worktree-and-branch-hygiene-plan.md)
+(shipped complete 2026-07-20).
 Priority: P3 — hygiene tooling; the discipline already exists, this mechanizes its one flaky step.
 Source: This session's manual worktree cleanup (used+merged worktrees lingering; `git worktree remove`
 failing on OneDrive locks).

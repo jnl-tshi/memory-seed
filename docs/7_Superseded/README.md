@@ -20,7 +20,7 @@ mechanical migration.
 <!-- docs-index:begin -->
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
-| [agent-namespaced-branch-worktree-lifecycle-proposal.md](agent-namespaced-branch-worktree-lifecycle-proposal.md) | — | — | ../2_Todo/agent-worktree-and-branch-hygiene-plan.md |
+| [agent-namespaced-branch-worktree-lifecycle-proposal.md](agent-namespaced-branch-worktree-lifecycle-proposal.md) | — | — | ../5_Completed/agent-worktree-and-branch-hygiene-plan.md |
 | [agent-workflow-observability-exploration.md](agent-workflow-observability-exploration.md) | — | — | ../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md |
 | [benchmarking-decision-quality-exploration.md](benchmarking-decision-quality-exploration.md) | — | — | ../4_Reference/INBOX-CAPABILITY-CROSSWALK.md |
 | [capability-status-and-publishability-boundary-proposal.md](capability-status-and-publishability-boundary-proposal.md) | P3 | — | After React Trail parity, perform an explicit security/privacy review before deciding whether t… |
@@ -47,5 +47,5 @@ mechanical migration.
 | [seeded-document-lifecycle-control-plane-proposal.md](seeded-document-lifecycle-control-plane-proposal.md) | — | — | ../2_Todo/document-lifecycle-system-plan.md |
 | [sidecar-lens-architecture-exploration.md](sidecar-lens-architecture-exploration.md) | — | — | ../4_Reference/INBOX-CAPABILITY-CROSSWALK.md |
 | [type-specific-trace-projections-exploration.md](type-specific-trace-projections-exploration.md) | — | — | ../2_Todo/memory-trace-semantic-projections-plan.md |
-| [worktree-gc-proposal.md](worktree-gc-proposal.md) | — | — | ../2_Todo/agent-worktree-and-branch-hygiene-plan.md |
+| [worktree-gc-proposal.md](worktree-gc-proposal.md) | — | — | ../5_Completed/agent-worktree-and-branch-hygiene-plan.md |
 <!-- docs-index:end -->

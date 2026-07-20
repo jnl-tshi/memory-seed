@@ -35,6 +35,7 @@ The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk
 | [3.0-plan.md](3.0-plan.md) | — | — | — |
 | [agent-fanout-workflow-plan.md](agent-fanout-workflow-plan.md) | — | — | — |
 | [agent-rules-lazy-loading-recommendations.md](agent-rules-lazy-loading-recommendations.md) | — | — | — |
+| [agent-worktree-and-branch-hygiene-plan.md](agent-worktree-and-branch-hygiene-plan.md) | P3 | — | complete |
 | [agent-worktree-namespace-guard-plan.md](agent-worktree-namespace-guard-plan.md) | — | — | — |
 | [baseline-seed-promotions.md](baseline-seed-promotions.md) | — | — | — |
 | [cheap-tooling-hardening-proposals.md](cheap-tooling-hardening-proposals.md) | — | — | — |

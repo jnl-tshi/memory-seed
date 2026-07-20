@@ -14,7 +14,6 @@
 | [document-lifecycle-system-plan.md](document-lifecycle-system-plan.md) | P2 | — | Phases 2-3 COMPLETE 2026-07-17: migration, `docs check` (also in esr + CI), and `docs index` (m… |
 | [memory-seed-workflow-evidence-and-review-workbench-plan.md](memory-seed-workflow-evidence-and-review-workbench-plan.md) | P2 | — | Reconstruct three completed project journeys from existing entries, documents, and Git referenc… |
 | [memory-trace-living-archive-and-editorial-focus-proposal.md](memory-trace-living-archive-and-editorial-focus-proposal.md) | P2 | >- | >- |
-| [agent-worktree-and-branch-hygiene-plan.md](agent-worktree-and-branch-hygiene-plan.md) | P3 | — | Phase 1 COMPLETE 2026-07-17 (classifier + `--apply` remover). Next: Phase 2 lifecycle guidance … |
 | [memory-trace-semantic-projections-plan.md](memory-trace-semantic-projections-plan.md) | P3 | — | After B0b and the semantic foundation, validate one Decision projection against the real ADR co… |
 | [test-suite-protection-value-audit.md](test-suite-protection-value-audit.md) | P3 | [] | Audit fully closed 2026-07-20 (content cull + the deferred structural split, both resolved). No… |
 | [0_NEXT_STEPS.md](0_NEXT_STEPS.md) | — | — | — |

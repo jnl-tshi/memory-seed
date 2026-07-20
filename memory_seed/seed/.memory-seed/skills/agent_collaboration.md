@@ -13,7 +13,7 @@ Use this skill for Git-first collaboration involving subagents, branch/worktree 
 ## Principles
 
 - Git-first collaboration: branches and worktrees isolate filesystem state; task packets isolate agent context; review and CI isolate integration risk.
-- Follow the repository's existing branch naming convention first. If none exists, use `<owner>/<kind>/<topic>`, where `kind` is `feature|fix|refactor|test|docs`.
+- Follow the repository's existing branch naming convention first. If none exists, use `<agent>/<kind>/<topic>` (the agent segment is required — matches the worktree=session, branch=task model below), where `kind` is `feature|fix|refactor|test|docs`.
 - Keep branches short-lived and focused on one coherent feature, fix, refactor, test change, or documentation change.
 - Parallel code-writing agents use separate worktrees. Put plainly: parallel code-writing agents use separate worktrees. Read-only research, review, and validation agents may share the current tree.
 - The orchestrator owns scope, sequencing, integration, final validation, and durable session logging for subagent work.
@@ -163,9 +163,9 @@ Capability tier guidance: exploration economy/standard; planning **frontier**; i
 - Read `.memory-seed/project.yaml` `integration_mode` before integration. Unset/`local-merge` keeps the existing local flow: from the integration/base checkout run `session integrate` or `session merge-branch`, never push. `pr` means from the task branch run `session integrate` or `session open-pr`; the declared mode authorizes only that normal non-force push and PR. A Task Packet's `integration_artifact` is a per-task override; force and destructive operations stay gated.
 - Start from the current integration branch, normally `main`, unless the user or repository names another base.
 - Update from the base branch before starting long-running work.
-- Name branches by repository convention first; otherwise use `<owner>/<kind>/<topic>`.
+- Name branches by repository convention first; otherwise use `<agent>/<kind>/<topic>` (agent segment required).
 - Use separate worktrees for parallel code-writing agents to prevent uncommitted file collisions.
-- Writing agents use their own namespace by default: Codex in `.codex/worktrees/<task>`, Claude in `.claude/worktrees/<task>`, Gemini in `.gemini/worktrees/<task>`, and Cursor in `.cursor/worktrees/<task>`. Configured third-party agents need an explicit namespace in `.memory-seed/project.yaml` before routine write work.
+- Worktree = session, branch = task: a worktree is a durable per-agent session environment, not a per-task one. Writing agents use their own namespace by default: Codex in `.codex/worktrees/<session>`, Claude in `.claude/worktrees/<session>`, Gemini in `.gemini/worktrees/<session>`, and Cursor in `.cursor/worktrees/<session>`. Configured third-party agents need an explicit namespace in `.memory-seed/project.yaml` before routine write work.
 - Before editing in a branch/worktree workflow, run `memory-seed worktree guard --agent <agent> --write-intent`. A foreign namespace is a shared-control-plane STOP hazard; move to the correct worktree unless the user explicitly approves a different path.
 - Root checkout is for read-only inspection, mainline integration, and approved cleanup. Routine feature edits should use an agent-owned task worktree; root writes require an explicit guard override (`--allow-root-write`) and should be recorded in the handoff.
 - Do not create a worktree inside a tracked directory unless the worktree directory is ignored.

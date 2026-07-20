@@ -6,14 +6,15 @@ tags:
   - agent-collaboration
   - worktrees
   - git-workflow
-superseded_by: "../2_Todo/agent-worktree-and-branch-hygiene-plan.md"
+superseded_by: "../5_Completed/agent-worktree-and-branch-hygiene-plan.md"
 superseded_on: "2026-07-16"
 ---
 
 # Agent-namespaced branch + worktree naming and lifecycle (worktree = session, branch = task)
 
 Status: **SUPERSEDED 2026-07-16** by
-[`agent-worktree-and-branch-hygiene-plan.md`](../2_Todo/agent-worktree-and-branch-hygiene-plan.md).
+[`agent-worktree-and-branch-hygiene-plan.md`](../5_Completed/agent-worktree-and-branch-hygiene-plan.md)
+(shipped complete 2026-07-20).
 Priority: P2 — multi-agent hygiene; consolidates and completes scattered, partly-shipped pieces.
 Source: User 2026-07-13 — "worktree and branch naming (both should state agent type), post-merge hygiene
 (clean up old branches/merges no longer needed unless uncommitted), and lifecycle management for both

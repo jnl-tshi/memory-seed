@@ -420,7 +420,7 @@ class SessionSchemaTests(unittest.TestCase):
         skill_text = live_skill.read_text(encoding="utf-8")
         for phrase in (
             "Git-first collaboration",
-            "<owner>/<kind>/<topic>",
+            "<agent>/<kind>/<topic>",
             "feature|fix|refactor|test|docs",
             "parallel code-writing agents use separate worktrees",
             "Task Packet",
