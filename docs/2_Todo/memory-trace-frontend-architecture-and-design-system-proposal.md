@@ -367,14 +367,27 @@ Treat full story coverage as gated on that refactor, not as a checklist item to 
 
 Playwright must cover:
 
-- search to strongest Trail match;
-- next/previous match navigation;
+- ✅ search to strongest Trail match;
+- ✅ next/previous match navigation;
 - selection and inspector persistence;
-- keyboard-only operation;
+- ✅ keyboard-only operation (covered for the search/find-bar flow above; not yet for the
+  Trail/graph/inspector surfaces);
 - graph search and neighbourhood focus;
-- annotation creation/version resolution;
+- annotation creation/version resolution (the annotation feature itself doesn't exist yet - B3,
+  gated on B2/B0b and BG1 - so this can't be tested until it's built);
 - offline local startup;
-- packaged-wheel loading.
+- ✅ packaged-wheel loading (the harness runs against the built `../memory_trace/static/react`
+  output, served by the real `memory-trace` CLI - not a mock, not Vite dev).
+
+**Harness landed 2026-07-20:** `@playwright/test`, `playwright.config.ts` in `memory-trace/client/`.
+`webServer` builds the client and launches `python -m memory_trace.cli` against this repo's own real
+corpus (600+ session entries - no synthetic fixture, no mock server), so a passing run proves the
+actual shipped path end to end. `e2e/search.spec.ts` covers 3 of the 8 required flows against real data:
+search-to-match, next/previous navigation (including the wrap-around and the "no match focused yet"
+initial state), and keyboard-only Enter-to-cycle. Run with `npm run test:e2e`.
+**Remaining 5 flows are not yet covered:** selection/inspector persistence, graph search/focus, offline
+local startup — all buildable now; annotation creation/version resolution cannot be tested until B3
+ships the feature itself.
 
 ### Accessibility
 

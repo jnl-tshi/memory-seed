@@ -299,7 +299,12 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   to a hard gate) — one component (`SettingsMenu`) fully storied as proof; full component-inventory
   coverage waits on the primitive/token extraction the design-system proposal calls for. The a11y gate's
   first run caught and fixed a real WCAG contrast violation (light-theme `--muted` token, 26 call sites).
-  **The formal Playwright e2e harness and the manual accessibility pass remain open.** The current
+  **Playwright e2e harness landed 2026-07-20** too: `@playwright/test`, running against the packaged
+  React build served by the real `memory-trace` CLI over this repo's own 600+-entry corpus (not a mock),
+  proving "packaged-wheel loading" for real. 3 of 8 required flows covered (search-to-match, next/prev
+  navigation, keyboard-only Enter-to-cycle); 4 more are buildable now (selection/inspector persistence,
+  graph search/focus, offline startup) and 1 (annotation creation/version resolution) can't be tested
+  until B3 ships the feature. **The manual accessibility pass remains open.** The current
   vanilla `/` UI remains the supported fallback until explicit
   parity sign-off.
 - **B0b — Native graph/workspace implementation** *(started 2026-07-16; implemented through roadmap
