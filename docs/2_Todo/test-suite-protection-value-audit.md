@@ -2,7 +2,7 @@
 title: Test-suite protection-value audit
 status: active
 priority: P2
-next_action: Phase 2c content cull — the 12 Phase-2a split files are all done; next is the ~18 remaining original unit-test files (Keep/Consolidate/Replace/Move/Delete per test).
+next_action: Phase 2c content cull is complete (all 635 original tests + the 18-file remainder reviewed). Awaiting JNL's review of the "Findings awaiting a review checkpoint" section below before any structural split or deletion proceeds.
 blocked_by: []
 ---
 
@@ -183,8 +183,7 @@ invariants last):
 5. `test_mcp_merge.py`, `test_hook_merge.py`, `test_session_log_ordering_hook.py`,
    `test_retrieval_check_path.py`, `test_session_start_hook.py`, `test_agent_selection.py`,
    `test_session_layout_migration.py`, `test_core_misc.py` — **done, 2026-07-20**, see below.
-6. Remaining files, smallest/fastest/highest-signal last (`test_session_schema.py`,
-   `test_docs_check.py`, contract-shape tests).
+6. The remaining ~18 original unit-test files — **done, 2026-07-20**, see below.
 
 ### test_links_check.py — done, 2026-07-20
 
@@ -309,14 +308,65 @@ its own JSON/TOML shape and its own merge function under test, so each earns its
 
 Verified: no files changed, so nothing to re-run.
 
+### The remaining ~18 original unit-test files — done, 2026-07-20
+
+Read all 314 tests across `test_semantic_cache.py` (50), `test_mcp_server.py` (42),
+`test_retrieval.py` (22), `test_processes.py` (22), `test_link_audit.py` (20), `test_mcp_session_append.py`
+(21), `test_session_schema.py` (19), `test_docs_check.py` (17), `test_session_reorder.py` (13),
+`test_topics_suggest.py` (12), `test_session_append.py` (12), `test_ranking_ab.py` (10),
+`test_text_files.py` (10), `test_docs_index.py` (9), `test_esr.py` (9), `test_quality.py` (9),
+`test_topics.py` (8), `test_situate.py` (7), `test_mcp_validation.py` (2). These were never touched by
+the Phase 2a structural split, so — per the advisor guidance recorded above — the earlier files'
+all-Keep streak was **not** treated as predictive; each was read fresh.
+
+**Verdict: 311 Keep, 3 Expand, 0 Move, 0 Consolidate, 0 Delete.** This is a mature, carefully-written
+test suite: nearly every test carries an explicit rationale (docstring or inline comment) naming the
+exact behaviour or historical incident it guards, and cross-file review found no genuine duplication
+anywhere in the ~635-test corpus — the file-1 and file-2 findings (the 2 migrated tests, the
+structural-split recommendation) were the only real issues in the whole suite.
+
+- **Expand (`test_processes.py`, +3 tests):** `iter_system_processes()` prefers `psutil` when
+  importable, but no test exercised that branch or `_iter_psutil_processes()` itself — every existing
+  test either bypassed process listing entirely (`find_managed_processes(snapshots=...)`) or mocked the
+  platform-specific subprocess fallback. psutil is optional and not installed in this environment, so
+  the "available" path was faked via `sys.modules`, mirroring the `memory_trace` fake already used in
+  `test_cli_help.py`. Verified the new tests catch a real break (temporarily corrupted the `pid` field
+  translation, confirmed the test failed, reverted) before committing. Coverage on `processes.py`: 67%
+  → 71%.
+- **Considered and declined an Expand:** `test_mcp_validation.py`'s coverage gap (69%, lines 65-83) is
+  `mcp_validate.py`'s `main()` — thin `argparse` + a call into `build_validation_report` (already
+  tested) + a `print`. No independent logic to protect; a test here would mostly exercise `argparse`
+  itself. Left alone rather than chasing the percentage.
+- **`test_session_schema.py`** is a deliberate living-contract file pinning specific control-plane doc
+  phrases (agent-rules.md, skills, README, CHANGELOG) plus seed/live parity — per prior guidance
+  (`feedback_multi_decision_entry_format`-adjacent project memory), these are intentionally fragile-by-
+  design pins; additions are safe, removals/rewordings are not. Left untouched.
+
+Verified: `pytest tests/test_processes.py` 25/25 passed; full `pytest tests` 639 passed (was 636), 14
+subtests passed.
+
 ## Findings awaiting a review checkpoint (not yet actioned)
 
 Structural-split and Delete candidates accumulate here as later files are culled, and are reviewed with
 JNL as one batch before anything in this section is acted on — see the authorization split above.
+**Phase 2c is now complete; this is the full and final list.**
 
-1. **Structural split of `test_session_fuse_and_merge.py`** — see above. Would carve out
-   `integration_mode` (5), `decision_density`/`future_timestamp` (6, itself split two ways),
-   `branch_status` (3), `worktree_guard` (4), `session_target` (8) into their own file(s); needs a
-   decision on destinations for the decision_density/future_timestamp sub-split first.
+1. **Structural split of `test_session_fuse_and_merge.py`.** ~28 of its 69 tests cover 5 concerns
+   unrelated to fuse/merge (`integration_mode` read/suggest/write, `decision_density`/`future_timestamp`
+   advisories, `branch_status`, `worktree_guard`, `session_target`) that share the file's real-git
+   fixture harness. Recommend carving these into their own file(s), but this reopens the Phase 2a
+   structural split JNL already approved, so it needs a go/no-go rather than proceeding on the same
+   autonomous footing as the file-1 migrate-tests move.
+   - Sub-question: the 6 `decision_density`/`future_timestamp` tests don't have one clean destination
+     even within that split — 3 call `check_session_links` directly (arguably belong with
+     `test_links_check.py`), 3 call the underlying advisory/gate functions used by
+     `session_append_entry` (arguably belong with `test_session_append.py`). Needs a decision before
+     any move happens.
 
-No Delete candidates yet.
+**No Delete candidates were found anywhere in the 635-test suite.** Every test mapped to a distinct,
+currently-protected behaviour; the only content-level issues across the whole audit were the 2
+misclassified migration tests in file 1 (already moved) and the one coverage gap already closed above.
+The suite's actual problem, confirmed by this full pass, was organizational (one 6,533-line grab-bag
+file), not volume or duplication — which Phase 2a already fixed. 635 → 639 is the current test count
+after this session's one Move and two Expands (`test_cli_help.py` +1, `test_processes.py` +3, net of no
+deletions).
