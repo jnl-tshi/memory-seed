@@ -689,12 +689,14 @@ def _session_flat_path(sessions_dir: Path, date_str: str) -> Path:
 
 
 _ENTRY_ID_RE = re.compile(r"^entry_id:\s*(\S+)\s*$", re.MULTILINE)
-# Link-sidecar `edge_status`, mirroring MetricStatus in quality.py on purpose:
+# `edge_status` on a LINK sidecar (`sessions/links/…`) — not diagram sidecars,
+# and not the drafted ADR sidecar, both of which live under `sessions/` too.
+# Mirrors MetricStatus in quality.py on purpose:
 # the distinction is the same one, and that module already states it —
 # `unavailable` means the input does not exist yet, `not_applicable` claims we
 # looked and found nothing. `measured` is implicit here (edges are listed), so
 # only the two absence states need naming.
-_SIDECAR_EDGE_STATUSES = frozenset({"not_applicable", "unavailable"})
+_LINK_SIDECAR_EDGE_STATUSES = frozenset({"not_applicable", "unavailable"})
 _FILE_FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---", re.DOTALL)
 _LEGACY_ENTRY_ID_RE = r"ms-[0-9a-f]{8}"
 _V2_ENTRY_ID_RE = r"mse_[0-9a-hjkmnp-tv-z]{16}"
@@ -1745,13 +1747,13 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
             # present, being the later and more specific statement.
             edge_status = scalars.get("edge_status", "").strip().lower()
             if edge_status:
-                if edge_status not in _SIDECAR_EDGE_STATUSES:
+                if edge_status not in _LINK_SIDECAR_EDGE_STATUSES:
                     issues.append(
                         LinkIssue(
                             rel,
                             "malformed-link-sidecar",
                             f"entry_id {entry_id} has unknown edge_status '{edge_status}' "
-                            f"(expected one of: {', '.join(sorted(_SIDECAR_EDGE_STATUSES))})",
+                            f"(expected one of: {', '.join(sorted(_LINK_SIDECAR_EDGE_STATUSES))})",
                         )
                     )
                 elif edge_status == "unavailable":
