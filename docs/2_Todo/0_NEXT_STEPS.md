@@ -108,6 +108,34 @@ in-place-modified (stub → live) sidecar block on a branch, and the new guard, 
 *modifying* an existing sidecar block still holds — that's the append-only invariant, not a merge-tool
 gap — and is documented precisely in `agent_collaboration.md`.
 
+### Test-suite protection-value audit — complete 2026-07-20
+
+JNL asked for a protection-value audit of the 635-test suite (not a headcount target): measure before
+culling, classify by layer, then work module by module assigning every test Keep / Consolidate /
+Replace-with-invariant / Move / Delete. Full record:
+[`test-suite-protection-value-audit.md`](test-suite-protection-value-audit.md).
+
+- **Phase 1 — measured, then marked slow tests.** 92 tests ≥0.5s got `@pytest.mark.integration`
+  (chosen by measured duration, not by "touches git"); the fast loop (`pytest -m "not integration"`)
+  dropped from 135s to 29s (4.6x) while the default `pytest` still runs all 635. `pytest-cov` measured
+  81% full-suite coverage (70% fast-loop-only).
+- **Phase 2a/2b — structural split, no content changed.** `test_memory_seed.py` (6,533 lines, 287
+  tests across 8 unrelated classes in one file) was retired: 7 already-cohesive classes moved to their
+  own files verbatim, and the 179-test grab-bag class was split by an AST-driven call-graph analysis
+  into 5 files by actual concern (fuse/merge, links-check, project-lifecycle, session-layout-migration,
+  core-misc). A shared `tests/_git_helpers.py` deduped one subprocess helper that had drifted 4 slightly
+  different ways across files. Verified count-neutral both times: 635 collected before and after each
+  pass.
+- **Phase 2c — the content cull itself, all 635 tests read module by module.** Result: **1 Move** (2
+  misclassified tests relocated to their natural file), **2 Expands** (one closed an unverified
+  `session fuse` CLI print line, one closed an untested `psutil`-preference branch in
+  `processes.py` — both verified non-vacuous by temporarily breaking the underlying code and confirming
+  the new test failed before reverting), **0 Consolidations, 0 Deletions**. Current count: 639,
+  full suite green (171.6s).
+- **No Delete candidates were found anywhere in the suite.** The suite's real problem was organizational
+  (one giant grab-bag file), which Phase 2a already fixed — not volume or duplication.
+- **One item deferred to your call**, not actioned autonomously: see open decision #6 below.
+
 ## Open decisions — ready for your call
 
 Engineering gates that autonomous work has pushed as far as it reasonably can; each needs one decision
@@ -136,6 +164,17 @@ before its next step. (Market/account items live under "Parked" below.)
 5. **OpenSSF remainder — your GitHub clicks** (only you can do these): enable private vulnerability
    reporting; add branch protection + set `integration_mode: pr` (G2); submit to bestpractices.dev
    (answers drafted on request); confirm PyPI attestations at the next cut.
+6. **Structural split of `test_session_fuse_and_merge.py`.** ~28 of its 69 tests cover 5 concerns
+   unrelated to fuse/merge (`integration_mode`, `decision_density`/`future_timestamp` advisories,
+   `branch_status`, `worktree_guard`, `session_target`) that only share the file's real-git fixture
+   harness. *Options:* **(a)** carve them into their own file(s) per concern *(recommended: matches
+   the Phase 2a split's own logic — one file, one concern)*; **(b)** leave as-is — the tests are all
+   Keep-worthy, this is navigability only, not a defect. Sub-question either way: 6 of those tests
+   (`decision_density`/`future_timestamp`) split further on inspection — 3 call `check_session_links`
+   directly (natural home: `test_links_check.py`), 3 call the write-time advisory/gate functions
+   directly (natural home: `test_session_append.py`) — so "one new file for all 28" isn't quite right
+   either. Full detail: [`test-suite-protection-value-audit.md`](test-suite-protection-value-audit.md)
+   § "Findings awaiting a review checkpoint".
 
 ## Live work — sequenced (Constitution-aligned)
 
