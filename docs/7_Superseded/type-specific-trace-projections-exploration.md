@@ -1,3 +1,10 @@
+---
+title: "Initial Proposal: Type-Specific Memory Trace Projections"
+status: "superseded"
+superseded_by: "../2_Todo/memory-trace-semantic-projections-plan.md"
+superseded_on: "2026-07-16"
+---
+
 # Initial Proposal: Type-Specific Memory Trace Projections
 
 **Status:** Superseded 2026-07-16

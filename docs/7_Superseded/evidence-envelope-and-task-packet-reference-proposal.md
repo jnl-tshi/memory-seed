@@ -12,6 +12,8 @@ dependencies:
 related:
   - "docs/2_Todo/memory-trace-ai-timeline-summarisation-plan.md"
   - "docs/2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md"
+superseded_by: "../2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md"
+superseded_on: "2026-07-16"
 ---
 
 # Evidence Envelope and Task Packet Reference Proposal

@@ -6,6 +6,8 @@ tags:
   - documentation
   - proposal-lifecycle
   - control-plane
+superseded_by: "../2_Todo/document-lifecycle-system-plan.md"
+superseded_on: "2026-07-16"
 ---
 
 # Seeded document lifecycle control plane for the planning profile

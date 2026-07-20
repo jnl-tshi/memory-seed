@@ -1,3 +1,10 @@
+---
+title: "Initial Proposal: Agent-Workflow Observability"
+status: "superseded"
+superseded_by: "../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md"
+superseded_on: "2026-07-16"
+---
+
 # Initial Proposal: Agent-Workflow Observability
 
 **Status:** Superseded 2026-07-16

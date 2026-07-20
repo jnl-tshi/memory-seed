@@ -6,6 +6,8 @@ tags:
   - agent-collaboration
   - worktrees
   - git-workflow
+superseded_by: "../2_Todo/agent-worktree-and-branch-hygiene-plan.md"
+superseded_on: "2026-07-16"
 ---
 
 # Agent-namespaced branch + worktree naming and lifecycle (worktree = session, branch = task)

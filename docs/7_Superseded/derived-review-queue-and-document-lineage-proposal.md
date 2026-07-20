@@ -13,6 +13,8 @@ dependencies:
 related:
   - "docs/3_Spec/draft/derived-read-model-projection-contract.md"
   - "docs/2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md"
+superseded_by: "../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md"
+superseded_on: "2026-07-16"
 ---
 
 # Derived Review Queue and Document Lineage Proposal

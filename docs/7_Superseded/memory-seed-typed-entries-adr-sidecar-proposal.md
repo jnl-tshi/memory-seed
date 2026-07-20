@@ -1,3 +1,10 @@
+---
+title: "Proposal: Typed Memory Entries and ADR Sidecar Lifecycle Tracking"
+status: "superseded"
+superseded_by: "../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md"
+superseded_on: "2026-07-16"
+---
+
 # Proposal: Typed Memory Entries and ADR Sidecar Lifecycle Tracking
 
 **Status:** Superseded 2026-07-16.
