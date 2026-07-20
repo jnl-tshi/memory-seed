@@ -40,6 +40,22 @@ All notable changes to Memory Seed are summarized here.
   nothing validated temporal sanity, so an agent once stamped entries hours into
   the future). Advisory only, never blocking — append-only forbids restamping
   published entries, so historical corpora with known drifted stamps stay valid.
+- New **`malformed-entry-yaml` error** in `links check` / `esr`, a sibling to the
+  existing `malformed-entry-format`: an entry whose YAML metadata fence is opened
+  but never closed. The unterminated fence swallows the following text and leaves
+  the entry unparseable to the fuse, so this is an error, not a warning.
+- Two new canonical topics, **`security`** and **`performance`**, bringing
+  `.memory-seed/topics.yaml` from 21 to **23** slugs. Existing entries are
+  unaffected; the vocabulary gate accepts the new slugs immediately.
+- **`.gitattributes` now marks `.memory-seed/sessions/**` `-merge`.** Session
+  entries share line-identical `topics:`/`related_entries:` scaffolding, so git's
+  line-based three-way merge anchored on those shared lines and could splice one
+  entry's body into another while stranding a YAML fence — a silent corruption
+  rather than a conflict. Concurrent session-file edits now conflict wholesale by
+  design, leaving `session merge-branch` / `memory_session_integrate` (which
+  rebuild the file from parsed entry records) as the only correct integration
+  path. The tools themselves are unaffected: they already reset branch-touched
+  session files to base content before fusing.
 - Memory Trace `/next` React workspace: the Inspector now renders a full entry
   reader — markdown-rendered body (frontmatter code block, headings, bullets,
   inline code/bold), search-match subsection highlighting at parity with the
@@ -79,11 +95,14 @@ All notable changes to Memory Seed are summarized here.
   additive `worktree` query parameter and a typed `/api/v1/worktrees` endpoint
   enumerates the repository's checkouts; the `/next` React workspace gains a
   worktree picker that switches the whole app between corpora.
-- `memory_entry_id` (MCP) now owns the clock: omit `timestamp` and the server
-  stamps from its machine clock, returning the value for verbatim write-back.
-  Explicitly supplied timestamps remain allowed for sanctioned backfill but
-  earn a `clock_drift_warning` when far from the server clock — agents must
-  never estimate entry times by hand.
+- The MCP write path owns the clock: omit `timestamp` and the server stamps from
+  its machine clock, returning the value for verbatim write-back. Explicitly
+  supplied timestamps remain allowed for sanctioned backfill but earn a
+  `clock_drift_warning` when far from the server clock — agents must never
+  estimate entry times by hand. Introduced on `memory_entry_id` and carried over
+  to `memory_session_append` when that tool replaced it later in this same
+  unreleased tranche; echo a `dry_run`'s returned `timestamp` into the real call
+  so the previewed and written entry ids agree across a minute boundary.
 - CI now gates on `docs index --check`, so a stale generated docs index fails
   verification instead of drifting silently.
 

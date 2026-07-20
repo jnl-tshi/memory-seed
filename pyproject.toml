@@ -77,6 +77,7 @@ memory_seed = [
   "seed/.memory-seed/skills/compact_mermaid_diagrams.md",
   "seed/.memory-seed/skills/index.md",
   "seed/.memory-seed/skills/data_architecture.md",
+  "seed/.memory-seed/skills/developer-rendered-ui-debugging.md",
   "seed/.memory-seed/skills/document_ingestion.md",
   "seed/.memory-seed/skills/docx_render_windows.md",
   "seed/.memory-seed/skills/end_of_turn.md",

@@ -152,7 +152,7 @@ Gates, in order:
 4. **Worker Identity Gate.** Before a worker touches any file, it reports the packet's `preflight` output; the orchestrator verifies `memory-seed worktree guard --agent <agent_type> --write-intent` passes, then verifies the intended worktree and `base_sha` before the worker proceeds.
 5. **Worktree Gate.** Parallel code-writing workers get separate worktrees, each with a bounded task packet. Workers never touch shared memory/session/control-plane files unless explicitly assigned — those stay orchestrator-owned per `shared_file_policy`.
 6. **Pre-Review Validation Gate.** Each worker commits its own work and reports changed files, checks run, failures, skipped checks and why, and known risks *before* review. No uncommitted worker state gets integrated.
-7. **Integration Gate.** The orchestrator merges worker branches one at a time into an integration branch, inspects the diff after each merge, resolves conflicts only via the named owner, and reruns targeted validation. No octopus merges for code. When branch-local session entries or diagram sidecars exist, integrate that branch with `memory-seed session merge-branch --branch <branch>` — it dry-runs the fuse, performs the `--no-ff` merge, applies the fuse, and commits in one gated step. The lower-level `session fuse` dry-run/`--apply` pair remains available for manually inspected merges.
+7. **Integration Gate.** The orchestrator merges worker branches one at a time into an integration branch, inspects the diff after each merge, resolves conflicts only via the named owner, and reruns targeted validation. No octopus merges for code. When branch-local session entries or diagram sidecars exist, integrate that branch with `memory-seed session merge-branch --branch <branch>` — it dry-runs the fuse, performs the `--no-ff` merge, applies the fuse, and commits in one gated step. The lower-level `session fuse` dry-run/`--apply` pair remains available for manually inspected merges. Do not fall back to a plain `git merge` for session paths: `.memory-seed/sessions/**` carries a `-merge` attribute, so concurrent session edits conflict wholesale by design (see **Session Files Do Not Line-Merge** below).
 8. **Bounded Review-to-Rework Loop.** An independent validator (same strong tier as planning) reviews the integrated diff against the plan. Findings route back to the Worktree Gate for revision, tracked by `review_loop.current_iteration` and capped at `max_iterations` (default 2) — then automation stops and produces a human decision summary. The loop must not restart exploration or planning automatically.
 9. **Final Handoff Gate.** The orchestrator (never the workers) writes the integration artifact and the handoff session entry: base SHA, worker branches/worktrees, validation evidence, review result, unresolved risks. Workers' reported commit hashes belong in the handoff entry's records. Set the entry's optional `branch:` field (see `session_logging.md`) from the Task Packet's `working_branch` — a durable record-time label, not a worktree path.
 
@@ -205,6 +205,31 @@ multiple writing agents work on different features at the same time.
   `git merge --no-ff --no-commit <branch>`.
 - Final handoff records the base SHA, task branch, worktree path, merge method (`--no-ff` when used),
   merge commit if available, validation, and unresolved risks.
+
+## Session Files Do Not Line-Merge
+
+Do not reason about session-file integration as though git's default three-way merge applied to it.
+It does not, by design.
+
+- `.gitattributes` marks `.memory-seed/sessions/**` with `-merge`. Every entry shares line-identical
+  `topics:`/`related_entries:` scaffolding, so a line-based merge anchors on those shared lines and
+  splices one entry's body into another while stranding a YAML fence - silent corruption rather than
+  a conflict. The `-merge` attribute makes concurrent edits to the same session file conflict
+  **wholesale** instead.
+- Consequently `memory-seed session merge-branch` / `memory_session_integrate` (or the lower-level
+  `session fuse --apply`) is the **only** correct integration path for a branch carrying session
+  entries. Those tools rebuild the file from parsed entry records and reset branch-touched session
+  files to base content before fusing, so the `-merge` conflict never has to be hand-resolved.
+- Hand-resolving a whole-file session conflict, or picking "ours"/"theirs", drops one side's entries.
+  If you are staring at such a conflict, abort and re-integrate through the tool.
+
+**Trap - link sidecars are in the `-merge` domain but are not fused.** `.memory-seed/sessions/links/**`
+inherits the `-merge` attribute, and `_changed_session_paths` (`memory_seed/core.py`) diffs all of
+`.memory-seed/sessions` when resetting branch-touched files to base. But
+`_session_doc_from_relative_path` returns `None` for `links/` paths, so the fuse never re-imports them.
+The net effect: a branch-side edit to a link sidecar is reset to base content and **silently lost** at
+integration, with no issue reported. Do link-sidecar classification (`memory-seed link audit` and its
+sidecar writes) on the trunk, not on a task branch.
 
 ## MCP Control Surface
 
