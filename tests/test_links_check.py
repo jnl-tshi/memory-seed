@@ -1,0 +1,1025 @@
+import shutil
+import tempfile
+import unittest
+import pytest
+from pathlib import Path
+
+from memory_seed.core import (
+    MEMORY_DIR_NAME,
+    check_session_links,
+    migrate_session_month_layout,
+    migrate_session_layout,
+)
+
+
+class LinksCheckTests(unittest.TestCase):
+    def make_project(self):
+        path = Path(tempfile.mkdtemp(prefix="memory-seed-test-"))
+        self.addCleanup(lambda: shutil.rmtree(path, ignore_errors=True))
+        return path
+
+    def _per_user_session(self, cwd, date, user, *, fm_user=None, fm_date=None,
+                          schema="2", hash_id=None, entries=("ms-aaaaaaaa",), extra_fm=""):
+        d = cwd / MEMORY_DIR_NAME / "sessions" / date
+        d.mkdir(parents=True, exist_ok=True)
+        fm = ["---", f"schema_version: {schema}", f"session_date: {fm_date or date}"]
+        if hash_id is not None:
+            fm.append(f"hash_id: {hash_id}")
+        fm += [f"user: {fm_user or user}", "created_at: 2026-06-13T00:00:00Z"]
+        if extra_fm:
+            fm.append(extra_fm)
+        fm.append("---")
+        body = []
+        for eid in entries:
+            body += ["", f"## {date} 09:00 - entry", "", "```yaml", f"entry_id: {eid}", "```", "", "- note"]
+        (d / f"{user}.md").write_text("\n".join(fm + body) + "\n", encoding="utf-8")
+
+    def _flat_session(self, cwd, filename, *entry_specs):
+        """Write a flat session file from (heading, entry_id, supersedes) specs."""
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        lines: list[str] = []
+        for heading, entry_id, supersedes in entry_specs:
+            lines += [f"## {heading}", "", "```yaml", f"entry_id: {entry_id}"]
+            if supersedes:
+                lines.append("supersedes:")
+                lines.extend(f"  - {ref}" for ref in supersedes)
+            lines += ["```", "", "- note", ""]
+        (sessions / filename).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def _link_sidecar(
+        self,
+        cwd,
+        file_date,
+        source_entry,
+        *,
+        supersedes=(),
+        evolves=(),
+        classify_pending=False,
+        heading_time="10:00",
+    ):
+        """Write a link sidecar block keyed to ``source_entry`` under
+        sessions/links/<month>/<file_date>.md."""
+        d = cwd / MEMORY_DIR_NAME / "sessions" / "links" / file_date[:7]
+        d.mkdir(parents=True, exist_ok=True)
+        lines = [f"## {file_date} {heading_time} - edge", "", "```yaml", f"entry_id: {source_entry}"]
+        if classify_pending:
+            lines.append("classify_pending: true")
+        for key, refs in (("supersedes", supersedes), ("evolves", evolves)):
+            if refs:
+                lines.append(f"{key}:")
+                lines.extend(f"  - {ref}" for ref in refs)
+        lines += ["```", ""]
+        (d / f"{file_date}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def _flat_session_raw(self, cwd, filename, text):
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / filename).write_text(text, encoding="utf-8")
+
+    def _entry_yaml(self, heading, entry_id, *yaml_lines):
+        lines = [f"## {heading}", "", "```yaml", f"entry_id: {entry_id}", *yaml_lines, "```", "", "- note", ""]
+        return "\n".join(lines)
+
+    def _flat_session_with_commits(self, cwd, *hashes):
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        lines = ["## 2026-06-13 09:00 - entry", "", "```yaml", "entry_id: mse_0123456789abcdef", "commits:"]
+        lines.extend(f"  - {h}" for h in hashes)
+        lines += ["```", "", "- note", ""]
+        (sessions / "2026-06-13.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def _git_repo_with_commit(self, cwd, message="initial"):
+        import subprocess
+
+        subprocess.run(["git", "-C", str(cwd), "init", "-q"], check=True, capture_output=True)
+        (cwd / "README.txt").write_text("x", encoding="utf-8")
+        subprocess.run(["git", "-C", str(cwd), "add", "-A"], check=True, capture_output=True)
+        subprocess.run(
+            [
+                "git", "-C", str(cwd),
+                "-c", "user.name=test", "-c", "user.email=test@example.com",
+                "-c", "commit.gpgsign=false",
+                "commit", "-q", "-m", message,
+            ],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(["git", "-C", str(cwd), "branch", "-M", "main"], check=True, capture_output=True)
+        head = subprocess.run(
+            ["git", "-C", str(cwd), "rev-parse", "HEAD"], check=True, capture_output=True, text=True
+        ).stdout.strip()
+        return head
+
+    def _write_participants(self, cwd):
+        cfg = cwd / MEMORY_DIR_NAME / "project.yaml"
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        cfg.write_text(
+            "\n".join(
+                [
+                    "schema_version: 1",
+                    "participants:",
+                    "  - slug: jean",
+                    "    initials: JN",
+                    "    display_name: Jean",
+                    "  - slug: amina",
+                    "    initials: AM",
+                    "    display_name: Amina",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+    def _write_flat_session(self, cwd, date_str="2026-06-21"):
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        path = sessions / f"{date_str}.md"
+        path.write_text(
+            "\n".join(
+                [
+                    "# 2026-06-21",
+                    "",
+                    "## 2026-06-21 09:00 - Jean entry",
+                    "",
+                    "```yaml",
+                    "entry_id: ms-11111111",
+                    "user_initials: JN",
+                    "agent_type: codex",
+                    "```",
+                    "",
+                    "- Jean body.",
+                    "",
+                    "## 2026-06-21 10:00 - Amina entry",
+                    "",
+                    "```yaml",
+                    "entry_id: mse_0123456789abcdef",
+                    "user_initials: AM",
+                    "agent_type: codex",
+                    "```",
+                    "",
+                    "- Amina body.",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def _write_old_diagram_sidecar(self, cwd, date_str="2026-06-21", entry_id="ms-11111111"):
+        diagrams = cwd / MEMORY_DIR_NAME / "sessions" / "diagrams"
+        diagrams.mkdir(parents=True, exist_ok=True)
+        path = diagrams / f"{date_str}.md"
+        path.write_text(
+            "\n".join(
+                [
+                    "---",
+                    "tags:",
+                    "  - session-log-diagrams",
+                    f"diagram_date: {date_str}",
+                    "---",
+                    "",
+                    f"## {date_str} 09:00 - Diagram",
+                    "",
+                    "```yaml",
+                    f"entry_id: {entry_id}",
+                    "```",
+                    "",
+                    "```mermaid",
+                    "flowchart TD",
+                    "  A --> B",
+                    "```",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def test_links_check_flags_malformed_entry_format(self):
+        from memory_seed.core import check_session_links
+
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        good = "## 2026-06-01 09:00 - Good\n\n```yaml\nentry_id: ms-aaaaaaaa\n```\n\n### Decision\n\n- D: x\n- R: y\n"
+        (sessions / "2026-06-01.md").write_text(good, encoding="utf-8")
+        self.assertTrue(check_session_links(cwd=cwd).ok)
+
+        bad = "## 2026-06-02 09:00 - Bad\n\n```yaml\nentry_id: ms-bbbbbbbb\n```\n\nD: bare label\nR: reason\n"
+        (sessions / "2026-06-02.md").write_text(bad, encoding="utf-8")
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        fmt_issues = [i for i in result.issues if i.kind == "malformed-entry-format"]
+        self.assertTrue(fmt_issues)
+        self.assertTrue(any("ms-bbbbbbbb" in i.detail for i in fmt_issues))
+
+    def test_links_check_flags_an_unclosed_metadata_fence(self):
+        # The exact shape a bad three-way merge left in the corpus: git anchored
+        # on the line-identical `topics:`/`related_entries:` run every entry
+        # shares, spliced the first entry's body away and stranded its fence.
+        # links check PASSED that file - the ids still regexed out of raw text -
+        # and only the fuse's stricter parser objected. This pins the gap.
+        from memory_seed.core import check_session_links
+
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        corrupted = (
+            "## 2026-06-03 11:33 - Stranded by a merge\n\n"
+            "```yaml\n"
+            "entry_id: ms-cccccccc\n"
+            "topics:\n  - memory-trace\n"
+            "## 2026-06-03 12:02 - The entry that swallowed it\n\n"
+            "```yaml\nentry_id: ms-dddddddd\n```\n\n"
+            "### Decision\n\n- D: x\n- R: y\n"
+        )
+        (sessions / "2026-06-03.md").write_text(corrupted, encoding="utf-8")
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertFalse(result.ok)
+        fence_issues = [i for i in result.issues if i.kind == "malformed-entry-yaml"]
+        self.assertTrue(fence_issues, "an unclosed metadata fence must be an error")
+        self.assertTrue(any("ms-cccccccc" in i.detail for i in fence_issues))
+        # The intact entry that followed it is not collateral.
+        self.assertFalse(any("ms-dddddddd" in i.detail for i in fence_issues))
+
+    def test_a_yaml_example_in_the_body_is_not_an_unclosed_fence(self):
+        # The discriminating case. Entries legitimately quote YAML in their
+        # prose, so a fence-balance count across the whole block would flag
+        # well-formed history. The check anchors to the FIRST opener after the
+        # heading and asks only whether that one closes.
+        from memory_seed.core import check_session_links
+
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        with_example = (
+            "## 2026-06-04 09:00 - Quotes YAML in its body\n\n"
+            "```yaml\nentry_id: ms-eeeeeeee\n```\n\n"
+            "### Decision\n\n- D: Documented the shape.\n- R: Future readers need it.\n\n"
+            "```yaml\ntopics:\n  - example\n```\n"
+        )
+        (sessions / "2026-06-04.md").write_text(with_example, encoding="utf-8")
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertFalse([i for i in result.issues if i.kind == "malformed-entry-yaml"])
+
+    def test_a_legacy_entry_with_no_metadata_block_is_left_alone(self):
+        # The corpus's first two days predate the metadata convention (15 such
+        # entries). Append-only forbids retrofitting published history, so their
+        # absence of a fence must stay silent rather than red the whole check.
+        from memory_seed.core import check_session_links
+
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        legacy = "## 2026-05-19 20:35 - Before metadata existed\n\n- Just a note.\n"
+        (sessions / "2026-05-19.md").write_text(legacy, encoding="utf-8")
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertFalse([i for i in result.issues if i.kind == "malformed-entry-yaml"])
+
+    def test_links_check_clean_per_user_repo_is_ok(self):
+        cwd = self.make_project()
+        self._per_user_session(cwd, "2026-06-13", "jean", hash_id="msm_" + "a" * 32, entries=("ms-11111111",))
+        self._per_user_session(cwd, "2026-06-13", "amina", hash_id="msm_" + "b" * 32, entries=("ms-22222222",))
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+        self.assertEqual(result.files_checked, 2)
+
+    def test_links_check_detects_duplicate_entry_id(self):
+        cwd = self.make_project()
+        self._per_user_session(cwd, "2026-06-13", "jean", hash_id="msm_" + "a" * 32, entries=("ms-deadbeef",))
+        self._per_user_session(cwd, "2026-06-13", "amina", hash_id="msm_" + "b" * 32, entries=("ms-deadbeef",))
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertFalse(result.ok)
+        self.assertTrue(any(i.kind == "duplicate-entry-id" and "ms-deadbeef" in i.detail for i in result.issues))
+
+    def test_links_check_detects_frontmatter_user_and_date_mismatch(self):
+        cwd = self.make_project()
+        self._per_user_session(cwd, "2026-06-13", "jean", fm_user="bob", fm_date="2026-06-14",
+                               hash_id="msm_" + "a" * 32, entries=("ms-33333333",))
+
+        kinds = {i.kind for i in check_session_links(cwd=cwd).issues}
+
+        self.assertIn("user-mismatch", kinds)
+        self.assertIn("date-mismatch", kinds)
+
+    def test_links_check_detects_bad_schema_and_missing_hash(self):
+        cwd = self.make_project()
+        self._per_user_session(cwd, "2026-06-13", "jean", schema="9", hash_id=None, entries=("ms-44444444",))
+
+        kinds = {i.kind for i in check_session_links(cwd=cwd).issues}
+
+        self.assertIn("unsupported-schema-version", kinds)
+        self.assertIn("missing-hash-id", kinds)
+
+    def test_links_check_detects_duplicate_hash_id(self):
+        cwd = self.make_project()
+        self._per_user_session(cwd, "2026-06-13", "jean", hash_id="msm_" + "c" * 32, entries=("ms-55555555",))
+        self._per_user_session(cwd, "2026-06-14", "jean", hash_id="msm_" + "c" * 32, entries=("ms-66666666",))
+
+        kinds = {i.kind for i in check_session_links(cwd=cwd).issues}
+
+        self.assertIn("duplicate-hash-id", kinds)
+
+    def test_links_check_detects_dangling_related_refs(self):
+        cwd = self.make_project()
+        self._per_user_session(
+            cwd, "2026-06-13", "jean", hash_id="msm_" + "a" * 32, entries=("ms-77777777",),
+            extra_fm="related_entries:\n  - ms-99999999\nrelated_memories:\n  - msm_" + "f" * 32,
+        )
+
+        kinds = {i.kind for i in check_session_links(cwd=cwd).issues}
+
+        self.assertIn("dangling-related-entry", kinds)
+        self.assertIn("dangling-related-memory", kinds)
+
+    def test_links_check_resolves_valid_related_refs(self):
+        cwd = self.make_project()
+        # jean references amina's entry + file hash, both of which exist.
+        self._per_user_session(cwd, "2026-06-13", "amina", hash_id="msm_" + "b" * 32, entries=("ms-88888888",))
+        self._per_user_session(
+            cwd, "2026-06-13", "jean", hash_id="msm_" + "a" * 32, entries=("ms-77777777",),
+            extra_fm="related_entries:\n  - ms-88888888\nrelated_memories:\n  - msm_" + "b" * 32,
+        )
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+
+    def test_links_check_validates_entry_level_related_entries_for_old_and_new_ids(self):
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-13"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / "jean.md").write_text(
+            "\n".join(
+                [
+                    "---",
+                    "schema_version: 2",
+                    "session_date: 2026-06-13",
+                    "hash_id: msm_" + "a" * 32,
+                    "user: jean",
+                    "created_at: 2026-06-13T00:00:00Z",
+                    "---",
+                    "",
+                    "## 2026-06-13 09:00 - first",
+                    "",
+                    "```yaml",
+                    "entry_id: mse_0123456789abcdef",
+                    "related_entries:",
+                    "  - ms-88888888",
+                    "```",
+                    "",
+                    "- note",
+                    "",
+                    "## 2026-06-13 10:00 - second",
+                    "",
+                    "```yaml",
+                    "entry_id: ms-88888888",
+                    "related_entries:",
+                    "  - mse_ffffffffffffffff",
+                    "```",
+                    "",
+                    "- note",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual(
+            [issue.kind for issue in issues],
+            ["dangling-related-entry"],
+            [issue.__dict__ for issue in issues],
+        )
+        self.assertIn("mse_ffffffffffffffff", issues[0].detail)
+
+    def test_links_check_validates_entry_level_related_entries_in_legacy_flat_files(self):
+        # Regression test: entry-level related_entries used to only be scanned
+        # for per-user-day files, silently skipping legacy-flat sessions/*.md
+        # (this repo's own layout) - a dangling ref there passed with ok=True.
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / "2026-06-13.md").write_text(
+            "\n".join(
+                [
+                    "---",
+                    "tags: [session-log]",
+                    "session_date: 2026-06-13",
+                    "---",
+                    "",
+                    "## 2026-06-13 09:00 - flat entry",
+                    "",
+                    "```yaml",
+                    "entry_id: mse_0123456789abcdef",
+                    "user_initials: JN",
+                    "related_entries:",
+                    "  - mse_ffffffffffffffff",
+                    "```",
+                    "",
+                    "- note",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual(
+            [issue.kind for issue in issues],
+            ["dangling-related-entry"],
+            [issue.__dict__ for issue in issues],
+        )
+        self.assertIn("mse_ffffffffffffffff", issues[0].detail)
+
+    def test_links_check_resolves_valid_related_entries_in_legacy_flat_files(self):
+        cwd = self.make_project()
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / "2026-06-13.md").write_text(
+            "\n".join(
+                [
+                    "## 2026-06-13 09:00 - first",
+                    "",
+                    "```yaml",
+                    "entry_id: mse_0123456789abcdef",
+                    "```",
+                    "",
+                    "## 2026-06-13 10:00 - second",
+                    "",
+                    "```yaml",
+                    "entry_id: mse_ffffffffffffffff",
+                    "related_entries:",
+                    "  - mse_0123456789abcdef",
+                    "```",
+                    "",
+                    "- note",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+
+    def test_links_check_accepts_backward_supersedes(self):
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - original", "mse_0123456789abcdef", ()),
+            ("2026-06-13 10:00 - replacement", "mse_ffffffffffffffff", ("mse_0123456789abcdef",)),
+        )
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+
+    def test_links_check_flags_dangling_supersedes(self):
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - only", "mse_0123456789abcdef", ("mse_zzzzzzzzzzzzzzzz",)),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["dangling-supersedes"], [i.__dict__ for i in issues])
+        self.assertIn("mse_zzzzzzzzzzzzzzzz", issues[0].detail)
+
+    def test_links_check_flags_postdating_supersedes(self):
+        # Forward-only guard: an earlier entry may not supersede a later one.
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - earlier", "mse_0123456789abcdef", ("mse_ffffffffffffffff",)),
+            ("2026-06-13 10:00 - later", "mse_ffffffffffffffff", ()),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["supersedes-postdates"], [i.__dict__ for i in issues])
+        self.assertIn("mse_ffffffffffffffff", issues[0].detail)
+
+    def test_links_check_flags_self_supersedes(self):
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - self", "mse_0123456789abcdef", ("mse_0123456789abcdef",)),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["self-supersedes"], [i.__dict__ for i in issues])
+
+    def test_links_check_guards_non_crockford_entry_yaml_refs(self):
+        # Regression: real corpus ids include o/u/i/l (outside the strict
+        # Crockford charset), e.g. codex-authored entries. A ref to one used to
+        # be silently skipped by the extractor - bypassing the dangling and
+        # forward-only guards while the graph still drew the edge.
+        loose = "mse_37fpcovvuniqzlxk"  # contains o, u, i, l
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - earlier", "mse_0123456789abcdef", (loose,)),
+            (f"2026-06-13 10:00 - later", loose, ()),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        # The earlier entry supersedes the LATER loose-id entry: the forward-only
+        # guard must now see and reject it instead of silently passing.
+        self.assertEqual([i.kind for i in issues], ["supersedes-postdates"], [i.__dict__ for i in issues])
+        self.assertIn(loose, issues[0].detail)
+
+    def test_links_check_flags_dangling_ref_to_non_crockford_id(self):
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - only", "mse_0123456789abcdef", ("mse_gonevvuniqzlxkoo",)),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["dangling-supersedes"], [i.__dict__ for i in issues])
+
+    def test_links_check_accepts_backward_supersedes_in_sidecar(self):
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - original", "mse_0123456789abcdef", ()),
+            ("2026-06-13 10:00 - replacement", "mse_ffffffffffffffff", ()),
+        )
+        self._link_sidecar(cwd, "2026-06-13", "mse_ffffffffffffffff", supersedes=("mse_0123456789abcdef",))
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+
+    def test_links_check_reports_unclassified_sidecar_stub_as_warning(self):
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 10:00 - pending classification", "mse_ffffffffffffffff", ()),
+        )
+        self._link_sidecar(
+            cwd,
+            "2026-06-13",
+            "mse_ffffffffffffffff",
+            classify_pending=True,
+        )
+        diagram = cwd / MEMORY_DIR_NAME / "sessions" / "diagrams" / "2026-06" / "2026-06-13.md"
+        diagram.parent.mkdir(parents=True)
+        diagram.write_text(
+            "\n".join(
+                [
+                    "## 2026-06-13 10:00 - unrelated diagram metadata",
+                    "",
+                    "```yaml",
+                    "entry_id: mse_ffffffffffffffff",
+                    "classify_pending: true",
+                    "```",
+                    "",
+                    "```mermaid",
+                    "flowchart TD",
+                    "  A --> B",
+                    "```",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        result = check_session_links(cwd=cwd)
+
+        pending = [issue for issue in result.issues if issue.kind == "sidecar-unclassified-stub"]
+        self.assertTrue(result.ok)
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0].severity, "warning")
+        self.assertIn("/sessions/links/", pending[0].file)
+
+        import contextlib
+        import io
+        import os
+
+        from memory_seed.cli import main as cli_main
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        previous = Path.cwd()
+        try:
+            os.chdir(cwd)
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                exit_code = cli_main(["links", "check"])
+        finally:
+            os.chdir(previous)
+        self.assertEqual(exit_code, 0)
+        self.assertIn("[warning] [sidecar-unclassified-stub]", stdout.getvalue())
+        self.assertEqual(stderr.getvalue(), "")
+
+    def test_links_check_accepts_backward_evolves_in_sidecar(self):
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - base", "mse_0123456789abcdef", ()),
+            ("2026-06-13 10:00 - refinement", "mse_ffffffffffffffff", ()),
+        )
+        self._link_sidecar(cwd, "2026-06-13", "mse_ffffffffffffffff", evolves=("mse_0123456789abcdef",))
+
+        self.assertTrue(check_session_links(cwd=cwd).ok)
+
+    def test_links_check_flags_dangling_supersedes_in_sidecar(self):
+        cwd = self.make_project()
+        self._flat_session(cwd, "2026-06-13.md", ("2026-06-13 10:00 - only", "mse_ffffffffffffffff", ()))
+        self._link_sidecar(cwd, "2026-06-13", "mse_ffffffffffffffff", supersedes=("mse_zzzzzzzzzzzzzzzz",))
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["dangling-supersedes"], [i.__dict__ for i in issues])
+
+    def test_links_check_flags_postdating_supersedes_in_sidecar(self):
+        # Forward-only guard covers sidecar edges too, attributed to the SOURCE
+        # entry's timestamp: an earlier entry may not supersede a later one.
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - earlier", "mse_0123456789abcdef", ()),
+            ("2026-06-13 10:00 - later", "mse_ffffffffffffffff", ()),
+        )
+        self._link_sidecar(cwd, "2026-06-13", "mse_0123456789abcdef", supersedes=("mse_ffffffffffffffff",))
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["supersedes-postdates"], [i.__dict__ for i in issues])
+
+    def test_links_check_flags_orphan_link_sidecar(self):
+        cwd = self.make_project()
+        self._flat_session(cwd, "2026-06-13.md", ("2026-06-13 09:00 - only", "mse_0123456789abcdef", ()))
+        self._link_sidecar(cwd, "2026-06-13", "mse_ffffffffffffffff", supersedes=("mse_0123456789abcdef",))
+
+        kinds = [i.kind for i in check_session_links(cwd=cwd).issues]
+
+        self.assertIn("orphan-link-sidecar", kinds)
+
+    def test_links_check_flags_link_sidecar_date_mismatch(self):
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - original", "mse_0123456789abcdef", ()),
+            ("2026-06-13 10:00 - replacement", "mse_ffffffffffffffff", ()),
+        )
+        # Source entry logged 2026-06-13, block filed under 2026-06-14.
+        self._link_sidecar(cwd, "2026-06-14", "mse_ffffffffffffffff", supersedes=("mse_0123456789abcdef",))
+
+        kinds = [i.kind for i in check_session_links(cwd=cwd).issues]
+
+        self.assertIn("link-sidecar-date-mismatch", kinds)
+
+    def test_links_check_flags_malformed_link_sidecar(self):
+        cwd = self.make_project()
+        self._flat_session(cwd, "2026-06-13.md", ("2026-06-13 09:00 - only", "mse_0123456789abcdef", ()))
+        links = cwd / MEMORY_DIR_NAME / "sessions" / "links" / "2026-06"
+        links.mkdir(parents=True, exist_ok=True)
+        (links / "not-a-date.md").write_text("## whatever\n", encoding="utf-8")
+
+        kinds = [i.kind for i in check_session_links(cwd=cwd).issues]
+
+        self.assertIn("malformed-link-sidecar", kinds)
+
+    def test_link_show_reflects_sidecar_edges(self):
+        """`link show` must union late-authored link-sidecar edges into the
+        effective graph (computed inverse included), matching what
+        retrieval/MCP/Trace read - not just the raw entry-YAML edges."""
+        import contextlib
+        import io
+        import os
+        import sys as _sys
+        from unittest import mock as _mock
+
+        from memory_seed.cli import main as cli_main
+
+        cwd = self.make_project()
+        base = "mse_0123456789abcdef"
+        refinement = "mse_ffffffffffffffff"
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - base", base, ()),
+            ("2026-06-13 10:00 - refinement", refinement, ()),
+        )
+        # Recorded ONLY in a link sidecar (not in either entry's YAML).
+        self._link_sidecar(cwd, "2026-06-13", refinement, evolves=(base,))
+
+        def run(entry_id):
+            buffer = io.StringIO()
+            prev = os.getcwd()
+            os.chdir(cwd)  # the link handler resolves cwd from Path(".")
+            try:
+                with _mock.patch.object(_sys, "argv", ["memory-seed", "link", "show", entry_id]), \
+                        contextlib.redirect_stdout(buffer):
+                    code = cli_main()
+            finally:
+                os.chdir(prev)
+            return code, buffer.getvalue()
+
+        code_ref, out_ref = run(refinement)
+        code_base, out_base = run(base)
+
+        self.assertEqual(code_ref, 0, out_ref)
+        self.assertEqual(code_base, 0, out_base)
+        # The sidecar evolves edge is visible from both ends of the graph.
+        self.assertIn(f"evolves (1): {base}", out_ref)
+        self.assertIn(f"evolved_by (1): {refinement}", out_base)
+
+    def test_links_check_accepts_backward_evolves(self):
+        cwd = self.make_project()
+        self._flat_session_raw(
+            cwd,
+            "2026-06-13.md",
+            self._entry_yaml("2026-06-13 09:00 - original", "mse_0123456789abcdef")
+            + self._entry_yaml(
+                "2026-06-13 10:00 - refinement", "mse_ffffffffffffffff", "evolves:", "  - mse_0123456789abcdef"
+            ),
+        )
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+
+    def test_links_check_flags_dangling_evolves(self):
+        cwd = self.make_project()
+        self._flat_session_raw(
+            cwd,
+            "2026-06-13.md",
+            self._entry_yaml("2026-06-13 09:00 - only", "mse_0123456789abcdef", "evolves:", "  - mse_zzzzzzzzzzzzzzzz"),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["dangling-evolves"], [i.__dict__ for i in issues])
+        self.assertIn("mse_zzzzzzzzzzzzzzzz", issues[0].detail)
+
+    def test_links_check_flags_postdating_evolves(self):
+        cwd = self.make_project()
+        self._flat_session_raw(
+            cwd,
+            "2026-06-13.md",
+            self._entry_yaml("2026-06-13 09:00 - earlier", "mse_0123456789abcdef", "evolves:", "  - mse_ffffffffffffffff")
+            + self._entry_yaml("2026-06-13 10:00 - later", "mse_ffffffffffffffff"),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["evolves-postdates"], [i.__dict__ for i in issues])
+
+    def test_links_check_flags_self_evolves(self):
+        cwd = self.make_project()
+        self._flat_session_raw(
+            cwd,
+            "2026-06-13.md",
+            self._entry_yaml("2026-06-13 09:00 - self", "mse_0123456789abcdef", "evolves:", "  - mse_0123456789abcdef"),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["self-evolves"], [i.__dict__ for i in issues])
+
+    def test_links_check_flags_evolves_cycle_between_same_minute_entries(self):
+        # Same-minute entries defeat the postdates ordering, so the DFS cycle
+        # guard has to catch a mutual evolves pair - within the evolves kind
+        # only, never mixed with supersedes edges.
+        cwd = self.make_project()
+        self._flat_session_raw(
+            cwd,
+            "2026-06-13.md",
+            self._entry_yaml("2026-06-13 09:00 - a", "mse_aaaaaaaaaaaaaaaa", "evolves:", "  - mse_bbbbbbbbbbbbbbbb")
+            + self._entry_yaml("2026-06-13 09:00 - b", "mse_bbbbbbbbbbbbbbbb", "evolves:", "  - mse_aaaaaaaaaaaaaaaa"),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertIn("evolves-cycle", [i.kind for i in issues], [i.__dict__ for i in issues])
+        cycle_issue = next(i for i in issues if i.kind == "evolves-cycle")
+        self.assertIn("evolution cycle", cycle_issue.detail)
+
+    def test_links_check_flags_authored_inverse_fields(self):
+        # Append-only enforcement: the computed inverses live only in the
+        # derived read layer; a stored key is a named integrity error, not a
+        # silently ignored no-op.
+        cwd = self.make_project()
+        self._flat_session_raw(
+            cwd,
+            "2026-06-13.md",
+            self._entry_yaml("2026-06-13 09:00 - a", "mse_0123456789abcdef", "evolved_by:", "  - mse_ffffffffffffffff")
+            + self._entry_yaml("2026-06-13 10:00 - b", "mse_ffffffffffffffff", "superseded_by:", "  - mse_0123456789abcdef"),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        kinds = [i.kind for i in issues]
+        self.assertEqual(kinds.count("authored-inverse-field"), 2, [i.__dict__ for i in issues])
+        details = " ".join(i.detail for i in issues if i.kind == "authored-inverse-field")
+        self.assertIn("evolved_by", details)
+        self.assertIn("superseded_by", details)
+
+    def test_links_check_accepts_valid_continuity_blocks(self):
+        cwd = self.make_project()
+        self._flat_session_raw(
+            cwd,
+            "2026-06-13.md",
+            self._entry_yaml(
+                "2026-06-13 09:00 - lineage", "mse_0123456789abcdef",
+                "continuity:",
+                "  - kind: rename",
+                "    from: memory_seed/lense.py",
+                "    to: memory_trace/lense.py",
+                "  - kind: migration",
+                "    from: .AGENTS/",
+                "    to: .memory-seed/",
+                "  - kind: removal",
+                "    from: memory-seed lense command",
+            ),
+        )
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+
+    def test_links_check_flags_every_malformed_continuity_shape(self):
+        cwd = self.make_project()
+        self._flat_session_raw(
+            cwd,
+            "2026-06-13.md",
+            self._entry_yaml(
+                "2026-06-13 09:00 - lineage", "mse_0123456789abcdef",
+                "continuity:",
+                "  - kind: refactor",           # unknown kind
+                "    from: a",
+                "  - kind: rename",             # rename without to
+                "    from: b",
+                "  - kind: removal",            # removal with to
+                "    from: c",
+                "    to: d",
+                "  - kind: migration",          # missing from
+                "    to: e",
+            ),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        kinds = [i.kind for i in issues]
+        self.assertEqual(kinds.count("malformed-continuity"), 4, [i.__dict__ for i in issues])
+        details = " ".join(i.detail for i in issues)
+        self.assertIn("refactor", details)
+        self.assertIn("has no to", details)
+        self.assertIn("must not have to", details)
+        self.assertIn("has no from", details)
+
+    def test_links_check_flags_malformed_commit_hash_without_git(self):
+        # Format validation applies even outside a git repo; existence is skipped.
+        cwd = self.make_project()
+        self._flat_session_with_commits(cwd, "abc123")
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertEqual([i.kind for i in issues], ["malformed-commit-hash"], [i.__dict__ for i in issues])
+        self.assertIn("abc123", issues[0].detail)
+
+    def test_links_check_skips_commit_existence_without_git(self):
+        cwd = self.make_project()
+        self._flat_session_with_commits(cwd, "a" * 40)
+
+        result = check_session_links(cwd=cwd)
+
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+
+    def test_links_check_validates_commit_existence_in_git_repo(self):
+        cwd = self.make_project()
+        head = self._git_repo_with_commit(cwd)
+        self._flat_session_with_commits(cwd, head, "f" * 40)
+
+        issues = check_session_links(cwd=cwd).issues
+
+        # The real HEAD passes; the fabricated hash is flagged.
+        self.assertEqual([i.kind for i in issues], ["unknown-commit"], [i.__dict__ for i in issues])
+        self.assertIn("f" * 40, issues[0].detail)
+
+    @pytest.mark.integration
+    def test_links_check_skips_commit_existence_in_shallow_clone(self):
+        import subprocess
+
+        cwd = self.make_project()
+        self._git_repo_with_commit(cwd)
+        # A shallow clone (what CI checkouts default to) genuinely lacks
+        # historical commits: "no such commit" is indistinguishable from
+        # "outside the fetched window", so unknown-commit must not fire.
+        shallow = Path(tempfile.mkdtemp(prefix="mseed-shallow-"))
+        self.addCleanup(lambda: shutil.rmtree(shallow, ignore_errors=True))
+        subprocess.run(
+            ["git", "clone", "--quiet", "--depth", "1",
+             cwd.as_uri().replace("file:///", "file:///"), str(shallow / "clone")],
+            check=True, capture_output=True, timeout=60,
+        )
+        clone = shallow / "clone"
+        self._flat_session_with_commits(clone, "f" * 40)
+
+        result = check_session_links(cwd=clone)
+
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+
+    def test_links_check_flags_supersedes_cycle_between_same_minute_entries(self):
+        # Same-minute entries slip past the postdates comparison; the DFS
+        # cycle guard is what catches a mutual supersession there.
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - first", "mse_0123456789abcdef", ("mse_ffffffffffffffff",)),
+            ("2026-06-13 09:00 - second", "mse_ffffffffffffffff", ("mse_0123456789abcdef",)),
+        )
+
+        issues = check_session_links(cwd=cwd).issues
+
+        self.assertIn("supersedes-cycle", [i.kind for i in issues], [i.__dict__ for i in issues])
+        cycle_issue = next(i for i in issues if i.kind == "supersedes-cycle")
+        self.assertIn("mse_0123456789abcdef", cycle_issue.detail)
+        self.assertIn("mse_ffffffffffffffff", cycle_issue.detail)
+
+    def test_migrate_sessions_layout_apply_splits_entries_and_backs_up_source(self):
+        cwd = self.make_project()
+        self._write_participants(cwd)
+        flat = self._write_flat_session(cwd)
+
+        result = migrate_session_layout(cwd=cwd)
+
+        self.assertTrue(result.changed)
+        self.assertFalse(flat.exists())
+        self.assertEqual(result.migrated, ["2026-06/2026-06-21/amina.md", "2026-06/2026-06-21/jean.md"])
+        self.assertEqual(len(result.backed_up), 1)
+        backup = cwd / result.backed_up[0]
+        self.assertTrue(backup.exists())
+        jean = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21" / "jean.md").read_text(encoding="utf-8")
+        amina = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21" / "amina.md").read_text(encoding="utf-8")
+        self.assertIn("schema_version: 2", jean)
+        self.assertIn("hash_id: msm_", jean)
+        self.assertIn("user: jean", jean)
+        self.assertIn("entry_id: ms-11111111", jean)
+        self.assertNotIn("entry_id: mse_0123456789abcdef", jean)
+        self.assertIn("entry_id: mse_0123456789abcdef", amina)
+        self.assertTrue(check_session_links(cwd=cwd).ok)
+
+    def test_migrate_sessions_month_layout_apply_moves_sources_and_backs_up(self):
+        cwd = self.make_project()
+        flat = self._write_flat_session(cwd)
+        self._per_user_session(cwd, "2026-06-22", "jean", hash_id="msm_" + "c" * 32, entries=("ms-33333333",))
+        diagram = self._write_old_diagram_sidecar(cwd)
+
+        result = migrate_session_month_layout(cwd=cwd)
+
+        self.assertTrue(result.changed)
+        self.assertEqual(
+            result.migrated,
+            [
+                "2026-06/2026-06-21.md",
+                "2026-06/2026-06-22/jean.md",
+                "diagrams/2026-06/2026-06-21.md",
+            ],
+        )
+        self.assertFalse(flat.exists())
+        self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-22" / "jean.md").exists())
+        self.assertFalse(diagram.exists())
+        self.assertEqual(len(result.backed_up), 3)
+        for backup in result.backed_up:
+            self.assertTrue((cwd / backup).exists())
+        moved_flat = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-21.md").read_text(encoding="utf-8")
+        moved_user = (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-22" / "jean.md").read_text(encoding="utf-8")
+        moved_diagram = (cwd / MEMORY_DIR_NAME / "sessions" / "diagrams" / "2026-06" / "2026-06-21.md").read_text(encoding="utf-8")
+        self.assertIn("entry_id: ms-11111111", moved_flat)
+        self.assertIn("hash_id: msm_" + "c" * 32, moved_user)
+        self.assertIn("```mermaid", moved_diagram)
+        self.assertTrue(check_session_links(cwd=cwd).ok)

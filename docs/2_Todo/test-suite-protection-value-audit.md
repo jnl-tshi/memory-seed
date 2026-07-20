@@ -2,7 +2,7 @@
 title: Test-suite protection-value audit
 status: active
 priority: P2
-next_action: Audit test_memory_seed.py module by module (Keep/Consolidate/Replace/Move/Delete), starting with the MemorySeedTests class.
+next_action: Phase 2c content cull, starting with test_links_check.py (Keep/Consolidate/Replace/Move/Delete per test).
 blocked_by: []
 ---
 
@@ -85,7 +85,7 @@ duplicative.
 | `test_mcp_validation.py` | 2 | <0.1s | unit | 0 |
 
 No true end-to-end or compatibility/migration tier exists as a distinct concern today; session-layout
-migration cases are folded into `MemorySeedTests`.
+migration cases are folded into `test_session_layout_migration.py` (see Phase 2 below).
 
 ## Phase 1 — done, 2026-07-20
 
@@ -97,31 +97,70 @@ migration cases are folded into `MemorySeedTests`.
 - Installed `pytest-cov`, measured coverage by component (table above).
 - Established a 3-run flakiness baseline: 0 failures.
 
-## Phase 2 — the actual cull (not started)
+## Phase 2a — structural split, done 2026-07-20
 
-Work one module at a time. For each: state the behaviours it protects, map every test to one, mark
-duplicates, consolidate, replace incident-specific cases with invariants where a systemic rule exists,
-delete obsolete/implementation-detail tests, re-run, commit separately. Surface every
-Keep/Consolidate/Replace/Move/Delete candidate with a protection-value score before removing anything —
-no unilateral deletion.
+`test_memory_seed.py` (6,533 lines, 287 tests across 8 unrelated classes) is retired. Split by an
+AST-driven script — not by hand — so every test's exact source (including `@pytest.mark.integration`
+decorators) was verified relocated exactly once before the original was deleted:
+
+- The 7 already-cohesive classes moved to their own files verbatim: `test_hook_merge.py`,
+  `test_session_log_ordering_hook.py`, `test_mcp_merge.py`, `test_retrieval_check_path.py`,
+  `test_cli_help.py`, `test_session_start_hook.py`, `test_agent_selection.py`.
+- `MemorySeedTests` (179 tests, the real grab-bag) was further split by concern, classified by a
+  call-graph analysis of each test (which core API / helper methods it actually calls), not by name
+  prefix guessing:
+  - `test_session_fuse_and_merge.py` — `SessionFuseAndMergeTests`, 69 tests (fuse/merge-branch/
+    prepare-pr/open-pr + the `-merge` attribute + false-anchor-conflict tests + the
+    `_is_recognized_session_tree_path` unit test)
+  - `test_links_check.py` — `LinksCheckTests`, 44 tests
+  - `test_project_lifecycle.py` — `ProjectLifecycleTests`, 39 tests (init/update/doctor/skill/seed/
+    version)
+  - `test_session_layout_migration.py` — `SessionLayoutMigrationTests`, 9 tests
+  - `test_core_misc.py` — `CoreMiscTests`, 18 tests (entry-format/id, commit provenance,
+    `resolve_runtime`, `compact_sessions`)
+
+**Verification, not assertion:** collected test-name sets before/after were asserted equal (179 tests,
+each exactly once) prior to deleting the original; `pytest --collect-only` confirmed exactly 635 both
+before and after; the full suite still reports **635 passed, 14 subtests passed**, byte-for-byte the
+same tally as before the split; the fast loop still reports **543 passed, 92 deselected** (all 57
+integration markers that lived in `MemorySeedTests` landed correctly — 46 in
+`test_session_fuse_and_merge.py`, 7 in `test_cli_help.py`, 3 in `test_mcp_merge.py`, 1 in
+`test_links_check.py`).
+
+**Known, accepted trade-off:** three small pure-Python fixture helpers (`_per_user_session`,
+`_write_participants`, `_git_repo_with_commit`) are now duplicated across 2-3 of the new files rather
+than shared, since a true shared module wasn't attempted in this pass (see Phase 2b). This is
+controlled, verified-identical duplication of small leaf helpers, not the kind of duplication the audit
+is trying to eliminate.
+
+## Phase 2b — harness dedup (not started)
+
+`_git()` now lives in exactly 4 files: `test_git_hooks.py`, `test_mcp_session_integrate.py`,
+`test_worktree_gc.py`, `test_session_fuse_and_merge.py` (was `test_memory_seed.py` before the split).
+They differ in `check=True` vs `check=False` and a `timeout=60` — needs a real behavioral comparison
+per file before unifying, not a blind text merge. The three small fixture helpers noted above are a
+second, lower-risk dedup candidate for the same pass.
+
+## Phase 2c — the actual content cull (not started)
+
+Work one module at a time, now that each is a cohesive file instead of a slice of a monolith. For each:
+state the behaviours it protects, map every test to one, mark duplicates, consolidate, replace
+incident-specific cases with invariants where a systemic rule exists, delete obsolete/implementation-
+detail tests, re-run, commit separately. Surface every Keep/Consolidate/Replace/Move/Delete candidate
+with a protection-value score before removing anything — no unilateral deletion.
 
 Cull order (highest test count / runtime / duplication / maintenance pain first, contracts and
 invariants last):
 
-1. `MemorySeedTests` (179 of the 287 tests in `test_memory_seed.py`) — the largest, most mixed class.
-   Natural byproduct: split into per-concern files as tests are read and classified (not as separate
-   up-front busywork).
-2. `CliHelpTests` (28 tests) — given the coverage finding above, likely needs *expansion* on real
-   command paths as much as consolidation of help-text checks.
-3. `McpMergeTests`, `HookMergeTests`, `SessionLogOrderingHookTests`, `RetrievalCheckPathTests`,
-   `SessionStartContextHookTests`, `AgentSelectionTests` — remaining classes in the monolith.
-4. Remaining files, smallest/fastest/highest-signal last (`test_session_schema.py`,
+1. `test_links_check.py` (44 tests) — the largest remaining single concern; good parametrization
+   candidate given the volume.
+2. `test_session_fuse_and_merge.py` (69 tests) — largest file, but this is the P1-bug-catching
+   machinery; expect mostly Keep, look for genuine duplication only.
+3. `test_project_lifecycle.py` (39 tests).
+4. `test_cli_help.py` (28 tests) — given the coverage finding above (`cli.py` at 54%), likely needs
+   *expansion* on real command paths as much as consolidation of help-text checks.
+5. `test_mcp_merge.py`, `test_hook_merge.py`, `test_session_log_ordering_hook.py`,
+   `test_retrieval_check_path.py`, `test_session_start_hook.py`, `test_agent_selection.py`,
+   `test_session_layout_migration.py`, `test_core_misc.py`.
+6. Remaining files, smallest/fastest/highest-signal last (`test_session_schema.py`,
    `test_docs_check.py`, contract-shape tests).
-
-### Deferred, scoped, not started
-
-- **Dedupe the 4 independently hand-rolled `_git()` harness helpers** (`test_git_hooks.py`,
-  `test_memory_seed.py`, `test_mcp_session_integrate.py`, `test_worktree_gc.py`). They differ in
-  `check=True` vs `check=False` and a `timeout=60` — do this when inside those files for the cull, with
-  full context on why each differs, not as a blind text merge.
-- **Split `test_memory_seed.py`'s 8 classes into per-concern files** — folded into Phase 2 item 1 above.
