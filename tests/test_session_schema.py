@@ -2,7 +2,31 @@ import re
 import unittest
 from pathlib import Path
 
-from memory_seed.core import iter_session_documents
+from memory_seed.core import SEED_FILES, iter_session_documents
+
+SEED_SKILLS_DIR = Path("memory_seed/seed/.memory-seed/skills")
+
+
+def _seed_registry_skill_names():
+    """Every `- skill: <name>` token in the seed trigger registry.
+
+    Deliberately includes `persona:` entries: an optional/persona skill is still
+    shipped by the seed, and skipping them is what let a registry entry point at
+    a skill that was never installed.
+    """
+    registry_text = (SEED_SKILLS_DIR / "index.md").read_text(encoding="utf-8")
+    return re.findall(r"^\s*- skill:\s*(\S+)", registry_text, re.MULTILINE)
+
+
+def _seed_files_skill_names():
+    """Skill runbook filenames shipped by SEED_FILES (index.md is the registry, not a skill)."""
+    prefix = ".memory-seed/skills/"
+    return [
+        seed_file.destination[len(prefix):]
+        for seed_file in SEED_FILES
+        if seed_file.destination.startswith(prefix)
+        and seed_file.destination != f"{prefix}index.md"
+    ]
 
 
 class SessionSchemaTests(unittest.TestCase):
@@ -329,6 +353,42 @@ class SessionSchemaTests(unittest.TestCase):
                 if "persona:" in body:
                     continue
                 self.assertTrue((root / skill).exists(), f"{root / skill} is registered but missing")
+
+    def test_seed_registry_entries_are_installed_by_seed_files(self):
+        # A registry entry with no shipped file makes `memory-seed init` write a
+        # trigger map pointing at a skill it never installs (the 2.19
+        # developer-rendered-ui-debugging.md defect). Unlike the live-runtime check
+        # above, persona entries are NOT skipped here: the seed ships every skill
+        # unconditionally, and skipping them is what hid that defect.
+        seed_file_names = set(_seed_files_skill_names())
+
+        for skill in _seed_registry_skill_names():
+            self.assertTrue(
+                (SEED_SKILLS_DIR / skill).exists(),
+                f"{skill} is registered in the seed trigger registry but no file "
+                f"exists at {SEED_SKILLS_DIR / skill}",
+            )
+            self.assertIn(
+                skill,
+                seed_file_names,
+                f"{skill} is registered in the seed trigger registry but has no "
+                f"SeedFile entry for '.memory-seed/skills/{skill}' in core.SEED_FILES, "
+                "so `memory-seed init` would not install it",
+            )
+
+    def test_seed_files_skills_are_registered_in_seed_registry(self):
+        # Reverse direction: an installed skill nothing triggers is dead weight —
+        # agents lazy-load only what the registry names.
+        registry_names = set(_seed_registry_skill_names())
+
+        for skill in _seed_files_skill_names():
+            self.assertIn(
+                skill,
+                registry_names,
+                f".memory-seed/skills/{skill} is installed by core.SEED_FILES but has "
+                f"no '- skill: {skill}' entry in the seed trigger registry, so no agent "
+                "will ever load it",
+            )
 
     def test_esr_commands_point_to_end_of_turn_skill(self):
         claude_live = Path(".claude/commands/esr.md").read_text(encoding="utf-8")
