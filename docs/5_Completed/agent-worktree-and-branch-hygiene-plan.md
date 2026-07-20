@@ -1,8 +1,7 @@
 ---
 title: Agent worktree and branch hygiene
-status: active
+status: complete
 priority: P3
-next_action: "Phase 1 COMPLETE 2026-07-17 (classifier + `--apply` remover). Next: Phase 2 lifecycle guidance (reconcile agent_collaboration.md / End Of Turn / Task Packet examples around worktree=session, branch=task)."
 sources:
   - ../7_Superseded/worktree-gc-proposal.md
   - ../7_Superseded/agent-namespaced-branch-worktree-lifecycle-proposal.md
@@ -10,7 +9,11 @@ sources:
 
 # Agent Worktree and Branch Hygiene
 
-Status: **ACTIVE, P3**. This plan combines the cleanup executor and the policy that consumes it.
+> **Status:** COMPLETE 2026-07-20 - both phases shipped. Phase 1 (classifier + `--apply` remover)
+> 2026-07-17; Phase 2 (lifecycle-guidance reconciliation) 2026-07-20, closing this plan's only
+> remaining obligation.
+
+This plan combined the cleanup executor and the policy that consumes it.
 
 ## Decisions
 
@@ -53,12 +56,21 @@ Status: **ACTIVE, P3**. This plan combines the cleanup executor and the policy t
 
 ## Phase 2 - lifecycle guidance
 
+> **COMPLETE 2026-07-20.** `agent_collaboration.md` carried three stale examples predating the
+> worktree=session/branch=task decision recorded in `.memory-seed/index.md:77` (2026-07-13/16): two
+> `<owner>/<kind>/<topic>` branch-naming fallbacks (the agent segment is required, not an optional
+> "owner") and one `.codex/worktrees/<task>` / `.claude/worktrees/<task>` / etc. worktree-namespace
+> example (worktrees are named for the session, not the task). All three fixed and synced to the seed
+> twin; `test_agent_collaboration_skill_is_registered_and_agent_rules_stay_lean`'s asserted substring
+> updated to match. End Of Turn's Stale Worktree Sweep and the Task Packet YAML template used only
+> generic placeholders already — no stale examples found there.
+
 - Reconcile `agent_collaboration.md`, End Of Turn, and Task Packet examples around worktree=session and
-  branch=task.
+  branch=task. ✅
 - Create one branch per coherent workstream, keep follow-on fixes on that branch, and integrate with visible
-  `--no-ff` history when configured.
+  `--no-ff` history when configured. ✅ (ongoing practice, already followed)
 - After integration, classify worktree and branch independently; retain either when uncommitted or unmerged
-  work exists.
+  work exists. ✅ (ongoing practice, already followed)
 
 ## Acceptance criteria
 

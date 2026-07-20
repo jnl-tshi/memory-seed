@@ -422,12 +422,15 @@ Publishability and the generic skill/workflow router are deferred until their ex
 
 ### Track E — worktree and branch hygiene
 
-[`agent-worktree-and-branch-hygiene-plan.md`](agent-worktree-and-branch-hygiene-plan.md) combines the two
-former Inbox proposals. **Phase 1 COMPLETE 2026-07-17**: `memory-seed worktree classify` (dry-run,
-evidence per verdict, fails closed) and `--apply` (destructive; shipped under live consent; reclassifies at
-apply time, git-native with bounded retry, no raw deletion, branches untouched). Phase 2 — lifecycle
-guidance adopting worktree=session and branch=task with `<agent>/<kind>/<topic>` names — remains; existing
-names are grandfathered.
+**COMPLETE 2026-07-20**, moved to
+[`5_Completed/agent-worktree-and-branch-hygiene-plan.md`](../5_Completed/agent-worktree-and-branch-hygiene-plan.md),
+which combined the two former Inbox proposals. **Phase 1 COMPLETE 2026-07-17**: `memory-seed worktree
+classify` (dry-run, evidence per verdict, fails closed) and `--apply` (destructive; shipped under live
+consent; reclassifies at apply time, git-native with bounded retry, no raw deletion, branches untouched).
+**Phase 2 COMPLETE 2026-07-20**: `agent_collaboration.md` still carried two stale `<owner>/<kind>/<topic>`
+branch examples and one stale `.{agent}/worktrees/<task>` worktree example predating the
+worktree=session/branch=task decision; reconciled to `<agent>/<kind>/<topic>` and worktree=session,
+seed-twin synced; existing branch names remain grandfathered.
 
 ## Inbox disposition — evaluated 2026-07-16, re-triaged 2026-07-20
 
