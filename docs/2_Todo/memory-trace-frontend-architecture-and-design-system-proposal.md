@@ -397,10 +397,26 @@ Target WCAG 2.2 AA. Automated checks are necessary but not sufficient. Manually 
 first real run found a genuine violation: the light-theme `--muted` text token (`#8a7c66` on `#eee7d8`,
 used in 26 places across `styles.css`) measured 3.3:1 contrast against the 4.5:1 AA minimum for text
 under 18pt. Darkened to `#70624d` (computed to ~4.8:1 against both `--panel` and `--bg`); dark-theme
-`--muted` was checked and already passes (~5.3:1). The manual obligations above (keyboard order, focus
-restoration, screen-reader labels, graph alternatives) remain fully unaddressed beyond what
-`SettingsMenu`'s own `play` functions incidentally proved for that one component - this is not yet a
-project-wide manual accessibility pass.
+`--muted` was checked and already passes (~5.3:1).
+
+**First manual keyboard pass done 2026-07-20**, against the live packaged app (real corpus, real
+server) rather than Storybook in isolation. Found and fixed a real, systemic **WCAG 2.4.7 (Focus
+Visible) violation**: 8 distinct interactive element classes (`.icon-button`, `.entry`, `.topic`,
+`.topic.active`, `.find-all`, `.graph-list-item`, `.meta-link`, `.link-card`, `.trail-more`) had
+`outline: none`/`outline: 0` on `:focus-visible`, relying only on a subtle border-color, background, or
+text-color shift as the keyboard-focus signal - several with no border change at all (`.entry`,
+`.find-all`). Verified the bug first via `getComputedStyle` + `.matches(':focus-visible')` on the real
+focused element (not just visual inspection, which couldn't reliably confirm a 1px shift on small
+icon buttons at screenshot resolution), then fixed by adding a real `outline: 1-2px solid
+var(--accent...)` to each - matching the pattern several *other* elements already used correctly
+(`.settings-tabs button`, `.find-step`, `.segment-control button`, `.trail-row`, `.graph-canvas`).
+Re-verified live via keyboard Tab + computed-style checks across `.icon-button`, `.topic`, and
+`.topic.active` after the fix.
+
+**Still not done:** focus restoration and screen-reader labels beyond what `SettingsMenu`'s Storybook
+`play` functions incidentally proved; graph alternatives (no non-visual equivalent for the Cytoscape
+canvas has been evaluated at all). This is a first pass, not the completed project-wide manual
+accessibility audit the section above calls for.
 
 ## 12. AI-agent development constraints
 
