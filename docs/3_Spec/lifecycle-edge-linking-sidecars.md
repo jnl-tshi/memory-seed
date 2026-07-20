@@ -103,17 +103,28 @@ population."*
 
 Rules:
 - `edge_status` is **optional and additive**. `classify_pending: true` keeps its meaning, so no existing
-  sidecar needs migrating.
+  **link sidecar** needs migrating.
 - When both are present, `edge_status` governs — it is the later, more specific statement.
 - `not_applicable` creates zero edges, exactly like a stub. It records a judgement, not a relationship,
   so graph readers ignore it for the same reason they ignore `classify_pending`.
 - `note:` is free text and optional, but it is the whole value of the state: record *why* nothing was
   warranted, so the next reader need not redo the judgement.
 
-This is a per-entry judgement recorded in the file that already owns that entry's edges. It deliberately
-does **not** introduce a separate manifest owning evaluation state — that would put the same fact in two
-places and collide with the one-owner rule (Invariant #6). "No edge warranted" is an answer to the
-question this sidecar already answers, not a new fact needing a new home.
+**Scope — this is a link-sidecar field.** `.memory-seed/sessions/` holds more than one sidecar kind:
+diagram sidecars under `sessions/diagrams/…` and link sidecars under `sessions/links/…`, with the ADR
+lifecycle sidecar in [draft](draft/adr-lifecycle-sidecar-contract.md) as a prospective third. "Sidecar"
+unqualified is therefore ambiguous across this document — `edge_status` belongs to **link sidecars
+only**, and its name says which question it answers (are there lifecycle *edges*?).
+
+The pattern generalises even though the field does not. Any entry-keyed sidecar can be asked "was this
+examined, and did it warrant anything?", and each kind should answer in its own file with its own field
+name rather than a shared status vocabulary — a common manifest across kinds is exactly the one-owner
+collision this design avoids.
+
+This is a per-entry judgement recorded in the link sidecar, which already owns that entry's lifecycle
+edges. It deliberately does **not** introduce a separate manifest owning evaluation state — that would
+put the same fact in two places and collide with the one-owner rule (Invariant #6). "No edge warranted"
+is an answer to the question the link sidecar already answers, not a new fact needing a new home.
 
 ### Reader (layered exactly like the diagram sidecars)
 - `iter_link_sidecar_documents(sessions_dir)` in **`core.py`** — the file
