@@ -759,6 +759,77 @@ class CliHelpTests(unittest.TestCase):
         self.assertIn(".memory-seed/sessions/2026-07/2026-07-11.md", out)
 
     @pytest.mark.integration
+    def test_session_fuse_cli_dry_run_reports_link_sidecar_import(self):
+        # Coverage gap closed: every planned_link_sidecars CLI print line (added
+        # 2026-07-20 for the P1 sidecar-loss fix) previously executed its `for`
+        # header but never its body in any test, since no fixture produced a
+        # non-empty list - so the actual "Would import link sidecar:" text was
+        # unverified. This drives a real branch-side link sidecar through the CLI.
+        import os
+        import subprocess
+
+        cwd = Path.cwd()
+        project = Path(tempfile.mkdtemp(prefix="memory-seed-cli-fuse-link-"))
+        self.addCleanup(lambda: shutil.rmtree(project, ignore_errors=True))
+        sessions = project / ".memory-seed" / "sessions"
+        grouped = sessions / "2026-07"
+        grouped.mkdir(parents=True, exist_ok=True)
+        (grouped / "2026-07-10.md").write_text(
+            "---\n"
+            "tags:\n"
+            "  - session-log\n"
+            "  - memory-seed\n"
+            "session_date: 2026-07-10\n"
+            "---\n\n"
+            "## 2026-07-10 09:00 - Base\n\n"
+            "```yaml\n"
+            "entry_id: mse_0123456789abcdef\n"
+            "user_initials: JN\n"
+            "agent_type: codex\n"
+            "branch: main\n"
+            "```\n\n"
+            "- Base.\n",
+            encoding="utf-8",
+        )
+
+        try:
+            os.chdir(project)
+            subprocess.run(["git", "init", "-q"], check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.name", "Test User"], check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.email", "test@example.com"], check=True, capture_output=True)
+            subprocess.run(["git", "config", "commit.gpgsign", "false"], check=True, capture_output=True)
+            subprocess.run(["git", "branch", "-M", "main"], check=True, capture_output=True)
+            subprocess.run(["git", "add", "-A"], check=True, capture_output=True)
+            subprocess.run(["git", "commit", "-q", "-m", "base"], check=True, capture_output=True)
+            subprocess.run(["git", "switch", "-c", "feature-fuse"], check=True, capture_output=True)
+            link_target = sessions / "links" / "2026-07" / "2026-07-10.md"
+            link_target.parent.mkdir(parents=True, exist_ok=True)
+            link_target.write_text(
+                "---\n"
+                "tags:\n"
+                "  - session-log-links\n"
+                "link_date: 2026-07-10\n"
+                "---\n\n"
+                "## 2026-07-10 09:15 - Note\n\n"
+                "```yaml\n"
+                "entry_id: mse_0123456789abcdef\n"
+                "related_entries:\n"
+                "  - mse_zzzzzzzzzzzzzzzz\n"
+                "```\n\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "add", "-A"], check=True, capture_output=True)
+            subprocess.run(["git", "commit", "-q", "-m", "branch link sidecar"], check=True, capture_output=True)
+            subprocess.run(["git", "switch", "main"], check=True, capture_output=True)
+            code, out = self._run(["session", "fuse", "--branch", "feature-fuse"])
+        finally:
+            os.chdir(cwd)
+
+        self.assertEqual(code, 0)
+        self.assertIn("Would import link sidecar: mse_0123456789abcdef", out)
+        self.assertIn(".memory-seed/sessions/links/2026-07/2026-07-10.md", out)
+
+    @pytest.mark.integration
     def test_session_merge_branch_cli_dry_run_reports_plan(self):
         import os
         import subprocess

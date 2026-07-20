@@ -2,7 +2,7 @@
 title: Test-suite protection-value audit
 status: active
 priority: P2
-next_action: Phase 2c content cull — 3 files done (links_check, session_fuse_and_merge, project_lifecycle); next is test_cli_help.py (Keep/Consolidate/Replace/Move/Delete per test).
+next_action: Phase 2c content cull — 4 files done (links_check, session_fuse_and_merge, project_lifecycle, cli_help); next is the 8 smaller split files (Keep/Consolidate/Replace/Move/Delete per test).
 blocked_by: []
 ---
 
@@ -179,8 +179,7 @@ invariants last):
 1. `test_links_check.py` (44 tests) — **done, 2026-07-20**, see below.
 2. `test_session_fuse_and_merge.py` (69 tests) — **done, 2026-07-20**, see below.
 3. `test_project_lifecycle.py` (39 tests) — **done, 2026-07-20**, see below.
-4. `test_cli_help.py` (28 tests) — given the coverage finding above (`cli.py` at 54%), likely needs
-   *expansion* on real command paths as much as consolidation of help-text checks.
+4. `test_cli_help.py` (28 tests) — **done, 2026-07-20**, see below.
 5. `test_mcp_merge.py`, `test_hook_merge.py`, `test_session_log_ordering_hook.py`,
    `test_retrieval_check_path.py`, `test_session_start_hook.py`, `test_agent_selection.py`,
    `test_session_layout_migration.py`, `test_core_misc.py`.
@@ -266,6 +265,32 @@ the systemic fix (`doctor()`) only catches it at runtime, not at release time. `
 is a ~40-line exact-manifest snapshot of every seed file destination — higher maintenance cost than
 most tests here (any new seed file requires updating it), but it protects the actual packaging list, so
 left as Keep rather than flagged for replacement.
+
+### test_cli_help.py — done, 2026-07-20
+
+Read all 28 tests. **The file's own measurements-phase description turned out to overstate the
+problem:** re-reading against real behaviour, only 2 of the 28 tests (`test_help_command_lists_all_commands`,
+`test_no_command_prints_help`) are pure `--help`-text checks — the other 26 dispatch real subcommands
+(`skills`, `init`, `branch status`, `worktree guard`/`status`, `session integrate`, `user`, `migrate`,
+`session fuse`/`merge-branch`) through `cli.main()` and assert on real stdout/JSON/exit codes/file
+side-effects. No duplication found across the 28; each targets a distinct command, flag combination, or
+error path (interactive-prompt vs. non-interactive, TTY-mocked opt-out, unreadable-config refusal,
+newer-vs-declared integration mode, etc.).
+
+The measurements-phase note's specific example, though, held up under verification: no fixture in this
+file ever produces a non-empty `planned_link_sidecars`, so the CLI's "Would import link sidecar: ..."
+print line (added this session, task #6 above, across 6 call sites in `cli.py`) had never actually
+executed in any test — a real coverage gap in code from earlier in this same session. **Added
+`test_session_fuse_cli_dry_run_reports_link_sidecar_import`**, driving a real branch-side link sidecar
+through `session fuse --branch` via the CLI. Verified the new test actually catches the gap by
+temporarily replacing the print statement with `pass` — the test failed with a clear diff, confirming
+it isn't a vacuous assertion; reverted before committing.
+
+**Verdict: 28 Keep, 1 new (Expand), 0 Move, 0 Consolidate, 0 Delete.** Treated as an autonomous action
+like Move/Consolidate, not gated behind the review checkpoint: a new test either passes against real
+behaviour or fails, so a green suite is real evidence here, unlike a deletion.
+
+Verified: `pytest tests/test_cli_help.py` — 29/29 passed (was 28).
 
 ## Findings awaiting a review checkpoint (not yet actioned)
 
