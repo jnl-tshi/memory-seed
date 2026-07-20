@@ -9,9 +9,12 @@ tags:
 
 # ESR Persona Usage Check — propose deactivating active-but-unused personas
 
-Status: **TODO** — approved 2026-07-14; promoted from Inbox (`2_Todo`).
+Status: **SHIPPED 2026-07-20** — approved 2026-07-14; promoted from Inbox (`2_Todo`).
 Priority: P2 — keeps the active-persona set honest so startup + worker load stay lean; approval-gated, low blast radius.
-Next action: add the "Persona Usage Check" step to `.memory-seed/skills/end_of_turn.md` and the `agent-rules.md` "End Of Turn" list, mirror the seed twins; the optional `memory-seed persona usage` report is a sequenced sub-item after the step lands.
+Next action: **Done** — the "Persona Usage Check" step landed in `.memory-seed/skills/end_of_turn.md`
+(step 17, its own subsection) and `agent-rules.md`'s "End Of Turn" summary, both mirrored to the seed
+twins. Remaining optional sub-item: the deterministic `memory-seed persona usage [--days N] [--json]`
+report, sequenced as a follow-up now that the prose step exists.
 Dependencies: none hard. Companion to `../5_Completed/worker-context-minimisation-proposal.md` (shared provenance; **landed 2026-07-17**).
 Scope: control-plane — `end_of_turn.md`, `agent-rules.md`, seed twins; optional `persona usage` CLI report + tests. Out of scope: any auto-apply / deletion path.
 Open decision for the user: this is designed **propose-and-wait** (never auto-deactivate), consistent with every other persona step. If automatic deactivation on detection is wanted instead, that changes the design — resolve before build.
