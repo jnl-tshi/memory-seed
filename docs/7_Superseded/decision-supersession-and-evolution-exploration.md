@@ -1,8 +1,17 @@
+---
+title: "Proposal: Explicit Decision Supersession and Evolution"
+date: "2026-07-18"
+project: "memory-seed"
+status: "superseded"
+superseded: "2026-07-20"
+superseded_by: "../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md"
+---
+
 # Proposal: Explicit Decision Supersession and Evolution
 
 **Status:** Explore further before promotion to ADR  
 **Date:** 2026-07-18  
-**Related documents:** [Ontology](01-memory-seed-ontology-proposal.md), [Evidence Model](02-evidence-model-and-packets-proposal.md)
+**Related documents:** [Ontology](memory-seed-ontology-exploration.md), [Evidence Model](evidence-model-and-packets-exploration.md)
 
 ## Summary
 

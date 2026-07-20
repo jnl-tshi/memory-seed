@@ -1,3 +1,12 @@
+---
+title: "Proposal: Entry Intent Metadata and Branch Lifecycle"
+date: "2026-07-18"
+project: "memory-seed"
+status: "superseded"
+superseded: "2026-07-20"
+superseded_by: "../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md"
+---
+
 # Proposal: Entry Intent Metadata and Branch Lifecycle
 
 **Status:** Proposed  

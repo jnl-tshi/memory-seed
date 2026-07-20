@@ -1,8 +1,17 @@
+---
+title: "Proposal: Benchmark Decision Quality Under Constrained Context"
+date: "2026-07-18"
+project: "memory-seed"
+status: "superseded"
+superseded: "2026-07-20"
+superseded_by: "../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md"
+---
+
 # Proposal: Benchmark Decision Quality Under Constrained Context
 
 **Status:** Explore further before promotion to ADR  
 **Date:** 2026-07-18  
-**Related documents:** [Context Assembly](04-deterministic-context-assembly-proposal.md), [Constitution](06-constitutional-principles-for-decision-efficiency.md)
+**Related documents:** [Context Assembly](deterministic-context-assembly-exploration.md), [Constitution](constitutional-principles-decision-efficiency-exploration.md)
 
 ## Summary
 

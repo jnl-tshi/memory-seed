@@ -1,8 +1,17 @@
+---
+title: "Proposal: Evidence as a First-Class Model and Compact Packet"
+date: "2026-07-18"
+project: "memory-seed"
+status: "superseded"
+superseded: "2026-07-20"
+superseded_by: "../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md"
+---
+
 # Proposal: Evidence as a First-Class Model and Compact Packet
 
 **Status:** Explore further before promotion to ADR  
 **Date:** 2026-07-18  
-**Related documents:** [Ontology](01-memory-seed-ontology-proposal.md), [Supersession](03-decision-supersession-and-evolution-proposal.md), [Context Assembly](04-deterministic-context-assembly-proposal.md)
+**Related documents:** [Ontology](memory-seed-ontology-exploration.md), [Supersession](decision-supersession-and-evolution-exploration.md), [Context Assembly](deterministic-context-assembly-exploration.md)
 
 ## Summary
 

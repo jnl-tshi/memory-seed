@@ -1,8 +1,17 @@
+---
+title: "Proposal: Constitutional Principles for Decision Efficiency"
+date: "2026-07-18"
+project: "memory-seed"
+status: "superseded"
+superseded: "2026-07-20"
+superseded_by: "../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md"
+---
+
 # Proposal: Constitutional Principles for Decision Efficiency
 
 **Status:** Candidate constitutional additions; validate before adoption  
 **Date:** 2026-07-18  
-**Related documents:** [Index](00-index.md), [Benchmarking](05-benchmarking-decision-quality-under-constrained-context.md)
+**Related documents:** [Index](memory-seed-ontology-evidence-set-index-exploration.md), [Benchmarking](benchmarking-decision-quality-exploration.md)
 
 ## Summary
 

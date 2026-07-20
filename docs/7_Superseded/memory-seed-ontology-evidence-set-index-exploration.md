@@ -1,3 +1,12 @@
+---
+title: "Memory Seed Ontology, Evidence, and Decision-Efficiency Proposals"
+date: "2026-07-18"
+project: "memory-seed"
+status: "superseded"
+superseded: "2026-07-20"
+superseded_by: "../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md"
+---
+
 # Memory Seed Ontology, Evidence, and Decision-Efficiency Proposals
 
 **Status:** Proposal index  
@@ -6,7 +15,7 @@
 **Promotion rule:** None of these documents should be treated as an accepted ADR until the relevant design has been tested and explicitly promoted.
 
 > **Pre-triage correction (2026-07-18):** This set predates or overlooks several shipped/current
-> capabilities. Read [`../INBOX-ASSESSMENT.md`](../INBOX-ASSESSMENT.md) before evaluating it. Entry-level
+> capabilities. Read [`../INBOX-ASSESSMENT.md`](../1_Inbox/INBOX-ASSESSMENT.md) before evaluating it. Entry-level
 > supersession/evolution, the canonical graph reader, append-only Markdown sidecars, Evidence Pack Phase 1,
 > and the active ADR sidecar foundation are baselines—not work this set may recreate. The promotable unit is
 > a proven missing delta, not this programme as a whole.
@@ -32,12 +41,12 @@ Together, these proposals define a possible progression from stored project memo
 
 | Order | Document | Central question |
 |---:|---|---|
-| 1 | [Memory Seed Ontology](01-memory-seed-ontology-proposal.md) | What real-world concepts does the system represent? |
-| 2 | [Evidence Model and Evidence Packets](02-evidence-model-and-packets-proposal.md) | How should claims and decisions be grounded? |
-| 3 | [Decision Supersession and Evolution](03-decision-supersession-and-evolution-proposal.md) | How should changed decisions retain their history and rationale? |
-| 4 | [Deterministic Context Assembly](04-deterministic-context-assembly-proposal.md) | How should relevant context be selected reproducibly? |
-| 5 | [Benchmarking Decision Quality Under Constrained Context](05-benchmarking-decision-quality-under-constrained-context.md) | How can the system's value be measured without depending on one model vendor? |
-| 6 | [Constitutional Principles for Decision Efficiency](06-constitutional-principles-for-decision-efficiency.md) | Which durable rules should guide future design decisions? |
+| 1 | [Memory Seed Ontology](memory-seed-ontology-exploration.md) | What real-world concepts does the system represent? |
+| 2 | [Evidence Model and Evidence Packets](evidence-model-and-packets-exploration.md) | How should claims and decisions be grounded? |
+| 3 | [Decision Supersession and Evolution](decision-supersession-and-evolution-exploration.md) | How should changed decisions retain their history and rationale? |
+| 4 | [Deterministic Context Assembly](deterministic-context-assembly-exploration.md) | How should relevant context be selected reproducibly? |
+| 5 | [Benchmarking Decision Quality Under Constrained Context](benchmarking-decision-quality-exploration.md) | How can the system's value be measured without depending on one model vendor? |
+| 6 | [Constitutional Principles for Decision Efficiency](constitutional-principles-decision-efficiency-exploration.md) | Which durable rules should guide future design decisions? |
 
 ## Shared terminology
 
