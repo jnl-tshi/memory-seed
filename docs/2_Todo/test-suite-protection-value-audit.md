@@ -2,7 +2,7 @@
 title: Test-suite protection-value audit
 status: active
 priority: P2
-next_action: Phase 2c content cull — 4 files done (links_check, session_fuse_and_merge, project_lifecycle, cli_help); next is the 8 smaller split files (Keep/Consolidate/Replace/Move/Delete per test).
+next_action: Phase 2c content cull — the 12 Phase-2a split files are all done; next is the ~18 remaining original unit-test files (Keep/Consolidate/Replace/Move/Delete per test).
 blocked_by: []
 ---
 
@@ -182,7 +182,7 @@ invariants last):
 4. `test_cli_help.py` (28 tests) — **done, 2026-07-20**, see below.
 5. `test_mcp_merge.py`, `test_hook_merge.py`, `test_session_log_ordering_hook.py`,
    `test_retrieval_check_path.py`, `test_session_start_hook.py`, `test_agent_selection.py`,
-   `test_session_layout_migration.py`, `test_core_misc.py`.
+   `test_session_layout_migration.py`, `test_core_misc.py` — **done, 2026-07-20**, see below.
 6. Remaining files, smallest/fastest/highest-signal last (`test_session_schema.py`,
    `test_docs_check.py`, contract-shape tests).
 
@@ -291,6 +291,23 @@ like Move/Consolidate, not gated behind the review checkpoint: a new test either
 behaviour or fails, so a green suite is real evidence here, unlike a deletion.
 
 Verified: `pytest tests/test_cli_help.py` — 29/29 passed (was 28).
+
+### The 8 smaller Phase 2a split files — done, 2026-07-20
+
+Read all 109 tests across `test_mcp_merge.py` (21), `test_hook_merge.py` (12),
+`test_session_log_ordering_hook.py` (14), `test_retrieval_check_path.py` (2),
+`test_session_start_hook.py` (16), `test_agent_selection.py` (15),
+`test_session_layout_migration.py` (11, including the 2 tests moved in here from file 1),
+`test_core_misc.py` (18). **Verdict: 109 Keep, 0 Move, 0 Consolidate, 0 Delete.** These were the 7
+already-cohesive classes Phase 2a moved verbatim plus the concern-split leftovers, and it shows: each
+file covers one real subsystem (per-agent hook/MCP JSON-merge idempotency and foreign-content
+preservation, the two standalone hook scripts' stateful behaviour, agent selection/add/remove,
+session-layout migration, and a grab-bag of small core-function unit tests), and every test within a
+file targets a distinct case. The many superficially-similar per-agent tests in `test_mcp_merge.py`/
+`test_hook_merge.py` (Claude/Cursor/Gemini/Codex/Copilot/VSCode) are not duplication — each agent has
+its own JSON/TOML shape and its own merge function under test, so each earns its own regression cover.
+
+Verified: no files changed, so nothing to re-run.
 
 ## Findings awaiting a review checkpoint (not yet actioned)
 
