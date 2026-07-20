@@ -1,6 +1,15 @@
 import { Fragment, useId, useState, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import type { ChunkResponse } from "./api";
+import { DiagramView } from "./DiagramView";
+
+// ChunkResponse.diagrams is typed as a generic record array in the OpenAPI
+// contract (the backend's sidecar dict has no schema of its own); this is the
+// runtime shape memory_seed.retrieval actually produces.
+interface DiagramSidecar {
+  title?: string | null;
+  mermaid_blocks?: string[];
+}
 
 // Every entry body opens with a fenced YAML metadata block. Most of it is
 // either shown in the inspector's metadata grid or rarely needed, so it is
@@ -307,10 +316,17 @@ export function EntryReader({
       )}
 
       {chunk.diagrams.length > 0 && (
-        <p className="reader-note">
-          {chunk.diagrams.length} decision diagram{chunk.diagrams.length === 1 ? "" : "s"} — in-reader
-          rendering lands in a later slice.
-        </p>
+        <section className="detail-section">
+          <h4>Decision diagrams</h4>
+          {(chunk.diagrams as DiagramSidecar[]).flatMap((sidecar, sidecarIndex) =>
+            (sidecar.mermaid_blocks ?? []).map((source, blockIndex) => (
+              <figure key={`${sidecarIndex}-${blockIndex}`} className="diagram">
+                {sidecar.title && <figcaption className="count">{sidecar.title}</figcaption>}
+                <DiagramView source={source} />
+              </figure>
+            )),
+          )}
+        </section>
       )}
 
       {!chunk.text && !linkGroups.length && !commit && (
