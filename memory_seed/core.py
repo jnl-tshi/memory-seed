@@ -689,6 +689,12 @@ def _session_flat_path(sessions_dir: Path, date_str: str) -> Path:
 
 
 _ENTRY_ID_RE = re.compile(r"^entry_id:\s*(\S+)\s*$", re.MULTILINE)
+# Link-sidecar `edge_status`, mirroring MetricStatus in quality.py on purpose:
+# the distinction is the same one, and that module already states it —
+# `unavailable` means the input does not exist yet, `not_applicable` claims we
+# looked and found nothing. `measured` is implicit here (edges are listed), so
+# only the two absence states need naming.
+_SIDECAR_EDGE_STATUSES = frozenset({"not_applicable", "unavailable"})
 _FILE_FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---", re.DOTALL)
 _LEGACY_ENTRY_ID_RE = r"ms-[0-9a-f]{8}"
 _V2_ENTRY_ID_RE = r"mse_[0-9a-hjkmnp-tv-z]{16}"
@@ -1439,7 +1445,9 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     ``supersedes``/``evolves``/``related_entries`` edges join the entry-YAML
     edges in the dangling and forward-only checks. An unresolved
     ``classify_pending: true`` link block emits the non-blocking
-    ``sidecar-unclassified-stub`` warning.
+    ``sidecar-unclassified-stub`` warning; ``edge_status: not_applicable``
+    records that the block *was* examined and warrants no edge, clearing that
+    warning without inventing an edge or discarding the evidence.
 
     Each issue names the source file and the offending value. Warnings,
     including ``sidecar-unclassified-stub``, remain in ``issues`` but do not
@@ -1729,7 +1737,33 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                 continue
             entry_id = entry_id_match.group(1)
             scalars = _parse_frontmatter_scalars(yaml_block)
-            if scalars.get("classify_pending", "").lower() == "true":
+            # A stub resolves two ways: edges were found, or someone looked and
+            # found none. Only the first used to be expressible, so clearing the
+            # warning meant inventing an edge or deleting the block — and
+            # deleting it destroys the evidence that anyone looked. `edge_status`
+            # gives the second answer a spelling; it governs when both are
+            # present, being the later and more specific statement.
+            edge_status = scalars.get("edge_status", "").strip().lower()
+            if edge_status:
+                if edge_status not in _SIDECAR_EDGE_STATUSES:
+                    issues.append(
+                        LinkIssue(
+                            rel,
+                            "malformed-link-sidecar",
+                            f"entry_id {entry_id} has unknown edge_status '{edge_status}' "
+                            f"(expected one of: {', '.join(sorted(_SIDECAR_EDGE_STATUSES))})",
+                        )
+                    )
+                elif edge_status == "unavailable":
+                    issues.append(
+                        LinkIssue(
+                            rel,
+                            "sidecar-unclassified-stub",
+                            f"entry_id {entry_id} still requires lifecycle classification",
+                            severity="warning",
+                        )
+                    )
+            elif scalars.get("classify_pending", "").lower() == "true":
                 issues.append(
                     LinkIssue(
                         rel,

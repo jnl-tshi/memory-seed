@@ -258,6 +258,105 @@ class LinkAuditTests(unittest.TestCase):
         self.assertEqual(by_id[B].evolves, (A,))
         self.assertEqual(audit_link_gaps(cwd=self.cwd, session_date="2026-06-02"), [])
 
+    def test_examined_but_empty_resolves_a_stub_without_inventing_an_edge(self):
+        # The other way a stub resolves. Before `edge_status`, "I looked and
+        # there is no relationship" had no spelling: you either invented an edge
+        # or deleted the block, and deleting it destroys the evidence that
+        # anyone looked. Every examined-but-empty entry was then
+        # indistinguishable from an un-examined one.
+        (self.sessions / "2026-06-01.md").write_text(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"]), encoding="utf-8"
+        )
+        (self.sessions / "2026-06-02.md").write_text(
+            _entry("2026-06-02 09:00", B, files=["pkg/foo.py"]), encoding="utf-8"
+        )
+        gaps = audit_link_gaps(cwd=self.cwd, session_date="2026-06-02")
+        applied = apply_link_gap_stubs(gaps, session_date="2026-06-02", cwd=self.cwd)
+        text = applied.path.read_text(encoding="utf-8")
+        applied.path.write_text(
+            text.replace(
+                "classify_pending: true",
+                "edge_status: not_applicable\nnote: shared file only; no lifecycle relationship",
+            ),
+            encoding="utf-8",
+        )
+
+        result = check_session_links(cwd=self.cwd)
+
+        self.assertTrue(result.ok, result.issues)
+        self.assertNotIn("sidecar-unclassified-stub", {issue.kind for issue in result.issues})
+        # It records a judgement, not a relationship, so it must create no edge.
+        chunks = augment_chunks_with_link_sidecars(
+            extract_memory_chunks(self.cwd, granularity="entry"), cwd=self.cwd
+        )
+        by_id = {chunk.entry_id: chunk for chunk in chunks}
+        self.assertEqual(by_id[B].evolves, ())
+        self.assertEqual(by_id[B].related_entries, ())
+
+    def test_edge_status_unavailable_is_the_explicit_spelling_of_pending(self):
+        (self.sessions / "2026-06-01.md").write_text(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"]), encoding="utf-8"
+        )
+        (self.sessions / "2026-06-02.md").write_text(
+            _entry("2026-06-02 09:00", B, files=["pkg/foo.py"]), encoding="utf-8"
+        )
+        gaps = audit_link_gaps(cwd=self.cwd, session_date="2026-06-02")
+        applied = apply_link_gap_stubs(gaps, session_date="2026-06-02", cwd=self.cwd)
+        text = applied.path.read_text(encoding="utf-8")
+        applied.path.write_text(
+            text.replace("classify_pending: true", "edge_status: unavailable"), encoding="utf-8"
+        )
+
+        result = check_session_links(cwd=self.cwd)
+
+        self.assertTrue(result.ok)
+        self.assertIn("sidecar-unclassified-stub", {issue.kind for issue in result.issues})
+
+    def test_unknown_edge_status_is_a_hard_error(self):
+        # A typo must not silently read as "examined". The whole value of the
+        # state is that it is trustworthy, so an unrecognised value fails.
+        (self.sessions / "2026-06-01.md").write_text(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"]), encoding="utf-8"
+        )
+        (self.sessions / "2026-06-02.md").write_text(
+            _entry("2026-06-02 09:00", B, files=["pkg/foo.py"]), encoding="utf-8"
+        )
+        gaps = audit_link_gaps(cwd=self.cwd, session_date="2026-06-02")
+        applied = apply_link_gap_stubs(gaps, session_date="2026-06-02", cwd=self.cwd)
+        text = applied.path.read_text(encoding="utf-8")
+        applied.path.write_text(
+            text.replace("classify_pending: true", "edge_status: not-applicable"), encoding="utf-8"
+        )
+
+        result = check_session_links(cwd=self.cwd)
+
+        self.assertFalse(result.ok)
+        self.assertIn("malformed-link-sidecar", {issue.kind for issue in result.issues})
+
+    def test_edge_status_governs_when_a_stale_pending_flag_remains(self):
+        # Both keys present: `edge_status` is the later, more specific
+        # statement, so it wins rather than the block staying flagged forever.
+        (self.sessions / "2026-06-01.md").write_text(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"]), encoding="utf-8"
+        )
+        (self.sessions / "2026-06-02.md").write_text(
+            _entry("2026-06-02 09:00", B, files=["pkg/foo.py"]), encoding="utf-8"
+        )
+        gaps = audit_link_gaps(cwd=self.cwd, session_date="2026-06-02")
+        applied = apply_link_gap_stubs(gaps, session_date="2026-06-02", cwd=self.cwd)
+        text = applied.path.read_text(encoding="utf-8")
+        applied.path.write_text(
+            text.replace(
+                "classify_pending: true",
+                "classify_pending: true\nedge_status: not_applicable",
+            ),
+            encoding="utf-8",
+        )
+
+        result = check_session_links(cwd=self.cwd)
+
+        self.assertNotIn("sidecar-unclassified-stub", {issue.kind for issue in result.issues})
+
     def test_apply_updates_existing_sidecar_without_changing_classified_block(self):
         (self.sessions / "2026-06-01.md").write_text(
             _entry("2026-06-01 09:00", A, files=["pkg/foo.py"]), encoding="utf-8"
