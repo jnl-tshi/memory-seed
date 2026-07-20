@@ -13,7 +13,7 @@
 | [memory-trace-three-region-workspace-and-dockable-inspector-proposal.md](memory-trace-three-region-workspace-and-dockable-inspector-proposal.md) | P1 | — | promoted-to-todo |
 | [document-lifecycle-system-plan.md](document-lifecycle-system-plan.md) | P2 | — | Phases 2-3 COMPLETE 2026-07-17: migration, `docs check` (also in esr + CI), and `docs index` (m… |
 | [memory-seed-workflow-evidence-and-review-workbench-plan.md](memory-seed-workflow-evidence-and-review-workbench-plan.md) | P2 | — | Reconstruct three completed project journeys from existing entries, documents, and Git referenc… |
-| [memory-trace-living-archive-and-editorial-focus-proposal.md](memory-trace-living-archive-and-editorial-focus-proposal.md) | P2 | >- | JNL resolves the six open decisions in section 14; nothing is built until then. |
+| [memory-trace-living-archive-and-editorial-focus-proposal.md](memory-trace-living-archive-and-editorial-focus-proposal.md) | P2 | >- | >- |
 | [agent-worktree-and-branch-hygiene-plan.md](agent-worktree-and-branch-hygiene-plan.md) | P3 | — | Phase 1 COMPLETE 2026-07-17 (classifier + `--apply` remover). Next: Phase 2 lifecycle guidance … |
 | [memory-trace-semantic-projections-plan.md](memory-trace-semantic-projections-plan.md) | P3 | — | After B0b and the semantic foundation, validate one Decision projection against the real ADR co… |
 | [0_NEXT_STEPS.md](0_NEXT_STEPS.md) | — | — | — |

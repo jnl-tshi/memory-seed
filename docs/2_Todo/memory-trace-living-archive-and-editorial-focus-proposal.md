@@ -1,17 +1,19 @@
 ---
 title: Memory Trace Living Archive and Editorial Focus product proposal
-status: todo-blocked
+status: todo
 date: 2026-07-18
 promoted: 2026-07-20
+decided: 2026-07-20
 priority: P2
-next_action: JNL resolves the six open decisions in section 14; nothing is built until then.
+next_action: >-
+  Build the Community Decision Brief slice — deterministic only, ephemeral, no provider. Its fields
+  already exist as DRAFT labels and graph edges, so no new capture is needed. Then run the §14.6
+  task-completion test inside memory-quality-metrics-v0-proposal.md before adopting Living Archive as
+  the B0b visual target.
 blocked_by: >-
-  Section 14 open decisions — (1) is "Living Archive" the product name or an internal design
-  direction; (2) is "Editorial Focus" a mode, a Pro capability label, or the generated pane's name;
-  (3) is local/BYOK synthesis paid Pro or does a limited local path stay Community; (4) are generated
-  briefs ephemeral, cached outside the repo, or exportable artifacts; (5) which first brief proves
-  value — decision, change, handover, or unresolved-questions; (6) what user test shows Living Archive
-  improves comprehension enough to become the B0b visual target rather than a later redesign.
+  Nothing for the Community slice. The Pro/edition-boundary sections (5 and 9) remain blocked by the
+  deliberately deferred commercialisation question (§14.3), and the product naming in §14.1–2 is
+  deferred until the first brief ships.
 scope: Community reading experience and optional Pro cited-synthesis layer
 sources:
   - memory-trace-ai-timeline-summarisation-plan.md
@@ -26,13 +28,16 @@ sources:
 
 # Proposal: Living Archive for Community, Editorial Focus for Pro
 
-Status: **TODO — BLOCKED ON THE SECTION 14 DECISIONS. NOT APPROVED FOR IMPLEMENTATION**.
+Status: **TODO — the Community Decision Brief slice is approved to build. Pro sections are not**.
 
-Promoted from `1_Inbox` on 2026-07-20 so the work is visible on the roadmap rather than buried in the
-inbox. Promotion moved the lane, not the gate: section 14 is unanswered and section 15's promotion
-criteria are unmet, so nothing here is built yet. Note also that this proposal draws on
-[the deferred commercialisation report](../8_Deferred/memory-trace-commercialisation-and-monetisation-report.md);
-acting on sections 5 and 9 would partially un-defer that question, which is a separate decision.
+Promoted from `1_Inbox` on 2026-07-20; section 14 answered the same day. Three decisions were taken
+(brief persistence, first brief type, comprehension test) and three deliberately deferred (both naming
+questions, and the Pro/BYOK boundary). The deferral of §14.3 is the load-bearing one: this proposal
+draws on
+[the deferred commercialisation report](../8_Deferred/memory-trace-commercialisation-and-monetisation-report.md),
+so **sections 5 and 9 stay parked** — building them would un-defer commercialisation without a decision.
+What is approved is the Community half: a deterministic, ephemeral Decision Brief that needs no
+provider, no account, and no commercial boundary.
 
 ## 1. Product thesis
 
@@ -423,17 +428,40 @@ This proposal uses the strongest additions identified during inbox assessment:
 It explicitly rejects a comprehensive ontology, a second supersession graph, a general authoritative
 sidecar manifest, mandatory historical intent backfill, or constitutional amendments before experiments.
 
-## 14. Open decisions before triage
+## 14. Open decisions — answered 2026-07-20 by JNL
 
-1. Is **Living Archive** the product name or only the internal design direction?
-2. Is **Editorial Focus** a mode, a Pro capability label, or the name of the generated pane?
-3. Should local/BYOK synthesis be paid Pro, or should a limited local-provider path remain Community while
-   saved/comparative briefs are Pro?
-4. Are generated briefs ephemeral by default, cached outside the repository, or exportable as explicit
-   report artifacts?
-5. Which first brief proves value: decision, change, handover, or unresolved-questions?
-6. What user test demonstrates that Living Archive improves comprehension enough to become the B0b visual
-   target rather than a later redesign?
+Three decided, three deliberately deferred. The Community Decision Brief slice is unblocked; nothing
+touching the edition boundary is.
+
+1. **Is "Living Archive" the product name or the internal design direction?** — **Deferred** until the
+   first brief ships. A name should describe something that exists, and committing now would leak into
+   the edition boundary that decision 3 parks.
+2. **Is "Editorial Focus" a mode, a Pro capability label, or the generated pane?** — **Deferred**, same
+   reason.
+3. **Should local/BYOK synthesis be paid Pro, or should a limited local path stay Community?** —
+   **Deferred, deliberately.** This is the commercialisation question itself. It draws on
+   [the deferred commercialisation report](../8_Deferred/memory-trace-commercialisation-and-monetisation-report.md)
+   and answering it would un-defer that by the back door. Build the Community reading layer, which needs
+   no commercial decision; leave the Pro boundary parked.
+4. **Are generated briefs ephemeral, cached outside the repo, or exportable artifacts?** —
+   **Ephemeral by default, exportable on explicit request.** Constitution Invariant #6 makes Markdown
+   the source of truth and every cache a derived, rebuildable projection. A generated brief is not
+   authored memory, so persisting it in-repo would create the second source of truth the invariant
+   forbids. An explicit export makes the user the author of anything that does survive.
+5. **Which first brief proves value?** — **The Decision Brief.** It is the only one whose fields already
+   exist in every entry: §4.2 maps "Why" to authored `R:` blocks, "Alternatives" to `A:`, "Evidence" to
+   `T:` plus commits, and "Related memory" to canonical graph edges — all of which the Entry Reader
+   already renders. Zero new capture, so it tests the reading experience rather than a data-collection
+   change. Rejected the Open Questions Brief as first: the capability crosswalk classified an
+   open-questions lens as a genuine delta, so nothing addresses an open question to an entry today and
+   §4.2 forbids inferring them — it would test two unproven things at once.
+6. **What user test justifies making this the B0b visual target?** — **A task-completion test**: time and
+   accuracy answering a real question ("why did X change, and what replaced it?") on the current Trace
+   versus Living Archive, recorded inside
+   [`memory-quality-metrics-v0-proposal.md`](memory-quality-metrics-v0-proposal.md) rather than as a
+   parallel programme. The crosswalk found that nothing currently measures whether a grounded decision
+   was reached — quality-v0 measures corpus health, `ranking-ab` measures ordering. Rejected a preference
+   rating: a warmer visual design wins preference tests regardless of whether comprehension improved.
 
 ## 15. Promotion criteria
 

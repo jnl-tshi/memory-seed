@@ -378,13 +378,18 @@ A new drop arrived 2026-07-18 (two 7-document proposal sets, a product proposal,
 folder) and was assessed but deliberately not promoted — see
 [`INBOX-ASSESSMENT.md`](../1_Inbox/INBOX-ASSESSMENT.md). Triaged 2026-07-20:
 
-- **Living Archive / Editorial Focus product proposal → `2_Todo`, blocked.**
-  [The proposal](memory-trace-living-archive-and-editorial-focus-proposal.md) is the most mature document
-  in the drop — conformant frontmatter, its own promotion criteria and its own open decisions. Promoted so
-  it is visible on the roadmap rather than buried, but `blocked_by` its section 14 decisions; nothing is
-  built until those are answered. **It cites the deferred commercialisation report as a source, so acting
-  on its Pro/edition-boundary sections would partially un-defer commercialisation** — a separate decision
-  that has not been taken. `8_Deferred/` was left untouched.
+- **Living Archive / Editorial Focus product proposal → `2_Todo`; §14 answered the same day.**
+  [The proposal](memory-trace-living-archive-and-editorial-focus-proposal.md) was the most mature document
+  in the drop. Promoted so it is visible on the roadmap rather than buried, then partly unblocked: **the
+  Community Decision Brief slice is approved to build** — deterministic, ephemeral, no provider — because
+  its fields already exist as DRAFT labels and graph edges, so it needs no new capture. Briefs are
+  ephemeral by default and exportable only on request, keeping generated output out of the corpus per
+  Invariant #6. Adoption as the B0b visual target is gated on a task-completion test recorded inside
+  [`memory-quality-metrics-v0-proposal.md`](memory-quality-metrics-v0-proposal.md), since nothing today
+  measures whether a grounded decision was actually reached. **Still deferred by choice:** the Pro/BYOK
+  boundary (§14.3), because that *is* the commercialisation question and this proposal cites the deferred
+  report as a source; and both naming questions, until a first brief exists to name. Sections 5 and 9 stay
+  parked; `8_Deferred/` is untouched.
 - **Both proposal sets stay in `1_Inbox`; disposition deferred.** Step 1 of the assessment's corrected
   five-step sequence was executed instead —
   [a current-capability crosswalk](../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md) mapping each claim against
