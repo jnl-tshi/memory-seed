@@ -26,7 +26,7 @@ format: "Markdown research proposal"
 > supersession links.
 > **Non-goals:** No immediate package extraction. No rewrite of historical session entries. No
 > branch-existence validation. No write/curation UI. No fork of parser/ranker/retrieval logic.
-> **Dependencies:** [`../memory-trace-distribution-plan.md`](../2_Todo/memory-trace-distribution-plan.md),
+> **Dependencies:** [`../memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md),
 > [`memory-explorer-entry-level-ui-results-plan.md`](memory-explorer-entry-level-ui-results-plan.md),
 > [`../session-decision-diagrams-plan.md`](../2_Todo/session-decision-diagrams-plan.md), and
 > [`../../3_Spec/graph-edge-contract.md`](../3_Spec/graph-edge-contract.md).
@@ -175,7 +175,7 @@ though the decision and commit both still exist.
   branch, replaced an earlier one) - the actual "branching of features and their evolution" the user
   described, rather than a generic graph with two more edge-type checkboxes buried among four others.
 - This is a **Memory Trace product surface**, per the already-decided split in
-  [`memory-trace-distribution-plan.md`](../2_Todo/memory-trace-distribution-plan.md) -
+  [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md) -
   it belongs on the companion package's roadmap (post Phase-1 retrieval-service work, which already
   ships the shared service this view would consume), not as new in-package Lense feature work (Lense
   is maintenance-only per that plan's Phase 1).
@@ -265,7 +265,7 @@ though the decision and commit both still exist.
   collision finding this proposal's naming half resolves.
 - [`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md) - the open naming decision
   this proposal offers a resolution path for, without deciding it here.
-- [`memory-trace-distribution-plan.md`](../2_Todo/memory-trace-distribution-plan.md) -
+- [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md) -
   the product/package split Trail would live inside.
 - [`../../3_Spec/graph-edge-contract.md`](../3_Spec/graph-edge-contract.md) - the existing edge-kind contract a new
   `branch` field and rendered `supersedes` edge type would extend.

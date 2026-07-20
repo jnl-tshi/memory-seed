@@ -62,6 +62,7 @@ The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk
 | [memory-seed-architectural-discovery-proposal.md](memory-seed-architectural-discovery-proposal.md) | — | — | — |
 | [memory-seed-trace-upgrade-shutdown-plan.md](memory-seed-trace-upgrade-shutdown-plan.md) | — | — | — |
 | [memory-seed-utf8-encoding-policy-phase-1.md](memory-seed-utf8-encoding-policy-phase-1.md) | — | — | — |
+| [memory-trace-distribution-plan.md](memory-trace-distribution-plan.md) | — | — | — |
 | [memory-trace-plan-integration-and-retirement-guide.md](memory-trace-plan-integration-and-retirement-guide.md) | — | — | execution-guide |
 | [memory-trace-product-and-trail-view-plan.md](memory-trace-product-and-trail-view-plan.md) | — | — | — |
 | [memory-trace-topic-neighbourhoods-plan.md](memory-trace-topic-neighbourhoods-plan.md) | — | — | — |

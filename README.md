@@ -144,7 +144,10 @@ uv tool install --force "memory-seed[trace]"
 
 The Trail view renders session entries as a git-graph-style timeline: branch lanes from recorded `branch:` metadata, fork/merge connectors driven by the `Memory-Entry:` commit trailers where they exist (with an "estimated" positional fallback for older history), clickable trunk merge rings, typed `replaces`/`evolves` lifecycle routes, and an on-device **worktree switcher** so one running server can show each checkout's branch-specific memory. Asset `?v=` tags are content-hashed at serve time (no stale-browser-cache surprises), and `--static-root <path>` / `MEMORY_TRACE_STATIC_ROOT` serves another checkout's UI assets - useful for verifying a worktree's UI changes without copying files.
 
-The former `memory-seed[lense]` extra remains as a temporary alias for `memory-seed[trace]`, and the `memory-seed lense` command still runs but prints a notice pointing you to the `memory-trace` command. Without the `trace` extra installed, both commands print an install hint instead of failing with a Python traceback.
+The former `memory-seed[lense]` extra and `memory-seed lense` command were a temporary alias kept for one
+release window after the product renamed to Memory Trace; both were removed for the 2.20 release. Install
+`memory-seed[trace]` and run `memory-trace` instead. Without the `trace` extra installed, `memory-trace`
+prints an install hint instead of failing with a Python traceback.
 
 ## Why This Exists
 
@@ -584,7 +587,7 @@ When run in a project that already has Memory Seed files:
 - `memory-seed upgrade [--dry-run] [--yes] [--manager uv|pipx|pip] [--json]` handles active package-owned processes, then runs the selected package-manager upgrade command.
 - `memory-seed encoding check [path] [--json]` reports invalid UTF-8, UTF-8 BOMs, CRLF line endings, non-NFC text, likely mojibake markers, and implicit text-mode Python I/O in project-owned files.
 - `memory-seed encoding repair [path] [--dry-run] [--json]` previews or repairs BOM, newline, and NFC drift with atomic writes and timestamped backups. Invalid UTF-8 and likely mojibake are blocked for manual review.
-- `memory-seed lense` is a deprecation shim for the review UI, which now runs through the bundled `memory-trace` command when `memory-seed[trace]` is installed; without the extra it prints an install hint.
+- `memory-trace` runs the review UI (bundled, `memory-seed[trace]`); without the extra it prints an install hint. The deprecated `memory-seed lense` alias was removed for the 2.20 release.
 - `memory-seed session target [--create]` prints the active session log path and can create the file if needed.
 
 Known behavior to understand: `update --dry-run` currently lists all control-plane targets, not only files that would actually change. `init --force` intentionally rewrites all bundled seed files and should be used as a reinstall command rather than a targeted refresh.
