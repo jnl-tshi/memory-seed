@@ -71,13 +71,19 @@ B0b parity sign-off.
 
 Non-lane folders that are legitimate, with a reason:
 
+This table must stay in sync with `SIDE_FOLDER_ALLOWLIST` in `memory_seed/docs_check.py` — the code is
+what enforces it; anything here that the code does not list is a hard `off-allowlist-folder` error.
+
 | Path | Reason | Action |
 |---|---|---|
 | `5_Completed/agent-templates/` | persona template sources | keep (nested reference) |
 | `4_Reference/memory-trace-phase0-baseline/` | captured baseline artifacts | keep |
+| `4_Reference/archived/` | sources whose actionable items were extracted; each carries `extracted_into` | keep |
+| `3_Spec/draft/` | candidate contracts, not yet binding (`spec_binding: draft` or `candidate`) | keep |
+| `3_Spec/deprecated/` | retired contracts kept for provenance (`spec_binding: deprecated`) | keep |
 | `1_Inbox/memory-seed-ontology-evidence-proposals/` | incoming seven-document proposal set kept together for pre-triage assessment | keep in Inbox until disposition |
 | `1_Inbox/memory-seed-relevance-proposals/` | incoming seven-document proposal set kept together for pre-triage assessment | keep in Inbox until disposition |
-| `1_Inbox/trace-humanised-dashboard-references/` | incoming visual references and generated Trace design mockups | keep in Inbox until design triage |
+| `1_Inbox/trace-humanised-dashboard-references/` | generated Trace design mockups; raw captures archived 2026-07-20 | keep in Inbox until design triage |
 
 > `2_Todo/completed/` was retired 2026-07-17: its 43 documents and the nested `agent-templates/` moved to
 > `5_Completed/`, so the folder-is-the-state rule now holds with no legacy archive beside it.
@@ -96,7 +102,7 @@ untyped `related_entries` curation. The counts below are generated — hand-edit
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 2 · 2_Todo 25 · 3_Spec 8 · 4_Reference 14 · 5_Completed 57 · 6_Rejected 0 · 7_Superseded 14 · 8_Deferred 4
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 2 · 2_Todo 26 · 3_Spec 8 · 4_Reference 14 · 5_Completed 57 · 6_Rejected 0 · 7_Superseded 14 · 8_Deferred 4
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P1** [derived-projection-implementation-plan.md](2_Todo/derived-projection-implementation-plan.md) — Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, low-urgency) = incremental ingest, gated on …

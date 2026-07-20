@@ -2,9 +2,14 @@
 
 Status: **source capture and mockup exploration; not an approved design spec**.
 
+The seven raw mood-board captures were archived on 2026-07-20 to
+[`4_Reference/archived/trace-humanised-dashboard-captures.md`](../../4_Reference/archived/trace-humanised-dashboard-captures.md)
+once the themes below had been extracted from them — this file is now the citable record of what they
+contributed. The five generated mockups stay here, beside it, because live documents reference them.
+
 ## Reference themes
 
-The captured images consistently suggest:
+The captured images consistently suggested:
 
 - warm cream and parchment surfaces instead of neutral grey application chrome;
 - editorial serif headlines paired with quiet, legible sans-serif utility text;
