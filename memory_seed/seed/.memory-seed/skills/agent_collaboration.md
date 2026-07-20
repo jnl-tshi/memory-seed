@@ -223,13 +223,19 @@ It does not, by design.
 - Hand-resolving a whole-file session conflict, or picking "ours"/"theirs", drops one side's entries.
   If you are staring at such a conflict, abort and re-integrate through the tool.
 
-**Trap - link sidecars are in the `-merge` domain but are not fused.** `.memory-seed/sessions/links/**`
-inherits the `-merge` attribute, and `_changed_session_paths` (`memory_seed/core.py`) diffs all of
-`.memory-seed/sessions` when resetting branch-touched files to base. But
-`_session_doc_from_relative_path` returns `None` for `links/` paths, so the fuse never re-imports them.
-The net effect: a branch-side edit to a link sidecar is reset to base content and **silently lost** at
-integration, with no issue reported. Do link-sidecar classification (`memory-seed link audit` and its
-sidecar writes) on the trunk, not on a task branch.
+**Link sidecars fuse like diagram sidecars, fixed 2026-07-20.** `.memory-seed/sessions/links/**` is in
+the `-merge` domain, and the fuse rebuilds every branch-touched session-tree path from parsed records
+rather than trusting git's line merge. Link sidecars are now a third recognized kind alongside session
+entries and diagram sidecars: a branch-side link sidecar block for a newly authored or branch-accepted
+entry fuses through `session merge-branch` / `memory_session_integrate` and survives the merge commit,
+same as a diagram sidecar. A defense-in-depth guard also refuses to silently reset any session-tree path
+no classifier recognizes, so the *next* unrecognized sidecar kind fails loudly instead of repeating this
+bug.
+
+**Still append-only.** Modifying the text of an *existing* (already-on-base) sidecar block on a branch -
+same `entry_id`, changed content - is refused before any merge starts, exactly like editing a published
+session entry. That is the append-only invariant, not a merge-tool gap. Do stub -> live classification
+(`memory-seed link audit` and its sidecar writes) on the trunk, not on a task branch, for that reason.
 
 ## MCP Control Surface
 
