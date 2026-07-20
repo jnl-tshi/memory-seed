@@ -2,7 +2,7 @@
 title: Test-suite protection-value audit
 status: active
 priority: P2
-next_action: Phase 2c content cull, starting with test_links_check.py (Keep/Consolidate/Replace/Move/Delete per test).
+next_action: Phase 2c content cull — test_links_check.py done; next is test_session_fuse_and_merge.py (Keep/Consolidate/Replace/Move/Delete per test).
 blocked_by: []
 ---
 
@@ -160,19 +160,23 @@ discipline before merging, not a blind cross-file diff.
 (unchanged); `docs check`/`links check` clean. Diff is small and net-negative: 9 insertions, 16
 deletions across the 4 files plus one new 20-line shared module.
 
-## Phase 2c — the actual content cull (not started)
+## Phase 2c — the actual content cull (in progress)
 
 Work one module at a time, now that each is a cohesive file instead of a slice of a monolith. For each:
 state the behaviours it protects, map every test to one, mark duplicates, consolidate, replace
-incident-specific cases with invariants where a systemic rule exists, delete obsolete/implementation-
-detail tests, re-run, commit separately. Surface every Keep/Consolidate/Replace/Move/Delete candidate
-with a protection-value score before removing anything — no unilateral deletion.
+incident-specific cases with invariants where a systemic rule exists, re-run, commit separately.
+
+**Authorization split, agreed 2026-07-20:** Move and Consolidate proceed autonomously per file — a
+green suite after either is real evidence the behaviour survived. Delete does not: a green suite after
+a deletion proves nothing (the deleted test can't fail, and whatever it caught is now unguarded), so
+deletion candidates are *accumulated* below with a protection-value note and surfaced together at one
+checkpoint before anything is actually removed. "Reviewed this file, 0 changes, everything here is a
+distinct contract" is a valid, honest outcome — the goal is not manufacturing churn to show motion.
 
 Cull order (highest test count / runtime / duplication / maintenance pain first, contracts and
 invariants last):
 
-1. `test_links_check.py` (44 tests) — the largest remaining single concern; good parametrization
-   candidate given the volume.
+1. `test_links_check.py` (44 tests) — **done, 2026-07-20**, see below.
 2. `test_session_fuse_and_merge.py` (69 tests) — largest file, but this is the P1-bug-catching
    machinery; expect mostly Keep, look for genuine duplication only.
 3. `test_project_lifecycle.py` (39 tests).
@@ -183,3 +187,39 @@ invariants last):
    `test_session_layout_migration.py`, `test_core_misc.py`.
 6. Remaining files, smallest/fastest/highest-signal last (`test_session_schema.py`,
    `test_docs_check.py`, contract-shape tests).
+
+### test_links_check.py — done, 2026-07-20
+
+Read all 44 tests against what `check_session_links` actually validates: it has ~20 distinct issue
+kinds (malformed YAML/format, duplicate id/hash, dangling/postdating/self/cycle variants of
+`supersedes` and `evolves` each, sidecar-specific stub/orphan/date-mismatch/malformed cases, continuity
+block shapes, git-environment-dependent commit-hash checks, legacy-layout compatibility). Each test
+maps to exactly one distinct issue kind or acceptance case — this is one-test-per-contract-shape
+coverage for a validator, which is what a validator's test suite *should* look like, not duplication.
+**Verdict: 42 Keep, 2 Move, 0 Consolidate, 0 Delete.**
+
+- **Move (2):** `test_migrate_sessions_layout_apply_splits_entries_and_backs_up_source` and
+  `test_migrate_sessions_month_layout_apply_moves_sources_and_backs_up` called
+  `migrate_session_layout`/`migrate_session_month_layout` as their subject under test, using
+  `check_session_links(cwd=cwd).ok` only as a closing sanity assertion — a classification artifact
+  from the Phase 2a AST split (its priority order favored "calls `check_session_links`" over "calls
+  `migrate_session_*`" for these two). Moved to `test_session_layout_migration.py`, which already had
+  byte-identical `_write_participants`/`_write_flat_session`/`_write_old_diagram_sidecar` fixture
+  helpers, so no new duplication was introduced. Their now-dead copies of those three helpers (plus the
+  now-unused `migrate_session_*` imports) were removed from `test_links_check.py`. Net effect: one of
+  the three Phase 2a-noted duplicated helpers (`_write_participants`) lost one of its four copies
+  (test_links_check.py's), incidentally.
+- **Consolidation considered and rejected:** the `supersedes`/`evolves` dangling/postdating/
+  backward-accepted pairs that exist in both plain-YAML and sidecar form look like a parametrize
+  candidate on first glance, but (a) YAML-edge and sidecar-edge extraction are genuinely different code
+  paths in `core.py`, so merging them would reduce diagnostic precision on which path broke (the
+  rubric's own "diagnostic quality" axis), and (b) the matrix isn't even square — `evolves` has no
+  sidecar-dangling/postdating variants, only `supersedes` does — which is itself a signal the two axes
+  aren't as parallel as they look. Left as distinct tests.
+- Verified: 635 → 635 collected (count-neutral, a Move not a deletion); both touched files' full suites
+  (`test_links_check.py` 42, `test_session_layout_migration.py` 11) pass, 53/53.
+
+## Delete candidates (accumulated, not yet actioned)
+
+Empty so far. Populated as later files are culled; reviewed with JNL as one batch before anything in
+this list is actually removed — see the authorization split above.
