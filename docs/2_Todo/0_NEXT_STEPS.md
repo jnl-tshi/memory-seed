@@ -88,19 +88,25 @@ more than the individual fixes: each was found by measuring or testing rather th
    entry-granularity search returns the whole corpus ranked. A dropdown hid it; cycling would have marched
    through 82 unrelated entries of a 100-result page with the counter reporting progress.
 
-### P1 — link sidecars are silently lost by `session merge-branch`
+### Fixed 2026-07-20 — link sidecars were silently lost by `session merge-branch`
 
-Branch-side edits to `.memory-seed/sessions/links/**` are discarded without an error.
-`_changed_session_paths` (`memory_seed/core.py:2637`) diffs *all* of `.memory-seed/sessions`, so the reset
-loop (`:3348-3354`) restores sidecars to base content — but `_session_doc_from_relative_path` (`:2429`)
-returns `None` for `links/` paths, so the fuse never re-imports them. The work vanishes.
+Branch-side edits to `.memory-seed/sessions/links/**` used to be discarded without an error.
+`_changed_session_paths` diffs *all* of `.memory-seed/sessions`, so the reset loop restored sidecars to
+base content — but the fuse had no classifier for `links/` paths, so it never re-imported them. The
+`-merge` guard changed the failure's shape rather than causing it: a both-sides edit conflicted and was
+misclassified as a *non-session* conflict, aborting the merge loudly; the one-sided case — the common
+one — lost silently.
 
-The `-merge` guard changed its shape rather than causing it: the both-sides case now conflicts and is
-misclassified as a *non-session* conflict (`:3506`), aborting the merge loudly. The one-sided case — the
-common one — still loses silently. **Until this is fixed, classify link sidecars on the trunk, never on a
-branch.** A fix must cover both cases and carry regression tests; it was deliberately not bundled into the
-2026-07-20 documentation sprint because the fuse is the same machinery whose hand-resolution corrupted the
-corpus on 2026-07-19.
+Fixed by making link sidecars a third recognized kind in the fuse, mirroring diagram sidecars exactly
+(classification, ref extraction, chronological write, plan/apply wiring, CLI/MCP output). A shared
+`_is_recognized_session_tree_path` helper now backs both the conflict classifier and a new
+defense-in-depth guard: a branch-touched session-tree path the fuse doesn't recognize is refused with an
+issue rather than silently reset, so the next unrecognized sidecar kind fails loudly instead of repeating
+this bug. Five regression tests cover the one-sided loss, the two-sided conflict, refusal of an
+in-place-modified (stub → live) sidecar block on a branch, and the new guard, all proven through
+`session_merge_branch` end to end, not just the fuse in isolation. The trunk-only workaround for
+*modifying* an existing sidecar block still holds — that's the append-only invariant, not a merge-tool
+gap — and is documented precisely in `agent_collaboration.md`.
 
 ## Open decisions — ready for your call
 

@@ -86,6 +86,20 @@ This is partitioned authority, not dual authority: each field has one declared o
 - Require expected-state optimistic concurrency for transitions.
 - Detect missing source/update entries, invalid transitions, competing heads, and malformed sidecars.
 - Keep repair explicit; validators never silently rewrite the ledger.
+- **Branch-safe integration, noted 2026-07-20 — follow the link-sidecar pattern.** Link sidecars were
+  silently discarded by `session merge-branch`: the sessions-tree fuse's base-reset loop diffed and reset
+  every path under `.memory-seed/sessions`, but the classifier that decides what the fuse can rebuild
+  didn't recognize `sessions/links/**`, so a branch-side edit vanished with no error. The fix (this
+  session) generalizes the fuse to a third sidecar kind exactly as diagram sidecars were the first, and
+  adds a defense-in-depth guard — `_is_recognized_session_tree_path` in `memory_seed/core.py` — that
+  refuses to reset any session-tree path no classifier recognizes, rather than silently discarding it.
+  Whatever integration path the ADR sidecar gets (folded into this same fuse if it lands under
+  `sessions/`, or its own merge handling at its current candidate location
+  `.memory-seed/decisions/<adr_id>.md`) must not reproduce this failure: a branch-authored transition
+  block must never be silently reset to base content by a merge. This is the acceptance criterion below
+  ("sidecar loss is reported as missing authored memory, not silently reconstructed") applied specifically
+  to branch merges, not just working-tree corruption — prove it with the same kind of test this fix adds:
+  an end-to-end branch merge, not just the writer in isolation.
 
 ### Phase 3 - Semantic records
 

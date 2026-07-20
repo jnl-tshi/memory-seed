@@ -2810,6 +2810,34 @@ class MemorySeedTests(unittest.TestCase):
         )
         return path
 
+    def _link_sidecar_text(self, date, blocks):
+        """Build link-sidecar file text, mirroring `_grouped_session_text`.
+
+        Each block is ``(time, title, entry_id, extra_yaml_lines)`` where
+        ``extra_yaml_lines`` is a list of raw lines placed inside the fenced
+        yaml block after ``entry_id:`` (e.g. ``["supersedes:", "  - mse_..."]``
+        or ``["classify_pending: true"]``).
+        """
+        lines = [
+            "---",
+            "tags:",
+            "  - session-log-links",
+            f"link_date: {date}",
+            "---",
+            "",
+        ]
+        for time, title, entry_id, extra_yaml_lines in blocks:
+            lines += [
+                f"## {date} {time} - {title}",
+                "",
+                "```yaml",
+                f"entry_id: {entry_id}",
+            ] + list(extra_yaml_lines) + [
+                "```",
+                "",
+            ]
+        return "\n".join(lines)
+
     def test_session_fuse_dry_run_reports_branch_only_entries_without_writing(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
@@ -3546,6 +3574,196 @@ class MemorySeedTests(unittest.TestCase):
         self.assertFalse((cwd / ".git" / "MERGE_HEAD").exists())
         self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-11.md").exists())
         self.assertEqual(self._git(cwd, "log", "--merges", "-1", "--format=%P").stdout.strip(), "")
+
+    def test_is_recognized_session_tree_path_covers_session_diagram_and_link(self):
+        # The guard's recognizer set must equal the fuse's handled set, or the
+        # guard eats the fix (link paths) or fails to eat the next gap.
+        from memory_seed.core import _is_recognized_session_tree_path
+
+        self.assertTrue(_is_recognized_session_tree_path(".memory-seed/sessions/2026-07/2026-07-10.md"))
+        self.assertTrue(_is_recognized_session_tree_path(".memory-seed/sessions/diagrams/2026-07/2026-07-10.md"))
+        self.assertTrue(_is_recognized_session_tree_path(".memory-seed/sessions/links/2026-07/2026-07-10.md"))
+        self.assertFalse(_is_recognized_session_tree_path(".memory-seed/sessions/decisions/2026-07-10.md"))
+        self.assertFalse(_is_recognized_session_tree_path("notes.txt"))
+
+    def test_session_merge_branch_imports_link_sidecar_added_on_branch(self):
+        # P1 regression: a branch-side link sidecar block appended to a file
+        # that already exists on base used to be reset to base content and
+        # silently dropped, because the fuse recognized session and diagram
+        # paths but not `sessions/links/**`. This is the exact shape of the
+        # 2026-07-19 loss - a shared dated sidecar file, one side appends.
+        cwd = self.make_project()
+        target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-10.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        entry_a = ("09:00", "First", "mse_aaaaaaaaaaaaaaaa", "main")
+        entry_b = ("09:30", "Second", "mse_bbbbbbbbbbbbbbbb", "main")
+        target.write_text(self._grouped_session_text("2026-07-10", [entry_a, entry_b]), encoding="utf-8")
+        link_target = cwd / MEMORY_DIR_NAME / "sessions" / "links" / "2026-07" / "2026-07-10.md"
+        link_target.parent.mkdir(parents=True, exist_ok=True)
+        link_target.write_text(
+            self._link_sidecar_text(
+                "2026-07-10",
+                [("09:15", "Note A", "mse_aaaaaaaaaaaaaaaa", ["related_entries:", "  - mse_zzzzzzzzzzzzzzzz"])],
+            ),
+            encoding="utf-8",
+        )
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        link_target.write_text(
+            self._link_sidecar_text(
+                "2026-07-10",
+                [
+                    ("09:15", "Note A", "mse_aaaaaaaaaaaaaaaa", ["related_entries:", "  - mse_zzzzzzzzzzzzzzzz"]),
+                    ("09:45", "Note B", "mse_bbbbbbbbbbbbbbbb", ["supersedes:", "  - mse_aaaaaaaaaaaaaaaa"]),
+                ],
+            ),
+            encoding="utf-8",
+        )
+        self._commit_all(cwd, "branch link sidecar")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertEqual(result.issues, [])
+        self.assertTrue(result.committed)
+        self.assertIn(
+            "mse_bbbbbbbbbbbbbbbb 2026-07-10 09:45 -> .memory-seed/sessions/links/2026-07/2026-07-10.md",
+            result.planned_link_sidecars,
+        )
+        text = link_target.read_text(encoding="utf-8")
+        self.assertIn("entry_id: mse_aaaaaaaaaaaaaaaa", text)
+        self.assertIn("entry_id: mse_bbbbbbbbbbbbbbbb", text)
+        self.assertIn("supersedes:", text)
+        # The regression proof: the merge COMMIT carries the change, not just
+        # the working tree - `git diff base..merge` for this exact bug used
+        # to be completely empty despite the merge reporting success.
+        committed_text = self._git(cwd, "show", "HEAD:.memory-seed/sessions/links/2026-07/2026-07-10.md").stdout
+        self.assertEqual(committed_text, text)
+        diff_stat = self._git(cwd, "diff", "--stat", "HEAD~1", "HEAD", "--", ".memory-seed/sessions/links").stdout
+        self.assertTrue(diff_stat.strip(), "merge commit must carry the link-sidecar change, not contribute nothing")
+
+    def test_session_merge_branch_fuses_link_sidecar_edited_on_both_sides(self):
+        # Two-sided edit is the case the `-merge` guard forces into a real git
+        # conflict. Before this fix that conflict was misclassified as
+        # non-session (the classifier recognized session/diagram paths but not
+        # links/) and the merge aborted loudly. It must now fuse like any
+        # other session-tree conflict, not abort.
+        cwd = self.make_project()
+        target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-12.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        entry_a = ("09:00", "First", "mse_aaaaaaaaaaaaaaaa", "main")
+        entry_b = ("09:15", "Second", "mse_bbbbbbbbbbbbbbbb", "main")
+        entry_c = ("09:30", "Third", "mse_cccccccccccccccc", "main")
+        target.write_text(self._grouped_session_text("2026-07-12", [entry_a, entry_b, entry_c]), encoding="utf-8")
+        link_target = cwd / MEMORY_DIR_NAME / "sessions" / "links" / "2026-07" / "2026-07-12.md"
+        link_target.parent.mkdir(parents=True, exist_ok=True)
+        link_target.write_text(
+            self._link_sidecar_text(
+                "2026-07-12",
+                [("09:05", "Note A", "mse_aaaaaaaaaaaaaaaa", ["related_entries:", "  - mse_zzzzzzzzzzzzzzzz"])],
+            ),
+            encoding="utf-8",
+        )
+        (cwd / ".gitattributes").write_text(self.NO_MERGE_ATTR, encoding="utf-8")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        link_target.write_text(
+            self._link_sidecar_text(
+                "2026-07-12",
+                [
+                    ("09:05", "Note A", "mse_aaaaaaaaaaaaaaaa", ["related_entries:", "  - mse_zzzzzzzzzzzzzzzz"]),
+                    ("09:20", "Note B", "mse_bbbbbbbbbbbbbbbb", ["evolves:", "  - mse_aaaaaaaaaaaaaaaa"]),
+                ],
+            ),
+            encoding="utf-8",
+        )
+        self._commit_all(cwd, "branch link sidecar")
+        self._git(cwd, "switch", "main")
+        link_target.write_text(
+            self._link_sidecar_text(
+                "2026-07-12",
+                [
+                    ("09:05", "Note A", "mse_aaaaaaaaaaaaaaaa", ["related_entries:", "  - mse_zzzzzzzzzzzzzzzz"]),
+                    ("09:35", "Note C", "mse_cccccccccccccccc", ["supersedes:", "  - mse_bbbbbbbbbbbbbbbb"]),
+                ],
+            ),
+            encoding="utf-8",
+        )
+        self._commit_all(cwd, "main link sidecar")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertEqual(result.issues, [])
+        self.assertFalse(result.conflicts)
+        self.assertTrue(result.committed)
+        text = link_target.read_text(encoding="utf-8")
+        self.assertIn("entry_id: mse_aaaaaaaaaaaaaaaa", text)
+        self.assertIn("entry_id: mse_bbbbbbbbbbbbbbbb", text)
+        self.assertIn("entry_id: mse_cccccccccccccccc", text)
+
+    def test_session_merge_branch_refuses_link_sidecar_modified_on_branch(self):
+        # The sanctioned stub -> live classification workflow runs on trunk
+        # (lifecycle-edge-linking-sidecars.md). Modifying an EXISTING sidecar
+        # block's text on a branch (same entry_id, changed text) must fail
+        # loudly before any merge starts, not corrupt or silently pick a side.
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_aaaaaaaaaaaaaaaa", branch="main")
+        link_target = cwd / MEMORY_DIR_NAME / "sessions" / "links" / "2026-07" / "2026-07-10.md"
+        link_target.parent.mkdir(parents=True, exist_ok=True)
+        link_target.write_text(
+            self._link_sidecar_text(
+                "2026-07-10",
+                [("09:15", "Stub", "mse_aaaaaaaaaaaaaaaa", ["classify_pending: true"])],
+            ),
+            encoding="utf-8",
+        )
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        link_target.write_text(
+            self._link_sidecar_text(
+                "2026-07-10",
+                [("09:15", "Stub", "mse_aaaaaaaaaaaaaaaa", ["supersedes:", "  - mse_zzzzzzzzzzzzzzzz"])],
+            ),
+            encoding="utf-8",
+        )
+        self._commit_all(cwd, "branch classifies stub")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertFalse(result.committed)
+        self.assertFalse(result.merge_in_progress)
+        self.assertTrue(result.issues)
+        self.assertIn("existing link sidecar modified", result.issues[0])
+        self.assertFalse((cwd / ".git" / "MERGE_HEAD").exists())
+
+    def test_session_merge_branch_refuses_to_reset_an_unrecognized_sessions_path(self):
+        # Defense in depth (added alongside the link-sidecar fix): a future
+        # sidecar kind under .memory-seed/sessions that no classifier
+        # recognizes yet must fail loudly rather than being silently reset to
+        # base content the way link sidecars silently were before this fix.
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_aaaaaaaaaaaaaaaa", branch="main")
+        unknown = cwd / MEMORY_DIR_NAME / "sessions" / "decisions" / "2026-07-10.md"
+        unknown.parent.mkdir(parents=True, exist_ok=True)
+        unknown.write_text("base content\n", encoding="utf-8")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        unknown.write_text("branch content\n", encoding="utf-8")
+        self._commit_all(cwd, "branch edits unknown sidecar")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertFalse(result.committed)
+        self.assertTrue(result.merge_in_progress)
+        self.assertTrue(result.issues)
+        self.assertIn("not recognized by any session/diagram/link classifier", result.issues[0])
+        self.assertTrue((cwd / ".git" / "MERGE_HEAD").exists())
 
     def test_session_prepare_pr_branch_commits_chronological_merge_on_task_branch(self):
         cwd = self.make_project()
