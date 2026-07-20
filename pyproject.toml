@@ -34,9 +34,6 @@ memory-trace = "memory_trace.cli:main"
 # web-framework-free; `pip install "memory-seed[trace]"` enables the local
 # Memory Trace browser UI and the `memory-trace` command.
 trace = ["fastapi>=0.110", "uvicorn>=0.27"]
-# Deprecated alias for one release window so existing `memory-seed[lense]`
-# users do not hard-break while the product name moves to Memory Trace.
-lense = ["fastapi>=0.110", "uvicorn>=0.27"]
 
 [tool.setuptools]
 packages = ["memory_seed", "memory_trace"]

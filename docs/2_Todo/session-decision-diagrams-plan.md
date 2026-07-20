@@ -47,7 +47,7 @@ tags:
 > governs generated report/export provenance.
 > [`memory-trace-evidence-annotations-and-projection-architecture.md`](memory-trace-evidence-annotations-and-projection-architecture.md)
 > governs Evidence Packs and projection state for future export work.
-> [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md) Phase 1 (the
+> [`memory-trace-distribution-plan.md`](../5_Completed/memory-trace-distribution-plan.md) Phase 1 (the
 > public retrieval service must surface sidecar diagrams and structured fields these views consume).
 > [`completed/memory-explorer-entry-level-ui-results-plan.md`](../5_Completed/memory-explorer-entry-level-ui-results-plan.md)
 > (the entry is the primary selectable object; diagrams attach to entries, not to section chunks).
@@ -160,7 +160,7 @@ convention stays theoretical.
 ## Phase 2 - Memory Trace consumption (implemented)
 
 - The Phase-1 public retrieval service in
-  [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md) surfaces,
+  [`memory-trace-distribution-plan.md`](../5_Completed/memory-trace-distribution-plan.md) surfaces,
   per entry: any sidecar diagram(s) and the Class-1 structural fields.
 - Memory Trace renders an entry's supported Mermaid Class-2 sidecar(s) beside the entry, with a
   source fallback for unsupported diagram types.
@@ -224,5 +224,5 @@ The uniform, non-technical-facing deliverable and the one genuinely new Class-1 
 - Paid handover/report framing: `docs/4_Reference/memory-seed-market-fit-report.md` (paid tiers) and
   `docs/4_Reference/memory-seed-market-fit-visual-appendix.md` (Diagram 11, Trace as commercial wedge).
 - Class-1 substrate and canonical reader: [`../3_Spec/graph-edge-contract.md`](../3_Spec/graph-edge-contract.md).
-- Consumers: [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md),
+- Consumers: [`memory-trace-distribution-plan.md`](../5_Completed/memory-trace-distribution-plan.md),
   [`completed/memory-explorer-entry-level-ui-results-plan.md`](../5_Completed/memory-explorer-entry-level-ui-results-plan.md).

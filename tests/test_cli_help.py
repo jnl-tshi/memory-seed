@@ -56,53 +56,20 @@ class CliHelpTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("Keeping Memory Seed current", out)
 
-    def test_lense_command_is_a_deprecation_shim_to_memory_trace(self):
-        # The review UI moved behind the optional `trace` extra and the
-        # `memory-trace` command. When the extra is not installed (as in the
-        # core-only test env), `memory-seed lense` points the user there and
-        # exits non-zero - core ships no web stack.
+    def test_lense_command_no_longer_exists(self):
+        # Regression: the memory-seed[lense]/`memory-seed lense` deprecated
+        # alias was removed for the 2.20 release (Track A.4). argparse must
+        # reject it as unrecognized, not silently accept it.
         import contextlib
         import io
-        import sys
-        from unittest import mock
 
         from memory_seed.cli import main
 
-        # Simulate the core-only environment deterministically: memory_trace
-        # ships in the wheel (only fastapi is the extra), so on a dev machine
-        # with the extra installed this test would otherwise take the
-        # with-trace path and even start a real server. None in sys.modules
-        # makes the service import raise ImportError in every environment.
         stderr = io.StringIO()
-        with mock.patch.dict(
-            sys.modules, {"memory_trace": None, "memory_trace.service": None}
-        ):
+        with self.assertRaises(SystemExit):
             with contextlib.redirect_stderr(stderr):
-                code = main(["lense", "--no-open"])
-        self.assertEqual(code, 1)
-        self.assertIn("memory-trace", stderr.getvalue())
-        self.assertIn("moved", stderr.getvalue())
-
-    def test_lense_open_both_is_forwarded_to_trace_service(self):
-        import sys
-        import types
-        from unittest import mock
-
-        from memory_seed.cli import main
-
-        run_server = mock.Mock(return_value=0)
-        trace_module = types.ModuleType("memory_trace")
-        service_module = types.ModuleType("memory_trace.service")
-        service_module.run_server = run_server
-
-        with mock.patch.dict(
-            sys.modules,
-            {"memory_trace": trace_module, "memory_trace.service": service_module},
-        ):
-            code = main(["lense", "--open-both"])
-
-        self.assertEqual(code, 0)
-        self.assertTrue(run_server.call_args.args[0].open_both)
+                main(["lense"])
+        self.assertIn("invalid choice", stderr.getvalue())
 
     def test_skills_list_shows_profiles_and_current_state(self):
         import os

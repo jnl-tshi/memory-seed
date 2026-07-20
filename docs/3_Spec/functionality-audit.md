@@ -1,5 +1,5 @@
 ---
-memory-system-version: 2.19
+memory-system-version: 2.20
 tags:
   - memory-seed
   - audit
@@ -140,8 +140,8 @@ graph TD
   runtime dependency, `model2vec` (which pulls `numpy`), so the installed on-disk footprint is
   dominated by transitive deps, not Memory Seed's own code. The review UI source lives under
   `memory-trace/`, but its web stack (`fastapi`/`uvicorn`) is installed only through the optional
-  `memory-seed[trace]` extra. Plain `pip install memory-seed` remains web-framework-free, and
-  `memory-seed[lense]` is a deprecated alias to the same optional UI dependencies.
+  `memory-seed[trace]` extra. Plain `pip install memory-seed` remains web-framework-free. The
+  `memory-seed[lense]` deprecated alias was removed for the 2.20 release (Track A.4).
 
 ```mermaid
 graph TD
@@ -160,7 +160,7 @@ graph TD
   subgraph UserTier["User entrypoints"]
     direction LR
     CLI["memory-seed"] ~~~ MCP["memory-seed-mcp"]
-    SHIM["memory-seed lense<br>deprecated shim"] ~~~ TRACECLI["memory-trace"]
+    TRACECLI["memory-trace"]
   end
 
   SourceTier ~~~ PackageTier
@@ -172,7 +172,6 @@ graph TD
   CORE --> MODEL
   CORE --> CLI
   CORE --> MCP
-  SHIM --> TRACE
   TRACE --> TRACECLI
 ```
 
@@ -205,7 +204,6 @@ graph TD
 | `upgrade [--dry-run] [--yes] [--manager uv\|pipx\|pip] [--json]` | Handle active package-owned processes, then run the selected package-manager upgrade command; failed shutdown blocks upgrade. |
 | `encoding check [path] [--json]` | Read-only: report invalid UTF-8, UTF-8 BOMs, CRLF line endings, non-NFC text, likely mojibake, and implicit text-mode Python I/O. |
 | `encoding repair [path] [--dry-run] [--json]` | Preview or atomically repair safe BOM/newline/NFC drift after timestamped backup; block invalid UTF-8 and likely mojibake for manual review. |
-| `lense [--cwd] [--host] [--port] [--no-open]` | **Deprecated shim** (new in 2.13, extracted post-2.16): the review UI now runs through the bundled `memory-trace` command when `memory-seed[trace]` is installed. Delegates to it when available, else prints an install hint. |
 | `version` | Print bundled control-plane version. |
 | `help` (or no args) | Full command reference. |
 
@@ -236,7 +234,7 @@ graph TD
 
   subgraph UiTier["UI bridge"]
     direction LR
-    LENSE["lense shim"] ~~~ TRACE["memory-trace<br>separate command"]
+    TRACE["memory-trace<br>separate command"]
   end
 
   SetupTier ~~~ MemoryTier
@@ -250,7 +248,6 @@ graph TD
   BRANCH --> AGENTS
   PROCESSES --> SHUTDOWN
   SHUTDOWN --> UPGRADE
-  LENSE --> TRACE
 ```
 
 ### C. Agent-selective install (`core.py`)
@@ -765,8 +762,8 @@ graph TD
   OIDC --> PYPI
 ```
 
-### O. Memory Trace (review UI; legacy Lense shim)
-- The review UI shipped in 2.13 as the in-package `memory-seed[lense]` extra ("Memory Lense") and was **extracted** into a separate `memory-trace/` source/product boundary (Arc 1 of the Memory Trace roadmap). The public install path is now `memory-seed[trace]`, which exposes the `memory-trace` command while importing the public retrieval service (`memory_seed/retrieval.py`). `memory-seed[lense]` is now a deprecated alias, and `memory-seed lense` delegates to `memory-trace` when installed. Plain `memory-seed` ships **no** web framework.
+### O. Memory Trace (review UI; legacy Lense name retired)
+- The review UI shipped in 2.13 as the in-package `memory-seed[lense]` extra ("Memory Lense") and was **extracted** into a separate `memory-trace/` source/product boundary (Arc 1 of the Memory Trace roadmap). The public install path is now `memory-seed[trace]`, which exposes the `memory-trace` command while importing the public retrieval service (`memory_seed/retrieval.py`). The `memory-seed[lense]` extra and `memory-seed lense` command were a deprecated alias kept for one release window and were **removed for the 2.20 release** (Track A.4). Plain `memory-seed` ships **no** web framework.
 - Serves search, filters, timeline, graph, and reader/details views over the same `semantic_cache` parsing/ranking + `retrieval` service MCP uses - no forked retrieval logic (parity tested across the Trace source boundary). Controlled entry-YAML `topics:` and project-local `.memory-seed/topics.yaml` now run end-to-end through parser, retrieval, CLI, MCP, and Trace chronological topic chains; deterministic read-only `topics suggest --from <file>` completed the plan on 2026-07-15. Historical entries still use the hashtag/heading fallback. See `docs/5_Completed/memory-trace-topic-neighbourhoods-plan.md`.
 - **Cache architecture:** a rebuildable local SQLite cache stored **outside the repository** (`%LOCALAPPDATA%\memory-seed\lense` on Windows, `~/.cache/memory-seed/lense` elsewhere; keyed by a hash of the workspace root, with a `tempfile` fallback if the cache directory isn't writable). Phase 1 now uses a schema-versioned git-watermark plus dirty-signature freshness check, a short freshness memo, memoized chunks/derived structures, and full wipe-and-atomic-replace on rebuild; a cross-process rebuild lease serializes shared-cache writers, and a bounded lease wait falls back to a per-process temporary projection rather than surfacing Windows file contention as a UI failure. Ambiguity fails toward rebuilding and no-git projects fall back to tracked-document metadata. The cache is never authoritative and Markdown stays the source of truth.
 - **Launch ergonomics:** `memory-trace --open-both` starts one local server and opens the vanilla `/` plus React `/next` routes in browser tabs. The source checkout also provides `scripts/launch-memory-trace.ps1` for Windows; it supplies the local import path, reuses a healthy Trace process on the chosen port, and otherwise launches the same two-route server.
@@ -785,7 +782,6 @@ graph TD
   subgraph CoreTier["Shared core"]
     direction LR
     RETRIEVAL["memory_seed.retrieval"] ~~~ CACHE["External SQLite<br>cache"]
-    SHIM["memory-seed lense<br>shim"]
   end
 
   subgraph TraceTier["Memory Trace UI"]
@@ -801,7 +797,6 @@ graph TD
   SIDECARS --> RETRIEVAL
   TOPICS --> RETRIEVAL
   RETRIEVAL --> CACHE
-  SHIM --> RETRIEVAL
   CACHE --> SEARCH
   CACHE --> TIMELINE
   CACHE --> GRAPH
@@ -988,7 +983,7 @@ graph TD
 - **Error handling & resilience.** Hooks **degrade to silent** on any error (never block the agent). `project.yaml` parsing **fails open** (absent/malformed/no-`agents:` => all agents). `update` is forward-only (cannot downgrade a newer project). `remove` and `init --force` back up before touching files. `doctor` separates hard checks from a non-fatal `warnings` channel. Project-owned text writes now have an explicit UTF-8/LF/NFC helper plus repository `.editorconfig`/`.gitattributes`; **known gap:** file writes are direct, not atomic temp-then-rename - a crash mid-write could truncate a file (see Risks).
 - **Persistence & concurrency.** Plain files; session logs are strictly append-only with current-clock timestamps so write order == time order. No file locking; the model assumes a single writer per day.
 - **Encoding contract.** Project-owned text artifacts are UTF-8 without BOM, LF line endings, and NFC-normalized. `memory_seed.text_files` is the shared helper for generated text/JSON reads and writes; JSON helpers preserve readable Unicode (`ensure_ascii=False`). MCP stdio output is explicitly Unicode-preserving. `memory-seed encoding check` reports byte/normalization drift, likely mojibake, and implicit production Python text I/O. `encoding repair` uses atomic replacement and timestamped backups for mechanically safe BOM/newline/NFC fixes; invalid UTF-8 and likely mojibake remain manual.
-- **Dependencies.** Runtime (required): `model2vec>=0.8.1` (+ `numpy` transitively). Runtime (optional, `memory-seed[lense]` extra only): `fastapi>=0.110`, `uvicorn>=0.27` - the default CLI/MCP path stays dependency-light; `lense` prints an install hint rather than failing when the extra isn't installed. Tests: stdlib `unittest`. No ORM, no message bus.
+- **Dependencies.** Runtime (required): `model2vec>=0.8.1` (+ `numpy` transitively). Runtime (optional, `memory-seed[trace]` extra only): `fastapi>=0.110`, `uvicorn>=0.27` - the default CLI/MCP path stays dependency-light; `memory-trace` prints an install hint rather than failing when the extra isn't installed. Tests: stdlib `unittest`. No ORM, no message bus.
 
 ## 10. Architecture decisions
 
@@ -1049,7 +1044,7 @@ Measured on this repository's own corpus on 2026-06-14 (Windows, Python 3.11). I
 - **Chunk** - a `MemoryChunk` parsed from a session entry (`granularity="entry"`) or sub-heading (`"section"`); `chunk_id` is normally the `entry_id`.
 - **Persona** - a vendor-neutral `.agents/*.md` role profile; evolution is approval-gated.
 - **Orphan skill** - a `skills/*.md` runbook not registered in `skills/index.md` (flagged by `doctor`).
-- **Memory Trace** - the companion local read-only browser UI (`memory-trace`; legacy `memory-seed lense` shim, section 3O), backed by a rebuildable SQLite cache stored outside the repository.
+- **Memory Trace** - the companion local read-only browser UI (`memory-trace`; the legacy `memory-seed lense` shim was removed for 2.20, section 3O), backed by a rebuildable SQLite cache stored outside the repository.
 - **Related-entry graph** - the graph `build_related_entry_graph()` computes at read time from entries'
   stored `related_entries` (outbound), computed backlinks (inbound), typed `supersedes`/`evolves`, and
   computed `superseded_by`/`evolved_by`. Read surfaces also derive terminal `superseding_head` and

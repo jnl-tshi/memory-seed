@@ -10,7 +10,12 @@ tags:
 
 # Memory Trace - Optional Trace Extra Release Strategy (Pillar B)
 
-> **Status:** ACTIVE - revised 2026-07-11 and implemented on `main` 2026-07-12. The architecture
+> **Status:** COMPLETE 2026-07-20 - the plan's last open obligation, dropping the deprecated
+> `memory-seed[lense]` alias and `memory-seed lense` shim after one release window, was resolved the
+> same day as `0_NEXT_STEPS.md` Track A.4 (removed, targeted at the 2.20 release). No obligations
+> remain; moved from `2_Todo/` to `5_Completed/`.
+>
+> History below, retained as revised 2026-07-11 and implemented on `main` 2026-07-12. The architecture
 > split remains: Memory Trace is the human-facing UI layer and Memory Seed remains the canonical
 > memory/retrieval layer. The installation and publication strategy changed: ship Trace through the
 > main `memory-seed` distribution as the optional `trace` extra, not as a separate PyPI project.
@@ -68,7 +73,7 @@ tags:
 > **Acceptance criteria:** see the per-phase gates below.
 
 > **Next-generation planning link:** future Memory Trace product and system evolution is governed by
-> [`memory-trace-product-and-system-architecture-blueprint.md`](memory-trace-product-and-system-architecture-blueprint.md).
+> [`memory-trace-product-and-system-architecture-blueprint.md`](../2_Todo/memory-trace-product-and-system-architecture-blueprint.md).
 > This distribution plan remains active only for the package/release ordering, publication, and
 > dependency-boundary acceptance criteria that are still unique to the companion distribution.
 
@@ -156,7 +161,7 @@ Phase 1 extracts exactly those functions into a public, MCP-independent retrieva
 - surfaces, per entry, any authored decision-diagram sidecar
   (`.memory-seed/sessions/diagrams/YYYY-MM/YYYY-MM-DD.md`, with legacy flat sidecars still readable)
   alongside the Class-1 structural fields, per
-  [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md), so Trace can render
+  [`session-decision-diagrams-plan.md`](../2_Todo/session-decision-diagrams-plan.md), so Trace can render
   reasoning diagrams next to their entry without forking a reader;
 - is consumed by `mcp_server.py` (thin wrapper, unchanged external behavior) **and** by Memory Trace,
   proving both consumers ride the same contract;
@@ -194,7 +199,7 @@ package extra.
   safe for OneDrive-synced workspaces).
 - The exportable static report / handover pack (Class-1 derived views + embedded Class-2 sidecars) is
   the paid-tier deliverable scoped in
-  [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md) Phase 3 - a Trace
+  [`session-decision-diagrams-plan.md`](../2_Todo/session-decision-diagrams-plan.md) Phase 3 - a Trace
   product feature, gated on this split.
 
 ### Phase 2 acceptance criteria
@@ -228,5 +233,5 @@ package extra.
 - Retrieval-seam analysis: [`3.0-plan.md`](../5_Completed/3.0-plan.md) section "Review Correction: Retrieval Is Already
   Mostly Shared".
 - Shared edge/metric contract: [`../3_Spec/graph-edge-contract.md`](../3_Spec/graph-edge-contract.md).
-- Decision-diagram surfacing + paid report pack: [`session-decision-diagrams-plan.md`](session-decision-diagrams-plan.md).
+- Decision-diagram surfacing + paid report pack: [`session-decision-diagrams-plan.md`](../2_Todo/session-decision-diagrams-plan.md).
 - Historical research (now completed): [`user-interface-deep-research-report.md`](../5_Completed/user-interface-deep-research-report.md).

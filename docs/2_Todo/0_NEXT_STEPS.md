@@ -29,8 +29,8 @@ Foundation shipped (per-doc status verified against CHANGELOG + code, not this f
   `worktree classify --apply`; `docs check`/`docs index`; unified entry grammar + decision-density
   advisory; the breaking `/api/v1` `authority_class` enum rename; OpenSSF hardening — SHA-pinned
   actions, CodeQL, Scorecard, SECURITY/CONTRIBUTING; plus the full 2.18→2.19 tranche folded in).
-  The `memory-seed[lense]` deprecated alias **shipped intact in 2.19** (removal never consented) — the
-  deprecation-window decision stays open.
+  The `memory-seed[lense]` deprecated alias **shipped intact in 2.19** (removal never consented at the
+  time). **Removed 2026-07-20**, targeted at the 2.20 release — see Track A.4 below.
 - **Foundation SHIPPED 2026-07-15:** derived-projection Phase 1 — git-watermark warm start (O(changes)
   freshness, no whole-corpus scan; ~6.2 s rebuild → ~78 ms warm) + atomic build/swap + schema version, plus
   three read-path perf refinements (freshness memoize, chunk memoize, sidecar-first-class freshness):
@@ -154,10 +154,11 @@ before its next step. (Market/account items live under "Parked" below.)
    conservative window. *Options:* **(a)** propose-and-wait — flag and you approve each deactivation
    *(recommended: consistent with append-only + the live-consent rule; deactivate ≠ delete)*; **(b)**
    automatic deactivation. Resolve before build.
-3. **Track A.4 — `memory-seed[lense]` deprecation window.** The deprecated alias + `lense` shim shipped
-   intact 2.16→2.19. *Options:* **(a)** announce **2.20** as the drop and remove the alias/shim now the
-   window has elapsed *(recommended)*; **(b)** keep one more window. It is a published install path, so
-   the call is yours.
+3. ~~**Track A.4 — `memory-seed[lense]` deprecation window.**~~ **RESOLVED 2026-07-20** — option (a):
+   announced 2.20 as the drop and removed the alias/shim now. `pyproject.toml`'s `lense` extra and
+   `cli.py`'s `lense` subcommand are gone; `README.md`, `functionality-audit.md` (bumped to 2.20), and
+   `CHANGELOG.md`'s Unreleased "### Removed" section reflect it. `memory-trace-distribution-plan.md`'s
+   last obligation is now discharged — see the distribution-plan note below.
 4. **Track A.2 — Session decision diagrams Phase 3** (exportable report / handover pack) — sizable, needs
    a product greenlight. *Recommendation:* hold until a concrete handover-pack need surfaces (no current
    pull).
@@ -236,15 +237,12 @@ dependency order, and closed on 2026-07-15:
    **Remaining is yours:** enable private vulnerability reporting, branch protection + `integration_mode:
    pr` (G2), the bestpractices.dev submission (answers drafted on request), and attestation confirmation
    at the next release cut.
-4. **Trace distribution — deprecation-window closeout** —
-   [`memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md). Both phases shipped (Phase 1
-   released in 2.16.0; the optional-extra fold-in landed 2026-07-12), but the plan stays active for its
-   last obligation: `memory-seed[lense]` and the `memory-seed lense` shim are a deprecated alias kept
-   "for one release window," and that window is **still open** in `pyproject.toml`. **Open user decision:**
-   whether 2.19 is the release that drops them. The coverage matrix
-   ([`memory-trace-next-generation-coverage-matrix.md`](memory-trace-next-generation-coverage-matrix.md))
-   records the optional-extra packaging, deprecation shim, and no-default-web-dependency criteria as owned
-   by that plan — which is why it correctly remains in `2_Todo/`.
+4. ~~**Trace distribution — deprecation-window closeout**~~ **RESOLVED 2026-07-20, moved to
+   `5_Completed/`** — [`memory-trace-distribution-plan.md`](../5_Completed/memory-trace-distribution-plan.md).
+   Both phases shipped (Phase 1 released in 2.16.0; the optional-extra fold-in landed 2026-07-12), and its
+   last remaining obligation — dropping the `memory-seed[lense]` alias and `memory-seed lense` shim after
+   one release window — discharged the same day as Track A.4 above. No open obligations remain, so the
+   plan moved out of `2_Todo/`.
 
 ### Track B — Memory Trace next generation (the promoted direction, 2026-07-11)
 

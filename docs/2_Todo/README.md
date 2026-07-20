@@ -20,7 +20,6 @@
 | [0_NEXT_STEPS.md](0_NEXT_STEPS.md) | — | — | — |
 | [lifecycle-link-authoring-assist-proposal.md](lifecycle-link-authoring-assist-proposal.md) | — | — | — |
 | [memory-trace-ai-timeline-summarisation-plan.md](memory-trace-ai-timeline-summarisation-plan.md) | — | — | Phase 2: implement a disabled-by-default provider interface and local-model adapter over determ… |
-| [memory-trace-distribution-plan.md](memory-trace-distribution-plan.md) | — | — | — |
 | [memory-trace-evidence-annotations-and-projection-architecture.md](memory-trace-evidence-annotations-and-projection-architecture.md) | — | — | proposed |
 | [memory-trace-frontend-architecture-and-design-system-proposal.md](memory-trace-frontend-architecture-and-design-system-proposal.md) | — | — | proposed |
 | [memory-trace-next-generation-coverage-matrix.md](memory-trace-next-generation-coverage-matrix.md) | — | — | active-integration-matrix |

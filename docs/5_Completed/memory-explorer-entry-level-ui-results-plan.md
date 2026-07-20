@@ -18,7 +18,7 @@ tags:
 > uses entry/"session entry" with "Matched section" chips. **The remaining reader-view scroll/highlight
 > work landed in Memory Trace Arc 2a on 2026-07-06.**
 > **Priority:** P2 companion to
-> [`../memory-trace-distribution-plan.md`](../2_Todo/memory-trace-distribution-plan.md). It should
+> [`../memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md). It should
 > shaped the Trace/Trail retrieval-service contract before the UI was extracted into the
 > companion package.
 > **Source:** User decision 2026-07-05: Memory Lense could show individual session-entry
@@ -131,7 +131,7 @@ Names are illustrative; final names should align with the Phase-1 public retriev
 
 ## Dependencies
 
-- [`../memory-trace-distribution-plan.md`](../2_Todo/memory-trace-distribution-plan.md), Phase 1:
+- [`../memory-trace-distribution-plan.md`](memory-trace-distribution-plan.md), Phase 1:
   public retrieval service contract.
 - [`../../3_Spec/graph-edge-contract.md`](../3_Spec/graph-edge-contract.md): graph consumers should not fork edge
   parsing or metric meanings.

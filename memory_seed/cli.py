@@ -579,19 +579,6 @@ def main(argv: list[str] | None = None) -> int:
     compact_parser.add_argument("--all", action="store_true", dest="scan_all", help="scan all sessions")
     compact_parser.add_argument("--output", type=str, default=None, help="write summary to file instead of stdout")
 
-    lense_parser = subparsers.add_parser("lense", help="[deprecated] use the 'memory-trace' command")
-    lense_parser.add_argument("--cwd", default=".", help="project/runtime path to inspect (default: current directory)")
-    lense_parser.add_argument("--host", default="127.0.0.1", help="host to bind (default: 127.0.0.1)")
-    lense_parser.add_argument("--port", type=int, default=0, help="port to bind; 0 chooses a free port")
-    lense_browser_group = lense_parser.add_mutually_exclusive_group()
-    lense_browser_group.add_argument("--no-open", action="store_true", help="do not open a browser")
-    lense_browser_group.add_argument(
-        "--open-both",
-        action="store_true",
-        help="open the vanilla / and React /next views in browser tabs",
-    )
-    lense_parser.add_argument("--rebuild-cache", action="store_true", help="rebuild the SQLite cache before serving")
-
     subparsers.add_parser("doctor", help="check Memory Seed control-plane files")
     subparsers.add_parser("version", help="print Memory Seed control-plane version")
 
@@ -1534,25 +1521,6 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(output)
         return 0
-
-    if args.command == "lense":
-        # Deprecated shim: the review UI now lives behind the `trace` extra and
-        # the `memory-trace` command. Plain core installs ship no web stack.
-        try:
-            from memory_trace.service import run_server
-        except ImportError:
-            print(
-                "Memory Lense has moved to the Memory Trace command.\n"
-                "  Install:  pip install \"memory-seed[trace]\"\n"
-                "  Run:      memory-trace",
-                file=sys.stderr,
-            )
-            return 1
-        print(
-            "note: 'memory-seed lense' is deprecated; run the 'memory-trace' command instead.",
-            file=sys.stderr,
-        )
-        return run_server(args)
 
     if args.command == "doctor":
         result = doctor()

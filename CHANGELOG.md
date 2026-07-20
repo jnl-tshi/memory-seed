@@ -116,6 +116,13 @@ All notable changes to Memory Seed are summarized here.
   with a limit below the corpus size returned an edgeless slice and the React
   "All dates" overview rendered a disconnected map.
 
+### Removed
+
+- **`memory-seed[lense]` extra and the `memory-seed lense` CLI command.** Both were a deprecated
+  compatibility alias kept for one release window while the product renamed from Memory Lense to
+  Memory Trace (shipped 2.13.0, deprecated since 2.16.0). The window has elapsed; install
+  `memory-seed[trace]` and run `memory-trace` instead.
+
 ## 2.19.0 - 2026-07-17
 
 - **`memory-seed docs index` + `docs check` wired into `esr` and CI** — document-lifecycle Phases 2–3
