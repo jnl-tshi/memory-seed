@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import pytest
 from pathlib import Path
 
 from memory_seed.core import MEMORY_DIR_NAME
@@ -52,6 +53,7 @@ class MemorySessionIntegrateTests(unittest.TestCase):
         _git(self.root, "commit", "-m", f"work on {name}")
         _git(self.root, "checkout", "main")
 
+    @pytest.mark.integration
     def test_merges_and_fuses_without_a_human_gate(self):
         self._branch_with_entry("feature", "2026-06-13 10:00", "mse_" + "b" * 16, "branch-entry")
 
@@ -66,6 +68,7 @@ class MemorySessionIntegrateTests(unittest.TestCase):
         self.assertIn("branch-entry", merged)
         self.assertLess(merged.index("trunk-first"), merged.index("branch-entry"))
 
+    @pytest.mark.integration
     def test_dry_run_reports_the_plan_without_merging(self):
         self._branch_with_entry("feature", "2026-06-13 10:00", "mse_" + "b" * 16, "branch-entry")
         before = _git(self.root, "rev-parse", "HEAD").stdout.strip()
@@ -77,6 +80,7 @@ class MemorySessionIntegrateTests(unittest.TestCase):
         self.assertEqual(_git(self.root, "rev-parse", "HEAD").stdout.strip(), before)
         self.assertNotIn("branch-entry", self.log.read_text(encoding="utf-8"))
 
+    @pytest.mark.integration
     def test_a_non_session_conflict_aborts_and_leaves_a_clean_tree(self):
         # The autonomous difference: session_merge_branch parks this for a human,
         # which would strand an agent in a half-merged repo it cannot resolve.
@@ -101,6 +105,7 @@ class MemorySessionIntegrateTests(unittest.TestCase):
         self.assertFalse((self.root / ".git" / "MERGE_HEAD").exists(), "tree must be restored")
         self.assertEqual(_git(self.root, "status", "--porcelain").stdout.strip(), "")
 
+    @pytest.mark.integration
     def test_pr_mode_is_declined_with_the_cli_command(self):
         # Commit the config on main first: created after branching, it would
         # land on the branch and vanish on checkout.
@@ -119,6 +124,7 @@ class MemorySessionIntegrateTests(unittest.TestCase):
         self.assertIn("not run unattended", " ".join(result["issues"]))
         self.assertIn("memory-seed session integrate", result["cli_command"])
 
+    @pytest.mark.integration
     def test_a_session_problem_aborts_before_the_merge_starts(self):
         # Fail-closed: a fuse issue must leave no merge state behind at all.
         _git(self.root, "checkout", "-b", "feature")

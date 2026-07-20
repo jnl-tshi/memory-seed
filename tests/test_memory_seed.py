@@ -2,6 +2,7 @@ import shutil
 import tempfile
 import tomllib
 import unittest
+import pytest
 from pathlib import Path
 
 from memory_seed.core import (
@@ -1260,6 +1261,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertEqual([i.kind for i in issues], ["unknown-commit"], [i.__dict__ for i in issues])
         self.assertIn("f" * 40, issues[0].detail)
 
+    @pytest.mark.integration
     def test_links_check_skips_commit_existence_in_shallow_clone(self):
         import subprocess
 
@@ -1324,6 +1326,7 @@ class MemorySeedTests(unittest.TestCase):
         # Trailer scan skips (no git); only the well-formed field SHA survives.
         self.assertEqual(ids, {"a" * 40})
 
+    @pytest.mark.integration
     def test_branch_status_warns_on_dirty_main(self):
         from memory_seed.core import branch_status
 
@@ -1340,6 +1343,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(any("task branch" in warning for warning in status.warnings))
         self.assertIn("--no-ff", status.recommendation)
 
+    @pytest.mark.integration
     def test_branch_status_recognizes_feature_branch(self):
         import subprocess
         from memory_seed.core import branch_status
@@ -1370,6 +1374,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertFalse(status.is_git_repo)
         self.assertIn("Not a Git repository", status.recommendation)
 
+    @pytest.mark.integration
     def test_worktree_guard_passes_owned_and_blocks_foreign_namespace(self):
         import subprocess
         from memory_seed.core import worktree_guard
@@ -1418,6 +1423,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertFalse(foreign.safe_to_write)
         self.assertEqual(foreign.actual_namespace_owner, "claude")
 
+    @pytest.mark.integration
     def test_worktree_guard_root_checkout_requires_explicit_override_for_writes(self):
         from memory_seed.core import worktree_guard
 
@@ -1435,6 +1441,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(allowed.ok)
         self.assertEqual(allowed.classification, "root-checkout")
 
+    @pytest.mark.integration
     def test_worktree_guard_unmanaged_write_policy_can_block(self):
         import subprocess
         from memory_seed.core import worktree_guard
@@ -1468,6 +1475,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertEqual(status.classification, "unmanaged-worktree")
         self.assertEqual(status.severity, "block")
 
+    @pytest.mark.integration
     def test_worktree_guard_uses_project_namespace_overrides(self):
         import subprocess
         from memory_seed.core import worktree_guard
@@ -2838,6 +2846,7 @@ class MemorySeedTests(unittest.TestCase):
             ]
         return "\n".join(lines)
 
+    @pytest.mark.integration
     def test_session_fuse_dry_run_reports_branch_only_entries_without_writing(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
@@ -2858,6 +2867,7 @@ class MemorySeedTests(unittest.TestCase):
         )
         self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-11.md").exists())
 
+    @pytest.mark.integration
     def test_session_fuse_treats_h2_heading_in_body_as_content_not_an_entry(self):
         # Regression for the divergent entry-grammar incident: `session append`
         # accepted a body containing an `## Summary` heading, but the fuse path
@@ -2886,6 +2896,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertEqual(len(result.planned_entries), 1)
         self.assertIn("mse_1111111111111111", result.planned_entries[0])
 
+    @pytest.mark.integration
     def test_session_fuse_apply_requires_in_progress_merge(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
@@ -2902,6 +2913,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(result.issues)
         self.assertIn("in-progress git merge", result.issues[0])
 
+    @pytest.mark.integration
     def test_session_fuse_apply_normalizes_paths_and_imports_sidecars(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
@@ -2927,6 +2939,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("```mermaid", grouped_diagram.read_text(encoding="utf-8"))
         self.assertTrue(check_session_links(cwd=cwd).ok)
 
+    @pytest.mark.integration
     def test_session_fuse_apply_separates_entries_with_one_blank_line(self):
         # Regression: the chronological rewriter used to join rstripped entries
         # with a single "\n", butting each "## " heading against the previous
@@ -2970,6 +2983,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("\n\n## 2026-07-10 10:00", text)
         self.assertNotIn("\n\n\n", text)
 
+    @pytest.mark.integration
     def test_session_fuse_allows_sidecar_for_existing_base_entry(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
@@ -2988,6 +3002,7 @@ class MemorySeedTests(unittest.TestCase):
             ["mse_0123456789abcdef 2026-07-10 09:00 -> .memory-seed/sessions/diagrams/2026-07/2026-07-10.md"],
         )
 
+    @pytest.mark.integration
     def test_session_fuse_blocks_orphan_sidecar(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
@@ -3004,6 +3019,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(result.issues)
         self.assertIn("without a parent entry", result.issues[0])
 
+    @pytest.mark.integration
     def test_session_fuse_blocks_sidecar_without_entry_id(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
@@ -3022,6 +3038,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("diagram sidecar block", result.issues[0])
         self.assertIn("has no entry_id", result.issues[0])
 
+    @pytest.mark.integration
     def test_session_fuse_blocks_session_entry_without_entry_id(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
@@ -3040,6 +3057,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("session entry", result.issues[0])
         self.assertIn("has no entry_id", result.issues[0])
 
+    @pytest.mark.integration
     def test_session_fuse_ignores_unchanged_base_entries_without_entry_id(self):
         # Regression: fuse must scope branch-side validation to the branch's changed files, not the
         # whole corpus. A legacy pre-schema entry with no entry_id sitting unchanged on the base tree
@@ -3070,6 +3088,7 @@ class MemorySeedTests(unittest.TestCase):
             ["mse_1111111111111111 2026-07-11 09:00 -> .memory-seed/sessions/2026-07/2026-07-11.md"],
         )
 
+    @pytest.mark.integration
     def test_session_fuse_reads_non_ascii_branch_entry(self):
         # Regression for the Windows cp1252 crash: git show of a non-ASCII session file must decode
         # as UTF-8. Applies the fuse and asserts the exact non-ASCII body round-trips byte-for-byte -
@@ -3098,6 +3117,7 @@ class MemorySeedTests(unittest.TestCase):
         grouped = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-11.md"
         self.assertIn(non_ascii_body, grouped.read_text(encoding="utf-8"))
 
+    @pytest.mark.integration
     def test_session_fuse_blocks_non_utf8_branch_session_file(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
@@ -3117,6 +3137,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(result.issues)
         self.assertIn("could not decode .memory-seed/sessions/2026-07-11.md as UTF-8", result.issues)
 
+    @pytest.mark.integration
     def test_session_fuse_blocks_when_diff_fails(self):
         # Regression: a git diff failure (e.g. unrelated histories / no merge-base) must surface an
         # issue, not collapse to an empty change set that silently filters out every branch entry
@@ -3136,6 +3157,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(result.issues)
         self.assertIn("could not compute changed session files", result.issues[0])
 
+    @pytest.mark.integration
     def test_session_fuse_blocks_branch_field_mismatch(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
@@ -3152,6 +3174,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(result.issues)
         self.assertIn("expected feature-fuse", result.issues[0])
 
+    @pytest.mark.integration
     def test_session_fuse_blocks_existing_entry_edits(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main", body="- Original.")
@@ -3194,6 +3217,7 @@ class MemorySeedTests(unittest.TestCase):
             ]
         return "\n".join(lines)
 
+    @pytest.mark.integration
     def test_session_merge_branch_commits_clean_merge_end_to_end(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
@@ -3217,6 +3241,7 @@ class MemorySeedTests(unittest.TestCase):
         # Working tree fully committed: nothing staged or dirty afterwards.
         self.assertEqual(self._git(cwd, "status", "--short").stdout.strip(), "")
 
+    @pytest.mark.integration
     def test_session_merge_branch_leaves_non_session_conflicts_in_progress(self):
         cwd = self.make_project()
         (cwd / "notes.txt").write_text("base\n", encoding="utf-8")
@@ -3238,6 +3263,7 @@ class MemorySeedTests(unittest.TestCase):
         # The merge must be left in progress for manual resolution, not aborted.
         self.assertTrue((cwd / ".git" / "MERGE_HEAD").exists())
 
+    @pytest.mark.integration
     def test_session_merge_branch_fixes_out_of_order_landing(self):
         # The bug this command exists for: both sides append to the same dated
         # file after a shared ancestor, and a raw git merge would land the
@@ -3299,6 +3325,7 @@ class MemorySeedTests(unittest.TestCase):
     # session files. These two pin both halves of that guard.
     NO_MERGE_ATTR = ".memory-seed/sessions/** -merge\n"
 
+    @pytest.mark.integration
     def test_session_merge_branch_still_fuses_under_the_no_merge_attribute(self):
         # The guard must not break the sanctioned path. `-merge` makes git
         # conflict on the session file, but session_merge_branch resets
@@ -3320,6 +3347,7 @@ class MemorySeedTests(unittest.TestCase):
         committed = self._git(cwd, "show", "HEAD:.memory-seed/sessions/2026-07/2026-07-12.md").stdout
         self.assertEqual(committed, text)
 
+    @pytest.mark.integration
     def test_the_no_merge_attribute_stops_git_line_merging_session_files(self):
         # The other half: a raw `git merge` - the bypass that caused the
         # corruption - must now fail loudly instead of silently splicing
@@ -3368,6 +3396,7 @@ class MemorySeedTests(unittest.TestCase):
         self._commit_all(cwd, "main appends 12:02")
         return target
 
+    @pytest.mark.integration
     def test_without_the_attribute_git_interleaves_the_conflict_dangerously(self):
         # Control, and the actual mechanism behind the 2026-07-19 corruption.
         # Git does not merge these silently - it does something worse: it
@@ -3403,6 +3432,7 @@ class MemorySeedTests(unittest.TestCase):
             "...and naive marker-stripping yields the unclosed fence links check now catches",
         )
 
+    @pytest.mark.integration
     def test_the_attribute_keeps_the_conflicted_file_structurally_intact(self):
         # With the guard, the same merge conflicts as a UNIT: git writes no
         # markers into the file at all, so no entry is ever left half-formed.
@@ -3424,6 +3454,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertEqual(text.count("<<<<<<<"), 0, "no markers spliced into the file")
         self.assertFalse(check_entry_metadata_fences(text), "every entry left well formed")
 
+    @pytest.mark.integration
     def test_session_merge_branch_fails_closed_before_merge_on_modified_entry(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main", body="- Original.")
@@ -3443,6 +3474,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertFalse(result.merge_in_progress)
         self.assertFalse((cwd / ".git" / "MERGE_HEAD").exists())
 
+    @pytest.mark.integration
     def test_session_merge_branch_refuses_dirty_working_tree_naming_paths(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
@@ -3462,6 +3494,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("uncommitted.txt", result.issues[0])
         self.assertFalse((cwd / ".git" / "MERGE_HEAD").exists())
 
+    @pytest.mark.integration
     def test_session_merge_branch_stamps_memory_entry_trailers(self):
         # Approved trailer plan (2026-07-11): the merge commit carries one
         # Memory-Entry trailer per fused entry, below git's prepared merge
@@ -3506,6 +3539,7 @@ class MemorySeedTests(unittest.TestCase):
             self.assertIsNotNone(hits)
             self.assertIn(merge_sha, [hit.split()[0] for hit in hits])
 
+    @pytest.mark.integration
     def test_session_merge_branch_stamps_no_trailers_without_fuse_imports(self):
         # A merge whose branch touched no session files fuses nothing and must
         # leave git's prepared merge message untouched.
@@ -3527,6 +3561,7 @@ class MemorySeedTests(unittest.TestCase):
         message = self._git(cwd, "log", "-1", "--format=%B").stdout
         self.assertNotIn("Memory-Entry:", message)
 
+    @pytest.mark.integration
     def test_session_merge_branch_never_stamps_malformed_entry_ids(self):
         # A malformed id must not poison the trailer channel: the entry still
         # fuses, but no Memory-Entry line is written for it.
@@ -3553,6 +3588,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("Memory-Entry: mse_1111111111111111", message)
         self.assertNotIn("mse_UPPER!!invalid", message)
 
+    @pytest.mark.integration
     def test_session_merge_branch_dry_run_reports_plan_without_merging(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
@@ -3586,6 +3622,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertFalse(_is_recognized_session_tree_path(".memory-seed/sessions/decisions/2026-07-10.md"))
         self.assertFalse(_is_recognized_session_tree_path("notes.txt"))
 
+    @pytest.mark.integration
     def test_session_merge_branch_imports_link_sidecar_added_on_branch(self):
         # P1 regression: a branch-side link sidecar block appended to a file
         # that already exists on base used to be reset to base content and
@@ -3643,6 +3680,7 @@ class MemorySeedTests(unittest.TestCase):
         diff_stat = self._git(cwd, "diff", "--stat", "HEAD~1", "HEAD", "--", ".memory-seed/sessions/links").stdout
         self.assertTrue(diff_stat.strip(), "merge commit must carry the link-sidecar change, not contribute nothing")
 
+    @pytest.mark.integration
     def test_session_merge_branch_fuses_link_sidecar_edited_on_both_sides(self):
         # Two-sided edit is the case the `-merge` guard forces into a real git
         # conflict. Before this fix that conflict was misclassified as
@@ -3703,6 +3741,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("entry_id: mse_bbbbbbbbbbbbbbbb", text)
         self.assertIn("entry_id: mse_cccccccccccccccc", text)
 
+    @pytest.mark.integration
     def test_session_merge_branch_refuses_link_sidecar_modified_on_branch(self):
         # The sanctioned stub -> live classification workflow runs on trunk
         # (lifecycle-edge-linking-sidecars.md). Modifying an EXISTING sidecar
@@ -3740,6 +3779,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("existing link sidecar modified", result.issues[0])
         self.assertFalse((cwd / ".git" / "MERGE_HEAD").exists())
 
+    @pytest.mark.integration
     def test_session_merge_branch_refuses_to_reset_an_unrecognized_sessions_path(self):
         # Defense in depth (added alongside the link-sidecar fix): a future
         # sidecar kind under .memory-seed/sessions that no classifier
@@ -3765,6 +3805,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("not recognized by any session/diagram/link classifier", result.issues[0])
         self.assertTrue((cwd / ".git" / "MERGE_HEAD").exists())
 
+    @pytest.mark.integration
     def test_session_prepare_pr_branch_commits_chronological_merge_on_task_branch(self):
         cwd = self.make_project()
         target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-12.md"
@@ -3800,6 +3841,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertTrue(message.startswith("Merge branch 'main' into feature-pr"))
         self.assertIn("Memory-Entry: mse_cccccccccccccccc", message)
 
+    @pytest.mark.integration
     def test_session_prepare_pr_branch_refuses_dirty_tree_naming_paths(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
@@ -3816,6 +3858,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn("dirty.txt", result.issues[0])
         self.assertFalse((cwd / ".git" / "MERGE_HEAD").exists())
 
+    @pytest.mark.integration
     def test_session_prepare_pr_branch_prefers_origin_main_when_local_main_is_stale(self):
         cwd = self.make_project()
         target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-12.md"
@@ -3850,6 +3893,7 @@ class MemorySeedTests(unittest.TestCase):
         pos_b = text.find("## 2026-07-12 10:00")
         self.assertTrue(0 <= pos_c < pos_b, f"origin/main was not used: c={pos_c} b={pos_b}")
 
+    @pytest.mark.integration
     def test_session_prepare_pr_branch_leaves_non_session_conflicts_in_progress(self):
         cwd = self.make_project()
         (cwd / "notes.txt").write_text("base\n", encoding="utf-8")
@@ -3871,6 +3915,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertEqual(result.conflicts, ["notes.txt"])
         self.assertTrue((cwd / ".git" / "MERGE_HEAD").exists())
 
+    @pytest.mark.integration
     def test_session_open_pr_dry_run_returns_pr_body_plan(self):
         import unittest.mock
 
@@ -3904,6 +3949,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertFalse(result.pr_created)
         self.assertEqual(self._git(cwd, "status", "--short").stdout.strip(), "")
 
+    @pytest.mark.integration
     def test_session_open_pr_refreshes_remote_base_before_preparing_and_pushing(self):
         import subprocess
         import unittest.mock
@@ -3980,6 +4026,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertIn(("push", "--set-upstream", "origin", "feature-pr"), git_commands)
         self.assertFalse(any("--force" in args or "-f" in args for args in git_commands))
 
+    @pytest.mark.integration
     def test_session_open_pr_refuses_failed_base_refresh_before_branch_modification(self):
         import unittest.mock
 
@@ -4010,6 +4057,7 @@ class MemorySeedTests(unittest.TestCase):
         self.assertEqual(before, self._git(cwd, "rev-parse", "HEAD").stdout.strip())
         self.assertEqual(self._git(cwd, "status", "--short").stdout.strip(), "")
 
+    @pytest.mark.integration
     def test_session_open_pr_refuses_unauthenticated_gh_before_modifying_branch(self):
         import unittest.mock
 
@@ -4995,6 +5043,7 @@ class McpMergeTests(unittest.TestCase):
         self.assertEqual(_codex_mcp_status(cwd), "foreign")
         self.assertFalse(any("Codex" in w for w in doctor(cwd=cwd).warnings))
 
+    @pytest.mark.integration
     def test_doctor_warns_on_orphan_skill_not_in_registry(self):
         from memory_seed.core import doctor
 
@@ -5030,6 +5079,7 @@ class McpMergeTests(unittest.TestCase):
             any("ghost_skill.md" in w for w in doctor(cwd=cwd).warnings)
         )
 
+    @pytest.mark.integration
     def test_doctor_warns_on_local_user_with_no_matching_participant(self):
         from memory_seed.core import doctor
 
@@ -5065,6 +5115,7 @@ class McpMergeTests(unittest.TestCase):
         )
         self.assertFalse(any("participants:" in w for w in doctor(cwd=cwd).warnings))
 
+    @pytest.mark.integration
     def test_doctor_warns_when_runtime_exists_but_routing_file_is_foreign(self):
         from memory_seed.core import doctor, _merge_routing_stanza
 
@@ -5349,6 +5400,7 @@ class CliHelpTests(unittest.TestCase):
         self.assertTrue((project / ".memory-seed" / "agent-rules.md").exists())
         self.assertIn("agents:\n", (project / ".memory-seed" / "project.yaml").read_text(encoding="utf-8"))
 
+    @pytest.mark.integration
     def test_branch_status_cli_warns_on_dirty_main(self):
         import os
         import subprocess
@@ -5380,6 +5432,7 @@ class CliHelpTests(unittest.TestCase):
         self.assertIn("task branch", out)
         self.assertIn("--no-ff", out)
 
+    @pytest.mark.integration
     def test_branch_status_cli_json_reports_feature_branch(self):
         import json
         import os
@@ -5412,6 +5465,7 @@ class CliHelpTests(unittest.TestCase):
         self.assertFalse(data["is_integration_branch"])
         self.assertIn("merge --no-ff", data["recommendation"])
 
+    @pytest.mark.integration
     def test_worktree_guard_cli_blocks_root_write_intent_without_override(self):
         import os
 
@@ -5429,6 +5483,7 @@ class CliHelpTests(unittest.TestCase):
         self.assertIn("Safe to write: no", out)
         self.assertIn("--allow-root-write", out)
 
+    @pytest.mark.integration
     def test_worktree_guard_cli_json_reports_owned_worktree(self):
         import json
         import os
@@ -5455,6 +5510,7 @@ class CliHelpTests(unittest.TestCase):
         self.assertEqual(data["classification"], "owned-worktree")
         self.assertTrue(data["safe_to_write"])
 
+    @pytest.mark.integration
     def test_worktree_status_cli_without_agent_is_read_only_observation(self):
         import json
         import os
@@ -5816,6 +5872,7 @@ class CliHelpTests(unittest.TestCase):
         self.assertIn("Would migrate: 2026-06-21.md -> 2026-06/2026-06-21.md", out)
         self.assertIn("No files changed.", out)
 
+    @pytest.mark.integration
     def test_session_fuse_cli_dry_run_reports_imports(self):
         import os
         import subprocess
@@ -5882,6 +5939,7 @@ class CliHelpTests(unittest.TestCase):
         self.assertIn("Would import: mse_1111111111111111", out)
         self.assertIn(".memory-seed/sessions/2026-07/2026-07-11.md", out)
 
+    @pytest.mark.integration
     def test_session_merge_branch_cli_dry_run_reports_plan(self):
         import os
         import subprocess

@@ -3,6 +3,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import pytest
 from datetime import date
 from io import StringIO
 from pathlib import Path
@@ -989,6 +990,7 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertEqual(fetched["chunk"]["entry_id"], "ms-granular")
         self.assertEqual(fetched["chunk"]["granularity"], "section")
 
+    @pytest.mark.integration
     def test_call_tool_memory_branch_status_reports_git_posture(self):
         cwd = self.make_project()
         (cwd / "README.md").write_text("# test\n", encoding="utf-8")
@@ -1002,6 +1004,7 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertTrue(payload["status"]["is_integration_branch"])
         self.assertIn("recommendation", payload["status"])
 
+    @pytest.mark.integration
     def test_call_tool_memory_worktree_guard_reports_owned_namespace(self):
         cwd = self.make_project()
         (cwd / "README.md").write_text("# test\n", encoding="utf-8")
@@ -1021,6 +1024,7 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertTrue(payload["safe_to_write"])
         self.assertEqual(payload["actual_namespace_owner"], "codex")
 
+    @pytest.mark.integration
     def test_call_tool_memory_worktree_guard_blocks_foreign_namespace(self):
         cwd = self.make_project()
         (cwd / "README.md").write_text("# test\n", encoding="utf-8")
@@ -1040,6 +1044,7 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertFalse(payload["safe_to_write"])
         self.assertEqual(payload["severity"], "block")
 
+    @pytest.mark.integration
     def test_call_tool_memory_session_fuse_preview_reports_parented_sidecar(self):
         cwd = self.make_project()
         self.write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")

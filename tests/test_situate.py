@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import pytest
 from pathlib import Path
 
 from memory_seed.core import MEMORY_DIR_NAME
@@ -102,6 +103,7 @@ class SituateReportTests(unittest.TestCase):
         )
         self.assertFalse(situate_report(cwd=self.cwd).changelog_unreleased)
 
+    @pytest.mark.integration
     def test_git_state_branch_dirty_ahead(self):
         (self.sessions / "2026-06-01.md").write_text(_entry("2026-06-01 09:00", A), encoding="utf-8")
 

@@ -48,6 +48,9 @@ memory_trace = "memory-trace/memory_trace"
 # Pytest's cacheprovider can hang on shutdown in Windows OneDrive worktrees
 # after tests pass. Keep validation deterministic by disabling repo-local cache.
 addopts = ["-p", "no:cacheprovider"]
+markers = [
+  "integration: spawns real git subprocesses across a multi-step workflow (>=0.5s measured); run the fast loop with `pytest -m \"not integration\"`, full suite (default `pytest`) still runs everything.",
+]
 
 [tool.setuptools.package-data]
 memory_seed = [
