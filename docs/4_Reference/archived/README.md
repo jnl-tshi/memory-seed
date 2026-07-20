@@ -5,4 +5,10 @@ provenance, but moved out of the live `4_Reference/` view so it's clear what sti
 
 **Required YAML:** `extracted_into:` (the plan/spec that absorbed the actionable items).
 
-**Contents:** _none yet._ Candidates identified during the Phase 2 reference pass will move here.
+**Contents:**
+
+- `memory-seed-post-trail-platform-review-proposal-set.md` — mined into four plans across `2_Todo`
+  and `8_Deferred`.
+- `trace-humanised-dashboard-captures.md` — seven raw mood-board screenshots (2026-07-16), archived
+  2026-07-20 once their palette and hierarchy themes were extracted into the Inbox folder README.
+  The generated mockups stayed behind, in `1_Inbox`, because live documents cite them.

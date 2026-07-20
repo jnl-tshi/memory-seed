@@ -1,14 +1,18 @@
 # Next Steps
 
-Status: **ACTIVE — Constitution-aligned** (v1.0 ratified 2026-07-14; v1.1 2026-07-16; v1.2 2026-07-17).
-Updated: 2026-07-17
+Status: **ACTIVE — Constitution-aligned** (v1.0 ratified 2026-07-14; v1.1 2026-07-16; v1.2 2026-07-17;
+v1.3 2026-07-19).
+Updated: 2026-07-20
 
 > ▶ **Foundation and memory-quality core shipped 2026-07-15.** The
 > [derived-projection Phase 1](derived-projection-implementation-plan.md) (git-watermark warm start +
 > atomic swap + three read-path perf refinements) **shipped 2026-07-15** — the plan's former "do first"
-> foundation is done. Work still sequences *under* [`docs/CONSTITUTION.md`](../CONSTITUTION.md) **v1.2**
+> foundation is done. Work still sequences *under* [`docs/CONSTITUTION.md`](../CONSTITUTION.md) **v1.3**
 > (each item answers the five-question test — Capture / Validation / Retrieval / Trust / Application — and
 > respects Invariant #6: Markdown = source of truth; every DB/cache is a derived, rebuildable projection).
+> **v1.3 (2026-07-19)** amended Invariant #2 with write-surface parity: any surface that writes session
+> memory must run the same validation as every other, which is what permitted — and constrains — the
+> gated MCP write path below.
 > The ranking/graph core now includes the full-corpus gate, `superseding_head` plus its bounded boost,
 > and inert `link audit --apply` scaffolding. **2.19.0 released 2026-07-17** (live on PyPI). **B0a
 > graph/workspace contracts and renderer evidence are complete;
@@ -38,6 +42,65 @@ Foundation shipped (per-doc status verified against CHANGELOG + code, not this f
   integration-mode phases, and lifecycle-link scaffold steps 1–3.
 - **Release cadence:** 2.19.0 is **released** (2026-07-17). The next tranche accumulates under
   `CHANGELOG.md` "## Unreleased"; publishing remains a manual-approval gate at the pypi environment.
+
+## Shipped 2026-07-18/19 — unreleased, on local main
+
+None of this was on the roadmap when it was written; it is recorded here so the next sprint starts from
+what is true rather than reconstructing it. All of it sits on local main, unpushed.
+
+- **Gated MCP write surface + Constitution v1.3.** `memory_session_append` is now the only way to author
+  an entry over MCP, inheriting all nine write-time guards, and `memory_session_integrate` wraps branch
+  integration. Both **replaced and removed** `memory_entry_id` and `memory_session_target` — an id plus a
+  target path was the entire bypass, and it was the path agents actually used. `dry_run` on both the tool
+  and `session append` runs every guard and returns `rendered`: the byte-exact block a real write would
+  append. A follow-up pinned the contract that a dry run's `timestamp` is echoed into the real call, so a
+  preview at `:59` and a write at `:01` cannot silently mint a different id. Constitution **v1.3** amended
+  Invariant #2 with write-surface parity — the amendment is what binds future agents, since the invariant
+  never forbade the change.
+- **Session-memory integrity.** New `malformed-entry-yaml` links-check error for an unclosed entry
+  metadata fence — the signature a bad three-way merge leaves. It was verified by replay against the
+  actual corruption: it flags exactly the damaged entry at `ae90e91` and is silent on the repaired file.
+  `.gitattributes` now applies `-merge` to `.memory-seed/sessions/**` so git cannot line-merge session
+  files at all; concurrent edits conflict wholesale and the structural merge is the only way through.
+- **Topic vocabulary 21 → 23** — `security` and `performance` added rather than rewriting the published
+  entries that already used them. The vocabulary describes the corpus; it does not constrain it
+  retroactively.
+- **Trail UI tranche (merged).** Deterministic hand-drawn Trail geometry, middle-third scroll discipline,
+  the floating find bar, DRAFT initials rendered as words with file pills, pressure ribbons across the
+  whole rail, a tabbed settings menu, collapsible entry metadata, and the full-text/find-bar consolidation
+  that removed the competing results dropdown.
+
+### Unscoped discoveries — found by doing the work
+
+Four defects that no one reported and no plan predicted. They are recorded because the pattern matters
+more than the individual fixes: each was found by measuring or testing rather than by reading code.
+
+1. **A dark-mode contrast bug the report did not name.** The reported symptom was unreadable pressed-button
+   lettering; the same rule was also near-invisible in light mode (cream on cream, 1.15:1).
+2. **A self-inflicted capability regression.** Making Enter cycle local matches left the server's full-text
+   search — the only thing that reads entry *bodies* — reachable only when the Trail had no local match.
+   Flagged when introduced, repaired the same day.
+3. **The DRAFT body lint was blind to any entry quoting code.** `_walk_entry_bodies` split the body on
+   `fences[1]`, but the metadata opener is ` ```yaml ` and never equals a bare ` ``` `, so `fences[1]` was
+   really a body code fence and everything above it was discarded. Found while fixing fence integrity;
+   un-blinding it exposed one real violation in a published entry.
+4. **82% of search results were filler.** `rank_memory_chunks` never drops zero-score chunks, so an
+   entry-granularity search returns the whole corpus ranked. A dropdown hid it; cycling would have marched
+   through 82 unrelated entries of a 100-result page with the counter reporting progress.
+
+### P1 — link sidecars are silently lost by `session merge-branch`
+
+Branch-side edits to `.memory-seed/sessions/links/**` are discarded without an error.
+`_changed_session_paths` (`memory_seed/core.py:2637`) diffs *all* of `.memory-seed/sessions`, so the reset
+loop (`:3348-3354`) restores sidecars to base content — but `_session_doc_from_relative_path` (`:2429`)
+returns `None` for `links/` paths, so the fuse never re-imports them. The work vanishes.
+
+The `-merge` guard changed its shape rather than causing it: the both-sides case now conflicts and is
+misclassified as a *non-session* conflict (`:3506`), aborting the merge loudly. The one-sided case — the
+common one — still loses silently. **Until this is fixed, classify link sidecars on the trunk, never on a
+branch.** A fix must cover both cases and carry regression tests; it was deliberately not bundled into the
+2026-07-20 documentation sprint because the fuse is the same machinery whose hand-resolution corrupted the
+corpus on 2026-07-19.
 
 ## Open decisions — ready for your call
 
@@ -183,9 +246,14 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   [`memory-trace-frontend-architecture-and-design-system-proposal.md`](memory-trace-frontend-architecture-and-design-system-proposal.md)
   (roadmap Phase 2). `memory-trace/client/` now builds a TypeScript React shell to packaged `/next` assets;
   it consumes only `/api/v1/*`, lazy-loads Cytoscape.js, and needs no Node.js at runtime. The first
-  three-region shell has independent navigation and persisted Inspector dock state. Storybook, the formal
-  Playwright harness, Trail/search parity, and accessibility acceptance remain open. The current vanilla
-  `/` UI remains the supported fallback until explicit parity sign-off.
+  three-region shell has independent navigation and persisted Inspector dock state.
+  **Trail/search parity is substantially closed as of 2026-07-19**: local title/branch/id find-bar cycling
+  with eased Trail scrolling, server full-text search reachable from the same bar, one counter and one
+  pair of chevrons serving both modes, and the reader easing to the matched section as results are
+  stepped. Genuine hits are separated from the ranker's score-0 filler client-side, so the counter reports
+  matches rather than corpus size. **Storybook, the formal Playwright harness, and accessibility
+  acceptance remain open.** The current vanilla `/` UI remains the supported fallback until explicit
+  parity sign-off.
 - **B0b — Native graph/workspace implementation** *(started 2026-07-16; implemented through roadmap
   Phases 3 and 5)* — the first React shell provides a lazy Cytoscape graph, bounded initial graph range,
   shared entry selection, right/bottom/auto/hidden persisted Inspector controls, and the additive
@@ -300,11 +368,33 @@ apply time, git-native with bounded retry, no raw deletion, branches untouched).
 guidance adopting worktree=session and branch=task with `<agent>/<kind>/<topic>` names — remains; existing
 names are grandfathered.
 
-## Inbox disposition — evaluated 2026-07-16
+## Inbox disposition — evaluated 2026-07-16, re-triaged 2026-07-20
 
-All 14 Inbox documents were evaluated. Actionable work now has one canonical owner in Todo, security- or
-evidence-gated work is Deferred, source indexes are archived/superseded, and `docs/1_Inbox/` is empty pending
-new captures. Constitution v1.1 records the partitioned Markdown-authority decision.
+The 2026-07-16 pass evaluated all 14 Inbox documents: actionable work got one canonical owner in Todo,
+security- or evidence-gated work went to Deferred, source indexes were archived or superseded.
+Constitution v1.1 records the partitioned Markdown-authority decision.
+
+A new drop arrived 2026-07-18 (two 7-document proposal sets, a product proposal, and a design-reference
+folder) and was assessed but deliberately not promoted — see
+[`INBOX-ASSESSMENT.md`](../1_Inbox/INBOX-ASSESSMENT.md). Triaged 2026-07-20:
+
+- **Living Archive / Editorial Focus product proposal → `2_Todo`, blocked.**
+  [The proposal](memory-trace-living-archive-and-editorial-focus-proposal.md) is the most mature document
+  in the drop — conformant frontmatter, its own promotion criteria and its own open decisions. Promoted so
+  it is visible on the roadmap rather than buried, but `blocked_by` its section 14 decisions; nothing is
+  built until those are answered. **It cites the deferred commercialisation report as a source, so acting
+  on its Pro/edition-boundary sections would partially un-defer commercialisation** — a separate decision
+  that has not been taken. `8_Deferred/` was left untouched.
+- **Both proposal sets stay in `1_Inbox`; disposition deferred.** Step 1 of the assessment's corrected
+  five-step sequence was executed instead —
+  [a current-capability crosswalk](../1_Inbox/INBOX-CAPABILITY-CROSSWALK.md) mapping each claim against
+  what already exists and who owns it, so a later promotion decision is about a real delta rather than a
+  proposal's self-description. Steps 2–5 (hand-model three multi-decision entries, build a constrained-
+  context gold set, pilot one open-question lens, then decide) remain undone. **No proposal has been
+  promoted or rejected.**
+- **Raw design captures → `4_Reference/archived`.** Seven mood-board screenshots were archived once their
+  palette and hierarchy themes had been extracted into the folder README; the five generated mockups stay
+  in `1_Inbox` because live documents cite them.
 
 ## Captured strategic input — `4_Reference` (2026-07-14 drop, triaged)
 

@@ -1,23 +1,38 @@
 ---
 title: Memory Trace Living Archive and Editorial Focus product proposal
-status: inbox
+status: todo-blocked
 date: 2026-07-18
-promotion: not approved
+promoted: 2026-07-20
+priority: P2
+next_action: JNL resolves the six open decisions in section 14; nothing is built until then.
+blocked_by: >-
+  Section 14 open decisions — (1) is "Living Archive" the product name or an internal design
+  direction; (2) is "Editorial Focus" a mode, a Pro capability label, or the generated pane's name;
+  (3) is local/BYOK synthesis paid Pro or does a limited local path stay Community; (4) are generated
+  briefs ephemeral, cached outside the repo, or exportable artifacts; (5) which first brief proves
+  value — decision, change, handover, or unresolved-questions; (6) what user test shows Living Archive
+  improves comprehension enough to become the B0b visual target rather than a later redesign.
 scope: Community reading experience and optional Pro cited-synthesis layer
 sources:
-  - ../2_Todo/memory-trace-ai-timeline-summarisation-plan.md
-  - ../2_Todo/memory-trace-evidence-annotations-and-projection-architecture.md
-  - ../2_Todo/memory-provenance-and-authority-taxonomy-proposal.md
-  - ../2_Todo/memory-trace-next-generation-implementation-roadmap.md
+  - memory-trace-ai-timeline-summarisation-plan.md
+  - memory-trace-evidence-annotations-and-projection-architecture.md
+  - memory-provenance-and-authority-taxonomy-proposal.md
+  - memory-trace-next-generation-implementation-roadmap.md
   - ../8_Deferred/memory-trace-commercialisation-and-monetisation-report.md
-  - memory-seed-ontology-evidence-proposals/00-index.md
-  - memory-seed-relevance-proposals/00-proposal-set-index.md
-  - INBOX-ASSESSMENT.md
+  - ../1_Inbox/memory-seed-ontology-evidence-proposals/00-index.md
+  - ../1_Inbox/memory-seed-relevance-proposals/00-proposal-set-index.md
+  - ../1_Inbox/INBOX-ASSESSMENT.md
 ---
 
 # Proposal: Living Archive for Community, Editorial Focus for Pro
 
-Status: **INBOX — REFINED PRODUCT HYPOTHESIS, NOT APPROVED FOR IMPLEMENTATION**.
+Status: **TODO — BLOCKED ON THE SECTION 14 DECISIONS. NOT APPROVED FOR IMPLEMENTATION**.
+
+Promoted from `1_Inbox` on 2026-07-20 so the work is visible on the roadmap rather than buried in the
+inbox. Promotion moved the lane, not the gate: section 14 is unanswered and section 15's promotion
+criteria are unmet, so nothing here is built yet. Note also that this proposal draws on
+[the deferred commercialisation report](../8_Deferred/memory-trace-commercialisation-and-monetisation-report.md);
+acting on sections 5 and 9 would partially un-defer that question, which is a separate decision.
 
 ## 1. Product thesis
 
@@ -76,7 +91,7 @@ authored facts in Community and enriched by a cited model result in Pro.
 Living Archive transforms the current diagnostic-style workspace into a readable project chronicle while
 remaining completely local and deterministic.
 
-![Living Archive product direction](trace-humanised-dashboard-references/mockup-02-living-archive.png)
+![Living Archive product direction](../1_Inbox/trace-humanised-dashboard-references/mockup-02-living-archive.png)
 
 ### 4.1 Main workspace
 
@@ -122,7 +137,7 @@ Editorial Focus adds a generated narrative beneath or alongside the selected Tra
 when the question spans many records: “What happened?”, “Why did this direction win?”, “How did the decision
 evolve?”, or “What remains uncertain?”
 
-![Editorial Focus product direction](trace-humanised-dashboard-references/mockup-03-editorial-focus.png)
+![Editorial Focus product direction](../1_Inbox/trace-humanised-dashboard-references/mockup-03-editorial-focus.png)
 
 ### 5.1 Focus interaction
 
@@ -161,7 +176,7 @@ The brief must visibly say **AI-generated synthesis** and show:
 
 The first mockup remains useful as the design-system bridge between the two editions.
 
-![Shared Field Notes design foundation](trace-humanised-dashboard-references/mockup-01-field-notes.png)
+![Shared Field Notes design foundation](../1_Inbox/trace-humanised-dashboard-references/mockup-01-field-notes.png)
 
 The shared language should include:
 
@@ -179,9 +194,9 @@ Dark mode is a first-class expression of the same editorial system, not a photog
 light theme. It should preserve hierarchy, evidence semantics, and product parity while changing the
 material character from warm paper to warm ink.
 
-![Living Archive dark-mode direction](trace-humanised-dashboard-references/mockup-04-living-archive-dark.png)
+![Living Archive dark-mode direction](../1_Inbox/trace-humanised-dashboard-references/mockup-04-living-archive-dark.png)
 
-![Editorial Focus dark-mode direction](trace-humanised-dashboard-references/mockup-05-editorial-focus-dark.png)
+![Editorial Focus dark-mode direction](../1_Inbox/trace-humanised-dashboard-references/mockup-05-editorial-focus-dark.png)
 
 - Use warm charcoal or espresso for the canvas, with stepped graphite/deep-olive surfaces; avoid pure
   black and bright-white glare.
