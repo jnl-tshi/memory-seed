@@ -4,6 +4,7 @@ import unittest
 import pytest
 from pathlib import Path
 
+from _git_helpers import run_git
 from memory_seed.core import (
     MEMORY_DIR_NAME,
     check_session_links,
@@ -68,9 +69,7 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         )
 
     def _git(self, cwd, *args):
-        import subprocess
-
-        return subprocess.run(["git", "-C", str(cwd), *args], check=True, capture_output=True, text=True)
+        return run_git(cwd, *args, check=True)
 
     def _init_git_project(self, cwd):
         self._git(cwd, "init", "-q")

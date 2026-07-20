@@ -1,10 +1,10 @@
 import shutil
-import subprocess
 import tempfile
 import unittest
 import pytest
 from pathlib import Path
 
+from _git_helpers import run_git
 from memory_seed.worktree_gc import (
     apply_worktree_gc,
     classify_worktrees,
@@ -14,12 +14,7 @@ from memory_seed.worktree_gc import (
 
 
 def _git(cwd, *args):
-    return subprocess.run(
-        ["git", "-C", str(cwd), *args],
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
+    return run_git(cwd, *args, timeout=60)
 
 
 class WorktreeClassifyTests(unittest.TestCase):

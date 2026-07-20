@@ -133,13 +133,32 @@ than shared, since a true shared module wasn't attempted in this pass (see Phase
 controlled, verified-identical duplication of small leaf helpers, not the kind of duplication the audit
 is trying to eliminate.
 
-## Phase 2b — harness dedup (not started)
+## Phase 2b — harness dedup, done 2026-07-20
 
-`_git()` now lives in exactly 4 files: `test_git_hooks.py`, `test_mcp_session_integrate.py`,
-`test_worktree_gc.py`, `test_session_fuse_and_merge.py` (was `test_memory_seed.py` before the split).
-They differ in `check=True` vs `check=False` and a `timeout=60` — needs a real behavioral comparison
-per file before unifying, not a blind text merge. The three small fixture helpers noted above are a
-second, lower-risk dedup candidate for the same pass.
+`_git()` lived in 4 files, each hand-rolling the same `subprocess.run(["git", "-C", ...])` call with
+different `check`/`timeout` defaults: `check=True` (`test_git_hooks.py`, `test_session_fuse_and_merge.py`),
+`check=False` explicit (`test_mcp_session_integrate.py`), and no `check` passed at all plus
+`timeout=60` (`test_worktree_gc.py`). Read each exact implementation and every call site before
+touching anything — the differences were real, not incidental drift, so a single shared default would
+have silently changed behavior for at least one file.
+
+Added `tests/_git_helpers.py` (leading underscore keeps it out of pytest's `test_*.py` collection) with
+one `run_git(cwd, *args, check=False, timeout=None)`. Each file's own `_git()` now delegates to it,
+passing its own historical `check`/`timeout` explicitly — every existing call site (18 + 23 + 28 + 124 =
+193 of them) needed zero changes, since each file's `_git(...)` signature and behavior are unchanged
+from the caller's perspective. Removed `import subprocess` from `test_mcp_session_integrate.py` and
+`test_worktree_gc.py`, where it was only ever used inside `_git()`; kept it in the other two files,
+which also call `subprocess.run` directly elsewhere. Fixed a stale docstring reference in
+`test_mcp_session_integrate.py` pointing at the now-retired `test_memory_seed.py`.
+
+**Not done in this pass:** the three small pure-Python fixture helpers noted above
+(`_per_user_session`, `_write_participants`, `_git_repo_with_commit`) remain duplicated across 2-3
+files. Lower risk than the subprocess helper was, but still needs the same read-every-caller
+discipline before merging, not a blind cross-file diff.
+
+**Verified:** the 4 files' own tests (103 tests) pass; full suite still 635 passed / 14 subtests
+(unchanged); `docs check`/`links check` clean. Diff is small and net-negative: 9 insertions, 16
+deletions across the 4 files plus one new 20-line shared module.
 
 ## Phase 2c — the actual content cull (not started)
 

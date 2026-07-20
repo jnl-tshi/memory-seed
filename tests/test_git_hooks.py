@@ -12,6 +12,7 @@ import unittest
 import pytest
 from pathlib import Path
 
+from _git_helpers import run_git
 from memory_seed.core import (
     MEMORY_DIR_NAME,
     PACKAGE_ROOT,
@@ -46,9 +47,7 @@ class GitHookTests(unittest.TestCase):
         shutil.copyfile(HOOK_SCRIPT, hooks_dir / "prepare-commit-msg.py")
 
     def _git(self, *args):
-        return subprocess.run(
-            ["git", "-C", str(self.cwd), *args], check=True, capture_output=True, text=True
-        )
+        return run_git(self.cwd, *args, check=True)
 
     def _last_message(self) -> str:
         return self._git("log", "-1", "--format=%B").stdout
