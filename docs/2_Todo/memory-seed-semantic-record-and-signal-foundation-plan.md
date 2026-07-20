@@ -60,7 +60,11 @@ This is partitioned authority, not dual authority: each field has one declared o
 
 ### Phase 1 - ADR walking skeleton
 
-- Adopt `docs/3_Spec/draft/adr-lifecycle-sidecar-contract.md` as the candidate contract.
+- Adopt `docs/3_Spec/draft/adr-lifecycle-sidecar-contract.md` as the candidate contract. **Its decision
+  identity was amended 2026-07-20**: a decision is the pair `(source_entry_id, source_decision)`, the
+  ordinal derived from the DRAFT grammar with a singular `### Decision` read as `d1`. The sidecar no
+  longer invents a decision key, heading path, or source-text fingerprint — so this phase implements a
+  pointer, not an identity scheme.
 - Promote three decisions spanning a direct decision entry, a multi-decision entry, and a legacy entry.
 - Prove exact source resolution, append-only transition order, and full context retrieval.
 - **Also measure, added 2026-07-20:** ambiguity reduction against authoring cost. This phase *is* step 2
