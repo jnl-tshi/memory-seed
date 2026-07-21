@@ -98,7 +98,7 @@ function inline(text: string): ReactNode[] {
 // fenced code, h3-h6 headings, bullet and paragraph blocks, inline code/bold.
 // When `highlight` names a heading, that subsection (its heading plus every
 // block until the next heading) carries the match-highlight classes.
-function renderMarkdown(text: string, highlight: string | null): ReactNode[] {
+function renderMarkdown(text: string, highlight: string | null, onOpenFile: (path: string) => void): ReactNode[] {
   const lines = unwrapLines(text.split("\n"));
   const out: ReactNode[] = [];
   let inCode = false;
@@ -155,7 +155,7 @@ function renderMarkdown(text: string, highlight: string | null): ReactNode[] {
       if (draft === "F") {
         const files = fileTokens(body);
         out.push(files.length
-          ? <div key={key++} className="file-pills">{files.map((file) => <span key={file} className="file-pill" title={file}>{file}</span>)}</div>
+          ? <div key={key++} className="file-pills">{files.map((file) => <button key={file} type="button" className="file-pill" title={`Show the graph of entries that touched ${file}`} onClick={() => onOpenFile(file)}>{file}</button>)}</div>
           : <p key={key++} className="draft-body">{inline(body)}</p>);
       } else {
         out.push(<p key={key++} className={`draft-body${inMatch ? " match-highlight-body" : ""}`}>{inline(body)}</p>);
@@ -168,7 +168,7 @@ function renderMarkdown(text: string, highlight: string | null): ReactNode[] {
       if (draft === "F") {
         const files = fileTokens(body);
         if (files.length) {
-          out.push(<div key={key++} className="file-pills">{files.map((file) => <span key={file} className="file-pill" title={file}>{file}</span>)}</div>);
+          out.push(<div key={key++} className="file-pills">{files.map((file) => <button key={file} type="button" className="file-pill" title={`Show the graph of entries that touched ${file}`} onClick={() => onOpenFile(file)}>{file}</button>)}</div>);
           continue;
         }
       }
@@ -219,10 +219,12 @@ export function EntryReader({
   chunk,
   matchHeading,
   onOpenEntry,
+  onOpenFile,
 }: {
   chunk: ChunkResponse | null;
   matchHeading: string | null;
   onOpenEntry: (entryId: string) => void;
+  onOpenFile: (path: string) => void;
 }) {
   if (!chunk) return <p className="reader-empty">Loading entry details</p>;
 
@@ -253,7 +255,7 @@ export function EntryReader({
         </div>
       )}
 
-      <div className="markdown">{renderMarkdown(chunk.text || chunk.excerpt || "", matchHeading)}</div>
+      <div className="markdown">{renderMarkdown(chunk.text || chunk.excerpt || "", matchHeading, onOpenFile)}</div>
 
       {(commit || chunk.path) && (
         <section className="detail-section">

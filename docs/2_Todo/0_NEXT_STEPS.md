@@ -358,10 +358,20 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   at depth 8 centered on the selected entry — a scoped lifecycle-chain view distinct from Local's full
   neighborhood, reusing the existing `/api/v1/graph/projection` `edge_types`/`depth` params with zero
   backend changes. Verified live: an entry with a real `evolves` edge renders exactly its 2-node chain;
-  an entry with none renders an empty graph, no crash. File mode (needs a new backend file→entries
-  index; designed, not yet built) and topology communities (algorithm choice — Louvain recommended,
-  client-side over the existing bounded projection; designed, not yet built) remain, plus formal
-  accessibility/scale acceptance.
+  an entry with none renders an empty graph, no crash. **File graph mode shipped 2026-07-21**: a new
+  `file_entry_index` (path → entry_ids) derived once per rebuild from each entry's authoring commit's
+  *parent* — not the entry's own diff or its recorded `branch:` field, both of which are usually just
+  the session file/`main`, since this project logs sessions on main after merging, not on the feature
+  branch. Exposed as a `path` param on `/api/v1/graph/projection`, seeding the graph with an exact
+  membership set (a new `entry_ids` path through `Service.graph()`) rather than a neighborhood
+  expansion. File pills in the reader's `F:` blocks are now clickable, opening this scope directly.
+  First implementation attempt used trailer/branch-name matching and returned zero nodes against real
+  data — found live, root-caused (this session's own commits never carry a `Memory-Entry` trailer, and
+  entries logged after merge record `branch: main`), and corrected; 8 unit tests cover both the
+  merge-based and plain-commit shapes. Verified live against real multi-entry files (23 entries for
+  `App.tsx`) with real relationship edges rendered between them. Topology communities (algorithm
+  choice — Louvain recommended, client-side over the existing bounded projection; designed, not yet
+  built) remain, plus formal accessibility/scale acceptance.
   Keep the SVG renderer until explicit parity sign-off.
   Only after B0b acceptance may the
   [`structural-provider proposal`](memory-trace-structural-graph-enrichment-provider-proposal.md) define a
