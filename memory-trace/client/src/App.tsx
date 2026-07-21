@@ -491,8 +491,14 @@ export default function App() {
   const ensureTrailVisible = useCallback((count: number) => setTrailWindow((value) => Math.max(value, count)), []);
 
   // Opening from the context panel selects the entry and, in Trail mode, the
-  // Trail scrolls to it (TrailWorkspace watches the selection).
+  // Trail scrolls to it (TrailWorkspace watches the selection). Same reuse
+  // pattern as selectFromTrail: a context entry is usually already a node in
+  // whatever graph is loaded (that's why it's related/similar/evolves in the
+  // first place), so select it in place rather than reflexively jumping scope
+  // to Local — only entries outside the current graph need a fetch to appear.
   async function openContextEntry(entryId: string) {
+    const node = graph?.nodes.find((item) => item.source.entry_id === entryId);
+    if (node) { select(node); return; }
     await focusEntry(entryId);
   }
 
