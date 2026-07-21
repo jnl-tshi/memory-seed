@@ -52,6 +52,16 @@
 html, body, #root { height: 100%; }
 body { margin: 0; min-width: 320px; min-height: 100vh; overflow: hidden; }
 button { font: inherit; }
+/* A mild lift on hover so real controls read as clickable next to inert
+   decorative icons (e.g. the search glyph inside the input, which is a plain
+   svg, not a button) — motion where color/border cues alone are easy to miss
+   at a glance. Transition lives on the base element so every button-specific
+   hover rule below (colour, border, background swaps) rides the same easing
+   instead of snapping. */
+button:not(:disabled) { transition: transform 110ms ease, background-color 110ms ease, border-color 110ms ease, color 110ms ease; }
+button:not(:disabled):hover { transform: translateY(-1px); }
+button:not(:disabled):active { transform: translateY(0); transition-duration: 40ms; }
+@media (prefers-reduced-motion: reduce) { button:not(:disabled) { transition: none; }button:not(:disabled):hover { transform: none; } }
 .brand span { font-family: var(--font-display); }
 .trace-shell { height: 100%; min-height: 0; display: grid; grid-template-columns: var(--nav-w, 264px) minmax(0, 1fr) var(--insp-w, 340px); grid-template-rows: 56px minmax(0, 1fr); background: var(--bg); }
 .trace-shell.navigation-hidden { grid-template-columns: minmax(0, 1fr) var(--insp-w, 340px); }
@@ -140,10 +150,9 @@ button { font: inherit; }
 .find-step:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .find-all { display: inline-flex; align-items: center; gap: 4px; border: 0; border-left: 1px solid var(--border); border-radius: 0; background: none; color: var(--muted); padding: 2px 4px 2px 8px; font-size: 11px; cursor: pointer; }
 .find-all:hover, .find-all:focus-visible { color: var(--accent-bright); }.find-all:focus-visible { outline: 1px solid var(--accent-bright); outline-offset: 1px; }
-/* Same slot as .find-all, but in full-text mode it is a label, not a control:
-   the search has already run, so it reports the source of what you are
-   stepping through. */
-.find-mode { display: inline-flex; align-items: center; gap: 4px; border-left: 1px solid var(--border); padding: 2px 4px 2px 8px; color: var(--accent-bright); font-size: 11px; }
+/* Pressed (full-text active) reuses the same slot rather than swapping in a
+   dead label: it stays a real control so a second click can switch back. */
+.find-all[aria-pressed="true"] { color: var(--accent-bright); font-weight: 600; }
 .find-note { color: var(--muted); white-space: nowrap; }
 .workspace-bar { min-height: 76px; gap: 14px; }.workspace-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }.segment-control { display: inline-flex; border: 1px solid var(--border-2); border-radius: 4px; overflow: hidden; }.segment-control button { min-height: 28px; display: inline-flex; align-items: center; gap: 5px; border: 0; border-right: 1px solid var(--border-2); background: var(--chip); color: var(--text-3); padding: 4px 8px; font-size: 11px; cursor: pointer; }.segment-control button:last-child { border-right: 0; }.segment-control button[aria-pressed="true"] { background: var(--accent-chip-bg); color: var(--on-accent); }.segment-control button:focus-visible { outline: 1px solid var(--accent-bright); outline-offset: -2px; }
 .label-menu { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }.label-menu select { height: 28px; border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip); color: var(--text); padding: 0 6px; font: inherit; }
