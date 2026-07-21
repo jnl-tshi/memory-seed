@@ -24,6 +24,15 @@ type GraphRange = "recent" | "all";
 const EVOLUTION_EDGE_TYPES: RendererGraphEdge["edge_type"][] = ["evolves", "supersedes"];
 const EVOLUTION_DEPTH = 8;
 
+// What the fetch asks the server for, keyed only by scope — never by the
+// "Edges" filter row's toggle state. That row is a client-side visibility
+// filter over an already-fetched graph (Obsidian-style: lines appear and
+// disappear, nodes don't), not a query parameter, so the node set and the
+// cose layout stay put no matter which chips are on.
+function edgeTypesForScope(targetScope: GraphScope): RendererGraphEdge["edge_type"][] {
+  return targetScope === "evolution" ? EVOLUTION_EDGE_TYPES : DEFAULT_GRAPH_EDGE_TYPES;
+}
+
 const EDGE_LABELS: Record<RendererGraphEdge["edge_type"], string> = {
   related: "Related",
   supersedes: "Replaces",
@@ -229,14 +238,14 @@ export default function App() {
       await loadGraph({
         nextScope: scope,
         nextTopic: activeTopic,
-        nextEdgeTypes: edgeTypes,
+        nextEdgeTypes: edgeTypesForScope(scope),
         preferredEntryId: selected?.source.entry_id,
         dateFrom: scope === "overview" && range === "recent" ? recentDateFrom(nextRuntime) : null,
       });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to load Memory Trace.");
     }
-  }, [activeTopic, edgeTypes, loadGraph, range, scope, selected?.source.entry_id]);
+  }, [activeTopic, loadGraph, range, scope, selected?.source.entry_id]);
 
   // The Trail is a full-history timeline with its own client-side window, so it
   // ignores the graph's recent-range control and fetches the whole corpus (up to
@@ -490,13 +499,13 @@ export default function App() {
   const topics = useMemo(() => Object.entries(facets?.topics ?? {}).slice(0, 10), [facets]);
   const inspectorVisible = dock !== "hidden";
 
-  async function requestGraph(nextScope: GraphScope, nextTopic = activeTopic, nextEdgeTypes = edgeTypes, entryId?: string | null, preferredEntryId?: string | null, keepCurrentOnEmpty = false, dateFrom = nextScope === "overview" && range === "recent" ? recentDateFrom(runtime) : null, depth = nextScope === "evolution" ? EVOLUTION_DEPTH : undefined, path = nextScope === "file" ? filePath : null) {
+  async function requestGraph(nextScope: GraphScope, nextTopic = activeTopic, nextEdgeTypes = edgeTypesForScope(nextScope), entryId?: string | null, preferredEntryId?: string | null, keepCurrentOnEmpty = false, dateFrom = nextScope === "overview" && range === "recent" ? recentDateFrom(runtime) : null, depth = nextScope === "evolution" ? EVOLUTION_DEPTH : undefined, path = nextScope === "file" ? filePath : null) {
     return loadGraph({ nextScope, nextTopic, nextEdgeTypes, entryId, preferredEntryId: preferredEntryId ?? selected?.source.entry_id, keepCurrentOnEmpty, dateFrom, depth, path });
   }
 
   async function focusEntry(entryId: string, options: { preserveHint?: boolean; preserveSearch?: boolean } = {}) {
     if (!options.preserveHint) setMatchHint(null);
-    const nextGraph = await requestGraph("local", null, edgeTypes, entryId, entryId, true, null);
+    const nextGraph = await requestGraph("local", null, undefined, entryId, entryId, true, null);
     if (!nextGraph) return;
     if (!nextGraph.nodes.some((node) => node.source.entry_id === entryId)) {
       setError(`No entry exists with id ${entryId}.`);
@@ -646,31 +655,32 @@ export default function App() {
       return;
     }
     setScope(nextScope);
-    const nextEdgeTypes = nextScope === "evolution" ? EVOLUTION_EDGE_TYPES : edgeTypes;
-    await requestGraph(nextScope, activeTopic, nextEdgeTypes, entryId, entryId);
+    await requestGraph(nextScope, activeTopic, undefined, entryId, entryId);
   }
 
   async function openFileMode(path: string) {
     setFilePath(path);
     setScope("file");
     setViewMode("graph");
-    await requestGraph("file", activeTopic, edgeTypes, null, null, false, undefined, undefined, path);
+    await requestGraph("file", activeTopic, undefined, null, null, false, undefined, undefined, path);
   }
 
   async function chooseTopic(nextTopic: string | null) {
     setActiveTopic(nextTopic);
-    await requestGraph(scope, nextTopic, scope === "evolution" ? EVOLUTION_EDGE_TYPES : edgeTypes, scope !== "overview" && scope !== "file" ? selected?.source.entry_id : null);
+    await requestGraph(scope, nextTopic, undefined, scope !== "overview" && scope !== "file" ? selected?.source.entry_id : null);
   }
 
-  async function toggleEdge(edgeType: RendererGraphEdge["edge_type"]) {
-    const nextEdgeTypes = edgeTypes.includes(edgeType) ? edgeTypes.filter((item) => item !== edgeType) : [...edgeTypes, edgeType];
-    setEdgeTypes(nextEdgeTypes);
-    await requestGraph(scope, activeTopic, nextEdgeTypes, scope === "local" ? selected?.source.entry_id : null);
+  // Obsidian-style: this is a client-side visibility filter over the already-
+  // fetched graph, not a query parameter — it never refetches, never changes
+  // which nodes are on the map, and never re-runs the layout. GraphWorkspace
+  // applies it as an in-place presentation pass (see edge-filtered/EDGE_LABELS).
+  function toggleEdge(edgeType: RendererGraphEdge["edge_type"]) {
+    setEdgeTypes((current) => (current.includes(edgeType) ? current.filter((item) => item !== edgeType) : [...current, edgeType]));
   }
 
   async function changeRange(nextRange: GraphRange) {
     setRange(nextRange);
-    await requestGraph(scope, activeTopic, edgeTypes, scope === "local" ? selected?.source.entry_id : null, undefined, false, nextRange === "recent" ? recentDateFrom(runtime) : null);
+    await requestGraph(scope, activeTopic, undefined, scope === "local" ? selected?.source.entry_id : null, undefined, false, nextRange === "recent" ? recentDateFrom(runtime) : null);
   }
 
   // The hint only applies to the entry it was computed for — a stale hint from
@@ -810,7 +820,7 @@ export default function App() {
             Trail always renders full history through its own window — so they
             are hidden in Trail view rather than sitting there inert. */}
         <div className="workspace-bar"><div><span className="eyebrow">{viewMode === "trail" ? "Trail" : "Graph workspace"}</span><h1>{viewMode === "trail" ? "Decision timeline" : "Relationship map"}</h1></div><div className="workspace-actions">{viewMode !== "trail" && <><div className="segment-control" aria-label="Graph scope"><button type="button" aria-pressed={scope === "overview"} onClick={() => void changeScope("overview")}>Overview</button><button type="button" aria-pressed={scope === "local"} onClick={() => void changeScope("local")}>Local</button><button type="button" aria-pressed={scope === "evolution"} onClick={() => void changeScope("evolution")}>Evolution</button>{filePath && <button type="button" aria-pressed={scope === "file"} onClick={() => void openFileMode(filePath)}>{"File: " + (filePath.split(/[\\/]/).pop() ?? filePath)}</button>}</div><div className="segment-control" aria-label="Graph date range"><button type="button" aria-pressed={range === "recent"} onClick={() => void changeRange("recent")}>Recent</button><button type="button" aria-pressed={range === "all"} onClick={() => void changeRange("all")}>All dates</button></div><label className="label-menu"><span>Labels</span><select value={labelMode} onChange={(event) => setLabelMode(event.target.value as LabelMode)} aria-label="Graph labels"><option value="focus">Focus</option><option value="minimal">Minimal</option><option value="all">All</option></select></label></>}<span className="status-pill">{viewMode === "trail" ? "Trail" : isLoading ? "Updating" : "Cytoscape.js"}</span></div></div>
-        {viewMode !== "trail" && scope !== "evolution" && scope !== "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{DEFAULT_GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => void toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
+        {viewMode !== "trail" && scope !== "evolution" && scope !== "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{DEFAULT_GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
         {viewMode !== "trail" && scope === "evolution" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span><span className="count">Evolves + Replaces only · lifecycle chain</span>{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
         {viewMode !== "trail" && scope === "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>File</span><span className="count" title={filePath ?? ""}>{"Entries that touched " + (filePath ?? "this file")}</span><button type="button" className="active-topic" onClick={() => void changeScope("overview")}>Clear<X size={13} aria-hidden="true" /></button></div>}
         {viewMode === "trail" ? (
@@ -827,7 +837,11 @@ export default function App() {
         ) : (
           <>
             {error && <div className="error-state" role="alert">{error}</div>}
-            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} theme={theme} /></Suspense>}
+            {/* The "Edges" filter row is hidden in Evolution/File scope (it has
+                nothing to do with a fixed lineage chain or a file's touches),
+                so a stale toggle left over from Overview/Local must not carry
+                through and blank out edges the user never chose to hide there. */}
+            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} theme={theme} visibleEdgeTypes={scope === "evolution" || scope === "file" ? edgeTypesForScope(scope) : edgeTypes} /></Suspense>}
             {!graph && <div className="loading-state">Loading graph</div>}
           </>
         )}
