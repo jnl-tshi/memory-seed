@@ -24,6 +24,7 @@ export type GraphQueryOptions = {
   limit?: number;
   topic?: string | null;
   dateFrom?: string | null;
+  path?: string | null;
 };
 
 export const DEFAULT_GRAPH_EDGE_TYPES: RendererGraphEdge["edge_type"][] = ["related", "supersedes", "evolves", "topic"];
@@ -63,6 +64,7 @@ export function graphQuery(options: GraphQueryOptions = {}): Promise<RendererGra
   if (options.depth) params.set("depth", String(options.depth));
   if (options.topic) params.set("topic", options.topic);
   if (options.dateFrom) params.set("date_from", options.dateFrom);
+  if (options.path) params.set("path", options.path);
   return api<RendererGraphResponse>(`/graph/projection?${params.toString()}`);
 }
 

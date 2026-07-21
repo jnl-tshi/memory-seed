@@ -12,7 +12,7 @@ import { stripTitleStamp, trailStamp, TRAIL_WINDOW_STEP } from "./trailModel";
 const GraphWorkspace = lazy(() => import("./GraphWorkspace").then((module) => ({ default: module.GraphWorkspace })));
 const TrailWorkspace = lazy(() => import("./TrailWorkspace").then((module) => ({ default: module.TrailWorkspace })));
 type MatchHint = { entryId: string; heading: string };
-type GraphScope = "overview" | "local" | "evolution";
+type GraphScope = "overview" | "local" | "evolution" | "file";
 type GraphViewMode = "graph" | "trail";
 type LabelMode = "focus" | "minimal" | "all";
 type GraphRange = "recent" | "all";
@@ -138,6 +138,7 @@ export default function App() {
   const [trailStyle, setTrailStyle] = useState<TrailStyle>(readTrailStyle);
   const [error, setError] = useState<string | null>(null);
   const [scope, setScope] = useState<GraphScope>("overview");
+  const [filePath, setFilePath] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<GraphViewMode>("trail");
   const [trail, setTrail] = useState<TrailResponse | null>(null);
   // Full-corpus entry index (one fetch at load): resolves ids to titles for the
@@ -180,6 +181,7 @@ export default function App() {
     keepCurrentOnEmpty = false,
     dateFrom,
     depth,
+    path,
   }: {
     nextScope: GraphScope;
     nextTopic: string | null;
@@ -189,17 +191,19 @@ export default function App() {
     keepCurrentOnEmpty?: boolean;
     dateFrom?: string | null;
     depth?: number;
+    path?: string | null;
   }) => {
     const request = ++graphRequest.current;
     setIsLoading(true);
     try {
       setError(null);
       const nextGraph = await graphQuery({
-        entryId: entryId ?? (nextScope !== "overview" ? preferredEntryId : null),
+        entryId: entryId ?? (nextScope !== "overview" && nextScope !== "file" ? preferredEntryId : null),
         edgeTypes: nextEdgeTypes,
         topic: nextTopic,
         dateFrom,
         depth,
+        path: nextScope === "file" ? path : null,
       });
       if (request !== graphRequest.current) return null;
       if (keepCurrentOnEmpty && nextGraph.nodes.length === 0) return nextGraph;
@@ -486,8 +490,8 @@ export default function App() {
   const topics = useMemo(() => Object.entries(facets?.topics ?? {}).slice(0, 10), [facets]);
   const inspectorVisible = dock !== "hidden";
 
-  async function requestGraph(nextScope: GraphScope, nextTopic = activeTopic, nextEdgeTypes = edgeTypes, entryId?: string | null, preferredEntryId?: string | null, keepCurrentOnEmpty = false, dateFrom = nextScope === "overview" && range === "recent" ? recentDateFrom(runtime) : null, depth = nextScope === "evolution" ? EVOLUTION_DEPTH : undefined) {
-    return loadGraph({ nextScope, nextTopic, nextEdgeTypes, entryId, preferredEntryId: preferredEntryId ?? selected?.source.entry_id, keepCurrentOnEmpty, dateFrom, depth });
+  async function requestGraph(nextScope: GraphScope, nextTopic = activeTopic, nextEdgeTypes = edgeTypes, entryId?: string | null, preferredEntryId?: string | null, keepCurrentOnEmpty = false, dateFrom = nextScope === "overview" && range === "recent" ? recentDateFrom(runtime) : null, depth = nextScope === "evolution" ? EVOLUTION_DEPTH : undefined, path = nextScope === "file" ? filePath : null) {
+    return loadGraph({ nextScope, nextTopic, nextEdgeTypes, entryId, preferredEntryId: preferredEntryId ?? selected?.source.entry_id, keepCurrentOnEmpty, dateFrom, depth, path });
   }
 
   async function focusEntry(entryId: string, options: { preserveHint?: boolean; preserveSearch?: boolean } = {}) {
@@ -634,8 +638,10 @@ export default function App() {
   }
 
   async function changeScope(nextScope: GraphScope) {
-    const entryId = nextScope !== "overview" ? selected?.source.entry_id : null;
-    if (nextScope !== "overview" && !entryId) {
+    // File scope is entered only via onOpenFile (it seeds from a path, not a
+    // selected entry) - the segment control never offers it directly.
+    const entryId = nextScope !== "overview" && nextScope !== "file" ? selected?.source.entry_id : null;
+    if (nextScope !== "overview" && nextScope !== "file" && !entryId) {
       setError("Choose an entry before narrowing the graph.");
       return;
     }
@@ -644,9 +650,16 @@ export default function App() {
     await requestGraph(nextScope, activeTopic, nextEdgeTypes, entryId, entryId);
   }
 
+  async function openFileMode(path: string) {
+    setFilePath(path);
+    setScope("file");
+    setViewMode("graph");
+    await requestGraph("file", activeTopic, edgeTypes, null, null, false, undefined, undefined, path);
+  }
+
   async function chooseTopic(nextTopic: string | null) {
     setActiveTopic(nextTopic);
-    await requestGraph(scope, nextTopic, scope === "evolution" ? EVOLUTION_EDGE_TYPES : edgeTypes, scope !== "overview" ? selected?.source.entry_id : null);
+    await requestGraph(scope, nextTopic, scope === "evolution" ? EVOLUTION_EDGE_TYPES : edgeTypes, scope !== "overview" && scope !== "file" ? selected?.source.entry_id : null);
   }
 
   async function toggleEdge(edgeType: RendererGraphEdge["edge_type"]) {
@@ -798,9 +811,10 @@ export default function App() {
         {/* Scope, date range and labels only shape the GRAPH projection — the
             Trail always renders full history through its own window — so they
             are hidden in Trail view rather than sitting there inert. */}
-        <div className="workspace-bar"><div><span className="eyebrow">{viewMode === "trail" ? "Trail" : "Graph workspace"}</span><h1>{viewMode === "trail" ? "Decision timeline" : "Relationship map"}</h1></div><div className="workspace-actions">{viewMode !== "trail" && <><div className="segment-control" aria-label="Graph scope"><button type="button" aria-pressed={scope === "overview"} onClick={() => void changeScope("overview")}>Overview</button><button type="button" aria-pressed={scope === "local"} onClick={() => void changeScope("local")}>Local</button><button type="button" aria-pressed={scope === "evolution"} onClick={() => void changeScope("evolution")}>Evolution</button></div><div className="segment-control" aria-label="Graph date range"><button type="button" aria-pressed={range === "recent"} onClick={() => void changeRange("recent")}>Recent</button><button type="button" aria-pressed={range === "all"} onClick={() => void changeRange("all")}>All dates</button></div><label className="label-menu"><span>Labels</span><select value={labelMode} onChange={(event) => setLabelMode(event.target.value as LabelMode)} aria-label="Graph labels"><option value="focus">Focus</option><option value="minimal">Minimal</option><option value="all">All</option></select></label></>}<span className="status-pill">{viewMode === "trail" ? "Trail" : isLoading ? "Updating" : "Cytoscape.js"}</span></div></div>
-        {viewMode !== "trail" && scope !== "evolution" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{DEFAULT_GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => void toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
+        <div className="workspace-bar"><div><span className="eyebrow">{viewMode === "trail" ? "Trail" : "Graph workspace"}</span><h1>{viewMode === "trail" ? "Decision timeline" : "Relationship map"}</h1></div><div className="workspace-actions">{viewMode !== "trail" && <><div className="segment-control" aria-label="Graph scope"><button type="button" aria-pressed={scope === "overview"} onClick={() => void changeScope("overview")}>Overview</button><button type="button" aria-pressed={scope === "local"} onClick={() => void changeScope("local")}>Local</button><button type="button" aria-pressed={scope === "evolution"} onClick={() => void changeScope("evolution")}>Evolution</button>{filePath && <button type="button" aria-pressed={scope === "file"} onClick={() => void openFileMode(filePath)}>{"File: " + (filePath.split(/[\\/]/).pop() ?? filePath)}</button>}</div><div className="segment-control" aria-label="Graph date range"><button type="button" aria-pressed={range === "recent"} onClick={() => void changeRange("recent")}>Recent</button><button type="button" aria-pressed={range === "all"} onClick={() => void changeRange("all")}>All dates</button></div><label className="label-menu"><span>Labels</span><select value={labelMode} onChange={(event) => setLabelMode(event.target.value as LabelMode)} aria-label="Graph labels"><option value="focus">Focus</option><option value="minimal">Minimal</option><option value="all">All</option></select></label></>}<span className="status-pill">{viewMode === "trail" ? "Trail" : isLoading ? "Updating" : "Cytoscape.js"}</span></div></div>
+        {viewMode !== "trail" && scope !== "evolution" && scope !== "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{DEFAULT_GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => void toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
         {viewMode !== "trail" && scope === "evolution" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span><span className="count">Evolves + Replaces only · lifecycle chain</span>{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
+        {viewMode !== "trail" && scope === "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>File</span><span className="count" title={filePath ?? ""}>{"Entries that touched " + (filePath ?? "this file")}</span><button type="button" className="active-topic" onClick={() => void changeScope("overview")}>Clear<X size={13} aria-hidden="true" /></button></div>}
         {viewMode === "trail" ? (
           <>
             {trailError && <div className="error-state" role="alert">{trailError}</div>}
@@ -848,7 +862,7 @@ export default function App() {
             )}
             <div className="meta-item meta-wide"><dt>Topics</dt><dd>{selected.source.topics.length ? <span className="meta-topics">{selected.source.topics.map((topic) => <span className="meta-topic" key={topic}>{topic}</span>)}</span> : "None"}</dd></div>
           </dl>
-          <EntryReader chunk={chunk} matchHeading={matchHeading} onOpenEntry={(entryId) => void focusEntry(entryId)} />
+          <EntryReader chunk={chunk} matchHeading={matchHeading} onOpenEntry={(entryId) => void focusEntry(entryId)} onOpenFile={(path) => void openFileMode(path)} />
         </div>}
       </aside>}
     </div>

@@ -186,7 +186,9 @@ button { font: inherit; }
 .draft-t { color: var(--edge-related); }
 .markdown p.draft-body { margin: 0 0 6px; }
 .file-pills { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
-.file-pill { max-width: 100%; overflow: hidden; border: 1px solid var(--border-2); border-radius: 3px; background: var(--code-bg); color: var(--text-2); padding: 2px 6px; font-family: ui-monospace, Consolas, monospace; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.file-pill { max-width: 100%; overflow: hidden; border: 1px solid var(--border-2); border-radius: 3px; background: var(--code-bg); color: var(--text-2); padding: 2px 6px; font-family: ui-monospace, Consolas, monospace; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.file-pill:hover, .file-pill:focus-visible { border-color: var(--accent); color: var(--text); }
+.file-pill:focus-visible { outline: 1px solid var(--accent-bright); outline-offset: 1px; }
 .chip-list { display: flex; flex-wrap: wrap; gap: 5px; }.chip { border: 1px solid var(--border-2); border-radius: 3px; background: var(--chip); color: var(--text-3); padding: 2px 7px; font-size: 11px; }
 .markdown { display: grid; gap: 9px; overflow-wrap: anywhere; }.markdown h4 { margin: 8px 0 0; color: var(--accent-bright); font-size: 13px; font-weight: 700; }.markdown p { margin: 0; }.markdown code { border-radius: 3px; background: var(--code-bg); padding: 1px 4px; font-size: 12px; }.markdown pre { margin: 0; overflow: auto; border: 1px solid var(--border); border-radius: 4px; background: var(--code-bg); padding: 10px; }.markdown pre code { padding: 0; background: none; }
 .markdown .match-highlight { padding: 3px 6px; border-left: 2px solid var(--accent-strong); background: var(--match-bg); color: var(--match-text); border-radius: 0 3px 3px 0; }.markdown .match-highlight-body { padding: 0 6px; border-left: 2px solid var(--match-border); }

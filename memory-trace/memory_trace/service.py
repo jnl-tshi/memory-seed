@@ -398,9 +398,17 @@ class TraceCache:
             )
             # Merge-commit ground truth for the Trail: Memory-Entry trailers on
             # trunk first-parent commits, each with its merge-base fork point.
+            merge_events = _first_parent_trailer_commits(self.runtime.workspace_root)
             conn.execute(
                 "insert into meta(key, value) values('trailer_merges', ?)",
-                (json.dumps(_first_parent_trailer_commits(self.runtime.workspace_root)),),
+                (json.dumps(merge_events),),
+            )
+            # File graph mode: path -> entry_ids (see _file_entry_index for why
+            # this walks each entry's authoring commit's PARENT, not the
+            # entry's own diff or its recorded branch: field).
+            conn.execute(
+                "insert into meta(key, value) values('file_entry_index', ?)",
+                (json.dumps(_file_entry_index(self.runtime.workspace_root, commit_map)),),
             )
             # Derived-projection provenance (contract G4/G5): the schema version
             # (rebuild on bump) and the build watermark (HEAD) + dirty-file
@@ -579,6 +587,12 @@ class TraceCache:
             row = conn.execute("select value from meta where key='trailer_merges'").fetchone()
         return json.loads(row[0]) if row else []
 
+    def file_entry_index(self) -> dict[str, list[str]]:
+        self.ensure_current()
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute("select value from meta where key='file_entry_index'").fetchone()
+        return json.loads(row[0]) if row else {}
+
     def chunks(self, *, granularity: str | None = None) -> list[MemoryChunk]:
         # ensure_current() clears _chunks_memo when it rebuilds, so a hit is
         # always for the current projection. MemoryChunk is frozen and callers
@@ -611,9 +625,10 @@ class TraceCache:
                 has_commits = conn.execute("select 1 from meta where key='entry_commits'").fetchone()
                 has_main_map = conn.execute("select 1 from meta where key='main_commit_entries'").fetchone()
                 has_merges = conn.execute("select 1 from meta where key='trailer_merges'").fetchone()
+                has_file_index = conn.execute("select 1 from meta where key='file_entry_index'").fetchone()
         except sqlite3.Error:
             return False
-        if not has_commits or not has_main_map or not has_merges:
+        if not has_commits or not has_main_map or not has_merges or not has_file_index:
             return False
         return [(str(path), int(mtime), int(size)) for path, mtime, size in current] == [
             (str(path), int(mtime), int(size)) for path, mtime, size in stored
@@ -919,6 +934,7 @@ class TraceService:
         self,
         *,
         entry_id: str | None = None,
+        entry_ids: Sequence[str] | None = None,
         depth: int = 1,
         edge_types: Sequence[str] = ("related", "topic", "agent", "day"),
         limit: int = 80,
@@ -949,7 +965,15 @@ class TraceService:
         graph = build_related_entry_graph(chunks=entries)
         connectivity = _connectivity_degrees(entries, node_id=node_id, graph=graph)
         importance = _importance_scores(entries, node_id=node_id, graph=graph)
-        if entry_id and entry_id in by_id:
+        if entry_ids is not None:
+            # File mode: an exact, pre-resolved membership set (every entry
+            # whose landing commit touched a given file), not a neighborhood
+            # expansion from one focus entry. An empty list is a real answer
+            # (an unrecognized or untouched path), not "no filter requested" -
+            # it must not fall through to the overview branch below.
+            visible_ids = [item_id for item_id in entry_ids if item_id in by_id]
+            limited_ids = set(visible_ids[: _limit(limit, maximum=1000)])
+        elif entry_id and entry_id in by_id:
             visible_ids = _neighborhood(entry_id, edges, depth=max(depth, 1))
             limited_ids = set(visible_ids[: _limit(limit, maximum=1000)])
         else:
@@ -1456,11 +1480,18 @@ def create_app(
         date_from: str | None = None,
         date_to: str | None = None,
         topic: str | None = None,
+        path: str | None = None,
         worktree: str | None = None,
     ) -> dict[str, Any]:
+        svc = service_for(worktree)
+        # File mode: pre-resolve the exact entry membership set for `path`
+        # from the file->entries index rather than a neighborhood expansion.
+        # An unknown path resolves to an empty graph, not an error.
+        file_entry_ids = svc.cache.file_entry_index().get(path, []) if path else None
         return project_trace_graph(
-            service_for(worktree).graph(
+            svc.graph(
                 entry_id=entry_id,
+                entry_ids=file_entry_ids,
                 depth=depth,
                 edge_types=tuple(x for x in edge_types.split(",") if x),
                 limit=limit,
@@ -1717,6 +1748,76 @@ def _merge_fork_point(root: Path, parent_a: str, parent_b: str) -> dict[str, str
         return {"sha": parts[0], "short": parts[1], "date": parts[2]}
     except (OSError, subprocess.TimeoutExpired):
         return None
+
+
+def _file_entry_index(root: Path, entry_commit_map: dict[str, dict[str, str]]) -> dict[str, list[str]]:
+    """path -> sorted entry_ids whose real work touched that file.
+
+    An entry's own authoring commit (``_entry_commit_map``) is very often a
+    ``docs(session): log X`` commit landed on main immediately AFTER the
+    merge that actually carried the feature's files - this project's
+    convention logs the session entry on main after merging, not on the
+    feature branch, so the authoring commit's own diff is almost always just
+    the session file, and the entry's recorded ``branch:`` field is "main"
+    (where it was logged), not the feature branch it documents. Neither is a
+    usable file signal on its own.
+
+    The real file changes sit on the authoring commit's PARENT: empirically,
+    for this project's actual history, that parent is the merge commit for
+    the feature the entry documents. Diffing that parent against ITS OWN
+    first parent (if it is a merge) - or its sole parent otherwise, for
+    entries logged right after a plain non-merge commit - recovers the files
+    the work introduced. Fails open per-entry and overall without git.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "log", "--format=%H%x1f%P", "main"],
+            capture_output=True,
+            timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return {}
+    if proc.returncode != 0:
+        return {}
+    parents_of: dict[str, list[str]] = {}
+    for line in proc.stdout.decode("utf-8", errors="replace").splitlines():
+        if "\x1f" not in line:
+            continue
+        sha, parents = line.split("\x1f", 1)
+        parents_of[sha] = parents.split()
+
+    # Group entries by their shared "work commit" first, so a batch of
+    # entries logged in the same commit (or riding the same merge) shares
+    # one diff instead of repeating it per entry.
+    entries_by_work_sha: dict[str, list[str]] = {}
+    for entry_id, info in entry_commit_map.items():
+        authoring_sha = info.get("sha")
+        authoring_parents = parents_of.get(authoring_sha) if authoring_sha else None
+        if not authoring_parents:
+            continue
+        entries_by_work_sha.setdefault(authoring_parents[0], []).append(entry_id)
+
+    index: dict[str, set[str]] = {}
+    for work_sha, entry_ids in entries_by_work_sha.items():
+        work_parents = parents_of.get(work_sha)
+        if not work_parents:
+            continue
+        base_ref = f"{work_sha}^1" if len(work_parents) >= 2 else f"{work_sha}^"
+        try:
+            diff = subprocess.run(
+                ["git", "-C", str(root), "diff", "--name-only", base_ref, work_sha],
+                capture_output=True,
+                timeout=30,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if diff.returncode != 0:
+            continue
+        for path in diff.stdout.decode("utf-8", errors="replace").splitlines():
+            path = path.strip()
+            if path:
+                index.setdefault(path, set()).update(entry_ids)
+    return {path: sorted(ids) for path, ids in index.items()}
 
 
 def _entry_merge_map(events: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
