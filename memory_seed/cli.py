@@ -723,6 +723,29 @@ def main(argv: list[str] | None = None) -> int:
                 print("Merge committed.")
                 if result.stamped_entries:
                     print(f"Stamped {len(result.stamped_entries)} Memory-Entry trailer(s) on the merge commit.")
+                else:
+                    # A feature branch that carries no session entry usually
+                    # means the entry was appended on the trunk instead - the
+                    # work is recorded, but as trunk work. Two things are then
+                    # gone for good: the Trail draws it in the main lane rather
+                    # than its own, and this merge commit gets no Memory-Entry
+                    # trailer, so fork/merge geometry falls back to the
+                    # positional estimate. Neither is recoverable afterwards
+                    # without rewriting published history, which is why this
+                    # warns HERE - the last moment it is still cheap to fix.
+                    # Legitimately entry-free branches exist (trunk-only
+                    # workflows like stub classification), so this never fails.
+                    print(
+                        f"Note: branch {args.branch} carried no session entry, so the merge commit has "
+                        "no Memory-Entry trailer and the Trail will show this work on the trunk lane.",
+                        file=sys.stderr,
+                    )
+                    print(
+                        "  If you logged on the trunk instead: append the entry on the branch BEFORE "
+                        "merging next time (stash unrelated changes first, so a dirty tree does not "
+                        "reorder the steps).",
+                        file=sys.stderr,
+                    )
             else:
                 print(f"Branch {args.branch} is already merged into HEAD; nothing to do.")
             return 0

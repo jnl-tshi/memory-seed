@@ -862,3 +862,62 @@ class CliHelpTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("Would import: mse_1111111111111111", out)
         self.assertIn("Dry run - no merge performed.", out)
+
+    def test_session_merge_branch_notes_a_branch_that_carried_no_entry(self):
+        # Guards the 2026-07-21 process failure: a dirty tree blocked the merge,
+        # the recovery reordered the steps, and the session entry ended up
+        # appended on the trunk AFTER merging. The work was recorded, but as
+        # trunk work - the Trail lost the branch lane and the merge commit got
+        # no Memory-Entry trailer, neither recoverable without rewriting
+        # published history. A memory note already said "log on the branch" and
+        # did not prevent it, so the guard has to fire at the machine, at the
+        # last moment a fix is still cheap.
+        import contextlib
+        import io
+        import os
+        import subprocess
+
+        from memory_seed.cli import main
+
+        cwd = Path.cwd()
+        project = Path(tempfile.mkdtemp(prefix="memory-seed-cli-no-entry-"))
+        self.addCleanup(lambda: shutil.rmtree(project, ignore_errors=True))
+        grouped = project / ".memory-seed" / "sessions" / "2026-07"
+        grouped.mkdir(parents=True, exist_ok=True)
+        (grouped / "2026-07-10.md").write_text(
+            "---\ntags:\n  - session-log\nsession_date: 2026-07-10\n---\n\n"
+            "## 2026-07-10 09:00 - Base\n\n```yaml\nentry_id: mse_0123456789abcdef\n"
+            "user_initials: JN\nagent_type: codex\nbranch: main\n```\n\n- Base.\n",
+            encoding="utf-8",
+        )
+        err = io.StringIO()
+        try:
+            os.chdir(project)
+            for cmd in (
+                ["git", "init", "-q"],
+                ["git", "config", "user.name", "Test User"],
+                ["git", "config", "user.email", "test@example.com"],
+                ["git", "config", "commit.gpgsign", "false"],
+                ["git", "branch", "-M", "main"],
+                ["git", "add", "-A"],
+                ["git", "commit", "-q", "-m", "base"],
+                ["git", "switch", "-c", "feature-code-only"],
+            ):
+                subprocess.run(cmd, check=True, capture_output=True)
+            # Code change only - no session entry appended on the branch.
+            (project / "module.py").write_text("VALUE = 1\n", encoding="utf-8")
+            subprocess.run(["git", "add", "-A"], check=True, capture_output=True)
+            subprocess.run(["git", "commit", "-q", "-m", "code"], check=True, capture_output=True)
+            subprocess.run(["git", "switch", "main"], check=True, capture_output=True)
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+                code = main(["session", "merge-branch", "--branch", "feature-code-only"])
+        finally:
+            os.chdir(cwd)
+
+        # Never fails: trunk-only workflows legitimately merge entry-free
+        # branches, so this informs rather than blocks.
+        self.assertEqual(code, 0)
+        message = err.getvalue()
+        self.assertIn("carried no session entry", message)
+        self.assertIn("no Memory-Entry trailer", message)
+        self.assertIn("trunk lane", message)
