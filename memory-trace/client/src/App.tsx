@@ -640,9 +640,17 @@ export default function App() {
       return;
     }
     if (sameEntry) {
-      // Re-clicking the anchor of an already-selected entry: clear any
-      // decision focus back to the whole entry before the usual mute toggle.
-      if (matchHint?.decisionChunkId && matchHint.entryId === entryId) { setMatchHint(null); return; }
+      // Clicking the anchor while a DECISION of the same entry holds focus is
+      // a move, not a re-click: focus travels from the subheading back up to
+      // the entry. So it clears the mute exactly like a decision-to-decision
+      // move does - leaving it set would carry the muted look onto a row the
+      // user just navigated TO. Only a genuine re-click of the row that
+      // already holds focus falls through to the mute toggle.
+      if (matchHint?.decisionChunkId && matchHint.entryId === entryId) {
+        setMatchHint(null);
+        setSelectionMuted(false);
+        return;
+      }
       setSelectionMuted((muted) => !muted);
       return;
     }
