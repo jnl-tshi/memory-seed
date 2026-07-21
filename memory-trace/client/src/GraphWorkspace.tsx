@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { Core } from "cytoscape";
 import { Maximize2, Minus, Plus } from "lucide-react";
-import type { RendererGraphEdge, RendererGraphNode, RendererGraphResponse } from "./api";
+import { connectedNodeIds, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
 
 type GraphWorkspaceProps = {
   graph: RendererGraphResponse;
@@ -103,7 +103,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
   // any edge renders, always. Selecting must never add/remove elements or move
   // the map — evolves edges reveal via style, not element churn.
   const renderedNodes = useMemo(() => {
-    const connected = new Set(graph.edges.flatMap((edge) => [edge.source, edge.target]));
+    const connected = connectedNodeIds(graph);
     return graph.nodes.filter((node) => connected.has(node.id));
   }, [graph]);
   const labelIds = useMemo(() => labelIdsFor(graph, selectedId, labelMode), [graph, labelMode, selectedId]);

@@ -55,6 +55,14 @@ export function worktreesQuery(): Promise<WorktreesResponse> {
   return api<WorktreesResponse>("/worktrees");
 }
 
+// A node renders only if it carries at least one edge — an isolated entry is
+// noise, not overview content. Shared so GraphWorkspace (which nodes to mount)
+// and App (how many of those are actually on screen, for a coverage count)
+// never drift apart on what "connected" means.
+export function connectedNodeIds(graph: RendererGraphResponse): Set<string> {
+  return new Set(graph.edges.flatMap((edge) => [edge.source, edge.target]));
+}
+
 export function graphQuery(options: GraphQueryOptions = {}): Promise<RendererGraphResponse> {
   const params = new URLSearchParams();
   const edgeTypes = options.edgeTypes ?? DEFAULT_GRAPH_EDGE_TYPES;
