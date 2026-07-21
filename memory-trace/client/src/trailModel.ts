@@ -67,12 +67,77 @@ export function stripTitleStamp(title: string): string {
   return String(title || "").replace(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}\s*-\s*/, "");
 }
 
+// A decision row's rank within its entry group: "d1" -> 1, "d10" -> 10,
+// absent -> 0. Parsed numerically because the rows in a group share one
+// timestamp, so ordering falls entirely to this tiebreak - a string compare
+// would put "d10" before "d2".
+function decisionRank(node: TrailEvent): number {
+  const match = /^d(\d+)$/.exec(node.decision_ordinal || "");
+  return match ? Number(match[1]) : 0;
+}
+
+// THE trail ordering: newest first, then decision ordinal ascending (D1
+// before D2..DN within an entry's group), then id for total stability.
+// Exported so every consumer that orders trail nodes (the model here, the
+// find bar's match list in App.tsx) shares one comparator instead of
+// hand-duplicating it and drifting.
+export function compareTrailNodes(a: TrailEvent, b: TrailEvent): number {
+  return (
+    trailStamp(b) - trailStamp(a) ||
+    decisionRank(a) - decisionRank(b) ||
+    String(a.id).localeCompare(String(b.id))
+  );
+}
+
+// Pastel companion for decision child rows: same hue as the branch colour,
+// lifted toward light and desaturated so D2..DN read as "part of D1's entry"
+// rather than new events. Pure hex->HSL->hex math (this module is
+// deliberately framework- and DOM-free), tuned to stay legible on both the
+// warm-light and charcoal-dark themes.
+export function pastelOf(hex: string): string {
+  const value = hex.replace("#", "");
+  const r = parseInt(value.slice(0, 2), 16) / 255;
+  const g = parseInt(value.slice(2, 4), 16) / 255;
+  const b = parseInt(value.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+  let h = 0;
+  if (delta > 0) {
+    if (max === r) h = ((g - b) / delta + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / delta + 2) / 6;
+    else h = ((r - g) / delta + 4) / 6;
+  }
+  const s = 0.42;
+  const l = 0.74;
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const channel = (t: number) => {
+    let x = t;
+    if (x < 0) x += 1;
+    if (x > 1) x -= 1;
+    if (x < 1 / 6) return p + (q - p) * 6 * x;
+    if (x < 1 / 2) return q;
+    if (x < 2 / 3) return p + (q - p) * (2 / 3 - x) * 6;
+    return p;
+  };
+  const toHex = (t: number) => Math.round(channel(t) * 255).toString(16).padStart(2, "0");
+  return `#${toHex(h + 1 / 3)}${toHex(h)}${toHex(h - 1 / 3)}`;
+}
+
 export function buildTrailModel(trail: TrailResponse, window: number): TrailModel {
   const nodes = (trail.nodes || [])
     .filter((node) => node.entry_id)
-    .sort((a, b) => trailStamp(b) - trailStamp(a) || String(a.id).localeCompare(String(b.id)));
-  const total = nodes.length;
-  const visible = nodes.slice(0, window);
+    .sort(compareTrailNodes);
+  // "N of M ENTRIES" stays honest: decision child rows are extra ROWS of one
+  // entry, not entries - they inflate the item list but never this count.
+  const total = nodes.filter((node) => decisionRank(node) <= 1).length;
+  // Never bisect a decision group: if the window cut lands inside one (the
+  // next hidden node is a decision CHILD), extend to the end of that group
+  // so a bracket/pastel row never dangles without its anchor.
+  let window_ = Math.min(window, nodes.length);
+  while (window_ < nodes.length && decisionRank(nodes[window_]) > 1) window_ += 1;
+  const visible = nodes.slice(0, window_);
 
   const items: TrailItem[] = [];
   let lastDay: string | null = null;

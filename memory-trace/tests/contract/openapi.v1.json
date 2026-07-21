@@ -770,6 +770,22 @@
             ],
             "title": "Datetime"
           },
+          "decision_count": {
+            "default": 0,
+            "title": "Decision Count",
+            "type": "integer"
+          },
+          "decision_ordinal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Ordinal"
+          },
           "entry_id": {
             "anyOf": [
               {
@@ -1731,6 +1747,22 @@
             ],
             "title": "Datetime"
           },
+          "decision_count": {
+            "default": 0,
+            "title": "Decision Count",
+            "type": "integer"
+          },
+          "decision_ordinal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Ordinal"
+          },
           "entry_id": {
             "anyOf": [
               {
@@ -2396,6 +2428,22 @@
                 }
               ],
               "title": "Topic"
+            }
+          },
+          {
+            "in": "query",
+            "name": "path",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Path"
             }
           },
           {

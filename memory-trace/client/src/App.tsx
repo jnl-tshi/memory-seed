@@ -7,11 +7,15 @@ import { readerScrollTarget } from "./inspectorScroll";
 import { searchResultCursor, stepSearchCursor } from "./searchNavigation";
 import { genuineSearchResults } from "./searchResults";
 import { animateScrollTo, scrollDurationFor } from "./trailScroll";
-import { stripTitleStamp, trailStamp, TRAIL_WINDOW_STEP } from "./trailModel";
+import { compareTrailNodes, stripTitleStamp, TRAIL_WINDOW_STEP } from "./trailModel";
 
 const GraphWorkspace = lazy(() => import("./GraphWorkspace").then((module) => ({ default: module.GraphWorkspace })));
 const TrailWorkspace = lazy(() => import("./TrailWorkspace").then((module) => ({ default: module.TrailWorkspace })));
-type MatchHint = { entryId: string; heading: string };
+// decisionChunkId: set when the hint targets one decision of a multi-decision
+// entry (a Trail decision-row click, or a full-text match whose best section
+// IS a decision) - the Trail highlights that row specifically while the
+// reader scrolls to the same heading.
+type MatchHint = { entryId: string; heading: string; decisionChunkId?: string };
 type GraphScope = "overview" | "local" | "evolution" | "file";
 type GraphViewMode = "graph" | "trail";
 type LabelMode = "focus" | "minimal" | "all";
@@ -373,6 +377,10 @@ export default function App() {
     const entryId = selected?.source.entry_id;
     if (!entryId) {
       return (entryIndex?.nodes ?? [])
+        // The index now carries one row per decision; the Recent list is a
+        // list of ENTRIES, so child rows (D2..DN) are excluded - the anchor
+        // already represents the entry.
+        .filter((node) => !node.decision_ordinal || node.decision_ordinal === "d1")
         .slice()
         .sort((a, b) => (b.datetime || b.date).localeCompare(a.datetime || a.date))
         .slice(0, 24)
@@ -433,15 +441,20 @@ export default function App() {
   const matchEntries = useMemo(() => {
     const term = query.trim().toLowerCase();
     if (!term || isCanonicalEntryId(term)) return [];
-    return (entryIndex?.nodes ?? [])
+    const ids = (entryIndex?.nodes ?? [])
       .filter((node) => node.entry_id)
       .slice()
-      .sort((a, b) => trailStamp(b) - trailStamp(a) || String(a.id).localeCompare(String(b.id)))
+      .sort(compareTrailNodes)
       .filter((node) =>
         stripTitleStamp(node.title).toLowerCase().includes(term) ||
         (node.branch || "").toLowerCase().includes(term) ||
         (node.entry_id || "").toLowerCase().includes(term))
-      .map((node) => node.id);
+      // ENTRY ids, deduped: the trail payload now carries one row per
+      // decision, whose `id` is a section chunk_id that focusEntry cannot
+      // resolve - and a query matching two decisions of one entry must not
+      // make "next match" visit that entry twice.
+      .map((node) => node.entry_id as string);
+    return [...new Set(ids)];
   }, [query, entryIndex]);
   // Every full-text consumer reads THIS, never `search.results` — the server
   // returns the whole corpus ranked, so the raw list tails off into score-0
@@ -609,13 +622,35 @@ export default function App() {
   // Graph data - the common Trail-mode state) resolve via the throwaway
   // entry fetch, which must not jump scope or replace the graph; only when a
   // graph IS loaded but excludes the entry does focusEntry pull it in.
-  function selectFromTrail(entryId: string | null, chunkId: string) {
-    if (entryId != null && selected?.source.entry_id === entryId) { setSelectionMuted((muted) => !muted); return; }
+  //
+  // Decision rows (D2..DN of a multi-decision entry) pass `decision`: they
+  // navigate WITHIN the entry. Critically, when that entry is already
+  // selected, `select()` must not run at all - its same-node guard would
+  // toggle the mute state instead of moving the decision focus. Only the
+  // matchHint (reader scroll + Trail row highlight) changes.
+  function selectFromTrail(entryId: string | null, chunkId: string, decision?: { heading: string }) {
+    const sameEntry = entryId != null && selected?.source.entry_id === entryId;
+    if (sameEntry && decision) {
+      if (matchHint?.decisionChunkId === chunkId) { setSelectionMuted((muted) => !muted); return; }
+      setSelectionMuted(false);
+      setMatchHint({ entryId, heading: decision.heading, decisionChunkId: chunkId });
+      return;
+    }
+    if (sameEntry) {
+      // Re-clicking the anchor of an already-selected entry: clear any
+      // decision focus back to the whole entry before the usual mute toggle.
+      if (matchHint?.decisionChunkId && matchHint.entryId === entryId) { setMatchHint(null); return; }
+      setSelectionMuted((muted) => !muted);
+      return;
+    }
+    const applyDecision = () => {
+      if (decision && entryId) setMatchHint({ entryId, heading: decision.heading, decisionChunkId: chunkId });
+    };
     const node = graph?.nodes.find((item) => (entryId != null && item.source.entry_id === entryId) || item.source.chunk_id === chunkId);
-    if (node) { select(node); return; }
+    if (node) { select(node, { preserveHint: Boolean(decision) }); applyDecision(); return; }
     if (!entryId) return;
-    if (graph === null) void resolveEntrySelection(entryId);
-    else void focusEntry(entryId);
+    if (graph === null) void resolveEntrySelection(entryId).then(applyDecision);
+    else void focusEntry(entryId).then(applyDecision);
   }
 
   // Cycle to the next/previous match, wrapping around. Selecting the entry is
@@ -732,7 +767,12 @@ export default function App() {
     const sections = result.matched_sections ?? [];
     const best = sections.find((section) => section.chunk_id === result.best_match_chunk_id) ?? sections[0];
     const heading = best?.heading_path?.[best.heading_path.length - 1];
-    return heading ? { entryId, heading } : null;
+    if (!heading) return null;
+    // A full-text hit inside a decision section lands on that decision's own
+    // Trail row (JNL's rule); hits in any other section (Follow-up,
+    // Validation...) keep the entry/D1 row and only scroll the reader.
+    const decisionChunkId = best && best.chunk_id.includes("#decisions/d") ? best.chunk_id : undefined;
+    return { entryId, heading, decisionChunkId };
   }
 
   async function changeScope(nextScope: GraphScope) {
@@ -945,7 +985,7 @@ export default function App() {
             {trailError && <div className="error-state" role="alert">{trailError}</div>}
             {effectiveTrail ? (
               <Suspense fallback={<div className="loading-state">Loading trail</div>}>
-                <TrailWorkspace trail={effectiveTrail} trailStyle={trailStyle} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={selected?.source.chunk_id ?? null} query={query} selectionMuted={selectionMuted} commitSiblingIds={chunk?.commit_entry_ids ?? []} onSelectEntry={selectFromTrail} onEnsureVisible={ensureTrailVisible} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
+                <TrailWorkspace trail={effectiveTrail} trailStyle={trailStyle} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={(matchHint?.entryId === selected?.source.entry_id ? matchHint?.decisionChunkId : undefined) ?? selected?.source.chunk_id ?? null} query={query} selectionMuted={selectionMuted} commitSiblingIds={chunk?.commit_entry_ids ?? []} onSelectEntry={selectFromTrail} onEnsureVisible={ensureTrailVisible} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
               </Suspense>
             ) : (
               <div className="loading-state">Loading trail</div>

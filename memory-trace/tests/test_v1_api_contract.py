@@ -179,7 +179,12 @@ class V1ApiContractTests(unittest.TestCase):
         self.assertEqual(by_entry["mse_bootstrap"]["continuity"], [])
 
         trail = client.get("/api/v1/trail", params={"limit": 100}).json()
-        trail_by_entry = {node["entry_id"]: node for node in trail["nodes"]}
+        # First row per entry wins: a multi-decision entry expands into several
+        # trail rows sharing entry_id, and the children deliberately carry
+        # continuity=[] - a last-wins dict would silently compare against one.
+        trail_by_entry: dict = {}
+        for node in trail["nodes"]:
+            trail_by_entry.setdefault(node["entry_id"], node)
         self.assertEqual(trail_by_entry["mse_ui"]["continuity"], by_entry["mse_ui"]["continuity"])
         self.assertEqual(trail_by_entry["mse_bootstrap"]["continuity"], [])
 

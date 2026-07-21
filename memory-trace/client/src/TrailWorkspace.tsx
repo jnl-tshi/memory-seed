@@ -5,6 +5,7 @@ import {
   buildTrailModel,
   trailStamp,
   laneColorFamily,
+  pastelOf,
   stripTitleStamp,
   TRAIL_CONT_LANE_W,
   TRAIL_CONT_ZONE_PAD,
@@ -48,7 +49,7 @@ export function TrailWorkspace({
   selectionMuted: boolean;
   commitSiblingIds: string[];
   onEnsureVisible: (count: number) => void;
-  onSelectEntry: (entryId: string | null, chunkId: string) => void;
+  onSelectEntry: (entryId: string | null, chunkId: string, decision?: { heading: string }) => void;
   onLoadMore: () => void;
 }) {
   // Stroke presentation is owned by the settings menu (App); the Trail keeps
@@ -139,11 +140,27 @@ export function TrailWorkspace({
   // disappears under a query.
   const searchTerm = query.trim().toLowerCase();
   const searching = searchTerm !== "";
-  const rowMatch = (node: TrailEvent) =>
+  const rowMatchOwn = (node: TrailEvent) =>
     searching &&
     (stripTitleStamp(node.title).toLowerCase().includes(searchTerm) ||
       (node.branch || "").toLowerCase().includes(searchTerm) ||
       (node.entry_id || "").toLowerCase().includes(searchTerm));
+  // Search highlights whole decision GROUPS (per JNL): if any row of a
+  // multi-decision entry matches - the entry title on the anchor, or a
+  // decision name on a child - every row sharing that entry_id lights up, so
+  // a match never leaves siblings dimmed mid-group.
+  const matchedGroupEntries = useMemo(() => {
+    if (!searching) return new Set<string>();
+    const matched = new Set<string>();
+    for (const node of model.items) {
+      if (node.kind !== "node" || !node.node.decision_ordinal) continue;
+      if (rowMatchOwn(node.node) && node.node.entry_id) matched.add(node.node.entry_id);
+    }
+    return matched;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rowMatchOwn derives from searchTerm
+  }, [model.items, searchTerm, searching]);
+  const rowMatch = (node: TrailEvent) =>
+    rowMatchOwn(node) || Boolean(node.decision_ordinal && node.entry_id && matchedGroupEntries.has(node.entry_id));
 
   // Continuity zone is deferred (0 for now); the relationship zone is kept
   // reserved so lifecycle-arrow lanes slot in later without re-laying-out.
@@ -484,27 +501,84 @@ export function TrailWorkspace({
     });
   });
 
-  const isSelected = (entryId: string | null, chunkId: string) =>
-    (entryId !== null && entryId === selectedEntryId) || chunkId === selectedChunkId;
+  // Rows inside a rendered decision group demand an EXACT chunk match:
+  // previously entry_id uniquely identified one row, but a group's rows all
+  // share it - the permissive OR-match would light the whole group and make
+  // clicking D2 indistinguishable from D1. Ordinary rows keep the permissive
+  // rule unchanged.
+  const isSelected = (node: TrailEvent) =>
+    node.chunk_id === selectedChunkId ||
+    (!node.decision_ordinal && node.entry_id !== null && node.entry_id === selectedEntryId);
 
   const dots = items.flatMap((item, index) => {
     if (item.kind !== "node") return [];
-    const branch = item.node.branch || "";
-    const selected = isSelected(item.node.entry_id, item.node.chunk_id);
-    const miss = searching && !rowMatch(item.node) && !selected;
+    const node = item.node;
+    const branch = node.branch || "";
+    const selected = isSelected(node);
+    const miss = searching && !rowMatch(node) && !selected;
+    // D2..DN carry a pastel of the branch colour at a smaller radius: same
+    // event stream, subordinate weight - "part of D1's entry", not new dots.
+    const isChild = Boolean(node.decision_ordinal && node.decision_ordinal !== "d1");
+    const baseColor = branch ? colorOf.get(branch)! : "var(--trail-faint)";
     return [
       <circle
-        key={`dot-${item.node.id}`}
+        key={`dot-${node.id}`}
         cx={laneX(branch)}
         cy={rowY(index)}
-        r={selected ? 6.5 : 4.5}
-        fill={branch ? colorOf.get(branch) : "var(--trail-faint)"}
+        r={selected ? (isChild ? 5.5 : 6.5) : isChild ? 3.5 : 4.5}
+        fill={isChild && branch ? pastelOf(colorOf.get(branch)!) : baseColor}
         fillOpacity={miss ? 0.35 : 1}
         stroke={selected ? "var(--accent-strong)" : "var(--trail-bg)"}
         strokeWidth={selected ? 2.5 : 2}
       />,
     ];
   });
+
+  // One bracket per multi-decision entry, sitting just right of the time
+  // column, spanning the group's contiguous rows - the visual "these are one
+  // entry's decisions" grouping. Contiguity is guaranteed by the model's
+  // ordinal tiebreak; the indent uses the group's max, so the bracket clears
+  // the text at every row it spans.
+  const decisionBrackets: ReactElement[] = [];
+  {
+    let groupStart = -1;
+    let groupEntry: string | null = null;
+    const flush = (endIndex: number) => {
+      if (groupStart < 0 || endIndex - groupStart < 1) { groupStart = -1; groupEntry = null; return; }
+      const first = items[groupStart];
+      if (first.kind !== "node") { groupStart = -1; groupEntry = null; return; }
+      let indent = 0;
+      for (let row = groupStart; row <= endIndex; row += 1) indent = Math.max(indent, rowIndent(envelopeLane[row]));
+      const x = indent + 34 + 5; // time column is 34px wide; sit in the row gap
+      const top = rowY(groupStart) - 9;
+      const bot = rowY(endIndex) + 9;
+      const colour = pastelOf(colorOf.get(first.node.branch || "") || laneColorFamily(0));
+      decisionBrackets.push(
+        <path
+          key={`dbr-${first.node.id}`}
+          d={`M ${x + 4} ${top} L ${x} ${top + 4} L ${x} ${bot - 4} L ${x + 4} ${bot}`}
+          fill="none"
+          stroke={colour}
+          strokeWidth={1.4}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          strokeOpacity={0.9}
+        >
+          <title>{`${endIndex - groupStart + 1} decisions in this entry`}</title>
+        </path>,
+      );
+      groupStart = -1;
+      groupEntry = null;
+    };
+    items.forEach((item, index) => {
+      const inGroup = item.kind === "node" && Boolean(item.node.decision_ordinal);
+      const entry = inGroup && item.kind === "node" ? item.node.entry_id : null;
+      if (inGroup && entry === groupEntry) return;
+      if (groupStart >= 0) flush(index - 1);
+      if (inGroup) { groupStart = index; groupEntry = entry; }
+    });
+    if (groupStart >= 0) flush(items.length - 1);
+  }
 
   const rows = items.map((item, index) => {
     if (item.kind === "day") {
@@ -517,19 +591,26 @@ export function TrailWorkspace({
     const node = item.node;
     const branch = node.branch || "";
     const showPill = Boolean(branch) && spans.get(branch)?.first === index;
-    const selected = isSelected(node.entry_id, node.chunk_id);
+    const selected = isSelected(node);
     const matched = rowMatch(node);
     const miss = searching && !matched && !selected;
-    const time = node.datetime ? node.datetime.slice(11, 16) : "";
+    const isChild = Boolean(node.decision_ordinal && node.decision_ordinal !== "d1");
+    // Child rows share the anchor's timestamp; repeating it would read as N
+    // separate moments, so only the anchor shows the time.
+    const time = !isChild && node.datetime ? node.datetime.slice(11, 16) : "";
     return (
       <button
         key={`row-${node.id}`}
         data-entry={node.entry_id || undefined}
+        data-decision={node.decision_ordinal || undefined}
         type="button"
-        className={`trail-row${selected ? (selectionMuted ? " pinned" : " selected") : ""}${matched ? " search-match" : ""}${miss ? " search-miss" : ""}${chainPrimary.has(node.id) ? " chain-primary" : chainSecondary.has(node.id) ? " chain-secondary" : ""}${commitSiblings.has(node.id) ? " commit-sibling" : ""}`}
+        className={`trail-row${isChild ? " decision-row" : ""}${selected ? (selectionMuted ? " pinned" : " selected") : ""}${matched ? " search-match" : ""}${miss ? " search-miss" : ""}${chainPrimary.has(node.id) ? " chain-primary" : chainSecondary.has(node.id) ? " chain-secondary" : ""}${commitSiblings.has(node.id) ? " commit-sibling" : ""}`}
         style={{ "--indent": `${rowIndent(envelopeLane[index])}px` } as CSSProperties}
         title={`${node.title}${branch ? ` · ${branch}` : ""}`}
-        onClick={() => { suppressScroll.current = true; onSelectEntry(node.entry_id, node.chunk_id); }}
+        onClick={() => {
+          suppressScroll.current = true;
+          onSelectEntry(node.entry_id, node.chunk_id, isChild ? { heading: node.title } : undefined);
+        }}
       >
         <span className="trail-time">{time}</span>
         {matched && <span className="trail-match-dot" aria-hidden="true" />}
@@ -548,7 +629,9 @@ export function TrailWorkspace({
     );
   });
 
-  const shown = items.filter((item) => item.kind === "node").length;
+  const shown = items.filter(
+    (item) => item.kind === "node" && (!item.node.decision_ordinal || item.node.decision_ordinal === "d1"),
+  ).length;
   const matchCount = searching ? items.filter((item) => item.kind === "node" && rowMatch(item.node)).length : 0;
 
   return (
@@ -621,6 +704,15 @@ export function TrailWorkspace({
             {dots}
             {mergeDots}
           </svg>
+          {/* Decision-group brackets sit right of the TIME column, which lives
+              outside the rail's narrow viewBox (rowIndent reaches railWidth at
+              deep lanes) - so they get their own full-width overlay aligned to
+              the same row grid instead of clipping inside the rail. */}
+          {decisionBrackets.length > 0 && (
+            <svg className="trail-decision-brackets" height={height} aria-hidden="true">
+              {decisionBrackets}
+            </svg>
+          )}
           <div className="trail-rows">{rows}</div>
         </div>
       </div>
