@@ -224,6 +224,15 @@ button:not(:disabled):active { transform: translateY(0); transition-duration: 40
 .trail-row { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; height: 30px; padding-left: var(--indent, 0px); padding-right: 16px; border: 0; background: none; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }.trail-row:hover { background: var(--hover); }.trail-row.selected { background: var(--selected-bg); box-shadow: inset 2px 0 0 var(--accent-strong); }.trail-row:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
 .trail-time { flex: none; width: 34px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }.trail-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.trail-row-end { flex: none; position: sticky; right: 12px; margin-left: auto; display: inline-flex; align-items: center; gap: 6px; max-width: 45%; }
 .trail-branch { flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 600; background: var(--chip); border: 1px solid var(--border-2); border-radius: 999px; padding: 1px 9px; }
+/* D2..DN of a multi-decision entry: subordinate weight - part of the anchor's
+   entry, not a new event. The indent pairs with the bracket overlay so the
+   group reads as one block; muted ink keeps the anchor's full-colour title as
+   the group's visual lead. */
+.trail-row.decision-row .trail-title { color: var(--text-3); font-size: 12.5px; padding-left: 14px; }
+/* Full-width overlay for decision-group brackets: the rail SVG stops at the
+   lane zone, but the bracket sits right of the TIME column, which can be
+   beyond it. Same row grid (absolute, top 0), never intercepts clicks. */
+.trail-decision-brackets { position: absolute; inset: 0; width: 100%; pointer-events: none; z-index: 1; }
 .trail-day { display: flex; align-items: center; height: 30px; padding-left: var(--indent, 0px); padding-right: 16px; color: var(--accent); font-family: var(--font-display); font-size: 12px; font-weight: 700; font-style: italic; letter-spacing: 0.02em; }
 .trail-viewbar .trail-legend { margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }.trail-viewbar .trail-more { margin-left: 12px; }.trail-settings { position: relative; margin-left: 12px; }.trail-settings-menu { position: absolute; z-index: 8; top: calc(100% + 6px); right: 0; display: grid; gap: 10px; min-width: 210px; padding: 12px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--panel); box-shadow: 0 6px 24px #00000033; }.trail-settings-row { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }.trail-settings-row .segment-control { display: flex; width: 100%; }.trail-settings-row .segment-control button { flex: 1; justify-content: center; }
 .trail-settings-row input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent-strong); }

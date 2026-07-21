@@ -381,6 +381,13 @@ export interface components {
             date: string;
             /** Datetime */
             datetime: string | null;
+            /**
+             * Decision Count
+             * @default 0
+             */
+            decision_count: number;
+            /** Decision Ordinal */
+            decision_ordinal?: string | null;
             /** Entry Id */
             entry_id: string | null;
             /** Granularity */
@@ -682,6 +689,13 @@ export interface components {
             date: string;
             /** Datetime */
             datetime: string | null;
+            /**
+             * Decision Count
+             * @default 0
+             */
+            decision_count: number;
+            /** Decision Ordinal */
+            decision_ordinal?: string | null;
             /** Entry Id */
             entry_id: string | null;
             /** Granularity */
@@ -883,6 +897,7 @@ export interface operations {
                 date_from?: string | null;
                 date_to?: string | null;
                 topic?: string | null;
+                path?: string | null;
                 worktree?: string | null;
             };
             header?: never;

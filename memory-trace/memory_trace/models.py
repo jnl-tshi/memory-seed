@@ -286,6 +286,16 @@ class GraphNode(BaseModel):
     # The service has always computed this; declaring it stops the v1
     # response_model from stripping it (additive, defaulted).
     has_diagram: bool = False
+    # Per-decision Trail rows: set ONLY when the entry has >=2 numbered
+    # '#### Dn -' decisions AND the caller opted in (the /trail route). The
+    # parent row carries "d1" + the group size; each extra row carries its
+    # own ordinal. Ordinary/singular-decision entries keep None/0, so this
+    # doubles as the "row belongs to a rendered decision group" flag.
+    # Declared here (not on TrailEvent alone) because TrailEvent inherits
+    # GraphNode verbatim; /graph responses simply always carry the defaults
+    # - additive, same precedent as has_diagram.
+    decision_ordinal: str | None = None
+    decision_count: int = 0
 
 
 class GraphEdge(BaseModel):

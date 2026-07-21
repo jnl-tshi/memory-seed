@@ -25,6 +25,7 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 # reimplements parsing, ranking, the graph-edge contract, or diagram-sidecar
 # reading. These are the frozen surfaces the distribution split depends on.
 from memory_seed.core import (
+    DECISION_TITLE_ORDINAL_RE,
     iter_diagram_sidecar_documents,
     iter_link_sidecar_documents,
     iter_session_documents,
@@ -1474,6 +1475,7 @@ class TraceService:
         date_from: str | None = None,
         date_to: str | None = None,
         topic: str | None = None,
+        include_decisions: bool = False,
     ) -> dict[str, Any]:
         if granularity not in {"entry", "all"}:
             raise ValueError("granularity must be entry or all")
@@ -1543,6 +1545,12 @@ class TraceService:
             )
             for chunk in displayed
         ]
+        if include_decisions:
+            # Trail-only opt-in (the /trail route): multi-decision entries
+            # expand into one row per '#### Dn -' decision. Runs AFTER edges/
+            # merges/branches inputs are fixed, so lifecycle structure stays
+            # entry-scoped by construction.
+            nodes = _expand_decision_rows(nodes, self.cache)
         visible_edges = [
             edge
             for edge in edges
@@ -2049,12 +2057,16 @@ def create_app(
         # Fixed to the Trail's own edge set (app.js TRAIL_EDGE_TYPES) - the
         # Trail is a dedicated product surface, not a parameterization of the
         # general graph, so its contract doesn't expose edge_types at all.
+        # include_decisions is Trail-only: this is the single call site that
+        # opts into per-decision rows; /graph and /graph/projection stay
+        # entry-per-node.
         return service_for(worktree).graph(
             entry_id=entry_id,
             depth=depth,
             edge_types=("branch", "supersedes", "evolves", "related"),
             limit=limit,
             granularity="entry",
+            include_decisions=True,
             agent=agent,
             user=user,
             date_from=date_from,
@@ -3057,6 +3069,69 @@ def _graph_node(
         # polished, matching the merge-geometry vanilla-first precedent.
         "has_diagram": has_diagram,
     }
+
+
+def _expand_decision_rows(nodes: list[dict[str, Any]], cache: TraceCache) -> list[dict[str, Any]]:
+    """One Trail row per decision for multi-decision entries.
+
+    A decision's identity is ``(entry_id, dN ordinal)`` (the ratified ADR
+    contract), and section-granularity chunks already carry exactly that:
+    every ``#### Dn - name`` subsection is a chunk titled ``Dn - name`` with
+    chunk_id ``{entry_id}#decisions/dn-<slug>``. Entries with >=2 such
+    decisions expand: the entry's own row becomes the group anchor (ordinal
+    "d1", count N) and each further decision appends a row beneath it that
+    shares the parent's time/branch/agent/topics but carries its OWN unique
+    id/chunk_id (the section chunk_id - React keys and the row map require
+    uniqueness). Singular-``### Decision`` entries - the corpus majority -
+    keep ordinal None: the "d1 by convention" reading belongs to ADR
+    identity, not rendering, and None doubles as the client's "not part of a
+    rendered group" flag.
+
+    Cost: one memoized-per-generation section-chunk read; no git work - the
+    incremental-startup guarantees are untouched. Lifecycle edges, merges and
+    branch geometry are computed from the entry-level inputs BEFORE this runs
+    and stay entry-scoped by construction.
+    """
+    entry_ids = {node["entry_id"] for node in nodes if node.get("entry_id")}
+    if not entry_ids:
+        return nodes
+    decisions_by_entry: dict[str, list[tuple[int, MemoryChunk]]] = {}
+    for chunk in cache.chunks(granularity="section"):
+        if chunk.entry_id not in entry_ids:
+            continue
+        match = DECISION_TITLE_ORDINAL_RE.match(chunk.title or "")
+        if not match:
+            continue
+        decisions_by_entry.setdefault(chunk.entry_id, []).append((int(match.group(1)), chunk))
+    expanded: list[dict[str, Any]] = []
+    for node in nodes:
+        group = decisions_by_entry.get(node.get("entry_id") or "")
+        if not group or len(group) < 2:
+            expanded.append(node)
+            continue
+        group = sorted(group, key=lambda item: item[0])
+        anchor = dict(node)
+        anchor["decision_ordinal"] = "d1"
+        anchor["decision_count"] = len(group)
+        expanded.append(anchor)
+        for ordinal, chunk in group[1:]:
+            expanded.append(
+                dict(
+                    node,
+                    id=chunk.chunk_id,
+                    chunk_id=chunk.chunk_id,
+                    title=chunk.title,
+                    granularity="section",
+                    # Entry-scoped affordances stay on the anchor row only:
+                    # duplicated continuity glyphs / diagram badges on every
+                    # decision row would misread as N distinct events.
+                    continuity=[],
+                    has_diagram=False,
+                    decision_ordinal=f"d{ordinal}",
+                    decision_count=0,
+                )
+            )
+    return expanded
 
 
 def _chunk_summary(chunk: MemoryChunk) -> dict[str, Any]:

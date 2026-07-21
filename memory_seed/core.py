@@ -1214,6 +1214,12 @@ _INLINE_NUMBERED_DECISION_RE = re.compile(r"^-\s+D\d+\s*:")  # '- D1:' inline (s
 _ENTRY_SECTION_RE = re.compile(r"^#{2,4}\s+(Summary|Decision|Decisions|Implementation|Validation|Follow-up)", re.I)
 _SINGULAR_DECISION_HEADING_RE = re.compile(r"^###\s+Decision\s*$")
 _NUMBERED_DECISION_HEADING_RE = re.compile(r"^####\s+D\d+\s*[-–]")  # '#### D1 - name'
+# Public: the same numbered-decision grammar applied to a BARE section title
+# ('D2 - name', no '#### ' prefix) as section chunks carry it. Consumers that
+# detect decisions from chunk titles (e.g. Memory Trace's per-decision Trail
+# rows) must use this rather than hand-rolling a lookalike, so detection can
+# never drift from the write-time-validated heading grammar above.
+DECISION_TITLE_ORDINAL_RE = re.compile(r"^D(\d+)\s*[-–]\s*")
 # Indent-aware: a nested '  - R:' under a '- D1:' is still a reason present.
 _ANY_D_LABEL_RE = re.compile(r"^\s*-?\s*D\d*\s*:")
 _ANY_R_LABEL_RE = re.compile(r"^\s*-?\s*R\d*\s*:")
