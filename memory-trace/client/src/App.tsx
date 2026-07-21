@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { ChevronDown, ChevronUp, GitBranch, LayoutPanelLeft, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, X } from "lucide-react";
 import { SettingsMenu, type InspectorDock, type Theme, type TrailStyle } from "./SettingsMenu";
-import { api, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, SEARCH_LIMIT, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
+import { api, connectedNodeIds, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, SEARCH_LIMIT, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
 import { EntryReader } from "./EntryReader";
 import { readerScrollTarget } from "./inspectorScroll";
 import { searchResultCursor, stepSearchCursor } from "./searchNavigation";
@@ -32,6 +32,10 @@ const EVOLUTION_DEPTH = 8;
 function edgeTypesForScope(targetScope: GraphScope): RendererGraphEdge["edge_type"][] {
   return targetScope === "evolution" ? EVOLUTION_EDGE_TYPES : DEFAULT_GRAPH_EDGE_TYPES;
 }
+
+// Matches the server's own graphQuery default (api.ts) so the first Overview
+// fetch and every "Show more" step move the same amount.
+const OVERVIEW_LIMIT_STEP = 60;
 
 const EDGE_LABELS: Record<RendererGraphEdge["edge_type"], string> = {
   related: "Related",
@@ -163,8 +167,17 @@ export default function App() {
   const [trailWindow, setTrailWindow] = useState(TRAIL_WINDOW_STEP);
   const [trailError, setTrailError] = useState<string | null>(null);
   const [labelMode, setLabelMode] = useState<LabelMode>("focus");
-  const [range, setRange] = useState<GraphRange>("recent");
+  // "All dates" by default: the server already ranks Overview by connectivity
+  // (see edgeTypesForScope's sibling reasoning below), not corpus position, so
+  // a recency window was only ever narrowing the candidate pool that ranking
+  // runs over — it made Overview a "recent" view, not a true overview.
+  const [range, setRange] = useState<GraphRange>("all");
   const [edgeTypes, setEdgeTypes] = useState<RendererGraphEdge["edge_type"][]>(DEFAULT_GRAPH_EDGE_TYPES);
+  // How many Overview nodes to ask the server for. The server's connectivity-
+  // ranked selection (highest-degree seeds first, newest-first tie-break) only
+  // truncates once the candidate pool exceeds this, so raising it via "Show
+  // more" reaches deeper into the ranked list rather than jumping randomly.
+  const [overviewLimit, setOverviewLimit] = useState(OVERVIEW_LIMIT_STEP);
   const [activeTopic, setActiveTopic] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchResponse | null>(null);
@@ -191,6 +204,7 @@ export default function App() {
     dateFrom,
     depth,
     path,
+    limit,
   }: {
     nextScope: GraphScope;
     nextTopic: string | null;
@@ -201,6 +215,7 @@ export default function App() {
     dateFrom?: string | null;
     depth?: number;
     path?: string | null;
+    limit?: number;
   }) => {
     const request = ++graphRequest.current;
     setIsLoading(true);
@@ -213,6 +228,7 @@ export default function App() {
         dateFrom,
         depth,
         path: nextScope === "file" ? path : null,
+        limit,
       });
       if (request !== graphRequest.current) return null;
       if (keepCurrentOnEmpty && nextGraph.nodes.length === 0) return nextGraph;
@@ -241,11 +257,12 @@ export default function App() {
         nextEdgeTypes: edgeTypesForScope(scope),
         preferredEntryId: selected?.source.entry_id,
         dateFrom: scope === "overview" && range === "recent" ? recentDateFrom(nextRuntime) : null,
+        limit: scope === "overview" ? overviewLimit : undefined,
       });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to load Memory Trace.");
     }
-  }, [activeTopic, loadGraph, range, scope, selected?.source.entry_id]);
+  }, [activeTopic, loadGraph, overviewLimit, range, scope, selected?.source.entry_id]);
 
   // The Trail is a full-history timeline with its own client-side window, so it
   // ignores the graph's recent-range control and fetches the whole corpus (up to
@@ -513,9 +530,26 @@ export default function App() {
 
   const topics = useMemo(() => Object.entries(facets?.topics ?? {}).slice(0, 10), [facets]);
   const inspectorVisible = dock !== "hidden";
+  // How many of the fetched Overview nodes actually render (carry an edge) —
+  // the honest denominator for the coverage count, not the raw fetch size.
+  const overviewShownCount = useMemo(() => (graph ? connectedNodeIds(graph).size : 0), [graph]);
+  // The server only truncates the connected candidate set once it exceeds the
+  // requested limit; a return smaller than what was asked for means the
+  // reachable/connected corpus is exhausted, not that more exists to page
+  // into — that is the point at which "Show more" stops doing anything.
+  const overviewExhausted = graph ? graph.nodes.length < overviewLimit : false;
 
-  async function requestGraph(nextScope: GraphScope, nextTopic = activeTopic, nextEdgeTypes = edgeTypesForScope(nextScope), entryId?: string | null, preferredEntryId?: string | null, keepCurrentOnEmpty = false, dateFrom = nextScope === "overview" && range === "recent" ? recentDateFrom(runtime) : null, depth = nextScope === "evolution" ? EVOLUTION_DEPTH : undefined, path = nextScope === "file" ? filePath : null) {
-    return loadGraph({ nextScope, nextTopic, nextEdgeTypes, entryId, preferredEntryId: preferredEntryId ?? selected?.source.entry_id, keepCurrentOnEmpty, dateFrom, depth, path });
+  async function requestGraph(nextScope: GraphScope, nextTopic = activeTopic, nextEdgeTypes = edgeTypesForScope(nextScope), entryId?: string | null, preferredEntryId?: string | null, keepCurrentOnEmpty = false, dateFrom = nextScope === "overview" && range === "recent" ? recentDateFrom(runtime) : null, depth = nextScope === "evolution" ? EVOLUTION_DEPTH : undefined, path = nextScope === "file" ? filePath : null, limit = nextScope === "overview" ? overviewLimit : undefined) {
+    return loadGraph({ nextScope, nextTopic, nextEdgeTypes, entryId, preferredEntryId: preferredEntryId ?? selected?.source.entry_id, keepCurrentOnEmpty, dateFrom, depth, path, limit });
+  }
+
+  // Pages deeper into the server's connectivity ranking rather than widening
+  // a window — the next "Show more" click reaches the next-most-connected
+  // entries, not a random slice.
+  async function showMoreOverview() {
+    const nextLimit = overviewLimit + OVERVIEW_LIMIT_STEP;
+    setOverviewLimit(nextLimit);
+    await requestGraph("overview", activeTopic, undefined, undefined, undefined, false, undefined, undefined, undefined, nextLimit);
   }
 
   async function focusEntry(entryId: string, options: { preserveHint?: boolean; preserveSearch?: boolean } = {}) {
@@ -836,6 +870,10 @@ export default function App() {
             are hidden in Trail view rather than sitting there inert. */}
         <div className="workspace-bar"><div><span className="eyebrow">{viewMode === "trail" ? "Trail" : "Graph workspace"}</span><h1>{viewMode === "trail" ? "Decision timeline" : "Relationship map"}</h1></div><div className="workspace-actions">{viewMode !== "trail" && <><div className="segment-control" aria-label="Graph scope"><button type="button" aria-pressed={scope === "overview"} onClick={() => void changeScope("overview")}>Overview</button><button type="button" aria-pressed={scope === "local"} onClick={() => void changeScope("local")}>Local</button><button type="button" aria-pressed={scope === "evolution"} onClick={() => void changeScope("evolution")}>Evolution</button>{filePath && <button type="button" aria-pressed={scope === "file"} onClick={() => void openFileMode(filePath)}>{"File: " + (filePath.split(/[\\/]/).pop() ?? filePath)}</button>}</div><div className="segment-control" aria-label="Graph date range"><button type="button" aria-pressed={range === "recent"} onClick={() => void changeRange("recent")}>Recent</button><button type="button" aria-pressed={range === "all"} onClick={() => void changeRange("all")}>All dates</button></div><label className="label-menu"><span>Labels</span><select value={labelMode} onChange={(event) => setLabelMode(event.target.value as LabelMode)} aria-label="Graph labels"><option value="focus">Focus</option><option value="minimal">Minimal</option><option value="all">All</option></select></label></>}<span className="status-pill">{viewMode === "trail" ? "Trail" : isLoading ? "Updating" : "Cytoscape.js"}</span></div></div>
         {viewMode !== "trail" && scope !== "evolution" && scope !== "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{DEFAULT_GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
+        {/* Overview only: the fetch is a connectivity-ranked sample of the
+            whole corpus, not the whole corpus itself, so say so plainly rather
+            than let a sparse-looking canvas read as "this is everything." */}
+        {viewMode !== "trail" && scope === "overview" && graph && <div className="graph-filter-bar" aria-label="Graph coverage"><span className="count">{overviewShownCount} of {runtime?.entry_count ?? "…"} entries shown</span>{!overviewExhausted && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showMoreOverview()}>Show more</button>}</div>}
         {viewMode !== "trail" && scope === "evolution" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span><span className="count">Evolves + Replaces only · lifecycle chain</span>{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
         {viewMode !== "trail" && scope === "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>File</span><span className="count" title={filePath ?? ""}>{"Entries that touched " + (filePath ?? "this file")}</span><button type="button" className="active-topic" onClick={() => void changeScope("overview")}>Clear<X size={13} aria-hidden="true" /></button></div>}
         {viewMode === "trail" ? (
