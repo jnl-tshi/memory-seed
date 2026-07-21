@@ -1,11 +1,12 @@
 """Per-decision Trail rows (opt-in, /api/v1/trail only).
 
-A multi-decision entry (>=2 ``#### Dn -`` decisions) expands into one row per
-decision: the entry's own row anchors the group (ordinal "d1", count N) and
-each further decision appends a row with its section chunk_id as a unique id,
-the parent's time/branch/agent/topics, and entry-scoped affordances
-(continuity, diagram badge) deliberately stripped. Singular-``### Decision``
-and no-decision entries are untouched, as is every non-trail surface.
+A multi-decision entry (>=2 ``#### Dn -`` decisions) expands into a heading
+plus subheadings: the entry's own row anchors the group (ordinal None, count
+N) and EVERY decision D1..DN appends a row with its section chunk_id as a
+unique id, the parent's time/branch/agent/topics, and entry-scoped
+affordances (continuity, diagram badge) deliberately stripped.
+Singular-``### Decision`` and no-decision entries are untouched, as is every
+non-trail surface.
 """
 
 import shutil
@@ -96,19 +97,25 @@ class TrailDecisionRowTests(unittest.TestCase):
             include_decisions=True,
         )["nodes"]
 
-    def test_multi_decision_entry_expands_to_one_row_per_decision(self):
+    def test_multi_decision_entry_expands_to_anchor_plus_every_decision(self):
+        # A heading and its subheadings: the entry row anchors the group and
+        # EVERY decision gets a row, D1 included - a document does not skip
+        # heading 1. Ordinal absent is what marks the anchor; decision_count
+        # is what separates it from an ordinary single-decision entry.
         nodes = [node for node in self.trail_nodes() if node["entry_id"] == "mse_multi"]
-        self.assertEqual([node.get("decision_ordinal") for node in nodes], ["d1", "d2", "d3"])
-        self.assertEqual(len({node["id"] for node in nodes}), 3, "row ids must be unique")
-        anchor, second, third = nodes
+        self.assertEqual([node.get("decision_ordinal") for node in nodes], [None, "d1", "d2", "d3"])
+        self.assertEqual(len({node["id"] for node in nodes}), 4, "row ids must be unique")
+        anchor, first, second, third = nodes
         self.assertEqual(anchor["decision_count"], 3)
         self.assertEqual(anchor["granularity"], "entry")
+        self.assertEqual(anchor["id"], "mse_multi")
+        self.assertEqual(first["id"], "mse_multi#decisions/d1-first-call")
         self.assertEqual(second["id"], "mse_multi#decisions/d2-second-call")
         self.assertEqual(second["chunk_id"], second["id"])
         self.assertEqual(second["title"], "D2 - Second call")
         self.assertEqual(second["granularity"], "section")
         self.assertEqual(second["decision_count"], 0)
-        for child in (second, third):
+        for child in (first, second, third):
             self.assertEqual(child["datetime"], anchor["datetime"])
             self.assertEqual(child["branch"], anchor["branch"])
             self.assertEqual(child["agent"], anchor["agent"])
@@ -140,8 +147,9 @@ class TrailDecisionRowTests(unittest.TestCase):
         client = TestClient(create_app(self.cwd, rebuild_cache=True))
         trail = client.get("/api/v1/trail", params={"limit": 100}).json()
         trail_multi = [node for node in trail["nodes"] if node["entry_id"] == "mse_multi"]
-        self.assertEqual(len(trail_multi), 3)
-        self.assertEqual(trail_multi[0]["decision_ordinal"], "d1")
+        self.assertEqual(len(trail_multi), 4)
+        self.assertIsNone(trail_multi[0]["decision_ordinal"])
+        self.assertEqual(trail_multi[0]["decision_count"], 3)
 
         graph = client.get("/api/v1/graph", params={"limit": 100}).json()
         graph_multi = [node for node in graph["nodes"] if node["entry_id"] == "mse_multi"]

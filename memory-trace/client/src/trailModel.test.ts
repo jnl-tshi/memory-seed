@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildTrailModel, compareTrailNodes, pastelOf } from "./trailModel.ts";
+import { buildTrailModel, compareTrailNodes, inDecisionGroup, isDecisionRow, pastelOf } from "./trailModel.ts";
 import type { TrailEvent, TrailResponse } from "./api.ts";
 
 const PALETTE = [
@@ -56,22 +56,34 @@ test("pastelOf is deterministic, lighter, and keeps hues distinct", () => {
   assert.equal(new Set(pastels).size, PALETTE.length, "distinct hues stay distinct");
 });
 
-test("compareTrailNodes orders decision groups D1 < D2 < D10 at identical timestamps", () => {
-  const anchor = node({ id: "mse_a", decision_ordinal: "d1", decision_count: 3 });
+test("compareTrailNodes orders a group anchor < D1 < D2 < D10 at identical timestamps", () => {
+  const anchor = node({ id: "mse_a", decision_count: 3 });
+  const d1 = node({ id: "mse_a#decisions/d1-w", chunk_id: "mse_a#decisions/d1-w", decision_ordinal: "d1" });
   const d2 = node({ id: "mse_a#decisions/d2-x", chunk_id: "mse_a#decisions/d2-x", decision_ordinal: "d2" });
   const d10 = node({ id: "mse_a#decisions/d10-y", chunk_id: "mse_a#decisions/d10-y", decision_ordinal: "d10" });
-  const shuffled = [d10, anchor, d2].sort(compareTrailNodes);
-  assert.deepEqual(shuffled.map((item) => item.decision_ordinal), ["d1", "d2", "d10"]);
+  const shuffled = [d10, d1, anchor, d2].sort(compareTrailNodes);
+  // The anchor has no ordinal, so it ranks 0 and heads its own group - the
+  // entry title above its D1..DN subheadings.
+  assert.deepEqual(shuffled.map((item) => item.decision_ordinal), [null, "d1", "d2", "d10"]);
   // Newest entries still lead regardless of ordinals.
   const newer = node({ id: "mse_b", entry_id: "mse_b", datetime: "2026-06-02T09:00:00" });
   assert.ok(compareTrailNodes(newer, anchor) < 0);
+});
+
+test("isDecisionRow and inDecisionGroup differ exactly on the group anchor", () => {
+  const ordinary = node({ id: "mse_p" });
+  const anchor = node({ id: "mse_a", decision_count: 3 });
+  const d1 = node({ id: "mse_a#decisions/d1-w", decision_ordinal: "d1" });
+  assert.deepEqual([ordinary, anchor, d1].map(isDecisionRow), [false, false, true]);
+  assert.deepEqual([ordinary, anchor, d1].map(inDecisionGroup), [false, true, true]);
 });
 
 test("buildTrailModel keeps decision rows unique, grouped, and never bisected by the window", () => {
   const trail = {
     nodes: [
       node({ id: "mse_new", entry_id: "mse_new", chunk_id: "mse_new", datetime: "2026-06-03T09:00:00", date: "2026-06-03" }),
-      node({ id: "mse_multi", entry_id: "mse_multi", chunk_id: "mse_multi", datetime: "2026-06-02T09:00:00", date: "2026-06-02", decision_ordinal: "d1", decision_count: 3 }),
+      node({ id: "mse_multi", entry_id: "mse_multi", chunk_id: "mse_multi", datetime: "2026-06-02T09:00:00", date: "2026-06-02", decision_count: 3 }),
+      node({ id: "mse_multi#decisions/d1-z", entry_id: "mse_multi", chunk_id: "mse_multi#decisions/d1-z", datetime: "2026-06-02T09:00:00", date: "2026-06-02", decision_ordinal: "d1", title: "D1 - z" }),
       node({ id: "mse_multi#decisions/d2-a", entry_id: "mse_multi", chunk_id: "mse_multi#decisions/d2-a", datetime: "2026-06-02T09:00:00", date: "2026-06-02", decision_ordinal: "d2", title: "D2 - a" }),
       node({ id: "mse_multi#decisions/d3-b", entry_id: "mse_multi", chunk_id: "mse_multi#decisions/d3-b", datetime: "2026-06-02T09:00:00", date: "2026-06-02", decision_ordinal: "d3", title: "D3 - b" }),
       node({ id: "mse_old", entry_id: "mse_old", chunk_id: "mse_old", datetime: "2026-06-01T09:00:00", date: "2026-06-01" }),
@@ -89,8 +101,14 @@ test("buildTrailModel keeps decision rows unique, grouped, and never bisected by
   const ids = nodeItems.map((item) => (item.kind === "node" ? item.node.id : ""));
   assert.equal(new Set(ids).size, ids.length, "row ids must be unique");
   const multiRows = ids.filter((id) => id.startsWith("mse_multi"));
-  assert.deepEqual(multiRows, ["mse_multi", "mse_multi#decisions/d2-a", "mse_multi#decisions/d3-b"], "group is contiguous and ordered");
+  assert.deepEqual(
+    multiRows,
+    ["mse_multi", "mse_multi#decisions/d1-z", "mse_multi#decisions/d2-a", "mse_multi#decisions/d3-b"],
+    "anchor leads, then every decision, contiguous and ordered",
+  );
   assert.equal(model.rowOf.size, nodeItems.length, "every row keyed once");
+  // "N of M entries" counts entries, so the 4 rows of mse_multi count once.
+  assert.equal(model.total, 3, "decision rows never inflate the entry count");
 
   // A window cut landing inside the group extends to the group's end: window
   // of 2 would slice after the anchor - the children must still be included.

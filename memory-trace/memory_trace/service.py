@@ -3078,14 +3078,21 @@ def _expand_decision_rows(nodes: list[dict[str, Any]], cache: TraceCache) -> lis
     contract), and section-granularity chunks already carry exactly that:
     every ``#### Dn - name`` subsection is a chunk titled ``Dn - name`` with
     chunk_id ``{entry_id}#decisions/dn-<slug>``. Entries with >=2 such
-    decisions expand: the entry's own row becomes the group anchor (ordinal
-    "d1", count N) and each further decision appends a row beneath it that
-    shares the parent's time/branch/agent/topics but carries its OWN unique
-    id/chunk_id (the section chunk_id - React keys and the row map require
-    uniqueness). Singular-``### Decision`` entries - the corpus majority -
-    keep ordinal None: the "d1 by convention" reading belongs to ADR
-    identity, not rendering, and None doubles as the client's "not part of a
-    rendered group" flag.
+    decisions expand into a heading plus subheadings: the entry's own row
+    stays the group ANCHOR (ordinal None, count N - it carries the entry
+    title and the timestamp), and EVERY decision d1..dN appends a row beneath
+    it sharing the parent's time/branch/agent/topics but carrying its OWN
+    unique id/chunk_id (the section chunk_id - React keys and the row map
+    require uniqueness). D1 gets a row like any other: decisions read as
+    subheadings of the entry, and a document does not skip heading 1. The
+    anchor's title and D1's title are different strings, so nothing is
+    duplicated.
+
+    Ordinal None therefore means "not a decision row" - either an ordinary
+    entry or a group anchor; ``decision_count > 0`` is what distinguishes the
+    two. Singular-``### Decision`` entries (the corpus majority) stay a
+    single unexpanded row: the "d1 by convention" reading belongs to ADR
+    identity, not rendering.
 
     Cost: one memoized-per-generation section-chunk read; no git work - the
     incremental-startup guarantees are untouched. Lifecycle edges, merges and
@@ -3111,10 +3118,10 @@ def _expand_decision_rows(nodes: list[dict[str, Any]], cache: TraceCache) -> lis
             continue
         group = sorted(group, key=lambda item: item[0])
         anchor = dict(node)
-        anchor["decision_ordinal"] = "d1"
+        anchor["decision_ordinal"] = None
         anchor["decision_count"] = len(group)
         expanded.append(anchor)
-        for ordinal, chunk in group[1:]:
+        for ordinal, chunk in group:
             expanded.append(
                 dict(
                     node,
@@ -3124,7 +3131,9 @@ def _expand_decision_rows(nodes: list[dict[str, Any]], cache: TraceCache) -> lis
                     granularity="section",
                     # Entry-scoped affordances stay on the anchor row only:
                     # duplicated continuity glyphs / diagram badges on every
-                    # decision row would misread as N distinct events.
+                    # decision row would misread as N distinct events. Same
+                    # reason decision_count is 0 here - only the anchor
+                    # declares the group's size.
                     continuity=[],
                     has_diagram=False,
                     decision_ordinal=f"d{ordinal}",

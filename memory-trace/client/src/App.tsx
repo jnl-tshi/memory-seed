@@ -7,7 +7,7 @@ import { readerScrollTarget } from "./inspectorScroll";
 import { searchResultCursor, stepSearchCursor } from "./searchNavigation";
 import { genuineSearchResults } from "./searchResults";
 import { animateScrollTo, scrollDurationFor } from "./trailScroll";
-import { compareTrailNodes, stripTitleStamp, TRAIL_WINDOW_STEP } from "./trailModel";
+import { compareTrailNodes, isDecisionRow, stripTitleStamp, TRAIL_WINDOW_STEP } from "./trailModel";
 
 const GraphWorkspace = lazy(() => import("./GraphWorkspace").then((module) => ({ default: module.GraphWorkspace })));
 const TrailWorkspace = lazy(() => import("./TrailWorkspace").then((module) => ({ default: module.TrailWorkspace })));
@@ -377,10 +377,10 @@ export default function App() {
     const entryId = selected?.source.entry_id;
     if (!entryId) {
       return (entryIndex?.nodes ?? [])
-        // The index now carries one row per decision; the Recent list is a
-        // list of ENTRIES, so child rows (D2..DN) are excluded - the anchor
-        // already represents the entry.
-        .filter((node) => !node.decision_ordinal || node.decision_ordinal === "d1")
+        // The index is the full-corpus Trail response, so it carries one row
+        // per decision; the Recent list is a list of ENTRIES, so every
+        // decision row (D1..DN) is excluded - the anchor represents the entry.
+        .filter((node) => !isDecisionRow(node))
         .slice()
         .sort((a, b) => (b.datetime || b.date).localeCompare(a.datetime || a.date))
         .slice(0, 24)

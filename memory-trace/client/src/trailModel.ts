@@ -67,6 +67,25 @@ export function stripTitleStamp(title: string): string {
   return String(title || "").replace(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}\s*-\s*/, "");
 }
 
+// The two questions callers ask about decision rows, deliberately separate
+// because they answer differently for the GROUP ANCHOR - the entry-title row
+// that heads a multi-decision group. The anchor is not itself a decision (it
+// carries no ordinal, keeps full branch colour and shows the timestamp), but
+// it IS part of the group, so it must share the group's indent, its search
+// highlight and its exact-chunk selection rule.
+//
+//                      isDecisionRow   inDecisionGroup
+//   ordinary entry           no              no
+//   group anchor             no              YES
+//   D1..DN row              YES              YES
+export function isDecisionRow(node: TrailEvent): boolean {
+  return Boolean(node.decision_ordinal);
+}
+
+export function inDecisionGroup(node: TrailEvent): boolean {
+  return Boolean(node.decision_ordinal) || (node.decision_count ?? 0) > 0;
+}
+
 // A decision row's rank within its entry group: "d1" -> 1, "d10" -> 10,
 // absent -> 0. Parsed numerically because the rows in a group share one
 // timestamp, so ordering falls entirely to this tiebreak - a string compare
@@ -76,8 +95,10 @@ function decisionRank(node: TrailEvent): number {
   return match ? Number(match[1]) : 0;
 }
 
-// THE trail ordering: newest first, then decision ordinal ascending (D1
-// before D2..DN within an entry's group), then id for total stability.
+// THE trail ordering: newest first, then decision ordinal ascending, then id
+// for total stability. Because the anchor has no ordinal it ranks 0 and so
+// heads its own group - the entry title above its D1..DN subheadings, which
+// all share the anchor's timestamp.
 // Exported so every consumer that orders trail nodes (the model here, the
 // find bar's match list in App.tsx) shares one comparator instead of
 // hand-duplicating it and drifting.
@@ -129,14 +150,15 @@ export function buildTrailModel(trail: TrailResponse, window: number): TrailMode
   const nodes = (trail.nodes || [])
     .filter((node) => node.entry_id)
     .sort(compareTrailNodes);
-  // "N of M ENTRIES" stays honest: decision child rows are extra ROWS of one
-  // entry, not entries - they inflate the item list but never this count.
-  const total = nodes.filter((node) => decisionRank(node) <= 1).length;
+  // "N of M ENTRIES" stays honest: decision rows are extra ROWS of one entry,
+  // not entries - they inflate the item list but never this count. Counting
+  // anchors (ordinal absent) counts entries exactly once.
+  const total = nodes.filter((node) => !isDecisionRow(node)).length;
   // Never bisect a decision group: if the window cut lands inside one (the
-  // next hidden node is a decision CHILD), extend to the end of that group
-  // so a bracket/pastel row never dangles without its anchor.
+  // next hidden node is a decision row), extend to the end of that group so a
+  // pastel row never dangles without the anchor that names its entry.
   let window_ = Math.min(window, nodes.length);
-  while (window_ < nodes.length && decisionRank(nodes[window_]) > 1) window_ += 1;
+  while (window_ < nodes.length && isDecisionRow(nodes[window_])) window_ += 1;
   const visible = nodes.slice(0, window_);
 
   const items: TrailItem[] = [];
