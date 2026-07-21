@@ -40,6 +40,7 @@ export function TrailWorkspace({
   commitSiblingIds,
   onEnsureVisible,
   onSelectEntry,
+  onPreviewDiagram,
   onLoadMore,
 }: {
   trail: TrailResponse;
@@ -52,6 +53,7 @@ export function TrailWorkspace({
   commitSiblingIds: string[];
   onEnsureVisible: (count: number) => void;
   onSelectEntry: (entryId: string | null, chunkId: string, decision?: { heading: string }) => void;
+  onPreviewDiagram: (entryId: string | null, chunkId: string) => void;
   onLoadMore: () => void;
 }) {
   // Stroke presentation is owned by the settings menu (App); the Trail keeps
@@ -642,7 +644,24 @@ export function TrailWorkspace({
         <span className="trail-title">{stripTitleStamp(node.title)}</span>
         {(node.has_diagram || showPill) && (
           <span className="trail-row-end">
-            {node.has_diagram && <span className="trail-diagram-badge" title="Has a decision diagram (open the entry to view)" aria-label="Has decision diagram">{"◇"}</span>}
+            {node.has_diagram && (
+              // A real button, like vanilla: it opens the zoomable viewer
+              // rather than telling you to go and find the diagram yourself.
+              // stopPropagation so the badge does not also fire the row's own
+              // select handler underneath it.
+              <button
+                type="button"
+                className="trail-diagram-badge"
+                title="Decision diagram — click to preview"
+                aria-label="Preview decision diagram"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onPreviewDiagram(node.entry_id, node.chunk_id);
+                }}
+              >
+                {"◇"}
+              </button>
+            )}
             {showPill && (
               <span className="trail-branch" style={{ color: colorOf.get(branch) }}>
                 {branch}

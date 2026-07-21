@@ -6,7 +6,9 @@ import { DiagramView } from "./DiagramView";
 // ChunkResponse.diagrams is typed as a generic record array in the OpenAPI
 // contract (the backend's sidecar dict has no schema of its own); this is the
 // runtime shape memory_seed.retrieval actually produces.
-interface DiagramSidecar {
+// Exported because App opens the same sidecars in the modal viewer from the
+// Trail badge; a second local copy of the shape is how the two drift.
+export interface DiagramSidecar {
   title?: string | null;
   mermaid_blocks?: string[];
 }
@@ -220,11 +222,13 @@ export function EntryReader({
   matchHeading,
   onOpenEntry,
   onOpenFile,
+  onOpenDiagram,
 }: {
   chunk: ChunkResponse | null;
   matchHeading: string | null;
   onOpenEntry: (entryId: string) => void;
   onOpenFile: (path: string) => void;
+  onOpenDiagram: (title: string | null, source: string) => void;
 }) {
   if (!chunk) return <p className="reader-empty">Loading entry details</p>;
 
@@ -319,10 +323,26 @@ export function EntryReader({
 
       {chunk.diagrams.length > 0 && (
         <section className="detail-section">
-          <h4>Decision diagrams</h4>
+          <h4>Decision diagrams <span className="count">· click to zoom</span></h4>
           {(chunk.diagrams as DiagramSidecar[]).flatMap((sidecar, sidecarIndex) =>
             (sidecar.mermaid_blocks ?? []).map((source, blockIndex) => (
-              <figure key={`${sidecarIndex}-${blockIndex}`} className="diagram">
+              // Clickable, matching the vanilla reader: the inspector column
+              // is narrower than most authored diagrams, so inline rendering
+              // alone leaves them unreadable with no way to enlarge.
+              <figure
+                key={`${sidecarIndex}-${blockIndex}`}
+                className="diagram diagram-openable"
+                title="Click to inspect (zoom + pan)"
+                role="button"
+                tabIndex={0}
+                onClick={() => onOpenDiagram(sidecar.title ?? null, source)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onOpenDiagram(sidecar.title ?? null, source);
+                  }
+                }}
+              >
                 {sidecar.title && <figcaption className="count">{sidecar.title}</figcaption>}
                 <DiagramView source={source} />
               </figure>
