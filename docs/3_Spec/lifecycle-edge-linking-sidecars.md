@@ -9,6 +9,9 @@ semantic scan) with `--for <entry_id>` and `--date YYYY-MM-DD` scoping (the swee
 session's own entries against the full corpus). Since 2026-07-15, `--apply` may create inert,
 idempotent `classify_pending` stubs; it never writes a live edge.
 Related: [graph-edge-contract.md](graph-edge-contract.md)
+Draft extension: [decision-level-link-sidecar-refs.md](draft/decision-level-link-sidecar-refs.md) — refs
+that terminate on a specific decision rather than a whole entry. Not implemented; every ref described
+below is entry-to-entry.
 
 ## Problem
 
