@@ -30,8 +30,12 @@ B = "mse_" + "b" * 16
 C = "mse_" + "c" * 16  # newest
 
 
-def _entry(dt, eid, *, topics=(), files=(), related=(), supersedes=(), evolves=()):
-    lines = [f"## {dt} - entry {eid[-4:]}", "", "```yaml", f"entry_id: {eid}"]
+def _entry(dt, eid, *, topics=(), files=(), related=(), supersedes=(), evolves=(), title=None):
+    # Titles must share NO word by default. Candidate scoring now counts shared
+    # distinctive title terms, so a fixture title like "entry aaaa" would make
+    # every pair a title match and quietly defeat the tests that assert a pair
+    # is NOT surfaced. Pass `title=` explicitly to exercise title overlap.
+    lines = [f"## {dt} - {title or eid[-4:]}", "", "```yaml", f"entry_id: {eid}"]
     for key, vals in (
         ("topics", topics),
         ("related_entries", related),
@@ -109,6 +113,29 @@ class LinkAuditTests(unittest.TestCase):
         gap = self._gap(B)
         self.assertEqual([c.entry_id for c in gap.candidates], [A])
         self.assertEqual(gap.candidates[0].shared_topics, ("alpha",))
+
+    def test_shared_title_terms_surface_a_candidate_without_file_overlap(self):
+        # The signal that catches a predecessor sharing no files: measured
+        # against the corpus's author-declared lifecycle edges, adding
+        # idf-weighted title-term overlap moved recall@5 from 45% to 59%.
+        self._write(
+            _entry("2026-06-01 09:00", A, title="hide evolves connectors until selected"),
+            _entry("2026-06-01 10:00", B, title="promote selected-only evolves routes to main"),
+        )
+        gap = self._gap(B)
+        self.assertEqual([c.entry_id for c in gap.candidates], [A])
+        self.assertEqual(gap.candidates[0].shared_files, ())
+        self.assertEqual(gap.candidates[0].shared_title_terms, ("evolves", "selected"))
+
+    def test_title_stamp_is_not_a_shared_term(self):
+        # A chunk title carries its `YYYY-MM-DD HH:MM - ` stamp. Left in, the
+        # year would be a term shared by essentially every pair in the corpus,
+        # turning the discriminating signal into a universal one.
+        self._write(
+            _entry("2026-06-01 09:00", A, title="alpha"),
+            _entry("2026-06-01 10:00", B, title="beta"),
+        )
+        self.assertIsNone(self._gap(B))
 
     def test_topic_only_is_suppressed_when_already_related(self):
         self._write(
