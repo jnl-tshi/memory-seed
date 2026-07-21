@@ -738,18 +738,16 @@ export default function App() {
               )}
               <button type="button" className="find-step" onClick={() => void jumpToFind(-1)} disabled={findCount() === 0} aria-label="Previous match" title="Previous match (Shift+Enter)"><ChevronUp size={14} /></button>
               <button type="button" className="find-step" onClick={() => void jumpToFind(1)} disabled={findCount() === 0} aria-label="Next match" title="Next match (Enter)"><ChevronDown size={14} /></button>
-              {/* In title mode this is the route to entry bodies; in text mode
-                  it stops being a button and becomes the label that tells you
-                  where the results in the counter came from. */}
-              {findMode === "text" ? (
-                <span className="find-mode" aria-label="Showing full-text results"><Search size={12} aria-hidden="true" />all text</span>
-              ) : (
-                <button type="button" className="find-all" onClick={() => void runSearch(query)}
-                        aria-label="Search full text including entry bodies"
-                        title="Search full text, including entry bodies (Ctrl+Enter)">
-                  <Search size={12} aria-hidden="true" />all text
-                </button>
-              )}
+              {/* Same slot in both modes now: a toggle, not a one-way door. Title
+                  mode turns full-text search on; text mode's click turns it back
+                  off, so choosing a search type never requires reaching for the
+                  separate dismiss button on the far right. */}
+              <button type="button" className="find-all" aria-pressed={findMode === "text"}
+                      onClick={() => { if (findMode === "text") dismissFullTextSearch(); else void runSearch(query); }}
+                      aria-label={findMode === "text" ? "Showing full-text results — click to search titles only" : "Search full text including entry bodies"}
+                      title={findMode === "text" ? "Full-text results active — click to search titles only (Esc)" : "Search full text, including entry bodies (Ctrl+Enter)"}>
+                <Search size={12} aria-hidden="true" />all text
+              </button>
               <button type="button" className="find-step" onClick={() => { if (findMode === "text") dismissFullTextSearch(); else setFindOpen(false); }} aria-label={findMode === "text" ? "Dismiss full-text results" : "Dismiss find bar"} title="Dismiss (Esc)"><X size={13} /></button>
             </div>
           )}
