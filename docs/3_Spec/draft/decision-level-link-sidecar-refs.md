@@ -100,15 +100,44 @@ be written; `links check` reports a duplicate rather than silently creating two 
 the same parser and can follow. Both are specified here so the second half is not designed against a shape
 the first half already froze.
 
+### Granularity is per-endpoint, so all four combinations are legal
+
+The two ends are independent. An entry may supersede or evolve a *decision*, and a decision may supersede
+or evolve an *entry* — the ends do not have to match:
+
+| Source | Target | Reads as |
+|---|---|---|
+| entry | entry | today's edge, unchanged |
+| entry | `mse_a:d2` | this session's work retires one call from that session |
+| `mse_b:d3` | entry | this one call retires that whole session's position |
+| `mse_b:d3` | `mse_a:d1` | one call replaced another |
+
+This falls out of the grammar rather than being added to it: `source_decision` is optional on the block
+and a decision suffix is optional on each ref, so the four rows are just the presence/absence matrix.
+Nothing needs a per-combination rule.
+
+It matters because the mismatched rows are common in practice. A single-decision entry that is wholly
+retired by one call in a later multi-decision entry is `decision → entry`; a broad architectural entry
+that retires one specific earlier call is `entry → decision`. Forcing both ends to the same granularity
+would push each of those back into the overstate-or-understate choice this draft exists to remove.
+
 ## Decision edges are a distinct edge set
 
-A decision edge is **not** unioned into the entry-level `supersedes` / `evolves` lists.
+An edge with a decision at **either** end is not unioned into the entry-level `supersedes` / `evolves`
+lists. Only the entry→entry row of the table above lands there, exactly as today.
 
 This is the load-bearing rule. "D2 of B supersedes D1 of A" does not license "B supersedes A" — that is the
 overstatement this whole draft exists to avoid, and projecting decision edges up to entry level would
 reintroduce it at the read layer. Consumers that do not model decisions therefore **ignore** decision
 edges, which is the same rule they already apply to `classify_pending` stubs and `edge_status:
 not_applicable`. They see exactly the edge set they see today; nothing regresses and nothing is inflated.
+
+The mixed rows are where this is easiest to get wrong, and both stay out:
+
+- `decision → entry` has a whole entry as its target, so it looks projectable. It is not: "D3 of B
+  supersedes A" says one call in B retired A, not that B as a whole replaced it.
+- `entry → decision` has a whole entry as its source, so the block looks like an ordinary one. Also not:
+  the target is one call, and promoting it would claim the entry retired the whole of A.
 
 `augment_chunks_with_link_sidecars` keeps its current behaviour for entry-level refs and gains a separate
 decision-keyed map for the new ones.
@@ -122,6 +151,7 @@ New `links check` issue kinds:
 | `malformed-decision-ref` | error | A ref carries any character outside the entry-id grammar and does not parse as a decision ref — including a `#decisions/…` alias that cannot be normalised. **Never scrape the prefix and continue.** |
 | `dangling-decision-ref` | error | The entry resolves but the ordinal does not exist in it |
 | `duplicate-decision-ref` | error | The same edge is declared both entry-level and as `d1` of a single-decision entry, or twice in any form |
+| `intra-entry-decision-ref` | error | A ref's entry id equals the block's `entry_id` — both ends are in the same entry (see below) |
 
 `dangling-decision-ref` resolution follows the ADR's totality table: `d1` is valid for any entry with a
 decision section in any of the three shapes; `d2`+ requires the numbered-heading or inline-bullet shape and
@@ -134,11 +164,48 @@ Unchanged in logic. A decision carries no timestamp of its own, so a decision en
 sidecar edges ([lifecycle-edge-linking-sidecars.md:231](../lifecycle-edge-linking-sidecars.md)). "B:d2
 supersedes A:d1" is legal iff A predates B.
 
-**Intra-entry edges are legal**, and are the one case the timestamp guard cannot decide: `mse_x:d3 evolves
-mse_x:d1` has one timestamp on both ends. The ordinal is the tie-break — within an entry, a lower ordinal
-is older, because decisions are written in order and the entry is append-only. So an intra-entry edge is
-legal iff the target ordinal is strictly lower than the source's. Without this rule the guard would reject
-a genuine "I changed my mind later in this session" edge with a misleading not-strictly-older message.
+Because both ends are required to be in different entries (below), the two timestamps are always distinct
+entry timestamps and the guard never faces a tie. That is not a happy accident — it is the reason the
+prohibition sits in this section rather than beside the other validation kinds.
+
+### Intra-entry edges are forbidden
+
+*Corrected 2026-07-21 (JNL). The first draft of this section allowed `mse_x:d3 evolves mse_x:d1`, breaking
+the resulting timestamp tie with the ordinal on the reasoning that "a lower ordinal is older, because
+decisions are written in order and the entry is append-only". **That reasoning was wrong** and is
+withdrawn — see below.*
+
+**Both endpoints of a lifecycle edge must belong to different entries.** A ref whose entry id equals the
+block's `entry_id` is an error (`intra-entry-decision-ref`), whatever the granularity of either end. This
+subsumes the self-edge case that entry-level refs already drop.
+
+Two reasons, in order of weight:
+
+1. **The guard has nothing to check.** Decisions carry no timestamp of their own, so both ends of an
+   intra-entry edge resolve to one timestamp. There is no temporal order for a forward-only guard to
+   verify, and no substitute clock — see the withdrawn reasoning below.
+2. **The relationship is thin.** Decisions of one entry are contemporaneous by construction: the entry is
+   authored as a single act. If a call genuinely reverses an earlier one from the same sitting, the
+   entry's own prose carries that, and a lifecycle edge between two simultaneous decisions asserts a
+   sequence that did not happen.
+
+Forbidding is also the reversible direction. If a real case appears, allowing it later is additive;
+allowing it now and forbidding it later would break authored data.
+
+#### Why the ordinal is not a clock
+
+The withdrawn reasoning conflated two different guarantees. **Append-only makes ordinals stable** — D2
+will never be renumbered, because the entry is never reopened. It does **not** make them chronological.
+An entry is written as one act at the end of a unit of work, and D1…DN is the order the author chose to
+*present* the decisions — by importance, by dependency, by narrative. Nothing records or requires the
+order in which the calls were actually made, and no rule in `session_logging` ties decision numbering to
+time.
+
+So "lower ordinal is older" is a convention at best, and an integrity guard cannot rest on a convention:
+every author who numbered by importance rather than by time would have a legitimate edge rejected with a
+misleading message. This is worth stating rather than quietly deleting, because the ordinal *is* a sound
+key (ADR identity) and *is* a sound sort order (Trail rendering) — it is specifically as a **clock** that
+it fails, and that distinction is easy to lose.
 
 ## Rendering
 
