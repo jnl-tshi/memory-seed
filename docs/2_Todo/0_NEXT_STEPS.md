@@ -353,9 +353,15 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   placeholder. Verified against the real packaged app on a real 16-node flowchart entry
   (`mse_v26pem9hsvsbjbge`): correct multi-rank layout, 13 nodes/17 edges rendered, matching the vanilla
   parser's own edge-syntax limitation (dotted `-.->` mermaid edges aren't recognized by either
-  implementation — faithful port, not a regression). Other B0b remainders: file/evolution modes,
-  evidence-backed topology communities and optional mild temporal layout, and formal accessibility/scale
-  acceptance.
+  implementation — faithful port, not a regression). **Evolution graph mode shipped 2026-07-20**: a
+  third `GraphScope` alongside the existing Overview/Local, requesting only `evolves`/`supersedes` edges
+  at depth 8 centered on the selected entry — a scoped lifecycle-chain view distinct from Local's full
+  neighborhood, reusing the existing `/api/v1/graph/projection` `edge_types`/`depth` params with zero
+  backend changes. Verified live: an entry with a real `evolves` edge renders exactly its 2-node chain;
+  an entry with none renders an empty graph, no crash. File mode (needs a new backend file→entries
+  index; designed, not yet built) and topology communities (algorithm choice — Louvain recommended,
+  client-side over the existing bounded projection; designed, not yet built) remain, plus formal
+  accessibility/scale acceptance.
   Keep the SVG renderer until explicit parity sign-off.
   Only after B0b acceptance may the
   [`structural-provider proposal`](memory-trace-structural-graph-enrichment-provider-proposal.md) define a
