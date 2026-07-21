@@ -6,6 +6,23 @@ All notable changes to Memory Seed are summarized here.
 
 ### Changed
 
+- **Memory Trace incremental startup.** A changed project (new commit, merge,
+  or dirty session file) no longer triggers a full projection rebuild that
+  spawned one git subprocess per historical item (~44s / 990 processes on a
+  570-entry corpus). Fork points, commit parents and first-parent changed
+  paths now persist per commit sha in the disposable SQLite projection
+  (schema v2) and are harvested via single bulk `git log` passes;
+  `ensure_current` reconciles forward moves incrementally (reparsing only
+  changed session documents) and falls back to a full rebuild on rewritten
+  history, a moved trunk that is not a fast-forward, or any failed git read.
+  The file-entry index (File graph mode) is now built lazily on first use
+  instead of at startup. Full rebuild: ~1.5s / 7 subprocesses on the same
+  corpus; a new `python -m memory_trace.bench` harness reports per-stage
+  timings and subprocess counts. The React client fetches Graph data only
+  when Graph view is opened and the full-corpus Trail payload exactly once.
+  `extract_memory_chunks` gained an additive `paths=` filter so incremental
+  consumers can reparse specific session documents.
+
 - **Gated MCP write surface (Constitution 1.3).** MCP could not write session
   files, so agents authored entries by hand with `memory_entry_id` +
   `memory_session_target` — an id and a target path — which enforced none of the

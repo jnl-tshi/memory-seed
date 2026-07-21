@@ -233,7 +233,12 @@ export default function App() {
       if (request !== graphRequest.current) return null;
       if (keepCurrentOnEmpty && nextGraph.nodes.length === 0) return nextGraph;
       setGraph(nextGraph);
-      setSelected((prior) => nextGraph.nodes.find((node) => node.source.entry_id === preferredEntryId) ?? nextGraph.nodes.find((node) => node.id === prior?.id) ?? nextGraph.nodes[0] ?? null);
+      // Prefer the requested entry, then the prior selection's node in the
+      // new graph. A prior selection NOT present in the fetched slice is
+      // KEPT, not replaced - a Trail selection must survive switching into a
+      // Graph whose ranked overview happens to exclude it (the ring just has
+      // nothing to attach to). Auto-select-first only fills a null selection.
+      setSelected((prior) => nextGraph.nodes.find((node) => node.source.entry_id === preferredEntryId) ?? nextGraph.nodes.find((node) => node.id === prior?.id) ?? prior ?? nextGraph.nodes[0] ?? null);
       return nextGraph;
     } catch (reason) {
       if (request === graphRequest.current) setError(reason instanceof Error ? reason.message : "Unable to update the relationship map.");
@@ -246,27 +251,43 @@ export default function App() {
   const load = useCallback(async () => {
     try {
       setError(null);
+      setTrailError(null);
+      // The full-corpus index is the ACTIVE view's data in Trail mode (the
+      // topic-null Trail renders straight from it), so it fires first and is
+      // awaited; runtime/facets/worktrees are shell metadata and load
+      // independently. The graph projection is fetched only when Graph is
+      // the active workspace - Trail startup never pays for it.
+      const indexPromise = trailQuery({ limit: 1000 });
+      void worktreesQuery().then(setWorktrees).catch(() => {});
       const [nextRuntime, nextFacets] = await Promise.all([api<RuntimeInfo>("/runtime"), api<Facets>("/facets")]);
       setRuntime(nextRuntime);
       setFacets(nextFacets);
-      void trailQuery({ limit: 1000 }).then(setEntryIndex).catch(() => {});
-      void worktreesQuery().then(setWorktrees).catch(() => {});
-      await loadGraph({
-        nextScope: scope,
-        nextTopic: activeTopic,
-        nextEdgeTypes: edgeTypesForScope(scope),
-        preferredEntryId: selected?.source.entry_id,
-        dateFrom: scope === "overview" && range === "recent" ? recentDateFrom(nextRuntime) : null,
-        limit: scope === "overview" ? overviewLimit : undefined,
-      });
+      try {
+        setEntryIndex(await indexPromise);
+      } catch (reason) {
+        setTrailError(reason instanceof Error ? reason.message : "Unable to load the Trail.");
+      }
+      if (viewMode === "graph") {
+        await loadGraph({
+          nextScope: scope,
+          nextTopic: activeTopic,
+          nextEdgeTypes: edgeTypesForScope(scope),
+          preferredEntryId: selected?.source.entry_id,
+          dateFrom: scope === "overview" && range === "recent" ? recentDateFrom(nextRuntime) : null,
+          limit: scope === "overview" ? overviewLimit : undefined,
+        });
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to load Memory Trace.");
     }
-  }, [activeTopic, loadGraph, overviewLimit, range, scope, selected?.source.entry_id]);
+  }, [activeTopic, loadGraph, overviewLimit, range, scope, selected?.source.entry_id, viewMode]);
 
   // The Trail is a full-history timeline with its own client-side window, so it
   // ignores the graph's recent-range control and fetches the whole corpus (up to
-  // the endpoint cap), respecting only the active topic filter.
+  // the endpoint cap), respecting only the active topic filter. With NO topic
+  // active it renders directly from the entry index (one fetch serves both the
+  // Trail and every cross-corpus lookup); this fetch exists only for the
+  // topic-filtered view, which is a genuinely different query.
   const loadTrail = useCallback(async () => {
     try {
       setTrailError(null);
@@ -280,7 +301,9 @@ export default function App() {
   useEffect(() => {
     if (viewMode !== "trail") return;
     setTrailWindow(TRAIL_WINDOW_STEP);
-    void loadTrail();
+    if (activeTopic !== null) void loadTrail();
+    else setTrail(null); // topic cleared: render from the index, drop stale filtered data
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- activeTopic is loadTrail's own dep
   }, [viewMode, loadTrail]);
   useEffect(() => { localStorage.setItem("memory-trace:inspector-dock", dock); }, [dock]);
   useEffect(() => { localStorage.setItem("memory-trace:nav-width", String(navWidth)); }, [navWidth]);
@@ -486,11 +509,17 @@ export default function App() {
       setQuery("");
       setTrail(null);
       setEntryIndex(null);
+      // The old worktree's graph must never survive the switch: Graph data is
+      // lazy, so a stale non-null graph would suppress the fetch on the next
+      // view switch and show another corpus's map.
+      setGraph(null);
       setTrailWindow(TRAIL_WINDOW_STEP);
       setActiveTopic(null);
       setScope("overview");
+      // load() awaits the new corpus's entry index (the Trail's data source
+      // with no topic active) and, in Graph view, the graph fetch - so the
+      // arrival leg below still reflects real data readiness.
       await load();
-      if (viewMode === "trail") await loadTrail();
       // Arrival never before 1250ms (readable ride); a slow cold rebuild holds
       // the middle leg until the data is truly loaded.
       const beforeArrival = performance.now() - startedAt;
@@ -507,17 +536,13 @@ export default function App() {
 
   const ensureTrailVisible = useCallback((count: number) => setTrailWindow((value) => Math.max(value, count)), []);
 
-  // Opening from the context panel only ever highlights the entry (if it's a
-  // node in whatever graph is on screen) and loads it into the Inspector — it
-  // must never change scope or replace the visible graph. Unlike focusEntry
-  // (used by search/Trail navigation, where jumping to Local IS the point),
-  // an entry outside the current graph gets a throwaway entry-centered fetch
-  // used only to read its node data; the result is never written to `graph`
-  // or `scope`, so it can't highlight (nothing on screen to ring) but still
-  // populates the Inspector via the selection.
-  async function openContextEntry(entryId: string) {
-    const node = graph?.nodes.find((item) => item.source.entry_id === entryId);
-    if (node) { select(node); return; }
+  // Resolve an entry into a selection WITHOUT touching graph or scope: a
+  // throwaway entry-centered fetch read only for its node data. The result is
+  // never written to `graph`, so it can't highlight anything (nothing on
+  // screen to ring) but still populates the Inspector via the selection.
+  // Shared by the context panel and by Trail clicks made before any graph has
+  // been fetched (Graph data is lazy now - Trail mode may never load it).
+  async function resolveEntrySelection(entryId: string) {
     try {
       const preview = await graphQuery({ entryId });
       const found = preview.nodes.find((item) => item.source.entry_id === entryId);
@@ -526,6 +551,17 @@ export default function App() {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to open that entry.");
     }
+  }
+
+  // Opening from the context panel only ever highlights the entry (if it's a
+  // node in whatever graph is on screen) and loads it into the Inspector — it
+  // must never change scope or replace the visible graph. Unlike focusEntry
+  // (used by search/Trail navigation, where jumping to Local IS the point),
+  // an entry outside the current graph resolves via the throwaway fetch.
+  async function openContextEntry(entryId: string) {
+    const node = graph?.nodes.find((item) => item.source.entry_id === entryId);
+    if (node) { select(node); return; }
+    await resolveEntrySelection(entryId);
   }
 
   const topics = useMemo(() => Object.entries(facets?.topics ?? {}).slice(0, 10), [facets]);
@@ -569,13 +605,17 @@ export default function App() {
   }
 
   // Trail selection: reuse the already-loaded graph node when present (cheap,
-  // keeps the Inspector's full metadata); otherwise pull the entry into the
-  // graph via focusEntry so the Inspector can render it.
+  // keeps the Inspector's full metadata). With no graph fetched at all (lazy
+  // Graph data - the common Trail-mode state) resolve via the throwaway
+  // entry fetch, which must not jump scope or replace the graph; only when a
+  // graph IS loaded but excludes the entry does focusEntry pull it in.
   function selectFromTrail(entryId: string | null, chunkId: string) {
     if (entryId != null && selected?.source.entry_id === entryId) { setSelectionMuted((muted) => !muted); return; }
     const node = graph?.nodes.find((item) => (entryId != null && item.source.entry_id === entryId) || item.source.chunk_id === chunkId);
     if (node) { select(node); return; }
-    if (entryId) void focusEntry(entryId);
+    if (!entryId) return;
+    if (graph === null) void resolveEntrySelection(entryId);
+    else void focusEntry(entryId);
   }
 
   // Cycle to the next/previous match, wrapping around. Selecting the entry is
@@ -714,8 +754,25 @@ export default function App() {
     await requestGraph("file", activeTopic, undefined, null, null, false, undefined, undefined, path);
   }
 
+  // Graph data is lazy: the first switch into Graph view (or the first after
+  // something invalidated the graph - topic change in Trail mode, worktree
+  // switch) fetches it, carrying the current selection so the Inspector and
+  // ring survive the view change. Re-entering with data already loaded is
+  // instant and fetch-free.
+  function switchToGraphView() {
+    setViewMode("graph");
+    if (graph === null) void requestGraph(scope, activeTopic, undefined, scope !== "overview" && scope !== "file" ? selected?.source.entry_id : null, selected?.source.entry_id);
+  }
+
   async function chooseTopic(nextTopic: string | null) {
     setActiveTopic(nextTopic);
+    if (viewMode !== "graph") {
+      // Trail mode refetches through its own topic effect. The graph (if one
+      // was ever fetched) now describes the wrong topic: drop it so the next
+      // switch to Graph view fetches fresh instead of showing stale scope.
+      setGraph(null);
+      return;
+    }
     await requestGraph(scope, nextTopic, undefined, scope !== "overview" && scope !== "file" ? selected?.source.entry_id : null);
   }
 
@@ -735,6 +792,12 @@ export default function App() {
   // The hint only applies to the entry it was computed for — a stale hint from
   // the previous result must not highlight a same-named heading in this one.
   const matchHeading = matchHint && selected?.source.entry_id === matchHint.entryId ? matchHint.heading : null;
+
+  // What the Trail renders: with no topic active, the entry index IS the
+  // topic-null Trail (identical request), so one full-corpus fetch serves the
+  // timeline and every cross-corpus lookup; a topic filter is a genuinely
+  // different query and uses its own fetched `trail`.
+  const effectiveTrail = activeTopic === null ? entryIndex : trail;
 
   // Bring the matched section into view. Rendering the highlight is not enough:
   // the band is often far down a long entry, so without this you cycle results
@@ -816,7 +879,7 @@ export default function App() {
             of view-specific controls. */}
         <div className="segment-control view-switch" aria-label="Workspace view">
           <button type="button" aria-pressed={viewMode === "trail"} onClick={() => setViewMode("trail")}><GitBranch size={14} aria-hidden="true" /><span>Trail</span></button>
-          <button type="button" aria-pressed={viewMode === "graph"} onClick={() => setViewMode("graph")}><Network size={14} aria-hidden="true" /><span>Graph</span></button>
+          <button type="button" aria-pressed={viewMode === "graph"} onClick={switchToGraphView}><Network size={14} aria-hidden="true" /><span>Graph</span></button>
         </div>
         <div className="topbar-actions">
           <SettingsMenu trailStyle={trailStyle} onTrailStyle={setTrailStyle} dock={dock} onDock={setDock} theme={theme} onTheme={setTheme} />
@@ -880,9 +943,9 @@ export default function App() {
         {viewMode === "trail" ? (
           <>
             {trailError && <div className="error-state" role="alert">{trailError}</div>}
-            {trail ? (
+            {effectiveTrail ? (
               <Suspense fallback={<div className="loading-state">Loading trail</div>}>
-                <TrailWorkspace trail={trail} trailStyle={trailStyle} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={selected?.source.chunk_id ?? null} query={query} selectionMuted={selectionMuted} commitSiblingIds={chunk?.commit_entry_ids ?? []} onSelectEntry={selectFromTrail} onEnsureVisible={ensureTrailVisible} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
+                <TrailWorkspace trail={effectiveTrail} trailStyle={trailStyle} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={selected?.source.chunk_id ?? null} query={query} selectionMuted={selectionMuted} commitSiblingIds={chunk?.commit_entry_ids ?? []} onSelectEntry={selectFromTrail} onEnsureVisible={ensureTrailVisible} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
               </Suspense>
             ) : (
               <div className="loading-state">Loading trail</div>

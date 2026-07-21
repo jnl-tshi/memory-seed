@@ -181,7 +181,19 @@ def _vector_to_tuple(vector: Any) -> tuple[float, ...]:
     return tuple(float(value) for value in vector)
 
 
-def extract_memory_chunks(cwd: str | Path = ".", *, granularity: str = "entry") -> list[MemoryChunk]:
+def extract_memory_chunks(
+    cwd: str | Path = ".",
+    *,
+    granularity: str = "entry",
+    paths: Sequence[str | Path] | None = None,
+) -> list[MemoryChunk]:
+    """Extract chunks from the session tree.
+
+    ``paths`` optionally restricts extraction to specific session documents
+    (matched by resolved absolute path), so an incremental consumer can
+    reparse exactly the files that changed instead of the whole corpus. None
+    (the default) keeps the historical parse-everything behavior.
+    """
     if granularity not in ("entry", "section"):
         raise ValueError("granularity must be 'entry' or 'section'")
     runtime = resolve_runtime(cwd)
@@ -190,8 +202,14 @@ def extract_memory_chunks(cwd: str | Path = ".", *, granularity: str = "entry") 
     if not sessions_dir.is_dir():
         return []
 
+    wanted: set[Path] | None = None
+    if paths is not None:
+        wanted = {Path(path).resolve() for path in paths}
+
     chunks: list[MemoryChunk] = []
     for doc in iter_session_documents(sessions_dir):
+        if wanted is not None and doc.path.resolve() not in wanted:
+            continue
         try:
             session_date = datetime.strptime(doc.session_date, "%Y-%m-%d").date()
         except ValueError:

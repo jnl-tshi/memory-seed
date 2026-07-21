@@ -59,6 +59,30 @@ function initialPositions(nodes: RendererGraphNode[]) {
   return positions;
 }
 
+// Settled positions from the last completed layout, keyed by the node-id set
+// they were computed for. Module-level so a remount (theme change, view
+// round-trip) with the SAME node set restores positions instantly via a
+// preset layout instead of re-running the simulation, and a GROWN node set
+// ("Show more") seeds its old nodes where they already settled so only the
+// additions need real layout work.
+let settledSignature = "";
+const settledPositions = new Map<string, { x: number; y: number }>();
+
+function nodeSetSignature(nodes: RendererGraphNode[]) {
+  return [...nodes].map((node) => node.id).sort().join("\n");
+}
+
+// Measured cose cost with our exact options (900 iterations): 60 nodes 86ms,
+// 500 nodes 4.6s, 1000 nodes 17.8s of main-thread block. 900 iterations is
+// right at default size but unaffordable at "Show more" sizes, so above 150
+// nodes the iteration budget scales down with node count; warm-seeded grown
+// layouts (most of the big-graph cases) need even less to settle.
+function layoutIterations(nodeCount: number, warmSeeded: boolean) {
+  if (nodeCount <= 150) return 900;
+  const scaled = Math.max(120, Math.round(900 * (150 / nodeCount)));
+  return warmSeeded ? Math.max(80, Math.round(scaled / 2)) : scaled;
+}
+
 export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, visibleEdgeTypes }: GraphWorkspaceProps) {
   const container = useRef<HTMLDivElement>(null);
   const cytoscape = useRef<Core | null>(null);
@@ -132,7 +156,24 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
     async function mount() {
       const { default: createCytoscape } = await import("cytoscape");
       if (disposed || !container.current) return;
+      const signature = nodeSetSignature(renderedNodes);
+      // Same node set as the last settled layout (theme change, view
+      // round-trip): restore positions verbatim, no simulation at all.
+      // Otherwise seed from the deterministic circle, upgraded with any
+      // settled positions we already have (a grown "Show more" set keeps its
+      // existing arrangement and only the new nodes travel).
+      const settled = signature === settledSignature && settledPositions.size > 0;
       const positions = initialPositions(renderedNodes);
+      let warmSeeded = false;
+      if (!settled && settledPositions.size > 0) {
+        for (const node of renderedNodes) {
+          const previous = settledPositions.get(node.id);
+          if (previous) {
+            positions.set(node.id, previous);
+            warmSeeded = true;
+          }
+        }
+      }
       const nodeBorder = themeToken("--panel", "#142a26");
       const nodeText = themeToken("--text-bright", "#e9f3f0");
       const nodeOutline = themeToken("--bg", "#10201e");
@@ -211,8 +252,34 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       const debugHost = window as unknown as { memoryTraceNextDebug?: Record<string, unknown> };
       debugHost.memoryTraceNextDebug = { ...(debugHost.memoryTraceNextDebug ?? {}), graphCy: cy };
       applyPresentation(cy);
-      const layout = cy.layout({ name: "cose", animate: false, padding: 52, randomize: false, nodeRepulsion: () => 12_000, idealEdgeLength: () => 150, gravity: 0.3, numIter: 900 });
-      layout.one("layoutstop", () => { if (!disposed) cy.fit(cy.elements(), 52); });
+      const finishLayout = () => {
+        if (disposed) return;
+        cy.fit(cy.elements(), 52);
+        settledSignature = signature;
+        settledPositions.clear();
+        cy.nodes().forEach((node) => {
+          const position = node.position();
+          settledPositions.set(node.id(), { x: position.x, y: position.y });
+        });
+      };
+      if (settled) {
+        // Preset positions ARE the settled layout: fit and done, zero
+        // simulation - this is what makes theme toggles and Trail/Graph
+        // round trips instant regardless of graph size.
+        finishLayout();
+        return;
+      }
+      const layout = cy.layout({
+        name: "cose",
+        animate: false,
+        padding: 52,
+        randomize: false,
+        nodeRepulsion: () => 12_000,
+        idealEdgeLength: () => 150,
+        gravity: 0.3,
+        numIter: layoutIterations(renderedNodes.length, warmSeeded),
+      });
+      layout.one("layoutstop", finishLayout);
       layout.run();
     }
 

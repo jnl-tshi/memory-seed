@@ -5,6 +5,7 @@ import hashlib
 import re
 import json
 import os
+import shutil
 import sqlite3
 import subprocess
 import tempfile
@@ -47,7 +48,9 @@ ZOOMS = {"day": 24, "12h": 12, "6h": 6, "3h": 3}
 # Derived-projection schema version (contract G4). Bump when the ingest/row
 # shape or stored-meta contract changes so an older cache is fully rebuilt
 # rather than reused. Checked before any git work in ensure_current.
-PROJECTION_SCHEMA_VERSION = 1
+# v2: sha-keyed git-derivation tables (fork_points, commit_parents,
+# changed_paths, file_entries) + trunk watermark meta + lazy file index.
+PROJECTION_SCHEMA_VERSION = 2
 
 
 def _git_head(root: Path) -> str | None:
@@ -125,6 +128,97 @@ def _working_tree_signature(root: Path, pathspec: str) -> str | None:
         except OSError:
             entries.append((path, "deleted", "deleted"))
     return json.dumps(sorted(entries, key=lambda item: item[0]))
+
+
+def _is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
+    """True iff ``ancestor`` is an ancestor of ``descendant`` - the test that
+    separates a normal forward move (reconcilable) from a rebase/rewrite/gc
+    (full rebuild). Any git failure counts as not-an-ancestor, failing toward
+    the full rebuild."""
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "merge-base", "--is-ancestor", ancestor, descendant],
+            capture_output=True,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return proc.returncode == 0
+
+
+def _changed_names(root: Path, old: str, new: str, pathspec: str) -> list[str] | None:
+    """Paths under ``pathspec`` that differ between two commits. ``--no-renames``
+    keeps a rename visible as delete+add so BOTH paths invalidate. None on git
+    failure (caller falls back to a full rebuild)."""
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "diff", "--name-only", "--no-renames", f"{old}..{new}", "--", pathspec],
+            capture_output=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    return [line.strip() for line in proc.stdout.decode("utf-8", errors="replace").splitlines() if line.strip()]
+
+
+def _signature_paths(signature: str) -> set[str]:
+    """The dirty paths recorded in a working-tree signature (see
+    _working_tree_signature: a JSON list of (path, mtime, size) triples)."""
+    if not signature:
+        return set()
+    try:
+        entries = json.loads(signature)
+    except (ValueError, TypeError):
+        return set()
+    paths: set[str] = set()
+    for item in entries:
+        if isinstance(item, (list, tuple)) and item and isinstance(item[0], str):
+            paths.add(item[0])
+    return paths
+
+
+def _session_documents_for(
+    root: Path, sessions_dir: Path, sessions_pathspec: str, changed: set[str]
+) -> tuple[set[str], list[Path]]:
+    """Classify changed repo-relative paths into (affected session dates,
+    session documents to reparse).
+
+    Layout knowledge is delegated to the canonical ``iter_session_documents``
+    (flat, month-dir and per-user-day layouts all exist), never re-derived
+    from path patterns. A changed path that is a current session document maps
+    to its own date; a deleted path recovers its date from the filename or
+    parent directory. Every affected date then reparses ALL of its current
+    documents - chunks are deleted per date, and a date can span several
+    documents (per-user layout) or lose one (deletion) without the others
+    having changed. Sidecars (links/, diagrams/) are not session documents:
+    they produce no chunk rows and are excluded by the canonical iterator."""
+    prefix = sessions_pathspec.rstrip("/") + "/"
+    current = {doc.path.resolve(): doc for doc in iter_session_documents(sessions_dir)}
+    dates: set[str] = set()
+    for rel in changed:
+        posix = rel.replace("\\", "/")
+        if not posix.startswith(prefix) or not posix.endswith(".md"):
+            continue
+        absolute = root / posix
+        doc = current.get(absolute.resolve())
+        if doc is not None:
+            dates.add(doc.session_date)
+            continue
+        if absolute.exists():
+            continue  # exists but is not a session document (e.g. a sidecar)
+        # Deleted: recover the session date from the path shape - the stem
+        # (flat/month layouts) or the parent directory (per-user-day layout).
+        for candidate in (Path(posix).stem, Path(posix).parent.name):
+            try:
+                datetime.strptime(candidate, "%Y-%m-%d")
+            except ValueError:
+                continue
+            dates.add(candidate)
+            break
+    reparse = [doc.path for doc in current.values() if doc.session_date in dates]
+    return dates, reparse
 
 
 def missing_optional_dependency_hint() -> str:
@@ -328,8 +422,51 @@ class TraceCache:
         # first reads after an explicit rebuild don't immediately re-check.
         self._mark_fresh()
 
+    def _carryover_derivations(self) -> dict[str, Any]:
+        """Immutable sha-keyed derivations from the previous projection, read
+        before a full rebuild replaces it. A commit's parents, its changed
+        paths and a merge's fork point never change for a given sha, so they
+        survive rebuilds (including history rewrites - rewritten history mints
+        NEW shas; stale keys are harmless, bounded garbage). Every value here
+        is recomputable from git, so a missing/corrupt table just costs
+        recomputation (contract G2)."""
+        carry: dict[str, Any] = {
+            "fork_points": {},
+            "commit_parents": [],
+            "changed_paths": [],
+            "file_entries": [],
+            "file_index_watermark": None,
+        }
+        if not self.db_path.exists():
+            return carry
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                for key, sql in (
+                    ("fork_points", "select merge_sha, fork_json from fork_points"),
+                    ("commit_parents", "select sha, short, date, parents from commit_parents"),
+                    ("changed_paths", "select sha, path from changed_paths"),
+                    ("file_entries", "select path, entry_id from file_entries"),
+                ):
+                    try:
+                        rows = conn.execute(sql).fetchall()
+                    except sqlite3.Error:
+                        continue  # pre-v2 cache: table absent, nothing to carry
+                    if key == "fork_points":
+                        carry[key] = {sha: json.loads(blob) for sha, blob in rows}
+                    else:
+                        carry[key] = rows
+                try:
+                    row = conn.execute("select value from meta where key='file_index_watermark'").fetchone()
+                    carry["file_index_watermark"] = row[0] if row else None
+                except sqlite3.Error:
+                    pass
+        except sqlite3.Error:
+            return carry
+        return carry
+
     def _rebuild_locked(self) -> None:
         self._ensure_cache_parent()
+        carry = self._carryover_derivations()
         # Unique per attempt (not just per pid): concurrent threads share a pid,
         # and a crashed run's stale tmp must never be another rebuild's target.
         tmp = self.db_path.with_name(f"{self.db_path.name}.{uuid.uuid4().hex}.tmp")
@@ -344,8 +481,9 @@ class TraceCache:
             conn = sqlite3.connect(tmp)
         try:
             self._create_schema(conn)
+            root = self.runtime.workspace_root
             file_rows = [
-                _file_row(self.runtime.workspace_root, path)
+                _file_row(root, path)
                 for path in _tracked_document_paths(self.runtime)
             ]
             chunks = [
@@ -363,17 +501,7 @@ class TraceCache:
             )
             conn.executemany(
                 "insert into chunks(chunk_id, granularity, entry_id, session_date, entry_datetime, json) values(?, ?, ?, ?, ?, ?)",
-                [
-                    (
-                        chunk.chunk_id,
-                        chunk.granularity,
-                        chunk.entry_id,
-                        chunk.session_date.isoformat(),
-                        chunk.entry_datetime.isoformat() if chunk.entry_datetime else None,
-                        json.dumps(_chunk_to_storage(chunk), sort_keys=True),
-                    )
-                    for chunk in chunks
-                ],
+                [_chunk_row(chunk) for chunk in chunks],
             )
             conn.execute(
                 "insert into meta(key, value) values('rebuilt_at', ?)",
@@ -381,9 +509,9 @@ class TraceCache:
             )
             conn.execute(
                 "insert into meta(key, value) values('runtime_root', ?)",
-                (str(self.runtime.workspace_root),),
+                (str(root),),
             )
-            commit_map = _entry_commit_map(self.runtime.workspace_root)
+            commit_map = _entry_commit_map(root)
             conn.execute(
                 "insert into meta(key, value) values('entry_commits', ?)",
                 (json.dumps(commit_map),),
@@ -391,31 +519,79 @@ class TraceCache:
             # Evidence-based main attribution: an entry with no recorded
             # branch whose capturing commit sits on the trunk's first-parent
             # history was committed directly on main - proven, not assumed.
-            main_shas = _first_parent_main_shas(self.runtime.workspace_root)
+            main_shas = _first_parent_main_shas(root)
             conn.execute(
                 "insert into meta(key, value) values('main_commit_entries', ?)",
                 (json.dumps(sorted(eid for eid, info in commit_map.items() if info.get("sha") in main_shas)),),
             )
             # Merge-commit ground truth for the Trail: Memory-Entry trailers on
-            # trunk first-parent commits, each with its merge-base fork point.
-            merge_events = _first_parent_trailer_commits(self.runtime.workspace_root)
+            # trunk first-parent commits. Fork points come from the carryover
+            # table first, then ONE bulk commit-graph pass for whatever is
+            # genuinely new - never a merge-base/show subprocess per merge.
+            trunk = _trunk_ref_and_sha(root)
+            trunk_ref, trunk_sha = trunk if trunk else ("", "")
+            raw_events = _trailer_walk(root, trunk_ref or None) if trunk else None
+            commit_graph: dict[str, dict[str, Any]] = {}
+            merge_events: list[dict[str, Any]] = []
+            if raw_events:
+                commit_graph = _commit_graph(root, trunk_ref)
+                merge_events, _new_forks = _resolve_event_forks(
+                    root,
+                    raw_events,
+                    known_fork_points=carry["fork_points"],
+                    commit_graph=commit_graph,
+                    trunk_ref=trunk_ref,
+                )
             conn.execute(
                 "insert into meta(key, value) values('trailer_merges', ?)",
                 (json.dumps(merge_events),),
             )
-            # File graph mode: path -> entry_ids (see _file_entry_index for why
-            # this walks each entry's authoring commit's PARENT, not the
-            # entry's own diff or its recorded branch: field).
-            conn.execute(
-                "insert into meta(key, value) values('file_entry_index', ?)",
-                (json.dumps(_file_entry_index(self.runtime.workspace_root, commit_map)),),
+            # Persist the immutable derivations: carryover plus everything this
+            # build resolved or harvested. Unresolvable (None) fork points are
+            # deliberately NOT persisted so a later deepened clone can recover
+            # them without deleting the cache.
+            fork_rows = {sha: fork for sha, fork in carry["fork_points"].items() if fork is not None}
+            fork_rows.update({sha: fork for sha, fork in _FORK_POINT_MEMO.items() if fork is not None})
+            conn.executemany(
+                "insert or replace into fork_points(merge_sha, fork_json) values(?, ?)",
+                [(sha, json.dumps(fork)) for sha, fork in fork_rows.items()],
             )
+            parent_rows = {row[0]: tuple(row) for row in carry["commit_parents"]}
+            parent_rows.update(
+                {
+                    sha: (sha, info["short"], info["date"], " ".join(info["parents"]))
+                    for sha, info in commit_graph.items()
+                }
+            )
+            conn.executemany(
+                "insert or replace into commit_parents(sha, short, date, parents) values(?, ?, ?, ?)",
+                list(parent_rows.values()),
+            )
+            conn.executemany(
+                "insert or ignore into changed_paths(sha, path) values(?, ?)",
+                carry["changed_paths"],
+            )
+            # The file-entry index is LAZY: a full rebuild never computes it.
+            # Prior rows carry over with their watermark; the accessor
+            # revalidates against the current trunk and advances or rebuilds
+            # on the first File-mode request that actually needs it.
+            conn.executemany(
+                "insert or ignore into file_entries(path, entry_id) values(?, ?)",
+                carry["file_entries"],
+            )
+            if carry["file_index_watermark"]:
+                conn.execute(
+                    "insert into meta(key, value) values('file_index_watermark', ?)",
+                    (carry["file_index_watermark"],),
+                )
+            conn.execute("insert into meta(key, value) values('trunk_ref', ?)", (trunk_ref,))
+            conn.execute("insert into meta(key, value) values('trunk_watermark', ?)", (trunk_sha,))
             # Derived-projection provenance (contract G4/G5): the schema version
             # (rebuild on bump) and the build watermark (HEAD) + dirty-file
             # signature, so a warm start proves "nothing changed" from git in
             # O(changes) instead of scanning the whole corpus. Empty watermark =
             # built without git; ensure_current then uses the mtime fallback.
-            head = _git_head(self.runtime.workspace_root)
+            head = _git_head(root)
             conn.execute(
                 "insert into meta(key, value) values('schema_version', ?)",
                 (str(PROJECTION_SCHEMA_VERSION),),
@@ -425,7 +601,7 @@ class TraceCache:
                 (head or "",),
             )
             signature = (
-                _working_tree_signature(self.runtime.workspace_root, self._sessions_pathspec())
+                _working_tree_signature(root, self._sessions_pathspec())
                 if head
                 else None
             )
@@ -437,21 +613,34 @@ class TraceCache:
         finally:
             conn.close()
         gc.collect()
-        # Windows: a reader connection that has not finished closing can hold
-        # the destination briefly; retry the atomic swap instead of failing the
-        # whole rebuild, and never leave the tmp file behind.
+        if not self._atomic_swap(tmp):
+            # Swap denied even after retries: fall back to an isolated
+            # temporary cache and rebuild there (never against the shared
+            # file another process may hold open).
+            if self._is_temporary_cache():
+                raise PermissionError(f"cannot replace projection at {self.db_path}")
+            self._use_temporary_cache()
+            self._rebuild_locked()
+            return
+        # The swap succeeded: the parsed-chunk memo now describes the previous
+        # projection, so drop it and bump the generation so the derived-bundle
+        # memo invalidates too.
+        self._chunks_memo = {}
+        self._generation += 1
+
+    def _atomic_swap(self, tmp: Path) -> bool:
+        """Atomically publish ``tmp`` as the projection (contract G4). Windows:
+        a reader connection that has not finished closing can hold the
+        destination briefly; retry instead of failing, and never leave the tmp
+        file behind. False when every retry was denied."""
         try:
             for attempt in range(5):
                 try:
                     os.replace(tmp, self.db_path)
-                    break
+                    return True
                 except PermissionError:
                     if attempt == 4:
-                        if self._is_temporary_cache():
-                            raise
-                        self._use_temporary_cache()
-                        self._rebuild_locked()
-                        return
+                        return False
                     time.sleep(0.1 * (attempt + 1))
         finally:
             if tmp.exists():
@@ -459,11 +648,219 @@ class TraceCache:
                     tmp.unlink()
                 except OSError:
                     pass
-        # The swap succeeded (a failed swap raises above, never reaching here):
-        # the parsed-chunk memo now describes the previous projection, so drop
-        # it and bump the generation so the derived-bundle memo invalidates too.
+        return False
+
+    def _reconcile_locked(self) -> bool:
+        """Incrementally advance the existing projection to the current repo
+        state. True when the projection was brought current; False when
+        incremental reconciliation does not apply and the caller must fall
+        back to a full rebuild. Every ambiguity - rewritten history, a moved
+        trunk that is not a fast-forward, a failed git read, a re-added entry
+        id - fails toward the full rebuild, never toward serving stale or
+        partial state. The update is built on a COPY of the projection and
+        published with the same atomic swap as a full rebuild, so concurrent
+        readers only ever observe the old or the new state."""
+        if not self.db_path.exists() or self._is_temporary_cache():
+            return False
+        root = self.runtime.workspace_root
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                meta = dict(
+                    conn.execute(
+                        "select key, value from meta where key in "
+                        "('schema_version', 'build_watermark', 'dirty_signature', "
+                        "'trunk_ref', 'trunk_watermark', 'entry_commits', 'file_index_watermark')"
+                    ).fetchall()
+                )
+                has_merges = conn.execute("select 1 from meta where key='trailer_merges'").fetchone()
+                known_forks = {
+                    sha: json.loads(blob)
+                    for sha, blob in conn.execute("select merge_sha, fork_json from fork_points")
+                }
+        except sqlite3.Error:
+            return False
+        if meta.get("schema_version") != str(PROJECTION_SCHEMA_VERSION) or not has_merges:
+            return False
+        old_head = meta.get("build_watermark") or ""
+        if not old_head:
+            return False  # built without git: the mtime world rebuilds fully
+        head = _git_head(root)
+        if head is None:
+            return False
+        if head != old_head and not _is_ancestor(root, old_head, head):
+            return False  # rebase/rewrite/gc: reconcile cannot trust the range
+        trunk = _trunk_ref_and_sha(root)
+        if trunk is None:
+            return False
+        trunk_ref, trunk_sha = trunk
+        old_trunk = meta.get("trunk_watermark") or ""
+        if not old_trunk or meta.get("trunk_ref") != trunk_ref:
+            return False
+        if trunk_sha != old_trunk and not _is_ancestor(root, old_trunk, trunk_sha):
+            return False
+        signature = _working_tree_signature(root, self._sessions_pathspec())
+        if signature is None:
+            return False
+        try:
+            # -- Which source documents changed? Committed delta + files dirty
+            # now + files dirty at the previous build (committing or reverting
+            # a previously dirty file changes its content without appearing in
+            # the new dirty set).
+            changed_docs: set[str] = set()
+            if head != old_head:
+                names = _changed_names(root, old_head, head, self._sessions_pathspec())
+                if names is None:
+                    return False
+                changed_docs.update(names)
+            changed_docs.update(_signature_paths(signature))
+            changed_docs.update(_signature_paths(meta.get("dirty_signature") or ""))
+
+            # -- Entry attribution: advance over the new range only. A commit
+            # in the range that re-adds an already-attributed entry id would
+            # need the oldest-commit-wins comparison over full history, so
+            # that exact (rare) case recomputes the whole map - still one
+            # bounded git pass, never per-commit work.
+            entry_map: dict[str, dict[str, str]] = json.loads(meta.get("entry_commits") or "{}")
+            if head != old_head:
+                range_map = _entry_commit_map(root, rev_range=f"{old_head}..{head}")
+                if set(range_map) & set(entry_map):
+                    entry_map = _entry_commit_map(root)
+                else:
+                    entry_map = {**entry_map, **range_map}
+            main_shas = _first_parent_main_shas(root)
+            main_entries = sorted(eid for eid, info in entry_map.items() if info.get("sha") in main_shas)
+
+            # -- Trailer merges: the walk itself is one cheap git pass; fork
+            # points come from the persisted table, so only merges new since
+            # the last build cost anything (one shared commit-graph pass).
+            raw_events = _trailer_walk(root, trunk_ref)
+            if raw_events is None:
+                return False
+            merge_events, new_forks = _resolve_event_forks(
+                root, raw_events, known_fork_points=known_forks, trunk_ref=trunk_ref
+            )
+
+            # -- Reparse only the changed session documents' chunks.
+            affected_dates, reparse_paths = _session_documents_for(
+                root, self.runtime.memory_dir / "sessions", self._sessions_pathspec(), changed_docs
+            )
+            new_chunks: list[MemoryChunk] = []
+            if reparse_paths:
+                new_chunks = [*extract_memory_chunks(self.cwd, granularity="entry", paths=reparse_paths)]
+                reparse_ranges = {(c.chunk_id, c.start_line, c.end_line) for c in new_chunks}
+                new_chunks.extend(
+                    chunk
+                    for chunk in extract_memory_chunks(self.cwd, granularity="section", paths=reparse_paths)
+                    if (chunk.chunk_id, chunk.start_line, chunk.end_line) not in reparse_ranges
+                )
+
+            # -- File-entry index: only advanced when it was already built.
+            file_index_update: dict[str, Any] | None = None
+            fi_watermark = meta.get("file_index_watermark") or ""
+            if fi_watermark and fi_watermark != trunk_sha:
+                if not _is_ancestor(root, fi_watermark, trunk_sha):
+                    return False
+                range_expr = f"{fi_watermark}..{trunk_sha}"
+                range_graph = _commit_graph(root, range_expr)
+                range_changed = _changed_paths_bulk(root, range_expr)
+                if range_changed is None:
+                    return False
+                file_index_update = {"graph": range_graph, "changed": range_changed}
+
+            file_rows = [
+                _file_row(root, path)
+                for path in _tracked_document_paths(self.runtime)
+            ]
+        except (OSError, ValueError, KeyError, TypeError):
+            return False
+
+        # -- Publish: copy the projection, apply the delta in one transaction,
+        # swap atomically. Same G4 guarantee as a full rebuild: readers only
+        # ever see the old file or the new file, never a half-applied delta.
+        tmp = self.db_path.with_name(f"{self.db_path.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            shutil.copyfile(self.db_path, tmp)
+            conn = sqlite3.connect(tmp)
+            try:
+                if affected_dates:
+                    conn.executemany(
+                        "delete from chunks where session_date = ?",
+                        [(date_text,) for date_text in sorted(affected_dates)],
+                    )
+                if new_chunks:
+                    conn.executemany(
+                        "insert or replace into chunks(chunk_id, granularity, entry_id, session_date, entry_datetime, json) values(?, ?, ?, ?, ?, ?)",
+                        [_chunk_row(chunk) for chunk in new_chunks],
+                    )
+                conn.execute("delete from files")
+                conn.executemany(
+                    "insert into files(path, mtime_ns, size) values(?, ?, ?)",
+                    file_rows,
+                )
+                conn.executemany(
+                    "insert or replace into fork_points(merge_sha, fork_json) values(?, ?)",
+                    [(sha, json.dumps(fork)) for sha, fork in new_forks.items() if fork is not None],
+                )
+                if file_index_update is not None:
+                    conn.executemany(
+                        "insert or replace into commit_parents(sha, short, date, parents) values(?, ?, ?, ?)",
+                        [
+                            (sha, info["short"], info["date"], " ".join(info["parents"]))
+                            for sha, info in file_index_update["graph"].items()
+                        ],
+                    )
+                    conn.executemany(
+                        "insert or ignore into changed_paths(sha, path) values(?, ?)",
+                        [
+                            (sha, path)
+                            for sha, paths in file_index_update["changed"].items()
+                            for path in paths
+                        ],
+                    )
+                    parents_of = {
+                        sha: parents.split()
+                        for sha, parents in conn.execute("select sha, parents from commit_parents")
+                    }
+                    changed_map: dict[str, list[str]] = {}
+                    for sha, path in conn.execute("select sha, path from changed_paths"):
+                        changed_map.setdefault(sha, []).append(path)
+                    index = _file_entry_index_from_parts(entry_map, parents_of, changed_map)
+                    conn.execute("delete from file_entries")
+                    conn.executemany(
+                        "insert into file_entries(path, entry_id) values(?, ?)",
+                        [(path, eid) for path, ids in index.items() for eid in ids],
+                    )
+                    conn.execute(
+                        "insert or replace into meta(key, value) values('file_index_watermark', ?)",
+                        (trunk_sha,),
+                    )
+                for key, value in (
+                    ("rebuilt_at", str(time.time_ns())),
+                    ("entry_commits", json.dumps(entry_map)),
+                    ("main_commit_entries", json.dumps(main_entries)),
+                    ("trailer_merges", json.dumps(merge_events)),
+                    ("trunk_ref", trunk_ref),
+                    ("trunk_watermark", trunk_sha),
+                    ("build_watermark", head),
+                    ("dirty_signature", signature),
+                ):
+                    conn.execute("insert or replace into meta(key, value) values(?, ?)", (key, value))
+                conn.commit()
+            finally:
+                conn.close()
+            gc.collect()
+            if not self._atomic_swap(tmp):
+                return False
+        except (OSError, sqlite3.Error):
+            if tmp.exists():
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
+            return False
         self._chunks_memo = {}
         self._generation += 1
+        return True
 
     def _rebuild_coordinated(self, *, force: bool) -> None:
         with self._rebuild_lease() as acquired:
@@ -475,6 +872,11 @@ class TraceCache:
             elif not force and self.db_path.exists() and self._is_current():
                 # Another server may have refreshed the projection while this
                 # process waited for the lease. Reuse that winning snapshot.
+                return
+            # Normal freshness-driven updates reconcile incrementally when the
+            # change is a plain forward move; an explicit rebuild() (the repair
+            # path) and every reconcile-inapplicable case do the full build.
+            if not force and self._reconcile_locked():
                 return
             self._rebuild_locked()
 
@@ -588,10 +990,127 @@ class TraceCache:
         return json.loads(row[0]) if row else []
 
     def file_entry_index(self) -> dict[str, list[str]]:
+        """path -> entry_ids, built LAZILY: ordinary Trail/Graph startup never
+        pays for it. The first File-mode request harvests the two bulk git
+        passes (commit graph + first-parent changed paths), persists the
+        result keyed by the trunk watermark, and every later request - or
+        process - reads the table. Concurrent first requests serialize on the
+        rebuild lock, so exactly one of them builds."""
         self.ensure_current()
-        with sqlite3.connect(self.db_path) as conn:
-            row = conn.execute("select value from meta where key='file_entry_index'").fetchone()
-        return json.loads(row[0]) if row else {}
+        index = self._read_file_entry_index()
+        if index is not None:
+            return index
+        with self._rebuild_lock:
+            index = self._read_file_entry_index()
+            if index is not None:
+                return index
+            built = self._build_file_index_locked()
+        return built if built is not None else {}
+
+    def _read_file_entry_index(self) -> dict[str, list[str]] | None:
+        """The persisted file-entry index, or None when it has not been built
+        for the current trunk position (the caller then builds it)."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                meta = dict(
+                    conn.execute(
+                        "select key, value from meta where key in ('file_index_watermark', 'trunk_watermark')"
+                    ).fetchall()
+                )
+                if not meta.get("trunk_watermark"):
+                    return {}  # built without git: no index exists or ever will
+                if meta.get("file_index_watermark") != meta.get("trunk_watermark"):
+                    return None
+                rows = conn.execute("select path, entry_id from file_entries").fetchall()
+        except sqlite3.Error:
+            return None
+        index: dict[str, list[str]] = {}
+        for path, entry_id in rows:
+            index.setdefault(path, []).append(entry_id)
+        return {path: sorted(ids) for path, ids in index.items()}
+
+    def _build_file_index_locked(self) -> dict[str, list[str]] | None:
+        """Build (or advance) the file-entry index under the rebuild lock and
+        persist it with the same copy-apply-swap pattern as reconciliation.
+        Harvests reuse whatever commit_parents/changed_paths rows are already
+        persisted - only genuinely unseen commits cost git work."""
+        root = self.runtime.workspace_root
+        trunk = _trunk_ref_and_sha(root)
+        if trunk is None:
+            return {}
+        trunk_ref, trunk_sha = trunk
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                row = conn.execute("select value from meta where key='entry_commits'").fetchone()
+                entry_map = json.loads(row[0]) if row else {}
+                parents_of = {
+                    sha: parents.split()
+                    for sha, parents in conn.execute("select sha, parents from commit_parents")
+                }
+                changed_map: dict[str, list[str]] = {}
+                for sha, path in conn.execute("select sha, path from changed_paths"):
+                    changed_map.setdefault(sha, []).append(path)
+        except sqlite3.Error:
+            return None
+        graph_harvest: dict[str, dict[str, Any]] = {}
+        if not parents_of:
+            graph_harvest = _commit_graph(root, trunk_ref)
+            parents_of = {sha: info["parents"] for sha, info in graph_harvest.items()}
+        changed_harvest = _changed_paths_bulk(root, trunk_ref) if not changed_map else None
+        if changed_harvest is not None:
+            changed_map = changed_harvest
+        elif changed_map and trunk_sha not in parents_of:
+            # Persisted rows exist but predate the current trunk tip (e.g. the
+            # index was never built and reconciles never harvested): refresh
+            # both maps fully rather than serve a partial index.
+            graph_harvest = _commit_graph(root, trunk_ref)
+            parents_of = {sha: info["parents"] for sha, info in graph_harvest.items()}
+            changed_harvest = _changed_paths_bulk(root, trunk_ref)
+            if changed_harvest is None:
+                return None
+            changed_map = changed_harvest
+        index = _file_entry_index_from_parts(entry_map, parents_of, changed_map)
+        tmp = self.db_path.with_name(f"{self.db_path.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            shutil.copyfile(self.db_path, tmp)
+            conn = sqlite3.connect(tmp)
+            try:
+                if graph_harvest:
+                    conn.executemany(
+                        "insert or replace into commit_parents(sha, short, date, parents) values(?, ?, ?, ?)",
+                        [
+                            (sha, info["short"], info["date"], " ".join(info["parents"]))
+                            for sha, info in graph_harvest.items()
+                        ],
+                    )
+                if changed_harvest is not None:
+                    conn.executemany(
+                        "insert or ignore into changed_paths(sha, path) values(?, ?)",
+                        [(sha, path) for sha, paths in changed_map.items() for path in paths],
+                    )
+                conn.execute("delete from file_entries")
+                conn.executemany(
+                    "insert into file_entries(path, entry_id) values(?, ?)",
+                    [(path, eid) for path, ids in index.items() for eid in ids],
+                )
+                conn.execute(
+                    "insert or replace into meta(key, value) values('file_index_watermark', ?)",
+                    (trunk_sha,),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+            gc.collect()
+            if not self._atomic_swap(tmp):
+                return index  # serve the computed index even if persisting failed
+        except (OSError, sqlite3.Error):
+            if tmp.exists():
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
+            return index
+        return index
 
     def chunks(self, *, granularity: str | None = None) -> list[MemoryChunk]:
         # ensure_current() clears _chunks_memo when it rebuilds, so a hit is
@@ -621,14 +1140,16 @@ class TraceCache:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 stored = conn.execute("select path, mtime_ns, size from files order by path").fetchall()
-                # Caches from before commit tracking lack these keys; rebuild once.
+                # Caches from before commit tracking lack these keys; rebuild
+                # once. The file-entry index is deliberately NOT required: it
+                # is lazy (built on first File-mode request), so its absence is
+                # the normal state, not staleness.
                 has_commits = conn.execute("select 1 from meta where key='entry_commits'").fetchone()
                 has_main_map = conn.execute("select 1 from meta where key='main_commit_entries'").fetchone()
                 has_merges = conn.execute("select 1 from meta where key='trailer_merges'").fetchone()
-                has_file_index = conn.execute("select 1 from meta where key='file_entry_index'").fetchone()
         except sqlite3.Error:
             return False
-        if not has_commits or not has_main_map or not has_merges or not has_file_index:
+        if not has_commits or not has_main_map or not has_merges:
             return False
         return [(str(path), int(mtime), int(size)) for path, mtime, size in current] == [
             (str(path), int(mtime), int(size)) for path, mtime, size in stored
@@ -663,6 +1184,11 @@ class TraceCache:
 
     @staticmethod
     def _create_schema(conn: sqlite3.Connection) -> None:
+        # The sha-keyed tables persist immutable git derivations (a commit's
+        # parents, its first-parent changed paths, a merge's fork point) so
+        # they are computed once per commit EVER, not once per process launch
+        # or rebuild. All of it stays derived and rebuildable (contract G2):
+        # deleting the cache only costs recomputation, never data.
         conn.executescript(
             """
             create table meta(key text primary key, value text not null);
@@ -678,6 +1204,10 @@ class TraceCache:
             );
             create index chunks_entry_id_idx on chunks(entry_id);
             create index chunks_date_idx on chunks(session_date);
+            create table fork_points(merge_sha text primary key, fork_json text not null);
+            create table commit_parents(sha text primary key, short text not null, date text not null, parents text not null);
+            create table changed_paths(sha text not null, path text not null, primary key(sha, path));
+            create table file_entries(path text not null, entry_id text not null, primary key(path, entry_id));
             """
         )
 
@@ -1566,6 +2096,19 @@ def _file_row(root: Path, path: Path) -> tuple[str, int, int]:
     return (path.relative_to(root).as_posix(), stat.st_mtime_ns, stat.st_size)
 
 
+def _chunk_row(chunk: MemoryChunk) -> tuple[Any, ...]:
+    """One chunks-table row - shared by the full rebuild and the incremental
+    reconcile so the stored shape can never drift between the two paths."""
+    return (
+        chunk.chunk_id,
+        chunk.granularity,
+        chunk.entry_id,
+        chunk.session_date.isoformat(),
+        chunk.entry_datetime.isoformat() if chunk.entry_datetime else None,
+        json.dumps(_chunk_to_storage(chunk), sort_keys=True),
+    )
+
+
 def _tracked_document_paths(runtime: Any) -> list[Path]:
     """Every file whose content feeds a read result: session documents plus link
     and diagram sidecars. Sidecars carry lifecycle edges and diagram badges the
@@ -1603,7 +2146,7 @@ def _first_parent_main_shas(root: Path) -> set[str]:
     return set()
 
 
-def _entry_commit_map(root: Path) -> dict[str, dict[str, str]]:
+def _entry_commit_map(root: Path, *, rev_range: str | None = None) -> dict[str, dict[str, str]]:
     """entry_id -> the oldest commit whose diff added that entry's id line.
 
     One ``git log -p`` pass over the session tree, newest-first; assignment
@@ -1613,12 +2156,18 @@ def _entry_commit_map(root: Path) -> dict[str, dict[str, str]]:
     main with no commit rides the next commit that occurs" true by
     construction, including pre-branching history. Fails open to an empty map
     when git or a repository is unavailable.
+
+    ``rev_range`` (an ``old..new`` expression) bounds the walk to newly
+    reachable commits for incremental reconciliation; the caller is
+    responsible for re-add detection (an entry sighted in the range that is
+    already attributed) and falls back to the unbounded pass in that case.
     """
     try:
         proc = subprocess.run(
             [
                 "git", "-C", str(root), "log", "-p",
                 "--format=%x01%H%x1f%h%x1f%aI%x1f%s",
+                *([rev_range] if rev_range else []),
                 "--", ".memory-seed/sessions",
             ],
             capture_output=True,
@@ -1644,25 +2193,125 @@ def _entry_commit_map(root: Path) -> dict[str, dict[str, str]]:
 # A merge commit's fork point (merge-base of its parents) is an immutable fact
 # of the object database, and every worktree of a repository shares that
 # database - so fork points computed for the shared trunk are valid for every
-# checkout. Memoizing by merge sha turns the per-worktree rebuild's dominant
-# cost (one merge-base subprocess per trailer merge, ~10s for ~190 merges on
-# Windows) into a one-time cost: switching to another worktree only computes
-# the merges unique to its own divergence.
+# checkout. This in-process memo is the L1 over the persisted fork_points
+# table (schema v2): a fresh process warm-starts from SQLite, and within a
+# process, worktree switches only compute the merges unique to their own
+# divergence.
 _FORK_POINT_MEMO: dict[str, dict[str, str] | None] = {}
 
 
-def _first_parent_trailer_commits(root: Path) -> list[dict[str, Any]]:
-    """Merge-commit ground truth for the Trail: trunk first-parent commits
-    carrying ``Memory-Entry:`` trailers, newest-first.
-
-    ``session merge-branch`` stamps one trailer per merged entry on the merge
-    commit - the only place the entry/commit join can be recorded atomically,
-    since an entry cannot contain the SHA of a commit that hashes over it. For
-    true merge commits (>=2 parents) ``fork`` is the parents' merge-base; a
-    non-merge commit carrying a trailer keeps ``fork: None``. Fails open to an
-    empty list without git.
-    """
+def _trunk_ref_and_sha(root: Path) -> tuple[str, str] | None:
+    """Resolve which trunk ref exists (main, then master, then HEAD) and its
+    current sha. The trunk is the ref the trailer/merge and file-index walks
+    run over, independent of which branch this checkout has checked out.
+    None when git is unavailable."""
     for ref in ("main", "master", "HEAD"):
+        try:
+            proc = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "--verify", "--quiet", ref],
+                capture_output=True,
+                timeout=10,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if proc.returncode == 0:
+            sha = proc.stdout.decode("utf-8", errors="replace").strip()
+            if sha:
+                return ref, sha
+    return None
+
+
+def _commit_graph(root: Path, ref: str) -> dict[str, dict[str, Any]]:
+    """Every commit reachable from ``ref`` in ONE git process:
+    sha -> {short, date, parents}. This is the bulk read that replaces
+    per-merge ``git merge-base``/``git show`` and per-commit metadata spawns -
+    fork points and commit facts are then resolved in-process against this
+    map. Fails open to an empty dict without git."""
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "log", "--format=%H%x1f%h%x1f%cI%x1f%P", ref],
+            capture_output=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return {}
+    if proc.returncode != 0:
+        return {}
+    graph: dict[str, dict[str, Any]] = {}
+    for line in proc.stdout.decode("utf-8", errors="replace").splitlines():
+        if "\x1f" not in line:
+            continue
+        sha, short, date, parents = (line.split("\x1f", 3) + ["", "", ""])[:4]
+        graph[sha] = {"short": short, "date": date, "parents": parents.split()}
+    return graph
+
+
+def _graph_ancestors(graph: Mapping[str, dict[str, Any]], start: str) -> set[str]:
+    """All commits reachable from ``start`` (inclusive) via parent edges,
+    restricted to commits present in ``graph``."""
+    seen: set[str] = set()
+    frontier = [start]
+    while frontier:
+        sha = frontier.pop()
+        if sha in seen or sha not in graph:
+            continue
+        seen.add(sha)
+        frontier.extend(graph[sha]["parents"])
+    return seen
+
+
+def _bulk_fork_points(
+    root: Path,
+    graph: Mapping[str, dict[str, Any]],
+    merges: Mapping[str, list[str]],
+) -> dict[str, dict[str, str] | None]:
+    """Fork points (merge-base of a merge's first two parents) for every merge
+    in ``merges`` (sha -> parent list), resolved in-process from the commit
+    graph instead of one ``git merge-base`` + ``git show`` pair per merge.
+
+    The merge-base is the maximal common ancestor of the two parents. Ancestor
+    sets are downward-closed, so their intersection is too - which means a
+    common ancestor is maximal iff none of its immediate children is also a
+    common ancestor. When that leaves exactly one candidate (every normal
+    branch-off-trunk merge), it IS git's answer; the rare ambiguous case
+    (criss-cross merges) falls back to git itself so the published fork point
+    never diverges from ``git merge-base``.
+    """
+    children: dict[str, list[str]] = {}
+    for sha, info in graph.items():
+        for parent in info["parents"]:
+            children.setdefault(parent, []).append(sha)
+    results: dict[str, dict[str, str] | None] = {}
+    for merge_sha, parents in merges.items():
+        if len(parents) < 2 or parents[0] not in graph or parents[1] not in graph:
+            results[merge_sha] = None
+            continue
+        common = _graph_ancestors(graph, parents[0]) & _graph_ancestors(graph, parents[1])
+        if not common:
+            results[merge_sha] = None
+            continue
+        maximal = [
+            sha for sha in common
+            if not any(child in common for child in children.get(sha, ()))
+        ]
+        if len(maximal) == 1:
+            info = graph[maximal[0]]
+            results[merge_sha] = {"sha": maximal[0], "short": info["short"], "date": info["date"]}
+        else:
+            # Criss-cross history: multiple best common ancestors. Delegate the
+            # choice to git for exactness; this is per-ambiguous-merge, not
+            # per-merge, and effectively never fires on this project's shape.
+            results[merge_sha] = _merge_fork_point(root, parents[0], parents[1])
+    return results
+
+
+def _trailer_walk(root: Path, ref: str | None = None) -> list[dict[str, Any]] | None:
+    """Raw trunk first-parent commits carrying ``Memory-Entry:`` trailers,
+    newest-first, WITHOUT fork resolution (each event keeps its ``parents``
+    list for the caller to resolve). None when git is unavailable so callers
+    can distinguish "no git" from "no merges"."""
+    refs = (ref,) if ref else ("main", "master", "HEAD")
+    for candidate in refs:
         try:
             proc = subprocess.run(
                 # Read the FULL body (%B), NUL-terminated per commit (-z), and scan
@@ -1675,14 +2324,14 @@ def _first_parent_trailer_commits(root: Path) -> list[dict[str, Any]]:
                 # (rendered parallel instead of at its real fork/merge). Scanning
                 # the body is layout-agnostic and repairs already-committed merges.
                 [
-                    "git", "-C", str(root), "log", "--first-parent", ref, "-z",
+                    "git", "-C", str(root), "log", "--first-parent", candidate, "-z",
                     "--format=%H%x1f%h%x1f%cI%x1f%P%x1f%s%x1f%B",
                 ],
                 capture_output=True,
                 timeout=60,
             )
         except (OSError, subprocess.TimeoutExpired):
-            return []
+            return None
         if proc.returncode != 0:
             continue
         events: list[dict[str, Any]] = []
@@ -1699,7 +2348,6 @@ def _first_parent_trailer_commits(root: Path) -> list[dict[str, Any]]:
                         entry_ids.append(value)
             if not entry_ids:
                 continue
-            parent_list = parents.split()
             events.append(
                 {
                     "sha": sha,
@@ -1707,11 +2355,79 @@ def _first_parent_trailer_commits(root: Path) -> list[dict[str, Any]]:
                     "date": date,
                     "subject": subject,
                     "entry_ids": entry_ids,
-                    "fork": _memoized_fork_point(root, sha, parent_list) if len(parent_list) >= 2 else None,
+                    "parents": parents.split(),
                 }
             )
         return events
-    return []
+    return None
+
+
+def _resolve_event_forks(
+    root: Path,
+    events: list[dict[str, Any]],
+    *,
+    known_fork_points: Mapping[str, dict[str, str] | None] | None = None,
+    commit_graph: Mapping[str, dict[str, Any]] | None = None,
+    trunk_ref: str | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, str] | None]]:
+    """Attach ``fork`` to raw trailer-walk events, spending git work only on
+    merges whose fork point is not already known.
+
+    Resolution order per merge sha: caller-provided ``known_fork_points`` (the
+    persisted table) -> the process-wide memo -> one bulk commit-graph pass
+    shared by every remaining merge. Returns the finished events plus the
+    newly resolved fork points for the caller to persist. Strips the internal
+    ``parents`` field so the event shape matches the published contract.
+    """
+    known = dict(known_fork_points or {})
+    missing: dict[str, list[str]] = {}
+    for event in events:
+        sha = event["sha"]
+        if len(event.get("parents", ())) < 2:
+            continue
+        if sha in known or sha in _FORK_POINT_MEMO:
+            continue
+        missing[sha] = event["parents"]
+    newly_resolved: dict[str, dict[str, str] | None] = {}
+    if missing:
+        graph = commit_graph if commit_graph is not None else _commit_graph(root, trunk_ref or "HEAD")
+        newly_resolved = _bulk_fork_points(root, graph, missing)
+        _FORK_POINT_MEMO.update(newly_resolved)
+    finished: list[dict[str, Any]] = []
+    for event in events:
+        sha = event["sha"]
+        parents = event.get("parents", [])
+        if len(parents) >= 2:
+            if sha in known:
+                fork = known[sha]
+                _FORK_POINT_MEMO.setdefault(sha, fork)
+            elif sha in newly_resolved:
+                fork = newly_resolved[sha]
+            else:
+                fork = _FORK_POINT_MEMO.get(sha)
+        else:
+            fork = None
+        finished.append({key: value for key, value in event.items() if key != "parents"} | {"fork": fork})
+    return finished, newly_resolved
+
+
+def _first_parent_trailer_commits(root: Path) -> list[dict[str, Any]]:
+    """Merge-commit ground truth for the Trail: trunk first-parent commits
+    carrying ``Memory-Entry:`` trailers, newest-first.
+
+    ``session merge-branch`` stamps one trailer per merged entry on the merge
+    commit - the only place the entry/commit join can be recorded atomically,
+    since an entry cannot contain the SHA of a commit that hashes over it. For
+    true merge commits (>=2 parents) ``fork`` is the parents' merge-base
+    (resolved in bulk from one commit-graph pass, never one subprocess per
+    merge); a non-merge commit carrying a trailer keeps ``fork: None``. Fails
+    open to an empty list without git.
+    """
+    events = _trailer_walk(root)
+    if not events:
+        return []
+    finished, _ = _resolve_event_forks(root, events)
+    return finished
 
 
 def _memoized_fork_point(root: Path, sha: str, parent_list: list[str]) -> dict[str, str] | None:
@@ -1750,6 +2466,67 @@ def _merge_fork_point(root: Path, parent_a: str, parent_b: str) -> dict[str, str
         return None
 
 
+def _changed_paths_bulk(root: Path, rev_or_range: str) -> dict[str, list[str]] | None:
+    """First-parent changed paths for every commit reachable via
+    ``rev_or_range`` (a ref name or an ``old..new`` range), in ONE git
+    process: sha -> [paths]. ``--diff-merges=first-parent`` makes a merge
+    commit report its diff against its first parent - exactly the
+    ``work_sha^1`` base the per-work-commit ``git diff`` used to compute -
+    while a plain commit reports its diff against its sole parent. None when
+    git fails so callers can fail toward a full recompute."""
+    try:
+        proc = subprocess.run(
+            [
+                "git", "-C", str(root), "log", "--diff-merges=first-parent",
+                "--name-only", "--format=%x01%H", rev_or_range,
+            ],
+            capture_output=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    changed: dict[str, list[str]] = {}
+    current: list[str] | None = None
+    for line in proc.stdout.decode("utf-8", errors="replace").splitlines():
+        if line.startswith("\x01"):
+            sha = line[1:].strip()
+            current = changed.setdefault(sha, []) if sha else None
+        elif current is not None:
+            path = line.strip()
+            if path and path not in current:
+                current.append(path)
+    return changed
+
+
+def _file_entry_index_from_parts(
+    entry_commit_map: Mapping[str, dict[str, str]],
+    parents_of: Mapping[str, list[str]],
+    changed_paths: Mapping[str, list[str]],
+) -> dict[str, list[str]]:
+    """Pure derivation of path -> sorted entry_ids from already-harvested git
+    facts. Groups entries by their shared "work commit" (the authoring
+    commit's first parent), then attributes that work commit's first-parent
+    changed paths to every entry in the group. Root commits (no parents) are
+    skipped, matching the historical per-commit ``git diff`` behavior whose
+    ``work_sha^`` base did not resolve for them."""
+    entries_by_work_sha: dict[str, list[str]] = {}
+    for entry_id, info in entry_commit_map.items():
+        authoring_sha = info.get("sha")
+        authoring_parents = parents_of.get(authoring_sha) if authoring_sha else None
+        if not authoring_parents:
+            continue
+        entries_by_work_sha.setdefault(authoring_parents[0], []).append(entry_id)
+    index: dict[str, set[str]] = {}
+    for work_sha, entry_ids in entries_by_work_sha.items():
+        if not parents_of.get(work_sha):
+            continue
+        for path in changed_paths.get(work_sha, ()):  # missing sha -> no paths
+            index.setdefault(path, set()).update(entry_ids)
+    return {path: sorted(ids) for path, ids in index.items()}
+
+
 def _file_entry_index(root: Path, entry_commit_map: dict[str, dict[str, str]]) -> dict[str, list[str]]:
     """path -> sorted entry_ids whose real work touched that file.
 
@@ -1767,57 +2544,21 @@ def _file_entry_index(root: Path, entry_commit_map: dict[str, dict[str, str]]) -
     the feature the entry documents. Diffing that parent against ITS OWN
     first parent (if it is a merge) - or its sole parent otherwise, for
     entries logged right after a plain non-merge commit - recovers the files
-    the work introduced. Fails open per-entry and overall without git.
+    the work introduced. Both harvests are single bulk git passes (commit
+    graph + first-parent changed paths), never one diff per work commit.
+    Fails open to an empty dict without git.
     """
-    try:
-        proc = subprocess.run(
-            ["git", "-C", str(root), "log", "--format=%H%x1f%P", "main"],
-            capture_output=True,
-            timeout=60,
-        )
-    except (OSError, subprocess.TimeoutExpired):
+    trunk = _trunk_ref_and_sha(root)
+    if trunk is None:
         return {}
-    if proc.returncode != 0:
+    graph = _commit_graph(root, trunk[0])
+    if not graph:
         return {}
-    parents_of: dict[str, list[str]] = {}
-    for line in proc.stdout.decode("utf-8", errors="replace").splitlines():
-        if "\x1f" not in line:
-            continue
-        sha, parents = line.split("\x1f", 1)
-        parents_of[sha] = parents.split()
-
-    # Group entries by their shared "work commit" first, so a batch of
-    # entries logged in the same commit (or riding the same merge) shares
-    # one diff instead of repeating it per entry.
-    entries_by_work_sha: dict[str, list[str]] = {}
-    for entry_id, info in entry_commit_map.items():
-        authoring_sha = info.get("sha")
-        authoring_parents = parents_of.get(authoring_sha) if authoring_sha else None
-        if not authoring_parents:
-            continue
-        entries_by_work_sha.setdefault(authoring_parents[0], []).append(entry_id)
-
-    index: dict[str, set[str]] = {}
-    for work_sha, entry_ids in entries_by_work_sha.items():
-        work_parents = parents_of.get(work_sha)
-        if not work_parents:
-            continue
-        base_ref = f"{work_sha}^1" if len(work_parents) >= 2 else f"{work_sha}^"
-        try:
-            diff = subprocess.run(
-                ["git", "-C", str(root), "diff", "--name-only", base_ref, work_sha],
-                capture_output=True,
-                timeout=30,
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            continue
-        if diff.returncode != 0:
-            continue
-        for path in diff.stdout.decode("utf-8", errors="replace").splitlines():
-            path = path.strip()
-            if path:
-                index.setdefault(path, set()).update(entry_ids)
-    return {path: sorted(ids) for path, ids in index.items()}
+    changed = _changed_paths_bulk(root, trunk[0])
+    if changed is None:
+        return {}
+    parents_of = {sha: info["parents"] for sha, info in graph.items()}
+    return _file_entry_index_from_parts(entry_commit_map, parents_of, changed)
 
 
 def _entry_merge_map(events: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
