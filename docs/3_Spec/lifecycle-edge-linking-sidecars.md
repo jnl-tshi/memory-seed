@@ -4,9 +4,10 @@ Status: IMPLEMENTED and reconciled 2026-07-16. This document is the live contrac
 format, read/validation semantics, and the inert `link audit --apply` scaffold workflow.
 As-built deviations from the original draft: ref extraction uses the wider
 `_TRAILER_ENTRY_ID_RE` (real corpus ids include non-Crockford letters; a strict regex silently
-dropped edges), and `link audit` generates candidates from topic/file overlap (no all-pairs
-semantic scan) with `--for <entry_id>` and `--date YYYY-MM-DD` scoping (the sweep audits only the
-session's own entries against the full corpus). Since 2026-07-15, `--apply` may create inert,
+dropped edges), and `link audit` generates candidates from title-term/file/topic overlap (no
+all-pairs semantic scan) with `--for <entry_id>` and `--date YYYY-MM-DD` scoping (the sweep audits
+only the session's own entries against the full corpus). Title-term overlap was added 2026-07-21;
+see [Candidate scoring](#candidate-scoring-2026-07-21) for what it changed and the measurement. Since 2026-07-15, `--apply` may create inert,
 idempotent `classify_pending` stubs; it never writes a live edge.
 Related: [graph-edge-contract.md](graph-edge-contract.md)
 Draft extension: [decision-level-link-sidecar-refs.md](draft/decision-level-link-sidecar-refs.md) — refs
@@ -209,9 +210,36 @@ later discoveries.
 
 A new `link` subcommand, **not** folded into `links check` (the integrity gate
 stays fast, deterministic, and dependency-light). `link audit` flags entries
-whose structural neighbours (shared `F:` files or shared topics; file overlap
-qualifies a pair even without a shared topic) are captured by **no** edge — YAML or sidecar —
-printing the candidate, the shared-`F:` evidence, and the suggested edge type.
+whose structural neighbours (shared distinctive **title terms**, shared `F:` files, or shared
+topics; title-term or file overlap qualifies a pair even without a shared topic) are captured by
+**no** edge — YAML or sidecar — printing the candidate, the evidence, and the suggested edge type.
+
+### Candidate scoring (2026-07-21)
+
+Score is `FILE_OVERLAP_BOOST × Σ idf(shared file) + TITLE_OVERLAP_BOOST × Σ idf(shared title term)`.
+Title terms are the entry title's words minus a stop list (function words, plus the workstream
+labels and opening verbs nearly every title in this corpus uses), with the leading
+`YYYY-MM-DD HH:MM - ` stamp stripped — left in, the year is a term shared by essentially every
+pair, which turns a discriminating signal into a universal one.
+
+**Measured, not assumed.** Ground truth is the 102 `supersedes`/`evolves` edges authors declared in
+entry YAML across the corpus — human-confirmed, and predating the change that they justify:
+
+| | true edges surfaced | recall@5 | recall@10 |
+|---|---|---|---|
+| files only | 73/102 | 44% | 51% |
+| + title terms | **92/102** | **59%** | **68%** |
+
+The gain is in *reachability*, not reordering: median rank of the true target is 3 either way. File
+overlap alone cannot surface a predecessor that touched different files, which is most of what it
+missed.
+
+Two candidate-volume changes were designed and **rejected by the same measurement**, recorded so
+they are not re-proposed: a minimum-score floor (cuts candidates per source but leaves 94% of
+sources with at least one, so stub count barely moves), and suppressing stubs for sources that
+already declare a lifecycle edge (94% of declaring entries declare exactly one, which is equally
+consistent with "one is all there is" and with "authors stop at one" — and a human sweep found two
+lifecycle targets on 2 of 8 investigated sources, against 6% in author-declared data).
 It is both the standalone "did we miss links?" check and the discovery step the
 end-of-session sweep consumes. An already-declared edge (either source)
 suppresses the flag.

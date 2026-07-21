@@ -1400,6 +1400,11 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{gap.entry_id}  {gap.session_date}  {gap.title}")
                 for cand in gap.candidates:
                     evidence = []
+                    # Shared title terms lead: they are the strongest signal
+                    # for a lifecycle predecessor, and the one a human can
+                    # judge at a glance without opening either entry.
+                    if cand.shared_title_terms:
+                        evidence.append(f"terms: {', '.join(cand.shared_title_terms)}")
                     if cand.shared_files:
                         evidence.append(f"files: {', '.join(cand.shared_files)}")
                     if cand.shared_topics:

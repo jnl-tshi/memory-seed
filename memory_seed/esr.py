@@ -234,6 +234,7 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
                         "title": cand.title,
                         "shared_files": list(cand.shared_files),
                         "shared_topics": list(cand.shared_topics),
+                        "shared_title_terms": list(cand.shared_title_terms),
                         "already_related": cand.already_related,
                     }
                     for cand in gap.candidates
@@ -280,6 +281,11 @@ def format_esr_report(report: EsrReport) -> str:
             lines.append(f"- {gap['entry_id']}  {gap['title']}")
             for cand in gap["candidates"]:
                 evidence = []
+                # Title terms lead - see the matching comment in cli.py. Read
+                # with `.get` because an ESR payload written before this field
+                # existed must still render rather than KeyError on replay.
+                if cand.get("shared_title_terms"):
+                    evidence.append(f"terms: {', '.join(cand['shared_title_terms'])}")
                 if cand["shared_files"]:
                     evidence.append(f"files: {', '.join(cand['shared_files'])}")
                 if cand["shared_topics"]:
