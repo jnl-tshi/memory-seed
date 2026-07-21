@@ -71,8 +71,18 @@ and normalised to the pair. It is **not** canonical and writers never emit it, f
 already gives — it is an address, not an identity
 ([adr-lifecycle-sidecar-contract.md:89](adr-lifecycle-sidecar-contract.md)) — plus one that bites harder
 here: the slug **cannot express d1 of a singular `### Decision` entry**, because no `#decisions/d1-…`
-chunk is generated for that shape. That is 346 of ~610 entries. A form that cannot address the majority
-case cannot be the canonical one.
+chunk is generated for that shape.
+
+Measured against the live corpus on 2026-07-21 by running the chunk extractor, which counts
+addressability directly rather than inferring it from entry shape:
+
+| Decision chunks | Count | Slug-addressable? |
+|---|---|---|
+| `…#decision` (singular `### Decision`) | 381 | **no** — no ordinal in the anchor |
+| `…#decisions/d1-<slug>` | 131 | yes |
+| `…#decisions/dN-<slug>`, all N | 309 | yes |
+
+A form that cannot address 381 of the 512 individually-anchored decisions cannot be the canonical one.
 
 Accepting it as an alias is a deliberate exception to "one spelling per identity": the alternative is
 rejecting a paste from our own UI. The normalisation is one-way and lossless, and `link audit --apply`
@@ -161,7 +171,7 @@ must be within range. An entry with no decision section has no addressable decis
 
 Unchanged in logic. A decision carries no timestamp of its own, so a decision endpoint resolves its
 **entry's** heading timestamp from `entry_timestamps` — the same resolution the live spec already pins for
-sidecar edges ([lifecycle-edge-linking-sidecars.md:231](../lifecycle-edge-linking-sidecars.md)). "B:d2
+sidecar edges ([lifecycle-edge-linking-sidecars.md:234](../lifecycle-edge-linking-sidecars.md)). "B:d2
 supersedes A:d1" is legal iff A predates B.
 
 Because both ends are required to be in different entries (below), the two timestamps are always distinct
@@ -234,8 +244,26 @@ validation or detection.
 ## Open questions
 
 1. **Does `link audit` gain decision awareness, or stay entry-level?** (See step 4 — the honest answer may
-   be that it cannot, with its current evidence.)
+   be that it cannot, with its current evidence. Confirmed by reading it: candidates are scored on
+   `shared_files` and `shared_topics`, both keyed on `entry_id`
+   ([retrieval.py:558-559](../../../memory_seed/retrieval.py)), so nothing in the evidence discriminates
+   between two decisions of one entry.)
 2. **Should ESR count decision edges separately** in coverage metrics, or would that make historical
    coverage look worse by moving the denominator?
 3. **Is `related_entries` worth extending to decisions**, or is decision granularity only meaningful for the
    typed lifecycle edges? The live spec already scopes `related` as accepted-but-not-the-focus.
+
+4. **The ADR's corpus table does not reconcile with a recount, and should be re-derived before anything
+   is built on it.** [adr-lifecycle-sidecar-contract.md:75-80](adr-lifecycle-sidecar-contract.md) reports
+   125 numbered / 346 singular / 1 inline / 140 no-decision on 2026-07-20, totalling 612 entries. A
+   recount on 2026-07-21 finds **580 entries** — fewer than a day later, which append-only makes
+   impossible — and 66 no-decision against the ADR's 140. The numbered and singular figures move in the
+   plausible direction (125→131, 346→382, and the chunk extractor independently agrees: 131 `d1-` chunks,
+   381 singular), so the disagreement is concentrated in the totals and the no-decision bucket: one of
+   the two classifiers is counting something the other is not.
+
+   This does not disturb the ADR's *argument* — the singular-to-`d1` convention is what makes the scheme
+   total, and that holds at any of these counts. It matters because the table is the evidence anyone will
+   cite for coverage, and the first draft of this document cited it verbatim as current fact rather than
+   recounting. Both sets of numbers should be re-derived from one agreed classifier before either is used
+   to size work.
