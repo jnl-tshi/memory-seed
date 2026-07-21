@@ -189,6 +189,37 @@ export function TrailWorkspace({
     }
   });
 
+  // Contiguous row ranges belonging to one multi-decision entry. Shared by the
+  // indent stabiliser below and the group brackets further down so the two can
+  // never disagree about where a group starts and ends.
+  const groups: { first: number; last: number }[] = [];
+  {
+    let start = -1;
+    let entry: string | null = null;
+    const close = (end: number) => {
+      if (start >= 0 && end > start) groups.push({ first: start, last: end });
+      start = -1;
+      entry = null;
+    };
+    items.forEach((item, index) => {
+      const inGroup = item.kind === "node" && Boolean(item.node.decision_ordinal);
+      const id = inGroup && item.kind === "node" ? item.node.entry_id : null;
+      if (inGroup && id === entry) return;
+      if (start >= 0) close(index - 1);
+      if (inGroup) { start = index; entry = id; }
+    });
+    if (start >= 0) close(items.length - 1);
+  }
+  // A decision group is ONE entry, so its rows indent as one block: every row
+  // takes the group's widest envelope lane. Per-row indents made a lane that
+  // opened or closed partway through a group stagger its own decisions, which
+  // read as the text jittering between rows of the same entry.
+  groups.forEach(({ first, last }) => {
+    let widest = 0;
+    for (let row = first; row <= last; row += 1) widest = Math.max(widest, envelopeLane[row]);
+    for (let row = first; row <= last; row += 1) envelopeLane[row] = widest;
+  });
+
   // Same-branch consecutive rows → vertical lane segments (no-branch rows get a
   // dot but no line).
   const branchRows = new Map<string, number[]>();
@@ -535,50 +566,31 @@ export function TrailWorkspace({
   });
 
   // One bracket per multi-decision entry, sitting just right of the time
-  // column, spanning the group's contiguous rows - the visual "these are one
-  // entry's decisions" grouping. Contiguity is guaranteed by the model's
-  // ordinal tiebreak; the indent uses the group's max, so the bracket clears
-  // the text at every row it spans.
-  const decisionBrackets: ReactElement[] = [];
-  {
-    let groupStart = -1;
-    let groupEntry: string | null = null;
-    const flush = (endIndex: number) => {
-      if (groupStart < 0 || endIndex - groupStart < 1) { groupStart = -1; groupEntry = null; return; }
-      const first = items[groupStart];
-      if (first.kind !== "node") { groupStart = -1; groupEntry = null; return; }
-      let indent = 0;
-      for (let row = groupStart; row <= endIndex; row += 1) indent = Math.max(indent, rowIndent(envelopeLane[row]));
-      const x = indent + 34 + 5; // time column is 34px wide; sit in the row gap
-      const top = rowY(groupStart) - 9;
-      const bot = rowY(endIndex) + 9;
-      const colour = pastelOf(colorOf.get(first.node.branch || "") || laneColorFamily(0));
-      decisionBrackets.push(
-        <path
-          key={`dbr-${first.node.id}`}
-          d={`M ${x + 4} ${top} L ${x} ${top + 4} L ${x} ${bot - 4} L ${x + 4} ${bot}`}
-          fill="none"
-          stroke={colour}
-          strokeWidth={1.4}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          strokeOpacity={0.9}
-        >
-          <title>{`${endIndex - groupStart + 1} decisions in this entry`}</title>
-        </path>,
-      );
-      groupStart = -1;
-      groupEntry = null;
-    };
-    items.forEach((item, index) => {
-      const inGroup = item.kind === "node" && Boolean(item.node.decision_ordinal);
-      const entry = inGroup && item.kind === "node" ? item.node.entry_id : null;
-      if (inGroup && entry === groupEntry) return;
-      if (groupStart >= 0) flush(index - 1);
-      if (inGroup) { groupStart = index; groupEntry = entry; }
-    });
-    if (groupStart >= 0) flush(items.length - 1);
-  }
+  // column and spanning the group's rows - the visual "these are one entry's
+  // decisions" grouping. The rows share one indent (stabilised above), so the
+  // bracket has a single x for the whole span.
+  const decisionBrackets = groups.flatMap(({ first, last }) => {
+    const anchor = items[first];
+    if (anchor.kind !== "node") return [];
+    const x = rowIndent(envelopeLane[first]) + 34 + 5; // time column is 34px; sit in the row gap
+    const top = rowY(first) - 9;
+    const bot = rowY(last) + 9;
+    const colour = pastelOf(colorOf.get(anchor.node.branch || "") || laneColorFamily(0));
+    return [
+      <path
+        key={`dbr-${anchor.node.id}`}
+        d={`M ${x + 4} ${top} L ${x} ${top + 4} L ${x} ${bot - 4} L ${x + 4} ${bot}`}
+        fill="none"
+        stroke={colour}
+        strokeWidth={1.4}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        strokeOpacity={0.9}
+      >
+        <title>{`${last - first + 1} decisions in this entry`}</title>
+      </path>,
+    ];
+  });
 
   const rows = items.map((item, index) => {
     if (item.kind === "day") {

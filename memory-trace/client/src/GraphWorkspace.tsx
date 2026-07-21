@@ -3,6 +3,7 @@ import type { Core } from "cytoscape";
 import { Maximize2, Minus, Plus } from "lucide-react";
 import { connectedNodeIds, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
 import { layoutIterations, nodeSetSignature, seedPositions, type Point } from "./graphLayout";
+import { outrankedEdgeIds } from "./graphEdges";
 
 type GraphWorkspaceProps = {
   graph: RendererGraphResponse;
@@ -87,8 +88,25 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       // the map's lineage invisible until you happened to click the right
       // node. Turning a chip off still hides that type outright, Obsidian
       // style, and never touches which nodes exist or where they sit.
+      //
+      // One line per PAIR: two entries often carry several relationships at
+      // once, which drew coincident lines and let the weakest one (a topic
+      // tag) paint over the strongest (a supersession). Only the most
+      // consequential relationship survives - see EDGE_PRIORITY. The winner is
+      // chosen among the types currently switched ON, so switching a type off
+      // promotes whatever it was covering rather than blanking the pair.
+      const outranked = outrankedEdgeIds(
+        cy.edges().map((edge) => ({
+          id: edge.id(),
+          source: edge.data("source"),
+          target: edge.data("target"),
+          type: edge.data("type"),
+        })),
+        currentVisibleTypes,
+      );
       cy.edges().forEach((edge) => {
         edge.toggleClass("edge-filtered", !currentVisibleTypes.includes(edge.data("type")));
+        edge.toggleClass("edge-outranked", outranked.has(edge.id()));
       });
     });
   };
@@ -188,6 +206,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
           { selector: 'edge[type = "evolves"]', style: { "line-style": "dotted", "line-color": edgeEvolves, "target-arrow-color": edgeEvolves, "width": 2.5 } },
           { selector: 'edge[type = "topic"]', style: { "line-style": "dotted", "line-color": edgeTopic, "target-arrow-color": edgeTopic, "opacity": 0.58 } },
           { selector: "edge.edge-filtered", style: { display: "none" } },
+          { selector: "edge.edge-outranked", style: { display: "none" } },
         ],
         layout: { name: "preset" },
         minZoom: 0.35,
