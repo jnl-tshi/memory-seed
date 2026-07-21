@@ -664,6 +664,23 @@ class ProjectLifecycleTests(unittest.TestCase):
             ],
         )
 
+    def test_model2vec_is_the_only_required_dependency(self):
+        # This is what makes the documented lightweight install work.
+        # Extras can only ADD dependencies, never subtract, so there is no way
+        # to express "memory-seed without semantic" as an extra. The supported
+        # lite path is `pip install --no-deps memory-seed`, and that is only
+        # equivalent to "everything except semantic" while model2vec is the
+        # SOLE required dependency.
+        #
+        # If you are adding a second required dependency, this test failing is
+        # the point: --no-deps would silently start dropping it too, so the
+        # lite install story has to be redesigned in the same change (README
+        # "Lightweight install" section) rather than quietly breaking.
+        pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+        required = pyproject["project"]["dependencies"]
+        self.assertEqual(len(required), 1, f"expected exactly one required dependency, got {required}")
+        self.assertTrue(required[0].startswith("model2vec"), required[0])
+
     def test_package_data_includes_all_seed_files(self):
         pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
         package_data = set(pyproject["tool"]["setuptools"]["package-data"]["memory_seed"])

@@ -114,6 +114,32 @@ Heading: 2026-05-17 - Bootstrap mode check fix
 
 The validator performs the same search-then-fetch flow an MCP-capable agent uses: rank matching memory chunks, fetch the selected chunk by id, and print the exact source text for human review.
 
+## Lightweight install (without semantic ranking)
+
+`model2vec` is a **required** dependency and the default install includes it — semantic ranking is
+part of the product, not an add-on. It is also the package's *only* required dependency, and it
+downloads a ~59 MB model on first use.
+
+If that download is unwanted — an air-gapped machine, a small container, CI that only exercises the
+Markdown surface — install without it:
+
+```powershell
+python -m pip install --no-deps memory-seed
+```
+
+Everything still works: session logging, `links check`, `docs check`, fusing, the topic vocabulary
+and the whole CLI. Only **ranking** changes — search falls back from semantic to lexical, and
+`link audit` candidate scoring loses its strongest signal. Nothing errors, and nothing is hidden:
+`memory-seed esr` reports the state on every run, as `DEGRADED — ranking is lexical only`.
+
+Add it later with `python -m pip install model2vec`; nothing else needs reinstalling.
+
+> Why `--no-deps` and not an extra: extras can only *add* dependencies, never subtract, so
+> "memory-seed without semantic" cannot be expressed as one. Because `model2vec` is the sole
+> required dependency, `--no-deps` is exactly equivalent — an invariant pinned by
+> `test_model2vec_is_the_only_required_dependency`, so adding a second required dependency fails
+> the suite rather than silently breaking this path.
+
 ## Memory Trace (optional review UI)
 
 **Memory Trace** is the optional local browser UI for exploring a project's Memory Seed runtime: read-only search, filters, timeline, graph, and reader/details views over your Markdown session files, backed by a rebuildable local SQLite cache outside the repository. It ships inside the main `memory-seed` distribution so there is one installable product, while the web dependencies stay behind the `trace` extra so plain `pip install memory-seed` remains lightweight.

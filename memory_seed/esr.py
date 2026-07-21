@@ -59,6 +59,15 @@ class EsrReport:
     docs_ok: bool = True
     docs_errors: list[str] = field(default_factory=list)
     docs_warning_count: int = 0
+    # Semantic ranking degrades to lexical when the provider cannot load, and
+    # `search_memory` reports that only inside a result payload nobody reads.
+    # It went unnoticed here for an unknown stretch: memory-seed was installed
+    # without its one declared dependency, so every search ranked lexically
+    # while claiming a semantic provider. A preflight that prints even when
+    # clean is the right home for "the thing you believe is on is off".
+    semantic_available: bool = True
+    semantic_provider: str | None = None
+    semantic_unavailable_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -88,6 +97,11 @@ class EsrReport:
                 "ok": self.docs_ok,
                 "errors": self.docs_errors,
                 "warning_count": self.docs_warning_count,
+            },
+            "semantic": {
+                "available": self.semantic_available,
+                "provider": self.semantic_provider,
+                "unavailable_reason": self.semantic_unavailable_reason,
             },
         }
 
@@ -252,11 +266,35 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
     report.docs_ok = docs.ok
     report.docs_errors = [f"{i.file}: {i.kind}: {i.detail}" for i in docs.errors]
     report.docs_warning_count = len(docs.warnings)
+
+    # Probe the embedding provider the way search does, so the preflight
+    # reports the ranking the NEXT search will actually get. Imported here
+    # rather than at module scope: esr must stay importable in a lightweight
+    # install where the provider's dependency is absent - which is exactly the
+    # situation this check exists to report.
+    from .retrieval import resolve_semantic_provider
+
+    provider, name, reason = resolve_semantic_provider("preflight")
+    report.semantic_available = provider is not None
+    report.semantic_provider = name
+    report.semantic_unavailable_reason = reason
     return report
 
 
 def format_esr_report(report: EsrReport) -> str:
     lines: list[str] = [f"ESR preflight — session {report.session_date}", ""]
+
+    lines.append("## Semantic ranking")
+    if report.semantic_available:
+        lines.append(f"OK — {report.semantic_provider}")
+    else:
+        # Named as a degradation, not an error: search still answers, it just
+        # answers lexically. The distinction matters because this is not a
+        # failure anyone will notice from the results themselves.
+        lines.append(f"DEGRADED — ranking is lexical only ({report.semantic_provider})")
+        lines.append(f"- reason: {report.semantic_unavailable_reason}")
+        lines.append("- a full install restores it: python -m pip install memory-seed")
+    lines.append("")
 
     lines.append("## Integrity (links check)")
     if report.integrity_ok:
