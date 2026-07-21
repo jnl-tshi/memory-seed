@@ -490,16 +490,25 @@ export default function App() {
 
   const ensureTrailVisible = useCallback((count: number) => setTrailWindow((value) => Math.max(value, count)), []);
 
-  // Opening from the context panel selects the entry and, in Trail mode, the
-  // Trail scrolls to it (TrailWorkspace watches the selection). Same reuse
-  // pattern as selectFromTrail: a context entry is usually already a node in
-  // whatever graph is loaded (that's why it's related/similar/evolves in the
-  // first place), so select it in place rather than reflexively jumping scope
-  // to Local — only entries outside the current graph need a fetch to appear.
+  // Opening from the context panel only ever highlights the entry (if it's a
+  // node in whatever graph is on screen) and loads it into the Inspector — it
+  // must never change scope or replace the visible graph. Unlike focusEntry
+  // (used by search/Trail navigation, where jumping to Local IS the point),
+  // an entry outside the current graph gets a throwaway entry-centered fetch
+  // used only to read its node data; the result is never written to `graph`
+  // or `scope`, so it can't highlight (nothing on screen to ring) but still
+  // populates the Inspector via the selection.
   async function openContextEntry(entryId: string) {
     const node = graph?.nodes.find((item) => item.source.entry_id === entryId);
     if (node) { select(node); return; }
-    await focusEntry(entryId);
+    try {
+      const preview = await graphQuery({ entryId });
+      const found = preview.nodes.find((item) => item.source.entry_id === entryId);
+      if (!found) { setError(`No entry exists with id ${entryId}.`); return; }
+      select(found);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to open that entry.");
+    }
   }
 
   const topics = useMemo(() => Object.entries(facets?.topics ?? {}).slice(0, 10), [facets]);
