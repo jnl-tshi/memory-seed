@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { Core } from "cytoscape";
 import { Maximize2, Minus, Plus } from "lucide-react";
-import type { RendererGraphNode, RendererGraphResponse } from "./api";
+import type { RendererGraphEdge, RendererGraphNode, RendererGraphResponse } from "./api";
 
 type GraphWorkspaceProps = {
   graph: RendererGraphResponse;
@@ -9,6 +9,10 @@ type GraphWorkspaceProps = {
   onSelect: (node: RendererGraphNode) => void;
   labelMode: "focus" | "minimal" | "all";
   theme: "light" | "dark";
+  // Which edge types are switched on in the "Edges" filter row. Obsidian-style:
+  // this only toggles line visibility on the graph already in memory — it must
+  // never drive which nodes are rendered or trigger a re-layout.
+  visibleEdgeTypes: RendererGraphEdge["edge_type"][];
 };
 
 // Cytoscape styles can't consume CSS custom properties, so resolve the theme
@@ -55,7 +59,7 @@ function initialPositions(nodes: RendererGraphNode[]) {
   return positions;
 }
 
-export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme }: GraphWorkspaceProps) {
+export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, visibleEdgeTypes }: GraphWorkspaceProps) {
   const container = useRef<HTMLDivElement>(null);
   const cytoscape = useRef<Core | null>(null);
   // Refs so the tap handler and selection effect never force an instance remount.
@@ -66,13 +70,16 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme }
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
   const labelIdsRef = useRef<Set<string>>(new Set());
+  const visibleEdgeTypesRef = useRef(visibleEdgeTypes);
+  visibleEdgeTypesRef.current = visibleEdgeTypes;
 
-  // In-place presentation pass — selection ring, labels, evolves reveal. Reads
-  // current state from refs so both the mount (async) and the update effect can
-  // apply it without racing each other.
+  // In-place presentation pass — selection ring, labels, evolves reveal, edge
+  // filter. Reads current state from refs so both the mount (async) and the
+  // update effect can apply it without racing each other.
   const applyPresentation = (cy: Core) => {
     const currentSelected = selectedIdRef.current;
     const currentLabels = labelIdsRef.current;
+    const currentVisibleTypes = visibleEdgeTypesRef.current;
     cy.batch(() => {
       cy.nodes().forEach((node) => {
         const id = node.id();
@@ -82,6 +89,12 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme }
       cy.edges('[type = "evolves"]').forEach((edge) => {
         const touched = currentSelected !== null && (edge.data("source") === currentSelected || edge.data("target") === currentSelected);
         edge.toggleClass("hidden-until-selected", !touched);
+      });
+      // The "Edges" filter row toggles this independently of selection: turning
+      // a type off hides every edge of that type outright, same as an Obsidian
+      // graph-view filter. It never touches which nodes exist or where they sit.
+      cy.edges().forEach((edge) => {
+        edge.toggleClass("edge-filtered", !currentVisibleTypes.includes(edge.data("type")));
       });
     });
   };
@@ -180,6 +193,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme }
           { selector: 'edge[type = "evolves"]', style: { "line-style": "dotted", "line-color": edgeEvolves, "target-arrow-color": edgeEvolves, "width": 2.5 } },
           { selector: 'edge[type = "topic"]', style: { "line-style": "dotted", "line-color": edgeTopic, "target-arrow-color": edgeTopic, "opacity": 0.58 } },
           { selector: "edge.hidden-until-selected", style: { display: "none" } },
+          { selector: "edge.edge-filtered", style: { display: "none" } },
         ],
         layout: { name: "preset" },
         minZoom: 0.35,
@@ -210,13 +224,13 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme }
     };
   }, [graph, renderedNodes, theme]);
 
-  // Presentation updates on selection/label changes: in place, no element
-  // churn, no layout, no camera movement.
+  // Presentation updates on selection/label/edge-filter changes: in place, no
+  // element churn, no layout, no camera movement.
   useEffect(() => {
     const cy = cytoscape.current;
     if (!cy) return;
     applyPresentation(cy);
-  }, [labelIds, selectedId, graph]);
+  }, [labelIds, selectedId, graph, visibleEdgeTypes]);
 
   return <section className="graph-workspace" aria-label="Memory graph workspace">
     <div className="graph-controls" aria-label="Graph view controls">
