@@ -1,6 +1,8 @@
 /* Humanist theme tokens — light is the MAI-inspired warm default; dark is a
-   warmed charcoal. Every surface colour routes through these so both modes stay
-   coherent. --font-display carries the humanist serif voice for headings. */
+   cool near-black with a faint green cast, so the Trail's coloured branch lanes
+   and the teal accent read as the only saturated things on screen. Every
+   surface colour routes through these so both modes stay coherent.
+   --font-display carries the humanist serif voice for headings. */
 :root {
   /* color-scheme drives the *native* widget palette — scrollbars above all.
      Without it the UA paints light scrollbars regardless of our tokens, which
@@ -21,21 +23,28 @@
 }
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #221d15; --panel: #2b241a; --bar: #282218; --chip: #322a1e; --hover: #2e2719;
-  --selected-bg: #383021; --border: #4a4030; --border-2: #5a4e3a;
-  --muted: #a5967c; --faint: #6f634e;
+  /* Panes: one near-black base with a faint green cast, lifted in small steps
+     (bar < bg < panel < chip < hover < selected) so the three panes separate by
+     value and border alone - no pane is tinted a different hue, which is what
+     kept the old warm charcoal reading as brown rather than as neutral depth. */
+  --bg: #0f1512; --panel: #131a17; --bar: #111815; --chip: #18211d; --hover: #1a231f;
+  --selected-bg: #1e2a25; --border: #222e29; --border-2: #2f3d37;
+  /* --faint is the search placeholder and the branchless trail dot. The old
+     warm value sat at 2.89:1 on its background; this clears AA (4.5:1) while
+     staying a clear step below --muted, so the hierarchy still reads. */
+  --muted: #8b9a93; --faint: #74857d;
   /* --on-accent is the ink for pressed/active chips, which sit on the DARK
      teal --accent-chip-bg in this theme. A dark ink there was near-invisible
      (~2.5:1); light mode already pairs a medium surface with light ink, so this
      mirrors it rather than brightening the surface into a loud pill. */
-  --text: #eae0cc; --text-2: #ddd2bb; --text-3: #cbbfa5; --text-bright: #f4ecda; --on-accent: #f2ece0;
-  --accent: #7fbfa0; --accent-bright: #a4d8bc; --accent-strong: #e0af59;
-  --code-bg: #1c1710; --grid-line: #4a40302e;
-  --danger-border: #a45c64; --danger-bg: #3a2026f0; --danger-text: #ffc3c3;
-  --match-bg: #2a2a1a; --match-text: #f6e6b8; --match-border: #6b5e2f; --advisory-text: #e7d9a8;
+  --text: #d8e0dc; --text-2: #c6d0cb; --text-3: #aab6b1; --text-bright: #eaf1ee; --on-accent: #eaf5f0;
+  --accent: #4ec9a0; --accent-bright: #74dcb6; --accent-strong: #e0af59;
+  --code-bg: #0c110f; --grid-line: #2f3d3730;
+  --danger-border: #a45c64; --danger-bg: #2a191df0; --danger-text: #ffc3c3;
+  --match-bg: #21301f; --match-text: #e9f2ca; --match-border: #6e8342; --advisory-text: #dae4b9;
   --edge-related: #e0af59; --edge-supersedes: #e06c60; --edge-evolves: #7fa3dd;
-  --edge-supersedes-soft: #7d5f63; --edge-evolves-soft: #4f6579; --edge-topic: #a88acc;
-  --accent-chip-bg: #2d6257; --scrim: #081512aa;
+  --edge-supersedes-soft: #6b4f52; --edge-evolves-soft: #45566b; --edge-topic: #a88acc;
+  --accent-chip-bg: #235c4c; --scrim: #050b09aa;
 }
 :root { color: var(--text-bright); background: var(--bg); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
 * { box-sizing: border-box; }
