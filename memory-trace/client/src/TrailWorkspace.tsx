@@ -4,6 +4,8 @@ import type { TrailStyle } from "./SettingsMenu";
 import {
   buildTrailModel,
   trailStamp,
+  inDecisionGroup,
+  isDecisionRow,
   laneColorFamily,
   pastelOf,
   stripTitleStamp,
@@ -153,14 +155,14 @@ export function TrailWorkspace({
     if (!searching) return new Set<string>();
     const matched = new Set<string>();
     for (const node of model.items) {
-      if (node.kind !== "node" || !node.node.decision_ordinal) continue;
+      if (node.kind !== "node" || !inDecisionGroup(node.node)) continue;
       if (rowMatchOwn(node.node) && node.node.entry_id) matched.add(node.node.entry_id);
     }
     return matched;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- rowMatchOwn derives from searchTerm
   }, [model.items, searchTerm, searching]);
   const rowMatch = (node: TrailEvent) =>
-    rowMatchOwn(node) || Boolean(node.decision_ordinal && node.entry_id && matchedGroupEntries.has(node.entry_id));
+    rowMatchOwn(node) || Boolean(inDecisionGroup(node) && node.entry_id && matchedGroupEntries.has(node.entry_id));
 
   // Continuity zone is deferred (0 for now); the relationship zone is kept
   // reserved so lifecycle-arrow lanes slot in later without re-laying-out.
@@ -202,7 +204,10 @@ export function TrailWorkspace({
       entry = null;
     };
     items.forEach((item, index) => {
-      const inGroup = item.kind === "node" && Boolean(item.node.decision_ordinal);
+      // The anchor counts as in-group: it is the entry's heading row, so it
+      // must share the group's indent or the heading staggers against its own
+      // subheadings - the stagger the block-indent rule below exists to kill.
+      const inGroup = item.kind === "node" && inDecisionGroup(item.node);
       const id = inGroup && item.kind === "node" ? item.node.entry_id : null;
       if (inGroup && id === entry) return;
       if (start >= 0) close(index - 1);
@@ -535,11 +540,15 @@ export function TrailWorkspace({
   // Rows inside a rendered decision group demand an EXACT chunk match:
   // previously entry_id uniquely identified one row, but a group's rows all
   // share it - the permissive OR-match would light the whole group and make
-  // clicking D2 indistinguishable from D1. Ordinary rows keep the permissive
-  // rule unchanged.
+  // clicking D2 indistinguishable from D1. The ANCHOR needs excluding too,
+  // not just the decision rows: it also carries the group's entry_id, so a
+  // permissive match would light it alongside whichever decision is selected.
+  // Its own chunk_id still matches when the entry itself is selected, so this
+  // yields exactly one lit row in both states. Ordinary rows - the corpus
+  // majority - keep the permissive rule unchanged.
   const isSelected = (node: TrailEvent) =>
     node.chunk_id === selectedChunkId ||
-    (!node.decision_ordinal && node.entry_id !== null && node.entry_id === selectedEntryId);
+    (!inDecisionGroup(node) && node.entry_id !== null && node.entry_id === selectedEntryId);
 
   const dots = items.flatMap((item, index) => {
     if (item.kind !== "node") return [];
@@ -547,9 +556,10 @@ export function TrailWorkspace({
     const branch = node.branch || "";
     const selected = isSelected(node);
     const miss = searching && !rowMatch(node) && !selected;
-    // D2..DN carry a pastel of the branch colour at a smaller radius: same
-    // event stream, subordinate weight - "part of D1's entry", not new dots.
-    const isChild = Boolean(node.decision_ordinal && node.decision_ordinal !== "d1");
+    // Every decision row D1..DN carries a pastel of the branch colour at a
+    // smaller radius: same event stream, subordinate weight - "a decision
+    // inside this entry", not a new event. The anchor keeps the full colour.
+    const isChild = isDecisionRow(node);
     const baseColor = branch ? colorOf.get(branch)! : "var(--trail-faint)";
     return [
       <circle
@@ -587,7 +597,10 @@ export function TrailWorkspace({
         strokeLinecap="round"
         strokeOpacity={0.9}
       >
-        <title>{`${last - first + 1} decisions in this entry`}</title>
+        {/* Count comes from the anchor's decision_count, NOT the row span:
+            the span now includes the anchor row itself, so geometry would
+            claim one decision too many. */}
+        <title>{`${anchor.node.decision_count} decisions in this entry`}</title>
       </path>,
     ];
   });
@@ -606,8 +619,8 @@ export function TrailWorkspace({
     const selected = isSelected(node);
     const matched = rowMatch(node);
     const miss = searching && !matched && !selected;
-    const isChild = Boolean(node.decision_ordinal && node.decision_ordinal !== "d1");
-    // Child rows share the anchor's timestamp; repeating it would read as N
+    const isChild = isDecisionRow(node);
+    // Decision rows share the anchor's timestamp; repeating it would read as N
     // separate moments, so only the anchor shows the time.
     const time = !isChild && node.datetime ? node.datetime.slice(11, 16) : "";
     return (
@@ -641,9 +654,7 @@ export function TrailWorkspace({
     );
   });
 
-  const shown = items.filter(
-    (item) => item.kind === "node" && (!item.node.decision_ordinal || item.node.decision_ordinal === "d1"),
-  ).length;
+  const shown = items.filter((item) => item.kind === "node" && !isDecisionRow(item.node)).length;
   const matchCount = searching ? items.filter((item) => item.kind === "node" && rowMatch(item.node)).length : 0;
 
   return (
