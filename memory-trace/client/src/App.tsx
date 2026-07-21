@@ -2,7 +2,8 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 import { ChevronDown, ChevronUp, GitBranch, LayoutPanelLeft, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, X } from "lucide-react";
 import { SettingsMenu, type InspectorDock, type Theme, type TrailStyle } from "./SettingsMenu";
 import { api, connectedNodeIds, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, SEARCH_LIMIT, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
-import { EntryReader } from "./EntryReader";
+import { EntryReader, type DiagramSidecar } from "./EntryReader";
+import { DiagramViewer, type DiagramBlock } from "./DiagramViewer";
 import { readerScrollTarget } from "./inspectorScroll";
 import { searchResultCursor, stepSearchCursor } from "./searchNavigation";
 import { genuineSearchResults } from "./searchResults";
@@ -145,6 +146,10 @@ export default function App() {
   const [graph, setGraph] = useState<RendererGraphResponse | null>(null);
   const [selected, setSelected] = useState<RendererGraphNode | null>(null);
   const [chunk, setChunk] = useState<ChunkResponse | null>(null);
+  // Decision-diagram viewer. Held at App level rather than inside the Trail or
+  // the reader because both surfaces open the same modal, and it must sit
+  // above the whole workspace.
+  const [diagramViewer, setDiagramViewer] = useState<{ title: string; blocks: DiagramBlock[] } | null>(null);
   const [matchHint, setMatchHint] = useState<MatchHint | null>(null);
   const [selectionMuted, setSelectionMuted] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
@@ -574,6 +579,20 @@ export default function App() {
   // against. Unlike focusEntry (search and Trail navigation, where jumping to
   // the entry's own Local neighbourhood IS the point), an entry outside the
   // current graph resolves via the throwaway fetch.
+  // Trail/graph diamond badge -> viewer. Fetches the entry's own chunk rather
+  // than requiring it to be selected first: the badge's whole point is
+  // previewing a diagram WITHOUT navigating away from what you are reading.
+  // Reuses the loaded chunk when it is already the selected entry.
+  async function previewDiagram(entryId: string | null, chunkId: string) {
+    const loaded = chunk && chunk.chunk_id === chunkId ? chunk : null;
+    const source = loaded ?? (await api<ChunkResponse>(`/chunks/${encodeURIComponent(chunkId)}`).catch(() => null));
+    if (!source) return;
+    const blocks = (source.diagrams as DiagramSidecar[] | undefined ?? []).flatMap((sidecar) =>
+      (sidecar.mermaid_blocks ?? []).map((mermaid) => ({ title: sidecar.title ?? null, source: mermaid })),
+    );
+    setDiagramViewer({ title: source.title || entryId || "Decision diagram", blocks });
+  }
+
   async function openEntryInPlace(entryId: string) {
     const node = graph?.nodes.find((item) => item.source.entry_id === entryId);
     if (node) { select(node); return; }
@@ -996,7 +1015,7 @@ export default function App() {
             {trailError && <div className="error-state" role="alert">{trailError}</div>}
             {effectiveTrail ? (
               <Suspense fallback={<div className="loading-state">Loading trail</div>}>
-                <TrailWorkspace trail={effectiveTrail} trailStyle={trailStyle} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={(matchHint?.entryId === selected?.source.entry_id ? matchHint?.decisionChunkId : undefined) ?? selected?.source.chunk_id ?? null} query={query} selectionMuted={selectionMuted} commitSiblingIds={chunk?.commit_entry_ids ?? []} onSelectEntry={selectFromTrail} onEnsureVisible={ensureTrailVisible} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
+                <TrailWorkspace trail={effectiveTrail} trailStyle={trailStyle} windowSize={trailWindow} selectedEntryId={selected?.source.entry_id ?? null} selectedChunkId={(matchHint?.entryId === selected?.source.entry_id ? matchHint?.decisionChunkId : undefined) ?? selected?.source.chunk_id ?? null} query={query} selectionMuted={selectionMuted} commitSiblingIds={chunk?.commit_entry_ids ?? []} onSelectEntry={selectFromTrail} onPreviewDiagram={previewDiagram} onEnsureVisible={ensureTrailVisible} onLoadMore={() => setTrailWindow((value) => value + TRAIL_WINDOW_STEP)} />
               </Suspense>
             ) : (
               <div className="loading-state">Loading trail</div>
@@ -1042,9 +1061,10 @@ export default function App() {
             )}
             <div className="meta-item meta-wide"><dt>Topics</dt><dd>{selected.source.topics.length ? <span className="meta-topics">{selected.source.topics.map((topic) => <span className="meta-topic" key={topic}>{topic}</span>)}</span> : "None"}</dd></div>
           </dl>
-          <EntryReader chunk={chunk} matchHeading={matchHeading} onOpenEntry={(entryId) => void openEntryInPlace(entryId)} onOpenFile={(path) => void openFileMode(path)} />
+          <EntryReader chunk={chunk} matchHeading={matchHeading} onOpenEntry={(entryId) => void openEntryInPlace(entryId)} onOpenFile={(path) => void openFileMode(path)} onOpenDiagram={(title, source) => setDiagramViewer({ title: title || chunk?.title || "Decision diagram", blocks: [{ title, source }] })} />
         </div>}
       </aside>}
+      {diagramViewer && <DiagramViewer title={diagramViewer.title} blocks={diagramViewer.blocks} onClose={() => setDiagramViewer(null)} />}
     </div>
   );
 }

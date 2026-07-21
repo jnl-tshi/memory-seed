@@ -68,6 +68,17 @@ class EsrReport:
     semantic_available: bool = True
     semantic_provider: str | None = None
     semantic_unavailable_reason: str | None = None
+    # Decision-diagram coverage. Deliberately a COUNT, not a verdict: a keyword
+    # heuristic for "this entry needed a diagram" was prototyped against the
+    # real corpus and flagged 35% of all entries - matching "worktree" in a
+    # passing validation line, "topology" in a feature name. A check that fires
+    # on one entry in three teaches its reader to skip it, and guessing the
+    # judgement would contradict this module's own rule that judgment stays
+    # with the agent. The bare fact is enough: the convention lapsed for five
+    # days and 131 entries with nothing anywhere reporting it.
+    diagrams_today: int = 0
+    entries_today: int = 0
+    last_diagram_date: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -103,7 +114,41 @@ class EsrReport:
                 "provider": self.semantic_provider,
                 "unavailable_reason": self.semantic_unavailable_reason,
             },
+            "diagrams": {
+                "today": self.diagrams_today,
+                "entries_today": self.entries_today,
+                "last_sidecar_date": self.last_diagram_date,
+            },
         }
+
+
+def _entry_dates(memory_dir: Path) -> dict[str, str]:
+    """``{entry_id: YYYY-MM-DD}`` for every session entry.
+
+    Diagram sidecars are keyed by entry_id, so counting "today's entries that
+    carry one" needs the reverse map. Skips the links/ and diagrams/ subtrees,
+    which live under sessions/ but are not session logs.
+    """
+    import re
+
+    dates: dict[str, str] = {}
+    sessions = memory_dir / "sessions"
+    if not sessions.is_dir():
+        return dates
+    for path in sorted(sessions.rglob("*.md")):
+        if "links" in path.parts or "diagrams" in path.parts:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for match in re.finditer(r"^## (\d{4}-\d{2}-\d{2}) \d{2}:\d{2} - ", text, flags=re.M):
+            nxt = text.find("\n## ", match.end())
+            body = text[match.end(): nxt if nxt > 0 else len(text)]
+            entry = re.search(r"entry_id:\s*(\S+)", body)
+            if entry:
+                dates[entry.group(1)] = match.group(1)
+    return dates
 
 
 def _git_lines(root: Path, *args: str, timeout: int = 30) -> list[str] | None:
@@ -278,6 +323,27 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
     report.semantic_available = provider is not None
     report.semantic_provider = name
     report.semantic_unavailable_reason = reason
+
+    # Diagram coverage: how many of today's entries carry a sidecar, and when
+    # the last one anywhere was written. The second number is the one that
+    # matters - a run of empty days is invisible from inside any single day.
+    # Read through the sanctioned sidecar reader rather than re-parsing the
+    # files here: it already owns both the month-grouped and legacy-flat
+    # layouts, and a second hand-rolled parser is how the two drift apart.
+    from .retrieval import entry_diagram_sidecars
+
+    sidecars = entry_diagram_sidecars(cwd)
+    report.last_diagram_date = max(
+        (str(meta.get("heading_datetime", ""))[:10] for meta in sidecars.values() if meta),
+        default=None,
+    ) or None
+    today_entries = {
+        entry_id
+        for entry_id, meta in _entry_dates(runtime.memory_dir).items()
+        if meta == report.session_date
+    }
+    report.entries_today = len(today_entries)
+    report.diagrams_today = sum(1 for entry_id in today_entries if entry_id in sidecars)
     return report
 
 
@@ -294,6 +360,24 @@ def format_esr_report(report: EsrReport) -> str:
         lines.append(f"DEGRADED — ranking is lexical only ({report.semantic_provider})")
         lines.append(f"- reason: {report.semantic_unavailable_reason}")
         lines.append("- a full install restores it: python -m pip install memory-seed")
+    lines.append("")
+
+    lines.append("## Decision diagrams")
+    if report.diagrams_today:
+        lines.append(f"{report.diagrams_today} of today's {report.entries_today} entries carry a sidecar.")
+    else:
+        # No verdict on whether one was warranted - that judgement is the
+        # agent's. The lapse this exists to surface is only visible as a RUN of
+        # empty days, which no single day's view shows.
+        lines.append(f"None of today's {report.entries_today} entries carry a sidecar.")
+        if report.last_diagram_date:
+            lines.append(f"- last sidecar anywhere: {report.last_diagram_date}")
+        else:
+            lines.append("- no diagram sidecar exists in this project yet")
+        lines.append(
+            "- session_logging.md: when a positive trigger is present and no sidecar is written, "
+            "state the reason under A: or Follow-up"
+        )
     lines.append("")
 
     lines.append("## Integrity (links check)")
