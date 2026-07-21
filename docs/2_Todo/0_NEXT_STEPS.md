@@ -2,7 +2,7 @@
 
 Status: **ACTIVE — Constitution-aligned** (v1.0 ratified 2026-07-14; v1.1 2026-07-16; v1.2 2026-07-17;
 v1.3 2026-07-19).
-Updated: 2026-07-20
+Updated: 2026-07-22
 
 > ▶ **Foundation and memory-quality core shipped 2026-07-15.** The
 > [derived-projection Phase 1](derived-projection-implementation-plan.md) (git-watermark warm start +
@@ -16,8 +16,10 @@ Updated: 2026-07-20
 > The ranking/graph core now includes the full-corpus gate, `superseding_head` plus its bounded boost,
 > and inert `link audit --apply` scaffolding. **2.19.0 released 2026-07-17** (live on PyPI). **B0a
 > graph/workspace contracts and renderer evidence are complete;
-> B2/B0b React parity is the current lead.** The projection's
-> incremental-ingest fast-follow remains deferred as low-urgency (reads are already ~3.9 ms).
+> B2/B0b React parity is the current lead.** The projection's **incremental-ingest fast-follow
+> SHIPPED 2026-07-21** — it was the last deferred piece of the derived-projection plan, taken because
+> the profile had moved: parsing was no longer the cost, per-history-item git work was
+> (44.25 s / 990 git subprocesses → 1.46 s / 7).
 Source: the `docs/` lifecycle lanes (folder = state — see [`../README.md`](../README.md)), `CHANGELOG.md`,
 and `docs/3_Spec/`. Rebuilt 2026-07-14 from a full inbox+todo evaluation; re-baselined 2026-07-15 after the
 Foundation shipped (per-doc status verified against CHANGELOG + code, not this file's prior claims).
@@ -34,7 +36,8 @@ Foundation shipped (per-doc status verified against CHANGELOG + code, not this f
 - **Foundation SHIPPED 2026-07-15:** derived-projection Phase 1 — git-watermark warm start (O(changes)
   freshness, no whole-corpus scan; ~6.2 s rebuild → ~78 ms warm) + atomic build/swap + schema version, plus
   three read-path perf refinements (freshness memoize, chunk memoize, sidecar-first-class freshness):
-  `chunk()` 132 ms → 3.9 ms. Only the **incremental-ingest** fast-follow remains, deferred as low-urgency.
+  `chunk()` 132 ms → 3.9 ms. The **incremental-ingest** fast-follow — the plan's last open piece —
+  **shipped 2026-07-21**; the derived-projection plan is now complete.
 - **Doc lifecycle:** the folder a doc sits in *is* its state. This refresh moved the terminal docs into
   `5_Completed/` / `7_Superseded/` / `8_Deferred/`; only docs with live work remain in `2_Todo/`.
 - **Wave 1 + closeout SHIPPED 2026-07-15:** `topics suggest --from`, deterministic timeline Evidence
@@ -42,6 +45,61 @@ Foundation shipped (per-doc status verified against CHANGELOG + code, not this f
   integration-mode phases, and lifecycle-link scaffold steps 1–3.
 - **Release cadence:** 2.19.0 is **released** (2026-07-17). The next tranche accumulates under
   `CHANGELOG.md` "## Unreleased"; publishing remains a manual-approval gate at the pypi environment.
+
+## Shipped 2026-07-21/22 — unreleased, on local main
+
+26 entries across two sessions, grouped by theme rather than transcribed. Verified against the
+session log and code, not against this file's prior claims.
+
+- **Memory Trace startup is now incremental** — the derived-projection plan's last deferred piece.
+  Immutable git derivations (fork points, commit parents, changed paths) persist across rebuilds;
+  reconciliation is incremental; the file-entry index is lazy. Forced rebuild 44.25 s / 990 git
+  subprocesses → 1.46 s / 7. Live: warm 308 ms, one new commit 1.62 s, one merge 2.20 s.
+- **B0b graph slices closed** — evolution scope, file graph mode (path → entry index derived from the
+  authoring commit's parent), Overview ranked by connectivity across all dates with an honest
+  coverage indicator, Obsidian-style edge filters that hide *lines* not nodes, one line per pair
+  taken by the strongest relationship, and settled layout positions restored on exact-match remount.
+- **Trail decision rows** — one row per `#### Dn`, the entry row anchoring as a heading with D1..DN
+  as pastel subheadings, grouped by bracket, on the already-ratified `(entry_id, dN)` identity.
+- **Decision diagrams are usable again** — clickable badge/figure → zoom-pan modal in the React
+  client (vanilla parity), and `esr` now reports diagram coverage. The convention had produced
+  nothing for five days and 131 entries with nothing anywhere reporting it.
+- **Link-sidecar backlog cleared** — all 69 open `classify_pending` stubs classified (8 live edges,
+  61 `not_applicable` with reasons). `link audit` now scores candidates on idf-weighted shared title
+  terms: true edges surfaced 73/102 → 92/102, recall@5 44% → 59%.
+- **Two silent-failure surfaces made visible** — `session merge-branch` notes when a merged branch
+  carried no session entry (trunk lane + missing `Memory-Entry` trailer, both unrecoverable once
+  published), and `esr` reports when semantic ranking has degraded to lexical.
+- **Packaging** — `model2vec` stays required; `pip install --no-deps memory-seed` is now the
+  documented lightweight install, pinned by a test asserting it remains the *only* required
+  dependency.
+- **Docs** — `docs/3_Spec/draft/decision-level-link-sidecar-refs.md` drafted (not implemented).
+
+### Open threads from this tranche — sequence before they rot
+
+These exist only in session-entry Follow-ups today. Nothing below is built.
+
+1. **Two silent-corruption paths in `_TRAILER_ENTRY_ID_RE` extraction** (P1 — data integrity).
+   A `#decisions/`-suffixed ref truncates to the entry id and validates clean; an *indented* comment
+   inside an edge list has its ids extracted as **real edges**. The first degrades an edge, the
+   second invents one. Both live now, both cheap to fix.
+2. **Decision-level link refs** — spec drafted and evidence-backed (2 of 9 genuine edges wanted
+   decision granularity). Four code points: extraction, validation, parse, Trace attachment.
+   Blocked on nothing but a decision to build.
+3. **Semantic scoring for `link audit`** — measured, unbuilt: adding model2vec cosine to the shipped
+   lexical score moves recall@5 61% → 75% at weight ~120, for 2.9 s model load and 0.15 s to embed
+   544 entries. This contradicts the live spec's "no all-pairs semantic scan" rationale, which should
+   be retracted when it lands.
+4. **`compact_mermaid_diagrams` vs `arc2d`** — the skill tells authors to use tier subgraphs; the
+   renderer parses no `subgraph` at all, so grouping is silently lost in both clients. Either narrow
+   the skill or extend the renderer; it affects every future sidecar author and both seed twins.
+5. **Cross-session `branch:` contamination** — `session append` stamps `branch:` from the shared git
+   HEAD, so a second agent appending while another has a feature branch checked out records the wrong
+   branch. Affects every git-derived field, not just this one. Design decision needed before
+   multi-session work is routine.
+6. **The ADR corpus table does not reconcile** — `adr-lifecycle-sidecar-contract.md` reports 612
+   entries on 2026-07-20; a recount finds 580. Re-derive both from one classifier before either is
+   used to size decision-coverage work.
 
 ## Shipped 2026-07-18/19 — unreleased, on local main
 
@@ -283,8 +341,10 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   3. **Renderer benchmark** — the same bounded fixture passes the evidence sweep in vis-network and
      Cytoscape.js. Cytoscape.js is the selected B0b renderer.
   4. **Topology-first graph** — stable community colour, stronger node hierarchy, typed/curved edges,
-     optional mild temporal drift, and bounded/community overview modes, specified and fixture-proven but
-     not yet migrated to the selected renderer.
+     optional mild temporal drift, bounded/community overview modes, and a bounded force-motion layer:
+     Settled remains the cached default; Animate layout and Reheat on drag are explicit exploration tools,
+     capped to small visible graphs and disabled by default under reduced motion. The topology model is
+     fixture-proven; this motion extension is specified but not yet implemented or benchmarked in Cytoscape.
 - **B2 — React/Vite shell** *(first implementation slice landed 2026-07-16)* —
   [`memory-trace-frontend-architecture-and-design-system-proposal.md`](memory-trace-frontend-architecture-and-design-system-proposal.md)
   (roadmap Phase 2). `memory-trace/client/` now builds a TypeScript React shell to packaged `/next` assets;
