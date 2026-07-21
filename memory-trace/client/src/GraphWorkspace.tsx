@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type { Core } from "cytoscape";
 import { Maximize2, Minus, Plus } from "lucide-react";
 import { connectedNodeIds, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
+import { layoutIterations, nodeSetSignature, seedPositions, type Point } from "./graphLayout";
 
 type GraphWorkspaceProps = {
   graph: RendererGraphResponse;
@@ -42,46 +43,15 @@ function labelIdsFor(graph: RendererGraphResponse, selectedId: string | null, la
   );
 }
 
-// Deterministic initial positions: nodes ordered by community then id, placed on
-// a circle. cose is a physics simulation — from a fixed starting arrangement it
-// settles to the same layout every time, so the map holds still across loads
-// and reloads instead of scrambling.
-function initialPositions(nodes: RendererGraphNode[]) {
-  const ordered = [...nodes].sort(
-    (left, right) => left.community.id.localeCompare(right.community.id) || left.id.localeCompare(right.id),
-  );
-  const radius = Math.max(220, ordered.length * 14);
-  const positions = new Map<string, { x: number; y: number }>();
-  ordered.forEach((node, index) => {
-    const angle = (index / Math.max(1, ordered.length)) * Math.PI * 2;
-    positions.set(node.id, { x: Math.round(Math.cos(angle) * radius), y: Math.round(Math.sin(angle) * radius) });
-  });
-  return positions;
-}
-
 // Settled positions from the last completed layout, keyed by the node-id set
 // they were computed for. Module-level so a remount (theme change, view
 // round-trip) with the SAME node set restores positions instantly via a
 // preset layout instead of re-running the simulation, and a GROWN node set
 // ("Show more") seeds its old nodes where they already settled so only the
-// additions need real layout work.
+// additions need real layout work. The seeding rules themselves live in
+// graphLayout.ts so they can be unit tested.
 let settledSignature = "";
-const settledPositions = new Map<string, { x: number; y: number }>();
-
-function nodeSetSignature(nodes: RendererGraphNode[]) {
-  return [...nodes].map((node) => node.id).sort().join("\n");
-}
-
-// Measured cose cost with our exact options (900 iterations): 60 nodes 86ms,
-// 500 nodes 4.6s, 1000 nodes 17.8s of main-thread block. 900 iterations is
-// right at default size but unaffordable at "Show more" sizes, so above 150
-// nodes the iteration budget scales down with node count; warm-seeded grown
-// layouts (most of the big-graph cases) need even less to settle.
-function layoutIterations(nodeCount: number, warmSeeded: boolean) {
-  if (nodeCount <= 150) return 900;
-  const scaled = Math.max(120, Math.round(900 * (150 / nodeCount)));
-  return warmSeeded ? Math.max(80, Math.round(scaled / 2)) : scaled;
-}
+const settledPositions = new Map<string, Point>();
 
 export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, visibleEdgeTypes }: GraphWorkspaceProps) {
   const container = useRef<HTMLDivElement>(null);
@@ -97,9 +67,9 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
   const visibleEdgeTypesRef = useRef(visibleEdgeTypes);
   visibleEdgeTypesRef.current = visibleEdgeTypes;
 
-  // In-place presentation pass — selection ring, labels, evolves reveal, edge
-  // filter. Reads current state from refs so both the mount (async) and the
-  // update effect can apply it without racing each other.
+  // In-place presentation pass — selection ring, labels, edge filter. Reads
+  // current state from refs so both the mount (async) and the update effect
+  // can apply it without racing each other.
   const applyPresentation = (cy: Core) => {
     const currentSelected = selectedIdRef.current;
     const currentLabels = labelIdsRef.current;
@@ -110,13 +80,13 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
         node.data("selected", id === currentSelected ? "yes" : "no");
         node.data("label", id === currentSelected || currentLabels.has(id) ? node.data("title") : "");
       });
-      cy.edges('[type = "evolves"]').forEach((edge) => {
-        const touched = currentSelected !== null && (edge.data("source") === currentSelected || edge.data("target") === currentSelected);
-        edge.toggleClass("hidden-until-selected", !touched);
-      });
-      // The "Edges" filter row toggles this independently of selection: turning
-      // a type off hides every edge of that type outright, same as an Obsidian
-      // graph-view filter. It never touches which nodes exist or where they sit.
+      // Edge visibility is the "Edges" filter row's business ALONE: a type
+      // that is switched on is drawn for every node pair that has it, always.
+      // Evolves edges used to additionally hide unless they touched the
+      // selection, which contradicted their own chip reading as ON and made
+      // the map's lineage invisible until you happened to click the right
+      // node. Turning a chip off still hides that type outright, Obsidian
+      // style, and never touches which nodes exist or where they sit.
       cy.edges().forEach((edge) => {
         edge.toggleClass("edge-filtered", !currentVisibleTypes.includes(edge.data("type")));
       });
@@ -125,7 +95,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
 
   // The rendered element set is SELECTION-INDEPENDENT: every node that carries
   // any edge renders, always. Selecting must never add/remove elements or move
-  // the map — evolves edges reveal via style, not element churn.
+  // the map — selection only restyles (ring, labels).
   const renderedNodes = useMemo(() => {
     const connected = connectedNodeIds(graph);
     return graph.nodes.filter((node) => connected.has(node.id));
@@ -157,23 +127,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       const { default: createCytoscape } = await import("cytoscape");
       if (disposed || !container.current) return;
       const signature = nodeSetSignature(renderedNodes);
-      // Same node set as the last settled layout (theme change, view
-      // round-trip): restore positions verbatim, no simulation at all.
-      // Otherwise seed from the deterministic circle, upgraded with any
-      // settled positions we already have (a grown "Show more" set keeps its
-      // existing arrangement and only the new nodes travel).
-      const settled = signature === settledSignature && settledPositions.size > 0;
-      const positions = initialPositions(renderedNodes);
-      let warmSeeded = false;
-      if (!settled && settledPositions.size > 0) {
-        for (const node of renderedNodes) {
-          const previous = settledPositions.get(node.id);
-          if (previous) {
-            positions.set(node.id, previous);
-            warmSeeded = true;
-          }
-        }
-      }
+      const { positions, settled, warmSeeded } = seedPositions(renderedNodes, settledPositions, settledSignature);
       const nodeBorder = themeToken("--panel", "#142a26");
       const nodeText = themeToken("--text-bright", "#e9f3f0");
       const nodeOutline = themeToken("--bg", "#10201e");
@@ -233,7 +187,6 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
           { selector: 'edge[type = "supersedes"]', style: { "line-style": "dashed", "line-color": edgeSupersedes, "target-arrow-color": edgeSupersedes } },
           { selector: 'edge[type = "evolves"]', style: { "line-style": "dotted", "line-color": edgeEvolves, "target-arrow-color": edgeEvolves, "width": 2.5 } },
           { selector: 'edge[type = "topic"]', style: { "line-style": "dotted", "line-color": edgeTopic, "target-arrow-color": edgeTopic, "opacity": 0.58 } },
-          { selector: "edge.hidden-until-selected", style: { display: "none" } },
           { selector: "edge.edge-filtered", style: { display: "none" } },
         ],
         layout: { name: "preset" },
