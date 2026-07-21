@@ -566,12 +566,15 @@ export default function App() {
     }
   }
 
-  // Opening from the context panel only ever highlights the entry (if it's a
-  // node in whatever graph is on screen) and loads it into the Inspector — it
-  // must never change scope or replace the visible graph. Unlike focusEntry
-  // (used by search/Trail navigation, where jumping to Local IS the point),
-  // an entry outside the current graph resolves via the throwaway fetch.
-  async function openContextEntry(entryId: string) {
+  // Following a link to another entry - from the context panel, the Inspector
+  // metadata, or the reader's linked-memory cards - only ever highlights that
+  // entry (if it is a node in whatever graph is on screen) and loads it into
+  // the Inspector. It must never change scope or replace the visible graph:
+  // browsing a relationship should not throw away the map you are reading it
+  // against. Unlike focusEntry (search and Trail navigation, where jumping to
+  // the entry's own Local neighbourhood IS the point), an entry outside the
+  // current graph resolves via the throwaway fetch.
+  async function openEntryInPlace(entryId: string) {
     const node = graph?.nodes.find((item) => item.source.entry_id === entryId);
     if (node) { select(node); return; }
     await resolveEntrySelection(entryId);
@@ -947,7 +950,7 @@ export default function App() {
           </label>
         )}
         <section className="navigation-section"><h2>Topics</h2><div className="topic-list"><button type="button" className={activeTopic === null ? "topic active" : "topic"} onClick={() => void chooseTopic(null)} aria-pressed={activeTopic === null}>All</button>{topics.map(([topic, count]) => <button type="button" className={activeTopic === topic ? "topic active" : "topic"} key={topic} onClick={() => void chooseTopic(topic)} aria-pressed={activeTopic === topic}>{topic}<b>{count}</b></button>)}</div></section>
-        <section className="navigation-section entry-list"><h2>{selected?.source.entry_id ? "Context" : "Recent"}</h2>{selected?.source.entry_id && <p className="context-subject" title={selected.label}>{stripTitleStamp(selected.label)}</p>}{contextGroups.length ? contextGroups.map(([kind, group]) => <div key={kind} className="context-group">{kind !== "recent" && <h3 className={`context-group-h context-type-${kind}`}>{kind === "commit" ? "same commit" : kind}</h3>}{group.map((item) => <button key={item.key} type="button" className="entry" title={item.title} onClick={() => void openContextEntry(item.entryId)}><span>{item.title}</span></button>)}</div>) : <p className="context-empty">{selected?.source.entry_id ? "No linked context for this entry." : "Loading entries"}</p>}</section>
+        <section className="navigation-section entry-list"><h2>{selected?.source.entry_id ? "Context" : "Recent"}</h2>{selected?.source.entry_id && <p className="context-subject" title={selected.label}>{stripTitleStamp(selected.label)}</p>}{contextGroups.length ? contextGroups.map(([kind, group]) => <div key={kind} className="context-group">{kind !== "recent" && <h3 className={`context-group-h context-type-${kind}`}>{kind === "commit" ? "same commit" : kind}</h3>}{group.map((item) => <button key={item.key} type="button" className="entry" title={item.title} onClick={() => void openEntryInPlace(item.entryId)}><span>{item.title}</span></button>)}</div>) : <p className="context-empty">{selected?.source.entry_id ? "No linked context for this entry." : "Loading entries"}</p>}</section>
       </aside>}
 
       <main className="workspace" id="trace-workspace">
@@ -1026,12 +1029,12 @@ export default function App() {
             <div className="meta-item"><dt>Diagrams</dt><dd>{chunk?.diagrams.length ?? 0}</dd></div>
             {selectedEvolves.length > 0 && (
               <div className="meta-item meta-wide"><dt>Evolves</dt><dd><span className="meta-links">{selectedEvolves.map((item) => (
-                <button key={item.entryId} type="button" className="meta-link" title={item.entryId} onClick={() => void focusEntry(item.entryId)}>{item.title}</button>
+                <button key={item.entryId} type="button" className="meta-link" title={item.entryId} onClick={() => void openEntryInPlace(item.entryId)}>{item.title}</button>
               ))}</span></dd></div>
             )}
             <div className="meta-item meta-wide"><dt>Topics</dt><dd>{selected.source.topics.length ? <span className="meta-topics">{selected.source.topics.map((topic) => <span className="meta-topic" key={topic}>{topic}</span>)}</span> : "None"}</dd></div>
           </dl>
-          <EntryReader chunk={chunk} matchHeading={matchHeading} onOpenEntry={(entryId) => void focusEntry(entryId)} onOpenFile={(path) => void openFileMode(path)} />
+          <EntryReader chunk={chunk} matchHeading={matchHeading} onOpenEntry={(entryId) => void openEntryInPlace(entryId)} onOpenFile={(path) => void openFileMode(path)} />
         </div>}
       </aside>}
     </div>
