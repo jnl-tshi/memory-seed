@@ -4,6 +4,7 @@ import { Maximize2, Minus, Plus } from "lucide-react";
 import { connectedNodeIds, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
 import { layoutIterations, nodeSetSignature, seedPositions, type Point } from "./graphLayout";
 import { outrankedEdgeIds } from "./graphEdges";
+import { communityColourScale, communityLegend } from "./graphCommunities";
 
 type GraphWorkspaceProps = {
   graph: RendererGraphResponse;
@@ -11,6 +12,9 @@ type GraphWorkspaceProps = {
   onSelect: (node: RendererGraphNode) => void;
   labelMode: "focus" | "minimal" | "all";
   theme: "light" | "dark";
+  // Corpus-wide topic counts, so community colours are assigned from the whole
+  // corpus rather than from whatever subset is currently loaded.
+  corpusTopics: Readonly<Record<string, number>> | null;
   // Which edge types are switched on in the "Edges" filter row. Obsidian-style:
   // this only toggles line visibility on the graph already in memory — it must
   // never drive which nodes are rendered or trigger a re-layout.
@@ -25,30 +29,9 @@ function themeToken(name: string, fallback: string) {
   return value || fallback;
 }
 
-// Sixteen slots for the fifteen communities authored topics actually produce,
-// so the common case is collision-free. Six were enough only while every node
-// shared one community and the palette was never exercised.
-const COMMUNITY_COLOURS = [
-  "#23a99a", "#6688e8", "#d99a2b", "#c76d99", "#8f76d4", "#6aa869",
-  "#c9563f", "#4bb3d4", "#b8862f", "#9d6fa8", "#5f8fd6", "#4f9d78",
-  "#d4785a", "#7b93e0", "#a8913a", "#8a5fa0",
-];
-
-// Nodes with no qualifying authored topic are genuinely unassigned. They take a
-// neutral tone rather than a palette colour, so "no community" reads as absence
-// rather than as a sixteenth category.
-const UNASSIGNED_COLOUR = "#7c8a85";
-
-function colourForCommunity(node: RendererGraphNode) {
-  const fingerprint = node.community.fingerprint || node.community.id;
-  if (!fingerprint.startsWith("topic:")) return UNASSIGNED_COLOUR;
-  // Hashing the fingerprint - not ranking by size - is what keeps a colour
-  // stable. Rank would depend on which nodes are currently loaded, so a node
-  // could change colour merely because the user pressed "Show more".
-  let hash = 0;
-  for (const character of fingerprint) hash = (hash * 31 + character.charCodeAt(0)) | 0;
-  return COMMUNITY_COLOURS[Math.abs(hash) % COMMUNITY_COLOURS.length];
-}
+// colourForCommunity moved to graphCommunities.ts so the legend and the nodes
+// share one derivation. Two copies of the hash is exactly how a legend swatch
+// ends up disagreeing with the node it claims to describe.
 
 function labelIdsFor(graph: RendererGraphResponse, selectedId: string | null, labelMode: GraphWorkspaceProps["labelMode"]) {
   if (labelMode === "all") return new Set(graph.nodes.map((node) => node.id));
@@ -71,7 +54,7 @@ function labelIdsFor(graph: RendererGraphResponse, selectedId: string | null, la
 let settledSignature = "";
 const settledPositions = new Map<string, Point>();
 
-export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, visibleEdgeTypes }: GraphWorkspaceProps) {
+export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, visibleEdgeTypes, corpusTopics }: GraphWorkspaceProps) {
   const container = useRef<HTMLDivElement>(null);
   const cytoscape = useRef<Core | null>(null);
   // Refs so the tap handler and selection effect never force an instance remount.
@@ -151,6 +134,11 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
     const connected = connectedNodeIds(graph);
     return graph.nodes.filter((node) => connected.has(node.id));
   }, [graph]);
+  // Counted over renderedNodes, not graph.nodes: a node with no edge is not
+  // drawn, so counting the payload would advertise swatches for communities
+  // that are nowhere on screen.
+  const legend = useMemo(() => communityLegend(renderedNodes, corpusTopics), [renderedNodes, corpusTopics]);
+  const colourOf = useMemo(() => communityColourScale(corpusTopics), [corpusTopics]);
   const labelIds = useMemo(() => labelIdsFor(graph, selectedId, labelMode), [graph, labelMode, selectedId]);
   labelIdsRef.current = labelIds;
 
@@ -197,7 +185,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
               title: node.label,
               agent: node.source.agent,
               selected: "no",
-              colour: colourForCommunity(node),
+              colour: colourOf(node),
               size: 22 + Math.min(18, node.connectivity * 3),
             },
             position: positions.get(node.id),
@@ -305,6 +293,22 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
   }, [labelIds, selectedId, graph, visibleEdgeTypes]);
 
   return <section className="graph-workspace" aria-label="Memory graph workspace">
+    {/* Overlaid on the canvas rather than added as a row: .workspace's grid
+        reserves exactly three rows (bar / filters / content), so a fourth
+        sibling collapses the canvas to zero height. A legend also belongs
+        beside the thing it explains. */}
+    {legend.length > 0 && (
+      <div className="graph-legend" aria-label="Topic community legend">
+        <span className="graph-legend-title">Topics</span>
+        {legend.map((entry) => (
+          <span key={entry.id} className={`graph-legend-item${entry.topic ? "" : " graph-legend-item-none"}`}>
+            <span className="graph-legend-key" style={{ background: entry.colour }} aria-hidden="true" />
+            {entry.label}
+            <b>{entry.count}</b>
+          </span>
+        ))}
+      </div>
+    )}
     <div className="graph-controls" aria-label="Graph view controls">
       <button className="icon-button" type="button" onClick={() => zoom(0.82)} aria-label="Zoom out" title="Zoom out"><Minus size={16} /></button>
       <button className="icon-button" type="button" onClick={fit} aria-label="Fit graph" title="Fit graph"><Maximize2 size={16} /></button>

@@ -37,6 +37,16 @@ def test_the_most_distinctive_topic_names_the_community() -> None:
     assert community["label"] == "Retrieval"
 
 
+def test_acronym_topics_are_not_title_cased_into_nonsense() -> None:
+    # The legend shows these labels verbatim, where str.title() alone rendered
+    # "Mcp Tools" and "Ui Design".
+    assert community_for_topics(["mcp-tools"], FREQUENCIES | {"mcp-tools": 15})["label"] == "MCP Tools"
+    assert community_for_topics(["ui-design"], FREQUENCIES)["label"] == "UI Design"
+    # Ordinary words are still title-cased.
+    assert community_for_topics(["retrieval"], FREQUENCIES)["label"] == "Retrieval"
+    assert community_for_topics(["session-fuse"], FREQUENCIES | {"session-fuse": 12})["label"] == "Session Fuse"
+
+
 def test_the_fingerprint_is_the_topic_slug_itself() -> None:
     # This is the whole reason proposal §4.3's retention apparatus is not built:
     # the identity is stable by construction, so there is no unstable detected

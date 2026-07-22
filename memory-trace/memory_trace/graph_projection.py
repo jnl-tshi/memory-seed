@@ -97,6 +97,18 @@ UNASSIGNED_COMMUNITY = {
 }
 
 
+# str.title() lowercases everything after the first letter, so an acronym slug
+# renders as "Mcp Tools" / "Ui Design" in the graph legend. These are the ones
+# the controlled vocabulary actually contains.
+_TOPIC_ACRONYMS = frozenset({"adr", "api", "cli", "esr", "mcp", "pr", "ui", "yaml"})
+
+
+def _humanise_topic(slug: str) -> str:
+    """`mcp-tools` -> `MCP Tools`, `ui-design` -> `UI Design`."""
+    words = slug.replace("_", "-").split("-")
+    return " ".join(word.upper() if word in _TOPIC_ACRONYMS else word.title() for word in words)
+
+
 def community_for_topics(
     topics: Sequence[str],
     frequencies: Mapping[str, int],
@@ -133,7 +145,7 @@ def community_for_topics(
     slug = min(qualifying, key=lambda topic: (frequencies.get(topic, 0), topic))
     return {
         "id": f"community:topic:{slug}",
-        "label": slug.replace("-", " ").replace("_", " ").title(),
+        "label": _humanise_topic(slug),
         # The fingerprint IS the topic slug. Stability across rebuilds is a
         # property of the identity, not of a retention algorithm layered on top.
         "fingerprint": f"topic:{slug}",
