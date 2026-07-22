@@ -158,6 +158,19 @@ class TrailDecisionEdgeTests(unittest.TestCase):
             {"source": "mse_oth00000000dddd", "target": "mse_sgl00000000bbbb", "type": "supersedes"}, trail["edges"]
         )
 
+    def test_dangling_ordinal_on_an_expanded_entry_draws_nothing(self):
+        # links check errors on this, so it should never reach a clean corpus -
+        # but if it does, falling back to the entry row would widen a bad ':d7'
+        # into an entry-level edge, which is the overstatement being removed.
+        self.sidecar_path.write_text(
+            "---\ntags:\n  - session-log-links\nlink_date: 2026-06-03\n---\n\n"
+            "## 2026-06-03 09:00 - ordinal that does not exist\n\n"
+            "```yaml\nentry_id: mse_src00000000cccc\nevolves:\n  - mse_tgt00000000aaaa:d7\n```\n",
+            encoding="utf-8",
+        )
+        edges = self.trail()["edges"]
+        self.assertEqual([e for e in edges if e["source"] == "mse_src00000000cccc" and e["type"] == "evolves"], [])
+
     def test_decision_edges_never_reach_entry_level_consumers(self):
         # Set equality against a control corpus with the sidecar deleted: the
         # non-decision surface must be indistinguishable from the world where

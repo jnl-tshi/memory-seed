@@ -3220,12 +3220,19 @@ def _decision_edges_for_rows(
       IS its d1: the draft states outright that for a single-decision entry the
       entry-level and ``d1`` forms denote the same edge, so attaching there is
       the same statement, not a widening.
-    - Anything still unresolved (target not displayed, or an ordinal that does
-      not exist) is dropped here; ``links check`` is what reports a bad ref.
+    - Anything still unresolved is dropped rather than guessed at - including
+      an ordinal that does not exist on an entry which *does* have decision
+      rows. Falling back to the entry row there would silently widen a
+      dangling ``:d7`` into an entry-level edge, which is the overstatement
+      this feature removes. ``links check`` reports the bad ref; this refuses
+      to invent an edge from it.
     """
     kind_to_type = {"supersedes": "supersedes", "evolves": "evolves", "related_entries": "related"}
     entry_row: dict[str, str] = {}
     decision_row: dict[tuple[str, str], str] = {}
+    # Entries whose decisions each got their own row. For these, "ordinal not
+    # found" means the ref is wrong, not that the entry row stands in for it.
+    expanded_entries: set[str] = set()
     for node in nodes:
         entry_id = node.get("entry_id")
         if not entry_id:
@@ -3233,6 +3240,7 @@ def _decision_edges_for_rows(
         ordinal = node.get("decision_ordinal")
         if ordinal:
             decision_row[(entry_id, ordinal)] = node["id"]
+            expanded_entries.add(entry_id)
         elif entry_id not in entry_row:
             entry_row[entry_id] = node["id"]
     edges: list[dict[str, str]] = []
@@ -3245,7 +3253,9 @@ def _decision_edges_for_rows(
             edge_type = kind_to_type.get(kind)
             if not edge_type or edge_type not in edge_types:
                 continue
-            target = decision_row.get((target_entry_id, ordinal)) or entry_row.get(target_entry_id)
+            target = decision_row.get((target_entry_id, ordinal))
+            if not target and target_entry_id not in expanded_entries:
+                target = entry_row.get(target_entry_id)
             if not target or target == source:
                 continue
             key = (source, target, edge_type)
