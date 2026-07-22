@@ -183,6 +183,10 @@ button:not(:disabled):active { transform: translateY(0); transition-duration: 40
 /* Below this width the legend would cover the graph it explains. */
 @media (max-width: 900px) { .graph-legend { display: none; } }
 
+/* Explains a setting's bounds in place — the reduced-motion override, and why
+   live motion stops above the measured node budget. */
+.settings-note { color: var(--muted); font-size: 11px; line-height: 1.45; }
+
 .reader { display: grid; gap: 18px; }.reader-empty { margin: 0; color: var(--muted); font-size: 13px; }
 /* Collapsible entry metadata. The grid 0fr->1fr trick animates to auto height,
    which a plain max-height cannot do honestly; <details> was rejected because

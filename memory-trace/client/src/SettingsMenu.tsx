@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
+import { prefersReducedMotion } from "./trailScroll";
 
 // One home for preferences that used to be scattered across three surfaces:
 // dock buttons pinned inside the inspector, a Style menu in the Trail's view
@@ -9,13 +10,17 @@ import { SlidersHorizontal } from "lucide-react";
 export type TrailStyle = { thickness: "fine" | "thick"; style: "hand" | "slick"; wobble: number; pressure: number };
 export type InspectorDock = "auto" | "right" | "bottom" | "hidden";
 export type Theme = "light" | "dark";
+/** Graph motion, per proposal §6.5. Settled/Fixed are the defaults. */
+export type GraphSettings = { motion: "settled" | "animate"; dragResponse: "fixed" | "reheat" };
 
-const TABS = ["Trail", "Inspector", "Appearance"] as const;
+const TABS = ["Trail", "Graph", "Inspector", "Appearance"] as const;
 type Tab = (typeof TABS)[number];
 
 export function SettingsMenu({
   trailStyle,
   onTrailStyle,
+  graphSettings,
+  onGraphSettings,
   dock,
   onDock,
   theme,
@@ -23,6 +28,8 @@ export function SettingsMenu({
 }: {
   trailStyle: TrailStyle;
   onTrailStyle: (next: TrailStyle) => void;
+  graphSettings: GraphSettings;
+  onGraphSettings: (next: GraphSettings) => void;
   dock: InspectorDock;
   onDock: (next: InspectorDock) => void;
   theme: Theme;
@@ -70,7 +77,9 @@ export function SettingsMenu({
   };
 
   const set = (patch: Partial<TrailStyle>) => onTrailStyle({ ...trailStyle, ...patch });
+  const setGraph = (patch: Partial<GraphSettings>) => onGraphSettings({ ...graphSettings, ...patch });
   const handDrawn = trailStyle.style === "hand";
+  const reducedMotion = prefersReducedMotion();
 
   return (
     <div className="settings-menu" ref={container} onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); close(); } }}>
@@ -135,6 +144,39 @@ export function SettingsMenu({
                       <input type="range" min={0} max={1} step={0.05} value={trailStyle.pressure} aria-label="Pressure" onChange={(event) => set({ pressure: Number(event.target.value) })} />
                     </div>
                   </>
+                )}
+              </>
+            )}
+
+            {tab === "Graph" && (
+              <>
+                {/* Motion is opt-in exploration, never the resting state: the
+                    graph must hold still while it is being read. Under a
+                    reduced-motion preference both rows are disabled rather than
+                    hidden, so the override is visible and the stored preference
+                    is left untouched. */}
+                {reducedMotion && (
+                  <div className="settings-note">Following your system's reduced-motion preference.</div>
+                )}
+                <div className="trail-settings-row">
+                  <span>Motion</span>
+                  <div className="segment-control">
+                    <button type="button" disabled={reducedMotion} aria-pressed={graphSettings.motion === "settled"} onClick={() => setGraph({ motion: "settled" })}>Settled</button>
+                    <button type="button" disabled={reducedMotion} aria-pressed={graphSettings.motion === "animate"} onClick={() => setGraph({ motion: "animate" })}>Animate layout</button>
+                  </div>
+                </div>
+                {graphSettings.motion === "animate" && !reducedMotion && (
+                  <div className="settings-note">Live motion pauses over 150 nodes — the layout applies as an end state.</div>
+                )}
+                <div className="trail-settings-row">
+                  <span>Drag response</span>
+                  <div className="segment-control">
+                    <button type="button" disabled={reducedMotion} aria-pressed={graphSettings.dragResponse === "fixed"} onClick={() => setGraph({ dragResponse: "fixed" })}>Fixed</button>
+                    <button type="button" disabled={reducedMotion} aria-pressed={graphSettings.dragResponse === "reheat"} onClick={() => setGraph({ dragResponse: "reheat" })}>Reheat on drag</button>
+                  </div>
+                </div>
+                {graphSettings.dragResponse === "reheat" && !reducedMotion && (
+                  <div className="settings-note">Dragging a node pulls its neighbours, then everything settles.</div>
                 )}
               </>
             )}

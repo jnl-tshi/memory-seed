@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { ChevronDown, ChevronUp, GitBranch, LayoutPanelLeft, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, X } from "lucide-react";
-import { SettingsMenu, type InspectorDock, type Theme, type TrailStyle } from "./SettingsMenu";
+import { SettingsMenu, type GraphSettings, type InspectorDock, type Theme, type TrailStyle } from "./SettingsMenu";
 import { api, DEFAULT_GRAPH_EDGE_TYPES, GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, SEARCH_LIMIT, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
 import { EntryReader, type DiagramSidecar } from "./EntryReader";
 import { DiagramViewer, type DiagramBlock } from "./DiagramViewer";
@@ -129,6 +129,22 @@ function readTrailStyle(): TrailStyle {
   }
 }
 
+// Graph motion (proposal §6.5). Settled/Fixed are the defaults on purpose: the
+// graph must hold still while it is being read, and motion is opt-in
+// exploration. Same JSON-blob shape as the trail settings above, for the same
+// reason - one key, validated per field, defaults on anything unparseable.
+function readGraphSettings(): GraphSettings {
+  try {
+    const stored = JSON.parse(localStorage.getItem("memory-trace:graph-settings") || "{}");
+    return {
+      motion: stored.motion === "animate" ? "animate" : "settled",
+      dragResponse: stored.dragResponse === "reheat" ? "reheat" : "fixed",
+    };
+  } catch {
+    return { motion: "settled", dragResponse: "fixed" };
+  }
+}
+
 function titleFor(node: RendererGraphNode | null) {
   return node ? node.label : "No entry selected";
 }
@@ -159,6 +175,7 @@ export default function App() {
   const [inspectorWidth, setInspectorWidth] = useState(() => readPaneWidth("memory-trace:inspector-width", INSPECTOR_WIDTH));
   const [theme, setTheme] = useState<Theme>(readTheme);
   const [trailStyle, setTrailStyle] = useState<TrailStyle>(readTrailStyle);
+  const [graphSettings, setGraphSettings] = useState<GraphSettings>(readGraphSettings);
   const [error, setError] = useState<string | null>(null);
   const [scope, setScope] = useState<GraphScope>("overview");
   const [filePath, setFilePath] = useState<string | null>(null);
@@ -338,6 +355,7 @@ export default function App() {
     localStorage.setItem("memory-trace:trail-settings", JSON.stringify(trailStyle));
     localStorage.removeItem("memory-trace:trail-tune"); // legacy tuning-panel key
   }, [trailStyle]);
+  useEffect(() => { localStorage.setItem("memory-trace:graph-settings", JSON.stringify(graphSettings)); }, [graphSettings]);
 
   // Pointer-driven pane resize: capture moves on window for the drag's
   // duration; widths clamp to sane bounds and persist across sessions.
@@ -989,7 +1007,7 @@ export default function App() {
           <button type="button" aria-pressed={viewMode === "graph"} onClick={switchToGraphView}><Network size={14} aria-hidden="true" /><span>Graph</span></button>
         </div>
         <div className="topbar-actions">
-          <SettingsMenu trailStyle={trailStyle} onTrailStyle={setTrailStyle} dock={dock} onDock={setDock} theme={theme} onTheme={setTheme} />
+          <SettingsMenu trailStyle={trailStyle} onTrailStyle={setTrailStyle} graphSettings={graphSettings} onGraphSettings={setGraphSettings} dock={dock} onDock={setDock} theme={theme} onTheme={setTheme} />
           <button className="icon-button" type="button" onClick={() => setDock((value) => value === "hidden" ? "auto" : "hidden")} aria-label="Toggle inspector" title="Toggle inspector">
             {inspectorVisible ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
           </button>
@@ -1065,7 +1083,7 @@ export default function App() {
                 nothing to do with a fixed lineage chain or a file's touches),
                 so a stale toggle left over from Overview/Local must not carry
                 through and blank out edges the user never chose to hide there. */}
-            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} theme={theme} visibleEdgeTypes={scope === "evolution" || scope === "file" ? edgeTypesForScope(scope) : edgeTypes} corpusTopics={facets?.topics ?? null} topicWheel={facets?.topic_wheel ?? null} /></Suspense>}
+            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} theme={theme} visibleEdgeTypes={scope === "evolution" || scope === "file" ? edgeTypesForScope(scope) : edgeTypes} corpusTopics={facets?.topics ?? null} topicWheel={facets?.topic_wheel ?? null} dragResponse={graphSettings.dragResponse} motion={graphSettings.motion} /></Suspense>}
             {!graph && <div className="loading-state">Loading graph</div>}
           </>
         )}
