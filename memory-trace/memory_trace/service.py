@@ -1223,6 +1223,25 @@ class TraceService:
         # safe: it refreshes exactly when Markdown or a sidecar changes.
         self._derived_memo: tuple[int, tuple[list[MemoryChunk], dict[str, Any], dict[str, Any]]] | None = None
         self._link_sidecar_memo: tuple[int, dict[str, dict[str, Any]]] | None = None
+        self._topic_frequency_memo: tuple[int, dict[str, int]] | None = None
+
+    def topic_frequencies(self) -> dict[str, int]:
+        """Corpus-wide topic counts, memoized per cache generation.
+
+        Community assignment depends on these being counted over EVERY entry,
+        not over the subset a request happens to return. A per-response count
+        would let a node change community as more of the graph loaded, which is
+        the instability that authored-topic communities exist to avoid.
+        """
+        generation = self.cache.generation()
+        if self._topic_frequency_memo is not None and self._topic_frequency_memo[0] == generation:
+            return self._topic_frequency_memo[1]
+        counts: dict[str, int] = {}
+        for chunk in self.cache.chunks(granularity="entry"):
+            for topic in _topics(chunk):
+                counts[topic] = counts.get(topic, 0) + 1
+        self._topic_frequency_memo = (generation, counts)
+        return counts
 
     def _derived(self) -> tuple[list[MemoryChunk], dict[str, Any], dict[str, Any]]:
         """Augmented all-entry chunks + related graph + diagram-sidecar map,
@@ -2063,7 +2082,8 @@ def create_app(
         # An unknown path resolves to an empty graph, not an error.
         file_entry_ids = svc.cache.file_entry_index().get(path, []) if path else None
         return project_trace_graph(
-            svc.graph(
+            topic_frequencies=svc.topic_frequencies(),
+            graph=svc.graph(
                 entry_id=entry_id,
                 entry_ids=file_entry_ids,
                 depth=depth,

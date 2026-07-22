@@ -10,7 +10,7 @@ import copy
 import json
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 
 FIXTURE_SCHEMA_VERSION = "memory-trace-graph-fixture/v1"
@@ -83,6 +83,63 @@ class GraphProjectionContractError(ValueError):
     """The bounded benchmark fixture is not a renderer-neutral projection."""
 
 
+# A topic must be this common across the WHOLE corpus before it can name a
+# community. Measured rather than picked: 10 and 12 produce an identical
+# partition on this corpus (15 communities, 351 of 561 rendered nodes), so the
+# rule is not balanced on a knife edge. Below ~8 a long tail of one-off topics
+# fragments the graph into dust.
+MINIMUM_COMMUNITY_TOPIC_FREQUENCY = 10
+
+UNASSIGNED_COMMUNITY = {
+    "id": "community:unassigned",
+    "label": "Unassigned",
+    "fingerprint": "derived:unassigned",
+}
+
+
+def community_for_topics(
+    topics: Sequence[str],
+    frequencies: Mapping[str, int],
+    minimum: int = MINIMUM_COMMUNITY_TOPIC_FREQUENCY,
+) -> dict[str, str]:
+    """Name a node's community after its most DISTINCTIVE authored topic.
+
+    Communities come from authored topics rather than from structural detection
+    (Louvain/Leiden), and that choice is what removes the whole of proposal
+    §4.3. Its fingerprint/member-overlap/``community_previous_id`` retention
+    machinery exists only because detected community ids are unstable across
+    rebuilds; a topic slug IS a stable identity, so colour retention is
+    automatic and there is nothing to persist.
+
+    "Most distinctive" means lowest corpus-wide frequency, not highest. Choosing
+    the most COMMON topic was measured and rejected: it puts 46% of the graph in
+    one community, reproducing the giant-component hairball that made connected
+    components useless here. Picking the first-listed topic was rejected too -
+    topic lists are stored alphabetically sorted (measured: 304 of 304
+    multi-topic nodes), so "first" carries no authored meaning at all.
+
+    Frequencies MUST be corpus-wide, never counted over the nodes in one
+    response: a node's community would otherwise change as more of the graph
+    loaded, which is the exact instability this scheme exists to avoid.
+
+    Ties break alphabetically so the result is deterministic. A node whose most
+    distinctive topic is too rare falls back to its next most distinctive
+    qualifying topic rather than going grey; a node with no qualifying topic is
+    genuinely unassigned, and says so.
+    """
+    qualifying = [topic for topic in topics if frequencies.get(topic, 0) >= minimum]
+    if not qualifying:
+        return dict(UNASSIGNED_COMMUNITY)
+    slug = min(qualifying, key=lambda topic: (frequencies.get(topic, 0), topic))
+    return {
+        "id": f"community:topic:{slug}",
+        "label": slug.replace("-", " ").replace("_", " ").title(),
+        # The fingerprint IS the topic slug. Stability across rebuilds is a
+        # property of the identity, not of a retention algorithm layered on top.
+        "fingerprint": f"topic:{slug}",
+    }
+
+
 def load_graph_fixture(path: str | Path) -> dict[str, Any]:
     """Load and validate a JSON fixture before a renderer prototype consumes it."""
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -101,13 +158,23 @@ def renderer_input(payload: Mapping[str, Any]) -> dict[str, Any]:
     return copy.deepcopy(dict(payload))
 
 
-def project_trace_graph(graph: Mapping[str, Any]) -> dict[str, list[dict[str, Any]]]:
+def project_trace_graph(
+    graph: Mapping[str, Any],
+    *,
+    topic_frequencies: Mapping[str, int] | None = None,
+) -> dict[str, list[dict[str, Any]]]:
     """Adapt the current Trace graph response into renderer-facing semantics.
 
-    Community detection is intentionally not introduced by this B0a slice, so
-    live nodes use one explicit derived ``unassigned`` community. That prevents
-    a renderer prototype from treating its own visual clustering as canonical
-    graph data while keeping the fixture and live input shapes aligned.
+    Communities are named after authored topics when ``topic_frequencies`` is
+    supplied - see :func:`community_for_topics`. The argument is corpus-wide
+    counts, NOT counts over ``graph``: deriving them from the response would
+    make a node's community depend on how much of the graph happened to be
+    loaded.
+
+    Omitting it keeps every node in the single derived ``unassigned`` community,
+    which is the original B0a behaviour and what the bounded benchmark fixtures
+    still expect. Structural detection is still deliberately absent, so a
+    renderer cannot promote its own visual clustering to canonical graph data.
     """
     _mapping(graph, "trace graph")
     raw_nodes = graph.get("nodes")
@@ -133,11 +200,11 @@ def project_trace_graph(graph: Mapping[str, Any]) -> dict[str, list[dict[str, An
                 "label": raw.get("title") or node_id,
                 "provenance_class": raw.get("provenance_class", "authored_memory"),
                 "authority_class": "authored",
-                "community": {
-                    "id": "community:unassigned",
-                    "label": "Unassigned",
-                    "fingerprint": "derived:unassigned",
-                },
+                "community": (
+                    community_for_topics(raw.get("topics") or [], topic_frequencies)
+                    if topic_frequencies is not None
+                    else dict(UNASSIGNED_COMMUNITY)
+                ),
                 "temporal": {
                     "value": temporal_value,
                     "source": "authored_timestamp",
