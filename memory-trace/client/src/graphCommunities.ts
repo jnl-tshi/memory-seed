@@ -131,6 +131,22 @@ export function colourForSlot(slot: number): string {
 /** Corpus-unaware colouring, used only before facets arrive. */
 export const colourForCommunity = communityColourScale(null);
 
+/** True when the node carries an authored topic community (not inferred, not unassigned). */
+export function hasAuthoredCommunity(node: RendererGraphNode): boolean {
+  return (node.community.fingerprint || node.community.id).startsWith(TOPIC_PREFIX);
+}
+
+/**
+ * Border colour for a node that AUTHORED its community: a darker rim of its own
+ * colour. The rim is the at-a-glance mark separating authored membership from
+ * the borrowed pastels - an inferred node is rimless however strong its tint,
+ * so the two can never be confused even where a five-vote tint approaches full
+ * saturation.
+ */
+export function authoredBorderColour(nodeColour: string): string {
+  return shiftLightness(nodeColour, -0.18);
+}
+
 /** Direct-neighbour evidence at which an inferred colour reaches full strength. */
 export const INFERENCE_SATURATES_AT = 5;
 
