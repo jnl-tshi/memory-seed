@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { ChevronDown, ChevronUp, GitBranch, LayoutPanelLeft, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, X } from "lucide-react";
 import { SettingsMenu, type GraphSettings, type InspectorDock, type Theme, type TrailStyle } from "./SettingsMenu";
+import { DEFAULT_FORCES, readForceSettings } from "./graphForces";
 import { api, DEFAULT_GRAPH_EDGE_TYPES, GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, SEARCH_LIMIT, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
 import { EntryReader, type DiagramSidecar } from "./EntryReader";
 import { DiagramViewer, type DiagramBlock } from "./DiagramViewer";
@@ -129,19 +130,21 @@ function readTrailStyle(): TrailStyle {
   }
 }
 
-// Graph motion (proposal §6.5). Settled/Fixed are the defaults on purpose: the
-// graph must hold still while it is being read, and motion is opt-in
-// exploration. Same JSON-blob shape as the trail settings above, for the same
-// reason - one key, validated per field, defaults on anything unparseable.
+// Graph forces and motion (proposal §6.5 as amended 2026-07-22). Same JSON-blob
+// shape as the trail settings above, for the same reason - one key, validated
+// per field, defaults on anything unparseable.
 function readGraphSettings(): GraphSettings {
   try {
     const stored = JSON.parse(localStorage.getItem("memory-trace:graph-settings") || "{}");
     return {
-      motion: stored.motion === "animate" ? "animate" : "settled",
       dragResponse: stored.dragResponse === "reheat" ? "reheat" : "fixed",
+      forces: readForceSettings(stored.forces),
+      // Orphans show by default: hiding them is what made the coverage readout
+      // look like a cap, and it is a viewing preference either way.
+      showOrphans: stored.showOrphans !== false,
     };
   } catch {
-    return { motion: "settled", dragResponse: "fixed" };
+    return { dragResponse: "fixed", forces: DEFAULT_FORCES, showOrphans: true };
   }
 }
 
@@ -1062,7 +1065,7 @@ export default function App() {
             reasonable it reads in JSX — lands in an implicit fourth row and
             collapses the actual graph canvas to zero height instead. The
             Overview coverage readout has to live inside this same div. */}
-        {viewMode !== "trail" && scope !== "evolution" && scope !== "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}{scope === "overview" && graph && <span className="count">· {overviewShownCount} of {graphEntryTotal ?? "…"} entries shown</span>}{scope === "overview" && graph && !overviewExhausted && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showMoreOverview()}>Show more</button>}</div>}
+        {viewMode !== "trail" && scope !== "evolution" && scope !== "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}<button type="button" className="edge-filter edge-orphans" aria-pressed={graphSettings.showOrphans} onClick={() => setGraphSettings({ ...graphSettings, showOrphans: !graphSettings.showOrphans })} title="Entries with no authored link">Orphans</button>{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}{scope === "overview" && graph && <span className="count">· {overviewShownCount} of {graphEntryTotal ?? "…"} entries shown</span>}{scope === "overview" && graph && !overviewExhausted && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showMoreOverview()}>Show more</button>}</div>}
         {viewMode !== "trail" && scope === "evolution" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span><span className="count">Evolves + Replaces only · lifecycle chain</span>{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
         {viewMode !== "trail" && scope === "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>File</span><span className="count" title={filePath ?? ""}>{"Entries that touched " + (filePath ?? "this file")}</span><button type="button" className="active-topic" onClick={() => void changeScope("overview")}>Clear<X size={13} aria-hidden="true" /></button></div>}
         {viewMode === "trail" ? (
@@ -1083,7 +1086,7 @@ export default function App() {
                 nothing to do with a fixed lineage chain or a file's touches),
                 so a stale toggle left over from Overview/Local must not carry
                 through and blank out edges the user never chose to hide there. */}
-            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} theme={theme} visibleEdgeTypes={scope === "evolution" || scope === "file" ? edgeTypesForScope(scope) : edgeTypes} corpusTopics={facets?.topics ?? null} topicWheel={facets?.topic_wheel ?? null} dragResponse={graphSettings.dragResponse} motion={graphSettings.motion} /></Suspense>}
+            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} theme={theme} visibleEdgeTypes={scope === "evolution" || scope === "file" ? edgeTypesForScope(scope) : edgeTypes} corpusTopics={facets?.topics ?? null} topicWheel={facets?.topic_wheel ?? null} dragResponse={graphSettings.dragResponse} forces={graphSettings.forces} showOrphans={graphSettings.showOrphans} /></Suspense>}
             {!graph && <div className="loading-state">Loading graph</div>}
           </>
         )}

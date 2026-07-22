@@ -363,6 +363,34 @@ nodes). Above that threshold, the UI must use a short end-state transition or Se
 why live motion is unavailable. This follows the measured layout profile: force layout remains useful at
 the default scale but cannot be allowed to monopolise the main thread on larger graphs.
 
+> **Amendment, 2026-07-22: the 150-node bound was derived from the wrong measurement, and is
+> withdrawn.** The paragraph above cites "the measured layout profile", which was cose's cost to run a
+> layout to convergence: 1177ms warm at 467 nodes (`e2e-scale/measurements.json`, step 16). That is a
+> SETTLE cost, and continuous physics does not pay it — it pays the cost of one tick per frame.
+> Measured directly on the live corpus, a d3-force tick over **570 nodes and 674 links costs 1.60ms
+> median, 2.81ms p99** (unbounded repulsion 1.38ms median), against a 16.7ms budget at 60fps. Roughly
+> a tenfold margin, at a corpus size the original bound forbade outright.
+>
+> The bound is therefore replaced by a **measured frame budget** rather than a node count: continuous
+> physics runs while a tick fits comfortably inside the frame, and the renderer degrades by reducing
+> tick rate — not by refusing motion. A node-count cap remains only as a coarse backstop far above
+> present corpus size.
+>
+> Two consequences follow, and both are improvements the old bound was preventing:
+>
+> - **Force parameters become user controls.** Centre, repel, link strength and link distance are
+>   exposed as live sliders, because with continuous physics a parameter change is visible immediately
+>   rather than requiring a full re-settle. Hardcoding them was a consequence of settle-only layout.
+> - **Isolated entries rejoin the simulation.** They were previously placed on computed rings outside
+>   the connected core precisely because they could not be simulated affordably. Under continuous
+>   physics they take part like any other node — repelled by their neighbours, held by centre gravity —
+>   which packs them into the body of the graph instead of banishing them to a perimeter.
+>
+> Everything the section says about motion NOT being evidence is unchanged and still binding: positions
+> remain local and rebuildable, nothing is written to Markdown, and the simulation cools to rest rather
+> than jittering indefinitely. Settled remains what the graph does when left alone; it is now the
+> simulation's resting state rather than a separate mode.
+
 ## 7. Renderer evaluation
 
 ### 7.1 vis-network

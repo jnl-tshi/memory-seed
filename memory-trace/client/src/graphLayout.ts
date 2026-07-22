@@ -55,64 +55,6 @@ export function connectedIds(edges: readonly GraphEdgeLike[]): Set<string> {
 
 export type GraphEdgeLike = { source: string; target: string };
 
-export type Bounds = { x1: number; y1: number; x2: number; y2: number };
-
-const HALO_GAP = 180;
-const HALO_RING_STEP = 90;
-const HALO_MIN_ARC = 56;
-
-/**
- * Places edgeless entries on rings OUTSIDE the connected layout.
- *
- * Roughly a fifth of entries carry no authored edge. They used not to render at
- * all, which made the coverage readout look like a cap; rendering them means
- * placing them somewhere. They are deliberately kept OUT of the cose
- * simulation: with no edges they have no spring to balance repulsion, so the
- * simulation would fling them across the connected core and cost iterations on
- * nodes carrying no structure.
- *
- * Instead this is the closed form of what a force layout would do to them -
- * mutual repulsion (even angular spacing, minimum arc between neighbours) plus
- * weak centre gravity (as close to the core as the spacing allows). Zero
- * simulation cost, and deterministic, so the halo is identical across reloads.
- */
-export function haloPositions(
-  isolates: readonly RendererGraphNode[],
-  bounds: Bounds | null,
-): Map<string, Point> {
-  const positions = new Map<string, Point>();
-  const list = ordered(isolates);
-  if (!list.length) return positions;
-  const centreX = bounds ? (bounds.x1 + bounds.x2) / 2 : 0;
-  const centreY = bounds ? (bounds.y1 + bounds.y2) / 2 : 0;
-  // The half-DIAGONAL, not half the longer side. A ring at max(w,h)/2 clears
-  // the core's edges but cuts through its corners - measured on the live graph,
-  // 82 of 107 isolates landed inside a 3484x3290 core that way. The diagonal is
-  // the only radius that is outside a rectangle at every angle.
-  const coreRadius = bounds
-    ? Math.hypot(Math.abs(bounds.x2 - bounds.x1) / 2, Math.abs(bounds.y2 - bounds.y1) / 2)
-    : 0;
-
-  let index = 0;
-  let ring = 0;
-  while (index < list.length) {
-    const radius = coreRadius + HALO_GAP + ring * HALO_RING_STEP;
-    // As many as fit at this radius without crowding below the minimum arc.
-    const capacity = Math.max(1, Math.floor((2 * Math.PI * radius) / HALO_MIN_ARC));
-    const count = Math.min(capacity, list.length - index);
-    for (let slot = 0; slot < count; slot += 1) {
-      const angle = (slot / count) * Math.PI * 2;
-      positions.set(list[index + slot].id, {
-        x: Math.round(centreX + Math.cos(angle) * radius),
-        y: Math.round(centreY + Math.sin(angle) * radius),
-      });
-    }
-    index += count;
-    ring += 1;
-  }
-  return positions;
-}
-
 export function nodeSetSignature(nodes: RendererGraphNode[]): string {
   return [...nodes].map((node) => node.id).sort().join("\n");
 }
@@ -183,15 +125,4 @@ export function seedPositions(
     }
   }
   return { positions, settled, warmSeeded };
-}
-
-// Measured cose cost with our exact options (900 iterations): 60 nodes 86ms,
-// 500 nodes 4.6s, 1000 nodes 17.8s of main-thread block. 900 iterations is
-// right at default size but unaffordable at "Show more" sizes, so above 150
-// nodes the iteration budget scales down with node count; warm-seeded grown
-// layouts (most of the big-graph cases) need even less to settle.
-export function layoutIterations(nodeCount: number, warmSeeded: boolean): number {
-  if (nodeCount <= 150) return 900;
-  const scaled = Math.max(120, Math.round(900 * (150 / nodeCount)));
-  return warmSeeded ? Math.max(80, Math.round(scaled / 2)) : scaled;
 }

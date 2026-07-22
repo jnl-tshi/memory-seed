@@ -1,15 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import {
-  connectedIds,
-  haloPositions,
-  initialPositions,
-  layoutIterations,
-  nodeSetSignature,
-  seedPositions,
-  type Point,
-} from "./graphLayout.ts";
+import { connectedIds, initialPositions, nodeSetSignature, seedPositions, type Point } from "./graphLayout.ts";
 import type { RendererGraphNode } from "./api.ts";
 
 function node(id: string): RendererGraphNode {
@@ -93,53 +85,4 @@ test("connectedIds finds every edge endpoint and nothing else", () => {
   const ids = connectedIds([{ source: "a", target: "b" }, { source: "b", target: "c" }]);
   assert.deepEqual([...ids].sort(), ["a", "b", "c"]);
   assert.equal(connectedIds([]).size, 0);
-});
-
-test("the halo places every isolate outside the connected core's BOX", () => {
-  // Asserted against the rectangle, not a circular proxy. The first version of
-  // this test checked distance against max(w,h)/2 and passed while the live
-  // graph put 82 of 107 isolates inside the core: a ring at that radius clears
-  // the box's edges but cuts straight through its corners.
-  const bounds = { x1: -500, y1: -400, x2: 500, y2: 400 };
-  const isolates = nodes(40);
-  const halo = haloPositions(isolates, bounds);
-  assert.equal(halo.size, 40, "every isolate must be placed");
-  for (const [id, point] of halo) {
-    const outside =
-      point.x < bounds.x1 || point.x > bounds.x2 || point.y < bounds.y1 || point.y > bounds.y2;
-    assert.ok(outside, `${id} at ${JSON.stringify(point)} must sit outside the core box`);
-  }
-  assert.deepEqual([...haloPositions(isolates, bounds).entries()], [...halo.entries()], "must be deterministic");
-});
-
-test("the halo clears a very oblong core at every angle", () => {
-  // The corner case in the literal sense: a wide, flat core is where a circular
-  // radius is most wrong.
-  const bounds = { x1: -2000, y1: -100, x2: 2000, y2: 100 };
-  for (const [id, point] of haloPositions(nodes(60), bounds)) {
-    const outside =
-      point.x < bounds.x1 || point.x > bounds.x2 || point.y < bounds.y1 || point.y > bounds.y2;
-    assert.ok(outside, `${id} at ${JSON.stringify(point)} must clear an oblong core`);
-  }
-});
-
-test("the halo spills onto further rings rather than crowding one", () => {
-  const bounds = { x1: -100, y1: -100, x2: 100, y2: 100 };
-  const halo = haloPositions(nodes(200), bounds);
-  const radii = new Set([...halo.values()].map((p) => Math.round(Math.hypot(p.x, p.y) / 10)));
-  assert.ok(radii.size > 1, "200 isolates cannot fit on a single ring at readable spacing");
-});
-
-test("an empty halo and a missing bounding box are both handled", () => {
-  assert.equal(haloPositions([], { x1: 0, y1: 0, x2: 1, y2: 1 }).size, 0);
-  assert.equal(haloPositions(nodes(3), null).size, 3, "no connected core still places isolates");
-});
-
-test("layout iterations stay full at default size and scale down past it", () => {
-  assert.equal(layoutIterations(60, false), 900);
-  assert.equal(layoutIterations(150, false), 900);
-  assert.ok(layoutIterations(500, false) < 900);
-  assert.ok(layoutIterations(1000, false) < layoutIterations(500, false));
-  assert.ok(layoutIterations(500, true) < layoutIterations(500, false), "warm-seeded sets need less work");
-  assert.ok(layoutIterations(5000, true) >= 80, "never drops to zero work");
 });
