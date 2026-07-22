@@ -75,7 +75,7 @@ skills:
       - authoring or reviewing D2 only for dense architecture or nested system diagrams
       - Mermaid diagram layout is too wide, too tall, stretched, or sparse
       - preventing isolated single nodes, orphan baselines, or runaway horizontal rows
-      - needing compact rectangular Mermaid layout with tiers, grids, subgraphs, or invisible links
+      - authoring a diagram sidecar under `.memory-seed/sessions/diagrams/`
     do_not_load_when:
       - prose or lists communicate the structure as well as a diagram
       - the task has no Mermaid, D2, or diagram layout concern
