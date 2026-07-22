@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { prefersReducedMotion } from "./trailScroll";
+import { DEFAULT_FORCES, type ForceSettings } from "./graphForces";
 
 // One home for preferences that used to be scattered across three surfaces:
 // dock buttons pinned inside the inspector, a Style menu in the Trail's view
@@ -10,8 +11,17 @@ import { prefersReducedMotion } from "./trailScroll";
 export type TrailStyle = { thickness: "fine" | "thick"; style: "hand" | "slick"; wobble: number; pressure: number };
 export type InspectorDock = "auto" | "right" | "bottom" | "hidden";
 export type Theme = "light" | "dark";
-/** Graph motion, per proposal §6.5. Settled/Fixed are the defaults. */
-export type GraphSettings = { motion: "settled" | "animate"; dragResponse: "fixed" | "reheat" };
+/**
+ * Graph motion and forces, per proposal §6.5 as amended 2026-07-22.
+ *
+ * `forces` are live: the simulation runs continuously, so moving a slider
+ * retunes it in place rather than queueing a re-layout.
+ */
+export type GraphSettings = {
+  dragResponse: "fixed" | "reheat";
+  forces: ForceSettings;
+  showOrphans: boolean;
+};
 
 const TABS = ["Trail", "Graph", "Inspector", "Appearance"] as const;
 type Tab = (typeof TABS)[number];
@@ -78,6 +88,7 @@ export function SettingsMenu({
 
   const set = (patch: Partial<TrailStyle>) => onTrailStyle({ ...trailStyle, ...patch });
   const setGraph = (patch: Partial<GraphSettings>) => onGraphSettings({ ...graphSettings, ...patch });
+  const setForce = (patch: Partial<ForceSettings>) => setGraph({ forces: { ...graphSettings.forces, ...patch } });
   const handDrawn = trailStyle.style === "hand";
   const reducedMotion = prefersReducedMotion();
 
@@ -150,24 +161,34 @@ export function SettingsMenu({
 
             {tab === "Graph" && (
               <>
-                {/* Motion is opt-in exploration, never the resting state: the
-                    graph must hold still while it is being read. Under a
-                    reduced-motion preference both rows are disabled rather than
-                    hidden, so the override is visible and the stored preference
-                    is left untouched. */}
+                {/* The simulation runs continuously and comes to rest on its
+                    own, so these are live: a slider retunes physics already in
+                    flight. Under a reduced-motion preference the controls are
+                    disabled rather than hidden, so the override is visible and
+                    the stored preference is left untouched. */}
                 {reducedMotion && (
                   <div className="settings-note">Following your system's reduced-motion preference.</div>
                 )}
                 <div className="trail-settings-row">
-                  <span>Motion</span>
-                  <div className="segment-control">
-                    <button type="button" disabled={reducedMotion} aria-pressed={graphSettings.motion === "settled"} onClick={() => setGraph({ motion: "settled" })}>Settled</button>
-                    <button type="button" disabled={reducedMotion} aria-pressed={graphSettings.motion === "animate"} onClick={() => setGraph({ motion: "animate" })}>Animate layout</button>
-                  </div>
+                  <span>Centre force <b>{graphSettings.forces.centre.toFixed(2)}</b></span>
+                  <input type="range" min={0} max={1} step={0.01} value={graphSettings.forces.centre} aria-label="Centre force"
+                    onChange={(event) => setForce({ centre: Number(event.target.value) })} />
                 </div>
-                {graphSettings.motion === "animate" && !reducedMotion && (
-                  <div className="settings-note">Live motion pauses over 150 nodes — the layout applies as an end state.</div>
-                )}
+                <div className="trail-settings-row">
+                  <span>Repel force <b>{graphSettings.forces.repel.toFixed(2)}</b></span>
+                  <input type="range" min={0} max={1} step={0.01} value={graphSettings.forces.repel} aria-label="Repel force"
+                    onChange={(event) => setForce({ repel: Number(event.target.value) })} />
+                </div>
+                <div className="trail-settings-row">
+                  <span>Link force <b>{graphSettings.forces.linkForce.toFixed(2)}</b></span>
+                  <input type="range" min={0} max={1} step={0.01} value={graphSettings.forces.linkForce} aria-label="Link force"
+                    onChange={(event) => setForce({ linkForce: Number(event.target.value) })} />
+                </div>
+                <div className="trail-settings-row">
+                  <span>Link distance <b>{graphSettings.forces.linkDistance.toFixed(2)}</b></span>
+                  <input type="range" min={0} max={1} step={0.01} value={graphSettings.forces.linkDistance} aria-label="Link distance"
+                    onChange={(event) => setForce({ linkDistance: Number(event.target.value) })} />
+                </div>
                 <div className="trail-settings-row">
                   <span>Drag response</span>
                   <div className="segment-control">
@@ -178,6 +199,7 @@ export function SettingsMenu({
                 {graphSettings.dragResponse === "reheat" && !reducedMotion && (
                   <div className="settings-note">Dragging a node pulls its neighbours, then everything settles.</div>
                 )}
+                <button type="button" className="settings-reset" onClick={() => setGraph({ forces: DEFAULT_FORCES })}>Reset forces</button>
               </>
             )}
 

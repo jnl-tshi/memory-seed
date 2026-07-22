@@ -3,8 +3,8 @@ import type { Core } from "cytoscape";
 import type { Simulation, SimulationLinkDatum, SimulationNodeDatum } from "d3-force";
 import { Maximize2, Minus, Plus } from "lucide-react";
 import { type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
-import { connectedIds, haloPositions, layoutIterations, nodeSetSignature, seedPositions, type Point } from "./graphLayout";
-import { buildAdjacency, LIVE_MOTION_MAX, reheatNeighbourhood, REHEAT_COOL_CAP_MS } from "./graphMotion";
+import { connectedIds, nodeSetSignature, seedPositions, type Point } from "./graphLayout";
+import { forceParameters, type ForceSettings } from "./graphForces";
 import { outrankedEdgeIds } from "./graphEdges";
 import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, hasAuthoredCommunity, inferredCommunityColours } from "./graphCommunities";
 
@@ -17,7 +17,10 @@ type GraphWorkspaceProps = {
   // Motion settings (proposal §6.5). dragResponse is read through a ref at
   // event time so changing it never remounts the instance or moves the map.
   dragResponse: "fixed" | "reheat";
-  motion: "settled" | "animate";
+  /** The four live force parameters. Retunes the running simulation. */
+  forces: ForceSettings;
+  /** Whether entries with no authored edge are drawn at all. */
+  showOrphans: boolean;
   // Corpus-wide topic counts, so community colours are assigned from the whole
   // corpus rather than from whatever subset is currently loaded.
   corpusTopics: Readonly<Record<string, number>> | null;
@@ -42,10 +45,19 @@ function themeToken(name: string, fallback: string) {
 // share one derivation. Two copies of the hash is exactly how a legend swatch
 // ends up disagreeing with the node it claims to describe.
 
-type ReheatHandle = { release: () => void; stop: () => void };
-/** A node in the drag simulation. fx/fy pin it: the grabbed node and the ring. */
+/** A node in the simulation. fx/fy pin it while it is dragged. */
 type ReheatNode = SimulationNodeDatum & { id: string; x: number; y: number };
 type ReheatLink = SimulationLinkDatum<ReheatNode>;
+
+type SimulationHandle = {
+  /** Warm the simulation back up — after a drag, or a force change. */
+  reheat: (alpha?: number) => void;
+  /** Hold a node at a position (drag), or release it (null). */
+  pin: (id: string, position: { x: number; y: number } | null) => void;
+  /** Re-read the force settings and apply them without restarting. */
+  retune: () => void;
+  stop: () => void;
+};
 
 /** True when the reader has asked the system for less animation. */
 function prefersReducedMotion(): boolean {
@@ -53,134 +65,158 @@ function prefersReducedMotion(): boolean {
 }
 
 /**
- * Run a bounded force simulation over one node's neighbourhood while it is
- * dragged, then cool it and persist where it lands.
+ * The graph's one simulation: continuous, whole-graph, alpha-driven.
  *
- * d3-force rather than cose for this one job: its alphaTarget model is exactly
- * "stay warm while I hold this, cool when I let go", and ticking it by hand
- * keeps every frame's cost visible and cancellable. The global layout stays
- * cose (see the mount effect) so the settled cache and its measurements are
- * untouched.
+ * d3-force rather than a cytoscape layout because this must keep running and
+ * stay steerable — alpha is a dial the UI can turn (a drag, a force change)
+ * and which decays to rest on its own. That decay IS "Settled": when alpha
+ * falls below the floor the loop stops entirely and costs nothing until
+ * something disturbs it again.
  *
- * The forces are the three the graph already implies, restricted to the
- * neighbourhood: links pull connected nodes toward the ideal edge length, a
- * bounded many-body pushes overlapping nodes apart, and a weak pull toward the
- * neighbourhood's own centre stops the region drifting away from the graph it
- * belongs to. distanceMax bounds repulsion so the far graph never feels it.
+ * EVERY node takes part, isolates included. They have no link force, so what
+ * holds them is repulsion against their neighbours and the pull to centre —
+ * precisely the "force-packed" arrangement that puts them in the body of the
+ * graph rather than on a ring outside it.
+ *
+ * Cheap enough to be honest about: 1.60ms median per tick at 570 nodes / 674
+ * links, against a 16.7ms frame at 60fps. The old 150-node bound measured
+ * cose's cost to SETTLE, which is a different quantity — see the 2026-07-22
+ * amendment to proposal §6.5.
  */
-function startReheat(options: {
+function startSimulation(options: {
   cy: Core;
-  grabbedId: string;
-  simIds: string[];
-  pinnedIds: string[];
+  nodes: readonly RendererGraphNode[];
+  edges: readonly RendererGraphEdge[];
+  forces: { current: ForceSettings };
+  settled: boolean;
+  onRest: () => void;
+  onFirstSettle: () => void;
   disposed: () => boolean;
-}): ReheatHandle {
-  const { cy, grabbedId, simIds, pinnedIds, disposed } = options;
+  reducedMotion: boolean;
+}): SimulationHandle {
+  const { cy, nodes: graphNodes, edges: graphEdges, forces, settled, onRest, onFirstSettle, disposed, reducedMotion } = options;
   let frame = 0;
   let cancelled = false;
-  let releasedAt: number | null = null;
-  let simulation: Simulation<ReheatNode, ReheatLink> | null = null;
+  let fitted = settled;
+  let sim: Simulation<ReheatNode, ReheatLink> | null = null;
+  let applyForces: (() => void) | null = null;
 
-  const inSim = new Set(simIds);
-  const pinned = new Set(pinnedIds);
-  // Pinned nodes take part in the force computation but never move, so the
-  // neighbourhood feels its surroundings without disturbing them.
-  const participants = [...simIds, ...pinnedIds];
-  const nodes: ReheatNode[] = participants.map((id) => {
-    const position = cy.getElementById(id).position();
-    const fixed = id === grabbedId || pinned.has(id);
-    return { id, x: position.x, y: position.y, ...(fixed ? { fx: position.x, fy: position.y } : {}) };
+  const simNodes: ReheatNode[] = graphNodes.map((node) => {
+    const position = cy.getElementById(node.id).position();
+    return { id: node.id, x: position.x, y: position.y };
   });
-  const centre = nodes.reduce(
-    (sum, node) => ({ x: sum.x + node.x / nodes.length, y: sum.y + node.y / nodes.length }),
-    { x: 0, y: 0 },
-  );
-  const present = new Set(participants);
-  const links: ReheatLink[] = cy
-    .edges()
-    .toArray()
-    .map((edge) => ({ source: edge.data("source") as string, target: edge.data("target") as string }))
-    .filter((link) => present.has(link.source as string) && present.has(link.target as string));
+  const byId = new Map(simNodes.map((node) => [node.id, node]));
+  const links: ReheatLink[] = graphEdges
+    .filter((edge) => byId.has(edge.source) && byId.has(edge.target))
+    .map((edge) => ({ source: edge.source, target: edge.target }));
 
-  const stop = () => {
-    cancelled = true;
-    if (frame) cancelAnimationFrame(frame);
-    frame = 0;
-    simulation?.stop();
-    simulation = null;
+  const paint = () => {
+    cy.batch(() => {
+      for (const node of simNodes) cy.getElementById(node.id).position({ x: node.x, y: node.y });
+    });
   };
 
   const persist = () => {
-    // Straight into the renderer's settled cache, under the SAME signature: a
-    // drag rearranges the view, it does not change which entries exist. This
-    // is what makes a dragged arrangement survive a theme toggle, and it is
-    // the only place these positions are ever written.
-    for (const id of simIds) {
-      const position = cy.getElementById(id).position();
-      settledPositions.set(id, { x: position.x, y: position.y });
-    }
+    for (const node of simNodes) settledPositions.set(node.id, { x: node.x, y: node.y });
   };
 
-  void (async () => {
-    const d3 = await import("d3-force");
-    if (cancelled || disposed()) return;
-    const sim = d3
-      .forceSimulation<ReheatNode, ReheatLink>(nodes)
-      // 150 matches the cose layout's idealEdgeLength, so a reheated
-      // neighbourhood relaxes toward the same spacing the global layout uses.
-      .force("link", d3.forceLink<ReheatNode, ReheatLink>(links).id((node) => node.id).distance(150).strength(0.35))
-      .force("charge", d3.forceManyBody<ReheatNode>().strength(-320).distanceMax(400))
-      .force("x", d3.forceX<ReheatNode>(centre.x).strength(0.05))
-      .force("y", d3.forceY<ReheatNode>(centre.y).strength(0.05))
-      .stop();
-    simulation = sim;
-    sim.alpha(1).alphaTarget(0.3);
+  const halt = () => {
+    cancelled = true;
+    if (frame) cancelAnimationFrame(frame);
+    frame = 0;
+    sim?.stop();
+    sim = null;
+  };
 
+  const run = () => {
+    if (frame || cancelled) return;
     const step = () => {
-      if (cancelled || disposed()) return;
-      // The grabbed node is Cytoscape's while the pointer holds it; the
-      // simulation follows it rather than fighting it for control.
-      const grabbedNode = nodes.find((node) => node.id === grabbedId);
-      if (grabbedNode && releasedAt === null) {
-        const live = cy.getElementById(grabbedId).position();
-        grabbedNode.fx = live.x;
-        grabbedNode.fy = live.y;
-      }
+      frame = 0;
+      if (cancelled || disposed() || !sim) return;
       sim.tick();
-      cy.batch(() => {
-        for (const node of nodes) {
-          if (node.id === grabbedId || pinned.has(node.id) || !inSim.has(node.id)) continue;
-          cy.getElementById(node.id).position({ x: node.x, y: node.y });
+      paint();
+      if (sim.alpha() < sim.alphaMin()) {
+        // At rest: persist, fit the first time only, and stop burning frames.
+        onRest();
+        if (!fitted) {
+          fitted = true;
+          onFirstSettle();
         }
-      });
-      const cooled = releasedAt !== null && (sim.alpha() < 0.01 || performance.now() - releasedAt > REHEAT_COOL_CAP_MS);
-      if (cooled) {
-        persist();
-        stop();
         return;
       }
       frame = requestAnimationFrame(step);
     };
     frame = requestAnimationFrame(step);
+  };
+
+  void (async () => {
+    const d3 = await import("d3-force");
+    if (cancelled || disposed()) return;
+    const simulation = d3
+      .forceSimulation<ReheatNode, ReheatLink>(simNodes)
+      .force("link", d3.forceLink<ReheatNode, ReheatLink>(links).id((node) => node.id))
+      .force("charge", d3.forceManyBody<ReheatNode>())
+      .force("x", d3.forceX<ReheatNode>(0))
+      .force("y", d3.forceY<ReheatNode>(0))
+      .stop();
+    applyForces = () => {
+      const params = forceParameters(forces.current);
+      simulation.force<ReturnType<typeof d3.forceLink<ReheatNode, ReheatLink>>>("link")
+        ?.distance(params.linkDistance)
+        .strength(params.linkStrength);
+      simulation.force<ReturnType<typeof d3.forceManyBody<ReheatNode>>>("charge")?.strength(params.chargeStrength);
+      simulation.force<ReturnType<typeof d3.forceX<ReheatNode>>>("x")?.strength(params.centreStrength);
+      simulation.force<ReturnType<typeof d3.forceY<ReheatNode>>>("y")?.strength(params.centreStrength);
+    };
+    applyForces();
+    sim = simulation;
+
+    if (settled) {
+      // Cached positions are already a resting state — fit and idle. Nothing
+      // ticks until a drag or a force change asks for it, which is what keeps
+      // theme toggles and view round-trips instant at any graph size.
+      simulation.alpha(0);
+      onFirstSettle();
+      return;
+    }
+    if (reducedMotion) {
+      // Converge without painting the journey: tick to rest in one block, then
+      // show the end state. Same destination, no animation.
+      for (let i = 0; i < 400 && simulation.alpha() > simulation.alphaMin(); i += 1) simulation.tick();
+      paint();
+      persist();
+      onRest();
+      onFirstSettle();
+      fitted = true;
+      return;
+    }
+    simulation.alpha(1);
+    run();
   })();
 
   return {
-    release: () => {
-      releasedAt = performance.now();
-      const grabbedNode = nodes.find((node) => node.id === grabbedId);
-      if (grabbedNode) {
-        // Freeing the dragged node lets the neighbourhood settle around where
-        // it was actually dropped.
-        const live = cy.getElementById(grabbedId).position();
-        grabbedNode.fx = live.x;
-        grabbedNode.fy = live.y;
-      }
-      simulation?.alphaTarget(0);
-      if (!simulation) persist();
+    reheat: (alpha = 0.35) => {
+      if (cancelled || reducedMotion || !sim) return;
+      sim.alpha(Math.max(sim.alpha(), alpha));
+      run();
     },
+    pin: (id, position) => {
+      const node = byId.get(id);
+      if (!node) return;
+      if (position) {
+        node.fx = position.x;
+        node.fy = position.y;
+      } else {
+        delete node.fx;
+        delete node.fy;
+      }
+    },
+    retune: () => applyForces?.(),
     stop: () => {
+      // Persist wherever it got to, so a mid-flight unmount does not discard
+      // the arrangement the reader was looking at.
       persist();
-      stop();
+      halt();
     },
   };
 }
@@ -221,7 +257,7 @@ function labelIdsFor(graph: RendererGraphResponse, selectedId: string | null, la
 let settledSignature = "";
 const settledPositions = new Map<string, Point>();
 
-export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, visibleEdgeTypes, corpusTopics, topicWheel, dragResponse, motion }: GraphWorkspaceProps) {
+export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, visibleEdgeTypes, corpusTopics, topicWheel, dragResponse, forces, showOrphans }: GraphWorkspaceProps) {
   const container = useRef<HTMLDivElement>(null);
   const cytoscape = useRef<Core | null>(null);
   // Refs so the tap handler and selection effect never force an instance remount.
@@ -236,10 +272,14 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
   visibleEdgeTypesRef.current = visibleEdgeTypes;
   const dragResponseRef = useRef(dragResponse);
   dragResponseRef.current = dragResponse;
-  // The running reheat simulation, if any. A ref because it must be reachable
-  // from the mount cleanup: ticks that outlive the instance would write
-  // positions into a destroyed Cytoscape.
-  const reheat = useRef<ReheatHandle | null>(null);
+  // The graph's simulation. A ref because it must be reachable from the mount
+  // cleanup: ticks that outlive the instance would write positions into a
+  // destroyed Cytoscape.
+  const simulation = useRef<SimulationHandle | null>(null);
+  // Force settings by ref so moving a slider retunes the RUNNING simulation
+  // rather than remounting the graph — the whole point of continuous physics.
+  const forcesRef = useRef(forces);
+  forcesRef.current = forces;
   // Selection restyle was the one metric that grew with corpus size: 5-13ms
   // below ~400 nodes but 47-102ms at 1000 edges, because every selection swept
   // the whole edge set. The sweep's result depends only on the edge set and the
@@ -304,13 +344,17 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
   // renders, always. Selecting must never add/remove elements or move the map —
   // selection only restyles (ring, labels).
   //
-  // Edgeless entries used to be filtered out here, on the reasoning that an
-  // entry with no authored link is noise. That made the coverage readout look
-  // like a hard cap ("462 of 603") when it was really a rendering choice, and
-  // it hid a fifth of the corpus. They now render in a halo outside the
-  // connected core (haloPositions) — visibly present, visibly unlinked.
-  const renderedNodes = graph.nodes;
+  // Edgeless entries used to be filtered out here unconditionally, on the
+  // reasoning that an entry with no authored link is noise. That made the
+  // coverage readout look like a hard cap ("462 of 603") when it was really a
+  // rendering choice, and it hid a fifth of the corpus. Showing them is now a
+  // VIEWING PREFERENCE (the Orphans toggle) rather than a structural decision,
+  // and when shown they take part in the simulation like anything else.
   const connected = useMemo(() => connectedIds(graph.edges), [graph.edges]);
+  const renderedNodes = useMemo(
+    () => (showOrphans ? graph.nodes : graph.nodes.filter((node) => connected.has(node.id))),
+    [graph.nodes, connected, showOrphans],
+  );
   const legend = useMemo(() => communityLegend(renderedNodes, corpusTopics, topicWheel), [renderedNodes, corpusTopics, topicWheel]);
   const colourOf = useMemo(() => communityColourScale(corpusTopics, topicWheel), [corpusTopics, topicWheel]);
   // Authored fill is the MIXTURE of a node's qualifying topics; falls back to
@@ -454,22 +498,22 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       // renderer's settled cache and nowhere else. No refetch, no remount, and
       // nothing is ever written back to Markdown.
       cy.on("grab", "node", (event) => {
-        if (dragResponseRef.current !== "reheat" || prefersReducedMotion()) return;
-        reheat.current?.stop();
-        const grabbed = event.target;
-        const adjacency = buildAdjacency(
-          graphRef.current.edges.map((edge) => ({ source: edge.source, target: edge.target })),
-        );
-        const { simIds, pinnedIds } = reheatNeighbourhood(grabbed.id(), adjacency);
-        // A lone node has nothing to transfer force to; Cytoscape's own drag
-        // already handles it, and starting a simulation would be pure cost.
-        if (simIds.length < 2) return;
-        reheat.current = startReheat({ cy, grabbedId: grabbed.id(), simIds, pinnedIds, disposed: () => disposed });
+        if (dragResponseRef.current !== "reheat") return;
+        const id = event.target.id();
+        simulation.current?.pin(id, event.target.position());
+        simulation.current?.reheat(0.5);
       });
-      cy.on("free", "node", () => {
-        // Release cools the simulation to rest and persists where it lands; a
-        // hard stop here would leave the neighbourhood mid-flight.
-        reheat.current?.release();
+      cy.on("drag", "node", (event) => {
+        if (dragResponseRef.current !== "reheat") return;
+        // The pointer owns the grabbed node; the simulation follows it, so the
+        // pull propagates outward through the links rather than fighting it.
+        simulation.current?.pin(event.target.id(), event.target.position());
+      });
+      cy.on("free", "node", (event) => {
+        // Unpin and let it cool. Alpha decay does the rest — no cooling timer,
+        // because rest is the simulation's own resting state now.
+        simulation.current?.pin(event.target.id(), null);
+        simulation.current?.reheat(0.2);
       });
       cytoscape.current = cy;
       // Debug/parity surface (same pattern as the Trail's memoryTraceNextDebug
@@ -478,75 +522,42 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       const debugHost = window as unknown as { memoryTraceNextDebug?: Record<string, unknown> };
       debugHost.memoryTraceNextDebug = { ...(debugHost.memoryTraceNextDebug ?? {}), graphCy: cy };
       applyPresentation(cy);
-      // Edgeless entries are placed in closed form AROUND the settled core
-      // rather than simulated: with no edge to balance repulsion they would be
-      // flung through the middle of the connected graph, and they would spend
-      // iterations that the nodes carrying actual structure need.
-      const applyHalo = (force: boolean) => {
-        const isolateNodes = renderedNodes.filter((node) => !connected.has(node.id));
-        if (!isolateNodes.length) return;
-        // Skip when every isolate already has a cached position AND the caller
-        // is not forcing a rebuild. The halo is derived from the core's
-        // bounding box, so recomputing it on every mount meant that dragging a
-        // connected node — which nudges that box — silently shifted all the
-        // isolates on the next remount. Measured: 23 of 23 isolates moved up to
-        // 80px after one drag, while the connected nodes restored exactly.
-        if (!force && isolateNodes.every((node) => settledPositions.has(node.id))) return;
-        const core = cy.nodes().filter((node) => connected.has(node.id()));
-        const box = core.nonempty() ? core.boundingBox() : null;
-        const halo = haloPositions(
-          isolateNodes,
-          box ? { x1: box.x1, y1: box.y1, x2: box.x2, y2: box.y2 } : null,
-        );
-        cy.batch(() => {
-          for (const [id, point] of halo) cy.getElementById(id).position(point);
-        });
-      };
-      const finishLayout = (rehalo: boolean) => {
-        if (disposed) return;
-        applyHalo(rehalo);
-        fitAndClamp(cy);
-        settledSignature = signature;
-        settledPositions.clear();
-        cy.nodes().forEach((node) => {
-          const position = node.position();
-          settledPositions.set(node.id(), { x: position.x, y: position.y });
-        });
-      };
-      if (settled) {
-        // Preset positions ARE the settled layout: no simulation, which is what
-        // makes theme toggles and Trail/Graph round trips instant regardless of
-        // graph size. Still goes through finishLayout so the halo is re-derived
-        // from the CURRENT core - a cached isolate position can predate the core
-        // geometry it was placed against, and fitting without re-haloing left
-        // isolates sitting inside the connected graph.
-        finishLayout(false);
-        return;
-      }
-      // The simulation runs over the CONNECTED subgraph only, so isolates
-      // neither drift through the core nor consume iterations.
-      const core = cy.nodes().filter((node) => connected.has(node.id()));
-      const simulated = core.nonempty() ? core.union(cy.edges()) : cy.elements();
-      // Animate is opt-in and bounded (§6.5): the same iterations from the same
-      // seeds, merely painted along the way, so it converges to the IDENTICAL
-      // positions Settled would produce and the cache stays valid either way.
-      // Above the live-motion budget it falls back to the end state rather than
-      // spending 1.2s+ of main thread painting frames nobody asked for.
-      const animate = motion === "animate" && core.length <= LIVE_MOTION_MAX && !prefersReducedMotion();
-      const layout = simulated.layout({
-        name: "cose",
-        animate,
-        padding: 52,
-        randomize: false,
-        nodeRepulsion: () => 12_000,
-        idealEdgeLength: () => 150,
-        gravity: 0.3,
-        numIter: layoutIterations(core.length || renderedNodes.length, warmSeeded),
+      // ONE continuous simulation over the WHOLE graph, isolates included.
+      //
+      // This replaced a cose layout that ran once to convergence and then froze,
+      // with edgeless nodes placed on computed rings outside it because they
+      // could not be simulated affordably. Both were consequences of a
+      // measurement that turned out to be about the wrong thing: the 150-node
+      // live-motion bound came from cose's cost to SETTLE (1177ms at 467 nodes),
+      // not the cost of one tick. A d3 tick over 570 nodes measures 1.60ms
+      // median, 2.81ms p99 — about a tenth of a 60fps frame. See the 2026-07-22
+      // amendment to proposal §6.5.
+      //
+      // Settled is not a separate mode any more: it is what this simulation
+      // does when left alone. Alpha decays, ticking stops, positions persist.
+      // Everything §6.5 requires of motion still holds — it cools to rest, it
+      // never refetches, and nothing reaches Markdown.
+      simulation.current = startSimulation({
+        cy,
+        nodes: renderedNodes,
+        edges: graph.edges,
+        forces: forcesRef,
+        settled,
+        onRest: () => {
+          if (disposed) return;
+          settledSignature = signature;
+          settledPositions.clear();
+          cy.nodes().forEach((node) => {
+            const position = node.position();
+            settledPositions.set(node.id(), { x: position.x, y: position.y });
+          });
+        },
+        onFirstSettle: () => {
+          if (!disposed) fitAndClamp(cy);
+        },
+        disposed: () => disposed,
+        reducedMotion: prefersReducedMotion(),
       });
-      // A real layout ran, so the core geometry is new and the halo is rebuilt
-      // against it.
-      layout.one("layoutstop", () => finishLayout(true));
-      layout.run();
     }
 
     void mount();
@@ -554,12 +565,20 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       disposed = true;
       // Stop the simulation BEFORE destroying the instance: a tick that lands
       // after destroy writes positions into a dead Cytoscape.
-      reheat.current?.stop();
-      reheat.current = null;
+      simulation.current?.stop();
+      simulation.current = null;
       cytoscape.current?.destroy();
       cytoscape.current = null;
     };
   }, [graph, renderedNodes, theme]);
+
+  // A force change retunes the RUNNING simulation and warms it just enough to
+  // show the new shape. No remount, no refetch, no camera move — moving a
+  // slider is a physics change, not a data change.
+  useEffect(() => {
+    simulation.current?.retune();
+    simulation.current?.reheat(0.3);
+  }, [forces]);
 
   // Presentation updates on selection/label/edge-filter changes: in place, no
   // element churn, no layout, no camera movement.
