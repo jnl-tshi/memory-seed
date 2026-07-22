@@ -185,11 +185,6 @@ export function SettingsMenu({
                     onChange={(event) => setForce({ linkForce: Number(event.target.value) })} />
                 </div>
                 <div className="trail-settings-row">
-                  <span>Link distance <b>{graphSettings.forces.linkDistance.toFixed(2)}</b></span>
-                  <input type="range" min={0} max={1} step={0.01} value={graphSettings.forces.linkDistance} aria-label="Link distance"
-                    onChange={(event) => setForce({ linkDistance: Number(event.target.value) })} />
-                </div>
-                <div className="trail-settings-row">
                   <span>Drag response</span>
                   <div className="segment-control">
                     <button type="button" disabled={reducedMotion} aria-pressed={graphSettings.dragResponse === "fixed"} onClick={() => setGraph({ dragResponse: "fixed" })}>Fixed</button>

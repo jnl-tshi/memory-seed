@@ -137,14 +137,18 @@ function readGraphSettings(): GraphSettings {
   try {
     const stored = JSON.parse(localStorage.getItem("memory-trace:graph-settings") || "{}");
     return {
-      dragResponse: stored.dragResponse === "reheat" ? "reheat" : "fixed",
+      // Reheat is the DEFAULT. Under continuous physics, a graph where pulling
+      // a node moves nothing else reads as broken — "every node is locked in
+      // place" — because the forces are visibly at work everywhere else. Fixed
+      // stays available for arranging nodes by hand.
+      dragResponse: stored.dragResponse === "fixed" ? "fixed" : "reheat",
       forces: readForceSettings(stored.forces),
       // Orphans show by default: hiding them is what made the coverage readout
       // look like a cap, and it is a viewing preference either way.
       showOrphans: stored.showOrphans !== false,
     };
   } catch {
-    return { dragResponse: "fixed", forces: DEFAULT_FORCES, showOrphans: true };
+    return { dragResponse: "reheat", forces: DEFAULT_FORCES, showOrphans: true };
   }
 }
 

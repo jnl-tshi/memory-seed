@@ -8,16 +8,26 @@
 // Slider positions are 0..1 throughout. The UI never deals in force units, and
 // the simulation never deals in slider units.
 
+/**
+ * Three forces, which is all a graph like this needs: things push apart, links
+ * pull together, and the whole is held to a centre.
+ *
+ * Link DISTANCE was a fourth slider briefly. It is now a constant, because it
+ * and link force are two ways of saying the same thing to a reader — both make
+ * connected nodes sit closer or further apart — and offering both invites
+ * fiddling with two dials that fight each other.
+ */
 export type ForceSettings = {
   /** Pull toward the centre. Higher packs the graph tighter. */
   centre: number;
   /** Node-to-node repulsion. Higher spreads them apart. */
   repel: number;
-  /** How hard an edge pulls its endpoints to the ideal distance. */
+  /** How hard an edge pulls its endpoints together. */
   linkForce: number;
-  /** The distance an edge tries to hold. */
-  linkDistance: number;
 };
+
+/** The distance an edge tries to hold. Matches the old cose idealEdgeLength. */
+export const LINK_DISTANCE = 150;
 
 /**
  * Defaults chosen to reproduce the layout the settle-only cose configuration
@@ -28,7 +38,6 @@ export const DEFAULT_FORCES: ForceSettings = {
   centre: 0.35,
   repel: 0.5,
   linkForce: 0.35,
-  linkDistance: 0.5,
 };
 
 const clamp01 = (value: unknown, fallback: number): number =>
@@ -40,7 +49,6 @@ export function readForceSettings(stored: unknown): ForceSettings {
     centre: clamp01(source.centre, DEFAULT_FORCES.centre),
     repel: clamp01(source.repel, DEFAULT_FORCES.repel),
     linkForce: clamp01(source.linkForce, DEFAULT_FORCES.linkForce),
-    linkDistance: clamp01(source.linkDistance, DEFAULT_FORCES.linkDistance),
   };
 }
 
@@ -72,6 +80,6 @@ export function forceParameters(settings: ForceSettings): ForceParameters {
     centreStrength: 0.005 + settings.centre * 0.145,
     chargeStrength: -(60 + settings.repel * settings.repel * 1740),
     linkStrength: 0.02 + settings.linkForce * 0.78,
-    linkDistance: 25 + settings.linkDistance * 275,
+    linkDistance: LINK_DISTANCE,
   };
 }
