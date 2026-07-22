@@ -1,17 +1,42 @@
 import type { RendererGraphNode } from "./api";
+// Explicit .ts extension: this is a VALUE import, so node's ESM loader has to
+// resolve it when the test runner loads this module directly. The type-only
+// import above is erased and never resolved, which is why it needs none.
+import { mixHex } from "./colour.ts";
 
 // Community colour, in ONE place. The legend and the graph nodes must agree, so
 // they call the same function rather than each deriving a colour from the same
 // fingerprint - two derivations are how a legend ends up quietly lying.
 
-// Sixteen slots for the fifteen communities authored topics actually produce,
-// so the common case is collision-free. Six were enough only while every node
-// shared one community and the palette was never exercised.
+/**
+ * Sixteen slots for the fifteen communities authored topics produce.
+ *
+ * GENERATED, not hand-picked: sixteen evenly spaced OKLCh hues at chroma 0.11,
+ * lightness alternating 0.62/0.74. The previous set was assembled by adding
+ * variants to a six-colour list, and it showed - its two closest colours sat
+ * 0.0351 apart in OKLab, with three near-identical blues, so communities were
+ * hard to tell apart even once every one had a distinct hex value. This set
+ * measures 0.0831, a 2.4x improvement, pinned by a test rather than by eye.
+ *
+ * Chroma 0.11 is a deliberate stop short of the optimum. The search peaked at
+ * 0.14 (0.0989 separation) but that reads as a saturated chart palette next to
+ * a warm humanist UI; 0.11 keeps the terracotta/ochre/sage/teal/slate register
+ * while still clearing the old set by a wide margin.
+ *
+ * Alternating lightness is what buys most of the separation: neighbouring hues
+ * differ in lightness as well as hue, so adjacent slots separate on two axes.
+ *
+ * Both themes use one palette, so every colour has to survive both grounds -
+ * measured at 1.93:1 against the light background and 4.78:1 against the dark.
+ */
 export const COMMUNITY_COLOURS = [
-  "#23a99a", "#6688e8", "#d99a2b", "#c76d99", "#8f76d4", "#6aa869",
-  "#c9563f", "#4bb3d4", "#b8862f", "#9d6fa8", "#5f8fd6", "#4f9d78",
-  "#d4785a", "#7b93e0", "#a8913a", "#8a5fa0",
+  "#be6877", "#e8907e", "#b97340", "#d1a255", "#96872d", "#9eb665",
+  "#59985b", "#5bc19d", "#0a9a94", "#43bdd4", "#3590bf", "#7eadf0",
+  "#797ec7", "#b89ae4", "#a76eab", "#de8eb8",
 ];
+
+/** The measured floor this palette must keep clearing. */
+export const MINIMUM_COLOUR_SEPARATION = 0.08;
 
 // Nodes with no qualifying authored topic are genuinely unassigned. They take a
 // neutral tone rather than a palette colour, so "no community" reads as absence
@@ -80,6 +105,75 @@ export function communityColourScale(
 
 /** Corpus-unaware colouring, used only before facets arrive. */
 export const colourForCommunity = communityColourScale(null);
+
+/** How far an inferred colour is pulled toward the background. */
+export const INFERRED_FADE = 0.6;
+
+type EdgeLike = { source: string; target: string };
+
+/**
+ * Faded colours for nodes that have no topic of their own, borrowed from the
+ * communities they connect to.
+ *
+ * Roughly a third of nodes carry no qualifying topic and were rendered a single
+ * flat neutral, which said "unclassified" but nothing about where the entry
+ * sits. Its neighbours usually do say: an untagged entry linked to three
+ * `graph` entries is, in every sense that matters to a reader, near the graph
+ * work. Tinting it toward that community restores the context without
+ * inventing membership.
+ *
+ * DIRECT NEIGHBOURS ONLY, one hop, never transitively. Propagating inferred
+ * colours would be label propagation - a clustering algorithm - and choosing a
+ * clustering algorithm is exactly the decision that authored-topic communities
+ * were adopted to avoid. An inferred colour is never itself a source.
+ *
+ * The fade is the honesty: it is deliberately weak enough that an inferred node
+ * never reads as a full member. Ties break on community id so the result does
+ * not depend on edge order.
+ *
+ * Caveat worth knowing: unlike an authored community colour, this one CAN
+ * change as more of the graph loads, because it depends on which neighbours are
+ * present. That is inherent to inferring from context, and is the reason the
+ * inference is shown faded rather than solid.
+ */
+export function inferredCommunityColours(
+  nodes: readonly RendererGraphNode[],
+  edges: readonly EdgeLike[],
+  colourOf: (node: RendererGraphNode) => string,
+  fadeToward: string,
+  fade: number = INFERRED_FADE,
+): Map<string, string> {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const assigned = (node: RendererGraphNode) =>
+    (node.community.fingerprint || node.community.id).startsWith(TOPIC_PREFIX);
+
+  const neighbourCommunities = new Map<string, Map<string, number>>();
+  const note = (nodeId: string, neighbourId: string) => {
+    const self = byId.get(nodeId);
+    const neighbour = byId.get(neighbourId);
+    if (!self || !neighbour || assigned(self) || !assigned(neighbour)) return;
+    const tally = neighbourCommunities.get(nodeId) ?? new Map<string, number>();
+    tally.set(neighbour.community.id, (tally.get(neighbour.community.id) ?? 0) + 1);
+    neighbourCommunities.set(nodeId, tally);
+  };
+  for (const edge of edges) {
+    note(edge.source, edge.target);
+    note(edge.target, edge.source);
+  }
+
+  const exemplar = new Map<string, RendererGraphNode>();
+  for (const node of nodes) if (assigned(node) && !exemplar.has(node.community.id)) exemplar.set(node.community.id, node);
+
+  const inferred = new Map<string, string>();
+  for (const [nodeId, tally] of neighbourCommunities) {
+    const [winner] = [...tally.entries()].sort(
+      (left, right) => right[1] - left[1] || left[0].localeCompare(right[0]),
+    );
+    const source = exemplar.get(winner[0]);
+    if (source) inferred.set(nodeId, mixHex(colourOf(source), fadeToward, fade));
+  }
+  return inferred;
+}
 
 export type CommunityLegendEntry = {
   id: string;

@@ -4,7 +4,7 @@ import { Maximize2, Minus, Plus } from "lucide-react";
 import { connectedNodeIds, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
 import { layoutIterations, nodeSetSignature, seedPositions, type Point } from "./graphLayout";
 import { outrankedEdgeIds } from "./graphEdges";
-import { communityColourScale, communityLegend } from "./graphCommunities";
+import { communityColourScale, communityLegend, inferredCommunityColours } from "./graphCommunities";
 
 type GraphWorkspaceProps = {
   graph: RendererGraphResponse;
@@ -139,6 +139,12 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
   // that are nowhere on screen.
   const legend = useMemo(() => communityLegend(renderedNodes, corpusTopics), [renderedNodes, corpusTopics]);
   const colourOf = useMemo(() => communityColourScale(corpusTopics), [corpusTopics]);
+  // Topicless nodes borrow a faded colour from the communities they connect to.
+  // Keyed on theme as well, because the fade blends toward the page background.
+  const inferredColours = useMemo(
+    () => inferredCommunityColours(renderedNodes, graph.edges, colourOf, themeToken("--bg", "#0f1512")),
+    [renderedNodes, graph.edges, colourOf, theme],
+  );
   const labelIds = useMemo(() => labelIdsFor(graph, selectedId, labelMode), [graph, labelMode, selectedId]);
   labelIdsRef.current = labelIds;
 
@@ -185,7 +191,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
               title: node.label,
               agent: node.source.agent,
               selected: "no",
-              colour: colourOf(node),
+              colour: inferredColours.get(node.id) ?? colourOf(node),
               size: 22 + Math.min(18, node.connectivity * 3),
             },
             position: positions.get(node.id),
