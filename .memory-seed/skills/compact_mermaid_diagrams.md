@@ -169,6 +169,33 @@ threshold but does not remove it. Give each half its own fenced block and a one-
 Prefer the fewest nodes that carry the point. A node that exists only to be passed through — one
 edge in, one edge out, no decision — is usually better folded into a neighbour's label.
 
+## Characters That Break The Parser
+
+Two constructs read naturally in English and are parse errors in Mermaid. Both have shipped into
+published sidecars, and neither is caught by `links check`, which validates a sidecar's structure but
+never parses its Mermaid — a broken block is invisible until someone opens the entry.
+
+**A `;` in sequence-diagram message text.** The semicolon ends the message token; whatever follows is
+then read as a new statement and fails. Rewrite with a comma or an em-dash — `#59;` also parses, but
+an entity in a sentence is worse to read than the punctuation change.
+
+```mermaid
+sequenceDiagram
+  A->>B: node stays put, and neighbours pull toward it
+```
+
+**A `--` inside a `-- label -->` edge label.** The dashes collide with link syntax, so a label naming
+a CLI flag (`--dry-run`) or an em-dash typed as `--` is a lexical error. Either drop to the piped
+form, which accepts it, or reword.
+
+```mermaid
+flowchart TD
+  Gate -->|"no, --dry-run flag"| Plan(["print plan, exit 0"])
+```
+
+A raw newline inside a label parses fine — it is a legibility problem, not a syntax one, and `<br/>`
+is still the right fix. Verified against Mermaid 11.16.0.
+
 ## Quality Check
 
 Before committing or sharing a diagram:
@@ -177,6 +204,7 @@ Before committing or sharing a diagram:
 - An ADR sidecar has a diagram, or a stated reason why its decision has no shape.
 - Every `subgraph` has an explicit quoted title.
 - Long labels are broken with `<br/>` rather than left to overflow.
+- No `;` in sequence-diagram message text, and no `--` inside a `-- label -->` edge label.
 - The diagram reads as a rectangle rather than a ribbon or a tower.
 - No single node sits alone at the bottom with long vertical strings leading to it.
 - The Mermaid block is still semantically fresh; shipped work and roadmap status are not stale.
