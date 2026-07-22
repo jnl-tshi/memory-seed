@@ -1,0 +1,380 @@
+{
+  "firstPaintMs": 1105,
+  "steps": [
+    {
+      "step": 0,
+      "nodes": 52,
+      "edges": 60,
+      "distinctColours": [
+        "#8f76d4"
+      ],
+      "layoutMs": {
+        "at900Iterations": 40,
+        "atShippedColdBudget": 41,
+        "coldBudgetIterations": 900,
+        "atShippedWarmBudget": 41
+      },
+      "interactions": {
+        "zoomIn": 34,
+        "zoomOut": 33,
+        "pan": 33,
+        "fit": 35,
+        "selectRestyleMs": 6
+      }
+    },
+    {
+      "step": 1,
+      "nodes": 97,
+      "edges": 120,
+      "distinctColours": [
+        "#8f76d4"
+      ],
+      "layoutMs": {
+        "at900Iterations": 95,
+        "atShippedColdBudget": 96,
+        "coldBudgetIterations": 900,
+        "atShippedWarmBudget": 97
+      },
+      "interactions": {
+        "zoomIn": 38,
+        "zoomOut": 34,
+        "pan": 35,
+        "fit": 35,
+        "selectRestyleMs": 5
+      }
+    },
+    {
+      "step": 2,
+      "nodes": 134,
+      "edges": 180,
+      "distinctColours": [
+        "#8f76d4"
+      ],
+      "layoutMs": {
+        "at900Iterations": 233,
+        "atShippedColdBudget": 222,
+        "coldBudgetIterations": 900,
+        "atShippedWarmBudget": 260
+      },
+      "interactions": {
+        "zoomIn": 33,
+        "zoomOut": 33,
+        "pan": 35,
+        "fit": 33,
+        "selectRestyleMs": 13
+      }
+    },
+    {
+      "step": 3,
+      "nodes": 165,
+      "edges": 240,
+      "distinctColours": [
+        "#8f76d4"
+      ],
+      "layoutMs": {
+        "at900Iterations": 593,
+        "atShippedColdBudget": 590,
+        "coldBudgetIterations": 818,
+        "atShippedWarmBudget": 382
+      },
+      "interactions": {
+        "zoomIn": 29,
+        "zoomOut": 33,
+        "pan": 34,
+        "fit": 35,
+        "selectRestyleMs": 8
+      }
+    },
+    {
+      "step": 4,
+      "nodes": 198,
+      "edges": 300,
+      "distinctColours": [
+        "#8f76d4"
+      ],
+      "layoutMs": {
+        "at900Iterations": 905,
+        "atShippedColdBudget": 867,
+        "coldBudgetIterations": 682,
+        "atShippedWarmBudget": 456
+      },
+      "interactions": {
+        "zoomIn": 33,
+        "zoomOut": 33,
+        "pan": 35,
+        "fit": 32,
+        "selectRestyleMs": 10
+      }
+    },
+    {
+      "step": 5,
+      "nodes": 238,
+      "edges": 360,
+      "distinctColours": [
+        "#8f76d4"
+      ],
+      "layoutMs": {
+        "at900Iterations": 1071,
+        "atShippedColdBudget": 1011,
+        "coldBudgetIterations": 567,
+        "atShippedWarmBudget": 506
+      },
+      "interactions": {
+        "zoomIn": 33,
+        "zoomOut": 34,
+        "pan": 34,
+        "fit": 32,
+        "selectRestyleMs": 11
+      }
+    },
+    {
+      "step": 6,
+      "nodes": 276,
+      "edges": 420,
+      "distinctColours": [
+        "#8f76d4"
+      ],
+      "layoutMs": {
+        "at900Iterations": 1649,
+        "atShippedColdBudget": 1245,
+        "coldBudgetIterations": 489,
+        "atShippedWarmBudget": 625
+      },
+      "interactions": {
+        "zoomIn": 33,
+        "zoomOut": 34,
+        "pan": 33,
+        "fit": 34,
+        "selectRestyleMs": 10
+      }
+    },
+    {
+      "step": 7,
+      "nodes": 324,
+      "edges": 480,
+      "distinctColours": [
+        "#8f76d4"
+      ],
+      "layoutMs": {
+        "at900Iterations": 1926,
+        "atShippedColdBudget": 1287,
+        "coldBudgetIterations": 417,
+        "atShippedWarmBudget": 624
+      },
+      "interactions": {
+        "zoomIn": 28,
+        "zoomOut": 33,
+        "pan": 34,
+        "fit": 34,
+        "selectRestyleMs": 13
+      }
+    },
+    {
+      "step": 8,
+      "nodes": 360,
+      "edges": 540,
+      "distinctColours": [
+        "#8f76d4"
+      ],
+      "layoutMs": {
+        "at900Iterations": 2463,
+        "atShippedColdBudget": 1487,
+        "coldBudgetIterations": 375,
+        "atShippedWarmBudget": 722
+      },
+      "interactions": {
+        "zoomIn": 28,
+        "zoomOut": 34,
+        "pan": 33,
+        "fit": 34,
+        "selectRestyleMs": 12
+      }
+    },
+    {
+      "step": 9,
+      "nodes": 397,
+      "edges": 600,
+      "distinctColours": [
+        "#8f76d4"
+      ],
+      "layoutMs": {
+        "at900Iterations": 3491,
+        "atShippedColdBudget": 1597,
+        "coldBudgetIterations": 340,
+        "atShippedWarmBudget": 863
+      },
+      "interactions": {
+        "zoomIn": 34,
+        "zoomOut": 33,
+        "pan": 34,
+        "fit": 32,
+        "selectRestyleMs": 58
+      }
+    },
+    {
+      "step": 10,
+      "nodes": 449,
+      "edges": 660,
+      "distinctColours": [
+        "#8f76d4"
+      ],
+      "layoutMs": {
+        "at900Iterations": 4078,
+        "atShippedColdBudget": 2121,
+        "coldBudgetIterations": 301,
+        "atShippedWarmBudget": 1067
+      },
+      "interactions": {
+        "zoomIn": 27,
+        "zoomOut": 34,
+        "pan": 33,
+        "fit": 34,
+        "selectRestyleMs": 13
+      }
+    },
+    {
+      "step": 11,
+      "nodes": 457,
+      "edges": 720,
+      "distinctColours": [
+        "#8f76d4"
+      ],
+      "layoutMs": {
+        "at900Iterations": 4420,
+        "atShippedColdBudget": 2101,
+        "coldBudgetIterations": 295,
+        "atShippedWarmBudget": 1058
+      },
+      "interactions": {
+        "zoomIn": 34,
+        "zoomOut": 35,
+        "pan": 33,
+        "fit": 33,
+        "selectRestyleMs": 12
+      }
+    },
+    {
+      "step": 12,
+      "nodes": 462,
+      "edges": 780,
+      "distinctColours": [
+        "#8f76d4"
+      ],
+      "layoutMs": {
+        "at900Iterations": 5044,
+        "atShippedColdBudget": 1951,
+        "coldBudgetIterations": 292,
+        "atShippedWarmBudget": 997
+      },
+      "interactions": {
+        "zoomIn": 35,
+        "zoomOut": 38,
+        "pan": 35,
+        "fit": 33,
+        "selectRestyleMs": 14
+      }
+    },
+    {
+      "step": 13,
+      "nodes": 463,
+      "edges": 840,
+      "distinctColours": [
+        "#8f76d4"
+      ],
+      "layoutMs": {
+        "at900Iterations": 5712,
+        "atShippedColdBudget": 2118,
+        "coldBudgetIterations": 292,
+        "atShippedWarmBudget": 1116
+      },
+      "interactions": {
+        "zoomIn": 43,
+        "zoomOut": 42,
+        "pan": 35,
+        "fit": 34,
+        "selectRestyleMs": 7
+      }
+    },
+    {
+      "step": 14,
+      "nodes": 464,
+      "edges": 900,
+      "distinctColours": [
+        "#8f76d4"
+      ],
+      "layoutMs": {
+        "at900Iterations": 5579,
+        "atShippedColdBudget": 2445,
+        "coldBudgetIterations": 291,
+        "atShippedWarmBudget": 1294
+      },
+      "interactions": {
+        "zoomIn": 24,
+        "zoomOut": 39,
+        "pan": 42,
+        "fit": 43,
+        "selectRestyleMs": 102
+      }
+    },
+    {
+      "step": 15,
+      "nodes": 465,
+      "edges": 960,
+      "distinctColours": [
+        "#8f76d4"
+      ],
+      "layoutMs": {
+        "at900Iterations": 5678,
+        "atShippedColdBudget": 2674,
+        "coldBudgetIterations": 290,
+        "atShippedWarmBudget": 1433
+      },
+      "interactions": {
+        "zoomIn": 31,
+        "zoomOut": 37,
+        "pan": 45,
+        "fit": 48,
+        "selectRestyleMs": 12
+      }
+    },
+    {
+      "step": 16,
+      "nodes": 467,
+      "edges": 1000,
+      "distinctColours": [
+        "#8f76d4"
+      ],
+      "layoutMs": {
+        "at900Iterations": 4962,
+        "atShippedColdBudget": 2130,
+        "coldBudgetIterations": 289,
+        "atShippedWarmBudget": 1177
+      },
+      "interactions": {
+        "zoomIn": 33,
+        "zoomOut": 34,
+        "pan": 37,
+        "fit": 33,
+        "selectRestyleMs": 47
+      }
+    }
+  ],
+  "stability": {
+    "loadOne": {
+      "nodes": 467,
+      "edges": 1000,
+      "distinctColours": [
+        "#8f76d4"
+      ]
+    },
+    "loadTwo": {
+      "nodes": 467,
+      "edges": 1000,
+      "distinctColours": [
+        "#8f76d4"
+      ]
+    },
+    "sharedNodes": 467,
+    "nodesThatChangedColour": 0
+  }
+}

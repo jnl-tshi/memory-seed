@@ -7,6 +7,7 @@ import { DiagramViewer, type DiagramBlock } from "./DiagramViewer";
 import { readerScrollTarget } from "./inspectorScroll";
 import { searchResultCursor, stepSearchCursor } from "./searchNavigation";
 import { genuineSearchResults } from "./searchResults";
+import { overviewCounts, overviewExhausted as overviewIsExhausted, type OverviewCounts } from "./graphOverview";
 import { animateScrollTo, scrollDurationFor } from "./trailScroll";
 import { compareTrailNodes, isDecisionRow, stripTitleStamp, TRAIL_WINDOW_STEP } from "./trailModel";
 
@@ -187,6 +188,12 @@ export default function App() {
   // truncates once the candidate pool exceeds this, so raising it via "Show
   // more" reaches deeper into the ranked list rather than jumping randomly.
   const [overviewLimit, setOverviewLimit] = useState(OVERVIEW_LIMIT_STEP);
+  // Counts from the payload that was on screen when "Show more" was last
+  // clicked, tagged with the limit and topic they were fetched under, so the
+  // exhaustion test can ask "did asking for more actually bring back more?"
+  // rather than the node-count-only test that retired the button early
+  // (see graphOverview.ts for the measurements).
+  const previousOverview = useRef<{ limit: number; topic: string | null; counts: OverviewCounts } | null>(null);
   const [activeTopic, setActiveTopic] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchResponse | null>(null);
@@ -604,11 +611,16 @@ export default function App() {
   // How many of the fetched Overview nodes actually render (carry an edge) —
   // the honest denominator for the coverage count, not the raw fetch size.
   const overviewShownCount = useMemo(() => (graph ? connectedNodeIds(graph).size : 0), [graph]);
-  // The server only truncates the connected candidate set once it exceeds the
-  // requested limit; a return smaller than what was asked for means the
-  // reachable/connected corpus is exhausted, not that more exists to page
-  // into — that is the point at which "Show more" stops doing anything.
-  const overviewExhausted = graph ? graph.nodes.length < overviewLimit : false;
+  // "Show more" stops when a larger ask brings back nothing new. The rule
+  // lives in graphOverview.ts with the corpus measurements that corrected it:
+  // the server applies the same limit to nodes AND edges, and this corpus
+  // saturates its node count (555) while its edge list is still truncated, so
+  // testing nodes alone capped Overview at 397 of 589 entries.
+  const overviewExhausted = useMemo(() => {
+    const previous = previousOverview.current;
+    const usable = previous && previous.limit < overviewLimit && previous.topic === activeTopic ? previous.counts : null;
+    return overviewIsExhausted(graph ? overviewCounts(graph) : null, usable, overviewLimit);
+  }, [activeTopic, graph, overviewLimit]);
 
   async function requestGraph(nextScope: GraphScope, nextTopic = activeTopic, nextEdgeTypes = edgeTypesForScope(nextScope), entryId?: string | null, preferredEntryId?: string | null, keepCurrentOnEmpty = false, dateFrom = nextScope === "overview" && range === "recent" ? recentDateFrom(runtime) : null, depth = nextScope === "evolution" ? EVOLUTION_DEPTH : undefined, path = nextScope === "file" ? filePath : null, limit = nextScope === "overview" ? overviewLimit : undefined) {
     return loadGraph({ nextScope, nextTopic, nextEdgeTypes, entryId, preferredEntryId: preferredEntryId ?? selected?.source.entry_id, keepCurrentOnEmpty, dateFrom, depth, path, limit });
@@ -619,6 +631,7 @@ export default function App() {
   // entries, not a random slice.
   async function showMoreOverview() {
     const nextLimit = overviewLimit + OVERVIEW_LIMIT_STEP;
+    if (graph) previousOverview.current = { limit: overviewLimit, topic: activeTopic, counts: overviewCounts(graph) };
     setOverviewLimit(nextLimit);
     await requestGraph("overview", activeTopic, undefined, undefined, undefined, false, undefined, undefined, undefined, nextLimit);
   }
