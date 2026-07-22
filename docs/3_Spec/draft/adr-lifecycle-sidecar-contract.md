@@ -70,18 +70,38 @@ source_decision: d1
 ### The ordinal is derived, never authored
 
 No entry is edited to carry decision metadata. The ordinal is read from the structure the DRAFT grammar
-already imposes, which covers every shape in the corpus as of 2026-07-20:
+already imposes, which covers every shape in the corpus.
+
+*Amended 2026-07-22 (JNL). The counts below replace the hand-derived 2026-07-20 figures (125 / 346 / 1 /
+140, totalling 612), which no recount reproduced. They now come from a committed classifier,
+`scripts/count_decision_shapes.py` — re-run it rather than re-deriving by hand.*
 
 | Entry shape | Count | Ordinal |
 |---|---|---|
-| `#### D1 - name`, `#### D2 - name` | 125 | from the heading number |
-| singular `### Decision` | 346 | **`d1` by convention** — a single decision is the first decision |
+| `#### D1 - name`, `#### D2 - name` | 138 | from the heading number |
+| singular `### Decision` | 383 | **`d1` by convention** — a single decision is the first decision |
 | `### Decisions` with inline `- D1:` bullets | 1 | from the bullet label |
-| no decision section | 140 | nothing to identify; not an ADR source |
+| no decision section | 42 | nothing to identify; not an ADR source |
 
-The singular-to-`d1` convention is what makes the scheme total rather than partial. Without it, the 346
-single-decision entries — the majority of the corpus — would have no addressable decision at all, and
-they are exactly the entries most likely to hold one clean architectural call.
+Total **564 entries**, of which **521 carry at least one addressable decision** and **115 carry two or
+more**. Those two figures are what `_entry_decision_ordinals` actually returns, not a sum of the table, so
+coverage and validation cannot drift apart: the inline-bullet entry is a shape the table recognises but
+yields no ordinal under the current implementation, which is why 138 + 383 = 521 and the inline row adds
+nothing to it.
+
+**Why the earlier numbers did not reconcile.** Each prior figure was right about its own population and
+neither said which population that was — the corpus has two entry splitters. `_ENTRY_HEADING_RE`, used by
+`links check` and by the script above, requires a `HH:MM` stamp; the semantic-cache entry extractor
+accepts a date-only `## YYYY-MM-DD - title`. The earliest entries (May 2026, before the timestamp
+convention) are date-only, so the extractor counts **589** where the validator counts **564** over
+byte-identical files — and 589 is exactly the `entry_count` Memory Trace displays. The 2026-07-21
+recount's 580 reproduces under neither splitter, on this branch or on the primary checkout, and is treated
+as superseded rather than reconciled.
+
+None of this disturbs the ADR's argument. The singular-to-`d1` convention is what makes the scheme total
+rather than partial, and it holds at every one of these counts: without it the 383 single-decision entries
+— still the clear majority — would have no addressable decision at all, and they are exactly the entries
+most likely to hold one clean architectural call.
 
 ### Why not the section slug
 
@@ -113,7 +133,8 @@ same ordinal — but only one of them is the key.
 The ADR sidecar records **which decisions are architecturally significant, and their lifecycle**. It does
 not assign identity, and it is not a projection of every decision.
 
-The corpus holds 471 identifiable decisions. It should not hold 471 ADRs. Most session decisions are
+The corpus holds 710 identifiable decisions (same 2026-07-22 recount; the earlier 471 was the superseded
+612-entry table's sum). It should not hold 710 ADRs. Most session decisions are
 tactical — a scroll band, a lint message, a test rename — and stay entirely in their entry. An ADR is
 created when a decision constrains future work in a topic area, and `topics:` is what groups them, so
 "the storage decisions" or "the retrieval decisions" is a query rather than a folder.
