@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import type { Core } from "cytoscape";
+import type { Core, NodeSingular } from "cytoscape";
 import type { Simulation, SimulationLinkDatum, SimulationNodeDatum } from "d3-force";
 import { Maximize2, Minus, Plus } from "lucide-react";
 import { type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
@@ -61,6 +61,26 @@ type SimulationHandle = {
   stop: () => void;
 };
 
+// One button press or key press worth of zoom. 1.22 took five presses to
+// double; this takes two, which is what "navigate" needs when the fit sits near
+// 0.06 and a readable node is up around 1.
+const ZOOM_STEP = 1.45;
+
+/** How long one newly loaded node takes to grow into place. */
+const SPAWN_MS = 380;
+
+/**
+ * Gap between one arriving entry and the next.
+ *
+ * The whole page appearing together reads as a single flash; entries arriving
+ * back to back read as the graph GROWING. Small enough that a 60-entry page
+ * finishes in about a second, so it never becomes a wait.
+ */
+const SPAWN_STAGGER_MS = 14;
+
+/** No page should take longer than this to finish arriving, however large. */
+const SPAWN_TOTAL_CAP_MS = 1100;
+
 /** True when the reader has asked the system for less animation. */
 function prefersReducedMotion(): boolean {
   return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
@@ -93,10 +113,12 @@ function startSimulation(options: {
   settled: boolean;
   onRest: () => void;
   onFirstSettle: () => void;
+  /** Called each tick while settling, to keep a growing graph in frame. */
+  autoScale?: () => void;
   disposed: () => boolean;
   reducedMotion: boolean;
 }): SimulationHandle {
-  const { cy, nodes: graphNodes, edges: graphEdges, forces, settled, onRest, onFirstSettle, disposed, reducedMotion } = options;
+  const { cy, nodes: graphNodes, edges: graphEdges, forces, settled, onRest, onFirstSettle, autoScale, disposed, reducedMotion } = options;
   let frame = 0;
   let cancelled = false;
   let fitted = settled;
@@ -146,8 +168,15 @@ function startSimulation(options: {
       if (cancelled || disposed() || !sim) return;
       sim.tick();
       paint();
+      // Keep the growing graph in view while it expands. A page of new entries
+      // pushes the bounding box outward as the simulation makes room for them,
+      // and without this they simply grow off-screen. Only ever zooms OUT, and
+      // only while settling — panning or zooming by hand after that is never
+      // overridden.
+      if (!fitted && autoScale) autoScale();
       if (sim.alpha() < sim.alphaMin()) {
-        // At rest: persist, fit the first time only, and stop burning frames.
+        // At rest: persist, fit once more so the final shape is framed, and
+        // stop burning frames.
         onRest();
         if (!fitted) {
           fitted = true;
@@ -263,6 +292,31 @@ function fitAndClamp(cy: Core) {
   cy.minZoom(Math.min(0.35, cy.zoom() * 0.75));
 }
 
+/**
+ * Keep a graph that is still growing inside the viewport.
+ *
+ * Called every tick while the simulation settles. Zooms OUT only: as a page of
+ * new entries is absorbed the layout pushes outward, and without this the graph
+ * simply expands past the edges. Zooming back IN is left to the final fit, so
+ * the view does not pump in and out on every tick.
+ *
+ * The 2% deadband stops it reacting to the constant small jitter of a settling
+ * simulation — without it the camera never stops adjusting.
+ */
+function scaleToFitGrowth(cy: Core) {
+  const box = cy.elements().boundingBox();
+  const width = box.x2 - box.x1;
+  const height = box.y2 - box.y1;
+  if (width <= 0 || height <= 0) return;
+  const padding = 52;
+  const needed = Math.min((cy.width() - padding * 2) / width, (cy.height() - padding * 2) / height);
+  if (needed < cy.zoom() * 0.98) {
+    cy.minZoom(0.02);
+    cy.fit(cy.elements(), padding);
+    cy.minZoom(Math.min(0.35, cy.zoom() * 0.75));
+  }
+}
+
 function labelIdsFor(graph: RendererGraphResponse, selectedId: string | null, labelMode: GraphWorkspaceProps["labelMode"]) {
   if (labelMode === "all") return new Set(graph.nodes.map((node) => node.id));
   if (labelMode === "minimal") return new Set(selectedId ? [selectedId] : []);
@@ -303,6 +357,9 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
   // cleanup: ticks that outlive the instance would write positions into a
   // destroyed Cytoscape.
   const simulation = useRef<SimulationHandle | null>(null);
+  // Staggered spawn timers, cancelled on unmount so a page that is still
+  // arriving cannot keep touching a destroyed instance.
+  const spawnTimers = useRef<number[]>([]);
   // Force settings by ref so moving a slider retunes the RUNNING simulation
   // rather than remounting the graph — the whole point of continuous physics.
   const forcesRef = useRef(forces);
@@ -427,6 +484,11 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       const { default: createCytoscape } = await import("cytoscape");
       if (disposed || !container.current) return;
       const signature = nodeSetSignature(renderedNodes);
+      // Which entries this mount is ADDING. settledPositions still holds the
+      // previous set at this point, so anything missing from it is arriving
+      // now — a "Show more" page, typically. Captured before seeding, which is
+      // what writes the newcomers in.
+      const arriving = new Set(renderedNodes.filter((node) => !settledPositions.has(node.id)).map((node) => node.id));
       const { positions, settled, warmSeeded } = seedPositions(renderedNodes, graph.edges, settledPositions, settledSignature);
       const nodeBorder = themeToken("--panel", "#142a26");
       const nodeText = themeToken("--text-bright", "#e9f3f0");
@@ -486,7 +548,23 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
               "text-margin-y": 8,
               "width": "data(size)",
               "height": "data(size)",
+              // Newly loaded entries grow into place rather than blinking in —
+              // see the .spawning rules below.
+              "transition-property": "width, height, opacity",
+              "transition-duration": SPAWN_MS,
+              "transition-timing-function": "ease-out",
             },
+          },
+          // A node that has just arrived: no size, no opacity. Removing the
+          // class lets the transition above carry it to full, so what a reader
+          // sees is the entry expanding into existence at the position the
+          // simulation is already pulling it toward.
+          { selector: "node.spawning", style: { width: 1, height: 1, opacity: 0 } },
+          // Its links follow a beat later, so the node appears and THEN attaches
+          // — the order the graph actually grew in.
+          {
+            selector: "edge.spawning",
+            style: { opacity: 0, "transition-property": "opacity", "transition-duration": SPAWN_MS },
           },
           {
             selector: 'node[selected = "yes"]',
@@ -507,8 +585,13 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
         // fit on large graphs, which is why the full corpus rendered larger
         // than the viewport with no way to zoom out to it.
         minZoom: 0.02,
-        maxZoom: 2.4,
-        wheelSensitivity: 0.16,
+        // 4x rather than 2.4x: the fit at full corpus size sits near 0.06, so
+        // the useful range now spans two orders of magnitude and the ceiling
+        // has to leave room to actually read a node.
+        maxZoom: 4,
+        // Cytoscape's own default. It was 0.16 — about a sixth of a normal
+        // wheel notch — which made crossing that range a grind.
+        wheelSensitivity: 1,
       });
       cy.on("tap", "node", (event) => {
         const node = graphRef.current.nodes.find((item) => item.id === event.target.id());
@@ -544,6 +627,41 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
         if (dragResponseRef.current === "reheat") simulation.current?.reheat(0.2);
         else simulation.current?.persistNow();
       });
+      // Grow the newcomers in. Only on a GROWN set: on a cold start everything
+      // is new, and 570 nodes inflating at once is a splash screen, not a
+      // signal. Here the point is to show WHICH entries just arrived and what
+      // they attached to.
+      if (warmSeeded && arriving.size && !prefersReducedMotion()) {
+        const fresh = cy.nodes().filter((node) => arriving.has(node.id()));
+        fresh.addClass("spawning");
+        cy.edges().filter((edge) => arriving.has(edge.data("source")) || arriving.has(edge.data("target"))).addClass("spawning");
+        // OLDEST FIRST, so the page arrives in the order it was written rather
+        // than in whatever order the payload happened to list.
+        const order = fresh.nodes().toArray().sort((left, right) => {
+          const at = (node: NodeSingular) => graphRef.current.nodes.find((item) => item.id === node.id())?.temporal.value ?? "";
+          return at(left).localeCompare(at(right)) || left.id().localeCompare(right.id());
+        });
+        const stagger = Math.min(SPAWN_STAGGER_MS, SPAWN_TOTAL_CAP_MS / Math.max(1, order.length));
+        const timers: number[] = [];
+        // Two frames before the first release: one for the "before" state to
+        // paint, the next to transition from it. Removing the class in the same
+        // frame skips the animation, because the browser never renders it.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (disposed) return;
+          order.forEach((node, index) => {
+            timers.push(window.setTimeout(() => {
+              if (disposed) return;
+              node.removeClass("spawning");
+              // Each entry's own links follow it a beat later, so a node appears
+              // and THEN reaches out — the order the graph actually grew in.
+              timers.push(window.setTimeout(() => {
+                if (!disposed) node.connectedEdges().removeClass("spawning");
+              }, SPAWN_MS * 0.5));
+            }, index * stagger));
+          });
+        }));
+        spawnTimers.current = timers;
+      }
       cytoscape.current = cy;
       // Debug/parity surface (same pattern as the Trail's memoryTraceNextDebug
       // harness): lets stability be asserted from outside — positions must not
@@ -584,6 +702,9 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
         onFirstSettle: () => {
           if (!disposed) fitAndClamp(cy);
         },
+        autoScale: () => {
+          if (!disposed) scaleToFitGrowth(cy);
+        },
         disposed: () => disposed,
         reducedMotion: prefersReducedMotion(),
       });
@@ -596,6 +717,8 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       // after destroy writes positions into a dead Cytoscape.
       simulation.current?.stop();
       simulation.current = null;
+      for (const timer of spawnTimers.current) window.clearTimeout(timer);
+      spawnTimers.current = [];
       cytoscape.current?.destroy();
       cytoscape.current = null;
     };
@@ -637,13 +760,13 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       </div>
     )}
     <div className="graph-controls" aria-label="Graph view controls">
-      <button className="icon-button" type="button" onClick={() => zoom(0.82)} aria-label="Zoom out" title="Zoom out"><Minus size={16} /></button>
+      <button className="icon-button" type="button" onClick={() => zoom(1 / ZOOM_STEP)} aria-label="Zoom out" title="Zoom out"><Minus size={16} /></button>
       <button className="icon-button" type="button" onClick={fit} aria-label="Fit graph" title="Fit graph"><Maximize2 size={16} /></button>
-      <button className="icon-button" type="button" onClick={() => zoom(1.22)} aria-label="Zoom in" title="Zoom in"><Plus size={16} /></button>
+      <button className="icon-button" type="button" onClick={() => zoom(ZOOM_STEP)} aria-label="Zoom in" title="Zoom in"><Plus size={16} /></button>
     </div>
     <div className="graph-canvas" ref={container} aria-label="Memory graph" role="application" tabIndex={0} aria-keyshortcuts="+ - 0 ArrowLeft ArrowRight" onKeyDown={(event) => {
-      if (event.key === "+" || event.key === "=") { event.preventDefault(); zoom(1.22); }
-      if (event.key === "-") { event.preventDefault(); zoom(0.82); }
+      if (event.key === "+" || event.key === "=") { event.preventDefault(); zoom(ZOOM_STEP); }
+      if (event.key === "-") { event.preventDefault(); zoom(1 / ZOOM_STEP); }
       if (event.key === "0" || event.key === "Home") { event.preventDefault(); fit(); }
       if (event.key === "ArrowLeft" || event.key === "ArrowUp") { event.preventDefault(); selectAdjacent(-1); }
       if (event.key === "ArrowRight" || event.key === "ArrowDown") { event.preventDefault(); selectAdjacent(1); }
