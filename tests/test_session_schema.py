@@ -232,11 +232,17 @@ class SessionSchemaTests(unittest.TestCase):
                 "related_entries",
                 "Meaningful decision entry",
             ),
+            # Re-anchored when sidecars moved to full Mermaid rendering. The
+            # previous anchors pinned the subset restriction ("`subgraph` Is Not
+            # Parsed In Sidecars", "is the only arrow that works") which this
+            # change deletes. These pin the two claims that now carry the skill,
+            # so quietly reinstating the subset rule, or dropping the ADR
+            # diagram expectation, trips the test.
             "compact_mermaid_diagrams.md": (
                 "Compact Mermaid Diagrams Skill",
-                "compact, rectangular Mermaid diagrams",
-                "`subgraph` Is Not Parsed In Sidecars",
-                "is the only arrow that works",
+                "Sidecars Are Full Mermaid",
+                "Choosing A Diagram Type",
+                "should normally carry a diagram",
                 "No single node sits alone",
             ),
             "end_of_turn.md": (

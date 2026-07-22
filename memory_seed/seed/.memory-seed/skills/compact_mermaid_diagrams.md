@@ -11,112 +11,99 @@ tags:
 # Compact Mermaid Diagrams Skill
 
 Use this skill after the general diagram rule has already passed: the diagram is genuinely better
-than prose because it shows spatial, temporal, dependency, or concurrent structure. Mermaid remains
-the default. D2 is only a specialist option for dense architecture diagrams when the target renderer
-is known to support it.
+than prose because it shows spatial, temporal, dependency, or concurrent structure. Mermaid is the
+default. D2 is only a specialist option for dense architecture diagrams when the target renderer is
+known to support it.
 
 ## Goal
 
-Produce compact, rectangular Mermaid diagrams that fit normal preview panes without wide horizontal
-scrolling, tall isolated baselines, or excessive whitespace — using only syntax the target renderer
-actually understands.
+Produce compact, legible Mermaid diagrams that fit normal preview panes without wide horizontal
+scrolling, tall isolated baselines, or excessive whitespace.
 
-## Read This First: `subgraph` Is Not Parsed In Sidecars
+## Read This First: Sidecars Are Full Mermaid
 
-Diagram sidecars under `.memory-seed/sessions/diagrams/**` are rendered by the project's own built-in
-renderer ("Arc 2d": `memory-trace/client/src/arc2d.ts`, plus its vanilla twin in
-`memory-trace/memory_trace/static/app.js`). Both implement a deliberately small subset of Mermaid,
-and neither has any `subgraph` support.
+Diagram sidecars under `.memory-seed/sessions/diagrams/**` are ordinary Markdown. Author them as
+**full, standard Mermaid** — the same language you would write in a README. `subgraph` grouping,
+every diagram type, styling directives, and the whole arrow vocabulary are all available.
 
-The failure is worse than losing the box. `subgraph`, `direction`, and `end` are each parsed as
-ordinary node declarations, so they render as **stray rectangles labelled `subgraph`, `direction`,
-and `end`** sitting beside the real nodes. A six-line tier block meant to show two grouped nodes
-renders five boxes, three of them syntax noise. Do not use `subgraph` in sidecars.
+This reverses earlier guidance. Memory Trace used to render sidecars with a hand-written subset
+parser, so the skill listed the narrow set of forms that parser understood. Trace now renders
+sidecars with Mermaid itself, for a reason that governs the rule: **a sidecar is read in more than
+one place.** VS Code renders Mermaid in Markdown preview, GitHub renders it in the browser, and
+Trace renders it in the Inspector. A diagram that is correct in the first two must not fail in the
+third. The Markdown file is the source of truth and every renderer is a projection over it, so the
+language to author in is the standard one, not one tool's dialect.
 
-**Scope of this restriction:** it applies to `.memory-seed/sessions/diagrams/**` sidecars only.
-Diagrams in ordinary authored Markdown (`docs/**`, `README.md`, and the like) are rendered by
-whichever full Mermaid engine the reader has — GitHub's, or an IDE preview — and `subgraph` is
-standard Mermaid that those engines render correctly. Grouping is fine there.
+**One transitional caveat, while it lasts.** Trace still ships a second, older UI at `/` alongside
+the current one at `/next`. The older UI keeps the subset parser, so a sidecar using `subgraph` or a
+non-`-->` arrow renders correctly in `/next`, VS Code and GitHub, but shows stray boxes in `/`. This
+resolves when the older UI retires. Author standard Mermaid regardless — correctness in three
+renderers beats accommodating a fourth that is on its way out.
 
-When a diagram may be read in both places, author to the sidecar subset. It is the intersection of
-Arc 2d and full Mermaid, so it renders correctly everywhere.
+## Choosing A Diagram Type
 
-## The Supported Sidecar Subset
+Mermaid covers around thirty diagram types. Reaching past `flowchart` is usually what makes a
+diagram earn its place, because the right type carries structure that a flowchart can only imply.
+The ones worth knowing for session and design work:
 
-Everything in this section was verified by running the parser against each form, not read off the
-Mermaid syntax docs.
-
-### Diagram headers
-
-| Header | Result |
+| Type | Reach for it when |
 | --- | --- |
-| `flowchart TD` / `flowchart TB` / `flowchart` / `graph TD` | Top-down |
-| `flowchart LR` / `graph LR` | Left-to-right |
-| `flowchart RL` / `graph RL` | Right-to-left |
-| `flowchart BT` | **Top-down** — `BT` is not honoured and does not flip the axis |
-| `sequenceDiagram` | Sequence diagram |
-| Anything else (`stateDiagram-v2`, `classDiagram`, `erDiagram`, `gitGraph`, …) | Not rendered — the raw source is shown in a `<pre>` block |
+| `flowchart` | Control flow, decisions, dependency and data paths. The default, and the right answer more often than not. |
+| `sequenceDiagram` | Ordered interaction between participants over time — request/response, agent handoffs, protocol steps. |
+| `stateDiagram-v2` | A thing that occupies one of several states and transitions between them: entry lifecycle, branch status, session phases. |
+| `erDiagram` | Entities and their relationships/cardinality — schema and data-model shape. |
+| `classDiagram` | Types, fields and their structural relationships in code. |
+| `gitGraph` | Branch and merge topology, which is otherwise painful to draw as a flowchart. |
+| `timeline` | Events in chronological order when the *when* matters more than the *how*. |
+| `gantt` | Scheduled or overlapping work with duration and dependency. |
+| `quadrantChart` | Positioning options on two axes — a decision matrix. |
+| `mindmap` | Hierarchical breakdown of a concept where edges carry no semantics. |
+| `journey` | A user's path through steps, with sentiment per step. |
+| `sankey-beta` | Flow volume splitting and merging across stages. |
+| `block-beta`, `architecture-beta`, `c4Diagram` | System and deployment structure at varying formality. |
+| `pie`, `xychart-beta`, `radar-beta` | Quantities. Prefer a table unless the shape of the data is the point. |
 
-Only `LR` and `RL` change the axis. `TD`, `TB`, `BT`, and an omitted direction all produce the same
-top-down layout. The header must be the **first line and flush left**: an indented header still
-selects the flowchart parser but silently loses the direction and falls back to top-down.
+Pick the type that already means what you are drawing. A state machine drawn as a flowchart loses
+the fact that the boxes are states; a `stateDiagram-v2` says it in the syntax.
 
-### Flowchart nodes
+## Diagrams In ADR Sidecars
 
-- Node ids may contain letters, digits, `_`, and `-`. **No spaces** — `My Node --> B` yields a node
-  called `My` and drops the rest of the line.
-- `A[Label]`, `A(Label)`, and `A{Label}` are all accepted and all draw the **same rectangle**. Shape
-  syntax carries no visual meaning here, so pick one form and stay consistent.
-- Compound shapes corrupt the label: `A[[X]]` renders `[X`, `A((X))` renders `(X`, `A([X])` renders
-  `[X]`, and `A>X]` loses the label entirely. Never use them.
-- Surrounding quotes are optional and are stripped. Spaces and parentheses inside a label are fine:
-  `A["Rebuild index (fast path)"]`.
-- Give a node its label at first mention; later lines can reference the bare id.
+**A decision recorded as an ADR sidecar should normally carry a diagram.** If a decision was worth
+writing down as an architecture decision record, it almost always has a shape — an interaction it
+changes, a lifecycle it alters, a topology it rearranges, a boundary it moves. That shape is the
+justification, and prose describes it far less efficiently than a diagram does.
 
-### Flowchart edges
+Treat "no diagram" as the exception that needs a reason, not the default. Reasonable reasons: the
+decision is a single scalar choice (a threshold, a name, a version), or it is a pure policy
+statement with no structure to draw. "It would take a while" is not one.
 
-- **`-->` is the only arrow that works**, optionally carrying a label: `A -->|on failure| B`.
-- `---`, `-.->`, `==>`, `~~~`, and `o--o` do not merely fail to draw a line. The line is not
-  recognised as an edge at all, so **the right-hand node is dropped from the diagram entirely**.
-- `A -- text --> B` draws the edge but discards `text`. Write `A -->|text| B` instead.
-- One edge per line. `A --> B --> C` creates only `A --> B`, and `C` never appears.
-- Edge labels cannot contain `|`.
+What to draw, in rough order of usefulness:
 
-### Everything else becomes a stray box
+1. **Before and after.** Two small diagrams, or one with the changed nodes marked. The delta *is*
+   the decision, and this is the single most useful ADR diagram.
+2. **The mechanism.** The interaction or flow the decision creates, when the decision introduces
+   something rather than changing something.
+3. **The alternatives.** A `quadrantChart` or a small comparison when the decision was a choice
+   between shapes rather than a change to one.
 
-Only node declarations and `-->` edges are recognised. **Any other line beginning with a word is
-parsed as a node declaration and renders as a stray rectangle labelled with that word.** That is what
-happens to `subgraph` and `end`, and it happens just the same to `classDef`, `style`, `linkStyle`,
-`click`, and a bare `direction`. Leave all of them out.
-
-`%%` comments are ignored safely — unless the comment text contains `-->`, which injects a phantom
-node named after whatever follows the arrow. Keep arrows out of comments.
-
-### Sequence diagrams
-
-- `participant Some Name` — participant names **may** contain spaces and hyphens.
-- `A->>B: text`, and likewise `->`, `-->`, and `-->>`. An arrow containing `--` renders dashed.
-- The `: text` part is required; a message line without it is dropped.
-- `Note over …`, `alt` / `else` / `loop` / `end` blocks, and activation markers are ignored cleanly.
-  Unlike in flowcharts they leave no stray boxes — they simply do not appear, so do not rely on them
-  to carry meaning.
+Match the type to the decision: a change to ordering or handoff wants `sequenceDiagram`; a change to
+lifecycle or status wants `stateDiagram-v2`; a change to branch handling wants `gitGraph`; a change
+to data shape wants `erDiagram`.
 
 ## Language Selection
 
-1. Use Mermaid by default for Markdown-native documentation, especially flowcharts, sequences,
-   decision trees, agent workflows, and compact dependency sketches.
-2. Choose D2 only when it materially improves readability or maintainability for dense nested
-   architecture maps, service dependency diagrams, module/package boundaries, repeated containers, or
-   before/after architecture states — and only in authored Markdown, never in a sidecar.
-3. Do not use D2 for `.memory-seed/sessions/diagrams/YYYY-MM/YYYY-MM-DD.md` sidecars. Sidecar guidance
-   is Mermaid-first, restricted to the subset above.
+1. Use Mermaid by default for Markdown-native documentation.
+2. Choose D2 only when it materially improves readability for dense nested architecture maps,
+   service dependency diagrams, module boundaries, or before/after architecture states — and only in
+   authored Markdown, never in a sidecar.
+3. Do not use D2 for `.memory-seed/sessions/diagrams/YYYY-MM/YYYY-MM-DD.md` sidecars. Sidecar
+   guidance is Mermaid-first.
 4. If Mermaid and D2 both express the diagram clearly, choose Mermaid.
 5. Do not add any diagram when prose, a short list, or a table would be clearer.
 
-## Compaction Techniques Within The Subset
+## Compaction Techniques
 
-Grouping is unavailable, so compactness comes from direction, label shape, edge labels, and knowing
-when to split. These are the levers that actually exist.
+Compactness comes from direction, grouping, label shape, and knowing when to split.
 
 ### 1. Choose the direction that matches the shape of the graph
 
@@ -129,23 +116,41 @@ flowchart LR
   Normalise --> Index["Index"]
 ```
 
-### 2. Break long labels manually with `<br/>`
+### 2. Group with `subgraph` when nodes share a tier
 
-`<br>`, `<br/>`, and `<br />` all split a label into stacked lines. There is **no automatic
-wrapping**: node width is clamped near 260px and a long single-line label simply overflows its box.
-Manual breaks are the only way to keep a wordy node readable.
+Grouping is the most effective compaction tool available: it replaces repeated label prefixes with
+one container title, and lets the layout engine pack tiers rather than spreading them.
+
+```mermaid
+flowchart TD
+  subgraph Write["Write path"]
+    direction LR
+    Cli["CLI<br/>session append"] --> Gate["Schema gate"]
+  end
+  subgraph Read["Read path"]
+    direction LR
+    Query["Search"] --> Index["Index"]
+  end
+  Gate --> Index
+```
+
+Give every `subgraph` an explicit quoted title. An untitled one shows its raw id, which is usually
+a lowercase token that reads as a mistake.
+
+### 3. Break long labels manually with `<br/>`
+
+`<br>`, `<br/>`, and `<br />` all split a label into stacked lines. Two or three lines of two or
+three words each is the sweet spot for a wordy node.
 
 ```mermaid
 flowchart TD
   Gate["Schema gate<br/>validates frontmatter"] --> Store["Append to<br/>session log"]
 ```
 
-Keep each line short. Two or three lines of two or three words each is the sweet spot.
+### 4. Let edge labels carry conditions
 
-### 3. Carry grouping in edge labels instead of containers
-
-What a `subgraph` title would have said can usually ride on the edges as a condition or a stage name.
-This preserves the meaning the grouping was carrying, without the container.
+A condition on the edge is usually clearer, and always more compact, than a diamond node followed by
+two unlabelled arrows.
 
 ```mermaid
 flowchart TD
@@ -153,43 +158,28 @@ flowchart TD
   Entry -->|schema error| Reject["Reject with diff"]
 ```
 
-### 4. Use a label prefix where you would have used a container
-
-When several nodes belong to one tier, say so in their labels rather than boxing them. A short prefix
-plus `<br/>` reads almost as well as a container title.
-
-```mermaid
-flowchart TD
-  Cli["CLI<br/>session append"] --> Core["Core<br/>schema gate"]
-  Core --> Store["Store<br/>markdown log"]
-```
-
 ### 5. Split one dense diagram into two
 
-Two small diagrams under two headings beat one wide one. When a diagram needs more than roughly eight
-nodes, or mixes two concerns (a write path and a read path, say), split it. Without grouping there is
-no way to keep a large diagram legible, so splitting is the primary tool here rather than a fallback.
-Give each half its own fenced block and a one-line caption saying what it covers.
+Two small diagrams under two headings beat one wide one. When a diagram exceeds roughly a dozen
+nodes, or mixes two concerns (a write path and a read path, say), split it — grouping raises that
+threshold but does not remove it. Give each half its own fenced block and a one-line caption.
 
 ### 6. Keep the node count honest
 
-Prefer the fewest nodes that carry the point. A node that exists only to be passed through — one edge
-in, one edge out, no decision — is usually better folded into a neighbour's label.
+Prefer the fewest nodes that carry the point. A node that exists only to be passed through — one
+edge in, one edge out, no decision — is usually better folded into a neighbour's label.
 
 ## Quality Check
 
-Before committing or sharing a sidecar diagram:
+Before committing or sharing a diagram:
 
-- The header is on the first line, flush left, and is `flowchart`, `graph`, or `sequenceDiagram`.
-- Every edge is `-->` or `-->|label|`. Search the block for `~~~`, `---`, `-.->`, and `==>` — each one
-  is silently deleting a node.
-- There is no `subgraph`, `end`, `direction`, `classDef`, or `style` line.
-- Every line is a node declaration, a `-->` edge, or a `%%` comment with no arrow in it.
-- Node ids contain no spaces, and no compound shapes like `[[ ]]` or `(( ))` appear.
+- The diagram type is the one that already means what you are drawing, not `flowchart` by reflex.
+- An ADR sidecar has a diagram, or a stated reason why its decision has no shape.
+- Every `subgraph` has an explicit quoted title.
 - Long labels are broken with `<br/>` rather than left to overflow.
 - The diagram reads as a rectangle rather than a ribbon or a tower.
 - No single node sits alone at the bottom with long vertical strings leading to it.
 - The Mermaid block is still semantically fresh; shipped work and roadmap status are not stale.
 
-If a diagram cannot be made legible within this subset, that is a signal to write prose or a table
-instead — not a signal to reach for `subgraph`.
+If a diagram cannot be made legible, that is a signal to split it or to write prose or a table
+instead.

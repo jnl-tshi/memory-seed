@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DiagramView } from "./DiagramView";
 import { fitTransform, panBy, zoomAbout, type Transform } from "./diagramZoom";
+import type { TraceLook } from "./mermaidConfig";
 
 // Modal decision-diagram viewer, matching the vanilla UI's behaviour: a
 // diamond badge or a reader figure opens a zoomable, pannable panel. The React
@@ -14,10 +15,14 @@ export type DiagramBlock = { title?: string | null; source: string };
 export function DiagramViewer({
   title,
   blocks,
+  look,
+  theme,
   onClose,
 }: {
   title: string;
   blocks: DiagramBlock[];
+  look: TraceLook;
+  theme: string;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -52,7 +57,7 @@ export function DiagramViewer({
             <div className="empty">No diagram available for this entry.</div>
           ) : (
             blocks.map((block, index) => (
-              <ZoomableDiagram key={index} title={block.title} source={block.source} />
+              <ZoomableDiagram key={index} title={block.title} source={block.source} look={look} theme={theme} />
             ))
           )}
         </div>
@@ -61,7 +66,17 @@ export function DiagramViewer({
   );
 }
 
-function ZoomableDiagram({ title, source }: { title?: string | null; source: string }) {
+function ZoomableDiagram({
+  title,
+  source,
+  look,
+  theme,
+}: {
+  title?: string | null;
+  source: string;
+  look: TraceLook;
+  theme: string;
+}) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [transform, setTransform] = useState<Transform>({ scale: 1, x: 0, y: 0 });
@@ -78,11 +93,13 @@ function ZoomableDiagram({ title, source }: { title?: string | null; source: str
     setTransform(fitTransform(viewport.clientWidth, viewport.clientHeight, width, height));
   }, []);
 
-  useEffect(() => {
-    // One frame's delay: the SVG must be laid out before it can be measured.
-    const id = requestAnimationFrame(fit);
-    return () => cancelAnimationFrame(id);
-  }, [fit, source]);
+  // Fit is driven by the renderer's completion, not by a source change.
+  // Mermaid renders asynchronously, so the old "one rAF after source changed"
+  // timing measured an empty stage and fitted to nothing. `fit` is a stable
+  // useCallback, which is what keeps passing it as onRendered from looping.
+  const fitWhenPainted = useCallback(() => {
+    requestAnimationFrame(fit);
+  }, [fit]);
 
   return (
     <figure className="diagram-view">
@@ -127,7 +144,7 @@ function ZoomableDiagram({ title, source }: { title?: string | null; source: str
             transformOrigin: "0 0",
           }}
         >
-          <DiagramView source={source} />
+          <DiagramView source={source} look={look} theme={theme} onRendered={fitWhenPainted} />
         </div>
       </div>
       <div className="diagram-zoom-bar">
