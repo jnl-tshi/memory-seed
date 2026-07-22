@@ -612,6 +612,24 @@ Phases A-B are **B0a pre-React** work. They settle contracts and evidence withou
 - respect reduced-motion preferences and preserve the list/table equivalent throughout motion;
 - measure interaction frame rate, convergence time, and main-thread cost separately from data loading.
 
+> **Conformance note, 2026-07-22.** Shipped in `memory-trace/client/src/`. Settled remains the default
+> and every layout result still routes through the `settledPositions` cache in `GraphWorkspace.tsx`.
+> Animate is cose `animate: true` — the same iterations from the same seeds, so it converges to the
+> identical positions Settled produces and the cache stays valid either way. Reheat-on-drag runs a
+> d3-force simulation over a two-hop neighbourhood (one-hop fallback for hubs, capped at 150) with a
+> pinned boundary ring, cooling to rest or 1.5s, writing only into the renderer cache — no refetch, no
+> remount, nothing into Markdown. The 150-node threshold gates Animate, with the end state applied
+> above it and the reason stated in the Settings note. `prefers-reduced-motion` disables both controls
+> visibly and forces Settled/Fixed. Measured live: a degree-5 drag moved its 5 neighbours and the 3
+> second-hop nodes and **zero** of the 51 nodes outside the two-hop set; the arrangement then survived
+> a full remount with 0px drift.
+>
+> One decision this section did not specify: **where edgeless entries go**. They were previously not
+> rendered at all, which made the coverage readout look like a cap ("462 of 603"). They now take
+> deterministic rings outside the connected core's bounding box — the closed form of repulsion plus
+> weak centre gravity — and are deliberately excluded from the simulation, since a node with no edge
+> has no spring to balance repulsion and would be flung through the core.
+
 ### Phase E — B0b density and aggregation
 
 - add community overview;
