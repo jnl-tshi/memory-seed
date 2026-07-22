@@ -4,7 +4,7 @@ import { Maximize2, Minus, Plus } from "lucide-react";
 import { connectedNodeIds, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
 import { layoutIterations, nodeSetSignature, seedPositions, type Point } from "./graphLayout";
 import { outrankedEdgeIds } from "./graphEdges";
-import { communityColourScale, communityLegend, inferredCommunityColours } from "./graphCommunities";
+import { authoredBorderColour, communityColourScale, communityLegend, hasAuthoredCommunity, inferredCommunityColours } from "./graphCommunities";
 
 type GraphWorkspaceProps = {
   graph: RendererGraphResponse;
@@ -185,18 +185,25 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       const cy = createCytoscape({
         container: container.current,
         elements: [
-          ...renderedNodes.map((node) => ({
-            data: {
-              id: node.id,
-              label: "",
-              title: node.label,
-              agent: node.source.agent,
-              selected: "no",
-              colour: inferredColours.get(node.id) ?? colourOf(node),
-              size: 22 + Math.min(18, node.connectivity * 3),
-            },
-            position: positions.get(node.id),
-          })),
+          ...renderedNodes.map((node) => {
+            const colour = inferredColours.get(node.id) ?? colourOf(node);
+            return {
+              data: {
+                id: node.id,
+                label: "",
+                title: node.label,
+                agent: node.source.agent,
+                selected: "no",
+                colour,
+                // Authored membership wears a rim of its own colour, darkened;
+                // inferred and unassigned nodes keep the invisible cutout
+                // border, so the rim alone says "this entry declared a topic".
+                borderColour: hasAuthoredCommunity(node) ? authoredBorderColour(colour) : nodeBorder,
+                size: 22 + Math.min(18, node.connectivity * 3),
+              },
+              position: positions.get(node.id),
+            };
+          }),
           ...graph.edges.map((edge, index) => ({
             data: { id: edge.id || `${edge.source}-${edge.target}-${index}`, source: edge.source, target: edge.target, type: edge.edge_type },
           })),
@@ -206,8 +213,8 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
             selector: "node",
             style: {
               "background-color": "data(colour)",
-              "border-color": nodeBorder,
-              "border-width": 2,
+              "border-color": "data(borderColour)",
+              "border-width": 2.5,
               "label": "data(label)",
               "font-family": "Inter, sans-serif",
               "font-size": 11,
@@ -309,7 +316,9 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
         <span className="graph-legend-title">Topics</span>
         {legend.map((entry) => (
           <span key={entry.id} className={`graph-legend-item${entry.topic ? "" : " graph-legend-item-none"}`}>
-            <span className="graph-legend-key" style={{ background: entry.colour }} aria-hidden="true" />
+            {/* Same rim rule as the nodes, so the key teaches it: authored
+                communities are outlined, absence is not. */}
+            <span className="graph-legend-key" style={{ background: entry.colour, border: entry.topic ? `1.5px solid ${authoredBorderColour(entry.colour)}` : "none" }} aria-hidden="true" />
             {entry.label}
             <b>{entry.count}</b>
           </span>
