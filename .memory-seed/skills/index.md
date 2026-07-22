@@ -70,7 +70,9 @@ skills:
   - skill: compact_mermaid_diagrams.md
     required: true
     load_when:
-      - authoring or revising Mermaid graph or flowchart diagrams
+      - authoring or revising Mermaid diagrams of any type
+      - choosing which Mermaid diagram type fits what is being drawn
+      - recording an ADR sidecar, which should normally carry a diagram
       - choosing between Mermaid and D2 for documentation diagrams
       - authoring or reviewing D2 only for dense architecture or nested system diagrams
       - Mermaid diagram layout is too wide, too tall, stretched, or sparse

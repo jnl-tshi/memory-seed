@@ -2,6 +2,7 @@ import { Fragment, useId, useState, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import type { ChunkResponse } from "./api";
 import { DiagramView } from "./DiagramView";
+import type { TraceLook } from "./mermaidConfig";
 
 // ChunkResponse.diagrams is typed as a generic record array in the OpenAPI
 // contract (the backend's sidecar dict has no schema of its own); this is the
@@ -223,12 +224,16 @@ export function EntryReader({
   onOpenEntry,
   onOpenFile,
   onOpenDiagram,
+  look,
+  theme,
 }: {
   chunk: ChunkResponse | null;
   matchHeading: string | null;
   onOpenEntry: (entryId: string) => void;
   onOpenFile: (path: string) => void;
   onOpenDiagram: (title: string | null, source: string) => void;
+  look: TraceLook;
+  theme: string;
 }) {
   if (!chunk) return <p className="reader-empty">Loading entry details</p>;
 
@@ -344,7 +349,7 @@ export function EntryReader({
                 }}
               >
                 {sidecar.title && <figcaption className="count">{sidecar.title}</figcaption>}
-                <DiagramView source={source} />
+                <DiagramView source={source} look={look} theme={theme} />
               </figure>
             )),
           )}

@@ -1074,10 +1074,10 @@ export default function App() {
             )}
             <div className="meta-item meta-wide"><dt>Topics</dt><dd>{selected.source.topics.length ? <span className="meta-topics">{selected.source.topics.map((topic) => <span className="meta-topic" key={topic}>{topic}</span>)}</span> : "None"}</dd></div>
           </dl>
-          <EntryReader chunk={chunk} matchHeading={matchHeading} onOpenEntry={(entryId) => void openEntryInPlace(entryId)} onOpenFile={(path) => void openFileMode(path)} onOpenDiagram={(title, source) => setDiagramViewer({ title: title || chunk?.title || "Decision diagram", blocks: [{ title, source }] })} />
+          <EntryReader chunk={chunk} matchHeading={matchHeading} onOpenEntry={(entryId) => void openEntryInPlace(entryId)} onOpenFile={(path) => void openFileMode(path)} onOpenDiagram={(title, source) => setDiagramViewer({ title: title || chunk?.title || "Decision diagram", blocks: [{ title, source }] })} look={trailStyle.style} theme={theme} />
         </div>}
       </aside>}
-      {diagramViewer && <DiagramViewer title={diagramViewer.title} blocks={diagramViewer.blocks} onClose={() => setDiagramViewer(null)} />}
+      {diagramViewer && <DiagramViewer title={diagramViewer.title} blocks={diagramViewer.blocks} look={trailStyle.style} theme={theme} onClose={() => setDiagramViewer(null)} />}
     </div>
   );
 }
