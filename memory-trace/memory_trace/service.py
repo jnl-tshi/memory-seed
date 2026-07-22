@@ -1222,6 +1222,7 @@ class TraceService:
         # generation (they participate in the freshness signal), this memo is
         # safe: it refreshes exactly when Markdown or a sidecar changes.
         self._derived_memo: tuple[int, tuple[list[MemoryChunk], dict[str, Any], dict[str, Any]]] | None = None
+        self._link_sidecar_memo: tuple[int, dict[str, dict[str, Any]]] | None = None
 
     def _derived(self) -> tuple[list[MemoryChunk], dict[str, Any], dict[str, Any]]:
         """Augmented all-entry chunks + related graph + diagram-sidecar map,
@@ -1231,12 +1232,26 @@ class TraceService:
         generation = self.cache.generation()
         if self._derived_memo is not None and self._derived_memo[0] == generation:
             return self._derived_memo[1]
-        entries = _augment_with_link_sidecars(self.cache.chunks(granularity="entry"), self.cache.cwd)
+        sidecars = entry_link_sidecars(self.cache.cwd)
+        entries = _augment_with_link_sidecars(self.cache.chunks(granularity="entry"), self.cache.cwd, sidecars=sidecars)
         graph = build_related_entry_graph(chunks=entries)
         diagram_map = entry_diagram_sidecars(self.cache.cwd)
         bundle = (entries, graph, diagram_map)
         self._derived_memo = (generation, bundle)
+        self._link_sidecar_memo = (generation, sidecars)
         return bundle
+
+    def _link_sidecars(self) -> dict[str, dict[str, Any]]:
+        """The raw link sidecars behind ``_derived``, memoized on the same
+        generation. ``_derived`` consumes only their entry-level edges (via
+        ``_augment_with_link_sidecars``); the Trail's decision-edge stream needs
+        the ``decision_edges`` key those never carry, and reading the sidecar
+        files a second time per request would undo the bundle's saving."""
+        generation = self.cache.generation()
+        if self._link_sidecar_memo is None or self._link_sidecar_memo[0] != generation:
+            self._derived()
+        assert self._link_sidecar_memo is not None
+        return self._link_sidecar_memo[1]
 
     def runtime(self) -> dict[str, Any]:
         self.cache.ensure_current()
@@ -1506,7 +1521,21 @@ class TraceService:
             visible_ids = [item_id for item_id in entry_ids if item_id in by_id]
             limited_ids = set(visible_ids[: _limit(limit, maximum=1000)])
         elif entry_id and entry_id in by_id:
-            visible_ids = _neighborhood(entry_id, edges, depth=max(depth, 1))
+            # Membership only: a decision edge's two entries must be able to
+            # reach each other when one is focused, or upgrading a ref from
+            # entry-level to `:dN` would make its far end vanish from focus
+            # view - the authored edge lost again, one layer up from the parser
+            # bug this workstream closed. These pairs expand WHAT IS DISPLAYED;
+            # they are never emitted as entry-level edges (the rendered edge
+            # still terminates on the decision row, via
+            # _decision_edges_for_rows), so nothing here projects "B:d2 evolves
+            # A:d1" up into "B evolves A".
+            reach = list(edges)
+            if include_decisions:
+                for source_entry_id, sidecar in self._link_sidecars().items():
+                    for kind, target_entry_id, _ordinal in sidecar.get("decision_edges", ()):
+                        reach.append({"source": source_entry_id, "target": target_entry_id, "type": kind})
+            visible_ids = _neighborhood(entry_id, reach, depth=max(depth, 1))
             limited_ids = set(visible_ids[: _limit(limit, maximum=1000)])
         else:
             # Overview (no focus entry): corpus order starts at the oldest
@@ -1556,6 +1585,13 @@ class TraceService:
             for edge in edges
             if edge["source"] in limited_ids and edge["target"] in limited_ids and edge["type"] in edge_type_set
         ][: _limit(limit, maximum=1000)]
+        if include_decisions:
+            # Appended AFTER the limited_ids filter on purpose: that set holds
+            # entry ids, and a decision-row endpoint is not one, so routing
+            # decision edges through it would drop every one of them silently.
+            visible_edges.extend(
+                _decision_edges_for_rows(nodes, self._link_sidecars(), edge_type_set)
+            )
         # Commit-accurate merges: served on both the legacy /api surface and the
         # versioned /api/v1 surface (the v1 GraphResponse/TrailResponse models
         # formalize these keys as of the 2.18 polish; see models.py).
@@ -2584,7 +2620,12 @@ def _entry_merge_map(events: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return mapping
 
 
-def _augment_with_link_sidecars(entries: Sequence[MemoryChunk], cwd: str | Path) -> list[MemoryChunk]:
+def _augment_with_link_sidecars(
+    entries: Sequence[MemoryChunk],
+    cwd: str | Path,
+    *,
+    sidecars: dict[str, dict[str, Any]] | None = None,
+) -> list[MemoryChunk]:
     """Union each entry's YAML-declared lifecycle edges with any authored later
     in a link sidecar (see ``entry_link_sidecars``). The sidecar is the
     append-only enrichment layer: write-time YAML stays canonical, late-found
@@ -2593,8 +2634,11 @@ def _augment_with_link_sidecars(entries: Sequence[MemoryChunk], cwd: str | Path)
     (superseded_by/evolved_by) and ``_graph_edges`` both pick them up with no
     change of their own. ``cwd`` must be the per-worktree path so the switcher
     reads each branch's own sidecars. Fails open (returns ``entries``) when no
-    sidecars exist."""
-    sidecars = entry_link_sidecars(cwd)
+    sidecars exist. Pass ``sidecars`` to reuse an already-read map (the caller
+    that also needs its ``decision_edges`` key reads it once and shares it);
+    the entry-level union below is unchanged either way, and decision edges are
+    never folded in here - see ``_decision_edges_for_rows``."""
+    sidecars = entry_link_sidecars(cwd) if sidecars is None else sidecars
     if not sidecars:
         return list(entries)
 
@@ -3141,6 +3185,85 @@ def _expand_decision_rows(nodes: list[dict[str, Any]], cache: TraceCache) -> lis
                 )
             )
     return expanded
+
+
+def _decision_edges_for_rows(
+    nodes: Sequence[dict[str, Any]],
+    sidecars: dict[str, dict[str, Any]],
+    edge_types: set[str],
+) -> list[dict[str, str]]:
+    """Sidecar decision-level edges, resolved onto expanded Trail rows.
+
+    A SEPARATE edge stream, by ratified contract
+    (docs/3_Spec/draft/decision-level-link-sidecar-refs.md, "Decision edges are
+    a distinct edge set"). It is deliberately NOT routed through
+    ``build_related_entry_graph`` or the ``_augment_with_link_sidecars`` union:
+    "D2 of B supersedes D1 of A" does not license "B supersedes A", so every
+    consumer that does not model decisions - /graph, /search, the CLI, MCP -
+    keeps seeing exactly the edge set it saw before this existed. Only the
+    Trail, which renders a row per decision, opts in.
+
+    Runs AFTER ``_expand_decision_rows`` because that is the only point where a
+    decision row id exists to terminate on. It also has to bypass the caller's
+    ``limited_ids`` filter, which is keyed on entry ids: a decision row id
+    (``{entry_id}#decisions/dN-<slug>``) is not in that set and would be
+    silently dropped - the exact class of silent edge loss this workstream
+    exists to close.
+
+    Endpoint resolution:
+
+    - Source is the block's entry (the grammar has no ``source_decision`` yet;
+      that is staged second in the draft), so it lands on the entry row - which
+      for a multi-decision entry is the group ANCHOR, still keyed by entry id.
+    - Target resolves to the ``(entry_id, dN)`` row when one exists. When the
+      target entry is single-decision it has no separate row, and the entry row
+      IS its d1: the draft states outright that for a single-decision entry the
+      entry-level and ``d1`` forms denote the same edge, so attaching there is
+      the same statement, not a widening.
+    - Anything still unresolved is dropped rather than guessed at - including
+      an ordinal that does not exist on an entry which *does* have decision
+      rows. Falling back to the entry row there would silently widen a
+      dangling ``:d7`` into an entry-level edge, which is the overstatement
+      this feature removes. ``links check`` reports the bad ref; this refuses
+      to invent an edge from it.
+    """
+    kind_to_type = {"supersedes": "supersedes", "evolves": "evolves", "related_entries": "related"}
+    entry_row: dict[str, str] = {}
+    decision_row: dict[tuple[str, str], str] = {}
+    # Entries whose decisions each got their own row. For these, "ordinal not
+    # found" means the ref is wrong, not that the entry row stands in for it.
+    expanded_entries: set[str] = set()
+    for node in nodes:
+        entry_id = node.get("entry_id")
+        if not entry_id:
+            continue
+        ordinal = node.get("decision_ordinal")
+        if ordinal:
+            decision_row[(entry_id, ordinal)] = node["id"]
+            expanded_entries.add(entry_id)
+        elif entry_id not in entry_row:
+            entry_row[entry_id] = node["id"]
+    edges: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for source_entry_id, sidecar in sidecars.items():
+        source = entry_row.get(source_entry_id)
+        if not source:
+            continue
+        for kind, target_entry_id, ordinal in sidecar.get("decision_edges", ()):
+            edge_type = kind_to_type.get(kind)
+            if not edge_type or edge_type not in edge_types:
+                continue
+            target = decision_row.get((target_entry_id, ordinal))
+            if not target and target_entry_id not in expanded_entries:
+                target = entry_row.get(target_entry_id)
+            if not target or target == source:
+                continue
+            key = (source, target, edge_type)
+            if key in seen:
+                continue
+            seen.add(key)
+            edges.append({"source": source, "target": target, "type": edge_type})
+    return edges
 
 
 def _chunk_summary(chunk: MemoryChunk) -> dict[str, Any]:

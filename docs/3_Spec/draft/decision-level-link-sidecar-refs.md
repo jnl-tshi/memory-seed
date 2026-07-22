@@ -7,9 +7,14 @@ parent: ../lifecycle-edge-linking-sidecars.md
 
 # Decision-Level Refs in Link Sidecars
 
-Status: **DRAFT - NOT IMPLEMENTED.** The live contract is
-[lifecycle-edge-linking-sidecars.md](../lifecycle-edge-linking-sidecars.md), which this extends. Nothing
-here is built; no existing sidecar is affected until it is.
+Status: **DRAFT - PARTIALLY IMPLEMENTED as of 2026-07-22.** The live contract is
+[lifecycle-edge-linking-sidecars.md](../lifecycle-edge-linking-sidecars.md), which this extends.
+
+Landed: steps 0-2 below — the skeleton gate (one real decision edge, verified drawing to its decision row
+in the running Trail), the ref grammar and read path, and validation. **Target-side only.** Not landed:
+step 3, `source_decision` on the block, so a decision cannot yet be the *source* of an edge; and step 4,
+which remains an open question rather than work. Bare entry ids are unchanged and no existing sidecar
+needed migrating.
 
 **Scope.** This amends the **link sidecar** (`.memory-seed/sessions/links/…`) so a lifecycle edge can
 terminate on a specific decision rather than a whole entry. It borrows the decision identity ratified in
@@ -219,10 +224,22 @@ it fails, and that distinction is easy to lose.
 
 ## Rendering
 
-Out of scope here; noted so the payoff is legible. The Trail already draws one row per decision, so a
-decision-terminated edge attaches to a row that exists. The `supersedes`/`evolves` line then runs between
-the two specific decisions rather than between two entry headings — which is the difference between "that
-session replaced this one" and "that call replaced this one."
+*Landed 2026-07-22.* The Trail already drew one row per decision, so a decision-terminated edge attaches
+to a row that exists. The `supersedes`/`evolves` line now runs to the specific decision rather than to the
+entry heading — the difference between "that session replaced this one" and "that call replaced this one."
+
+Two constraints the implementation had to respect, both of which are a silent edge loss if missed:
+
+- Decision edges are computed **after** row expansion (that is the only point at which a decision row id
+  exists) and are appended **outside** the graph's `limited_ids` visibility filter, which is keyed on
+  entry ids and would otherwise drop every one of them.
+- The focus-view neighbourhood expands over a decision edge's two *entries*, purely to decide what is
+  displayed. Without that, upgrading a ref from entry-level to `:dN` would make its far end vanish when
+  the source is focused. This is membership, not projection: the drawn edge still terminates on the
+  decision row, and nothing is added to entry-level `supersedes`/`evolves`.
+
+When the target entry is single-decision it has no separate row, and the edge attaches to its entry row —
+which is the same statement, since the entry-level and `d1` forms denote the same edge for that shape.
 
 ## Implementation order
 
@@ -253,8 +270,14 @@ validation or detection.
 3. **Is `related_entries` worth extending to decisions**, or is decision granularity only meaningful for the
    typed lifecycle edges? The live spec already scopes `related` as accepted-but-not-the-focus.
 
-4. **The ADR's corpus table does not reconcile with a recount, and should be re-derived before anything
-   is built on it.** [adr-lifecycle-sidecar-contract.md:75-80](adr-lifecycle-sidecar-contract.md) reports
+4. **RESOLVED 2026-07-22. The ADR's corpus table has been re-derived from a committed classifier**
+   (`scripts/count_decision_shapes.py`) and amended in place: 138 numbered / 383 singular / 1 inline / 42
+   no-decision = 564 entries, 521 with an addressable decision, 115 multi-decision. The disagreement had a
+   mechanism rather than an arithmetic error — two entry splitters over the same files, one requiring a
+   `HH:MM` stamp (564) and one accepting date-only May-2026 headings (589). The 580 below reproduces under
+   neither and is superseded. The original question is kept for the record:
+
+   [adr-lifecycle-sidecar-contract.md:75-80](adr-lifecycle-sidecar-contract.md) reports
    125 numbered / 346 singular / 1 inline / 140 no-decision on 2026-07-20, totalling 612 entries. A
    recount on 2026-07-21 finds **580 entries** — fewer than a day later, which append-only makes
    impossible — and 66 no-decision against the ADR's 140. The numbered and singular figures move in the
