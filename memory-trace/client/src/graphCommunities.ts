@@ -2,7 +2,7 @@ import type { RendererGraphNode } from "./api";
 // Explicit .ts extension: this is a VALUE import, so node's ESM loader has to
 // resolve it when the test runner loads this module directly. The type-only
 // import above is erased and never resolved, which is why it needs none.
-import { mixHex } from "./colour.ts";
+import { blendOklab, mixHex, pastelOf, shiftLightness } from "./colour.ts";
 
 // Community colour, in ONE place. The legend and the graph nodes must agree, so
 // they call the same function rather than each deriving a colour from the same
@@ -99,15 +99,57 @@ export function communityColourScale(
     if (!fingerprint.startsWith(TOPIC_PREFIX)) return UNASSIGNED_COLOUR;
     const topic = fingerprint.slice(TOPIC_PREFIX.length);
     const slot = slots.get(topic);
-    return COMMUNITY_COLOURS[(slot ?? hashSlot(fingerprint)) % COMMUNITY_COLOURS.length];
+    return colourForSlot(slot ?? hashSlot(fingerprint));
   };
+}
+
+/**
+ * A distinct colour for EVERY slot, not just the first sixteen.
+ *
+ * Slots beyond the base palette reuse its hues at shifted perceptual
+ * lightness - one round lighter, the next darker - so slot 16 is slot 0's hue
+ * light, slot 32 is slot 0's hue dark, and no two slots ever share an exact
+ * colour. The previous modulo wrap meant a seventeenth community silently
+ * COLLIDED with the first, which is the legend-with-identical-swatches bug in
+ * a new disguise, merely waiting for the corpus to grow one more topic past
+ * the floor.
+ *
+ * Same-hue-different-lightness pairs are less separated than the measured base
+ * palette, which is accepted: they only exist past sixteen communities, and a
+ * legend distinguishes them by label while the swatches still differ.
+ */
+export function colourForSlot(slot: number): string {
+  const base = COMMUNITY_COLOURS[slot % COMMUNITY_COLOURS.length];
+  const round = Math.floor(slot / COMMUNITY_COLOURS.length);
+  if (round === 0) return base;
+  // Rounds alternate lighter/darker and step outward, so every round lands on
+  // a lightness no earlier round used: +0.14, -0.14, +0.28, -0.28, ...
+  const step = Math.ceil(round / 2) * 0.14;
+  return shiftLightness(base, round % 2 === 1 ? step : -step);
 }
 
 /** Corpus-unaware colouring, used only before facets arrive. */
 export const colourForCommunity = communityColourScale(null);
 
-/** How far an inferred colour is pulled toward the background. */
-export const INFERRED_FADE = 0.6;
+/** Direct-neighbour evidence at which an inferred colour reaches full strength. */
+export const INFERENCE_SATURATES_AT = 5;
+
+/**
+ * Ceiling on inferred strength. Deliberately below 1: an entry that borrowed
+ * its colour must never render identically to one that authored a topic, no
+ * matter how many neighbours agree. The remaining pastel is the tell.
+ */
+export const MAX_INFERRED_STRENGTH = 0.8;
+
+/**
+ * Per-hop attenuation for chains of topicless entries: a second-hop vote is
+ * worth 35% of a first-hop vote, a third-hop 12%, and so on. Small enough that
+ * the residual visibly dies along a chain; the hop cap makes it exactly zero.
+ */
+export const CHAIN_DECAY = 0.35;
+
+/** Hops beyond which no residual colour travels at all. */
+export const CHAIN_MAX_HOPS = 3;
 
 type EdgeLike = { source: string; target: string };
 
@@ -122,14 +164,27 @@ type EdgeLike = { source: string; target: string };
  * work. Tinting it toward that community restores the context without
  * inventing membership.
  *
- * DIRECT NEIGHBOURS ONLY, one hop, never transitively. Propagating inferred
- * colours would be label propagation - a clustering algorithm - and choosing a
- * clustering algorithm is exactly the decision that authored-topic communities
- * were adopted to avoid. An inferred colour is never itself a source.
+ * Three rules are encoded, and their order matters:
  *
- * The fade is the honesty: it is deliberately weak enough that an inferred node
- * never reads as a full member. Ties break on community id so the result does
- * not depend on edge order.
+ * WHICH communities - the colour is a weighted perceptual blend across every
+ * community voting for the node, so an entry between two of them looks like it
+ * is between them rather than confidently one of them.
+ *
+ * HOW MUCH evidence - strength scales with the weight of votes, so one link is
+ * barely tinted and five agreeing links are nearly the full colour, capped
+ * below full: an inferred node must never be mistakable for an authored one.
+ *
+ * HOW FAR - residual colour travels down CHAINS OF TOPICLESS ENTRIES, decaying
+ * by CHAIN_DECAY per hop and stopping dead at CHAIN_MAX_HOPS. Every walk seeds
+ * at a topic -> no-topic edge and moves only through topicless nodes:
+ * classified entries never receive residue (they have their own colour) and
+ * never relay it (their colour already speaks for them, at full strength, one
+ * hop into the chain). This is deliberately NOT label propagation - nothing
+ * iterates to convergence, nothing is ever assigned a membership, and the
+ * bounded decay guarantees the tint dies out instead of flooding a component.
+ * An earlier version forbade transitivity outright; JNL chose the bounded
+ * residual instead, and the hop cap plus topicless-only corridor is what keeps
+ * that choice distinct from running a clustering algorithm.
  *
  * Caveat worth knowing: unlike an authored community colour, this one CAN
  * change as more of the graph loads, because it depends on which neighbours are
@@ -140,37 +195,92 @@ export function inferredCommunityColours(
   nodes: readonly RendererGraphNode[],
   edges: readonly EdgeLike[],
   colourOf: (node: RendererGraphNode) => string,
-  fadeToward: string,
-  fade: number = INFERRED_FADE,
+  saturatesAt: number = INFERENCE_SATURATES_AT,
 ): Map<string, string> {
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const assigned = (node: RendererGraphNode) =>
     (node.community.fingerprint || node.community.id).startsWith(TOPIC_PREFIX);
 
-  const neighbourCommunities = new Map<string, Map<string, number>>();
-  const note = (nodeId: string, neighbourId: string) => {
-    const self = byId.get(nodeId);
-    const neighbour = byId.get(neighbourId);
-    if (!self || !neighbour || assigned(self) || !assigned(neighbour)) return;
-    const tally = neighbourCommunities.get(nodeId) ?? new Map<string, number>();
-    tally.set(neighbour.community.id, (tally.get(neighbour.community.id) ?? 0) + 1);
-    neighbourCommunities.set(nodeId, tally);
+  const adjacency = new Map<string, string[]>();
+  const link = (from: string, to: string) => {
+    const out = adjacency.get(from) ?? [];
+    out.push(to);
+    adjacency.set(from, out);
   };
   for (const edge of edges) {
-    note(edge.source, edge.target);
-    note(edge.target, edge.source);
+    link(edge.source, edge.target);
+    link(edge.target, edge.source);
   }
 
   const exemplar = new Map<string, RendererGraphNode>();
   for (const node of nodes) if (assigned(node) && !exemplar.has(node.community.id)) exemplar.set(node.community.id, node);
 
+  // Per topicless node: community id -> accumulated vote weight. Seeded ONLY
+  // at topic -> no-topic pairings, then walked outward through topicless nodes
+  // with the vote decaying per hop. Each seed's walk visits a node once (the
+  // strongest, i.e. shortest, path wins) so a cycle cannot re-inflate votes.
+  const votes = new Map<string, Map<string, number>>();
+  const cast = (nodeId: string, communityId: string, weight: number) => {
+    const tally = votes.get(nodeId) ?? new Map<string, number>();
+    tally.set(communityId, (tally.get(communityId) ?? 0) + weight);
+    votes.set(nodeId, tally);
+  };
+  for (const seed of nodes) {
+    if (!assigned(seed)) continue;
+    const communityId = seed.community.id;
+    // Breadth-first from this classified node. Every step - including the
+    // first - may only ENTER a topicless node, so the walk necessarily starts
+    // at a topic -> no-topic pairing and the corridor it travels is topicless
+    // by construction. Classified nodes are origins, never waypoints.
+    const depth = new Map<string, number>();
+    let frontier: string[] = [];
+    for (const neighbour of adjacency.get(seed.id) ?? []) {
+      const node = byId.get(neighbour);
+      if (!node || assigned(node) || depth.has(neighbour)) continue;
+      depth.set(neighbour, 1);
+      frontier.push(neighbour);
+    }
+    while (frontier.length) {
+      const next: string[] = [];
+      for (const current of frontier) {
+        const hops = depth.get(current)!;
+        cast(current, communityId, CHAIN_DECAY ** (hops - 1));
+        if (hops >= CHAIN_MAX_HOPS) continue;
+        for (const neighbour of adjacency.get(current) ?? []) {
+          const node = byId.get(neighbour);
+          if (!node || assigned(node) || depth.has(neighbour)) continue;
+          depth.set(neighbour, hops + 1);
+          next.push(neighbour);
+        }
+      }
+      frontier = next;
+    }
+  }
+
   const inferred = new Map<string, string>();
-  for (const [nodeId, tally] of neighbourCommunities) {
-    const [winner] = [...tally.entries()].sort(
-      (left, right) => right[1] - left[1] || left[0].localeCompare(right[0]),
-    );
-    const source = exemplar.get(winner[0]);
-    if (source) inferred.set(nodeId, mixHex(colourOf(source), fadeToward, fade));
+  for (const [nodeId, tally] of votes) {
+    // BLEND across every community in proportion to its accumulated vote,
+    // rather than letting a majority take the node outright. An entry sitting
+    // between two communities genuinely sits between them, and a
+    // winner-takes-all colour would assert a membership the evidence does not
+    // support.
+    const weighted: Array<readonly [string, number]> = [];
+    let evidence = 0;
+    for (const [communityId, weight] of tally) {
+      const source = exemplar.get(communityId);
+      if (!source) continue;
+      weighted.push([colourOf(source), weight] as const);
+      evidence += weight;
+    }
+    if (!weighted.length) continue;
+    const blended = blendOklab(weighted);
+    // STRENGTH scales with the accumulated evidence. A single direct
+    // neighbour is a hint; five agreeing ones are close to a statement; and a
+    // node three hops down a chain holds a fraction of a vote, so it renders
+    // as the faint residue JNL asked for. Saturating rather than linear, so
+    // one-versus-two neighbours reads clearly while ten does not run away.
+    const strength = Math.min(MAX_INFERRED_STRENGTH, evidence / saturatesAt);
+    inferred.set(nodeId, mixHex(pastelOf(blended), blended, strength));
   }
   return inferred;
 }

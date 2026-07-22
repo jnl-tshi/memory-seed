@@ -139,11 +139,12 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
   // that are nowhere on screen.
   const legend = useMemo(() => communityLegend(renderedNodes, corpusTopics), [renderedNodes, corpusTopics]);
   const colourOf = useMemo(() => communityColourScale(corpusTopics), [corpusTopics]);
-  // Topicless nodes borrow a faded colour from the communities they connect to.
-  // Keyed on theme as well, because the fade blends toward the page background.
+  // Topicless nodes take a pastel blend of the communities that reach them
+  // (directly, or as decaying residue down a topicless chain). Pastel is a
+  // property of the community colour alone, so no theme dependency here.
   const inferredColours = useMemo(
-    () => inferredCommunityColours(renderedNodes, graph.edges, colourOf, themeToken("--bg", "#0f1512")),
-    [renderedNodes, graph.edges, colourOf, theme],
+    () => inferredCommunityColours(renderedNodes, graph.edges, colourOf),
+    [renderedNodes, graph.edges, colourOf],
   );
   const labelIds = useMemo(() => labelIdsFor(graph, selectedId, labelMode), [graph, labelMode, selectedId]);
   labelIdsRef.current = labelIds;
