@@ -103,6 +103,10 @@ class Facets(BaseModel):
     agents: dict[str, int]
     users: dict[str, int]
     topics: dict[str, int]
+    # Qualifying topics in colour-wheel order: co-occurring topics sit adjacent,
+    # so the renderer can hand out hues that form coherent neighbourhoods and
+    # paint multi-topic nodes as in-family mixtures.
+    topic_wheel: list[str]
 
 
 class ChunkSummary(BaseModel):

@@ -591,6 +591,13 @@
           "runtime": {
             "$ref": "#/components/schemas/FacetsRuntimeInfo"
           },
+          "topic_wheel": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Topic Wheel",
+            "type": "array"
+          },
           "topics": {
             "additionalProperties": {
               "type": "integer"
@@ -610,7 +617,8 @@
           "runtime",
           "agents",
           "users",
-          "topics"
+          "topics",
+          "topic_wheel"
         ],
         "title": "Facets",
         "type": "object"
