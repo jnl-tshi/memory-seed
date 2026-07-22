@@ -56,6 +56,8 @@ type SimulationHandle = {
   pin: (id: string, position: { x: number; y: number } | null) => void;
   /** Re-read the force settings and apply them without restarting. */
   retune: () => void;
+  /** Save current positions without stopping — for a drag that woke nothing. */
+  persistNow: () => void;
   stop: () => void;
 };
 
@@ -110,9 +112,18 @@ function startSimulation(options: {
     .filter((edge) => byId.has(edge.source) && byId.has(edge.target))
     .map((edge) => ({ source: edge.source, target: edge.target }));
 
+  // Nodes the pointer is currently holding. The simulation reads their position
+  // and never writes it: while a node is grabbed, Cytoscape owns where it is.
+  // Painting over a grabbed node makes it snap back to the last tick's position
+  // every frame, which feels exactly like the node being locked in place.
+  const grabbed = new Set<string>();
+
   const paint = () => {
     cy.batch(() => {
-      for (const node of simNodes) cy.getElementById(node.id).position({ x: node.x, y: node.y });
+      for (const node of simNodes) {
+        if (grabbed.has(node.id)) continue;
+        cy.getElementById(node.id).position({ x: node.x, y: node.y });
+      }
     });
   };
 
@@ -204,14 +215,30 @@ function startSimulation(options: {
       const node = byId.get(id);
       if (!node) return;
       if (position) {
+        grabbed.add(id);
+        // Anchor the simulation's copy to where the pointer has it, so the pull
+        // travels outward through the links from the node's REAL position.
         node.fx = position.x;
         node.fy = position.y;
+        node.x = position.x;
+        node.y = position.y;
       } else {
+        grabbed.delete(id);
         delete node.fx;
         delete node.fy;
       }
     },
     retune: () => applyForces?.(),
+    // Fixed-mode drags never wake the loop, so nothing would otherwise write
+    // the new position into the cache and a remount would undo the arrangement.
+    persistNow: () => {
+      for (const node of simNodes) {
+        const live = cy.getElementById(node.id).position();
+        node.x = live.x;
+        node.y = live.y;
+      }
+      persist();
+    },
     stop: () => {
       // Persist wherever it got to, so a mid-flight unmount does not discard
       // the arrangement the reader was looking at.
@@ -497,23 +524,25 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       // and it is LOCAL-ONLY in the storage sense - positions go to the
       // renderer's settled cache and nowhere else. No refetch, no remount, and
       // nothing is ever written back to Markdown.
+      // Pinning happens in BOTH drag modes: it is what stops the simulation
+      // painting over a node the pointer is holding. Only the reheat differs —
+      // that is what decides whether the rest of the graph responds.
       cy.on("grab", "node", (event) => {
-        if (dragResponseRef.current !== "reheat") return;
-        const id = event.target.id();
-        simulation.current?.pin(id, event.target.position());
-        simulation.current?.reheat(0.5);
+        simulation.current?.pin(event.target.id(), event.target.position());
+        if (dragResponseRef.current === "reheat") simulation.current?.reheat(0.5);
       });
       cy.on("drag", "node", (event) => {
-        if (dragResponseRef.current !== "reheat") return;
         // The pointer owns the grabbed node; the simulation follows it, so the
         // pull propagates outward through the links rather than fighting it.
         simulation.current?.pin(event.target.id(), event.target.position());
+        if (dragResponseRef.current === "reheat") simulation.current?.reheat(0.3);
       });
       cy.on("free", "node", (event) => {
         // Unpin and let it cool. Alpha decay does the rest — no cooling timer,
         // because rest is the simulation's own resting state now.
         simulation.current?.pin(event.target.id(), null);
-        simulation.current?.reheat(0.2);
+        if (dragResponseRef.current === "reheat") simulation.current?.reheat(0.2);
+        else simulation.current?.persistNow();
       });
       cytoscape.current = cy;
       // Debug/parity surface (same pattern as the Trail's memoryTraceNextDebug
