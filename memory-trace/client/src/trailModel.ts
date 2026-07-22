@@ -112,39 +112,13 @@ export function compareTrailNodes(a: TrailEvent, b: TrailEvent): number {
 
 // Pastel companion for decision child rows: same hue as the branch colour,
 // lifted toward light and desaturated so D2..DN read as "part of D1's entry"
-// rather than new events. Pure hex->HSL->hex math (this module is
-// deliberately framework- and DOM-free), tuned to stay legible on both the
-// warm-light and charcoal-dark themes.
-export function pastelOf(hex: string): string {
-  const value = hex.replace("#", "");
-  const r = parseInt(value.slice(0, 2), 16) / 255;
-  const g = parseInt(value.slice(2, 4), 16) / 255;
-  const b = parseInt(value.slice(4, 6), 16) / 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const delta = max - min;
-  let h = 0;
-  if (delta > 0) {
-    if (max === r) h = ((g - b) / delta + (g < b ? 6 : 0)) / 6;
-    else if (max === g) h = ((b - r) / delta + 2) / 6;
-    else h = ((r - g) / delta + 4) / 6;
-  }
-  const s = 0.42;
-  const l = 0.74;
-  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-  const p = 2 * l - q;
-  const channel = (t: number) => {
-    let x = t;
-    if (x < 0) x += 1;
-    if (x > 1) x -= 1;
-    if (x < 1 / 6) return p + (q - p) * 6 * x;
-    if (x < 1 / 2) return q;
-    if (x < 2 / 3) return p + (q - p) * (2 / 3 - x) * 6;
-    return p;
-  };
-  const toHex = (t: number) => Math.round(channel(t) * 255).toString(16).padStart(2, "0");
-  return `#${toHex(h + 1 / 3)}${toHex(h)}${toHex(h - 1 / 3)}`;
-}
+// rather than new events.
+//
+// The implementation moved to colour.ts when the graph needed the same pastel
+// for entries that borrow a colour from their neighbours. Re-exported rather
+// than relocated at the call sites, because "the Trail's pastel" is how this
+// is referred to throughout TrailWorkspace and its tests.
+export { pastelOf } from "./colour.ts";
 
 export function buildTrailModel(trail: TrailResponse, window: number): TrailModel {
   const nodes = (trail.nodes || [])
