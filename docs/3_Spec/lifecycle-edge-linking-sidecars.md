@@ -4,11 +4,21 @@ Status: IMPLEMENTED and reconciled 2026-07-16. This document is the live contrac
 format, read/validation semantics, and the inert `link audit --apply` scaffold workflow.
 As-built deviations from the original draft: ref extraction uses the wider
 `_TRAILER_ENTRY_ID_RE` (real corpus ids include non-Crockford letters; a strict regex silently
-dropped edges), and `link audit` generates candidates from title-term/file/topic overlap (no
-all-pairs semantic scan) with `--for <entry_id>` and `--date YYYY-MM-DD` scoping (the sweep audits
-only the session's own entries against the full corpus). Title-term overlap was added 2026-07-21;
-see [Candidate scoring](#candidate-scoring-2026-07-21) for what it changed and the measurement. Since 2026-07-15, `--apply` may create inert,
-idempotent `classify_pending` stubs; it never writes a live edge.
+dropped edges), and `link audit` generates candidates from title-term/file/topic overlap and RANKS them with model2vec
+semantic similarity, with `--for <entry_id>` and `--date YYYY-MM-DD` scoping (the sweep audits
+only the session's own entries against the full corpus). Title-term overlap was added 2026-07-21
+and semantic ranking 2026-07-22; see [Candidate scoring](#candidate-scoring-2026-07-21) for both
+measurements.
+
+> **Retracted 2026-07-22:** this paragraph previously claimed "no all-pairs semantic scan" as a
+> deliberate as-built choice. The implied cost was never measured and does not hold: embedding all
+> 544 entries takes 0.15 s after a 2.9 s model load, and the similarity matrix is instant at this
+> corpus size. Semantic similarity is now used — as a ranking term only, never to decide candidate
+> membership, because cosine is dense and would make every earlier entry a candidate for every
+> later one.
+
+Since 2026-07-15, `--apply` may create inert, idempotent `classify_pending` stubs; it never writes a
+live edge.
 Related: [graph-edge-contract.md](graph-edge-contract.md)
 Draft extension: [decision-level-link-sidecar-refs.md](draft/decision-level-link-sidecar-refs.md) — refs
 that terminate on a specific decision rather than a whole entry. Not implemented; every ref described
@@ -229,6 +239,16 @@ entry YAML across the corpus — human-confirmed, and predating the change that 
 |---|---|---|---|
 | files only | 73/102 | 44% | 51% |
 | + title terms | **92/102** | **59%** | **68%** |
+| + semantic ranking (2026-07-22) | **97/104** | **77%** | **82%** |
+
+The semantic row is measured end-to-end through the shipped `audit_link_gaps`, not a reimplementation
+of its scoring - the previous sweep's local copy of the scorer silently diverged from it. Method: for
+each author-declared edge, strip all declared `supersedes`/`evolves` from a corpus copy (the auditor
+suppresses pairs that already carry an edge, so leaving them in would measure nothing), then ask
+where the real target ranks. `SEMANTIC_OVERLAP_BOOST` is 160, chosen by sweep - recall@5 climbs to
+77% there and falls away again by 320, so it is a measured peak rather than the top of the range
+tried. With no provider installed the term is simply absent and ranking is lexical, which is the
+supported `--no-deps` install rather than a failure.
 
 The gain is in *reachability*, not reordering: median rank of the true target is 3 either way. File
 overlap alone cannot surface a predecessor that touched different files, which is most of what it

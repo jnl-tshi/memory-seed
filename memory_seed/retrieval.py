@@ -436,6 +436,37 @@ def augment_chunks_with_link_sidecars(
 # recall@10 52% -> 68%, and the true target's median rank 8 -> 3.
 TITLE_OVERLAP_BOOST = 2.0
 
+# Weight on model2vec cosine similarity between two entries' full text. Set by
+# a sweep against ground truth, not by taste - see the session entry for the
+# table. Large relative to the lexical boosts because cosine is bounded to
+# [0,1] while an idf sum is not; the two are on different scales, not
+# different importances.
+SEMANTIC_OVERLAP_BOOST = 160.0
+
+
+def _embed_entries_for_link_audit(chunks: list[MemoryChunk]) -> dict[str, Any] | None:
+    """L2-normalised embeddings per entry, or None when unavailable.
+
+    Returns None rather than raising on any failure - a missing provider is the
+    documented lightweight install (`pip install --no-deps memory-seed`), not an
+    error, and link audit must still produce lexical results there.
+    """
+    provider, _name, fallback = resolve_semantic_provider("link audit", enabled=True)
+    if provider is None or fallback:
+        return None
+    ids = [chunk.entry_id or "" for chunk in chunks]
+    try:
+        raw = provider.embed([f"{chunk.title}\n{chunk.text}" for chunk in chunks])
+    except Exception:
+        return None
+    vectors: dict[str, Any] = {}
+    for entry_id, vector in zip(ids, raw):
+        if not entry_id:
+            continue
+        norm = sum(value * value for value in vector) ** 0.5 or 1.0
+        vectors[entry_id] = [value / norm for value in vector]
+    return vectors
+
 # Title words that carry no discriminating signal in this corpus: workstream
 # labels and the verbs nearly every entry title opens with. Without these
 # removed, two unrelated entries both called "Phase 0 B0b: add ..." score as
@@ -515,6 +546,7 @@ def audit_link_gaps(
     entry_id: str | None = None,
     session_date: str | None = None,
     top_k: int = 5,
+    semantic_enabled: bool = True,
 ) -> list[LinkGap]:
     """Find entry pairs that share files or topics but carry no recorded edge.
 
@@ -599,6 +631,27 @@ def audit_link_gaps(
             | set(sidecar.get("evolves", ()))
         )
 
+    # Semantic similarity, when the embedding provider is available. Purely a
+    # RANKING term: cosine is dense - every pair scores non-zero - so using it
+    # to decide whether a pair is a candidate at all would make every earlier
+    # entry a candidate for every later one. The lexical gate below still
+    # decides membership; this only reorders what got through.
+    #
+    # Fails open exactly like search_memory: no provider means lexical-only
+    # scoring, which is the documented lightweight install, not an error.
+    vectors: dict[str, Any] | None = None
+    if semantic_enabled:
+        vectors = _embed_entries_for_link_audit(chunks)
+
+    def semantic_similarity(source_id: str, candidate_id: str) -> float:
+        if not vectors:
+            return 0.0
+        a = vectors.get(source_id)
+        b = vectors.get(candidate_id)
+        if a is None or b is None:
+            return 0.0
+        return max(0.0, float(sum(x * y for x, y in zip(a, b))))
+
     if entry_id is not None:
         targets = [by_id[entry_id]]
     elif session_date is not None:
@@ -637,6 +690,8 @@ def audit_link_gaps(
             score = FILE_OVERLAP_BOOST * sum(idf(ref) for ref in shared_files) + TITLE_OVERLAP_BOOST * sum(
                 title_idf(term) for term in shared_title
             )
+            similarity = semantic_similarity(tid, cid)
+            score += SEMANTIC_OVERLAP_BOOST * similarity
             candidates.append(
                 LinkGapCandidate(
                     entry_id=cid,
