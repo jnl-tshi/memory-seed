@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { ChevronDown, ChevronUp, GitBranch, LayoutPanelLeft, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, X } from "lucide-react";
 import { SettingsMenu, type InspectorDock, type Theme, type TrailStyle } from "./SettingsMenu";
-import { api, connectedNodeIds, DEFAULT_GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, SEARCH_LIMIT, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
+import { api, connectedNodeIds, DEFAULT_GRAPH_EDGE_TYPES, GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, SEARCH_LIMIT, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
 import { EntryReader, type DiagramSidecar } from "./EntryReader";
 import { DiagramViewer, type DiagramBlock } from "./DiagramViewer";
 import { readerScrollTarget } from "./inspectorScroll";
@@ -183,6 +183,9 @@ export default function App() {
   // runs over — it made Overview a "recent" view, not a true overview.
   const [range, setRange] = useState<GraphRange>("all");
   const [edgeTypes, setEdgeTypes] = useState<RendererGraphEdge["edge_type"][]>(DEFAULT_GRAPH_EDGE_TYPES);
+  // The edge types the CURRENT payload was fetched with, which is not the same
+  // as the types currently switched on: the chips filter what was fetched.
+  const fetchedEdgeTypes = useRef<RendererGraphEdge["edge_type"][]>(DEFAULT_GRAPH_EDGE_TYPES);
   // How many Overview nodes to ask the server for. The server's connectivity-
   // ranked selection (highest-degree seeds first, newest-first tie-break) only
   // truncates once the candidate pool exceeds this, so raising it via "Show
@@ -237,6 +240,9 @@ export default function App() {
     setIsLoading(true);
     try {
       setError(null);
+      // Remember what this payload was actually fetched with, so toggleEdge can
+      // tell a client-side filter change from one that needs the server.
+      fetchedEdgeTypes.current = nextEdgeTypes;
       const nextGraph = await graphQuery({
         entryId: entryId ?? (nextScope !== "overview" && nextScope !== "file" ? preferredEntryId : null),
         edgeTypes: nextEdgeTypes,
@@ -864,7 +870,19 @@ export default function App() {
   // which nodes are on the map, and never re-runs the layout. GraphWorkspace
   // applies it as an in-place presentation pass (see edge-filtered/EDGE_LABELS).
   function toggleEdge(edgeType: RendererGraphEdge["edge_type"]) {
-    setEdgeTypes((current) => (current.includes(edgeType) ? current.filter((item) => item !== edgeType) : [...current, edgeType]));
+    const next = edgeTypes.includes(edgeType) ? edgeTypes.filter((item) => item !== edgeType) : [...edgeTypes, edgeType];
+    setEdgeTypes(next);
+    // The chips are normally a client-side filter over the fetched payload, so
+    // toggling is instant. That only holds for types the payload CONTAINS.
+    // Since `topic` is no longer fetched by default, switching it on has to go
+    // back to the server or the chip would appear to do nothing - which is
+    // exactly what it did when the default changed without this.
+    //
+    // Only ENABLING an unfetched type refetches. Turning a type off, or turning
+    // one back on that is already in the payload, stays instant.
+    if (!fetchedEdgeTypes.current.includes(edgeType) && next.includes(edgeType)) {
+      void requestGraph(scope, activeTopic, next);
+    }
   }
 
   async function changeRange(nextRange: GraphRange) {
@@ -1020,7 +1038,7 @@ export default function App() {
             reasonable it reads in JSX — lands in an implicit fourth row and
             collapses the actual graph canvas to zero height instead. The
             Overview coverage readout has to live inside this same div. */}
-        {viewMode !== "trail" && scope !== "evolution" && scope !== "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{DEFAULT_GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}{scope === "overview" && graph && <span className="count">· {overviewShownCount} of {runtime?.entry_count ?? "…"} entries shown</span>}{scope === "overview" && graph && !overviewExhausted && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showMoreOverview()}>Show more</button>}</div>}
+        {viewMode !== "trail" && scope !== "evolution" && scope !== "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}{scope === "overview" && graph && <span className="count">· {overviewShownCount} of {runtime?.entry_count ?? "…"} entries shown</span>}{scope === "overview" && graph && !overviewExhausted && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showMoreOverview()}>Show more</button>}</div>}
         {viewMode !== "trail" && scope === "evolution" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span><span className="count">Evolves + Replaces only · lifecycle chain</span>{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
         {viewMode !== "trail" && scope === "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>File</span><span className="count" title={filePath ?? ""}>{"Entries that touched " + (filePath ?? "this file")}</span><button type="button" className="active-topic" onClick={() => void changeScope("overview")}>Clear<X size={13} aria-hidden="true" /></button></div>}
         {viewMode === "trail" ? (
