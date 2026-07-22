@@ -27,7 +27,35 @@ export type GraphQueryOptions = {
   path?: string | null;
 };
 
-export const DEFAULT_GRAPH_EDGE_TYPES: RendererGraphEdge["edge_type"][] = ["related", "supersedes", "evolves", "topic"];
+/** Every edge type the filter row offers. Order is the row's order. */
+export const GRAPH_EDGE_TYPES: RendererGraphEdge["edge_type"][] = ["related", "supersedes", "evolves", "topic"];
+
+/**
+ * The edge types switched ON initially - authored relationships only.
+ *
+ * `topic` is deliberately excluded and stays available as a chip. It is not an
+ * assertion about a pair of entries: the server builds it by grouping entries
+ * under a topic, sorting by time, and joining CONSECUTIVE ones (service.py
+ * `chain`). A topic edge therefore means "nothing else carrying this tag
+ * happened between these two" - an artefact of sort order, not a relationship.
+ * It also double-encodes what node colour now says, since communities are
+ * named after authored topics.
+ *
+ * Measured on the real corpus, with THIS edge set rather than the server's
+ * default: including topic returns 1000 edges - the cap, i.e. TRUNCATED - as
+ * related 533 / evolves 127 / supersedes 6 / topic 334. Excluding it returns
+ * 666, comfortably under the cap. So topic edges were not merely spending
+ * budget, they were crowding authored edges out of the response entirely, and
+ * the 334 topic edges that survived were themselves an arbitrary slice of a
+ * larger set. Without them the graph carries EVERY authored relationship.
+ *
+ * The cost, also measured: 152 of 562 nodes are touched by no other edge and so
+ * stop rendering. They skew OLD, not recent - 100% of May entries, 49% of June,
+ * 16% of July - because lifecycle linking began later. Those entries genuinely
+ * have no authored relationship, and drawing them as connected was the graph
+ * asserting something untrue.
+ */
+export const DEFAULT_GRAPH_EDGE_TYPES: RendererGraphEdge["edge_type"][] = ["related", "supersedes", "evolves"];
 
 export function isCanonicalEntryId(value: string): boolean {
   return /^(?:mse_[A-Za-z0-9_-]+|ms-[A-Za-z0-9_-]+)$/.test(value.trim());
