@@ -235,7 +235,8 @@ class SessionSchemaTests(unittest.TestCase):
             "compact_mermaid_diagrams.md": (
                 "Compact Mermaid Diagrams Skill",
                 "compact, rectangular Mermaid diagrams",
-                "invisible `~~~` links",
+                "`subgraph` Is Not Parsed In Sidecars",
+                "is the only arrow that works",
                 "No single node sits alone",
             ),
             "end_of_turn.md": (
