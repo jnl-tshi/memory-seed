@@ -336,6 +336,33 @@ Use when:
 
 Selecting a community should expand into its local detailed graph.
 
+### 6.5 Motion and force exploration
+
+Motion is an exploration affordance, not evidence. A moving position must never imply a changed
+relationship, timestamp, rank, or authoritative graph fact; all simulation state remains local and
+rebuildable.
+
+The default is **Settled**:
+
+- run the selected topology or temporal layout to its bounded convergence budget;
+- cache the resulting positions by dataset, scope, layout mode, temporal settings, and renderer version;
+- restore an exact cache match without rerunning the simulation; and
+- keep the graph still while a person reads, selects, searches, or changes Inspector dock position.
+
+Provide two optional exploration behaviours:
+
+- **Animate layout** — visibly interpolate force iterations from the current layout to the new settled
+  layout when the user explicitly requests it. It is useful for understanding how a community or temporal
+  force affects a bounded graph, but ends by returning to the same cached settled state as the default.
+- **Reheat on drag** — after a deliberate node drag, briefly re-run local forces so neighbouring nodes can
+  respond, then cool and persist the resulting positions in the local renderer cache. It never writes
+  positions to Markdown or changes the graph projection.
+
+Continuous physics is permitted only for a bounded exploratory graph (initially at most 150 visible
+nodes). Above that threshold, the UI must use a short end-state transition or Settled mode and explain
+why live motion is unavailable. This follows the measured layout profile: force layout remains useful at
+the default scale but cannot be allowed to monopolise the main thread on larger graphs.
+
 ## 7. Renderer evaluation
 
 ### 7.1 vis-network
@@ -419,6 +446,14 @@ Layout:
   Evolution hierarchy
   Community overview
 
+Motion:
+  Settled (default)
+  Animate layout
+
+Drag response:
+  Fixed
+  Reheat on drag
+
 Temporal drift:
   Off
   Mild
@@ -450,6 +485,8 @@ Required interactions:
 
 - smooth pan and zoom;
 - search and animated focus;
+- explicit force-layout animation for bounded exploration, with stop/reset controls;
+- optional reheat-on-drag response that cools to a stable cached layout;
 - hover neighbour emphasis;
 - selection that updates the shared inspector;
 - progressive label disclosure;
@@ -505,6 +542,8 @@ viewport
 community_colour_map
 selected_node
 hidden_communities
+motion_mode
+drag_response
 ```
 
 ## 11. Accessibility
@@ -515,6 +554,8 @@ hidden_communities
 - Search results must be keyboard navigable.
 - Selected-node changes must be announced to assistive technology.
 - Reduced-motion mode disables animated focus and non-essential physics transitions.
+- `prefers-reduced-motion` selects Settled mode and disables reheat-on-drag by default; an animation
+  preference must remain visible and reversible rather than being silently inferred from motion alone.
 - High-contrast themes must preserve community differentiation.
 - Temporal direction must be stated textually in the graph legend.
 
@@ -562,6 +603,15 @@ Phases A-B are **B0a pre-React** work. They settle contracts and evidence withou
 - add Off, Mild, and Strong controls;
 - validate that communities remain recognisable.
 
+### Phase D1 — B0b bounded force motion
+
+- retain Settled as the default and route every layout result through the existing position cache;
+- add Animate layout as an explicit, cancellable presentation mode for bounded node sets;
+- add Fixed/Reheat-on-drag response, with a cooling cap and no graph-data refetch or renderer remount;
+- apply the 150-visible-node live-motion threshold and an end-state/Settled fallback above it;
+- respect reduced-motion preferences and preserve the list/table equivalent throughout motion;
+- measure interaction frame rate, convergence time, and main-thread cost separately from data loading.
+
 ### Phase E — B0b density and aggregation
 
 - add community overview;
@@ -584,6 +634,14 @@ Phases A-B are **B0a pre-React** work. They settle contracts and evidence withou
 - Horizontal orientation pulls older nodes left and newer nodes right.
 - Vertical orientation pulls older nodes down and newer nodes up.
 - Topology remains recognisable under temporal drift.
+- Settled remains the default, and an exact cached graph remount restores positions with no simulation.
+- Animate layout is opt-in, cancellable, and finishes at the same settled positions as non-animated layout.
+- Reheat-on-drag changes only local renderer positions; it performs no graph-data request and never authors
+  a position or relationship into Markdown.
+- Live force animation is unavailable above the bounded visible-node threshold, with a clear end-state
+  fallback rather than a degraded or frozen page.
+- Reduced-motion preferences disable non-essential force motion and keep every graph action available by
+  keyboard and through the list/table equivalent.
 - Exact timestamps remain available in the inspector.
 - Directed lifecycle edges retain their canonical direction.
 - Graph-to-Trail and Trail-to-graph transitions preserve selection.
@@ -597,6 +655,8 @@ Phases A-B are **B0a pre-React** work. They settle contracts and evidence withou
 |---|---|
 | Community colours change after rebuild | Stable fingerprint and overlap-based colour reassignment |
 | Temporal force damages cluster readability | Mild default, explicit Off control, fixture-based threshold |
+| Continuous force simulation blocks reading or input | Settled default, bounded live-motion threshold, cancellable cooling budget, and end-state fallback |
+| Motion implies false historical evidence | Explain motion as renderer-local exploration; preserve exact dates in Inspector and Trail |
 | Users infer exact chronology from approximate position | Legend, inspector timestamps, Trail transition |
 | Renderer becomes tightly coupled to API shapes | Renderer-neutral projection contract |
 | Graph bundle becomes too large | Lazy loading and bundle budgets |
