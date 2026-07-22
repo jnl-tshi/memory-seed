@@ -11,6 +11,7 @@ YYYY-MM grouped paths are supported.
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -130,6 +131,53 @@ def offer_identity_setup():
         "those initials. Not needed for solo work, and configuring it alone does not "
         "split session logs into per-user files - that only happens once a second "
         "participant is registered."
+    )
+
+
+def checkout_note():
+    """Name the checkout when it is the shared primary one; stay silent otherwise.
+
+    Worktree identity is measured, never declared. A harness banner, a task packet,
+    or a bare `.../worktrees/<session>` directory can each assert an isolated
+    worktree that was never created; git then resolves every command up to the
+    primary checkout while the agent writes into shared state believing it is
+    isolated. This fires at SessionStart because it is the only surface that runs
+    regardless of whether the agent orients - `situate` reports the same fact, but
+    an agent that never runs it never sees it.
+
+    A linked worktree has its own git dir under `<common>/worktrees/<name>`, so
+    `--git-dir` and `--git-common-dir` differ there and are equal in the primary
+    checkout. Fails open: a hook must never break a session.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel", "--git-dir", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    lines = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    if len(lines) < 3:
+        return None
+    toplevel, git_dir, common_dir = lines[0], lines[1], lines[2]
+    try:
+        if Path(git_dir).resolve() != Path(common_dir).resolve():
+            return None  # linked worktree: already isolated, nothing to say
+    except OSError:
+        return None
+    return (
+        f"WORKTREE POSTURE - this is the PRIMARY checkout ({toplevel}). It is shared, "
+        "not an isolated worktree, and this is measured from the current directory: if a "
+        "harness banner, a task packet, or a directory named `.../worktrees/<session>` "
+        "told you otherwise, that claim is wrong. Read-only work is fine here. Before "
+        "non-trivial writes, create an agent-owned worktree and verify it after creating "
+        "it (see `.memory-seed/skills/agent_collaboration.md`) - another agent may be "
+        "working in this same checkout, and branching from a base you never verified is "
+        "how one session's work lands on another's branch."
     )
 
 
@@ -277,6 +325,10 @@ parts = [
     "`.memory-seed/sessions/` files to establish current project context. Do not "
     "use semantic or lexical search to determine what is latest.",
 ]
+posture_note = checkout_note()
+if posture_note:
+    parts.append("")
+    parts.append(posture_note)
 if user:
     candidates = [doc for doc in docs if doc["user"] == user]
 else:

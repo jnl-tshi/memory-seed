@@ -21,6 +21,11 @@ All notable changes to Memory Seed are summarized here.
   before writing when the checkout is shared; `agent_collaboration.md` extends
   the same rule to *after* a create (a `git worktree add` can half-fail, and
   trusting the create is the same error as trusting the banner, one step later).
+  `session-start-context.py` carries the same note at **SessionStart**, which is
+  the only surface that fires whether or not an agent orients: it names the
+  primary checkout and points at the worktree workflow, and stays silent inside
+  a real linked worktree (`--git-dir` and `--git-common-dir` differ there) so a
+  correctly-isolated session is never nagged. Stdlib-only and fail-open.
 
 - **Memory Trace incremental startup.** A changed project (new commit, merge,
   or dirty session file) no longer triggers a full projection rebuild that

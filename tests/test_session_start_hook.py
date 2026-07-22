@@ -262,6 +262,62 @@ class SessionStartContextHookTests(unittest.TestCase):
         self.assertIn("Here is an example heading we quote", context)
         self.assertIn("real entry trailing content", context)
 
+    def _git(self, cwd, *args):
+        import subprocess
+
+        subprocess.run(["git", "-C", str(cwd), *args], check=True, capture_output=True)
+
+    def _init_repo(self, path):
+        self._git(path, "init", "-b", "main")
+        self._git(path, "config", "user.email", "t@example.com")
+        self._git(path, "config", "user.name", "T")
+        (path / "f.txt").write_text("x\n", encoding="utf-8")
+        self._git(path, "add", "-A")
+        self._git(path, "commit", "-m", "base")
+
+    def test_worktree_posture_fires_in_the_primary_checkout_and_from_a_phantom_path(self):
+        # The note exists because worktree identity gets DECLARED rather than
+        # measured: a harness banner or a bare `.../worktrees/<session>` directory
+        # can assert an isolated worktree that was never created. Both the repo root
+        # and such a phantom path resolve to the same shared checkout, so both must
+        # be told so - at SessionStart, which fires whether or not the agent orients.
+        import json
+
+        project = self.make_project({"2026-02-01.md": "## 2026-02-01 09:00 - E\n\nBody.\n"})
+        self._init_repo(project)
+
+        for cwd in (project, project / ".claude" / "worktrees" / "session-x"):
+            cwd.mkdir(parents=True, exist_ok=True)
+            context = json.loads(self._run(cwd))["hookSpecificOutput"]["additionalContext"]
+            self.assertIn("WORKTREE POSTURE", context)
+            self.assertIn("PRIMARY checkout", context)
+            self.assertIn("agent_collaboration.md", context)
+
+    def test_worktree_posture_is_silent_inside_a_real_worktree(self):
+        # Discriminating counterpart: a correctly-isolated agent must not be nagged,
+        # or the note becomes noise every session and gets tuned out.
+        import json
+
+        project = self.make_project({"2026-02-01.md": "## 2026-02-01 09:00 - E\n\nBody.\n"})
+        self._init_repo(project)
+        real = project / ".claude" / "worktrees" / "session-y"
+        self._git(project, "worktree", "add", "-b", "claude/fix/topic", str(real))
+
+        context = json.loads(self._run(real))["hookSpecificOutput"]["additionalContext"]
+
+        self.assertNotIn("WORKTREE POSTURE", context)
+
+    def test_worktree_posture_fails_open_outside_git(self):
+        # A hook must never break a session; no git repo means no note, not a crash.
+        import json
+
+        project = self.make_project({"2026-02-01.md": "## 2026-02-01 09:00 - E\n\nBody.\n"})
+
+        context = json.loads(self._run(project))["hookSpecificOutput"]["additionalContext"]
+
+        self.assertNotIn("WORKTREE POSTURE", context)
+        self.assertIn("STARTUP INSTRUCTIONS", context)
+
     def test_seed_and_live_hook_match(self):
         live = Path(".memory-seed/hooks/session-start-context.py")
         seed = Path("memory_seed/seed/.memory-seed/hooks/session-start-context.py")
