@@ -4,7 +4,7 @@ import { Maximize2, Minus, Plus } from "lucide-react";
 import { connectedNodeIds, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
 import { layoutIterations, nodeSetSignature, seedPositions, type Point } from "./graphLayout";
 import { outrankedEdgeIds } from "./graphEdges";
-import { authoredBorderColour, communityColourScale, communityLegend, hasAuthoredCommunity, inferredCommunityColours } from "./graphCommunities";
+import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, hasAuthoredCommunity, inferredCommunityColours } from "./graphCommunities";
 
 type GraphWorkspaceProps = {
   graph: RendererGraphResponse;
@@ -15,6 +15,9 @@ type GraphWorkspaceProps = {
   // Corpus-wide topic counts, so community colours are assigned from the whole
   // corpus rather than from whatever subset is currently loaded.
   corpusTopics: Readonly<Record<string, number>> | null;
+  // Server-computed colour-wheel order (co-occurring topics adjacent), so hues
+  // form coherent neighbourhoods and multi-topic mixtures stay in-family.
+  topicWheel: readonly string[] | null;
   // Which edge types are switched on in the "Edges" filter row. Obsidian-style:
   // this only toggles line visibility on the graph already in memory — it must
   // never drive which nodes are rendered or trigger a re-layout.
@@ -54,7 +57,7 @@ function labelIdsFor(graph: RendererGraphResponse, selectedId: string | null, la
 let settledSignature = "";
 const settledPositions = new Map<string, Point>();
 
-export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, visibleEdgeTypes, corpusTopics }: GraphWorkspaceProps) {
+export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, visibleEdgeTypes, corpusTopics, topicWheel }: GraphWorkspaceProps) {
   const container = useRef<HTMLDivElement>(null);
   const cytoscape = useRef<Core | null>(null);
   // Refs so the tap handler and selection effect never force an instance remount.
@@ -137,8 +140,14 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
   // Counted over renderedNodes, not graph.nodes: a node with no edge is not
   // drawn, so counting the payload would advertise swatches for communities
   // that are nowhere on screen.
-  const legend = useMemo(() => communityLegend(renderedNodes, corpusTopics), [renderedNodes, corpusTopics]);
-  const colourOf = useMemo(() => communityColourScale(corpusTopics), [corpusTopics]);
+  const legend = useMemo(() => communityLegend(renderedNodes, corpusTopics, topicWheel), [renderedNodes, corpusTopics, topicWheel]);
+  const colourOf = useMemo(() => communityColourScale(corpusTopics, topicWheel), [corpusTopics, topicWheel]);
+  // Authored fill is the MIXTURE of a node's qualifying topics; falls back to
+  // the pure community colour when the mixture cannot be built.
+  const fillOf = useMemo(
+    () => (node: RendererGraphNode) => authoredNodeColour(node, corpusTopics, topicWheel) ?? colourOf(node),
+    [corpusTopics, topicWheel, colourOf],
+  );
   // Topicless nodes take a pastel blend of the communities that reach them
   // (directly, or as decaying residue down a topicless chain). Pastel is a
   // property of the community colour alone, so no theme dependency here.
@@ -186,7 +195,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
         container: container.current,
         elements: [
           ...renderedNodes.map((node) => {
-            const colour = inferredColours.get(node.id) ?? colourOf(node);
+            const colour = inferredColours.get(node.id) ?? (hasAuthoredCommunity(node) ? fillOf(node) : colourOf(node));
             return {
               data: {
                 id: node.id,

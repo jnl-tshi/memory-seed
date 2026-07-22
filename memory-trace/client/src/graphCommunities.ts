@@ -55,13 +55,66 @@ const TOPIC_PREFIX = "topic:";
  */
 export const COMMUNITY_TOPIC_FLOOR = 10;
 
-/** Topic -> palette slot, from corpus-wide counts. */
-function colourSlots(corpusTopics: Readonly<Record<string, number>> | null): Map<string, number> {
-  const qualifying = Object.entries(corpusTopics ?? {})
-    .filter(([, count]) => count >= COMMUNITY_TOPIC_FLOOR)
-    .map(([topic]) => topic)
-    .sort();
+/**
+ * Topic -> palette slot.
+ *
+ * When the server's `topic_wheel` is available, slots follow it: the wheel is
+ * a circular seriation of topic CO-OCCURRENCE, and the base palette is a hue
+ * circle, so wheel-adjacent topics land on adjacent hues. That is what makes
+ * communities read as colour NEIGHBOURHOODS (memory-trace sits beside
+ * ui-design, which co-occurs with it on 82 entries, instead of a third of the
+ * wheel away by spelling) - and what lets a multi-topic node's mixed colour
+ * stay in-family rather than cancelling toward mud.
+ *
+ * Without the wheel (facets not yet loaded), alphabetical order keeps the old
+ * behaviour as a stable fallback.
+ */
+function colourSlots(
+  corpusTopics: Readonly<Record<string, number>> | null,
+  wheel: readonly string[] | null,
+): Map<string, number> {
+  const qualifying = wheel?.length
+    ? wheel.filter((topic) => (corpusTopics?.[topic] ?? COMMUNITY_TOPIC_FLOOR) >= COMMUNITY_TOPIC_FLOOR)
+    : Object.entries(corpusTopics ?? {})
+        .filter(([, count]) => count >= COMMUNITY_TOPIC_FLOOR)
+        .map(([topic]) => topic)
+        .sort();
   return new Map(qualifying.map((topic, index) => [topic, index]));
+}
+
+/** Colour by topic SLUG - the per-topic view the node mixture is built from. */
+export function topicColourScale(
+  corpusTopics: Readonly<Record<string, number>> | null,
+  wheel: readonly string[] | null = null,
+): (slug: string) => string | null {
+  const slots = colourSlots(corpusTopics, wheel);
+  return (slug) => {
+    const slot = slots.get(slug);
+    return slot === undefined ? null : colourForSlot(slot);
+  };
+}
+
+/**
+ * A node's authored colour is the MIXTURE of its qualifying topics.
+ *
+ * An entry tagged both `graph` and `memory-trace` is about both, and painting
+ * it purely as its community-naming topic hid that. The blend is a uniform
+ * OKLab mean, which only became viable with the wheel ordering: adjacent hues
+ * mix to the hue between them, where the alphabetical wheel mixed unrelated
+ * hues into grey. Single-topic nodes blend to exactly their community colour,
+ * so the legend swatch stays a faithful key for the majority case.
+ */
+export function authoredNodeColour(
+  node: RendererGraphNode,
+  corpusTopics: Readonly<Record<string, number>> | null,
+  wheel: readonly string[] | null = null,
+): string | null {
+  const bySlug = topicColourScale(corpusTopics, wheel);
+  const colours = (node.source?.topics ?? [])
+    .map(bySlug)
+    .filter((colour): colour is string => colour !== null);
+  if (!colours.length) return null;
+  return blendOklab(colours.map((colour) => [colour, 1] as const));
 }
 
 function hashSlot(value: string): number {
@@ -92,14 +145,13 @@ function hashSlot(value: string): number {
  */
 export function communityColourScale(
   corpusTopics: Readonly<Record<string, number>> | null,
+  wheel: readonly string[] | null = null,
 ): (node: RendererGraphNode) => string {
-  const slots = colourSlots(corpusTopics);
+  const bySlug = topicColourScale(corpusTopics, wheel);
   return (node) => {
     const fingerprint = node.community.fingerprint || node.community.id;
     if (!fingerprint.startsWith(TOPIC_PREFIX)) return UNASSIGNED_COLOUR;
-    const topic = fingerprint.slice(TOPIC_PREFIX.length);
-    const slot = slots.get(topic);
-    return colourForSlot(slot ?? hashSlot(fingerprint));
+    return bySlug(fingerprint.slice(TOPIC_PREFIX.length)) ?? colourForSlot(hashSlot(fingerprint));
   };
 }
 
@@ -324,8 +376,9 @@ export type CommunityLegendEntry = {
 export function communityLegend(
   nodes: readonly RendererGraphNode[],
   corpusTopics: Readonly<Record<string, number>> | null = null,
+  wheel: readonly string[] | null = null,
 ): CommunityLegendEntry[] {
-  const colourOf = communityColourScale(corpusTopics);
+  const colourOf = communityColourScale(corpusTopics, wheel);
   const groups = new Map<string, CommunityLegendEntry>();
   for (const node of nodes) {
     const id = node.community.id;

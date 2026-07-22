@@ -41,7 +41,7 @@ from memory_seed.semantic_cache import (
     rank_memory_chunks,
 )
 from memory_seed.topics import expand_topic_filter
-from .graph_projection import project_trace_graph
+from .graph_projection import MINIMUM_COMMUNITY_TOPIC_FREQUENCY, project_trace_graph
 
 
 ZOOMS = {"day": 24, "12h": 12, "6h": 6, "3h": 3}
@@ -1224,6 +1224,7 @@ class TraceService:
         self._derived_memo: tuple[int, tuple[list[MemoryChunk], dict[str, Any], dict[str, Any]]] | None = None
         self._link_sidecar_memo: tuple[int, dict[str, dict[str, Any]]] | None = None
         self._topic_frequency_memo: tuple[int, dict[str, int]] | None = None
+        self._topic_wheel_memo: tuple[int, list[str]] | None = None
 
     def topic_frequencies(self) -> dict[str, int]:
         """Corpus-wide topic counts, memoized per cache generation.
@@ -1242,6 +1243,40 @@ class TraceService:
                 counts[topic] = counts.get(topic, 0) + 1
         self._topic_frequency_memo = (generation, counts)
         return counts
+
+    def topic_wheel(self) -> list[str]:
+        """Qualifying topics in COLOUR-WHEEL order, memoized per generation.
+
+        Topics that co-occur on the same entries should sit next to each other
+        on the hue wheel, so that (a) related communities read as colour
+        neighbourhoods on the graph and (b) a node carrying several topics can
+        be painted their MIXTURE without going muddy - blending adjacent hues
+        stays in-family, blending opposite hues cancels to grey. Alphabetical
+        order (the previous rule) put `git-workflow` beside `graph` by spelling
+        and `memory-trace` a third of the wheel away from `ui-design` despite
+        82 shared entries.
+
+        The ordering is a circular seriation of the co-occurrence graph:
+        greedy nearest-neighbour from a deterministic start, then 2-opt until
+        no swap improves adjacent co-occurrence weight. Deterministic by
+        construction - no seed, ties broken alphabetically - because a colour
+        that changed between rebuilds would reintroduce exactly the
+        instability authored-topic communities exist to avoid.
+        """
+        generation = self.cache.generation()
+        if self._topic_wheel_memo is not None and self._topic_wheel_memo[0] == generation:
+            return self._topic_wheel_memo[1]
+        frequencies = self.topic_frequencies()
+        qualifying = sorted(t for t, c in frequencies.items() if c >= MINIMUM_COMMUNITY_TOPIC_FREQUENCY)
+        weight: dict[tuple[str, str], int] = {}
+        for chunk in self.cache.chunks(granularity="entry"):
+            present = sorted(set(_topics(chunk)) & set(qualifying))
+            for i, a in enumerate(present):
+                for b in present[i + 1:]:
+                    weight[(a, b)] = weight.get((a, b), 0) + 1
+        wheel = _seriate_circle(qualifying, weight)
+        self._topic_wheel_memo = (generation, wheel)
+        return wheel
 
     def _derived(self) -> tuple[list[MemoryChunk], dict[str, Any], dict[str, Any]]:
         """Augmented all-entry chunks + related graph + diagram-sidecar map,
@@ -1309,6 +1344,10 @@ class TraceService:
             "agents": dict(sorted(agents.items())),
             "users": dict(sorted(users.items())),
             "topics": dict(sorted(topics.items(), key=lambda item: (-item[1], item[0]))),
+            # Colour-wheel order for qualifying topics: co-occurring topics
+            # adjacent, so community hues form coherent neighbourhoods and a
+            # multi-topic node's mixed colour stays in-family.
+            "topic_wheel": self.topic_wheel(),
         }
 
     def search(
@@ -3300,6 +3339,49 @@ def _chunk_summary(chunk: MemoryChunk) -> dict[str, Any]:
 
 def _chunk_datetime(chunk: MemoryChunk) -> datetime:
     return chunk.entry_datetime or datetime.combine(chunk.session_date, datetime_time.min)
+
+
+def _seriate_circle(items: list[str], weight: dict[tuple[str, str], int]) -> list[str]:
+    """Order items on a circle so heavily co-occurring pairs sit adjacent.
+
+    Greedy nearest-neighbour from the best-connected item, then repeated 2-opt
+    segment reversals while any reversal raises total adjacent weight. Exact
+    circular seriation is TSP-shaped; at fifteen items this heuristic is
+    indistinguishable in practice and, unlike a solver, has no randomness to
+    stabilise. Ties break alphabetically at every step, so equal-weight
+    corpora produce identical wheels.
+    """
+    if len(items) < 3:
+        return list(items)
+    w = lambda a, b: weight.get((min(a, b), max(a, b)), 0)  # noqa: E731
+    start = max(items, key=lambda t: (sum(w(t, o) for o in items), t))
+    order = [start]
+    remaining = [t for t in items if t != start]
+    while remaining:
+        best = max(remaining, key=lambda t: (w(order[-1], t), t))
+        order.append(best)
+        remaining.remove(best)
+
+    def adjacent_total(sequence: list[str]) -> int:
+        return sum(w(sequence[i], sequence[(i + 1) % len(sequence)]) for i in range(len(sequence)))
+
+    improved = True
+    while improved:
+        improved = False
+        for i in range(len(order) - 1):
+            for j in range(i + 1, len(order)):
+                candidate = order[:i] + order[i:j + 1][::-1] + order[j + 1:]
+                if adjacent_total(candidate) > adjacent_total(order):
+                    order = candidate
+                    improved = True
+    # Canonical rotation/direction so the same cycle always serialises the same
+    # way: start at the alphabetically first item, run toward its greater
+    # neighbour.
+    pivot = order.index(min(order))
+    order = order[pivot:] + order[:pivot]
+    if len(order) > 2 and order[1] > order[-1]:
+        order = [order[0]] + order[1:][::-1]
+    return order
 
 
 def _topics(chunk: MemoryChunk) -> list[str]:

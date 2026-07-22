@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { hexToOklab, minimumSeparation, oklabDistance } from "./colour.ts";
 import {
+  authoredNodeColour,
   colourForCommunity,
   colourForSlot,
   COMMUNITY_COLOURS,
@@ -10,6 +11,7 @@ import {
   communityLegend,
   inferredCommunityColours,
   MINIMUM_COLOUR_SEPARATION,
+  topicColourScale,
   UNASSIGNED_COLOUR,
 } from "./graphCommunities.ts";
 
@@ -218,6 +220,59 @@ test("ties do not depend on edge order", () => {
 test("a topicless island with no classified contact stays neutral", () => {
   const inferred = inferredCommunityColours([node("a", null), node("b", null)], [edge("a", "b")], scale);
   assert.equal(inferred.size, 0);
+});
+
+// --- Wheel ordering and topic mixtures ---
+
+const WHEEL = ["ui-design", "memory-trace", "graph", "retrieval", "documentation", "memory-seed", "release"];
+
+test("the wheel decides hue order, not the alphabet", () => {
+  const bySlug = topicColourScale(CORPUS_TOPICS, WHEEL);
+  // memory-trace is wheel-adjacent to ui-design, so their palette slots are
+  // consecutive; alphabetically they are far apart.
+  assert.equal(bySlug("ui-design"), colourForSlot(0));
+  assert.equal(bySlug("memory-trace"), colourForSlot(1));
+  assert.equal(bySlug("graph"), colourForSlot(2));
+});
+
+test("a topic missing from the wheel is not silently given a colour", () => {
+  const bySlug = topicColourScale(CORPUS_TOPICS, WHEEL);
+  assert.equal(bySlug("licensing"), null, "below-floor topics stay colourless");
+});
+
+test("a single-topic node's mixture is exactly its community colour", () => {
+  // The legend swatch stays a faithful key for the majority case.
+  const single = { ...node("a", "graph"), source: { topics: ["graph"] } } as never;
+  assert.equal(
+    authoredNodeColour(single, CORPUS_TOPICS, WHEEL),
+    topicColourScale(CORPUS_TOPICS, WHEEL)("graph"),
+  );
+});
+
+test("a multi-topic node is painted the mixture, between its topics", () => {
+  const bySlug = topicColourScale(CORPUS_TOPICS, WHEEL);
+  const mixed = { ...node("a", "graph"), source: { topics: ["graph", "memory-trace"] } } as never;
+  const blend = authoredNodeColour(mixed, CORPUS_TOPICS, WHEEL)!;
+  const pureGraph = bySlug("graph")!;
+  const pureTrace = bySlug("memory-trace")!;
+  assert.notEqual(blend, pureGraph);
+  assert.notEqual(blend, pureTrace);
+  // Between means between: closer to each parent than the parents are to
+  // each other.
+  const span = oklabDistance(pureGraph, pureTrace);
+  assert.ok(oklabDistance(blend, pureGraph) < span);
+  assert.ok(oklabDistance(blend, pureTrace) < span);
+});
+
+test("below-floor topics do not drag the mixture", () => {
+  const bySlug = topicColourScale(CORPUS_TOPICS, WHEEL);
+  const noisy = { ...node("a", "graph"), source: { topics: ["graph", "licensing"] } } as never;
+  assert.equal(authoredNodeColour(noisy, CORPUS_TOPICS, WHEEL), bySlug("graph"));
+});
+
+test("the mixture without any qualifying topic is null, never a guess", () => {
+  const bare = { ...node("a", null), source: { topics: ["licensing"] } } as never;
+  assert.equal(authoredNodeColour(bare, CORPUS_TOPICS, WHEEL), null);
 });
 
 test("every slot gets a unique colour, past the base palette too", () => {
