@@ -1059,7 +1059,7 @@ export default function App() {
                 nothing to do with a fixed lineage chain or a file's touches),
                 so a stale toggle left over from Overview/Local must not carry
                 through and blank out edges the user never chose to hide there. */}
-            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} theme={theme} visibleEdgeTypes={scope === "evolution" || scope === "file" ? edgeTypesForScope(scope) : edgeTypes} /></Suspense>}
+            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} theme={theme} visibleEdgeTypes={scope === "evolution" || scope === "file" ? edgeTypesForScope(scope) : edgeTypes} corpusTopics={facets?.topics ?? null} /></Suspense>}
             {!graph && <div className="loading-state">Loading graph</div>}
           </>
         )}

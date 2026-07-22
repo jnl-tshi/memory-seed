@@ -169,6 +169,20 @@ button:not(:disabled):active { transform: translateY(0); transition-duration: 40
 .error-state { position: absolute; z-index: 2; top: 126px; right: 18px; left: 18px; min-height: 0; justify-content: start; padding: 8px 10px; border: 1px solid var(--danger-border); border-radius: 4px; background: var(--danger-bg); color: var(--danger-text); pointer-events: none; }
 .graph-workspace { position: relative; min-width: 0; min-height: 0; }.graph-controls { position: absolute; z-index: 2; top: 12px; right: 14px; display: flex; gap: 5px; }.graph-canvas { outline: none; }.graph-canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }.graph-list-view { min-height: 0; overflow: auto; padding: 16px 18px 28px; background: var(--bg); }.community-group { margin: 0 0 22px; }.community-group h2 { margin: 0 0 8px; color: var(--accent-bright); font-size: 12px; font-weight: 700; }.graph-list-item { width: 100%; display: grid; gap: 3px; margin-top: 4px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); text-align: left; cursor: pointer; }.graph-list-item:hover, .graph-list-item:focus-visible, .graph-list-item.selected { border-color: var(--accent-strong); background: var(--selected-bg); }.graph-list-item:focus-visible { outline: 1px solid var(--accent-strong); outline-offset: -1px; }.graph-list-item span, .graph-list-item small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.graph-list-item small { color: var(--muted); font-size: 11px; }
 
+/* Topic community legend, overlaid bottom-left on the graph canvas. Sits
+   opposite .graph-controls (top-right) so the two never collide, and is capped
+   in height because a full-corpus view carries fifteen communities. */
+.graph-legend { position: absolute; z-index: 2; left: 14px; bottom: 12px; max-width: 42%; max-height: 38%; overflow-y: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 5px; background: var(--panel); }
+.graph-legend-title { color: var(--text-2); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.graph-legend-item { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.graph-legend-item b { color: var(--text-2); font-variant-numeric: tabular-nums; font-weight: 600; }
+.graph-legend-key { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+/* The unassigned group is a real part of the picture (roughly a third of
+   nodes), but it is an absence rather than a community, so it reads quieter. */
+.graph-legend-item-none { font-style: italic; opacity: 0.85; }
+/* Below this width the legend would cover the graph it explains. */
+@media (max-width: 900px) { .graph-legend { display: none; } }
+
 .reader { display: grid; gap: 18px; }.reader-empty { margin: 0; color: var(--muted); font-size: 13px; }
 /* Collapsible entry metadata. The grid 0fr->1fr trick animates to auto height,
    which a plain max-height cannot do honestly; <details> was rejected because
