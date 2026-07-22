@@ -25,11 +25,28 @@ function themeToken(name: string, fallback: string) {
   return value || fallback;
 }
 
-const COMMUNITY_COLOURS = ["#23a99a", "#6688e8", "#d99a2b", "#c76d99", "#8f76d4", "#6aa869"];
+// Sixteen slots for the fifteen communities authored topics actually produce,
+// so the common case is collision-free. Six were enough only while every node
+// shared one community and the palette was never exercised.
+const COMMUNITY_COLOURS = [
+  "#23a99a", "#6688e8", "#d99a2b", "#c76d99", "#8f76d4", "#6aa869",
+  "#c9563f", "#4bb3d4", "#b8862f", "#9d6fa8", "#5f8fd6", "#4f9d78",
+  "#d4785a", "#7b93e0", "#a8913a", "#8a5fa0",
+];
+
+// Nodes with no qualifying authored topic are genuinely unassigned. They take a
+// neutral tone rather than a palette colour, so "no community" reads as absence
+// rather than as a sixteenth category.
+const UNASSIGNED_COLOUR = "#7c8a85";
 
 function colourForCommunity(node: RendererGraphNode) {
+  const fingerprint = node.community.fingerprint || node.community.id;
+  if (!fingerprint.startsWith("topic:")) return UNASSIGNED_COLOUR;
+  // Hashing the fingerprint - not ranking by size - is what keeps a colour
+  // stable. Rank would depend on which nodes are currently loaded, so a node
+  // could change colour merely because the user pressed "Show more".
   let hash = 0;
-  for (const character of node.community.fingerprint || node.community.id) hash = (hash * 31 + character.charCodeAt(0)) | 0;
+  for (const character of fingerprint) hash = (hash * 31 + character.charCodeAt(0)) | 0;
   return COMMUNITY_COLOURS[Math.abs(hash) % COMMUNITY_COLOURS.length];
 }
 
@@ -67,6 +84,12 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
   const labelIdsRef = useRef<Set<string>>(new Set());
   const visibleEdgeTypesRef = useRef(visibleEdgeTypes);
   visibleEdgeTypesRef.current = visibleEdgeTypes;
+  // Selection restyle was the one metric that grew with corpus size: 5-13ms
+  // below ~400 nodes but 47-102ms at 1000 edges, because every selection swept
+  // the whole edge set. The sweep's result depends only on the edge set and the
+  // visible-type filter - never on which node is selected - so it is memoized
+  // on exactly those two inputs and drops out of the selection path entirely.
+  const outrankedMemo = useRef<{ edges: unknown; typesKey: string; value: Set<string> } | null>(null);
 
   // In-place presentation pass — selection ring, labels, edge filter. Reads
   // current state from refs so both the mount (async) and the update effect
@@ -95,15 +118,25 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       // consequential relationship survives - see EDGE_PRIORITY. The winner is
       // chosen among the types currently switched ON, so switching a type off
       // promotes whatever it was covering rather than blanking the pair.
-      const outranked = outrankedEdgeIds(
-        cy.edges().map((edge) => ({
-          id: edge.id(),
-          source: edge.data("source"),
-          target: edge.data("target"),
-          type: edge.data("type"),
-        })),
-        currentVisibleTypes,
-      );
+      // Keyed on the graph's edge ARRAY IDENTITY, which changes only when a new
+      // graph is fetched, so a stale set can never survive a reload.
+      const typesKey = currentVisibleTypes.join(",");
+      const memo = outrankedMemo.current;
+      let outranked: Set<string>;
+      if (memo && memo.edges === graphRef.current.edges && memo.typesKey === typesKey) {
+        outranked = memo.value;
+      } else {
+        outranked = outrankedEdgeIds(
+          cy.edges().map((edge) => ({
+            id: edge.id(),
+            source: edge.data("source"),
+            target: edge.data("target"),
+            type: edge.data("type"),
+          })),
+          currentVisibleTypes,
+        );
+        outrankedMemo.current = { edges: graphRef.current.edges, typesKey, value: outranked };
+      }
       cy.edges().forEach((edge) => {
         edge.toggleClass("edge-filtered", !currentVisibleTypes.includes(edge.data("type")));
         edge.toggleClass("edge-outranked", outranked.has(edge.id()));
