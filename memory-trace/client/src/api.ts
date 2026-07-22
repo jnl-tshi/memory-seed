@@ -83,13 +83,12 @@ export function worktreesQuery(): Promise<WorktreesResponse> {
   return api<WorktreesResponse>("/worktrees");
 }
 
-// A node renders only if it carries at least one edge — an isolated entry is
-// noise, not overview content. Shared so GraphWorkspace (which nodes to mount)
-// and App (how many of those are actually on screen, for a coverage count)
-// never drift apart on what "connected" means.
-export function connectedNodeIds(graph: RendererGraphResponse): Set<string> {
-  return new Set(graph.edges.flatMap((edge) => [edge.source, edge.target]));
-}
+// connectedNodeIds was removed when every node started rendering. Its premise
+// ("an isolated entry is noise, not overview content") is the opposite of the
+// current rule: edgeless entries render in a halo around the connected core,
+// because hiding a fifth of the corpus made the coverage readout look like a
+// cap. The edge-endpoint set still gets computed for layout partitioning —
+// connectedIds in graphLayout.ts, next to the code that uses it.
 
 export function graphQuery(options: GraphQueryOptions = {}): Promise<RendererGraphResponse> {
   const params = new URLSearchParams();

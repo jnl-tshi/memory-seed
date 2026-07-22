@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { ChevronDown, ChevronUp, GitBranch, LayoutPanelLeft, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, X } from "lucide-react";
 import { SettingsMenu, type InspectorDock, type Theme, type TrailStyle } from "./SettingsMenu";
-import { api, connectedNodeIds, DEFAULT_GRAPH_EDGE_TYPES, GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, SEARCH_LIMIT, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
+import { api, DEFAULT_GRAPH_EDGE_TYPES, GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, SEARCH_LIMIT, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
 import { EntryReader, type DiagramSidecar } from "./EntryReader";
 import { DiagramViewer, type DiagramBlock } from "./DiagramViewer";
 import { readerScrollTarget } from "./inspectorScroll";
@@ -614,9 +614,15 @@ export default function App() {
 
   const topics = useMemo(() => Object.entries(facets?.topics ?? {}).slice(0, 10), [facets]);
   const inspectorVisible = dock !== "hidden";
-  // How many of the fetched Overview nodes actually render (carry an edge) —
-  // the honest denominator for the coverage count, not the raw fetch size.
-  const overviewShownCount = useMemo(() => (graph ? connectedNodeIds(graph).size : 0), [graph]);
+  // Every fetched node now renders — edgeless entries included, placed in a
+  // halo around the connected core — so the payload size IS what is on screen.
+  const overviewShownCount = graph?.nodes.length ?? 0;
+  // The graph can only address entries that HAVE an entry_id; legacy entries
+  // without one can be neither node nor edge endpoint. Served as entry_total so
+  // the readout compares like with like — runtime.entry_count includes those
+  // unaddressable entries, which made a complete graph look permanently short
+  // of the corpus (measured 2026-07-22: 603 chunks, 569 addressable).
+  const graphEntryTotal = graph?.entry_total ?? runtime?.entry_count ?? null;
   // "Show more" stops when a larger ask brings back nothing new. The rule
   // lives in graphOverview.ts with the corpus measurements that corrected it:
   // the server applies the same limit to nodes AND edges, and this corpus
@@ -1038,7 +1044,7 @@ export default function App() {
             reasonable it reads in JSX — lands in an implicit fourth row and
             collapses the actual graph canvas to zero height instead. The
             Overview coverage readout has to live inside this same div. */}
-        {viewMode !== "trail" && scope !== "evolution" && scope !== "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}{scope === "overview" && graph && <span className="count">· {overviewShownCount} of {runtime?.entry_count ?? "…"} entries shown</span>}{scope === "overview" && graph && !overviewExhausted && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showMoreOverview()}>Show more</button>}</div>}
+        {viewMode !== "trail" && scope !== "evolution" && scope !== "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} onClick={() => toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}{scope === "overview" && graph && <span className="count">· {overviewShownCount} of {graphEntryTotal ?? "…"} entries shown</span>}{scope === "overview" && graph && !overviewExhausted && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showMoreOverview()}>Show more</button>}</div>}
         {viewMode !== "trail" && scope === "evolution" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span><span className="count">Evolves + Replaces only · lifecycle chain</span>{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
         {viewMode !== "trail" && scope === "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>File</span><span className="count" title={filePath ?? ""}>{"Entries that touched " + (filePath ?? "this file")}</span><button type="button" className="active-topic" onClick={() => void changeScope("overview")}>Clear<X size={13} aria-hidden="true" /></button></div>}
         {viewMode === "trail" ? (

@@ -523,6 +523,8 @@ export interface components {
         RendererGraphResponse: {
             /** Edges */
             edges: components["schemas"]["RendererGraphEdge"][];
+            /** Entry Total */
+            entry_total?: number | null;
             /** Nodes */
             nodes: components["schemas"]["RendererGraphNode"][];
         };

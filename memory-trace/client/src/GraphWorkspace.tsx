@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { Core } from "cytoscape";
 import { Maximize2, Minus, Plus } from "lucide-react";
-import { connectedNodeIds, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
-import { layoutIterations, nodeSetSignature, seedPositions, type Point } from "./graphLayout";
+import { type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
+import { connectedIds, haloPositions, layoutIterations, nodeSetSignature, seedPositions, type Point } from "./graphLayout";
 import { outrankedEdgeIds } from "./graphEdges";
 import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, hasAuthoredCommunity, inferredCommunityColours } from "./graphCommunities";
 
@@ -35,6 +35,21 @@ function themeToken(name: string, fallback: string) {
 // colourForCommunity moved to graphCommunities.ts so the legend and the nodes
 // share one derivation. Two copies of the hash is exactly how a legend swatch
 // ends up disagreeing with the node it claims to describe.
+
+/**
+ * Fit the whole graph, then set the zoom floor from what the fit needed.
+ *
+ * A fixed minZoom silently caps cy.fit: at full corpus size the fit wanted to
+ * zoom further out than 0.35, got clamped, and drew the graph larger than the
+ * viewport with no way to reach the rest. Deriving the floor from the achieved
+ * fit means fit always succeeds, while still stopping a user zooming out into
+ * an unreadable dot-cloud.
+ */
+function fitAndClamp(cy: Core) {
+  cy.minZoom(0.02);
+  cy.fit(cy.elements(), 52);
+  cy.minZoom(Math.min(0.35, cy.zoom() * 0.75));
+}
 
 function labelIdsFor(graph: RendererGraphResponse, selectedId: string | null, labelMode: GraphWorkspaceProps["labelMode"]) {
   if (labelMode === "all") return new Set(graph.nodes.map((node) => node.id));
@@ -130,16 +145,17 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
     });
   };
 
-  // The rendered element set is SELECTION-INDEPENDENT: every node that carries
-  // any edge renders, always. Selecting must never add/remove elements or move
-  // the map — selection only restyles (ring, labels).
-  const renderedNodes = useMemo(() => {
-    const connected = connectedNodeIds(graph);
-    return graph.nodes.filter((node) => connected.has(node.id));
-  }, [graph]);
-  // Counted over renderedNodes, not graph.nodes: a node with no edge is not
-  // drawn, so counting the payload would advertise swatches for communities
-  // that are nowhere on screen.
+  // The rendered element set is SELECTION-INDEPENDENT: EVERY payload node
+  // renders, always. Selecting must never add/remove elements or move the map —
+  // selection only restyles (ring, labels).
+  //
+  // Edgeless entries used to be filtered out here, on the reasoning that an
+  // entry with no authored link is noise. That made the coverage readout look
+  // like a hard cap ("462 of 603") when it was really a rendering choice, and
+  // it hid a fifth of the corpus. They now render in a halo outside the
+  // connected core (haloPositions) — visibly present, visibly unlinked.
+  const renderedNodes = graph.nodes;
+  const connected = useMemo(() => connectedIds(graph.edges), [graph.edges]);
   const legend = useMemo(() => communityLegend(renderedNodes, corpusTopics, topicWheel), [renderedNodes, corpusTopics, topicWheel]);
   const colourOf = useMemo(() => communityColourScale(corpusTopics, topicWheel), [corpusTopics, topicWheel]);
   // Authored fill is the MIXTURE of a node's qualifying topics; falls back to
@@ -158,7 +174,10 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
   const labelIds = useMemo(() => labelIdsFor(graph, selectedId, labelMode), [graph, labelMode, selectedId]);
   labelIdsRef.current = labelIds;
 
-  const fit = () => cytoscape.current?.fit(cytoscape.current.elements(), 52);
+  const fit = () => {
+    const cy = cytoscape.current;
+    if (cy) fitAndClamp(cy);
+  };
   const zoom = (factor: number) => {
     const cy = cytoscape.current;
     if (!cy) return;
@@ -182,7 +201,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       const { default: createCytoscape } = await import("cytoscape");
       if (disposed || !container.current) return;
       const signature = nodeSetSignature(renderedNodes);
-      const { positions, settled, warmSeeded } = seedPositions(renderedNodes, settledPositions, settledSignature);
+      const { positions, settled, warmSeeded } = seedPositions(renderedNodes, graph.edges, settledPositions, settledSignature);
       const nodeBorder = themeToken("--panel", "#142a26");
       const nodeText = themeToken("--text-bright", "#e9f3f0");
       const nodeOutline = themeToken("--bg", "#10201e");
@@ -227,6 +246,10 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
               "label": "data(label)",
               "font-family": "Inter, sans-serif",
               "font-size": 11,
+              // Now that the zoom floor follows the fit, a full-corpus view can
+              // sit far enough out that labels would smear into illegible
+              // pixels; below this they drop out cleanly instead.
+              "min-zoomed-font-size": 9,
               "font-weight": 600,
               "color": nodeText,
               "text-wrap": "ellipsis",
@@ -253,7 +276,11 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
           { selector: "edge.edge-outranked", style: { display: "none" } },
         ],
         layout: { name: "preset" },
-        minZoom: 0.35,
+        // An absolute floor, not the working minimum. The working floor is set
+        // from each successful fit (see fitAndClamp): a fixed 0.35 CLAMPED the
+        // fit on large graphs, which is why the full corpus rendered larger
+        // than the viewport with no way to zoom out to it.
+        minZoom: 0.02,
         maxZoom: 2.4,
         wheelSensitivity: 0.16,
       });
@@ -268,9 +295,27 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       const debugHost = window as unknown as { memoryTraceNextDebug?: Record<string, unknown> };
       debugHost.memoryTraceNextDebug = { ...(debugHost.memoryTraceNextDebug ?? {}), graphCy: cy };
       applyPresentation(cy);
+      // Edgeless entries are placed in closed form AROUND the settled core
+      // rather than simulated: with no edge to balance repulsion they would be
+      // flung through the middle of the connected graph, and they would spend
+      // iterations that the nodes carrying actual structure need.
+      const applyHalo = () => {
+        const isolateNodes = renderedNodes.filter((node) => !connected.has(node.id));
+        if (!isolateNodes.length) return;
+        const core = cy.nodes().filter((node) => connected.has(node.id()));
+        const box = core.nonempty() ? core.boundingBox() : null;
+        const halo = haloPositions(
+          isolateNodes,
+          box ? { x1: box.x1, y1: box.y1, x2: box.x2, y2: box.y2 } : null,
+        );
+        cy.batch(() => {
+          for (const [id, point] of halo) cy.getElementById(id).position(point);
+        });
+      };
       const finishLayout = () => {
         if (disposed) return;
-        cy.fit(cy.elements(), 52);
+        applyHalo();
+        fitAndClamp(cy);
         settledSignature = signature;
         settledPositions.clear();
         cy.nodes().forEach((node) => {
@@ -279,13 +324,21 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
         });
       };
       if (settled) {
-        // Preset positions ARE the settled layout: fit and done, zero
-        // simulation - this is what makes theme toggles and Trail/Graph
-        // round trips instant regardless of graph size.
+        // Preset positions ARE the settled layout: no simulation, which is what
+        // makes theme toggles and Trail/Graph round trips instant regardless of
+        // graph size. Still goes through finishLayout so the halo is re-derived
+        // from the CURRENT core - a cached isolate position can predate the core
+        // geometry it was placed against, and fitting without re-haloing left
+        // isolates sitting inside the connected graph.
         finishLayout();
         return;
       }
-      const layout = cy.layout({
+      // The simulation runs over the CONNECTED subgraph only. An explicit
+      // boundingBox keeps cose's gravity centred on that core rather than on a
+      // canvas that still holds the pre-halo seed positions of the isolates.
+      const core = cy.nodes().filter((node) => connected.has(node.id()));
+      const simulated = core.nonempty() ? core.union(cy.edges()) : cy.elements();
+      const layout = simulated.layout({
         name: "cose",
         animate: false,
         padding: 52,
@@ -293,7 +346,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
         nodeRepulsion: () => 12_000,
         idealEdgeLength: () => 150,
         gravity: 0.3,
-        numIter: layoutIterations(renderedNodes.length, warmSeeded),
+        numIter: layoutIterations(core.length || renderedNodes.length, warmSeeded),
       });
       layout.one("layoutstop", finishLayout);
       layout.run();

@@ -1174,6 +1174,17 @@
             "title": "Edges",
             "type": "array"
           },
+          "entry_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Total"
+          },
           "nodes": {
             "items": {
               "$ref": "#/components/schemas/RendererGraphNode"

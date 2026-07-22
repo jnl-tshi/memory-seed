@@ -174,7 +174,7 @@ def project_trace_graph(
     graph: Mapping[str, Any],
     *,
     topic_frequencies: Mapping[str, int] | None = None,
-) -> dict[str, list[dict[str, Any]]]:
+) -> dict[str, Any]:
     """Adapt the current Trace graph response into renderer-facing semantics.
 
     Communities are named after authored topics when ``topic_frequencies`` is
@@ -189,6 +189,7 @@ def project_trace_graph(
     renderer cannot promote its own visual clustering to canonical graph data.
     """
     _mapping(graph, "trace graph")
+    entry_total = graph.get("entry_total")
     raw_nodes = graph.get("nodes")
     raw_edges = graph.get("edges")
     if not isinstance(raw_nodes, list) or not isinstance(raw_edges, list):
@@ -257,7 +258,13 @@ def project_trace_graph(
                 "evidence_refs": evidence_refs or [source, target],
             }
         )
-    return {"nodes": nodes, "edges": edges}
+    projected: dict[str, Any] = {"nodes": nodes, "edges": edges}
+    # Passed through only when the caller supplies it (the live service does;
+    # the bounded benchmark fixtures do not), so fixture-shaped payloads keep
+    # their exact two-key shape.
+    if isinstance(entry_total, int):
+        projected["entry_total"] = entry_total
+    return projected
 
 
 def validate_graph_fixture(payload: Mapping[str, Any]) -> None:

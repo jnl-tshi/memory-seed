@@ -355,6 +355,11 @@ class RendererGraphEdge(BaseModel):
 class RendererGraphResponse(BaseModel):
     nodes: list[RendererGraphNode]
     edges: list[RendererGraphEdge]
+    # Entries the graph can ever address (entry-id-bearing), which is smaller
+    # than runtime entry_count. The coverage readout needs this denominator so
+    # "X of Y shown" cannot count entries no graph could show. Optional: the
+    # bounded benchmark fixtures project without it.
+    entry_total: int | None = None
 
 
 class GraphResponse(BaseModel):

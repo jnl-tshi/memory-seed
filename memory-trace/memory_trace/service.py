@@ -1714,6 +1714,13 @@ class TraceService:
             "edge_types": sorted(edge_type_set),
             "merges": merges,
             "branches": branches,
+            # Entries this graph can ever address, which is NOT runtime
+            # entry_count: `by_id` above is keyed on entry_id, so a legacy
+            # entry without one can be neither a node nor an edge endpoint.
+            # The client's coverage readout needs this denominator, otherwise
+            # "X of Y" counts entries no graph could ever show and reads as a
+            # cap. Measured 2026-07-22: 603 entry chunks, 569 addressable.
+            "entry_total": len(by_id),
         }
 
     def rebuild(self) -> dict[str, Any]:
