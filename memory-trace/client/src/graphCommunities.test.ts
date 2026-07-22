@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { minimumSeparation, oklabDistance } from "./colour.ts";
 import {
   COMMUNITY_COLOURS,
   colourForCommunity,
   communityColourScale,
   communityLegend,
+  inferredCommunityColours,
+  MINIMUM_COLOUR_SEPARATION,
   UNASSIGNED_COLOUR,
 } from "./graphCommunities.ts";
 
@@ -102,6 +105,92 @@ test("a colour does not change as more of the graph loads", () => {
   const full = communityLegend([node("a", "graph"), node("b", "release"), node("c", null)], CORPUS_TOPICS);
   assert.equal(partial[0].colour, full[0].colour);
   assert.equal(partial[0].colour, colourOf(node("a", "graph")));
+});
+
+test("the palette clears the measured separation floor", () => {
+  // The regression guard for the retune. The previous palette measured 0.0351
+  // - three near-identical blues and two ochres - so communities were hard to
+  // tell apart even after every one had its own hex value. Adding a colour by
+  // eye to this list will trip this.
+  const separation = minimumSeparation(COMMUNITY_COLOURS);
+  assert.ok(
+    separation >= MINIMUM_COLOUR_SEPARATION,
+    `closest pair is ${separation.toFixed(4)}, below the ${MINIMUM_COLOUR_SEPARATION} floor`,
+  );
+});
+
+test("every palette colour is distinct", () => {
+  assert.equal(new Set(COMMUNITY_COLOURS).size, COMMUNITY_COLOURS.length);
+});
+
+// --- Inferred colour for entries with no topic ---
+
+const edge = (source: string, target: string) => ({ source, target });
+
+test("a topicless node borrows from the community it connects to", () => {
+  const nodes = [node("plain", null), node("g1", "graph")];
+  const inferred = inferredCommunityColours(nodes, [edge("plain", "g1")], communityColourScale(CORPUS_TOPICS), "#0f1512");
+  assert.ok(inferred.has("plain"));
+  assert.ok(!inferred.has("g1"), "a node with its own topic is never overridden");
+});
+
+test("the borrowed colour is faded, not the community colour itself", () => {
+  const colourOf = communityColourScale(CORPUS_TOPICS);
+  const nodes = [node("plain", null), node("g1", "graph")];
+  const inferred = inferredCommunityColours(nodes, [edge("plain", "g1")], colourOf, "#0f1512");
+  const full = colourOf(node("g1", "graph"));
+  assert.notEqual(inferred.get("plain"), full);
+  // Faded toward the background, so it must sit closer to it than the full one.
+  assert.ok(oklabDistance(inferred.get("plain")!, "#0f1512") < oklabDistance(full, "#0f1512"));
+});
+
+test("the majority neighbouring community wins", () => {
+  const nodes = [node("plain", null), node("g1", "graph"), node("g2", "graph"), node("r1", "release")];
+  const colourOf = communityColourScale(CORPUS_TOPICS);
+  const inferred = inferredCommunityColours(
+    nodes,
+    [edge("plain", "g1"), edge("plain", "g2"), edge("plain", "r1")],
+    colourOf,
+    "#0f1512",
+  );
+  const viaGraph = inferredCommunityColours([node("p2", null), node("g1", "graph")], [edge("p2", "g1")], colourOf, "#0f1512");
+  assert.equal(inferred.get("plain"), viaGraph.get("p2"));
+});
+
+test("ties do not depend on edge order", () => {
+  const colourOf = communityColourScale(CORPUS_TOPICS);
+  const nodes = [node("plain", null), node("g1", "graph"), node("r1", "release")];
+  const forward = inferredCommunityColours(nodes, [edge("plain", "g1"), edge("plain", "r1")], colourOf, "#0f1512");
+  const backward = inferredCommunityColours(nodes, [edge("plain", "r1"), edge("plain", "g1")], colourOf, "#0f1512");
+  assert.equal(forward.get("plain"), backward.get("plain"));
+});
+
+test("inference never propagates through another inferred node", () => {
+  // One hop only. Propagating would make this label propagation - a clustering
+  // algorithm - which is the decision authored-topic communities avoid making.
+  const nodes = [node("a", null), node("b", null), node("g1", "graph")];
+  const inferred = inferredCommunityColours(
+    nodes,
+    [edge("a", "g1"), edge("a", "b")],
+    communityColourScale(CORPUS_TOPICS),
+    "#0f1512",
+  );
+  assert.ok(inferred.has("a"), "a touches a real community");
+  assert.ok(!inferred.has("b"), "b only touches an inferred node and must stay neutral");
+});
+
+test("a topicless node with no classified neighbour stays neutral", () => {
+  const nodes = [node("a", null), node("b", null)];
+  const inferred = inferredCommunityColours(nodes, [edge("a", "b")], communityColourScale(CORPUS_TOPICS), "#0f1512");
+  assert.equal(inferred.size, 0);
+});
+
+test("the fade follows the theme background", () => {
+  const colourOf = communityColourScale(CORPUS_TOPICS);
+  const nodes = [node("plain", null), node("g1", "graph")];
+  const onDark = inferredCommunityColours(nodes, [edge("plain", "g1")], colourOf, "#0f1512").get("plain");
+  const onLight = inferredCommunityColours(nodes, [edge("plain", "g1")], colourOf, "#f5f0e6").get("plain");
+  assert.notEqual(onDark, onLight);
 });
 
 test("colouring still works before facets have loaded", () => {

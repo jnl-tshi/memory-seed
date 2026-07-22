@@ -14,6 +14,12 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
+    // node:test loads app modules directly, and its ESM loader will not resolve
+    // an extensionless VALUE import between two source files - only type-only
+    // imports, which are erased before it ever looks. Vite resolves either
+    // form. Safe under noEmit: nothing is emitted for the extension to be
+    // wrong in.
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx"
   },
   "include": ["src", "vite.config.ts"],
