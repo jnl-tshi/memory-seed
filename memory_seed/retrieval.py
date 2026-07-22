@@ -336,8 +336,7 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     # against known entries: a bad token becomes a dangling-* issue, not a
     # silent no-op.
     from .core import (
-        _TRAILER_ENTRY_ID_RE,
-        _frontmatter_list_region,
+        _frontmatter_list_refs,
         iter_link_sidecar_documents,
         resolve_runtime,
     )
@@ -369,14 +368,32 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                     break
             if not entry_id:
                 continue
-            found = {
-                key: tuple(_TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(yaml_block, key)))
-                for key in ("supersedes", "evolves", "related_entries")
-            }
+            # Entry-level refs keep their existing keys unchanged. Decision
+            # refs are collected separately and NEVER folded into them: "D2 of
+            # B supersedes D1 of A" does not license "B supersedes A", so a
+            # consumer that does not model decisions must see exactly the edge
+            # set it saw before this feature existed.
+            found: dict[str, Any] = {}
+            decisions: list[tuple[str, str, str]] = []
+            for key in ("supersedes", "evolves", "related_entries"):
+                entry_level: list[str] = []
+                for parsed in _frontmatter_list_refs(yaml_block, key):
+                    if not parsed.ok:
+                        continue  # links check reports it; readers skip it
+                    if parsed.decision is None:
+                        entry_level.append(parsed.entry_id)
+                    else:
+                        decisions.append((key, parsed.entry_id, parsed.decision))
+                found[key] = tuple(entry_level)
+            found["decision_edges"] = tuple(decisions)
             existing = sidecars.get(entry_id)
             if existing:
-                for key in ("supersedes", "evolves", "related_entries"):
-                    existing[key] = tuple(dict.fromkeys(existing[key] + found[key]))
+                # decision_edges is merged alongside the entry-level keys: two
+                # sidecar blocks may key to one entry (different days, or a
+                # correction), and dropping the later block's decision refs
+                # would lose edges silently rather than loudly.
+                for key in ("supersedes", "evolves", "related_entries", "decision_edges"):
+                    existing[key] = tuple(dict.fromkeys(existing.get(key, ()) + found[key]))
             else:
                 sidecars[entry_id] = {
                     "entry_id": entry_id,

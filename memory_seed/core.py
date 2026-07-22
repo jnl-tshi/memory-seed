@@ -778,6 +778,85 @@ def _frontmatter_list_region(block: str, list_key: str) -> str:
     return "\n".join(out)
 
 
+# A ref as authored in a `supersedes:`/`evolves:`/`related_entries:` list.
+# `decision` is the dN ordinal when the ref targets one decision rather than a
+# whole entry; None means entry-level, which is every ref written before
+# 2026-07-22. `ok` False means the token is not a ref at all and must surface
+# as an error rather than being silently reinterpreted.
+@dataclass(frozen=True)
+class ListRef:
+    raw: str
+    entry_id: str
+    decision: str | None
+    ok: bool
+    reason: str = ""
+
+
+_BARE_ENTRY_ID_RE = re.compile(r"^(?:ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32})$")
+# Canonical decision ref: `<entry_id>:<dN>`. Colon rather than '#' because a
+# '#' preceded by a space opens a YAML comment, so the two spellings would
+# behave differently for a one-character authoring slip.
+_DECISION_REF_RE = re.compile(r"^(ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32}):(d\d+)$")
+# Accepted alias: the section chunk_id a reader can copy out of Memory Trace.
+# Normalised to the pair; never emitted by writers.
+_DECISION_SLUG_RE = re.compile(r"^(ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32})#decisions/(d\d+)-\S*$")
+
+
+def _parse_list_ref(token: str) -> ListRef:
+    """Classify one authored list item.
+
+    Anything that is not a bare entry id or a well-formed decision ref is
+    returned as ``ok=False`` rather than scraped for an id. Scraping is the
+    2026-07-21 defect: a `#decisions/`-suffixed ref matched only its entry-id
+    prefix, so the file *looked* decision-level while behaving entry-level and
+    `links check` reported nothing at all.
+    """
+    raw = token.strip().strip("'\"")
+    if _BARE_ENTRY_ID_RE.match(raw):
+        return ListRef(raw, raw, None, True)
+    match = _DECISION_REF_RE.match(raw)
+    if match:
+        return ListRef(raw, match.group(1), match.group(2), True)
+    match = _DECISION_SLUG_RE.match(raw)
+    if match:
+        return ListRef(raw, match.group(1), match.group(2), True)
+    if "#decision" in raw:
+        # The singular `### Decision` shape yields `#decision` with no ordinal,
+        # so the slug cannot address it - see the draft spec's "Why not the
+        # section slug". Point at the form that can.
+        return ListRef(raw, "", None, False, "section anchor carries no ordinal; use <entry_id>:d1")
+    return ListRef(raw, "", None, False, "not an entry id or <entry_id>:dN decision ref")
+
+
+def _frontmatter_list_refs(block: str, list_key: str) -> list[ListRef]:
+    """Parse a frontmatter list into refs, one per authored item.
+
+    Line-oriented on purpose. The previous approach ran a regex over the whole
+    region, which produced two silent corruptions at once: a suffixed ref was
+    truncated to its prefix, and an INDENTED comment inside the list had its
+    ids extracted as real edges - inventing an edge nobody wrote. Comments are
+    stripped here with YAML's own rule (a '#' that begins a line, or one
+    preceded by whitespace), so a commented candidate can never become an edge
+    regardless of how it is indented.
+    """
+    refs: list[ListRef] = []
+    for line in _frontmatter_list_region(block, list_key).splitlines():
+        text = line
+        stripped = text.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        comment = re.search(r"(?:^|\s)#", text)
+        if comment:
+            text = text[: comment.start()]
+        stripped = text.strip()
+        if not stripped.startswith("-"):
+            continue
+        token = stripped[1:].strip()
+        if token:
+            refs.append(_parse_list_ref(token))
+    return refs
+
+
 def _parse_continuity_items(region: str) -> list[dict[str, str]]:
     """Parse the indented ``continuity:`` list region into item mappings.
 
@@ -1258,6 +1337,28 @@ def entry_body_format_issues(body: str) -> list[str]:
     return issues
 
 
+def _entry_decision_ordinals(body: str) -> list[str]:
+    """The dN ordinals a decision ref may legally target in this entry body.
+
+    Follows the ratified identity table: numbered ``#### Dn -`` headings give
+    their own ordinal, and a singular ``### Decision`` reads as ``d1`` by
+    convention - which is what makes the scheme total rather than partial,
+    since single-decision entries are the corpus majority. An entry with no
+    decision section has no addressable decision at all.
+    """
+    lines = body.splitlines()
+    ordinals = [
+        f"d{int(m.group(1))}"
+        for ln in lines
+        if (m := re.match(r"^####\s+D(\d+)\s*[-–]", ln))
+    ]
+    if ordinals:
+        return ordinals
+    if any(_SINGULAR_DECISION_HEADING_RE.match(ln) for ln in lines):
+        return ["d1"]
+    return []
+
+
 def _walk_entry_bodies(
     text: str, inspect: Callable[[str], list[str]]
 ) -> list[tuple[str, str]]:
@@ -1492,6 +1593,12 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     # (rel_path, source_entry_id, ref) for refs attributable to a source entry.
     supersedes_edges: list[tuple[str, str, str]] = []
     evolves_edges: list[tuple[str, str, str]] = []
+    # (rel_path, source_entry_id, target_entry_id, target_ordinal). Kept apart
+    # from the entry-level lists on purpose - a decision edge is never
+    # projected up to its entry.
+    decision_edges: list[tuple[str, str, str, str]] = []
+    # entry_id -> {"d1", "d2", ...}: which decisions a ref can legally target.
+    entry_decision_ordinals: dict[str, set[str]] = {}
     entry_timestamps: dict[str, str] = {}
     files_checked = 0
 
@@ -1607,6 +1714,13 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                         issues.append(
                             LinkIssue(rel, "malformed-continuity", f"continuity {kind} '{from_value}' has no to")
                         )
+
+        # Which decisions each entry actually has, so a decision ref can be
+        # checked against reality. Reuses _walk_entry_bodies rather than
+        # re-deriving entry boundaries: a second body parser is exactly how two
+        # views of "where does this entry end" drift apart.
+        for entry_id_seen, ordinal in _walk_entry_bodies(text, _entry_decision_ordinals):
+            entry_decision_ordinals.setdefault(entry_id_seen, set()).add(ordinal)
 
         # Second, heading-anchored pass: attribute each supersedes/evolves ref
         # to its source entry and heading timestamp for the forward-only guard.
@@ -1807,16 +1921,49 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                         f"entry_id {entry_id} was logged on {entry_date}, but link sidecar is filed under {file_date}",
                     )
                 )
-            # Wider _TRAILER_ENTRY_ID_RE, matching the sidecar reader: real
-            # corpus ids include non-Crockford letters (o/u/i/l) the strict
-            # ref regex would silently skip - here a bad ref must surface as
-            # dangling, never vanish.
+            # Parsed per authored item, not scraped from the region text: a
+            # malformed ref must surface, never be reinterpreted as whatever
+            # id it happens to contain.
             for kind, edge_list in (("supersedes", supersedes_edges), ("evolves", evolves_edges)):
-                for ref in _TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(yaml_block, kind)):
-                    if ref not in known_entries:
-                        issues.append(LinkIssue(rel, f"dangling-{kind}", f"{kind} -> {ref} (no such entry_id)"))
-                    else:
-                        edge_list.append((rel, entry_id, ref))
+                for parsed in _frontmatter_list_refs(yaml_block, kind):
+                    if not parsed.ok:
+                        issues.append(
+                            LinkIssue(rel, "malformed-link-ref", f"{kind} -> {parsed.raw!r}: {parsed.reason}")
+                        )
+                        continue
+                    if parsed.entry_id not in known_entries:
+                        issues.append(
+                            LinkIssue(rel, f"dangling-{kind}", f"{kind} -> {parsed.entry_id} (no such entry_id)")
+                        )
+                        continue
+                    if parsed.decision is None:
+                        edge_list.append((rel, entry_id, parsed.entry_id))
+                        continue
+                    # Decision-level ref. Validated here but deliberately NOT
+                    # added to edge_list: "D2 of B supersedes D1 of A" does not
+                    # license "B supersedes A", so decision edges stay a
+                    # distinct set rather than being projected up to entries.
+                    if parsed.entry_id == entry_id:
+                        issues.append(
+                            LinkIssue(
+                                rel,
+                                "intra-entry-decision-ref",
+                                f"{kind} -> {parsed.raw}: both ends are in the same entry; "
+                                "decisions of one entry are contemporaneous, so there is no order to record",
+                            )
+                        )
+                        continue
+                    ordinals = entry_decision_ordinals.get(parsed.entry_id, set())
+                    if parsed.decision not in ordinals:
+                        issues.append(
+                            LinkIssue(
+                                rel,
+                                "dangling-decision-ref",
+                                f"{kind} -> {parsed.raw}: {parsed.entry_id} has no {parsed.decision}",
+                            )
+                        )
+                        continue
+                    decision_edges.append((rel, entry_id, parsed.entry_id, parsed.decision))
             for ref in _TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(yaml_block, "related_entries")):
                 if ref not in known_entries:
                     issues.append(LinkIssue(rel, "dangling-related-entry", f"related_entries -> {ref} (no such entry_id)"))
@@ -1931,6 +2078,23 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
 
     _forward_only_guard(supersedes_edges, "supersedes", "entry supersedes itself", "supersession")
     _forward_only_guard(evolves_edges, "evolves", "entry evolves itself", "evolution")
+
+    # Decision edges get the same forward-only check, resolving each end to its
+    # ENTRY's heading timestamp - a decision carries no time of its own. Both
+    # ends are guaranteed to be in different entries (intra-entry refs are
+    # rejected above), so the two timestamps are always distinct entry
+    # timestamps and this never faces a tie.
+    for rel_path, source_id, target_id, ordinal in decision_edges:
+        source_ts = entry_timestamps.get(source_id)
+        target_ts = entry_timestamps.get(target_id)
+        if source_ts and target_ts and target_ts > source_ts:
+            issues.append(
+                LinkIssue(
+                    rel_path,
+                    "decision-ref-postdates",
+                    f"{target_id}:{ordinal} ({target_ts}) postdates the referencing entry {source_id} ({source_ts})",
+                )
+            )
 
     return LinksCheckResult(
         ok=not any(issue.severity == "error" for issue in issues),

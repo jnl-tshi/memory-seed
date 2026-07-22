@@ -943,3 +943,112 @@ class LinksCheckTests(unittest.TestCase):
         self.assertEqual(result.issues[0].kind, "entry-future-timestamp")
         self.assertIn("ms-aaaaaaaa", result.issues[0].detail)
         self.assertIn("2126-01-01 09:00", result.issues[0].detail)
+
+    # --- Ref grammar: the two silent corruptions, and decision-level refs ---
+
+    def _decision_corpus(self, cwd):
+        """Two entries: an older one carrying D1/D2, a newer one to refer from."""
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / "2026-06-01.md").write_text(
+            "## 2026-06-01 09:00 - Older\n\n```yaml\nentry_id: mse_aaaaaaaaaaaaaaaa\n```\n\n"
+            "### Decisions\n\n#### D1 - first\n\n- D: a\n- R: b\n\n#### D2 - second\n\n- D: c\n- R: d\n",
+            encoding="utf-8",
+        )
+        (sessions / "2026-06-02.md").write_text(
+            "## 2026-06-02 09:00 - Newer\n\n```yaml\nentry_id: mse_bbbbbbbbbbbbbbbb\n```\n\n"
+            "### Decision\n\n- D: x\n- R: y\n",
+            encoding="utf-8",
+        )
+
+    def test_suffixed_ref_is_an_error_not_a_silent_truncation(self):
+        # The 2026-07-21 defect: a section-anchor ref matched only on its
+        # entry-id prefix, so the file LOOKED decision-level, behaved
+        # entry-level, and links check reported nothing at all.
+        cwd = self.make_project()
+        self._decision_corpus(cwd)
+        self._link_sidecar(
+            cwd, "2026-06-02", "mse_bbbbbbbbbbbbbbbb",
+            evolves=["mse_aaaaaaaaaaaaaaaa#decision"],
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        self.assertIn("malformed-link-ref", [i.kind for i in result.issues])
+
+    def test_indented_comment_in_an_edge_list_creates_no_phantom_edge(self):
+        # Worse than truncation: an INDENTED comment had its ids extracted as
+        # real edges, inventing an edge nobody authored. The id below exists
+        # nowhere, so if it were still extracted it would surface as dangling.
+        cwd = self.make_project()
+        self._decision_corpus(cwd)
+        d = cwd / MEMORY_DIR_NAME / "sessions" / "links" / "2026-06"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "2026-06-02.md").write_text(
+            "## 2026-06-02 10:00 - edge\n\n```yaml\nentry_id: mse_bbbbbbbbbbbbbbbb\nevolves:\n"
+            "  - mse_aaaaaaaaaaaaaaaa\n  # candidate: mse_zzzzzzzzzzzzzzzz\n```\n",
+            encoding="utf-8",
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertTrue(result.ok, [i.detail for i in result.issues if i.severity == "error"])
+        self.assertNotIn("mse_zzzzzzzzzzzzzzzz", " ".join(i.detail for i in result.issues))
+
+    def test_decision_ref_resolves_against_the_targets_real_ordinals(self):
+        cwd = self.make_project()
+        self._decision_corpus(cwd)
+        self._link_sidecar(
+            cwd, "2026-06-02", "mse_bbbbbbbbbbbbbbbb",
+            evolves=["mse_aaaaaaaaaaaaaaaa:d2"],
+        )
+        self.assertTrue(check_session_links(cwd=cwd).ok)
+
+    def test_decision_ref_to_a_missing_ordinal_is_dangling(self):
+        cwd = self.make_project()
+        self._decision_corpus(cwd)
+        self._link_sidecar(
+            cwd, "2026-06-02", "mse_bbbbbbbbbbbbbbbb",
+            evolves=["mse_aaaaaaaaaaaaaaaa:d9"],
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        self.assertIn("dangling-decision-ref", [i.kind for i in result.issues])
+
+    def test_singular_decision_entry_is_addressable_as_d1(self):
+        # The convention that makes the scheme total rather than partial:
+        # single-decision entries are the corpus majority.
+        cwd = self.make_project()
+        self._decision_corpus(cwd)
+        (cwd / MEMORY_DIR_NAME / "sessions" / "2026-06-03.md").write_text(
+            "## 2026-06-03 09:00 - Newest\n\n```yaml\nentry_id: mse_cccccccccccccccc\n```\n\n"
+            "### Decision\n\n- D: x\n- R: y\n",
+            encoding="utf-8",
+        )
+        self._link_sidecar(
+            cwd, "2026-06-03", "mse_cccccccccccccccc",
+            evolves=["mse_bbbbbbbbbbbbbbbb:d1"],
+        )
+        self.assertTrue(check_session_links(cwd=cwd).ok)
+
+        # The negative half is what makes this test discriminate. Without it it
+        # passes against the OLD code too, which truncated `:d1` to a valid
+        # entry id and never looked at the ordinal at all. A singular entry has
+        # d1 and nothing else, so d2 must be rejected.
+        self._link_sidecar(
+            cwd, "2026-06-03", "mse_cccccccccccccccc",
+            evolves=["mse_bbbbbbbbbbbbbbbb:d2"], heading_time="11:00",
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        self.assertIn("dangling-decision-ref", [i.kind for i in result.issues])
+
+    def test_intra_entry_decision_ref_is_rejected(self):
+        # Decisions of one entry are contemporaneous, so there is no order to
+        # record and the forward-only guard would have nothing to check.
+        cwd = self.make_project()
+        self._decision_corpus(cwd)
+        self._link_sidecar(
+            cwd, "2026-06-01", "mse_aaaaaaaaaaaaaaaa",
+            evolves=["mse_aaaaaaaaaaaaaaaa:d1"],
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        self.assertIn("intra-entry-decision-ref", [i.kind for i in result.issues])
