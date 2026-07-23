@@ -71,11 +71,14 @@ class LinkAuditTests(unittest.TestCase):
     def _write(self, *entries):
         (self.sessions / "2026-06-01.md").write_text("\n".join(entries), encoding="utf-8")
 
-    def _sidecar(self, source, *, supersedes=()):
+    def _sidecar(self, source, *, supersedes=(), evolves=()):
         d = self.sessions / "links" / "2026-06"
         d.mkdir(parents=True, exist_ok=True)
-        lines = [f"## 2026-06-01 12:00 - edge", "", "```yaml", f"entry_id: {source}", "supersedes:"]
-        lines += [f"  - {ref}" for ref in supersedes]
+        lines = [f"## 2026-06-01 12:00 - edge", "", "```yaml", f"entry_id: {source}"]
+        for key, refs in (("supersedes", supersedes), ("evolves", evolves)):
+            if refs:
+                lines.append(f"{key}:")
+                lines += [f"  - {ref}" for ref in refs]
         lines += ["```", ""]
         (d / "2026-06-01.md").write_text("\n".join(lines), encoding="utf-8")
 
@@ -209,6 +212,19 @@ class LinkAuditTests(unittest.TestCase):
         code, _out, err = self._run_cli("link", "audit", "--json", "--apply", "--date", "2026-06-01")
         self.assertEqual(code, 2)
         self.assertIn("cannot be combined", err)
+
+    def test_decision_level_sidecar_edge_suppresses_the_pair(self):
+        # A `<id>:dN` ref records the pair at finer granularity. It never
+        # projects into entry-level edge sets, but the audit must treat the
+        # pair as linked - else every decision-narrowed edge re-surfaces as a
+        # "gap" forever. Found live: the first swarm-validated :d1 edge was
+        # written and the same pair immediately re-surfaced.
+        self._write(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"], decisions=["Alpha", "Beta"]),
+            _entry("2026-06-01 10:00", B, files=["pkg/foo.py"]),
+        )
+        self._sidecar(B, evolves=[f"{A}:d1"])
+        self.assertIsNone(self._gap(B))
 
     def test_sidecar_lifecycle_edge_suppresses_the_pair(self):
         self._write(
