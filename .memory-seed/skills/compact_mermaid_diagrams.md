@@ -196,6 +196,11 @@ flowchart TD
 A raw newline inside a label parses fine — it is a legibility problem, not a syntax one, and `<br/>`
 is still the right fix. Verified against Mermaid 11.16.0.
 
+With the Memory Trace client checked out, `npm run lint:sidecars` parses every sidecar block through
+real Mermaid, and `npm run hooks:install` adds a pre-commit hook that does the same for staged
+sidecars — the backstop for exactly these two traps, catching a broken diagram before it lands rather
+than after it publishes.
+
 ## Quality Check
 
 Before committing or sharing a diagram:
