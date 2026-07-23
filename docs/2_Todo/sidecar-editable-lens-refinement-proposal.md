@@ -1,11 +1,13 @@
 ---
 priority: P3
-next_action: Awaiting JNL's shape decision — diagram content refinement / link structure-repair only / editable link edges. No build until a shape is chosen; shapes touching link edges reopen ratified Invariant #2 (amendment 1.2) and need their own amendment.
+next_action: SCOPE NARROWED 2026-07-23 — the "add a later edge to an already-blocked entry" case (the withheld-ledger driver, 8 edges) is SOLVED without amendment by link-sidecar block identity (entry_id, timestamp) - later declarations append new dated blocks (see lifecycle-edge-linking-sidecars.md). What remains here is only true IN-PLACE editing - diagram content refinement and link structure-repair/edge rewording - which still awaits JNL's shape decision; shapes touching link edges reopen ratified Invariant #2 (amendment 1.2) and need their own amendment.
 ---
 
 # Sidecars as Editable Lenses — Conservative Refinement Proposal
 
-Status: **PROPOSAL — needs design.** Raised 2026-07-23 by JNL while ratifying Constitution v1.4.
+Status: **PROPOSAL — needs design; scope narrowed 2026-07-23** (append-a-block landed as Evolution,
+removing the additive-edge case from this proposal's scope). Raised 2026-07-23 by JNL while
+ratifying Constitution v1.4.
 Source: the v1.4 amendment discussion (diagram-sidecar syntax repair) and the maintainer's framing
 that "sidecars act as lenses that improve the signal of the entry data, so a conservative but
 editing-allowed approach to allow refinement" would benefit the corpus.
