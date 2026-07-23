@@ -16,6 +16,10 @@ test("fit centres the stage and never enlarges past natural size", () => {
   const large = fitTransform(1000, 800, 4000, 1600);
   assert.ok(large.scale < 1);
   assert.ok(Math.abs(large.scale - (1000 - 24) / 4000) < 1e-9, "width is the binding constraint here");
+  // ...and the scaled stage is centred on BOTH axes, not pinned to a corner -
+  // this is what "Fit centres the diagram" rests on.
+  assert.ok(Math.abs(large.x - (1000 - 4000 * large.scale) / 2) < 1e-9, "centred horizontally when scaled down");
+  assert.ok(Math.abs(large.y - (800 - 1600 * large.scale) / 2) < 1e-9, "centred vertically when scaled down");
 });
 
 test("fit survives a zero-sized stage rather than dividing by zero", () => {

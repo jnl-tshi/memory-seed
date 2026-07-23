@@ -356,8 +356,33 @@ button:not(:disabled):active { transform: translateY(0); transition-duration: 40
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
+  /* Inactive: the pointer is for scrolling the list, and touch pans the page
+     vertically past this diagram. Activating (a click) hands the wheel and
+     drag to the diagram - see .diagram-view.active below. */
+  cursor: pointer;
+  touch-action: pan-y;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.diagram-view.active .diagram-viewport {
   cursor: grab;
   touch-action: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+/* A quiet affordance so the click-to-zoom gesture is discoverable; it fades
+   out the moment the diagram goes active. */
+.diagram-hint {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  pointer-events: none;
+  opacity: 0.85;
 }
 .diagram-stage { transform-origin: 0 0; width: 100%; padding: 12px; }
 .diagram-zoom-bar { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; }
