@@ -108,7 +108,7 @@ untyped `related_entries` curation. The counts below are generated — hand-edit
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 0 · 2_Todo 24 · 3_Spec 8 · 4_Reference 16 · 5_Completed 60 · 6_Rejected 0 · 7_Superseded 28 · 8_Deferred 4
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 0 · 2_Todo 25 · 3_Spec 8 · 4_Reference 16 · 5_Completed 60 · 6_Rejected 0 · 7_Superseded 28 · 8_Deferred 4
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P1** [derived-projection-implementation-plan.md](2_Todo/derived-projection-implementation-plan.md) — Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, low-urgency) = incremental ingest, gated on …
