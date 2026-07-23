@@ -439,6 +439,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="write inert classify_pending stubs for --date gaps; never writes a live edge",
     )
+    link_audit.add_argument(
+        "--json",
+        action="store_true",
+        help="emit judgment-ready candidates (both ends' decision bodies + criteria) for a narrowing agent",
+    )
     link_add = link_sub.add_parser(
         "add",
         help="add a related_entries edge to the current/newest entry",
@@ -1406,6 +1411,9 @@ def main(argv: list[str] | None = None) -> int:
             if args.apply and args.for_entry is not None:
                 print("link audit --apply cannot be combined with --for", file=sys.stderr)
                 return 2
+            if args.json and args.apply:
+                print("link audit --json cannot be combined with --apply", file=sys.stderr)
+                return 2
 
             try:
                 gaps = audit_link_gaps(
@@ -1414,13 +1422,67 @@ def main(argv: list[str] | None = None) -> int:
             except LookupError as exc:
                 print(str(exc), file=sys.stderr)
                 return 1
+
+            if args.json:
+                # Judgment-ready: each candidate pair carries both ends' decision
+                # bodies plus the link/no-link criteria, so a narrowing agent (or
+                # a human) has a self-contained task. Mechanical recall in; the
+                # decision-level judgment stays out of the network-free core.
+                import json as _json
+
+                def _dec(d: Any) -> dict:
+                    return {"ordinal": d.ordinal, "name": d.name, "text": d.text}
+
+                payload = {
+                    "criteria": {
+                        "supersedes": "the newer decision retires or replaces the older one (the older is now wrong or dead)",
+                        "evolves": "the newer decision refines or extends the older one while it stays valid",
+                        "related": "the two inform each other but neither supersedes nor evolves",
+                        "none": "no genuine lifecycle or relatedness link — a shared file or topic is not itself a link",
+                        "narrowing": "identify WHICH decision at each end the link connects; address a multi-decision target as <entry_id>:dN (a single-decision entry is :d1, which denotes the same edge as entry-level)",
+                        "forward_only": "the audited entry is always the newer end; an edge points from it back to the older candidate, never forward",
+                    },
+                    "gaps": [
+                        {
+                            "entry_id": g.entry_id,
+                            "title": g.title,
+                            "session_date": g.session_date,
+                            "decisions": [_dec(d) for d in g.decisions],
+                            "candidates": [
+                                {
+                                    "entry_id": c.entry_id,
+                                    "title": c.title,
+                                    "session_date": c.session_date,
+                                    "shared_files": list(c.shared_files),
+                                    "shared_topics": list(c.shared_topics),
+                                    "shared_title_terms": list(c.shared_title_terms),
+                                    "score": c.file_overlap_score,
+                                    "already_related": c.already_related,
+                                    "decisions": [_dec(d) for d in c.decisions],
+                                }
+                                for c in g.candidates
+                            ],
+                        }
+                        for g in gaps
+                    ],
+                }
+                print(_json.dumps(payload, indent=2))
+                return 0
             if not gaps:
                 print("No unlinked structural neighbours found (no shared files or topics without an edge).")
                 return 0
             print("Entries sharing files/topics with no recorded edge - classify each and record in a link sidecar:")
+
+            def _fmt_decisions(decisions: Any) -> str:
+                return " · ".join(f"{d.ordinal} {d.name}".strip() for d in decisions)
+
             for gap in gaps:
                 print()
                 print(f"{gap.entry_id}  {gap.session_date}  {gap.title}")
+                # Only when there is a choice to make: a single-decision entry is
+                # addressable as :d1 already, so its decision line is just noise.
+                if len(gap.decisions) >= 2:
+                    print(f"    decisions: {_fmt_decisions(gap.decisions)}")
                 for cand in gap.candidates:
                     evidence = []
                     # Shared title terms lead: they are the strongest signal
@@ -1436,8 +1498,11 @@ def main(argv: list[str] | None = None) -> int:
                         evidence.append("already related — consider upgrading to a lifecycle edge")
                     print(f"    -> {cand.entry_id}  {cand.session_date}  {cand.title}")
                     print(f"       {' | '.join(evidence)}")
+                    if len(cand.decisions) >= 2:
+                        print(f"       decisions: {_fmt_decisions(cand.decisions)}  (target one as {cand.entry_id}:dN)")
             print()
             print("Litmus: retires it -> supersedes; refines while it stays valid -> evolves; else related.")
+            print("Where both ends carry decisions, narrow the edge to :dN - especially for ADR-promoted decisions.")
             if args.apply:
                 try:
                     applied = apply_link_gap_stubs(gaps, session_date=args.audit_date, cwd=cwd)

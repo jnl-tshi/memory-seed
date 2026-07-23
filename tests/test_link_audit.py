@@ -9,6 +9,7 @@ candidate. A recorded supersedes/evolves edge (YAML or sidecar) removes the pair
 """
 
 import contextlib
+import json
 import io
 import os
 import shutil
@@ -30,11 +31,13 @@ B = "mse_" + "b" * 16
 C = "mse_" + "c" * 16  # newest
 
 
-def _entry(dt, eid, *, topics=(), files=(), related=(), supersedes=(), evolves=(), title=None):
+def _entry(dt, eid, *, topics=(), files=(), related=(), supersedes=(), evolves=(), title=None, decisions=None):
     # Titles must share NO word by default. Candidate scoring now counts shared
     # distinctive title terms, so a fixture title like "entry aaaa" would make
     # every pair a title match and quietly defeat the tests that assert a pair
     # is NOT surfaced. Pass `title=` explicitly to exercise title overlap.
+    # `decisions=[name, ...]` writes a `#### Dn - name` subsection per name, so a
+    # fixture can carry addressable decisions; omitted keeps the plain body.
     lines = [f"## {dt} - {title or eid[-4:]}", "", "```yaml", f"entry_id: {eid}"]
     for key, vals in (
         ("topics", topics),
@@ -47,7 +50,14 @@ def _entry(dt, eid, *, topics=(), files=(), related=(), supersedes=(), evolves=(
             lines.extend(f"  - {v}" for v in vals)
     lines += ["```", ""]
     lines += [f"- F: `{f}`" for f in files]
-    lines += ["", "Body text.", ""]
+    lines += [""]
+    if decisions:
+        lines.append("### Decisions")
+        for i, name in enumerate(decisions, 1):
+            lines += ["", f"#### D{i} - {name}", "", f"- D: decision {i} body", f"- R: reason {i}"]
+    else:
+        lines.append("Body text.")
+    lines += [""]
     return "\n".join(lines)
 
 
@@ -160,6 +170,45 @@ class LinkAuditTests(unittest.TestCase):
             _entry("2026-06-01 10:00", B, files=["pkg/foo.py"], supersedes=[A]),
         )
         self.assertIsNone(self._gap(B))
+
+    def test_target_and_candidate_carry_decision_structure(self):
+        # Decision awareness is SURFACED, not scored: both ends' decisions ride
+        # on the gap so a human or a judgment agent can narrow an edge to :dN.
+        # The scoring is unchanged - the pair still surfaces on file overlap.
+        self._write(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"], decisions=["Alpha", "Beta"]),
+            _entry("2026-06-01 10:00", B, files=["pkg/foo.py"], decisions=["Gamma", "Delta", "Epsilon"]),
+        )
+        gap = self._gap(B)
+        self.assertEqual([d.ordinal for d in gap.decisions], ["d1", "d2", "d3"])
+        self.assertEqual(gap.decisions[0].name, "Gamma")
+        cand = gap.candidates[0]
+        self.assertEqual([d.ordinal for d in cand.decisions], ["d1", "d2"])
+        self.assertEqual(cand.decisions[1].name, "Beta")
+        self.assertIn("reason 1", cand.decisions[0].text)
+
+    def test_json_emits_judgment_ready_candidates_with_both_ends_decisions(self):
+        self._write(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"], decisions=["Alpha", "Beta"]),
+            _entry("2026-06-01 10:00", B, files=["pkg/foo.py"], decisions=["Gamma"]),
+        )
+        code, out, err = self._run_cli("link", "audit", "--for", B, "--json")
+        self.assertEqual(code, 0, err)
+        payload = json.loads(out[out.index("{"):])
+        self.assertIn("narrowing", payload["criteria"])
+        gap = payload["gaps"][0]
+        self.assertEqual(gap["entry_id"], B)
+        self.assertEqual([d["ordinal"] for d in gap["decisions"]], ["d1"])
+        cand = gap["candidates"][0]
+        self.assertEqual(cand["entry_id"], A)
+        self.assertEqual([d["ordinal"] for d in cand["decisions"]], ["d1", "d2"])
+        self.assertIn("decision 1 body", cand["decisions"][0]["text"])
+
+    def test_json_and_apply_are_mutually_exclusive(self):
+        self._write(_entry("2026-06-01 09:00", A, files=["pkg/foo.py"]))
+        code, _out, err = self._run_cli("link", "audit", "--json", "--apply", "--date", "2026-06-01")
+        self.assertEqual(code, 2)
+        self.assertIn("cannot be combined", err)
 
     def test_sidecar_lifecycle_edge_suppresses_the_pair(self):
         self._write(
