@@ -1,3 +1,8 @@
+---
+priority: P3
+next_action: Awaiting JNL's shape decision — diagram content refinement / link structure-repair only / editable link edges. No build until a shape is chosen; shapes touching link edges reopen ratified Invariant #2 (amendment 1.2) and need their own amendment.
+---
+
 # Sidecars as Editable Lenses — Conservative Refinement Proposal
 
 Status: **PROPOSAL — needs design.** Raised 2026-07-23 by JNL while ratifying Constitution v1.4.
