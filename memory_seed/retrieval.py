@@ -663,6 +663,15 @@ def audit_link_gaps(
             | set(chunk.evolves)
             | set(sidecar.get("supersedes", ()))
             | set(sidecar.get("evolves", ()))
+            # A decision-level ref (`<id>:dN`) records the pair at FINER
+            # granularity. It deliberately never projects into the entry-level
+            # edge sets, but for gap-finding the pair is linked - without this
+            # union every decision-narrowed edge re-surfaces as a "gap" forever.
+            | {
+                eid
+                for kind, eid, _ordinal in sidecar.get("decision_edges", ())
+                if kind in ("supersedes", "evolves")
+            }
         )
 
     # Semantic similarity, when the embedding provider is available. Purely a
