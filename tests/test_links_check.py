@@ -1012,6 +1012,71 @@ class LinksCheckTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertIn("dangling-decision-ref", [i.kind for i in result.issues])
 
+    # The same two corruptions, but in an entry's OWN ```yaml frontmatter and
+    # per-user file frontmatter - the paths that kept scraping the region text
+    # after the sidecar path was migrated, until _entry_level_ref_ids replaced
+    # them. Sidecar coverage is above; these pin the entry side.
+
+    def test_indented_comment_in_entry_frontmatter_creates_no_phantom_edge(self):
+        cwd = self.make_project()
+        self._decision_corpus(cwd)
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        # Newer entry evolves the older (forward-only, valid); the indented
+        # candidate comment names an id that exists nowhere. A phantom
+        # extraction would surface it as dangling-evolves.
+        (sessions / "2026-06-02.md").write_text(
+            "## 2026-06-02 09:00 - Newer\n\n```yaml\nentry_id: mse_bbbbbbbbbbbbbbbb\nevolves:\n"
+            "  - mse_aaaaaaaaaaaaaaaa\n  # candidate: mse_zzzzzzzzzzzzzzzz\n```\n\n"
+            "### Decision\n\n- D: x\n- R: y\n",
+            encoding="utf-8",
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertTrue(result.ok, [i.detail for i in result.issues if i.severity == "error"])
+        self.assertNotIn("mse_zzzzzzzzzzzzzzzz", " ".join(i.detail for i in result.issues))
+
+    def test_decision_ref_in_entry_frontmatter_is_surfaced_not_truncated(self):
+        cwd = self.make_project()
+        self._decision_corpus(cwd)
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        # A `:dN` ref belongs in a link sidecar. In an entry's own frontmatter it
+        # was silently truncated to its entry-id prefix and validated as an
+        # entry-level edge; now it surfaces instead of vanishing.
+        (sessions / "2026-06-02.md").write_text(
+            "## 2026-06-02 09:00 - Newer\n\n```yaml\nentry_id: mse_bbbbbbbbbbbbbbbb\nevolves:\n"
+            "  - mse_aaaaaaaaaaaaaaaa:d2\n```\n\n### Decision\n\n- D: x\n- R: y\n",
+            encoding="utf-8",
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        self.assertIn("misplaced-decision-ref", [i.kind for i in result.issues])
+        # Reported once, not once per validation pass over the block.
+        self.assertEqual(
+            1, sum(1 for i in result.issues if i.kind == "misplaced-decision-ref")
+        )
+
+    def test_registered_nonstandard_id_ref_is_not_newly_flagged(self):
+        # _ENTRY_ID_RE accepts any \\S+ as an entry_id, so an entry can carry a
+        # non-standard id that the stricter ref grammar would reject. The old
+        # scrape silently ignored a ref to such an id; the migration must too, or
+        # a registered entry becomes un-referenceable and a clean corpus breaks.
+        # (Real minted ids all match the strict grammar - this guards the general
+        # case the retrieval parity fixture exercises with `ms-bootstrap`.)
+        cwd = self.make_project()
+        self._decision_corpus(cwd)
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        (sessions / "2026-05-31.md").write_text(
+            "## 2026-05-31 08:00 - Oddly named\n\n```yaml\nentry_id: ms-oddname\n```\n\n"
+            "### Decision\n\n- D: a\n- R: b\n",
+            encoding="utf-8",
+        )
+        (sessions / "2026-06-02.md").write_text(
+            "## 2026-06-02 09:00 - Newer\n\n```yaml\nentry_id: mse_bbbbbbbbbbbbbbbb\nrelated_entries:\n"
+            "  - ms-oddname\n```\n\n### Decision\n\n- D: x\n- R: y\n",
+            encoding="utf-8",
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertTrue(result.ok, [i.detail for i in result.issues if i.severity == "error"])
+
     def test_singular_decision_entry_is_addressable_as_d1(self):
         # The convention that makes the scheme total rather than partial:
         # single-decision entries are the corpus majority.
