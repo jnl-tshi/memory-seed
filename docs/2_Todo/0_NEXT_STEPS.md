@@ -79,10 +79,14 @@ session log and code, not against this file's prior claims.
 
 These exist only in session-entry Follow-ups today. Nothing below is built.
 
-1. **Two silent-corruption paths in `_TRAILER_ENTRY_ID_RE` extraction** (P1 — data integrity).
-   A `#decisions/`-suffixed ref truncates to the entry id and validates clean; an *indented* comment
-   inside an edge list has its ids extracted as **real edges**. The first degrades an edge, the
-   second invents one. Both live now, both cheap to fix.
+1. ~~**Two silent-corruption paths in `_TRAILER_ENTRY_ID_RE` extraction** (P1 — data integrity).~~
+   **RESOLVED 2026-07-23.** The safe per-item parser shipped in 21749f4 but seven `links check` call
+   sites still scraped the region text; `_entry_level_ref_ids` now migrates all seven (session-entry
+   `yaml`, per-user file frontmatter, sidecar `related_entries`). Comments no longer become edges and
+   a `:dN` ref is no longer truncated; a misplaced decision ref surfaces, other non-id tokens are
+   skipped as before (the ref grammar is stricter than `_ENTRY_ID_RE`, so surfacing them would flag a
+   ref to a registered non-standard id). Real-corpus `links check` diff identical; three regression
+   tests added; validator-only (the live graph already used the migrated retrieval path).
 2. **Decision-level link refs** — spec drafted and evidence-backed (2 of 9 genuine edges wanted
    decision granularity). Four code points: extraction, validation, parse, Trace attachment.
    Blocked on nothing but a decision to build.
