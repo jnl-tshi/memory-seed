@@ -260,11 +260,20 @@ validation or detection.
 
 ## Open questions
 
-1. **Does `link audit` gain decision awareness, or stay entry-level?** (See step 4 — the honest answer may
-   be that it cannot, with its current evidence. Confirmed by reading it: candidates are scored on
-   `shared_files` and `shared_topics`, both keyed on `entry_id`
-   ([retrieval.py:558-559](../../../memory_seed/retrieval.py)), so nothing in the evidence discriminates
-   between two decisions of one entry.)
+1. ~~**Does `link audit` gain decision awareness, or stay entry-level?**~~ **RESOLVED 2026-07-23.** Both,
+   split along the constitution's core/optional line. The *scoring* stays entry-level and unchanged — its
+   evidence (`shared_files`/`shared_topics`/title/embeddings) is entry-keyed and genuinely cannot
+   discriminate two decisions of one entry, so it does not try. *Decision awareness lives in the output*:
+   `audit_link_gaps` now attaches both ends' decision structure (`entry_body_decisions` → ordinal + name +
+   body) to every gap, the CLI surfaces it for multi-decision entries, and `link audit --json` emits each
+   candidate as a judgment-ready task (both ends' decision bodies + link/no-link criteria). The
+   *narrowing* to `:dN` is deferred to a human — exactly as the edge TYPE already is — or to an external
+   judgment agent that reads the decision bodies. That agent (JNL's "swarm of small agents") is an
+   **optional layer**, never in the network-free core (Invariant #1): the core does mechanical recall and
+   emits the task; the model calls happen outside; the suggested edge is human/guard-approved and stored
+   as an ordinary `:dN` edge, so it stays model-independent (Invariant #5). See
+   `docs/2_Todo/link-audit-decision-judgment-swarm-proposal.md`. This is the "human narrows" outcome step
+   4 predicted, made concrete, with the machine-narrowing path scoped as a separate proposal.
 2. **Should ESR count decision edges separately** in coverage metrics, or would that make historical
    coverage look worse by moving the denominator?
 3. **Is `related_entries` worth extending to decisions**, or is decision granularity only meaningful for the
