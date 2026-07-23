@@ -84,6 +84,36 @@ class CoreMiscTests(unittest.TestCase):
         self.assertEqual(entry_body_decision_count(bullets), 1)
         self.assertEqual(entry_body_decision_count("### Summary\n\n- just a note\n"), 0)
 
+    def test_entry_body_decisions_extracts_ordinal_name_and_bounded_text(self):
+        from memory_seed.core import entry_body_decisions
+
+        body = (
+            "### Decisions\n\n"
+            "#### D1 - First name\n\n- D: alpha\n- R: because\n\n"
+            "#### D2 - Second name\n\n- D: beta\n- R: reasons\n\n"
+            "### Validation\n\n- checked\n"
+        )
+        ds = entry_body_decisions(body)
+        self.assertEqual([d.ordinal for d in ds], ["d1", "d2"])
+        self.assertEqual([d.name for d in ds], ["First name", "Second name"])
+        self.assertIn("beta", ds[1].text)
+        # The trailing ### Validation is a new section, not part of d2.
+        self.assertNotIn("checked", ds[1].text)
+
+    def test_entry_body_decisions_singular_is_d1_with_no_name(self):
+        from memory_seed.core import entry_body_decisions
+
+        ds = entry_body_decisions("### Decision\n\n- D: only one\n- R: because\n")
+        self.assertEqual(len(ds), 1)
+        self.assertEqual(ds[0].ordinal, "d1")
+        self.assertEqual(ds[0].name, "")
+        self.assertIn("only one", ds[0].text)
+
+    def test_entry_body_decisions_empty_without_a_decision_section(self):
+        from memory_seed.core import entry_body_decisions
+
+        self.assertEqual(entry_body_decisions("Just prose, no decision heading.\n"), [])
+
     def test_the_body_lint_sees_past_a_code_fence_in_the_body(self):
         # Regression: the body used to be split on fences[1], but the metadata
         # opener is '```yaml' and never equals a bare '```', so fences[1] was

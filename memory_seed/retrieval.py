@@ -20,7 +20,10 @@ import re
 from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
-from typing import Any, Iterable
+from typing import TYPE_CHECKING, Any, Iterable
+
+if TYPE_CHECKING:
+    from .core import DecisionSummary
 
 from .semantic_cache import (
     EmbeddingProvider,
@@ -536,6 +539,12 @@ class LinkGapCandidate:
     # True when a related_entries link already exists but no lifecycle edge -
     # the "supersession mislabelled as related" case the sweep should upgrade.
     already_related: bool = False
+    # The candidate's own decisions (ordinal + name + body), so an edge can be
+    # narrowed to `:dN`. Empty for a no-decision entry. This is surfaced, not
+    # scored: the mechanical evidence is entry-level and cannot discriminate
+    # decisions, so which one an edge targets is a human's (or a judgment
+    # agent's) call, exactly as the supersedes/evolves/related TYPE already is.
+    decisions: tuple[DecisionSummary, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -544,6 +553,8 @@ class LinkGap:
     title: str
     session_date: str
     candidates: tuple[LinkGapCandidate, ...]
+    # The audited (newer) entry's own decisions - the source side of any edge.
+    decisions: tuple[DecisionSummary, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -585,6 +596,7 @@ def audit_link_gaps(
     """
     import math
 
+    from .core import entry_body_decisions
     from .semantic_cache import (
         FILE_OVERLAP_BOOST,
         _continuity_alias_map,
@@ -606,6 +618,11 @@ def audit_link_gaps(
     topics_of: dict[str, set[str]] = {}
     document_frequency: dict[str, int] = {}
     order: dict[str, Any] = {}
+    # Decision structure per entry, so a surfaced pair can be narrowed to `:dN`.
+    # Extracted once here, attached to both ends below; never fed to scoring.
+    decisions_of: dict[str, tuple[Any, ...]] = {
+        chunk.entry_id or "": tuple(entry_body_decisions(chunk.text)) for chunk in chunks
+    }
     for chunk in chunks:
         refs = {alias.get(ref, ref) for ref in _entry_file_refs(chunk.text)}
         file_refs[chunk.entry_id or ""] = refs
@@ -719,6 +736,7 @@ def audit_link_gaps(
                     shared_title_terms=shared_title,
                     file_overlap_score=round(score, 6),
                     already_related=cid in target_related,
+                    decisions=decisions_of.get(cid, ()),
                 )
             )
         candidates.sort(key=lambda c: (c.file_overlap_score, len(c.shared_topics)), reverse=True)
@@ -729,6 +747,7 @@ def audit_link_gaps(
                     title=target.title,
                     session_date=target.session_date.isoformat(),
                     candidates=tuple(candidates[:top_k]),
+                    decisions=decisions_of.get(tid, ()),
                 )
             )
     return gaps

@@ -1338,6 +1338,8 @@ _INLINE_NUMBERED_DECISION_RE = re.compile(r"^-\s+D\d+\s*:")  # '- D1:' inline (s
 _ENTRY_SECTION_RE = re.compile(r"^#{2,4}\s+(Summary|Decision|Decisions|Implementation|Validation|Follow-up)", re.I)
 _SINGULAR_DECISION_HEADING_RE = re.compile(r"^###\s+Decision\s*$")
 _NUMBERED_DECISION_HEADING_RE = re.compile(r"^####\s+D\d+\s*[-–]")  # '#### D1 - name'
+# Same heading, capturing the ordinal and the name after the dash.
+_NUMBERED_DECISION_CAPTURE_RE = re.compile(r"^####\s+D(\d+)\s*[-–]\s*(.*)$")
 # Public: the same numbered-decision grammar applied to a BARE section title
 # ('D2 - name', no '#### ' prefix) as section chunks carry it. Consumers that
 # detect decisions from chunk titles (e.g. Memory Trace's per-decision Trail
@@ -1401,6 +1403,58 @@ def _entry_decision_ordinals(body: str) -> list[str]:
         return ordinals
     if any(_SINGULAR_DECISION_HEADING_RE.match(ln) for ln in lines):
         return ["d1"]
+    return []
+
+
+@dataclass(frozen=True)
+class DecisionSummary:
+    """One decision of an entry, at the granularity a `:dN` ref addresses."""
+
+    ordinal: str  # "d1", "d2", ... — the ref suffix that targets this decision
+    name: str  # the "#### Dn - <name>" heading text; "" for a singular ### Decision
+    text: str  # the decision's own body (D:/R:/A:/… lines), trimmed
+
+
+def entry_body_decisions(body: str) -> list[DecisionSummary]:
+    """Per-decision (ordinal, name, body) for an entry body.
+
+    Mirrors ``_entry_decision_ordinals``' identity rule so the ordinals returned
+    are exactly the ones a decision-level ref may target: each ``#### Dn - name``
+    subsection is one decision, and a singular ``### Decision`` reads as ``d1``
+    with no name. Each decision's text runs to the next heading (``##``/``###``/
+    ``####``), so a trailing ``### Validation`` or ``### Follow-up`` is never
+    folded into the last decision. An entry with no decision section yields
+    nothing — it has no addressable decision. This is the decision-level material
+    a human, or a judgment agent, reads to narrow an edge to `:dN`; it invents no
+    new signal, it just exposes what the entry already wrote.
+    """
+    lines = body.splitlines()
+
+    def section_end(start: int) -> int:
+        for j in range(start + 1, len(lines)):
+            if re.match(r"^#{2,4}\s", lines[j]):
+                return j
+        return len(lines)
+
+    numbered = [(i, m) for i, ln in enumerate(lines) if (m := _NUMBERED_DECISION_CAPTURE_RE.match(ln))]
+    if numbered:
+        return [
+            DecisionSummary(
+                ordinal=f"d{int(m.group(1))}",
+                name=m.group(2).strip(),
+                text="\n".join(lines[start + 1 : section_end(start)]).strip(),
+            )
+            for start, m in numbered
+        ]
+    for i, ln in enumerate(lines):
+        if _SINGULAR_DECISION_HEADING_RE.match(ln):
+            return [
+                DecisionSummary(
+                    ordinal="d1",
+                    name="",
+                    text="\n".join(lines[i + 1 : section_end(i)]).strip(),
+                )
+            ]
     return []
 
 
