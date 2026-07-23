@@ -77,6 +77,14 @@ jobs:
       - name: Run React unit tests
         run: npm test
 
+      # Parse every diagram-sidecar Mermaid block through real Mermaid, so an
+      # unrenderable diagram fails the build even if the local pre-commit hook
+      # was bypassed. links check validates a sidecar's structure but never its
+      # Mermaid; this is that gap's backstop. Needs jsdom + mermaid, both
+      # installed by npm ci above.
+      - name: Lint diagram-sidecar Mermaid
+        run: npm run lint:sidecars
+
       - name: Build packaged React assets
         run: npm run build
 
