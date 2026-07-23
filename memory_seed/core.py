@@ -857,6 +857,51 @@ def _frontmatter_list_refs(block: str, list_key: str) -> list[ListRef]:
     return refs
 
 
+def _entry_level_ref_ids(
+    block: str, list_key: str, rel: str, issues: list, *, surface: bool
+) -> list[str]:
+    """Entry-level target ids from a `related_entries`/`supersedes`/`evolves`
+    list, parsed per authored item.
+
+    Replaces ``_TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(...))``,
+    which scraped ids out of the region text and so committed two silent
+    corruptions: an id inside an indented comment became a real edge, and a
+    `<entry_id>:dN` ref was truncated to its entry-id prefix and recorded as an
+    entry-level edge. Parsing per item stops both — comments are dropped by
+    YAML's own rule, and a decision-level ref is recognised rather than truncated.
+
+    The returned set of entry-level ids is otherwise identical to the old scrape
+    — a bare id that is unknown still surfaces as dangling downstream — so this is
+    behaviour-preserving apart from removing the two corruptions. A decision-level
+    ref is surfaced as misplaced, because decision granularity is valid only on
+    `supersedes`/`evolves` in a link sidecar (decision-level-link-sidecar-refs.md),
+    never in entry/file frontmatter. Any other non-id token is skipped, exactly as
+    the old scrape skipped a substring it could not match — surfacing those is a
+    separate linting concern, out of scope for closing the corruption. ``surface``
+    is False on a second pass over the same block so an item is reported once.
+    """
+    ids: list[str] = []
+    for parsed in _frontmatter_list_refs(block, list_key):
+        if not parsed.ok:
+            # The old scrape silently dropped anything it could not match; keep
+            # that, so a non-standard but registered id (or any stray token) is
+            # not newly flagged. The two corruptions are already closed above.
+            continue
+        if parsed.decision is not None:
+            if surface:
+                issues.append(
+                    LinkIssue(
+                        rel,
+                        "misplaced-decision-ref",
+                        f"{list_key} -> {parsed.raw}: decision-level refs are valid only on "
+                        "supersedes/evolves in a link sidecar, not here",
+                    )
+                )
+            continue
+        ids.append(parsed.entry_id)
+    return ids
+
+
 def _parse_continuity_items(region: str) -> list[dict[str, str]]:
     """Parse the indented ``continuity:`` list region into item mappings.
 
@@ -1651,18 +1696,19 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
         # Entry-level related_entries/supersedes live inside each entry's fenced
         # ```yaml block, the same shape in both layouts - scan them regardless
         # of layout, unlike the per-user *file*-frontmatter checks below.
-        # Refs extract with the wider _TRAILER_ENTRY_ID_RE, not the strict
-        # Crockford _RELATED_ENTRY_REF_RE: real corpus ids include o/u/i/l
-        # (codex-authored entries), and a ref the extractor skips silently
-        # bypasses the dangling and forward-only guards while the graph still
-        # draws it. known_entries accepts any id shape (_ENTRY_ID_RE), so a
-        # wider-matched bad token surfaces as dangling instead of vanishing.
+        # _entry_level_ref_ids parses per authored item: a bare-id-shaped but
+        # unknown token still surfaces as dangling (the reason the old scrape
+        # matched widely), while an id inside an indented comment and a
+        # `<entry_id>:dN` suffix - the two silent corruptions - can no longer
+        # become or truncate an edge. This is pass one of two over these blocks;
+        # the forward-only pass below sets surface=False so each item reports
+        # once.
         for yaml_block in _fenced_yaml_blocks(text):
-            for ref in _TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(yaml_block, "related_entries")):
+            for ref in _entry_level_ref_ids(yaml_block, "related_entries", rel, issues, surface=True):
                 related_entry_refs.append((rel, ref))
-            for ref in _TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(yaml_block, "supersedes")):
+            for ref in _entry_level_ref_ids(yaml_block, "supersedes", rel, issues, surface=True):
                 supersedes_refs.append((rel, ref))
-            for ref in _TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(yaml_block, "evolves")):
+            for ref in _entry_level_ref_ids(yaml_block, "evolves", rel, issues, surface=True):
                 evolves_refs.append((rel, ref))
             for token in _COMMIT_TOKEN_RE.findall(_frontmatter_list_region(yaml_block, "commits")):
                 commit_refs.append((rel, token))
@@ -1729,10 +1775,10 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
             source_id = id_match.group(1) if id_match else None
             if source_id:
                 entry_timestamps.setdefault(source_id, heading_ts)
-            for ref in _TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(yaml_block, "supersedes")):
+            for ref in _entry_level_ref_ids(yaml_block, "supersedes", rel, issues, surface=False):
                 if source_id:
                     supersedes_edges.append((rel, source_id, ref))
-            for ref in _TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(yaml_block, "evolves")):
+            for ref in _entry_level_ref_ids(yaml_block, "evolves", rel, issues, surface=False):
                 if source_id:
                     evolves_edges.append((rel, source_id, ref))
 
@@ -1770,7 +1816,7 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                 issues.append(LinkIssue(rel, "malformed-hash-id", f"hash_id '{hash_id}' lacks the msm_ prefix"))
             hash_id_files.setdefault(hash_id, []).append(rel)
 
-        for ref in _TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(block, "related_entries")):
+        for ref in _entry_level_ref_ids(block, "related_entries", rel, issues, surface=True):
             related_entry_refs.append((rel, ref))
         for ref in _RELATED_MEMORY_REF_RE.findall(_frontmatter_list_region(block, "related_memories")):
             related_memory_refs.append((rel, ref))
@@ -1964,7 +2010,7 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                         )
                         continue
                     decision_edges.append((rel, entry_id, parsed.entry_id, parsed.decision))
-            for ref in _TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(yaml_block, "related_entries")):
+            for ref in _entry_level_ref_ids(yaml_block, "related_entries", rel, issues, surface=True):
                 if ref not in known_entries:
                     issues.append(LinkIssue(rel, "dangling-related-entry", f"related_entries -> {ref} (no such entry_id)"))
 
