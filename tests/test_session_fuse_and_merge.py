@@ -984,6 +984,113 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         diff_stat = self._git(cwd, "diff", "--stat", "HEAD~1", "HEAD", "--", ".memory-seed/sessions/links").stdout
         self.assertTrue(diff_stat.strip(), "merge commit must carry the link-sidecar change, not contribute nothing")
 
+    def test_second_link_sidecar_block_for_same_entry_imports_as_new_declaration(self):
+        # Block identity is (entry_id, timestamp), not entry_id alone. An entry
+        # that already carries a block gains a SECOND dated block when a later
+        # audit records a new edge - the append-only-compatible correction
+        # path. Keying by entry_id alone made the first block the only block
+        # forever: by cycle 5 of the judgment programme eight validated edges
+        # were withheld on exactly this shape.
+        cwd = self.make_project()
+        target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-10.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        entry_a = ("09:00", "First", "mse_aaaaaaaaaaaaaaaa", "main")
+        entry_b = ("09:30", "Second", "mse_bbbbbbbbbbbbbbbb", "main")
+        target.write_text(self._grouped_session_text("2026-07-10", [entry_a, entry_b]), encoding="utf-8")
+        link_target = cwd / MEMORY_DIR_NAME / "sessions" / "links" / "2026-07" / "2026-07-10.md"
+        link_target.parent.mkdir(parents=True, exist_ok=True)
+        first_block = ("09:45", "Second", "mse_bbbbbbbbbbbbbbbb", ["related_entries:", "  - mse_aaaaaaaaaaaaaaaa"])
+        link_target.write_text(self._link_sidecar_text("2026-07-10", [first_block]), encoding="utf-8")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        second_block = ("21:00", "Second", "mse_bbbbbbbbbbbbbbbb", ["evolves:", "  - mse_aaaaaaaaaaaaaaaa"])
+        link_target.write_text(
+            self._link_sidecar_text("2026-07-10", [first_block, second_block]), encoding="utf-8"
+        )
+        self._commit_all(cwd, "second declaration for the same entry")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertEqual(result.issues, [])
+        self.assertTrue(result.committed)
+        text = link_target.read_text(encoding="utf-8")
+        self.assertEqual(text.count("entry_id: mse_bbbbbbbbbbbbbbbb"), 2, "both dated blocks must survive")
+        self.assertIn("## 2026-07-10 09:45", text)
+        self.assertIn("## 2026-07-10 21:00", text)
+        self.assertIn("evolves:", text)
+        self.assertIn("related_entries:", text)
+
+    def test_modified_existing_link_sidecar_block_is_still_refused(self):
+        # The composite key narrows the immutability guard, it does not remove
+        # it: the SAME (entry_id, timestamp) block with different text is still
+        # an in-place modification and still blocks the merge.
+        cwd = self.make_project()
+        target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-10.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        entry_a = ("09:00", "First", "mse_aaaaaaaaaaaaaaaa", "main")
+        entry_b = ("09:30", "Second", "mse_bbbbbbbbbbbbbbbb", "main")
+        target.write_text(self._grouped_session_text("2026-07-10", [entry_a, entry_b]), encoding="utf-8")
+        link_target = cwd / MEMORY_DIR_NAME / "sessions" / "links" / "2026-07" / "2026-07-10.md"
+        link_target.parent.mkdir(parents=True, exist_ok=True)
+        link_target.write_text(
+            self._link_sidecar_text(
+                "2026-07-10",
+                [("09:45", "Second", "mse_bbbbbbbbbbbbbbbb", ["related_entries:", "  - mse_aaaaaaaaaaaaaaaa"])],
+            ),
+            encoding="utf-8",
+        )
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        link_target.write_text(
+            self._link_sidecar_text(
+                "2026-07-10",
+                [("09:45", "Second", "mse_bbbbbbbbbbbbbbbb", ["evolves:", "  - mse_aaaaaaaaaaaaaaaa"])],
+            ),
+            encoding="utf-8",
+        )
+        self._commit_all(cwd, "in-place edit of the published block")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertFalse(result.committed)
+        self.assertTrue(any("existing link sidecar modified" in issue for issue in result.issues))
+
+    def test_duplicate_same_timestamp_link_sidecar_blocks_are_refused(self):
+        # Two blocks for one entry at the SAME heading timestamp have the same
+        # identity - that is authoring damage, not a second declaration.
+        cwd = self.make_project()
+        target = cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-10.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        entry_a = ("09:00", "First", "mse_aaaaaaaaaaaaaaaa", "main")
+        entry_b = ("09:30", "Second", "mse_bbbbbbbbbbbbbbbb", "main")
+        target.write_text(self._grouped_session_text("2026-07-10", [entry_a, entry_b]), encoding="utf-8")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        link_target = cwd / MEMORY_DIR_NAME / "sessions" / "links" / "2026-07" / "2026-07-10.md"
+        link_target.parent.mkdir(parents=True, exist_ok=True)
+        link_target.write_text(
+            self._link_sidecar_text(
+                "2026-07-10",
+                [
+                    ("09:45", "Second", "mse_bbbbbbbbbbbbbbbb", ["related_entries:", "  - mse_aaaaaaaaaaaaaaaa"]),
+                    ("09:45", "Second", "mse_bbbbbbbbbbbbbbbb", ["evolves:", "  - mse_aaaaaaaaaaaaaaaa"]),
+                ],
+            ),
+            encoding="utf-8",
+        )
+        self._commit_all(cwd, "duplicate identity blocks")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertFalse(result.committed)
+        self.assertTrue(any("duplicate link sidecar blocks" in issue for issue in result.issues))
+
     @pytest.mark.integration
     def test_session_merge_branch_fuses_link_sidecar_edited_on_both_sides(self):
         # Two-sided edit is the case the `-merge` guard forces into a real git

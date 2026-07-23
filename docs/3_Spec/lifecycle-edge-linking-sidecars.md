@@ -281,8 +281,21 @@ focus and its write-time authoring is unchanged.
   `entry_id` listing A.
 - The forward-only guard resolves the source's timestamp from the **entry's**
   heading (not the sidecar), so "B supersedes A" is legal iff A predates B.
-- The sidecar block heading is cosmetic; `entry_id` is authoritative. No
-  heading-vs-entry consistency check beyond entry existence.
+- The sidecar block heading is cosmetic for display; `entry_id` is
+  authoritative for what the block refers to. No heading-vs-entry consistency
+  check beyond entry existence.
+- **Block identity is `(entry_id, heading timestamp)` — one entry may carry
+  several dated blocks** (amended 2026-07-23). Each block is an immutable
+  declaration made at a point in time; a later audit that finds a new edge for
+  an already-blocked entry APPENDS a new block stamped with the wall clock,
+  never edits the existing one. Readers (`entry_link_sidecars`) union all of
+  an entry's blocks; the fuse compares immutability per `(entry_id,
+  timestamp)` and imports new identities. Rationale: identity by `entry_id`
+  alone made the first block the only block forever — by cycle 5 of the
+  2026-07-23 judgment programme eight validated edges were unwritable because
+  their sources already had blocks. A later block may also revisit an earlier
+  block's `edge_status: not_applicable` classification with new evidence; both
+  statements stay in history, the union carrying the edge.
 
 ## Implementation order (as built - walking skeleton first)
 Because `TRAIL_EDGE_TYPES` already requests `supersedes`/`evolves`

@@ -3143,11 +3143,15 @@ def _link_sidecar_records_from_ref(
     return records
 
 
-def _link_sidecars_from_ref(root: Path, ref: str) -> dict[str, _LinkSidecarRecord]:
-    sidecars: dict[str, _LinkSidecarRecord] = {}
+def _link_sidecars_from_ref(root: Path, ref: str) -> dict[tuple[str, str], _LinkSidecarRecord]:
+    """Blocks keyed by (entry_id, heading timestamp) - one entry may carry
+    several dated blocks, each an immutable declaration (see _plan_session_fuse)."""
+    sidecars: dict[tuple[str, str], _LinkSidecarRecord] = {}
     for record in _link_sidecar_records_from_ref(root, ref):
-        if record.entry_id and record.entry_id not in sidecars:
-            sidecars[record.entry_id] = record
+        if record.entry_id:
+            key = (record.entry_id, record.timestamp or "")
+            if key not in sidecars:
+                sidecars[key] = record
     return sidecars
 
 
@@ -3448,8 +3452,10 @@ def _plan_session_fuse(
     source_entries: dict[str, _SessionEntryRecord] = {}
     base_sidecars: dict[str, _DiagramSidecarRecord] = {}
     source_sidecars: dict[str, _DiagramSidecarRecord] = {}
-    base_link_sidecars: dict[str, _LinkSidecarRecord] = {}
-    source_link_sidecars: dict[str, _LinkSidecarRecord] = {}
+    # Keyed by (entry_id, heading timestamp) - see the block-identity comment at
+    # the collection loop below.
+    base_link_sidecars: dict[tuple[str, str], _LinkSidecarRecord] = {}
+    source_link_sidecars: dict[tuple[str, str], _LinkSidecarRecord] = {}
 
     import_entries: list[_SessionEntryRecord] = []
     imported_ids: set[str] = set()
@@ -3490,22 +3496,38 @@ def _plan_session_fuse(
     for entry_id in sorted(duplicate_source_sidecars):
         issues.append(f"source {source_label}: duplicate diagram sidecar blocks safe fuse: {entry_id}")
 
-    seen_source_link_sidecars: set[str] = set()
-    duplicate_source_link_sidecars: set[str] = set()
+    # Link sidecar block identity is (entry_id, heading timestamp), NOT entry_id
+    # alone. One entry legitimately accrues several blocks over time - the first
+    # sweep's classification, then a later audit adding an edge the first never
+    # saw. Keying by entry_id made the first block the only block forever: any
+    # later edge was an in-place modification append-only rightly refuses, and
+    # by cycle 5 of the judgment programme eight validated edges were withheld
+    # on exactly this. Appending a NEW dated block is the append-only-compatible
+    # way to record a later declaration; the reader (entry_link_sidecars)
+    # already unions blocks per entry. A block whose heading timestamp is edited
+    # reads as delete+add: the base block survives the fuse (removals are never
+    # honoured) and the re-stamped one imports beside it - noisy but lossless.
+    seen_source_link_sidecars: set[tuple[str, str]] = set()
+    duplicate_source_link_sidecars: set[tuple[str, str]] = set()
     for record in base_link_sidecar_records:
-        if record.entry_id and record.entry_id not in base_link_sidecars:
-            base_link_sidecars[record.entry_id] = record
+        if record.entry_id:
+            key = (record.entry_id, record.timestamp or "")
+            if key not in base_link_sidecars:
+                base_link_sidecars[key] = record
     for record in source_link_sidecar_records:
         if not record.entry_id:
             issues.append(f"{record.source_path}: link sidecar block at {record.timestamp or '(unknown time)'} has no entry_id")
             continue
-        if record.entry_id in seen_source_link_sidecars:
-            duplicate_source_link_sidecars.add(record.entry_id)
+        key = (record.entry_id, record.timestamp or "")
+        if key in seen_source_link_sidecars:
+            duplicate_source_link_sidecars.add(key)
             continue
-        seen_source_link_sidecars.add(record.entry_id)
-        source_link_sidecars[record.entry_id] = record
-    for entry_id in sorted(duplicate_source_link_sidecars):
-        issues.append(f"source {source_label}: duplicate link sidecar blocks safe fuse: {entry_id}")
+        seen_source_link_sidecars.add(key)
+        source_link_sidecars[key] = record
+    for entry_id, timestamp in sorted(duplicate_source_link_sidecars):
+        issues.append(
+            f"source {source_label}: duplicate link sidecar blocks safe fuse: {entry_id} at {timestamp or '(unknown time)'}"
+        )
 
     for entry_id, source_entry in sorted(source_entries.items(), key=lambda item: (item[1].timestamp or "", item[0])):
         base_entry = base_entries.get(entry_id)
@@ -3560,9 +3582,14 @@ def _plan_session_fuse(
             continue
         import_sidecars.append(source_sidecar)
 
-    for entry_id, source_link_sidecar in sorted(source_link_sidecars.items(), key=lambda item: (item[1].timestamp or "", item[0])):
-        base_link_sidecar = base_link_sidecars.get(entry_id)
+    for (entry_id, _block_ts), source_link_sidecar in sorted(
+        source_link_sidecars.items(), key=lambda item: (item[1].timestamp or "", item[0])
+    ):
+        base_link_sidecar = base_link_sidecars.get((entry_id, _block_ts))
         if base_link_sidecar is not None:
+            # Same (entry_id, timestamp) block on both sides: its text is
+            # immutable. A NEW timestamp for a known entry_id is not a
+            # modification - it is a later declaration, imported below.
             if base_link_sidecar.text != source_link_sidecar.text:
                 issues.append(f"{source_link_sidecar.source_path}: existing link sidecar modified for entry_id {entry_id}")
             continue
@@ -3700,10 +3727,15 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
         existing = _working_tree_link_sidecars(root, target_rel, link_date=date_str)
         if not _records_are_chronological(existing):
             return SessionFuseResult(changed=False, issues=[f"{target_rel}: existing link sidecar blocks are not chronological"])
-        by_id = {record.entry_id: record for record in existing if record.entry_id}
+        # Block identity is (entry_id, heading timestamp), matching the plan
+        # phase: one entry may carry several dated blocks, and only a block with
+        # the SAME identity is compared for immutability.
+        by_key = {
+            (record.entry_id, record.timestamp or ""): record for record in existing if record.entry_id
+        }
         writable_records = list(existing)
         for record in incoming:
-            current = by_id.get(record.entry_id)
+            current = by_key.get((record.entry_id or "", record.timestamp or ""))
             if current is not None:
                 if current.text == record.text:
                     already_present.append(record.entry_id or "")
