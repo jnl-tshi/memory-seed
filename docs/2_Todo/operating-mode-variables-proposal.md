@@ -4,8 +4,8 @@ date: "2026-07-23"
 project: "memory-seed"
 status: "proposed-awaiting-design-review"
 priority: "P2"
-blocked_by: "user design review — accept/amend the variable schema and the merge_trigger semantics before any agent-rules.md change"
-next_action: "JNL reacts to the schema and the open questions in §6. Only then draft the agent-rules.md gate + project.yaml merge_trigger default."
+blocked_by: "user design review — accept/amend the enforcement-classed schema (§4) and the merge_trigger gate mechanism (§5) before any control-plane or tooling change"
+next_action: "JNL reacts to the enforcement-class framing and the open questions in §6. Only then draft the agent-rules.md gate, the project.yaml merge_trigger default, and the merge_trigger gate on session merge-branch / memory_session_integrate."
 related:
   - "docs/CONSTITUTION.md"
   - ".memory-seed/agent-rules.md"
@@ -56,6 +56,9 @@ this proposal sits on, and it cleanly splits the variables:
   first message.
 - **Intent-dependent** variables can only be **set** at first message, from the task.
 
+That "set when" split is one axis. §4 adds the second — **enforcement class** — which is what answers whether
+setting a variable flips a real switch or only records a decision.
+
 ## 3. Why a routine, not a hook (already decided)
 
 JNL selected a **routine in `agent-rules.md`**, not a new hook. Reasons, recorded so the decision survives:
@@ -73,31 +76,52 @@ JNL selected a **routine in `agent-rules.md`**, not a new hook. Reasons, recorde
 A per-prompt hook MAY later *reinforce* the routine on agents that support it, but as reinforcement, never as
 the authority.
 
-## 4. Proposed variable schema (react to this)
+## 4. Proposed variable schema, by enforcement class
 
-Two groups, set in dependency order. Names are proposed; all are open to amendment.
+The variables carry two axes. **Set when** — session-stable (established at SessionStart, *checked* at first
+message) vs intent-dependent (*set* from the task) — is §2's axis. **Enforcement class** is the one that
+answers *does setting this flip a switch?*, and it is the primary framing here. Three classes. Names are
+proposed; all are open to amendment.
 
-### 4a. Session-stable — established at SessionStart, CHECKED at first message
+### 4a. Tooling-enforced — a command refuses a disallowed action (real switches)
 
-| Variable | Values | Source (today) | Notes |
-|---|---|---|---|
-| `checkout_posture` | `primary` / `owned-worktree` / `foreign` | measured — `worktree_guard` / `situate` `## Location` | shipped this session |
-| `integration_mode` | `local-merge` / `pr` | `.memory-seed/project.yaml` | exists; how integration happens |
-| `merge_trigger` | `manual` / `automatic` | **NEW** — proposed `project.yaml` default | when/who lands it — see §5 |
-| `governing_persona` | one active persona | `.agents/_registry.yaml` | most task-relevant active persona |
-| `version_state` | local vs published; unreleased? | `situate` + PyPI check | already in the orientation brief |
+These bite at the tool boundary: the CLI/MCP command itself declines, so compliance does not depend on the
+agent remembering.
 
-### 4b. Intent-dependent — SET at first message, from the task
+| Variable | Set when | The switch |
+|---|---|---|
+| `checkout_posture` | session start (measured) | `worktree guard` returns `severity: block` for a root-checkout write — **shipped** |
+| `worktree_decision` | first message (derived) | same guard: writing from the wrong checkout is refused |
+| `integration_mode` | session (config) | `memory_session_integrate` **declines** when `pr` — **shipped** |
+| `merge_trigger` | session (config) | **PROPOSED:** `session merge-branch` / `memory_session_integrate` refuse to land without an explicit user-authorization override when `manual` — see §5 |
 
-| Variable | Values | Depends on | Source rule |
-|---|---|---|---|
-| `write_intent` | `read-only` / `writing` | the task | does the task change files/state? |
-| `risk_tier` | `proceed` / `proceed-and-flag` / `propose-and-wait` / `stop` | task + write_intent | `risk_signaling.md` |
-| `orchestration_level` | `0` / `1` / `2` / `3` | task scope | `agent-rules.md` orchestration levels |
-| `worktree_decision` | `stay` / `create` | `write_intent` × `checkout_posture` | writing + `primary` ⇒ create before first write |
-| `skills_to_load` | set of skill files | task | trigger registry match |
+### 4b. Config-toggled — a config/registry value changes what loads (agent-read, no refusal)
 
-### 4c. The sequence ("a sequence of variables to be set")
+Mechanical in effect but not enforced by refusal: the value decides what is in scope, and the agent reads it.
+
+| Variable | Set when | The toggle |
+|---|---|---|
+| `governing_persona` | session (registry) | `.agents/_registry.yaml` `status: active/inactive` already toggles which personas load |
+| `skills_to_load` | first message | the trigger registry's `load_when`/`do_not_load_when` (deterministic). The gate **names** this decision; it adds no new toggle |
+
+### 4c. Advisory — a judgment or fact with no enforcement point
+
+Establishes reasoning, never a switch. Two are judgments no code can compute; one is informational; one is a
+classification that *feeds* a 4a switch.
+
+| Variable | Set when | Why advisory |
+|---|---|---|
+| `write_intent` | first message | a classification — it **feeds** the tooling-enforced worktree switch (4a) but is not itself refused |
+| `risk_tier` | first message | judgment (`risk_signaling.md`); no code can compute a risk tier |
+| `orchestration_level` | first message | judgment; a scope call |
+| `version_state` | session start (measured) | informational; already in the orientation brief |
+
+So, directly: **for 4a, yes — the gate flips real switches, and `merge_trigger` is the one new switch this
+proposes.** For 4b it routes through config toggles that already exist without adding new ones. For 4c it
+records reasoning the agent then acts on, and can be nothing more — a judgment has no switch to flip, and the
+proposal says so rather than pretending otherwise.
+
+### 4d. The sequence ("a sequence of variables to be set")
 
 Ordered because each step depends on the ones above it:
 
@@ -143,6 +167,23 @@ Two things make this a genuine variable rather than a restatement of `integratio
 session fact rather than a per-turn improvisation. On a later turn after context is summarized, the check
 re-runs.
 
+### How `merge_trigger` gets teeth (the gate on the tooling)
+
+Under `merge_trigger: manual`, `session merge-branch` and `memory_session_integrate` **refuse to land a
+branch** unless an explicit user-authorization override is present — the same shape as the worktree guard's
+`--allow-root-write` (a deliberate flag the agent is contractually barred from self-supplying) and
+`integration_mode: pr` making integrate decline. The agent commits on the task branch and holds; the user's
+"go" is what authorizes the override. Under `automatic`, the commands run without it and the agent may land at
+a stable, tested stopping point.
+
+Why a flag and not agent-discipline alone: a CLI cannot distinguish an agent-initiated invocation from a
+user-initiated one, so "refuse to auto-run" needs a token that *represents* user authorization — the override
+flag is that token. That is what turns `merge_trigger` from prose the agent might skip into a switch the
+tooling enforces, which is the whole point of the hybrid: the two decisions this proposal cares most about
+(don't auto-merge, don't write into a shared checkout) become things a command refuses, not things the agent
+must remember. `risk_tier` and `orchestration_level` cannot be made switches this way because nothing can
+compute them — they stay advisory (§4c), and the proposal says so rather than pretending otherwise.
+
 ## 6. Open questions (the design review)
 
 1. **`merge_trigger` default.** Propose `manual` under `local-merge` (matches today's "do NOT push without
@@ -151,22 +192,31 @@ re-runs.
 2. **Is `merge_trigger` a facet of `integration_mode` or its own field?** Proposed: its own `project.yaml`
    field (orthogonal axis), read fail-open like `integration_mode`. Alternative: fold it in as
    `local-merge-auto` vs `local-merge-manual`. The separate field is cleaner but adds a knob.
-3. **Enforcement.** As a routine, the gate is discipline + a checklist in `agent-rules.md`. Should anything
-   *verify* it ran — e.g. an ESR line "operating-mode gate: variables recorded this session"? Or is a recorded
-   routine enough for v0, matching how orchestration-level and risk-tier are handled today?
+3. **`merge_trigger` gate mechanism.** The teeth are an override flag on `session merge-branch` /
+   `memory_session_integrate` (mirroring `--allow-root-write`). Is that the right mechanism, or is a lighter
+   agent-contract ("never merge without explicit user instruction") enough given `local-merge` never pushes?
+   The flag is more robust and testable; the contract is simpler and adds no CLI surface. This is the one
+   genuinely open piece of the hybrid.
 4. **Schema fixity.** A fixed named list (§4) is checkable and teachable but rigid. Is the full list right, or
    should some variables (e.g. `governing_persona`, `skills_to_load`) stay as prose rather than named slots?
 5. **Where the intent-dependent decisions get recorded, if anywhere.** Options: nowhere durable (act on them,
    let them re-derive); a one-line note in the session entry's context; surfaced by `situate`. Proposed:
    nowhere durable for the intent-dependent half (Constitution), session-stable half stays in `project.yaml` /
    measured as today.
+6. **Does the advisory half need any verification?** The tooling-enforced (4a) and config-toggled (4b)
+   variables carry their own enforcement; the advisory ones (`risk_tier`, `orchestration_level`) do not.
+   Is a recorded routine enough for them, or should ESR note the gate ran — matching how orchestration-level
+   and risk-tier are handled today (it does not)?
 
 ## 7. Scope / Non-goals
 
 **In scope (if accepted):** a "First-Message Operating-Mode Gate" section in `agent-rules.md` documenting the
-schema and the ordered sequence; a `merge_trigger` `project.yaml` default read fail-open and surfaced by
-`situate`/`esr`; cross-references from `session_logging.md` and `agent_collaboration.md` for the on-branch
-logging + multi-branch behavior `merge_trigger` governs; both seed twins.
+enforcement-classed schema and the ordered sequence; a `merge_trigger` `project.yaml` default read fail-open
+and surfaced by `situate`/`esr`; the **`merge_trigger` gate itself** — an override flag on `session
+merge-branch` / `memory_session_integrate` that refuses to land under `manual` without explicit authorization
+(a real code change to the integration tooling, mirroring `--allow-root-write` and the `integration_mode: pr`
+decline); cross-references from `session_logging.md` and `agent_collaboration.md` for the on-branch logging +
+multi-branch behavior `merge_trigger` governs; both seed twins.
 
 **Non-goals:** no persistent variable *store* / new state file (Constitution); no new hook as the source of
 truth (a reinforcing hook is a possible later follow-on, not this proposal); no change to `integration_mode`
@@ -179,6 +229,9 @@ the variable only makes the choice explicit and consistent instead of per-turn i
   read-only early-exit.
 - `merge_trigger` is a documented `project.yaml` default, read fail-open as the chosen default, surfaced by
   `situate` and `esr`, and honored by the integration guidance in `agent_collaboration.md`.
+- The `merge_trigger` gate has teeth: `session merge-branch` / `memory_session_integrate` **refuse** to land
+  under `manual` without the explicit override, and proceed under `automatic` (or with the override), proven
+  by tests on both paths.
 - `session_logging.md` and `agent_collaboration.md` cross-reference `merge_trigger` for on-branch logging and
   multi-branch accumulation.
 - No new persistent state file; no new required hook. Seed/live parity holds (twin tests green).
