@@ -350,6 +350,7 @@ class _LinkSidecarRecord:
 @dataclass
 class SessionFuseResult:
     changed: bool
+    merge_trigger_blocked: bool = False
     planned_entries: list[str] = field(default_factory=list)
     planned_sidecars: list[str] = field(default_factory=list)
     planned_link_sidecars: list[str] = field(default_factory=list)
@@ -3901,6 +3902,7 @@ def session_fuse(
     branch: str,
     base: str = "HEAD",
     apply: bool = False,
+    user_approved: bool = False,
 ) -> SessionFuseResult:
     """Fuse branch-local session entries into the current working tree.
 
@@ -3925,6 +3927,16 @@ def session_fuse(
         return SessionFuseResult(changed=False, issues=[f"base ref does not resolve to a commit: {base}"])
 
     if apply:
+        # Authorization before mechanics: apply mode writes, so under
+        # merge_trigger 'manual' it needs the user's explicit go-ahead. Preview
+        # mode (apply=False) is never gated. This closes the bypass where a raw
+        # `git merge --no-ff --no-commit X` followed by `session fuse --apply`
+        # would land a branch without the approval the handoff commands require.
+        # session_merge_branch clears the same gate itself and passes
+        # user_approved=True for its internal apply.
+        block = _merge_trigger_block(root, user_approved)
+        if block:
+            return SessionFuseResult(changed=False, merge_trigger_blocked=True, issues=[block])
         merge_heads = _merge_head_commits(root)
         if not merge_heads:
             return SessionFuseResult(changed=False, issues=["--apply requires an in-progress git merge"])
@@ -4091,7 +4103,9 @@ def session_merge_branch(
             result.issues.append(f"could not reset {rel_path} to base content; merge left in progress")
             return result
 
-    applied = session_fuse(root, branch=branch, base=base_commit, apply=True)
+    # This function already cleared the merge_trigger gate above, so authorize
+    # its own internal apply rather than re-asking a question already answered.
+    applied = session_fuse(root, branch=branch, base=base_commit, apply=True, user_approved=True)
     if applied.issues:
         result.merge_in_progress = True
         result.issues.extend(applied.issues)

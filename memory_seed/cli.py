@@ -256,6 +256,11 @@ def main(argv: list[str] | None = None) -> int:
     session_fuse_parser.add_argument("--branch", required=True, help="source branch whose session entries should be fused")
     session_fuse_parser.add_argument("--base", default="HEAD", help="base ref to compare against (default: HEAD)")
     session_fuse_parser.add_argument("--apply", action="store_true", help="write the planned fuse; requires an in-progress git merge")
+    session_fuse_parser.add_argument(
+        "--user-approved",
+        action="store_true",
+        help="authorize --apply when merge_trigger is 'manual' (an explicit user go-ahead; agents must not set this themselves)",
+    )
     session_merge_parser = session_sub.add_parser(
         "merge-branch",
         help="merge a task branch and fuse its branch-local session entries in one step",
@@ -669,6 +674,7 @@ def main(argv: list[str] | None = None) -> int:
                 branch=args.branch,
                 base=args.base,
                 apply=args.apply,
+                user_approved=args.user_approved,
             )
             if result.issues:
                 print("Session fuse blocked:", file=sys.stderr)

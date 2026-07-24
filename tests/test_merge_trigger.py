@@ -19,6 +19,7 @@ from memory_seed.core import (
     MERGE_TRIGGERS,
     _merge_trigger_block,
     read_merge_trigger,
+    session_fuse,
     session_merge_branch,
 )
 from memory_seed.mcp_server import call_tool
@@ -191,6 +192,60 @@ class MergeTriggerMcpTests(_RepoFixture):
 
         self.assertTrue(result["ok"], result["issues"])
         self.assertTrue(result["committed"])
+
+
+class MergeTriggerFuseBypassTests(_RepoFixture):
+    """`session fuse --apply` is the other way to land a branch: a raw
+    `git merge --no-ff --no-commit` followed by the fuse primitive. Ungated, that
+    is a documented hole straight through merge_trigger's teeth.
+    """
+
+    def _start_raw_merge(self, branch):
+        run_git(self.root, "merge", "--no-ff", "--no-commit", branch, check=False)
+
+    @pytest.mark.integration
+    def test_fuse_apply_is_blocked_under_manual(self):
+        self.set_trigger("manual")
+        self.branch_with_entry("feature", "2026-06-13 10:00", "mse_" + "b" * 16, "branch-entry")
+        self._start_raw_merge("feature")
+
+        result = session_fuse(self.root, branch="feature", apply=True)
+
+        self.assertTrue(result.merge_trigger_blocked)
+        self.assertFalse(result.changed)
+        self.assertTrue(any("--user-approved" in i for i in result.issues), result.issues)
+
+    @pytest.mark.integration
+    def test_fuse_apply_proceeds_with_user_approval(self):
+        self.set_trigger("manual")
+        self.branch_with_entry("feature", "2026-06-13 10:00", "mse_" + "b" * 16, "branch-entry")
+        self._start_raw_merge("feature")
+
+        result = session_fuse(self.root, branch="feature", apply=True, user_approved=True)
+
+        self.assertFalse(result.merge_trigger_blocked)
+        self.assertEqual(result.issues, [])
+
+    @pytest.mark.integration
+    def test_fuse_preview_is_never_gated(self):
+        self.set_trigger("manual")
+        self.branch_with_entry("feature", "2026-06-13 10:00", "mse_" + "b" * 16, "branch-entry")
+
+        result = session_fuse(self.root, branch="feature", apply=False)
+
+        self.assertFalse(result.merge_trigger_blocked)
+        self.assertEqual(result.issues, [])
+
+    @pytest.mark.integration
+    def test_fuse_apply_is_ungated_under_automatic(self):
+        self.set_trigger("automatic")
+        self.branch_with_entry("feature", "2026-06-13 10:00", "mse_" + "b" * 16, "branch-entry")
+        self._start_raw_merge("feature")
+
+        result = session_fuse(self.root, branch="feature", apply=True)
+
+        self.assertFalse(result.merge_trigger_blocked)
+        self.assertEqual(result.issues, [])
 
 
 if __name__ == "__main__":
