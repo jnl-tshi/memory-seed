@@ -266,6 +266,8 @@ button:not(:disabled):active { transform: translateY(0); transition-duration: 40
 .trail-viewbar .trail-legend { margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }.trail-viewbar .trail-more { margin-left: 12px; }.trail-settings { position: relative; margin-left: 12px; }.trail-settings-menu { position: absolute; z-index: 8; top: calc(100% + 6px); right: 0; display: grid; gap: 10px; min-width: 210px; padding: 12px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--panel); box-shadow: 0 6px 24px #00000033; }.trail-settings-row { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }.trail-settings-row .segment-control { display: flex; width: 100%; }.trail-settings-row .segment-control button { flex: 1; justify-content: center; }
 .trail-settings-row input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent-strong); }
 .trail-settings-row b { color: var(--text-2); font-variant-numeric: tabular-nums; }.trail-legend-item { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; white-space: nowrap; }.trail-legend-line { display: inline-block; width: 16px; border-top: 2px dashed currentColor; }
+/* Decision-level lineage draws unbroken; the legend swatch must match it. */
+.trail-legend-line.trail-legend-solid { border-top-style: solid; }
 .trail-cont-key { display: inline-block; width: 8px; height: 8px; border: 1.6px solid; border-radius: 50%; }.trail-cont-key-diamond { border-radius: 1px; transform: rotate(45deg); }
 .trail-cont-zone { fill: color-mix(in srgb, var(--panel) 60%, transparent); }
 .trail-row.search-miss { opacity: 0.4; }

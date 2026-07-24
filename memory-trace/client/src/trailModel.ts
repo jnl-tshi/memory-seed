@@ -86,6 +86,54 @@ export function inDecisionGroup(node: TrailEvent): boolean {
   return Boolean(node.decision_ordinal) || (node.decision_count ?? 0) > 0;
 }
 
+// Does either end of this edge name a specific decision rather than a whole
+// entry? Keyed on the row id rather than a payload flag because that is what
+// the endpoint IS: `_decision_edges_for_rows` terminates a decision-level edge
+// on a `{entry_id}#decisions/{dN}-{slug}` row and an entry-level one on the
+// bare entry id, so the id already carries the answer and cannot disagree with
+// it. Mixed granularity counts - "d3 of B evolves A" is decision-level on one
+// end, which is exactly the precision worth showing.
+export function isDecisionEdge(edge: { source: string; target: string }): boolean {
+  return edge.source.includes("#decisions/") || edge.target.includes("#decisions/");
+}
+
+// The three granularity classes JNL ratified 2026-07-24, by precision:
+//   1  decision -> decision  - both ends name a specific decision (first class)
+//   2  entry  <-> decision   - one end names a decision (second class)
+//   3  entry  -> entry       - neither; history links and single-decision
+//                             entries, where the extra detail adds nothing
+// The class is a property of the two endpoint ids alone, so it is decided
+// here rather than threaded through the payload. The Trail draws all three by
+// default and weights them by class - the finer the edge, the more ink.
+export function lifecycleEdgeClass(edge: { source: string; target: string }): 1 | 2 | 3 {
+  const s = edge.source.includes("#decisions/");
+  const t = edge.target.includes("#decisions/");
+  if (s && t) return 1;
+  if (s || t) return 2;
+  return 3;
+}
+
+// The entry a Trail row id belongs to. Selection is entry-scoped (clicking any
+// decision row selects its entry), but a decision edge terminates on a ROW id,
+// so "does this edge touch the selection" has to be asked in entry terms or it
+// can never be true for a decision edge - which is exactly the bug that made
+// decision lineage unreachable in on-select mode.
+export function entryIdOfRowId(rowId: string): string {
+  const hash = rowId.indexOf("#");
+  return hash === -1 ? rowId : rowId.slice(0, hash);
+}
+
+// "D2" / "D2 of <entry title>" for a decision row, plain title otherwise -
+// the label a lineage tooltip needs. An edge tooltip built from raw titles
+// would read "D2 - long heading evolves D1 - other long heading" with no clue
+// which SESSIONS those decisions belong to, which is the one thing a reader
+// following lineage across the Trail actually needs.
+export function decisionEndpointLabel(node: TrailEvent, entryTitle?: string): string {
+  const ordinal = (node.decision_ordinal || "").toUpperCase();
+  if (!ordinal) return node.title;
+  return entryTitle ? `${ordinal} of ${entryTitle}` : `${ordinal} (${node.title})`;
+}
+
 // A decision row's rank within its entry group: "d1" -> 1, "d10" -> 10,
 // absent -> 0. Parsed numerically because the rows in a group share one
 // timestamp, so ordering falls entirely to this tiebreak - a string compare

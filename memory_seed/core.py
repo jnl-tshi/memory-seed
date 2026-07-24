@@ -11,7 +11,7 @@ import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Callable, Iterator, Literal, Sequence
+from typing import Any, Callable, Iterator, Literal, Sequence
 
 from .text_files import (
     read_json_file,
@@ -235,6 +235,25 @@ class LinkSidecarDocument:
     path: Path
     link_date: str | None
     layout: Literal["legacy-link", "month-link"]
+    malformed_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class TopicSidecarDocument:
+    """Topic sidecars under ``sessions/topics`` - the third family, after
+    diagrams and links.
+
+    Exists for the same reason those do: append-only forbids reopening a
+    published entry, so a topic learned about it later has nowhere else to
+    live. Modelled on the DIAGRAM family rather than the link one on purpose -
+    a topic is a per-entry ATTRIBUTE, like a diagram, not an edge between two
+    entries, so none of the link contract (forward-only, chronology, dangling
+    refs, block identity) applies to it.
+    """
+
+    path: Path
+    topic_date: str | None
+    layout: Literal["legacy-topic", "month-topic"]
     malformed_reason: str | None = None
 
 
@@ -499,26 +518,38 @@ def iter_session_documents(sessions_dir: Path) -> Iterator[SessionDocument]:
     return iter(sorted(documents, key=lambda doc: (doc.session_date, doc.user or "", doc.path.as_posix())))
 
 
-def iter_diagram_sidecar_documents(sessions_dir: Path) -> Iterator[DiagramSidecarDocument]:
-    documents: list[DiagramSidecarDocument] = []
-    diagrams_dir = sessions_dir / "diagrams"
-    if not diagrams_dir.is_dir():
+def _iter_dated_sidecar_documents(
+    sessions_dir: Path,
+    subdir: str,
+    build: Callable[..., Any],
+    *,
+    date_field: str,
+    legacy_layout: str,
+    month_layout: str,
+) -> Iterator[Any]:
+    """Scan one dated sidecar family under ``sessions/<subdir>``.
+
+    All three families (diagrams, links, topics) file the same way - a
+    ``YYYY-MM/YYYY-MM-DD.md`` tree plus legacy flat ``YYYY-MM-DD.md`` - and
+    report the same two malformations, so the scan is written once here rather
+    than a third time by copy. The families differ only in their document type
+    and the name of its date field, which is what the parameters carry.
+    """
+    documents: list[Any] = []
+    root = sessions_dir / subdir
+    if not root.is_dir():
         return iter(())
 
-    for path in diagrams_dir.iterdir():
+    def record(path: Path, date_str: str | None, layout: str, reason: str | None = None) -> None:
+        documents.append(build(**{"path": path, date_field: date_str, "layout": layout, "malformed_reason": reason}))
+
+    for path in root.iterdir():
         if path.is_file():
             date_match = SESSION_DATE_RE.match(path.name)
             if not date_match or not _valid_session_date(date_match.group(1)):
-                documents.append(
-                    DiagramSidecarDocument(
-                        path=path,
-                        diagram_date=None,
-                        layout="legacy-diagram",
-                        malformed_reason=f"filename '{path.name}' is not a YYYY-MM-DD.md date",
-                    )
-                )
+                record(path, None, legacy_layout, f"filename '{path.name}' is not a YYYY-MM-DD.md date")
                 continue
-            documents.append(DiagramSidecarDocument(path=path, diagram_date=date_match.group(1), layout="legacy-diagram"))
+            record(path, date_match.group(1), legacy_layout)
             continue
 
         if not path.is_dir():
@@ -532,29 +563,38 @@ def iter_diagram_sidecar_documents(sessions_dir: Path) -> Iterator[DiagramSideca
                 continue
             date_match = SESSION_DATE_RE.match(child.name)
             if not date_match or not _valid_session_date(date_match.group(1)):
-                documents.append(
-                    DiagramSidecarDocument(
-                        path=child,
-                        diagram_date=None,
-                        layout="month-diagram",
-                        malformed_reason=f"filename '{child.name}' is not a YYYY-MM-DD.md date",
-                    )
-                )
+                record(child, None, month_layout, f"filename '{child.name}' is not a YYYY-MM-DD.md date")
                 continue
             date_str = date_match.group(1)
             if not date_str.startswith(month_str + "-"):
-                documents.append(
-                    DiagramSidecarDocument(
-                        path=child,
-                        diagram_date=date_str,
-                        layout="month-diagram",
-                        malformed_reason=f"date '{date_str}' does not match month folder '{month_str}'",
-                    )
-                )
+                record(child, date_str, month_layout, f"date '{date_str}' does not match month folder '{month_str}'")
                 continue
-            documents.append(DiagramSidecarDocument(path=child, diagram_date=date_str, layout="month-diagram"))
+            record(child, date_str, month_layout)
 
     return iter(sorted(documents, key=lambda doc: doc.path.as_posix()))
+
+
+def iter_diagram_sidecar_documents(sessions_dir: Path) -> Iterator[DiagramSidecarDocument]:
+    return _iter_dated_sidecar_documents(
+        sessions_dir,
+        "diagrams",
+        DiagramSidecarDocument,
+        date_field="diagram_date",
+        legacy_layout="legacy-diagram",
+        month_layout="month-diagram",
+    )
+
+
+def iter_topic_sidecar_documents(sessions_dir: Path) -> Iterator[TopicSidecarDocument]:
+    """Topic sidecars under ``sessions/topics``; see TopicSidecarDocument."""
+    return _iter_dated_sidecar_documents(
+        sessions_dir,
+        "topics",
+        TopicSidecarDocument,
+        date_field="topic_date",
+        legacy_layout="legacy-topic",
+        month_layout="month-topic",
+    )
 
 
 def iter_link_sidecar_documents(sessions_dir: Path) -> Iterator[LinkSidecarDocument]:
@@ -564,61 +604,14 @@ def iter_link_sidecar_documents(sessions_dir: Path) -> Iterator[LinkSidecarDocum
     entry (append-only enrichment - the entry itself is never reopened). Same
     dated layouts: ``links/YYYY-MM/YYYY-MM-DD.md`` and legacy
     ``links/YYYY-MM-DD.md``. Returns an empty iterator when the dir is absent."""
-    documents: list[LinkSidecarDocument] = []
-    links_dir = sessions_dir / "links"
-    if not links_dir.is_dir():
-        return iter(())
-
-    for path in links_dir.iterdir():
-        if path.is_file():
-            date_match = SESSION_DATE_RE.match(path.name)
-            if not date_match or not _valid_session_date(date_match.group(1)):
-                documents.append(
-                    LinkSidecarDocument(
-                        path=path,
-                        link_date=None,
-                        layout="legacy-link",
-                        malformed_reason=f"filename '{path.name}' is not a YYYY-MM-DD.md date",
-                    )
-                )
-                continue
-            documents.append(LinkSidecarDocument(path=path, link_date=date_match.group(1), layout="legacy-link"))
-            continue
-
-        if not path.is_dir():
-            continue
-        month_match = SESSION_MONTH_DIR_RE.match(path.name)
-        if not month_match:
-            continue
-        month_str = month_match.group(1)
-        for child in path.iterdir():
-            if not child.is_file() or child.suffix != ".md":
-                continue
-            date_match = SESSION_DATE_RE.match(child.name)
-            if not date_match or not _valid_session_date(date_match.group(1)):
-                documents.append(
-                    LinkSidecarDocument(
-                        path=child,
-                        link_date=None,
-                        layout="month-link",
-                        malformed_reason=f"filename '{child.name}' is not a YYYY-MM-DD.md date",
-                    )
-                )
-                continue
-            date_str = date_match.group(1)
-            if not date_str.startswith(month_str + "-"):
-                documents.append(
-                    LinkSidecarDocument(
-                        path=child,
-                        link_date=date_str,
-                        layout="month-link",
-                        malformed_reason=f"date '{date_str}' does not match month folder '{month_str}'",
-                    )
-                )
-                continue
-            documents.append(LinkSidecarDocument(path=child, link_date=date_str, layout="month-link"))
-
-    return iter(sorted(documents, key=lambda doc: doc.path.as_posix()))
+    return _iter_dated_sidecar_documents(
+        sessions_dir,
+        "links",
+        LinkSidecarDocument,
+        date_field="link_date",
+        legacy_layout="legacy-link",
+        month_layout="month-link",
+    )
 
 
 def _valid_session_date(date_str: str) -> bool:
@@ -810,6 +803,12 @@ class ListRef:
 # red). The 09:00 minute puts the policy's own landing session - whose entries
 # were legally authored bare that morning - on the quiet side of the line.
 DECISION_GRANULARITY_MANDATE_SINCE = "2026-07-24 09:00"
+
+# Ceiling on topics attributed to one entry from a sidecar. Matches the
+# authoring guidance (1-3 slugs) for the same reason it exists there: a label
+# applied to everything distinguishes nothing, and an inferring agent has no
+# native sense of restraint - it will happily justify five.
+MAX_INFERRED_TOPICS = 3
 
 _BARE_ENTRY_ID_RE = re.compile(r"^(?:ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32})$")
 # Canonical decision ref: `<entry_id>:<dN>` with comma-separated ordinals
@@ -1771,6 +1770,9 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     ] = []
     # entry_id -> {"d1", "d2", ...}: which decisions a ref can legally target.
     entry_decision_ordinals: dict[str, set[str]] = {}
+    # entry_id -> the topic slugs the AUTHOR wrote in the entry's own yaml, so
+    # a topic sidecar can be told it is restating one rather than adding one.
+    entry_authored_topics: dict[str, set[str]] = {}
     entry_timestamps: dict[str, str] = {}
     files_checked = 0
 
@@ -1913,6 +1915,15 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
             source_id = id_match.group(1) if id_match else None
             if source_id:
                 entry_timestamps.setdefault(source_id, heading_ts)
+                authored_slugs = {
+                    line.strip()[1:].strip().strip("'\"")
+                    for line in _frontmatter_list_region(yaml_block, "topics").splitlines()
+                    if line.strip().startswith("-")
+                }
+                if authored_slugs:
+                    entry_authored_topics.setdefault(source_id, set()).update(
+                        slug for slug in authored_slugs if slug
+                    )
             # Lifecycle refs in the entry's own yaml, parsed directly so every
             # authored fact survives: target ordinal, arrow source prefix, or
             # neither. Bare refs (arrow-prefixed or not) still feed the
@@ -2033,6 +2044,124 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                 issues.append(LinkIssue(rel, "malformed-diagram", f"diagram block for {entry_id} has no ```mermaid block"))
             elif len(fence_lines) % 2 != 0:
                 issues.append(LinkIssue(rel, "malformed-diagram", f"diagram block for {entry_id} has an unbalanced code fence"))
+
+    # Topic sidecars (sessions/topics/...): controlled-vocabulary slugs
+    # attributed to an entry AFTER it was written, because append-only forbids
+    # reopening the entry to add them. Modelled on the diagram family - a topic
+    # is a per-entry attribute, so none of the link contract (forward-only,
+    # chronology, block identity) applies. What DOES apply is the vocabulary:
+    # a slug outside topics.yaml is an error, exactly as it is at write time,
+    # and an inferred topic that merely restates one the author already wrote
+    # is redundant rather than wrong, so it warns.
+    topic_docs = list(iter_topic_sidecar_documents(sessions_dir))
+    if topic_docs:
+        try:
+            from .topics import load_topic_index
+
+            topic_resolution = load_topic_index(root).resolution() or {}
+        except Exception:  # noqa: BLE001 - a missing/broken vocabulary must not crash the check
+            topic_resolution = {}
+    for topic_doc in topic_docs:
+        files_checked += 1
+        try:
+            rel = topic_doc.path.relative_to(root).as_posix()
+        except ValueError:
+            rel = topic_doc.path.as_posix()
+        if topic_doc.malformed_reason:
+            issues.append(LinkIssue(rel, "malformed-topic-sidecar", topic_doc.malformed_reason))
+            continue
+        file_date = topic_doc.topic_date or ""
+        try:
+            text = topic_doc.path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            issues.append(LinkIssue(rel, "unreadable", str(exc)))
+            continue
+        blocks = list(_ENTRY_TS_YAML_RE.finditer(text))
+        if not blocks:
+            issues.append(
+                LinkIssue(rel, "malformed-topic-sidecar", "no '## <timestamp> - <title>' + ```yaml entry_id block found")
+            )
+            continue
+        seen_topic_entries: set[str] = set()
+        for _heading_ts, yaml_block in (block.groups() for block in blocks):
+            entry_id_match = _ENTRY_ID_RE.search(yaml_block)
+            if not entry_id_match:
+                issues.append(LinkIssue(rel, "malformed-topic-sidecar", "topic block has no entry_id"))
+                continue
+            entry_id = entry_id_match.group(1)
+            if entry_id not in known_entries:
+                issues.append(LinkIssue(rel, "orphan-topic-sidecar", f"entry_id -> {entry_id} (no such entry_id)"))
+                continue
+            if entry_id in seen_topic_entries:
+                issues.append(
+                    LinkIssue(
+                        rel,
+                        "duplicate-topic-block",
+                        f"{entry_id} has two topic blocks in one file; one block per entry per file",
+                    )
+                )
+            seen_topic_entries.add(entry_id)
+            entry_date = entry_timestamps.get(entry_id, "")[:10]
+            if entry_date and entry_date != file_date:
+                issues.append(
+                    LinkIssue(
+                        rel,
+                        "topic-sidecar-date-mismatch",
+                        f"entry_id {entry_id} was logged on {entry_date}, but topics are filed under {file_date}",
+                    )
+                )
+            slugs: list[str] = []
+            for line in _frontmatter_list_region(yaml_block, "topics").splitlines():
+                stripped = line.strip()
+                if not stripped.startswith("-"):
+                    continue
+                slug = stripped[1:].strip().strip("'\"")
+                if slug:
+                    slugs.append(slug)
+            if not slugs:
+                issues.append(LinkIssue(rel, "malformed-topic-sidecar", f"topic block for {entry_id} lists no topics"))
+                continue
+            if len(slugs) > MAX_INFERRED_TOPICS:
+                issues.append(
+                    LinkIssue(
+                        rel,
+                        "topic-sidecar-overreach",
+                        f"{entry_id} carries {len(slugs)} topics; at most {MAX_INFERRED_TOPICS} - "
+                        "a label that fits everything distinguishes nothing",
+                    )
+                )
+            if len(set(slugs)) != len(slugs):
+                issues.append(LinkIssue(rel, "malformed-topic-sidecar", f"{entry_id} repeats a topic slug"))
+            for slug in slugs:
+                if topic_resolution and slug not in topic_resolution:
+                    issues.append(
+                        LinkIssue(
+                            rel,
+                            "unknown-topic-slug",
+                            f"{entry_id} -> '{slug}' is not a canonical slug or alias in topics.yaml",
+                        )
+                    )
+                elif topic_resolution and topic_resolution[slug] != slug:
+                    issues.append(
+                        LinkIssue(
+                            rel,
+                            "non-canonical-topic-slug",
+                            f"{entry_id} -> '{slug}' is an alias; store the canonical "
+                            f"'{topic_resolution[slug]}' so one topic has one spelling",
+                        )
+                    )
+            authored = entry_authored_topics.get(entry_id, set())
+            restated = sorted(set(slugs) & authored)
+            if restated:
+                issues.append(
+                    LinkIssue(
+                        rel,
+                        "topic-already-authored",
+                        f"{entry_id} already carries {', '.join(restated)} in its own YAML; "
+                        "an inferred topic adds nothing there",
+                        "warning",
+                    )
+                )
 
     # Lifecycle-edge link sidecars (sessions/links/...): replaces/evolves/
     # related edges authored after an entry, keyed to the SOURCE (newer) entry.

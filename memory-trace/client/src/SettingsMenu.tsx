@@ -8,7 +8,17 @@ import { DEFAULT_FORCES, type ForceSettings } from "./graphForces";
 // bar, and a theme icon in the top bar. Each was permanently on screen for a
 // setting you change rarely.
 
-export type TrailStyle = { thickness: "fine" | "thick"; style: "hand" | "slick"; wobble: number; pressure: number };
+// `lifecycleEdges` governs how much lineage draws WITHOUT a selection:
+//   "select"   - only edges touching the selected row (the pre-2026-07-24 look)
+//   "decision" - decision-level edges always; entry-level evolves on select
+//   "all"      - every evolves edge always
+export type TrailStyle = {
+  thickness: "fine" | "thick";
+  style: "hand" | "slick";
+  wobble: number;
+  pressure: number;
+  lifecycleEdges: "select" | "decision" | "all";
+};
 export type InspectorDock = "auto" | "right" | "bottom" | "hidden";
 export type Theme = "light" | "dark";
 /**
@@ -142,6 +152,25 @@ export function SettingsMenu({
                     <button type="button" aria-pressed={handDrawn} onClick={() => set({ style: "hand" })}>Drawn</button>
                     <button type="button" aria-pressed={!handDrawn} onClick={() => set({ style: "slick" })}>Slick</button>
                   </div>
+                </div>
+                {/* How much lineage draws without a selection. "All" is the
+                    default: an entry can evolve another entry, so entry-level
+                    lineage is real and stays drawn, weighted lighter than the
+                    finer decision-level links rather than hidden. */}
+                <div className="trail-settings-row">
+                  <span>Lifecycle links</span>
+                  <div className="segment-control">
+                    <button type="button" aria-pressed={trailStyle.lifecycleEdges === "select"} onClick={() => set({ lifecycleEdges: "select" })}>On select</button>
+                    <button type="button" aria-pressed={trailStyle.lifecycleEdges === "decision"} onClick={() => set({ lifecycleEdges: "decision" })}>Decision</button>
+                    <button type="button" aria-pressed={trailStyle.lifecycleEdges === "all"} onClick={() => set({ lifecycleEdges: "all" })}>All</button>
+                  </div>
+                </div>
+                <div className="settings-note">
+                  {trailStyle.lifecycleEdges === "select"
+                    ? "Only links touching the selected entry are drawn."
+                    : trailStyle.lifecycleEdges === "decision"
+                      ? "Only links naming a decision stay drawn (solid); entry-to-entry appears on select."
+                      : "Every link stays drawn — decision-level solid and bold, entry-to-entry lighter."}
                 </div>
                 {/* Wobble and pressure only mean anything to a drawn stroke. */}
                 {handDrawn && (

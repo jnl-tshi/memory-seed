@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildTrailModel, compareTrailNodes, inDecisionGroup, isDecisionRow, pastelOf } from "./trailModel.ts";
+import { buildTrailModel, compareTrailNodes, decisionEndpointLabel, entryIdOfRowId, inDecisionGroup, isDecisionEdge, isDecisionRow, lifecycleEdgeClass, pastelOf } from "./trailModel.ts";
 import type { TrailEvent, TrailResponse } from "./api.ts";
 
 const PALETTE = [
@@ -116,4 +116,59 @@ test("buildTrailModel keeps decision rows unique, grouped, and never bisected by
   const clippedIds = clipped.items.filter((item) => item.kind === "node").map((item) => (item.kind === "node" ? item.node.id : ""));
   assert.ok(clippedIds.includes("mse_multi#decisions/d3-b"), "window never bisects a decision group");
   assert.ok(!clippedIds.includes("mse_old"), "extension stops at the group end");
+});
+
+test("isDecisionEdge reads granularity off the endpoint ids, either end", () => {
+  // The row id IS the granularity: _decision_edges_for_rows terminates a
+  // decision-level edge on a `#decisions/dN-` row and an entry-level one on
+  // the bare id, so nothing can disagree with it.
+  assert.equal(isDecisionEdge({ source: "mse_a", target: "mse_b" }), false);
+  assert.equal(isDecisionEdge({ source: "mse_a#decisions/d2-x", target: "mse_b#decisions/d1-y" }), true);
+  // Mixed granularity counts - "d3 of B evolves A" is precise on one end.
+  assert.equal(isDecisionEdge({ source: "mse_a#decisions/d3-x", target: "mse_b" }), true);
+  assert.equal(isDecisionEdge({ source: "mse_a", target: "mse_b#decisions/d1-y" }), true);
+});
+
+test("decisionEndpointLabel names the decision and the entry it belongs to", () => {
+  const entry = node({ id: "mse_a", title: "Ship the parser" });
+  const decision = node({
+    id: "mse_a#decisions/d2-the-source-ordinal",
+    entry_id: "mse_a",
+    title: "D2 - The source ordinal rides on the item",
+    decision_ordinal: "d2",
+  });
+
+  // An entry row is its own label.
+  assert.equal(decisionEndpointLabel(entry), "Ship the parser");
+  // With the anchor title, the reader learns WHICH session the decision is in -
+  // the thing a raw "D2 - ..." heading cannot tell them.
+  assert.equal(decisionEndpointLabel(decision, "Ship the parser"), "D2 of Ship the parser");
+  // Anchor outside the window: fall back to the decision heading rather than
+  // dropping the ordinal, which is the part that makes the edge precise.
+  assert.equal(decisionEndpointLabel(decision), "D2 (D2 - The source ordinal rides on the item)");
+});
+
+test("entryIdOfRowId maps a decision row back to its entry", () => {
+  // Selection is entry-scoped but a decision edge terminates on a ROW, so an
+  // exact id comparison can never match one. That mismatch is what made
+  // decision lineage unreachable in on-select mode and invisible when its own
+  // entry was selected - both reported live on 2026-07-24.
+  assert.equal(entryIdOfRowId("mse_a"), "mse_a");
+  assert.equal(entryIdOfRowId("mse_a#decisions/d2-the-source-ordinal"), "mse_a");
+  assert.equal(entryIdOfRowId("ms-f83a27d3#decisions/d1-rationale"), "ms-f83a27d3");
+  // A legacy singular '#decision' anchor resolves the same way.
+  assert.equal(entryIdOfRowId("mse_a#decision"), "mse_a");
+});
+
+test("lifecycleEdgeClass ranks edges 1/2/3 by how many ends name a decision", () => {
+  // Ratified 2026-07-24: decision->decision is first class (most precise),
+  // entry<->decision second, entry->entry third (history links, single-
+  // decision entries). The Trail weights ink by this class.
+  assert.equal(lifecycleEdgeClass({ source: "mse_a#decisions/d1-x", target: "mse_b#decisions/d2-y" }), 1);
+  assert.equal(lifecycleEdgeClass({ source: "mse_a#decisions/d1-x", target: "mse_b" }), 2);
+  assert.equal(lifecycleEdgeClass({ source: "mse_a", target: "mse_b#decisions/d2-y" }), 2);
+  assert.equal(lifecycleEdgeClass({ source: "mse_a", target: "mse_b" }), 3);
+  // isDecisionEdge stays the class<=2 predicate the styling short-hands.
+  assert.equal(isDecisionEdge({ source: "mse_a", target: "mse_b" }), false);
+  assert.equal(isDecisionEdge({ source: "mse_a#decisions/d1-x", target: "mse_b" }), true);
 });

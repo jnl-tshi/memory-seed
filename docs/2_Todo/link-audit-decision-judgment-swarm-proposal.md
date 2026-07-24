@@ -70,6 +70,41 @@ gated write path (link sidecar), then links check validates them
 The swarm is **read-then-suggest**: it never writes. Writing is the existing gated path
 (`memory_session_integrate` / a link-sidecar append), unchanged.
 
+## Granularity posture — which class of edge the swarm should aim for (JNL, 2026-07-24)
+
+The swarm's instructions rank the *granularity* of the edge it proposes, not just its type. Three
+classes, by precision, mirroring what the Trail now draws and weights:
+
+1. **Decision → decision (first class).** Both ends name a specific decision (`A:d2 evolves B:d1`).
+   This is the target the swarm should reach for whenever it can quote the two decisions the edge
+   actually connects. It is the most precise statement and the whole reason the swarm reads decision
+   bodies rather than entry summaries.
+2. **Entry → decision (second class).** One end names a decision, the other is the whole entry. Allowed
+   **when the whole entry is centered on a single decision that relates to a subset of specific items in
+   the other entry** — a broad entry that retires one earlier call, or one call that reframes a whole
+   earlier entry. Do not manufacture this shape to look precise; use it only when the entry genuinely
+   has one throughline.
+3. **Entry → entry (third class).** Neither end names a decision. This covers history links and — the
+   load-bearing rule — **any entry with one decision or no decisions**: for those the `:dN` detail is
+   redundant (a single-decision entry's `d1` and its entry id denote the same thing), so the swarm links
+   at entry level and stops. Referenced entries that are single- or zero-decision are **always** linked
+   entry-level, on both ends.
+
+The instruction to the workers is therefore: *prefer the highest class the evidence honestly supports,
+fall to the next when it does not, and never split a single-decision entry into `:dN`.* This keeps the
+precise edges precise without inflating the common case, and it is why the Trail can weight class 3 as
+quiet background — most of the corpus legitimately lives there.
+
+> **Tension to resolve before the swarm runs (flagged 2026-07-24):** the grammar-v2 write-time mandate
+> (`session append`) currently *requires* an explicit `:d1` for any target that has a decision section,
+> single-decision included — the opposite of rule 3 above. That mandate governs **manual/agent
+> authoring in an entry's own YAML**; the swarm writes **link sidecars**, where `links check` only warns
+> (post-cutoff) rather than erroring, so the swarm posture is not blocked. But the two rules disagree on
+> single-decision targets and should be reconciled: either relax the append mandate to match rule 3
+> (bare id legal for single-decision targets, since `:d1` adds nothing), or keep the mandate strict for
+> hand-authoring and let the swarm's sidecar path be the one place entry-level-to-single-decision is
+> normal. JNL's call.
+
 ## Open design questions (for JNL)
 
 1. **Where does the orchestration live?** A repo **skill** (an agent runs it by hand at session end), a

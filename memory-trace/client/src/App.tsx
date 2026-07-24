@@ -124,10 +124,22 @@ function readTrailStyle(): TrailStyle {
       style: stored.style === "slick" ? "slick" : "hand",
       wobble: clamp(stored.wobble, 1.6, 3),
       pressure: clamp(stored.pressure, 0.3, 1),
+      lifecycleEdges: readLifecycleEdges(stored.lifecycleEdges),
     };
   } catch {
-    return { thickness: "thick", style: "hand", wobble: 1.6, pressure: 0.3 };
+    return { thickness: "thick", style: "hand", wobble: 1.6, pressure: 0.3, lifecycleEdges: "all" };
   }
+}
+
+// How much lifecycle lineage the Trail draws without a selection (JNL,
+// 2026-07-24). "all" is the default: an entry can evolve another entry, so
+// entry-to-entry lineage - history links and the swarm-era edges - is real
+// and stays drawn, weighted lighter than the finer decision-level edges
+// rather than hidden. "decision" keeps only edges that name a decision on
+// some end (the de-crowded middle); "select" draws only edges touching the
+// selection (the pre-2026-07-24 look).
+function readLifecycleEdges(value: unknown): TrailStyle["lifecycleEdges"] {
+  return value === "select" || value === "decision" ? value : "all";
 }
 
 // Graph forces and motion (proposal §6.5 as amended 2026-07-22). Same JSON-blob
