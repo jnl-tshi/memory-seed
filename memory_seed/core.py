@@ -781,8 +781,12 @@ def _frontmatter_list_region(block: str, list_key: str) -> str:
 # A ref as authored in a `replaces:`/`evolves:`/`related_entries:` list.
 # `decision` is the dN ordinal when the ref targets one decision rather than a
 # whole entry; None means entry-level, which is every ref written before
-# 2026-07-22. `ok` False means the token is not a ref at all and must surface
-# as an error rather than being silently reinterpreted.
+# 2026-07-22. `source_decision` is the authoring entry's own ordinal (the
+# `dN -> ` arrow prefix, grammar v2 2026-07-24); None means unspecified, which
+# for a single-decision author implicitly denotes d1 and for legacy
+# multi-decision authors is simply unknown - readers never guess. `ok` False
+# means the token is not a ref at all and must surface as an error rather than
+# being silently reinterpreted.
 @dataclass(frozen=True)
 class ListRef:
     raw: str
@@ -790,42 +794,73 @@ class ListRef:
     decision: str | None
     ok: bool
     reason: str = ""
+    source_decision: str | None = None
 
+
+# When the decision-granularity mandate takes effect (JNL 2026-07-24): every
+# replaces/evolves written from here on names the decision on both ends -
+# `:dN` on any target that has addressable decisions (an explicit `:d1` for a
+# single-decision target), and a `dN -> ` arrow prefix naming the authoring
+# decision whenever the writing entry has two or more. `session append`
+# enforces this hard; `links check` only advises (append-only means a
+# published bare ref can never be repaired, so an error would be permanently
+# red). The 09:00 minute puts the policy's own landing session - whose entries
+# were legally authored bare that morning - on the quiet side of the line.
+DECISION_GRANULARITY_MANDATE_SINCE = "2026-07-24 09:00"
 
 _BARE_ENTRY_ID_RE = re.compile(r"^(?:ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32})$")
-# Canonical decision ref: `<entry_id>:<dN>`. Colon rather than '#' because a
-# '#' preceded by a space opens a YAML comment, so the two spellings would
-# behave differently for a one-character authoring slip.
-_DECISION_REF_RE = re.compile(r"^(ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32}):(d\d+)$")
+# Canonical decision ref: `<entry_id>:<dN>` with comma-separated ordinals
+# allowed (`mse_x:d1,d4` / `mse_x: d1, d4`) - one authored item, one decision
+# edge per ordinal. Colon rather than '#' because a '#' preceded by a space
+# opens a YAML comment, so the two spellings would behave differently for a
+# one-character authoring slip.
+_DECISION_REF_RE = re.compile(
+    r"^(ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32}):\s*(d\d+(?:\s*,\s*d\d+)*)$"
+)
 # Accepted alias: the section chunk_id a reader can copy out of Memory Trace.
 # Normalised to the pair; never emitted by writers.
 _DECISION_SLUG_RE = re.compile(r"^(ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32})#decisions/(d\d+)-\S*$")
+# Arrow source prefix (grammar v2): `d2 -> <ref>` names WHICH of the authoring
+# entry's decisions the edge belongs to. Spaces around the arrow optional.
+_SOURCE_DECISION_PREFIX_RE = re.compile(r"^(d\d+)\s*->\s*(.+)$")
 
 
-def _parse_list_ref(token: str) -> ListRef:
-    """Classify one authored list item.
+def _parse_list_ref_multi(token: str) -> list[ListRef]:
+    """Grammar v2 parse of one authored item into one ListRef per ordinal.
 
-    Anything that is not a bare entry id or a well-formed decision ref is
-    returned as ``ok=False`` rather than scraped for an id. Scraping is the
-    2026-07-21 defect: a `#decisions/`-suffixed ref matched only its entry-id
-    prefix, so the file *looked* decision-level while behaving entry-level and
-    `links check` reported nothing at all.
+    Forms: ``<id>`` (entry-level), ``<id>:dN``, ``<id>:d1,d4`` (one ref per
+    ordinal), each optionally prefixed ``dM -> `` naming the authoring
+    decision. A malformed token yields a single ok=False record - never
+    scraped for an id. Scraping is the 2026-07-21 defect: a `#decisions/`-
+    suffixed ref matched only its entry-id prefix, so the file *looked*
+    decision-level while behaving entry-level and `links check` reported
+    nothing at all.
     """
     raw = token.strip().strip("'\"")
-    if _BARE_ENTRY_ID_RE.match(raw):
-        return ListRef(raw, raw, None, True)
-    match = _DECISION_REF_RE.match(raw)
+    source_decision: str | None = None
+    arrow = _SOURCE_DECISION_PREFIX_RE.match(raw)
+    body = raw
+    if arrow:
+        source_decision = arrow.group(1)
+        body = arrow.group(2).strip().strip("'\"")
+    if _BARE_ENTRY_ID_RE.match(body):
+        return [ListRef(raw, body, None, True, source_decision=source_decision)]
+    match = _DECISION_REF_RE.match(body)
     if match:
-        return ListRef(raw, match.group(1), match.group(2), True)
-    match = _DECISION_SLUG_RE.match(raw)
+        ordinals = [part.strip() for part in match.group(2).split(",") if part.strip()]
+        return [
+            ListRef(raw, match.group(1), ordinal, True, source_decision=source_decision)
+            for ordinal in ordinals
+        ]
+    match = _DECISION_SLUG_RE.match(body)
     if match:
-        return ListRef(raw, match.group(1), match.group(2), True)
-    if "#decision" in raw:
+        return [ListRef(raw, match.group(1), match.group(2), True, source_decision=source_decision)]
+    if "#decision" in body:
         # The singular `### Decision` shape yields `#decision` with no ordinal,
         # so the slug cannot address it - see the draft spec's "Why not the
         # section slug". Point at the form that can.
-        return ListRef(raw, "", None, False, "section anchor carries no ordinal; use <entry_id>:d1")
-    return ListRef(raw, "", None, False, "not an entry id or <entry_id>:dN decision ref")
+        return [ListRef(raw, "", None, False, "section anchor carries no ordinal; use <entry_id>:d1")]
+    return [ListRef(raw, "", None, False, "not an entry id or <entry_id>:dN decision ref")]
 
 
 def _frontmatter_list_refs(block: str, list_key: str) -> list[ListRef]:
@@ -853,7 +888,7 @@ def _frontmatter_list_refs(block: str, list_key: str) -> list[ListRef]:
             continue
         token = stripped[1:].strip()
         if token:
-            refs.append(_parse_list_ref(token))
+            refs.extend(_parse_list_ref_multi(token))
     return refs
 
 
@@ -882,11 +917,13 @@ def _entry_level_ref_ids(
 
     Decision-level refs: when ``decision_sink`` is given (the lifecycle keys of a
     SESSION ENTRY's own yaml — write-time grammar per JNL's 2026-07-24 direction),
-    a `<entry_id>:dN` item is collected as ``(raw, target_entry_id, ordinal)``
-    for deferred validation against the full corpus's decision ordinals. When it
-    is None (``related_entries`` anywhere, and per-user file frontmatter), a
-    decision ref is surfaced as misplaced exactly as before. Any other non-id
-    token is skipped, as the old scrape skipped a substring it could not match.
+    a decision-carrying item — a `:dN` target, an arrow `dM ->` source prefix,
+    or both — is collected as ``(raw, target_entry_id, ordinal, source_decision)``
+    (either of the last two may be None, never both) for deferred validation
+    against the full corpus's decision ordinals. When it is None
+    (``related_entries`` anywhere, and per-user file frontmatter), a decision
+    ref is surfaced as misplaced exactly as before. Any other non-id token is
+    skipped, as the old scrape skipped a substring it could not match.
     ``surface`` is False on a second pass over the same block so an item is
     reported once.
     """
@@ -897,12 +934,20 @@ def _entry_level_ref_ids(
             # that, so a non-standard but registered id (or any stray token) is
             # not newly flagged. The two corruptions are already closed above.
             continue
-        if parsed.decision is not None:
+        if parsed.decision is not None or parsed.source_decision is not None:
             if decision_sink is not None:
                 # Collected regardless of `surface` (the heading-anchored pass
                 # that knows the source entry runs surface=False); `surface`
                 # gates issues, not collection.
-                decision_sink.append((parsed.raw, parsed.entry_id, parsed.decision))
+                decision_sink.append(
+                    (parsed.raw, parsed.entry_id, parsed.decision, parsed.source_decision)
+                )
+                # An arrow-prefixed BARE ref (`d2 -> mse_x`) is still an
+                # entry-level edge on its target side - the arrow only names
+                # the authoring decision - so it keeps feeding the entry-level
+                # lists (lifecycle ranking, exclude_replaced) unchanged.
+                if parsed.decision is None:
+                    ids.append(parsed.entry_id)
             elif surface:
                 issues.append(
                     LinkIssue(
@@ -1711,11 +1756,16 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     # from the entry-level lists on purpose - a decision edge is never
     # projected up to its entry.
     decision_edges: list[tuple[str, str, str, str]] = []
-    # Decision refs authored in an ENTRY's own yaml (write-time grammar,
-    # 2026-07-24): (rel, source_id, kind, raw, target_id, ordinal). Validated
-    # after the file loop when every entry's ordinals are known, then folded
-    # into decision_edges for the shared forward-only check.
-    entry_yaml_decision_refs: list[tuple[str, str, str, str, str, str]] = []
+    # Every lifecycle ref authored in an ENTRY's own yaml (write-time grammar,
+    # 2026-07-24): (rel, source_id, kind, raw, target_id, ordinal,
+    # source_ordinal) - the last two None when unspecified. Validated after the
+    # file loop when every entry's ordinals are known; decision-targeting refs
+    # then join decision_edges for the shared forward-only check, and the
+    # granularity mandate (JNL 2026-07-24: name the decision on both ends)
+    # advises on post-cutoff refs that leave an end unnamed.
+    entry_yaml_lifecycle_refs: list[
+        tuple[str, str, str, str, str, str | None, str | None]
+    ] = []
     # entry_id -> {"d1", "d2", ...}: which decisions a ref can legally target.
     entry_decision_ordinals: dict[str, set[str]] = {}
     entry_timestamps: dict[str, str] = {}
@@ -1860,29 +1910,25 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
             source_id = id_match.group(1) if id_match else None
             if source_id:
                 entry_timestamps.setdefault(source_id, heading_ts)
-            # Decision-level refs (`mse_x:dN`) in the entry's own lifecycle
-            # lists are the write-time grammar (2026-07-24). Collected here
-            # with their source entry and validated after the file loop, when
-            # every entry's decision ordinals are known.
-            for key in ("replaces", "supersedes"):
-                _sink: list = []
-                for ref in _entry_level_ref_ids(
-                    yaml_block, key, rel, issues, surface=False, decision_sink=_sink
-                ):
-                    if source_id:
-                        replaces_edges.append((rel, source_id, ref))
-                if source_id:
-                    for raw, target, ordinal in _sink:
-                        entry_yaml_decision_refs.append((rel, source_id, "replaces", raw, target, ordinal))
-            _sink = []
-            for ref in _entry_level_ref_ids(
-                yaml_block, "evolves", rel, issues, surface=False, decision_sink=_sink
+            # Lifecycle refs in the entry's own yaml, parsed directly so every
+            # authored fact survives: target ordinal, arrow source prefix, or
+            # neither. Bare refs (arrow-prefixed or not) still feed the
+            # entry-level edge lists - the arrow names the authoring decision
+            # without changing what the edge targets. Everything is collected
+            # for deferred validation; issue surfacing happened in pass one.
+            for key, kind, edge_list in (
+                ("replaces", "replaces", replaces_edges),
+                ("supersedes", "replaces", replaces_edges),
+                ("evolves", "evolves", evolves_edges),
             ):
-                if source_id:
-                    evolves_edges.append((rel, source_id, ref))
-            if source_id:
-                for raw, target, ordinal in _sink:
-                    entry_yaml_decision_refs.append((rel, source_id, "evolves", raw, target, ordinal))
+                for parsed in _frontmatter_list_refs(yaml_block, key):
+                    if not parsed.ok or not source_id:
+                        continue
+                    if parsed.decision is None:
+                        edge_list.append((rel, source_id, parsed.entry_id))
+                    entry_yaml_lifecycle_refs.append(
+                        (rel, source_id, kind, parsed.raw, parsed.entry_id, parsed.decision, parsed.source_decision)
+                    )
 
         if doc.layout not in {"per-user-day", "month-user"}:
             continue
@@ -2089,6 +2135,21 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                             LinkIssue(rel, f"dangling-{kind}", f"{kind} -> {parsed.entry_id} (no such entry_id)")
                         )
                         continue
+                    # Arrow source prefix (`dM -> <ref>`): the named decision
+                    # must exist on the BLOCK's entry - the sidecar author is
+                    # claiming which of that entry's decisions drives the edge.
+                    if parsed.source_decision is not None and parsed.source_decision not in entry_decision_ordinals.get(
+                        entry_id, set()
+                    ):
+                        issues.append(
+                            LinkIssue(
+                                rel,
+                                "dangling-source-decision",
+                                f"{kind} -> {parsed.raw}: {entry_id} has no {parsed.source_decision} "
+                                "to author this edge from",
+                            )
+                        )
+                        continue
                     if parsed.decision is None:
                         edge_list.append((rel, entry_id, parsed.entry_id))
                         continue
@@ -2232,10 +2293,22 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     _forward_only_guard(replaces_edges, "replaces", "entry replaces itself", "supersession")
     _forward_only_guard(evolves_edges, "evolves", "entry evolves itself", "evolution")
 
-    # Entry-yaml decision refs validate here, mirroring the sidecar checks
-    # exactly (dangling target, dangling ordinal, intra-entry), then join
-    # decision_edges so the forward-only check below covers both sources.
-    for rel_path, source_id, kind, raw, target_id, ordinal in entry_yaml_decision_refs:
+    # Entry-yaml lifecycle refs validate here, mirroring the sidecar checks
+    # exactly (dangling target, dangling ordinal, intra-entry, arrow source
+    # ordinal); decision-targeting refs then join decision_edges so the
+    # forward-only check below covers both sources. Bare refs already passed
+    # through the entry-level dangling/forward-only guards above.
+    for rel_path, source_id, kind, raw, target_id, ordinal, source_ordinal in entry_yaml_lifecycle_refs:
+        if source_ordinal is not None and source_ordinal not in entry_decision_ordinals.get(source_id, set()):
+            issues.append(
+                LinkIssue(
+                    rel_path,
+                    "dangling-source-decision",
+                    f"{kind} -> {raw}: {source_id} has no {source_ordinal} to author this edge from",
+                )
+            )
+        if ordinal is None:
+            continue
         if target_id not in known_entries:
             issues.append(
                 LinkIssue(rel_path, f"dangling-{kind}", f"{kind} -> {raw} (no such entry_id)")
@@ -2261,6 +2334,40 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
             )
             continue
         decision_edges.append((rel_path, source_id, target_id, ordinal))
+
+    # Granularity mandate advisories (JNL 2026-07-24: every replaces/evolves
+    # names the decision on both ends). Warnings, never errors: published
+    # entries are append-only, so an error here would be permanently
+    # unsatisfiable. The cutoff sits after the last bare-authored entry of the
+    # policy's landing day for the same reason - a warning nobody can act on
+    # is noise, not lint. `session append` enforces the same rules as hard
+    # errors, so post-cutoff entries only reach this state via hand edits.
+    for rel_path, source_id, kind, raw, target_id, ordinal, source_ordinal in entry_yaml_lifecycle_refs:
+        source_ts = entry_timestamps.get(source_id, "")
+        if not source_ts or source_ts < DECISION_GRANULARITY_MANDATE_SINCE:
+            continue
+        target_ordinals = entry_decision_ordinals.get(target_id, set())
+        if ordinal is None and target_ordinals:
+            listed = ",".join(sorted(target_ordinals, key=lambda o: int(o[1:])))
+            issues.append(
+                LinkIssue(
+                    rel_path,
+                    "unaddressed-target-decision",
+                    f"{kind} -> {raw}: {target_id} has decisions ({listed}); the 2026-07-24 "
+                    f"grammar names the one affected - use {target_id}:d1 style",
+                    "warning",
+                )
+            )
+        if source_ordinal is None and len(entry_decision_ordinals.get(source_id, set())) >= 2:
+            issues.append(
+                LinkIssue(
+                    rel_path,
+                    "unattributed-source-decision",
+                    f"{kind} -> {raw}: {source_id} has multiple decisions; use 'dN -> {raw}' "
+                    "to name which of its decisions authors this edge",
+                    "warning",
+                )
+            )
 
     # Decision edges get the same forward-only check, resolving each end to its
     # ENTRY's heading timestamp - a decision carries no time of its own. Both
@@ -2490,26 +2597,66 @@ def session_append_entry(
                     _corpus_ordinals.setdefault(seen_id, set()).add(ordinal)
         return _corpus_ordinals
 
+    # The granularity mandate (JNL 2026-07-24) is HARD here, unlike the
+    # links-check advisory: this is the one moment the ref is still unwritten,
+    # so demanding precision costs a keystroke now instead of a permanent gap.
+    # The entry's own decisions come from the body being appended - when it
+    # has two or more, every lifecycle ref must say which decision authors it.
+    own_ordinals = set(_entry_decision_ordinals(body))
+    own_listed = ",".join(sorted(own_ordinals, key=lambda o: int(o[1:])))
     for kind, refs in (("related_entries", related_entries), ("replaces", replaces), ("evolves", evolves)):
         for ref in refs:
-            parsed = _parse_list_ref(ref)
-            if parsed.ok and parsed.decision is not None:
-                if kind == "related_entries":
+            parsed_items = _parse_list_ref_multi(ref)
+            first = parsed_items[0]
+            if not first.ok:
+                # Grandfathered non-standard ids (registered but outside the
+                # id grammar) keep the raw-membership check they always had;
+                # the mandate cannot reason about them.
+                if ref not in known:
+                    issues.append(f"{kind} -> {ref}: no such entry_id (refs must never be invented)")
+                elif ref in entry_ts and entry_ts[ref] > ts:
+                    issues.append(f"{kind} -> {ref}: target is newer ({entry_ts[ref]}) than this entry ({ts}); edges point backward in time")
+                continue
+            if kind == "related_entries":
+                if first.decision is not None or first.source_decision is not None:
                     issues.append(f"{kind} -> {ref}: decision-level refs are valid only on replaces/evolves")
                     continue
-                if parsed.entry_id not in known:
+                if first.entry_id not in known:
                     issues.append(f"{kind} -> {ref}: no such entry_id (refs must never be invented)")
-                elif parsed.entry_id in entry_ts and entry_ts[parsed.entry_id] > ts:
+                elif first.entry_id in entry_ts and entry_ts[first.entry_id] > ts:
                     issues.append(
-                        f"{kind} -> {ref}: target is newer ({entry_ts[parsed.entry_id]}) than this entry ({ts}); edges point backward in time"
+                        f"{kind} -> {ref}: target is newer ({entry_ts[first.entry_id]}) than this entry ({ts}); edges point backward in time"
                     )
-                elif parsed.decision not in _ordinals().get(parsed.entry_id, set()):
-                    issues.append(f"{kind} -> {ref}: {parsed.entry_id} has no {parsed.decision}")
                 continue
-            if ref not in known:
+            target_id = first.entry_id
+            if target_id not in known:
                 issues.append(f"{kind} -> {ref}: no such entry_id (refs must never be invented)")
-            elif ref in entry_ts and entry_ts[ref] > ts:
-                issues.append(f"{kind} -> {ref}: target is newer ({entry_ts[ref]}) than this entry ({ts}); edges point backward in time")
+                continue
+            if target_id in entry_ts and entry_ts[target_id] > ts:
+                issues.append(
+                    f"{kind} -> {ref}: target is newer ({entry_ts[target_id]}) than this entry ({ts}); edges point backward in time"
+                )
+                continue
+            target_ordinals = _ordinals().get(target_id, set())
+            for item in parsed_items:
+                if item.decision is not None and item.decision not in target_ordinals:
+                    issues.append(f"{kind} -> {ref}: {target_id} has no {item.decision}")
+            if first.decision is None and target_ordinals:
+                listed = ",".join(sorted(target_ordinals, key=lambda o: int(o[1:])))
+                issues.append(
+                    f"{kind} -> {ref}: {target_id} has decisions ({listed}); name the one affected "
+                    f"- '{target_id}:d1' style, comma-separated for several (2026-07-24 grammar)"
+                )
+            if first.source_decision is None and len(own_ordinals) >= 2:
+                issues.append(
+                    f"{kind} -> {ref}: this entry has multiple decisions ({own_listed}); "
+                    f"prefix which one authors the edge - 'dN -> {ref}'"
+                )
+            elif first.source_decision is not None and first.source_decision not in own_ordinals:
+                issues.append(
+                    f"{kind} -> {ref}: this entry has no {first.source_decision}"
+                    + (f" (its decisions are {own_listed})" if own_ordinals else " (it has no decision section)")
+                )
 
     canonical_topics: list[str] = []
     if topics:

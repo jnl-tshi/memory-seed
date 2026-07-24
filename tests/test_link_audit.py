@@ -185,9 +185,37 @@ class LinkAuditTests(unittest.TestCase):
         chunk = next(
             c for c in extract_memory_chunks(self.cwd, granularity="entry") if c.entry_id == B
         )
-        self.assertEqual(chunk.decision_edges, (("evolves", A, "d1"),))
+        self.assertEqual(chunk.decision_edges, (("evolves", "", A, "d1"),))
         self.assertEqual(chunk.evolves, ())  # no projection to entry level
         self.assertIsNone(self._gap(B))
+
+    def test_arrow_and_comma_forms_populate_chunk_decision_edges(self):
+        # Grammar v2 (2026-07-24): `d2 -> mse_x:d1,d2` carries the authoring
+        # decision and one edge per target ordinal; an arrow-prefixed BARE ref
+        # keeps its entry-level edge (arrow stripped) AND records the source
+        # attribution with no target ordinal.
+        self._write(
+            _entry("2026-06-01 08:00", A, files=["pkg/foo.py"], decisions=["Alpha", "Beta"]),
+            _entry("2026-06-01 09:00", B, files=["pkg/bar.py"], decisions=["Gamma"]),
+            _entry(
+                "2026-06-01 10:00", C, files=["pkg/foo.py"],
+                decisions=["One", "Two"],
+                evolves=[f"d2 -> {A}:d1,d2", f"d1 -> {B}"],
+            ),
+        )
+        chunk = next(
+            c for c in extract_memory_chunks(self.cwd, granularity="entry") if c.entry_id == C
+        )
+        self.assertEqual(
+            chunk.decision_edges,
+            (
+                ("evolves", "d2", A, "d1"),
+                ("evolves", "d2", A, "d2"),
+                ("evolves", "d1", B, ""),
+            ),
+        )
+        self.assertEqual(chunk.evolves, (B,))  # arrow-bare stays entry-level
+        self.assertIsNone(self._gap(C))  # both pairs suppressed as gaps
 
     def test_target_and_candidate_carry_decision_structure(self):
         # Decision awareness is SURFACED, not scored: both ends' decisions ride

@@ -171,6 +171,58 @@ class TrailDecisionEdgeTests(unittest.TestCase):
         edges = self.trail()["edges"]
         self.assertEqual([e for e in edges if e["source"] == "mse_src00000000cccc" and e["type"] == "evolves"], [])
 
+    def _write_multi_decision_source(self):
+        (self.cwd / ".memory-seed" / "sessions" / "2026-06-04.md").write_text(
+            "---\ntags:\n  - session-log\n---\n\n"
+            "## 2026-06-04 09:00 - later multi-decision source\n\n"
+            "```yaml\nentry_id: mse_msrc0000000eeee\nbranch: main\n```\n\n"
+            "### Decisions\n\n"
+            "#### D1 - Unrelated call\n\n- D: x.\n- R: y.\n\n"
+            "#### D2 - The reversal\n\n- D: z.\n- R: w.\n",
+            encoding="utf-8",
+        )
+
+    def test_arrow_source_prefix_resolves_to_the_source_decision_row(self):
+        # Grammar v2 (2026-07-24): `d2 -> <ref>` names WHICH decision of the
+        # authoring entry drives the edge, so the edge leaves from that
+        # decision's own Trail row instead of the entry anchor.
+        self._write_multi_decision_source()
+        self.sidecar_path.write_text(
+            "---\ntags:\n  - session-log-links\nlink_date: 2026-06-03\n---\n\n"
+            "## 2026-06-04 10:00 - arrow-attributed edge\n\n"
+            "```yaml\nentry_id: mse_msrc0000000eeee\nevolves:\n"
+            "  - d2 -> mse_tgt00000000aaaa:d2\n```\n",
+            encoding="utf-8",
+        )
+        trail = self.trail()
+        row_ids = {node["id"] for node in trail["nodes"]}
+        d2_source = next(i for i in row_ids if i.startswith("mse_msrc0000000eeee#decisions/d2-"))
+        d2_target = "mse_tgt00000000aaaa#decisions/d2-default-the-range-to-seven-days"
+        self.assertIn({"source": d2_source, "target": d2_target, "type": "evolves"}, trail["edges"])
+        # The entry-anchor edge is NOT also drawn - the arrow narrowed it.
+        self.assertEqual(
+            [e for e in trail["edges"] if e["source"] == "mse_msrc0000000eeee" and e["type"] == "evolves"], []
+        )
+
+    def test_arrow_bare_ref_draws_the_decision_row_edge_not_its_entry_twin(self):
+        # `d2 -> mse_x` (bare target) keeps its entry-level edge for /graph
+        # and lifecycle consumers, but the Trail renders only the finer
+        # decision-row line - drawing both would duplicate one statement.
+        self._write_multi_decision_source()
+        self.sidecar_path.write_text(
+            "---\ntags:\n  - session-log-links\nlink_date: 2026-06-03\n---\n\n"
+            "## 2026-06-04 10:00 - arrow-bare edge\n\n"
+            "```yaml\nentry_id: mse_msrc0000000eeee\nreplaces:\n"
+            "  - d2 -> mse_sgl00000000bbbb\n```\n",
+            encoding="utf-8",
+        )
+        trail = self.trail()
+        d2_source = next(
+            i for i in {n["id"] for n in trail["nodes"]} if i.startswith("mse_msrc0000000eeee#decisions/d2-")
+        )
+        replaces = [e for e in trail["edges"] if e["type"] == "replaces" and e["target"] == "mse_sgl00000000bbbb"]
+        self.assertEqual(replaces, [{"source": d2_source, "target": "mse_sgl00000000bbbb", "type": "replaces"}])
+
     def test_decision_edges_never_reach_entry_level_consumers(self):
         # Set equality against a control corpus with the sidecar deleted: the
         # non-decision surface must be indistinguishable from the world where

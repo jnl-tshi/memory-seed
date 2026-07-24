@@ -92,6 +92,100 @@ class SessionAppendTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertTrue(any("valid only on replaces/evolves" in issue for issue in result.issues))
 
+    # --- Grammar v2 (2026-07-24): granularity is mandated at write time ---
+
+    def test_append_mandates_target_ordinal_when_target_has_decisions(self):
+        older = self._append_multi_decision_older()
+        result = self._append(evolves=[older])
+        self.assertFalse(result.ok)
+        self.assertTrue(any("has decisions (d1,d2)" in issue for issue in result.issues), result.issues)
+
+    def test_append_accepts_bare_ref_to_a_decisionless_target(self):
+        summary_only = self._append(
+            title="Note only", body="### Summary\n\n- a plain note.", timestamp="2026-06-13 08:00"
+        )
+        self.assertTrue(summary_only.ok, summary_only.issues)
+        result = self._append(replaces=[summary_only.entry_id])
+        self.assertTrue(result.ok, result.issues)
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
+
+    def test_append_accepts_comma_multi_ordinal_and_validates_each(self):
+        older = self._append_multi_decision_older()
+        ok = self._append(evolves=[f"{older}:d1,d2"])
+        self.assertTrue(ok.ok, ok.issues)
+        self.assertIn(f"- {older}:d1,d2", ok.path.read_text(encoding="utf-8"))
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
+
+        bad = self._append(title="Bad ordinal", timestamp="2026-06-13 10:00", evolves=[f"{older}:d1,d9"])
+        self.assertFalse(bad.ok)
+        self.assertTrue(any("has no d9" in issue for issue in bad.issues))
+
+    def test_append_mandates_arrow_source_prefix_for_multi_decision_body(self):
+        older = self._append_multi_decision_older()
+        multi_body = (
+            "### Decisions\n\n"
+            "#### D1 - keep\n\n- D: a\n- R: because\n\n"
+            "#### D2 - change\n\n- D: b\n- R: reasons\n"
+        )
+        # Without the arrow nobody knows which decision authors the edge.
+        result = self._append(body=multi_body, evolves=[f"{older}:d1"])
+        self.assertFalse(result.ok)
+        self.assertTrue(any("prefix which one authors the edge" in issue for issue in result.issues), result.issues)
+
+        # With it, the ref is written verbatim and the corpus stays clean.
+        ok = self._append(body=multi_body, evolves=[f"d2 -> {older}:d1"])
+        self.assertTrue(ok.ok, ok.issues)
+        self.assertIn(f"- d2 -> {older}:d1", ok.path.read_text(encoding="utf-8"))
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
+
+    def test_append_rejects_arrow_ordinal_absent_from_own_body(self):
+        older = self._append_multi_decision_older()
+        # The default BODY is single-decision: it has d1 and nothing else.
+        result = self._append(evolves=[f"d9 -> {older}:d1"])
+        self.assertFalse(result.ok)
+        self.assertTrue(any("this entry has no d9" in issue for issue in result.issues), result.issues)
+
+    def test_cli_ref_flags_are_repeatable_and_survive_intra_ref_commas(self):
+        # The flag's comma has always separated ITEMS, but grammar v2 puts a
+        # comma INSIDE a ref (`mse_x:d1,d4`). Splitting naively turns that one
+        # ref into a valid ref plus the garbage token `d4`. Found by
+        # dogfooding: three --evolves flags collapsed to one before the fix.
+        import contextlib
+        import io
+        import os
+
+        from memory_seed.cli import main as cli_main
+
+        older = self._append_multi_decision_older()
+        body_file = self.cwd / "body.md"
+        body_file.write_text(BODY, encoding="utf-8")
+
+        previous = Path.cwd()
+        out = io.StringIO()
+        try:
+            os.chdir(self.cwd)
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                code = cli_main([
+                    "session", "append",
+                    "--title", "Repeated refs",
+                    "--user-initials", "JN",
+                    "--agent-type", "claude",
+                    "--timestamp", "2026-06-13 09:30",
+                    "--no-branch",
+                    "--body-file", str(body_file),
+                    "--evolves", f"{older}:d1,d2",
+                    "--evolves", f"{older}:d2",
+                    "--dry-run",
+                ])
+        finally:
+            os.chdir(previous)
+
+        self.assertEqual(code, 0, out.getvalue())
+        rendered = out.getvalue()
+        self.assertIn(f"- {older}:d1,d2", rendered)  # comma kept inside the ref
+        self.assertIn(f"- {older}:d2", rendered)  # the second flag is not lost
+        self.assertNotIn("- d2\n", rendered)  # never split into a bare ordinal
+
     def test_second_append_separates_blocks_and_stays_clean(self):
         self._append()
         result = self._append(title="Second decision", timestamp="2026-06-13 10:00")
@@ -140,8 +234,10 @@ class SessionAppendTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertTrue(any("newer" in issue for issue in result.issues), result.issues)
         # But replacing the older first entry from a NEW newest entry works.
+        # `:d1` is explicit - the target has a decision, so the 2026-07-24
+        # granularity mandate requires naming it even when it is the only one.
         ok = self._append(
-            title="Replacement", timestamp="2026-06-13 13:00", replaces=(first.entry_id,)
+            title="Replacement", timestamp="2026-06-13 13:00", replaces=(f"{first.entry_id}:d1",)
         )
         self.assertTrue(ok.ok, ok.issues)
         self.assertTrue(check_session_links(cwd=self.cwd).ok)

@@ -109,13 +109,15 @@ class MemoryChunk:
     # they stay valid (evolves), vs. replaces which retires its targets.
     evolves: tuple[str, ...] = ()
     # Decision-level lifecycle refs authored in the entry's own YAML
-    # (`mse_x:d2` items in `replaces:`/`evolves:` lists - write-time grammar
-    # per JNL's 2026-07-24 direction). (kind, target_entry_id, ordinal)
-    # tuples, kind in {"replaces", "evolves"}. Deliberately NOT folded into
-    # the entry-level lists above: "d1 of B replaces d2 of A" does not license
-    # "B replaces A" (the ratified decision-refs contract), so consumers that
-    # do not model decisions keep seeing the same edge set as before.
-    decision_edges: tuple[tuple[str, str, str], ...] = ()
+    # (`d1 -> mse_x:d2,d4` items in `replaces:`/`evolves:` lists - write-time
+    # grammar per JNL's 2026-07-24 direction). (kind, source_ordinal,
+    # target_entry_id, target_ordinal) tuples, kind in {"replaces",
+    # "evolves"}; either ordinal is "" when unspecified (never both).
+    # Deliberately NOT folded into the entry-level lists above: "d1 of B
+    # replaces d2 of A" does not license "B replaces A" (the ratified
+    # decision-refs contract), so consumers that do not model decisions keep
+    # seeing the same edge set as before.
+    decision_edges: tuple[tuple[str, str, str, str], ...] = ()
     commits: tuple[str, ...] = ()
     # Stored artifact-lineage blocks (rename/migration/removal); see
     # ContinuityBlock. A label family like ``branch:``, not an entry edge.
@@ -529,10 +531,18 @@ class RelatedEntrySuggestion:
 
 
 _BACKTICK_TOKEN_RE = re.compile(r"`([^`\n]+)`")
-# `<entry_id>:dN` decision-ref item in a replaces/evolves list (write-time
-# grammar, 2026-07-24). Mirrors core's _DECISION_REF_RE without importing core
+# Decision-ref item in a replaces/evolves list (write-time grammar,
+# 2026-07-24): optional `dM -> ` arrow prefix naming the authoring decision,
+# then `<entry_id>:dN[,dN...]` with comma-separated target ordinals. Mirrors
+# core's _DECISION_REF_RE / _SOURCE_DECISION_PREFIX_RE without importing core
 # (dependency direction: core imports this module).
-_DECISION_REF_ITEM_RE = re.compile(r"^(ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32}):(d\d+)$")
+_DECISION_REF_ITEM_RE = re.compile(
+    r"^(?:(d\d+)\s*->\s*)?(ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32}):\s*(d\d+(?:\s*,\s*d\d+)*)$"
+)
+# Arrow-prefixed BARE ref (`d2 -> mse_x`): entry-level on its target side,
+# decision-level on its source side. The target id stays in the entry-level
+# list; the source attribution peels into decision_edges.
+_ARROW_BARE_ITEM_RE = re.compile(r"^(d\d+)\s*->\s*(ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32})$")
 
 
 def _normalize_file_ref(value: str) -> str:
@@ -1085,7 +1095,7 @@ def _extract_entry_chunks_from_file(
         # verbatim, exactly as before (links check owns flagging it).
         replaces_list: list[str] = []
         evolves_list: list[str] = []
-        entry_decision_edges: list[tuple[str, str, str]] = []
+        entry_decision_edges: list[tuple[str, str, str, str]] = []
         for kind, raw_refs, sink in (
             ("replaces", _replaces_raw, replaces_list),
             ("evolves", _evolves_raw, evolves_list),
@@ -1093,9 +1103,19 @@ def _extract_entry_chunks_from_file(
             for raw in raw_refs:
                 m = _DECISION_REF_ITEM_RE.match(raw)
                 if m:
-                    entry_decision_edges.append((kind, m.group(1), m.group(2)))
-                else:
-                    sink.append(raw)
+                    source_ordinal = m.group(1) or ""
+                    for ordinal in (part.strip() for part in m.group(3).split(",")):
+                        if ordinal:
+                            entry_decision_edges.append((kind, source_ordinal, m.group(2), ordinal))
+                    continue
+                m = _ARROW_BARE_ITEM_RE.match(raw)
+                if m:
+                    # Entry-level edge (bare target id, arrow stripped) plus a
+                    # source-attributed decision edge with no target ordinal.
+                    sink.append(m.group(2))
+                    entry_decision_edges.append((kind, m.group(1), m.group(2), ""))
+                    continue
+                sink.append(raw)
         replaces = tuple(replaces_list)
         evolves = tuple(evolves_list)
         commits = _metadata_list(metadata, "commits")

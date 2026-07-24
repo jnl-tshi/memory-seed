@@ -6,6 +6,28 @@ All notable changes to Memory Seed are summarized here.
 
 ### Changed
 
+- **BREAKING (write path): decision granularity is mandated on lifecycle
+  edges** (grammar v2, JNL's direction 2026-07-24). `session append` /
+  `memory_session_append` now refuse a `replaces:`/`evolves:` ref that leaves
+  a decision unnamed: a target with addressable decisions must be written
+  `<entry_id>:dN` (explicitly `:d1` for single-decision targets; comma form
+  `mse_x:d1,d4` expands to one edge per ordinal), and an entry whose own body
+  carries 2+ decisions must prefix each ref with its authoring decision as
+  `dN -> <ref>`. Bare ids remain valid only for targets with no decision
+  section. `links check` validates both ends' ordinals everywhere (new error
+  `dangling-source-decision`, in entry YAML and link-sidecar blocks alike) and
+  adds two post-cutoff advisories (`unaddressed-target-decision`,
+  `unattributed-source-decision`) that warn - never error, since append-only
+  makes a published bare ref unrepairable - on entries stamped after
+  2026-07-24 09:00. Read side: `MemoryChunk.decision_edges` and the sidecar
+  `decision_edges` channel carry `(kind, source_ordinal, target,
+  target_ordinal)`; the Trail draws each edge from the authoring decision's
+  row to the target decision's row and no longer double-draws the entry-level
+  twin of an arrow-narrowed edge. This lands step 3 (source decisions) of the
+  decision-refs draft, in per-item arrow form rather than the drafted
+  block-level `source_decision:` field. Published pre-mandate entries are
+  untouched and stay quiet.
+
 - **BREAKING (vocabulary): `supersedes` is renamed `replaces` across Seed and
   Trace** (JNL's direction, 2026-07-24: one term everywhere - the Trace UI
   already said "replaces" while the data layer said "supersedes"). The entry

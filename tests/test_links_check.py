@@ -1161,3 +1161,107 @@ class LinksCheckTests(unittest.TestCase):
         result = check_session_links(cwd=cwd)
         self.assertFalse(result.ok)
         self.assertIn("intra-entry-decision-ref", [i.kind for i in result.issues])
+
+    # --- Grammar v2 (2026-07-24 mandate): comma ordinals + arrow source ---
+
+    def test_comma_multi_ordinal_ref_expands_and_validates_each(self):
+        # `mse_x:d1,d2` is one authored item, one edge per ordinal. Every
+        # ordinal validates independently, so a bad one in the list surfaces.
+        cwd = self.make_project()
+        self._decision_corpus(cwd)
+        self._link_sidecar(
+            cwd, "2026-06-02", "mse_bbbbbbbbbbbbbbbb",
+            evolves=["mse_aaaaaaaaaaaaaaaa:d1,d2"],
+        )
+        self.assertTrue(check_session_links(cwd=cwd).ok)
+
+        self._link_sidecar(
+            cwd, "2026-06-02", "mse_bbbbbbbbbbbbbbbb",
+            evolves=["mse_aaaaaaaaaaaaaaaa:d1,d9"], heading_time="11:00",
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        self.assertIn("dangling-decision-ref", [i.kind for i in result.issues])
+        self.assertTrue(any("has no d9" in i.detail for i in result.issues))
+
+    def test_arrow_source_prefix_validates_against_the_authoring_entry(self):
+        # `d1 -> mse_x:d2` claims WHICH decision of the block's entry drives
+        # the edge; the ordinal must exist on that entry, not the target.
+        cwd = self.make_project()
+        self._decision_corpus(cwd)
+        self._link_sidecar(
+            cwd, "2026-06-02", "mse_bbbbbbbbbbbbbbbb",
+            evolves=["d1 -> mse_aaaaaaaaaaaaaaaa:d2"],
+        )
+        self.assertTrue(check_session_links(cwd=cwd).ok)
+
+        # The newer entry is single-decision: it has d1 and nothing else.
+        self._link_sidecar(
+            cwd, "2026-06-02", "mse_bbbbbbbbbbbbbbbb",
+            evolves=["d3 -> mse_aaaaaaaaaaaaaaaa:d2"], heading_time="11:00",
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        self.assertIn("dangling-source-decision", [i.kind for i in result.issues])
+
+    def test_entry_yaml_arrow_source_prefix_validates_and_arrow_bare_keeps_entry_edge(self):
+        cwd = self.make_project()
+        self._decision_corpus(cwd)
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        # A multi-decision newer entry whose d2 evolves d1 of the older one,
+        # plus an arrow-prefixed BARE ref - entry-level on the target side.
+        (sessions / "2026-06-03.md").write_text(
+            "## 2026-06-03 09:00 - Multi\n\n```yaml\nentry_id: mse_cccccccccccccccc\nevolves:\n"
+            "  - d2 -> mse_aaaaaaaaaaaaaaaa:d1\n  - d1 -> mse_bbbbbbbbbbbbbbbb\n```\n\n"
+            "### Decisions\n\n#### D1 - one\n\n- D: a\n- R: b\n\n#### D2 - two\n\n- D: c\n- R: d\n",
+            encoding="utf-8",
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertTrue(result.ok, [i.detail for i in result.issues if i.severity == "error"])
+
+        # A source ordinal the entry does not have is dangling.
+        (sessions / "2026-06-03.md").write_text(
+            "## 2026-06-03 09:00 - Multi\n\n```yaml\nentry_id: mse_cccccccccccccccc\nevolves:\n"
+            "  - d9 -> mse_aaaaaaaaaaaaaaaa:d1\n```\n\n"
+            "### Decisions\n\n#### D1 - one\n\n- D: a\n- R: b\n\n#### D2 - two\n\n- D: c\n- R: d\n",
+            encoding="utf-8",
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        self.assertIn("dangling-source-decision", [i.kind for i in result.issues])
+
+    def test_granularity_advisories_fire_post_cutoff_and_stay_quiet_before(self):
+        # Warnings only - published entries are append-only, so an error would
+        # be permanently unsatisfiable. Pre-cutoff history stays silent.
+        cwd = self.make_project()
+        self._decision_corpus(cwd)
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        # Post-cutoff entry: bare ref at a decision-bearing target (missing
+        # :dN) and no arrow despite being multi-decision itself.
+        (sessions / "2026-07-25.md").write_text(
+            "## 2026-07-25 09:00 - Post-cutoff\n\n```yaml\nentry_id: mse_dddddddddddddddd\nevolves:\n"
+            "  - mse_aaaaaaaaaaaaaaaa\n```\n\n"
+            "### Decisions\n\n#### D1 - one\n\n- D: a\n- R: b\n\n#### D2 - two\n\n- D: c\n- R: d\n",
+            encoding="utf-8",
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertTrue(result.ok, [i.detail for i in result.issues if i.severity == "error"])
+        kinds = [i.kind for i in result.issues]
+        self.assertIn("unaddressed-target-decision", kinds)
+        self.assertIn("unattributed-source-decision", kinds)
+        for issue in result.issues:
+            if issue.kind in ("unaddressed-target-decision", "unattributed-source-decision"):
+                self.assertEqual(issue.severity, "warning")
+
+        # The same shape authored pre-cutoff (the existing corpus) is quiet.
+        (sessions / "2026-07-25.md").unlink()
+        (sessions / "2026-06-03.md").write_text(
+            "## 2026-06-03 09:00 - Pre-cutoff\n\n```yaml\nentry_id: mse_dddddddddddddddd\nevolves:\n"
+            "  - mse_aaaaaaaaaaaaaaaa\n```\n\n"
+            "### Decisions\n\n#### D1 - one\n\n- D: a\n- R: b\n\n#### D2 - two\n\n- D: c\n- R: d\n",
+            encoding="utf-8",
+        )
+        result = check_session_links(cwd=cwd)
+        kinds = [i.kind for i in result.issues]
+        self.assertNotIn("unaddressed-target-decision", kinds)
+        self.assertNotIn("unattributed-source-decision", kinds)

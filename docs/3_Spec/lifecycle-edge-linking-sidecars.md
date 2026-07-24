@@ -21,8 +21,9 @@ Since 2026-07-15, `--apply` may create inert, idempotent `classify_pending` stub
 live edge.
 Related: [graph-edge-contract.md](graph-edge-contract.md)
 Draft extension: [decision-level-link-sidecar-refs.md](draft/decision-level-link-sidecar-refs.md) — refs
-that terminate on a specific decision rather than a whole entry. Not implemented; every ref described
-below is entry-to-entry.
+that name a specific decision rather than a whole entry, on either end (`d2 -> mse_x:d1,d4`).
+Implemented on both ends as of 2026-07-24 and **mandatory for newly written edges**; refs described
+below stay valid and every historical entry-to-entry ref is unchanged.
 
 ## Problem
 
