@@ -11,10 +11,12 @@ Status: **DRAFT - PARTIALLY IMPLEMENTED as of 2026-07-22.** The live contract is
 [lifecycle-edge-linking-sidecars.md](../lifecycle-edge-linking-sidecars.md), which this extends.
 
 Landed: steps 0-2 below — the skeleton gate (one real decision edge, verified drawing to its decision row
-in the running Trail), the ref grammar and read path, and validation. **Target-side only.** Not landed:
-step 3, `source_decision` on the block, so a decision cannot yet be the *source* of an edge; and step 4,
-which remains an open question rather than work. Bare entry ids are unchanged and no existing sidecar
-needed migrating.
+in the running Trail), the ref grammar and read path, and validation. **Step 3 (source side) landed
+2026-07-24**, in a different shape than staged here: a per-item `dN -> ` arrow prefix rather than a
+block-level `source_decision:` field — see the Source decisions section. With grammar v2 (same day,
+JNL's mandate) decision granularity is no longer optional at write time: both ends of a new
+`replaces`/`evolves` must name their decision wherever one is addressable. Step 4 resolved 2026-07-23
+(open question 1). Bare entry ids in the existing corpus are unchanged and no sidecar needed migrating.
 
 **Scope.** This amends the **link sidecar** (`.memory-seed/sessions/links/…`) so a lifecycle edge can
 terminate on a specific decision rather than a whole entry. It borrows the decision identity ratified in
@@ -107,18 +109,38 @@ emits canonical form, so the alias does not accumulate.
 
 ## Source decisions
 
-The block key becomes the pair too, via an optional field:
+*As built 2026-07-24 the source ordinal is **per item**, not per block — a `dN -> ` arrow prefix:*
 
 ```yaml
 entry_id: mse_cdndmm2p0dmbkbq9
-source_decision: d2
-supersedes:
-  - mse_wh33mc61swqx0vkv:d1
+replaces:
+  - d2 -> mse_wh33mc61swqx0vkv:d1
+evolves:
+  - d2 -> mse_x:d1,d4          # comma form: one edge per target ordinal
+  - d3 -> mse_y:d1
 ```
 
-Absent `source_decision`, the source is the whole entry, exactly as today. Multiple blocks may share an
-`entry_id` provided their `source_decision` differs — the block key is `(entry_id, source_decision)`, with
-absent treated as a distinct key from any ordinal.
+Absent a prefix, the source is the whole entry, exactly as before. **Why per-item rather than the
+block-level `source_decision:` field designed below (JNL, 2026-07-24):** the block field forces one
+block per source decision, so an entry whose D2 and D3 each evolve something needs two blocks with the
+same `entry_id` — and in the entry's OWN yaml, which is where the grammar now primarily lives, there
+is only ever one block, making the field unable to express the common case at all. The arrow rides on
+the item that already carries the target ordinal, so both ends of an edge are stated in one line and
+all four granularity combinations below fall out without a per-combination rule. The block-key scheme
+`(entry_id, source_decision)` is therefore **withdrawn**; link-sidecar blocks keep the identity
+`(entry_id, timestamp)` fixed on 2026-07-24 and take the same arrow items.
+
+**Granularity is mandated at write time (JNL, 2026-07-24).** `session append`/`memory_session_append`
+refuse a `replaces`/`evolves` ref that leaves an end unnamed: a target with any addressable decision
+must carry `:dN` — explicitly `:d1` for a single-decision target — and an entry with 2+ decisions of
+its own must prefix every ref with the authoring ordinal. Only a target with no decision section stays
+bare. The reason is provenance: the judgment programme measured decision-shaped patterns
+(implementation-evolves-proposal, deferral-completion) as the dominant edge shapes, and an unnamed end
+is a fact the author knew and did not record — cheap now, unrecoverable later, and it makes downstream
+inference cheaper as a byproduct. `links check` cannot enforce it as an error (published entries are
+append-only, so a historical bare ref could never be repaired); it warns via
+`unaddressed-target-decision` / `unattributed-source-decision` on entries stamped after
+`DECISION_GRANULARITY_MANDATE_SINCE` (2026-07-24 09:00) and stays silent on everything before.
 
 **For a single-decision entry, the entry-level and `d1` forms denote the same edge.** They must not both
 be written; `links check` reports a duplicate rather than silently creating two edges.
@@ -179,6 +201,9 @@ New `links check` issue kinds:
 | `dangling-decision-ref` | error | The entry resolves but the ordinal does not exist in it |
 | `duplicate-decision-ref` | error | The same edge is declared both entry-level and as `d1` of a single-decision entry, or twice in any form |
 | `intra-entry-decision-ref` | error | A ref's entry id equals the block's `entry_id` — both ends are in the same entry (see below) |
+| `dangling-source-decision` | error | *(2026-07-24)* A `dN -> ` arrow names an ordinal the **authoring** entry does not have |
+| `unaddressed-target-decision` | warning | *(2026-07-24)* A post-mandate entry leaves a decision-bearing target bare |
+| `unattributed-source-decision` | warning | *(2026-07-24)* A post-mandate multi-decision entry omits the arrow prefix |
 
 `dangling-decision-ref` resolution follows the ADR's totality table: `d1` is valid for any entry with a
 decision section in any of the three shapes; `d2`+ requires the numbered-heading or inline-bullet shape and
@@ -252,6 +277,15 @@ Two constraints the implementation had to respect, both of which are a silent ed
 
 When the target entry is single-decision it has no separate row, and the edge attaches to its entry row —
 which is the same statement, since the entry-level and `d1` forms denote the same edge for that shape.
+
+*Amended 2026-07-24 (source side).* Endpoint resolution is now symmetric: an arrow-prefixed ref leaves
+the **authoring decision's** row rather than the entry anchor, resolved by the same rule as the target
+(exact `(entry_id, dN)` row when one exists; entry row when the entry was never expanded; dropped
+rather than widened when the entry has rows but not that ordinal). One consequence needs stating: an
+arrow-prefixed **bare** ref (`d2 -> mse_x`) is decision-level on its source and entry-level on its
+target, so it remains a real entry-level edge for `/graph` and lifecycle consumers *and* draws a
+decision-row line on the Trail. The Trail suppresses the entry-level twin of any such narrowed edge —
+one authored statement draws one line.
 
 ## Implementation order
 

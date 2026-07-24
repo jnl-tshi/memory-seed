@@ -92,6 +92,59 @@ class SessionAppendTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertTrue(any("valid only on replaces/evolves" in issue for issue in result.issues))
 
+    # --- Grammar v2 (2026-07-24): granularity is mandated at write time ---
+
+    def test_append_mandates_target_ordinal_when_target_has_decisions(self):
+        older = self._append_multi_decision_older()
+        result = self._append(evolves=[older])
+        self.assertFalse(result.ok)
+        self.assertTrue(any("has decisions (d1,d2)" in issue for issue in result.issues), result.issues)
+
+    def test_append_accepts_bare_ref_to_a_decisionless_target(self):
+        summary_only = self._append(
+            title="Note only", body="### Summary\n\n- a plain note.", timestamp="2026-06-13 08:00"
+        )
+        self.assertTrue(summary_only.ok, summary_only.issues)
+        result = self._append(replaces=[summary_only.entry_id])
+        self.assertTrue(result.ok, result.issues)
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
+
+    def test_append_accepts_comma_multi_ordinal_and_validates_each(self):
+        older = self._append_multi_decision_older()
+        ok = self._append(evolves=[f"{older}:d1,d2"])
+        self.assertTrue(ok.ok, ok.issues)
+        self.assertIn(f"- {older}:d1,d2", ok.path.read_text(encoding="utf-8"))
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
+
+        bad = self._append(title="Bad ordinal", timestamp="2026-06-13 10:00", evolves=[f"{older}:d1,d9"])
+        self.assertFalse(bad.ok)
+        self.assertTrue(any("has no d9" in issue for issue in bad.issues))
+
+    def test_append_mandates_arrow_source_prefix_for_multi_decision_body(self):
+        older = self._append_multi_decision_older()
+        multi_body = (
+            "### Decisions\n\n"
+            "#### D1 - keep\n\n- D: a\n- R: because\n\n"
+            "#### D2 - change\n\n- D: b\n- R: reasons\n"
+        )
+        # Without the arrow nobody knows which decision authors the edge.
+        result = self._append(body=multi_body, evolves=[f"{older}:d1"])
+        self.assertFalse(result.ok)
+        self.assertTrue(any("prefix which one authors the edge" in issue for issue in result.issues), result.issues)
+
+        # With it, the ref is written verbatim and the corpus stays clean.
+        ok = self._append(body=multi_body, evolves=[f"d2 -> {older}:d1"])
+        self.assertTrue(ok.ok, ok.issues)
+        self.assertIn(f"- d2 -> {older}:d1", ok.path.read_text(encoding="utf-8"))
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
+
+    def test_append_rejects_arrow_ordinal_absent_from_own_body(self):
+        older = self._append_multi_decision_older()
+        # The default BODY is single-decision: it has d1 and nothing else.
+        result = self._append(evolves=[f"d9 -> {older}:d1"])
+        self.assertFalse(result.ok)
+        self.assertTrue(any("this entry has no d9" in issue for issue in result.issues), result.issues)
+
     def test_second_append_separates_blocks_and_stays_clean(self):
         self._append()
         result = self._append(title="Second decision", timestamp="2026-06-13 10:00")
@@ -140,8 +193,10 @@ class SessionAppendTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertTrue(any("newer" in issue for issue in result.issues), result.issues)
         # But replacing the older first entry from a NEW newest entry works.
+        # `:d1` is explicit - the target has a decision, so the 2026-07-24
+        # granularity mandate requires naming it even when it is the only one.
         ok = self._append(
-            title="Replacement", timestamp="2026-06-13 13:00", replaces=(first.entry_id,)
+            title="Replacement", timestamp="2026-06-13 13:00", replaces=(f"{first.entry_id}:d1",)
         )
         self.assertTrue(ok.ok, ok.issues)
         self.assertTrue(check_session_links(cwd=self.cwd).ok)

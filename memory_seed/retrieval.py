@@ -377,7 +377,10 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
             # consumer that does not model decisions must see exactly the edge
             # set it saw before this feature existed.
             found: dict[str, Any] = {}
-            decisions: list[tuple[str, str, str]] = []
+            # (kind, source_ordinal, target_entry_id, target_ordinal); either
+            # ordinal "" when unspecified - same shape as
+            # MemoryChunk.decision_edges so the Trail merges both streams.
+            decisions: list[tuple[str, str, str, str]] = []
             # "supersedes" is the legacy authored key for "replaces" (renamed
             # 2026-07-24); it canonicalises on read so every consumer sees one
             # spelling and legacy corpora keep their edges.
@@ -392,9 +395,13 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                     if not parsed.ok:
                         continue  # links check reports it; readers skip it
                     if parsed.decision is None:
+                        # Bare target: the edge is entry-level on that side
+                        # even when an arrow names the authoring decision.
                         entry_level.append(parsed.entry_id)
-                    else:
-                        decisions.append((canonical, parsed.entry_id, parsed.decision))
+                    if parsed.decision is not None or parsed.source_decision is not None:
+                        decisions.append(
+                            (canonical, parsed.source_decision or "", parsed.entry_id, parsed.decision or "")
+                        )
                 found[canonical] = tuple(dict.fromkeys(tuple(found.get(canonical, ())) + tuple(entry_level)))
             found["decision_edges"] = tuple(decisions)
             existing = sidecars.get(entry_id)
@@ -679,12 +686,12 @@ def audit_link_gaps(
             # grammar (2026-07-24), the entry's own yaml.
             | {
                 eid
-                for kind, eid, _ordinal in sidecar.get("decision_edges", ())
+                for kind, _src, eid, _ordinal in sidecar.get("decision_edges", ())
                 if kind in ("replaces", "evolves")
             }
             | {
                 eid
-                for kind, eid, _ordinal in chunk.decision_edges
+                for kind, _src, eid, _ordinal in chunk.decision_edges
                 if kind in ("replaces", "evolves")
             }
         )

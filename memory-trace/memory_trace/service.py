@@ -1591,7 +1591,7 @@ class TraceService:
             reach = list(edges)
             if include_decisions:
                 for source_entry_id, sidecar in self._link_sidecars().items():
-                    for kind, target_entry_id, _ordinal in sidecar.get("decision_edges", ()):
+                    for kind, _src_ordinal, target_entry_id, _ordinal in sidecar.get("decision_edges", ()):
                         reach.append({"source": source_entry_id, "target": target_entry_id, "type": kind})
             visible_ids = _neighborhood(entry_id, reach, depth=max(depth, 1))
             limited_ids = set(visible_ids[: _limit(limit, maximum=1000)])
@@ -1661,9 +1661,24 @@ class TraceService:
                 payload["decision_edges"] = tuple(
                     dict.fromkeys(tuple(payload.get("decision_edges", ())) + tuple(chunk.decision_edges))
                 )
-            visible_edges.extend(
-                _decision_edges_for_rows(nodes, decision_sources, edge_type_set)
-            )
+            decision_row_edges = _decision_edges_for_rows(nodes, decision_sources, edge_type_set)
+            # Narrowing dedup: an arrow-prefixed BARE ref (`d2 -> mse_x`,
+            # grammar v2 2026-07-24) is one authored statement with two
+            # renderings - the entry-level edge (kept for /graph and lifecycle
+            # consumers) and the decision-row edge. Drawing both here would put
+            # two lines between near-identical endpoints, so the finer one
+            # wins: drop the entry-level twin of any decision-row edge over
+            # the same (source entry, target entry, type).
+            narrowed = {
+                (edge["source"].split("#")[0], edge["target"].split("#")[0], edge["type"])
+                for edge in decision_row_edges
+            }
+            visible_edges = [
+                edge
+                for edge in visible_edges
+                if (edge["source"], edge["target"], edge["type"]) not in narrowed
+            ]
+            visible_edges.extend(decision_row_edges)
         # Commit-accurate merges: served on both the legacy /api surface and the
         # versioned /api/v1 surface (the v1 GraphResponse/TrailResponse models
         # formalize these keys as of the 2.18 polish; see models.py).
@@ -3290,22 +3305,23 @@ def _decision_edges_for_rows(
     silently dropped - the exact class of silent edge loss this workstream
     exists to close.
 
-    Endpoint resolution:
+    Endpoint resolution (symmetric since the arrow grammar, 2026-07-24):
 
-    - Source is the block's entry (the grammar has no ``source_decision`` yet;
-      that is staged second in the draft), so it lands on the entry row - which
-      for a multi-decision entry is the group ANCHOR, still keyed by entry id.
-    - Target resolves to the ``(entry_id, dN)`` row when one exists. When the
-      target entry is single-decision it has no separate row, and the entry row
-      IS its d1: the draft states outright that for a single-decision entry the
-      entry-level and ``d1`` forms denote the same edge, so attaching there is
-      the same statement, not a widening.
+    - Source resolves to its ``(entry_id, dN)`` row when the ref carries a
+      ``dN ->`` arrow prefix and that row exists; an unspecified source
+      ordinal lands on the entry row - which for a multi-decision entry is
+      the group ANCHOR, still keyed by entry id.
+    - Target resolves to the ``(entry_id, dN)`` row when one exists. When
+      either entry is single-decision it has no separate row, and the entry
+      row IS its d1: the draft states outright that for a single-decision
+      entry the entry-level and ``d1`` forms denote the same edge, so
+      attaching there is the same statement, not a widening.
     - Anything still unresolved is dropped rather than guessed at - including
       an ordinal that does not exist on an entry which *does* have decision
-      rows. Falling back to the entry row there would silently widen a
-      dangling ``:d7`` into an entry-level edge, which is the overstatement
-      this feature removes. ``links check`` reports the bad ref; this refuses
-      to invent an edge from it.
+      rows, on either end. Falling back to the entry row there would silently
+      widen a dangling ``d7 ->`` or ``:d7`` into an entry-level edge, which
+      is the overstatement this feature removes. ``links check`` reports the
+      bad ref; this refuses to invent an edge from it.
     """
     kind_to_type = {"replaces": "replaces", "evolves": "evolves", "related_entries": "related"}
     entry_row: dict[str, str] = {}
@@ -3323,20 +3339,26 @@ def _decision_edges_for_rows(
             expanded_entries.add(entry_id)
         elif entry_id not in entry_row:
             entry_row[entry_id] = node["id"]
+
+    def _resolve(this_entry_id: str, ordinal: str) -> str | None:
+        if ordinal:
+            row = decision_row.get((this_entry_id, ordinal))
+            if row or this_entry_id in expanded_entries:
+                return row
+        return entry_row.get(this_entry_id)
+
     edges: list[dict[str, str]] = []
     seen: set[tuple[str, str, str]] = set()
     for source_entry_id, sidecar in sidecars.items():
-        source = entry_row.get(source_entry_id)
-        if not source:
+        if source_entry_id not in entry_row and source_entry_id not in expanded_entries:
             continue
-        for kind, target_entry_id, ordinal in sidecar.get("decision_edges", ()):
+        for kind, source_ordinal, target_entry_id, ordinal in sidecar.get("decision_edges", ()):
             edge_type = kind_to_type.get(kind)
             if not edge_type or edge_type not in edge_types:
                 continue
-            target = decision_row.get((target_entry_id, ordinal))
-            if not target and target_entry_id not in expanded_entries:
-                target = entry_row.get(target_entry_id)
-            if not target or target == source:
+            source = _resolve(source_entry_id, source_ordinal)
+            target = _resolve(target_entry_id, ordinal)
+            if not source or not target or target == source:
                 continue
             key = (source, target, edge_type)
             if key in seen:

@@ -54,17 +54,20 @@ class MemorySessionAppendTests(unittest.TestCase):
         self.assertIn("- D: Ship the gated append path.", written)
 
     def test_lifecycle_edges_arrive_as_arrays_not_csv(self):
+        # `:d1` explicit on evolves - the target has a decision, so the
+        # 2026-07-24 granularity mandate requires naming it; related_entries
+        # stays entry-level by contract.
         first = self._append(title="First", _now="2026-06-13 09:00")
         second = self._append(
             title="Second",
             _now="2026-06-13 10:00",
             related_entries=[first["entry_id"]],
-            evolves=[first["entry_id"]],
+            evolves=[f"{first['entry_id']}:d1"],
         )
         self.assertTrue(second["ok"], second["issues"])
         written = Path(second["path"]).read_text(encoding="utf-8")
         self.assertIn(f"related_entries:\n  - {first['entry_id']}", written)
-        self.assertIn(f"evolves:\n  - {first['entry_id']}", written)
+        self.assertIn(f"evolves:\n  - {first['entry_id']}:d1", written)
 
     # --- refusals are data, not transport errors ------------------------
 
