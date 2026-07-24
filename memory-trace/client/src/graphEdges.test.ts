@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import { outrankedEdgeIds, pairKey, type PresentableEdge } from "./graphEdges.ts";
 
-const ALL = ["supersedes", "evolves", "related", "topic", "branch"];
+const ALL = ["replaces", "evolves", "related", "topic", "branch"];
 const edge = (id: string, source: string, target: string, type: string): PresentableEdge => ({ id, source, target, type });
 const drawn = (edges: PresentableEdge[], visible = ALL) => {
   const out = outrankedEdgeIds(edges, visible);
@@ -13,18 +13,18 @@ const drawn = (edges: PresentableEdge[], visible = ALL) => {
 test("the strongest relationship wins the pair's line", () => {
   // replaces > evolves > related > topic
   assert.deepEqual(
-    drawn([edge("1", "a", "b", "topic"), edge("2", "a", "b", "related"), edge("3", "a", "b", "evolves"), edge("4", "a", "b", "supersedes")]),
-    ["supersedes"],
+    drawn([edge("1", "a", "b", "topic"), edge("2", "a", "b", "related"), edge("3", "a", "b", "evolves"), edge("4", "a", "b", "replaces")]),
+    ["replaces"],
   );
   assert.deepEqual(drawn([edge("1", "a", "b", "topic"), edge("2", "a", "b", "evolves")]), ["evolves"]);
   assert.deepEqual(drawn([edge("1", "a", "b", "topic"), edge("2", "a", "b", "related")]), ["related"]);
   // Declaration order must not decide it.
-  assert.deepEqual(drawn([edge("1", "a", "b", "supersedes"), edge("2", "a", "b", "topic")]), ["supersedes"]);
+  assert.deepEqual(drawn([edge("1", "a", "b", "replaces"), edge("2", "a", "b", "topic")]), ["replaces"]);
 });
 
 test("direction does not create a second line", () => {
   // A->B and B->A occupy the same line, so they compete for it.
-  assert.deepEqual(drawn([edge("1", "a", "b", "related"), edge("2", "b", "a", "supersedes")]), ["supersedes"]);
+  assert.deepEqual(drawn([edge("1", "a", "b", "related"), edge("2", "b", "a", "replaces")]), ["replaces"]);
   assert.equal(pairKey("a", "b"), pairKey("b", "a"));
 });
 
@@ -32,7 +32,7 @@ test("switching a type off promotes what it was covering", () => {
   const edges = [edge("1", "a", "b", "related"), edge("2", "a", "b", "evolves")];
   assert.deepEqual(drawn(edges), ["evolves"], "evolves outranks related");
   assert.deepEqual(
-    drawn(edges, ["supersedes", "related", "topic", "branch"]),
+    drawn(edges, ["replaces", "related", "topic", "branch"]),
     ["related"],
     "with evolves filtered out the pair falls back to related, not blank",
   );

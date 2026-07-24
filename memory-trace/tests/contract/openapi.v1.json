@@ -569,7 +569,7 @@
         "description": "Every edge kind _graph_edges() can produce (graph-edge-contract.md).",
         "enum": [
           "related",
-          "supersedes",
+          "replaces",
           "evolves",
           "branch",
           "topic",

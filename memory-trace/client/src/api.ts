@@ -28,7 +28,7 @@ export type GraphQueryOptions = {
 };
 
 /** Every edge type the filter row offers. Order is the row's order. */
-export const GRAPH_EDGE_TYPES: RendererGraphEdge["edge_type"][] = ["related", "supersedes", "evolves", "topic"];
+export const GRAPH_EDGE_TYPES: RendererGraphEdge["edge_type"][] = ["related", "replaces", "evolves", "topic"];
 
 /**
  * The edge types switched ON initially - authored relationships only.
@@ -43,7 +43,7 @@ export const GRAPH_EDGE_TYPES: RendererGraphEdge["edge_type"][] = ["related", "s
  *
  * Measured on the real corpus, with THIS edge set rather than the server's
  * default: including topic returns 1000 edges - the cap, i.e. TRUNCATED - as
- * related 533 / evolves 127 / supersedes 6 / topic 334. Excluding it returns
+ * related 533 / evolves 127 / replaces 6 / topic 334. Excluding it returns
  * 666, comfortably under the cap. So topic edges were not merely spending
  * budget, they were crowding authored edges out of the response entirely, and
  * the 334 topic edges that survived were themselves an arbitrary slice of a
@@ -55,7 +55,7 @@ export const GRAPH_EDGE_TYPES: RendererGraphEdge["edge_type"][] = ["related", "s
  * have no authored relationship, and drawing them as connected was the graph
  * asserting something untrue.
  */
-export const DEFAULT_GRAPH_EDGE_TYPES: RendererGraphEdge["edge_type"][] = ["related", "supersedes", "evolves"];
+export const DEFAULT_GRAPH_EDGE_TYPES: RendererGraphEdge["edge_type"][] = ["related", "replaces", "evolves"];
 
 export function isCanonicalEntryId(value: string): boolean {
   return /^(?:mse_[A-Za-z0-9_-]+|ms-[A-Za-z0-9_-]+)$/.test(value.trim());
@@ -118,7 +118,7 @@ export function searchQuery(query: string): Promise<SearchResponse> {
 export type TrailQueryOptions = { topic?: string | null; dateFrom?: string | null; limit?: number };
 
 // The Trail is a dedicated product surface: /api/v1/trail fixes its own edge set
-// (branch/supersedes/evolves/related) and entry granularity, so — unlike the
+// (branch/replaces/evolves/related) and entry granularity, so — unlike the
 // graph — it takes no edge_types parameter.
 export function trailQuery(options: TrailQueryOptions = {}): Promise<TrailResponse> {
   const params = new URLSearchParams();

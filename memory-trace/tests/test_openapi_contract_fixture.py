@@ -63,7 +63,7 @@ class OpenApiContractFixtureTests(unittest.TestCase):
         schema = self.fixture["components"]["schemas"]["EdgeType"]
         self.assertEqual(
             set(schema["enum"]),
-            {"related", "supersedes", "evolves", "branch", "topic", "agent", "day"},
+            {"related", "replaces", "evolves", "branch", "topic", "agent", "day"},
         )
 
     def test_graph_node_and_trail_event_both_carry_provenance_class(self):

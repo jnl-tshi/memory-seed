@@ -3,8 +3,8 @@ title: Agent worktree and branch hygiene
 status: complete
 priority: P3
 sources:
-  - ../7_Superseded/worktree-gc-proposal.md
-  - ../7_Superseded/agent-namespaced-branch-worktree-lifecycle-proposal.md
+  - ../7_Replaced/worktree-gc-proposal.md
+  - ../7_Replaced/agent-namespaced-branch-worktree-lifecycle-proposal.md
 ---
 
 # Agent Worktree and Branch Hygiene

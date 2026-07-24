@@ -92,7 +92,7 @@ class TrailDecisionRowTests(unittest.TestCase):
 
     def trail_nodes(self):
         return self.service.graph(
-            edge_types=("branch", "supersedes", "evolves", "related"),
+            edge_types=("branch", "replaces", "evolves", "related"),
             limit=1000,
             include_decisions=True,
         )["nodes"]
@@ -138,7 +138,7 @@ class TrailDecisionRowTests(unittest.TestCase):
 
     def test_default_graph_output_is_unchanged(self):
         plain = self.service.graph(
-            edge_types=("branch", "supersedes", "evolves", "related"), limit=1000
+            edge_types=("branch", "replaces", "evolves", "related"), limit=1000
         )["nodes"]
         self.assertEqual(len([node for node in plain if node["entry_id"] == "mse_multi"]), 1)
         self.assertNotIn("decision_ordinal", plain[0])
@@ -158,7 +158,7 @@ class TrailDecisionRowTests(unittest.TestCase):
 
         projection = client.get(
             "/api/v1/graph/projection",
-            params={"limit": 100, "edge_types": "related,supersedes,evolves,topic"},
+            params={"limit": 100, "edge_types": "related,replaces,evolves,topic"},
         ).json()
         projection_multi = [
             node for node in projection["nodes"] if node["source"]["entry_id"] == "mse_multi"

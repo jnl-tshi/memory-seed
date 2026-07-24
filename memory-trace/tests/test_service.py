@@ -32,7 +32,7 @@ def _entry(
     agent="codex",
     related=None,
     branch=None,
-    supersedes=None,
+    replaces=None,
     evolves=None,
     continuity=None,
     topics=None,
@@ -55,9 +55,9 @@ def _entry(
     if related:
         lines.append("related_entries:")
         lines.extend(f"  - {ref}" for ref in related)
-    if supersedes:
-        lines.append("supersedes:")
-        lines.extend(f"  - {ref}" for ref in supersedes)
+    if replaces:
+        lines.append("replaces:")
+        lines.extend(f"  - {ref}" for ref in replaces)
     if evolves:
         lines.append("evolves:")
         lines.extend(f"  - {ref}" for ref in evolves)
@@ -407,9 +407,9 @@ class TraceServiceTests(unittest.TestCase):
         self.assertEqual(graph["edges"][0]["target"], "mse_bootstrap")
         self.assertEqual(graph["edges"][0]["type"], "related")
 
-    def test_trail_view_renders_supersedes_edge_and_branch_axis(self):
-        # Trail view (Arc 2c): a later decision supersedes an earlier one on the
-        # same branch. supersedes is a directed status edge; branch is a
+    def test_trail_view_renders_replaces_edge_and_branch_axis(self):
+        # Trail view (Arc 2c): a later decision replaces an earlier one on the
+        # same branch. replaces is a directed status edge; branch is a
         # time-ordered lineage axis. Both are additive to the same graph engine.
         self.write_session(
             "2026-06-10.md",
@@ -417,27 +417,27 @@ class TraceServiceTests(unittest.TestCase):
                 [
                     _entry("2026-06-10 09:00 - First take", "mse_old", "First.", branch="feature/x"),
                     _entry("2026-06-10 12:00 - Revised take", "mse_revised", "Revised.",
-                           branch="feature/x", supersedes=["mse_old"]),
+                           branch="feature/x", replaces=["mse_old"]),
                 ]
             ),
         )
         service = self.service()
 
-        graph = service.graph(edge_types=("branch", "supersedes", "related"))
+        graph = service.graph(edge_types=("branch", "replaces", "related"))
         by_type = {}
         for edge in graph["edges"]:
             by_type.setdefault(edge["type"], []).append((edge["source"], edge["target"]))
         # Directed supersession: the edge runs source -> target where source
-        # supersedes (replaces) target. mse_revised (newer, carries supersedes:)
+        # replaces (replaces) target. mse_revised (newer, carries replaces:)
         # points at mse_old (older) - and never the reverse, which would tell a
         # reader the stale decision is the current one.
-        self.assertIn(("mse_revised", "mse_old"), by_type.get("supersedes", []))
-        self.assertNotIn(("mse_old", "mse_revised"), by_type.get("supersedes", []))
+        self.assertIn(("mse_revised", "mse_old"), by_type.get("replaces", []))
+        self.assertNotIn(("mse_old", "mse_revised"), by_type.get("replaces", []))
         # Intra-branch lineage runs in time order along the shared branch.
         self.assertIn(("mse_old", "mse_revised"), by_type.get("branch", []))
         # Asking for only related must not surface the trail edge types.
         related_only = service.graph(edge_types=("related",))
-        self.assertNotIn("supersedes", {edge["type"] for edge in related_only["edges"]})
+        self.assertNotIn("replaces", {edge["type"] for edge in related_only["edges"]})
         self.assertNotIn("branch", {edge["type"] for edge in related_only["edges"]})
 
     def test_graph_emits_evolves_edges_and_node_lineage_fields(self):
@@ -739,7 +739,7 @@ class TraceServiceTests(unittest.TestCase):
             ),
         )
         service = self.service()
-        edge_types = ("related", "supersedes", "evolves", "topic")
+        edge_types = ("related", "replaces", "evolves", "topic")
 
         overview = service.graph(edge_types=edge_types, limit=6)
         repeat = service.graph(edge_types=edge_types, limit=6)
@@ -879,12 +879,12 @@ class MemoryTraceCliAndVanillaUiTests(unittest.TestCase):
         script = resources.files("memory_trace").joinpath("static/app.js").read_text(encoding="utf-8")
         styles = resources.files("memory_trace").joinpath("static/styles.css").read_text(encoding="utf-8")
 
-        for token in ("--space-md:", "--fs-body:", "--radius-md:", "--edge-supersedes:", "--edge-branch:", "--status-superseded:"):
+        for token in ("--space-md:", "--fs-body:", "--radius-md:", "--edge-replaces:", "--edge-branch:", "--status-replaced:"):
             self.assertIn(token, styles)
         # edgeColor() is the single JS reference and reads the tokens, not hex.
-        self.assertIn("var(--edge-supersedes)", script)
+        self.assertIn("var(--edge-replaces)", script)
         self.assertIn("var(--edge-branch)", script)
-        self.assertNotIn('supersedes: "#d94b63"', script)
+        self.assertNotIn('replaces: "#d94b63"', script)
 
     def test_frontend_has_builtin_diagram_renderer_with_source_fallback(self):
         # Arc 2d: a minimal offline renderer for the flowchart/sequence subset,
@@ -1231,7 +1231,7 @@ if (Math.abs((584 - 2064 * fit.scale) / 2 - fit.y) > 0.001) throw new Error(`y i
         self.assertIn(".markdown h4.match-highlight", styles)
         self.assertIn(".match-note", styles)
 
-    def test_frontend_has_trail_view_with_distinct_supersedes_and_branch_edges(self):
+    def test_frontend_has_trail_view_with_distinct_replaces_and_branch_edges(self):
         # Trail is a dedicated git-graph timeline renderer: lane-per-branch
         # (interval coloring), lifecycle arcs, recent window with load-older.
         import importlib.resources as resources
@@ -1244,11 +1244,11 @@ if (Math.abs((584 - 2064 * fit.scale) / 2 - fit.y) > 0.001) throw new Error(`y i
         self.assertIn('[["trail", "Trail"], ["graph", "Graph"]', script)
         self.assertIn('view: storedView() || "trail"', script)
         self.assertIn('state.view === "trail"', script)
-        self.assertIn('TRAIL_EDGE_TYPES = "branch,supersedes,evolves,related"', script)
+        self.assertIn('TRAIL_EDGE_TYPES = "branch,replaces,evolves,related"', script)
         # Relationship lanes left of main (always dotted): replaces | evolves |
         # related - related innermost since its routes are pure branch hops.
         # Branch lanes right of main are the solid git branches.
-        self.assertIn('TRAIL_REL_LANES = ["supersedes", "evolves", "related"]', script)
+        self.assertIn('TRAIL_REL_LANES = ["replaces", "evolves", "related"]', script)
         self.assertIn("function trailView(", script)
         self.assertIn("function trailModel(", script)
         # Lane occupancy runs fork-to-merge (not just entry rows), so branches
@@ -1265,8 +1265,8 @@ if (Math.abs((584 - 2064 * fit.scale) / 2 - fit.y) > 0.001) throw new Error(`y i
         self.assertIn("chainSecondary", script)
         self.assertNotIn("TRAIL_MAIN_GAP", script)
         self.assertIn("stripTitleStamp", script)
-        # Distinct edge-type color semantics (supersedes never == related).
-        self.assertIn("supersedes:", script)
+        # Distinct edge-type color semantics (replaces never == related).
+        self.assertIn("replaces:", script)
         self.assertIn("branch:", script)
         self.assertIn("var(--edge-evolves)", script)
         self.assertIn("--edge-evolves:", styles)
@@ -1277,7 +1277,7 @@ if (Math.abs((584 - 2064 * fit.scale) / 2 - fit.y) > 0.001) throw new Error(`y i
         self.assertIn("--trail-cont-migration:", styles)
         self.assertIn("--trail-cont-removal:", styles)
         # Directed lifecycle edges: dashed replaces, dotted refines, arrowed.
-        self.assertIn("trail-arrow-supersedes", script)
+        self.assertIn("trail-arrow-replaces", script)
         self.assertIn("trail-arrow-evolves", script)
         self.assertIn('stroke-dasharray="6 4"', script)
         # Labels must agree with edge direction (source replaces target).

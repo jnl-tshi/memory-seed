@@ -35,7 +35,7 @@ Prefer extending an existing skill over creating a new one:
 | Risk tiers, STOP categories, control-plane escalation | `risk_signaling.md` |
 | Subagents, branches, worktrees, merge handoffs | `agent_collaboration.md` |
 | Runtime health, orphan skills, seed/live sync | `memory_doctor.md` |
-| Proposal lifecycle: inbox/todo -> completed/rejected/superseded/deferred, plus spec/reference | `proposal_lifecycle.md` |
+| Proposal lifecycle: inbox/todo -> completed/rejected/replaced/deferred, plus spec/reference | `proposal_lifecycle.md` |
 
 Create a new skill only when the procedure is reusable, cross-project, and does not fit an existing owner.
 

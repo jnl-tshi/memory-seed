@@ -49,7 +49,7 @@ sub-types of "todo"):
 | `4_Reference/archived/` | source whose actionable items were extracted (`extracted_into`) | new |
 | `5_Completed` | **shipped / applied** work | promoted from `2_Todo/completed/` |
 | `6_Rejected` | dead ends, kept for the *why-not* (never `git rm`) | **new** (user call) |
-| `7_Superseded` | replaced docs, each with a `superseded_by` pointer | new |
+| `7_Replaced` | replaced docs, each with a `superseded_by` pointer | new |
 | `8_Deferred` | parked / long-horizon ideas | promoted (user call #2) |
 
 So a human scanning the top level sees the whole lifecycle; `5_Completed` stays a clean record of real
@@ -61,7 +61,7 @@ accomplishments because rejected/superseded/parked material lives in its own vis
   **Blocked is index-only** (user call #3) — a transient state surfaced loudly in the generated index,
   not a folder (folder churn on an OneDrive repo is exactly the flaky `git mv` we hit this session).
 - **`6_Rejected`:** `rejected_reason:`, `rejected_on:`.
-- **`7_Superseded` / split:** `superseded_by:` / `split_into:` (doc path or entry id).
+- **`7_Replaced` / split:** `superseded_by:` / `split_into:` (doc path or entry id).
 - **`4_Reference/archived/`:** `extracted_into:`.
 - **`3_Spec` (all):** `spec_binding: live|draft|candidate|deprecated` mirrors the sub-folder for the
   check; `deprecated_by:` when retired.
@@ -97,7 +97,7 @@ lanes** distinction so the numbering is never mistaken for a strict order.
 > rule waits on `docs index`. First run caught three real `spec_binding` defects (prose and a
 > filename in an enum field), now fixed.
 
-Read-only, fails/warns on: a doc missing a lane's **required YAML** (a `7_Superseded` doc with no
+Read-only, fails/warns on: a doc missing a lane's **required YAML** (a `7_Replaced` doc with no
 `superseded_by`; a `2_Todo` doc with no `priority`/`next_action`; a `3_Spec` doc whose `spec_binding`
 disagrees with its sub-folder); a **dangling pointer** (`superseded_by`/`extracted_into` that doesn't
 resolve); an off-allowlist side folder; a stale generated index. There is no folder-vs-status rule to
@@ -109,7 +109,7 @@ The front door lists legitimate non-lane folders with a one-line reason each (`a
 `memory-trace-phase0-baseline/`). Every other non-lane folder must be documented there (external mirror /
 temp agent scratch → `.gitignore`) or reconciled into a lane; `docs check` flags anything else. The
 original offenders are resolved: the per-agent `2_Todo/{Claude,codex}/` folders were reconciled into
-`7_Superseded/` on 2026-07-14, and `docs/superpowers/` exists neither in the working tree nor in git
+`7_Replaced/` on 2026-07-14, and `docs/superpowers/` exists neither in the working tree nor in git
 history.
 
 ## Migration (phased — the promotion is real `git mv` churn, so stage it)
@@ -131,7 +131,7 @@ history.
   they are append-only history (Invariant #2) and their old `2_Todo/completed/...` paths are true
   statements about the past; the move is recorded as a `continuity:` migration event instead. Still open
   from P2: the `docs index`/`docs check` CLI, secondary-YAML backfill, generated indexes, and any
-  `6_Rejected`/`7_Superseded` reclassification (deliberately skipped — the source folder was named
+  `6_Rejected`/`7_Replaced` reclassification (deliberately skipped — the source folder was named
   `completed`, so `5_Completed` is the faithful lane; reclassifying 43 docs is a per-doc judgement call,
   not a migration).
 - **P3 — SHIPPED 2026-07-17.** `docs check` runs as an `esr` section ("Docs lifecycle"; errors surface there while only links check fails the esr exit code) and as a `verify.yml` CI step (where errors do fail). `docs index` shipped the same day: marker-scoped generation (`<!-- docs-index:begin/end -->`) so hand-written lane prose is never touched, per-lane tables from frontmatter, a front-door counts + top-open-items roll-up, and `docs index --check` as the stale-index gate the check rule asked for.

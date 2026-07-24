@@ -58,14 +58,14 @@
   --edge-topic: #8f63e8;
   --edge-agent: #18a999;
   --edge-day: #d9941a;
-  --edge-supersedes: #d94b63;
+  --edge-replaces: #d94b63;
   --edge-evolves: #4f98d9;
   /* Pastel resting versions: lifecycle routes render soft until a selection
      saturates the ones it touches. */
-  --edge-supersedes-soft: #c98d99;
+  --edge-replaces-soft: #c98d99;
   --edge-evolves-soft: #92b9dd;
   --edge-branch: #3fa66a;
-  --status-superseded: #d94b63;
+  --status-replaced: #d94b63;
   --trail-cont-rename: #8f63e8;
   --trail-cont-migration: #18a999;
   --trail-cont-removal: #d94b63;

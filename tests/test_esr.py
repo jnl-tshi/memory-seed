@@ -18,14 +18,14 @@ A = "mse_" + "a" * 16
 B = "mse_" + "b" * 16
 
 
-def _entry(dt, eid, *, topics=(), files=(), supersedes=()):
+def _entry(dt, eid, *, topics=(), files=(), replaces=()):
     lines = [f"## {dt} - entry {eid[-4:]}", "", "```yaml", f"entry_id: {eid}"]
     if topics:
         lines.append("topics:")
         lines.extend(f"  - {t}" for t in topics)
-    if supersedes:
-        lines.append("supersedes:")
-        lines.extend(f"  - {s}" for s in supersedes)
+    if replaces:
+        lines.append("replaces:")
+        lines.extend(f"  - {s}" for s in replaces)
     lines += ["```", ""]
     lines += [f"- F: `{f}`" for f in files]
     lines += ["", "Body.", ""]
@@ -94,13 +94,13 @@ class EsrReportTests(unittest.TestCase):
 
     def test_integrity_failure_is_reported(self):
         (self.sessions / "2026-06-01.md").write_text(
-            _entry("2026-06-01 09:00", A, supersedes=["mse_" + "9" * 16]), encoding="utf-8"
+            _entry("2026-06-01 09:00", A, replaces=["mse_" + "9" * 16]), encoding="utf-8"
         )
 
         report = esr_report(cwd=self.cwd, session_date="2026-06-01")
 
         self.assertFalse(report.integrity_ok)
-        self.assertTrue(any("dangling-supersedes" in issue for issue in report.integrity_issues))
+        self.assertTrue(any("dangling-replaces" in issue for issue in report.integrity_issues))
 
     def test_link_gaps_scoped_to_the_session_date(self):
         (self.sessions / "2026-06-01.md").write_text(

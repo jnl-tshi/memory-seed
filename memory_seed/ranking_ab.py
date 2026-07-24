@@ -25,7 +25,7 @@ from .semantic_cache import (
     build_related_entry_graph,
     extract_memory_chunks,
     rank_session_memory,
-    superseding_lineage_heads,
+    replacing_lineage_heads,
 )
 
 
@@ -163,9 +163,9 @@ class Signal:
     requires_no_hit_control: bool
 
 
-def _superseded_ids(cwd: Path, corpus: Sequence[MemoryChunk]) -> set[str]:
+def _replaced_ids(cwd: Path, corpus: Sequence[MemoryChunk]) -> set[str]:
     graph = build_related_entry_graph(cwd, chunks=corpus)
-    return {node.entry_id for node in graph.values() if node.superseded_by}
+    return {node.entry_id for node in graph.values() if node.replaced_by}
 
 
 def _supersession_lineage_queries(cwd: Path, corpus: Sequence[MemoryChunk]) -> list[QuerySpec]:
@@ -180,17 +180,17 @@ def _supersession_lineage_queries(cwd: Path, corpus: Sequence[MemoryChunk]) -> l
     by_id = {c.entry_id: c for c in corpus if c.entry_id}
     specs: list[QuerySpec] = []
     for node in graph.values():
-        if not node.superseded_by:
+        if not node.replaced_by:
             continue
         retired = by_id.get(node.entry_id)
         if retired is None or not retired.title.strip():
             continue
         query = _ENTRY_TITLE_PREFIX_RE.sub("", retired.title).strip() or retired.title
-        for replacement_id in node.superseded_by:
+        for replacement_id in node.replaced_by:
             specs.append(
                 QuerySpec(
                     query=query,
-                    label=f"{replacement_id} supersedes {node.entry_id}",
+                    label=f"{replacement_id} replaces {node.entry_id}",
                     winner_id=replacement_id,
                     loser_id=node.entry_id,
                 )
@@ -198,28 +198,28 @@ def _supersession_lineage_queries(cwd: Path, corpus: Sequence[MemoryChunk]) -> l
     return specs
 
 
-def _terminal_superseding_heads(cwd: Path, corpus: Sequence[MemoryChunk]) -> set[str]:
+def _terminal_replacing_heads(cwd: Path, corpus: Sequence[MemoryChunk]) -> set[str]:
     graph = build_related_entry_graph(cwd, chunks=corpus)
     heads: set[str] = set()
     for node in graph.values():
-        heads.update(superseding_lineage_heads(graph, node.entry_id))
+        heads.update(replacing_lineage_heads(graph, node.entry_id))
     return heads
 
 
-def _superseding_head_queries(cwd: Path, corpus: Sequence[MemoryChunk]) -> list[QuerySpec]:
+def _replacing_head_queries(cwd: Path, corpus: Sequence[MemoryChunk]) -> list[QuerySpec]:
     """One query per retired entry, expecting the terminal live replacement to
     enter the default result window."""
     graph = build_related_entry_graph(cwd, chunks=corpus)
     by_id = {c.entry_id: c for c in corpus if c.entry_id}
     specs: list[QuerySpec] = []
     for node in graph.values():
-        if not node.superseded_by:
+        if not node.replaced_by:
             continue
         retired = by_id.get(node.entry_id)
         if retired is None or not retired.title.strip():
             continue
         query = _ENTRY_TITLE_PREFIX_RE.sub("", retired.title).strip() or retired.title
-        for replacement_id in superseding_lineage_heads(graph, node.entry_id):
+        for replacement_id in replacing_lineage_heads(graph, node.entry_id):
             specs.append(
                 QuerySpec(
                     query=query,
@@ -236,10 +236,10 @@ def _superseding_head_queries(cwd: Path, corpus: Sequence[MemoryChunk]) -> list[
 SIGNAL_REGISTRY: dict[str, Signal] = {
     "supersession_damping": Signal(
         name="supersession_damping",
-        describe="down-rank an entry a later decision has superseded so the live replacement leads",
+        describe="down-rank an entry a later decision has replaced so the live replacement leads",
         off_kwargs={"supersession_damping": False},
         on_kwargs={"supersession_damping": True},
-        affected=_superseded_ids,
+        affected=_replaced_ids,
         default_queries=_supersession_lineage_queries,
         requires_no_hit_control=True,
     ),
@@ -254,13 +254,13 @@ SIGNAL_REGISTRY: dict[str, Signal] = {
         default_queries=lambda cwd, corpus: [],
         requires_no_hit_control=False,
     ),
-    "superseding_successor_boost": Signal(
-        name="superseding_successor_boost",
-        describe="bounded lift for a matching terminal replacement of a superseded entry",
-        off_kwargs={"supersession_damping": True, "superseding_successor_boost": False},
-        on_kwargs={"supersession_damping": True, "superseding_successor_boost": True},
-        affected=_terminal_superseding_heads,
-        default_queries=_superseding_head_queries,
+    "replacing_successor_boost": Signal(
+        name="replacing_successor_boost",
+        describe="bounded lift for a matching terminal replacement of a replaced entry",
+        off_kwargs={"supersession_damping": True, "replacing_successor_boost": False},
+        on_kwargs={"supersession_damping": True, "replacing_successor_boost": True},
+        affected=_terminal_replacing_heads,
+        default_queries=_replacing_head_queries,
         requires_no_hit_control=True,
     ),
 }

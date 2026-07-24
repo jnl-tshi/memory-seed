@@ -91,12 +91,12 @@ evolves:
 
 ```yaml
 entry_id: mse_oth00000000dddd
-supersedes:
+replaces:
   - mse_sgl00000000bbbb:d1
 ```
 """
 
-EDGE_TYPES = ("branch", "supersedes", "evolves", "related")
+EDGE_TYPES = ("branch", "replaces", "evolves", "related")
 
 
 class TrailDecisionEdgeTests(unittest.TestCase):
@@ -155,7 +155,7 @@ class TrailDecisionEdgeTests(unittest.TestCase):
         # entry row IS d1 here. Documented behaviour, not an accident.
         trail = self.trail()
         self.assertIn(
-            {"source": "mse_oth00000000dddd", "target": "mse_sgl00000000bbbb", "type": "supersedes"}, trail["edges"]
+            {"source": "mse_oth00000000dddd", "target": "mse_sgl00000000bbbb", "type": "replaces"}, trail["edges"]
         )
 
     def test_dangling_ordinal_on_an_expanded_entry_draws_nothing(self):

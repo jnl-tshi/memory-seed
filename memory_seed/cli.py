@@ -305,7 +305,11 @@ def main(argv: list[str] | None = None) -> int:
     session_append_parser.add_argument("--agent-name", default=None, help="agent_name field (default: null)")
     session_append_parser.add_argument("--topics", default="", help="comma-separated controlled-vocabulary slugs or aliases")
     session_append_parser.add_argument("--related", default="", help="comma-separated related_entries ids")
-    session_append_parser.add_argument("--supersedes", default="", help="comma-separated ids this entry retires")
+    # --supersedes is the legacy spelling (renamed 2026-07-24); both flags feed
+    # one dest so existing automation keeps working while emitting `replaces:`.
+    session_append_parser.add_argument(
+        "--replaces", "--supersedes", dest="replaces", default="", help="comma-separated ids this entry retires"
+    )
     session_append_parser.add_argument("--evolves", default="", help="comma-separated ids this entry refines (they stay valid)")
     session_append_parser.add_argument("--project-path", default=".", help="project_path field (default: .)")
     session_append_parser.add_argument("--subproject-path", default=None, help="subproject_path field (default: null)")
@@ -962,7 +966,7 @@ def main(argv: list[str] | None = None) -> int:
                 agent_name=args.agent_name,
                 topics=_csv(args.topics),
                 related_entries=_csv(args.related),
-                supersedes=_csv(args.supersedes),
+                replaces=_csv(args.replaces),
                 evolves=_csv(args.evolves),
                 project_path=args.project_path,
                 subproject_path=args.subproject_path,
@@ -1435,9 +1439,9 @@ def main(argv: list[str] | None = None) -> int:
 
                 payload = {
                     "criteria": {
-                        "supersedes": "the newer decision retires or replaces the older one (the older is now wrong or dead)",
+                        "replaces": "the newer decision retires or replaces the older one (the older is now wrong or dead)",
                         "evolves": "the newer decision refines or extends the older one while it stays valid",
-                        "related": "the two inform each other but neither supersedes nor evolves",
+                        "related": "the two inform each other but neither replaces nor evolves",
                         "none": "no genuine lifecycle or relatedness link — a shared file or topic is not itself a link",
                         "narrowing": "identify WHICH decision at each end the link connects; address a multi-decision target as <entry_id>:dN (a single-decision entry is :d1, which denotes the same edge as entry-level)",
                         "forward_only": "the audited entry is always the newer end; an edge points from it back to the older candidate, never forward",
@@ -1501,7 +1505,7 @@ def main(argv: list[str] | None = None) -> int:
                     if len(cand.decisions) >= 2:
                         print(f"       decisions: {_fmt_decisions(cand.decisions)}  (target one as {cand.entry_id}:dN)")
             print()
-            print("Litmus: retires it -> supersedes; refines while it stays valid -> evolves; else related.")
+            print("Litmus: retires it -> replaces; refines while it stays valid -> evolves; else related.")
             print("Where both ends carry decisions, narrow the edge to :dN - especially for ADR-promoted decisions.")
             if args.apply:
                 try:
@@ -1525,7 +1529,7 @@ def main(argv: list[str] | None = None) -> int:
 
             # Union entry-YAML edges with late-authored link-sidecar edges so
             # `show` reflects the SAME effective graph that retrieval/MCP/Trace
-            # read - otherwise a sidecar-recorded supersedes/evolves/related is
+            # read - otherwise a sidecar-recorded replaces/evolves/related is
             # invisible here (its computed inverse and importance too).
             entry_chunks = augment_chunks_with_link_sidecars(
                 extract_memory_chunks(cwd, granularity="entry"), cwd=cwd
@@ -1544,8 +1548,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{node.entry_id}  {node.title}")
             print(f"  outbound ({len(node.outbound)}): " + (", ".join(node.outbound) or "-"))
             print(f"  inbound  ({len(node.inbound)}): " + (", ".join(node.inbound) or "-"))
-            print(f"  supersedes ({len(node.supersedes)}): " + (", ".join(node.supersedes) or "-"))
-            print(f"  superseded_by ({len(node.superseded_by)}): " + (", ".join(node.superseded_by) or "-"))
+            print(f"  replaces ({len(node.replaces)}): " + (", ".join(node.replaces) or "-"))
+            print(f"  replaced_by ({len(node.replaced_by)}): " + (", ".join(node.replaced_by) or "-"))
             print(f"  evolves ({len(node.evolves)}): " + (", ".join(node.evolves) or "-"))
             print(f"  evolved_by ({len(node.evolved_by)}): " + (", ".join(node.evolved_by) or "-"))
             continuity_blocks = chunk.continuity if chunk else ()
@@ -1555,7 +1559,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(f"  continuity ({len(continuity_blocks)}): " + (rendered_continuity or "-"))
             print(f"  inbound_relation_count: {len(node.inbound)}")
-            print(f"  importance_score: {node.importance_score:.2f}" + ("  (superseded: dampened)" if node.superseded_by else ""))
+            print(f"  importance_score: {node.importance_score:.2f}" + ("  (replaced: dampened)" if node.replaced_by else ""))
             print(f"  commit_reference_count: {len(commit_refs)}")
             return 0
         if args.link_command == "commits":

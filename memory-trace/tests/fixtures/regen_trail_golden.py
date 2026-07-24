@@ -29,7 +29,7 @@ STATIC = FIXTURES.parent.parent / "memory_trace" / "static"
 GOLDEN = FIXTURES / "trail-golden-48.json"
 COUNT, SEED = 48, 20260711
 # Mirrors app.js loadGraph for the Trail: TRAIL_EDGE_TYPES + full-corpus limit.
-TRAIL_EDGE_TYPES = ("branch", "supersedes", "evolves", "related")
+TRAIL_EDGE_TYPES = ("branch", "replaces", "evolves", "related")
 
 
 def main() -> int:

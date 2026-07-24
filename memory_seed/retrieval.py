@@ -34,7 +34,7 @@ from .semantic_cache import (
     evolves_lineage_heads,
     extract_memory_chunks,
     rank_session_memory,
-    superseding_lineage_heads,
+    replacing_lineage_heads,
 )
 
 
@@ -76,9 +76,9 @@ def search_memory(
     user: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
-    exclude_superseded: bool = False,
+    exclude_replaced: bool = False,
     supersession_damping: bool = True,
-    superseding_successor_boost: bool = True,
+    replacing_successor_boost: bool = True,
     topics: list[str] | None = None,
 ) -> dict[str, Any]:
     """Search session memory and return the canonical result payload.
@@ -90,16 +90,16 @@ def search_memory(
 
     ``supersession_damping`` (freshness-aware-memory-ranking-proposal.md) is the
     supersession rank-dampener, ON by default: an entry with a non-empty
-    ``superseded_by`` (drawn from the sidecar-augmented graph below) is
+    ``replaced_by`` (drawn from the sidecar-augmented graph below) is
     multiplicatively down-ranked so a live replacement out-ranks the decision it
     retires. It only re-orders - it never hard-excludes (that stays
-    ``exclude_superseded``) and never hides an entry: a superseded entry stays
+    ``exclude_replaced``) and never hides an entry: a replaced entry stays
     fully retrievable, just lower. Pass ``False`` to restore full-weight ordering.
     Graduated to default-on after validation on the real corpus (both YAML- and
     sidecar-authored supersession lineages surfaced the live replacement above the
-    decisions it retired, with no effect on queries lacking a superseded hit).
+    decisions it retired, with no effect on queries lacking a replaced hit).
 
-    ``superseding_successor_boost`` is the separate, bounded successor-lift
+    ``replacing_successor_boost`` is the separate, bounded successor-lift
     signal from supersession-successor-surfacing-proposal.md. It is ON by
     default here after fixture coverage plus the real-corpus ``ranking-ab`` gate
     passed. Pass ``False`` to restore damp-only ordering. Even when enabled,
@@ -132,9 +132,9 @@ def search_memory(
         user=user,
         date_from=date_from,
         date_to=date_to,
-        exclude_superseded=exclude_superseded,
+        exclude_replaced=exclude_replaced,
         supersession_damping=supersession_damping,
-        superseding_successor_boost=superseding_successor_boost,
+        replacing_successor_boost=replacing_successor_boost,
         chunks=chunks,
         topics=topic_filter,
     )
@@ -155,8 +155,8 @@ def search_memory(
     for result in payload["results"]:
         entry_id = result.get("entry_id") or ""
         node = graph.get(entry_id)
-        result["superseded_by"] = list(node.superseded_by) if node else []
-        result["superseding_head"] = list(superseding_lineage_heads(graph, entry_id))
+        result["replaced_by"] = list(node.replaced_by) if node else []
+        result["replacing_head"] = list(replacing_lineage_heads(graph, entry_id))
         result["evolved_by"] = list(node.evolved_by) if node else []
         # Evolves successor-surfacing (freshness-aware-memory-ranking-proposal.md
         # item 2): point an evolved-but-still-valid hit at the head of its
@@ -172,7 +172,7 @@ def search_memory(
 def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = False) -> dict[str, Any]:
     """Fetch one chunk by ``chunk_id`` and return its canonical payload dict,
     enriched with the read-only graph metrics from docs/3_Spec/graph-edge-contract.md
-    (`superseded_by`, `inbound_relation_count`, `importance_score`,
+    (`replaced_by`, `inbound_relation_count`, `importance_score`,
     `commit_reference_count`). Raises ``ValueError`` for an unknown id.
 
     ``include_diagrams=True`` additionally attaches ``diagrams``: authored
@@ -191,8 +191,8 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
     if found is None:
         raise ValueError(f"chunk_id not found: {chunk_id}")
     payload = chunk_to_dict(found)
-    superseded_by: list[str] = []
-    superseding_head: list[str] = []
+    replaced_by: list[str] = []
+    replacing_head: list[str] = []
     evolved_by: list[str] = []
     inbound_relation_count = 0
     importance_score = 0.0
@@ -200,8 +200,8 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
     if found.entry_id:
         node = graph.get(found.entry_id)
         if node is not None:
-            superseded_by = list(node.superseded_by)
-            superseding_head = list(superseding_lineage_heads(graph, found.entry_id))
+            replaced_by = list(node.replaced_by)
+            replacing_head = list(replacing_lineage_heads(graph, found.entry_id))
             # Read-time-only inverse of evolves: newer entries that extend this
             # decision while it stays valid. Never stored, never dampens.
             evolved_by = list(node.evolved_by)
@@ -210,7 +210,7 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
             # built on. Distinct from Lense's `connectivity`, which counts
             # combined inbound+outbound edges for node sizing.
             inbound_relation_count = len(node.inbound)
-            # inbound_relation_count dampened when this entry is superseded
+            # inbound_relation_count dampened when this entry is replaced
             # (read-only; not blended into default search ranking).
             importance_score = node.importance_score
     commit_reference_count = 0
@@ -220,8 +220,8 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
         commit_reference_count = len(
             commit_reference_ids(resolve_runtime(cwd).workspace_root, found.entry_id, found.commits)
         )
-    payload["superseded_by"] = superseded_by
-    payload["superseding_head"] = superseding_head
+    payload["replaced_by"] = replaced_by
+    payload["replacing_head"] = replacing_head
     payload["evolved_by"] = evolved_by
     payload["inbound_relation_count"] = inbound_relation_count
     payload["importance_score"] = importance_score
@@ -324,7 +324,7 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     ``.memory-seed/sessions/links/YYYY-MM/YYYY-MM-DD.md`` (legacy flat
     ``links/YYYY-MM-DD.md`` also read), one dated file per day. Each block is a
     session-entry-shaped heading plus a fenced yaml carrying the source
-    ``entry_id`` and any of ``supersedes`` / ``evolves`` / ``related_entries``
+    ``entry_id`` and any of ``replaces`` / ``evolves`` / ``related_entries``
     lists - the typed edges an entry gained *after* it was written, without
     reopening the append-only entry. Refs are extracted with the same regex
     ``links check`` validates against, so the reader and the integrity gate
@@ -373,12 +373,20 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                 continue
             # Entry-level refs keep their existing keys unchanged. Decision
             # refs are collected separately and NEVER folded into them: "D2 of
-            # B supersedes D1 of A" does not license "B supersedes A", so a
+            # B replaces D1 of A" does not license "B replaces A", so a
             # consumer that does not model decisions must see exactly the edge
             # set it saw before this feature existed.
             found: dict[str, Any] = {}
             decisions: list[tuple[str, str, str]] = []
-            for key in ("supersedes", "evolves", "related_entries"):
+            # "supersedes" is the legacy authored key for "replaces" (renamed
+            # 2026-07-24); it canonicalises on read so every consumer sees one
+            # spelling and legacy corpora keep their edges.
+            for key, canonical in (
+                ("replaces", "replaces"),
+                ("supersedes", "replaces"),
+                ("evolves", "evolves"),
+                ("related_entries", "related_entries"),
+            ):
                 entry_level: list[str] = []
                 for parsed in _frontmatter_list_refs(yaml_block, key):
                     if not parsed.ok:
@@ -386,8 +394,8 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                     if parsed.decision is None:
                         entry_level.append(parsed.entry_id)
                     else:
-                        decisions.append((key, parsed.entry_id, parsed.decision))
-                found[key] = tuple(entry_level)
+                        decisions.append((canonical, parsed.entry_id, parsed.decision))
+                found[canonical] = tuple(dict.fromkeys(tuple(found.get(canonical, ())) + tuple(entry_level)))
             found["decision_edges"] = tuple(decisions)
             existing = sidecars.get(entry_id)
             if existing:
@@ -395,7 +403,7 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                 # sidecar blocks may key to one entry (different days, or a
                 # correction), and dropping the later block's decision refs
                 # would lose edges silently rather than loudly.
-                for key in ("supersedes", "evolves", "related_entries", "decision_edges"):
+                for key in ("replaces", "evolves", "related_entries", "decision_edges"):
                     existing[key] = tuple(dict.fromkeys(existing.get(key, ()) + found[key]))
             else:
                 sidecars[entry_id] = {
@@ -441,7 +449,7 @@ def augment_chunks_with_link_sidecars(
             replace(
                 chunk,
                 related_entries=union(chunk.related_entries, extra.get("related_entries", ()), chunk.entry_id),
-                supersedes=union(chunk.supersedes, extra.get("supersedes", ()), chunk.entry_id),
+                replaces=union(chunk.replaces, extra.get("replaces", ()), chunk.entry_id),
                 evolves=union(chunk.evolves, extra.get("evolves", ()), chunk.entry_id),
             )
         )
@@ -450,7 +458,7 @@ def augment_chunks_with_link_sidecars(
 
 # Weight on idf-summed shared TITLE terms, alongside FILE_OVERLAP_BOOST on
 # shared files. Tuned against ground truth rather than taste: the 101
-# supersedes/evolves edges authors declared in entry YAML across the corpus.
+# replaces/evolves edges authors declared in entry YAML across the corpus.
 # Those are human-confirmed and predate this change, so they are not the
 # handful of edges that motivated it. At this weight recall@5 goes 45% -> 59%,
 # recall@10 52% -> 68%, and the true target's median rank 8 -> 3.
@@ -543,7 +551,7 @@ class LinkGapCandidate:
     # narrowed to `:dN`. Empty for a no-decision entry. This is surfaced, not
     # scored: the mechanical evidence is entry-level and cannot discriminate
     # decisions, so which one an edge targets is a human's (or a judgment
-    # agent's) call, exactly as the supersedes/evolves/related TYPE already is.
+    # agent's) call, exactly as the replaces/evolves/related TYPE already is.
     decisions: tuple[DecisionSummary, ...] = ()
 
 
@@ -583,10 +591,10 @@ def audit_link_gaps(
     ``F:`` file OR >=1 topic with it. File overlap qualifies a pair even when no
     topic is shared - matching files override the absence of a topic link.
     Candidates already captured by any edge (``related_entries`` /
-    ``supersedes`` / ``evolves``, entry YAML or a link sidecar) are dropped, so
+    ``replaces`` / ``evolves``, entry YAML or a link sidecar) are dropped, so
     only genuine gaps remain. The survivors rank by IDF-weighted file overlap
     (hub files like a shared app.js contribute ~nothing) then shared-topic
-    count - the classification into supersedes/evolves/related is left to the
+    count - the classification into replaces/evolves/related is left to the
     caller (the end-of-session sweep). Read-only; forward-only by construction.
 
     ``session_date`` (YYYY-MM-DD) scopes the TARGETS to one session's entries
@@ -659,9 +667,9 @@ def audit_link_gaps(
     def lifecycle_of(chunk: MemoryChunk) -> set[str]:
         sidecar = sidecars.get(chunk.entry_id or "", {})
         return (
-            set(chunk.supersedes)
+            set(chunk.replaces)
             | set(chunk.evolves)
-            | set(sidecar.get("supersedes", ()))
+            | set(sidecar.get("replaces", ()))
             | set(sidecar.get("evolves", ()))
             # A decision-level ref (`<id>:dN`) records the pair at FINER
             # granularity. It deliberately never projects into the entry-level
@@ -670,7 +678,7 @@ def audit_link_gaps(
             | {
                 eid
                 for kind, eid, _ordinal in sidecar.get("decision_edges", ())
-                if kind in ("supersedes", "evolves")
+                if kind in ("replaces", "evolves")
             }
         )
 
@@ -947,7 +955,7 @@ def ranked_to_dict(result: RankedMemoryChunk) -> dict[str, Any]:
         "user": chunk.user,
         "file_hash_id": chunk.file_hash_id,
         "related_entries": list(chunk.related_entries),
-        "supersedes": list(chunk.supersedes),
+        "replaces": list(chunk.replaces),
         "evolves": list(chunk.evolves),
         "continuity": [
             {"kind": block.kind, "from": block.from_ref, "to": block.to_ref}
@@ -984,7 +992,7 @@ def chunk_to_dict(chunk: MemoryChunk) -> dict[str, Any]:
         "user": chunk.user,
         "file_hash_id": chunk.file_hash_id,
         "related_entries": list(chunk.related_entries),
-        "supersedes": list(chunk.supersedes),
+        "replaces": list(chunk.replaces),
         "evolves": list(chunk.evolves),
         "continuity": [
             {"kind": block.kind, "from": block.from_ref, "to": block.to_ref}

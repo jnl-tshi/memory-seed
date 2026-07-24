@@ -10,7 +10,7 @@ import type { TrailResponse, TrailEvent, MergeEvent, TrailEdge } from "./api";
 export const TRAIL_ROW = 30;
 export const TRAIL_LANE_W = 14;
 export const TRAIL_WINDOW_STEP = 60;
-export const TRAIL_REL_LANES = ["supersedes", "evolves", "related"] as const;
+export const TRAIL_REL_LANES = ["replaces", "evolves", "related"] as const;
 export const TRAIL_REL_LANE_W = 12;
 export const TRAIL_CORNER = 7;
 export const TRAIL_REL_ZONE = TRAIL_REL_LANES.length * TRAIL_REL_LANE_W + 12;
@@ -292,7 +292,7 @@ export function buildTrailModel(trail: TrailResponse, window: number): TrailMode
       .forEach((branch, i) => colorOf.set(branch, lane < 4 ? family[i % family.length] : family[1]));
   });
 
-  // Lifecycle edges (supersedes/evolves/related) whose endpoints are both
+  // Lifecycle edges (replaces/evolves/related) whose endpoints are both
   // visible — the routed arrows the view draws through the relationship zone.
   const lifecycle = (trail.edges || []).filter(
     (edge) => REL_LANE_SET.has(edge.type) && rowOf.has(edge.source) && rowOf.has(edge.target),

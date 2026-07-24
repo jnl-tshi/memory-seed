@@ -1422,7 +1422,7 @@ class TraceService:
     def chunk(self, chunk_id: str) -> dict[str, Any]:
         # Augmented entries + related graph from the shared per-generation
         # derived bundle (same augmentation as graph()), so the reader's inverse
-        # edges (superseded_by/evolved_by) agree with the Trail - without
+        # edges (replaced_by/evolved_by) agree with the Trail - without
         # re-reading sidecars and re-augmenting on every request.
         entries, graph, diagram_map = self._derived()
         selected = next((chunk for chunk in self.cache.chunks() if chunk.chunk_id == chunk_id), None)
@@ -2010,7 +2010,7 @@ def create_app(
         return service_for(worktree).graph(
             entry_id=entry_id,
             depth=depth,
-            edge_types=tuple(x for x in edge_types.split(",") if x),
+            edge_types=tuple("replaces" if x == "supersedes" else x for x in edge_types.split(",") if x),  # legacy value accepted (renamed 2026-07-24)
             limit=limit,
             granularity=granularity,
             agent=agent,
@@ -2097,7 +2097,7 @@ def create_app(
         return service_for(worktree).graph(
             entry_id=entry_id,
             depth=depth,
-            edge_types=tuple(x for x in edge_types.split(",") if x),
+            edge_types=tuple("replaces" if x == "supersedes" else x for x in edge_types.split(",") if x),  # legacy value accepted (renamed 2026-07-24)
             limit=limit,
             granularity=granularity,
             agent=agent,
@@ -2133,7 +2133,7 @@ def create_app(
                 entry_id=entry_id,
                 entry_ids=file_entry_ids,
                 depth=depth,
-                edge_types=tuple(x for x in edge_types.split(",") if x),
+                edge_types=tuple("replaces" if x == "supersedes" else x for x in edge_types.split(",") if x),  # legacy value accepted (renamed 2026-07-24)
                 limit=limit,
                 granularity=granularity,
                 agent=agent,
@@ -2165,7 +2165,7 @@ def create_app(
         return service_for(worktree).graph(
             entry_id=entry_id,
             depth=depth,
-            edge_types=("branch", "supersedes", "evolves", "related"),
+            edge_types=("branch", "replaces", "evolves", "related"),
             limit=limit,
             granularity="entry",
             include_decisions=True,
@@ -2695,9 +2695,9 @@ def _augment_with_link_sidecars(
     """Union each entry's YAML-declared lifecycle edges with any authored later
     in a link sidecar (see ``entry_link_sidecars``). The sidecar is the
     append-only enrichment layer: write-time YAML stays canonical, late-found
-    ``supersedes``/``evolves``/``related_entries`` ride alongside. Augments the
+    ``replaces``/``evolves``/``related_entries`` ride alongside. Augments the
     INPUT chunk list so ``build_related_entry_graph``'s inverse edges
-    (superseded_by/evolved_by) and ``_graph_edges`` both pick them up with no
+    (replaced_by/evolved_by) and ``_graph_edges`` both pick them up with no
     change of their own. ``cwd`` must be the per-worktree path so the switcher
     reads each branch's own sidecars. Fails open (returns ``entries``) when no
     sidecars exist. Pass ``sidecars`` to reuse an already-read map (the caller
@@ -2724,7 +2724,7 @@ def _augment_with_link_sidecars(
         augmented.append(
             replace(
                 chunk,
-                supersedes=union(chunk.supersedes, extra.get("supersedes", ()), chunk.entry_id),
+                replaces=union(chunk.replaces, extra.get("replaces", ()), chunk.entry_id),
                 evolves=union(chunk.evolves, extra.get("evolves", ()), chunk.entry_id),
                 related_entries=union(chunk.related_entries, extra.get("related_entries", ()), chunk.entry_id),
             )
@@ -2749,7 +2749,7 @@ def _chunk_from_storage(data: dict[str, Any]) -> MemoryChunk:
         "contexts",
         "lexical_terms",
         "related_entries",
-        "supersedes",
+        "replaces",
         "evolves",
         "commits",
         "topics",
@@ -2964,7 +2964,7 @@ def _graph_edges(
             seen.add(key)
             edges.append({"source": source, "target": target, "type": edge_type})
 
-    if edge_types & {"related", "supersedes", "evolves"}:
+    if edge_types & {"related", "replaces", "evolves"}:
         graph = build_related_entry_graph(chunks=entries)
         for node in graph.values():
             source_chunk = by_id.get(node.entry_id)
@@ -2976,10 +2976,10 @@ def _graph_edges(
             # Trail view: supersession is a directed, typed *status* edge
             # ("this decision replaced that one"), rendered distinctly from plain
             # relatedness per docs/3_Spec/graph-edge-contract.md - never conflated.
-            if "supersedes" in edge_types:
-                for target in node.supersedes:
+            if "replaces" in edge_types:
+                for target in node.replaces:
                     target_chunk = by_id.get(target)
-                    add(source, node_id(target_chunk) if target_chunk else target, "supersedes")
+                    add(source, node_id(target_chunk) if target_chunk else target, "replaces")
             # evolves is the freshness-without-retirement lifecycle edge: the
             # source refines the target while the target stays valid.
             if "evolves" in edge_types:
@@ -3264,7 +3264,7 @@ def _decision_edges_for_rows(
     (docs/3_Spec/draft/decision-level-link-sidecar-refs.md, "Decision edges are
     a distinct edge set"). It is deliberately NOT routed through
     ``build_related_entry_graph`` or the ``_augment_with_link_sidecars`` union:
-    "D2 of B supersedes D1 of A" does not license "B supersedes A", so every
+    "D2 of B replaces D1 of A" does not license "B replaces A", so every
     consumer that does not model decisions - /graph, /search, the CLI, MCP -
     keeps seeing exactly the edge set it saw before this existed. Only the
     Trail, which renders a row per decision, opts in.
@@ -3293,7 +3293,7 @@ def _decision_edges_for_rows(
       this feature removes. ``links check`` reports the bad ref; this refuses
       to invent an edge from it.
     """
-    kind_to_type = {"supersedes": "supersedes", "evolves": "evolves", "related_entries": "related"}
+    kind_to_type = {"replaces": "replaces", "evolves": "evolves", "related_entries": "related"}
     entry_row: dict[str, str] = {}
     decision_row: dict[tuple[str, str], str] = {}
     # Entries whose decisions each got their own row. For these, "ordinal not

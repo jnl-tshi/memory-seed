@@ -5,7 +5,7 @@ Candidate generation: for each target, only OLDER entries sharing >=1 F: file
 OR >=1 topic. File overlap qualifies a pair even with no shared topic (files
 override topics); topic-only overlap is suppressed by any existing edge, while
 file overlap surfaces even a merely-"related" pair as a lifecycle upgrade
-candidate. A recorded supersedes/evolves edge (YAML or sidecar) removes the pair.
+candidate. A recorded replaces/evolves edge (YAML or sidecar) removes the pair.
 """
 
 import contextlib
@@ -31,7 +31,7 @@ B = "mse_" + "b" * 16
 C = "mse_" + "c" * 16  # newest
 
 
-def _entry(dt, eid, *, topics=(), files=(), related=(), supersedes=(), evolves=(), title=None, decisions=None):
+def _entry(dt, eid, *, topics=(), files=(), related=(), replaces=(), evolves=(), title=None, decisions=None):
     # Titles must share NO word by default. Candidate scoring now counts shared
     # distinctive title terms, so a fixture title like "entry aaaa" would make
     # every pair a title match and quietly defeat the tests that assert a pair
@@ -42,7 +42,7 @@ def _entry(dt, eid, *, topics=(), files=(), related=(), supersedes=(), evolves=(
     for key, vals in (
         ("topics", topics),
         ("related_entries", related),
-        ("supersedes", supersedes),
+        ("replaces", replaces),
         ("evolves", evolves),
     ):
         if vals:
@@ -71,11 +71,11 @@ class LinkAuditTests(unittest.TestCase):
     def _write(self, *entries):
         (self.sessions / "2026-06-01.md").write_text("\n".join(entries), encoding="utf-8")
 
-    def _sidecar(self, source, *, supersedes=(), evolves=()):
+    def _sidecar(self, source, *, replaces=(), evolves=()):
         d = self.sessions / "links" / "2026-06"
         d.mkdir(parents=True, exist_ok=True)
         lines = [f"## 2026-06-01 12:00 - edge", "", "```yaml", f"entry_id: {source}"]
-        for key, refs in (("supersedes", supersedes), ("evolves", evolves)):
+        for key, refs in (("replaces", replaces), ("evolves", evolves)):
             if refs:
                 lines.append(f"{key}:")
                 lines += [f"  - {ref}" for ref in refs]
@@ -170,7 +170,7 @@ class LinkAuditTests(unittest.TestCase):
     def test_recorded_lifecycle_edge_suppresses_the_pair(self):
         self._write(
             _entry("2026-06-01 09:00", A, files=["pkg/foo.py"]),
-            _entry("2026-06-01 10:00", B, files=["pkg/foo.py"], supersedes=[A]),
+            _entry("2026-06-01 10:00", B, files=["pkg/foo.py"], replaces=[A]),
         )
         self.assertIsNone(self._gap(B))
 
@@ -231,7 +231,7 @@ class LinkAuditTests(unittest.TestCase):
             _entry("2026-06-01 09:00", A, files=["pkg/foo.py"]),
             _entry("2026-06-01 10:00", B, files=["pkg/foo.py"]),
         )
-        self._sidecar(B, supersedes=[A])
+        self._sidecar(B, replaces=[A])
         self.assertIsNone(self._gap(B))
 
     def test_only_older_entries_are_candidates(self):
@@ -294,7 +294,7 @@ class LinkAuditTests(unittest.TestCase):
         self.assertLess(text.index(f"entry_id: {B}"), text.index(f"entry_id: {C}"))
         self.assertEqual(text.count("classify_pending: true"), 2)
         self.assertIn(f"#   - {A}  # files: pkg/foo.py", text)
-        self.assertNotIn("\nsupersedes:", text)
+        self.assertNotIn("\nreplaces:", text)
         self.assertNotIn("\nevolves:", text)
         for path, before in entry_bytes.items():
             self.assertEqual(path.read_bytes(), before)
@@ -303,9 +303,9 @@ class LinkAuditTests(unittest.TestCase):
             extract_memory_chunks(self.cwd, granularity="entry"), cwd=self.cwd
         )
         by_id = {chunk.entry_id: chunk for chunk in chunks}
-        self.assertEqual(by_id[B].supersedes, ())
+        self.assertEqual(by_id[B].replaces, ())
         self.assertEqual(by_id[B].evolves, ())
-        self.assertEqual(by_id[C].supersedes, ())
+        self.assertEqual(by_id[C].replaces, ())
         self.assertEqual(by_id[C].evolves, ())
 
         before = result.path.read_bytes()

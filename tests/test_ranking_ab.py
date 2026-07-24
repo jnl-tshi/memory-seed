@@ -24,7 +24,7 @@ def _chunk(
     text: str,
     *,
     day: int,
-    supersedes: tuple[str, ...] = (),
+    replaces: tuple[str, ...] = (),
 ) -> MemoryChunk:
     session_date = date(2026, 7, day)
     return MemoryChunk(
@@ -43,7 +43,7 @@ def _chunk(
         start_line=1,
         end_line=4,
         entry_id=entry_id,
-        supersedes=supersedes,
+        replaces=replaces,
         topics=("ranking",),
         granularity="entry",
     )
@@ -62,7 +62,7 @@ class RankingABTests(unittest.TestCase):
             "Retirement record: lineage A plan decisions",
             "Lineage A current plan decisions.",
             day=2,
-            supersedes=("ms-a0a0a0a0",),
+            replaces=("ms-a0a0a0a0",),
         )
         lineage_b_old = _chunk(
             "ms-b0b0b0b0",
@@ -75,7 +75,7 @@ class RankingABTests(unittest.TestCase):
             "Constitution-harden lineage B plan decisions",
             "Lineage B current plan decisions.",
             day=4,
-            supersedes=("ms-b0b0b0b0",),
+            replaces=("ms-b0b0b0b0",),
         )
         distractors = [
             _chunk(
@@ -100,7 +100,7 @@ class RankingABTests(unittest.TestCase):
             "Revise alpha ranking policy",
             "Alpha ranking policy now prefers the live decision.",
             day=2,
-            supersedes=("mse_old",),
+            replaces=("mse_old",),
         )
         unrelated = _chunk("mse_other", "Other work", "Unrelated maintenance.", day=3)
 
@@ -122,7 +122,7 @@ class RankingABTests(unittest.TestCase):
         self.assertFalse(control.has_affected_hit)
         self.assertTrue(control.identical)
 
-    def test_superseding_successor_boost_signal_lifts_terminal_replacement_into_window(self):
+    def test_replacing_successor_boost_signal_lifts_terminal_replacement_into_window(self):
         retired = _chunk(
             "mse_old",
             "Alpha ranking policy",
@@ -134,14 +134,14 @@ class RankingABTests(unittest.TestCase):
             "Revise alpha ranking policy",
             "Alpha ranking policy was revised once.",
             day=2,
-            supersedes=("mse_old",),
+            replaces=("mse_old",),
         )
         terminal = _chunk(
             "mse_new",
             "Final alpha plan",
             "Alpha policy final plan.",
             day=3,
-            supersedes=("mse_mid",),
+            replaces=("mse_mid",),
         )
         distractors = [
             _chunk(
@@ -154,7 +154,7 @@ class RankingABTests(unittest.TestCase):
         ]
 
         result = run_ab(
-            "superseding_successor_boost",
+            "replacing_successor_boost",
             corpus=[retired, middle, terminal, *distractors],
             today=date(2026, 7, 15),
         )
@@ -168,11 +168,11 @@ class RankingABTests(unittest.TestCase):
         self.assertFalse(control.has_affected_hit)
         self.assertTrue(control.identical)
 
-    def test_superseding_successor_boost_gate_rejects_unexpected_terminal_head_changes(self):
+    def test_replacing_successor_boost_gate_rejects_unexpected_terminal_head_changes(self):
         corpus = self._independent_lineage_corpus()
 
         result = run_ab(
-            "superseding_successor_boost",
+            "replacing_successor_boost",
             corpus=corpus,
             today=date(2026, 7, 15),
         )
@@ -240,7 +240,7 @@ class RankingABTests(unittest.TestCase):
             winner_max_rank_on=8,
         )
         result = ABResult(
-            signal="superseding_successor_boost",
+            signal="replacing_successor_boost",
             corpus_size=12,
             affected_ids=("mse_new",),
             queries=(query,),
@@ -268,7 +268,7 @@ class RankingABTests(unittest.TestCase):
             unexpected_changed_ids=("mse_other",),
         )
         result = ABResult(
-            signal="superseding_successor_boost",
+            signal="replacing_successor_boost",
             corpus_size=12,
             affected_ids=("mse_new", "mse_other"),
             queries=(query,),

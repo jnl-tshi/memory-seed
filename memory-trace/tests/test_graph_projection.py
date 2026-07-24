@@ -26,7 +26,7 @@ class GraphProjectionFixtureTests(unittest.TestCase):
 
         self.assertEqual(fixture["schema_version"], FIXTURE_SCHEMA_VERSION)
         self.assertEqual({node["node_type"] for node in fixture["nodes"]}, {"memory_entry"})
-        self.assertTrue({"related", "supersedes", "evolves", "branch", "topic"}.issubset(
+        self.assertTrue({"related", "replaces", "evolves", "branch", "topic"}.issubset(
             {edge["edge_type"] for edge in fixture["edges"]}
         ))
         self.assertEqual(fixture["selection"]["selected_node_id"], "memory:entry:mse_b0a_shell")

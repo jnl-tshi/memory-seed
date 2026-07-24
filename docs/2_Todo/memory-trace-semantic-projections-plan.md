@@ -6,7 +6,7 @@ next_action: After B0b and the semantic foundation, validate one Decision projec
 blocked_by:
   - React Trail parity and B0b acceptance
   - memory-seed-semantic-record-and-signal-foundation-plan.md
-source: ../7_Superseded/type-specific-trace-projections-exploration.md
+source: ../7_Replaced/type-specific-trace-projections-exploration.md
 ---
 
 # Memory Trace Semantic Projections

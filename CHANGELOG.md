@@ -6,6 +6,23 @@ All notable changes to Memory Seed are summarized here.
 
 ### Changed
 
+- **BREAKING (vocabulary): `supersedes` is renamed `replaces` across Seed and
+  Trace** (JNL's direction, 2026-07-24: one term everywhere - the Trace UI
+  already said "replaces" while the data layer said "supersedes"). The entry
+  and link-sidecar field is `replaces:`; computed inverses are `replaced_by`;
+  the search filter is `exclude_replaced`; ranking constants and the
+  `superseding_head` boost family rename accordingly; `/api/v1` renames the
+  `supersedes` edge-type enum value and the `superseded_by`-derived payload
+  fields to their `replace*` spellings (contract regenerated, same shape
+  otherwise - the `authority_class` rename precedent). The docs lifecycle
+  lane `7_Superseded/` is now `7_Replaced/` with `replaced_by:`/`replaced_on:`
+  frontmatter. **Compatibility:** every reader and validator accepts the
+  legacy spellings forever - `supersedes:` field keys, the `--supersedes`
+  CLI flag, `supersedes`/`exclude_superseded` MCP arguments, the
+  `supersedes` edge-type request value, and `7_Superseded/` +
+  `superseded_by:` docs - so corpora and repos written by <=2.19 keep
+  working unchanged; writers and displays emit only the new spellings.
+
 - **Memory Trace incremental startup.** A changed project (new commit, merge,
   or dirty session file) no longer triggers a full projection rebuild that
   spawned one git subprocess per historical item (~44s / 990 processes on a

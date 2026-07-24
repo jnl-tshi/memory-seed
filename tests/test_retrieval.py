@@ -14,7 +14,7 @@ from memory_seed.retrieval import (
     search_memory,
 )
 from memory_seed.semantic_cache import (
-    SUPERSEDED_RANK_DAMPING,
+    REPLACED_RANK_DAMPING,
     extract_memory_chunks,
     rank_memory_chunks,
 )
@@ -106,7 +106,7 @@ class RetrievalServiceParityTests(unittest.TestCase):
         # Graph metrics from the edge contract ride along identically.
         self.assertEqual(service_result["inbound_relation_count"], 1)
         self.assertIn("importance_score", service_result)
-        self.assertIn("superseded_by", service_result)
+        self.assertIn("replaced_by", service_result)
         self.assertIn("commit_reference_count", service_result)
 
     def test_get_chunk_unknown_id_raises(self):
@@ -439,16 +439,16 @@ class FreshnessRankingTests(unittest.TestCase):
     """Freshness-aware ranking guardrails (freshness-aware-memory-ranking-proposal.md).
 
     The default-off supersession rank-dampener must let a live replacement
-    out-rank the decision it supersedes when opted in, source the signal from the
+    out-rank the decision it replaces when opted in, source the signal from the
     sidecar-augmented graph, never bury an evolved-but-valid entry, and leave the
     default order byte-for-byte unchanged when the flag is off. The fixture is
-    deliberately built so recency does NOT decide it: the superseded (older) entry
+    deliberately built so recency does NOT decide it: the replaced (older) entry
     has the stronger textual match, so without the damper it out-ranks its
     replacement (the very bug the proposal fixes) - the damper is what flips it.
     """
 
     TODAY = date(2026, 5, 20)
-    OLD = "mse_0123456789abcdef"  # superseded decision (older, strong match)
+    OLD = "mse_0123456789abcdef"  # replaced decision (older, strong match)
     NEW = "mse_ffffffffffffffff"  # live replacement (newer, weaker match)
     QUERY = "redis cache ttl invalidation strategy"
 
@@ -463,7 +463,7 @@ class FreshnessRankingTests(unittest.TestCase):
         path.write_text(content, encoding="utf-8")
 
     def make_supersession_fixture(self, *, sidecar=False):
-        """OLD (strong match) is superseded by NEW (weaker match). The supersedes
+        """OLD (strong match) is replaced by NEW (weaker match). The replaces
         edge lives in NEW's entry YAML, or - when ``sidecar=True`` - only in an
         append-only link sidecar keyed to NEW."""
         cwd = self.make_project()
@@ -479,7 +479,7 @@ class FreshnessRankingTests(unittest.TestCase):
             "- D: Use a Redis cache TTL invalidation strategy.\n"
             "- R: Needed a cache eviction approach.\n",
         )
-        supersedes_yaml = "" if sidecar else f"supersedes:\n  - {self.OLD}\n"
+        replaces_yaml = "" if sidecar else f"replaces:\n  - {self.OLD}\n"
         self.write_session(
             cwd,
             "2026-05-18.md",
@@ -487,27 +487,27 @@ class FreshnessRankingTests(unittest.TestCase):
             "```yaml\n"
             f"entry_id: {self.NEW}\n"
             "user_initials: JN\nagent_type: codex\nproject_path: .\nsubproject_path: null\n"
-            f"{supersedes_yaml}"
+            f"{replaces_yaml}"
             "```\n\n"
             "### Decision\n\n"
             "- D: Replace it; redis cache ttl invalidation strategy revisited.\n"
-            "- R: Superseded the earlier cache decision.\n",
+            "- R: Replaced the earlier cache decision.\n",
         )
         if sidecar:
             links_dir = cwd / ".memory-seed" / "sessions" / "links" / "2026-05"
             links_dir.mkdir(parents=True, exist_ok=True)
             (links_dir / "2026-05-18.md").write_text(
-                "## 2026-05-18 10:05 - late supersedes edge\n\n"
+                "## 2026-05-18 10:05 - late replaces edge\n\n"
                 "```yaml\n"
                 f"entry_id: {self.NEW}\n"
-                f"supersedes:\n  - {self.OLD}\n"
+                f"replaces:\n  - {self.OLD}\n"
                 "```\n",
                 encoding="utf-8",
             )
         return cwd
 
-    def make_superseding_chain_fixture(self):
-        """OLD is superseded by MID in YAML, and MID is superseded by NEW only
+    def make_replacing_chain_fixture(self):
+        """OLD is replaced by MID in YAML, and MID is replaced by NEW only
         through a late link sidecar. The effective graph should surface NEW as
         the terminal live replacement for both retired entries."""
         cwd = self.make_project()
@@ -532,7 +532,7 @@ class FreshnessRankingTests(unittest.TestCase):
             "```yaml\n"
             f"entry_id: {mid_id}\n"
             "user_initials: JN\nagent_type: codex\nproject_path: .\nsubproject_path: null\n"
-            f"supersedes:\n  - {old_id}\n"
+            f"replaces:\n  - {old_id}\n"
             "```\n\n"
             "### Decision\n\n"
             "- D: Replace the first cache ttl invalidation strategy.\n",
@@ -551,10 +551,10 @@ class FreshnessRankingTests(unittest.TestCase):
         links_dir = cwd / ".memory-seed" / "sessions" / "links" / "2026-05"
         links_dir.mkdir(parents=True, exist_ok=True)
         (links_dir / "2026-05-19.md").write_text(
-            "## 2026-05-19 11:05 - late supersedes edge\n\n"
+            "## 2026-05-19 11:05 - late replaces edge\n\n"
             "```yaml\n"
             f"entry_id: {new_id}\n"
-            f"supersedes:\n  - {mid_id}\n"
+            f"replaces:\n  - {mid_id}\n"
             "```\n",
             encoding="utf-8",
         )
@@ -585,14 +585,14 @@ class FreshnessRankingTests(unittest.TestCase):
             "```yaml\n"
             f"entry_id: {new_a}\n"
             "user_initials: JN\nagent_type: codex\nproject_path: .\nsubproject_path: null\n"
-            f"supersedes:\n  - {old_a}\n"
+            f"replaces:\n  - {old_a}\n"
             "```\n\n"
             "Terminal replacement for lineage A plan decisions.\n\n"
             "## 2026-07-15 18:05 - Constitution-harden lineage B plan decisions\n\n"
             "```yaml\n"
             f"entry_id: {new_b}\n"
             "user_initials: JN\nagent_type: codex\nproject_path: .\nsubproject_path: null\n"
-            f"supersedes:\n  - {old_b}\n"
+            f"replaces:\n  - {old_b}\n"
             "```\n\n"
             "Terminal replacement for lineage B plan decisions.\n",
         )
@@ -616,81 +616,81 @@ class FreshnessRankingTests(unittest.TestCase):
 
     def test_supersession_damping_ranks_replacement_above_retired(self):
         """(a) With the flag ON, the live replacement out-ranks the decision it
-        supersedes, while the retired entry stays fully retrievable (down-rank
+        replaces, while the retired entry stays fully retrievable (down-rank
         only, never hidden)."""
         cwd = self.make_supersession_fixture()
         # Opting out (supersession_damping=False) is the pre-change baseline: the
         # retired-but-strongly-matching decision out-ranks its replacement.
-        off = self.search(cwd, supersession_damping=False, superseding_successor_boost=False)
+        off = self.search(cwd, supersession_damping=False, replacing_successor_boost=False)
         self.assertEqual([r["entry_id"] for r in off["results"]][0], self.OLD)
         by_off = {r["entry_id"]: r for r in off["results"]}
 
-        on = self.search(cwd, supersession_damping=True, superseding_successor_boost=False)
+        on = self.search(cwd, supersession_damping=True, replacing_successor_boost=False)
         on_order = [r["entry_id"] for r in on["results"]]
         by_on = {r["entry_id"]: r for r in on["results"]}
-        # The replacement now ranks above the decision it supersedes...
+        # The replacement now ranks above the decision it replaces...
         self.assertEqual(on_order[0], self.NEW)
-        # ...and the superseded entry is still present - never a hard exclusion.
+        # ...and the replaced entry is still present - never a hard exclusion.
         self.assertIn(self.OLD, on_order)
-        # Only the superseded entry is damped; the replacement's score is untouched.
+        # Only the replaced entry is damped; the replacement's score is untouched.
         self.assertEqual(by_on[self.NEW]["score"], by_off[self.NEW]["score"])
         self.assertLess(by_on[self.OLD]["score"], by_off[self.OLD]["score"])
         self.assertAlmostEqual(
             by_on[self.OLD]["score"],
-            by_off[self.OLD]["score"] * SUPERSEDED_RANK_DAMPING,
+            by_off[self.OLD]["score"] * REPLACED_RANK_DAMPING,
             places=6,
         )
 
     def test_supersession_damping_from_link_sidecar(self):
-        """(b) The SAME flip when the supersedes edge lives ONLY in a link
+        """(b) The SAME flip when the replaces edge lives ONLY in a link
         sidecar - proving the dampener is sourced from the sidecar-augmented
         graph, not just entry YAML."""
         cwd = self.make_supersession_fixture(sidecar=True)
-        # The replacement's entry YAML carries no supersedes edge; it exists only
+        # The replacement's entry YAML carries no replaces edge; it exists only
         # in the sidecar.
         raw = {c.entry_id: c for c in extract_memory_chunks(str(cwd), granularity="entry")}
-        self.assertEqual(raw[self.NEW].supersedes, ())
+        self.assertEqual(raw[self.NEW].replaces, ())
 
-        off = self.search(cwd, supersession_damping=False, superseding_successor_boost=False)
+        off = self.search(cwd, supersession_damping=False, replacing_successor_boost=False)
         self.assertEqual([r["entry_id"] for r in off["results"]][0], self.OLD)
 
-        on = self.search(cwd, supersession_damping=True, superseding_successor_boost=False)
+        on = self.search(cwd, supersession_damping=True, replacing_successor_boost=False)
         on_order = [r["entry_id"] for r in on["results"]]
         by_on = {r["entry_id"]: r for r in on["results"]}
         self.assertEqual(on_order[0], self.NEW)
         self.assertIn(self.OLD, on_order)
         # The sidecar-authored supersession reached the ranker (and the exposed field).
-        self.assertEqual(by_on[self.OLD]["superseded_by"], [self.NEW])
+        self.assertEqual(by_on[self.OLD]["replaced_by"], [self.NEW])
 
-    def test_superseding_head_surfaces_terminal_live_replacement(self):
-        cwd, old_id, mid_id, new_id = self.make_superseding_chain_fixture()
+    def test_replacing_head_surfaces_terminal_live_replacement(self):
+        cwd, old_id, mid_id, new_id = self.make_replacing_chain_fixture()
 
         payload = search_memory(
             "cache ttl invalidation strategy",
             str(cwd),
             semantic_enabled=False,
             today=self.TODAY,
-            superseding_successor_boost=False,
+            replacing_successor_boost=False,
         )
         by_id = {result["entry_id"]: result for result in payload["results"]}
         old_chunk = get_chunk(old_id, str(cwd))
         mid_chunk = get_chunk(mid_id, str(cwd))
         new_chunk = get_chunk(new_id, str(cwd))
 
-        self.assertEqual(by_id[old_id]["superseded_by"], [mid_id])
-        self.assertEqual(by_id[old_id]["superseding_head"], [new_id])
-        self.assertEqual(by_id[mid_id]["superseded_by"], [new_id])
-        self.assertEqual(by_id[mid_id]["superseding_head"], [new_id])
-        self.assertEqual(by_id[new_id]["superseding_head"], [])
-        self.assertEqual(old_chunk["superseding_head"], [new_id])
-        self.assertEqual(mid_chunk["superseding_head"], [new_id])
-        self.assertEqual(new_chunk["superseding_head"], [])
+        self.assertEqual(by_id[old_id]["replaced_by"], [mid_id])
+        self.assertEqual(by_id[old_id]["replacing_head"], [new_id])
+        self.assertEqual(by_id[mid_id]["replaced_by"], [new_id])
+        self.assertEqual(by_id[mid_id]["replacing_head"], [new_id])
+        self.assertEqual(by_id[new_id]["replacing_head"], [])
+        self.assertEqual(old_chunk["replacing_head"], [new_id])
+        self.assertEqual(mid_chunk["replacing_head"], [new_id])
+        self.assertEqual(new_chunk["replacing_head"], [])
 
-    def test_superseding_successor_boost_is_explicit_and_bounded(self):
+    def test_replacing_successor_boost_is_explicit_and_bounded(self):
         cwd = self.make_supersession_fixture()
 
-        without = self.search(cwd, supersession_damping=True, superseding_successor_boost=False)
-        with_boost = self.search(cwd, supersession_damping=True, superseding_successor_boost=True)
+        without = self.search(cwd, supersession_damping=True, replacing_successor_boost=False)
+        with_boost = self.search(cwd, supersession_damping=True, replacing_successor_boost=True)
         by_without = {r["entry_id"]: r for r in without["results"]}
         by_with = {r["entry_id"]: r for r in with_boost["results"]}
 
@@ -699,12 +699,12 @@ class FreshnessRankingTests(unittest.TestCase):
         self.assertEqual(by_with[self.OLD]["score"], by_without[self.OLD]["score"])
         self.assertGreater(by_with[self.NEW]["score"], by_without[self.NEW]["score"])
 
-    def test_superseding_successor_boost_is_now_on_by_default_with_opt_out(self):
+    def test_replacing_successor_boost_is_now_on_by_default_with_opt_out(self):
         cwd = self.make_supersession_fixture()
 
         default = self.search(cwd)
-        explicit_on = self.search(cwd, superseding_successor_boost=True)
-        explicit_off = self.search(cwd, superseding_successor_boost=False)
+        explicit_on = self.search(cwd, replacing_successor_boost=True)
+        explicit_off = self.search(cwd, replacing_successor_boost=False)
         by_default = {r["entry_id"]: r for r in default["results"]}
         by_off = {r["entry_id"]: r for r in explicit_off["results"]}
 
@@ -721,7 +721,7 @@ class FreshnessRankingTests(unittest.TestCase):
             semantic_enabled=False,
             today=self.TODAY,
             supersession_damping=True,
-            superseding_successor_boost=False,
+            replacing_successor_boost=False,
             top_k=8,
         )
         with_boost_window = search_memory(
@@ -730,7 +730,7 @@ class FreshnessRankingTests(unittest.TestCase):
             semantic_enabled=False,
             today=self.TODAY,
             supersession_damping=True,
-            superseding_successor_boost=True,
+            replacing_successor_boost=True,
             top_k=8,
         )
         without_full = search_memory(
@@ -739,7 +739,7 @@ class FreshnessRankingTests(unittest.TestCase):
             semantic_enabled=False,
             today=self.TODAY,
             supersession_damping=True,
-            superseding_successor_boost=False,
+            replacing_successor_boost=False,
             top_k=32,
         )
         with_boost_full = search_memory(
@@ -748,7 +748,7 @@ class FreshnessRankingTests(unittest.TestCase):
             semantic_enabled=False,
             today=self.TODAY,
             supersession_damping=True,
-            superseding_successor_boost=True,
+            replacing_successor_boost=True,
             top_k=32,
         )
         by_without_full = {r["entry_id"]: r for r in without_full["results"]}
@@ -818,7 +818,7 @@ class FreshnessRankingTests(unittest.TestCase):
         for eid in (self.A, self.B, self.C):
             self.assertIn(eid, by_on)
             self.assertEqual(by_on[eid]["score"], by_off[eid]["score"])
-            self.assertEqual(by_on[eid]["superseded_by"], [])
+            self.assertEqual(by_on[eid]["replaced_by"], [])
 
         # The successor is surfaced: the base and the middle point to the head of
         # the lineage (C), followed transitively; the head points nowhere further.
@@ -830,7 +830,7 @@ class FreshnessRankingTests(unittest.TestCase):
 
     def test_default_now_damps_and_opt_out_restores_order(self):
         """(d) The dampener is ON by default: a bare search - and the MCP
-        `memory_search` tool with no flag - demotes the superseded entry beneath
+        `memory_search` tool with no flag - demotes the replaced entry beneath
         its live replacement, and supersession_damping=False restores the
         pre-change full-weight order. The default agent-facing behavior is damped."""
         cwd = self.make_supersession_fixture()
@@ -846,7 +846,7 @@ class FreshnessRankingTests(unittest.TestCase):
             today=self.TODAY,
         )
         self.assertEqual([r["entry_id"] for r in tool_default["results"]][0], self.NEW)
-        # Opting out restores the pre-change order: the superseded entry on top.
+        # Opting out restores the pre-change order: the replaced entry on top.
         explicit_off = self.search(cwd, supersession_damping=False)
         order_off = [r["entry_id"] for r in explicit_off["results"]]
         self.assertEqual(order_off, [self.OLD, self.NEW])

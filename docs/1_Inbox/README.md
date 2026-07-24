@@ -27,7 +27,7 @@ the 2026-07-20 triage were themselves reference material, not undecided captures
 
 ## Triaged out on 2026-07-20
 
-- **Both proposal sets (14 documents) → [`../7_Superseded/`](../7_Superseded/)**, de-numbered and renamed
+- **Both proposal sets (14 documents) → [`../7_Replaced/`](../7_Replaced/)**, de-numbered and renamed
   `-exploration`, each pointing back at the crosswalk. Retired rather than promoted: of 82 claims, most were
   already shipped law or shipped capability the proposals understated, five conflicted with explicit owner
   non-goals, and the genuine deltas were folded into the plans that own them. Nothing was deleted — the

@@ -6,7 +6,7 @@
 // without retiring; `related` is an authored association; `topic` is mere
 // shared vocabulary.
 export const EDGE_PRIORITY: Record<string, number> = {
-  supersedes: 0,
+  replaces: 0,
   evolves: 1,
   related: 2,
   branch: 3,

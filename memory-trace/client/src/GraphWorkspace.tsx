@@ -495,7 +495,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       const nodeOutline = themeToken("--bg", "#10201e");
       const selectedRing = themeToken("--accent-strong", "#efb345");
       const edgeRelated = themeToken("--edge-related", "#74a6ce");
-      const edgeSupersedes = themeToken("--edge-supersedes", "#e18494");
+      const edgeReplaces = themeToken("--edge-replaces", "#e18494");
       const edgeEvolves = themeToken("--edge-evolves", "#7cc6e8");
       const edgeTopic = themeToken("--edge-topic", "#a88acc");
       const cy = createCytoscape({
@@ -573,7 +573,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
           // Straight edges: curvature carried no information and read as noise.
           { selector: "edge", style: { "curve-style": "straight", "line-color": edgeRelated, "target-arrow-color": edgeRelated, "target-arrow-shape": "triangle", "width": 2, "opacity": 0.85 } },
           { selector: 'edge[type = "related"]', style: { "line-color": edgeRelated, "target-arrow-color": edgeRelated } },
-          { selector: 'edge[type = "supersedes"]', style: { "line-style": "dashed", "line-color": edgeSupersedes, "target-arrow-color": edgeSupersedes } },
+          { selector: 'edge[type = "replaces"]', style: { "line-style": "dashed", "line-color": edgeReplaces, "target-arrow-color": edgeReplaces } },
           { selector: 'edge[type = "evolves"]', style: { "line-style": "dotted", "line-color": edgeEvolves, "target-arrow-color": edgeEvolves, "width": 2.5 } },
           { selector: 'edge[type = "topic"]', style: { "line-style": "dotted", "line-color": edgeTopic, "target-arrow-color": edgeTopic, "opacity": 0.58 } },
           { selector: "edge.edge-filtered", style: { display: "none" } },

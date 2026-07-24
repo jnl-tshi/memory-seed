@@ -21,11 +21,11 @@ import {
 import { elbowTo, handDrawnPoints, moveTo, pressurePath, ribbonPath, runBody, runPath, sampleQuadratic } from "./trailPath";
 import { animateScrollTo, bandScrollTarget, scrollDurationFor } from "./trailScroll";
 
-const CONTINUITY_COLOR: Record<string, string> = { rename: "var(--accent)", migration: "var(--edge-evolves)", removal: "var(--edge-supersedes)" };
+const CONTINUITY_COLOR: Record<string, string> = { rename: "var(--accent)", migration: "var(--edge-evolves)", removal: "var(--edge-replaces)" };
 
-const EDGE_INFO_RANK: Record<string, number> = { supersedes: 3, evolves: 2, related: 1 };
+const EDGE_INFO_RANK: Record<string, number> = { replaces: 3, evolves: 2, related: 1 };
 const TRAIL_DASH = "6 4";
-const TRAIL_VERB: Record<string, string> = { supersedes: "replaces", evolves: "evolves", related: "relates to" };
+const TRAIL_VERB: Record<string, string> = { replaces: "replaces", evolves: "evolves", related: "relates to" };
 
 const TEXT_CLEAR = 18; // dot radius + breathing gap past the last lane
 
@@ -367,9 +367,9 @@ export function TrailWorkspace({
 
   // Lifecycle arcs — routed lineage arrows through the reserved relationship
   // zone. Precedence: only the strongest edge per pair draws (replaces >
-  // evolves > related). supersedes always shows (soft/pastel until the
+  // evolves > related). replaces always shows (soft/pastel until the
   // selection touches it); evolves/related draw only for the selected entry.
-  // Adjacent supersedes renders as a short bow beside the dots, not a route.
+  // Adjacent replaces renders as a short bow beside the dots, not a route.
   const focusActive = selectedEntryId != null && !selectionMuted;
   const nodeAt = (id: string): TrailEvent | null => {
     const item = items[rowOf.get(id) ?? -1];
@@ -445,7 +445,7 @@ export function TrailWorkspace({
     const width = touched ? strokeW + 0.6 : strokeW;
     const tip = `${stripTitleStamp(source.title)} ${TRAIL_VERB[edge.type]} ${stripTitleStamp(target.title)}`;
     const key = `arc-${edge.source}-${edge.target}-${edge.type}`;
-    if (edge.type === "supersedes" && adjacentRows(sRow, tRow)) {
+    if (edge.type === "replaces" && adjacentRows(sRow, tRow)) {
       const bow = 11;
       const d = `M ${sx} ${sy} C ${sx - bow} ${sy + (ty - sy) * 0.3}, ${tx - bow} ${ty - (ty - sy) * 0.3}, ${tx} ${ty}`;
       arcs.push(
@@ -688,10 +688,10 @@ export function TrailWorkspace({
             <>
               <span className="trail-legend-item"><span className="trail-cont-key" style={{ borderColor: "var(--accent)" }} />rename</span>
               <span className="trail-legend-item"><span className="trail-cont-key trail-cont-key-diamond" style={{ borderColor: "var(--edge-evolves)" }} />migration</span>
-              <span className="trail-legend-item"><span className="trail-cont-key" style={{ borderColor: "var(--edge-supersedes)" }} />removal</span>
+              <span className="trail-legend-item"><span className="trail-cont-key" style={{ borderColor: "var(--edge-replaces)" }} />removal</span>
             </>
           )}
-          <span className="trail-legend-item"><span className="trail-legend-line" style={{ borderColor: "var(--edge-supersedes)" }} />replaces</span>
+          <span className="trail-legend-item"><span className="trail-legend-line" style={{ borderColor: "var(--edge-replaces)" }} />replaces</span>
           <span className="trail-legend-item"><span className="trail-legend-line" style={{ borderColor: "var(--edge-evolves)" }} />evolves · on select</span>
           <span className="trail-legend-item"><span className="trail-legend-line" style={{ borderColor: "var(--edge-related)" }} />related · on select</span>
         </span>
@@ -723,12 +723,12 @@ export function TrailWorkspace({
                 <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves={2} seed={7} result="noise" />
                 <feDisplacementMap in="SourceGraphic" in2="noise" scale={trailStyle.wobble} xChannelSelector="R" yChannelSelector="G" />
               </filter>
-              {(["supersedes", "evolves", "related"] as const).map((type) => (
+              {(["replaces", "evolves", "related"] as const).map((type) => (
                 <marker key={`m-${type}`} id={`trail-arrow-${type}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
                   <path d="M0,0 L10,5 L0,10 z" fill={`var(--edge-${type})`} />
                 </marker>
               ))}
-              {(["supersedes", "evolves"] as const).map((type) => (
+              {(["replaces", "evolves"] as const).map((type) => (
                 <marker key={`m-${type}-soft`} id={`trail-arrow-${type}-soft`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
                   <path d="M0,0 L10,5 L0,10 z" fill={`var(--edge-${type}-soft)`} />
                 </marker>

@@ -305,7 +305,7 @@ export interface components {
          * @description Every edge kind _graph_edges() can produce (graph-edge-contract.md).
          * @enum {string}
          */
-        EdgeType: "related" | "supersedes" | "evolves" | "branch" | "topic" | "agent" | "day";
+        EdgeType: "related" | "replaces" | "evolves" | "branch" | "topic" | "agent" | "day";
         /** Facets */
         Facets: {
             /** Agents */

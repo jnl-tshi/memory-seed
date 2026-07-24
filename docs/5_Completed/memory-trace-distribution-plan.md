@@ -228,7 +228,7 @@ package extra.
 
 - User decision 2026-07-05 (JNL).
 - Companion-package intent: [`3.0-plan.md`](../5_Completed/3.0-plan.md) section "Pillar B".
-- Decision inputs and evaluation loop: [`../7_Superseded/codex-proposal-synergy-evaluation.md`](../7_Superseded/codex-proposal-synergy-evaluation.md)
+- Decision inputs and evaluation loop: [`../7_Replaced/codex-proposal-synergy-evaluation.md`](../7_Replaced/codex-proposal-synergy-evaluation.md)
   section "Pillar B Distribution Decision".
 - Retrieval-seam analysis: [`3.0-plan.md`](../5_Completed/3.0-plan.md) section "Review Correction: Retrieval Is Already
   Mostly Shared".

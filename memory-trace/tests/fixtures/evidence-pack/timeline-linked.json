@@ -5,7 +5,7 @@
       "contexts": [],
       "entry_datetime": "2026-06-01T09:00:00",
       "entry_id": "mse_aaaaaaaaaaaaaaaa",
-      "fingerprint": "sha256:603164b43eb383a1a6a1d025652f1dd543fa3a94671c84ac0845edade4424e2b",
+      "fingerprint": "sha256:1a9b1f2df6fba0c9fc99546fd851979046a54f1c6951e2874335706495536502",
       "granularity": "section",
       "heading_path": [
         "2026-06-01 09:00 - Base timeline entry",
@@ -32,7 +32,7 @@
       "contexts": [],
       "entry_datetime": "2026-06-01T09:00:00",
       "entry_id": "mse_aaaaaaaaaaaaaaaa",
-      "fingerprint": "sha256:bc7a302b5bfcca30ff54c7ef98824e22012012e899c51c03e8754b60e1adb9d3",
+      "fingerprint": "sha256:5d9b069d82888466c76b0bad00ee6c26c3acdb9dbb120a8ad2f190f4630ef058",
       "granularity": "section",
       "heading_path": [
         "2026-06-01 09:00 - Base timeline entry",
@@ -59,7 +59,7 @@
       "contexts": [],
       "entry_datetime": "2026-06-02T10:00:00",
       "entry_id": "mse_bbbbbbbbbbbbbbbb",
-      "fingerprint": "sha256:370bd4abb8a59c138ac22710e727662161a0b7e8e0d21d30d3fda759b560164a",
+      "fingerprint": "sha256:bac3d747841bff57a3dd548ca5dfa3c57d87d3265128d0332ee204d83ce2f789",
       "granularity": "section",
       "heading_path": [
         "2026-06-02 10:00 - Evolve timeline entry",
@@ -87,7 +87,7 @@
       "contexts": [],
       "entry_datetime": "2026-06-02T10:00:00",
       "entry_id": "mse_bbbbbbbbbbbbbbbb",
-      "fingerprint": "sha256:9a15913ba48e6f0ac8c8145423d0bc3dce7d6f5c11f4839dc94584a8cfea7e92",
+      "fingerprint": "sha256:7038a0c0c7ed5f867245c88d25d218fbf24160255b4530e4c61c68d8db721003",
       "granularity": "section",
       "heading_path": [
         "2026-06-02 10:00 - Evolve timeline entry",
@@ -115,7 +115,7 @@
       "contexts": [],
       "entry_datetime": "2026-06-03T11:00:00",
       "entry_id": "mse_cccccccccccccccc",
-      "fingerprint": "sha256:d192edb68563644ceaaabc4d97c042f3acecebc8643ec49f59f873584008aa9e",
+      "fingerprint": "sha256:62d5916f9fed2843debd8b914e8462a11109d5aa5698bd33ac0d1845638a8658",
       "granularity": "section",
       "heading_path": [
         "2026-06-03 11:00 - Replace timeline entry",
@@ -143,7 +143,7 @@
       "contexts": [],
       "entry_datetime": "2026-06-03T11:00:00",
       "entry_id": "mse_cccccccccccccccc",
-      "fingerprint": "sha256:446d84cdd724a1398ca7095d8edcf9be84a2f207bcbc08f3f01dc1ede926dbf0",
+      "fingerprint": "sha256:0fcb8a47194ca53412efe1dbffbe9bcba5b063f4803bd74cc0e1b93e4c16baad",
       "granularity": "section",
       "heading_path": [
         "2026-06-03 11:00 - Replace timeline entry",
@@ -171,7 +171,7 @@
       "contexts": [],
       "entry_datetime": "2026-06-04T12:00:00",
       "entry_id": "mse_dddddddddddddddd",
-      "fingerprint": "sha256:bf2f01a5305c08189af9c735fb37c1f161052819744846c5d21e37972ec31629",
+      "fingerprint": "sha256:1cbb485057e2912f508693d2c64eb793806d0bdc209c1f48f26e73874225ccf1",
       "granularity": "section",
       "heading_path": [
         "2026-06-04 12:00 - Review graph entry",
@@ -198,7 +198,7 @@
       "contexts": [],
       "entry_datetime": "2026-06-04T12:00:00",
       "entry_id": "mse_dddddddddddddddd",
-      "fingerprint": "sha256:2a4496b1bec08fbf6528def479d50ee658f31f64add7ee8364a114f29b3f3d08",
+      "fingerprint": "sha256:9aeba379dacdc525eca09ed78e9e0ad3f63340276e242ccbf1b59999b3df255d",
       "granularity": "section",
       "heading_path": [
         "2026-06-04 12:00 - Review graph entry",
@@ -249,7 +249,7 @@
         "mse_bbbbbbbbbbbbbbbb"
       ],
       "evolves": [],
-      "fingerprint": "sha256:4aa6a8036d8fd9a94c331c108f33b0807c09cc8ed8fef74b025afe168d0c1160",
+      "fingerprint": "sha256:1cecac536d05f4d27514f366bd49b38c53522d1d8885d9aded4de9c5f454c1ef",
       "heading_path": [
         "2026-06-01 09:00 - Base timeline entry"
       ],
@@ -261,12 +261,12 @@
       ],
       "path": ".memory-seed/sessions/2026-06/2026-06-01.md",
       "related_entries": [],
-      "session_date": "2026-06-01",
-      "source_file": "2026-06-01.md",
-      "superseded_by": [
+      "replaced_by": [
         "mse_cccccccccccccccc"
       ],
-      "supersedes": [],
+      "replaces": [],
+      "session_date": "2026-06-01",
+      "source_file": "2026-06-01.md",
       "tags": [
         "timeline"
       ],
@@ -308,7 +308,7 @@
       "evolves": [
         "mse_aaaaaaaaaaaaaaaa"
       ],
-      "fingerprint": "sha256:e9091dcf1e04f0235045216f7aac0bfdc93fbb08be0197f6e2f40f9ee06a6866",
+      "fingerprint": "sha256:368a623d118faa3c5878ff416a0410122b05826d2df26657b4dda4d46c5e6fdf",
       "heading_path": [
         "2026-06-02 10:00 - Evolve timeline entry"
       ],
@@ -322,10 +322,10 @@
       "related_entries": [
         "mse_aaaaaaaaaaaaaaaa"
       ],
+      "replaced_by": [],
+      "replaces": [],
       "session_date": "2026-06-02",
       "source_file": "2026-06-02.md",
-      "superseded_by": [],
-      "supersedes": [],
       "tags": [
         "graph",
         "timeline"
@@ -358,7 +358,7 @@
         "mse_dddddddddddddddd"
       ],
       "evolves": [],
-      "fingerprint": "sha256:cac7d4b6eda6800c1102d6a458e3628ceb1f3b3968a1be1aabd81a7e24d7da87",
+      "fingerprint": "sha256:c138b1e3f656c41b834debd77edfa3a685710339a9f2fdb0d5f64de1b76d13ba",
       "heading_path": [
         "2026-06-03 11:00 - Replace timeline entry"
       ],
@@ -370,17 +370,17 @@
       ],
       "path": ".memory-seed/sessions/2026-06/2026-06-03.md",
       "related_entries": [],
-      "session_date": "2026-06-03",
-      "source_file": "2026-06-03.md",
-      "superseded_by": [],
-      "supersedes": [
+      "replaced_by": [],
+      "replaces": [
         "mse_aaaaaaaaaaaaaaaa"
       ],
+      "session_date": "2026-06-03",
+      "source_file": "2026-06-03.md",
       "tags": [
         "graph",
         "timeline"
       ],
-      "text": "```yaml\nentry_id: mse_cccccccccccccccc\nuser_initials: JN\nagent_type: codex\nproject_path: .\nsubproject_path: null\ntopics:\n  - timeline\n  - graph\nsupersedes:\n  - mse_aaaaaaaaaaaaaaaa\n```\n\nReplace timeline body with #timeline and #graph context.\n\n### Decision\n\n- D: mse_cccccccccccccccc decision.\n\n### Tests\n\n- T: mse_cccccccccccccccc tests passed.",
+      "text": "```yaml\nentry_id: mse_cccccccccccccccc\nuser_initials: JN\nagent_type: codex\nproject_path: .\nsubproject_path: null\ntopics:\n  - timeline\n  - graph\nreplaces:\n  - mse_aaaaaaaaaaaaaaaa\n```\n\nReplace timeline body with #timeline and #graph context.\n\n### Decision\n\n- D: mse_cccccccccccccccc decision.\n\n### Tests\n\n- T: mse_cccccccccccccccc tests passed.",
       "title": "2026-06-03 11:00 - Replace timeline entry",
       "topics": [
         "timeline",
@@ -408,7 +408,7 @@
       "evolves": [
         "mse_cccccccccccccccc"
       ],
-      "fingerprint": "sha256:0359f0cbb44c522e26815c8cf60077f533f889b61c157a6d19948382641b765f",
+      "fingerprint": "sha256:584db3afdaf1567221f11ebf6a719fe60ec89a985cf3379a5551bd742d3884d5",
       "heading_path": [
         "2026-06-04 12:00 - Review graph entry"
       ],
@@ -422,10 +422,10 @@
       "related_entries": [
         "mse_bbbbbbbbbbbbbbbb"
       ],
+      "replaced_by": [],
+      "replaces": [],
       "session_date": "2026-06-04",
       "source_file": "2026-06-04.md",
-      "superseded_by": [],
-      "supersedes": [],
       "tags": [
         "graph"
       ],
@@ -442,7 +442,7 @@
       "branch",
       "evolves",
       "related",
-      "supersedes"
+      "replaces"
     ],
     "edges": [
       {
@@ -463,7 +463,7 @@
       {
         "source": "mse_cccccccccccccccc",
         "target": "mse_aaaaaaaaaaaaaaaa",
-        "type": "supersedes"
+        "type": "replaces"
       },
       {
         "source": "mse_dddddddddddddddd",
@@ -484,7 +484,7 @@
     ]
   },
   "missing_evidence": [],
-  "pack_fingerprint": "sha256:8381f4ffc3d8a05c51d6d3886519efc9eded1b27067bbc34aa82734c1615f4ba",
+  "pack_fingerprint": "sha256:889e1750b6b14282067d3b1131faf28edb14477b6dccccbf2b83b7f529e639b3",
   "pack_type": "timeline_evidence_pack",
   "provenance": {
     "builder": {
@@ -506,7 +506,7 @@
           "path": ".memory-seed/sessions/2026-06/2026-06-02.md"
         },
         {
-          "fingerprint": "sha256:52047a768ae37be975332c334be874fba4e9b0d84ec7fc0dcc0c5080c6c48ace",
+          "fingerprint": "sha256:e6862a40f4c796abb647fa75c4d7c2952407d9346884a4a4b9428cf50914ef32",
           "kind": "session",
           "path": ".memory-seed/sessions/2026-06/2026-06-03.md"
         },
@@ -534,7 +534,7 @@
     "source_revision": {
       "git_head": null,
       "tracked_document_count": 6,
-      "tracked_document_fingerprint": "sha256:db67c18de4c47e3138eba4cb5373ed729ae349486f6cc1c59fdfbb507aff47be",
+      "tracked_document_fingerprint": "sha256:271f05937531b809a48eb91bff14233ddc946d540fc3e3f3877a202abb61fe9b",
       "working_tree_signature": null,
       "working_tree_state": "no_git"
     }
@@ -548,7 +548,7 @@
       "branch",
       "evolves",
       "related",
-      "supersedes"
+      "replaces"
     ],
     "entry_ids": [],
     "graph_depth": null,
@@ -557,7 +557,7 @@
     "matched_entry_count": 4,
     "max_entries": null,
     "returned_entry_count": 4,
-    "selection_fingerprint": "sha256:bd9b8aa8f2101f277cda660bcc0b2c5b8a0c22fd4dcd83f85340fac10ca9abe8",
+    "selection_fingerprint": "sha256:eebe82115cdde94e1b8532e2b7e9ae908a670312dd196cc7bcfde35ef73ec7b3",
     "topic": null,
     "user": null
   },

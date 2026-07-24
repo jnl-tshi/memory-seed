@@ -3,7 +3,7 @@
 Phase 0 of the next-generation roadmap needs 500/1,000/10,000-entry datasets
 whose shape exercises everything the Trail and Graph render: a main line,
 forking/merging feature branches (including parallel branches and
-daisy-chains), lifecycle edges (related/supersedes/evolves), topics, and
+daisy-chains), lifecycle edges (related/replaces/evolves), topics, and
 varied prose for search ranking. Output is a plain ``.memory-seed/sessions``
 tree readable by the real cache - no Trace-specific format.
 
@@ -85,7 +85,7 @@ def _entry_text(*, day: date, minute_of_day: int, counter: int, branch: str,
         for ref in rng.sample(earlier_ids, k=min(len(earlier_ids), rng.randint(1, 2))):
             lines.append(f"  - {ref}")
     if earlier_ids and rng.random() < 0.08:
-        lines += ["supersedes:", f"  - {rng.choice(earlier_ids)}"]
+        lines += ["replaces:", f"  - {rng.choice(earlier_ids)}"]
     elif earlier_ids and rng.random() < 0.10:
         lines += ["evolves:", f"  - {rng.choice(earlier_ids)}"]
     lines += ["```", "", "### Decision", ""]

@@ -132,11 +132,11 @@ def run_benchmark(
         seconds, procs, index = _timed(lambda: service_module._file_entry_index(root, commit_map))
         record("file_entry_index_cold", seconds, procs, f"{len(index)} paths")
 
-    trail_edges = ("branch", "supersedes", "evolves", "related")
+    trail_edges = ("branch", "replaces", "evolves", "related")
     seconds, procs, trail = _timed(lambda: svc.graph(edge_types=trail_edges, limit=1000))
     record("trail_projection_warm", seconds, procs, f"{len(trail.get('nodes', []))} nodes")
 
-    graph_edges = ("related", "supersedes", "evolves", "topic")
+    graph_edges = ("related", "replaces", "evolves", "topic")
     seconds, procs, graph = _timed(
         lambda: project_trace_graph(svc.graph(edge_types=graph_edges, limit=60))
     )
@@ -163,7 +163,7 @@ def run_benchmark(
                 ("http_runtime", "/api/v1/runtime"),
                 ("http_facets", "/api/v1/facets"),
                 ("http_trail", "/api/v1/trail?limit=1000"),
-                ("http_graph", "/api/v1/graph/projection?limit=60&edge_types=related,supersedes,evolves,topic"),
+                ("http_graph", "/api/v1/graph/projection?limit=60&edge_types=related,replaces,evolves,topic"),
             ):
                 seconds, procs, response = _timed(lambda url=url: client.get(url))
                 record(name, seconds, procs, f"status {response.status_code}")

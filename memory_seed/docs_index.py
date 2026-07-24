@@ -37,7 +37,7 @@ LANES = (
     "4_Reference",
     "5_Completed",
     "6_Rejected",
-    "7_Superseded",
+    "7_Replaced",
     "8_Deferred",
 )
 
@@ -98,7 +98,7 @@ def _lane_table(lane: str, docs: list[Path]) -> str:
                 doc.name,
                 front.get("priority", ""),
                 front.get("blocked_by", ""),
-                front.get("next_action") or front.get("superseded_by") or front.get("status", ""),
+                front.get("next_action") or front.get("replaced_by") or front.get("status", ""),
             )
         )
     if lane == "2_Todo":

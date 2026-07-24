@@ -100,16 +100,16 @@ class SessionAppendTests(unittest.TestCase):
         first = self._append(timestamp="2026-06-13 09:00")
         # A later entry exists...
         later = self._append(title="Later", timestamp="2026-06-13 12:00")
-        # ...and a new 10:00 entry may not supersede it.
+        # ...and a new 10:00 entry may not replace it.
         result = self._append(
-            title="Middle", timestamp="2026-06-13 10:00", supersedes=(later.entry_id,)
+            title="Middle", timestamp="2026-06-13 10:00", replaces=(later.entry_id,)
         )
 
         self.assertFalse(result.ok)
         self.assertTrue(any("newer" in issue for issue in result.issues), result.issues)
-        # But superseding the older first entry from a NEW newest entry works.
+        # But replacing the older first entry from a NEW newest entry works.
         ok = self._append(
-            title="Replacement", timestamp="2026-06-13 13:00", supersedes=(first.entry_id,)
+            title="Replacement", timestamp="2026-06-13 13:00", replaces=(first.entry_id,)
         )
         self.assertTrue(ok.ok, ok.issues)
         self.assertTrue(check_session_links(cwd=self.cwd).ok)

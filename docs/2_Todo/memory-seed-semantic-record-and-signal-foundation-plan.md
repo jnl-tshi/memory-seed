@@ -8,8 +8,8 @@ blocked_by:
   - memory-provenance-and-authority-taxonomy-proposal.md
   - memory-quality-metrics-v0-proposal.md
 sources:
-  - ../7_Superseded/memory-seed-typed-entries-adr-sidecar-proposal.md
-  - ../7_Superseded/memory-signal-hierarchy-exploration.md
+  - ../7_Replaced/memory-seed-typed-entries-adr-sidecar-proposal.md
+  - ../7_Replaced/memory-signal-hierarchy-exploration.md
 spec_binding: ../3_Spec/draft/adr-lifecycle-sidecar-contract.md
 ---
 
