@@ -24,7 +24,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from .core import check_session_links, read_integration_mode, resolve_runtime
+from .core import check_session_links, read_integration_mode, read_merge_trigger, resolve_runtime
 from .topics import check_topics
 
 
@@ -45,6 +45,7 @@ class WorktreePosture:
 class EsrReport:
     session_date: str
     integration_mode: str = "local-merge"
+    merge_trigger: str = "automatic"
     integrity_ok: bool = True
     integrity_issues: list[str] = field(default_factory=list)
     topics_ok: bool = True
@@ -84,6 +85,7 @@ class EsrReport:
         return {
             "session_date": self.session_date,
             "integration_mode": self.integration_mode,
+            "merge_trigger": self.merge_trigger,
             "integrity": {"ok": self.integrity_ok, "issues": self.integrity_issues},
             "topics": {"ok": self.topics_ok, "issues": self.topics_issues},
             "link_gaps": self.link_gaps,
@@ -263,6 +265,7 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
     day = session_date or date.today().isoformat()
     report = EsrReport(session_date=day)
     report.integration_mode = read_integration_mode(root)
+    report.merge_trigger = read_merge_trigger(root)
 
     links = check_session_links(cwd=cwd)
     report.integrity_ok = links.ok
@@ -424,6 +427,10 @@ def format_esr_report(report: EsrReport) -> str:
         lines.append("pr — integrate via push + pull request (declared push authorization for that flow).")
     else:
         lines.append("local-merge — integrate via `session merge-branch` into local main; no push.")
+    if report.merge_trigger == "manual":
+        lines.append("merge_trigger: manual — HOLD; landing needs `--user-approved` (MCP integrate declines).")
+    else:
+        lines.append("merge_trigger: automatic — may land at a stable, tested stopping point (local merge / open PR only).")
     lines.append("")
 
     lines.append("## Worktrees")

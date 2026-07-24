@@ -285,7 +285,9 @@ TOOLS: list[dict[str, Any]] = [
             "problem (modified existing entry, missing entry_id, duplicate ids) aborts before the git merge starts, and "
             "a conflict outside session files aborts the merge and restores a clean tree rather than leaving one "
             "half-merged. Refused when the project's integration_mode is 'pr', because that path pushes and opens a "
-            "pull request. Set dry_run to see the plan without merging."
+            "pull request, and refused when merge_trigger is 'manual', because landing then needs explicit user "
+            "authorization the unattended path cannot represent (run the CLI with --user-approved instead). Set "
+            "dry_run to see the plan without merging (never refused)."
         ),
         "inputSchema": {
             "type": "object",
@@ -511,7 +513,7 @@ def call_tool(
         }
 
     if name == "memory_session_integrate":
-        from .core import read_integration_mode, session_merge_branch
+        from .core import read_integration_mode, read_merge_trigger, session_merge_branch
 
         cwd = Path(str(args.get("cwd", "."))).resolve()
         runtime = resolve_runtime(cwd)
@@ -529,6 +531,21 @@ def call_tool(
                 "integration_mode": mode,
                 "issues": ["project integration_mode is 'pr'; opening a pull request pushes and is not run unattended"],
                 "cli_command": f"memory-seed session integrate --branch {branch}",
+            }
+
+        # merge_trigger: manual holds a landing for the user. The autonomous MCP
+        # path cannot represent user authorization, so it declines a real
+        # integrate and hands the operator the CLI command carrying the approval
+        # flag. A dry run only previews and is allowed through.
+        trigger = read_merge_trigger(root)
+        if trigger == "manual" and not dry_run:
+            return {
+                "ok": False,
+                "committed": False,
+                "integration_mode": mode,
+                "merge_trigger": trigger,
+                "issues": ["project merge_trigger is 'manual'; landing a branch needs explicit user authorization and is not run unattended"],
+                "cli_command": f"memory-seed session merge-branch --branch {branch} --user-approved",
             }
 
         result = session_merge_branch(root, branch=branch, dry_run=dry_run)

@@ -2,3 +2,7 @@ participants:
   - slug: jean
     initials: JNL
     display_name: Jean Nathan Tshibuyi
+
+# Hold branch landings for an explicit user go-ahead (operating-mode-variables).
+# The handoff commands refuse without --user-approved; the MCP integrate declines.
+merge_trigger: manual

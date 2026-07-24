@@ -362,6 +362,7 @@ class SessionFuseResult:
 class SessionMergeBranchResult:
     committed: bool
     merge_in_progress: bool = False
+    merge_trigger_blocked: bool = False
     conflicts: list[str] = field(default_factory=list)
     planned_entries: list[str] = field(default_factory=list)
     planned_sidecars: list[str] = field(default_factory=list)
@@ -410,6 +411,7 @@ class SessionPreparePrBranchResult:
 class SessionOpenPrResult:
     opened: bool
     dry_run: bool = False
+    merge_trigger_blocked: bool = False
     base_branch: str | None = None
     source_branch: str | None = None
     remote_name: str | None = None
@@ -3947,11 +3949,34 @@ def session_fuse(
     return _apply_session_fuse_plan(root, plan)
 
 
+def _merge_trigger_block(root: Path, user_approved: bool) -> str | None:
+    """Return a block message when ``merge_trigger`` is ``manual`` and the caller
+    has not supplied explicit user authorization, else ``None``.
+
+    The handoff functions (``session_merge_branch``, ``session_open_pr``) call
+    this before any irreversible step. ``user_approved`` is the token that
+    represents a human saying "go" — the CLI's ``--user-approved`` flag. An agent
+    is contractually barred from supplying it on its own initiative, and the
+    unattended MCP path never sets it (it declines outright instead). Under the
+    default ``automatic`` trigger this is always ``None``, so unconfigured
+    projects are unaffected.
+    """
+    if user_approved:
+        return None
+    if read_merge_trigger(root) != "manual":
+        return None
+    return (
+        "merge_trigger is 'manual'; landing this branch needs explicit user "
+        "authorization. Re-run with --user-approved once the user has approved it."
+    )
+
+
 def session_merge_branch(
     cwd: str | Path = ".",
     *,
     branch: str,
     dry_run: bool = False,
+    user_approved: bool = False,
 ) -> SessionMergeBranchResult:
     """Merge a task branch and fuse its branch-local session memory in one step.
 
@@ -3994,6 +4019,14 @@ def session_merge_branch(
             committed=False,
             issues=[f"working tree is not clean; commit or stash these paths first: {listing}"],
         )
+
+    # merge_trigger gate: under 'manual', a real merge needs explicit user
+    # authorization. A dry run only previews and is never gated. Placed after the
+    # cheap validations so a bad branch name still reports a branch error first.
+    if not dry_run:
+        block = _merge_trigger_block(root, user_approved)
+        if block:
+            return SessionMergeBranchResult(committed=False, merge_trigger_blocked=True, issues=[block])
 
     # Fuse dry-run gate: any session-memory problem (modified existing entry,
     # missing entry_id/branch provenance, duplicate ids, ...) aborts before the
@@ -4355,17 +4388,27 @@ def session_open_pr(
     base_branch: str | None = None,
     remote_name: str = "origin",
     dry_run: bool = False,
+    user_approved: bool = False,
 ) -> SessionOpenPrResult:
     """Prepare a branch, push it normally, and open a PR with `gh`.
 
     A declared `integration_mode: pr` authorizes this normal non-force path
     only. Missing origin/gh/auth or a failed fresh-base fetch fail closed before
-    the branch is modified.
+    the branch is modified. Under `merge_trigger: manual`, opening the PR is the
+    handoff and needs explicit user authorization (`user_approved`); a dry run
+    only previews and is never gated.
     """
     runtime = resolve_runtime(cwd)
     root = runtime.workspace_root
     if not (root / ".git").exists():
         return SessionOpenPrResult(opened=False, dry_run=dry_run, issues=["session open-pr requires a Git repository"])
+
+    if not dry_run:
+        block = _merge_trigger_block(root, user_approved)
+        if block:
+            return SessionOpenPrResult(
+                opened=False, dry_run=dry_run, source_branch=branch, merge_trigger_blocked=True, issues=[block]
+            )
 
     dirty_paths = _git_dirty_paths(root)
     if dirty_paths is None:
@@ -6157,6 +6200,9 @@ def read_project_participants(target_root: Path) -> list[ProjectParticipant]:
 INTEGRATION_MODES = ("local-merge", "pr")
 DEFAULT_INTEGRATION_MODE = "local-merge"
 
+MERGE_TRIGGERS = ("manual", "automatic")
+DEFAULT_MERGE_TRIGGER = "automatic"
+
 
 def read_integration_mode(target_root: Path) -> str:
     """Return the project's declared integration mode from .memory-seed/project.yaml.
@@ -6188,6 +6234,40 @@ def read_integration_mode(target_root: Path) -> str:
             value = match.group(1).strip().strip("'\"")
             return value if value in INTEGRATION_MODES else DEFAULT_INTEGRATION_MODE
     return DEFAULT_INTEGRATION_MODE
+
+
+def read_merge_trigger(target_root: Path) -> str:
+    """Return the project's declared merge trigger from .memory-seed/project.yaml.
+
+    ``merge_trigger:`` is a single top-level scalar governing whether the agent
+    auto-advances a task branch to its integration handoff at a stable stopping
+    point, or holds for the user (operating-mode-variables-proposal.md):
+
+    - ``automatic`` (default): the agent may take the handoff step itself — a
+      merge into local ``main`` under ``local-merge``, or opening the PR under
+      ``pr``. Bounded to local, reversible advancement: it never pushes under
+      ``local-merge`` and never merges a PR under ``pr``.
+    - ``manual``: the agent holds. The CLI handoff commands refuse to advance
+      without explicit user authorization (``--user-approved``), and the
+      unattended MCP integration path declines outright.
+
+    Fail-open to ``automatic``: an absent file/key, an unreadable file, or an
+    unrecognised value all yield the default, so legacy and unconfigured projects
+    behave exactly as before this switch existed.
+    """
+    path = _project_config_path(target_root)
+    if not path.exists():
+        return DEFAULT_MERGE_TRIGGER
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return DEFAULT_MERGE_TRIGGER
+    for raw in lines:
+        match = re.match(r"^merge_trigger\s*:\s*(.+)$", raw.rstrip())
+        if match:
+            value = match.group(1).strip().strip("'\"")
+            return value if value in MERGE_TRIGGERS else DEFAULT_MERGE_TRIGGER
+    return DEFAULT_MERGE_TRIGGER
 
 
 def read_declared_integration_mode(target_root: Path) -> str | None:

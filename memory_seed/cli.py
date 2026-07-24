@@ -262,6 +262,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     session_merge_parser.add_argument("--branch", required=True, help="task branch to merge into the current branch")
     session_merge_parser.add_argument("--dry-run", action="store_true", help="preview the fuse plan without merging")
+    session_merge_parser.add_argument(
+        "--user-approved",
+        action="store_true",
+        help="authorize landing when merge_trigger is 'manual' (an explicit user go-ahead; agents must not set this themselves)",
+    )
     session_prepare_pr_parser = session_sub.add_parser(
         "prepare-pr",
         help="prepare the current task branch for a host-side PR merge by replaying session chronology locally",
@@ -284,6 +289,11 @@ def main(argv: list[str] | None = None) -> int:
         help="target integration branch (default: infer from main/master/origin HEAD; fail closed when ambiguous)",
     )
     session_open_pr_parser.add_argument("--dry-run", action="store_true", help="preview the PR plan without pushing or creating it")
+    session_open_pr_parser.add_argument(
+        "--user-approved",
+        action="store_true",
+        help="authorize opening the PR when merge_trigger is 'manual' (an explicit user go-ahead; agents must not set this themselves)",
+    )
     session_integrate_parser = session_sub.add_parser(
         "integrate",
         help="dispatch branch integration according to .memory-seed/project.yaml integration_mode",
@@ -295,6 +305,11 @@ def main(argv: list[str] | None = None) -> int:
         help="PR-mode target branch (default: infer from main/master/origin HEAD; ignored by local-merge)",
     )
     session_integrate_parser.add_argument("--dry-run", action="store_true", help="preview the chosen integration flow without writing")
+    session_integrate_parser.add_argument(
+        "--user-approved",
+        action="store_true",
+        help="authorize the handoff when merge_trigger is 'manual' (an explicit user go-ahead; agents must not set this themselves)",
+    )
     session_append_parser = session_sub.add_parser(
         "append",
         help="append a session entry with structure enforced (id, chronology, refs, topics); body from --body-file or stdin",
@@ -689,6 +704,7 @@ def main(argv: list[str] | None = None) -> int:
                 cwd=Path(".").resolve(),
                 branch=args.branch,
                 dry_run=args.dry_run,
+                user_approved=args.user_approved,
             )
             if result.issues:
                 print("Session merge-branch blocked:", file=sys.stderr)
@@ -816,6 +832,7 @@ def main(argv: list[str] | None = None) -> int:
                 branch=args.branch,
                 base_branch=args.base_branch,
                 dry_run=args.dry_run,
+                user_approved=args.user_approved,
             )
             if result.issues:
                 print("Session open-pr blocked:", file=sys.stderr)
@@ -861,6 +878,7 @@ def main(argv: list[str] | None = None) -> int:
                     branch=args.branch,
                     base_branch=args.base_branch,
                     dry_run=args.dry_run,
+                    user_approved=args.user_approved,
                 )
                 if result.issues:
                     print("Session integrate blocked:", file=sys.stderr)
@@ -897,6 +915,7 @@ def main(argv: list[str] | None = None) -> int:
                 cwd=Path(".").resolve(),
                 branch=args.branch,
                 dry_run=args.dry_run,
+                user_approved=args.user_approved,
             )
             if result.issues:
                 print("Session integrate blocked:", file=sys.stderr)

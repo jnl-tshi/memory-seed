@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .core import iter_session_documents, read_integration_mode, resolve_runtime
+from .core import iter_session_documents, read_integration_mode, read_merge_trigger, resolve_runtime
 from .esr import WorktreePosture, _git_lines, _integration_ref, _worktree_posture
 
 _ENTRY_HEADING_RE = re.compile(r"^##\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s+-\s*(.+?)\s*$", re.MULTILINE)
@@ -44,6 +44,7 @@ class SituateReport:
     ahead: int | None = None
     ahead_ref: str | None = None
     integration_mode: str = "local-merge"
+    merge_trigger: str = "automatic"
     newest_session_path: str | None = None
     newest_session_date: str | None = None
     newest_entry: str | None = None
@@ -63,6 +64,7 @@ class SituateReport:
                 "ahead_ref": self.ahead_ref,
             },
             "integration_mode": self.integration_mode,
+            "merge_trigger": self.merge_trigger,
             "newest_session": {
                 "path": self.newest_session_path,
                 "date": self.newest_session_date,
@@ -179,6 +181,7 @@ def situate_report(cwd: str | Path = ".") -> SituateReport:
     root = runtime.workspace_root
     report = SituateReport()
     report.integration_mode = read_integration_mode(root)
+    report.merge_trigger = read_merge_trigger(root)
     (
         report.git_available,
         report.branch,
@@ -214,6 +217,10 @@ def format_situate_report(report: SituateReport) -> str:
         lines.append("pr — integrate via push + pull request (push authorized for that flow).")
     else:
         lines.append("local-merge — integrate via `session merge-branch` into local main; do NOT push without instruction.")
+    if report.merge_trigger == "manual":
+        lines.append("merge_trigger: manual — HOLD; do not land a branch on your own. The handoff (`session merge-branch` / `open-pr`) refuses without `--user-approved`, and the MCP integrate path declines; the user's go authorizes it.")
+    else:
+        lines.append("merge_trigger: automatic — may land at a stable, tested stopping point (local merge / open PR only; never pushes, never merges a PR).")
     lines.append("")
 
     lines.append("## Newest session entry")
