@@ -2785,6 +2785,12 @@ def _chunk_from_storage(data: dict[str, Any]) -> MemoryChunk:
         "sections",
     ):
         data[key] = tuple(data.get(key) or ())
+    # decision_edges is a tuple OF TUPLES, so the flat restore above is not
+    # enough: JSON has no tuple, and a list edge is unhashable, which took the
+    # Trail down with `unhashable type: 'list'` the first time a cold cache
+    # served an entry carrying one. Nested keys need nested restoration - the
+    # reason this is spelled out separately rather than added to the list.
+    data["decision_edges"] = tuple(tuple(edge) for edge in (data.get("decision_edges") or ()))
     data["continuity"] = tuple(
         ContinuityBlock(
             kind=block.get("kind", ""),
