@@ -145,6 +145,47 @@ class SessionAppendTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertTrue(any("this entry has no d9" in issue for issue in result.issues), result.issues)
 
+    def test_cli_ref_flags_are_repeatable_and_survive_intra_ref_commas(self):
+        # The flag's comma has always separated ITEMS, but grammar v2 puts a
+        # comma INSIDE a ref (`mse_x:d1,d4`). Splitting naively turns that one
+        # ref into a valid ref plus the garbage token `d4`. Found by
+        # dogfooding: three --evolves flags collapsed to one before the fix.
+        import contextlib
+        import io
+        import os
+
+        from memory_seed.cli import main as cli_main
+
+        older = self._append_multi_decision_older()
+        body_file = self.cwd / "body.md"
+        body_file.write_text(BODY, encoding="utf-8")
+
+        previous = Path.cwd()
+        out = io.StringIO()
+        try:
+            os.chdir(self.cwd)
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                code = cli_main([
+                    "session", "append",
+                    "--title", "Repeated refs",
+                    "--user-initials", "JN",
+                    "--agent-type", "claude",
+                    "--timestamp", "2026-06-13 09:30",
+                    "--no-branch",
+                    "--body-file", str(body_file),
+                    "--evolves", f"{older}:d1,d2",
+                    "--evolves", f"{older}:d2",
+                    "--dry-run",
+                ])
+        finally:
+            os.chdir(previous)
+
+        self.assertEqual(code, 0, out.getvalue())
+        rendered = out.getvalue()
+        self.assertIn(f"- {older}:d1,d2", rendered)  # comma kept inside the ref
+        self.assertIn(f"- {older}:d2", rendered)  # the second flag is not lost
+        self.assertNotIn("- d2\n", rendered)  # never split into a bare ordinal
+
     def test_second_append_separates_blocks_and_stays_clean(self):
         self._append()
         result = self._append(title="Second decision", timestamp="2026-06-13 10:00")

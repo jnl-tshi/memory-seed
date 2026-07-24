@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -304,13 +305,21 @@ def main(argv: list[str] | None = None) -> int:
     session_append_parser.add_argument("--agent-type", required=True, help="agent_type field, e.g. claude")
     session_append_parser.add_argument("--agent-name", default=None, help="agent_name field (default: null)")
     session_append_parser.add_argument("--topics", default="", help="comma-separated controlled-vocabulary slugs or aliases")
-    session_append_parser.add_argument("--related", default="", help="comma-separated related_entries ids")
+    # Repeatable (one ref per flag) AND comma-separated (legacy form), because
+    # grammar v2 puts commas INSIDE a ref (`mse_x:d1,d4`) - see _ref_list.
+    session_append_parser.add_argument(
+        "--related", action="append", default=None, help="related_entries id; repeat for several"
+    )
     # --supersedes is the legacy spelling (renamed 2026-07-24); both flags feed
     # one dest so existing automation keeps working while emitting `replaces:`.
     session_append_parser.add_argument(
-        "--replaces", "--supersedes", dest="replaces", default="", help="comma-separated ids this entry retires"
+        "--replaces", "--supersedes", dest="replaces", action="append", default=None,
+        help="id this entry retires, e.g. mse_x:d2 or 'd1 -> mse_x:d2'; repeat for several",
     )
-    session_append_parser.add_argument("--evolves", default="", help="comma-separated ids this entry refines (they stay valid)")
+    session_append_parser.add_argument(
+        "--evolves", action="append", default=None,
+        help="id this entry refines (it stays valid); same grammar as --replaces; repeat for several",
+    )
     session_append_parser.add_argument("--project-path", default=".", help="project_path field (default: .)")
     session_append_parser.add_argument("--subproject-path", default=None, help="subproject_path field (default: null)")
     session_append_parser.add_argument("--branch", default=None, help="branch field (default: auto-captured from git)")
@@ -957,6 +966,29 @@ def main(argv: list[str] | None = None) -> int:
             def _csv(raw: str) -> tuple[str, ...]:
                 return tuple(item.strip() for item in raw.split(",") if item.strip())
 
+            def _ref_list(values: list[str] | None) -> tuple[str, ...]:
+                """Lifecycle refs from a repeatable, still-comma-splittable flag.
+
+                Grammar v2 (2026-07-24) puts commas INSIDE a ref -
+                `mse_x:d1,d4` addresses two decisions of one target - which
+                collides with the comma the flag has always used as its item
+                separator. Splitting naively would silently turn that ref into
+                a valid one plus the garbage token `d4`. So a fragment that is
+                a bare ordinal rejoins the ref it was split from; everything
+                else is a separate ref, and repeating the flag avoids the
+                ambiguity entirely.
+                """
+                refs: list[str] = []
+                for value in values or ():
+                    for part in (p.strip() for p in value.split(",")):
+                        if not part:
+                            continue
+                        if re.fullmatch(r"d\d+", part) and refs:
+                            refs[-1] = f"{refs[-1]},{part}"
+                        else:
+                            refs.append(part)
+                return tuple(refs)
+
             result = session_append_entry(
                 cwd=Path(".").resolve(),
                 title=args.title,
@@ -965,9 +997,9 @@ def main(argv: list[str] | None = None) -> int:
                 agent_type=args.agent_type,
                 agent_name=args.agent_name,
                 topics=_csv(args.topics),
-                related_entries=_csv(args.related),
-                replaces=_csv(args.replaces),
-                evolves=_csv(args.evolves),
+                related_entries=_ref_list(args.related),
+                replaces=_ref_list(args.replaces),
+                evolves=_ref_list(args.evolves),
                 project_path=args.project_path,
                 subproject_path=args.subproject_path,
                 branch=args.branch,
