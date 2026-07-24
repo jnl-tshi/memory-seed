@@ -2,10 +2,13 @@
 title: "First-Message Operating-Mode Gate + Session Variable Schema"
 date: "2026-07-23"
 project: "memory-seed"
-status: "proposed-awaiting-design-review"
+status: "completed"
 priority: "P2"
-blocked_by: "user design review — accept/amend the enforcement-classed schema (§4) and the merge_trigger gate mechanism (§5) before any control-plane or tooling change"
-next_action: "JNL reacts to the enforcement-class framing and the open questions in §6. Only then draft the agent-rules.md gate, the project.yaml merge_trigger default, and the merge_trigger gate on session merge-branch / memory_session_integrate."
+completed_on: "2026-07-24"
+implemented_by:
+  - "mse_et9pkwnsm5cmz3h9"
+  - "mse_znfnyxssvhz5srz9"
+  - "mse_qgj4wmmjm0p5axte"
 related:
   - "docs/CONSTITUTION.md"
   - ".memory-seed/agent-rules.md"
@@ -18,9 +21,27 @@ related:
 
 # First-Message Operating-Mode Gate + Session Variable Schema
 
-Status: **PROPOSED — awaiting design review.** Nothing in the control plane changes until JNL reacts to
-the schema (§4) and the open questions (§6). This is the "design it, then you react" artifact.
+Status: **SHIPPED 2026-07-24.** Both halves landed on local `main`: the `merge_trigger` switch with real
+teeth in the tooling, and the first-message gate as a routine. All six open questions in §6 were resolved
+by JNL and the resolutions are recorded inline below.
 Priority: P2 — a control-plane consistency improvement, not a B0b blocker.
+
+**As built, where it differs from this document:**
+
+- **The gate lives in `.memory-seed/skills/orientation.md`, not `agent-rules.md`** (§7/§8 asked for the
+  latter). `agent-rules.md` was at exactly 260 of its 260-line cap, and `skill_architecture.md` rules that
+  the startup contract keeps high-signal pointers while procedural detail lives in a skill, preferring an
+  extended existing skill over a new one. `agent-rules.md` routes to the gate by extending its existing
+  step-7 line, which costs zero lines. This is a placement change only: the gate's *teeth* were never in
+  the control plane — they are in the tooling (worktree guard, `merge_trigger`), which is what made the
+  documentation-only piece safe to relocate.
+- **`merge_trigger` fails open to `automatic`, not `manual`** (§6.1). Fail-open `manual` would have made
+  every existing project's `session merge-branch` start refusing on update — a behaviour change for all
+  downstream consumers to gain a default. This repository opts into `manual` explicitly in
+  `.memory-seed/project.yaml`.
+- **The gate also covers `session fuse --apply`** (§5 named only `merge-branch` / `open-pr` /
+  `memory_session_integrate`). A raw `git merge --no-ff --no-commit` plus a fuse was a documented route
+  straight around the teeth.
 Source: JNL, 2026-07-22, in the session that shipped the worktree-posture Location work. Two operating-mode
 decisions in that session — *create a worktree?* and *hold the merge or auto-land it?* — were both made ad
 hoc rather than by any established rule. JNL's framing: "the first message a user inputs to a project should
@@ -205,7 +226,21 @@ Their product is the operating modes:
 under `local-merge` and never merges a PR under `pr`. The irreversible or external step stays a human one in
 both modes.
 
-## 6. Open questions (the design review)
+## 6. Open questions (the design review) — ALL RESOLVED 2026-07-24
+
+> **Resolutions**, recorded against the numbered questions below:
+>
+> 1. **Default** → fail open to `automatic`; `manual` is an explicit per-project opt-in. Chosen to avoid
+>    changing behaviour for every existing consumer on update (see "As built" above).
+> 2. **Own field** → yes, confirmed. `project.yaml` key `merge_trigger`, values `manual` | `automatic`.
+> 3. **Gate mechanism** → the override flag, not the lighter agent-contract. A CLI cannot tell an
+>    agent-initiated call from a user one, so refusal needs a token representing authorization:
+>    `--user-approved`, which agents are documented as barred from self-supplying.
+> 4. **Schema fixity** → keep the fixed named list of §4 as-is.
+> 5. **Recording** → nowhere durable for the intent-dependent half, as proposed; the session-stable half
+>    stays in `project.yaml` / measured.
+> 6. **Advisory verification** → a recorded routine is enough; ESR gained no "gate ran" check, matching
+>    how risk tier and orchestration level are handled today.
 
 1. **`merge_trigger` default.** Propose `manual` under `local-merge` (matches today's "do NOT push without
    instruction" spirit and preserves multi-branch accumulation). Is `automatic` ever the right default for
