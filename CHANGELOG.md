@@ -101,6 +101,23 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- **First-message operating-mode gate.** `orientation.md` (+ seed twin) gains a
+  routine that runs once the user's intent is known — the layer neither
+  SessionStart nor `situate` can supply, since both fire before the user has said
+  anything. It sets the session variables in order (`checkout_posture` →
+  `integration_mode`/`merge_trigger` → `write_intent` → `risk_tier`/
+  `orchestration_level` → `worktree_decision` → `skills_to_load`), grouped by
+  **enforcement class** so it stays honest about which of them flip a real
+  switch: tooling-enforced (the worktree guard and the `merge_trigger` gate
+  actually refuse), config-toggled (persona registry, trigger registry), and
+  advisory (judgments no code can compute). Read-only work exits after step 3,
+  which is what keeps a mandatory step from decaying into noise. Nothing is
+  persisted — no new state file, per the derived-projection invariant.
+  `agent-rules.md` routes to it in one line rather than carrying the schema: the
+  startup contract sits at its 260-line cap, and `skill_architecture.md` puts
+  procedural detail in skills. `session_logging.md` now records that on-branch
+  logging is what `merge_trigger: manual` buys.
+
 - **`merge_trigger` switch — hold branch landings for an explicit user
   go-ahead.** A new `.memory-seed/project.yaml` scalar (`read_merge_trigger`,
   fail-open to `automatic` so legacy/unconfigured projects are unchanged) decides

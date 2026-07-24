@@ -532,6 +532,51 @@ class SessionSchemaTests(unittest.TestCase):
                 f"{seed} should match {live}",
             )
 
+    def test_orientation_carries_the_operating_mode_gate(self):
+        # The gate is a routine, not enforcement - its teeth are in the tooling
+        # (worktree guard, merge_trigger). Pin the claims that carry it so the
+        # routine cannot be gutted into prose while the switches keep firing.
+        content = Path(".memory-seed/skills/orientation.md").read_text(encoding="utf-8")
+
+        for phrase in (
+            "First message: the operating-mode gate",
+            "enforcement class",
+            "Tooling-enforced",
+            "Config-toggled",
+            "Advisory",
+            "`--user-approved`, which an agent must never self-supply",
+            "Read-only work stops after step 3",
+            "None of this is persisted",
+        ):
+            self.assertIn(phrase, content)
+
+        # Every variable named in the schema must actually appear.
+        for variable in (
+            "checkout_posture",
+            "worktree_decision",
+            "integration_mode",
+            "merge_trigger",
+            "write_intent",
+            "risk_tier",
+            "orchestration_level",
+            "skills_to_load",
+            "governing_persona",
+            "version_state",
+        ):
+            self.assertIn(variable, content, f"{variable} missing from the gate schema")
+
+    def test_agent_rules_route_to_the_gate_without_inlining_it(self):
+        # agent-rules.md is the startup contract and sits at its line cap, so it
+        # points at the gate rather than carrying it (skill_architecture.md:
+        # procedural detail lives in skills). Pin both halves of that split.
+        rules = Path(".memory-seed/agent-rules.md").read_text(encoding="utf-8")
+
+        self.assertIn("operating-mode gate", rules)
+        self.assertIn("first substantive message", rules)
+        # The schema tables belong to the skill, not the startup contract.
+        self.assertNotIn("Tooling-enforced", rules)
+        self.assertNotIn("Config-toggled", rules)
+
     def test_current_session_files_have_frontmatter_and_entry_metadata(self):
         # Validate EVERY schema-era session file (those with frontmatter), so a
         # malformed new entry fails CI. Pre-schema legacy logs (no frontmatter)

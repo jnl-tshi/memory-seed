@@ -168,6 +168,13 @@ DRAFT is the baseline decision-record format for session entries. A DRAFT decisi
 **Append at the milestone, not at the merge.** A long-running branch earns several entries, not one
 summary written just before it merges.
 
+**Append on the task branch, not on the trunk after merging.** This is what `merge_trigger: manual`
+buys: the agent holds the landing, so several task branches coexist, each carrying its own on-branch
+entries, and `session merge-branch` fuses them into the trunk in chronological order with the branch
+lane preserved and a `Memory-Entry` trailer per entry. Logging on `main` after the merge collapses that
+lane and starves the trailers. Under `merge_trigger: automatic` a branch lands as soon as it is stable,
+so the window to write on-branch is short — append before the handoff, not after it.
+
 The multi-decision shape (`D1`, `D2`, ...) is for decisions taken in **one deliberation** — you weighed
 them together and settled them together. If substantive work happened *between* two decisions — you
 implemented, reviewed, tested, or discovered something — they are **separate milestones and get separate

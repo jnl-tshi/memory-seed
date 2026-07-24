@@ -89,8 +89,10 @@ skills:
       - orienting at the start of a session (running `memory-seed situate` or /situate)
       - reconciling local git, version, session, and worktree state before acting
       - a stale in-context snapshot or frozen worktree may misrepresent current state
+      - setting the operating-mode variables on the first substantive message (the gate), or re-running
+        the gate on a later turn once context has been summarized
     do_not_load_when:
-      - mid-task work after orientation is already established
+      - mid-task work after orientation and the operating-mode gate are already established
 
   - skill: end_of_turn.md
     required: true
