@@ -108,6 +108,14 @@ class MemoryChunk:
     # Typed lifecycle edge: earlier decisions this entry extends/refines while
     # they stay valid (evolves), vs. replaces which retires its targets.
     evolves: tuple[str, ...] = ()
+    # Decision-level lifecycle refs authored in the entry's own YAML
+    # (`mse_x:d2` items in `replaces:`/`evolves:` lists - write-time grammar
+    # per JNL's 2026-07-24 direction). (kind, target_entry_id, ordinal)
+    # tuples, kind in {"replaces", "evolves"}. Deliberately NOT folded into
+    # the entry-level lists above: "d1 of B replaces d2 of A" does not license
+    # "B replaces A" (the ratified decision-refs contract), so consumers that
+    # do not model decisions keep seeing the same edge set as before.
+    decision_edges: tuple[tuple[str, str, str], ...] = ()
     commits: tuple[str, ...] = ()
     # Stored artifact-lineage blocks (rename/migration/removal); see
     # ContinuityBlock. A label family like ``branch:``, not an entry edge.
@@ -521,6 +529,10 @@ class RelatedEntrySuggestion:
 
 
 _BACKTICK_TOKEN_RE = re.compile(r"`([^`\n]+)`")
+# `<entry_id>:dN` decision-ref item in a replaces/evolves list (write-time
+# grammar, 2026-07-24). Mirrors core's _DECISION_REF_RE without importing core
+# (dependency direction: core imports this module).
+_DECISION_REF_ITEM_RE = re.compile(r"^(ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32}):(d\d+)$")
 
 
 def _normalize_file_ref(value: str) -> str:
@@ -1062,10 +1074,30 @@ def _extract_entry_chunks_from_file(
         # write only the new one.
         _replaces_new = _metadata_list(metadata, "replaces")
         _replaces_legacy = _metadata_list(metadata, "supersedes")
-        replaces = tuple(_replaces_new) + tuple(
+        _replaces_raw = tuple(_replaces_new) + tuple(
             ref for ref in _replaces_legacy if ref not in _replaces_new
         )
-        evolves = _metadata_list(metadata, "evolves")
+        _evolves_raw = _metadata_list(metadata, "evolves")
+        # `mse_x:d2` items are decision-level refs (write-time grammar,
+        # 2026-07-24): they peel off into decision_edges and never join the
+        # entry-level lists - the ratified no-projection rule. Anything that is
+        # neither a bare id nor a decision ref stays in the entry-level list
+        # verbatim, exactly as before (links check owns flagging it).
+        replaces_list: list[str] = []
+        evolves_list: list[str] = []
+        entry_decision_edges: list[tuple[str, str, str]] = []
+        for kind, raw_refs, sink in (
+            ("replaces", _replaces_raw, replaces_list),
+            ("evolves", _evolves_raw, evolves_list),
+        ):
+            for raw in raw_refs:
+                m = _DECISION_REF_ITEM_RE.match(raw)
+                if m:
+                    entry_decision_edges.append((kind, m.group(1), m.group(2)))
+                else:
+                    sink.append(raw)
+        replaces = tuple(replaces_list)
+        evolves = tuple(evolves_list)
         commits = _metadata_list(metadata, "commits")
         continuity = _extract_entry_continuity(entry_lines)
         entry_topics = _metadata_list(metadata, "topics")
@@ -1104,6 +1136,7 @@ def _extract_entry_chunks_from_file(
                     related_entries=related_entries,
                     replaces=replaces,
                     evolves=evolves,
+                    decision_edges=tuple(entry_decision_edges),
                     commits=commits,
                     continuity=continuity,
                     topics=entry_topics,
@@ -1148,6 +1181,7 @@ def _extract_entry_chunks_from_file(
                     related_entries=related_entries,
                     replaces=replaces,
                     evolves=evolves,
+                    decision_edges=tuple(entry_decision_edges),
                     commits=commits,
                     continuity=continuity,
                     topics=entry_topics,
@@ -1194,6 +1228,7 @@ def _extract_entry_chunks_from_file(
                     related_entries=related_entries,
                     replaces=replaces,
                     evolves=evolves,
+                    decision_edges=tuple(entry_decision_edges),
                     commits=commits,
                     continuity=continuity,
                     topics=entry_topics,

@@ -1034,25 +1034,69 @@ class LinksCheckTests(unittest.TestCase):
         self.assertTrue(result.ok, [i.detail for i in result.issues if i.severity == "error"])
         self.assertNotIn("mse_zzzzzzzzzzzzzzzz", " ".join(i.detail for i in result.issues))
 
-    def test_decision_ref_in_entry_frontmatter_is_surfaced_not_truncated(self):
+    def test_decision_ref_in_entry_frontmatter_is_valid_write_time_grammar(self):
+        # `:dN` in an entry's own replaces/evolves lists is the write-time
+        # grammar (JNL's 2026-07-24 direction). A ref to an existing ordinal on
+        # an older multi-decision entry validates clean - no misplaced flag, no
+        # truncation to an entry-level edge.
         cwd = self.make_project()
         self._decision_corpus(cwd)
         sessions = cwd / MEMORY_DIR_NAME / "sessions"
-        # A `:dN` ref belongs in a link sidecar. In an entry's own frontmatter it
-        # was silently truncated to its entry-id prefix and validated as an
-        # entry-level edge; now it surfaces instead of vanishing.
         (sessions / "2026-06-02.md").write_text(
             "## 2026-06-02 09:00 - Newer\n\n```yaml\nentry_id: mse_bbbbbbbbbbbbbbbb\nevolves:\n"
             "  - mse_aaaaaaaaaaaaaaaa:d2\n```\n\n### Decision\n\n- D: x\n- R: y\n",
             encoding="utf-8",
         )
         result = check_session_links(cwd=cwd)
+        self.assertTrue(result.ok, [i.detail for i in result.issues if i.severity == "error"])
+        self.assertNotIn("misplaced-decision-ref", [i.kind for i in result.issues])
+
+    def test_entry_frontmatter_decision_ref_to_missing_ordinal_is_dangling(self):
+        cwd = self.make_project()
+        self._decision_corpus(cwd)
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        (sessions / "2026-06-02.md").write_text(
+            "## 2026-06-02 09:00 - Newer\n\n```yaml\nentry_id: mse_bbbbbbbbbbbbbbbb\nevolves:\n"
+            "  - mse_aaaaaaaaaaaaaaaa:d9\n```\n\n### Decision\n\n- D: x\n- R: y\n",
+            encoding="utf-8",
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        self.assertIn("dangling-decision-ref", [i.kind for i in result.issues])
+
+    def test_entry_frontmatter_decision_ref_in_related_entries_is_still_misplaced(self):
+        # related_entries stays entry-level everywhere; the write-time grammar
+        # covers only the lifecycle lists.
+        cwd = self.make_project()
+        self._decision_corpus(cwd)
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        (sessions / "2026-06-02.md").write_text(
+            "## 2026-06-02 09:00 - Newer\n\n```yaml\nentry_id: mse_bbbbbbbbbbbbbbbb\nrelated_entries:\n"
+            "  - mse_aaaaaaaaaaaaaaaa:d2\n```\n\n### Decision\n\n- D: x\n- R: y\n",
+            encoding="utf-8",
+        )
+        result = check_session_links(cwd=cwd)
         self.assertFalse(result.ok)
         self.assertIn("misplaced-decision-ref", [i.kind for i in result.issues])
-        # Reported once, not once per validation pass over the block.
         self.assertEqual(
             1, sum(1 for i in result.issues if i.kind == "misplaced-decision-ref")
         )
+
+    def test_entry_frontmatter_decision_ref_postdating_is_rejected(self):
+        # Forward-only holds for entry-yaml decision refs exactly as for
+        # sidecar ones: the OLDER entry referencing a NEWER entry's decision is
+        # decision-ref-postdates.
+        cwd = self.make_project()
+        self._decision_corpus(cwd)
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        (sessions / "2026-05-31.md").write_text(
+            "## 2026-05-31 09:00 - Oldest\n\n```yaml\nentry_id: mse_cccccccccccccccc\nevolves:\n"
+            "  - mse_aaaaaaaaaaaaaaaa:d2\n```\n\n### Decision\n\n- D: x\n- R: y\n",
+            encoding="utf-8",
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        self.assertIn("decision-ref-postdates", [i.kind for i in result.issues])
 
     def test_registered_nonstandard_id_ref_is_not_newly_flagged(self):
         # _ENTRY_ID_RE accepts any \\S+ as an entry_id, so an entry can carry a

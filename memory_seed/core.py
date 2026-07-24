@@ -858,7 +858,13 @@ def _frontmatter_list_refs(block: str, list_key: str) -> list[ListRef]:
 
 
 def _entry_level_ref_ids(
-    block: str, list_key: str, rel: str, issues: list, *, surface: bool
+    block: str,
+    list_key: str,
+    rel: str,
+    issues: list,
+    *,
+    surface: bool,
+    decision_sink: list | None = None,
 ) -> list[str]:
     """Entry-level target ids from a `related_entries`/`replaces`/`evolves`
     list, parsed per authored item.
@@ -872,13 +878,17 @@ def _entry_level_ref_ids(
 
     The returned set of entry-level ids is otherwise identical to the old scrape
     — a bare id that is unknown still surfaces as dangling downstream — so this is
-    behaviour-preserving apart from removing the two corruptions. A decision-level
-    ref is surfaced as misplaced, because decision granularity is valid only on
-    `replaces`/`evolves` in a link sidecar (decision-level-link-sidecar-refs.md),
-    never in entry/file frontmatter. Any other non-id token is skipped, exactly as
-    the old scrape skipped a substring it could not match — surfacing those is a
-    separate linting concern, out of scope for closing the corruption. ``surface``
-    is False on a second pass over the same block so an item is reported once.
+    behaviour-preserving apart from removing the two corruptions.
+
+    Decision-level refs: when ``decision_sink`` is given (the lifecycle keys of a
+    SESSION ENTRY's own yaml — write-time grammar per JNL's 2026-07-24 direction),
+    a `<entry_id>:dN` item is collected as ``(raw, target_entry_id, ordinal)``
+    for deferred validation against the full corpus's decision ordinals. When it
+    is None (``related_entries`` anywhere, and per-user file frontmatter), a
+    decision ref is surfaced as misplaced exactly as before. Any other non-id
+    token is skipped, as the old scrape skipped a substring it could not match.
+    ``surface`` is False on a second pass over the same block so an item is
+    reported once.
     """
     ids: list[str] = []
     for parsed in _frontmatter_list_refs(block, list_key):
@@ -888,13 +898,18 @@ def _entry_level_ref_ids(
             # not newly flagged. The two corruptions are already closed above.
             continue
         if parsed.decision is not None:
-            if surface:
+            if decision_sink is not None:
+                # Collected regardless of `surface` (the heading-anchored pass
+                # that knows the source entry runs surface=False); `surface`
+                # gates issues, not collection.
+                decision_sink.append((parsed.raw, parsed.entry_id, parsed.decision))
+            elif surface:
                 issues.append(
                     LinkIssue(
                         rel,
                         "misplaced-decision-ref",
                         f"{list_key} -> {parsed.raw}: decision-level refs are valid only on "
-                        "replaces/evolves in a link sidecar, not here",
+                        "replaces/evolves (entry yaml or link sidecar), not here",
                     )
                 )
             continue
@@ -1696,6 +1711,11 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     # from the entry-level lists on purpose - a decision edge is never
     # projected up to its entry.
     decision_edges: list[tuple[str, str, str, str]] = []
+    # Decision refs authored in an ENTRY's own yaml (write-time grammar,
+    # 2026-07-24): (rel, source_id, kind, raw, target_id, ordinal). Validated
+    # after the file loop when every entry's ordinals are known, then folded
+    # into decision_edges for the shared forward-only check.
+    entry_yaml_decision_refs: list[tuple[str, str, str, str, str, str]] = []
     # entry_id -> {"d1", "d2", ...}: which decisions a ref can legally target.
     entry_decision_ordinals: dict[str, set[str]] = {}
     entry_timestamps: dict[str, str] = {}
@@ -1762,11 +1782,18 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                 related_entry_refs.append((rel, ref))
             # "supersedes" is the legacy spelling of "replaces" (renamed
             # 2026-07-24); <=2.19 corpora carry it, so both keys validate into
-            # the same ref list forever. Writers emit only "replaces".
+            # the same ref list forever. Writers emit only "replaces". The
+            # decision sink stays None here: pass two below is heading-anchored
+            # and knows the SOURCE entry, which decision validation needs.
+            _discard_decisions: list = []
             for key in ("replaces", "supersedes"):
-                for ref in _entry_level_ref_ids(yaml_block, key, rel, issues, surface=True):
+                for ref in _entry_level_ref_ids(
+                    yaml_block, key, rel, issues, surface=True, decision_sink=_discard_decisions
+                ):
                     replaces_refs.append((rel, ref))
-            for ref in _entry_level_ref_ids(yaml_block, "evolves", rel, issues, surface=True):
+            for ref in _entry_level_ref_ids(
+                yaml_block, "evolves", rel, issues, surface=True, decision_sink=_discard_decisions
+            ):
                 evolves_refs.append((rel, ref))
             for token in _COMMIT_TOKEN_RE.findall(_frontmatter_list_region(yaml_block, "commits")):
                 commit_refs.append((rel, token))
@@ -1833,13 +1860,29 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
             source_id = id_match.group(1) if id_match else None
             if source_id:
                 entry_timestamps.setdefault(source_id, heading_ts)
+            # Decision-level refs (`mse_x:dN`) in the entry's own lifecycle
+            # lists are the write-time grammar (2026-07-24). Collected here
+            # with their source entry and validated after the file loop, when
+            # every entry's decision ordinals are known.
             for key in ("replaces", "supersedes"):
-                for ref in _entry_level_ref_ids(yaml_block, key, rel, issues, surface=False):
+                _sink: list = []
+                for ref in _entry_level_ref_ids(
+                    yaml_block, key, rel, issues, surface=False, decision_sink=_sink
+                ):
                     if source_id:
                         replaces_edges.append((rel, source_id, ref))
-            for ref in _entry_level_ref_ids(yaml_block, "evolves", rel, issues, surface=False):
+                if source_id:
+                    for raw, target, ordinal in _sink:
+                        entry_yaml_decision_refs.append((rel, source_id, "replaces", raw, target, ordinal))
+            _sink = []
+            for ref in _entry_level_ref_ids(
+                yaml_block, "evolves", rel, issues, surface=False, decision_sink=_sink
+            ):
                 if source_id:
                     evolves_edges.append((rel, source_id, ref))
+            if source_id:
+                for raw, target, ordinal in _sink:
+                    entry_yaml_decision_refs.append((rel, source_id, "evolves", raw, target, ordinal))
 
         if doc.layout not in {"per-user-day", "month-user"}:
             continue
@@ -2189,6 +2232,36 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     _forward_only_guard(replaces_edges, "replaces", "entry replaces itself", "supersession")
     _forward_only_guard(evolves_edges, "evolves", "entry evolves itself", "evolution")
 
+    # Entry-yaml decision refs validate here, mirroring the sidecar checks
+    # exactly (dangling target, dangling ordinal, intra-entry), then join
+    # decision_edges so the forward-only check below covers both sources.
+    for rel_path, source_id, kind, raw, target_id, ordinal in entry_yaml_decision_refs:
+        if target_id not in known_entries:
+            issues.append(
+                LinkIssue(rel_path, f"dangling-{kind}", f"{kind} -> {raw} (no such entry_id)")
+            )
+            continue
+        if target_id == source_id:
+            issues.append(
+                LinkIssue(
+                    rel_path,
+                    "intra-entry-decision-ref",
+                    f"{kind} -> {raw}: both ends are in the same entry; "
+                    "decisions of one entry are contemporaneous, so there is no order to record",
+                )
+            )
+            continue
+        if ordinal not in entry_decision_ordinals.get(target_id, set()):
+            issues.append(
+                LinkIssue(
+                    rel_path,
+                    "dangling-decision-ref",
+                    f"{kind} -> {raw}: {target_id} has no {ordinal}",
+                )
+            )
+            continue
+        decision_edges.append((rel_path, source_id, target_id, ordinal))
+
     # Decision edges get the same forward-only check, resolving each end to its
     # ENTRY's heading timestamp - a decision carries no time of its own. Both
     # ends are guaranteed to be in different entries (intra-entry refs are
@@ -2397,8 +2470,42 @@ def session_append_entry(
             )
 
     known, entry_ts = _known_entry_ids_and_timestamps(sessions_dir)
+    # Decision-level refs (`mse_x:dN`) are valid in replaces/evolves at write
+    # time (JNL's 2026-07-24 direction): the author is the one party who knows
+    # which decision an edge targets, so the grammar meets them at authoring.
+    # Ordinals are parsed lazily - only when a decision ref is actually present
+    # does the corpus get a body pass.
+    _corpus_ordinals: dict[str, set[str]] | None = None
+
+    def _ordinals() -> dict[str, set[str]]:
+        nonlocal _corpus_ordinals
+        if _corpus_ordinals is None:
+            _corpus_ordinals = {}
+            for doc in iter_session_documents(sessions_dir):
+                try:
+                    text = doc.path.read_text(encoding="utf-8")
+                except (OSError, UnicodeDecodeError):
+                    continue
+                for seen_id, ordinal in _walk_entry_bodies(text, _entry_decision_ordinals):
+                    _corpus_ordinals.setdefault(seen_id, set()).add(ordinal)
+        return _corpus_ordinals
+
     for kind, refs in (("related_entries", related_entries), ("replaces", replaces), ("evolves", evolves)):
         for ref in refs:
+            parsed = _parse_list_ref(ref)
+            if parsed.ok and parsed.decision is not None:
+                if kind == "related_entries":
+                    issues.append(f"{kind} -> {ref}: decision-level refs are valid only on replaces/evolves")
+                    continue
+                if parsed.entry_id not in known:
+                    issues.append(f"{kind} -> {ref}: no such entry_id (refs must never be invented)")
+                elif parsed.entry_id in entry_ts and entry_ts[parsed.entry_id] > ts:
+                    issues.append(
+                        f"{kind} -> {ref}: target is newer ({entry_ts[parsed.entry_id]}) than this entry ({ts}); edges point backward in time"
+                    )
+                elif parsed.decision not in _ordinals().get(parsed.entry_id, set()):
+                    issues.append(f"{kind} -> {ref}: {parsed.entry_id} has no {parsed.decision}")
+                continue
             if ref not in known:
                 issues.append(f"{kind} -> {ref}: no such entry_id (refs must never be invented)")
             elif ref in entry_ts and entry_ts[ref] > ts:

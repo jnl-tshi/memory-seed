@@ -1395,13 +1395,27 @@ def main(argv: list[str] | None = None) -> int:
             if not ranked:
                 print("  (no older candidate entries found)")
                 return 0
+            from .core import entry_body_decisions
+
             for item in ranked:
                 chunk = item.chunk
                 print(f"  {chunk.entry_id}  {chunk.session_date}  {chunk.title}  (score {item.final_score:.3f})")
                 if item.shared_files:
                     print(f"    shares: {', '.join(item.shared_files)}")
+                # Decision structure, so a lifecycle edge can be narrowed to
+                # :dN at authoring time - the one moment the author knows which
+                # decision the edge targets (write-time grammar, 2026-07-24).
+                decisions = entry_body_decisions(chunk.text)
+                if len(decisions) >= 2:
+                    listing = " / ".join(f"{d.ordinal} {d.name}".strip() for d in decisions)
+                    print(f"    decisions: {listing}  (narrow a lifecycle edge as {chunk.entry_id}:dN)")
             print()
-            print("Paste into the entry's YAML:")
+            print("Litmus: retires it -> replaces; refines while it stays valid -> evolves; else related.")
+            print("Patterns that are evolves: implementing what an earlier entry proposed/scoped, and")
+            print("completing a design call an earlier entry deferred. Landing/merging existing work is")
+            print("NOT a lifecycle edge; parallel steps of one campaign are related at most.")
+            print()
+            print("Paste into the entry's YAML (or narrow lifecycle refs to :dN):")
             print("related_entries:")
             for item in ranked:
                 print(f"  - {item.chunk.entry_id}")

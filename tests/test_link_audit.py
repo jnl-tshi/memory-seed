@@ -174,6 +174,21 @@ class LinkAuditTests(unittest.TestCase):
         )
         self.assertIsNone(self._gap(B))
 
+    def test_entry_yaml_decision_ref_suppresses_the_pair_and_populates_chunk(self):
+        # Write-time grammar (2026-07-24): a `:dN` item in the entry's OWN
+        # evolves list peels into chunk.decision_edges (never the entry-level
+        # list) and suppresses the pair as a gap, exactly like a sidecar ref.
+        self._write(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"], decisions=["Alpha", "Beta"]),
+            _entry("2026-06-01 10:00", B, files=["pkg/foo.py"], evolves=[f"{A}:d1"]),
+        )
+        chunk = next(
+            c for c in extract_memory_chunks(self.cwd, granularity="entry") if c.entry_id == B
+        )
+        self.assertEqual(chunk.decision_edges, (("evolves", A, "d1"),))
+        self.assertEqual(chunk.evolves, ())  # no projection to entry level
+        self.assertIsNone(self._gap(B))
+
     def test_target_and_candidate_carry_decision_structure(self):
         # Decision awareness is SURFACED, not scored: both ends' decisions ride
         # on the gap so a human or a judgment agent can narrow an edge to :dN.

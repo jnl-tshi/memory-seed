@@ -261,7 +261,7 @@ TOOLS: list[dict[str, Any]] = [
                     "description": "Controlled-vocabulary slugs or aliases; aliases are stored canonically. Unknown slugs are refused.",
                 },
                 "related_entries": {"type": "array", "items": {"type": "string"}, "description": "entry_id values this entry relates to. Must already exist and predate it."},
-                "replaces": {"type": "array", "items": {"type": "string"}, "description": "entry_id values this entry retires (the old decision is now wrong or dead)."},
+                "replaces": {"type": "array", "items": {"type": "string"}, "description": "entry_id values this entry retires (the old decision is now wrong or dead). A multi-decision target may be narrowed to one decision as <entry_id>:dN."},
                 "evolves": {"type": "array", "items": {"type": "string"}, "description": "entry_id values this entry refines (the old decision stays valid but incomplete)."},
                 "project_path": {"type": "string", "default": "."},
                 "subproject_path": {"type": "string", "description": "subproject_path field; omit for null."},
