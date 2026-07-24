@@ -86,6 +86,28 @@ export function inDecisionGroup(node: TrailEvent): boolean {
   return Boolean(node.decision_ordinal) || (node.decision_count ?? 0) > 0;
 }
 
+// Does either end of this edge name a specific decision rather than a whole
+// entry? Keyed on the row id rather than a payload flag because that is what
+// the endpoint IS: `_decision_edges_for_rows` terminates a decision-level edge
+// on a `{entry_id}#decisions/{dN}-{slug}` row and an entry-level one on the
+// bare entry id, so the id already carries the answer and cannot disagree with
+// it. Mixed granularity counts - "d3 of B evolves A" is decision-level on one
+// end, which is exactly the precision worth showing.
+export function isDecisionEdge(edge: { source: string; target: string }): boolean {
+  return edge.source.includes("#decisions/") || edge.target.includes("#decisions/");
+}
+
+// "D2" / "D2 of <entry title>" for a decision row, plain title otherwise -
+// the label a lineage tooltip needs. An edge tooltip built from raw titles
+// would read "D2 - long heading evolves D1 - other long heading" with no clue
+// which SESSIONS those decisions belong to, which is the one thing a reader
+// following lineage across the Trail actually needs.
+export function decisionEndpointLabel(node: TrailEvent, entryTitle?: string): string {
+  const ordinal = (node.decision_ordinal || "").toUpperCase();
+  if (!ordinal) return node.title;
+  return entryTitle ? `${ordinal} of ${entryTitle}` : `${ordinal} (${node.title})`;
+}
+
 // A decision row's rank within its entry group: "d1" -> 1, "d10" -> 10,
 // absent -> 0. Parsed numerically because the rows in a group share one
 // timestamp, so ordering falls entirely to this tiebreak - a string compare

@@ -4,7 +4,9 @@ import type { TrailStyle } from "./SettingsMenu";
 import {
   buildTrailModel,
   trailStamp,
+  decisionEndpointLabel,
   inDecisionGroup,
+  isDecisionEdge,
   isDecisionRow,
   laneColorFamily,
   pastelOf,
@@ -61,6 +63,7 @@ export function TrailWorkspace({
   // 2.5; arrowheads use userSpaceOnUse so they stay the same size in both
   // (calibrated to the fine line).
   const strokeW = trailStyle.thickness === "thick" ? 2.5 : 1.8;
+  const lifecycleEdges = trailStyle.lifecycleEdges;
   const handDrawn = trailStyle.style === "hand";
   const pressure = handDrawn ? trailStyle.pressure : 0;
 
@@ -375,6 +378,13 @@ export function TrailWorkspace({
     const item = items[rowOf.get(id) ?? -1];
     return item && item.kind === "node" ? item.node : null;
   };
+  // The entry title behind a decision row: its group ANCHOR, which shares the
+  // entry_id but carries no ordinal. Undefined for an ordinary entry row (it
+  // is its own title) and for a decision whose anchor fell outside the window.
+  const entryTitleOf = (node: TrailEvent): string | undefined => {
+    if (!node.decision_ordinal || !node.entry_id) return undefined;
+    return nodeAt(node.entry_id)?.title;
+  };
   const relLaneX = (type: string) => continuityZoneWidth + 8 + TRAIL_REL_LANES.indexOf(type as (typeof TRAIL_REL_LANES)[number]) * TRAIL_REL_LANE_W;
   const pairKey = (a: string, b: string) => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`);
   const strongestByPair = new Map<string, TrailEdge>();
@@ -394,9 +404,18 @@ export function TrailWorkspace({
   // render as a single SVG bracket beside the dots instead of out-and-back hops.
   const sameBranch = (a: string, b: string) => (nodeAt(a)?.branch || "") === (nodeAt(b)?.branch || "");
   const adjacentRowsOf = (a: string, b: string) => adjacentRows(rowOf.get(a)!, rowOf.get(b)!);
+  // Decision-level edges are deliberately NOT bracketed: a bracket draws only
+  // when the chain touches the selection, which would hide them again through
+  // the back door - the exact invisibility the lifecycleEdges setting exists
+  // to fix. They route as arcs so their two endpoints stay legible.
   const bracketEvolves = new Set(
     lifecycle.filter(
-      (edge) => edge.type === "evolves" && winsPair(edge) && adjacentRowsOf(edge.source, edge.target) && sameBranch(edge.source, edge.target),
+      (edge) =>
+        edge.type === "evolves" &&
+        winsPair(edge) &&
+        !(lifecycleEdges !== "select" && isDecisionEdge(edge)) &&
+        adjacentRowsOf(edge.source, edge.target) &&
+        sameBranch(edge.source, edge.target),
     ),
   );
   const chainPrimary = new Set<string>();
@@ -427,7 +446,11 @@ export function TrailWorkspace({
     if (!winsPair(edge)) return;
     if (bracketEvolves.has(edge)) return;
     const touched = focusActive && (edge.source === selectedEntryId || edge.target === selectedEntryId);
-    if ((edge.type === "related" || edge.type === "evolves") && !touched) return;
+    // `related` is unchanged: on-select only, always. `evolves` visibility is
+    // the 2026-07-24 setting - see readLifecycleEdges. Without it, decision
+    // edges were invisible by default, because every one of them is an evolves.
+    if (edge.type === "related" && !touched) return;
+    if (edge.type === "evolves" && !touched && !(lifecycleEdges === "all" || (lifecycleEdges === "decision" && isDecisionEdge(edge)))) return;
     if (edge.type === "related" && sameBranch(edge.source, edge.target)) return;
     const source = nodeAt(edge.source);
     const target = nodeAt(edge.target);
@@ -442,14 +465,25 @@ export function TrailWorkspace({
     const stroke = soft ? `var(--edge-${edge.type}-soft)` : `var(--edge-${edge.type})`;
     const marker = soft ? `trail-arrow-${edge.type}-soft` : `trail-arrow-${edge.type}`;
     const opacity = touched ? 0.95 : focusActive ? 0.5 : 0.9;
-    const width = touched ? strokeW + 0.6 : strokeW;
-    const tip = `${stripTitleStamp(source.title)} ${TRAIL_VERB[edge.type]} ${stripTitleStamp(target.title)}`;
+    const decisionLevel = isDecisionEdge(edge);
+    // A decision-level edge draws SOLID where an entry-level one is dashed.
+    // The dash has always meant "a relationship between these entries"; an
+    // unbroken line reads as the more definite statement, which is exactly
+    // what naming both decisions makes it. Same hue and lane, so the edge KIND
+    // still reads first and only the precision changes.
+    const dash = decisionLevel ? undefined : TRAIL_DASH;
+    const width = touched ? strokeW + 0.6 : decisionLevel ? strokeW + 0.2 : strokeW;
+    const label = (node: TrailEvent) =>
+      stripTitleStamp(decisionEndpointLabel(node, entryTitleOf(node)));
+    const tip = decisionLevel
+      ? `${label(source)} ${TRAIL_VERB[edge.type]} ${label(target)}`
+      : `${stripTitleStamp(source.title)} ${TRAIL_VERB[edge.type]} ${stripTitleStamp(target.title)}`;
     const key = `arc-${edge.source}-${edge.target}-${edge.type}`;
     if (edge.type === "replaces" && adjacentRows(sRow, tRow)) {
       const bow = 11;
       const d = `M ${sx} ${sy} C ${sx - bow} ${sy + (ty - sy) * 0.3}, ${tx - bow} ${ty - (ty - sy) * 0.3}, ${tx} ${ty}`;
       arcs.push(
-        <path key={key} d={d} fill="none" stroke={stroke} strokeWidth={width} strokeDasharray={TRAIL_DASH} strokeOpacity={opacity} markerEnd={`url(#${marker})`}>
+        <path key={key} d={d} fill="none" stroke={stroke} strokeWidth={width} strokeDasharray={dash} strokeOpacity={opacity} markerEnd={`url(#${marker})`}>
           <title>{tip}</title>
         </path>,
       );
@@ -460,7 +494,7 @@ export function TrailWorkspace({
     const dir = ty > sy ? 1 : -1;
     const d = `M ${sx} ${sy} L ${lx + r} ${sy} Q ${lx} ${sy} ${lx} ${sy + r * dir} L ${lx} ${ty - r * dir} Q ${lx} ${ty} ${lx + r} ${ty} L ${tx} ${ty}`;
     arcs.push(
-      <path key={key} d={d} fill="none" stroke={stroke} strokeWidth={width} strokeDasharray={TRAIL_DASH} strokeOpacity={opacity} markerEnd={`url(#${marker})`}>
+      <path key={key} d={d} fill="none" stroke={stroke} strokeWidth={width} strokeDasharray={dash} strokeOpacity={opacity} markerEnd={`url(#${marker})`}>
         <title>{tip}</title>
       </path>,
     );
@@ -692,7 +726,16 @@ export function TrailWorkspace({
             </>
           )}
           <span className="trail-legend-item"><span className="trail-legend-line" style={{ borderColor: "var(--edge-replaces)" }} />replaces</span>
-          <span className="trail-legend-item"><span className="trail-legend-line" style={{ borderColor: "var(--edge-evolves)" }} />evolves · on select</span>
+          {/* The evolves caption tracks the lifecycleEdges setting: it used to
+              read "on select" unconditionally, which became a lie the moment
+              decision-level edges started drawing by default. */}
+          <span className="trail-legend-item">
+            <span className="trail-legend-line" style={{ borderColor: "var(--edge-evolves)" }} />
+            {lifecycleEdges === "all" ? "evolves" : lifecycleEdges === "decision" ? "evolves · decision-level" : "evolves · on select"}
+          </span>
+          {lifecycleEdges === "decision" && (
+            <span className="trail-legend-item"><span className="trail-legend-line trail-legend-solid" style={{ borderColor: "var(--edge-evolves)" }} />solid = names both decisions</span>
+          )}
           <span className="trail-legend-item"><span className="trail-legend-line" style={{ borderColor: "var(--edge-related)" }} />related · on select</span>
         </span>
         {shown < total && (

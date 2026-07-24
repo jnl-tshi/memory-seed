@@ -7,7 +7,7 @@ const meta: Meta<typeof SettingsMenu> = {
   title: "Domain/SettingsMenu",
   component: SettingsMenu,
   args: {
-    trailStyle: { thickness: "fine", style: "hand", wobble: 0.6, pressure: 0.4 },
+    trailStyle: { thickness: "fine", style: "hand", wobble: 0.6, pressure: 0.4, lifecycleEdges: "decision" },
     dock: "auto",
     theme: "light",
     onTrailStyle: fn(),
@@ -62,7 +62,7 @@ export const EscapeClosesAndReturnsFocus: Story = {
 
 export const HandDrawnRevealsWobbleAndPressure: Story = {
   args: {
-    trailStyle: { thickness: "fine", style: "hand", wobble: 0.6, pressure: 0.4 },
+    trailStyle: { thickness: "fine", style: "hand", wobble: 0.6, pressure: 0.4, lifecycleEdges: "decision" },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -74,7 +74,7 @@ export const HandDrawnRevealsWobbleAndPressure: Story = {
 
 export const SlickStyleHidesWobbleAndPressure: Story = {
   args: {
-    trailStyle: { thickness: "fine", style: "slick", wobble: 0.6, pressure: 0.4 },
+    trailStyle: { thickness: "fine", style: "slick", wobble: 0.6, pressure: 0.4, lifecycleEdges: "decision" },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
