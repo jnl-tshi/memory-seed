@@ -70,6 +70,30 @@ class LinksCheckTests(unittest.TestCase):
         lines += ["```", ""]
         (d / f"{file_date}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
+    def _topic_sidecar(self, cwd, file_date, blocks, *, heading_time="10:00"):
+        """Write topic-sidecar blocks under sessions/topics/<month>/<date>.md.
+
+        ``blocks`` is [(entry_id, [slug, ...]), ...] - a list so a test can put
+        two blocks in one file."""
+        d = cwd / MEMORY_DIR_NAME / "sessions" / "topics" / file_date[:7]
+        d.mkdir(parents=True, exist_ok=True)
+        lines = []
+        for entry_id, slugs in blocks:
+            lines += [f"## {file_date} {heading_time} - topics", "", "```yaml", f"entry_id: {entry_id}", "topics:"]
+            lines.extend(f"  - {slug}" for slug in slugs)
+            lines += ["```", ""]
+        (d / f"{file_date}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def _vocabulary(self, cwd):
+        (cwd / MEMORY_DIR_NAME).mkdir(parents=True, exist_ok=True)
+        (cwd / MEMORY_DIR_NAME / "topics.yaml").write_text(
+            "schema_version: 1\ntopics:\n"
+            "  - slug: memory-trace\n    label: Memory Trace\n    status: active\n    aliases: [trace-ui]\n"
+            "  - slug: retrieval\n    label: Retrieval\n    status: active\n"
+            "  - slug: graph\n    label: Graph\n    status: active\n",
+            encoding="utf-8",
+        )
+
     def _flat_session_raw(self, cwd, filename, text):
         sessions = cwd / MEMORY_DIR_NAME / "sessions"
         sessions.mkdir(parents=True, exist_ok=True)
@@ -1161,6 +1185,86 @@ class LinksCheckTests(unittest.TestCase):
         result = check_session_links(cwd=cwd)
         self.assertFalse(result.ok)
         self.assertIn("intra-entry-decision-ref", [i.kind for i in result.issues])
+
+    # --- Topic sidecars: the third family (attributes, not edges) ---
+
+    def _topic_corpus(self, cwd):
+        """One entry with an authored topic, one with none."""
+        self._vocabulary(cwd)
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / "2026-06-01.md").write_text(
+            "## 2026-06-01 09:00 - Untagged\n\n```yaml\nentry_id: mse_aaaaaaaaaaaaaaaa\n```\n\n"
+            "### Decision\n\n- D: a\n- R: b\n\n"
+            "## 2026-06-01 10:00 - Already tagged\n\n```yaml\nentry_id: mse_bbbbbbbbbbbbbbbb\ntopics:\n"
+            "  - retrieval\n```\n\n### Decision\n\n- D: c\n- R: d\n",
+            encoding="utf-8",
+        )
+
+    def test_topic_sidecar_accepts_vocabulary_slugs_for_an_untagged_entry(self):
+        cwd = self.make_project()
+        self._topic_corpus(cwd)
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_aaaaaaaaaaaaaaaa", ["memory-trace", "graph"])])
+        result = check_session_links(cwd=cwd)
+        self.assertTrue(result.ok, [i.detail for i in result.issues if i.severity == "error"])
+
+    def test_topic_sidecar_rejects_a_slug_outside_the_vocabulary(self):
+        cwd = self.make_project()
+        self._topic_corpus(cwd)
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_aaaaaaaaaaaaaaaa", ["not-a-real-topic"])])
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        self.assertIn("unknown-topic-slug", [i.kind for i in result.issues])
+
+    def test_topic_sidecar_rejects_an_alias_in_favour_of_its_canonical_slug(self):
+        # The write path stores aliases canonically; a sidecar that keeps the
+        # alias would give one topic two spellings in the corpus.
+        cwd = self.make_project()
+        self._topic_corpus(cwd)
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_aaaaaaaaaaaaaaaa", ["trace-ui"])])
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        self.assertIn("non-canonical-topic-slug", [i.kind for i in result.issues])
+        self.assertTrue(any("memory-trace" in i.detail for i in result.issues))
+
+    def test_topic_sidecar_caps_the_number_of_topics(self):
+        cwd = self.make_project()
+        self._topic_corpus(cwd)
+        self._topic_sidecar(
+            cwd, "2026-06-01", [("mse_aaaaaaaaaaaaaaaa", ["memory-trace", "graph", "retrieval", "memory-trace"])]
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        self.assertIn("topic-sidecar-overreach", [i.kind for i in result.issues])
+
+    def test_topic_sidecar_restating_an_authored_topic_warns_but_never_errors(self):
+        # Redundant, not wrong: the entry already says it. An error would make
+        # a re-run of the inference pipeline fail on its own correct output.
+        cwd = self.make_project()
+        self._topic_corpus(cwd)
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_bbbbbbbbbbbbbbbb", ["retrieval", "graph"])])
+        result = check_session_links(cwd=cwd)
+        self.assertTrue(result.ok, [i.detail for i in result.issues if i.severity == "error"])
+        restated = [i for i in result.issues if i.kind == "topic-already-authored"]
+        self.assertEqual(len(restated), 1)
+        self.assertEqual(restated[0].severity, "warning")
+
+    def test_topic_sidecar_flags_orphans_date_mismatch_and_duplicate_blocks(self):
+        cwd = self.make_project()
+        self._topic_corpus(cwd)
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_zzzzzzzzzzzzzzzz", ["graph"])])
+        self.assertIn("orphan-topic-sidecar", [i.kind for i in check_session_links(cwd=cwd).issues])
+
+        # An entry logged on a different day than the file it is filed under.
+        self._topic_sidecar(cwd, "2026-06-02", [("mse_aaaaaaaaaaaaaaaa", ["graph"])])
+        self.assertIn("topic-sidecar-date-mismatch", [i.kind for i in check_session_links(cwd=cwd).issues])
+
+        # Two blocks for one entry in one file: which one is the record?
+        self._topic_sidecar(
+            cwd, "2026-06-01",
+            [("mse_aaaaaaaaaaaaaaaa", ["graph"]), ("mse_aaaaaaaaaaaaaaaa", ["retrieval"])],
+        )
+        self.assertIn("duplicate-topic-block", [i.kind for i in check_session_links(cwd=cwd).issues])
 
     # --- Grammar v2 (2026-07-24 mandate): comma ordinals + arrow source ---
 
