@@ -160,9 +160,9 @@ export function SettingsMenu({
                 <div className="trail-settings-row">
                   <span>Lifecycle links</span>
                   <div className="segment-control">
-                    <button type="button" aria-pressed={trailStyle.lifecycleEdges === "select"} onClick={() => set({ lifecycleEdges: "select" })}>On select</button>
-                    <button type="button" aria-pressed={trailStyle.lifecycleEdges === "decision"} onClick={() => set({ lifecycleEdges: "decision" })}>Decision</button>
-                    <button type="button" aria-pressed={trailStyle.lifecycleEdges === "all"} onClick={() => set({ lifecycleEdges: "all" })}>All</button>
+                    <button type="button" aria-pressed={trailStyle.lifecycleEdges === "select"} title="Draw a lifecycle link only while the entry it touches is selected." onClick={() => set({ lifecycleEdges: "select" })}>On select</button>
+                    <button type="button" aria-pressed={trailStyle.lifecycleEdges === "decision"} title="Keep decision-level links drawn always; show entry-to-entry only on select." onClick={() => set({ lifecycleEdges: "decision" })}>Decision</button>
+                    <button type="button" aria-pressed={trailStyle.lifecycleEdges === "all"} title="Keep every lifecycle link drawn — decision-level bold, entry-to-entry lighter." onClick={() => set({ lifecycleEdges: "all" })}>All</button>
                   </div>
                 </div>
                 <div className="settings-note">
