@@ -8,20 +8,24 @@ All notable changes to Memory Seed are summarized here.
 
 - **BREAKING (write path): decision granularity is mandated on lifecycle
   edges** (grammar v2, JNL's direction 2026-07-24). `session append` /
-  `memory_session_append` now refuse a `replaces:`/`evolves:` ref that leaves
-  a decision unnamed: a target with addressable decisions must be written
-  `<entry_id>:dN` (explicitly `:d1` for single-decision targets; comma form
-  `mse_x:d1,d4` expands to one edge per ordinal), and an entry whose own body
-  carries 2+ decisions must prefix each ref with its authoring decision as
-  `dN -> <ref>`. Bare ids remain valid only for targets with no decision
-  section. `links check` validates both ends' ordinals everywhere (new error
+  `memory_session_append` name a decision on an edge end exactly when the
+  entry it belongs to has more than one decision: a target with **2+
+  decisions** must be written `<entry_id>:dN` (comma form `mse_x:d1,d4`
+  expands to one edge per ordinal); a **single- or no-decision target takes
+  the bare id** — its `:d1` and its bare id denote the same edge, so `:d1` on
+  a single-decision target is *rejected* as redundant. Symmetrically, an entry
+  whose own body carries 2+ decisions must prefix each ref with its authoring
+  decision as `dN -> <ref>`; a single-decision writer omits the prefix. `links
+  check` validates both ends' ordinals everywhere (new error
   `dangling-source-decision`, in entry YAML and link-sidecar blocks alike) and
-  adds two post-cutoff advisories (`unaddressed-target-decision`,
-  `unattributed-source-decision`) that warn - never error, since append-only
-  makes a published bare ref unrepairable - on entries stamped after
-  2026-07-24 09:00. Read side: `MemoryChunk.decision_edges` and the sidecar
-  `decision_edges` channel carry `(kind, source_ordinal, target,
-  target_ordinal)`; the Trail draws each edge from the authoring decision's
+  adds post-cutoff advisories (`unaddressed-target-decision` for a bare
+  multi-decision target, `redundant-decision-ref` for `:d1` on a
+  single-decision target, `unattributed-source-decision` for a missing arrow)
+  that warn - never error, since append-only makes a published ref
+  unrepairable - on entries stamped after 2026-07-24 09:00. Read side:
+  `MemoryChunk.decision_edges` and the sidecar `decision_edges` channel carry
+  `(kind, source_ordinal, target, target_ordinal)`; the Trail draws each edge
+  from the authoring decision's
   row to the target decision's row and no longer double-draws the entry-level
   twin of an arrow-narrowed edge. This lands step 3 (source decisions) of the
   decision-refs draft, in per-item arrow form rather than the drafted

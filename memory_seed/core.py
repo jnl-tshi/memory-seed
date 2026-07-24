@@ -2479,7 +2479,10 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
         if not source_ts or source_ts < DECISION_GRANULARITY_MANDATE_SINCE:
             continue
         target_ordinals = entry_decision_ordinals.get(target_id, set())
-        if ordinal is None and target_ordinals:
+        # Bare ref to a MULTI-decision target: which one? Advisory only, since a
+        # published entry cannot be restamped. Single-decision targets are fine
+        # bare - :d1 there is redundant (see the reciprocal check below).
+        if ordinal is None and len(target_ordinals) >= 2:
             listed = ",".join(sorted(target_ordinals, key=lambda o: int(o[1:])))
             issues.append(
                 LinkIssue(
@@ -2487,6 +2490,18 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                     "unaddressed-target-decision",
                     f"{kind} -> {raw}: {target_id} has decisions ({listed}); the 2026-07-24 "
                     f"grammar names the one affected - use {target_id}:d1 style",
+                    "warning",
+                )
+            )
+        # :d1 on a SINGLE-decision target: redundant, bare is canonical. A
+        # warning, not an error - the same append-only reason.
+        elif ordinal is not None and len(target_ordinals) == 1:
+            issues.append(
+                LinkIssue(
+                    rel_path,
+                    "redundant-decision-ref",
+                    f"{kind} -> {raw}: {target_id} has a single decision, so :{ordinal} adds "
+                    f"nothing - the bare id denotes the same edge",
                     "warning",
                 )
             )
@@ -2773,11 +2788,23 @@ def session_append_entry(
             for item in parsed_items:
                 if item.decision is not None and item.decision not in target_ordinals:
                     issues.append(f"{kind} -> {ref}: {target_id} has no {item.decision}")
-            if first.decision is None and target_ordinals:
+            # Name the target's decision only when there is a CHOICE to make -
+            # i.e. it has 2+ decisions. A single-decision target's :d1 and its
+            # bare id denote the same edge (the ratified rule), so bare is
+            # canonical there and :d1 is redundant ceremony (JNL 2026-07-24,
+            # reconciling the swarm's granularity posture). This mirrors the
+            # source side, which already omits the arrow for a single-decision
+            # writer - both ends now name an ordinal only when it disambiguates.
+            if first.decision is None and len(target_ordinals) >= 2:
                 listed = ",".join(sorted(target_ordinals, key=lambda o: int(o[1:])))
                 issues.append(
-                    f"{kind} -> {ref}: {target_id} has decisions ({listed}); name the one affected "
-                    f"- '{target_id}:d1' style, comma-separated for several (2026-07-24 grammar)"
+                    f"{kind} -> {ref}: {target_id} has {len(target_ordinals)} decisions ({listed}); name the "
+                    f"one affected - '{target_id}:d1' style, comma-separated for several (2026-07-24 grammar)"
+                )
+            elif first.decision is not None and len(target_ordinals) == 1:
+                issues.append(
+                    f"{kind} -> {ref}: {target_id} has a single decision, so ':{first.decision}' adds nothing "
+                    f"- use the bare id '{target_id}' (name a decision only when there is a choice)"
                 )
             if first.source_decision is None and len(own_ordinals) >= 2:
                 issues.append(

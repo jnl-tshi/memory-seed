@@ -94,11 +94,11 @@ class SessionAppendTests(unittest.TestCase):
 
     # --- Grammar v2 (2026-07-24): granularity is mandated at write time ---
 
-    def test_append_mandates_target_ordinal_when_target_has_decisions(self):
+    def test_append_mandates_target_ordinal_when_target_has_multiple_decisions(self):
         older = self._append_multi_decision_older()
         result = self._append(evolves=[older])
         self.assertFalse(result.ok)
-        self.assertTrue(any("has decisions (d1,d2)" in issue for issue in result.issues), result.issues)
+        self.assertTrue(any("has 2 decisions (d1,d2)" in issue for issue in result.issues), result.issues)
 
     def test_append_accepts_bare_ref_to_a_decisionless_target(self):
         summary_only = self._append(
@@ -108,6 +108,23 @@ class SessionAppendTests(unittest.TestCase):
         result = self._append(replaces=[summary_only.entry_id])
         self.assertTrue(result.ok, result.issues)
         self.assertTrue(check_session_links(cwd=self.cwd).ok)
+
+    def test_append_takes_a_single_decision_target_bare_and_rejects_its_d1(self):
+        # 2026-07-24 reconciliation: a single-decision target's :d1 and its bare
+        # id denote the same edge, so bare is canonical and :d1 is rejected -
+        # name a decision only when there is a choice to make.
+        single = self._append(title="One call", timestamp="2026-06-13 08:00")  # BODY is singular
+        self.assertTrue(single.ok, single.issues)
+
+        bare = self._append(title="Refines it", timestamp="2026-06-13 10:00", evolves=[single.entry_id])
+        self.assertTrue(bare.ok, bare.issues)
+        self.assertIn(f"- {single.entry_id}", bare.path.read_text(encoding="utf-8"))
+
+        redundant = self._append(
+            title="Over-specified", timestamp="2026-06-13 11:00", evolves=[f"{single.entry_id}:d1"]
+        )
+        self.assertFalse(redundant.ok)
+        self.assertTrue(any("single decision" in issue and "bare id" in issue for issue in redundant.issues), redundant.issues)
 
     def test_append_accepts_comma_multi_ordinal_and_validates_each(self):
         older = self._append_multi_decision_older()
@@ -234,10 +251,11 @@ class SessionAppendTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertTrue(any("newer" in issue for issue in result.issues), result.issues)
         # But replacing the older first entry from a NEW newest entry works.
-        # `:d1` is explicit - the target has a decision, so the 2026-07-24
-        # granularity mandate requires naming it even when it is the only one.
+        # `first` is single-decision, so the ref stays BARE - :d1 there is
+        # redundant and rejected (2026-07-24: name a decision only on a
+        # choice).
         ok = self._append(
-            title="Replacement", timestamp="2026-06-13 13:00", replaces=(f"{first.entry_id}:d1",)
+            title="Replacement", timestamp="2026-06-13 13:00", replaces=(first.entry_id,)
         )
         self.assertTrue(ok.ok, ok.issues)
         self.assertTrue(check_session_links(cwd=self.cwd).ok)

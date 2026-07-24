@@ -130,16 +130,20 @@ all four granularity combinations below fall out without a per-combination rule.
 `(entry_id, source_decision)` is therefore **withdrawn**; link-sidecar blocks keep the identity
 `(entry_id, timestamp)` fixed on 2026-07-24 and take the same arrow items.
 
-**Granularity is mandated at write time (JNL, 2026-07-24).** `session append`/`memory_session_append`
-refuse a `replaces`/`evolves` ref that leaves an end unnamed: a target with any addressable decision
-must carry `:dN` — explicitly `:d1` for a single-decision target — and an entry with 2+ decisions of
-its own must prefix every ref with the authoring ordinal. Only a target with no decision section stays
-bare. The reason is provenance: the judgment programme measured decision-shaped patterns
-(implementation-evolves-proposal, deferral-completion) as the dominant edge shapes, and an unnamed end
-is a fact the author knew and did not record — cheap now, unrecoverable later, and it makes downstream
-inference cheaper as a byproduct. `links check` cannot enforce it as an error (published entries are
-append-only, so a historical bare ref could never be repaired); it warns via
-`unaddressed-target-decision` / `unattributed-source-decision` on entries stamped after
+**Granularity is mandated at write time (JNL, 2026-07-24; single-decision rule reconciled same day).**
+`session append`/`memory_session_append` name an ordinal on an edge end **exactly when the entry it
+belongs to has more than one decision**: a target with 2+ decisions must carry `:dN`, and an entry
+with 2+ decisions of its own must prefix every ref with the authoring ordinal. A single- or
+no-decision end takes the bare id — its `:d1` and its bare id denote the same edge (see "For a
+single-decision entry…" above), so bare is canonical and `:d1` on a single-decision target is
+*rejected* as redundant. This makes the two ends symmetric: a single-decision source already omits its
+arrow, and now a single-decision target omits its suffix. The reason granularity is required at all is
+provenance: the judgment programme measured decision-shaped patterns (implementation-evolves-proposal,
+deferral-completion) as the dominant edge shapes, and an unnamed *multi-decision* end is a fact the
+author knew and did not record — cheap now, unrecoverable later. `links check` cannot enforce it as an
+error (published entries are append-only, so a historical ref could never be repaired); it warns via
+`unaddressed-target-decision` (bare multi-decision target), `redundant-decision-ref` (`:d1` on a
+single-decision target), and `unattributed-source-decision` (missing arrow) on entries stamped after
 `DECISION_GRANULARITY_MANDATE_SINCE` (2026-07-24 09:00) and stays silent on everything before.
 
 **For a single-decision entry, the entry-level and `d1` forms denote the same edge.** They must not both
