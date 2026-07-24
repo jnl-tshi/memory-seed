@@ -95,15 +95,14 @@ fall to the next when it does not, and never split a single-decision entry into 
 precise edges precise without inflating the common case, and it is why the Trail can weight class 3 as
 quiet background — most of the corpus legitimately lives there.
 
-> **Tension to resolve before the swarm runs (flagged 2026-07-24):** the grammar-v2 write-time mandate
-> (`session append`) currently *requires* an explicit `:d1` for any target that has a decision section,
-> single-decision included — the opposite of rule 3 above. That mandate governs **manual/agent
-> authoring in an entry's own YAML**; the swarm writes **link sidecars**, where `links check` only warns
-> (post-cutoff) rather than erroring, so the swarm posture is not blocked. But the two rules disagree on
-> single-decision targets and should be reconciled: either relax the append mandate to match rule 3
-> (bare id legal for single-decision targets, since `:d1` adds nothing), or keep the mandate strict for
-> hand-authoring and let the swarm's sidecar path be the one place entry-level-to-single-decision is
-> normal. JNL's call.
+> **Reconciled 2026-07-24 (JNL).** The earlier grammar-v2 mandate required an explicit `:d1` for *any*
+> decision-bearing target, single-decision included — the opposite of rule 3. That was relaxed to match:
+> **an ordinal is named only when the entry it belongs to has 2+ decisions.** A single-decision target
+> takes the bare id (`:d1` there is redundant and now *rejected* at `session append`, warned as
+> `redundant-decision-ref` at `links check`), exactly as a single-decision *source* already omits its
+> arrow. So rule 3 is now the write-time rule everywhere, not just the swarm's posture — no split
+> between hand-authoring and the sidecar path. The swarm therefore emits `:dN` only for multi-decision
+> targets and bare ids otherwise, and its output is canonical by construction.
 
 ## Open design questions (for JNL)
 

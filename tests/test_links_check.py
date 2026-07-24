@@ -1369,3 +1369,34 @@ class LinksCheckTests(unittest.TestCase):
         kinds = [i.kind for i in result.issues]
         self.assertNotIn("unaddressed-target-decision", kinds)
         self.assertNotIn("unattributed-source-decision", kinds)
+
+    def test_single_decision_target_is_bare_d1_is_redundant(self):
+        # 2026-07-24 reconciliation: a single-decision target takes the bare id;
+        # :d1 there denotes the same edge, so it warns (never errors - append
+        # only). mse_bbbb is singular '### Decision' in _decision_corpus.
+        cwd = self.make_project()
+        self._decision_corpus(cwd)
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+
+        # Bare ref to the single-decision target: clean, no advisory.
+        (sessions / "2026-06-03.md").write_text(
+            "## 2026-06-03 09:00 - Bare is right\n\n```yaml\nentry_id: mse_cccccccccccccccc\nevolves:\n"
+            "  - mse_bbbbbbbbbbbbbbbb\n```\n\n### Decision\n\n- D: x\n- R: y\n",
+            encoding="utf-8",
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertTrue(result.ok, [i.detail for i in result.issues if i.severity == "error"])
+        self.assertNotIn("unaddressed-target-decision", [i.kind for i in result.issues])
+        self.assertNotIn("redundant-decision-ref", [i.kind for i in result.issues])
+
+        # :d1 on that same single-decision target: redundant, warns.
+        (sessions / "2026-06-03.md").write_text(
+            "## 2026-07-25 09:00 - Over-specified\n\n```yaml\nentry_id: mse_cccccccccccccccc\nevolves:\n"
+            "  - mse_bbbbbbbbbbbbbbbb:d1\n```\n\n### Decision\n\n- D: x\n- R: y\n",
+            encoding="utf-8",
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertTrue(result.ok, [i.detail for i in result.issues if i.severity == "error"])
+        redundant = [i for i in result.issues if i.kind == "redundant-decision-ref"]
+        self.assertEqual(len(redundant), 1)
+        self.assertEqual(redundant[0].severity, "warning")
