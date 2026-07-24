@@ -7,8 +7,8 @@ from datetime import datetime
 from pathlib import Path
 
 from memory_seed.semantic_cache import (
-    SUPERSEDED_IMPORTANCE_DAMPING,
-    SUPERSEDED_RANK_DAMPING,
+    REPLACED_IMPORTANCE_DAMPING,
+    REPLACED_RANK_DAMPING,
     MemoryChunk,
     add_related_entry,
     build_related_entry_graph,
@@ -17,7 +17,7 @@ from memory_seed.semantic_cache import (
     rank_memory_chunks,
     rank_session_memory,
     suggest_related_entries,
-    superseding_lineage_heads,
+    replacing_lineage_heads,
 )
 
 
@@ -489,7 +489,7 @@ class SemanticCacheTests(unittest.TestCase):
         self.assertEqual(chunks[0].source_path, ".AGENTS/sessions/2026-05-19.md")
 
 
-def _entry(title, entry_id, body, related=None, supersedes=None, evolves=None, continuity=None, files=None):
+def _entry(title, entry_id, body, related=None, replaces=None, evolves=None, continuity=None, files=None):
     lines = [
         f"## {title}",
         "",
@@ -503,9 +503,9 @@ def _entry(title, entry_id, body, related=None, supersedes=None, evolves=None, c
     if related:
         lines.append("related_entries:")
         lines.extend(f"  - {ref}" for ref in related)
-    if supersedes:
-        lines.append("supersedes:")
-        lines.extend(f"  - {ref}" for ref in supersedes)
+    if replaces:
+        lines.append("replaces:")
+        lines.extend(f"  - {ref}" for ref in replaces)
     if evolves:
         lines.append("evolves:")
         lines.extend(f"  - {ref}" for ref in evolves)
@@ -736,9 +736,9 @@ class RelatedEntryGraphTests(unittest.TestCase):
             build_related_entry_graph(cwd),
         )
 
-    def test_graph_computes_superseded_by_inverse_separately_from_inbound(self):
+    def test_graph_computes_replaced_by_inverse_separately_from_inbound(self):
         cwd = self.make_project()
-        # A (11:00) supersedes C (09:00) and separately relates to B (10:00).
+        # A (11:00) replaces C (09:00) and separately relates to B (10:00).
         self.write_day(
             cwd,
             _entry("2026-05-10 09:00 - Oldest C", "ms-c0000000", "original decision."),
@@ -748,24 +748,24 @@ class RelatedEntryGraphTests(unittest.TestCase):
                 "ms-a0000000",
                 "replacement decision.",
                 related=["ms-b0000000"],
-                supersedes=["ms-c0000000"],
+                replaces=["ms-c0000000"],
             ),
         )
 
         graph = build_related_entry_graph(cwd)
 
-        self.assertEqual(graph["ms-a0000000"].supersedes, ("ms-c0000000",))
-        self.assertEqual(graph["ms-c0000000"].superseded_by, ("ms-a0000000",))
-        # The two edge kinds never bleed into each other: superseding C adds
+        self.assertEqual(graph["ms-a0000000"].replaces, ("ms-c0000000",))
+        self.assertEqual(graph["ms-c0000000"].replaced_by, ("ms-a0000000",))
+        # The two edge kinds never bleed into each other: replacing C adds
         # nothing to C's relatedness backlinks, and relating to B adds nothing
         # to B's supersession status.
         self.assertEqual(graph["ms-c0000000"].inbound, ())
-        self.assertEqual(graph["ms-b0000000"].superseded_by, ())
+        self.assertEqual(graph["ms-b0000000"].replaced_by, ())
         self.assertEqual(graph["ms-b0000000"].inbound, ("ms-a0000000",))
 
-    def test_importance_score_is_inbound_count_undampened_when_not_superseded(self):
+    def test_importance_score_is_inbound_count_undampened_when_not_replaced(self):
         cwd = self.make_project()
-        # B and C both cite A; A is never superseded.
+        # B and C both cite A; A is never replaced.
         self.write_day(
             cwd,
             _entry("2026-05-10 09:00 - Cited A", "ms-a0000000", "the decision."),
@@ -777,10 +777,10 @@ class RelatedEntryGraphTests(unittest.TestCase):
 
         self.assertEqual(graph["ms-a0000000"].importance_score, 2.0)
 
-    def test_importance_score_dampened_for_superseded_entry_below_live_entry(self):
+    def test_importance_score_dampened_for_replaced_entry_below_live_entry(self):
         # The harmony-contract fixture the DoD requires: a heavily-cited but
-        # superseded entry must score below a live, moderately-cited one.
-        # OLD (ms-aaaa0000): cited by 4, superseded. LIVE (ms-bbbb0000): cited by 2.
+        # replaced entry must score below a live, moderately-cited one.
+        # OLD (ms-aaaa0000): cited by 4, replaced. LIVE (ms-bbbb0000): cited by 2.
         cwd = self.make_project()
         self.write_day(
             cwd,
@@ -792,7 +792,7 @@ class RelatedEntryGraphTests(unittest.TestCase):
             _entry("2026-05-10 10:03 - c4", "ms-cccc0004", "x", related=["ms-aaaa0000"]),
             _entry("2026-05-10 10:04 - c5", "ms-cccc0005", "x", related=["ms-bbbb0000"]),
             _entry("2026-05-10 10:05 - c6", "ms-cccc0006", "x", related=["ms-bbbb0000"]),
-            _entry("2026-05-10 11:00 - Replacement", "ms-dddd0000", "replaces old.", supersedes=["ms-aaaa0000"]),
+            _entry("2026-05-10 11:00 - Replacement", "ms-dddd0000", "replaces old.", replaces=["ms-aaaa0000"]),
         )
 
         graph = build_related_entry_graph(cwd)
@@ -800,7 +800,7 @@ class RelatedEntryGraphTests(unittest.TestCase):
         old_score = graph["ms-aaaa0000"].importance_score
         live_score = graph["ms-bbbb0000"].importance_score
         # Raw: old=4 (dampened to 4*0.25=1.0), live=2 (undampened=2.0).
-        self.assertEqual(old_score, 4 * SUPERSEDED_IMPORTANCE_DAMPING)
+        self.assertEqual(old_score, 4 * REPLACED_IMPORTANCE_DAMPING)
         self.assertEqual(live_score, 2.0)
         self.assertLess(old_score, live_score)
         # Supersession never inflated the count itself - it's a post-hoc dampener.
@@ -825,16 +825,16 @@ class RelatedEntryGraphTests(unittest.TestCase):
 
         self.assertEqual(chunks[0].commits, ("a" * 40,))
 
-    def test_graph_ignores_dangling_supersedes_for_inverse(self):
+    def test_graph_ignores_dangling_replaces_for_inverse(self):
         cwd = self.make_project()
         self.write_day(
             cwd,
-            _entry("2026-05-10 09:00 - Only", "ms-only0000", "text.", supersedes=["ms-missing0"]),
+            _entry("2026-05-10 09:00 - Only", "ms-only0000", "text.", replaces=["ms-missing0"]),
         )
 
         graph = build_related_entry_graph(cwd)
 
-        self.assertEqual(graph["ms-only0000"].supersedes, ("ms-missing0",))
+        self.assertEqual(graph["ms-only0000"].replaces, ("ms-missing0",))
         self.assertNotIn("ms-missing0", graph)
 
 
@@ -870,7 +870,7 @@ class EvolutionEdgeTests(unittest.TestCase):
         self.assertEqual(graph["ms-new00000"].evolves, ("ms-old00000",))
         self.assertEqual(graph["ms-old00000"].evolved_by, ("ms-new00000",))
         # No status bleed: evolution is not supersession and not relatedness.
-        self.assertEqual(graph["ms-old00000"].superseded_by, ())
+        self.assertEqual(graph["ms-old00000"].replaced_by, ())
         self.assertEqual(graph["ms-old00000"].inbound, ("ms-cite0001", "ms-cite0002"))
         self.assertEqual(graph["ms-old00000"].importance_score, 2.0)
 
@@ -935,7 +935,7 @@ class SupersessionRankDampingTests(unittest.TestCase):
             "# Session Log\n\n" + "\n".join(entries), encoding="utf-8"
         )
 
-    def test_rank_memory_chunks_damps_only_superseded_ids(self):
+    def test_rank_memory_chunks_damps_only_replaced_ids(self):
         cwd = self.make_project()
         self.write_day(
             cwd,
@@ -948,18 +948,18 @@ class SupersessionRankDampingTests(unittest.TestCase):
         baseline = {r.chunk.entry_id: r.final_score for r in rank_memory_chunks("ranking", chunks, today=today)}
         damped = {
             r.chunk.entry_id: r.final_score
-            for r in rank_memory_chunks("ranking", chunks, today=today, superseded_ids={"ms-old00000"})
+            for r in rank_memory_chunks("ranking", chunks, today=today, replaced_ids={"ms-old00000"})
         }
-        # The live entry is untouched; the superseded one is scaled by the damper.
+        # The live entry is untouched; the replaced one is scaled by the damper.
         self.assertEqual(damped["ms-new00000"], baseline["ms-new00000"])
-        self.assertAlmostEqual(damped["ms-old00000"], baseline["ms-old00000"] * SUPERSEDED_RANK_DAMPING)
-        # Default (no superseded_ids) leaves every score byte-for-byte identical.
+        self.assertAlmostEqual(damped["ms-old00000"], baseline["ms-old00000"] * REPLACED_RANK_DAMPING)
+        # Default (no replaced_ids) leaves every score byte-for-byte identical.
         default = {r.chunk.entry_id: r.final_score for r in rank_memory_chunks("ranking", chunks, today=today)}
         self.assertEqual(default, baseline)
 
     def test_rank_session_memory_supersession_damping_flag(self):
         cwd = self.make_project()
-        # Newer entry supersedes the older one; both match the query.
+        # Newer entry replaces the older one; both match the query.
         self.write_day(
             cwd,
             _entry("2026-05-10 09:00 - Retired decision", "ms-old00000", "cache eviction ranking."),
@@ -967,7 +967,7 @@ class SupersessionRankDampingTests(unittest.TestCase):
                 "2026-05-10 10:00 - Live decision",
                 "ms-new00000",
                 "cache eviction ranking.",
-                supersedes=["ms-old00000"],
+                replaces=["ms-old00000"],
             ),
         )
         today = date(2026, 5, 10)
@@ -976,11 +976,11 @@ class SupersessionRankDampingTests(unittest.TestCase):
             r.chunk.entry_id: r.final_score
             for r in rank_session_memory("ranking", cwd, today=today, supersession_damping=True)
         }
-        # Default off is unchanged; opting in damps only the superseded entry.
+        # Default off is unchanged; opting in damps only the replaced entry.
         self.assertEqual(on["ms-new00000"], off["ms-new00000"])
-        self.assertAlmostEqual(on["ms-old00000"], off["ms-old00000"] * SUPERSEDED_RANK_DAMPING)
-        # Down-rank only: the superseded entry is still returned, never dropped
-        # (that stays exclude_superseded).
+        self.assertAlmostEqual(on["ms-old00000"], off["ms-old00000"] * REPLACED_RANK_DAMPING)
+        # Down-rank only: the replaced entry is still returned, never dropped
+        # (that stays exclude_replaced).
         self.assertIn("ms-old00000", on)
 
     def test_rank_memory_chunks_boosts_only_matching_terminal_replacement(self):
@@ -1025,7 +1025,7 @@ class SupersessionRankDampingTests(unittest.TestCase):
                 "cache ttl invalidation strategy",
                 [old, new],
                 today=today,
-                superseded_ids={"ms-old00000"},
+                replaced_ids={"ms-old00000"},
             )
         }
         boosted = {
@@ -1034,8 +1034,8 @@ class SupersessionRankDampingTests(unittest.TestCase):
                 "cache ttl invalidation strategy",
                 [old, new],
                 today=today,
-                superseded_ids={"ms-old00000"},
-                superseding_heads_by_id={"ms-old00000": ("ms-new00000",)},
+                replaced_ids={"ms-old00000"},
+                replacing_heads_by_id={"ms-old00000": ("ms-new00000",)},
             )
         }
 
@@ -1084,7 +1084,7 @@ class SupersessionRankDampingTests(unittest.TestCase):
                 "cache ttl invalidation strategy",
                 [old, new],
                 today=today,
-                superseded_ids={"ms-old00000"},
+                replaced_ids={"ms-old00000"},
             )
         }
         boosted = {
@@ -1093,8 +1093,8 @@ class SupersessionRankDampingTests(unittest.TestCase):
                 "cache ttl invalidation strategy",
                 [old, new],
                 today=today,
-                superseded_ids={"ms-old00000"},
-                superseding_heads_by_id={"ms-old00000": ("ms-new00000",)},
+                replaced_ids={"ms-old00000"},
+                replacing_heads_by_id={"ms-old00000": ("ms-new00000",)},
             )
         }
 
@@ -1117,9 +1117,9 @@ class SupersessionRankDampingTests(unittest.TestCase):
         self.assertEqual(evolves_lineage_heads(graph, "ms-c0000000"), ())
         self.assertEqual(evolves_lineage_heads(graph, "ms-missing0"), ())
 
-    def test_superseding_lineage_heads_follows_chain_to_terminal_live_replacement(self):
+    def test_replacing_lineage_heads_follows_chain_to_terminal_live_replacement(self):
         cwd = self.make_project()
-        # C supersedes B, B supersedes A. A and B should both resolve to the
+        # C replaces B, B replaces A. A and B should both resolve to the
         # terminal live replacement C, while C resolves to nothing further.
         self.write_day(
             cwd,
@@ -1128,21 +1128,21 @@ class SupersessionRankDampingTests(unittest.TestCase):
                 "2026-05-10 10:00 - Replacement B",
                 "ms-b0000000",
                 "replacement.",
-                supersedes=["ms-a0000000"],
+                replaces=["ms-a0000000"],
             ),
             _entry(
                 "2026-05-10 11:00 - Final C",
                 "ms-c0000000",
                 "final replacement.",
-                supersedes=["ms-b0000000"],
+                replaces=["ms-b0000000"],
             ),
         )
         graph = build_related_entry_graph(cwd)
 
-        self.assertEqual(superseding_lineage_heads(graph, "ms-a0000000"), ("ms-c0000000",))
-        self.assertEqual(superseding_lineage_heads(graph, "ms-b0000000"), ("ms-c0000000",))
-        self.assertEqual(superseding_lineage_heads(graph, "ms-c0000000"), ())
-        self.assertEqual(superseding_lineage_heads(graph, "ms-missing0"), ())
+        self.assertEqual(replacing_lineage_heads(graph, "ms-a0000000"), ("ms-c0000000",))
+        self.assertEqual(replacing_lineage_heads(graph, "ms-b0000000"), ("ms-c0000000",))
+        self.assertEqual(replacing_lineage_heads(graph, "ms-c0000000"), ())
+        self.assertEqual(replacing_lineage_heads(graph, "ms-missing0"), ())
 
 
 class FileOverlapSuggestTests(unittest.TestCase):

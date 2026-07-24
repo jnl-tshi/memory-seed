@@ -32,7 +32,7 @@ from .semantic_cache import (
     build_related_entry_graph,
     extract_memory_chunks,
     suggest_related_entries,
-    superseding_lineage_heads,
+    replacing_lineage_heads,
 )
 
 
@@ -72,20 +72,20 @@ TOOLS: list[dict[str, Any]] = [
                     "default": "entry",
                     "description": "Return coherent ## entries by default, or narrower ###+ sections when requested.",
                 },
-                "exclude_superseded": {
+                "exclude_replaced": {
                     "type": "boolean",
                     "default": False,
-                    "description": "Opt-in: drop entries that a later decision has superseded (non-empty superseded_by). Off by default - superseded entries stay retrievable.",
+                    "description": "Opt-in: drop entries that a later decision has replaced (non-empty replaced_by). Off by default - replaced entries stay retrievable.",
                 },
                 "supersession_damping": {
                     "type": "boolean",
                     "default": True,
-                    "description": "On by default: down-rank (not drop) entries a later decision superseded, so a live replacement out-ranks the decision it retires. Draws superseded_by from the sidecar-augmented graph. Superseded entries stay fully retrievable (down-rank only, never hidden); pass false to rank them at full weight.",
+                    "description": "On by default: down-rank (not drop) entries a later decision replaced, so a live replacement out-ranks the decision it retires. Draws replaced_by from the sidecar-augmented graph. Replaced entries stay fully retrievable (down-rank only, never hidden); pass false to rank them at full weight.",
                 },
-                "superseding_successor_boost": {
+                "replacing_successor_boost": {
                     "type": "boolean",
                     "default": True,
-                    "description": "On by default bounded successor lift: when a retired entry matches the query, its terminal live replacement may be boosted only if that replacement already has positive query relevance. Never hard-injects, never bypasses exclude_superseded; pass false to restore damp-only ordering.",
+                    "description": "On by default bounded successor lift: when a retired entry matches the query, its terminal live replacement may be boosted only if that replacement already has positive query relevance. Never hard-injects, never bypasses exclude_replaced; pass false to restore damp-only ordering.",
                 },
                 "topics": {
                     "type": "array",
@@ -111,7 +111,7 @@ TOOLS: list[dict[str, Any]] = [
                 "consulted": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Entry ids you retrieved while grounding this work (the memory axis). Any candidate in this set is flagged `consulted` and sorted first - the natural source for supersedes/evolves lineage edges that shared-file evidence misses. Candidates only; you still classify. Omit for file-overlap-only ranking.",
+                    "description": "Entry ids you retrieved while grounding this work (the memory axis). Any candidate in this set is flagged `consulted` and sorted first - the natural source for replaces/evolves lineage edges that shared-file evidence misses. Candidates only; you still classify. Omit for file-overlap-only ranking.",
                 },
             },
         },
@@ -240,7 +240,7 @@ TOOLS: list[dict[str, Any]] = [
             "Guards run together and nothing is written when any fails: chronology, ref existence (fabricated ids are "
             "refused), forward-only lifecycle edges, controlled topic vocabulary, id collision, and DRAFT body format. "
             "Refusals come back as ok=false with an issues list, each independently fixable. Pair with "
-            "memory_link_suggest / memory_link_show to choose related_entries, supersedes and evolves before calling. "
+            "memory_link_suggest / memory_link_show to choose related_entries, replaces and evolves before calling. "
             "Set dry_run to run every guard and get the id, timestamp, target path and the rendered entry back without writing - inspect the final output, then commit by calling again WITH the returned timestamp, so a minute tick between preview and write cannot change the id."
         ),
         "inputSchema": {
@@ -261,7 +261,7 @@ TOOLS: list[dict[str, Any]] = [
                     "description": "Controlled-vocabulary slugs or aliases; aliases are stored canonically. Unknown slugs are refused.",
                 },
                 "related_entries": {"type": "array", "items": {"type": "string"}, "description": "entry_id values this entry relates to. Must already exist and predate it."},
-                "supersedes": {"type": "array", "items": {"type": "string"}, "description": "entry_id values this entry retires (the old decision is now wrong or dead)."},
+                "replaces": {"type": "array", "items": {"type": "string"}, "description": "entry_id values this entry retires (the old decision is now wrong or dead)."},
                 "evolves": {"type": "array", "items": {"type": "string"}, "description": "entry_id values this entry refines (the old decision stays valid but incomplete)."},
                 "project_path": {"type": "string", "default": "."},
                 "subproject_path": {"type": "string", "description": "subproject_path field; omit for null."},
@@ -323,9 +323,11 @@ def call_tool(
             user=_optional_str(args, "user"),
             date_from=_optional_date(args, "date_from"),
             date_to=_optional_date(args, "date_to"),
-            exclude_superseded=bool(args.get("exclude_superseded", False)),
+            exclude_replaced=bool(
+                args.get("exclude_replaced", args.get("exclude_superseded", False))
+            ),  # legacy param spelling accepted (renamed 2026-07-24)
             supersession_damping=bool(args.get("supersession_damping", True)),
-            superseding_successor_boost=bool(args.get("superseding_successor_boost", True)),
+            replacing_successor_boost=bool(args.get("replacing_successor_boost", True)),
             topics=list(args.get("topics") or []) or None,
         )
 
@@ -349,7 +351,7 @@ def call_tool(
                     **ranked_to_dict(item.result),
                     # D5 evidence: alias-canonicalized F: paths shared with the
                     # target, and the rarity-weighted boost they contributed -
-                    # shown so the evolves/supersedes/related call is concrete.
+                    # shown so the evolves/replaces/related call is concrete.
                     "shared_files": list(item.shared_files),
                     "file_overlap_bonus": round(item.file_overlap_bonus, 6),
                     "adjusted_score": round(item.adjusted_score, 6),
@@ -387,9 +389,9 @@ def call_tool(
             "session_date": node.session_date.isoformat(),
             "outbound": list(node.outbound),
             "inbound": list(node.inbound),
-            "supersedes": list(node.supersedes),
-            "superseded_by": list(node.superseded_by),
-            "superseding_head": list(superseding_lineage_heads(graph, entry_id)),
+            "replaces": list(node.replaces),
+            "replaced_by": list(node.replaced_by),
+            "replacing_head": list(replacing_lineage_heads(graph, entry_id)),
             "evolves": list(node.evolves),
             "evolved_by": list(node.evolved_by),
             "continuity": [
@@ -605,7 +607,7 @@ def call_tool(
             agent_name=_optional_str(args, "agent_name"),
             topics=list(args.get("topics") or []),
             related_entries=list(args.get("related_entries") or []),
-            supersedes=list(args.get("supersedes") or []),
+            replaces=list(args.get("replaces") or args.get("supersedes") or []),  # legacy key accepted
             evolves=list(args.get("evolves") or []),
             project_path=str(args.get("project_path", ".")),
             subproject_path=_optional_str(args, "subproject_path"),

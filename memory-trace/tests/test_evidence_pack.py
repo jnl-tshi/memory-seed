@@ -19,7 +19,7 @@ def _entry(
     *,
     agent: str = "codex",
     related: list[str] | None = None,
-    supersedes: list[str] | None = None,
+    replaces: list[str] | None = None,
     evolves: list[str] | None = None,
     topics: list[str] | None = None,
     branch: str | None = None,
@@ -42,9 +42,9 @@ def _entry(
     if related:
         lines.append("related_entries:")
         lines.extend(f"  - {item}" for item in related)
-    if supersedes:
-        lines.append("supersedes:")
-        lines.extend(f"  - {item}" for item in supersedes)
+    if replaces:
+        lines.append("replaces:")
+        lines.extend(f"  - {item}" for item in replaces)
     if evolves:
         lines.append("evolves:")
         lines.extend(f"  - {item}" for item in evolves)
@@ -100,7 +100,7 @@ class EvidencePackTests(unittest.TestCase):
                 "2026-06-03 11:00 - Replace timeline entry",
                 REPLACE,
                 "Replace timeline body with #timeline and #graph context.",
-                supersedes=[BASE],
+                replaces=[BASE],
                 topics=["timeline", "graph"],
             ),
         )
@@ -142,7 +142,7 @@ class EvidencePackTests(unittest.TestCase):
         entry_id: str,
         *,
         related: list[str] | None = None,
-        supersedes: list[str] | None = None,
+        replaces: list[str] | None = None,
         evolves: list[str] | None = None,
     ) -> None:
         path = self.cwd / ".memory-seed" / "sessions" / "links" / Path(relative_path)
@@ -156,9 +156,9 @@ class EvidencePackTests(unittest.TestCase):
         if related:
             lines.append("related_entries:")
             lines.extend(f"  - {item}" for item in related)
-        if supersedes:
-            lines.append("supersedes:")
-            lines.extend(f"  - {item}" for item in supersedes)
+        if replaces:
+            lines.append("replaces:")
+            lines.extend(f"  - {item}" for item in replaces)
         if evolves:
             lines.append("evolves:")
             lines.extend(f"  - {item}" for item in evolves)
@@ -221,7 +221,7 @@ class EvidencePackTests(unittest.TestCase):
                     "reason": "excluded_by_filters",
                     "referenced_entry_id": BASE,
                     "referenced_entry_title": None,
-                    "relation_types": ["supersedes"],
+                    "relation_types": ["replaces"],
                 },
                 {
                     "entry_id": REVIEW,

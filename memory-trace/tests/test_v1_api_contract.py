@@ -24,7 +24,7 @@ def _entry(
     agent="codex",
     related=None,
     branch=None,
-    supersedes=None,
+    replaces=None,
     evolves=None,
     continuity=None,
     topics=None,
@@ -47,9 +47,9 @@ def _entry(
     if related:
         lines.append("related_entries:")
         lines.extend(f"  - {ref}" for ref in related)
-    if supersedes:
-        lines.append("supersedes:")
-        lines.extend(f"  - {ref}" for ref in supersedes)
+    if replaces:
+        lines.append("replaces:")
+        lines.extend(f"  - {ref}" for ref in replaces)
     if evolves:
         lines.append("evolves:")
         lines.extend(f"  - {ref}" for ref in evolves)
@@ -204,7 +204,7 @@ class V1ApiContractTests(unittest.TestCase):
         for edge in v1["edges"]:
             self.assertIn(
                 edge["type"],
-                {"related", "supersedes", "evolves", "branch", "topic", "agent", "day"},
+                {"related", "replaces", "evolves", "branch", "topic", "agent", "day"},
             )
 
     def test_v1_renderer_projection_is_additive_and_has_no_renderer_state(self):
@@ -221,7 +221,7 @@ class V1ApiContractTests(unittest.TestCase):
         client = self.client()
 
         v1 = client.get("/api/v1/trail", params={"limit": 100}).json()
-        self.assertEqual(sorted(v1["edge_types"]), sorted(["branch", "evolves", "related", "supersedes"]))
+        self.assertEqual(sorted(v1["edge_types"]), sorted(["branch", "evolves", "related", "replaces"]))
         node_ids = {node["entry_id"] for node in v1["nodes"]}
         self.assertEqual(node_ids, {"mse_bootstrap", "mse_ui"})
 

@@ -52,6 +52,9 @@ LANES: frozenset[str] = frozenset(
         "4_Reference",
         "5_Completed",
         "6_Rejected",
+        "7_Replaced",
+        # Legacy lane spelling (renamed 2026-07-24); external <=2.19 repos
+        # still have the folder, so it stays a valid lane forever.
         "7_Superseded",
         "8_Deferred",
     }
@@ -193,17 +196,21 @@ def check_docs(cwd: str | Path = ".") -> DocsCheckResult:
                     )
                 )
 
-        if lane == "7_Superseded":
-            if "superseded_by" not in front:
+        # "7_Superseded" and "superseded_by:" are the legacy spellings (renamed
+        # 2026-07-24); external repos initialised by <=2.19 still carry them, so
+        # both lanes and both frontmatter keys validate identically forever.
+        if lane in ("7_Replaced", "7_Superseded"):
+            pointer_key = "replaced_by" if "replaced_by" in front else "superseded_by"
+            if pointer_key not in front:
                 issues.append(
                     DocIssue(
                         rel,
-                        "missing-superseded-by",
-                        "a superseded doc should point at what replaced it",
+                        "missing-replaced-by",
+                        "a replaced doc should point at what replaced it",
                         severity="warning",
                     )
                 )
-            issues.extend(_check_pointer(md, docs_root, front, "superseded_by", rel))
+            issues.extend(_check_pointer(md, docs_root, front, pointer_key, rel))
 
         if lane == "4_Reference" and rel_path.parent.name == "archived":
             issues.extend(_check_pointer(md, docs_root, front, "extracted_into", rel))

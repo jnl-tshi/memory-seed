@@ -158,7 +158,7 @@ class TrailGoldenFixtureTests(unittest.TestCase):
             self.assertIn(edge["target"], known)
             # Synthetic ids are counter-ordered: newer entries reference older.
             self.assertGreater(edge["source"], edge["target"])
-        self.assertEqual(types, {"related", "supersedes", "evolves"})
+        self.assertEqual(types, {"related", "replaces", "evolves"})
 
     def test_continuity_axis_groups_rename_chain_and_keeps_other_kinds_distinct(self):
         model = _trail_model(

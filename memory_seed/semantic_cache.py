@@ -28,31 +28,31 @@ STRUCTURAL_QUERY_TERMS = (
 ENTRY_DATETIME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s+-\s+.+$")
 ENTRY_TITLE_PREFIX_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}\s+-\s+")
 
-# Multiplier applied to a superseded entry's importance_score (the harmony
-# contract from supersession-edges-plan.md). A superseded decision drops to a
+# Multiplier applied to a replaced entry's importance_score (the harmony
+# contract from supersession-edges-plan.md). A replaced decision drops to a
 # quarter of its raw citation weight - strong enough that a well-cited but
 # retired decision ranks below a live, moderately-cited one, without erasing it
 # (never hide, only deprioritize). Tunable; affects only the read-only
 # importance_score signal, never default memory_search ranking.
-SUPERSEDED_IMPORTANCE_DAMPING = 0.25
+REPLACED_IMPORTANCE_DAMPING = 0.25
 
-# Multiplier folded into final_score for a superseded entry when the caller opts
+# Multiplier folded into final_score for a replaced entry when the caller opts
 # into supersession-aware ranking (freshness-aware-memory-ranking-proposal.md).
-# Mirrors the SUPERSEDED_IMPORTANCE_DAMPING harmony constant so a replaced
+# Mirrors the REPLACED_IMPORTANCE_DAMPING harmony constant so a replaced
 # decision sinks beneath its live replacement in the default order - but it is
-# DEFAULT-OFF: rank_memory_chunks only applies it when passed the superseded id
+# DEFAULT-OFF: rank_memory_chunks only applies it when passed the replaced id
 # set (gated by rank_session_memory / search_memory's supersession_damping flag).
 # It composes multiplicatively with recency_multiplier and never hard-excludes
-# (that stays exclude_superseded): a superseded entry is down-ranked, not hidden.
-SUPERSEDED_RANK_DAMPING = 0.25
+# (that stays exclude_replaced): a replaced entry is down-ranked, not hidden.
+REPLACED_RANK_DAMPING = 0.25
 
 # Fractional multiplier applied to a live terminal replacement when the caller
-# opts into the bounded successor boost. One strongest-matching superseded
+# opts into the bounded successor boost. One strongest-matching replaced
 # lineage can lift its terminal replacement by 75%. The boost is never a hard
 # injection: only already-matching terminal replacements are eligible, only the
-# strongest superseded lineage(s) for the query may contribute, and the caller
+# strongest replaced lineage(s) for the query may contribute, and the caller
 # must explicitly turn it on.
-SUPERSEDING_SUCCESSOR_BOOST = 0.75
+REPLACING_SUCCESSOR_BOOST = 0.75
 
 # Scale applied to the rarity-weighted F:-file-overlap sum when re-ranking
 # link-suggest candidates (evolution-edges-plan.md D5). Overlap is a precision
@@ -104,9 +104,9 @@ class MemoryChunk:
     user: str | None = None
     file_hash_id: str | None = None
     related_entries: tuple[str, ...] = ()
-    supersedes: tuple[str, ...] = ()
+    replaces: tuple[str, ...] = ()
     # Typed lifecycle edge: earlier decisions this entry extends/refines while
-    # they stay valid (evolves), vs. supersedes which retires its targets.
+    # they stay valid (evolves), vs. replaces which retires its targets.
     evolves: tuple[str, ...] = ()
     commits: tuple[str, ...] = ()
     # Stored artifact-lineage blocks (rename/migration/removal); see
@@ -232,9 +232,9 @@ def rank_session_memory(
     user: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
-    exclude_superseded: bool = False,
+    exclude_replaced: bool = False,
     supersession_damping: bool = False,
-    superseding_successor_boost: bool = False,
+    replacing_successor_boost: bool = False,
     chunks: Sequence[MemoryChunk] | None = None,
     topics: set[str] | None = None,
 ) -> list[RankedMemoryChunk]:
@@ -244,34 +244,34 @@ def rank_session_memory(
     # topics.expand_topic_filter) - a pre-ranking gate like user/date filters.
     corpus = list(chunks) if chunks is not None else extract_memory_chunks(cwd, granularity=granularity)
     chunks = _filter_chunks(corpus, user=user, date_from=date_from, date_to=date_to, topics=topics)
-    # The superseded id set feeds both the opt-in hard filter (exclude_superseded)
+    # The replaced id set feeds both the opt-in hard filter (exclude_replaced)
     # and the opt-in rank-dampener (supersession_damping); build it once over the
-    # pre-filter corpus so a superseding entry outside the user/date window still
+    # pre-filter corpus so a replacing entry outside the user/date window still
     # counts. When ``corpus`` is the sidecar-augmented set passed by search_memory,
     # sidecar-authored supersessions are included. Being evolved never lands here -
     # evolution is freshness, not retirement.
     graph: dict[str, RelatedEntryNode] | None = None
-    superseded_ids: set[str] = set()
-    if exclude_superseded or supersession_damping or superseding_successor_boost:
+    replaced_ids: set[str] = set()
+    if exclude_replaced or supersession_damping or replacing_successor_boost:
         graph = build_related_entry_graph(cwd, chunks=corpus)
-        superseded_ids = {
+        replaced_ids = {
             node.entry_id
             for node in graph.values()
-            if node.superseded_by
+            if node.replaced_by
         }
-    if exclude_superseded:
+    if exclude_replaced:
         # Opt-in narrowing (like date_from/date_to): drop entries that have been
-        # superseded by a later decision. Never a default and never a hard
-        # exclusion unless the caller asks - superseded entries remain fully
+        # replaced by a later decision. Never a default and never a hard
+        # exclusion unless the caller asks - replaced entries remain fully
         # retrievable by default (deprioritized via the dampener/importance_score,
         # not hidden).
-        chunks = [chunk for chunk in chunks if chunk.entry_id not in superseded_ids]
-    superseding_heads_by_id: dict[str, tuple[str, ...]] | None = None
-    if supersession_damping and superseding_successor_boost and graph is not None:
-        superseding_heads_by_id = {
+        chunks = [chunk for chunk in chunks if chunk.entry_id not in replaced_ids]
+    replacing_heads_by_id: dict[str, tuple[str, ...]] | None = None
+    if supersession_damping and replacing_successor_boost and graph is not None:
+        replacing_heads_by_id = {
             entry_id: heads
-            for entry_id in superseded_ids
-            if (heads := superseding_lineage_heads(graph, entry_id))
+            for entry_id in replaced_ids
+            if (heads := replacing_lineage_heads(graph, entry_id))
         }
     return rank_memory_chunks(
         query,
@@ -284,8 +284,8 @@ def rank_session_memory(
         embedding_provider=embedding_provider,
         # DEFAULT-OFF: only pass the dampener input when the caller opted in, so
         # default ranking order stays byte-for-byte identical to today.
-        superseded_ids=superseded_ids if supersession_damping else None,
-        superseding_heads_by_id=superseding_heads_by_id,
+        replaced_ids=replaced_ids if supersession_damping else None,
+        replacing_heads_by_id=replacing_heads_by_id,
     )
 
 
@@ -322,8 +322,8 @@ class RelatedEntryNode:
     from refs that resolve to a known entry_id; ``outbound`` is reported as
     stored (run ``links check`` to surface any dangling outbound ref).
 
-    ``supersedes`` is the entry's stored typed edge marking earlier decisions it
-    replaces; ``superseded_by`` is its computed inverse, built the same way as
+    ``replaces`` is the entry's stored typed edge marking earlier decisions it
+    replaces; ``replaced_by`` is its computed inverse, built the same way as
     ``inbound``. The two edge kinds are never merged: a supersession is a status
     signal (this decision is retired), not a relatedness signal.
 
@@ -332,11 +332,11 @@ class RelatedEntryNode:
     computed, read-time-only inverse (never stored in any file - append-only is
     preserved because the inverse exists only in this derived layer). Being
     evolved is a freshness signal, not a retirement: it never dampens
-    ``importance_score`` and never feeds ``exclude_superseded``.
+    ``importance_score`` and never feeds ``exclude_replaced``.
 
     ``importance_score`` is the read-only ranking precursor: the inbound
     ``related_entries`` count (``len(inbound)``), dampened by
-    ``SUPERSEDED_IMPORTANCE_DAMPING`` when the entry has any ``superseded_by``
+    ``REPLACED_IMPORTANCE_DAMPING`` when the entry has any ``replaced_by``
     edge. Supersession edges never contribute to the count itself - the
     dampener is applied after, as a hard override. ``evolved_by`` edges never
     dampen. Not blended into default ``memory_search`` ranking.
@@ -348,8 +348,8 @@ class RelatedEntryNode:
     session_date: date
     outbound: tuple[str, ...]
     inbound: tuple[str, ...]
-    supersedes: tuple[str, ...] = ()
-    superseded_by: tuple[str, ...] = ()
+    replaces: tuple[str, ...] = ()
+    replaced_by: tuple[str, ...] = ()
     evolves: tuple[str, ...] = ()
     evolved_by: tuple[str, ...] = ()
     importance_score: float = 0.0
@@ -384,7 +384,7 @@ def build_related_entry_graph(
             by_id[chunk.entry_id] = chunk
 
     inbound: dict[str, list[str]] = {entry_id: [] for entry_id in by_id}
-    superseded_by: dict[str, list[str]] = {entry_id: [] for entry_id in by_id}
+    replaced_by: dict[str, list[str]] = {entry_id: [] for entry_id in by_id}
     evolved_by: dict[str, list[str]] = {entry_id: [] for entry_id in by_id}
     for chunk in chunks:
         if not chunk.entry_id:
@@ -392,9 +392,9 @@ def build_related_entry_graph(
         for ref in chunk.related_entries:
             if ref in by_id and ref != chunk.entry_id:
                 inbound[ref].append(chunk.entry_id)
-        for ref in chunk.supersedes:
+        for ref in chunk.replaces:
             if ref in by_id and ref != chunk.entry_id:
-                superseded_by[ref].append(chunk.entry_id)
+                replaced_by[ref].append(chunk.entry_id)
         for ref in chunk.evolves:
             if ref in by_id and ref != chunk.entry_id:
                 evolved_by[ref].append(chunk.entry_id)
@@ -402,13 +402,13 @@ def build_related_entry_graph(
     graph: dict[str, RelatedEntryNode] = {}
     for entry_id, chunk in by_id.items():
         inbound_ids = tuple(dict.fromkeys(inbound[entry_id]))
-        superseded_by_ids = tuple(dict.fromkeys(superseded_by[entry_id]))
+        replaced_by_ids = tuple(dict.fromkeys(replaced_by[entry_id]))
         evolved_by_ids = tuple(dict.fromkeys(evolved_by[entry_id]))
         importance = float(len(inbound_ids))
-        if superseded_by_ids:
+        if replaced_by_ids:
             # evolved_by deliberately does not dampen: an evolved decision is
             # still live, just incomplete without its evolutions.
-            importance *= SUPERSEDED_IMPORTANCE_DAMPING
+            importance *= REPLACED_IMPORTANCE_DAMPING
         graph[entry_id] = RelatedEntryNode(
             entry_id=entry_id,
             title=chunk.title,
@@ -416,8 +416,8 @@ def build_related_entry_graph(
             session_date=chunk.session_date,
             outbound=tuple(chunk.related_entries),
             inbound=inbound_ids,
-            supersedes=tuple(chunk.supersedes),
-            superseded_by=superseded_by_ids,
+            replaces=tuple(chunk.replaces),
+            replaced_by=replaced_by_ids,
             evolves=tuple(chunk.evolves),
             evolved_by=evolved_by_ids,
             importance_score=importance,
@@ -460,34 +460,34 @@ def evolves_lineage_heads(
     return tuple(sorted(heads))
 
 
-def superseding_lineage_heads(
+def replacing_lineage_heads(
     graph: dict[str, RelatedEntryNode], entry_id: str
 ) -> tuple[str, ...]:
-    """Follow the ``superseded_by`` chain from ``entry_id`` to its terminal
+    """Follow the ``replaced_by`` chain from ``entry_id`` to its terminal
     live replacement(s).
 
     Symmetric with ``evolves_lineage_heads``: the graph already exposes the
-    computed inverse of ``supersedes`` as ``superseded_by``. This helper makes
+    computed inverse of ``replaces`` as ``replaced_by``. This helper makes
     the current replacement reachable without changing ordering. Returns the
     terminal successors only (excluding ``entry_id`` itself), empty when the
-    entry is not superseded. A ``seen`` set guards against malformed cycles.
+    entry is not replaced. A ``seen`` set guards against malformed cycles.
     """
     node = graph.get(entry_id)
-    if node is None or not node.superseded_by:
+    if node is None or not node.replaced_by:
         return ()
     heads: set[str] = set()
     seen: set[str] = {entry_id}
-    stack = list(node.superseded_by)
+    stack = list(node.replaced_by)
     while stack:
         current = stack.pop()
         if current in seen:
             continue
         seen.add(current)
         successor = graph.get(current)
-        if successor is None or not successor.superseded_by:
+        if successor is None or not successor.replaced_by:
             heads.add(current)
         else:
-            stack.extend(successor.superseded_by)
+            stack.extend(successor.replaced_by)
     return tuple(sorted(heads))
 
 
@@ -496,12 +496,12 @@ class RelatedEntrySuggestion:
     """One link-suggest candidate: similarity ranking plus D5 file-overlap
     evidence. ``shared_files`` names the (alias-canonicalized) F: paths the
     candidate shares with the target - shown so the agent's
-    evolves/supersedes/related judgment is concrete. ``consulted`` marks a
+    evolves/replaces/related judgment is concrete. ``consulted`` marks a
     candidate the caller retrieved while grounding the work (the memory axis of
     candidacy, complementary to structural file overlap); consulted candidates
     sort first because "I actually used this entry" is a stronger link signal
     than "it touched the same file" - especially for the decision-lineage edges
-    (``supersedes``/``evolves``) that file overlap is worst at surfacing.
+    (``replaces``/``evolves``) that file overlap is worst at surfacing.
     ``chunk``/``final_score`` pass-throughs keep older consumers of the plain
     ranked shape working."""
 
@@ -615,7 +615,7 @@ def add_related_entry(
     Invariant #2.
 
     Editing an *older* entry is refused: that is historical curation, and
-    Invariant #2 ("the past is append-only - extend and supersede, never
+    Invariant #2 ("the past is append-only - extend and replace, never
     rewrite") forbids it. The plan's `link backfill` half therefore needs an
     explicit constitutional ruling before it can exist; this writer will not
     silently become it.
@@ -746,7 +746,7 @@ def suggest_related_entries(
     lookup). Any candidate whose id is in this set is flagged ``consulted`` and
     sorts ahead of purely structural (file-overlap) candidates - "I actually
     used this entry" outranks "it touched the same file", and it is the natural
-    source for the ``supersedes``/``evolves`` decision-lineage edges that file
+    source for the ``replaces``/``evolves`` decision-lineage edges that file
     overlap misses (a lineage parent that shares no file still surfaces here).
     This only *reorders and labels* candidates - it fabricates no relevance and
     creates no edge; the caller still classifies. An empty/omitted ``consulted``
@@ -843,14 +843,14 @@ def rank_memory_chunks(
     recency_enabled: bool = True,
     recency_floor: float = 0.15,
     embedding_provider: EmbeddingProvider | None = None,
-    superseded_ids: set[str] | None = None,
-    superseding_heads_by_id: dict[str, tuple[str, ...]] | None = None,
+    replaced_ids: set[str] | None = None,
+    replacing_heads_by_id: dict[str, tuple[str, ...]] | None = None,
 ) -> list[RankedMemoryChunk]:
-    # ``superseded_ids`` is the opt-in supersession rank-dampener input
+    # ``replaced_ids`` is the opt-in supersession rank-dampener input
     # (freshness-aware-memory-ranking-proposal.md): the entry_ids that a later
-    # decision has superseded, sourced by the caller from the (sidecar-augmented)
+    # decision has replaced, sourced by the caller from the (sidecar-augmented)
     # related-entry graph. When provided, a matching entry's final_score is scaled
-    # by SUPERSEDED_RANK_DAMPING so a live replacement out-ranks the decision it
+    # by REPLACED_RANK_DAMPING so a live replacement out-ranks the decision it
     # retires. DEFAULT None -> no dampening and byte-for-byte-identical ordering;
     # evolves is never in this set (evolution is freshness, not retirement).
     current_date = today or date.today()
@@ -872,10 +872,10 @@ def rank_memory_chunks(
             recency_floor=recency_floor,
         )
         final_score = match_score * recency_multiplier
-        if superseded_ids and chunk.entry_id and chunk.entry_id in superseded_ids:
-            # Down-rank only, never hide: the superseded entry stays in the
+        if replaced_ids and chunk.entry_id and chunk.entry_id in replaced_ids:
+            # Down-rank only, never hide: the replaced entry stays in the
             # results, just multiplicatively demoted beneath a fresher match.
-            final_score *= SUPERSEDED_RANK_DAMPING
+            final_score *= REPLACED_RANK_DAMPING
         ranked.append(
             RankedMemoryChunk(
                 chunk=chunk,
@@ -890,16 +890,16 @@ def rank_memory_chunks(
             )
         )
 
-    if superseding_heads_by_id:
-        ranked = _apply_superseding_successor_boost(query, ranked, superseding_heads_by_id)
+    if replacing_heads_by_id:
+        ranked = _apply_replacing_successor_boost(query, ranked, replacing_heads_by_id)
     ranked.sort(key=_ranked_result_sort_key, reverse=True)
     return ranked[: max(top_k, 0)]
 
 
-def _apply_superseding_successor_boost(
+def _apply_replacing_successor_boost(
     query: str,
     ranked: Sequence[RankedMemoryChunk],
-    superseding_heads_by_id: dict[str, tuple[str, ...]],
+    replacing_heads_by_id: dict[str, tuple[str, ...]],
 ) -> list[RankedMemoryChunk]:
     """Apply a bounded boost to already-matching terminal replacements.
 
@@ -919,7 +919,7 @@ def _apply_superseding_successor_boost(
             best_by_entry[entry_id] = result
 
     candidates: list[tuple[tuple[int, int, float, float], set[str]]] = []
-    for predecessor_id, heads in superseding_heads_by_id.items():
+    for predecessor_id, heads in replacing_heads_by_id.items():
         predecessor = best_by_entry.get(predecessor_id)
         if predecessor is None or predecessor.match_score <= 0:
             continue
@@ -930,7 +930,7 @@ def _apply_superseding_successor_boost(
         }
         if not eligible_successors:
             continue
-        candidates.append((_superseding_query_alignment(query, predecessor), set(eligible_successors)))
+        candidates.append((_replacing_query_alignment(query, predecessor), set(eligible_successors)))
 
     if not candidates:
         return list(ranked)
@@ -949,13 +949,13 @@ def _apply_superseding_successor_boost(
     for result in ranked:
         entry_id = result.chunk.entry_id or ""
         if entry_id in boost_successor_ids and result.match_score > 0:
-            boosted.append(replace(result, final_score=result.final_score * (1.0 + SUPERSEDING_SUCCESSOR_BOOST)))
+            boosted.append(replace(result, final_score=result.final_score * (1.0 + REPLACING_SUCCESSOR_BOOST)))
         else:
             boosted.append(result)
     return boosted
 
 
-def _superseding_query_alignment(query: str, predecessor: RankedMemoryChunk) -> tuple[int, int, float, float]:
+def _replacing_query_alignment(query: str, predecessor: RankedMemoryChunk) -> tuple[int, int, float, float]:
     """Score how specifically a query points at a retired predecessor title.
 
     The successor boost is intentionally fail-closed on ambiguous queries. We
@@ -1056,7 +1056,15 @@ def _extract_entry_chunks_from_file(
         metadata = _extract_entry_metadata(entry_lines)
         entry_id = _metadata_value(metadata, "entry_id")
         related_entries = _metadata_list(metadata, "related_entries")
-        supersedes = _metadata_list(metadata, "supersedes")
+        # `supersedes:` is the legacy spelling of `replaces:` (renamed
+        # 2026-07-24, JNL's direction: one term across Seed and Trace).
+        # Corpora written by <=2.19 carry the old key; read both forever,
+        # write only the new one.
+        _replaces_new = _metadata_list(metadata, "replaces")
+        _replaces_legacy = _metadata_list(metadata, "supersedes")
+        replaces = tuple(_replaces_new) + tuple(
+            ref for ref in _replaces_legacy if ref not in _replaces_new
+        )
         evolves = _metadata_list(metadata, "evolves")
         commits = _metadata_list(metadata, "commits")
         continuity = _extract_entry_continuity(entry_lines)
@@ -1094,7 +1102,7 @@ def _extract_entry_chunks_from_file(
                     user=user,
                     file_hash_id=file_hash_id,
                     related_entries=related_entries,
-                    supersedes=supersedes,
+                    replaces=replaces,
                     evolves=evolves,
                     commits=commits,
                     continuity=continuity,
@@ -1138,7 +1146,7 @@ def _extract_entry_chunks_from_file(
                     user=user,
                     file_hash_id=file_hash_id,
                     related_entries=related_entries,
-                    supersedes=supersedes,
+                    replaces=replaces,
                     evolves=evolves,
                     commits=commits,
                     continuity=continuity,
@@ -1184,7 +1192,7 @@ def _extract_entry_chunks_from_file(
                     user=user,
                     file_hash_id=file_hash_id,
                     related_entries=related_entries,
-                    supersedes=supersedes,
+                    replaces=replaces,
                     evolves=evolves,
                     commits=commits,
                     continuity=continuity,

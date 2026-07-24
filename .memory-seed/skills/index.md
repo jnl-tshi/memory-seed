@@ -115,7 +115,7 @@ skills:
       - triaging proposals, research reports, or task documents in docs/1_Inbox or docs/inbox
       - promoting proposal documents from docs/1_Inbox to docs/2_Todo or from docs/inbox to docs/todo
       - moving source-only research or reference material into docs/4_Reference or docs/reference
-      - moving shipped proposals to the completed lane and rejected/superseded/deferred proposals to their own lanes (docs/5_Completed, docs/6_Rejected, docs/7_Superseded, docs/8_Deferred or the project equivalents)
+      - moving shipped proposals to the completed lane and rejected/replaced/deferred proposals to their own lanes (docs/5_Completed, docs/6_Rejected, docs/7_Replaced, docs/8_Deferred or the project equivalents)
       - reorganizing proposal folders, roadmap docs, or completed-proposal archives
       - updating NEXT_STEPS, 0_NEXT_STEPS, or functionality-audit because proposal status changed
     do_not_load_when:

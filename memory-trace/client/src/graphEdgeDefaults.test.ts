@@ -19,7 +19,7 @@ test("topic is NOT on by default", () => {
 });
 
 test("every authored relationship type is on by default", () => {
-  for (const authored of ["related", "supersedes", "evolves"] as const) {
+  for (const authored of ["related", "replaces", "evolves"] as const) {
     assert.ok(DEFAULT_GRAPH_EDGE_TYPES.includes(authored), `${authored} must default to on`);
   }
 });

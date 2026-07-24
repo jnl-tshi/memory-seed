@@ -16,7 +16,7 @@
     {"id": "edge:shell-contract", "source": "memory:entry:mse_renderer_contract", "target": "memory:entry:mse_b0a_shell", "edge_type": "related", "directed": true, "evidence_refs": ["mse_renderer_contract", "mse_b0a_shell"]},
     {"id": "edge:contract-benchmark", "source": "memory:entry:mse_renderer_benchmark", "target": "memory:entry:mse_renderer_contract", "edge_type": "evolves", "directed": true, "evidence_refs": ["mse_renderer_benchmark", "mse_renderer_contract"]},
     {"id": "edge:benchmark-topology", "source": "memory:entry:mse_topology_model", "target": "memory:entry:mse_renderer_benchmark", "edge_type": "related", "directed": true, "evidence_refs": ["mse_topology_model", "mse_renderer_benchmark"]},
-    {"id": "edge:fallback-migration", "source": "memory:entry:mse_svg_fallback", "target": "memory:entry:mse_direct_renderer_migration", "edge_type": "supersedes", "directed": true, "evidence_refs": ["mse_svg_fallback", "mse_direct_renderer_migration"]},
+    {"id": "edge:fallback-migration", "source": "memory:entry:mse_svg_fallback", "target": "memory:entry:mse_direct_renderer_migration", "edge_type": "replaces", "directed": true, "evidence_refs": ["mse_svg_fallback", "mse_direct_renderer_migration"]},
     {"id": "edge:workspace-branch", "source": "memory:entry:mse_b0a_shell", "target": "memory:entry:mse_svg_fallback", "edge_type": "branch", "directed": true, "evidence_refs": ["mse_b0a_shell", "mse_svg_fallback"]},
     {"id": "edge:projection-topic", "source": "memory:entry:mse_foundation", "target": "memory:entry:mse_renderer_contract", "edge_type": "topic", "directed": true, "evidence_refs": ["mse_foundation", "mse_renderer_contract"]}
   ],

@@ -62,7 +62,7 @@ class EdgeType(str, Enum):
     """Every edge kind _graph_edges() can produce (graph-edge-contract.md)."""
 
     related = "related"
-    supersedes = "supersedes"
+    replaces = "replaces"
     evolves = "evolves"
     branch = "branch"
     topic = "topic"

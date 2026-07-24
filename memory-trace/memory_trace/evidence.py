@@ -35,7 +35,7 @@ from .service import (
 )
 
 TIMELINE_EVIDENCE_PACK_SCHEMA_VERSION = "timeline_evidence_pack.v1"
-DEFAULT_EDGE_TYPES = ("related", "supersedes", "evolves", "branch")
+DEFAULT_EDGE_TYPES = ("related", "replaces", "evolves", "branch")
 
 EvidencePack = dict[str, Any]
 
@@ -247,9 +247,9 @@ def _entry_payload(
         "heading_path": payload["heading_path"],
         "line_range": payload["line_range"],
         "related_entries": payload["related_entries"],
-        "supersedes": payload["supersedes"],
+        "replaces": payload["replaces"],
         "evolves": payload["evolves"],
-        "superseded_by": list(node.superseded_by) if node else [],
+        "replaced_by": list(node.replaced_by) if node else [],
         "evolved_by": list(node.evolved_by) if node else [],
         "inbound_relation_count": len(node.inbound) if node else 0,
         "importance_score": round(node.importance_score, 6) if node else 0.0,
@@ -363,7 +363,7 @@ def _fingerprintable_chunk_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "title": payload["title"],
         "text": payload["text"],
         "related_entries": payload["related_entries"],
-        "supersedes": payload["supersedes"],
+        "replaces": payload["replaces"],
         "evolves": payload["evolves"],
         "continuity": payload["continuity"],
         "topics": payload["topics"],
@@ -444,7 +444,7 @@ def _missing_evidence(
         refs: dict[str, set[str]] = {}
         for relation, values in (
             ("related", chunk.related_entries),
-            ("supersedes", chunk.supersedes),
+            ("replaces", chunk.replaces),
             ("evolves", chunk.evolves),
         ):
             for ref in values:
@@ -483,7 +483,7 @@ def _contradictions(edges: Sequence[dict[str, str]]) -> list[dict[str, Any]]:
     directed: dict[tuple[str, str], set[str]] = {}
     typed_pairs = {(edge["source"], edge["target"], edge["type"]) for edge in edges}
     for edge in edges:
-        if edge["type"] not in {"supersedes", "evolves"}:
+        if edge["type"] not in {"replaces", "evolves"}:
             continue
         directed.setdefault((edge["source"], edge["target"]), set()).add(edge["type"])
     for (source, target), types in sorted(directed.items()):
@@ -497,7 +497,7 @@ def _contradictions(edges: Sequence[dict[str, str]]) -> list[dict[str, Any]]:
                 }
             )
     for source, target, edge_type in sorted(typed_pairs):
-        if edge_type not in {"supersedes", "evolves"}:
+        if edge_type not in {"replaces", "evolves"}:
             continue
         if (target, source, edge_type) in typed_pairs and source < target:
             issues.append(

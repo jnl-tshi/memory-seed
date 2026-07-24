@@ -419,7 +419,7 @@
   {
    "source": "mse_0000000000000003",
    "target": "mse_0000000000000002",
-   "type": "supersedes"
+   "type": "replaces"
   },
   {
    "source": "mse_0000000000000004",
@@ -484,7 +484,7 @@
   {
    "source": "mse_000000000000000m",
    "target": "mse_0000000000000007",
-   "type": "supersedes"
+   "type": "replaces"
   },
   {
    "source": "mse_000000000000000n",
@@ -494,7 +494,7 @@
   {
    "source": "mse_000000000000000p",
    "target": "mse_000000000000000c",
-   "type": "supersedes"
+   "type": "replaces"
   },
   {
    "source": "mse_000000000000000q",
@@ -559,7 +559,7 @@
   {
    "source": "mse_000000000000000x",
    "target": "mse_0000000000000009",
-   "type": "supersedes"
+   "type": "replaces"
   },
   {
    "source": "mse_0000000000000011",
@@ -619,7 +619,7 @@
   {
    "source": "mse_000000000000001g",
    "target": "mse_0000000000000018",
-   "type": "supersedes"
+   "type": "replaces"
   }
  ]
 }

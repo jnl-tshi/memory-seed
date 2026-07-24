@@ -28,7 +28,7 @@ README table and the front-door counts below — only marker-scoped regions are 
 | [`2_Todo/`](2_Todo/) | active + approved work (blocked items stay here, flagged in YAML) |
 | [`5_Completed/`](5_Completed/) | shipped / applied work |
 | [`6_Rejected/`](6_Rejected/) | dead-end proposals, kept for the *why-not* (never deleted) |
-| [`7_Superseded/`](7_Superseded/) | replaced documents (each carries a `superseded_by` pointer) |
+| [`7_Replaced/`](7_Replaced/) | replaced documents (each carries a `superseded_by` pointer) |
 | [`8_Deferred/`](8_Deferred/) | parked / long-horizon ideas |
 
 **Type lanes** — durable references, entered when relevant (not a later "stage"):
@@ -45,7 +45,7 @@ README table and the front-door counts below — only marker-scoped regions are 
 
 - **Inbox → Todo:** the user approves a captured idea; add `priority` + `next_action`.
 - **Todo → 5/6/7/8:** on completion, move to the lane that states the outcome — `5_Completed` (shipped),
-  `6_Rejected` (declined — keep it, don't `git rm`), `7_Superseded` (replaced, set `superseded_by`), or
+  `6_Rejected` (declined — keep it, don't `git rm`), `7_Replaced` (replaced, set `superseded_by`), or
   `8_Deferred` (parked). Blocked stays in Todo with `blocked_by`.
 - **Spec:** a contract starts in `3_Spec/draft/` (candidate) and moves to `3_Spec/` when adopted as
   normative; retired contracts go to `3_Spec/deprecated/` with `deprecated_by`.
@@ -85,7 +85,7 @@ what enforces it; anything here that the code does not list is a hard `off-allow
 | `4_Reference/trace-humanised-dashboard-references/` | generated Trace design mockups cited by the Living Archive proposal; raw captures archived 2026-07-20 | keep |
 
 > The two `1_Inbox/memory-seed-*-proposals/` entries were removed 2026-07-20 when both sets were retired
-> to `7_Superseded/`. Superseded documents sit flat in their lane, so no replacement entry is needed.
+> to `7_Replaced/`. Superseded documents sit flat in their lane, so no replacement entry is needed.
 > `1_Inbox/trace-humanised-dashboard-references/` moved to `4_Reference/` the same day, once its
 > mockups were confirmed fully triaged (extracted themes recorded, actively cited by a `2_Todo/`
 > proposal) rather than awaiting further design decisions — Inbox holds untriaged captures, not
@@ -95,7 +95,7 @@ what enforces it; anything here that the code does not list is a hard `off-allow
 > `5_Completed/`, so the folder-is-the-state rule now holds with no legacy archive beside it.
 
 > `2_Todo/Claude/` and `2_Todo/codex/` (the per-agent proposal-synergy reviews) were reconciled 2026-07-14:
-> both were spent 2.13-era snapshots, moved to `7_Superseded/`, and the empty folders removed.
+> both were spent 2.13-era snapshots, moved to `7_Replaced/`, and the empty folders removed.
 
 Anything not on this list should be a lane or listed here; `memory-seed docs check` enforces it.
 
@@ -108,7 +108,7 @@ untyped `related_entries` curation. The counts below are generated — hand-edit
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 0 · 2_Todo 26 · 3_Spec 8 · 4_Reference 16 · 5_Completed 60 · 6_Rejected 0 · 7_Superseded 28 · 8_Deferred 4
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 0 · 2_Todo 26 · 3_Spec 8 · 4_Reference 16 · 5_Completed 60 · 6_Rejected 0 · 7_Replaced 28 · 8_Deferred 4
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P1** [derived-projection-implementation-plan.md](2_Todo/derived-projection-implementation-plan.md) — Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, low-urgency) = incremental ingest, gated on …

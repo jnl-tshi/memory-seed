@@ -28,7 +28,7 @@ type GraphRange = "recent" | "all";
 // full local neighborhood: only the two edge types that carry lineage, and a
 // depth deep enough for a realistic supersession/evolution chain without
 // pulling in the whole graph.
-const EVOLUTION_EDGE_TYPES: RendererGraphEdge["edge_type"][] = ["evolves", "supersedes"];
+const EVOLUTION_EDGE_TYPES: RendererGraphEdge["edge_type"][] = ["evolves", "replaces"];
 const EVOLUTION_DEPTH = 8;
 
 // What the fetch asks the server for, keyed only by scope — never by the
@@ -46,7 +46,7 @@ const OVERVIEW_LIMIT_STEP = 60;
 
 const EDGE_LABELS: Record<RendererGraphEdge["edge_type"], string> = {
   related: "Related",
-  supersedes: "Replaces",
+  replaces: "Replaces",
   evolves: "Evolves",
   branch: "Branch",
   topic: "Topic",
@@ -429,7 +429,7 @@ export default function App() {
         .slice(0, 24)
         .map((node) => ({ key: `r-${node.id}`, entryId: node.id, kind: "recent", title: stripTitleStamp(node.title) }));
     }
-    const TYPE_LABEL: Record<string, string> = { evolves: "evolves", supersedes: "replaces", related: "related" };
+    const TYPE_LABEL: Record<string, string> = { evolves: "evolves", replaces: "replaces", related: "related" };
     const items: ContextItem[] = [];
     const seen = new Set<string>([entryId]);
     (entryIndex?.edges ?? []).forEach((edge) => {

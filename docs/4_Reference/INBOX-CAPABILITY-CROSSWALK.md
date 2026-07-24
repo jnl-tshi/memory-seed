@@ -5,20 +5,20 @@ date: 2026-07-20
 promotion: not applicable
 sources:
   - INBOX-ASSESSMENT.md
-  - ../7_Superseded/memory-seed-ontology-evidence-set-index-exploration.md
-  - ../7_Superseded/memory-seed-ontology-exploration.md
-  - ../7_Superseded/evidence-model-and-packets-exploration.md
-  - ../7_Superseded/decision-supersession-and-evolution-exploration.md
-  - ../7_Superseded/deterministic-context-assembly-exploration.md
-  - ../7_Superseded/benchmarking-decision-quality-exploration.md
-  - ../7_Superseded/constitutional-principles-decision-efficiency-exploration.md
-  - ../7_Superseded/memory-seed-relevance-set-index-exploration.md
-  - ../7_Superseded/constitutional-principles-deterministic-agents-exploration.md
-  - ../7_Superseded/sidecar-lens-architecture-exploration.md
-  - ../7_Superseded/deterministic-sidecar-generation-exploration.md
-  - ../7_Superseded/entry-intent-metadata-exploration.md
-  - ../7_Superseded/high-signal-knowledge-lenses-exploration.md
-  - ../7_Superseded/integrated-implementation-sequence-exploration.md
+  - ../7_Replaced/memory-seed-ontology-evidence-set-index-exploration.md
+  - ../7_Replaced/memory-seed-ontology-exploration.md
+  - ../7_Replaced/evidence-model-and-packets-exploration.md
+  - ../7_Replaced/decision-supersession-and-evolution-exploration.md
+  - ../7_Replaced/deterministic-context-assembly-exploration.md
+  - ../7_Replaced/benchmarking-decision-quality-exploration.md
+  - ../7_Replaced/constitutional-principles-decision-efficiency-exploration.md
+  - ../7_Replaced/memory-seed-relevance-set-index-exploration.md
+  - ../7_Replaced/constitutional-principles-deterministic-agents-exploration.md
+  - ../7_Replaced/sidecar-lens-architecture-exploration.md
+  - ../7_Replaced/deterministic-sidecar-generation-exploration.md
+  - ../7_Replaced/entry-intent-metadata-exploration.md
+  - ../7_Replaced/high-signal-knowledge-lenses-exploration.md
+  - ../7_Replaced/integrated-implementation-sequence-exploration.md
   - ../CONSTITUTION.md
   - ../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md
   - ../2_Todo/memory-provenance-and-authority-taxonomy-proposal.md
@@ -41,7 +41,7 @@ the Evidence Pack, the topic vocabulary, and the existing sidecar contracts. Eac
 scored against what the owner documents and the shipped code actually do, not against the proposals'
 own characterisation of the status quo.
 
-**Disposition, 2026-07-20.** Both sets have now been retired to `7_Superseded/` — de-numbered, renamed
+**Disposition, 2026-07-20.** Both sets have now been retired to `7_Replaced/` — de-numbered, renamed
 `-exploration`, each pointing back here. This document is the surviving record of what they claimed and
 what already covered it; it is more accurate than the sources were, since they systematically understate
 shipped capability. Nothing was promoted, and nothing was deleted. The ten deltas below were adversarially
@@ -54,20 +54,20 @@ Proposal codes:
 
 | Code | Document |
 |---|---|
-| A0 | [memory-seed-ontology-evidence-set-index-exploration.md](../7_Superseded/memory-seed-ontology-evidence-set-index-exploration.md) |
-| A1 | [memory-seed-ontology-exploration.md](../7_Superseded/memory-seed-ontology-exploration.md) |
-| A2 | [evidence-model-and-packets-exploration.md](../7_Superseded/evidence-model-and-packets-exploration.md) |
-| A3 | [decision-supersession-and-evolution-exploration.md](../7_Superseded/decision-supersession-and-evolution-exploration.md) |
-| A4 | [deterministic-context-assembly-exploration.md](../7_Superseded/deterministic-context-assembly-exploration.md) |
-| A5 | [benchmarking-decision-quality-exploration.md](../7_Superseded/benchmarking-decision-quality-exploration.md) |
-| A6 | [constitutional-principles-decision-efficiency-exploration.md](../7_Superseded/constitutional-principles-decision-efficiency-exploration.md) |
-| B0 | [memory-seed-relevance-set-index-exploration.md](../7_Superseded/memory-seed-relevance-set-index-exploration.md) |
-| B1 | [constitutional-principles-deterministic-agents-exploration.md](../7_Superseded/constitutional-principles-deterministic-agents-exploration.md) |
-| B2 | [sidecar-lens-architecture-exploration.md](../7_Superseded/sidecar-lens-architecture-exploration.md) |
-| B3 | [deterministic-sidecar-generation-exploration.md](../7_Superseded/deterministic-sidecar-generation-exploration.md) |
-| B4 | [entry-intent-metadata-exploration.md](../7_Superseded/entry-intent-metadata-exploration.md) |
-| B5 | [high-signal-knowledge-lenses-exploration.md](../7_Superseded/high-signal-knowledge-lenses-exploration.md) |
-| B6 | [integrated-implementation-sequence-exploration.md](../7_Superseded/integrated-implementation-sequence-exploration.md) |
+| A0 | [memory-seed-ontology-evidence-set-index-exploration.md](../7_Replaced/memory-seed-ontology-evidence-set-index-exploration.md) |
+| A1 | [memory-seed-ontology-exploration.md](../7_Replaced/memory-seed-ontology-exploration.md) |
+| A2 | [evidence-model-and-packets-exploration.md](../7_Replaced/evidence-model-and-packets-exploration.md) |
+| A3 | [decision-supersession-and-evolution-exploration.md](../7_Replaced/decision-supersession-and-evolution-exploration.md) |
+| A4 | [deterministic-context-assembly-exploration.md](../7_Replaced/deterministic-context-assembly-exploration.md) |
+| A5 | [benchmarking-decision-quality-exploration.md](../7_Replaced/benchmarking-decision-quality-exploration.md) |
+| A6 | [constitutional-principles-decision-efficiency-exploration.md](../7_Replaced/constitutional-principles-decision-efficiency-exploration.md) |
+| B0 | [memory-seed-relevance-set-index-exploration.md](../7_Replaced/memory-seed-relevance-set-index-exploration.md) |
+| B1 | [constitutional-principles-deterministic-agents-exploration.md](../7_Replaced/constitutional-principles-deterministic-agents-exploration.md) |
+| B2 | [sidecar-lens-architecture-exploration.md](../7_Replaced/sidecar-lens-architecture-exploration.md) |
+| B3 | [deterministic-sidecar-generation-exploration.md](../7_Replaced/deterministic-sidecar-generation-exploration.md) |
+| B4 | [entry-intent-metadata-exploration.md](../7_Replaced/entry-intent-metadata-exploration.md) |
+| B5 | [high-signal-knowledge-lenses-exploration.md](../7_Replaced/high-signal-knowledge-lenses-exploration.md) |
+| B6 | [integrated-implementation-sequence-exploration.md](../7_Replaced/integrated-implementation-sequence-exploration.md) |
 
 `Delta` values:
 

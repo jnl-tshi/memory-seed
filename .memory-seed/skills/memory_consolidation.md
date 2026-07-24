@@ -18,7 +18,7 @@ Use this skill when compacting session history, reviewing recent work, or promot
 4. Promote active-state facts into `.memory-seed/index.md`.
 5. Promote behavioral constraints into `.memory-seed/policy.md`.
 6. Promote reusable procedures into `.memory-seed/skills/*.md`.
-7. Leave one-off debugging traces, temporary hypotheses, superseded experiments, and raw command output in sessions only.
+7. Leave one-off debugging traces, temporary hypotheses, replaced experiments, and raw command output in sessions only.
 
 ## Reason Boundary
 

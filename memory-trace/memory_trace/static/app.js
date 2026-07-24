@@ -237,9 +237,9 @@ async function loadView() {
 }
 
 // Trail is a git-graph timeline: intra-branch lineage gives the branch lanes,
-// and relationship edges (supersedes/evolves/related) route through dedicated
+// and relationship edges (replaces/evolves/related) route through dedicated
 // dotted lanes left of main. Fixed edge set - not the graph view's chips.
-const TRAIL_EDGE_TYPES = "branch,supersedes,evolves,related";
+const TRAIL_EDGE_TYPES = "branch,replaces,evolves,related";
 
 // Search over the current view: server-side ranking (sections and files
 // included) produces the ranked dropdown plus the entry match set that the
@@ -595,8 +595,8 @@ function graphView() {
     <div class="graph-stage">
       <svg class="graph-canvas" data-graph-canvas viewBox="0 0 1000 620" role="img">
       <defs>
-        <marker id="arrow-supersedes" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("supersedes")}"></path>
+        <marker id="arrow-replaces" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("replaces")}"></path>
         </marker>
       </defs>
       <g class="graph-layer" transform="translate(${state.graphTransform.x} ${state.graphTransform.y}) scale(${state.graphTransform.scale})">
@@ -605,10 +605,10 @@ function graphView() {
         if (!a || !b) return "";
         const highlight = state.graphHover && (edge.source === state.graphHover || edge.target === state.graphHover);
         const dim = (state.graphHover && !highlight) || (searching && !isMatch(edge.source) && !isMatch(edge.target));
-        // supersedes: directed + dashed status edge, never conflated with related.
-        const width = edge.type === "supersedes" ? 2.2 : edge.type === "branch" ? 1.6 : edge.type === "related" ? 2 : 1;
-        const dash = edge.type === "supersedes" ? ' stroke-dasharray="6 4"' : "";
-        const marker = edge.type === "supersedes" ? ' marker-end="url(#arrow-supersedes)"' : "";
+        // replaces: directed + dashed status edge, never conflated with related.
+        const width = edge.type === "replaces" ? 2.2 : edge.type === "branch" ? 1.6 : edge.type === "related" ? 2 : 1;
+        const dash = edge.type === "replaces" ? ' stroke-dasharray="6 4"' : "";
+        const marker = edge.type === "replaces" ? ' marker-end="url(#arrow-replaces)"' : "";
         return `<line class="graph-edge graph-edge-${edge.type} ${highlight ? "graph-related" : ""} ${dim ? "graph-dim" : ""}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${edgeColor(edge.type)}" stroke-width="${width}"${dash}${marker}></line>`;
       }).join("")}
       ${(() => {
@@ -660,7 +660,7 @@ const TRAIL_CONT_ZONE_PAD = 14;
 // the rarest, densest signal - so they take the innermost lane next to main
 // and never cross the other two on their way out. Branch lanes to the right
 // are the solid spawned git branches.
-const TRAIL_REL_LANES = ["supersedes", "evolves", "related"];
+const TRAIL_REL_LANES = ["replaces", "evolves", "related"];
 const TRAIL_REL_LANE_W = 12;
 // Corner radius for every lane change (gitgraph "rounded" style): straight
 // runs, small elbows at the turns. Must stay below half the minimum row gap
@@ -671,8 +671,8 @@ const TRAIL_REL_ZONE = TRAIL_REL_LANES.length * TRAIL_REL_LANE_W + 12;
 // separates the types (user decision - replaces' dash won the readability
 // comparison). Related and evolves routes draw only for the selected entry:
 // as ambient traffic they drowned the lifecycle signal.
-const TRAIL_DASH = { supersedes: "6 4", evolves: "6 4", related: "6 4" };
-const TRAIL_VERB = { supersedes: "replaces", evolves: "evolves", related: "relates to" };
+const TRAIL_DASH = { replaces: "6 4", evolves: "6 4", related: "6 4" };
+const TRAIL_VERB = { replaces: "replaces", evolves: "evolves", related: "relates to" };
 const TRAIL_CONTINUITY_LABEL = { rename: "rename", migration: "migration", removal: "removal" };
 // Each of the first four lanes owns a "pack" of three distinct colors rather
 // than one flat color: lanes are already collision-free for anything parallel
@@ -1215,7 +1215,7 @@ function trailView() {
   // edge, render only the highest-information one - replaces > evolves >
   // related - so a pair that both evolves and relates shows the evolves (it
   // tells you the most), never a weaker duplicate beside it.
-  const EDGE_INFO_RANK = { supersedes: 3, evolves: 2, related: 1 };
+  const EDGE_INFO_RANK = { replaces: 3, evolves: 2, related: 1 };
   const pairKey = (a, b) => (a < b ? `${a}${b}` : `${b}${a}`);
   const strongestByPair = new Map();
   lifecycle.forEach((edge) => {
@@ -1304,7 +1304,7 @@ function trailView() {
     // same-branch related context: an adjacent lifecycle edge renders as a
     // short direct hop beside the dots, and the routed lanes are reserved for
     // edges that actually span distance.
-    if (edge.type === "supersedes" && adjacentRows(rowOf.get(edge.source), rowOf.get(edge.target))) {
+    if (edge.type === "replaces" && adjacentRows(rowOf.get(edge.source), rowOf.get(edge.target))) {
       const bow = 11;
       const path = `M ${sx} ${sy} C ${sx - bow} ${sy + (ty - sy) * 0.3}, ${tx - bow} ${ty - (ty - sy) * 0.3}, ${tx} ${ty}`;
       return [`<path d="${path}" fill="none" stroke="${stroke}" stroke-width="${touched ? 2.6 : 2}" stroke-dasharray="${TRAIL_DASH[edge.type]}" stroke-opacity="${opacity}" marker-end="url(#${marker})">${tip}</path>`];
@@ -1392,7 +1392,7 @@ function trailView() {
       ${model.continuityLaneCount ? `<span class="legend-item"><span class="trail-cont-legend trail-cont-legend-rename"></span>rename</span>
       <span class="legend-item"><span class="trail-cont-legend trail-cont-legend-migration"></span>migration</span>
       <span class="legend-item"><span class="trail-cont-legend trail-cont-legend-removal"></span>removal</span>` : ""}
-      <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("supersedes")}"></span>replaces</span>
+      <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("replaces")}"></span>replaces</span>
       <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("evolves")}"></span>evolves · on select</span>
       <span class="legend-item"><span class="legend-line legend-line-dashed" style="border-color:${edgeColor("related")}"></span>related · on select</span>
       ${shown < total ? `<button type="button" class="chip" data-trail-more>Load older</button>` : ""}
@@ -1401,10 +1401,10 @@ function trailView() {
       <div class="trail-body">
         <svg class="trail-rail" width="${railWidth}" height="${height}" viewBox="0 0 ${railWidth} ${height}" aria-hidden="true">
           <defs>
-            <marker id="trail-arrow-supersedes" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("supersedes")}"></path></marker>
+            <marker id="trail-arrow-replaces" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("replaces")}"></path></marker>
             <marker id="trail-arrow-evolves" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("evolves")}"></path></marker>
             <marker id="trail-arrow-related" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${edgeColor("related")}"></path></marker>
-            <marker id="trail-arrow-supersedes-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-supersedes-soft)"></path></marker>
+            <marker id="trail-arrow-replaces-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-replaces-soft)"></path></marker>
             <marker id="trail-arrow-evolves-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-evolves-soft)"></path></marker>
           </defs>
           ${model.continuityLaneCount ? `<rect class="trail-cont-zone" x="0" y="0" width="${continuityZoneWidth - 4}" height="${height}" rx="6"></rect>` : ""}
@@ -1812,7 +1812,7 @@ function ensureTrailVisible(chunkId) {
 // SHOWN rows, so a lifecycle/related target older than the current window
 // renders as no line at all - the entry looks unlinked despite the edge being
 // present. The full corpus is already loaded client-side, so grow the window to
-// cover the selected entry's linked neighbours (its supersedes/evolves/related
+// cover the selected entry's linked neighbours (its replaces/evolves/related
 // edges, inbound or outbound). Branch-lane edges are excluded: they are
 // continuity, not a "link", and would drag the whole branch into view.
 function ensureLinkedNeighborsVisible(chunkId) {
@@ -2562,14 +2562,14 @@ function hashString(value) {
 
 function edgeColor(type) {
   // Edge-type color semantics live as design tokens in styles.css (one defined
-  // job per color). supersedes is a status edge and must never read as plain
+  // job per color). replaces is a status edge and must never read as plain
   // relatedness; branch is a lineage axis. This is the single JS reference.
   return {
     related: "var(--edge-related)",
     topic: "var(--edge-topic)",
     agent: "var(--edge-agent)",
     day: "var(--edge-day)",
-    supersedes: "var(--edge-supersedes)",
+    replaces: "var(--edge-replaces)",
     evolves: "var(--edge-evolves)",
     branch: "var(--edge-branch)",
   }[type] || "var(--muted)";

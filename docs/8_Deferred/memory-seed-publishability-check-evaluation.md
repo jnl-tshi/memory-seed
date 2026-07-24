@@ -3,7 +3,7 @@ title: Memory Seed publishability check evaluation
 status: deferred
 priority: P3
 reactivation_gate: A concrete publishing workflow plus an explicit security and privacy review.
-source: ../7_Superseded/capability-status-and-publishability-boundary-proposal.md
+source: ../7_Replaced/capability-status-and-publishability-boundary-proposal.md
 ---
 
 # Publishability Check Evaluation

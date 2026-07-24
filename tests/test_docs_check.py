@@ -82,21 +82,21 @@ class DocsCheckTests(unittest.TestCase):
         self.assertIn("missing-todo-yaml", self.kinds(result))
         self.assertEqual(len(result.errors), 0)
 
-    def test_superseded_without_pointer_warns(self):
+    def test_replaced_without_pointer_warns(self):
         root = self.make_docs()
-        self.write(root, "7_Superseded/old.md", "---\ntitle: old\n---\n\n# Old\n")
+        self.write(root, "7_Replaced/old.md", "---\ntitle: old\n---\n\n# Old\n")
 
         result = check_docs(root)
 
         self.assertTrue(result.ok)
-        self.assertIn("missing-superseded-by", self.kinds(result))
+        self.assertIn("missing-replaced-by", self.kinds(result))
 
-    def test_dangling_superseded_by_pointer_is_an_error(self):
+    def test_dangling_replaced_by_pointer_is_an_error(self):
         root = self.make_docs()
         self.write(
             root,
-            "7_Superseded/old.md",
-            "---\nsuperseded_by: 2_Todo/nonexistent.md\n---\n\n# Old\n",
+            "7_Replaced/old.md",
+            "---\nreplaced_by: 2_Todo/nonexistent.md\n---\n\n# Old\n",
         )
 
         result = check_docs(root)
@@ -104,10 +104,10 @@ class DocsCheckTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertIn("dangling-pointer", self.kinds(result))
 
-    def test_resolving_superseded_by_pointer_is_clean(self):
+    def test_resolving_replaced_by_pointer_is_clean(self):
         root = self.make_docs()
         self.write(root, "2_Todo/new.md", "---\npriority: P1\nnext_action: x\n---\n\n# New\n")
-        self.write(root, "7_Superseded/old.md", "---\nsuperseded_by: 2_Todo/new.md\n---\n\n# Old\n")
+        self.write(root, "7_Replaced/old.md", "---\nreplaced_by: 2_Todo/new.md\n---\n\n# Old\n")
 
         result = check_docs(root)
 
@@ -116,7 +116,7 @@ class DocsCheckTests(unittest.TestCase):
 
     def test_entry_id_pointer_is_not_treated_as_a_path(self):
         root = self.make_docs()
-        self.write(root, "7_Superseded/old.md", "---\nsuperseded_by: mse_abc123\n---\n\n# Old\n")
+        self.write(root, "7_Replaced/old.md", "---\nreplaced_by: mse_abc123\n---\n\n# Old\n")
 
         result = check_docs(root)
 

@@ -20,7 +20,7 @@ Use this skill when running the Memory Seed end-of-turn routine, `/esr`, or any 
 2. Run the Decision Harvest from `.memory-seed/skills/session_logging.md` before composing the entry:
    identify every durable accepted choice, then choose single-decision, multi-decision, or separate
    entries from that list. The harvest includes the lifecycle questions: does any harvested decision
-   replace/remove (`supersedes`) or extend-while-still-valid (`evolves`) an earlier entry, and did
+   replace/remove (`replaces`) or extend-while-still-valid (`evolves`) an earlier entry, and did
    the turn rename, relocate, or remove any artifact (record a `continuity:` block with old and new
    names).
 3. Append the session entry to the active session target before doing other closeout work. Use
@@ -80,14 +80,14 @@ lifecycle edges rot silently otherwise: genuine supersessions get logged as gene
   machine-detectable `classify_pending: true` sidecar stubs. The candidate ids remain comments: the
   command never auto-classifies a relationship and never writes a live edge.
 - A human must classify each stub with the litmus: the new entry *retires* the candidate ->
-  `supersedes`; *refines it while it stays valid* -> `evolves`; genuinely just connected ->
+  `replaces`; *refines it while it stays valid* -> `evolves`; genuinely just connected ->
   `related_entries`. Not every candidate deserves an edge - shared files can be coincidental, so delete
   or leave unresolved stubs rather than inventing a relationship.
 - After human approval, replace the accepted stubs with live edges in the day's link sidecar
   `.memory-seed/sessions/links/YYYY-MM/YYYY-MM-DD.md` - never by reopening a written entry
   (append-only). Each block is keyed to the SOURCE (newer) entry:
   `## <entry's timestamp> - <short label>` + a fenced yaml with `entry_id:` and the
-  `supersedes:`/`evolves:`/`related_entries:` lists pointing at older targets.
+  `replaces:`/`evolves:`/`related_entries:` lists pointing at older targets.
 - Stub creation itself is mechanical and safe; ask the user for approval before converting any stub
   into a live edge (same gate as persona evolution), showing the evidence and proposed classification.
 - Finish with `memory-seed links check` - live sidecar edges join the dangling and forward-only guards,
@@ -120,7 +120,7 @@ too.
 - A merged branch can still carry working-tree state its own history never saw - the dirty count
   covers this, but re-check `git status --short` inside the worktree immediately before removal.
 - If uncommitted changes exist, diagnose before touching them:
-  - Genuinely stale/superseded (already reflected in the integration branch some other way, or pure
+  - Genuinely stale/replaced (already reflected in the integration branch some other way, or pure
     formatting/line-ending noise) - safe to discard, but still name the specific worktree and diff
     and get explicit user confirmation before discarding; a prior general "clean them up" does not
     by itself authorize discarding a diff turning out to hold real content.

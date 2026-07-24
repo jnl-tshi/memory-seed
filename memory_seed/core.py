@@ -557,7 +557,7 @@ def iter_diagram_sidecar_documents(sessions_dir: Path) -> Iterator[DiagramSideca
 def iter_link_sidecar_documents(sessions_dir: Path) -> Iterator[LinkSidecarDocument]:
     """Lifecycle-edge link sidecars under ``sessions/links``, mirroring
     ``iter_diagram_sidecar_documents``. A link sidecar records
-    ``supersedes``/``evolves``/``related_entries`` edges authored *after* an
+    ``replaces``/``evolves``/``related_entries`` edges authored *after* an
     entry (append-only enrichment - the entry itself is never reopened). Same
     dated layouts: ``links/YYYY-MM/YYYY-MM-DD.md`` and legacy
     ``links/YYYY-MM-DD.md``. Returns an empty iterator when the dir is absent."""
@@ -725,7 +725,7 @@ _TRAILER_ENTRY_ID_RE = re.compile(r"(?:ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32})")
 _RELATED_MEMORY_REF_RE = re.compile(r"msm_[0-9a-zA-Z]+")
 _FENCED_YAML_RE = re.compile(r"^```ya?ml\s*\n(.*?)^```\s*$", re.MULTILINE | re.DOTALL)
 # An entry heading with a parseable timestamp, followed immediately by its
-# fenced yaml block. Used to attribute supersedes refs to a source entry and
+# fenced yaml block. Used to attribute replaces refs to a source entry and
 # timestamp for the forward-only guard; blocks whose heading doesn't match
 # still get the plain dangling-ref scan via _FENCED_YAML_RE.
 _ENTRY_TS_YAML_RE = re.compile(
@@ -778,7 +778,7 @@ def _frontmatter_list_region(block: str, list_key: str) -> str:
     return "\n".join(out)
 
 
-# A ref as authored in a `supersedes:`/`evolves:`/`related_entries:` list.
+# A ref as authored in a `replaces:`/`evolves:`/`related_entries:` list.
 # `decision` is the dN ordinal when the ref targets one decision rather than a
 # whole entry; None means entry-level, which is every ref written before
 # 2026-07-22. `ok` False means the token is not a ref at all and must surface
@@ -860,7 +860,7 @@ def _frontmatter_list_refs(block: str, list_key: str) -> list[ListRef]:
 def _entry_level_ref_ids(
     block: str, list_key: str, rel: str, issues: list, *, surface: bool
 ) -> list[str]:
-    """Entry-level target ids from a `related_entries`/`supersedes`/`evolves`
+    """Entry-level target ids from a `related_entries`/`replaces`/`evolves`
     list, parsed per authored item.
 
     Replaces ``_TRAILER_ENTRY_ID_RE.findall(_frontmatter_list_region(...))``,
@@ -874,7 +874,7 @@ def _entry_level_ref_ids(
     — a bare id that is unknown still surfaces as dangling downstream — so this is
     behaviour-preserving apart from removing the two corruptions. A decision-level
     ref is surfaced as misplaced, because decision granularity is valid only on
-    `supersedes`/`evolves` in a link sidecar (decision-level-link-sidecar-refs.md),
+    `replaces`/`evolves` in a link sidecar (decision-level-link-sidecar-refs.md),
     never in entry/file frontmatter. Any other non-id token is skipped, exactly as
     the old scrape skipped a substring it could not match — surfacing those is a
     separate linting concern, out of scope for closing the corruption. ``surface``
@@ -894,7 +894,7 @@ def _entry_level_ref_ids(
                         rel,
                         "misplaced-decision-ref",
                         f"{list_key} -> {parsed.raw}: decision-level refs are valid only on "
-                        "supersedes/evolves in a link sidecar, not here",
+                        "replaces/evolves in a link sidecar, not here",
                     )
                 )
             continue
@@ -934,7 +934,7 @@ def _parse_continuity_items(region: str) -> list[dict[str, str]]:
 
 
 _CONTINUITY_KINDS = {"rename", "migration", "removal"}
-_AUTHORED_INVERSE_RE = re.compile(r"^(superseded_by|evolved_by)\s*:", re.MULTILINE)
+_AUTHORED_INVERSE_RE = re.compile(r"^(replaced_by|evolved_by)\s*:", re.MULTILINE)
 
 
 def _fenced_yaml_blocks(text: str) -> Iterator[str]:
@@ -1652,8 +1652,8 @@ def check_entry_metadata_fences(text: str) -> list[tuple[str, str]]:
 def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     """Validate session-memory integrity across both legacy-flat and per-user
     layouts (multi-user Phase 3). Detects duplicate entry/file IDs, dangling
-    ``related_entries``/``related_memories``/``supersedes`` references,
-    supersession forward-only violations (a ``supersedes`` ref whose target
+    ``related_entries``/``related_memories``/``replaces`` references,
+    supersession forward-only violations (a ``replaces`` ref whose target
     postdates the referencing entry, including self-references and cycles),
     malformed or unknown ``commits:`` hashes (existence checked only when a
     ``.git`` directory is present and git responds), per-user-file
@@ -1666,7 +1666,7 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     optional). Lifecycle-edge link sidecars under ``sessions/links/…`` are
     validated the same way (``orphan-link-sidecar``,
     ``link-sidecar-date-mismatch``, ``malformed-link-sidecar``), and their
-    ``supersedes``/``evolves``/``related_entries`` edges join the entry-YAML
+    ``replaces``/``evolves``/``related_entries`` edges join the entry-YAML
     edges in the dangling and forward-only checks. An unresolved
     ``classify_pending: true`` link block emits the non-blocking
     ``sidecar-unclassified-stub`` warning; ``edge_status: not_applicable``
@@ -1686,11 +1686,11 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     hash_id_files: dict[str, list[str]] = {}
     related_entry_refs: list[tuple[str, str]] = []
     related_memory_refs: list[tuple[str, str]] = []
-    supersedes_refs: list[tuple[str, str]] = []
+    replaces_refs: list[tuple[str, str]] = []
     evolves_refs: list[tuple[str, str]] = []
     commit_refs: list[tuple[str, str]] = []
     # (rel_path, source_entry_id, ref) for refs attributable to a source entry.
-    supersedes_edges: list[tuple[str, str, str]] = []
+    replaces_edges: list[tuple[str, str, str]] = []
     evolves_edges: list[tuple[str, str, str]] = []
     # (rel_path, source_entry_id, target_entry_id, target_ordinal). Kept apart
     # from the entry-level lists on purpose - a decision edge is never
@@ -1747,7 +1747,7 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                 LinkIssue(rel, "entry-future-timestamp", f"{entry_id}: {advisory}", "warning")
             )
 
-        # Entry-level related_entries/supersedes live inside each entry's fenced
+        # Entry-level related_entries/replaces live inside each entry's fenced
         # ```yaml block, the same shape in both layouts - scan them regardless
         # of layout, unlike the per-user *file*-frontmatter checks below.
         # _entry_level_ref_ids parses per authored item: a bare-id-shaped but
@@ -1760,8 +1760,12 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
         for yaml_block in _fenced_yaml_blocks(text):
             for ref in _entry_level_ref_ids(yaml_block, "related_entries", rel, issues, surface=True):
                 related_entry_refs.append((rel, ref))
-            for ref in _entry_level_ref_ids(yaml_block, "supersedes", rel, issues, surface=True):
-                supersedes_refs.append((rel, ref))
+            # "supersedes" is the legacy spelling of "replaces" (renamed
+            # 2026-07-24); <=2.19 corpora carry it, so both keys validate into
+            # the same ref list forever. Writers emit only "replaces".
+            for key in ("replaces", "supersedes"):
+                for ref in _entry_level_ref_ids(yaml_block, key, rel, issues, surface=True):
+                    replaces_refs.append((rel, ref))
             for ref in _entry_level_ref_ids(yaml_block, "evolves", rel, issues, surface=True):
                 evolves_refs.append((rel, ref))
             for token in _COMMIT_TOKEN_RE.findall(_frontmatter_list_region(yaml_block, "commits")):
@@ -1822,16 +1826,17 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
         for entry_id_seen, ordinal in _walk_entry_bodies(text, _entry_decision_ordinals):
             entry_decision_ordinals.setdefault(entry_id_seen, set()).add(ordinal)
 
-        # Second, heading-anchored pass: attribute each supersedes/evolves ref
+        # Second, heading-anchored pass: attribute each replaces/evolves ref
         # to its source entry and heading timestamp for the forward-only guard.
         for heading_ts, yaml_block in _ENTRY_TS_YAML_RE.findall(text):
             id_match = _ENTRY_ID_RE.search(yaml_block)
             source_id = id_match.group(1) if id_match else None
             if source_id:
                 entry_timestamps.setdefault(source_id, heading_ts)
-            for ref in _entry_level_ref_ids(yaml_block, "supersedes", rel, issues, surface=False):
-                if source_id:
-                    supersedes_edges.append((rel, source_id, ref))
+            for key in ("replaces", "supersedes"):
+                for ref in _entry_level_ref_ids(yaml_block, key, rel, issues, surface=False):
+                    if source_id:
+                        replaces_edges.append((rel, source_id, ref))
             for ref in _entry_level_ref_ids(yaml_block, "evolves", rel, issues, surface=False):
                 if source_id:
                     evolves_edges.append((rel, source_id, ref))
@@ -1937,13 +1942,13 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
             elif len(fence_lines) % 2 != 0:
                 issues.append(LinkIssue(rel, "malformed-diagram", f"diagram block for {entry_id} has an unbalanced code fence"))
 
-    # Lifecycle-edge link sidecars (sessions/links/...): supersedes/evolves/
+    # Lifecycle-edge link sidecars (sessions/links/...): replaces/evolves/
     # related edges authored after an entry, keyed to the SOURCE (newer) entry.
     # Optional throughout. Edges fold into the SAME dangling + forward-only
     # checks as entry-YAML edges, attributed to the source ENTRY's heading
-    # timestamp (not the sidecar's authoring time), so "B supersedes A" is legal
+    # timestamp (not the sidecar's authoring time), so "B replaces A" is legal
     # iff A predates B no matter when the sidecar was written. Dangling checks
-    # run inline here because the supersedes/evolves dangling passes above have
+    # run inline here because the replaces/evolves dangling passes above have
     # already executed; the forward-only guard runs last and sees these edges.
     for link_doc in iter_link_sidecar_documents(sessions_dir):
         files_checked += 1
@@ -2023,8 +2028,13 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                 )
             # Parsed per authored item, not scraped from the region text: a
             # malformed ref must surface, never be reinterpreted as whatever
-            # id it happens to contain.
-            for kind, edge_list in (("supersedes", supersedes_edges), ("evolves", evolves_edges)):
+            # id it happens to contain. "supersedes" is the legacy key for
+            # "replaces" (renamed 2026-07-24); both feed the same edge list.
+            for kind, edge_list in (
+                ("replaces", replaces_edges),
+                ("supersedes", replaces_edges),
+                ("evolves", evolves_edges),
+            ):
                 for parsed in _frontmatter_list_refs(yaml_block, kind):
                     if not parsed.ok:
                         issues.append(
@@ -2040,8 +2050,8 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                         edge_list.append((rel, entry_id, parsed.entry_id))
                         continue
                     # Decision-level ref. Validated here but deliberately NOT
-                    # added to edge_list: "D2 of B supersedes D1 of A" does not
-                    # license "B supersedes A", so decision edges stay a
+                    # added to edge_list: "D2 of B replaces D1 of A" does not
+                    # license "B replaces A", so decision edges stay a
                     # distinct set rather than being projected up to entries.
                     if parsed.entry_id == entry_id:
                         issues.append(
@@ -2074,9 +2084,9 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     for rel, ref in related_memory_refs:
         if ref not in known_hashes:
             issues.append(LinkIssue(rel, "dangling-related-memory", f"related_memories -> {ref} (no such hash_id)"))
-    for rel, ref in supersedes_refs:
+    for rel, ref in replaces_refs:
         if ref not in known_entries:
-            issues.append(LinkIssue(rel, "dangling-supersedes", f"supersedes -> {ref} (no such entry_id)"))
+            issues.append(LinkIssue(rel, "dangling-replaces", f"replaces -> {ref} (no such entry_id)"))
     for rel, ref in evolves_refs:
         if ref not in known_entries:
             issues.append(LinkIssue(rel, "dangling-evolves", f"evolves -> {ref} (no such entry_id)"))
@@ -2110,12 +2120,12 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
             if commit_known[token] is False:
                 issues.append(LinkIssue(rel_path, "unknown-commit", f"commits -> {token} (no such commit in this repository)"))
 
-    # Forward-only guard: supersedes/evolves may only point at entries that
+    # Forward-only guard: replaces/evolves may only point at entries that
     # already existed when the referencing entry was written. Acyclicity of
     # each lifecycle graph depends on this holding, so violations are errors,
     # not warnings. Refs without a resolvable source or target timestamp fall
     # through to the dangling check above rather than failing here. The two
-    # edge kinds are guarded independently - an evolves + supersedes pair
+    # edge kinds are guarded independently - an evolves + replaces pair
     # between the same two entries is legal, and cycles are checked within
     # each kind, never across kinds.
     def _forward_only_guard(
@@ -2176,7 +2186,7 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                     path.pop()
                     stack.pop()
 
-    _forward_only_guard(supersedes_edges, "supersedes", "entry supersedes itself", "supersession")
+    _forward_only_guard(replaces_edges, "replaces", "entry replaces itself", "supersession")
     _forward_only_guard(evolves_edges, "evolves", "entry evolves itself", "evolution")
 
     # Decision edges get the same forward-only check, resolving each end to its
@@ -2316,7 +2326,7 @@ def session_append_entry(
     agent_name: str | None = None,
     topics: Sequence[str] = (),
     related_entries: Sequence[str] = (),
-    supersedes: Sequence[str] = (),
+    replaces: Sequence[str] = (),
     evolves: Sequence[str] = (),
     project_path: str = ".",
     subproject_path: str | None = None,
@@ -2339,7 +2349,7 @@ def session_append_entry(
       entry - when the previous heading claims a FUTURE time relative to the
       clock, this errors loudly rather than silently propagating drift; the
       agent fixes it consciously (``--timestamp`` or ``session reorder``).
-    - every ``related_entries``/``supersedes``/``evolves`` ref must exist
+    - every ``related_entries``/``replaces``/``evolves`` ref must exist
       (kills fabricated ids) and must not postdate this entry (forward-only,
       same rule links check enforces after the fact).
     - topics must resolve in the controlled vocabulary; aliases are stored as
@@ -2387,7 +2397,7 @@ def session_append_entry(
             )
 
     known, entry_ts = _known_entry_ids_and_timestamps(sessions_dir)
-    for kind, refs in (("related_entries", related_entries), ("supersedes", supersedes), ("evolves", evolves)):
+    for kind, refs in (("related_entries", related_entries), ("replaces", replaces), ("evolves", evolves)):
         for ref in refs:
             if ref not in known:
                 issues.append(f"{kind} -> {ref}: no such entry_id (refs must never be invented)")
@@ -2452,7 +2462,7 @@ def session_append_entry(
     for key, values in (
         ("topics", canonical_topics),
         ("related_entries", list(related_entries)),
-        ("supersedes", list(supersedes)),
+        ("replaces", list(replaces)),
         ("evolves", list(evolves)),
     ):
         if values:

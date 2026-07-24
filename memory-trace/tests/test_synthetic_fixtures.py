@@ -56,7 +56,7 @@ class SyntheticFixtureTests(unittest.TestCase):
 
         graph = service.graph(
             granularity="entry",
-            edge_types=("branch", "supersedes", "evolves", "related"),
+            edge_types=("branch", "replaces", "evolves", "related"),
             limit=1000,
         )
         self.assertEqual(len(graph["nodes"]), 64)

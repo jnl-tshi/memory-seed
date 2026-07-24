@@ -146,8 +146,8 @@ def _metric_unlinked_entries(chunks, graph, today) -> Metric:
             and (
                 node.outbound
                 or node.inbound
-                or node.supersedes
-                or node.superseded_by
+                or node.replaces
+                or node.replaced_by
                 or node.evolves
                 or node.evolved_by
             )
@@ -166,7 +166,7 @@ def _metric_unlinked_entries(chunks, graph, today) -> Metric:
         excluded=0,
         breakdown=breakdown,
         notes=(
-            "entries with no inbound/outbound related_entries, supersedes, or evolves edge "
+            "entries with no inbound/outbound related_entries, replaces, or evolves edge "
             "after link-sidecar folding; an investigation queue, not proof an entry is bad. "
             "breakdown counts the unlinked by age band."
         ),

@@ -13,7 +13,7 @@ Updated: 2026-07-23
 > **v1.3 (2026-07-19)** amended Invariant #2 with write-surface parity: any surface that writes session
 > memory must run the same validation as every other, which is what permitted — and constrains — the
 > gated MCP write path below.
-> The ranking/graph core now includes the full-corpus gate, `superseding_head` plus its bounded boost,
+> The ranking/graph core now includes the full-corpus gate, `replacing_head` plus its bounded boost,
 > and inert `link audit --apply` scaffolding. **2.19.0 released 2026-07-17** (live on PyPI). **B0a
 > graph/workspace contracts and renderer evidence are complete;
 > B2/B0b React parity is the current lead.** The projection's **incremental-ingest fast-follow
@@ -39,9 +39,9 @@ Foundation shipped (per-doc status verified against CHANGELOG + code, not this f
   `chunk()` 132 ms → 3.9 ms. The **incremental-ingest** fast-follow — the plan's last open piece —
   **shipped 2026-07-21**; the derived-projection plan is now complete.
 - **Doc lifecycle:** the folder a doc sits in *is* its state. This refresh moved the terminal docs into
-  `5_Completed/` / `7_Superseded/` / `8_Deferred/`; only docs with live work remain in `2_Todo/`.
+  `5_Completed/` / `7_Replaced/` / `8_Deferred/`; only docs with live work remain in `2_Todo/`.
 - **Wave 1 + closeout SHIPPED 2026-07-15:** `topics suggest --from`, deterministic timeline Evidence
-  Packs, the Trail continuity axis, `superseding_head` plus the gated boost, all four configurable
+  Packs, the Trail continuity axis, `replacing_head` plus the gated boost, all four configurable
   integration-mode phases, and lifecycle-link scaffold steps 1–3.
 - **Release cadence:** 2.19.0 is **released** (2026-07-17). The next tranche accumulates under
   `CHANGELOG.md` "## Unreleased"; publishing remains a manual-approval gate at the pypi environment.
@@ -272,7 +272,7 @@ dependency order, and closed on 2026-07-15:
    The reusable `memory-seed ranking-ab` command and graph-edge-contract rule now require a full-corpus
    off/on comparison, intended directional wins, and an unchanged no-affected-hit control before a
    default ranking flip. Five-question → **Validation + Trust**. *The gate for item 2 now exists.*
-2. **`superseding_head` + lineage-bounded replacement boost** — ✅ **SHIPPED 2026-07-15**.
+2. **`replacing_head` + lineage-bounded replacement boost** — ✅ **SHIPPED 2026-07-15**.
    [`supersession-successor-surfacing-proposal.md`](../5_Completed/supersession-successor-surfacing-proposal.md).
    Additive successor exposure shipped first; the bounded boost then passed the full-corpus A/B gate.
    Five-question → **Retrieval + Trust**.
@@ -396,9 +396,9 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   rounded-elbow fork/merge connectors, clickable trunk merge dots), row-click selection into the shared
   Inspector, and client-side windowing (Load older). Verified by model invariants on live 458-entry data
   (main alone in lane 0; per-lane disjoint; sane laneCount) via the `window.memoryTraceNextDebug` parity
-  harness. **Slice 4a shipped 2026-07-18** — lifecycle-edge arrows: `supersedes`/`evolves`/`related` edges
+  harness. **Slice 4a shipped 2026-07-18** — lifecycle-edge arrows: `replaces`/`evolves`/`related` edges
   route through the reserved relationship zone as dashed arrows with pair precedence (replaces > evolves >
-  related), soft/pastel variants, and an adjacent-`supersedes` bow; `supersedes` always shows, `evolves`
+  related), soft/pastel variants, and an adjacent-`replaces` bow; `replaces` always shows, `evolves`
   and `related` draw for the selected entry. **Slice 5a shipped 2026-07-18** — a relationship legend
   (replaces/evolves/related dashed keys) and search-as-a-function-over-the-Trail: a client-side substring
   filter over the visible window (title/branch/entry-id) dims non-matching rows and dots, marks matches
@@ -418,7 +418,7 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   (`mse_v26pem9hsvsbjbge`): correct multi-rank layout, 13 nodes/17 edges rendered, matching the vanilla
   parser's own edge-syntax limitation (dotted `-.->` mermaid edges aren't recognized by either
   implementation — faithful port, not a regression). **Evolution graph mode shipped 2026-07-20**: a
-  third `GraphScope` alongside the existing Overview/Local, requesting only `evolves`/`supersedes` edges
+  third `GraphScope` alongside the existing Overview/Local, requesting only `evolves`/`replaces` edges
   at depth 8 centered on the selected entry — a scoped lifecycle-chain view distinct from Local's full
   neighborhood, reusing the existing `/api/v1/graph/projection` `edge_types`/`depth` params with zero
   backend changes. Verified live: an entry with a real `evolves` edge renders exactly its 2-node chain;
@@ -522,7 +522,7 @@ seed-twin synced; existing branch names remain grandfathered.
 ## Inbox disposition — evaluated 2026-07-16, re-triaged 2026-07-20
 
 The 2026-07-16 pass evaluated all 14 Inbox documents: actionable work got one canonical owner in Todo,
-security- or evidence-gated work went to Deferred, source indexes were archived or superseded.
+security- or evidence-gated work went to Deferred, source indexes were archived or replaced.
 Constitution v1.1 records the partitioned Markdown-authority decision.
 
 A new drop arrived 2026-07-18 (two 7-document proposal sets, a product proposal, and a design-reference
@@ -541,12 +541,12 @@ folder) and was assessed but deliberately not promoted — see
   boundary (§14.3), because that *is* the commercialisation question and this proposal cites the deferred
   report as a source; and both naming questions, until a first brief exists to name. Sections 5 and 9 stay
   parked; `8_Deferred/` is untouched.
-- **Both proposal sets (14 documents) → `7_Superseded`, retired 2026-07-20.** Step 1 of the assessment's
+- **Both proposal sets (14 documents) → `7_Replaced`, retired 2026-07-20.** Step 1 of the assessment's
   corrected sequence ran first as
   [a current-capability crosswalk](../4_Reference/INBOX-CAPABILITY-CROSSWALK.md): 82 claims scored against the
   owner documents and shipped code rather than the proposals' own account of the status quo. Most were
   already constitutional law or already-shipped capability the proposals understated — the Evidence Pack,
-  typed `supersedes`/`evolves`, blended retrieval — and five conflicted with explicit owner non-goals.
+  typed `replaces`/`evolves`, blended retrieval — and five conflicted with explicit owner non-goals.
   A6 and B1 turned out to be the same document written twice. The sets were then de-numbered, renamed
   `-exploration`, and retired pointing back at the crosswalk, which is now the more accurate record.
   **Nothing was deleted and nothing was promoted.**
@@ -591,7 +591,7 @@ folder) and was assessed but deliberately not promoted — see
   and rejected: that lane is for active work carrying `priority`/`next_action`, and the actual work item
   consuming the mockups (the Living Archive proposal) already correctly lives there; the mockups
   themselves are reference material for that work, not a work item in their own right. Every citing link
-  (14 `7_Superseded/` pointers, three `2_Todo/` plans, the archived-captures cross-reference, the
+  (14 `7_Replaced/` pointers, three `2_Todo/` plans, the archived-captures cross-reference, the
   `docs_check.py` allowlist + its test) was updated; `docs index`/`docs check`/`links check` all clean,
   full suite unaffected.
 

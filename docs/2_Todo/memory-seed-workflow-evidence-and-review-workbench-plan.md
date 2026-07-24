@@ -9,9 +9,9 @@ blocked_by:
   - memory-provenance-and-authority-taxonomy-proposal.md
   - memory-quality-metrics-v0-proposal.md
 sources:
-  - ../7_Superseded/agent-workflow-observability-exploration.md
-  - ../7_Superseded/idea-to-ship-trace-model-exploration.md
-  - ../7_Superseded/derived-review-queue-and-document-lineage-proposal.md
+  - ../7_Replaced/agent-workflow-observability-exploration.md
+  - ../7_Replaced/idea-to-ship-trace-model-exploration.md
+  - ../7_Replaced/derived-review-queue-and-document-lineage-proposal.md
 ---
 
 # Workflow Evidence and Review Workbench

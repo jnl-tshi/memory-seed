@@ -131,7 +131,7 @@ class SessionFuseAndMergeTests(unittest.TestCase):
 
         Each block is ``(time, title, entry_id, extra_yaml_lines)`` where
         ``extra_yaml_lines`` is a list of raw lines placed inside the fenced
-        yaml block after ``entry_id:`` (e.g. ``["supersedes:", "  - mse_..."]``
+        yaml block after ``entry_id:`` (e.g. ``["replaces:", "  - mse_..."]``
         or ``["classify_pending: true"]``).
         """
         lines = [
@@ -956,7 +956,7 @@ class SessionFuseAndMergeTests(unittest.TestCase):
                 "2026-07-10",
                 [
                     ("09:15", "Note A", "mse_aaaaaaaaaaaaaaaa", ["related_entries:", "  - mse_zzzzzzzzzzzzzzzz"]),
-                    ("09:45", "Note B", "mse_bbbbbbbbbbbbbbbb", ["supersedes:", "  - mse_aaaaaaaaaaaaaaaa"]),
+                    ("09:45", "Note B", "mse_bbbbbbbbbbbbbbbb", ["replaces:", "  - mse_aaaaaaaaaaaaaaaa"]),
                 ],
             ),
             encoding="utf-8",
@@ -975,7 +975,7 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         text = link_target.read_text(encoding="utf-8")
         self.assertIn("entry_id: mse_aaaaaaaaaaaaaaaa", text)
         self.assertIn("entry_id: mse_bbbbbbbbbbbbbbbb", text)
-        self.assertIn("supersedes:", text)
+        self.assertIn("replaces:", text)
         # The regression proof: the merge COMMIT carries the change, not just
         # the working tree - `git diff base..merge` for this exact bug used
         # to be completely empty despite the merge reporting success.
@@ -1135,7 +1135,7 @@ class SessionFuseAndMergeTests(unittest.TestCase):
                 "2026-07-12",
                 [
                     ("09:05", "Note A", "mse_aaaaaaaaaaaaaaaa", ["related_entries:", "  - mse_zzzzzzzzzzzzzzzz"]),
-                    ("09:35", "Note C", "mse_cccccccccccccccc", ["supersedes:", "  - mse_bbbbbbbbbbbbbbbb"]),
+                    ("09:35", "Note C", "mse_cccccccccccccccc", ["replaces:", "  - mse_bbbbbbbbbbbbbbbb"]),
                 ],
             ),
             encoding="utf-8",
@@ -1175,7 +1175,7 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         link_target.write_text(
             self._link_sidecar_text(
                 "2026-07-10",
-                [("09:15", "Stub", "mse_aaaaaaaaaaaaaaaa", ["supersedes:", "  - mse_zzzzzzzzzzzzzzzz"])],
+                [("09:15", "Stub", "mse_aaaaaaaaaaaaaaaa", ["replaces:", "  - mse_zzzzzzzzzzzzzzzz"])],
             ),
             encoding="utf-8",
         )

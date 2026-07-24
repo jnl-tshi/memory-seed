@@ -90,13 +90,13 @@ class MemoryMcpServerTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def write_link_sidecar(self, cwd, file_date, source_entry, *, supersedes=(), evolves=(), related_entries=()):
+    def write_link_sidecar(self, cwd, file_date, source_entry, *, replaces=(), evolves=(), related_entries=()):
         links = cwd / ".memory-seed" / "sessions" / "links" / file_date[:7]
         links.mkdir(parents=True, exist_ok=True)
         lines = [f"## {file_date} 10:00 - sidecar links", "", "```yaml", f"entry_id: {source_entry}"]
         for key, refs in (
             ("related_entries", related_entries),
-            ("supersedes", supersedes),
+            ("replaces", replaces),
             ("evolves", evolves),
         ):
             if refs:
@@ -257,7 +257,7 @@ class MemoryMcpServerTests(unittest.TestCase):
         search_tool = next(t for t in TOOLS if t["name"] == "memory_search")
         self.assertNotIn("today", search_tool["inputSchema"]["properties"])
 
-    def _superseded_search_fixture(self):
+    def _replaced_search_fixture(self):
         cwd = self.make_project()
         self.write_session(
             cwd,
@@ -270,15 +270,15 @@ class MemoryMcpServerTests(unittest.TestCase):
             "## 2026-05-17 10:00 - New cache decision\n\n"
             "```yaml\n"
             "entry_id: ms-newcache0\n"
-            "supersedes:\n"
+            "replaces:\n"
             "  - ms-oldcache0\n"
             "```\n\n"
             "The revised cache key design.\n",
         )
         return cwd
 
-    def test_memory_search_returns_superseded_entries_by_default(self):
-        cwd = self._superseded_search_fixture()
+    def test_memory_search_returns_replaced_entries_by_default(self):
+        cwd = self._replaced_search_fixture()
 
         payload = call_tool(
             "memory_search",
@@ -287,12 +287,12 @@ class MemoryMcpServerTests(unittest.TestCase):
         )
         ids = {r["entry_id"] for r in payload["results"]}
 
-        # Default behavior is unchanged: the superseded entry is still returned.
+        # Default behavior is unchanged: the replaced entry is still returned.
         self.assertIn("ms-oldcache0", ids)
         self.assertIn("ms-newcache0", ids)
 
-    def test_memory_search_exclude_superseded_drops_superseded_entries(self):
-        cwd = self._superseded_search_fixture()
+    def test_memory_search_exclude_replaced_drops_replaced_entries(self):
+        cwd = self._replaced_search_fixture()
 
         payload = call_tool(
             "memory_search",
@@ -301,13 +301,13 @@ class MemoryMcpServerTests(unittest.TestCase):
                 "cwd": str(cwd),
                 "top_k": 10,
                 "semantic_enabled": False,
-                "exclude_superseded": True,
+                "exclude_replaced": True,
             },
             today=date(2026, 5, 18),
         )
         ids = {r["entry_id"] for r in payload["results"]}
 
-        # Opt-in narrowing: the superseded entry is dropped, the current one kept.
+        # Opt-in narrowing: the replaced entry is dropped, the current one kept.
         self.assertNotIn("ms-oldcache0", ids)
         self.assertIn("ms-newcache0", ids)
 
@@ -332,7 +332,7 @@ class MemoryMcpServerTests(unittest.TestCase):
             "## 2026-05-17 10:00 - New cache decision\n\n"
             "```yaml\n"
             "entry_id: ms-newcache0\n"
-            "supersedes:\n"
+            "replaces:\n"
             "  - ms-oldcache0\n"
             "evolves:\n"
             "  - ms-basecache\n"
@@ -348,15 +348,15 @@ class MemoryMcpServerTests(unittest.TestCase):
         by_id = {r["entry_id"]: r for r in payload["results"]}
 
         # The retired entry is still returned (never hidden) and labelled.
-        self.assertEqual(by_id["ms-oldcache0"]["superseded_by"], ["ms-newcache0"])
+        self.assertEqual(by_id["ms-oldcache0"]["replaced_by"], ["ms-newcache0"])
         self.assertEqual(by_id["ms-oldcache0"]["evolved_by"], [])
         # The evolved entry is labelled fresh-but-extended, never retired.
         self.assertEqual(by_id["ms-basecache"]["evolved_by"], ["ms-newcache0"])
-        self.assertEqual(by_id["ms-basecache"]["superseded_by"], [])
+        self.assertEqual(by_id["ms-basecache"]["replaced_by"], [])
         # The successor entry carries its stored edges and clean status.
-        self.assertEqual(by_id["ms-newcache0"]["supersedes"], ["ms-oldcache0"])
+        self.assertEqual(by_id["ms-newcache0"]["replaces"], ["ms-oldcache0"])
         self.assertEqual(by_id["ms-newcache0"]["evolves"], ["ms-basecache"])
-        self.assertEqual(by_id["ms-newcache0"]["superseded_by"], [])
+        self.assertEqual(by_id["ms-newcache0"]["replaced_by"], [])
         self.assertEqual(by_id["ms-newcache0"]["evolved_by"], [])
 
     def test_mcp_graph_surfaces_union_of_yaml_and_link_sidecar_edges(self):
@@ -399,7 +399,7 @@ class MemoryMcpServerTests(unittest.TestCase):
             cwd,
             "2026-05-17",
             new_id,
-            supersedes=(old_id,),
+            replaces=(old_id,),
             evolves=(base_id,),
         )
 
@@ -416,17 +416,17 @@ class MemoryMcpServerTests(unittest.TestCase):
         base_node = call_tool("memory_link_show", {"cwd": str(cwd), "entry_id": base_id})
         new_node = call_tool("memory_link_show", {"cwd": str(cwd), "entry_id": new_id})
 
-        self.assertEqual(by_id[old_id]["superseded_by"], [new_id])
+        self.assertEqual(by_id[old_id]["replaced_by"], [new_id])
         self.assertEqual(by_id[base_id]["evolved_by"], [new_id])
-        self.assertEqual(by_id[new_id]["supersedes"], [old_id])
+        self.assertEqual(by_id[new_id]["replaces"], [old_id])
         self.assertEqual(by_id[new_id]["evolves"], [base_id])
-        self.assertEqual(old_chunk["superseded_by"], [new_id])
+        self.assertEqual(old_chunk["replaced_by"], [new_id])
         self.assertEqual(base_chunk["evolved_by"], [new_id])
-        self.assertEqual(new_chunk["supersedes"], [old_id])
+        self.assertEqual(new_chunk["replaces"], [old_id])
         self.assertEqual(new_chunk["evolves"], [base_id])
-        self.assertEqual(old_node["superseded_by"], [new_id])
+        self.assertEqual(old_node["replaced_by"], [new_id])
         self.assertEqual(base_node["evolved_by"], [new_id])
-        self.assertEqual(new_node["supersedes"], [old_id])
+        self.assertEqual(new_node["replaces"], [old_id])
         self.assertEqual(new_node["evolves"], [base_id])
 
     def test_mcp_graph_yaml_only_lifecycle_edges_still_work_without_sidecars(self):
@@ -452,7 +452,7 @@ class MemoryMcpServerTests(unittest.TestCase):
             "agent_type: codex\n"
             "project_path: .\n"
             "subproject_path: null\n"
-            "supersedes:\n"
+            "replaces:\n"
             f"  - {original_id}\n"
             "```\n\n"
             "The corrected take on the cache key.\n",
@@ -467,12 +467,12 @@ class MemoryMcpServerTests(unittest.TestCase):
         original = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": original_id})["chunk"]
         replacement = call_tool("memory_link_show", {"cwd": str(cwd), "entry_id": replacement_id})
 
-        self.assertEqual(by_id[original_id]["superseded_by"], [replacement_id])
-        self.assertEqual(by_id[replacement_id]["supersedes"], [original_id])
-        self.assertEqual(original["superseded_by"], [replacement_id])
-        self.assertEqual(replacement["supersedes"], [original_id])
+        self.assertEqual(by_id[original_id]["replaced_by"], [replacement_id])
+        self.assertEqual(by_id[replacement_id]["replaces"], [original_id])
+        self.assertEqual(original["replaced_by"], [replacement_id])
+        self.assertEqual(replacement["replaces"], [original_id])
 
-    def test_superseding_head_surfaces_terminal_replacement_across_search_chunk_and_graph(self):
+    def test_replacing_head_surfaces_terminal_replacement_across_search_chunk_and_graph(self):
         cwd = self.make_project()
         old_id = "mse_oldchain000000"
         mid_id = "mse_midchain000000"
@@ -496,7 +496,7 @@ class MemoryMcpServerTests(unittest.TestCase):
             "agent_type: codex\n"
             "project_path: .\n"
             "subproject_path: null\n"
-            "supersedes:\n"
+            "replaces:\n"
             f"  - {old_id}\n"
             "```\n\n"
             "The second cache ttl strategy.\n\n"
@@ -510,7 +510,7 @@ class MemoryMcpServerTests(unittest.TestCase):
             "```\n\n"
             "The final cache ttl strategy.\n",
         )
-        self.write_link_sidecar(cwd, "2026-05-17", new_id, supersedes=(mid_id,))
+        self.write_link_sidecar(cwd, "2026-05-17", new_id, replaces=(mid_id,))
 
         search = call_tool(
             "memory_search",
@@ -519,7 +519,7 @@ class MemoryMcpServerTests(unittest.TestCase):
                 "cwd": str(cwd),
                 "top_k": 10,
                 "semantic_enabled": False,
-                "superseding_successor_boost": False,
+                "replacing_successor_boost": False,
             },
             today=date(2026, 5, 18),
         )
@@ -527,11 +527,11 @@ class MemoryMcpServerTests(unittest.TestCase):
         old_chunk = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": old_id})["chunk"]
         old_node = call_tool("memory_link_show", {"cwd": str(cwd), "entry_id": old_id})
 
-        self.assertEqual(by_id[old_id]["superseding_head"], [new_id])
-        self.assertEqual(by_id[mid_id]["superseding_head"], [new_id])
-        self.assertEqual(by_id[new_id]["superseding_head"], [])
-        self.assertEqual(old_chunk["superseding_head"], [new_id])
-        self.assertEqual(old_node["superseding_head"], [new_id])
+        self.assertEqual(by_id[old_id]["replacing_head"], [new_id])
+        self.assertEqual(by_id[mid_id]["replacing_head"], [new_id])
+        self.assertEqual(by_id[new_id]["replacing_head"], [])
+        self.assertEqual(old_chunk["replacing_head"], [new_id])
+        self.assertEqual(old_node["replacing_head"], [new_id])
 
     def test_call_tool_ignores_caller_supplied_today_in_arguments(self):
         cwd = self.make_memory_fixture()
@@ -574,11 +574,11 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertIsNone(payload["semantic_provider"])
         self.assertIsNone(payload["results"][0]["semantic_score"])
 
-    def test_memory_search_schema_exposes_superseding_successor_boost(self):
+    def test_memory_search_schema_exposes_replacing_successor_boost(self):
         from memory_seed.mcp_server import TOOLS
 
         search_tool = next(t for t in TOOLS if t["name"] == "memory_search")
-        prop = search_tool["inputSchema"]["properties"].get("superseding_successor_boost")
+        prop = search_tool["inputSchema"]["properties"].get("replacing_successor_boost")
         self.assertIsNotNone(prop)
         self.assertEqual(prop["type"], "boolean")
         self.assertTrue(prop["default"])
@@ -606,7 +606,7 @@ class MemoryMcpServerTests(unittest.TestCase):
             "agent_type: codex\n"
             "project_path: .\n"
             "subproject_path: null\n"
-            "supersedes:\n"
+            "replaces:\n"
             f"  - {old_id}\n"
             "```\n\n"
             "A lighter cache ttl plan.\n",
@@ -623,7 +623,7 @@ class MemoryMcpServerTests(unittest.TestCase):
                 "query": "redis cache ttl invalidation strategy",
                 "cwd": str(cwd),
                 "semantic_enabled": False,
-                "superseding_successor_boost": True,
+                "replacing_successor_boost": True,
             },
             today=date(2026, 5, 18),
         )
@@ -633,7 +633,7 @@ class MemoryMcpServerTests(unittest.TestCase):
                 "query": "redis cache ttl invalidation strategy",
                 "cwd": str(cwd),
                 "semantic_enabled": False,
-                "superseding_successor_boost": False,
+                "replacing_successor_boost": False,
             },
             today=date(2026, 5, 18),
         )
@@ -695,7 +695,7 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertIsNone(payload["chunk"]["entry_datetime"])
         self.assertIn("Semble guidance", payload["chunk"]["text"])
 
-    def test_call_tool_memory_get_chunk_exposes_supersedes_and_superseded_by(self):
+    def test_call_tool_memory_get_chunk_exposes_replaces_and_replaced_by(self):
         cwd = self.make_project()
         self.write_session(
             cwd,
@@ -716,19 +716,19 @@ class MemoryMcpServerTests(unittest.TestCase):
             "agent_type: codex\n"
             "project_path: .\n"
             "subproject_path: null\n"
-            "supersedes:\n"
+            "replaces:\n"
             "  - ms-original\n"
             "```\n\n"
             "The corrected take on the cache key.\n",
         )
 
         replacing = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": "ms-replaces"})
-        superseded = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": "ms-original"})
+        replaced = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": "ms-original"})
 
-        self.assertEqual(replacing["chunk"]["supersedes"], ["ms-original"])
-        self.assertEqual(replacing["chunk"]["superseded_by"], [])
-        self.assertEqual(superseded["chunk"]["supersedes"], [])
-        self.assertEqual(superseded["chunk"]["superseded_by"], ["ms-replaces"])
+        self.assertEqual(replacing["chunk"]["replaces"], ["ms-original"])
+        self.assertEqual(replacing["chunk"]["replaced_by"], [])
+        self.assertEqual(replaced["chunk"]["replaces"], [])
+        self.assertEqual(replaced["chunk"]["replaced_by"], ["ms-replaces"])
 
     def test_call_tool_memory_get_chunk_exposes_inbound_relation_count(self):
         cwd = self.make_project()
@@ -762,7 +762,7 @@ class MemoryMcpServerTests(unittest.TestCase):
         # Inbound backlinks only: citing others earns nothing; being cited does.
         self.assertEqual(cited["chunk"]["inbound_relation_count"], 2)
         self.assertEqual(citer["chunk"]["inbound_relation_count"], 0)
-        # Not superseded: importance_score equals the raw inbound count.
+        # Not replaced: importance_score equals the raw inbound count.
         self.assertEqual(cited["chunk"]["importance_score"], 2.0)
 
     def test_call_tool_memory_get_chunk_exposes_commit_reference_count(self):
@@ -790,7 +790,7 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertEqual(linked["chunk"]["commit_reference_count"], 1)
         self.assertEqual(plain["chunk"]["commit_reference_count"], 0)
 
-    def test_call_tool_memory_get_chunk_dampens_importance_score_when_superseded(self):
+    def test_call_tool_memory_get_chunk_dampens_importance_score_when_replaced(self):
         cwd = self.make_project()
         self.write_session(
             cwd,
@@ -799,7 +799,7 @@ class MemoryMcpServerTests(unittest.TestCase):
             "```yaml\n"
             "entry_id: ms-retired00\n"
             "```\n\n"
-            "Cited but later superseded.\n\n"
+            "Cited but later replaced.\n\n"
             "## 2026-05-17 10:00 - Citer\n\n"
             "```yaml\n"
             "entry_id: ms-citer0001\n"
@@ -810,7 +810,7 @@ class MemoryMcpServerTests(unittest.TestCase):
             "## 2026-05-17 11:00 - Replacement\n\n"
             "```yaml\n"
             "entry_id: ms-replace00\n"
-            "supersedes:\n"
+            "replaces:\n"
             "  - ms-retired00\n"
             "```\n\n"
             "Replaces it.\n",
@@ -818,9 +818,9 @@ class MemoryMcpServerTests(unittest.TestCase):
 
         retired = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": "ms-retired00"})
 
-        # Raw inbound count is 1, but the superseded dampener applies.
+        # Raw inbound count is 1, but the replaced dampener applies.
         self.assertEqual(retired["chunk"]["inbound_relation_count"], 1)
-        self.assertEqual(retired["chunk"]["superseded_by"], ["ms-replace00"])
+        self.assertEqual(retired["chunk"]["replaced_by"], ["ms-replace00"])
         self.assertLess(retired["chunk"]["importance_score"], 1.0)
 
     def test_call_tool_memory_get_chunk_returns_per_user_chunk(self):
@@ -1178,7 +1178,7 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertEqual(base["evolves"], [])
         # Evolution never dampens: base stays at its raw inbound count.
         self.assertEqual(base["importance_score"], 0.0)
-        self.assertEqual(base["superseded_by"], [])
+        self.assertEqual(base["replaced_by"], [])
         self.assertEqual(refine["evolves"], ["ms-base00000"])
         self.assertEqual(refine["continuity"], [{"kind": "rename", "from": "old/name.py", "to": "new/name.py"}])
 

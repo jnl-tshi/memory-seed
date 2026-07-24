@@ -33,15 +33,15 @@ class LinksCheckTests(unittest.TestCase):
         (d / f"{user}.md").write_text("\n".join(fm + body) + "\n", encoding="utf-8")
 
     def _flat_session(self, cwd, filename, *entry_specs):
-        """Write a flat session file from (heading, entry_id, supersedes) specs."""
+        """Write a flat session file from (heading, entry_id, replaces) specs."""
         sessions = cwd / MEMORY_DIR_NAME / "sessions"
         sessions.mkdir(parents=True, exist_ok=True)
         lines: list[str] = []
-        for heading, entry_id, supersedes in entry_specs:
+        for heading, entry_id, replaces in entry_specs:
             lines += [f"## {heading}", "", "```yaml", f"entry_id: {entry_id}"]
-            if supersedes:
-                lines.append("supersedes:")
-                lines.extend(f"  - {ref}" for ref in supersedes)
+            if replaces:
+                lines.append("replaces:")
+                lines.extend(f"  - {ref}" for ref in replaces)
             lines += ["```", "", "- note", ""]
         (sessions / filename).write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -51,7 +51,7 @@ class LinksCheckTests(unittest.TestCase):
         file_date,
         source_entry,
         *,
-        supersedes=(),
+        replaces=(),
         evolves=(),
         classify_pending=False,
         heading_time="10:00",
@@ -63,7 +63,7 @@ class LinksCheckTests(unittest.TestCase):
         lines = [f"## {file_date} {heading_time} - edge", "", "```yaml", f"entry_id: {source_entry}"]
         if classify_pending:
             lines.append("classify_pending: true")
-        for key, refs in (("supersedes", supersedes), ("evolves", evolves)):
+        for key, refs in (("replaces", replaces), ("evolves", evolves)):
             if refs:
                 lines.append(f"{key}:")
                 lines.extend(f"  - {ref}" for ref in refs)
@@ -390,7 +390,7 @@ class LinksCheckTests(unittest.TestCase):
 
         self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
 
-    def test_links_check_accepts_backward_supersedes(self):
+    def test_links_check_accepts_backward_replaces(self):
         cwd = self.make_project()
         self._flat_session(
             cwd,
@@ -403,7 +403,7 @@ class LinksCheckTests(unittest.TestCase):
 
         self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
 
-    def test_links_check_flags_dangling_supersedes(self):
+    def test_links_check_flags_dangling_replaces(self):
         cwd = self.make_project()
         self._flat_session(
             cwd,
@@ -413,11 +413,11 @@ class LinksCheckTests(unittest.TestCase):
 
         issues = check_session_links(cwd=cwd).issues
 
-        self.assertEqual([i.kind for i in issues], ["dangling-supersedes"], [i.__dict__ for i in issues])
+        self.assertEqual([i.kind for i in issues], ["dangling-replaces"], [i.__dict__ for i in issues])
         self.assertIn("mse_zzzzzzzzzzzzzzzz", issues[0].detail)
 
-    def test_links_check_flags_postdating_supersedes(self):
-        # Forward-only guard: an earlier entry may not supersede a later one.
+    def test_links_check_flags_postdating_replaces(self):
+        # Forward-only guard: an earlier entry may not replace a later one.
         cwd = self.make_project()
         self._flat_session(
             cwd,
@@ -428,10 +428,10 @@ class LinksCheckTests(unittest.TestCase):
 
         issues = check_session_links(cwd=cwd).issues
 
-        self.assertEqual([i.kind for i in issues], ["supersedes-postdates"], [i.__dict__ for i in issues])
+        self.assertEqual([i.kind for i in issues], ["replaces-postdates"], [i.__dict__ for i in issues])
         self.assertIn("mse_ffffffffffffffff", issues[0].detail)
 
-    def test_links_check_flags_self_supersedes(self):
+    def test_links_check_flags_self_replaces(self):
         cwd = self.make_project()
         self._flat_session(
             cwd,
@@ -441,7 +441,7 @@ class LinksCheckTests(unittest.TestCase):
 
         issues = check_session_links(cwd=cwd).issues
 
-        self.assertEqual([i.kind for i in issues], ["self-supersedes"], [i.__dict__ for i in issues])
+        self.assertEqual([i.kind for i in issues], ["self-replaces"], [i.__dict__ for i in issues])
 
     def test_links_check_guards_non_crockford_entry_yaml_refs(self):
         # Regression: real corpus ids include o/u/i/l (outside the strict
@@ -459,9 +459,9 @@ class LinksCheckTests(unittest.TestCase):
 
         issues = check_session_links(cwd=cwd).issues
 
-        # The earlier entry supersedes the LATER loose-id entry: the forward-only
+        # The earlier entry replaces the LATER loose-id entry: the forward-only
         # guard must now see and reject it instead of silently passing.
-        self.assertEqual([i.kind for i in issues], ["supersedes-postdates"], [i.__dict__ for i in issues])
+        self.assertEqual([i.kind for i in issues], ["replaces-postdates"], [i.__dict__ for i in issues])
         self.assertIn(loose, issues[0].detail)
 
     def test_links_check_flags_dangling_ref_to_non_crockford_id(self):
@@ -474,9 +474,9 @@ class LinksCheckTests(unittest.TestCase):
 
         issues = check_session_links(cwd=cwd).issues
 
-        self.assertEqual([i.kind for i in issues], ["dangling-supersedes"], [i.__dict__ for i in issues])
+        self.assertEqual([i.kind for i in issues], ["dangling-replaces"], [i.__dict__ for i in issues])
 
-    def test_links_check_accepts_backward_supersedes_in_sidecar(self):
+    def test_links_check_accepts_backward_replaces_in_sidecar(self):
         cwd = self.make_project()
         self._flat_session(
             cwd,
@@ -484,7 +484,7 @@ class LinksCheckTests(unittest.TestCase):
             ("2026-06-13 09:00 - original", "mse_0123456789abcdef", ()),
             ("2026-06-13 10:00 - replacement", "mse_ffffffffffffffff", ()),
         )
-        self._link_sidecar(cwd, "2026-06-13", "mse_ffffffffffffffff", supersedes=("mse_0123456789abcdef",))
+        self._link_sidecar(cwd, "2026-06-13", "mse_ffffffffffffffff", replaces=("mse_0123456789abcdef",))
 
         result = check_session_links(cwd=cwd)
 
@@ -564,18 +564,18 @@ class LinksCheckTests(unittest.TestCase):
 
         self.assertTrue(check_session_links(cwd=cwd).ok)
 
-    def test_links_check_flags_dangling_supersedes_in_sidecar(self):
+    def test_links_check_flags_dangling_replaces_in_sidecar(self):
         cwd = self.make_project()
         self._flat_session(cwd, "2026-06-13.md", ("2026-06-13 10:00 - only", "mse_ffffffffffffffff", ()))
-        self._link_sidecar(cwd, "2026-06-13", "mse_ffffffffffffffff", supersedes=("mse_zzzzzzzzzzzzzzzz",))
+        self._link_sidecar(cwd, "2026-06-13", "mse_ffffffffffffffff", replaces=("mse_zzzzzzzzzzzzzzzz",))
 
         issues = check_session_links(cwd=cwd).issues
 
-        self.assertEqual([i.kind for i in issues], ["dangling-supersedes"], [i.__dict__ for i in issues])
+        self.assertEqual([i.kind for i in issues], ["dangling-replaces"], [i.__dict__ for i in issues])
 
-    def test_links_check_flags_postdating_supersedes_in_sidecar(self):
+    def test_links_check_flags_postdating_replaces_in_sidecar(self):
         # Forward-only guard covers sidecar edges too, attributed to the SOURCE
-        # entry's timestamp: an earlier entry may not supersede a later one.
+        # entry's timestamp: an earlier entry may not replace a later one.
         cwd = self.make_project()
         self._flat_session(
             cwd,
@@ -583,16 +583,16 @@ class LinksCheckTests(unittest.TestCase):
             ("2026-06-13 09:00 - earlier", "mse_0123456789abcdef", ()),
             ("2026-06-13 10:00 - later", "mse_ffffffffffffffff", ()),
         )
-        self._link_sidecar(cwd, "2026-06-13", "mse_0123456789abcdef", supersedes=("mse_ffffffffffffffff",))
+        self._link_sidecar(cwd, "2026-06-13", "mse_0123456789abcdef", replaces=("mse_ffffffffffffffff",))
 
         issues = check_session_links(cwd=cwd).issues
 
-        self.assertEqual([i.kind for i in issues], ["supersedes-postdates"], [i.__dict__ for i in issues])
+        self.assertEqual([i.kind for i in issues], ["replaces-postdates"], [i.__dict__ for i in issues])
 
     def test_links_check_flags_orphan_link_sidecar(self):
         cwd = self.make_project()
         self._flat_session(cwd, "2026-06-13.md", ("2026-06-13 09:00 - only", "mse_0123456789abcdef", ()))
-        self._link_sidecar(cwd, "2026-06-13", "mse_ffffffffffffffff", supersedes=("mse_0123456789abcdef",))
+        self._link_sidecar(cwd, "2026-06-13", "mse_ffffffffffffffff", replaces=("mse_0123456789abcdef",))
 
         kinds = [i.kind for i in check_session_links(cwd=cwd).issues]
 
@@ -607,7 +607,7 @@ class LinksCheckTests(unittest.TestCase):
             ("2026-06-13 10:00 - replacement", "mse_ffffffffffffffff", ()),
         )
         # Source entry logged 2026-06-13, block filed under 2026-06-14.
-        self._link_sidecar(cwd, "2026-06-14", "mse_ffffffffffffffff", supersedes=("mse_0123456789abcdef",))
+        self._link_sidecar(cwd, "2026-06-14", "mse_ffffffffffffffff", replaces=("mse_0123456789abcdef",))
 
         kinds = [i.kind for i in check_session_links(cwd=cwd).issues]
 
@@ -725,7 +725,7 @@ class LinksCheckTests(unittest.TestCase):
     def test_links_check_flags_evolves_cycle_between_same_minute_entries(self):
         # Same-minute entries defeat the postdates ordering, so the DFS cycle
         # guard has to catch a mutual evolves pair - within the evolves kind
-        # only, never mixed with supersedes edges.
+        # only, never mixed with replaces edges.
         cwd = self.make_project()
         self._flat_session_raw(
             cwd,
@@ -749,7 +749,7 @@ class LinksCheckTests(unittest.TestCase):
             cwd,
             "2026-06-13.md",
             self._entry_yaml("2026-06-13 09:00 - a", "mse_0123456789abcdef", "evolved_by:", "  - mse_ffffffffffffffff")
-            + self._entry_yaml("2026-06-13 10:00 - b", "mse_ffffffffffffffff", "superseded_by:", "  - mse_0123456789abcdef"),
+            + self._entry_yaml("2026-06-13 10:00 - b", "mse_ffffffffffffffff", "replaced_by:", "  - mse_0123456789abcdef"),
         )
 
         issues = check_session_links(cwd=cwd).issues
@@ -758,7 +758,7 @@ class LinksCheckTests(unittest.TestCase):
         self.assertEqual(kinds.count("authored-inverse-field"), 2, [i.__dict__ for i in issues])
         details = " ".join(i.detail for i in issues if i.kind == "authored-inverse-field")
         self.assertIn("evolved_by", details)
-        self.assertIn("superseded_by", details)
+        self.assertIn("replaced_by", details)
 
     def test_links_check_accepts_valid_continuity_blocks(self):
         cwd = self.make_project()
@@ -865,7 +865,7 @@ class LinksCheckTests(unittest.TestCase):
 
         self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
 
-    def test_links_check_flags_supersedes_cycle_between_same_minute_entries(self):
+    def test_links_check_flags_replaces_cycle_between_same_minute_entries(self):
         # Same-minute entries slip past the postdates comparison; the DFS
         # cycle guard is what catches a mutual supersession there.
         cwd = self.make_project()
@@ -878,8 +878,8 @@ class LinksCheckTests(unittest.TestCase):
 
         issues = check_session_links(cwd=cwd).issues
 
-        self.assertIn("supersedes-cycle", [i.kind for i in issues], [i.__dict__ for i in issues])
-        cycle_issue = next(i for i in issues if i.kind == "supersedes-cycle")
+        self.assertIn("replaces-cycle", [i.kind for i in issues], [i.__dict__ for i in issues])
+        cycle_issue = next(i for i in issues if i.kind == "replaces-cycle")
         self.assertIn("mse_0123456789abcdef", cycle_issue.detail)
         self.assertIn("mse_ffffffffffffffff", cycle_issue.detail)
 

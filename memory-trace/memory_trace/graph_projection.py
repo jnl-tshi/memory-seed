@@ -52,7 +52,7 @@ AUTHORITY_CLASSES = frozenset(
         "generated",
     }
 )
-EDGE_TYPES = frozenset({"related", "supersedes", "evolves", "branch", "topic", "agent", "day"})
+EDGE_TYPES = frozenset({"related", "replaces", "evolves", "branch", "topic", "agent", "day"})
 TEMPORAL_SOURCES = {
     "memory_entry": "authored_timestamp",
     "decision_anchor": "anchor_entry_timestamp",
