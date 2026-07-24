@@ -141,21 +141,27 @@ mandatory step from becoming noise (the same reasoning that kept a warning out o
 > "whether the user wants the merges back to main to be triggered or automatic to allow multi branch entries
 > and a check of key session variables"
 
-`merge_trigger` decides **when and by whom** a task branch lands in local `main`:
+`merge_trigger` decides one thing: at a stable, tested stopping point, does the agent **auto-advance to the
+integration handoff, or hold for the user?** The handoff itself is set by `integration_mode` — a **merge into
+local `main`** under `local-merge`, or **opening the PR** under `pr`:
 
-- **`manual` (proposed default under `local-merge`).** The agent commits on the task branch, holds
-  integration, and waits for the user to trigger `session merge-branch`. This is what **allows multi-branch
-  entries**: several task branches can coexist, each carrying its own *on-branch* session entries, and the
-  Trail keeps the lanes separate. This session did exactly this — held both branches, asked before merging.
-- **`automatic`.** The agent merges its own task branch into local `main` at a stable, tested stopping point
-  without waiting. Faster for solo rapid iteration, but it collapses the multi-branch picture: each workstream
-  lands immediately, so branches never accumulate side by side.
+- **`manual` (proposed default).** The agent commits on the task branch and **holds**, waiting for the user
+  before it takes the handoff step (`session merge-branch` under `local-merge`, `session open-pr` under `pr`).
+  This is what **allows multi-branch entries**: several task branches coexist, each carrying its own
+  *on-branch* session entries, and the Trail keeps the lanes separate. This session did exactly this — held
+  both branches, asked before merging.
+- **`automatic`.** The agent takes the handoff step itself at a stable stopping point: under `local-merge` it
+  **merges into local `main`**; under `pr` it **opens the PR** (JNL, 2026-07-24). It never completes an
+  irreversible or external step alone — under `pr` the merge stays the human reviewer's, and under
+  `local-merge` it never pushes. Faster for solo iteration, but under `local-merge` it collapses the
+  multi-branch picture: each workstream lands immediately, so branches never accumulate side by side.
 
 Two things make this a genuine variable rather than a restatement of `integration_mode`:
 
-- **Orthogonal axis.** `integration_mode` is *how* you integrate (local merge vs PR). `merge_trigger` is
-  *when/who* triggers it (hold-for-user vs auto). In `pr` mode the trigger is arguably always manual (a human
-  reviews the PR), so `merge_trigger` varies meaningfully mainly under `local-merge` — see the open question.
+- **Orthogonal axis.** `integration_mode` is *how* you integrate (local merge vs PR); `merge_trigger` is
+  *whether the agent auto-advances* to that handoff or holds. It varies meaningfully under **both** modes:
+  under `pr`, `automatic` auto-opens the PR while `manual` waits for the user to open it — so it is a genuine
+  own axis, not a `local-merge` sub-mode (see §6.2).
 - **It governs session-logging.** `manual` is what makes the "log on branch, not main" discipline work:
   entries live on the task branch until integration, and `session merge-branch` fuses them in chronological
   order preserving the branch lane. Logging on `main` post-merge loses that lane separation and starves the
@@ -169,29 +175,46 @@ re-runs.
 
 ### How `merge_trigger` gets teeth (the gate on the tooling)
 
-Under `merge_trigger: manual`, `session merge-branch` and `memory_session_integrate` **refuse to land a
-branch** unless an explicit user-authorization override is present — the same shape as the worktree guard's
-`--allow-root-write` (a deliberate flag the agent is contractually barred from self-supplying) and
-`integration_mode: pr` making integrate decline. The agent commits on the task branch and holds; the user's
-"go" is what authorizes the override. Under `automatic`, the commands run without it and the agent may land at
-a stable, tested stopping point.
+Under `merge_trigger: manual`, whichever command performs the handoff — `session merge-branch` /
+`memory_session_integrate` under `local-merge`, `session open-pr` under `pr` — **refuses to advance** unless
+an explicit user-authorization override is present, the same shape as the worktree guard's `--allow-root-write`
+(a deliberate flag the agent is contractually barred from self-supplying) and `integration_mode: pr` making
+integrate decline. The agent commits on the task branch and holds; the user's
+"go" is what authorizes the override. Under `automatic`, the command runs without it and the agent advances at a
+stable, tested stopping point — merging locally, or opening the PR.
 
 Why a flag and not agent-discipline alone: a CLI cannot distinguish an agent-initiated invocation from a
 user-initiated one, so "refuse to auto-run" needs a token that *represents* user authorization — the override
 flag is that token. That is what turns `merge_trigger` from prose the agent might skip into a switch the
 tooling enforces, which is the whole point of the hybrid: the two decisions this proposal cares most about
-(don't auto-merge, don't write into a shared checkout) become things a command refuses, not things the agent
+(don't auto-advance integration, don't write into a shared checkout) become things a command refuses, not things the agent
 must remember. `risk_tier` and `orchestration_level` cannot be made switches this way because nothing can
 compute them — they stay advisory (§4c), and the proposal says so rather than pretending otherwise.
+
+### Modes available (`integration_mode` × `merge_trigger`)
+
+These two config axes are all a user actually *selects* — every other variable in §4 is measured or derived.
+Their product is the operating modes:
+
+| | `merge_trigger: manual` | `merge_trigger: automatic` |
+|---|---|---|
+| **`local-merge`** | **DEFAULT — hold and ask.** Agent commits on the task branch and stops; the user runs `session merge-branch` to land. Branches accumulate side by side with on-branch entries. This session's mode. | **auto-land.** Agent commits *and* merges into local `main` at stable stopping points. Fast solo iteration, no side-by-side accumulation. Never pushes. |
+| **`pr`** | **hold and hand off.** Agent commits and pushes, then waits for the user before opening the PR; a human reviews and merges. | **auto-open PR** (JNL, 2026-07-24). Agent opens the PR itself at a stable stopping point; the human still reviews and merges — `automatic` never auto-*merges* a PR. |
+
+`automatic` is bounded to local, reversible advancement: it may merge locally or open a PR, but never pushes
+under `local-merge` and never merges a PR under `pr`. The irreversible or external step stays a human one in
+both modes.
 
 ## 6. Open questions (the design review)
 
 1. **`merge_trigger` default.** Propose `manual` under `local-merge` (matches today's "do NOT push without
    instruction" spirit and preserves multi-branch accumulation). Is `automatic` ever the right default for
    solo rapid iteration, or should it always be an explicit per-session opt-in?
-2. **Is `merge_trigger` a facet of `integration_mode` or its own field?** Proposed: its own `project.yaml`
-   field (orthogonal axis), read fail-open like `integration_mode`. Alternative: fold it in as
-   `local-merge-auto` vs `local-merge-manual`. The separate field is cleaner but adds a knob.
+2. **Is `merge_trigger` its own field?** Now leaning **yes**: JNL's 2026-07-24 resolution that `automatic`
+   under `pr` means *auto-open the PR* confirms `merge_trigger` is meaningful under **both** integration
+   modes, so it is a real orthogonal axis rather than a `local-merge` sub-mode (which would have argued for
+   folding it in as `local-merge-auto`/`local-merge-manual`). Remaining call: confirm the own-field form and
+   its `project.yaml` key name.
 3. **`merge_trigger` gate mechanism.** The teeth are an override flag on `session merge-branch` /
    `memory_session_integrate` (mirroring `--allow-root-write`). Is that the right mechanism, or is a lighter
    agent-contract ("never merge without explicit user instruction") enough given `local-merge` never pushes?
