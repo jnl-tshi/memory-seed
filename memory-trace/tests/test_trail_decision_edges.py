@@ -238,6 +238,37 @@ class TrailDecisionEdgeTests(unittest.TestCase):
 
         self.assertEqual(edge_set(with_sidecar), edge_set(control))
 
+    def test_trail_survives_a_cold_cache_load_of_an_entry_yaml_decision_edge(self):
+        # Regression, found live on 2026-07-24: every other test here rebuilds
+        # the cache in-process, where decision_edges are still the tuples the
+        # extractor made. A SECOND process reads them back from storage, where
+        # JSON has no tuple - so each edge came back as a LIST and the Trail's
+        # dedup died with `unhashable type: 'list'`, 500-ing the whole view.
+        # The equivalence suite could not see it either: it compares
+        # json.dumps output, in which a tuple and a list are the same bytes.
+        (self.cwd / ".memory-seed" / "sessions" / "2026-06-04.md").write_text(
+            "---\ntags:\n  - session-log\n---\n\n"
+            "## 2026-06-04 09:00 - entry-yaml decision edge\n\n"
+            "```yaml\nentry_id: mse_yaml0000000ffff\nbranch: main\nevolves:\n"
+            "  - mse_tgt00000000aaaa:d2\n```\n\n"
+            "### Decision\n\n- D: x.\n- R: y.\n",
+            encoding="utf-8",
+        )
+        self.service()  # writes the projection to cache_root
+
+        # A cache pointed at the SAME cache_root, never rebuilt: this is what a
+        # fresh process sees, and the only path that deserializes chunks.
+        cold = TraceCache(self.cwd, cache_root=self.cache_root)
+        chunk = next(c for c in cold.chunks() if c.entry_id == "mse_yaml0000000ffff")
+        self.assertEqual(chunk.decision_edges, (("evolves", "", "mse_tgt00000000aaaa", "d2"),))
+        self.assertEqual(len(set(chunk.decision_edges)), 1, "edges must be hashable after a load")
+
+        trail = TraceService(cold).graph(edge_types=EDGE_TYPES, limit=1000, include_decisions=True)
+        d2_row = "mse_tgt00000000aaaa#decisions/d2-default-the-range-to-seven-days"
+        self.assertIn(
+            {"source": "mse_yaml0000000ffff", "target": d2_row, "type": "evolves"}, trail["edges"]
+        )
+
     def test_entry_level_sidecar_refs_are_unaffected(self):
         self.sidecar_path.write_text(
             "---\ntags:\n  - session-log-links\nlink_date: 2026-06-03\n---\n\n"
