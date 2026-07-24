@@ -1647,8 +1647,22 @@ class TraceService:
             # Appended AFTER the limited_ids filter on purpose: that set holds
             # entry ids, and a decision-row endpoint is not one, so routing
             # decision edges through it would drop every one of them silently.
+            # Decision edges have two authored homes since 2026-07-24: link
+            # sidecar blocks and the entry's own yaml (write-time grammar).
+            # Merge the entry-yaml refs into the sidecar-shaped map so the
+            # renderer sees one stream regardless of where an edge was written.
+            decision_sources: dict[str, dict[str, Any]] = {
+                source: dict(payload) for source, payload in self._link_sidecars().items()
+            }
+            for chunk in self._entry_chunks():
+                if not chunk.entry_id or not getattr(chunk, "decision_edges", ()):
+                    continue
+                payload = decision_sources.setdefault(chunk.entry_id, {"decision_edges": ()})
+                payload["decision_edges"] = tuple(
+                    dict.fromkeys(tuple(payload.get("decision_edges", ())) + tuple(chunk.decision_edges))
+                )
             visible_edges.extend(
-                _decision_edges_for_rows(nodes, self._link_sidecars(), edge_type_set)
+                _decision_edges_for_rows(nodes, decision_sources, edge_type_set)
             )
         # Commit-accurate merges: served on both the legacy /api surface and the
         # versioned /api/v1 surface (the v1 GraphResponse/TrailResponse models

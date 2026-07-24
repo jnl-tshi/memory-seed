@@ -60,6 +60,38 @@ class SessionAppendTests(unittest.TestCase):
         self.assertIn("- D: Something durable.", text)
         self.assertTrue(check_session_links(cwd=self.cwd).ok)
 
+    def _append_multi_decision_older(self):
+        body = (
+            "### Decisions\n\n"
+            "#### D1 - First call\n\n- D: alpha\n- R: because\n\n"
+            "#### D2 - Second call\n\n- D: beta\n- R: reasons\n"
+        )
+        result = self._append(title="Older with decisions", body=body, timestamp="2026-06-13 08:00")
+        self.assertTrue(result.ok, result.issues)
+        return result.entry_id
+
+    def test_append_accepts_decision_ref_in_evolves(self):
+        # Write-time grammar (2026-07-24): `:dN` on an existing ordinal of an
+        # older entry passes the guards and is written verbatim.
+        older = self._append_multi_decision_older()
+        result = self._append(evolves=[f"{older}:d2"])
+        self.assertTrue(result.ok, result.issues)
+        text = result.path.read_text(encoding="utf-8")
+        self.assertIn(f"- {older}:d2", text)
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
+
+    def test_append_rejects_decision_ref_to_missing_ordinal(self):
+        older = self._append_multi_decision_older()
+        result = self._append(evolves=[f"{older}:d9"])
+        self.assertFalse(result.ok)
+        self.assertTrue(any("has no d9" in issue for issue in result.issues))
+
+    def test_append_rejects_decision_ref_in_related_entries(self):
+        older = self._append_multi_decision_older()
+        result = self._append(related_entries=[f"{older}:d1"])
+        self.assertFalse(result.ok)
+        self.assertTrue(any("valid only on replaces/evolves" in issue for issue in result.issues))
+
     def test_second_append_separates_blocks_and_stays_clean(self):
         self._append()
         result = self._append(title="Second decision", timestamp="2026-06-13 10:00")

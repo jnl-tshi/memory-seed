@@ -675,9 +675,16 @@ def audit_link_gaps(
             # granularity. It deliberately never projects into the entry-level
             # edge sets, but for gap-finding the pair is linked - without this
             # union every decision-narrowed edge re-surfaces as a "gap" forever.
+            # Both homes count: sidecar blocks and, since the write-time
+            # grammar (2026-07-24), the entry's own yaml.
             | {
                 eid
                 for kind, eid, _ordinal in sidecar.get("decision_edges", ())
+                if kind in ("replaces", "evolves")
+            }
+            | {
+                eid
+                for kind, eid, _ordinal in chunk.decision_edges
                 if kind in ("replaces", "evolves")
             }
         )

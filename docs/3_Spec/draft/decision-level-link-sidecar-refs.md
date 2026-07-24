@@ -22,6 +22,18 @@ terminate on a specific decision rather than a whole entry. It borrows the decis
 lifecycle sidecar family (`.memory-seed/decisions/<adr_id>.md`), which stays draft and unbuilt. Two
 different sidecar kinds; only the identity scheme is shared.
 
+**Scope extension — entry YAML at write time (JNL's direction, 2026-07-24, IMPLEMENTED).** The `:dN`
+target grammar is also valid in a session entry's **own** `replaces:`/`evolves:` lists at authoring
+time — the author is the one party who reliably knows which decision an edge targets, and the
+judgment-swarm programme measured implementation-evolves-proposal and deferral-completion (both
+inherently decision-shaped) as the dominant under-declared patterns. Entry-yaml decision refs get the
+same validation as sidecar refs (`dangling-decision-ref`, `intra-entry-decision-ref`,
+`decision-ref-postdates`), enforced additionally at write time by `session append` /
+`memory_session_append`; they peel into the chunk's `decision_edges` channel and are never folded into
+entry-level lists (the no-projection rule holds in both homes); the Trail merges both sources into one
+decision-edge stream. `related_entries` stays entry-level everywhere. Source-side narrowing
+(`source_decision`) remains the staged next step for both homes.
+
 ## Problem
 
 Entries are the unit of authorship, not the unit of decision. A session entry routinely carries three or
