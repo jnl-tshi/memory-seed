@@ -5,6 +5,7 @@ import {
   buildTrailModel,
   trailStamp,
   decisionEndpointLabel,
+  entryIdOfRowId,
   inDecisionGroup,
   isDecisionEdge,
   isDecisionRow,
@@ -385,6 +386,17 @@ export function TrailWorkspace({
     if (!node.decision_ordinal || !node.entry_id) return undefined;
     return nodeAt(node.entry_id)?.title;
   };
+  // Which ENTRY a row belongs to. Selection is entry-scoped - clicking any
+  // decision row selects its entry - but a decision edge terminates on a ROW
+  // (`mse_x#decisions/d1-...`), so comparing endpoints to the selected entry id
+  // directly can never match. That mismatch made decision edges unreachable in
+  // "on select" mode and invisible when their own entry was selected. The
+  // fallback split covers a row whose anchor is outside the window.
+  const entryIdOfRow = (id: string): string => nodeAt(id)?.entry_id || entryIdOfRowId(id);
+  const touchesSelection = (edge: TrailEdge): boolean =>
+    focusActive &&
+    selectedEntryId != null &&
+    (entryIdOfRow(edge.source) === selectedEntryId || entryIdOfRow(edge.target) === selectedEntryId);
   const relLaneX = (type: string) => continuityZoneWidth + 8 + TRAIL_REL_LANES.indexOf(type as (typeof TRAIL_REL_LANES)[number]) * TRAIL_REL_LANE_W;
   const pairKey = (a: string, b: string) => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`);
   const strongestByPair = new Map<string, TrailEdge>();
@@ -445,7 +457,11 @@ export function TrailWorkspace({
   lifecycle.forEach((edge) => {
     if (!winsPair(edge)) return;
     if (bracketEvolves.has(edge)) return;
-    const touched = focusActive && (edge.source === selectedEntryId || edge.target === selectedEntryId);
+    // Entry-scoped: selecting an entry - or any one of its decision rows -
+    // lights every lifecycle line belonging to that entry, decision-level ones
+    // included, which is what "show me this entry's lineage" has to mean when
+    // one entry occupies several rows.
+    const touched = touchesSelection(edge);
     // `related` is unchanged: on-select only, always. `evolves` visibility is
     // the 2026-07-24 setting - see readLifecycleEdges. Without it, decision
     // edges were invisible by default, because every one of them is an evolves.

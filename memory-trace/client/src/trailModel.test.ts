@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildTrailModel, compareTrailNodes, decisionEndpointLabel, inDecisionGroup, isDecisionEdge, isDecisionRow, pastelOf } from "./trailModel.ts";
+import { buildTrailModel, compareTrailNodes, decisionEndpointLabel, entryIdOfRowId, inDecisionGroup, isDecisionEdge, isDecisionRow, pastelOf } from "./trailModel.ts";
 import type { TrailEvent, TrailResponse } from "./api.ts";
 
 const PALETTE = [
@@ -146,4 +146,16 @@ test("decisionEndpointLabel names the decision and the entry it belongs to", () 
   // Anchor outside the window: fall back to the decision heading rather than
   // dropping the ordinal, which is the part that makes the edge precise.
   assert.equal(decisionEndpointLabel(decision), "D2 (D2 - The source ordinal rides on the item)");
+});
+
+test("entryIdOfRowId maps a decision row back to its entry", () => {
+  // Selection is entry-scoped but a decision edge terminates on a ROW, so an
+  // exact id comparison can never match one. That mismatch is what made
+  // decision lineage unreachable in on-select mode and invisible when its own
+  // entry was selected - both reported live on 2026-07-24.
+  assert.equal(entryIdOfRowId("mse_a"), "mse_a");
+  assert.equal(entryIdOfRowId("mse_a#decisions/d2-the-source-ordinal"), "mse_a");
+  assert.equal(entryIdOfRowId("ms-f83a27d3#decisions/d1-rationale"), "ms-f83a27d3");
+  // A legacy singular '#decision' anchor resolves the same way.
+  assert.equal(entryIdOfRowId("mse_a#decision"), "mse_a");
 });

@@ -97,6 +97,16 @@ export function isDecisionEdge(edge: { source: string; target: string }): boolea
   return edge.source.includes("#decisions/") || edge.target.includes("#decisions/");
 }
 
+// The entry a Trail row id belongs to. Selection is entry-scoped (clicking any
+// decision row selects its entry), but a decision edge terminates on a ROW id,
+// so "does this edge touch the selection" has to be asked in entry terms or it
+// can never be true for a decision edge - which is exactly the bug that made
+// decision lineage unreachable in on-select mode.
+export function entryIdOfRowId(rowId: string): string {
+  const hash = rowId.indexOf("#");
+  return hash === -1 ? rowId : rowId.slice(0, hash);
+}
+
 // "D2" / "D2 of <entry title>" for a decision row, plain title otherwise -
 // the label a lineage tooltip needs. An edge tooltip built from raw titles
 // would read "D2 - long heading evolves D1 - other long heading" with no clue
