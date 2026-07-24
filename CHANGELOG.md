@@ -58,6 +58,19 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- **`merge_trigger` switch — hold branch landings for an explicit user
+  go-ahead.** A new `.memory-seed/project.yaml` scalar (`read_merge_trigger`,
+  fail-open to `automatic` so legacy/unconfigured projects are unchanged) decides
+  whether the agent auto-advances a task branch to its integration handoff at a
+  stable stopping point, or holds. Under `manual`, `session merge-branch` /
+  `session open-pr` refuse a real advance without `--user-approved` (an agent is
+  contractually barred from supplying it on its own initiative; a dry run is
+  never gated), and MCP `memory_session_integrate` declines outright, mirroring
+  its `pr` decline — the unattended path cannot represent user authorization.
+  `automatic` stays bounded to local, reversible advancement (never pushes, never
+  merges a PR). `situate`/`esr` surface the trigger. Handoff-only: the actual PR
+  merge in `pr` mode is always the human reviewer's.
+
 - **`memory_session_integrate`** MCP tool: merges a task branch and fuses its
   branch-local session memory into the trunk in chronological order, applying
   autonomously (no in-progress-merge precondition). Aborts and restores a clean
