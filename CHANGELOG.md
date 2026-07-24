@@ -45,6 +45,27 @@ All notable changes to Memory Seed are summarized here.
   `superseded_by:` docs - so corpora and repos written by <=2.19 keep
   working unchanged; writers and displays emit only the new spellings.
 
+- **`situate` reports which checkout you are actually in.** A new `## Location`
+  section, printed first, classifies the caller's cwd through the existing
+  `worktree_guard` and names the checkout as the primary/root tree or an
+  agent-owned worktree. It exists because worktree identity is routinely
+  *declared* rather than measured: a harness banner, a task packet, or a bare
+  `.../worktrees/<session>` directory can each assert an isolated worktree that
+  was never created, and git then resolves every command up to the primary
+  checkout while the agent writes into shared state believing it is isolated.
+  No new detection logic was added - `worktree guard` already classified this
+  correctly; it was simply never run at orientation, only before writes.
+  `orientation.md` and the `/situate` shims now tell agents to believe the
+  measured Location over any declaration, and to create an isolated worktree
+  before writing when the checkout is shared; `agent_collaboration.md` extends
+  the same rule to *after* a create (a `git worktree add` can half-fail, and
+  trusting the create is the same error as trusting the banner, one step later).
+  `session-start-context.py` carries the same note at **SessionStart**, which is
+  the only surface that fires whether or not an agent orients: it names the
+  primary checkout and points at the worktree workflow, and stays silent inside
+  a real linked worktree (`--git-dir` and `--git-common-dir` differ there) so a
+  correctly-isolated session is never nagged. Stdlib-only and fail-open.
+
 - **Memory Trace incremental startup.** A changed project (new commit, merge,
   or dirty session file) no longer triggers a full projection rebuild that
   spawned one git subprocess per historical item (~44s / 990 processes on a

@@ -4,6 +4,13 @@ Network-free, read-only. Reconciles the LOCAL authoritative facts an agent needs
 to orient before work, so a session starts from ground truth instead of a stale
 in-context snapshot:
 
+- location: which checkout this actually is - the primary/root checkout or an
+  agent-owned worktree - MEASURED from the caller's cwd via ``worktree_guard``.
+  An agent can be told by a harness banner or a task packet that it is working in
+  an isolated worktree when no such worktree was ever created; git then resolves
+  every command up to the primary checkout, and the agent writes into shared
+  state believing it is isolated. This section is the always-printed statement of
+  ground truth that such a claim can be checked against.
 - git: current branch, uncommitted count, and commits ahead of the integration
   ref's remote (unpushed local work) + the declared ``integration_mode``
 - newest session entry: the most recent session-log heading, resolved through the
@@ -28,7 +35,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .core import iter_session_documents, read_integration_mode, read_merge_trigger, resolve_runtime
+from .core import (
+    iter_session_documents,
+    read_integration_mode,
+    read_merge_trigger,
+    resolve_runtime,
+    worktree_guard,
+)
 from .esr import WorktreePosture, _git_lines, _integration_ref, _worktree_posture
 
 _ENTRY_HEADING_RE = re.compile(r"^##\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s+-\s*(.+?)\s*$", re.MULTILINE)
@@ -38,6 +51,9 @@ _PYPROJECT_NAME_RE = re.compile(r'^name\s*=\s*["\']([^"\']+)["\']', re.MULTILINE
 
 @dataclass
 class SituateReport:
+    checkout_classification: str | None = None
+    checkout_path: str | None = None
+    repo_root: str | None = None
     git_available: bool = False
     branch: str | None = None
     dirty: int | None = None
@@ -56,6 +72,12 @@ class SituateReport:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "location": {
+                "classification": self.checkout_classification,
+                "checkout": self.checkout_path,
+                "repo_root": self.repo_root,
+                "is_primary": self.checkout_classification == "root-checkout",
+            },
             "git": {
                 "available": self.git_available,
                 "branch": self.branch,
@@ -180,6 +202,20 @@ def situate_report(cwd: str | Path = ".") -> SituateReport:
     runtime = resolve_runtime(cwd)
     root = runtime.workspace_root
     report = SituateReport()
+    # Classify from the RAW cwd, never from ``root``. The two diverge only when
+    # the runtime dir is ABSENT from a worktree checkout: ``resolve_runtime`` then
+    # walks up past the worktree to the primary checkout, and classifying from
+    # that root reports a correctly-isolated agent as sitting in the shared tree.
+    # Measured: guard(cwd)=owned-worktree vs guard(root)=root-checkout. It does
+    # NOT hide the phantom case (both say root-checkout there) - the cost is a
+    # false alarm at a correct setup, and a section that cries wolf is one agents
+    # learn to skip. Pinned by
+    # ``test_location_is_classified_from_cwd_not_from_the_resolved_runtime_root``,
+    # which fails if these arguments are swapped.
+    guard = worktree_guard(cwd, write_intent=False)
+    report.checkout_classification = guard.classification
+    report.checkout_path = str(guard.worktree_path) if guard.worktree_path else None
+    report.repo_root = str(guard.repo_root) if guard.repo_root else None
     report.integration_mode = read_integration_mode(root)
     report.merge_trigger = read_merge_trigger(root)
     (
@@ -200,6 +236,29 @@ def situate_report(cwd: str | Path = ".") -> SituateReport:
 
 def format_situate_report(report: SituateReport) -> str:
     lines: list[str] = ["Situate — repo orientation (local facts; verify published version separately)", ""]
+
+    # First, because it names the checkout every fact below describes.
+    lines.append("## Location")
+    classification = report.checkout_classification
+    if classification in (None, "not-a-worktree"):
+        lines.append("- checkout: not inside a git worktree.")
+    elif classification == "root-checkout":
+        lines.append(f"- checkout: {report.checkout_path}")
+        lines.append("- this is the PRIMARY checkout - shared, NOT an isolated worktree.")
+        lines.append("  Measured from this cwd, not declared. If a harness banner or task packet said")
+        lines.append("  you are in a worktree, it is wrong: no worktree would resolve to this path.")
+        lines.append("  Before non-trivial writes, create one - see `agent_collaboration.md`.")
+    else:
+        label = {
+            "owned-worktree": "agent-owned worktree",
+            "foreign-worktree": "worktree owned by ANOTHER agent",
+            "unmanaged-worktree": "worktree outside every configured agent namespace",
+        }.get(classification, classification)
+        lines.append(f"- checkout: {report.checkout_path}  ({label})")
+        lines.append(f"- repository root: {report.repo_root}")
+        if classification != "owned-worktree":
+            lines.append("  Writing here is a shared-control-plane hazard - check `agent_collaboration.md`.")
+    lines.append("")
 
     lines.append("## Git")
     if not report.git_available:
