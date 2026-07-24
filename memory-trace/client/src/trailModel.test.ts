@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildTrailModel, compareTrailNodes, decisionEndpointLabel, entryIdOfRowId, inDecisionGroup, isDecisionEdge, isDecisionRow, pastelOf } from "./trailModel.ts";
+import { buildTrailModel, compareTrailNodes, decisionEndpointLabel, entryIdOfRowId, inDecisionGroup, isDecisionEdge, isDecisionRow, lifecycleEdgeClass, pastelOf } from "./trailModel.ts";
 import type { TrailEvent, TrailResponse } from "./api.ts";
 
 const PALETTE = [
@@ -158,4 +158,17 @@ test("entryIdOfRowId maps a decision row back to its entry", () => {
   assert.equal(entryIdOfRowId("ms-f83a27d3#decisions/d1-rationale"), "ms-f83a27d3");
   // A legacy singular '#decision' anchor resolves the same way.
   assert.equal(entryIdOfRowId("mse_a#decision"), "mse_a");
+});
+
+test("lifecycleEdgeClass ranks edges 1/2/3 by how many ends name a decision", () => {
+  // Ratified 2026-07-24: decision->decision is first class (most precise),
+  // entry<->decision second, entry->entry third (history links, single-
+  // decision entries). The Trail weights ink by this class.
+  assert.equal(lifecycleEdgeClass({ source: "mse_a#decisions/d1-x", target: "mse_b#decisions/d2-y" }), 1);
+  assert.equal(lifecycleEdgeClass({ source: "mse_a#decisions/d1-x", target: "mse_b" }), 2);
+  assert.equal(lifecycleEdgeClass({ source: "mse_a", target: "mse_b#decisions/d2-y" }), 2);
+  assert.equal(lifecycleEdgeClass({ source: "mse_a", target: "mse_b" }), 3);
+  // isDecisionEdge stays the class<=2 predicate the styling short-hands.
+  assert.equal(isDecisionEdge({ source: "mse_a", target: "mse_b" }), false);
+  assert.equal(isDecisionEdge({ source: "mse_a#decisions/d1-x", target: "mse_b" }), true);
 });

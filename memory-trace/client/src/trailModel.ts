@@ -97,6 +97,22 @@ export function isDecisionEdge(edge: { source: string; target: string }): boolea
   return edge.source.includes("#decisions/") || edge.target.includes("#decisions/");
 }
 
+// The three granularity classes JNL ratified 2026-07-24, by precision:
+//   1  decision -> decision  - both ends name a specific decision (first class)
+//   2  entry  <-> decision   - one end names a decision (second class)
+//   3  entry  -> entry       - neither; history links and single-decision
+//                             entries, where the extra detail adds nothing
+// The class is a property of the two endpoint ids alone, so it is decided
+// here rather than threaded through the payload. The Trail draws all three by
+// default and weights them by class - the finer the edge, the more ink.
+export function lifecycleEdgeClass(edge: { source: string; target: string }): 1 | 2 | 3 {
+  const s = edge.source.includes("#decisions/");
+  const t = edge.target.includes("#decisions/");
+  if (s && t) return 1;
+  if (s || t) return 2;
+  return 3;
+}
+
 // The entry a Trail row id belongs to. Selection is entry-scoped (clicking any
 // decision row selects its entry), but a decision edge terminates on a ROW id,
 // so "does this edge touch the selection" has to be asked in entry terms or it

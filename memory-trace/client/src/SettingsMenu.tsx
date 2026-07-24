@@ -153,10 +153,10 @@ export function SettingsMenu({
                     <button type="button" aria-pressed={!handDrawn} onClick={() => set({ style: "slick" })}>Slick</button>
                   </div>
                 </div>
-                {/* How much lineage draws without a selection. "Decision" is
-                    the default because every decision-level edge is an
-                    evolves, and evolves used to draw on-select only - so the
-                    finest links in the corpus were invisible until clicked. */}
+                {/* How much lineage draws without a selection. "All" is the
+                    default: an entry can evolve another entry, so entry-level
+                    lineage is real and stays drawn, weighted lighter than the
+                    finer decision-level links rather than hidden. */}
                 <div className="trail-settings-row">
                   <span>Lifecycle links</span>
                   <div className="segment-control">
@@ -169,8 +169,8 @@ export function SettingsMenu({
                   {trailStyle.lifecycleEdges === "select"
                     ? "Only links touching the selected entry are drawn."
                     : trailStyle.lifecycleEdges === "decision"
-                      ? "Decision-level links stay drawn (solid); entry-level evolves appears on select."
-                      : "Every evolves link stays drawn."}
+                      ? "Only links naming a decision stay drawn (solid); entry-to-entry appears on select."
+                      : "Every link stays drawn — decision-level solid and bold, entry-to-entry lighter."}
                 </div>
                 {/* Wobble and pressure only mean anything to a drawn stroke. */}
                 {handDrawn && (

@@ -127,20 +127,19 @@ function readTrailStyle(): TrailStyle {
       lifecycleEdges: readLifecycleEdges(stored.lifecycleEdges),
     };
   } catch {
-    return { thickness: "thick", style: "hand", wobble: 1.6, pressure: 0.3, lifecycleEdges: "decision" };
+    return { thickness: "thick", style: "hand", wobble: 1.6, pressure: 0.3, lifecycleEdges: "all" };
   }
 }
 
 // How much lifecycle lineage the Trail draws without a selection (JNL,
-// 2026-07-24). "decision" is the default and the reason this setting exists:
-// every decision-level edge in the corpus is an `evolves`, and evolves used to
-// draw only when the selection touched it - so the entire decision-granularity
-// layer was recorded and invisible. Decision-level edges earn permanent ink
-// because they are both rarer and more precise than their entry-level
-// counterparts (22 vs 189 at the time of writing); "select" restores the older
-// de-crowded behaviour, "all" draws entry-level evolves persistently too.
+// 2026-07-24). "all" is the default: an entry can evolve another entry, so
+// entry-to-entry lineage - history links and the swarm-era edges - is real
+// and stays drawn, weighted lighter than the finer decision-level edges
+// rather than hidden. "decision" keeps only edges that name a decision on
+// some end (the de-crowded middle); "select" draws only edges touching the
+// selection (the pre-2026-07-24 look).
 function readLifecycleEdges(value: unknown): TrailStyle["lifecycleEdges"] {
-  return value === "select" || value === "all" ? value : "decision";
+  return value === "select" || value === "decision" ? value : "all";
 }
 
 // Graph forces and motion (proposal §6.5 as amended 2026-07-22). Same JSON-blob
