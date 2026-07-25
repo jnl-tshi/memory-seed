@@ -428,6 +428,38 @@ class RetrievalServiceParityTests(unittest.TestCase):
 
         self.assertEqual(entry_topic_sidecars(str(cwd))["ms-bootstrap"]["topics"], ("retrieval",))
 
+    def test_topic_filter_matches_inferred_topics_but_the_payload_keeps_them_apart(self):
+        # The filter unions (otherwise attributing topics after the fact buys
+        # nothing), while the payload reports the two channels separately so a
+        # consumer can still tell who vouched for the slug.
+        cwd = self.make_memory_fixture()
+        self.write_topic_sidecar(cwd, "2026-05-17.md", [("2026-05-17 10:00", "ms-bootstrap", ["graph:d1"])])
+
+        hits = search_memory(
+            "bootstrap mode check", str(cwd), semantic_enabled=False, today=date(2026, 5, 20), topics=["graph"]
+        )
+
+        ids = [r["entry_id"] for r in hits["results"]]
+        self.assertIn("ms-bootstrap", ids)
+        record = next(r for r in hits["results"] if r["entry_id"] == "ms-bootstrap")
+        self.assertEqual(record["topics"], [])  # nothing authored
+        self.assertEqual(record["inferred_topics"], ["graph"])
+
+    def test_get_chunk_exposes_decision_attribution_for_inferred_topics(self):
+        cwd = self.make_memory_fixture()
+        self.write_topic_sidecar(
+            cwd, "2026-05-17.md", [("2026-05-17 10:00", "ms-bootstrap", ["graph:d1", "retrieval"])]
+        )
+
+        payload = get_chunk("ms-bootstrap", str(cwd))
+
+        self.assertEqual(payload["topics"], [])
+        self.assertEqual(payload["inferred_topics"], ["graph", "retrieval"])
+        self.assertEqual(
+            payload["inferred_decision_topics"],
+            [{"decision": "d1", "topic": "graph"}, {"decision": None, "topic": "retrieval"}],
+        )
+
     def test_grouped_diagram_sidecars_surface_through_the_service(self):
         cwd = self.make_memory_fixture()
         self.write_diagram(cwd, "2026-05/2026-05-17.md", self.valid_sidecar("ms-bootstrap", "2026-05-17 09:15"))

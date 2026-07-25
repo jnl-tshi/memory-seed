@@ -470,8 +470,16 @@ def call_tool(
         matching_names = sorted(name for name, slug in resolution.items() if slug == canonical) if canonical else []
         entries = []
         if canonical:
-            for chunk in extract_memory_chunks(cwd, granularity="entry"):
-                if any(resolution.get(topic, topic) == canonical for topic in chunk.topics):
+            from .retrieval import augment_chunks_with_topic_sidecars
+
+            for chunk in augment_chunks_with_topic_sidecars(
+                extract_memory_chunks(cwd, granularity="entry"), cwd
+            ):
+                authored_match = any(resolution.get(topic, topic) == canonical for topic in chunk.topics)
+                inferred_match = any(
+                    resolution.get(topic, topic) == canonical for topic in chunk.inferred_topics
+                )
+                if authored_match or inferred_match:
                     entries.append(
                         {
                             "entry_id": chunk.entry_id,
@@ -479,6 +487,11 @@ def call_tool(
                             "session_date": chunk.session_date.isoformat(),
                             "source": chunk.source_path,
                             "topics": list(chunk.topics),
+                            "inferred_topics": list(chunk.inferred_topics),
+                            # Which channel put this entry in the list. Inspect
+                            # is a provenance surface, so a caller must never
+                            # have to guess whether a human vouched for it.
+                            "matched_via": "authored" if authored_match else "inferred",
                         }
                     )
         return {

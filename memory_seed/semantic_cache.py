@@ -330,7 +330,13 @@ def _filter_chunks(
             continue
         if date_to is not None and chunk.session_date > date_to:
             continue
-        if topics is not None and not (topics & set(chunk.topics)):
+        # Authored UNION inferred: a filter for `graph` that missed entries whose
+        # graph-ness is known only from a topic sidecar would defeat the point of
+        # attributing topics after the fact. Filtering is a reachability
+        # question, not a provenance claim - the two channels stay separable on
+        # the chunk and in every payload, so a caller can still tell which is
+        # which after the filter has run.
+        if topics is not None and not (topics & (set(chunk.topics) | set(chunk.inferred_topics))):
             continue
         filtered.append(chunk)
     return filtered

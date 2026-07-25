@@ -111,7 +111,10 @@ def search_memory(
         embedding_provider,
         enabled=semantic_enabled,
     )
-    chunks = augment_chunks_with_link_sidecars(extract_memory_chunks(cwd, granularity=granularity), cwd)
+    chunks = augment_chunks_with_topic_sidecars(
+        augment_chunks_with_link_sidecars(extract_memory_chunks(cwd, granularity=granularity), cwd),
+        cwd,
+    )
     topic_filter: set[str] | None = None
     if topics:
         # Alias-aware expansion (canonical + aliases both match); fail-open on
@@ -180,11 +183,17 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
     `entry_diagram_sidecars`). Off by default so the MCP tool contract is
     unchanged; Explorer/Trail consumers opt in.
     """
-    entry_chunks = augment_chunks_with_link_sidecars(extract_memory_chunks(cwd, granularity="entry"), cwd)
+    entry_chunks = augment_chunks_with_topic_sidecars(
+        augment_chunks_with_link_sidecars(extract_memory_chunks(cwd, granularity="entry"), cwd),
+        cwd,
+    )
     found = next((chunk for chunk in entry_chunks if chunk.chunk_id == chunk_id), None)
     if found is None:
-        section_chunks = augment_chunks_with_link_sidecars(
-            extract_memory_chunks(cwd, granularity="section"),
+        section_chunks = augment_chunks_with_topic_sidecars(
+            augment_chunks_with_link_sidecars(
+                extract_memory_chunks(cwd, granularity="section"),
+                cwd,
+            ),
             cwd,
         )
         found = next((chunk for chunk in section_chunks if chunk.chunk_id == chunk_id), None)
@@ -796,7 +805,11 @@ def audit_link_gaps(
         extract_memory_chunks,
     )
 
-    chunks = [chunk for chunk in extract_memory_chunks(cwd, granularity="entry") if chunk.entry_id]
+    chunks = [
+        chunk
+        for chunk in augment_chunks_with_topic_sidecars(extract_memory_chunks(cwd, granularity="entry"), cwd)
+        if chunk.entry_id
+    ]
     if not chunks:
         return []
     by_id = {chunk.entry_id: chunk for chunk in chunks}
@@ -817,7 +830,13 @@ def audit_link_gaps(
     for chunk in chunks:
         refs = {alias.get(ref, ref) for ref in _entry_file_refs(chunk.text)}
         file_refs[chunk.entry_id or ""] = refs
-        topics_of[chunk.entry_id or ""] = set(chunk.topics)
+        # Union here too: a shared topic is evidence two entries are about the
+        # same thing whether a human or a sidecar said so. NOTE this composes two
+        # inference layers - a topic backfill widens link audit's candidate set,
+        # which is the input the link swarm judges. Both stay suggest-only and
+        # human-gated, but the composition is real and was never separately
+        # chosen; see the topic-consumer decision entry.
+        topics_of[chunk.entry_id or ""] = set(chunk.topics) | set(chunk.inferred_topics)
         order[chunk.entry_id or ""] = _entry_order_key(chunk)
         for ref in refs:
             document_frequency[ref] = document_frequency.get(ref, 0) + 1
@@ -1160,6 +1179,9 @@ def ranked_to_dict(result: RankedMemoryChunk) -> dict[str, Any]:
             for block in chunk.continuity
         ],
         "topics": list(chunk.topics),
+        # A SEPARATE key, never folded into `topics`: a consumer must be able to
+        # tell a slug a human wrote from one a sidecar attributed later.
+        "inferred_topics": list(chunk.inferred_topics),
         "line_range": [chunk.start_line, chunk.end_line],
         "heading_path": list(chunk.heading_path),
         "matched_terms": list(result.matched_terms),
@@ -1197,6 +1219,13 @@ def chunk_to_dict(chunk: MemoryChunk) -> dict[str, Any]:
             for block in chunk.continuity
         ],
         "topics": list(chunk.topics),
+        # Separate keys for the same reason as in the search-result payload: the
+        # rolled-up view for entry-level consumers, plus the per-decision
+        # attribution a decision-node graph needs.
+        "inferred_topics": list(chunk.inferred_topics),
+        "inferred_decision_topics": [
+            {"decision": ordinal or None, "topic": slug} for ordinal, slug in chunk.inferred_decision_topics
+        ],
         "entry_datetime": None
         if chunk.entry_datetime is None
         else chunk.entry_datetime.isoformat(),
