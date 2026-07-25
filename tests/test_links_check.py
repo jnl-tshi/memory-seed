@@ -90,7 +90,9 @@ class LinksCheckTests(unittest.TestCase):
             "schema_version: 1\ntopics:\n"
             "  - slug: memory-trace\n    label: Memory Trace\n    status: active\n    aliases: [trace-ui]\n"
             "  - slug: retrieval\n    label: Retrieval\n    status: active\n"
-            "  - slug: graph\n    label: Graph\n    status: active\n",
+            "  - slug: graph\n    label: Graph\n    status: active\n"
+            "  - slug: ui-design\n    label: UI\n    status: active\n"
+            "  - slug: bugfix\n    label: Bugfix\n    status: active\n",
             encoding="utf-8",
         )
 
@@ -1227,11 +1229,22 @@ class LinksCheckTests(unittest.TestCase):
         self.assertIn("non-canonical-topic-slug", [i.kind for i in result.issues])
         self.assertTrue(any("memory-trace" in i.detail for i in result.issues))
 
-    def test_topic_sidecar_caps_the_number_of_topics(self):
+    def test_topic_sidecar_allows_up_to_four_but_caps_beyond(self):
+        # The cap is 4 (the corpus authored maximum), not 3: an inferred topic
+        # must not be held to a stricter standard than the author. Four distinct
+        # slugs pass; a fifth is overreach.
         cwd = self.make_project()
         self._topic_corpus(cwd)
         self._topic_sidecar(
-            cwd, "2026-06-01", [("mse_aaaaaaaaaaaaaaaa", ["memory-trace", "graph", "retrieval", "memory-trace"])]
+            cwd, "2026-06-01", [("mse_aaaaaaaaaaaaaaaa", ["memory-trace", "graph", "retrieval", "ui-design"])]
+        )
+        ok = check_session_links(cwd=cwd)
+        self.assertTrue(ok.ok, [i.detail for i in ok.issues if i.severity == "error"])
+        self.assertNotIn("topic-sidecar-overreach", [i.kind for i in ok.issues])
+
+        self._topic_sidecar(
+            cwd, "2026-06-01",
+            [("mse_aaaaaaaaaaaaaaaa", ["memory-trace", "graph", "retrieval", "ui-design", "bugfix"])],
         )
         result = check_session_links(cwd=cwd)
         self.assertFalse(result.ok)
