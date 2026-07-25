@@ -83,6 +83,7 @@ memory_seed = [
   "seed/.memory-seed/skills/end_of_turn.md",
   "seed/.memory-seed/skills/orientation.md",
   "seed/.memory-seed/skills/history_retrieval.md",
+  "seed/.memory-seed/skills/link_swarm.md",
   "seed/.memory-seed/skills/local_compilation.md",
   "seed/.memory-seed/skills/memory_consolidation.md",
   "seed/.memory-seed/skills/memory_doctor.md",

@@ -5081,6 +5081,10 @@ SEED_FILES = [
         ".memory-seed/skills/subproject_runtime.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "link_swarm.md",
+        ".memory-seed/skills/link_swarm.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "index.md",
         ".memory-seed/skills/index.md",
     ),
@@ -5400,6 +5404,10 @@ SKILL_PROFILES: dict[str, SkillProfile] = {
         "Skill architecture, trigger registry, profile, and seed/live parity maintenance.",
         ("skill_architecture.md",),
     ),
+    "curation": SkillProfile(
+        "Large-scale memory-graph curation: model-swarm lifecycle-edge enrichment over a mature corpus.",
+        ("link_swarm.md",),
+    ),
 }
 
 OPTIONAL_SKILL_NAMES = tuple(
@@ -5415,6 +5423,7 @@ SKILL_DESCRIPTIONS = {
     "developer-rendered-ui-debugging.md": "Debug rendered browser UI: stale assets, hit targets, SVG/canvas, panes.",
     "docx_render_windows.md": "Render DOCX pages to images for Windows visual QA.",
     "document_ingestion.md": "Convert binary documents into readable Markdown/text.",
+    "link_swarm.md": "Enrich lifecycle edges at scale via a human-gated model-judgment swarm.",
     "local_compilation.md": "Validate local build, test, package, and CLI behavior.",
     "office_document_editing.md": "Create or edit Office documents programmatically.",
     "proposal_lifecycle.md": "Move proposal docs through inbox, todo, completed, and reference states.",
