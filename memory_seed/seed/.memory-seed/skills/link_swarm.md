@@ -70,7 +70,11 @@ The verdict rules, measured against 68 validated corrections:
 
 Granularity: name an ordinal on an end **only when that entry has 2+ decisions** — a single- or
 no-decision end takes the bare id (its `:d1` and bare id denote the same edge). This matches the
-write-time mandate; the swarm's output is canonical by construction.
+write-time mandate; the swarm's output is canonical by construction. **All three verdict kinds carry
+decision granularity** — since 2026-07-25 `related` may also be decision-level (`related_entries:
+mse_x:d2`), so a `related` verdict SHOULD name the specific decisions it connects when either end is
+multi-decision, exactly as the reasoning already identifies them. This is why one swarm run suffices:
+it emits the finest granularity the grammar allows, and the corpus never needs a second pass to add it.
 
 The `quote` field must be a verbatim phrase from the entry that grounds the verdict — if the agent
 cannot quote something specific, the verdict is `none`.

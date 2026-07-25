@@ -959,8 +959,8 @@ def _entry_level_ref_ids(
                     LinkIssue(
                         rel,
                         "misplaced-decision-ref",
-                        f"{list_key} -> {parsed.raw}: decision-level refs are valid only on "
-                        "replaces/evolves (entry yaml or link sidecar), not here",
+                        f"{list_key} -> {parsed.raw}: decision-level refs are valid on "
+                        "replaces/evolves/related_entries (entry yaml or link sidecar), not here",
                     )
                 )
             continue
@@ -1837,14 +1837,20 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
         # the forward-only pass below sets surface=False so each item reports
         # once.
         for yaml_block in _fenced_yaml_blocks(text):
-            for ref in _entry_level_ref_ids(yaml_block, "related_entries", rel, issues, surface=True):
+            # `related_entries` may carry `:dN` since 2026-07-25 (decision-level
+            # related). The discard sink here stops a decision ref being flagged
+            # `misplaced` in this pass; pass two (heading-anchored) collects and
+            # validates it, exactly like replaces/evolves.
+            _discard_decisions: list = []
+            for ref in _entry_level_ref_ids(
+                yaml_block, "related_entries", rel, issues, surface=True, decision_sink=_discard_decisions
+            ):
                 related_entry_refs.append((rel, ref))
             # "supersedes" is the legacy spelling of "replaces" (renamed
             # 2026-07-24); <=2.19 corpora carry it, so both keys validate into
             # the same ref list forever. Writers emit only "replaces". The
             # decision sink stays None here: pass two below is heading-anchored
             # and knows the SOURCE entry, which decision validation needs.
-            _discard_decisions: list = []
             for key in ("replaces", "supersedes"):
                 for ref in _entry_level_ref_ids(
                     yaml_block, key, rel, issues, surface=True, decision_sink=_discard_decisions
@@ -1934,19 +1940,31 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
             # entry-level edge lists - the arrow names the authoring decision
             # without changing what the edge targets. Everything is collected
             # for deferred validation; issue surfacing happened in pass one.
+            # `related` joins the lifecycle collection since 2026-07-25 for its
+            # DECISION refs only: a bare related ref is already gathered by
+            # related_entry_refs above (edge_list None skips re-adding it), but
+            # a `:dN` related ref needs the same validation and decision_edges
+            # folding as a lifecycle one. The granularity mandate stays
+            # lifecycle-only - see the advisory pass.
             for key, kind, edge_list in (
                 ("replaces", "replaces", replaces_edges),
                 ("supersedes", "replaces", replaces_edges),
                 ("evolves", "evolves", evolves_edges),
+                ("related_entries", "related", None),
             ):
                 for parsed in _frontmatter_list_refs(yaml_block, key):
                     if not parsed.ok or not source_id:
                         continue
-                    if parsed.decision is None:
+                    if parsed.decision is None and edge_list is not None:
                         edge_list.append((rel, source_id, parsed.entry_id))
-                    entry_yaml_lifecycle_refs.append(
-                        (rel, source_id, kind, parsed.raw, parsed.entry_id, parsed.decision, parsed.source_decision)
-                    )
+                    if parsed.decision is not None or parsed.source_decision is not None:
+                        entry_yaml_lifecycle_refs.append(
+                            (rel, source_id, kind, parsed.raw, parsed.entry_id, parsed.decision, parsed.source_decision)
+                        )
+                    elif edge_list is not None:
+                        entry_yaml_lifecycle_refs.append(
+                            (rel, source_id, kind, parsed.raw, parsed.entry_id, parsed.decision, parsed.source_decision)
+                        )
 
         if doc.layout not in {"per-user-day", "month-user"}:
             continue
@@ -2314,9 +2332,30 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                         )
                         continue
                     decision_edges.append((rel, entry_id, parsed.entry_id, parsed.decision))
-            for ref in _entry_level_ref_ids(yaml_block, "related_entries", rel, issues, surface=True):
-                if ref not in known_entries:
-                    issues.append(LinkIssue(rel, "dangling-related-entry", f"related_entries -> {ref} (no such entry_id)"))
+            # related_entries in a sidecar may carry `:dN` since 2026-07-25
+            # (decision-level related). A bare ref gets the dangling check it
+            # always had; a decision ref gets the same validation as a
+            # lifecycle decision ref (arrow source, intra-entry, dangling
+            # ordinal) and folds into decision_edges with no entry-level
+            # projection. Related is allowed decision-level, never mandated.
+            for parsed in _frontmatter_list_refs(yaml_block, "related_entries"):
+                if not parsed.ok:
+                    continue  # skip, as the prior entry-level scan did
+                if parsed.entry_id not in known_entries:
+                    issues.append(LinkIssue(rel, "dangling-related-entry", f"related_entries -> {parsed.entry_id} (no such entry_id)"))
+                    continue
+                if parsed.source_decision is not None and parsed.source_decision not in entry_decision_ordinals.get(entry_id, set()):
+                    issues.append(LinkIssue(rel, "dangling-source-decision", f"related -> {parsed.raw}: {entry_id} has no {parsed.source_decision} to author this edge from"))
+                    continue
+                if parsed.decision is None:
+                    continue  # bare related: valid, stays entry-level
+                if parsed.entry_id == entry_id:
+                    issues.append(LinkIssue(rel, "intra-entry-decision-ref", f"related -> {parsed.raw}: both ends are in the same entry; decisions of one entry are contemporaneous, so there is no order to record"))
+                    continue
+                if parsed.decision not in entry_decision_ordinals.get(parsed.entry_id, set()):
+                    issues.append(LinkIssue(rel, "dangling-decision-ref", f"related -> {parsed.raw}: {parsed.entry_id} has no {parsed.decision}"))
+                    continue
+                decision_edges.append((rel, entry_id, parsed.entry_id, parsed.decision))
 
     for rel, ref in related_entry_refs:
         if ref not in known_entries:
@@ -2483,9 +2522,26 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
         if not source_ts or source_ts < DECISION_GRANULARITY_MANDATE_SINCE:
             continue
         target_ordinals = entry_decision_ordinals.get(target_id, set())
+        # :d1 on a SINGLE-decision target is redundant on ANY kind (related
+        # included): bare is canonical, :d1 denotes the same edge. Warning, not
+        # an error - published entries are append-only.
+        if ordinal is not None and len(target_ordinals) == 1:
+            issues.append(
+                LinkIssue(
+                    rel_path,
+                    "redundant-decision-ref",
+                    f"{kind} -> {raw}: {target_id} has a single decision, so :{ordinal} adds "
+                    f"nothing - the bare id denotes the same edge",
+                    "warning",
+                )
+            )
+        # The granularity MANDATE advisories below are lifecycle-only. Related
+        # is allowed decision-level but never required to be (2026-07-25), so a
+        # bare related ref to a multi-decision target is fine, not a gap.
+        if kind == "related":
+            continue
         # Bare ref to a MULTI-decision target: which one? Advisory only, since a
-        # published entry cannot be restamped. Single-decision targets are fine
-        # bare - :d1 there is redundant (see the reciprocal check below).
+        # published entry cannot be restamped.
         if ordinal is None and len(target_ordinals) >= 2:
             listed = ",".join(sorted(target_ordinals, key=lambda o: int(o[1:])))
             issues.append(
@@ -2494,18 +2550,6 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                     "unaddressed-target-decision",
                     f"{kind} -> {raw}: {target_id} has decisions ({listed}); the 2026-07-24 "
                     f"grammar names the one affected - use {target_id}:d1 style",
-                    "warning",
-                )
-            )
-        # :d1 on a SINGLE-decision target: redundant, bare is canonical. A
-        # warning, not an error - the same append-only reason.
-        elif ordinal is not None and len(target_ordinals) == 1:
-            issues.append(
-                LinkIssue(
-                    rel_path,
-                    "redundant-decision-ref",
-                    f"{kind} -> {raw}: {target_id} has a single decision, so :{ordinal} adds "
-                    f"nothing - the bare id denotes the same edge",
                     "warning",
                 )
             )
@@ -2768,17 +2812,6 @@ def session_append_entry(
                 elif ref in entry_ts and entry_ts[ref] > ts:
                     issues.append(f"{kind} -> {ref}: target is newer ({entry_ts[ref]}) than this entry ({ts}); edges point backward in time")
                 continue
-            if kind == "related_entries":
-                if first.decision is not None or first.source_decision is not None:
-                    issues.append(f"{kind} -> {ref}: decision-level refs are valid only on replaces/evolves")
-                    continue
-                if first.entry_id not in known:
-                    issues.append(f"{kind} -> {ref}: no such entry_id (refs must never be invented)")
-                elif first.entry_id in entry_ts and entry_ts[first.entry_id] > ts:
-                    issues.append(
-                        f"{kind} -> {ref}: target is newer ({entry_ts[first.entry_id]}) than this entry ({ts}); edges point backward in time"
-                    )
-                continue
             target_id = first.entry_id
             if target_id not in known:
                 issues.append(f"{kind} -> {ref}: no such entry_id (refs must never be invented)")
@@ -2792,33 +2825,37 @@ def session_append_entry(
             for item in parsed_items:
                 if item.decision is not None and item.decision not in target_ordinals:
                     issues.append(f"{kind} -> {ref}: {target_id} has no {item.decision}")
-            # Name the target's decision only when there is a CHOICE to make -
-            # i.e. it has 2+ decisions. A single-decision target's :d1 and its
-            # bare id denote the same edge (the ratified rule), so bare is
-            # canonical there and :d1 is redundant ceremony (JNL 2026-07-24,
-            # reconciling the swarm's granularity posture). This mirrors the
-            # source side, which already omits the arrow for a single-decision
-            # writer - both ends now name an ordinal only when it disambiguates.
+            # `:dN` and the arrow prefix are VALIDATED on all three kinds -
+            # since 2026-07-25 `related_entries` may also carry them (decision-
+            # level related, JNL's direction: lay the grammar so one swarm run
+            # can emit the finest granularity). What differs is the MANDATE:
+            # replaces/evolves must name the decision when there is a choice;
+            # related may, but need not (it stays casual for hand-authoring).
+            # These redundancy/existence checks apply everywhere `:dN` appears.
+            if first.decision is not None and len(target_ordinals) == 1:
+                issues.append(
+                    f"{kind} -> {ref}: {target_id} has a single decision, so ':{first.decision}' adds nothing "
+                    f"- use the bare id '{target_id}' (name a decision only when there is a choice)"
+                )
+            if first.source_decision is not None and first.source_decision not in own_ordinals:
+                issues.append(
+                    f"{kind} -> {ref}: this entry has no {first.source_decision}"
+                    + (f" (its decisions are {own_listed})" if own_ordinals else " (it has no decision section)")
+                )
+            # The granularity MANDATE is lifecycle-only: related is allowed
+            # decision-level but never required to be.
+            if kind == "related_entries":
+                continue
             if first.decision is None and len(target_ordinals) >= 2:
                 listed = ",".join(sorted(target_ordinals, key=lambda o: int(o[1:])))
                 issues.append(
                     f"{kind} -> {ref}: {target_id} has {len(target_ordinals)} decisions ({listed}); name the "
                     f"one affected - '{target_id}:d1' style, comma-separated for several (2026-07-24 grammar)"
                 )
-            elif first.decision is not None and len(target_ordinals) == 1:
-                issues.append(
-                    f"{kind} -> {ref}: {target_id} has a single decision, so ':{first.decision}' adds nothing "
-                    f"- use the bare id '{target_id}' (name a decision only when there is a choice)"
-                )
             if first.source_decision is None and len(own_ordinals) >= 2:
                 issues.append(
                     f"{kind} -> {ref}: this entry has multiple decisions ({own_listed}); "
                     f"prefix which one authors the edge - 'dN -> {ref}'"
-                )
-            elif first.source_decision is not None and first.source_decision not in own_ordinals:
-                issues.append(
-                    f"{kind} -> {ref}: this entry has no {first.source_decision}"
-                    + (f" (its decisions are {own_listed})" if own_ordinals else " (it has no decision section)")
                 )
 
     canonical_topics: list[str] = []

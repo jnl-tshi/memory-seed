@@ -1090,9 +1090,10 @@ class LinksCheckTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertIn("dangling-decision-ref", [i.kind for i in result.issues])
 
-    def test_entry_frontmatter_decision_ref_in_related_entries_is_still_misplaced(self):
-        # related_entries stays entry-level everywhere; the write-time grammar
-        # covers only the lifecycle lists.
+    def test_entry_frontmatter_decision_ref_in_related_entries_is_now_valid(self):
+        # Decision-level related (2026-07-25): related_entries may carry :dN in
+        # an entry's own yaml, validated like a lifecycle decision ref and never
+        # flagged misplaced. A dangling ordinal is still caught.
         cwd = self.make_project()
         self._decision_corpus(cwd)
         sessions = cwd / MEMORY_DIR_NAME / "sessions"
@@ -1102,11 +1103,17 @@ class LinksCheckTests(unittest.TestCase):
             encoding="utf-8",
         )
         result = check_session_links(cwd=cwd)
-        self.assertFalse(result.ok)
-        self.assertIn("misplaced-decision-ref", [i.kind for i in result.issues])
-        self.assertEqual(
-            1, sum(1 for i in result.issues if i.kind == "misplaced-decision-ref")
+        self.assertTrue(result.ok, [i.detail for i in result.issues if i.severity == "error"])
+        self.assertNotIn("misplaced-decision-ref", [i.kind for i in result.issues])
+
+        (sessions / "2026-06-02.md").write_text(
+            "## 2026-06-02 09:00 - Newer\n\n```yaml\nentry_id: mse_bbbbbbbbbbbbbbbb\nrelated_entries:\n"
+            "  - mse_aaaaaaaaaaaaaaaa:d9\n```\n\n### Decision\n\n- D: x\n- R: y\n",
+            encoding="utf-8",
         )
+        bad = check_session_links(cwd=cwd)
+        self.assertFalse(bad.ok)
+        self.assertIn("dangling-decision-ref", [i.kind for i in bad.issues])
 
     def test_entry_frontmatter_decision_ref_postdating_is_rejected(self):
         # Forward-only holds for entry-yaml decision refs exactly as for

@@ -86,11 +86,26 @@ class SessionAppendTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertTrue(any("has no d9" in issue for issue in result.issues))
 
-    def test_append_rejects_decision_ref_in_related_entries(self):
-        older = self._append_multi_decision_older()
-        result = self._append(related_entries=[f"{older}:d1"])
-        self.assertFalse(result.ok)
-        self.assertTrue(any("valid only on replaces/evolves" in issue for issue in result.issues))
+    def test_append_accepts_decision_ref_in_related_entries(self):
+        # Decision-level related (2026-07-25): related_entries may carry :dN,
+        # allowed but never mandated. A valid ordinal on a 2-decision target
+        # passes; a nonexistent one is still dangling.
+        older = self._append_multi_decision_older()  # has d1, d2
+        ok = self._append(related_entries=[f"{older}:d2"])
+        self.assertTrue(ok.ok, ok.issues)
+        self.assertIn(f"- {older}:d2", ok.path.read_text(encoding="utf-8"))
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
+
+        bad = self._append(title="Bad ord", timestamp="2026-06-13 10:00", related_entries=[f"{older}:d9"])
+        self.assertFalse(bad.ok)
+        self.assertTrue(any("has no d9" in issue for issue in bad.issues), bad.issues)
+
+    def test_append_does_not_mandate_decision_ref_in_related_entries(self):
+        # Unlike replaces/evolves, related is NOT required to name the decision
+        # on a multi-decision target - it stays casual for hand-authoring.
+        older = self._append_multi_decision_older()  # 2 decisions
+        ok = self._append(related_entries=[older])  # bare, no :dN
+        self.assertTrue(ok.ok, ok.issues)
 
     # --- Grammar v2 (2026-07-24): granularity is mandated at write time ---
 

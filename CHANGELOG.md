@@ -6,6 +6,21 @@ All notable changes to Memory Seed are summarized here.
 
 ### Changed
 
+- **`related_entries` may carry decision-level refs (`:dN`)** (JNL's direction
+  2026-07-25). The decision-ref grammar, previously scoped to
+  `replaces`/`evolves`, now generalizes to `related` too: `related_entries:
+  - mse_x:d2` (or `- d1 -> mse_x:d2`) draws a `related` edge terminating on the
+  target's decision row, validated like a lifecycle decision ref (ordinal
+  existence, forward-only, `:d1`-on-single-decision rejected as redundant) and
+  never projected up to an entry-level related edge. Unlike lifecycle edges it
+  is **allowed, not mandated** — a bare related ref to a multi-decision target
+  stays valid, keeping related casual for hand-authoring while letting the
+  link-swarm emit decision-level related in one pass. Read side: the sidecar
+  reader, `semantic_cache` extractor, `retrieval.related_of`, and the Trail's
+  `_decision_edges_for_rows` all carry `related` in the `decision_edges`
+  channel (canonical kind `related`; the entry-level list key stays
+  `related_entries`).
+
 - **BREAKING (write path): decision granularity is mandated on lifecycle
   edges** (grammar v2, JNL's direction 2026-07-24). `session append` /
   `memory_session_append` name a decision on an edge end exactly when the
