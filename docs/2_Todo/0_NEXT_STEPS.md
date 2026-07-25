@@ -110,6 +110,11 @@ These exist only in session-entry Follow-ups today. Nothing below is built.
 6. **The ADR corpus table does not reconcile** — `adr-lifecycle-sidecar-contract.md` reports 612
    entries on 2026-07-20; a recount finds 580. Re-derive both from one classifier before either is
    used to size decision-coverage work.
+7. **Centrality-driven node prominence** — compute degree (later betweenness/PageRank) on the graph
+   projection and let it drive node size/visual weight, never position. Residue 3 of the
+   [information-theoretic disposition](../4_Reference/information-theoretic-evolution-disposition.md)
+   (2026-07-25); sequenced **after** the Phase D1 graph-motion work so it lands on the settled
+   full-corpus layout. The proposal's ADR-gravity-well layout stays declined until ADR nodes exist.
 
 ## Shipped 2026-07-18/19 — unreleased, on local main
 

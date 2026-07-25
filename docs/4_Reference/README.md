@@ -31,6 +31,7 @@ Current Memory Trace provenance:
 | [graph-architecture-lessons.md](graph-architecture-lessons.md) | — | — | — |
 | [INBOX-ASSESSMENT.md](INBOX-ASSESSMENT.md) | — | — | inbox-assessed |
 | [INBOX-CAPABILITY-CROSSWALK.md](INBOX-CAPABILITY-CROSSWALK.md) | — | — | inbox-crosswalk |
+| [information-theoretic-evolution-disposition.md](information-theoretic-evolution-disposition.md) | — | — | disposition |
 | [memory-quality-v0-baseline.md](memory-quality-v0-baseline.md) | — | — | — |
 | [memory-seed-gitlens-competitor-report.md](memory-seed-gitlens-competitor-report.md) | — | — | — |
 | [memory-seed-market-fit-report.md](memory-seed-market-fit-report.md) | — | — | — |

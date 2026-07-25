@@ -7,10 +7,12 @@ parent: ../lifecycle-edge-linking-sidecars.md
 
 # Per-Edge Confidence Metadata in Link Sidecars
 
-Status: **DRAFT — STORED, NOT YET CONSUMED (as of 2026-07-25).** The live contract is
+Status: **DRAFT — STORED AND CONSUMED (as of 2026-07-25).** The live contract is
 [lifecycle-edge-linking-sidecars.md](../lifecycle-edge-linking-sidecars.md), which this extends. The
-field is written by the link-inference campaign and **tolerated** by `links check` today; teaching the
-graph/Trail to read it is a deliberately deferred later stage.
+field is written by the link-inference campaign, **tolerated** by `links check`, and read end-to-end:
+the graph fades low/mid-confidence edges and the Trail dampens their opacity (shipped 2026-07-25).
+Published edges are corrected only via append-only `retracts:` blocks
+([link-retraction.md](link-retraction.md)).
 
 ## Why
 
@@ -60,9 +62,41 @@ is. So the field needs **no parser change** to be written safely — verified by
 `edge_confidence` present reports `Session memory integrity OK`. Human-authored edges carry no
 `edge_confidence`; its absence means "authored, not scored", never "confidence zero".
 
-## Deferred (later stages)
+## Consumption (shipped 2026-07-25)
 
-Reading the field into the graph is intentionally out of scope here. When taken up it entails: carrying
-confidence alongside the edge on the read side (`entry_link_sidecars` → the sidecar edge tuples →
-`semantic_cache`/`service`), exposing it on the graph payload, and a Trail/graph affordance that weights
-or filters low-confidence edges. Until then the data sits structured and durable, ready to consume.
+The read path carries confidence alongside the edge (`entry_link_sidecars` → the sidecar edge tuples →
+`semantic_cache`/`service`), exposes it on the graph payload (`confidence` on `GraphEdge` /
+`RendererGraphEdge`, omitted — never null-coerced — when unscored), and both clients de-emphasise:
+the graph renders `< 0.7` at low opacity and `0.7–0.9` at half opacity; the Trail multiplies edge
+opacity by a confidence factor. Absence of the field still means "authored, not scored" and renders
+at full strength.
+
+## Deterministic evidence score (design residue — not implemented)
+
+*Extracted 2026-07-25 from the
+[information-theoretic evolution disposition](../../4_Reference/information-theoretic-evolution-disposition.md)
+(Residue 1).*
+
+The stored `confidence` is a **model's judgment at suggestion time** — advisory, human-gated, and
+frozen into the append-only record. A complementary score can be computed from evidence the corpus
+already holds deterministically:
+
+- **Shared `F:` files** between source and target decisions (the campaign's candidate generator
+  already computes file overlap).
+- **Shared topics** under the controlled vocabulary.
+- **Explicit in-prose reference** — the target's id appearing in the source entry's text.
+- **Human authorship** — the edge was authored directly rather than swarm-suggested (the strongest
+  single signal).
+
+Constraints, per Constitution Invariants #5 and #6:
+
+- Computed **at read time as a derived projection** — never stored, never authoritative, fully
+  rebuildable, so no retraction mechanics are ever needed to revise it.
+- **No embedding similarity** as an input: semantic scores are model-dependent and violate the
+  reproducibility the score exists to provide.
+- **Inspectable per component** — a consumer surface must be able to show *why* the score is what it
+  is ("shared two files, one topic, explicit reference"), not just the total.
+- It sits **alongside** the advisory model confidence, never replacing it; the two disagree usefully
+  (a high-evidence low-model-confidence edge is a review candidate, and vice versa).
+- Correlated inputs must not double-count (an explicit reference usually implies shared files;
+  weights should be chosen against the real corpus, "Expose before you rank").
