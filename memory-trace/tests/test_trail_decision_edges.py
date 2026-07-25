@@ -158,6 +158,26 @@ class TrailDecisionEdgeTests(unittest.TestCase):
             {"source": "mse_oth00000000dddd", "target": "mse_sgl00000000bbbb", "type": "replaces"}, trail["edges"]
         )
 
+    def test_decision_level_related_edge_lands_on_the_decision_row(self):
+        # Decision-level related (2026-07-25): a `related_entries: mse_x:d2`
+        # sidecar ref draws a `related` edge terminating on that decision row,
+        # exactly like a decision-level lifecycle edge - the same read path,
+        # generalized from {replaces,evolves} to include related.
+        self.sidecar_path.write_text(
+            "---\ntags:\n  - session-log-links\nlink_date: 2026-06-03\n---\n\n"
+            "## 2026-06-03 09:00 - a decision-level related edge\n\n"
+            "```yaml\nentry_id: mse_src00000000cccc\nrelated_entries:\n"
+            "  - mse_tgt00000000aaaa:d2\n```\n",
+            encoding="utf-8",
+        )
+        trail = self.trail()
+        d2_row = "mse_tgt00000000aaaa#decisions/d2-default-the-range-to-seven-days"
+        self.assertIn({"source": "mse_src00000000cccc", "target": d2_row, "type": "related"}, trail["edges"])
+        # no-projection: it does NOT also draw an entry-level related edge.
+        self.assertNotIn(
+            {"source": "mse_src00000000cccc", "target": "mse_tgt00000000aaaa", "type": "related"}, trail["edges"]
+        )
+
     def test_dangling_ordinal_on_an_expanded_entry_draws_nothing(self):
         # links check errors on this, so it should never reach a clean corpus -
         # but if it does, falling back to the entry row would widen a bad ':d7'

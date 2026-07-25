@@ -3346,7 +3346,7 @@ def _decision_edges_for_rows(
       is the overstatement this feature removes. ``links check`` reports the
       bad ref; this refuses to invent an edge from it.
     """
-    kind_to_type = {"replaces": "replaces", "evolves": "evolves", "related_entries": "related"}
+    kind_to_type = {"replaces": "replaces", "evolves": "evolves", "related": "related"}
     entry_row: dict[str, str] = {}
     decision_row: dict[tuple[str, str], str] = {}
     # Entries whose decisions each got their own row. For these, "ordinal not

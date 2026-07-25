@@ -384,11 +384,15 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
             # "supersedes" is the legacy authored key for "replaces" (renamed
             # 2026-07-24); it canonicalises on read so every consumer sees one
             # spelling and legacy corpora keep their edges.
-            for key, canonical in (
-                ("replaces", "replaces"),
-                ("supersedes", "replaces"),
-                ("evolves", "evolves"),
-                ("related_entries", "related_entries"),
+            # (authored key, entry-level list key, decision-edge kind). The
+            # entry-level key keeps its long spelling (`related_entries`) that
+            # consumers read; the decision-edge kind is the short `related`,
+            # matching MemoryChunk.decision_edges and the Trail's kind map.
+            for key, canonical, decision_kind in (
+                ("replaces", "replaces", "replaces"),
+                ("supersedes", "replaces", "replaces"),
+                ("evolves", "evolves", "evolves"),
+                ("related_entries", "related_entries", "related"),
             ):
                 entry_level: list[str] = []
                 for parsed in _frontmatter_list_refs(yaml_block, key):
@@ -400,7 +404,7 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                         entry_level.append(parsed.entry_id)
                     if parsed.decision is not None or parsed.source_decision is not None:
                         decisions.append(
-                            (canonical, parsed.source_decision or "", parsed.entry_id, parsed.decision or "")
+                            (decision_kind, parsed.source_decision or "", parsed.entry_id, parsed.decision or "")
                         )
                 found[canonical] = tuple(dict.fromkeys(tuple(found.get(canonical, ())) + tuple(entry_level)))
             found["decision_edges"] = tuple(decisions)
@@ -669,7 +673,15 @@ def audit_link_gaps(
 
     def related_of(chunk: MemoryChunk) -> set[str]:
         sidecar = sidecars.get(chunk.entry_id or "", {})
-        return set(chunk.related_entries) | set(sidecar.get("related_entries", ()))
+        return (
+            set(chunk.related_entries)
+            | set(sidecar.get("related_entries", ()))
+            # Decision-level related refs (`<id>:dN`, since 2026-07-25) never
+            # project to the entry-level related list, but for gap-finding the
+            # pair is linked - same rule as lifecycle_of below.
+            | {eid for kind, _src, eid, _ordinal in sidecar.get("decision_edges", ()) if kind == "related"}
+            | {eid for kind, _src, eid, _ordinal in chunk.decision_edges if kind == "related"}
+        )
 
     def lifecycle_of(chunk: MemoryChunk) -> set[str]:
         sidecar = sidecars.get(chunk.entry_id or "", {})

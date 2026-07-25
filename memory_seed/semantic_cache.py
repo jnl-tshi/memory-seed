@@ -1077,7 +1077,7 @@ def _extract_entry_chunks_from_file(
         entry_lines = list(lines[start_line:end_line])
         metadata = _extract_entry_metadata(entry_lines)
         entry_id = _metadata_value(metadata, "entry_id")
-        related_entries = _metadata_list(metadata, "related_entries")
+        _related_raw = _metadata_list(metadata, "related_entries")
         # `supersedes:` is the legacy spelling of `replaces:` (renamed
         # 2026-07-24, JNL's direction: one term across Seed and Trace).
         # Corpora written by <=2.19 carry the old key; read both forever,
@@ -1095,10 +1095,18 @@ def _extract_entry_chunks_from_file(
         # verbatim, exactly as before (links check owns flagging it).
         replaces_list: list[str] = []
         evolves_list: list[str] = []
+        related_list: list[str] = []
         entry_decision_edges: list[tuple[str, str, str, str]] = []
+        # `related_entries` joins replaces/evolves here since 2026-07-25: a
+        # `:dN` related ref peels into decision_edges exactly like a lifecycle
+        # one (kind="related"), so a decision-level related edge terminates on
+        # the target's decision row. Bare related refs stay entry-level. The
+        # no-projection rule holds: a `:dN` related edge never rejoins the
+        # entry-level related list.
         for kind, raw_refs, sink in (
             ("replaces", _replaces_raw, replaces_list),
             ("evolves", _evolves_raw, evolves_list),
+            ("related", _related_raw, related_list),
         ):
             for raw in raw_refs:
                 m = _DECISION_REF_ITEM_RE.match(raw)
@@ -1118,6 +1126,7 @@ def _extract_entry_chunks_from_file(
                 sink.append(raw)
         replaces = tuple(replaces_list)
         evolves = tuple(evolves_list)
+        related_entries = tuple(related_list)
         commits = _metadata_list(metadata, "commits")
         continuity = _extract_entry_continuity(entry_lines)
         entry_topics = _metadata_list(metadata, "topics")

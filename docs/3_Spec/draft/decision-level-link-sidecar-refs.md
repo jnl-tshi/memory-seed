@@ -33,8 +33,12 @@ same validation as sidecar refs (`dangling-decision-ref`, `intra-entry-decision-
 `decision-ref-postdates`), enforced additionally at write time by `session append` /
 `memory_session_append`; they peel into the chunk's `decision_edges` channel and are never folded into
 entry-level lists (the no-projection rule holds in both homes); the Trail merges both sources into one
-decision-edge stream. `related_entries` stays entry-level everywhere. Source-side narrowing
-(`source_decision`) remains the staged next step for both homes.
+decision-edge stream. **`related_entries` gained decision-level refs 2026-07-25** (JNL's direction, to
+lay the grammar so the link-swarm emits its finest granularity in one pass): a `related` ref may be
+`:dN`, validated exactly like a lifecycle one and peeled into the `decision_edges` channel with kind
+`related` — but **allowed, not mandated** (a bare related ref to a multi-decision target stays valid;
+related is casual for hand-authoring). Source-side narrowing (`source_decision`) shipped 2026-07-24 as
+the per-item `dN -> ` arrow.
 
 ## Problem
 
