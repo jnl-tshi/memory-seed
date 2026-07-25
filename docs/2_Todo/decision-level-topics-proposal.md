@@ -1,6 +1,6 @@
 ---
 priority: P3
-next_action: PROPOSAL — decision-level topics are gated behind a DECISION-LEVEL GRAPH (JNL's vision, 2026-07-25): they are the colouring/clustering layer that graph needs, not standalone precision. Sequence — (1) render the decision-node graph using the substrate that already exists, decisions inheriting their entry's topics; (2) build per-decision topics only if inherited colouring proves too coarse. Do not build per-decision topic inference first. Current entry-level topic-inference conventions here are LIVE and feed the topic-backfill swarm prompt.
+next_action: PROPOSAL — decision-level topic *inference* stays gated behind a DECISION-LEVEL GRAPH (JNL's vision, 2026-07-25): topics are the colouring/clustering layer that graph needs, not standalone precision. Sequence — (1) render the decision-node graph using the substrate that already exists, decisions inheriting their entry's topics; (2) run per-decision inference only if inherited colouring proves too coarse. AMENDED 2026-07-25 (JNL): the *grammar* is built first and is not inference — see `3_Spec/draft/decision-level-topic-sidecars.md`. Rationale: the backfill is 881 decision judgments across all 621 entries whether or not an entry-level pass runs first, so an entry-level backfill would be written twice. Sidecars are append-only with most-recent-block-wins precedence. Current entry-level topic-inference conventions here are LIVE and feed the swarm prompt.
 ---
 
 # Decision-level topics
