@@ -516,6 +516,68 @@ class LinksCheckTests(unittest.TestCase):
 
         self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
 
+    def _raw_sidecar(self, cwd, file_date, text):
+        d = cwd / MEMORY_DIR_NAME / "sessions" / "links" / file_date[:7]
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{file_date}.md").write_text(text, encoding="utf-8")
+
+    def test_retract_downgrades_edge_and_reader_reflects_it(self):
+        from memory_seed.retrieval import entry_link_sidecars
+
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - original", "mse_0123456789abcdef", ()),
+            ("2026-06-13 10:00 - refinement", "mse_ffffffffffffffff", ()),
+        )
+        # A later block retracts the evolves and re-authors it as related - the
+        # append-only downgrade, without reopening the declaring block.
+        self._raw_sidecar(cwd, "2026-06-13", "\n".join([
+            "## 2026-06-13 10:00 - declare", "", "```yaml", "entry_id: mse_ffffffffffffffff",
+            "evolves:", "  - mse_0123456789abcdef", "```", "",
+            "## 2026-06-13 11:00 - correct", "", "```yaml", "entry_id: mse_ffffffffffffffff",
+            "retracts:", "  - evolves mse_0123456789abcdef (2026-06-13)",
+            "related_entries:", "  - mse_0123456789abcdef", "```", "",
+        ]) + "\n")
+
+        result = check_session_links(cwd=cwd)
+        self.assertTrue(result.ok, [i.__dict__ for i in result.issues])
+        sidecar = entry_link_sidecars(cwd)["mse_ffffffffffffffff"]
+        self.assertEqual(sidecar.get("evolves"), ())
+        self.assertEqual(sidecar.get("related_entries"), ("mse_0123456789abcdef",))
+
+    def test_retract_of_undeclared_edge_is_dangling(self):
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - a", "mse_0123456789abcdef", ()),
+            ("2026-06-13 10:00 - b", "mse_ffffffffffffffff", ()),
+        )
+        self._raw_sidecar(cwd, "2026-06-13", "\n".join([
+            "## 2026-06-13 11:00 - correct", "", "```yaml", "entry_id: mse_ffffffffffffffff",
+            "retracts:", "  - replaces mse_0123456789abcdef", "```", "",
+        ]) + "\n")
+
+        result = check_session_links(cwd=cwd)
+        self.assertIn("dangling-retract", [i.kind for i in result.issues])
+
+    def test_malformed_retract_is_reported(self):
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 10:00 - b", "mse_ffffffffffffffff", ()),
+        )
+        self._raw_sidecar(cwd, "2026-06-13", "\n".join([
+            "## 2026-06-13 11:00 - correct", "", "```yaml", "entry_id: mse_ffffffffffffffff",
+            "retracts:", "  - not-a-real-retract-token", "```", "",
+        ]) + "\n")
+
+        result = check_session_links(cwd=cwd)
+        self.assertIn("malformed-retract", [i.kind for i in result.issues])
+
     def test_links_check_reports_unclassified_sidecar_stub_as_warning(self):
         cwd = self.make_project()
         self._flat_session(

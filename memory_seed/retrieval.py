@@ -340,6 +340,8 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     # silent no-op.
     from .core import (
         _frontmatter_list_refs,
+        _frontmatter_list_region,
+        _parse_retract,
         iter_link_sidecar_documents,
         resolve_runtime,
     )
@@ -347,6 +349,13 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     runtime = resolve_runtime(cwd)
     links_dir = runtime.memory_dir / "sessions" / "links"
     sidecars: dict[str, dict[str, Any]] = {}
+    # Append-only retractions, accumulated across ALL blocks then applied once at
+    # the end: a `retracts:` in a later block removes an edge an earlier block
+    # declared, so the subtraction can only run after the union is complete.
+    # entry-level identity = (canonical_kind, target_id); decision identity =
+    # (kind, source_ordinal, target_id, target_ordinal).
+    retract_entry: dict[str, set[tuple[str, str]]] = {}
+    retract_decision: dict[str, set[tuple[str, str, str, str]]] = {}
     if not links_dir.is_dir():
         return sidecars
     for link_doc in iter_link_sidecar_documents(runtime.memory_dir / "sessions"):
@@ -408,6 +417,22 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                         )
                 found[canonical] = tuple(dict.fromkeys(tuple(found.get(canonical, ())) + tuple(entry_level)))
             found["decision_edges"] = tuple(decisions)
+            # Retractions this block declares (against this or an earlier block's
+            # edges). A bare/entry-level ref subtracts by (kind, target); a
+            # decision ref subtracts the exact 4-tuple. Applied after the union.
+            for line in _frontmatter_list_region(yaml_block, "retracts").splitlines():
+                item = line.strip()
+                if not item.startswith("- "):
+                    continue
+                retract = _parse_retract(item[2:])
+                if not retract.ok or retract.ref is None:
+                    continue  # links check reports it; readers skip it
+                if retract.ref.decision is None:
+                    retract_entry.setdefault(entry_id, set()).add((retract.kind, retract.ref.entry_id))
+                else:
+                    retract_decision.setdefault(entry_id, set()).add(
+                        (retract.kind, retract.ref.source_decision or "", retract.ref.entry_id, retract.ref.decision)
+                    )
             existing = sidecars.get(entry_id)
             if existing:
                 # decision_edges is merged alongside the entry-level keys: two
@@ -423,6 +448,21 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                     "heading_datetime": heading_ts,
                     **found,
                 }
+    # Apply retractions to the completed union: an edge a `retracts:` named is
+    # removed from the effective set, the append-only way to downgrade/delete a
+    # published edge. A downgrade pairs this with a fresh edge of the new kind.
+    for eid, keys in retract_entry.items():
+        sidecar = sidecars.get(eid)
+        if not sidecar:
+            continue
+        for canonical, list_key in (("replaces", "replaces"), ("evolves", "evolves"), ("related", "related_entries")):
+            drop = {target for kind, target in keys if kind == canonical}
+            if drop and sidecar.get(list_key):
+                sidecar[list_key] = tuple(t for t in sidecar[list_key] if t not in drop)
+    for eid, ids in retract_decision.items():
+        sidecar = sidecars.get(eid)
+        if sidecar and sidecar.get("decision_edges"):
+            sidecar["decision_edges"] = tuple(e for e in sidecar["decision_edges"] if tuple(e) not in ids)
     return sidecars
 
 

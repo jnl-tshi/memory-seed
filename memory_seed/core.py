@@ -869,6 +869,57 @@ def _parse_list_ref_multi(token: str) -> list[ListRef]:
     return [ListRef(raw, "", None, False, "not an entry id or <entry_id>:dN decision ref")]
 
 
+# A `retracts:` item names a previously-declared lifecycle edge to REMOVE from
+# the effective set - the append-only way to downgrade or delete a published
+# edge without reopening (and mutating) the block that declared it. A downgrade
+# is a retract of the old kind plus a fresh edge of the new kind, both authored
+# additively in the correction block. Form: `<kind> <ref> [(<YYYY-MM-DD>)]`.
+# The kind + ref identify the edge using the SAME grammar the edge was authored
+# with, so `evolves d2 -> mse_x:d1` retracts exactly that decision edge and
+# `evolves mse_x` retracts the entry-level one; the optional trailing date pins
+# which day's declaration (validation + provenance), matching the user's
+# "use the date and the id" handle. The block's own entry_id is the edge source.
+_RETRACT_KINDS = {
+    "replaces": "replaces",
+    "supersedes": "replaces",
+    "evolves": "evolves",
+    "related_entries": "related",
+    "related": "related",
+}
+_RETRACT_RE = re.compile(
+    r"^(replaces|supersedes|evolves|related_entries|related)\s+(.+?)(?:\s*\((\d{4}-\d{2}-\d{2})\))?\s*$"
+)
+
+
+@dataclass(frozen=True)
+class RetractRef:
+    raw: str
+    kind: str  # canonical: replaces / evolves / related ("" when unparseable)
+    ref: "ListRef | None"  # the retracted edge's target ref
+    date: str | None  # original declaration date, if named
+    ok: bool
+    reason: str = ""
+
+
+def _parse_retract(token: str) -> RetractRef:
+    raw = token.strip().strip("'\"")
+    match = _RETRACT_RE.match(raw)
+    if not match:
+        return RetractRef(raw, "", None, None, False, "not '<kind> <ref> [(YYYY-MM-DD)]'")
+    kind = _RETRACT_KINDS[match.group(1)]
+    refs = _parse_list_ref_multi(match.group(2))
+    if len(refs) != 1 or not refs[0].ok:
+        reason = refs[0].reason if refs and not refs[0].ok else "a retract names exactly one edge"
+        return RetractRef(raw, kind, None, match.group(3), False, reason)
+    return RetractRef(raw, kind, refs[0], match.group(3), True)
+
+
+def _retract_identity(kind: str, ref: "ListRef") -> tuple[str, str, str, str]:
+    """Canonical key shared by the reader (subtract) and validator (existence):
+    (kind, source_ordinal, target_entry_id, target_ordinal), '' for absent."""
+    return (kind, ref.source_decision or "", ref.entry_id, ref.decision or "")
+
+
 def _frontmatter_list_refs(block: str, list_key: str) -> list[ListRef]:
     """Parse a frontmatter list into refs, one per authored item.
 
@@ -1762,6 +1813,16 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     # from the entry-level lists on purpose - a decision edge is never
     # projected up to its entry.
     decision_edges: list[tuple[str, str, str, str]] = []
+    # Append-only retraction bookkeeping. `declared_*` record every edge a link
+    # sidecar declares (so a retract can be checked to name a real one);
+    # `retract_refs` collects each `retracts:` item for validation after the
+    # file loop, when the full declared set + all dates are known. Entry-level
+    # identity ignores the source ordinal (entry-level edges never store it);
+    # decision identity is the exact 4-tuple.
+    declared_entry_edges: dict[str, set[tuple[str, str]]] = {}
+    declared_decision_edges: dict[str, set[tuple[str, str, str, str]]] = {}
+    declared_edge_dates: dict[tuple[str, tuple], str] = {}
+    retract_refs: list[tuple[str, str, str, "RetractRef"]] = []  # (rel, file_date, entry_id, retract)
     # Every lifecycle ref authored in an ENTRY's own yaml (write-time grammar,
     # 2026-07-24): (rel, source_id, kind, raw, target_id, ordinal,
     # source_ordinal) - the last two None when unspecified. Validated after the
@@ -2304,8 +2365,11 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                             )
                         )
                         continue
+                    canonical_kind = "replaces" if kind in ("replaces", "supersedes") else "evolves"
                     if parsed.decision is None:
                         edge_list.append((rel, entry_id, parsed.entry_id))
+                        declared_entry_edges.setdefault(entry_id, set()).add((canonical_kind, parsed.entry_id))
+                        declared_edge_dates.setdefault((entry_id, (canonical_kind, parsed.entry_id)), file_date)
                         continue
                     # Decision-level ref. Validated here but deliberately NOT
                     # added to edge_list: "D2 of B replaces D1 of A" does not
@@ -2332,6 +2396,9 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                         )
                         continue
                     decision_edges.append((rel, entry_id, parsed.entry_id, parsed.decision))
+                    _dec_id = (canonical_kind, parsed.source_decision or "", parsed.entry_id, parsed.decision)
+                    declared_decision_edges.setdefault(entry_id, set()).add(_dec_id)
+                    declared_edge_dates.setdefault((entry_id, _dec_id), file_date)
             # related_entries in a sidecar may carry `:dN` since 2026-07-25
             # (decision-level related). A bare ref gets the dangling check it
             # always had; a decision ref gets the same validation as a
@@ -2348,6 +2415,8 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                     issues.append(LinkIssue(rel, "dangling-source-decision", f"related -> {parsed.raw}: {entry_id} has no {parsed.source_decision} to author this edge from"))
                     continue
                 if parsed.decision is None:
+                    declared_entry_edges.setdefault(entry_id, set()).add(("related", parsed.entry_id))
+                    declared_edge_dates.setdefault((entry_id, ("related", parsed.entry_id)), file_date)
                     continue  # bare related: valid, stays entry-level
                 if parsed.entry_id == entry_id:
                     issues.append(LinkIssue(rel, "intra-entry-decision-ref", f"related -> {parsed.raw}: both ends are in the same entry; decisions of one entry are contemporaneous, so there is no order to record"))
@@ -2356,7 +2425,58 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                     issues.append(LinkIssue(rel, "dangling-decision-ref", f"related -> {parsed.raw}: {parsed.entry_id} has no {parsed.decision}"))
                     continue
                 decision_edges.append((rel, entry_id, parsed.entry_id, parsed.decision))
+                _rel_dec_id = ("related", parsed.source_decision or "", parsed.entry_id, parsed.decision)
+                declared_decision_edges.setdefault(entry_id, set()).add(_rel_dec_id)
+                declared_edge_dates.setdefault((entry_id, _rel_dec_id), file_date)
+            # `retracts:` items (append-only edge removal). Malformed items error
+            # here; well-formed ones are validated against the declared set after
+            # the file loop, when every declaration and its date is known.
+            for _line in _frontmatter_list_region(yaml_block, "retracts").splitlines():
+                _item = _line.strip()
+                if not _item.startswith("- "):
+                    continue
+                _retract = _parse_retract(_item[2:])
+                if not _retract.ok:
+                    issues.append(LinkIssue(rel, "malformed-retract", f"retracts -> {_retract.raw!r}: {_retract.reason}"))
+                    continue
+                retract_refs.append((rel, file_date, entry_id, _retract))
 
+    # Validate append-only retractions now that every declaration and its date
+    # is known. A retract must name an edge the corpus actually declared for
+    # this entry (else it removes nothing and the author is confused), and it
+    # cannot pre-date the edge it retracts (forward-only, like every other
+    # lifecycle statement). Identity matches the reader's: entry-level ignores
+    # the source ordinal, decision uses the exact 4-tuple.
+    for rel, file_date, entry_id, retract in retract_refs:
+        ref = retract.ref
+        if ref is None:
+            continue
+        if ref.decision is None:
+            identity: tuple = (retract.kind, ref.entry_id)
+            declared = declared_entry_edges.get(entry_id, set())
+        else:
+            identity = (retract.kind, ref.source_decision or "", ref.entry_id, ref.decision)
+            declared = declared_decision_edges.get(entry_id, set())
+        if identity not in declared:
+            issues.append(
+                LinkIssue(
+                    rel,
+                    "dangling-retract",
+                    f"retracts -> {retract.raw}: {entry_id} never declared a {retract.kind} edge to "
+                    f"{ref.entry_id}{':' + ref.decision if ref.decision else ''} - nothing to retract",
+                )
+            )
+            continue
+        declared_date = declared_edge_dates.get((entry_id, identity), "")
+        if declared_date and file_date and file_date < declared_date:
+            issues.append(
+                LinkIssue(
+                    rel,
+                    "retract-before-declaration",
+                    f"retracts -> {retract.raw}: filed {file_date} but the edge was first declared {declared_date}; "
+                    "a retraction cannot pre-date the edge it removes",
+                )
+            )
     for rel, ref in related_entry_refs:
         if ref not in known_entries:
             issues.append(LinkIssue(rel, "dangling-related-entry", f"related_entries -> {ref} (no such entry_id)"))
