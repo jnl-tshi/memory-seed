@@ -89,7 +89,8 @@ separately and never folded into one another:
   may derive a continuity display chain. Membership is never duplicated as topic vocabulary.
 
 **Indexed topics (implemented 2026-07-10, topics P1):** `topics:` is authored entry metadata - an
-optional list of 1-3 slugs (`^[a-z0-9][a-z0-9_-]{0,63}$`) resolved against the deploy-once
+optional list of slugs (`^[a-z0-9][a-z0-9_-]{0,63}$`), typically 1-3 and at most 4 (the measured
+corpus maximum; multi-decision entries reach the top of that range more often), resolved against the deploy-once
 project-local vocabulary `.memory-seed/topics.yaml` (canonical slugs + aliases; aliases resolve at
 read time). Topics are neighbourhood *membership*, not an edge kind: they never link two entries
 directly, and they are validated by the separate `memory-seed topics check`

@@ -804,11 +804,15 @@ class ListRef:
 # were legally authored bare that morning - on the quiet side of the line.
 DECISION_GRANULARITY_MANDATE_SINCE = "2026-07-24 09:00"
 
-# Ceiling on topics attributed to one entry from a sidecar. Matches the
-# authoring guidance (1-3 slugs) for the same reason it exists there: a label
-# applied to everything distinguishes nothing, and an inferring agent has no
-# native sense of restraint - it will happily justify five.
-MAX_INFERRED_TOPICS = 3
+# Ceiling on topics attributed to one entry from a sidecar. Set to the corpus
+# MAXIMUM authored count (4), not the typical 1-3, so an inferred topic is
+# never held to a stricter standard than the author holds themselves: the
+# measured data shows entries reach 4 topics - more on multi-decision entries
+# (avg 2.76 vs 2.10 for single-decision) - and an inferred fourth topic on a
+# genuinely four-facet entry should not be rejected. The cap still exists for
+# the reason it always did: a label applied to everything distinguishes
+# nothing, and an inferring agent has no native sense of restraint.
+MAX_INFERRED_TOPICS = 4
 
 _BARE_ENTRY_ID_RE = re.compile(r"^(?:ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32})$")
 # Canonical decision ref: `<entry_id>:<dN>` with comma-separated ordinals
