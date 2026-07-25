@@ -521,7 +521,14 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
             };
           }),
           ...graph.edges.map((edge, index) => ({
-            data: { id: edge.id || `${edge.source}-${edge.target}-${index}`, source: edge.source, target: edge.target, type: edge.edge_type },
+            // Machine-suggested edges carry a 0..1 confidence; human-authored
+            // edges have none. The attribute is OMITTED (not null) when unscored
+            // so a `[confidence < x]` selector never matches them - cytoscape
+            // coerces a null attr to 0, which would fade every authored edge.
+            data:
+              edge.confidence == null
+                ? { id: edge.id || `${edge.source}-${edge.target}-${index}`, source: edge.source, target: edge.target, type: edge.edge_type }
+                : { id: edge.id || `${edge.source}-${edge.target}-${index}`, source: edge.source, target: edge.target, type: edge.edge_type, confidence: edge.confidence },
           })),
         ],
         style: [
@@ -576,6 +583,13 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
           { selector: 'edge[type = "replaces"]', style: { "line-style": "dashed", "line-color": edgeReplaces, "target-arrow-color": edgeReplaces } },
           { selector: 'edge[type = "evolves"]', style: { "line-style": "dotted", "line-color": edgeEvolves, "target-arrow-color": edgeEvolves, "width": 2.5 } },
           { selector: 'edge[type = "topic"]', style: { "line-style": "dotted", "line-color": edgeTopic, "target-arrow-color": edgeTopic, "opacity": 0.58 } },
+          // Confidence weighting (machine-suggested edges only; authored edges
+          // omit the attribute and keep full strength). Mid fades; low fades
+          // more and thins - an unverified suggestion never looks settled. The
+          // existence guard `edge[confidence]` keeps the numeric compares off
+          // authored edges even if a future value is exactly 0.
+          { selector: "edge[confidence][confidence >= 0.7][confidence < 0.9]", style: { opacity: 0.5 } },
+          { selector: "edge[confidence][confidence < 0.7]", style: { opacity: 0.28, width: 1 } },
           { selector: "edge.edge-filtered", style: { display: "none" } },
           { selector: "edge.edge-outranked", style: { display: "none" } },
         ],

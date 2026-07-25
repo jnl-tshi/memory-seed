@@ -495,7 +495,13 @@ export function TrailWorkspace({
     const decisionLevel = edgeClass <= 2;
     const dash = decisionLevel ? undefined : TRAIL_DASH;
     const classOpacity = edgeClass === 1 ? 0.9 : edgeClass === 2 ? 0.75 : 0.5;
-    const opacity = touched ? 0.95 : focusActive ? Math.min(0.5, classOpacity) : classOpacity;
+    // Machine-suggested edges (a link-campaign confidence) fade the lower the
+    // confidence, so an unverified suggestion reads as quieter than an authored
+    // edge. Authored edges have no confidence and are unaffected; a hovered/
+    // selected edge is never dimmed.
+    const confFactor = edge.confidence == null ? 1 : edge.confidence < 0.7 ? 0.5 : edge.confidence < 0.9 ? 0.75 : 1;
+    const baseOpacity = touched ? 0.95 : focusActive ? Math.min(0.5, classOpacity) : classOpacity;
+    const opacity = touched ? baseOpacity : baseOpacity * confFactor;
     const classBoost = edgeClass === 1 ? 0.3 : edgeClass === 2 ? 0.1 : 0;
     const width = touched ? strokeW + 0.6 : strokeW + classBoost;
     const label = (node: TrailEvent) =>
