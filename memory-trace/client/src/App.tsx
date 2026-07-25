@@ -10,7 +10,7 @@ import { searchResultCursor, stepSearchCursor } from "./searchNavigation";
 import { genuineSearchResults } from "./searchResults";
 import { overviewCounts, overviewExhausted as overviewIsExhausted, type OverviewCounts } from "./graphOverview";
 import { animateScrollTo, scrollDurationFor } from "./trailScroll";
-import { compareTrailNodes, isDecisionRow, stripTitleStamp, TRAIL_WINDOW_STEP } from "./trailModel";
+import { compareTrailNodes, isDecisionRow, stripTitleStamp, TRAIL_WINDOW_STEP, trailWindowEntryIds } from "./trailModel";
 
 const GraphWorkspace = lazy(() => import("./GraphWorkspace").then((module) => ({ default: module.GraphWorkspace })));
 const TrailWorkspace = lazy(() => import("./TrailWorkspace").then((module) => ({ default: module.TrailWorkspace })));
@@ -236,6 +236,14 @@ export default function App() {
   // The edge types the CURRENT payload was fetched with, which is not the same
   // as the types currently switched on: the chips filter what was fetched.
   const fetchedEdgeTypes = useRef<RendererGraphEdge["edge_type"][]>(DEFAULT_GRAPH_EDGE_TYPES);
+  // The Trail's loaded window, pinned into every graph fetch so the two views
+  // never disagree about which entries exist. A ref rather than state because
+  // loadGraph is a stable, dependency-free callback: rebuilding it every time
+  // the window grew would remount the graph and throw away settled positions.
+  const pinnedIdsRef = useRef<string[]>([]);
+  // What the CURRENT payload was actually pinned with, so switching back to
+  // Graph after "Load older" can tell a stale map from an up-to-date one.
+  const fetchedPinnedIds = useRef<string[]>([]);
   // How many Overview nodes to ask the server for. The server's connectivity-
   // ranked selection (highest-degree seeds first, newest-first tie-break) only
   // truncates once the candidate pool exceeds this, so raising it via "Show
@@ -293,7 +301,9 @@ export default function App() {
       // Remember what this payload was actually fetched with, so toggleEdge can
       // tell a client-side filter change from one that needs the server.
       fetchedEdgeTypes.current = nextEdgeTypes;
+      fetchedPinnedIds.current = pinnedIdsRef.current;
       const nextGraph = await graphQuery({
+        pinnedIds: pinnedIdsRef.current,
         entryId: entryId ?? (nextScope !== "overview" && nextScope !== "file" ? preferredEntryId : null),
         edgeTypes: nextEdgeTypes,
         topic: nextTopic,
@@ -907,7 +917,13 @@ export default function App() {
   // instant and fetch-free.
   function switchToGraphView() {
     setViewMode("graph");
-    if (graph === null) void requestGraph(scope, activeTopic, undefined, scope !== "overview" && scope !== "file" ? selected?.source.entry_id : null, selected?.source.entry_id);
+    // A payload fetched BEFORE the Trail grew its window is stale in exactly
+    // one way that matters: it is missing entries the user has already seen.
+    // Without this the map silently disagreed with the timeline, because a
+    // non-null graph was reused unconditionally.
+    const fetched = new Set(fetchedPinnedIds.current);
+    const missingPins = pinnedIdsRef.current.some((id) => !fetched.has(id));
+    if (graph === null || missingPins) void requestGraph(scope, activeTopic, undefined, scope !== "overview" && scope !== "file" ? selected?.source.entry_id : null, selected?.source.entry_id);
   }
 
   async function chooseTopic(nextTopic: string | null) {
@@ -956,6 +972,14 @@ export default function App() {
   // timeline and every cross-corpus lookup; a topic filter is a genuinely
   // different query and uses its own fetched `trail`.
   const effectiveTrail = activeTopic === null ? entryIndex : trail;
+  // Everything the Trail can currently show is pinned into the Graph. Kept in
+  // sync eagerly (not at fetch time) so that growing the window in Trail view
+  // and only later switching to Graph still carries the newly loaded entries.
+  const pinnedEntryIds = useMemo(
+    () => trailWindowEntryIds(effectiveTrail, trailWindow),
+    [effectiveTrail, trailWindow],
+  );
+  pinnedIdsRef.current = pinnedEntryIds;
 
   // Bring the matched section into view. Rendering the highlight is not enough:
   // the band is often far down a long entry, so without this you cycle results

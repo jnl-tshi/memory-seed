@@ -2489,6 +2489,22 @@
           },
           {
             "in": "query",
+            "name": "pinned_ids",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pinned Ids"
+            }
+          },
+          {
+            "in": "query",
             "name": "worktree",
             "required": false,
             "schema": {

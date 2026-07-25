@@ -760,6 +760,98 @@ class TraceServiceTests(unittest.TestCase):
         self.assertEqual(len(projection["nodes"]), 6)
         self.assertEqual(len(projection["edges"]), len(overview["edges"]))
 
+    def test_pinned_ids_survive_the_limit_and_bring_their_lifecycle_neighbours(self):
+        # The Trail's loaded window is pinned into the Graph: an entry the user
+        # can already see in one view must exist in the other. `limit` ranks
+        # what to VOLUNTEER; it was never a cap on what may be shown.
+        self.write_session(
+            "2026-05-01.md",
+            "\n".join(
+                _entry(
+                    f"2026-05-01 0{index}:00 - Isolated note {index}",
+                    f"mse_iso{index}",
+                    "Standalone note without lifecycle links.",
+                    topics=[f"iso{index}"],
+                )
+                for index in range(1, 9)
+            ),
+        )
+        self.write_session(
+            "2026-06-05.md",
+            "\n".join(
+                _entry(
+                    f"2026-06-05 1{index}:00 - Cluster step {index}",
+                    f"mse_cluster{index}",
+                    "Connected lineage work.",
+                    related=[f"mse_cluster{index - 1}"] if index else None,
+                    topics=["cluster"],
+                )
+                for index in range(5)
+            ),
+        )
+        service = self.service()
+        edge_types = ("related", "replaces", "evolves", "topic")
+
+        # Baseline: the ranked slice excludes the edgeless notes entirely.
+        baseline = service.graph(edge_types=edge_types, limit=6)
+        baseline_ids = {node["id"] for node in baseline["nodes"]}
+        self.assertNotIn("mse_iso3", baseline_ids)
+
+        pinned = service.graph(edge_types=edge_types, limit=6, pinned_ids=["mse_iso3"])
+        pinned_ids = {node["id"] for node in pinned["nodes"]}
+        self.assertIn("mse_iso3", pinned_ids)
+        # Additive, not a swap: pinning displaces nothing the ranking chose.
+        self.assertTrue(baseline_ids.issubset(pinned_ids))
+        self.assertEqual(len(pinned["nodes"]), len(baseline["nodes"]) + 1)
+
+        # A pinned entry arrives with its most relevant relationships rather
+        # than as a lone dot: depth-1 over the rendered lifecycle edges.
+        tight = service.graph(edge_types=edge_types, limit=1, pinned_ids=["mse_cluster4"])
+        tight_ids = {node["id"] for node in tight["nodes"]}
+        self.assertIn("mse_cluster4", tight_ids)
+        self.assertIn("mse_cluster3", tight_ids)
+        self.assertTrue(
+            any(
+                {edge["source"], edge["target"]} == {"mse_cluster4", "mse_cluster3"}
+                for edge in tight["edges"]
+            ),
+            "the edge that justifies pulling the neighbour in must itself render",
+        )
+
+        # An unknown id is ignored, not an error, and pinning nothing is the
+        # untouched ranked slice.
+        self.assertEqual(
+            {node["id"] for node in service.graph(edge_types=edge_types, limit=6, pinned_ids=["mse_nope"])["nodes"]},
+            baseline_ids,
+        )
+        self.assertEqual(
+            {node["id"] for node in service.graph(edge_types=edge_types, limit=6, pinned_ids=[])["nodes"]},
+            baseline_ids,
+        )
+
+    def test_pinned_expansion_ignores_edge_types_the_user_filtered_off(self):
+        # Expanding over an edge that will not render would add a node whose
+        # only tie to the map is invisible - an unexplained dot.
+        self.write_session(
+            "2026-06-05.md",
+            "\n".join(
+                _entry(
+                    f"2026-06-05 1{index}:00 - Cluster step {index}",
+                    f"mse_cluster{index}",
+                    "Connected lineage work.",
+                    related=[f"mse_cluster{index - 1}"] if index else None,
+                    topics=["cluster"],
+                )
+                for index in range(5)
+            ),
+        )
+        service = self.service()
+
+        without_related = service.graph(edge_types=("replaces", "evolves"), limit=1, pinned_ids=["mse_cluster4"])
+        ids = {node["id"] for node in without_related["nodes"]}
+        self.assertIn("mse_cluster4", ids)
+        self.assertNotIn("mse_cluster3", ids)
+
     def test_chunk_api_accepts_encoded_path_chunk_ids(self):
         self.write_session(
             "2026-06-05.md",

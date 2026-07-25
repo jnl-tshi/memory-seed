@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildTrailModel, compareTrailNodes, decisionEndpointLabel, entryIdOfRowId, inDecisionGroup, isDecisionEdge, isDecisionRow, lifecycleEdgeClass, pastelOf } from "./trailModel.ts";
+import { buildTrailModel, compareTrailNodes, decisionEndpointLabel, entryIdOfRowId, inDecisionGroup, isDecisionEdge, isDecisionRow, lifecycleEdgeClass, pastelOf, trailWindowEntryIds } from "./trailModel.ts";
 import type { TrailEvent, TrailResponse } from "./api.ts";
 
 const PALETTE = [
@@ -116,6 +116,35 @@ test("buildTrailModel keeps decision rows unique, grouped, and never bisected by
   const clippedIds = clipped.items.filter((item) => item.kind === "node").map((item) => (item.kind === "node" ? item.node.id : ""));
   assert.ok(clippedIds.includes("mse_multi#decisions/d3-b"), "window never bisects a decision group");
   assert.ok(!clippedIds.includes("mse_old"), "extension stops at the group end");
+});
+
+test("trailWindowEntryIds matches what the Trail renders, deduped to entries", () => {
+  const trail = {
+    nodes: [
+      node({ id: "mse_new", entry_id: "mse_new", chunk_id: "mse_new", datetime: "2026-06-03T09:00:00", date: "2026-06-03" }),
+      node({ id: "mse_multi", entry_id: "mse_multi", chunk_id: "mse_multi", datetime: "2026-06-02T09:00:00", date: "2026-06-02", decision_count: 2 }),
+      node({ id: "mse_multi#decisions/d1-z", entry_id: "mse_multi", chunk_id: "mse_multi#decisions/d1-z", datetime: "2026-06-02T09:00:00", date: "2026-06-02", decision_ordinal: "d1", title: "D1 - z" }),
+      node({ id: "mse_multi#decisions/d2-a", entry_id: "mse_multi", chunk_id: "mse_multi#decisions/d2-a", datetime: "2026-06-02T09:00:00", date: "2026-06-02", decision_ordinal: "d2", title: "D2 - a" }),
+      node({ id: "mse_old", entry_id: "mse_old", chunk_id: "mse_old", datetime: "2026-06-01T09:00:00", date: "2026-06-01" }),
+    ],
+    edges: [], branches: {}, merges: [], edge_types: [], entry_id: null, granularity: "entry",
+  } as unknown as TrailResponse;
+
+  // The pin set is exactly the entries the Trail draws: four rows of two
+  // entries collapse to two ids, and the unwindowed entry is absent.
+  const clipped = trailWindowEntryIds(trail, 2);
+  const rendered = new Set(
+    buildTrailModel(trail, 2).items.flatMap((item) => (item.kind === "node" ? [item.node.entry_id] : [])),
+  );
+  assert.deepEqual([...clipped].sort(), [...rendered].sort());
+  assert.deepEqual([...clipped].sort(), ["mse_multi", "mse_new"]);
+
+  // Growing the window pins strictly more - "Load older" never drops a pin.
+  const grown = trailWindowEntryIds(trail, 10);
+  assert.deepEqual([...grown].sort(), ["mse_multi", "mse_new", "mse_old"]);
+  assert.ok(clipped.every((id) => grown.includes(id)));
+
+  assert.deepEqual(trailWindowEntryIds(null, 60), []);
 });
 
 test("isDecisionEdge reads granularity off the endpoint ids, either end", () => {
