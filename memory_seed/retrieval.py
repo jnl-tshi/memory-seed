@@ -434,6 +434,14 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                     continue  # links check reports it; readers skip it
                 if retract.ref.decision is None:
                     retract_entry.setdefault(entry_id, set()).add((retract.kind, retract.ref.entry_id))
+                    # An arrow-prefixed bare ref (`d2 -> X`) is authored as ONE
+                    # statement but collected TWICE - an entry-level edge AND a
+                    # source-only decision edge (kind, dN, target, "") - so the
+                    # retract must remove both twins or the decision one survives.
+                    if retract.ref.source_decision is not None:
+                        retract_decision.setdefault(entry_id, set()).add(
+                            (retract.kind, retract.ref.source_decision, retract.ref.entry_id, "")
+                        )
                 else:
                     retract_decision.setdefault(entry_id, set()).add(
                         (retract.kind, retract.ref.source_decision or "", retract.ref.entry_id, retract.ref.decision)

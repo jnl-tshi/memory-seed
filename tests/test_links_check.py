@@ -578,6 +578,35 @@ class LinksCheckTests(unittest.TestCase):
         result = check_session_links(cwd=cwd)
         self.assertIn("malformed-retract", [i.kind for i in result.issues])
 
+    def test_retract_removes_arrow_prefixed_bare_edge_decision_twin(self):
+        # An arrow-prefixed bare ref (`d2 -> X`) is collected as BOTH an
+        # entry-level edge and a source-only decision edge; the retract must
+        # remove both twins, else the decision edge silently survives.
+        from memory_seed.retrieval import entry_link_sidecars
+
+        cwd = self.make_project()
+        self._flat_session_raw(
+            cwd,
+            "2026-06-13.md",
+            "## 2026-06-13 08:00 - target\n\n```yaml\nentry_id: mse_tttttttttttttttt\n```\n\n- note\n\n"
+            "## 2026-06-13 09:00 - source with two decisions\n\n```yaml\nentry_id: mse_ssssssssssssssss\n```\n\n"
+            "#### D1 - first\n- D: a\n- R: b\n\n#### D2 - second\n- D: c\n- R: d\n",
+        )
+        self._raw_sidecar(cwd, "2026-06-13", "\n".join([
+            "## 2026-06-13 09:00 - declare", "", "```yaml", "entry_id: mse_ssssssssssssssss",
+            "evolves:", "  - d2 -> mse_tttttttttttttttt", "```", "",
+            "## 2026-06-13 11:00 - correct", "", "```yaml", "entry_id: mse_ssssssssssssssss",
+            "retracts:", "  - evolves d2 -> mse_tttttttttttttttt (2026-06-13)",
+            "related_entries:", "  - d2 -> mse_tttttttttttttttt", "```", "",
+        ]) + "\n")
+
+        self.assertTrue(check_session_links(cwd=cwd).ok)
+        sidecar = entry_link_sidecars(cwd)["mse_ssssssssssssssss"]
+        self.assertNotIn("mse_tttttttttttttttt", sidecar.get("evolves", ()))
+        kinds = {(edge[0], edge[2]) for edge in sidecar.get("decision_edges", ())}
+        self.assertNotIn(("evolves", "mse_tttttttttttttttt"), kinds)
+        self.assertIn(("related", "mse_tttttttttttttttt"), kinds)
+
     def test_links_check_reports_unclassified_sidecar_stub_as_warning(self):
         cwd = self.make_project()
         self._flat_session(

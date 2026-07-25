@@ -51,7 +51,9 @@ note: hand-audit rule 5
 - **Reader** (`entry_link_sidecars`): unions every block's edges as before, then subtracts each retracted
   edge. Entry-level retracts match by `(kind, target_id)`; decision retracts match the exact
   `(kind, source_ordinal, target_id, target_ordinal)` tuple. A downgrade therefore lands as
-  `evolves = ()` + `related_entries = (target,)`.
+  `evolves = ()` + `related_entries = (target,)`. An **arrow-prefixed bare ref** (`d2 -> X`) is one
+  authored statement collected as TWO edges — an entry-level edge AND a source-only decision edge
+  `(kind, dN, X, "")` — so retracting it removes both twins, or the decision edge would silently survive.
 - **`links check`** validates: `malformed-retract` (unparseable item); `dangling-retract` (names an edge
   the corpus never declared for this entry — nothing to remove); `retract-before-declaration` (filed
   earlier than the edge it removes — forward-only, like every lifecycle statement).
