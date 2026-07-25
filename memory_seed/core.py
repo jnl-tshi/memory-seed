@@ -4141,8 +4141,10 @@ def _plan_session_fuse(
 
     base_entries: dict[str, _SessionEntryRecord] = {}
     source_entries: dict[str, _SessionEntryRecord] = {}
-    base_sidecars: dict[str, _DiagramSidecarRecord] = {}
-    source_sidecars: dict[str, _DiagramSidecarRecord] = {}
+    # Keyed by (entry_id, heading timestamp), same as the link family - see the
+    # block-identity comment at the diagram collection loop below.
+    base_sidecars: dict[tuple[str, str], _DiagramSidecarRecord] = {}
+    source_sidecars: dict[tuple[str, str], _DiagramSidecarRecord] = {}
     # Keyed by (entry_id, heading timestamp) - see the block-identity comment at
     # the collection loop below.
     base_link_sidecars: dict[tuple[str, str], _LinkSidecarRecord] = {}
@@ -4170,22 +4172,36 @@ def _plan_session_fuse(
     for entry_id in sorted(duplicate_source_entries):
         issues.append(f"source {source_label}: duplicate session entry_id blocks safe fuse: {entry_id}")
 
-    seen_source_sidecars: set[str] = set()
-    duplicate_source_sidecars: set[str] = set()
+    # Diagram sidecar block identity is (entry_id, heading timestamp), NOT
+    # entry_id alone - the same rule the link family uses, and for the same
+    # reason. Keying by entry_id made the first block the only block forever, so
+    # the sole route to a diagram that renders was editing the published one:
+    # that missing append path is precisely why Constitution v1.4 needed a
+    # human-gated in-place Mermaid repair exception. Appending a NEW dated block
+    # supersedes under most-recent-wins while the original stays readable as
+    # what was authored, which makes that exception non-load-bearing.
+    seen_source_sidecars: set[tuple[str, str]] = set()
+    duplicate_source_sidecars: set[tuple[str, str]] = set()
     for record in base_sidecar_records:
-        if record.entry_id and record.entry_id not in base_sidecars:
-            base_sidecars[record.entry_id] = record
+        if record.entry_id:
+            key = (record.entry_id, record.timestamp or "")
+            if key not in base_sidecars:
+                base_sidecars[key] = record
     for record in source_sidecar_records:
         if not record.entry_id:
             issues.append(f"{record.source_path}: diagram sidecar block at {record.timestamp or '(unknown time)'} has no entry_id")
             continue
-        if record.entry_id in seen_source_sidecars:
-            duplicate_source_sidecars.add(record.entry_id)
+        key = (record.entry_id, record.timestamp or "")
+        if key in seen_source_sidecars:
+            duplicate_source_sidecars.add(key)
             continue
-        seen_source_sidecars.add(record.entry_id)
-        source_sidecars[record.entry_id] = record
-    for entry_id in sorted(duplicate_source_sidecars):
-        issues.append(f"source {source_label}: duplicate diagram sidecar blocks safe fuse: {entry_id}")
+        seen_source_sidecars.add(key)
+        source_sidecars[key] = record
+    for entry_id, timestamp in sorted(duplicate_source_sidecars):
+        issues.append(
+            f"source {source_label}: duplicate diagram sidecar blocks safe fuse: "
+            f"{entry_id} at {timestamp or '(unknown time)'}"
+        )
 
     # Link sidecar block identity is (entry_id, heading timestamp), NOT entry_id
     # alone. One entry legitimately accrues several blocks over time - the first
@@ -4246,9 +4262,14 @@ def _plan_session_fuse(
         import_entries.append(source_entry)
         imported_ids.add(entry_id)
 
-    for entry_id, source_sidecar in sorted(source_sidecars.items(), key=lambda item: (item[1].timestamp or "", item[0])):
-        base_sidecar = base_sidecars.get(entry_id)
+    for (entry_id, _block_ts), source_sidecar in sorted(
+        source_sidecars.items(), key=lambda item: (item[1].timestamp or "", item[0])
+    ):
+        base_sidecar = base_sidecars.get((entry_id, _block_ts))
         if base_sidecar is not None:
+            # Same (entry_id, timestamp) block on both sides: its text is
+            # immutable. A NEW timestamp for a known entry_id is not a
+            # modification - it is a later declaration, imported below.
             if base_sidecar.text != source_sidecar.text:
                 issues.append(f"{source_sidecar.source_path}: existing diagram sidecar modified for entry_id {entry_id}")
             continue

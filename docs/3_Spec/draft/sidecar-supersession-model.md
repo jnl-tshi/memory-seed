@@ -7,10 +7,17 @@ parent: ../lifecycle-edge-linking-sidecars.md
 
 # Sidecar Supersession Model
 
-Status: **DRAFT — NOT IMPLEMENTED (2026-07-25).** Direction set by JNL 2026-07-25: *append-only with
-most-recent-wins should be the approach for all sidecars that extract information — the reference id
-gets named, and the date of the addition provides the priority sort.* This draft states that rule
-once for all three sidecar families, and names the one place where the unit of supersession differs.
+Status: **DRAFT — TOPIC AND DIAGRAM BLOCK IDENTITY IMPLEMENTED 2026-07-25; links already conformed.**
+Direction set by JNL 2026-07-25: *append-only with most-recent-wins should be the approach for all
+sidecars that extract information — the reference id gets named, and the date of the addition
+provides the priority sort.* This draft states that rule once for all three sidecar families, and
+names the one place where the unit of supersession differs.
+
+Landed: topic blocks key on `(entry_id, heading timestamp)`; diagram blocks do the same in the fuse
+(`core.py`) and the reader resolves them newest-first (`entry_diagram_sidecars`, ordered by heading
+timestamp then block index, so the winner does not depend on directory-walk order). Links were
+already conformant. Still open: `topics check` and the other entry-level consumers do not yet replay
+precedence, because they do not read sidecars at all (tasks #22/#23).
 
 ## The rule
 
