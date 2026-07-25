@@ -1370,12 +1370,126 @@ class LinksCheckTests(unittest.TestCase):
         self._topic_sidecar(cwd, "2026-06-02", [("mse_aaaaaaaaaaaaaaaa", ["graph"])])
         self.assertIn("topic-sidecar-date-mismatch", [i.kind for i in check_session_links(cwd=cwd).issues])
 
-        # Two blocks for one entry in one file: which one is the record?
+        # Two blocks for one entry at the SAME timestamp: a bad merge or a
+        # transcription slip, since precedence has no tiebreak to apply.
+        # (A block at a LATER heading is a legal re-attribution - see below.)
         self._topic_sidecar(
             cwd, "2026-06-01",
             [("mse_aaaaaaaaaaaaaaaa", ["graph"]), ("mse_aaaaaaaaaaaaaaaa", ["retrieval"])],
         )
         self.assertIn("duplicate-topic-block", [i.kind for i in check_session_links(cwd=cwd).issues])
+
+    # --- Decision-level topic grammar (`<slug>:dN`) ---
+
+    def _multi_decision_topic_corpus(self, cwd):
+        """One two-decision entry, so a per-decision cap has room to bind."""
+        self._vocabulary(cwd)
+        sessions = cwd / MEMORY_DIR_NAME / "sessions"
+        sessions.mkdir(parents=True, exist_ok=True)
+        (sessions / "2026-06-01.md").write_text(
+            "## 2026-06-01 09:00 - Two decisions\n\n```yaml\nentry_id: mse_aaaaaaaaaaaaaaaa\n```\n\n"
+            "### Decisions\n\n#### D1 - first\n\n- D: a\n- R: b\n\n#### D2 - second\n\n- D: c\n- R: d\n",
+            encoding="utf-8",
+        )
+
+    def _raw_topic_sidecar(self, cwd, file_date, blocks):
+        """``blocks`` is [(heading_time, entry_id, [token, ...]), ...] so one
+        test can place two blocks for one entry at DIFFERENT timestamps."""
+        d = cwd / MEMORY_DIR_NAME / "sessions" / "topics" / file_date[:7]
+        d.mkdir(parents=True, exist_ok=True)
+        lines = []
+        for heading_time, entry_id, tokens in blocks:
+            lines += [f"## {file_date} {heading_time} - topics", "", "```yaml", f"entry_id: {entry_id}", "topics:"]
+            lines.extend(f"  - {token}" for token in tokens)
+            lines += ["```", ""]
+        (d / f"{file_date}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def test_decision_keyed_topic_slug_is_accepted(self):
+        cwd = self.make_project()
+        self._topic_corpus(cwd)
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_aaaaaaaaaaaaaaaa", ["graph:d1", "ui-design"])])
+        result = check_session_links(cwd=cwd)
+        self.assertTrue(result.ok, [i.detail for i in result.issues if i.severity == "error"])
+
+    def test_decision_keyed_slug_naming_an_absent_ordinal_is_dangling(self):
+        # The negative half is what discriminates: without it this passes
+        # against code that never looks at the ordinal. A singular
+        # `### Decision` entry has d1 and nothing else.
+        cwd = self.make_project()
+        self._topic_corpus(cwd)
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_aaaaaaaaaaaaaaaa", ["graph:d2"])])
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        self.assertIn("dangling-topic-decision", [i.kind for i in result.issues])
+
+    def test_a_colon_suffix_that_is_not_an_ordinal_is_malformed(self):
+        # No canonical slug contains a colon, so the author meant `:dN`.
+        cwd = self.make_project()
+        self._topic_corpus(cwd)
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_aaaaaaaaaaaaaaaa", ["graph:first"])])
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        self.assertIn("malformed-topic-ref", [i.kind for i in result.issues])
+
+    def test_cap_binds_per_decision_and_the_entry_union_is_uncapped(self):
+        cwd = self.make_project()
+        self._multi_decision_topic_corpus(cwd)
+        # Three per decision, six in total - well past the per-ENTRY ceiling of
+        # 4, and legal precisely because the union is not what is capped.
+        self._topic_sidecar(
+            cwd, "2026-06-01",
+            [("mse_aaaaaaaaaaaaaaaa", [
+                "graph:d1", "ui-design:d1", "retrieval:d1",
+                "memory-trace:d2", "bugfix:d2", "graph:d2",
+            ])],
+        )
+        ok = check_session_links(cwd=cwd)
+        self.assertTrue(ok.ok, [i.detail for i in ok.issues if i.severity == "error"])
+        self.assertNotIn("topic-sidecar-overreach", [i.kind for i in ok.issues])
+
+        # A fourth on ONE decision is overreach, and the message names the
+        # decision rather than the entry.
+        self._topic_sidecar(
+            cwd, "2026-06-01",
+            [("mse_aaaaaaaaaaaaaaaa", [
+                "graph:d1", "ui-design:d1", "retrieval:d1", "memory-trace:d1",
+            ])],
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        overreach = [i for i in result.issues if i.kind == "topic-sidecar-overreach"]
+        self.assertTrue(overreach)
+        self.assertIn("mse_aaaaaaaaaaaaaaaa:d1", overreach[0].detail)
+
+    def test_re_attribution_at_a_later_heading_is_legal(self):
+        # Append-only makes a second block the ONLY way to correct a topic
+        # list; the newest wins and the older stays readable.
+        cwd = self.make_project()
+        self._topic_corpus(cwd)
+        self._raw_topic_sidecar(
+            cwd, "2026-06-01",
+            [
+                ("10:00", "mse_aaaaaaaaaaaaaaaa", ["graph"]),
+                ("11:00", "mse_aaaaaaaaaaaaaaaa", ["retrieval", "ui-design"]),
+            ],
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertTrue(result.ok, [i.detail for i in result.issues if i.severity == "error"])
+        self.assertNotIn("duplicate-topic-block", [i.kind for i in result.issues])
+
+    def test_decision_keyed_slug_restating_an_authored_topic_is_enrichment(self):
+        # mse_bbbb authors `retrieval` at entry level. `retrieval:d1` ADDS the
+        # per-decision attribution the author never recorded, so it must not be
+        # reported as redundant - while the bare form still is.
+        cwd = self.make_project()
+        self._topic_corpus(cwd)
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_bbbbbbbbbbbbbbbb", ["retrieval:d1"])])
+        enriched = check_session_links(cwd=cwd)
+        self.assertTrue(enriched.ok, [i.detail for i in enriched.issues if i.severity == "error"])
+        self.assertNotIn("topic-already-authored", [i.kind for i in enriched.issues])
+
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_bbbbbbbbbbbbbbbb", ["retrieval"])])
+        self.assertIn("topic-already-authored", [i.kind for i in check_session_links(cwd=cwd).issues])
 
     # --- Grammar v2 (2026-07-24 mandate): comma ordinals + arrow source ---
 
