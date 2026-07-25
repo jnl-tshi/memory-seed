@@ -139,6 +139,11 @@ ordinary proposal work.
 
 - **The folder a document lives in is its lifecycle state** (`docs/README.md` front door).
 - **Four independent, never-merged edge kinds**; forward-only and acyclic (`graph-edge-contract.md`).
+- **Link-edge corrections are append-only.** A published `replaces`/`evolves`/`related_entries` edge is
+  downgraded or removed only through a **new-block `retracts:` correction** (the fuse refuses in-place
+  edits to a published link sidecar), realizing Invariant #2 for lifecycle edges — the sanctioned path
+  the v1.4 amendment noted was absent (`3_Spec/draft/link-retraction.md`). Machine-suggested edges (the
+  optional link-judgment swarm) carry an advisory `edge_confidence` and are human-gated before any write.
 - **DRAFT session-entry format** (D/R/A/F/T) and append-only chronology (`session_logging.md`).
 - **Controlled topic vocabulary** in `.memory-seed/topics.yaml`; **seed/live twin parity** for shipped
   skills; **schema, API (`/api/v1`), and CLI surfaces** are versioned and may grow.

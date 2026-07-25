@@ -87,9 +87,15 @@ These exist only in session-entry Follow-ups today. Nothing below is built.
    skipped as before (the ref grammar is stricter than `_ENTRY_ID_RE`, so surfacing them would flag a
    ref to a registered non-standard id). Real-corpus `links check` diff identical; three regression
    tests added; validator-only (the live graph already used the migrated retrieval path).
-2. **Decision-level link refs** — spec drafted and evidence-backed (2 of 9 genuine edges wanted
-   decision granularity). Four code points: extraction, validation, parse, Trace attachment.
-   Blocked on nothing but a decision to build.
+2. ~~**Decision-level link refs** — spec drafted and evidence-backed.~~ **RESOLVED 2026-07-24/25.**
+   Grammar v2 shipped (`<entry_id>:dN`, comma multi-ordinal, `dN -> ` source arrow) across extraction,
+   validation, parse, and Trace attachment; `replaces`/`evolves`/`related_entries` all carry decision
+   granularity as a distinct edge set. A 2026-07-25 **link-judgment swarm** campaign then judged all
+   1,108 file-overlap never-linked pairs and landed **696 decision-level edges**, each carrying a
+   structured `edge_confidence` (`link_swarm` skill; specs `edge-confidence-metadata.md`). The graph and
+   Trail now **fade low-confidence edges**, and published edges are corrected only via append-only
+   `retracts:` blocks (`link-retraction.md`). *Open follow-ups:* a user-facing confidence threshold/filter
+   control (deferred), and re-running the swarm on the ~200 still-topicless entries.
 3. **Semantic scoring for `link audit`** — measured, unbuilt: adding model2vec cosine to the shipped
    lexical score moves recall@5 61% → 75% at weight ~120, for 2.9 s model load and 0.15 s to embed
    544 entries. This contradicts the live spec's "no all-pairs semantic scan" rationale, which should

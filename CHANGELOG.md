@@ -4,6 +4,27 @@ All notable changes to Memory Seed are summarized here.
 
 ## Unreleased
 
+### Added
+
+- **Lifecycle-link judgment swarm** (`link_swarm` skill, 2026-07-25). An optional, network-using fan-out
+  of small models judges `link audit` gaps at decision granularity — the automated judgment layer above
+  the mechanical sweep. It only suggests: a mechanical validator (quote-grounding, ordinal existence,
+  forward-only) and a human scope approval gate every write, and stored edges are ordinary `:dN` edges
+  with no dependency on the model that suggested them (Invariants #1, #5). A campaign judged all 1,108
+  file-overlap never-linked pairs and landed 696 decision-level edges. Spec:
+  `docs/3_Spec/draft/link-audit-decision-judgment-swarm-proposal.md`.
+- **Structured `edge_confidence` link-sidecar field.** Each machine-suggested edge carries
+  `{ref, confidence, tier}` per authored ref; `links check` tolerates it as an unknown sibling key (no
+  parser change). The Trace graph payload exposes `confidence` on `GraphEdge`/`RendererGraphEdge`
+  (`/api/v1`), and the graph + Trail **fade low-confidence edges** so an unverified suggestion never
+  reads as settled fact. Spec: `docs/3_Spec/draft/edge-confidence-metadata.md`.
+- **Append-only link retraction (`retracts:`).** Downgrade or remove a published lifecycle edge through a
+  new-block `retracts: <kind> <ref> [(date)]` correction (the fuse refuses in-place edits to published
+  link sidecars); the reader subtracts it and `links check` validates `malformed-retract`,
+  `dangling-retract`, and `retract-before-declaration`. A downgrade is a retract of the old kind plus a
+  fresh edge of the new kind — the sanctioned append-only correction path (Invariant #2). Spec:
+  `docs/3_Spec/draft/link-retraction.md`.
+
 ### Changed
 
 - **`related_entries` may carry decision-level refs (`:dN`)** (JNL's direction
