@@ -115,6 +115,24 @@ class GraphProjectionFixtureTests(unittest.TestCase):
         self.assertEqual(projection["edges"][0]["evidence_refs"], ["mse_two", "mse_one"])
         self.assertNotIn("position", projection["nodes"][0])
         self.assertEqual(projection["nodes"][0]["community"]["id"], "community:unassigned")
+
+    def test_edge_confidence_passes_through_to_renderer_edge(self):
+        node = lambda i: {  # noqa: E731
+            "id": i, "entry_id": i, "title": i, "date": "2026-07-16",
+            "datetime": "2026-07-16T09:00:00+00:00", "connectivity": 1,
+            "importance_score": 0.0, "provenance_class": "authored_memory",
+        }
+        projection = project_trace_graph({
+            "nodes": [node("mse_one"), node("mse_two")],
+            "edges": [
+                {"source": "mse_two", "target": "mse_one", "type": "evolves", "confidence": 0.62},
+                {"source": "mse_one", "target": "mse_two", "type": "related"},
+            ],
+        })
+        by_type = {edge["edge_type"]: edge for edge in projection["edges"]}
+        self.assertEqual(by_type["evolves"]["confidence"], 0.62)
+        # Human-authored edge (no score) carries no confidence key.
+        self.assertIsNone(by_type["related"].get("confidence"))
         self.assertEqual(projection["nodes"][0]["source"]["chunk_id"], None)
 
     def test_adapter_consumes_a_real_trace_service_graph(self):

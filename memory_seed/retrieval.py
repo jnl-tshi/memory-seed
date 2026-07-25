@@ -341,6 +341,7 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     from .core import (
         _frontmatter_list_refs,
         _frontmatter_list_region,
+        _parse_edge_confidence,
         _parse_retract,
         iter_link_sidecar_documents,
         resolve_runtime,
@@ -417,6 +418,10 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                         )
                 found[canonical] = tuple(dict.fromkeys(tuple(found.get(canonical, ())) + tuple(entry_level)))
             found["decision_edges"] = tuple(decisions)
+            # Structured per-edge confidence (campaign metadata), keyed by the
+            # kind-agnostic (source_ord, target, target_ord) identity so a graph
+            # consumer joins it to any edge. Absent = human-authored, unscored.
+            found["edge_confidence"] = _parse_edge_confidence(yaml_block)
             # Retractions this block declares (against this or an earlier block's
             # edges). A bare/entry-level ref subtracts by (kind, target); a
             # decision ref subtracts the exact 4-tuple. Applied after the union.
@@ -441,6 +446,7 @@ def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                 # would lose edges silently rather than loudly.
                 for key in ("replaces", "evolves", "related_entries", "decision_edges"):
                     existing[key] = tuple(dict.fromkeys(existing.get(key, ()) + found[key]))
+                existing["edge_confidence"] = {**existing.get("edge_confidence", {}), **found["edge_confidence"]}
             else:
                 sidecars[entry_id] = {
                     "entry_id": entry_id,

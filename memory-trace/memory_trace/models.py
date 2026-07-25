@@ -306,6 +306,10 @@ class GraphEdge(BaseModel):
     source: str
     target: str
     type: EdgeType
+    # Model confidence (0..1) for a machine-suggested edge, absent for
+    # human-authored edges. Structured metadata from the link-inference
+    # campaign; lets the graph weight or filter low-confidence edges.
+    confidence: float | None = None
 
 
 class RendererGraphSource(BaseModel):
@@ -350,6 +354,9 @@ class RendererGraphEdge(BaseModel):
     edge_type: EdgeType
     directed: bool
     evidence_refs: list[str]
+    # Model confidence (0..1) for a machine-suggested edge; absent for
+    # human-authored edges. See GraphEdge.confidence.
+    confidence: float | None = None
 
 
 class RendererGraphResponse(BaseModel):

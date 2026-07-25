@@ -920,6 +920,38 @@ def _retract_identity(kind: str, ref: "ListRef") -> tuple[str, str, str, str]:
     return (kind, ref.source_decision or "", ref.entry_id, ref.decision or "")
 
 
+_EDGE_CONF_REF_RE = re.compile(r'-\s*ref:\s*"?([^"\n]+?)"?\s*$')
+_EDGE_CONF_VAL_RE = re.compile(r"confidence:\s*([0-9]*\.?[0-9]+)\s*$")
+
+
+def _parse_edge_confidence(block: str) -> dict[tuple[str, str, str], float]:
+    """Parse the structured `edge_confidence:` list into a per-edge confidence
+    map, keyed by the KIND-AGNOSTIC identity (source_ordinal, target_id,
+    target_ordinal). The stored `ref` is the exact edge token, so it parses with
+    the ordinary ref grammar; the kind is intentionally not part of the key
+    because the same (source, target, ordinals) triple resolves to one edge
+    within a block, and consumers (the graph) join on it without needing the
+    kind. A malformed ref is skipped - the field is advisory metadata, never a
+    gate."""
+    region = _frontmatter_list_region(block, "edge_confidence")
+    out: dict[tuple[str, str, str], float] = {}
+    current: str | None = None
+    for line in region.splitlines():
+        stripped = line.strip()
+        ref_match = _EDGE_CONF_REF_RE.match(stripped)
+        if ref_match:
+            current = ref_match.group(1).strip()
+            continue
+        val_match = _EDGE_CONF_VAL_RE.match(stripped)
+        if val_match and current is not None:
+            parsed = _parse_list_ref_multi(current)
+            if parsed and parsed[0].ok:
+                ref = parsed[0]
+                out[(ref.source_decision or "", ref.entry_id, ref.decision or "")] = float(val_match.group(1))
+            current = None
+    return out
+
+
 def _frontmatter_list_refs(block: str, list_key: str) -> list[ListRef]:
     """Parse a frontmatter list into refs, one per authored item.
 
