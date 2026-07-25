@@ -249,6 +249,111 @@ _LINK_ENTRY_RE = re.compile(
 )
 
 
+def entry_topic_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
+    """Late-attributed topics, keyed by ``entry_id``.
+
+    The third sidecar family's reader. Topics are attributed to an entry (and,
+    with the `<slug>:dN` grammar, to one of its decisions) *after* it was
+    written, because append-only forbids reopening the entry to add them.
+
+    Precedence is **most-recent-wins per entry**, not a union: a topic list is a
+    state replaced wholesale by a better one, so a later block supersedes the
+    earlier list entirely while the earlier stays readable as what was
+    previously believed. That is the opposite of ``entry_link_sidecars``, where
+    each edge is an independent assertion and blocks union - see
+    docs/3_Spec/draft/sidecar-supersession-model.md. Ordering is the same
+    (heading timestamp, block index) rule ``entry_diagram_sidecars`` uses, so
+    the winner never depends on directory-walk order.
+
+    Returns ``{entry_id: {"topics": (slug, ...), "decision_topics":
+    ((ordinal, slug), ...)}}`` where ordinal is "" for a bare entry-level slug.
+    Slugs are returned exactly as authored and are NOT alias-resolved here:
+    ``links check`` already rejects a non-canonical alias in a sidecar, so
+    resolving would silently accept what the validator refuses and leave the
+    two surfaces disagreeing. Malformed blocks are skipped and reported there.
+    """
+    from .core import _frontmatter_list_region, _parse_topic_slug, iter_topic_sidecar_documents, resolve_runtime
+
+    runtime = resolve_runtime(cwd)
+    topics_dir = runtime.memory_dir / "sessions" / "topics"
+    sidecars: dict[str, dict[str, Any]] = {}
+    # entry_id -> (heading timestamp, block index) of the block currently held.
+    block_precedence: dict[str, tuple[str, int]] = {}
+    if not topics_dir.is_dir():
+        return sidecars
+    for topic_doc in iter_topic_sidecar_documents(runtime.memory_dir / "sessions"):
+        if topic_doc.malformed_reason:
+            continue
+        try:
+            text = topic_doc.path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for index, block in enumerate(_LINK_ENTRY_RE.finditer(text)):
+            heading_ts, _title, yaml_block = block.groups()
+            entry_id = None
+            for line in yaml_block.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("entry_id:"):
+                    entry_id = stripped.split(":", 1)[1].strip().strip("'\"")
+                    break
+            if not entry_id:
+                continue
+            precedence = (heading_ts, index)
+            if precedence < block_precedence.get(entry_id, ("", -1)):
+                continue
+            rolled: list[str] = []
+            pairs: list[tuple[str, str]] = []
+            for line in _frontmatter_list_region(yaml_block, "topics").splitlines():
+                stripped = line.strip()
+                if not stripped.startswith("-"):
+                    continue
+                token = stripped[1:].strip().strip("'\"")
+                if not token:
+                    continue
+                slug, ordinal, well_formed = _parse_topic_slug(token)
+                if not well_formed:
+                    continue
+                pairs.append((ordinal or "", slug))
+                if slug not in rolled:
+                    rolled.append(slug)
+            if not pairs:
+                continue
+            block_precedence[entry_id] = precedence
+            sidecars[entry_id] = {"topics": tuple(rolled), "decision_topics": tuple(pairs)}
+    return sidecars
+
+
+def augment_chunks_with_topic_sidecars(
+    chunks: Iterable[MemoryChunk],
+    cwd: str | Path = ".",
+) -> list[MemoryChunk]:
+    """Attach sidecar-inferred topics to chunks as a channel beside authored ones.
+
+    Mirrors ``augment_chunks_with_link_sidecars``, with one deliberate
+    difference: nothing is unioned into ``chunk.topics``. Authored and inferred
+    stay separable all the way to the consumer, which is what lets a payload
+    report provenance instead of a merged list.
+    """
+    entries = list(chunks)
+    sidecars = entry_topic_sidecars(cwd)
+    if not sidecars:
+        return entries
+    augmented: list[MemoryChunk] = []
+    for chunk in entries:
+        extra = sidecars.get(chunk.entry_id or "")
+        if not extra:
+            augmented.append(chunk)
+            continue
+        augmented.append(
+            replace(
+                chunk,
+                inferred_topics=extra["topics"],
+                inferred_decision_topics=extra["decision_topics"],
+            )
+        )
+    return augmented
+
+
 def entry_diagram_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     """Authored decision-diagram sidecar metadata, keyed by ``entry_id``.
 
