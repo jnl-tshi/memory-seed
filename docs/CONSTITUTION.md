@@ -126,6 +126,12 @@ How we decide. Amending these is heavier than a normal proposal but lighter than
 - **Trust before automation.** Establish that memory is trustworthy before acting on it automatically.
   **[candidate]** — partly aspirational; the content-trust taxonomy that would make it operational is not
   yet built (see [Open Questions](#10-open-questions--unresolved-tensions)).
+- **Minimal but sufficient context.** Retrieval aims to provide the smallest context that preserves the
+  ability to decide — maximise information per token; material that does not change the answer is
+  omission, not loss. **[candidate]** — aspirational; no retrieval surface enforces or measures this yet.
+  Identified as a genuine gap by the inbox crosswalk (row A6-5) and independently re-derived by the
+  information-theoretic disposition (`4_Reference/information-theoretic-evolution-disposition.md`,
+  2026-07-25); graduates when the constrained-context gold set exists to measure it against.
 - **Open-core, one authoritative substrate.** The local Markdown truth is free and complete on its own; paid or
   hosted tiers add convenience, scale, and collaboration *on top of* it — never a second, authoritative
   store. **[direction — decided 2026-07-14; no paid tier exists yet.]**

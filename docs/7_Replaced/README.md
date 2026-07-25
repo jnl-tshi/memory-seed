@@ -37,6 +37,7 @@ mechanical migration.
 | [evidence-model-and-packets-exploration.md](evidence-model-and-packets-exploration.md) | — | — | ../4_Reference/INBOX-CAPABILITY-CROSSWALK.md |
 | [high-signal-knowledge-lenses-exploration.md](high-signal-knowledge-lenses-exploration.md) | — | — | ../4_Reference/INBOX-CAPABILITY-CROSSWALK.md |
 | [idea-to-ship-trace-model-exploration.md](idea-to-ship-trace-model-exploration.md) | — | — | ../2_Todo/memory-seed-workflow-evidence-and-review-workbench-plan.md |
+| [information-theoretic-evolution-exploration.md](information-theoretic-evolution-exploration.md) | — | — | ../4_Reference/information-theoretic-evolution-disposition.md |
 | [integrated-implementation-sequence-exploration.md](integrated-implementation-sequence-exploration.md) | — | — | ../4_Reference/INBOX-CAPABILITY-CROSSWALK.md |
 | [memory-seed-ontology-evidence-set-index-exploration.md](memory-seed-ontology-evidence-set-index-exploration.md) | — | — | ../4_Reference/INBOX-CAPABILITY-CROSSWALK.md |
 | [memory-seed-ontology-exploration.md](memory-seed-ontology-exploration.md) | — | — | ../4_Reference/INBOX-CAPABILITY-CROSSWALK.md |
