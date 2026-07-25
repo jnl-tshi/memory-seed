@@ -273,6 +273,8 @@ def entry_diagram_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     runtime = resolve_runtime(cwd)
     diagrams_dir = runtime.memory_dir / "sessions" / "diagrams"
     sidecars: dict[str, dict[str, Any]] = {}
+    # entry_id -> (heading timestamp, block index) of the block currently held.
+    block_precedence: dict[str, tuple[str, int]] = {}
     if not diagrams_dir.is_dir():
         return sidecars
     for diagram_doc in iter_diagram_sidecar_documents(runtime.memory_dir / "sessions"):
@@ -298,6 +300,17 @@ def entry_diagram_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                     break
             if not entry_id:
                 continue
+            # Most-recent-wins: one entry may accrue several diagram blocks over
+            # time (a repair of an unrenderable diagram is an APPENDED block,
+            # never an edit of the published one), so the newest declaration is
+            # the current record and the older stays readable as what was
+            # authored. The heading timestamp carries its own date, so it orders
+            # correctly across files whatever order the directory walk yields;
+            # the block index only breaks a same-timestamp tie within one file.
+            precedence = (heading_ts, index)
+            if precedence < block_precedence.get(entry_id, ("", -1)):
+                continue
+            block_precedence[entry_id] = precedence
             section_end = blocks[index + 1].start() if index + 1 < len(blocks) else len(text)
             section_text = text[block.end():section_end]
             mermaid_blocks = [match.group(1).rstrip("\n") for match in _MERMAID_BLOCK_RE.finditer(section_text)]

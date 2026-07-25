@@ -424,6 +424,53 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertIn("has no entry_id", result.issues[0])
 
     @pytest.mark.integration
+    def test_session_fuse_imports_a_later_diagram_block_for_a_known_entry(self):
+        # Diagram block identity is (entry_id, heading timestamp), so appending
+        # a SECOND block for an entry already carrying one is a later
+        # declaration, not a modification. This is the append path whose absence
+        # forced the Constitution v1.4 in-place Mermaid repair exception: with
+        # it, a repair is an appended block and the published one is untouched.
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._write_legacy_diagram(cwd, "2026-07-10", "mse_0123456789abcdef", title="Broken")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-fuse")
+        sidecar = cwd / MEMORY_DIR_NAME / "sessions" / "diagrams" / "2026-07-10.md"
+        sidecar.write_text(
+            sidecar.read_text(encoding="utf-8")
+            + "\n".join(
+                [
+                    "",
+                    "## 2026-07-10 15:00 - Repaired",
+                    "",
+                    "```yaml",
+                    "entry_id: mse_0123456789abcdef",
+                    "```",
+                    "",
+                    "```mermaid",
+                    "graph TD",
+                    "  A[Branch] --> B[Main]",
+                    "```",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        self._commit_all(cwd, "append repaired diagram")
+        self._git(cwd, "switch", "main")
+
+        result = session_fuse(cwd=cwd, branch="feature-fuse")
+
+        # Old behaviour keyed diagram blocks by entry_id alone, so this reported
+        # "duplicate diagram sidecar blocks safe fuse" and planned nothing.
+        self.assertEqual(result.issues, [])
+        self.assertEqual(
+            result.planned_sidecars,
+            ["mse_0123456789abcdef 2026-07-10 15:00 -> .memory-seed/sessions/diagrams/2026-07/2026-07-10.md"],
+        )
+
+    @pytest.mark.integration
     def test_session_fuse_blocks_session_entry_without_entry_id(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")

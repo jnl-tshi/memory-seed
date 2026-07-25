@@ -320,6 +320,43 @@ class RetrievalServiceParityTests(unittest.TestCase):
         other = get_chunk("ms-semble", str(cwd), include_diagrams=True)
         self.assertEqual(other["diagrams"], [])
 
+    def test_a_later_diagram_block_supersedes_an_earlier_one_for_the_same_entry(self):
+        # Append-only makes a second block the only way to correct a diagram
+        # that never rendered - the repair is APPENDED, not edited in place -
+        # so the newest block is the current record.
+        # The repair is written ABOVE the broken block on purpose: position
+        # order and timestamp order disagree, so this fails against code that
+        # simply lets the last block encountered win.
+        cwd = self.make_memory_fixture()
+        self.write_diagram(
+            cwd,
+            "2026-05-17.md",
+            self.valid_sidecar("ms-bootstrap", "2026-05-17 14:30", title="Repaired")
+            + "\n"
+            + self.valid_sidecar("ms-bootstrap", "2026-05-17 09:15", title="Broken"),
+        )
+
+        sidecars = entry_diagram_sidecars(str(cwd))
+
+        self.assertEqual(sidecars["ms-bootstrap"]["title"], "Repaired")
+        self.assertEqual(sidecars["ms-bootstrap"]["heading_datetime"], "2026-05-17 14:30")
+
+    def test_diagram_precedence_ignores_the_order_blocks_are_encountered(self):
+        # The newest block wins on its heading timestamp, not on which file the
+        # directory walk happens to reach last - so a repair filed in a grouped
+        # path still loses to a later block in a legacy one, and vice versa.
+        cwd = self.make_memory_fixture()
+        self.write_diagram(
+            cwd, "2026-05-17.md", self.valid_sidecar("ms-bootstrap", "2026-05-17 18:00", title="Newest")
+        )
+        self.write_diagram(
+            cwd,
+            "2026-05/2026-05-17.md",
+            self.valid_sidecar("ms-bootstrap", "2026-05-17 09:15", title="Older"),
+        )
+
+        self.assertEqual(entry_diagram_sidecars(str(cwd))["ms-bootstrap"]["title"], "Newest")
+
     def test_grouped_diagram_sidecars_surface_through_the_service(self):
         cwd = self.make_memory_fixture()
         self.write_diagram(cwd, "2026-05/2026-05-17.md", self.valid_sidecar("ms-bootstrap", "2026-05-17 09:15"))
