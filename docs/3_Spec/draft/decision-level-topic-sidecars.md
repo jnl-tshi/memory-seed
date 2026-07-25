@@ -7,11 +7,19 @@ parent: ../../2_Todo/decision-level-topics-proposal.md
 
 # Decision-Level Topic Sidecars
 
-Status: **DRAFT — NOT IMPLEMENTED (2026-07-25).** The live topic-sidecar family (entry-level,
-`sessions/topics/`) shipped in `memory_seed/core.py`; zero sidecars have been written. This draft
-extends that family to decision granularity **before** any backfill runs, so the corpus is never
-written twice. Direction set by JNL 2026-07-25: build decision-level from the start; scan the full
-corpus, not only the topicless tail.
+Status: **DRAFT — GRAMMAR AND VALIDATION IMPLEMENTED 2026-07-25; read side, consumers, and backfill
+still unbuilt.** Zero sidecars have been written. This draft extends the topic-sidecar family to
+decision granularity **before** any backfill runs, so the corpus is never written twice. Direction
+set by JNL 2026-07-25: build decision-level from the start; scan the full corpus, not only the
+topicless tail.
+
+What landed in `memory_seed/core.py`: `<slug>:dN` parsing (`_parse_topic_slug`), ordinal-existence
+validation against `entry_decision_ordinals` (`dangling-topic-decision`), a malformed-suffix error
+(`malformed-topic-ref`), the per-decision cap `MAX_TOPICS_PER_DECISION = 3` with the entry union
+uncapped, `(entry_id, heading timestamp)` block identity so a later block is a legal re-attribution,
+and the redundancy rule inverted so a decision-keyed slug never reports as restating the author.
+Bare slugs behave exactly as before. Six regression tests in `tests/test_links_check.py`; the live
+corpus still reports `Session memory integrity OK`.
 
 ## Why decision-level, before any write
 

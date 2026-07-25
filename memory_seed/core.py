@@ -814,6 +814,37 @@ DECISION_GRANULARITY_MANDATE_SINCE = "2026-07-24 09:00"
 # nothing, and an inferring agent has no native sense of restraint.
 MAX_INFERRED_TOPICS = 4
 
+# Ceiling on topics attributed to ONE DECISION. The corpus measures ~2 topics
+# per well-tagged unit (one area/subsystem + one activity/kind-of-work), so 3
+# leaves room for a genuine cross-cutting add-on without licensing a list that
+# labels everything. The rolled-up entry union is deliberately NOT capped: a
+# six-decision entry legitimately spans more ground than a one-decision entry,
+# which is what MAX_INFERRED_TOPICS - a per-ENTRY ceiling - could never express.
+MAX_TOPICS_PER_DECISION = 3
+
+# A topic sidecar slug may name the decision it describes: `graph:d1`. A BARE
+# slug stays legal forever rather than being a migration stage - 33 corpus
+# entries record no decision at all, and a note is still about something.
+_TOPIC_ORDINAL_RE = re.compile(r"^d\d+$")
+
+
+def _parse_topic_slug(token: str) -> tuple[str, str | None, bool]:
+    """Split a topic sidecar token into ``(slug, decision ordinal, well_formed)``.
+
+    ``graph:d1`` attributes the topic to that entry's decision 1; a bare
+    ``graph`` attributes it to the entry. A colon followed by anything that is
+    not a ``dN`` ordinal is malformed rather than a slug containing a colon -
+    no canonical slug contains one, so the author meant an ordinal and mistyped.
+    """
+    slug, sep, ordinal = token.partition(":")
+    if not sep:
+        return token, None, True
+    ordinal = ordinal.strip()
+    if not _TOPIC_ORDINAL_RE.match(ordinal):
+        return slug, None, False
+    return slug, ordinal, True
+
+
 _BARE_ENTRY_ID_RE = re.compile(r"^(?:ms-[0-9a-f]{8}|mse_[0-9a-z]{8,32})$")
 # Canonical decision ref: `<entry_id>:<dN>` with comma-separated ordinals
 # allowed (`mse_x:d1,d4` / `mse_x: d1, d4`) - one authored item, one decision
@@ -2197,7 +2228,14 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                 LinkIssue(rel, "malformed-topic-sidecar", "no '## <timestamp> - <title>' + ```yaml entry_id block found")
             )
             continue
-        seen_topic_entries: set[str] = set()
+        # Block identity is (entry_id, heading timestamp), NOT entry_id alone -
+        # the same shape the link family uses. A second block for an entry is a
+        # RE-ATTRIBUTION, which append-only makes the only way to correct a
+        # topic list at all: the newest block wins and the older one stays
+        # readable as what was previously believed. Two blocks for one entry at
+        # the SAME timestamp in one file is still an error - that is a bad merge
+        # or a transcription slip, and choosing between them would be arbitrary.
+        seen_topic_blocks: set[tuple[str, str]] = set()
         for _heading_ts, yaml_block in (block.groups() for block in blocks):
             entry_id_match = _ENTRY_ID_RE.search(yaml_block)
             if not entry_id_match:
@@ -2207,15 +2245,16 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
             if entry_id not in known_entries:
                 issues.append(LinkIssue(rel, "orphan-topic-sidecar", f"entry_id -> {entry_id} (no such entry_id)"))
                 continue
-            if entry_id in seen_topic_entries:
+            if (entry_id, _heading_ts) in seen_topic_blocks:
                 issues.append(
                     LinkIssue(
                         rel,
                         "duplicate-topic-block",
-                        f"{entry_id} has two topic blocks in one file; one block per entry per file",
+                        f"{entry_id} has two topic blocks at {_heading_ts or '(unknown time)'} in one "
+                        "file; re-attribute under a later heading so precedence is unambiguous",
                     )
                 )
-            seen_topic_entries.add(entry_id)
+            seen_topic_blocks.add((entry_id, _heading_ts))
             entry_date = entry_timestamps.get(entry_id, "")[:10]
             if entry_date and entry_date != file_date:
                 issues.append(
@@ -2225,28 +2264,60 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                         f"entry_id {entry_id} was logged on {entry_date}, but topics are filed under {file_date}",
                     )
                 )
-            slugs: list[str] = []
+            tokens: list[str] = []
             for line in _frontmatter_list_region(yaml_block, "topics").splitlines():
                 stripped = line.strip()
                 if not stripped.startswith("-"):
                     continue
-                slug = stripped[1:].strip().strip("'\"")
-                if slug:
-                    slugs.append(slug)
-            if not slugs:
+                token = stripped[1:].strip().strip("'\"")
+                if token:
+                    tokens.append(token)
+            if not tokens:
                 issues.append(LinkIssue(rel, "malformed-topic-sidecar", f"topic block for {entry_id} lists no topics"))
                 continue
-            if len(slugs) > MAX_INFERRED_TOPICS:
-                issues.append(
-                    LinkIssue(
-                        rel,
-                        "topic-sidecar-overreach",
-                        f"{entry_id} carries {len(slugs)} topics; at most {MAX_INFERRED_TOPICS} - "
-                        "a label that fits everything distinguishes nothing",
-                    )
-                )
-            if len(set(slugs)) != len(slugs):
+            if len(set(tokens)) != len(tokens):
                 issues.append(LinkIssue(rel, "malformed-topic-sidecar", f"{entry_id} repeats a topic slug"))
+            # Group by the decision each topic names; None is the entry itself.
+            slugs: list[str] = []
+            by_decision: dict[str | None, list[str]] = {}
+            for token in tokens:
+                slug, ordinal, well_formed = _parse_topic_slug(token)
+                if not well_formed:
+                    issues.append(
+                        LinkIssue(
+                            rel,
+                            "malformed-topic-ref",
+                            f"{entry_id} -> '{token}' is not '<slug>' or '<slug>:dN'",
+                        )
+                    )
+                    continue
+                if ordinal is not None and ordinal not in entry_decision_ordinals.get(entry_id, set()):
+                    issues.append(
+                        LinkIssue(
+                            rel,
+                            "dangling-topic-decision",
+                            f"{entry_id} -> '{token}' names {ordinal}, which that entry does not record",
+                        )
+                    )
+                    continue
+                slugs.append(slug)
+                by_decision.setdefault(ordinal, []).append(slug)
+            # The cap is per DECISION, and the rolled-up entry union is uncapped:
+            # a six-decision entry legitimately spans more ground than a
+            # one-decision one. Bare entry-level topics keep the per-entry
+            # ceiling, since for them the entry IS the unit being labelled.
+            for ordinal, group in sorted(by_decision.items(), key=lambda kv: kv[0] or ""):
+                ceiling = MAX_INFERRED_TOPICS if ordinal is None else MAX_TOPICS_PER_DECISION
+                if len(group) > ceiling:
+                    subject = entry_id if ordinal is None else f"{entry_id}:{ordinal}"
+                    issues.append(
+                        LinkIssue(
+                            rel,
+                            "topic-sidecar-overreach",
+                            f"{subject} carries {len(group)} topics; at most {ceiling} - "
+                            "a label that fits everything distinguishes nothing",
+                        )
+                    )
             for slug in slugs:
                 if topic_resolution and slug not in topic_resolution:
                     issues.append(
@@ -2265,8 +2336,12 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                             f"'{topic_resolution[slug]}' so one topic has one spelling",
                         )
                     )
+            # Only BARE slugs can restate the author. A decision-keyed slug that
+            # names a topic the author already wrote at entry level is
+            # ENRICHMENT, not redundancy: it adds the per-decision attribution
+            # the author never recorded, which is the whole point of keying.
             authored = entry_authored_topics.get(entry_id, set())
-            restated = sorted(set(slugs) & authored)
+            restated = sorted(set(by_decision.get(None, ())) & authored)
             if restated:
                 issues.append(
                     LinkIssue(
