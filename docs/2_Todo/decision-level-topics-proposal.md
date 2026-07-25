@@ -1,13 +1,13 @@
 ---
 priority: P3
-next_action: PROPOSAL — deferred, not scheduled. Decision-level topic keying (topic:dN) is elegant but does not yet earn its complexity; revisit only if a concrete consumer needs per-decision topic precision (e.g. tinting Trail decision rows by topic). The current topic-inference conventions recorded here ARE live and feed the topic-backfill swarm prompt.
+next_action: PROPOSAL — decision-level topics are gated behind a DECISION-LEVEL GRAPH (JNL's vision, 2026-07-25): they are the colouring/clustering layer that graph needs, not standalone precision. Sequence — (1) render the decision-node graph using the substrate that already exists, decisions inheriting their entry's topics; (2) build per-decision topics only if inherited colouring proves too coarse. Do not build per-decision topic inference first. Current entry-level topic-inference conventions here are LIVE and feed the topic-backfill swarm prompt.
 ---
 
 # Decision-level topics
 
-Status: **PROPOSAL — deferred 2026-07-25 (JNL raised, assessed against corpus data).** Records the
-current topic-inference conventions (live) and the decision-level-keying idea (deferred, with its
-reasoning) so the decision is not re-litigated from scratch.
+Status: **PROPOSAL — 2026-07-25.** Reframed by JNL from "topic precision" to "the enabler of a
+decision-level graph." Records the live entry-level conventions, the vision, and the de-risked
+sequencing so the decision is not re-litigated from scratch.
 
 ## Current conventions (LIVE — this is what the swarm prompt teaches)
 
@@ -47,31 +47,51 @@ topics:
   - graph:d2
 ```
 
-This would *unify* two of JNL's three questions: a multi-decision entry accrues more topics naturally
-(one small set per decision) with no special cap, and per-decision precision falls out for free.
+This would *unify* two of JNL's three topic questions: a multi-decision entry accrues more topics
+naturally (one small set per decision) with no special cap, and per-decision precision falls out for
+free. On its own that reads as thin — but it is not the point. See the next section.
 
-## Assessment — why it is deferred, not built
+## The motivating vision — a decision-level graph (JNL, 2026-07-25)
 
-1. **Topics are a fuzzy, associative signal by design.** The purpose of a topic is coarse grouping
-   ("show me everything about the graph"). A lifecycle edge is a *precise claim* (X evolves Y); "this
-   decision is *about* ui-design" is soft aboutness. Decision-level precision fights what topics are
-   *for*. The `:dN` grammar earns its keep on lifecycle edges precisely because those are exact; the
-   same machinery on a fuzzy signal is precision without a payoff.
-2. **The swarm already struggles with the coarse version** (28% exact-set agreement on the blind
-   pilot, though calibration and recall are good). Per-decision *attribution* — deciding which of four
-   decisions each topic belongs to — is a markedly harder inference, and it would make the 206-entry
-   backfill materially less reliable.
-3. **Full-stack cost.** It touches the `topics:` grammar, the parser, `MemoryChunk.topics`' shape, and
-   every consumer (facets, `topics check`, search filter, Trail).
-4. **Marginal payoff.** The concrete uses (retrieval precision, tinting Trail decision rows by topic)
-   are thin — a reader opens the whole entry anyway, and topic filtering already returns the entry.
+The reframe that justifies this: **make the graph's node a DECISION, not an entry.** Each decision
+becomes a node, carrying its own subsystem + activity topics, so the relationship map is drawn at the
+grain the project actually reasons in (decisions are the unit of memory, not entries). Per-decision
+topics stop being standalone precision and become the **colouring / clustering / filtering layer that
+a decision-node graph requires** — inheriting one topic set across all N decisions of an entry would
+paint them identically and defeat the view.
 
-## When to revisit
+This also dissolves the entry-level topic-count cap debate entirely: the natural unit becomes ~2
+topics *per decision*, so a 6-decision entry carries ~12 topics distributed 2-per-node and no fixed
+entry cap is needed. The "4 is too few for a big entry" instinct was right, aimed one level too high.
 
-The `:dN` precedent makes this **cheap to add later**. Revisit when a *specific* consumer needs
-per-decision topic precision — the clearest trigger is a Trail feature that colours or filters
-individual decision rows by topic. Until then, entry-level topics + the two-axis convention + the
-cap-4 rule are the right resolution, and multi-decision entries are served by the raised cap alone.
+**The substrate is ~two-thirds built already:**
+
+- `_expand_decision_rows` (service.py) already turns an entry into one node per decision — the Trail
+  uses it; the graph endpoint simply does not call it (`include_decisions` is Trail-only today).
+- Decision-level `:dN` edges already terminate on decision rows (`_decision_edges_for_rows`), so
+  decision→decision links exist.
+- Node-count growth is ~40% (≈847 decision nodes vs 596 entries) — manageable.
+
+What is genuinely missing: (1) wiring the graph endpoint + client to render the decision-node set and
+its layout; (2) per-decision topics as the colouring layer.
+
+## Sequencing — de-risk by decoupling (the actual plan)
+
+Per-decision *topic inference* is the hard, unreliable part (the swarm manages only 28% exact on the
+coarse entry-level version; attributing each topic to the right decision is harder). So do NOT build
+it first. Instead:
+
+1. **Render the decision-node graph using what exists**, with each decision **inheriting its entry's
+   topics** for colour. No new grammar, no swarm, no authoring — just call `_expand_decision_rows`
+   from the graph path and colour by inherited topic. This proves whether a decision-node graph is
+   actually more legible than the entry graph. It might be enough on its own.
+2. **Only if inherited colouring proves too coarse** — all decisions of an entry the same colour,
+   clusters muddy — build per-decision topics as the refinement, against a graph already shown to want
+   them. That is the demonstrated need this proposal was waiting for.
+
+This front-loads the cheap validation and defers the expensive/risky swarm work until it is proven
+wanted. Entry-level topics + the two-axis convention + the cap-4 rule remain correct for the current
+entry-level graph in the meantime.
 
 ## References
 
