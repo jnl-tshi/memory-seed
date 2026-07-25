@@ -1338,9 +1338,15 @@ def main(argv: list[str] | None = None) -> int:
             for issue in result.issues:
                 where = f" ({issue.source})" if issue.source else ""
                 print(f"  [{issue.severity}] {issue.kind}: {issue.detail}{where}")
+            inferred_note = (
+                f" {result.entries_with_inferred_topics_only} more carry sidecar-inferred topics only"
+                f" (validated by `links check`, not here)."
+                if result.entries_with_inferred_topics_only
+                else ""
+            )
             print(
                 f"Topics check: {result.topics_defined} topics defined, "
-                f"{result.entries_checked} entries with topics checked."
+                f"{result.entries_checked} entries with authored topics checked.{inferred_note}"
             )
             if result.ok:
                 print("Topic vocabulary OK.")

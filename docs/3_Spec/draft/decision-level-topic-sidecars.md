@@ -116,10 +116,14 @@ judgment count above still favours getting the grammar right first.
   the cap becomes **3 per decision**, and the rolled-up entry union is not capped — a 6-decision
   entry legitimately spans more ground than a 1-decision one. This dissolves the cap debate the
   proposal records rather than re-litigating it.
-- **`TOPIC_COUNT_TARGET = 3` vs `MAX_INFERRED_TOPICS = 4` is a live contradiction** (`topics.py:351`):
-  `topics check` warns at exactly the count the sidecar cap permits, currently flagging 14 real
-  entries. Reconcile in the same pass — the entry-level target follows the roll-up rule (uncapped
-  union) and the warning moves to the per-decision cap.
+- **`TOPIC_COUNT_TARGET = 3` vs `MAX_INFERRED_TOPICS = 4` is *not* a contradiction** — corrected
+  2026-07-25, having been recorded here as one. They govern different populations: `chunk.topics` is
+  **authored** membership (the field's own contract says "1-3 slugs"), so `topics check` warning at 4
+  is the authored-guidance nudge working as designed, while `MAX_INFERRED_TOPICS` caps what a
+  *sidecar* may attribute. The 14 flagged entries all carry four **authored** topics. Nothing to
+  reconcile; the per-decision cap governs sidecars and `TOPIC_COUNT_TARGET` must stay on authored
+  topics only — applying it to the rolled-up union would manufacture warnings on exactly the
+  multi-decision entries the grammar exists to serve.
 - **Redundancy becomes enrichment.** The live rule warns when an inferred topic restates one the
   author already wrote. Under decision keying that rule inverts for the 415 already-topiced entries:
   `graph:d1` against an authored entry-level `graph` *adds* the attribution the author never

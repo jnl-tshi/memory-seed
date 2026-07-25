@@ -7,7 +7,9 @@ from pathlib import Path
 from memory_seed.core import check_session_links
 from memory_seed.mcp_server import call_tool
 from memory_seed.retrieval import (
+    augment_chunks_with_topic_sidecars,
     entry_diagram_sidecars,
+    entry_topic_sidecars,
     get_chunk,
     rollup_entry_matches,
     rollup_entry_results,
@@ -356,6 +358,107 @@ class RetrievalServiceParityTests(unittest.TestCase):
         )
 
         self.assertEqual(entry_diagram_sidecars(str(cwd))["ms-bootstrap"]["title"], "Newest")
+
+    # --- Topic sidecars: the inferred-topic channel ---
+
+    def write_topic_sidecar(self, cwd, filename, blocks):
+        """``blocks`` is [(heading_ts, entry_id, [token, ...]), ...]."""
+        path = cwd / ".memory-seed" / "sessions" / "topics" / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        lines = []
+        for heading_ts, entry_id, tokens in blocks:
+            lines += [f"## {heading_ts} - topics", "", "```yaml", f"entry_id: {entry_id}", "topics:"]
+            lines.extend(f"  - {token}" for token in tokens)
+            lines += ["```", ""]
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def test_topic_sidecar_rolls_up_to_the_entry_and_keeps_decision_attribution(self):
+        cwd = self.make_memory_fixture()
+        self.write_topic_sidecar(
+            cwd, "2026-05-17.md", [("2026-05-17 10:00", "ms-bootstrap", ["graph:d1", "bugfix:d1", "retrieval"])]
+        )
+
+        sidecars = entry_topic_sidecars(str(cwd))
+
+        # Rolled up entry-level, because every existing consumer is entry-level.
+        self.assertEqual(sidecars["ms-bootstrap"]["topics"], ("graph", "bugfix", "retrieval"))
+        # ...while the per-decision attribution survives for a decision-node graph.
+        self.assertEqual(
+            sidecars["ms-bootstrap"]["decision_topics"],
+            (("d1", "graph"), ("d1", "bugfix"), ("", "retrieval")),
+        )
+
+    def test_topic_sidecar_channel_never_merges_into_authored_topics(self):
+        # Provenance must stay separable at the chunk: authored and inferred are
+        # two channels, not one list a consumer can no longer tell apart.
+        cwd = self.make_memory_fixture()
+        self.write_topic_sidecar(cwd, "2026-05-17.md", [("2026-05-17 10:00", "ms-bootstrap", ["graph:d1"])])
+
+        chunks = augment_chunks_with_topic_sidecars(extract_memory_chunks(str(cwd), granularity="entry"), str(cwd))
+        by_id = {c.entry_id: c for c in chunks}
+
+        self.assertEqual(by_id["ms-bootstrap"].inferred_topics, ("graph",))
+        self.assertEqual(by_id["ms-bootstrap"].topics, ())  # authored stays untouched
+        self.assertEqual(by_id["ms-semble"].inferred_topics, ())  # no sidecar, no channel
+
+    def test_a_later_topic_block_replaces_the_whole_earlier_list(self):
+        # Topics are state, not independent assertions: the newest block REPLACES
+        # rather than unions, so a dropped slug really is dropped. The newer block
+        # sits ABOVE the older one so position and timestamp order disagree.
+        cwd = self.make_memory_fixture()
+        self.write_topic_sidecar(
+            cwd,
+            "2026-05-17.md",
+            [
+                ("2026-05-17 14:30", "ms-bootstrap", ["retrieval:d1"]),
+                ("2026-05-17 09:15", "ms-bootstrap", ["graph:d1", "bugfix:d1"]),
+            ],
+        )
+
+        sidecars = entry_topic_sidecars(str(cwd))
+
+        self.assertEqual(sidecars["ms-bootstrap"]["topics"], ("retrieval",))
+
+    def test_topic_precedence_ignores_the_order_blocks_are_encountered(self):
+        cwd = self.make_memory_fixture()
+        self.write_topic_sidecar(cwd, "2026-05-17.md", [("2026-05-17 18:00", "ms-bootstrap", ["retrieval:d1"])])
+        self.write_topic_sidecar(
+            cwd, "2026-05/2026-05-17.md", [("2026-05-17 09:15", "ms-bootstrap", ["graph:d1"])]
+        )
+
+        self.assertEqual(entry_topic_sidecars(str(cwd))["ms-bootstrap"]["topics"], ("retrieval",))
+
+    def test_topic_filter_matches_inferred_topics_but_the_payload_keeps_them_apart(self):
+        # The filter unions (otherwise attributing topics after the fact buys
+        # nothing), while the payload reports the two channels separately so a
+        # consumer can still tell who vouched for the slug.
+        cwd = self.make_memory_fixture()
+        self.write_topic_sidecar(cwd, "2026-05-17.md", [("2026-05-17 10:00", "ms-bootstrap", ["graph:d1"])])
+
+        hits = search_memory(
+            "bootstrap mode check", str(cwd), semantic_enabled=False, today=date(2026, 5, 20), topics=["graph"]
+        )
+
+        ids = [r["entry_id"] for r in hits["results"]]
+        self.assertIn("ms-bootstrap", ids)
+        record = next(r for r in hits["results"] if r["entry_id"] == "ms-bootstrap")
+        self.assertEqual(record["topics"], [])  # nothing authored
+        self.assertEqual(record["inferred_topics"], ["graph"])
+
+    def test_get_chunk_exposes_decision_attribution_for_inferred_topics(self):
+        cwd = self.make_memory_fixture()
+        self.write_topic_sidecar(
+            cwd, "2026-05-17.md", [("2026-05-17 10:00", "ms-bootstrap", ["graph:d1", "retrieval"])]
+        )
+
+        payload = get_chunk("ms-bootstrap", str(cwd))
+
+        self.assertEqual(payload["topics"], [])
+        self.assertEqual(payload["inferred_topics"], ["graph", "retrieval"])
+        self.assertEqual(
+            payload["inferred_decision_topics"],
+            [{"decision": "d1", "topic": "graph"}, {"decision": None, "topic": "retrieval"}],
+        )
 
     def test_grouped_diagram_sidecars_surface_through_the_service(self):
         cwd = self.make_memory_fixture()

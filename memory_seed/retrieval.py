@@ -111,7 +111,10 @@ def search_memory(
         embedding_provider,
         enabled=semantic_enabled,
     )
-    chunks = augment_chunks_with_link_sidecars(extract_memory_chunks(cwd, granularity=granularity), cwd)
+    chunks = augment_chunks_with_topic_sidecars(
+        augment_chunks_with_link_sidecars(extract_memory_chunks(cwd, granularity=granularity), cwd),
+        cwd,
+    )
     topic_filter: set[str] | None = None
     if topics:
         # Alias-aware expansion (canonical + aliases both match); fail-open on
@@ -180,11 +183,17 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
     `entry_diagram_sidecars`). Off by default so the MCP tool contract is
     unchanged; Explorer/Trail consumers opt in.
     """
-    entry_chunks = augment_chunks_with_link_sidecars(extract_memory_chunks(cwd, granularity="entry"), cwd)
+    entry_chunks = augment_chunks_with_topic_sidecars(
+        augment_chunks_with_link_sidecars(extract_memory_chunks(cwd, granularity="entry"), cwd),
+        cwd,
+    )
     found = next((chunk for chunk in entry_chunks if chunk.chunk_id == chunk_id), None)
     if found is None:
-        section_chunks = augment_chunks_with_link_sidecars(
-            extract_memory_chunks(cwd, granularity="section"),
+        section_chunks = augment_chunks_with_topic_sidecars(
+            augment_chunks_with_link_sidecars(
+                extract_memory_chunks(cwd, granularity="section"),
+                cwd,
+            ),
             cwd,
         )
         found = next((chunk for chunk in section_chunks if chunk.chunk_id == chunk_id), None)
@@ -247,6 +256,111 @@ _LINK_ENTRY_RE = re.compile(
     r"^##\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s+-\s*([^\n]*)\n\s*```ya?ml\s*\n(.*?)^```\s*$",
     re.MULTILINE | re.DOTALL,
 )
+
+
+def entry_topic_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
+    """Late-attributed topics, keyed by ``entry_id``.
+
+    The third sidecar family's reader. Topics are attributed to an entry (and,
+    with the `<slug>:dN` grammar, to one of its decisions) *after* it was
+    written, because append-only forbids reopening the entry to add them.
+
+    Precedence is **most-recent-wins per entry**, not a union: a topic list is a
+    state replaced wholesale by a better one, so a later block supersedes the
+    earlier list entirely while the earlier stays readable as what was
+    previously believed. That is the opposite of ``entry_link_sidecars``, where
+    each edge is an independent assertion and blocks union - see
+    docs/3_Spec/draft/sidecar-supersession-model.md. Ordering is the same
+    (heading timestamp, block index) rule ``entry_diagram_sidecars`` uses, so
+    the winner never depends on directory-walk order.
+
+    Returns ``{entry_id: {"topics": (slug, ...), "decision_topics":
+    ((ordinal, slug), ...)}}`` where ordinal is "" for a bare entry-level slug.
+    Slugs are returned exactly as authored and are NOT alias-resolved here:
+    ``links check`` already rejects a non-canonical alias in a sidecar, so
+    resolving would silently accept what the validator refuses and leave the
+    two surfaces disagreeing. Malformed blocks are skipped and reported there.
+    """
+    from .core import _frontmatter_list_region, _parse_topic_slug, iter_topic_sidecar_documents, resolve_runtime
+
+    runtime = resolve_runtime(cwd)
+    topics_dir = runtime.memory_dir / "sessions" / "topics"
+    sidecars: dict[str, dict[str, Any]] = {}
+    # entry_id -> (heading timestamp, block index) of the block currently held.
+    block_precedence: dict[str, tuple[str, int]] = {}
+    if not topics_dir.is_dir():
+        return sidecars
+    for topic_doc in iter_topic_sidecar_documents(runtime.memory_dir / "sessions"):
+        if topic_doc.malformed_reason:
+            continue
+        try:
+            text = topic_doc.path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for index, block in enumerate(_LINK_ENTRY_RE.finditer(text)):
+            heading_ts, _title, yaml_block = block.groups()
+            entry_id = None
+            for line in yaml_block.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("entry_id:"):
+                    entry_id = stripped.split(":", 1)[1].strip().strip("'\"")
+                    break
+            if not entry_id:
+                continue
+            precedence = (heading_ts, index)
+            if precedence < block_precedence.get(entry_id, ("", -1)):
+                continue
+            rolled: list[str] = []
+            pairs: list[tuple[str, str]] = []
+            for line in _frontmatter_list_region(yaml_block, "topics").splitlines():
+                stripped = line.strip()
+                if not stripped.startswith("-"):
+                    continue
+                token = stripped[1:].strip().strip("'\"")
+                if not token:
+                    continue
+                slug, ordinal, well_formed = _parse_topic_slug(token)
+                if not well_formed:
+                    continue
+                pairs.append((ordinal or "", slug))
+                if slug not in rolled:
+                    rolled.append(slug)
+            if not pairs:
+                continue
+            block_precedence[entry_id] = precedence
+            sidecars[entry_id] = {"topics": tuple(rolled), "decision_topics": tuple(pairs)}
+    return sidecars
+
+
+def augment_chunks_with_topic_sidecars(
+    chunks: Iterable[MemoryChunk],
+    cwd: str | Path = ".",
+) -> list[MemoryChunk]:
+    """Attach sidecar-inferred topics to chunks as a channel beside authored ones.
+
+    Mirrors ``augment_chunks_with_link_sidecars``, with one deliberate
+    difference: nothing is unioned into ``chunk.topics``. Authored and inferred
+    stay separable all the way to the consumer, which is what lets a payload
+    report provenance instead of a merged list.
+    """
+    entries = list(chunks)
+    sidecars = entry_topic_sidecars(cwd)
+    if not sidecars:
+        return entries
+    augmented: list[MemoryChunk] = []
+    for chunk in entries:
+        extra = sidecars.get(chunk.entry_id or "")
+        if not extra:
+            augmented.append(chunk)
+            continue
+        augmented.append(
+            replace(
+                chunk,
+                inferred_topics=extra["topics"],
+                inferred_decision_topics=extra["decision_topics"],
+            )
+        )
+    return augmented
 
 
 def entry_diagram_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
@@ -691,7 +805,11 @@ def audit_link_gaps(
         extract_memory_chunks,
     )
 
-    chunks = [chunk for chunk in extract_memory_chunks(cwd, granularity="entry") if chunk.entry_id]
+    chunks = [
+        chunk
+        for chunk in augment_chunks_with_topic_sidecars(extract_memory_chunks(cwd, granularity="entry"), cwd)
+        if chunk.entry_id
+    ]
     if not chunks:
         return []
     by_id = {chunk.entry_id: chunk for chunk in chunks}
@@ -712,7 +830,13 @@ def audit_link_gaps(
     for chunk in chunks:
         refs = {alias.get(ref, ref) for ref in _entry_file_refs(chunk.text)}
         file_refs[chunk.entry_id or ""] = refs
-        topics_of[chunk.entry_id or ""] = set(chunk.topics)
+        # Union here too: a shared topic is evidence two entries are about the
+        # same thing whether a human or a sidecar said so. NOTE this composes two
+        # inference layers - a topic backfill widens link audit's candidate set,
+        # which is the input the link swarm judges. Both stay suggest-only and
+        # human-gated, but the composition is real and was never separately
+        # chosen; see the topic-consumer decision entry.
+        topics_of[chunk.entry_id or ""] = set(chunk.topics) | set(chunk.inferred_topics)
         order[chunk.entry_id or ""] = _entry_order_key(chunk)
         for ref in refs:
             document_frequency[ref] = document_frequency.get(ref, 0) + 1
@@ -1055,6 +1179,9 @@ def ranked_to_dict(result: RankedMemoryChunk) -> dict[str, Any]:
             for block in chunk.continuity
         ],
         "topics": list(chunk.topics),
+        # A SEPARATE key, never folded into `topics`: a consumer must be able to
+        # tell a slug a human wrote from one a sidecar attributed later.
+        "inferred_topics": list(chunk.inferred_topics),
         "line_range": [chunk.start_line, chunk.end_line],
         "heading_path": list(chunk.heading_path),
         "matched_terms": list(result.matched_terms),
@@ -1092,6 +1219,13 @@ def chunk_to_dict(chunk: MemoryChunk) -> dict[str, Any]:
             for block in chunk.continuity
         ],
         "topics": list(chunk.topics),
+        # Separate keys for the same reason as in the search-result payload: the
+        # rolled-up view for entry-level consumers, plus the per-decision
+        # attribution a decision-node graph needs.
+        "inferred_topics": list(chunk.inferred_topics),
+        "inferred_decision_topics": [
+            {"decision": ordinal or None, "topic": slug} for ordinal, slug in chunk.inferred_decision_topics
+        ],
         "entry_datetime": None
         if chunk.entry_datetime is None
         else chunk.entry_datetime.isoformat(),

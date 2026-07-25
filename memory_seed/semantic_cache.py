@@ -126,6 +126,21 @@ class MemoryChunk:
     # .memory-seed/topics.yaml). Distinct from hashtag-derived ``tags`` and
     # heading-derived ``contexts``, which remain the display fallback.
     topics: tuple[str, ...] = ()
+    # Sidecar-inferred topics, deliberately a DISTINCT channel from authored
+    # ``topics`` above rather than merged into it: provenance is not a detail a
+    # consumer may lose (invariant #3, and the Trace inspector already shows
+    # Authority and Provenance as separate rows). Each consumer decides for
+    # itself whether to union the two - the search filter and link-audit
+    # candidate generation do; payload dicts and topic inspect keep them apart.
+    # Rolled up to entry level: a decision-keyed slug also appears here, because
+    # every existing consumer is entry-level and would otherwise read a fully
+    # tagged entry as topicless.
+    inferred_topics: tuple[str, ...] = ()
+    # The (decision ordinal, slug) attribution behind ``inferred_topics``, with
+    # "" as the ordinal for a bare entry-level slug. Kept so a decision-node
+    # graph can colour per decision instead of painting an entry's decisions
+    # identically - the reason decision keying exists at all.
+    inferred_decision_topics: tuple[tuple[str, str], ...] = ()
     # Optional git branch the entry's work happened on, captured at record time
     # (parallel in spirit to ``commits``). Forward-only, never backfilled, and a
     # durable historical label - not validated against live git refs.
@@ -315,7 +330,13 @@ def _filter_chunks(
             continue
         if date_to is not None and chunk.session_date > date_to:
             continue
-        if topics is not None and not (topics & set(chunk.topics)):
+        # Authored UNION inferred: a filter for `graph` that missed entries whose
+        # graph-ness is known only from a topic sidecar would defeat the point of
+        # attributing topics after the fact. Filtering is a reachability
+        # question, not a provenance claim - the two channels stay separable on
+        # the chunk and in every payload, so a caller can still tell which is
+        # which after the filter has run.
+        if topics is not None and not (topics & (set(chunk.topics) | set(chunk.inferred_topics))):
             continue
         filtered.append(chunk)
     return filtered

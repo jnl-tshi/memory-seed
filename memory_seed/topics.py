@@ -67,6 +67,13 @@ class TopicsCheckResult:
     issues: tuple[TopicIssue, ...]
     entries_checked: int
     topics_defined: int
+    # Entries whose topics come only from a sidecar. Reported ALONGSIDE
+    # entries_checked (authored) rather than folded into it: coverage that
+    # silently counted inferred attribution as authorship would overstate what
+    # a human has actually vouched for. Their slugs are NOT validated here -
+    # `links check` already validates sidecar vocabulary, ordinals, and caps,
+    # and a second validator would only drift from the first.
+    entries_with_inferred_topics_only: int = 0
 
 
 @dataclass(frozen=True)
@@ -334,7 +341,20 @@ def check_topics(cwd: str | Path = ".") -> TopicsCheckResult:
     statuses = {record.slug: record.status for record in index.topics}
     used: set[str] = set()
     entries_checked = 0
-    chunks = [chunk for chunk in extract_memory_chunks(cwd, granularity="entry") if chunk.topics]
+    # Sidecar-attributed topics widen COVERAGE reporting but not validation:
+    # every chunk below is still filtered on authored `chunk.topics`, so the
+    # vocabulary checks, the deprecation warning, and TOPIC_COUNT_TARGET all
+    # continue to judge only what a human wrote. TOPIC_COUNT_TARGET in
+    # particular must never see the rolled-up union - 3 per decision across a
+    # multi-decision entry is legitimate, and warning on it would flag exactly
+    # the entries decision keying exists to serve.
+    from .retrieval import augment_chunks_with_topic_sidecars
+
+    all_chunks = augment_chunks_with_topic_sidecars(extract_memory_chunks(cwd, granularity="entry"), cwd)
+    entries_with_inferred_topics_only = sum(
+        1 for chunk in all_chunks if chunk.inferred_topics and not chunk.topics
+    )
+    chunks = [chunk for chunk in all_chunks if chunk.topics]
     for chunk in chunks:
         entries_checked += 1
         source = f"{chunk.source_path}:{chunk.entry_id or chunk.title}"
@@ -363,7 +383,13 @@ def check_topics(cwd: str | Path = ".") -> TopicsCheckResult:
             issues.append(TopicIssue("info", "unused-topic", f"'{record.slug}' is defined but no entry uses it", index.path))
 
     ok = not any(issue.severity == "error" for issue in issues)
-    return TopicsCheckResult(ok=ok, issues=tuple(issues), entries_checked=entries_checked, topics_defined=len(index.topics))
+    return TopicsCheckResult(
+        ok=ok,
+        issues=tuple(issues),
+        entries_checked=entries_checked,
+        topics_defined=len(index.topics),
+        entries_with_inferred_topics_only=entries_with_inferred_topics_only,
+    )
 
 
 def expand_topic_filter(cwd: str | Path, requested: list[str] | tuple[str, ...]) -> set[str]:

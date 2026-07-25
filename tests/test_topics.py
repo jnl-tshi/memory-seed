@@ -147,6 +147,33 @@ class TopicsTests(unittest.TestCase):
         self.assertTrue(result.ok)
         self.assertEqual(result.entries_checked, 0)
 
+    def test_inferred_only_entries_are_counted_separately_and_not_validated_here(self):
+        # Coverage widens; authorship does not. `entries_checked` must keep
+        # meaning "a human wrote these", so an entry whose topics come only from
+        # a sidecar is reported on its own axis. Validation stays in `links
+        # check` - a second validator here would drift from the first, so even a
+        # slug outside the vocabulary raises nothing on this surface.
+        cwd = self.make_project()
+        self.write_day(
+            cwd,
+            _entry("2026-07-01 09:00 - A", "ms-a0000000", "x", topics=["retrieval"]),
+            _entry("2026-07-01 10:00 - B", "ms-b0000000", "y"),
+        )
+        self.write_index(cwd, self.VOCAB)
+        sidecar = cwd / ".memory-seed" / "sessions" / "topics" / "2026-07" / "2026-07-01.md"
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        sidecar.write_text(
+            "## 2026-07-01 11:00 - topics\n\n```yaml\nentry_id: ms-b0000000\ntopics:\n"
+            "  - not-in-the-vocabulary:d1\n```\n",
+            encoding="utf-8",
+        )
+
+        result = check_topics(cwd)
+
+        self.assertEqual(result.entries_checked, 1)  # only the authored one
+        self.assertEqual(result.entries_with_inferred_topics_only, 1)
+        self.assertNotIn("unknown-entry-topic", [issue.kind for issue in result.issues])
+
     def test_slug_regex_matches_user_slug_family(self):
         for good in ("git-workflow", "a", "x_y-z9"):
             self.assertTrue(TOPIC_SLUG_RE.match(good), good)
