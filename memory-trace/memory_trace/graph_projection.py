@@ -248,16 +248,18 @@ def project_trace_graph(
         if not isinstance(source, str) or not isinstance(target, str) or edge_type not in EDGE_TYPES:
             raise GraphProjectionContractError(f"trace graph edges[{index}] are not canonical graph edges")
         evidence_refs = [entry_id_by_node[item] for item in (source, target) if item in entry_id_by_node]
-        edges.append(
-            {
-                "id": f"trace:{index}:{source}:{edge_type}:{target}",
-                "source": source,
-                "target": target,
-                "edge_type": edge_type,
-                "directed": True,
-                "evidence_refs": evidence_refs or [source, target],
-            }
-        )
+        edge_dict: dict[str, Any] = {
+            "id": f"trace:{index}:{source}:{edge_type}:{target}",
+            "source": source,
+            "target": target,
+            "edge_type": edge_type,
+            "directed": True,
+            "evidence_refs": evidence_refs or [source, target],
+        }
+        confidence = raw.get("confidence")
+        if confidence is not None:
+            edge_dict["confidence"] = confidence
+        edges.append(edge_dict)
     projected: dict[str, Any] = {"nodes": nodes, "edges": edges}
     # Passed through only when the caller supplies it (the live service does;
     # the bounded benchmark fixtures do not), so fixture-shaped payloads keep

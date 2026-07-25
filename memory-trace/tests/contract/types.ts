@@ -359,6 +359,8 @@ export interface components {
         };
         /** GraphEdge */
         GraphEdge: {
+            /** Confidence */
+            confidence?: number | null;
             /** Source */
             source: string;
             /** Target */
@@ -483,6 +485,8 @@ export interface components {
         };
         /** RendererGraphEdge */
         RendererGraphEdge: {
+            /** Confidence */
+            confidence?: number | null;
             /** Directed */
             directed: boolean;
             edge_type: components["schemas"]["EdgeType"];

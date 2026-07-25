@@ -123,7 +123,13 @@ class LinkSidecarReadPathTests(unittest.TestCase):
         payload = TestClient(self._app()).get(
             "/api/v1/graph", params={"granularity": "entry", "edge_types": "replaces,evolves,related"}
         ).json()
-        self.assertIn({"source": NEW, "target": OLD, "type": "replaces"}, payload["edges"])
+        # The v1 route serializes through GraphEdge, which now carries an
+        # optional `confidence` (null for this human-authored edge), so match on
+        # the identifying fields rather than exact dict equality.
+        self.assertTrue(
+            any(e["source"] == NEW and e["target"] == OLD and e["type"] == "replaces" for e in payload["edges"]),
+            payload["edges"],
+        )
 
     def test_graph_has_no_lifecycle_edge_without_sidecar(self):
         edges = self._graph_edges(self._app())

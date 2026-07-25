@@ -1643,6 +1643,19 @@ class TraceService:
             for edge in edges
             if edge["source"] in limited_ids and edge["target"] in limited_ids and edge["type"] in edge_type_set
         ][: _limit(limit, maximum=1000)]
+        # Attach structured per-edge confidence to bare entry-level edges (the
+        # source scored them with empty ordinals). Decision-row edges are scored
+        # inside _decision_edges_for_rows, where the exact ordinals are known.
+        entry_conf: dict[tuple[str, str], float] = {}
+        for source_entry_id, sidecar in self._link_sidecars().items():
+            for (src_ord, target_entry_id, tgt_ord), confidence in sidecar.get("edge_confidence", {}).items():
+                if src_ord == "" and tgt_ord == "":
+                    entry_conf[(source_entry_id, target_entry_id)] = confidence
+        if entry_conf:
+            for edge in visible_edges:
+                confidence = entry_conf.get((edge["source"], edge["target"]))
+                if confidence is not None:
+                    edge["confidence"] = confidence
         if include_decisions:
             # Appended AFTER the limited_ids filter on purpose: that set holds
             # entry ids, and a decision-row endpoint is not one, so routing
@@ -3387,7 +3400,14 @@ def _decision_edges_for_rows(
             if key in seen:
                 continue
             seen.add(key)
-            edges.append({"source": source, "target": target, "type": edge_type})
+            edge = {"source": source, "target": target, "type": edge_type}
+            # Structured per-edge confidence, joined on the kind-agnostic
+            # (source_ordinal, target_entry, target_ordinal) identity the reader
+            # keyed it by. Absent = human-authored, left unscored.
+            confidence = sidecar.get("edge_confidence", {}).get((source_ordinal, target_entry_id, ordinal))
+            if confidence is not None:
+                edge["confidence"] = confidence
+            edges.append(edge)
     return edges
 
 
