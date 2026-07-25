@@ -77,7 +77,10 @@ Nothing stores the union.
 ## Precedence — append-only, most recent wins
 
 Set by JNL 2026-07-25. Topic sidecars stay append-only, and **the most recent block for an entry
-wins**; older blocks for the same entry are history, not competing truth.
+wins**; older blocks for the same entry are history, not competing truth. This is the topic-family
+instance of the general rule in
+[sidecar-supersession-model.md](sidecar-supersession-model.md), which states it once for all three
+families — topics and diagrams supersede per *entry*, links per *edge*.
 
 This is the right resolution because a topic assignment is a *state*, not an independent assertion.
 Link edges each stand alone, so downgrading one needs the explicit append-only `retracts:` mechanism
