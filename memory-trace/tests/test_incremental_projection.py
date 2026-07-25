@@ -382,6 +382,71 @@ class EquivalenceTests(_RepoCase):
         self.assertEqual(cache.file_entry_index(), reference.file_entry_index())
 
 
+class ChunkStorageSchemaDriftTests(unittest.TestCase):
+    """`_chunk_from_storage` must survive a cache written by an OLDER binary.
+
+    The cache is a rebuildable projection, but a hard crash on READ is worse
+    than a stale read: it takes the whole Trail down (500 on every request)
+    until someone finds and clears the file. This happened live on 2026-07-24
+    when a pre-rename cache carried `supersedes` and `MemoryChunk(**data)`
+    raised `unexpected keyword argument`. A renamed field must canonicalise
+    (no edge lost); any other unknown key must be dropped, not passed on.
+    """
+
+    def _storage_dict(self):
+        from datetime import date
+
+        from memory_seed.semantic_cache import MemoryChunk
+
+        chunk = MemoryChunk(
+            chunk_id="mse_x",
+            source_path="s.md",
+            source_file="s.md",
+            session_date=date(2026, 6, 1),
+            entry_datetime=None,
+            heading_path=("t",),
+            heading_level=2,
+            title="t",
+            text="body",
+            tags=(),
+            contexts=(),
+            lexical_terms=(),
+            start_line=0,
+            end_line=1,
+            entry_id="mse_x",
+            replaces=("mse_new",),
+        )
+        return service_module._chunk_to_storage(chunk)
+
+    def test_a_renamed_field_canonicalises_instead_of_crashing(self):
+        data = self._storage_dict()
+        # Simulate the old-binary cache: the field was called `supersedes`,
+        # and `replaces` did not exist yet.
+        data["supersedes"] = ["mse_legacy"]
+        del data["replaces"]
+
+        chunk = service_module._chunk_from_storage(data)  # must not raise
+
+        self.assertEqual(chunk.replaces, ("mse_legacy",))
+        self.assertFalse(hasattr(chunk, "supersedes"))
+
+    def test_a_renamed_field_merges_with_the_new_one_without_duplicates(self):
+        data = self._storage_dict()  # replaces = ("mse_new",)
+        data["supersedes"] = ["mse_legacy", "mse_new"]
+
+        chunk = service_module._chunk_from_storage(data)
+
+        self.assertEqual(chunk.replaces, ("mse_new", "mse_legacy"))
+
+    def test_an_unknown_field_is_dropped_not_forwarded_to_the_constructor(self):
+        data = self._storage_dict()
+        data["a_field_removed_in_some_future_version"] = 42
+
+        chunk = service_module._chunk_from_storage(data)  # must not raise
+
+        self.assertEqual(chunk.chunk_id, "mse_x")
+
+
 class BulkSubprocessBudgetTests(_RepoCase):
     """"No git work per historical item": the subprocess count of a full
     rebuild must stay flat as merge history grows."""
