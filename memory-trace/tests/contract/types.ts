@@ -906,6 +906,7 @@ export interface operations {
                 date_to?: string | null;
                 topic?: string | null;
                 path?: string | null;
+                pinned_ids?: string | null;
                 worktree?: string | null;
             };
             header?: never;

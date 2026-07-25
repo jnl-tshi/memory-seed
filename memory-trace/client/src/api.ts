@@ -25,6 +25,9 @@ export type GraphQueryOptions = {
   topic?: string | null;
   dateFrom?: string | null;
   path?: string | null;
+  /** Entry ids that must appear whatever the ranked slice would have chosen -
+   *  the Trail's loaded window. Additive and exempt from `limit`. */
+  pinnedIds?: string[];
 };
 
 /** Every edge type the filter row offers. Order is the row's order. */
@@ -100,6 +103,7 @@ export function graphQuery(options: GraphQueryOptions = {}): Promise<RendererGra
   if (options.topic) params.set("topic", options.topic);
   if (options.dateFrom) params.set("date_from", options.dateFrom);
   if (options.path) params.set("path", options.path);
+  if (options.pinnedIds?.length) params.set("pinned_ids", options.pinnedIds.join(","));
   return api<RendererGraphResponse>(`/graph/projection?${params.toString()}`);
 }
 

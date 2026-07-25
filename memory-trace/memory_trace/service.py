@@ -1539,6 +1539,7 @@ class TraceService:
         *,
         entry_id: str | None = None,
         entry_ids: Sequence[str] | None = None,
+        pinned_ids: Sequence[str] | None = None,
         depth: int = 1,
         edge_types: Sequence[str] = ("related", "topic", "agent", "day"),
         limit: int = 80,
@@ -1615,6 +1616,37 @@ class TraceService:
             limited_ids = _overview_slice(
                 visible_ids, edges, limit=_limit(limit, maximum=1000), recency_rank=recency_rank
             )
+        # Pinned entries: the Trail's currently-loaded window. Whatever the
+        # ranked overview would have chosen, an entry the user can already SEE
+        # in the Trail must exist in the Graph - switching views is a change of
+        # lens, not of corpus, and "Load older" that silently failed to reach
+        # the map made the two views disagree about what exists. Pinning is
+        # additive and EXEMPT from `limit`: the limit ranks what to volunteer,
+        # it was never a claim about what the user is allowed to see.
+        if pinned_ids:
+            pinned = [item_id for item_id in pinned_ids if item_id in by_id]
+            # Depth-1 over the lifecycle edges that are actually being RENDERED,
+            # so a pinned entry arrives with its most relevant relationships
+            # rather than as a lone dot. Expanding over an edge type the user
+            # has filtered off would add a node whose only tie is invisible.
+            lifecycle = {"replaces", "evolves", "related"} & edge_type_set
+            if lifecycle:
+                pinned_set = set(pinned)
+                for edge in edges:
+                    if edge["type"] not in lifecycle:
+                        continue
+                    for near, far in ((edge["source"], edge["target"]), (edge["target"], edge["source"])):
+                        if near in pinned_set and far in by_id:
+                            pinned.append(far)
+            # `visible_ids` is the whole corpus in overview mode, so membership
+            # is tested against a set rather than rescanning the list per pin.
+            already_visible = set(visible_ids)
+            for item_id in pinned:
+                if item_id not in limited_ids:
+                    limited_ids.add(item_id)
+                    if item_id not in already_visible:
+                        visible_ids.append(item_id)
+                        already_visible.add(item_id)
         inferred_main = self.cache.main_commit_entries()
         # Entry ids carrying an authored Class-2 decision-diagram sidecar, from
         # the per-generation derived bundle (a newly authored diagram bumps the
@@ -1638,11 +1670,17 @@ class TraceService:
             # merges/branches inputs are fixed, so lifecycle structure stays
             # entry-scoped by construction.
             nodes = _expand_decision_rows(nodes, self.cache)
+        # The edge cap tracks the node count once pinning has grown it past
+        # `limit`; leaving it at `limit` would let the extra nodes in and then
+        # starve them of the edges that justify their presence. With nothing
+        # pinned every branch above yields at most `limit` ids, so this is the
+        # old cap exactly.
+        edge_cap = _limit(max(limit, len(limited_ids)), maximum=1000)
         visible_edges = [
             edge
             for edge in edges
             if edge["source"] in limited_ids and edge["target"] in limited_ids and edge["type"] in edge_type_set
-        ][: _limit(limit, maximum=1000)]
+        ][:edge_cap]
         # Attach structured per-edge confidence to bare entry-level edges (the
         # source scored them with empty ordinals). Decision-row edges are scored
         # inside _decision_edges_for_rows, where the exact ordinals are known.
@@ -2162,6 +2200,7 @@ def create_app(
         date_to: str | None = None,
         topic: str | None = None,
         path: str | None = None,
+        pinned_ids: str | None = None,
         worktree: str | None = None,
     ) -> dict[str, Any]:
         svc = service_for(worktree)
@@ -2174,6 +2213,9 @@ def create_app(
             graph=svc.graph(
                 entry_id=entry_id,
                 entry_ids=file_entry_ids,
+                # The Trail's loaded window, so the Graph is never missing an
+                # entry the user can already see in the other view.
+                pinned_ids=[x for x in (pinned_ids or "").split(",") if x],
                 depth=depth,
                 edge_types=tuple("replaces" if x == "supersedes" else x for x in edge_types.split(",") if x),  # legacy value accepted (renamed 2026-07-24)
                 limit=limit,

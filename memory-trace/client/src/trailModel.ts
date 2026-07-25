@@ -168,20 +168,40 @@ export function compareTrailNodes(a: TrailEvent, b: TrailEvent): number {
 // is referred to throughout TrailWorkspace and its tests.
 export { pastelOf } from "./colour.ts";
 
-export function buildTrailModel(trail: TrailResponse, window: number): TrailModel {
+/** The rows the Trail shows at a given window size.
+ *
+ * Shared rather than duplicated: the Graph pins whatever the Trail has loaded,
+ * so if the two derived "what is visible" separately they could disagree about
+ * the corpus - which is the exact defect pinning exists to fix.
+ */
+export function windowedTrailNodes(trail: TrailResponse, window: number) {
   const nodes = (trail.nodes || [])
     .filter((node) => node.entry_id)
     .sort(compareTrailNodes);
-  // "N of M ENTRIES" stays honest: decision rows are extra ROWS of one entry,
-  // not entries - they inflate the item list but never this count. Counting
-  // anchors (ordinal absent) counts entries exactly once.
-  const total = nodes.filter((node) => !isDecisionRow(node)).length;
   // Never bisect a decision group: if the window cut lands inside one (the
   // next hidden node is a decision row), extend to the end of that group so a
   // pastel row never dangles without the anchor that names its entry.
   let window_ = Math.min(window, nodes.length);
   while (window_ < nodes.length && isDecisionRow(nodes[window_])) window_ += 1;
-  const visible = nodes.slice(0, window_);
+  return { nodes, visible: nodes.slice(0, window_) };
+}
+
+/** Deduped entry ids the Trail currently shows - the Graph's pin set. */
+export function trailWindowEntryIds(trail: TrailResponse | null, window: number): string[] {
+  if (!trail) return [];
+  const seen = new Set<string>();
+  for (const node of windowedTrailNodes(trail, window).visible) {
+    if (node.entry_id) seen.add(node.entry_id);
+  }
+  return [...seen];
+}
+
+export function buildTrailModel(trail: TrailResponse, window: number): TrailModel {
+  const { nodes, visible } = windowedTrailNodes(trail, window);
+  // "N of M ENTRIES" stays honest: decision rows are extra ROWS of one entry,
+  // not entries - they inflate the item list but never this count. Counting
+  // anchors (ordinal absent) counts entries exactly once.
+  const total = nodes.filter((node) => !isDecisionRow(node)).length;
 
   const items: TrailItem[] = [];
   let lastDay: string | null = null;
