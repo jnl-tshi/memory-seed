@@ -15,7 +15,7 @@ import uuid
 import webbrowser
 import gc
 from contextlib import contextmanager
-from dataclasses import asdict, replace
+from dataclasses import asdict, fields, replace
 from datetime import date, datetime, time as datetime_time, timedelta
 from importlib import resources
 from pathlib import Path
@@ -2801,6 +2801,23 @@ def _chunk_from_storage(data: dict[str, Any]) -> MemoryChunk:
     )
     if data.get("entry_line_range"):
         data["entry_line_range"] = tuple(data["entry_line_range"])
+    # Schema-drift tolerance. A cache written by an OLDER binary can carry a
+    # field this MemoryChunk no longer has - `supersedes` after the 2026-07-24
+    # rename to `replaces` was the live example, and `MemoryChunk(**data)` blew
+    # up the whole Trail with `unexpected keyword argument 'supersedes'` on
+    # every request. The cache is a rebuildable projection, but a hard crash on
+    # read is a worse failure than a stale read: it takes the UI down until
+    # someone finds and clears the file. So a renamed field is CANONICALISED
+    # (the edge survives, honouring the rename's "read the old spelling
+    # forever" promise) and any other unknown key is DROPPED rather than passed
+    # to the constructor - a stale cache degrades to a rebuild, never a 500.
+    if "supersedes" in data:
+        legacy = tuple(data.pop("supersedes") or ())
+        data["replaces"] = tuple(dict.fromkeys(tuple(data.get("replaces") or ()) + legacy))
+    known = {field.name for field in fields(MemoryChunk)}
+    unknown = data.keys() - known
+    if unknown:
+        data = {key: value for key, value in data.items() if key in known}
     return MemoryChunk(**data)
 
 
