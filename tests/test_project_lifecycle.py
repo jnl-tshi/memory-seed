@@ -644,6 +644,7 @@ class ProjectLifecycleTests(unittest.TestCase):
                 ".memory-seed/skills/end_of_turn.md",
                 ".memory-seed/skills/history_retrieval.md",
                 ".memory-seed/skills/index.md",
+                ".memory-seed/skills/link_swarm.md",
                 ".memory-seed/skills/local_compilation.md",
                 ".memory-seed/skills/memory_consolidation.md",
                 ".memory-seed/skills/memory_doctor.md",

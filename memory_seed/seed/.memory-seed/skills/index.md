@@ -271,6 +271,16 @@ skills:
       - writing code documentation or technical reference
       - task is SEO strategy or content calendar planning
       - copywriter persona is not active
+
+  - skill: link_swarm.md
+    required: true
+    load_when:
+      - running a lifecycle-edge enrichment campaign (replaces/evolves/related) over many audited gaps
+      - orchestrating a model-judgment swarm over link audit --json candidates
+      - backfilling decision-level lifecycle edges across the corpus at scale
+    do_not_load_when:
+      - classifying one or two lifecycle-link stubs by hand (use end_of_turn.md's Lifecycle Link Sweep)
+      - no link audit gaps to judge, or the task is a single authored edge
 ```
 
 ## Deterministic Use
