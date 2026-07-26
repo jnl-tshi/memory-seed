@@ -258,6 +258,17 @@ All notable changes to Memory Seed are summarized here.
 
 ### Fixed
 
+- **`session append` no longer records a foreign branch.** `branch:` captures the HEAD of the working
+  tree that owns the memory dir, so when `resolve_runtime`'s walk-up escaped the caller's own checkout —
+  an **untracked `.memory-seed` seen from a git worktree**, or a submodule whose superproject owns the
+  memory dir — the entry was written into the enclosing tree's `.memory-seed` *and* stamped with that
+  tree's branch. Neither HEAD is the right answer there (the session is on one branch; the entry file
+  commits on another), so the field is now **omitted**, extending the existing detached-HEAD /
+  not-a-repository omission rule rather than adding new machinery. Both write surfaces get it (Invariant
+  #2). Repositories that commit `.memory-seed` — which is what makes worktree isolation work in the first
+  place — are unaffected: their worktrees resolve to their own memory dir and their own HEAD, and
+  continue to record it. Two agents sharing *one* checkout remain undecidable from git and still need
+  explicit `--branch`/`--no-branch`; see `docs/2_Todo/branch-field-provenance.md`.
 - Memory Trace graph/projection overview (no focus entry, no date filter): the
   node slice is now chosen by connectivity — deterministic greedy expansion from
   high-degree seeds with newest-first tie-breaks — instead of truncating in
