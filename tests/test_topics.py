@@ -180,6 +180,97 @@ class TopicsTests(unittest.TestCase):
         for bad in ("Upper", "-lead", "has space", ""):
             self.assertFalse(TOPIC_SLUG_RE.match(bad), bad)
 
+    # --- Hierarchy: axis + parent (schema_version 2) ---
+
+    HIER = (
+        "schema_version: 2\n"
+        "topics:\n"
+        "  - slug: memory-trace\n"
+        "    axis: area\n"
+        "    aliases: [memory-trace-ui]\n"
+        "  - slug: trail\n"
+        "    axis: area\n"
+        "    parent: memory-trace\n"
+        "    aliases: [timeline]\n"
+        "  - slug: trail-lanes\n"
+        "    parent: trail\n"
+        "    aliases: []\n"
+        "  - slug: documentation\n"
+        "    axis: activity\n"
+        "    aliases: []\n"
+    )
+
+    def test_axis_and_parent_parse_and_ancestors_walk_up(self):
+        cwd = self.make_project()
+        self.write_index(cwd, self.HIER)
+
+        index = load_topic_index(cwd)
+        by = {t.slug: t for t in index.topics}
+
+        self.assertEqual(by["trail"].axis, "area")
+        self.assertEqual(by["trail"].parent, "memory-trace")
+        # Depth is not capped at two: a grandchild walks the whole chain.
+        self.assertEqual(index.ancestors("trail-lanes"), ("trail", "memory-trace"))
+        self.assertEqual(index.ancestors("memory-trace"), ())
+
+    def test_axis_is_inherited_from_the_nearest_declaring_ancestor(self):
+        # `trail-lanes` declares no axis; it is an area because its parent chain says so.
+        cwd = self.make_project()
+        self.write_index(cwd, self.HIER)
+
+        index = load_topic_index(cwd)
+
+        self.assertEqual(index.axis_of("trail-lanes"), "area")
+        self.assertEqual(index.axis_of("documentation"), "activity")
+        self.assertEqual(index.axis_of("nonexistent"), "")
+
+    def test_filter_expands_down_to_descendants_but_never_up_to_parents(self):
+        # Only the most specific slug is stored, so filtering on a parent must
+        # reach its children -- and filtering on a child must NOT drag in the
+        # parent's broader population.
+        cwd = self.make_project()
+        self.write_index(cwd, self.HIER)
+
+        parent = expand_topic_filter(cwd, ["memory-trace"])
+        child = expand_topic_filter(cwd, ["trail"])
+
+        self.assertIn("trail", parent)
+        self.assertIn("trail-lanes", parent, "expansion must reach a grandchild")
+        self.assertIn("timeline", parent, "a descendant's aliases match too")
+        self.assertNotIn("memory-trace", child, "expansion must never run upward")
+        self.assertIn("trail-lanes", child)
+
+    def test_a_parent_cycle_does_not_hang_the_walk(self):
+        # A cycle is a vocabulary defect, but resolution must terminate rather
+        # than spin -- this is read on every search.
+        cwd = self.make_project()
+        self.write_index(
+            cwd,
+            "schema_version: 2\ntopics:\n"
+            "  - slug: a\n    parent: b\n    aliases: []\n"
+            "  - slug: b\n    parent: a\n    aliases: []\n",
+        )
+
+        index = load_topic_index(cwd)
+
+        self.assertEqual(index.ancestors("a"), ("b",))
+
+    def test_a_schema_version_1_vocabulary_is_completely_unaffected(self):
+        # The whole of step 1 is additive. A vocabulary that declares no axis and
+        # no parent must resolve, expand and validate exactly as it did before.
+        cwd = self.make_project()
+        self.write_index(cwd, self.VOCAB)
+
+        index = load_topic_index(cwd)
+
+        self.assertEqual([t.axis for t in index.topics], ["", ""])
+        self.assertEqual([t.parent for t in index.topics], ["", ""])
+        self.assertEqual(index.ancestors("retrieval"), ())
+        self.assertEqual(index.descendants("retrieval"), ())
+        self.assertEqual(index.axis_of("retrieval"), "")
+        # Alias expansion is byte-for-byte what it was: canonical plus aliases.
+        self.assertEqual(expand_topic_filter(cwd, ["retrieval"]), {"retrieval", "search", "ranking"})
+
 
 if __name__ == "__main__":
     unittest.main()
