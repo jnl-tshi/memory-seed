@@ -255,6 +255,50 @@ class TopicsTests(unittest.TestCase):
 
         self.assertEqual(index.ancestors("a"), ("b",))
 
+    def test_a_parent_cycle_is_reported_as_a_validation_error(self):
+        # `ancestors()` terminating rather than raising is what makes a cycle
+        # SILENT, so validation is the only place it can surface. Reported once
+        # per cycle, not once per member: three slugs in a three-cycle are one
+        # defect, and three copies would bury it.
+        cwd = self.make_project()
+        self.write_index(
+            cwd,
+            "schema_version: 2\ntopics:\n"
+            "  - slug: a\n    parent: b\n    aliases: []\n"
+            "  - slug: b\n    parent: c\n    aliases: []\n"
+            "  - slug: c\n    parent: a\n    aliases: []\n"
+            "  - slug: fine\n    aliases: []\n",
+        )
+
+        result = check_topics(cwd)
+
+        cycles = [i for i in result.issues if i.kind == "parent-cycle"]
+        self.assertEqual(len(cycles), 1, [i.detail for i in cycles])
+        self.assertEqual(cycles[0].severity, "error")
+        self.assertFalse(result.ok)
+        for slug in ("a", "b", "c"):
+            self.assertIn(slug, cycles[0].detail)
+        # The walk still terminates -- detection must not have cost that.
+        self.assertEqual(len(load_topic_index(cwd).ancestors("a")), 2)
+
+    def test_a_self_parent_is_a_cycle(self):
+        cwd = self.make_project()
+        self.write_index(cwd, "schema_version: 2\ntopics:\n  - slug: a\n    parent: a\n    aliases: []\n")
+
+        result = check_topics(cwd)
+
+        self.assertEqual(len([i for i in result.issues if i.kind == "parent-cycle"]), 1)
+
+    def test_an_acyclic_hierarchy_reports_no_cycle(self):
+        # The negative half: without it, code that reported every parent chain
+        # as a cycle would pass the tests above.
+        cwd = self.make_project()
+        self.write_index(cwd, self.HIER)
+
+        result = check_topics(cwd)
+
+        self.assertNotIn("parent-cycle", [i.kind for i in result.issues])
+
     def test_a_schema_version_1_vocabulary_is_completely_unaffected(self):
         # The whole of step 1 is additive. A vocabulary that declares no axis and
         # no parent must resolve, expand and validate exactly as it did before.
