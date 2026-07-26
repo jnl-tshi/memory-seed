@@ -297,6 +297,10 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
                         "shared_files": list(cand.shared_files),
                         "shared_topics": list(cand.shared_topics),
                         "shared_title_terms": list(cand.shared_title_terms),
+                        # The one ranking term a reader cannot verify by eye, so it
+                        # travels with the evidence rather than staying implicit in
+                        # the order. `None` when semantic ranking was unavailable.
+                        "semantic_score": cand.semantic_score,
                         "already_related": cand.already_related,
                     }
                     for cand in gap.candidates

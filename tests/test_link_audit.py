@@ -1,5 +1,11 @@
 """`memory-seed link audit` (Phase 3): find entries that share files/topics but
-carry no recorded edge, without an all-pairs semantic scan.
+carry no recorded edge.
+
+Candidate MEMBERSHIP is decided lexically and never by semantic similarity. An
+all-pairs cosine IS computed (since 2026-07-22) and does reorder the surviving
+candidates; what the lexical gate rules out is cosine deciding *whether* a pair
+is a candidate at all. So the semantic term can change rank but structurally
+cannot change reach - see LinkAuditSemanticExposureTests.
 
 Candidate generation: for each target, only OLDER entries sharing >=1 F: file
 OR >=1 topic. File overlap qualifies a pair even with no shared topic (files
@@ -700,6 +706,25 @@ class LinkAuditSemanticExposureTests(unittest.TestCase):
         self.assertEqual(status["requested"], False)
         self.assertEqual(status["active"], False)
         self.assertIsNone(gaps[0].candidates[0].semantic_score)
+
+    def test_empty_corpus_still_reports_that_semantic_was_requested(self):
+        """The status dict is seeded before the empty-corpus early return.
+
+        Left unset, `requested` reads False and the CLI would label a default
+        (semantic) run as if `--no-semantic` had been passed.
+        """
+        status = {}
+        gaps = audit_link_gaps(cwd=self.cwd, semantic_status=status)
+
+        self.assertEqual(gaps, [])
+        self.assertEqual(status["requested"], True)
+        self.assertEqual(status["active"], False)
+        self.assertIsNone(status["fallback_reason"])
+
+        code, stdout, _ = self._run_cli("link", "audit")
+        self.assertEqual(code, 0)
+        self.assertIn("no entries to embed", stdout)
+        self.assertNotIn("--no-semantic", stdout)
 
     def test_unavailable_provider_is_reported_not_swallowed(self):
         self._pair()

@@ -1576,6 +1576,9 @@ def main(argv: list[str] | None = None) -> int:
                     return "Ranking: lexical only (--no-semantic); shared files + title terms."
                 if semantic_status.get("active"):
                     return f"Ranking: lexical + semantic ({semantic_status.get('provider')})."
+                if not semantic_status.get("fallback_reason"):
+                    # Nothing to embed (empty corpus) - not a provider failure.
+                    return "Ranking: lexical only - no entries to embed."
                 return (
                     "Ranking: lexical only - semantic ranking was requested but is UNAVAILABLE "
                     f"({semantic_status.get('fallback_reason')}). Order differs from a semantic run."

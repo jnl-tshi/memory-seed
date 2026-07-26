@@ -835,6 +835,11 @@ def audit_link_gaps(
         extract_memory_chunks,
     )
 
+    # Seeded BEFORE the empty-corpus early return: left unset there, a caller
+    # reading `requested` would be told semantic ranking was never asked for.
+    if semantic_status is not None:
+        semantic_status.update(requested=semantic_enabled, active=False, provider=None, fallback_reason=None)
+
     chunks = [
         chunk
         for chunk in augment_chunks_with_topic_sidecars(extract_memory_chunks(cwd, granularity="entry"), cwd)

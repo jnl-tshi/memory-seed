@@ -295,8 +295,9 @@ supported `--no-deps` install rather than a failure.
 > Reachability is **identical** — 132/133 either way, and the one miss is unreachable for both. It
 > cannot be otherwise: cosine only ever adds to the score of a pair the lexical gate already
 > admitted, so the semantic term *cannot* make an unreachable target reachable. The entire gain is
-> reordering, worth +18 points at recall@5. The earlier table's "true edges surfaced" column was
-> measured at a small `top_k`, which is why it read as a reachability gain.
+> reordering, worth +18 points at recall@5. The earlier table's "true edges surfaced" column reading
+> as a reachability gain is consistent with having been measured at a small `top_k` — that is an
+> inference about the older method, not something re-verified here.
 >
 > Corroborating the same conclusion from the other direction: on the full corpus the semantic term
 > changes the top-5 for **610 of 629** audited sources, and 1,501 candidates occupy a top-5 slot only
