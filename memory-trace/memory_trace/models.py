@@ -107,6 +107,12 @@ class Facets(BaseModel):
     # so the renderer can hand out hues that form coherent neighbourhoods and
     # paint multi-topic nodes as in-family mixtures.
     topic_wheel: list[str]
+    # Every authorable topic name (canonical slug AND alias) -> the root of its
+    # hierarchy. Colour is assigned at the root level so the palette is bounded
+    # by roots and does not grow or reshuffle as children populate; grouping and
+    # filtering keep reading the child. A root maps to itself, so an unknown
+    # slug can safely fall back to identity.
+    topic_roots: dict[str, str]
 
 
 class ChunkSummary(BaseModel):

@@ -40,7 +40,7 @@ from memory_seed.semantic_cache import (
     extract_memory_chunks,
     rank_memory_chunks,
 )
-from memory_seed.topics import expand_topic_filter
+from memory_seed.topics import expand_topic_filter, load_topic_index
 from .graph_projection import MINIMUM_COMMUNITY_TOPIC_FREQUENCY, project_trace_graph
 
 
@@ -1286,6 +1286,38 @@ class TraceService:
         self._topic_wheel_memo = (generation, wheel)
         return wheel
 
+    def topic_roots(self) -> dict[str, str]:
+        """Every authorable topic NAME -> the root of its hierarchy.
+
+        The hierarchy's two jobs are split by level (hierarchical-topic-
+        vocabulary-proposal.md): the ROOT gives colour - few, stable, legible -
+        while the child keeps grouping and filtering. The renderer cannot derive
+        this itself, so the vocabulary's shape has to reach it, and this map is
+        the whole of what it needs.
+
+        Keyed by every name an entry may legitimately carry, canonical slugs AND
+        aliases, because the corpus stores whatever spelling was authored and is
+        never rewritten. `memory-trace-ui` is a genuine spelling variant of
+        `memory-trace`; leaving it out would deny those entries the colour the
+        197 `memory-trace` entries get. A root maps to itself, so the map is
+        total over the vocabulary and the client's fallback for an unknown slug
+        is plain identity.
+
+        Not memoized on the cache generation, unlike the frequency and wheel
+        memos: this reads topics.yaml, which is not part of the cache's
+        freshness signal, so a memo keyed on generation would serve a stale
+        vocabulary after a purely editorial change to the file.
+        """
+        try:
+            index = load_topic_index(self.cache.cwd)
+        except Exception:  # noqa: BLE001 - a broken vocabulary must not take the whole facets payload down
+            return {}
+        roots: dict[str, str] = {}
+        for name, canonical in index.resolution().items():
+            ancestors = index.ancestors(canonical)
+            roots[name] = ancestors[-1] if ancestors else canonical
+        return roots
+
     def _derived(self) -> tuple[list[MemoryChunk], dict[str, Any], dict[str, Any]]:
         """Augmented all-entry chunks + related graph + diagram-sidecar map,
         memoized per cache generation. Filtered views (graph()) reuse the
@@ -1356,6 +1388,11 @@ class TraceService:
             # adjacent, so community hues form coherent neighbourhoods and a
             # multi-topic node's mixed colour stays in-family.
             "topic_wheel": self.topic_wheel(),
+            # slug -> root of its hierarchy, for every canonical slug and alias.
+            # Colour is assigned at the ROOT level so that the palette is bounded
+            # by the roots and does not grow (or reshuffle) as children populate;
+            # grouping and filtering stay at the child level.
+            "topic_roots": self.topic_roots(),
         }
 
     def search(

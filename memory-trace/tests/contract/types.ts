@@ -313,6 +313,10 @@ export interface components {
                 [key: string]: number;
             };
             runtime: components["schemas"]["FacetsRuntimeInfo"];
+            /** Topic Roots */
+            topic_roots: {
+                [key: string]: string;
+            };
             /** Topic Wheel */
             topic_wheel: string[];
             /** Topics */

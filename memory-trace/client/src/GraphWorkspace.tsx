@@ -6,7 +6,7 @@ import { type RendererGraphEdge, type RendererGraphNode, type RendererGraphRespo
 import { connectedIds, nodeSetSignature, seedPositions, type Point } from "./graphLayout";
 import { forceParameters, type ForceSettings } from "./graphForces";
 import { outrankedEdgeIds } from "./graphEdges";
-import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, hasAuthoredCommunity, inferredCommunityColours } from "./graphCommunities";
+import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, hasAuthoredCommunity, inferredCommunityColours, type TopicRoots } from "./graphCommunities";
 
 type GraphWorkspaceProps = {
   graph: RendererGraphResponse;
@@ -33,6 +33,10 @@ type GraphWorkspaceProps = {
   // Server-computed colour-wheel order (co-occurring topics adjacent), so hues
   // form coherent neighbourhoods and multi-topic mixtures stay in-family.
   topicWheel: readonly string[] | null;
+  // slug -> root of its topic hierarchy. Colour is assigned at the root so the
+  // palette stays bounded by roots as children populate; grouping, filtering
+  // and every label keep reading the child slug.
+  topicRoots: TopicRoots | null;
   // Which edge types are switched on in the "Edges" filter row. Obsidian-style:
   // this only toggles line visibility on the graph already in memory — it must
   // never drive which nodes are rendered or trigger a re-layout.
@@ -344,7 +348,7 @@ function labelIdsFor(graph: RendererGraphResponse, selectedId: string | null, la
 let settledSignature = "";
 const settledPositions = new Map<string, Point>();
 
-export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, visibleEdgeTypes, corpusTopics, topicWheel, dragResponse, forces, showOrphans, minConfidence }: GraphWorkspaceProps) {
+export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, visibleEdgeTypes, corpusTopics, topicWheel, topicRoots, dragResponse, forces, showOrphans, minConfidence }: GraphWorkspaceProps) {
   const container = useRef<HTMLDivElement>(null);
   const cytoscape = useRef<Core | null>(null);
   // Refs so the tap handler and selection effect never force an instance remount.
@@ -475,13 +479,13 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
     () => (showOrphans ? graph.nodes : graph.nodes.filter((node) => connected.has(node.id))),
     [graph.nodes, connected, showOrphans],
   );
-  const legend = useMemo(() => communityLegend(renderedNodes, corpusTopics, topicWheel), [renderedNodes, corpusTopics, topicWheel]);
-  const colourOf = useMemo(() => communityColourScale(corpusTopics, topicWheel), [corpusTopics, topicWheel]);
+  const legend = useMemo(() => communityLegend(renderedNodes, corpusTopics, topicWheel, topicRoots), [renderedNodes, corpusTopics, topicWheel, topicRoots]);
+  const colourOf = useMemo(() => communityColourScale(corpusTopics, topicWheel, topicRoots), [corpusTopics, topicWheel, topicRoots]);
   // Authored fill is the MIXTURE of a node's qualifying topics; falls back to
   // the pure community colour when the mixture cannot be built.
   const fillOf = useMemo(
-    () => (node: RendererGraphNode) => authoredNodeColour(node, corpusTopics, topicWheel) ?? colourOf(node),
-    [corpusTopics, topicWheel, colourOf],
+    () => (node: RendererGraphNode) => authoredNodeColour(node, corpusTopics, topicWheel, topicRoots) ?? colourOf(node),
+    [corpusTopics, topicWheel, topicRoots, colourOf],
   );
   // Topicless nodes take a pastel blend of the communities that reach them
   // (directly, or as decaying residue down a topicless chain). Pastel is a
@@ -809,6 +813,10 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
                 communities are outlined, absence is not. */}
             <span className="graph-legend-key" style={{ background: entry.colour, border: entry.topic ? `1.5px solid ${authoredBorderColour(entry.colour)}` : "none" }} aria-hidden="true" />
             {entry.label}
+            {/* Colour comes from the root, so sibling communities share a
+                swatch. Naming the parent is what stops that reading as the
+                legend having lost track of which row is which. */}
+            {entry.rootLabel && <i className="graph-legend-parent">{entry.rootLabel}</i>}
             <b>{entry.count}</b>
           </span>
         ))}
