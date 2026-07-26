@@ -569,10 +569,13 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   designed, not yet built", which the ADR contradicted a day later and its 2026-07-26 addendum closed
   for the client-side variant specifically. Node colour means *authored topic community*; Louvain
   cannot replace it and cannot be offered as a second colour mode either, because on the payload's
-  authored-only edges the floor on community count is the connected-component count — 47 at the
+  authored-only edges the floor on community count is the connected-component count — 46 at the
   default Overview slice, 110 at full corpus — so the granularity a 16-slot legend needs is
-  unreachable at any resolution, and the default slice (71 nodes, 30 edges, 37 isolated) has nothing
-  to detect. Corpus density rose 57% since the first measurement without moving the verdict.
+  unreachable at any resolution, and the default slice (71 nodes, 31 authored pairs, 35 isolated) has
+  nothing to detect. The deeper reason is that `_overview_slice` is a *chronological spine* (newest 60
+  by date + depth-1 expansion = the 71), not a connectivity ranking, so the default payload is a time
+  window whose partition would be recomputed over a different graph every "Show more". Corpus density
+  rose 56% since the first measurement without moving the verdict.
   §4.3's stable-community apparatus is **not required**. The only untested route that could reopen
   this is Leiden, which needs `leidenalg`/`igraph` — a new runtime dependency, so a maintainer call.
   What remains of B0b is therefore formal accessibility/scale acceptance, plus promoting the ADR from
