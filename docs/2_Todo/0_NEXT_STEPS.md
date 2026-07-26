@@ -563,9 +563,20 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   data — found live, root-caused (this session's own commits never carry a `Memory-Entry` trailer, and
   entries logged after merge record `branch: main`), and corrected; 8 unit tests cover both the
   merge-based and plain-commit shapes. Verified live against real multi-entry files (23 entries for
-  `App.tsx`) with real relationship edges rendered between them. Topology communities (algorithm
-  choice — Louvain recommended, client-side over the existing bounded projection; designed, not yet
-  built) remain, plus formal accessibility/scale acceptance.
+  `App.tsx`) with real relationship edges rendered between them. **Topology communities: MEASURED AND
+  REJECTED, not pending** — [`adr-graph-community-detection.md`](../3_Spec/draft/adr-graph-community-detection.md).
+  This line previously read "Louvain recommended, client-side over the existing bounded projection;
+  designed, not yet built", which the ADR contradicted a day later and its 2026-07-26 addendum closed
+  for the client-side variant specifically. Node colour means *authored topic community*; Louvain
+  cannot replace it and cannot be offered as a second colour mode either, because on the payload's
+  authored-only edges the floor on community count is the connected-component count — 47 at the
+  default Overview slice, 110 at full corpus — so the granularity a 16-slot legend needs is
+  unreachable at any resolution, and the default slice (71 nodes, 30 edges, 37 isolated) has nothing
+  to detect. Corpus density rose 57% since the first measurement without moving the verdict.
+  §4.3's stable-community apparatus is **not required**. The only untested route that could reopen
+  this is Leiden, which needs `leidenalg`/`igraph` — a new runtime dependency, so a maintainer call.
+  What remains of B0b is therefore formal accessibility/scale acceptance, plus promoting the ADR from
+  `draft` to accepted.
   Keep the SVG renderer until explicit parity sign-off.
   Only after B0b acceptance may the
   [`structural-provider proposal`](memory-trace-structural-graph-enrichment-provider-proposal.md) define a
