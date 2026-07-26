@@ -73,6 +73,10 @@ continuity:
 
 `topics` is an optional list of 1-3 controlled-vocabulary slugs from `.memory-seed/topics.yaml` marking which durable project themes this entry belongs to — deterministic neighbourhood membership, distinct from `related_entries` (relationship) and from hashtag `tags`/heading `contexts` (derived display fallbacks for old entries). **Read the topic index before writing; prefer an existing canonical slug (aliases also resolve) over inventing a new one** — invented slugs are exactly the sprawl `memory-seed topics check` exists to catch (unknown slugs are errors; more than 3 topics is a warning). A slug matches `^[a-z0-9][a-z0-9_-]{0,63}$`. When a genuinely new durable theme emerges, add it to `topics.yaml` (project-local, never overwritten by `update`) in the same turn. `memory_search` accepts a `topics` filter that resolves aliases both ways.
 
+**Two axes, one of each.** From `schema_version: 2` every slug declares `axis:` — **`area`** (WHAT you are working on) or **`activity`** (what KIND of work it was). Answer both questions: name where the work was *and* what the work was. Two slugs is the target and three the ceiling, so two activities and no area spends your budget recording that you were busy without recording what you were busy on. Neither word assumes software — a newsletter, a legal matter and a code repository all have areas and activities — and the axis is deliberately **not** called a "subsystem", which does not travel outside a codebase. The field stays `topics:` on every axis.
+
+**Prefer the most specific slug that fits.** A slug may declare a `parent:`, forming a hierarchy within its own axis (a child leaves `axis:` blank and inherits it). Store only the child: the parent is derived at read time, so it costs none of your 1-3 budget, filters on the parent still match you, and the specificity you recorded survives. This is the opposite of an `alias:`, which is a spelling variant and is discarded on resolution. Depth is earned — a slug takes children once it is carrying too much of its scope to distinguish anything, not because a tree looks tidy.
+
 `branch` is an optional single scalar naming the git branch this entry's work happened on, captured at record time: read the current branch (`git rev-parse --abbrev-ref HEAD`) when writing a solo entry; for orchestrated multi-agent work the orchestrator backfills it from the Task Packet's `working_branch` when writing the Final Handoff Gate entry. It is a durable historical label like a commit SHA — forward-only, never backfilled onto older entries, and omitted entirely when unavailable (detached HEAD, no repository, or an agent that chooses not to record it). `links check` never checks that the branch still exists: feature branches are routinely deleted after merge, so a vanished branch is expected history, not an integrity error. There is deliberately **no `worktree:` field** — a worktree is an ephemeral, machine-specific local path with no evolution semantics; when that operational detail matters it belongs in the multi-agent handoff record, not the durable entry schema.
 
 **Shared working trees: pass `--branch` yourself.** Auto-capture reads the HEAD of the working tree that owns the memory dir, and a session's own branch is never passed to the CLI — so when two or more sessions share **one** working tree their HEAD is genuinely identical and nothing can tell them apart. Auto-capture then records whichever branch happens to be checked out at write time, which may be the other session's. The answer is policy, not code: pass **`--branch <name>`** whenever several sessions may share a working tree, or **`--no-branch`** to omit the field rather than stamp a value you cannot vouch for — `branch:` is append-only history, so a wrong label is worse than none. An agent in its own worktree needs neither flag: a worktree that checks out its own `.memory-seed` resolves to its own HEAD, and auto-capture is correct there. When the memory dir belongs to a *different* working tree than the caller — `.memory-seed` untracked so the walk-up lands on the primary checkout, or a submodule caller under a superproject's memory dir — the tool omits `branch:` on its own, because neither HEAD is the truth in that layout. **Standing convention:** a multi-agent harness passes `--branch` unconditionally rather than relying on auto-capture; see "Branch And Worktree Defaults" in `agent_collaboration.md`.
@@ -180,7 +184,7 @@ so the window to write on-branch is short — append before the handoff, not aft
 The multi-decision shape (`D1`, `D2`, ...) is for decisions taken in **one deliberation** — you weighed
 them together and settled them together. If substantive work happened *between* two decisions — you
 implemented, reviewed, tested, or discovered something — they are **separate milestones and get separate
-entries**, even on one branch, in one subsystem, in one turn.
+entries**, even on one branch, in one area, in one turn.
 
 The test: **could you have written the first entry before you knew the second decision?** If yes, you
 should have. Batching them afterwards silently reframes a discovery as something you knew all along,
@@ -216,7 +220,7 @@ Before choosing the entry shape, harvest the durable decisions made this turn.
 4. If two or more durable choices belong to one coherent task **and were settled in the same
    deliberation**, use the multi-decision shape with `D1`, `D2`, and so on. Do not bury accepted
    decisions as rationale, implementation detail, or alternatives under one broad `D:`.
-5. Write separate entries when durable choices affect unrelated subsystems, **or when work happened
+5. Write separate entries when durable choices affect unrelated areas, **or when work happened
    between them** — see "When To Append". One coherent task is not, by itself, one entry: a task that
    spans implement → review → fix spans milestones, and each is its own entry.
 6. If a single-decision entry is still used after considering multiple candidate decisions, make the
@@ -279,7 +283,7 @@ Use for routine edits, small fixes, or verification-only work with no real decis
 
 ### Multi-decision session entry
 
-Use one entry when several decisions belong to one coherent task, plan, or user goal. Split entries when decisions affect unrelated subsystems, sub-projects, or goals.
+Use one entry when several decisions belong to one coherent task, plan, or user goal. Split entries when decisions affect unrelated areas, sub-projects, or goals.
 
 ```markdown
 ### Summary

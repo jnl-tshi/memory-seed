@@ -109,7 +109,9 @@ for chunk in extract_memory_chunks("."):
 ```
 
 Each task carries the entry title, the decision's `ordinal`, `name`, and `text`, and the vocabulary
-from `.memory-seed/topics.yaml` (canonical slug + label + description; aliases for recognition only).
+from `.memory-seed/topics.yaml` — canonical slug + label + description + **`axis:` and `parent:`**, so
+the worker can see which axis a slug answers and which slugs are narrower than which. Aliases go in for
+recognition only.
 `memory-seed topics suggest --from <file>` is a network-free lexical prior and may seed a shortlist,
 but it is file-level and is not the judgment.
 
@@ -121,12 +123,31 @@ Each agent returns, per judgment unit:
 The conventions below are corpus-measured, not imposed; they are recorded live in
 `docs/2_Todo/decision-level-topics-proposal.md` and this prompt teaches them verbatim.
 
-1. **Two axes, one of each, ~2 slugs per decision.** Name **where** the work is (area / subsystem:
-   `memory-trace`, `memory-seed`, `graph`, `retrieval`, `session-fuse`, `session-layout`,
-   `session-logging`, `mcp-tools`, `hooks`, `mermaid`, `control-plane`, `process-management`) and
-   **what was done** (activity / kind of work: `ui-design`, `bugfix`, `documentation`,
-   `proposal-lifecycle`, `release`, `git-workflow`, `agent-collaboration`, `tooling-evaluation`).
-   Authored entries average 2.26 canonical slugs; two is the target, not a floor to pad toward.
+1. **Two axes, one of each, ~2 slugs per decision.** Name **where** the work is (`axis: area` — WHAT
+   you are working on) and **what was done** (`axis: activity` — what KIND of work it is). This is no
+   longer convention taught in prose: `topics.yaml` declares `axis:` on every root and
+   `TopicIndex.axis_of()` answers it for any slug, children included, since a child inherits its
+   parent's axis and never crosses it. The axis is deliberately **not** called a "subsystem" — the
+   vocabulary ships to projects that are not software, where an area translates and a subsystem does
+   not.
+
+   **`topics.yaml` is the authority; read it rather than the list below.** This snapshot of the repo's
+   own roots (children in parentheses) is a shape illustration measured 2026-07-26, and is exactly the
+   thing that goes stale:
+
+   - **area** — `graph` (`related-entries`, `supersession`, `continuity`, `schema`), `memory-trace`,
+     `memory-seed`, `session-logging` (`decision-harvest`, `backfill`), `session-layout` (`migration`,
+     `multi-user-sessions`), `session-fuse`, `mcp-tools` (`cli`), `control-plane` (`agent-rules`,
+     `skill-architecture`, `governance-profile`, `lazy-loading`), `process-management`
+     (`upgrade-workflow`), `retrieval`, `hooks`, `mermaid`, `windows-encoding`
+   - **activity** — `documentation` (`readme`, `functionality-audit`, `document-ingestion`), `bugfix`
+     (`process-correction`, `memory-repair`, `cleanup`), `git-workflow` (`merge`, `branch-history`,
+     `git-publishing`), `release` (`release-packaging`, `release-preflight`, `changelog`),
+     `proposal-lifecycle` (`proposal`, `roadmap`, `goal`), `tooling-evaluation` (`licensing`,
+     `design-evaluation`), `ui-design`, `agent-collaboration`, `security`, `performance`
+
+   A child is the better answer whenever it fits — see rule 4. Authored entries average 2.26 canonical
+   slugs; two is the target, not a floor to pad toward.
 2. **Cross-cutting concerns are rare add-ons, not a third axis.** `windows-encoding`, `performance`,
    and `security` are quality attributes spanning any (area, activity) pair; they total ~11 uses in
    the whole corpus. Reach for one **only when the quality concern is genuinely the theme** (a
@@ -137,9 +158,15 @@ The conventions below are corpus-measured, not imposed; they are recorded live i
    union is deliberately uncapped, because a six-decision entry legitimately spans more ground than a
    one-decision one. Three is the ceiling, ~2 is the expected output. A label that fits everything
    distinguishes nothing.
-4. **Canonical slugs only.** Aliases resolve at read time but a sidecar carrying one is a
-   `non-canonical-topic-slug` error. Emit `graph`, never `related-entries`; `session-logging`, never
-   `append-only`. 45 topiced entries use an alias in their authored list — the swarm must not copy that.
+4. **Canonical slugs only — and the most specific canonical slug that fits.** Aliases resolve at read
+   time but a sidecar carrying one is a `non-canonical-topic-slug` error. **A child slug is canonical
+   in its own right and is the better answer, not a violation:** prefer `related-entries` over `graph`
+   and `merge` over `git-workflow` wherever the narrower slug is true. Specificity is free — the parent
+   is derived from the child at read time (`TopicIndex.ancestors()`), so a child costs no extra budget
+   and a filter on the parent still matches it. What must never be emitted is a **spelling variant**:
+   `performance`, never `perf`; `memory-trace`, never `memory-trace-ui`. Only 11 topiced entries still
+   author an alias (12 distinct, measured 2026-07-26 — down from 45 because 31 of the old aliases were
+   the second kind and became child slugs) — the swarm must not copy even those.
 5. **Bare slugs are permanently legal, not a migration stage.** A zero-decision entry (34 of them —
    a note, an observation, a milestone) can never carry a decision-keyed topic and takes a bare slug.
    Bare slugs keep the per-*entry* ceiling of 4 (`MAX_INFERRED_TOPICS`), not 3.
@@ -168,8 +195,11 @@ provenance.
   match). This is the primary hallucination guard — a slug whose quote is not found is discarded.
 - **Duplicate slug:** the same slug twice in one block is a `malformed-topic-sidecar`; dedupe within a
   block is legal, across decisions of one entry is expected (the roll-up dedupes at read time).
-- **Axis sanity:** spot-check that a block is not two activity slugs with no area, or three
-  cross-cutting slugs — the two shapes the swarm most often over-calls.
+- **Axis sanity:** now mechanical rather than a spot-check — `TopicIndex.axis_of()` resolves every
+  emitted slug (children inherit), so the orchestrator can count areas and activities per block
+  directly. Flag a block that is two activity slugs with no area, or three cross-cutting slugs — the
+  two shapes the swarm most often over-calls, and the first of which the pilot measured on 10 of 45
+  units before the axes were an output contract.
 
 Surviving attributions are candidates; everything dropped is logged so the human sees what was filtered
 and why.
@@ -191,10 +221,13 @@ returns. Leaking the metadata block invalidates the whole pilot.
 
 **Leg A — roll-up recall (machine-scored).** The human never recorded per-decision attribution, so
 agreement with what they wrote can only score the **rolled-up union**. Canonicalize *both* sides through
-`topics.yaml` before comparing (45 topiced entries use aliases; unresolved, `related-entries` scores as
-a miss against `graph`). Report macro-averaged recall of the authored set, and precision as a
-diagnostic only — an entry's authored list is a floor, not a ceiling, so a legitimate addition would
-score as a precision error.
+`topics.yaml` before comparing — a residual 11 entries still author an alias, and unresolved, `perf`
+scores as a miss against `performance`. **A re-run must also expand ancestors**, which the 2026-07-26
+runs did not have to: now that 31 aliases are child slugs, a worker emitting `related-entries` against
+an author's `graph` is *more* specific and correct, but scores as a flat miss unless
+`TopicIndex.ancestors()` is folded in before comparing. Report macro-averaged recall of the authored
+set, and precision as a diagnostic only — an entry's authored list is a floor, not a ceiling, so a
+legitimate addition would score as a precision error.
 
 Anchored against baselines computed on the same corpus, same canonicalization, same macro-average:
 
@@ -236,7 +269,7 @@ precision rose 0.066. Recall rose 0.030, which at n=20 (SE ≈ ±0.065) is noise
 
 So the residual misses are **not shape errors, and not fixable by prompting**:
 
-- **The `area` axis is genuinely ambiguous, because `graph` is both a subsystem and a subject.** Three
+- **The `area` axis is genuinely ambiguous, because `graph` is both an area and a subject.** Three
   run-2 entries (`mse_aa4tha73d513ptnt`, `mse_d9zzc4jeadak3g8r`, `mse_rqkgatgt5eh55yb8`) are authored
   `graph` + `memory-trace` + `ui-design`; workers called every decision `memory-trace` + `ui-design` and
   lost `graph`, capping each at 0.67. Both readings are defensible — the author used `graph` for the
@@ -257,6 +290,14 @@ Leg B was never adjudicated — Leg A is the first gate and it did not clear, so
 human adjudication was not spent. **If this is ever revived, the premise must change first** (sharpen
 the area axis in `topics.yaml`, or score Leg B–style attribution directly instead of roll-up recall),
 and the pilot must be re-run from scratch under the new premise with a fresh pass line.
+
+> **Note added 2026-07-26, after these runs: part of that premise has since moved.** The vocabulary
+> now declares `axis:` and `parent:` at `schema_version: 2`, 23 roots carry an explicit axis, and 31
+> aliases became child slugs — so the "sharpen the area axis" precondition is partly discharged, and
+> the worker brief can hand the swarm a structured axis instead of a prose convention. This does
+> **not** un-abort the campaign: nothing above was re-measured, `graph`-as-area-versus-subject is
+> untouched by the change, and the numbers in this section stand exactly as recorded. Read it as
+> "the door is no longer bolted", not "the gate passed".
 
 **Leg B — attribution, benchmarked against inheritance (human-adjudicated).** Leg A alone would pass a
 swarm that gets every slug right and every attribution wrong, which is exactly the thing decision-level
