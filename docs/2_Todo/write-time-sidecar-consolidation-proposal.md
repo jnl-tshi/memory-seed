@@ -73,6 +73,30 @@ the session was *for*. The honest distinction is **first-hand vs reconstructed**
 the entry has just done the work; a sweep reading finished prose is reconstructing. That difference is
 real and worth preserving, but it is not human-vs-machine and the contract should stop implying it is.
 
+### Precedence: `source` outranks recency
+
+*Added 2026-07-26 — a hole found while aligning the ADR contract, and closed rather than left open.*
+
+Sidecar precedence today is **most-recent-wins**. Once write-time values live in the sidecar, that
+sort would order first-hand and reconstructed blocks against each other, and a `derived` block
+appended later would supersede a `write-time` one **on recency alone**. That directly contradicts
+Constitution v1.6, which holds the two are *not equal evidence*.
+
+**Rule: a `derived` block may never supersede a `write-time` block for the same subject. It may only
+fill a gap where no write-time value exists.** Precedence is therefore `(source rank, then recency)`,
+not recency alone. Within a source class, most-recent-wins is unchanged.
+
+This is not a new decision so much as the written form of one already made: JNL's instruction was that
+the sweep exists "for items which did not receive them at write time". A sweep that could overwrite a
+first-hand value would be a source, not a sweep — the role the measurements say it should not hold.
+
+Consequence for the sweep: its candidate set is **subjects with no write-time value**, which is also
+what makes it cheap. It does not re-judge what the write-time agent already answered.
+
+*If this over-reads the intent — if a reconstructed value should be able to win on recency after human
+approval, say — it is the one rule here worth correcting before step 1 is built, because the read path
+is written against it.*
+
 ### The swarm becomes a sweep, not a source
 
 Once write-time values land in the sidecar, a swarm's job is to find **lagging fields** — the relation
