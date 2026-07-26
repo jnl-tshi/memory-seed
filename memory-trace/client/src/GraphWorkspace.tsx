@@ -6,7 +6,7 @@ import { type RendererGraphEdge, type RendererGraphNode, type RendererGraphRespo
 import { connectedIds, nodeSetSignature, seedPositions, type Point } from "./graphLayout";
 import { forceParameters, type ForceSettings } from "./graphForces";
 import { outrankedEdgeIds } from "./graphEdges";
-import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, hasAuthoredCommunity, inferredCommunityColours } from "./graphCommunities";
+import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, inferredCommunityColours, wearsAuthoredRim, type TopicRoots } from "./graphCommunities";
 
 type GraphWorkspaceProps = {
   graph: RendererGraphResponse;
@@ -33,6 +33,10 @@ type GraphWorkspaceProps = {
   // Server-computed colour-wheel order (co-occurring topics adjacent), so hues
   // form coherent neighbourhoods and multi-topic mixtures stay in-family.
   topicWheel: readonly string[] | null;
+  // slug -> root of its topic hierarchy. Colour is assigned at the root so the
+  // palette stays bounded by roots as children populate; grouping, filtering
+  // and every label keep reading the child slug.
+  topicRoots: TopicRoots | null;
   // Which edge types are switched on in the "Edges" filter row. Obsidian-style:
   // this only toggles line visibility on the graph already in memory — it must
   // never drive which nodes are rendered or trigger a re-layout.
@@ -344,7 +348,7 @@ function labelIdsFor(graph: RendererGraphResponse, selectedId: string | null, la
 let settledSignature = "";
 const settledPositions = new Map<string, Point>();
 
-export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, visibleEdgeTypes, corpusTopics, topicWheel, dragResponse, forces, showOrphans, minConfidence }: GraphWorkspaceProps) {
+export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, visibleEdgeTypes, corpusTopics, topicWheel, topicRoots, dragResponse, forces, showOrphans, minConfidence }: GraphWorkspaceProps) {
   const container = useRef<HTMLDivElement>(null);
   const cytoscape = useRef<Core | null>(null);
   // Refs so the tap handler and selection effect never force an instance remount.
@@ -475,13 +479,17 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
     () => (showOrphans ? graph.nodes : graph.nodes.filter((node) => connected.has(node.id))),
     [graph.nodes, connected, showOrphans],
   );
-  const legend = useMemo(() => communityLegend(renderedNodes, corpusTopics, topicWheel), [renderedNodes, corpusTopics, topicWheel]);
-  const colourOf = useMemo(() => communityColourScale(corpusTopics, topicWheel), [corpusTopics, topicWheel]);
+  const legend = useMemo(() => communityLegend(renderedNodes, corpusTopics, topicWheel, topicRoots), [renderedNodes, corpusTopics, topicWheel, topicRoots]);
+  const colourOf = useMemo(() => communityColourScale(corpusTopics, topicWheel, topicRoots), [corpusTopics, topicWheel, topicRoots]);
   // Authored fill is the MIXTURE of a node's qualifying topics; falls back to
   // the pure community colour when the mixture cannot be built.
-  const fillOf = useMemo(
-    () => (node: RendererGraphNode) => authoredNodeColour(node, corpusTopics, topicWheel) ?? colourOf(node),
-    [corpusTopics, topicWheel, colourOf],
+  // The authored mixture, or null when the node authored nothing that clears
+  // the floor. Kept as null rather than pre-resolved to a fallback because the
+  // caller needs to know WHETHER a node authored a colour - that is what
+  // decides the rim, and what stops an inferred pastel overriding a real one.
+  const authoredOf = useMemo(
+    () => (node: RendererGraphNode) => authoredNodeColour(node, corpusTopics, topicWheel, topicRoots),
+    [corpusTopics, topicWheel, topicRoots],
   );
   // Topicless nodes take a pastel blend of the communities that reach them
   // (directly, or as decaying residue down a topicless chain). Pastel is a
@@ -538,7 +546,24 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
         container: container.current,
         elements: [
           ...renderedNodes.map((node) => {
-            const colour = inferredColours.get(node.id) ?? (hasAuthoredCommunity(node) ? fillOf(node) : colourOf(node));
+            // AUTHORED COLOUR WINS, and the test is whether the node has one -
+            // not whether its COMMUNITY qualifies. The two came apart when
+            // colour started climbing to the root: an entry tagged only with
+            // child slugs (four children of `control-plane`, say) is named
+            // `unassigned` by the server, because grouping still applies the
+            // floor per slug, yet it plainly authored a topic and now has a
+            // root colour to show for it. Gating on the community handed those
+            // entries a borrowed pastel instead - the entry said what it was
+            // about and the graph answered with a guess from its neighbours.
+            //
+            // Known edge, deliberately left: such a node still RELAYS residue
+            // as a topicless waypoint, because the inference walk decides
+            // membership from the community too. That only affects who receives
+            // a faded tint, never what colour this node shows, and rewriting
+            // the walk's seeding rules is not worth it for the handful of
+            // entries involved.
+            const authored = authoredOf(node);
+            const colour = authored ?? inferredColours.get(node.id) ?? colourOf(node);
             return {
               data: {
                 id: node.id,
@@ -550,7 +575,11 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
                 // Authored membership wears a rim of its own colour, darkened;
                 // inferred and unassigned nodes keep the invisible cutout
                 // border, so the rim alone says "this entry declared a topic".
-                borderColour: hasAuthoredCommunity(node) ? authoredBorderColour(colour) : nodeBorder,
+                // Either an authored mixture or an authored community earns it -
+                // see wearsAuthoredRim. A full-strength authored colour with no
+                // rim would be indistinguishable from a saturated inferred tint,
+                // which is the confusion the rim exists to prevent.
+                borderColour: wearsAuthoredRim(node, authored) ? authoredBorderColour(colour) : nodeBorder,
                 // Square-root scaling, not linear: degree is heavy-tailed, so a
                 // linear ramp spends its whole range on the few hubs and leaves
                 // everything else indistinguishable. sqrt keeps the low end
@@ -809,6 +838,10 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
                 communities are outlined, absence is not. */}
             <span className="graph-legend-key" style={{ background: entry.colour, border: entry.topic ? `1.5px solid ${authoredBorderColour(entry.colour)}` : "none" }} aria-hidden="true" />
             {entry.label}
+            {/* Colour comes from the root, so sibling communities share a
+                swatch. Naming the parent is what stops that reading as the
+                legend having lost track of which row is which. */}
+            {entry.rootLabel && <i className="graph-legend-parent">{entry.rootLabel}</i>}
             <b>{entry.count}</b>
           </span>
         ))}

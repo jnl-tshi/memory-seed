@@ -186,6 +186,13 @@ button:not(:disabled):active { transform: translateY(0); transition-duration: 40
 /* The unassigned group is a real part of the picture (roughly a third of
    nodes), but it is an absence rather than a community, so it reads quieter. */
 .graph-legend-item-none { font-style: italic; opacity: 0.85; }
+/* The parent a child community borrowed its colour from. Set back and in
+   brackets because it is a qualifier on the label, not a second label - the row
+   is still named after the child, which is what the graph groups and filters
+   by. It only appears when the two differ. */
+.graph-legend-parent { font-style: normal; opacity: 0.6; font-size: 10px; }
+.graph-legend-parent::before { content: "("; }
+.graph-legend-parent::after { content: ")"; }
 /* Below this width the legend would cover the graph it explains. */
 @media (max-width: 900px) { .graph-legend { display: none; } }
 

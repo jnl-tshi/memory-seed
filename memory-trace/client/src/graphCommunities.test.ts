@@ -9,10 +9,12 @@ import {
   COMMUNITY_COLOURS,
   communityColourScale,
   communityLegend,
+  hasAuthoredCommunity,
   inferredCommunityColours,
   MINIMUM_COLOUR_SEPARATION,
   topicColourScale,
   UNASSIGNED_COLOUR,
+  wearsAuthoredRim,
 } from "./graphCommunities.ts";
 
 // The fifteen communities the real corpus produces, with their measured counts.
@@ -293,4 +295,152 @@ test("ties break by label so the order is stable across renders", () => {
   const first = communityLegend([node("a", "graph"), node("b", "ui-design")]);
   const second = communityLegend([node("b", "ui-design"), node("a", "graph")]);
   assert.deepEqual(first.map((entry) => entry.topic), second.map((entry) => entry.topic));
+});
+
+// --- Colour reads the ROOT, grouping reads the child ---
+//
+// Measured on the real corpus when this landed: 54 canonical slugs, 23 of them
+// roots, but only 17 slugs clear the community floor and all 17 are ALREADY
+// roots - so the palette is 17 slots before and after. This is not a count
+// reduction. What these tests pin is the property that survives corpus growth:
+// the slot table is ordered, so a child crossing the floor must not be able to
+// insert into it and repaint communities that did not change.
+
+// `merge` and `branch-history` are children of `git-workflow`; `trail` is a
+// child of `memory-trace`; `memory-trace-ui` is a genuine spelling alias.
+const ROOTS: Record<string, string> = {
+  "git-workflow": "git-workflow", merge: "git-workflow", "branch-history": "git-workflow",
+  "memory-trace": "memory-trace", trail: "memory-trace", "memory-trace-ui": "memory-trace",
+  graph: "graph", "ui-design": "ui-design", documentation: "documentation",
+};
+
+test("a child takes its root's colour", () => {
+  const bySlug = topicColourScale(CORPUS_TOPICS, null, ROOTS);
+  assert.equal(bySlug("merge"), bySlug("git-workflow"));
+  assert.equal(bySlug("trail"), bySlug("memory-trace"));
+});
+
+test("an alias takes the same colour as the slug it is a variant of", () => {
+  // The corpus stores whatever spelling was authored and is never rewritten, so
+  // an alias that never reaches the map is an entry that never gets a colour.
+  const bySlug = topicColourScale(CORPUS_TOPICS, null, ROOTS);
+  assert.equal(bySlug("memory-trace-ui"), bySlug("memory-trace"));
+});
+
+test("counts roll up to the root BEFORE the floor is applied", () => {
+  // The whole point of a child being a refinement rather than an exile. `merge`
+  // has 5 entries against a floor of 10 and would be colourless on its own; its
+  // root `git-workflow` is one of the largest communities on the graph.
+  const withChild = { ...CORPUS_TOPICS, merge: 5, "branch-history": 3 };
+  const bySlug = topicColourScale(withChild, null, ROOTS);
+  assert.notEqual(bySlug("merge"), null, "a rare child must not go colourless under a large parent");
+  assert.equal(bySlug("merge"), bySlug("branch-history"), "siblings share the parent's colour");
+});
+
+test("a child crossing the floor does not shift any other community's colour", () => {
+  // The regression this change exists for. Slots are positions in an ORDERED
+  // list, so without root-keying a newly qualifying child inserts into it and
+  // repaints every community after it - during exactly the topic sweep whose
+  // purpose is to move entries onto children.
+  const before = topicColourScale(CORPUS_TOPICS, null, ROOTS);
+  const after = topicColourScale({ ...CORPUS_TOPICS, merge: 40 }, null, ROOTS);
+  for (const slug of Object.keys(CORPUS_TOPICS)) {
+    assert.equal(after(slug), before(slug), `${slug} was repainted by an unrelated child`);
+  }
+});
+
+test("without a roots map every slug is its own root", () => {
+  // The pre-hierarchy behaviour has to survive untouched: a vocabulary with no
+  // parents declared, and a client whose facets have not loaded, both land here.
+  const flat = topicColourScale(CORPUS_TOPICS, WHEEL);
+  const identity = topicColourScale(CORPUS_TOPICS, WHEEL, {});
+  for (const slug of Object.keys(CORPUS_TOPICS)) assert.equal(identity(slug), flat(slug));
+});
+
+test("a root that qualifies only by roll-up still gets a colour", () => {
+  // The wheel seriates SLUGS. Keying slots by root while letting a slug-ordered
+  // wheel drive them would leave a root with no wheel position colourless -
+  // planting the exact bug this change exists to prevent, one sweep later, when
+  // a parent's own count falls below the floor as its children absorb entries.
+  const swept = { ...CORPUS_TOPICS, "git-workflow": 2, merge: 30, "branch-history": 25 };
+  const bySlug = topicColourScale(swept, WHEEL, ROOTS);
+  assert.notEqual(bySlug("merge"), null, "root qualifying only via roll-up must not be skipped");
+  assert.equal(bySlug("merge"), bySlug("git-workflow"));
+});
+
+test("the legend and the nodes still agree once colour climbs to the root", () => {
+  // The warning in the module header, re-checked at the new level: one function,
+  // both consumers. A second derivation is how a legend starts quietly lying.
+  const nodes = [node("a", "merge"), node("b", "git-workflow"), node("c", "graph"), node("d", null)];
+  const colourOf = communityColourScale(CORPUS_TOPICS, WHEEL, ROOTS);
+  for (const entry of communityLegend(nodes, CORPUS_TOPICS, WHEEL, ROOTS)) {
+    const member = nodes.find((candidate) => (candidate as never as { community: { id: string } }).community.id === entry.id);
+    assert.equal(entry.colour, colourOf(member!));
+  }
+});
+
+test("the legend names the parent when a row borrowed its colour", () => {
+  // Sibling rows share a swatch by design now. Saying whose colour it is turns
+  // a repeated swatch into information rather than an apparent mix-up.
+  const legend = communityLegend([node("a", "merge"), node("b", "git-workflow")], CORPUS_TOPICS, WHEEL, ROOTS);
+  const child = legend.find((entry) => entry.topic === "merge")!;
+  const parent = legend.find((entry) => entry.topic === "git-workflow")!;
+  assert.equal(child.rootLabel, "Git Workflow");
+  assert.equal(parent.rootLabel, null, "a root is not its own parent");
+  assert.equal(child.colour, parent.colour, "the shared swatch is the point");
+});
+
+test("a node whose only topics are child slugs still authors a colour", () => {
+  // The regression that bit this change in live verification. The renderer used
+  // to reach the authored mixture only when the node's COMMUNITY qualified, and
+  // grouping still applies the floor PER SLUG - so an entry tagged with nothing
+  // but children is named `unassigned` by the server even though it plainly
+  // authored topics. Gating the fill on the community handed those entries a
+  // borrowed pastel from their neighbours instead of the root colour they had
+  // earned. Measured live on mse_nyk16t2d8xexetgv, whose four topics are all
+  // children of `control-plane`.
+  const childOnly = {
+    ...node("a", null), // community: derived:unassigned
+    source: { topics: ["merge", "branch-history"] },
+  } as never;
+  const authored = authoredNodeColour(childOnly, CORPUS_TOPICS, WHEEL, ROOTS);
+  assert.notEqual(authored, null, "child-only topics must still produce an authored colour");
+  assert.notEqual(authored, UNASSIGNED_COLOUR);
+  // Both children roll to one root, so the mixture is exactly that root's colour.
+  assert.equal(authored, topicColourScale(CORPUS_TOPICS, WHEEL, ROOTS)("git-workflow"));
+});
+
+test("an authored node keeps its rim in the window before facets arrive", () => {
+  // With no corpus counts the slot map is empty, so authoredNodeColour returns
+  // null for EVERY node. Keying the rim on that alone would leave every
+  // authored node rimless until the facets request lands - and rimless is the
+  // graph's word for "this colour was borrowed", so the whole graph would
+  // briefly disown its own topics.
+  const authoredCommunity = { ...node("a", "graph"), source: { topics: ["graph"] } } as never;
+  assert.equal(authoredNodeColour(authoredCommunity, null), null, "no facets means no mixture");
+  assert.ok(wearsAuthoredRim(authoredCommunity, null), "an authored community earns the rim on its own");
+});
+
+test("a child-only node earns the rim its community cannot give it", () => {
+  const childOnly = { ...node("a", null), source: { topics: ["merge"] } } as never;
+  assert.equal(hasAuthoredCommunity(childOnly), false, "the server groups it as unassigned");
+  const authored = authoredNodeColour(childOnly, CORPUS_TOPICS, WHEEL, ROOTS);
+  assert.ok(wearsAuthoredRim(childOnly, authored), "but it authored a topic, so it is not inferred");
+});
+
+test("a genuinely topicless node stays rimless", () => {
+  // The invariant both branches exist to protect: an inferred colour, however
+  // saturated, must never wear the mark of an authored one.
+  const bare = { ...node("a", null), source: { topics: [] } } as never;
+  assert.equal(wearsAuthoredRim(bare, authoredNodeColour(bare, CORPUS_TOPICS, WHEEL, ROOTS)), false);
+});
+
+test("the legend still groups and reports by the CHILD slug", () => {
+  // Colour climbs; nothing else does. The row is named, counted and identified
+  // by the child, which is what the graph filters and reports by.
+  const legend = communityLegend([node("a", "merge"), node("b", "merge"), node("c", "git-workflow")], CORPUS_TOPICS, WHEEL, ROOTS);
+  assert.deepEqual(
+    legend.map((entry) => [entry.topic, entry.count]),
+    [["merge", 2], ["git-workflow", 1]],
+  );
 });

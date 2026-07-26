@@ -56,15 +56,53 @@ const TOPIC_PREFIX = "topic:";
 export const COMMUNITY_TOPIC_FLOOR = 10;
 
 /**
- * Topic -> palette slot.
+ * slug -> root of its hierarchy, as the server's `topic_roots` facet supplies
+ * it. Every canonical slug and alias is a key and a root maps to itself, so an
+ * absent map (or an absent key) degrades to identity: without a hierarchy every
+ * slug IS its own root, which is exactly the pre-hierarchy behaviour.
+ */
+export type TopicRoots = Readonly<Record<string, string>>;
+
+export function rootOf(slug: string, roots: TopicRoots | null): string {
+  return roots?.[slug] ?? slug;
+}
+
+/**
+ * Root -> palette slot.
  *
- * When the server's `topic_wheel` is available, slots follow it: the wheel is
- * a circular seriation of topic CO-OCCURRENCE, and the base palette is a hue
- * circle, so wheel-adjacent topics land on adjacent hues. That is what makes
- * communities read as colour NEIGHBOURHOODS (memory-trace sits beside
+ * COLOUR IS ASSIGNED AT THE ROOT LEVEL; grouping and filtering keep reading the
+ * child. The reason is not a smaller legend today - measured on this corpus the
+ * palette is 17 slots either way, because the frequency floor already excludes
+ * every child (each carries 1-6 entries against a floor of 10). It is that the
+ * slot table is an ORDERED list, so a child crossing the floor inserts into it
+ * and shifts every slot after it, repainting communities that did not change.
+ * Keying by root makes child growth colour-neutral and pins the palette at the
+ * root count, which is what keeps the graph stable through a topic sweep that
+ * exists precisely to move entries onto children.
+ *
+ * Counts are ROLLED UP before the floor is applied, not merely looked up
+ * through the map. A node whose only topic is a rare child (`merge`, 5 entries)
+ * would otherwise still get no colour, when its root `git-workflow` is one of
+ * the largest communities on the graph - the specificity the author recorded
+ * would cost them their place on the map. Rolling up first is what makes the
+ * child a refinement of the parent rather than an exile from it.
+ *
+ * When the server's `topic_wheel` is available, slot ORDER follows it: the
+ * wheel is a circular seriation of topic CO-OCCURRENCE, and the base palette is
+ * a hue circle, so wheel-adjacent topics land on adjacent hues. That is what
+ * makes communities read as colour NEIGHBOURHOODS (memory-trace sits beside
  * ui-design, which co-occurs with it on 82 entries, instead of a third of the
  * wheel away by spelling) - and what lets a multi-topic node's mixed colour
  * stay in-family rather than cancelling toward mud.
+ *
+ * The wheel seriates SLUGS, so it is mapped to roots and de-duplicated rather
+ * than read directly. Any root that qualifies only via roll-up has no wheel
+ * position at all and is appended alphabetically. Today that tail is empty (all
+ * 17 qualifying roots clear the floor on their own counts); it stops being
+ * empty the moment a sweep moves entries off a parent onto its children, which
+ * is the case this whole change exists to survive. Slots and wheel therefore
+ * agree on their unit - both roots - instead of a root-keyed table being driven
+ * by a slug-ordered list, which would silently leave such a root colourless.
  *
  * Without the wheel (facets not yet loaded), alphabetical order keeps the old
  * behaviour as a stable fallback.
@@ -72,30 +110,61 @@ export const COMMUNITY_TOPIC_FLOOR = 10;
 function colourSlots(
   corpusTopics: Readonly<Record<string, number>> | null,
   wheel: readonly string[] | null,
+  roots: TopicRoots | null = null,
 ): Map<string, number> {
-  const qualifying = wheel?.length
-    ? wheel.filter((topic) => (corpusTopics?.[topic] ?? COMMUNITY_TOPIC_FLOOR) >= COMMUNITY_TOPIC_FLOOR)
-    : Object.entries(corpusTopics ?? {})
-        .filter(([, count]) => count >= COMMUNITY_TOPIC_FLOOR)
-        .map(([topic]) => topic)
-        .sort();
-  return new Map(qualifying.map((topic, index) => [topic, index]));
+  // Roll corpus counts up to the root before the floor is applied, so a root
+  // qualifies on the strength of its whole subtree.
+  const rolled = new Map<string, number>();
+  for (const [slug, count] of Object.entries(corpusTopics ?? {})) {
+    const root = rootOf(slug, roots);
+    rolled.set(root, (rolled.get(root) ?? 0) + count);
+  }
+  // Absent facets: every slug is assumed to qualify, matching the old fallback.
+  const qualifies = (root: string) =>
+    corpusTopics === null ? true : (rolled.get(root) ?? 0) >= COMMUNITY_TOPIC_FLOOR;
+
+  const ordered: string[] = [];
+  const seen = new Set<string>();
+  const push = (root: string) => {
+    if (seen.has(root) || !qualifies(root)) return;
+    seen.add(root);
+    ordered.push(root);
+  };
+  if (wheel?.length) for (const topic of wheel) push(rootOf(topic, roots));
+  // Alphabetical tail: qualifying roots the wheel never mentions. This is the
+  // whole fallback when there is no wheel, and the completeness guarantee when
+  // there is one.
+  for (const root of [...rolled.keys()].sort()) push(root);
+  return new Map(ordered.map((root, index) => [root, index]));
 }
 
-/** Colour by topic SLUG - the per-topic view the node mixture is built from. */
+/**
+ * Colour by topic SLUG - the per-topic view the node mixture is built from.
+ *
+ * The slug is resolved to its root before the lookup, so `trail` and
+ * `memory-trace` return the same colour while the caller keeps holding the
+ * child slug for everything else it does with it.
+ */
 export function topicColourScale(
   corpusTopics: Readonly<Record<string, number>> | null,
   wheel: readonly string[] | null = null,
+  roots: TopicRoots | null = null,
 ): (slug: string) => string | null {
-  const slots = colourSlots(corpusTopics, wheel);
+  const slots = colourSlots(corpusTopics, wheel, roots);
   return (slug) => {
-    const slot = slots.get(slug);
+    const slot = slots.get(rootOf(slug, roots));
     return slot === undefined ? null : colourForSlot(slot);
   };
 }
 
 /**
  * A node's authored colour is the MIXTURE of its qualifying topics.
+ *
+ * Roots are deliberately NOT de-duplicated before blending, so a node tagged
+ * `branch-history`, `git-workflow` and `agent-collaboration` weights
+ * git-workflow 2:1 where the flat vocabulary weighted it 1:1. That is the
+ * entry's own emphasis showing through - it really did say two git-workflow
+ * things and one collaboration thing - rather than an artefact to correct.
  *
  * An entry tagged both `graph` and `memory-trace` is about both, and painting
  * it purely as its community-naming topic hid that. The blend is a uniform
@@ -108,8 +177,9 @@ export function authoredNodeColour(
   node: RendererGraphNode,
   corpusTopics: Readonly<Record<string, number>> | null,
   wheel: readonly string[] | null = null,
+  roots: TopicRoots | null = null,
 ): string | null {
-  const bySlug = topicColourScale(corpusTopics, wheel);
+  const bySlug = topicColourScale(corpusTopics, wheel, roots);
   const colours = (node.source?.topics ?? [])
     .map(bySlug)
     .filter((colour): colour is string => colour !== null);
@@ -146,11 +216,15 @@ function hashSlot(value: string): number {
 export function communityColourScale(
   corpusTopics: Readonly<Record<string, number>> | null,
   wheel: readonly string[] | null = null,
+  roots: TopicRoots | null = null,
 ): (node: RendererGraphNode) => string {
-  const bySlug = topicColourScale(corpusTopics, wheel);
+  const bySlug = topicColourScale(corpusTopics, wheel, roots);
   return (node) => {
     const fingerprint = node.community.fingerprint || node.community.id;
     if (!fingerprint.startsWith(TOPIC_PREFIX)) return UNASSIGNED_COLOUR;
+    // The community keeps naming the CHILD - that is the grouping, and it is
+    // what the legend row, the filter and the inspector all report. Only the
+    // colour looked up for it climbs to the root.
     return bySlug(fingerprint.slice(TOPIC_PREFIX.length)) ?? colourForSlot(hashSlot(fingerprint));
   };
 }
@@ -186,6 +260,26 @@ export const colourForCommunity = communityColourScale(null);
 /** True when the node carries an authored topic community (not inferred, not unassigned). */
 export function hasAuthoredCommunity(node: RendererGraphNode): boolean {
   return (node.community.fingerprint || node.community.id).startsWith(TOPIC_PREFIX);
+}
+
+/**
+ * Whether a node wears the darkened rim that marks authored membership.
+ *
+ * EITHER test passing is enough, and both are needed:
+ *
+ * - `authored` covers the case the community cannot see. An entry tagged only
+ *   with child slugs is named `unassigned` by the server, because grouping
+ *   applies the floor per slug, yet it has a root colour and genuinely authored
+ *   its topics.
+ * - `hasAuthoredCommunity` covers the window before facets arrive. With no
+ *   corpus counts the slot map is empty, so `authoredNodeColour` returns null
+ *   for EVERY node and the fill falls back to the hash. Keying the rim on
+ *   `authored` alone would leave every authored node rimless until the facets
+ *   request lands - and rimless is the graph's word for "this colour was
+ *   borrowed", so the whole graph would briefly disown its own topics.
+ */
+export function wearsAuthoredRim(node: RendererGraphNode, authored: string | null): boolean {
+  return authored !== null || hasAuthoredCommunity(node);
 }
 
 /**
@@ -360,7 +454,35 @@ export type CommunityLegendEntry = {
   label: string;
   colour: string;
   count: number;
+  /**
+   * The root this community's colour came from, when it is not the community's
+   * own slug - otherwise null.
+   *
+   * Colouring at the root means two sibling communities render two rows with
+   * the SAME swatch, which is the shape of the collision the rank-based scale
+   * was introduced to kill (`control-plane` and `documentation` both landing on
+   * #6688e8). The difference is that here it is true rather than accidental:
+   * the siblings really do share a parent. Carrying the root turns the repeated
+   * swatch into information the row can state - "Merge (Git Workflow)" - so the
+   * legend explains the duplication instead of appearing to have lost track of
+   * it. Null whenever the community is its own root, which today is every row
+   * on this corpus.
+   */
+  rootLabel: string | null;
 };
+
+// str.title() equivalents for the acronyms the vocabulary actually contains,
+// mirroring _humanise_topic in graph_projection.py. Only reached for the parent
+// qualifier: every other label on the legend is humanised server-side.
+const TOPIC_ACRONYMS = new Set(["adr", "api", "cli", "esr", "mcp", "pr", "ui", "yaml"]);
+
+export function humaniseTopic(slug: string): string {
+  return slug
+    .replace(/_/g, "-")
+    .split("-")
+    .map((word) => (TOPIC_ACRONYMS.has(word) ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1)))
+    .join(" ");
+}
 
 /**
  * The communities PRESENT in the current graph, largest first.
@@ -377,8 +499,12 @@ export function communityLegend(
   nodes: readonly RendererGraphNode[],
   corpusTopics: Readonly<Record<string, number>> | null = null,
   wheel: readonly string[] | null = null,
+  roots: TopicRoots | null = null,
 ): CommunityLegendEntry[] {
-  const colourOf = communityColourScale(corpusTopics, wheel);
+  // ONE colour derivation, shared with the nodes. The legend never computes a
+  // colour of its own - including now that the colour climbs to the root, which
+  // is exactly the kind of second derivation that would let the two drift.
+  const colourOf = communityColourScale(corpusTopics, wheel, roots);
   const groups = new Map<string, CommunityLegendEntry>();
   for (const node of nodes) {
     const id = node.community.id;
@@ -389,6 +515,7 @@ export function communityLegend(
     }
     const fingerprint = node.community.fingerprint || id;
     const topic = fingerprint.startsWith(TOPIC_PREFIX) ? fingerprint.slice(TOPIC_PREFIX.length) : null;
+    const root = topic ? rootOf(topic, roots) : null;
     groups.set(id, {
       id,
       topic,
@@ -397,6 +524,7 @@ export function communityLegend(
       label: topic ? node.community.label : "No topic",
       colour: colourOf(node),
       count: 1,
+      rootLabel: root && root !== topic ? humaniseTopic(root) : null,
     });
   }
   return [...groups.values()].sort((left, right) => {
