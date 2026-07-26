@@ -42,6 +42,11 @@ and every stored slug is an ordinary sidecar topic with no dependency on the mod
 Measured 2026-07-26 against the live corpus. **Re-measure before launching**; these move as the corpus
 grows, and the campaign plan must quote its own numbers, not these.
 
+> **This table is superseded — do not re-derive from it.** The pilot re-measured the same corpus later
+> the same day and got 641 entries / **899** addressable ordinals / **933** judgment units / 659
+> ordinals inside topiced entries. See §4 "Recorded outcome". The table is kept because the *ratios* it
+> explains are still the argument for scoping to the whole corpus.
+
 | Measure | Value |
 |---|---|
 | Entries carrying an `entry_id` | 635 |
@@ -232,10 +237,13 @@ precision rose 0.066. Recall rose 0.030, which at n=20 (SE ≈ ±0.065) is noise
 So the residual misses are **not shape errors, and not fixable by prompting**:
 
 - **The `area` axis is genuinely ambiguous, because `graph` is both a subsystem and a subject.** Three
-  run-2 entries are authored `graph` + `memory-trace` + `ui-design`; workers called every decision
-  `memory-trace` + `ui-design` and lost `graph`. Both readings are defensible — the author used `graph`
-  for the *subject matter*, the worker used `memory-trace` for the *package*. No prompt resolves that;
-  the vocabulary would have to.
+  run-2 entries (`mse_aa4tha73d513ptnt`, `mse_d9zzc4jeadak3g8r`, `mse_rqkgatgt5eh55yb8`) are authored
+  `graph` + `memory-trace` + `ui-design`; workers called every decision `memory-trace` + `ui-design` and
+  lost `graph`, capping each at 0.67. Both readings are defensible — the author used `graph` for the
+  *subject matter*, the worker used `memory-trace` for the *package*. Decisively, the confusion runs
+  **both** ways: on `mse_cdndmm2p0dmbkbq9` the swarm emitted `graph` and the author did not. So this is
+  an ambiguous axis, not workers under-calling one slug — and no prompt resolves it. The vocabulary
+  would have to.
 - **One area per decision structurally caps roll-up recall.** When an entry's decisions all sit in one
   area — the common case — the rolled-up union contains exactly one area slug, while authors routinely
   write two or three. The attribution rule that maximises per-decision *precision* is in direct tension
