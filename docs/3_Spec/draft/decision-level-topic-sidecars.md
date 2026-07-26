@@ -26,20 +26,28 @@ corpus still reports `Session memory integrity OK`.
 The entry-level family works and could be backfilled today. Three measurements argue for extending
 the grammar first (all re-measured 2026-07-25 against the live corpus):
 
-| Measure | Value |
-|---|---|
-| Entries carrying an `entry_id` | 621 |
-| Entries with authored topics | 415 |
-| Entries with no topics | 206 |
-| **Decisions corpus-wide** | **881** |
-| Decisions inside already-topiced entries | 623 |
-| Entries with **zero** decisions | 33 |
+**Unit correction (2026-07-26).** The figures below were first recorded using
+`entry_body_decision_count()`, which counts `- D:` **bullets**. That is the wrong unit for a `:dN`
+backfill: the addressable ordinals a ref may target come from `entry_body_decisions()`, and the two
+disagree on 10 entries (906 bullets vs **888** addressable at the same snapshot). An old-style entry
+with one `### Decision` heading and inline `- D1:`/`- D2:` bullets has exactly **one** addressable
+ordinal, so enumerating by bullet would emit `slug:d2` and hard-error as `dangling-topic-decision`.
+The corpus also grew. Re-measure before acting on any figure here.
 
-The backfill is a swarm judgment per unit. At entry level that is 206 judgments; at decision level it
-is 881 across all 621 entries, because an entry that already carries authored entry-level topics
-still has no per-decision attribution. Running entry-level first would not reduce that 881 — it would
-add 206 judgments that the decision pass then re-derives. The single-decision majority (139 of the
-206 topicless) makes the *re-judgment* cheap, but the write is what costs: see Precedence below.
+| Measure | Value (2026-07-26) |
+|---|---|
+| Entries carrying an `entry_id` | 635 |
+| **Addressable decisions corpus-wide** | **888** |
+| Decisions inside already-topiced entries | 648 |
+| Entries with **zero** decisions | 34 |
+| Judgment units (decisions + zero-decision entries) | **922** |
+
+The backfill is a swarm judgment per unit. At entry level that is the topicless tail alone; at
+decision level it is ~922 units across the WHOLE corpus, because an entry that already carries
+authored entry-level topics still has no per-decision attribution — 648 of the 888 decisions sit
+inside already-topiced entries. Running entry-level first would not reduce that; it would add
+judgments the decision pass then re-derives. The single-decision majority makes the *re-judgment*
+cheap, but the write is what costs: see Precedence below.
 
 ## Grammar
 
@@ -106,8 +114,9 @@ Consequences:
 - A superseded block is never edited or removed (Invariant #2); it stays readable as the record of
   what was previously believed.
 
-This also removes the strongest argument against writing anything early — but the 881-vs-1,087
-judgment count above still favours getting the grammar right first.
+This also removes the strongest argument against writing anything early — but the judgment count above
+still favours getting the grammar right first, since an entry-level pass adds work the decision pass
+re-derives rather than replacing any of it.
 
 ## Cap and redundancy, restated for decision granularity
 
@@ -138,11 +147,12 @@ decision-level graph. Building the **grammar** is not inference and does not con
 decision-node graph can still launch inheriting entry-level topics, and the "prove inherited
 colouring is too coarse" gate stands.
 
-What the gate does forbid is running the 881-judgment swarm before a decision-level consumer exists.
+What the gate does forbid is running the full ~922-unit swarm before a decision-level consumer exists.
 Today the graph endpoint does not call `_expand_decision_rows` — `include_decisions` is Trail-only —
 so decision-keyed topics would have nowhere to render. Order:
 
 1. Grammar + validation (this draft).
 2. Read side: the per-decision channel and the rolled-up union (task #22).
 3. Consumer decisions: facet counts, `topics check`, search filter, `esr` (task #23).
-4. Swarm pilot on a sample, measured against known-good authored entries, then the 881 (task #24).
+4. Swarm pilot on a sample, measured against known-good authored entries, then the full corpus
+   (`topic_swarm` skill, which carries the pilot's pass/fail line and tells you to re-measure counts).
