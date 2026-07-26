@@ -28,6 +28,17 @@ export type GraphQueryOptions = {
   /** Entry ids that must appear whatever the ranked slice would have chosen -
    *  the Trail's loaded window. Additive and exempt from `limit`. */
   pinnedIds?: string[];
+  /**
+   * Ask for per-decision rows (`include_decisions`), DEFAULT OFF.
+   *
+   * A change of GRANULARITY, not a filter: it is what gives a decision-level
+   * edge (`B:d2 evolves A:d1`) a real endpoint instead of leaving both entries
+   * drawn as orphans. The server scopes the Graph to `decision_row_scope:
+   * "linked"`, expanding only the ordinals an edge actually terminates on -
+   * blanket expansion measured 446 rows of which 276 were fresh isolates.
+   * Because it changes the node set it needs a REFETCH, unlike the edge chips.
+   */
+  includeDecisions?: boolean;
 };
 
 /** Every edge type the filter row offers. Order is the row's order. */
@@ -104,6 +115,10 @@ export function graphQuery(options: GraphQueryOptions = {}): Promise<RendererGra
   if (options.dateFrom) params.set("date_from", options.dateFrom);
   if (options.path) params.set("path", options.path);
   if (options.pinnedIds?.length) params.set("pinned_ids", options.pinnedIds.join(","));
+  // Only ever sent when ON: the server default is false, and an explicit
+  // `include_decisions=false` on every request would make the entry-level
+  // surface look like something that has to be asked for.
+  if (options.includeDecisions) params.set("include_decisions", "true");
   return api<RendererGraphResponse>(`/graph/projection?${params.toString()}`);
 }
 

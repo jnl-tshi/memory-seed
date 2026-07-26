@@ -11,6 +11,7 @@ import { genuineSearchResults } from "./searchResults";
 import { overviewCounts, overviewExhausted as overviewIsExhausted, type OverviewCounts } from "./graphOverview";
 import { animateScrollTo, scrollDurationFor } from "./trailScroll";
 import { compareTrailNodes, isDecisionRow, stripTitleStamp, TRAIL_WINDOW_STEP, trailWindowEntryIds } from "./trailModel";
+import { anchorEntryIdFor, isDecisionRowId } from "./graphDecisionRows";
 
 const GraphWorkspace = lazy(() => import("./GraphWorkspace").then((module) => ({ default: module.GraphWorkspace })));
 const TrailWorkspace = lazy(() => import("./TrailWorkspace").then((module) => ({ default: module.TrailWorkspace })));
@@ -176,9 +177,14 @@ function readGraphSettings(): GraphSettings {
       // de-emphasised by opacity, and hiding evidence by default would let a
       // filter quietly decide what the corpus contains.
       minConfidence: typeof stored.minConfidence === "number" ? stored.minConfidence : 0,
+      // Decision rows OFF by default. Unlike Orphans this is not a viewing
+      // preference over the same corpus: it changes the GRANULARITY of what the
+      // server returns, so entry-per-node stays the Graph's answer to "what is
+      // a node here" until a reader asks otherwise.
+      showDecisions: stored.showDecisions === true,
     };
   } catch {
-    return { dragResponse: "reheat", forces: DEFAULT_FORCES, showOrphans: true, minConfidence: 0 };
+    return { dragResponse: "reheat", forces: DEFAULT_FORCES, showOrphans: true, minConfidence: 0, showDecisions: false };
   }
 }
 
@@ -258,6 +264,12 @@ export default function App() {
   // What the CURRENT payload was actually pinned with, so switching back to
   // Graph after "Load older" can tell a stale map from an up-to-date one.
   const fetchedPinnedIds = useRef<string[]>([]);
+  // Whether the next fetch asks for decision rows. A ref for exactly the reason
+  // pinnedIdsRef is one: loadGraph must stay dependency-free, or every settings
+  // change would rebuild it, remount the graph and discard settled positions.
+  // Flipping the toggle refetches explicitly (see the Decisions chip).
+  const includeDecisionsRef = useRef(false);
+  includeDecisionsRef.current = graphSettings.showDecisions;
   // How many Overview nodes to ask the server for. The server's connectivity-
   // ranked selection (highest-degree seeds first, newest-first tie-break) only
   // truncates once the candidate pool exceeds this, so raising it via "Show
@@ -325,6 +337,7 @@ export default function App() {
         depth,
         path: nextScope === "file" ? path : null,
         limit,
+        includeDecisions: includeDecisionsRef.current,
       });
       if (request !== graphRequest.current) return null;
       if (keepCurrentOnEmpty && nextGraph.nodes.length === 0) return nextGraph;
@@ -834,6 +847,22 @@ export default function App() {
     else void focusEntry(entryId).then(applyDecision);
   }
 
+  // Clicking a node in the Graph. A decision-row node carries the SAME identity
+  // the Trail's decision rows do - `{entry_id}#decisions/{dN}-{slug}`, the
+  // ratified `(entry_id, dN)` pair - so it routes through the same handler
+  // rather than growing a second convention for the same object.
+  //
+  // What that means for a reader: focus resolves to the anchor ENTRY, because
+  // that is what can actually be read, and the decision is NAMED via the match
+  // hint - which scrolls the reader to that heading, highlights the Trail row,
+  // and (see `selectedId` below) puts the graph's selection ring on the row
+  // rather than on the entry. Nothing about the click is lost; it is just
+  // answered at the granularity the Inspector works in.
+  function selectFromGraph(node: RendererGraphNode) {
+    if (!isDecisionRowId(node.id)) { select(node); return; }
+    selectFromTrail(node.source.entry_id ?? anchorEntryIdFor(node.id), node.source.chunk_id ?? node.id, { heading: node.label });
+  }
+
   // Cycle to the next/previous match, wrapping around. Selecting the entry is
   // all this does — the Trail watches the selection and eases the row into
   // view, growing its window first when the match is older than what is loaded.
@@ -1023,6 +1052,26 @@ export default function App() {
     }
   }
 
+  // Decision rows are NOT a chip-style client filter: `include_decisions`
+  // changes the granularity of the payload, so it always goes back to the
+  // server. The ref is written before the fetch because loadGraph reads the ref
+  // (it has to stay dependency-free), and React state would not have committed
+  // yet by the time the request is built.
+  //
+  // A row selection cannot survive the rows disappearing, so switching OFF
+  // resolves the selection back to its anchor entry - the reader keeps its place
+  // instead of losing it to a node that no longer exists.
+  async function toggleDecisions() {
+    const next = !graphSettings.showDecisions;
+    setGraphSettings({ ...graphSettings, showDecisions: next });
+    includeDecisionsRef.current = next;
+    if (!next && selected && isDecisionRowId(selected.id)) setMatchHint(null);
+    // The chip state travels with the refetch: a `topic` the reader switched on
+    // was fetched deliberately, and falling back to the scope default here would
+    // silently drop it.
+    await requestGraph(scope, activeTopic, edgeTypes, undefined, selected?.source.entry_id);
+  }
+
   async function changeRange(nextRange: GraphRange) {
     setRange(nextRange);
     await requestGraph(scope, activeTopic, undefined, scope === "local" ? selected?.source.entry_id : null, undefined, false, nextRange === "recent" ? recentDateFrom(runtime) : null);
@@ -1184,7 +1233,7 @@ export default function App() {
             reasonable it reads in JSX — lands in an implicit fourth row and
             collapses the actual graph canvas to zero height instead. The
             Overview coverage readout has to live inside this same div. */}
-        {viewMode !== "trail" && scope !== "evolution" && scope !== "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} title={EDGE_DESCRIPTIONS[edgeType]} onClick={() => toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}<button type="button" className="edge-filter edge-orphans" aria-pressed={graphSettings.showOrphans} onClick={() => setGraphSettings({ ...graphSettings, showOrphans: !graphSettings.showOrphans })} title="Entries with no authored link">Orphans</button><span className="edge-filter-group" role="group" aria-label="Minimum edge confidence"><span className="edge-filter-label">Confidence</span>{CONFIDENCE_STEPS.map((step) => <button type="button" key={step.value} className="edge-filter edge-confidence" aria-pressed={graphSettings.minConfidence === step.value} title={step.title} onClick={() => setGraphSettings({ ...graphSettings, minConfidence: step.value })}>{step.label}</button>)}</span>{activeTopic &&<button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}{scope === "overview" && graph && <span className="count">· {overviewShownCount} of {graphEntryTotal ?? "…"} entries shown</span>}{scope === "overview" && graph && !overviewExhausted && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showMoreOverview()}>Show more</button>}</div>}
+        {viewMode !== "trail" && scope !== "evolution" && scope !== "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} title={EDGE_DESCRIPTIONS[edgeType]} onClick={() => toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}<button type="button" className="edge-filter edge-orphans" aria-pressed={graphSettings.showOrphans} onClick={() => setGraphSettings({ ...graphSettings, showOrphans: !graphSettings.showOrphans })} title="Entries with no authored link">Orphans</button><button type="button" className="edge-filter edge-decisions" aria-pressed={graphSettings.showDecisions} disabled={isLoading} onClick={() => void toggleDecisions()} title="One node per numbered decision, grouped with its entry — the endpoint a decision-level edge actually names">Decisions</button><span className="edge-filter-group" role="group" aria-label="Minimum edge confidence"><span className="edge-filter-label">Confidence</span>{CONFIDENCE_STEPS.map((step) => <button type="button" key={step.value} className="edge-filter edge-confidence" aria-pressed={graphSettings.minConfidence === step.value} title={step.title} onClick={() => setGraphSettings({ ...graphSettings, minConfidence: step.value })}>{step.label}</button>)}</span>{activeTopic &&<button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}{scope === "overview" && graph && <span className="count">· {overviewShownCount} of {graphEntryTotal ?? "…"} entries shown</span>}{scope === "overview" && graph && !overviewExhausted && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showMoreOverview()}>Show more</button>}</div>}
         {viewMode !== "trail" && scope === "evolution" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span><span className="count">Evolves + Replaces only · lifecycle chain</span>{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
         {viewMode !== "trail" && scope === "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>File</span><span className="count" title={filePath ?? ""}>{"Entries that touched " + (filePath ?? "this file")}</span><button type="button" className="active-topic" onClick={() => void changeScope("overview")}>Clear<X size={13} aria-hidden="true" /></button></div>}
         {viewMode === "trail" ? (
@@ -1205,7 +1254,7 @@ export default function App() {
                 nothing to do with a fixed lineage chain or a file's touches),
                 so a stale toggle left over from Overview/Local must not carry
                 through and blank out edges the user never chose to hide there. */}
-            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} theme={theme} visibleEdgeTypes={scope === "evolution" || scope === "file" ? edgeTypesForScope(scope) : edgeTypes} corpusTopics={facets?.topics ?? null} topicWheel={facets?.topic_wheel ?? null} topicRoots={facets?.topic_roots ?? null} dragResponse={graphSettings.dragResponse} forces={graphSettings.forces} showOrphans={graphSettings.showOrphans} minConfidence={graphSettings.minConfidence} /></Suspense>}
+            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={(matchHint?.entryId === selected?.source.entry_id ? matchHint?.decisionChunkId : undefined) ?? selected?.id ?? null} onSelect={selectFromGraph} labelMode={labelMode} theme={theme} visibleEdgeTypes={scope === "evolution" || scope === "file" ? edgeTypesForScope(scope) : edgeTypes} corpusTopics={facets?.topics ?? null} topicWheel={facets?.topic_wheel ?? null} topicRoots={facets?.topic_roots ?? null} dragResponse={graphSettings.dragResponse} forces={graphSettings.forces} showOrphans={graphSettings.showOrphans} minConfidence={graphSettings.minConfidence} /></Suspense>}
             {!graph && <div className="loading-state">Loading graph</div>}
           </>
         )}
