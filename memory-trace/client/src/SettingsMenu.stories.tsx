@@ -2,15 +2,21 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import { SettingsMenu } from "./SettingsMenu";
+import { DEFAULT_FORCES } from "./graphForces";
 
 const meta: Meta<typeof SettingsMenu> = {
   title: "Domain/SettingsMenu",
   component: SettingsMenu,
   args: {
     trailStyle: { thickness: "fine", style: "hand", wobble: 0.6, pressure: 0.4, lifecycleEdges: "all" },
+    // Required by the Graph tab. Its absence went unnoticed because only a
+    // story that actually NAVIGATES to that tab renders the panel that reads
+    // it — which is exactly what the keyboard-navigation story does.
+    graphSettings: { dragResponse: "reheat", forces: DEFAULT_FORCES, showOrphans: true, minConfidence: 0 },
     dock: "auto",
     theme: "light",
     onTrailStyle: fn(),
+    onGraphSettings: fn(),
     onDock: fn(),
     onTheme: fn(),
   },
@@ -42,6 +48,15 @@ export const KeyboardTabNavigation: Story = {
     const trailTab = canvas.getByRole("tab", { name: "Trail" });
     trailTab.focus();
     // Roving-tabindex tablist: ArrowRight moves focus and selection together.
+    // Order is Trail, Graph, Inspector, Appearance — this asserted Inspector
+    // until the Graph tab was inserted between the two, at which point the
+    // story started rendering the Graph panel and crashing on the
+    // graphSettings the meta never supplied.
+    await userEvent.keyboard("{ArrowRight}");
+    await expect(canvas.getByRole("tab", { name: "Graph" })).toHaveAttribute("aria-selected", "true");
+    await expect(canvas.getByRole("tabpanel")).toHaveTextContent("Drag response");
+    // Second press reaches Inspector, so the original assertion is kept rather
+    // than dropped — the tablist must still traverse the whole way.
     await userEvent.keyboard("{ArrowRight}");
     await expect(canvas.getByRole("tab", { name: "Inspector" })).toHaveAttribute("aria-selected", "true");
     await expect(canvas.getByRole("tabpanel")).toHaveTextContent("Dock position");
