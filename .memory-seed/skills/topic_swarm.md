@@ -16,6 +16,20 @@ validates the verdicts mechanically, a **measured pilot** must clear a stated pa
 approves the batch before any sidecar is written. Do not reach for this to tag one or two entries — the
 author writes those into the entry's own `topics:` at write time. This is for the backfill campaign.
 
+> ## STOP — the pilot was run, and it ABORTED (2026-07-26)
+>
+> **Do not launch the campaign, and do not re-run the pilot blind.** Both permitted pilot runs are
+> spent. Leg A macro-recall was **0.583** (run 1) and **0.613** (run 2, after the single allowed
+> re-prompt), against `PROCEED ≥ 0.70`. A second band-or-below result aborts the backfill, so the
+> backfill is aborted. Zero topic sidecars were written; `.memory-seed/sessions/topics/` does not exist.
+>
+> The measured reason is in §4 under "Recorded outcome". It is not "the prompt was bad" — the run-2
+> prompt fixed everything the run-1 diagnosis identified and moved precision without moving recall.
+> **Reviving this campaign requires a changed premise** (a sharper `area` axis, or a metric other than
+> roll-up recall), not another prompt rewrite. The rest of this skill is retained because the pipeline,
+> the validator, the block grammar and the harness are all sound and reusable; only the *verdict on
+> spending 933 judgments* is settled.
+
 **Opt-in and cost.** The swarm calls a fan-out of models (a Workflow), so it is network-using and must
 be run deliberately — never as an automatic step. Confirm with the user before launching the fan-out,
 confirm the pilot result before the full run, and confirm again before writing any sidecar. The core
@@ -27,6 +41,11 @@ and every stored slug is an ordinary sidecar topic with no dependency on the mod
 
 Measured 2026-07-26 against the live corpus. **Re-measure before launching**; these move as the corpus
 grows, and the campaign plan must quote its own numbers, not these.
+
+> **This table is superseded — do not re-derive from it.** The pilot re-measured the same corpus later
+> the same day and got 641 entries / **899** addressable ordinals / **933** judgment units / 659
+> ordinals inside topiced entries. See §4 "Recorded outcome". The table is kept because the *ratios* it
+> explains are still the argument for scoping to the whole corpus.
 
 | Measure | Value |
 |---|---|
@@ -192,6 +211,52 @@ Anchored against baselines computed on the same corpus, same canonicalization, s
   not earning 922 judgments and the corpus is better served by inheritance.
 - **Between 0.55 and 0.70:** re-prompt **once**, redraw a fresh disjoint sample of 20, re-run. A second
   failure aborts. Do not tune the prompt against the same sample — that is fitting to the gate.
+
+#### Recorded outcome — both runs are spent and the gate ABORTED (2026-07-26)
+
+| | run 1 | run 2 (the one re-prompt) |
+|---|---|---|
+| seed | 20260726 | 20260726002 |
+| sample | 14 multi + 6 single, 45 units | 14 multi + 6 single, 45 units, **disjoint by construction** |
+| **Leg A macro-recall** | **0.583** | **0.613** |
+| precision (diagnostic) | 0.521 | 0.587 |
+| slugs proposed / surviving | 88 / 83 | 94 / 92 |
+| sole validator drop reason | quote-not-grounded (5) | quote-not-grounded (2) |
+| baselines on that sample | random-2 0.087, top-2 0.217, top-3 0.362, **top-4 0.404** | random-2 0.085, top-2 0.208, top-3 0.408, **top-4 0.500** |
+
+Held constant across both runs: haiku, one worker per judgment unit, the stratification, the harness,
+the validator, and the pass line. Run 2's brief is versioned at
+`scripts/topic_swarm_worker_brief.md` and was committed **before** its fan-out.
+
+**Why it fell short, measured rather than guessed.** Run 1's recall loss was 63% *area*-slug misses,
+and only 24 of 45 units emitted the intended one-area + one-activity shape (10 emitted **no area at
+all**). Run 2 made the two axes an output contract and that fix landed completely — **45 of 45 units
+emitted exactly one area and one activity**, spurious slugs fell 38 → 27, quote drops fell 5 → 2, and
+precision rose 0.066. Recall rose 0.030, which at n=20 (SE ≈ ±0.065) is noise.
+
+So the residual misses are **not shape errors, and not fixable by prompting**:
+
+- **The `area` axis is genuinely ambiguous, because `graph` is both a subsystem and a subject.** Three
+  run-2 entries (`mse_aa4tha73d513ptnt`, `mse_d9zzc4jeadak3g8r`, `mse_rqkgatgt5eh55yb8`) are authored
+  `graph` + `memory-trace` + `ui-design`; workers called every decision `memory-trace` + `ui-design` and
+  lost `graph`, capping each at 0.67. Both readings are defensible — the author used `graph` for the
+  *subject matter*, the worker used `memory-trace` for the *package*. Decisively, the confusion runs
+  **both** ways: on `mse_cdndmm2p0dmbkbq9` the swarm emitted `graph` and the author did not. So this is
+  an ambiguous axis, not workers under-calling one slug — and no prompt resolves it. The vocabulary
+  would have to.
+- **One area per decision structurally caps roll-up recall.** When an entry's decisions all sit in one
+  area — the common case — the rolled-up union contains exactly one area slug, while authors routinely
+  write two or three. The attribution rule that maximises per-decision *precision* is in direct tension
+  with the metric Leg A scores. This is a real limitation of Leg A as a gate, **stated here rather than
+  used to excuse the result**: 0.613 is below 0.70 and the campaign is aborted on it.
+- **The margin over free is thin.** On run 2's sample the always-top-4 constant guess scores 0.500. The
+  swarm bought +0.113 for 45 model calls; the campaign would spend 933. The 0.70 line exists exactly to
+  require a wide margin over a predictor that reads nothing, and the swarm did not clear it.
+
+Leg B was never adjudicated — Leg A is the first gate and it did not clear, so the ~150–240 pair
+human adjudication was not spent. **If this is ever revived, the premise must change first** (sharpen
+the area axis in `topics.yaml`, or score Leg B–style attribution directly instead of roll-up recall),
+and the pilot must be re-run from scratch under the new premise with a fresh pass line.
 
 **Leg B — attribution, benchmarked against inheritance (human-adjudicated).** Leg A alone would pass a
 swarm that gets every slug right and every attribution wrong, which is exactly the thing decision-level

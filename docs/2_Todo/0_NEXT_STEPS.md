@@ -105,9 +105,29 @@ These exist only in session-entry Follow-ups today. Nothing below is built.
    confidence and are never hidden by it. Filtered edges are also dropped from the per-pair outranking
    input, so a hidden low-confidence edge cannot win its pair and blank the visible relationship.
    *Follow-up SUPERSEDED:* "re-run the swarm on the ~200 still-topicless entries" understated the job.
-   The topic backfill is ~922 judgment units across the WHOLE corpus (648 of the 888 addressable
+   The topic backfill is ~933 judgment units across the WHOLE corpus (659 of the 899 addressable
    decisions sit inside already-topiced entries, which carry no per-decision attribution). The
-   `topic_swarm` skill now owns it, with a two-leg pilot gate; nothing has been run.
+   `topic_swarm` skill owns it, with a two-leg pilot gate.
+   *Follow-up ABORTED 2026-07-26 — the decision-level topic backfill will NOT be run.* Both permitted
+   pilot runs are spent and neither cleared the gate: **Leg A macro-recall 0.583** (run 1) and **0.613**
+   (run 2, the single allowed re-prompt, on a disjoint sample with a revised brief) against
+   `PROCEED ≥ 0.70`. Per the skill a second band-or-below result aborts the backfill. **Zero topic
+   sidecars were written** — `.memory-seed/sessions/topics/` does not exist.
+   The measured reason is not a bad prompt. Run 1's recall loss was 63% *area*-slug misses with only 24
+   of 45 units holding the two-axis shape; run 2's revision fixed that completely (45/45 units, one area
+   + one activity), cut spurious slugs 38 → 27 and quote drops 5 → 2, and lifted precision 0.521 →
+   0.587 — but recall moved only +0.030, which at n=20 is noise. The residual misses are genuine
+   vocabulary ambiguity (`graph` is both a subsystem and a subject, so `graph`+`memory-trace`+`ui-design`
+   entries lose `graph` to a defensible `memory-trace` read) plus a structural tension: one area per
+   decision caps the rolled-up union at one area slug, while authors write two or three. And the margin
+   over free is thin — the always-top-4 constant guess scores 0.500 on run 2's own sample, so the swarm
+   bought +0.113 for 45 model calls against 933 for the campaign.
+   *Reviving it requires a changed premise, not another prompt rewrite* — sharpen the `area` axis in
+   `topics.yaml`, or gate on attribution directly (Leg B style) instead of roll-up recall, then re-run
+   the pilot from scratch with a fresh pass line. The pipeline, validator, block grammar and harness
+   (`scripts/topic_swarm_pilot.py`, brief at `scripts/topic_swarm_worker_brief.md`) are sound and
+   reusable; only the verdict on spending 933 judgments is settled. Entry-level authored `topics:` and
+   inheritance remain the fallback.
 3. ~~**Semantic scoring for `link audit`** — measured, unbuilt.~~ **RESOLVED — stale as written
    (verified 2026-07-26).** Both halves of the item were already done and its figures are
    *superseded*, not merely reproduced. Semantic ranking shipped **2026-07-22** in `3deb9c2`
