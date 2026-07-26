@@ -154,7 +154,8 @@ These exist only in session-entry Follow-ups today. Nothing below is built.
    It retires with the `/` UI itself, under the B2 parity-sign-off gate already recorded in Track B
    below ("the current vanilla `/` UI remains the supported fallback until explicit parity sign-off");
    **delete the skill's caveat paragraph when that sign-off lands.**
-5. **Cross-session `branch:` contamination** — **HALF FIXED, half needs your decision (2026-07-26).**
+5. ~~**Cross-session `branch:` contamination**~~ **RESOLVED 2026-07-26 — code half fixed, policy half
+   decided and adopted.**
    Investigated against a synthetic-repository matrix rather than by reasoning; full write-up and the
    options in [`branch-field-provenance.md`](branch-field-provenance.md), matrix pinned as
    `tests/test_session_append.py::BranchProvenanceTests`. Two corrections to the item as written.
@@ -174,10 +175,18 @@ These exist only in session-entry Follow-ups today. Nothing below is built.
    working tree than the caller, extending the existing detached-HEAD/not-a-repository omission rule
    by one clause. Never fires in this repo; it protects downstream PyPI users. **Still open:** two
    agents sharing *one* checkout have a genuinely identical HEAD, and an agent's session branch is
-   never passed to the CLI, so no code can recover it. `--branch`/`--no-branch` already exist as the
-   workaround. Options A–D in the proposal; recommendation is A (document the workaround) plus D
-   (harness always passes `--branch`), with B (warn on multi-worktree repos) rejected because it
-   would fire on every legitimate primary-checkout append. **Your call.**
+   never passed to the CLI, so no code can recover it — policy about an unknowable value, not a bug.
+   **Decided (JNL, 2026-07-26): A now, D as the standing convention.** A — the existing
+   `--branch`/`--no-branch` flags are now documented in `.memory-seed/skills/session_logging.md`
+   (the `branch` field prose: shared-tree caveat, both flags, and why omitting beats a wrong durable
+   label) and cross-referenced from the README's `session append` reference. D — the standing
+   convention that a harness passes `--branch` unconditionally, sourced from the Task Packet's
+   `working_branch`, lives in `agent_collaboration.md` under "Branch And Worktree Defaults";
+   `agent-rules.md` was left alone because its startup budget is full and this is procedural
+   guidance. B (warn on multi-worktree repos) was rejected because it would fire on every legitimate
+   primary-checkout append; C (lock/marker enforcement) needs session-identity state that does not
+   exist. `test_shared_checkout_concurrency_is_still_invisible` stays as the pin that the code-side
+   omission rule is not a complete answer.
 6. ~~**The ADR corpus table does not reconcile.**~~ **RESOLVED 2026-07-26** — re-derived from one
    classifier (`scripts/count_decision_shapes.py`), run against today's tree *and* against the git
    trees of the two days that produced the rival figures. **Current, at `0dc423b`: 636 entries**
