@@ -12,6 +12,15 @@ Source: the v1.4 amendment discussion (diagram-sidecar syntax repair) and the ma
 that "sidecars act as lenses that improve the signal of the entry data, so a conservative but
 editing-allowed approach to allow refinement" would benefit the corpus.
 
+> **Update 2026-07-26 (Constitution v1.5).** The narrow case this proposal is the deferred half *of*
+> has been **withdrawn**: diagram blocks now key on `(entry_id, heading timestamp)`, so a repair is an
+> appended block that supersedes, and v1.5 retired the v1.4 in-place carve-out as unnecessary rather
+> than dormant. That sharpens this proposal's remaining scope instead of weakening it — the
+> append-a-block route has now absorbed the diagram case as well, so what is left is only genuine
+> in-place rewriting of content that already parses. Note the consequence for any shape argued here:
+> Invariant #2 currently carries **no** in-place carve-out for sidecars, so a proposal can no longer
+> lean on v1.4 as precedent.
+>
 > This proposal is the **deferred half** of the v1.4 decision. v1.4 ratified the narrow, urgent case
 > (repair a *diagram* sidecar whose Mermaid does not parse). The broader idea — that *any* sidecar is
 > a refinable lens over its entry, under a standing conservative-edit posture — was deliberately not

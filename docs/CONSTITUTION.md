@@ -1,12 +1,14 @@
 # Memory Seed Constitution
 
-**Version:** 1.4 — **RATIFIED 2026-07-23** by JNL. Changes go through [Governance](#11-governance).
+**Version:** 1.5 — **RATIFIED 2026-07-26** by JNL. Changes go through [Governance](#11-governance).
 **Status:** Living document. It grows only by amendment (see [Governance](#11-governance)).
 **Adopted:** 2026-07-14; amended 2026-07-16 with partitioned Markdown authority for narrowly scoped,
 append-only sidecars (Invariant #6); amended 2026-07-17 with a human-gated, one-off exception for
 untyped `related_entries` metadata curation (Invariant #2); amended 2026-07-19 with write-surface
 parity — every write passes identical validation on any surface (Invariant #2); amended 2026-07-23
-with a human-gated, one-off exception for diagram-sidecar syntax repair (Invariant #2). **Source:** distilled from demonstrated behaviour
+with a human-gated, one-off exception for diagram-sidecar syntax repair (Invariant #2), **retired
+2026-07-26** once an append path made it unnecessary; amended 2026-07-26 adding the *minimal but
+sufficient context* principle (§3, `[candidate]`). **Source:** distilled from demonstrated behaviour
 across the codebase,
 `3_Spec/`, `.memory-seed/agent-rules.md`, and the session-memory corpus — not invented. Framework from the
 [architectural-discovery proposal](5_Completed/memory-seed-architectural-discovery-proposal.md).
@@ -62,24 +64,17 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    is an [Implementation](#5-implementations) and owes no allegiance to any particular tool, but the
    guards a write passes are not implementation detail — they are how "extend, never corrupt" is kept
    true no matter who is holding the pen.
-   **Narrow exception — human-gated diagram-sidecar syntax repair (1.4):** a published diagram sidecar
-   whose Mermaid fails to parse — a transcription defect that stopped the record from ever rendering
-   *as made* — may be repaired in place, under all of these conditions at once: it is a **one-off
-   procedure, never core functionality** — no standing command, no `--allow`-style flag on `fuse` /
-   `session merge-branch`, no automation or batch pass; **the maintainer approves each individual
-   repair against a diff before it lands**; the change is confined to the **content inside
-   ` ```mermaid ` fences** — the block's heading, its `entry_id`, the number of diagrams, and every
-   byte outside the fences are unchanged, and the parent session entry's prose is never touched; and
-   the repair only ever turns an **unrenderable diagram into a rendering one** — it never re-authors a
-   diagram that already parsed, nor alters what a diagram depicts. If any condition fails, the
-   invariant applies unchanged. The exception is scoped deliberately to *diagram* sidecars, which own
-   no authoritative field and are a rendered lens over a decision; it does **not** extend to link
-   sidecars, which authoritatively own typed lifecycle edges (Invariant #6) that 1.2 already walls off
-   from after-the-fact editing. The exception exists because a diagram sidecar is defined as a frozen
-   record of the decision *as made*, and a syntax error that stops it rendering at all defeats that
-   purpose: repairing it makes the frozen record faithful to what was authored, rather than revising
-   the decision. It does not license editing a diagram to say something new — that is a superseding
-   entry with its own sidecar.
+   **Retired exception — diagram-sidecar syntax repair (added 1.4, retired 1.5):** the v1.4 carve-out
+   permitting in-place repair of a published diagram sidecar whose Mermaid failed to parse is
+   **withdrawn**. It existed only because there was no append path: diagram blocks were keyed by
+   `entry_id` alone, so a second block for an entry blocked the fuse and editing the published one was
+   the sole route to a diagram that renders. Diagram blocks now key on `(entry_id, heading timestamp)`
+   like link sidecars, so a repair is an **appended block that supersedes** while the original stays
+   readable as what was authored — which is what this invariant asks for in the first place. The
+   exception is therefore unnecessary rather than merely unused, and a carve-out that no longer buys a
+   capability is a standing invitation to edit history. Invariant #2 applies to diagram sidecars
+   without exception. *(The 1.4 row stays in the amendment log: the exception was real while it
+   existed, and one repair landed under it.)*
 3. **Memory is explainable and attributable.** Every decision can be traced to who/what/when and the
    reasoning behind it. *(Cited: `Memory-Entry:` commit trailers; the decision-graph edges in
    `3_Spec/graph-edge-contract.md`; `3_Spec/memory-trace-derived-artifact-provenance-contract.md`.)*
@@ -131,7 +126,10 @@ How we decide. Amending these is heavier than a normal proposal but lighter than
   omission, not loss. **[candidate]** — aspirational; no retrieval surface enforces or measures this yet.
   Identified as a genuine gap by the inbox crosswalk (row A6-5) and independently re-derived by the
   information-theoretic disposition (`4_Reference/information-theoretic-evolution-disposition.md`,
-  2026-07-25); graduates when the constrained-context gold set exists to measure it against.
+  2026-07-25); graduates to cited when the constrained-context gold set exists to measure it against.
+  *Provenance note:* first written into §3 on 2026-07-25 **without** an amendment, which §11 requires
+  for a core principle. Ratified retroactively as part of v1.5 rather than left as an unratified clause
+  — a principle nobody approved is exactly the kind of silent override §11 forbids.
 - **Open-core, one authoritative substrate.** The local Markdown truth is free and complete on its own; paid or
   hosted tiers add convenience, scale, and collaboration *on top of* it — never a second, authoritative
   store. **[direction — decided 2026-07-14; no paid tier exists yet.]**
@@ -258,4 +256,5 @@ demonstrates them.
 | 1.1 | 2026-07-16 | **Partitioned Markdown authority** — Invariant #6 now permits narrowly scoped append-only Markdown sidecars to own declared fields or lifecycles while entries retain rationale/evidence and all indexes, snapshots, databases, and UI views remain derived. | JNL |
 | 1.2 | 2026-07-17 | **Human-gated metadata curation** — Invariant #2 now permits after-the-fact curation of an existing entry's *untyped* `related_entries` metadata, as a one-off, per-edge-approved procedure only: never core functionality, never automatic or batch, never touching prose, and never writing typed lifecycle edges into history. Raised by the Related-entries P2 plan, which was approved 2026-07-05 — before v1.0 — and whose backfill half conflicted with Invariant #2 as ratified. Rather than honour a pre-constitutional sign-off or silently override the invariant (§11 forbids both), the invariant was amended to the narrowest shape that permits the capability. | JNL |
 | 1.3 | 2026-07-19 | **Write-surface parity** — Invariant #2 now requires every write to memory to pass identical validation on any surface. Prompted by a tool-surface audit that found two authoring paths of unequal strength: the CLI `session append` enforced nine guards atomically, while the MCP path (`memory_entry_id` + `memory_session_target` + a hand-written file) enforced none, so violations only surfaced later in `links check`. The read-only-MCP posture that created the gap was a 2026-07-10 session decision, not constitutional law — Invariant #2 governed *what* is written, never *which surface* writes. Rather than leave the parity rule as convention an agent could route around (as one did), it was written into the invariant it protects: the fix added a gated MCP write surface and retired the ungated pair, and the invariant now forbids any future bypass. Additive (1.x), not a changed invariant — it strengthens #2 rather than altering its meaning, following the v1.1/v1.2 precedent for narrowing/hardening under a minor bump. | JNL |
+| 1.5 | 2026-07-26 | **Diagram-repair exception retired; *minimal but sufficient context* added.** Two clauses, approved together. (a) The v1.4 in-place diagram-repair carve-out on Invariant #2 is **withdrawn**. It existed solely because diagram blocks were keyed by `entry_id` alone, so a second block blocked the fuse and editing the published one was the only route to a diagram that renders; blocks now key on `(entry_id, heading timestamp)` like link sidecars, so a repair is an appended block that supersedes while the original stays readable. The capability the exception bought now exists *within* the invariant, so the carve-out is unnecessary rather than dormant — and a carve-out that buys nothing is a standing invitation to edit history. Hardening, hence 1.x, following the v1.1–v1.4 precedent for narrowing under a minor bump; the 1.4 row stays, since the exception was real while it existed and one repair landed under it. (b) §3 gains **minimal but sufficient context** as a `[candidate]` principle: retrieval provides the smallest context that preserves the ability to decide. Identified as a genuine gap by the inbox crosswalk (A6-5) and independently re-derived by the information-theoretic disposition. It was written into §3 on 2026-07-25 *without* an amendment, which §11 requires for a core principle; ratifying it here corrects that rather than leaving an unratified clause standing. | JNL |
 | 1.4 | 2026-07-23 | **Human-gated diagram-sidecar syntax repair** — Invariant #2 now permits repairing a published *diagram* sidecar whose Mermaid fails to parse, as a one-off, per-repair-approved procedure only: never core functionality, never a standing `fuse`/`merge-branch` flag, confined to the content inside ` ```mermaid ` fences (heading, `entry_id`, diagram count, and the parent entry's prose all unchanged), and only ever turning an unrenderable diagram into a rendering one — never re-authoring what a diagram depicts. Scoped to diagram sidecars, which own no authoritative field and are a rendered lens over a decision; explicitly **not** extended to link sidecars, which authoritatively own typed lifecycle edges (#6) that 1.2 walls off. Prompted by two published sidecars (2026-07-10, 2026-07-22) whose diagrams a `;` in sequence-message text and a `--` inside an edge label left unparseable, so Memory Trace fell back to raw source; `session merge-branch` correctly refused the in-place fix as an append-only violation (the same refusal recorded at the 2026-07-22 link-sidecar revert), leaving no sanctioned path to make a frozen record render as authored. Rather than silently override Invariant #2 (§11 forbids it) or build a standing repair capability the control plane cannot bound — it cannot parse Mermaid, so no guard can verify a diagram renders — the invariant was amended to the narrowest shape that permits the one-off repair, mirroring the v1.2 metadata-curation exception. A broader "sidecars are editable lenses" posture across all sidecar types was deliberately deferred to its own proposal. Additive (1.x): it narrows a carve-out into #2 without changing its meaning. | JNL |

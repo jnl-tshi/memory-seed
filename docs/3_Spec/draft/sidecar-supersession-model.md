@@ -76,9 +76,11 @@ diagram that renders was editing the published one.
 the newest block authoritative for that entry's diagram set. A repair then becomes an appended block
 that supersedes, and the frozen original stays readable as the record of what was authored.
 
-This does not repeal the v1.4 exception — it makes it **non-load-bearing** going forward, so no
-future repair needs to invoke it. Whether to formally retire the exception is a governance question
-for JNL, not something this draft decides.
+**Resolved 2026-07-26.** This draft deliberately stopped at making the v1.4 exception
+non-load-bearing, leaving retirement as a governance question. JNL then ratified **Constitution v1.5**,
+which withdraws it: the capability the carve-out bought now exists *inside* Invariant #2 via the append
+path, so the exception was unnecessary rather than dormant — and a carve-out that buys nothing is a
+standing invitation to edit history. Invariant #2 now applies to diagram sidecars without exception.
 
 ## Precedence order
 
