@@ -29,6 +29,17 @@ This is Invariant #2 realised for derived attribution: corrections are *addition
 recency, never rewrites. It is also what makes an in-place edit unnecessary in every case the three
 families currently face.
 
+**"Extraction" is about first-hand versus reconstructed, not human versus machine.** The author of a
+write-time declaration in this repository is an agent, exactly as the author of a sweep's block is;
+`user_initials` records who the session was *for*, not who typed. What separates the two is that a
+write-time agent had just done the work and a sweep is reading finished prose. Once the accepted
+[write-time consolidation proposal](../../2_Todo/write-time-sidecar-consolidation-proposal.md) folds
+write-time values into these same sidecars, that difference stops being readable from the file path and
+must be carried by the block's declared `source: write-time | derived` field — and this rule's
+newest-wins sort will then order first-hand and reconstructed blocks against each other. Whether a
+`derived` block may outrank a `write-time` one on recency alone is the mutability question that proposal
+flags for ratification; it is **not** settled here.
+
 ## What "named reference" means per family — the one real asymmetry
 
 The rule is uniform; the **unit** the reference names is not, and getting it backwards silently

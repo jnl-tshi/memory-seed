@@ -71,6 +71,21 @@ topics:
 - The slug half resolves against `topics.yaml` exactly as today: unknown slug is an error,
   non-canonical alias warns.
 
+### "Authored" here means write-time, not human-written
+
+*Added 2026-07-26, aligning with
+[write-time-sidecar-consolidation-proposal.md](../../2_Todo/write-time-sidecar-consolidation-proposal.md).*
+
+Every use of **authored** below contrasts a slug declared when the entry was written against one a later
+sweep inferred from finished prose. It does **not** mean a person typed it. In this repository the author is
+an LLM — all 1,023 entry-YAML slugs were chosen by an agent, with `user_initials` recording who the session
+was *for*. The distinction the term is carrying is **first-hand versus reconstructed**: a write-time agent had
+just done the work, a sweep has only the record of it.
+
+That is why the accepted consolidation proposal makes provenance a declared `source: write-time | derived`
+field on the block rather than something inferred from which file a slug sits in. Once topics move into the
+sidecar, "authored" stops being readable from the path and has to be stated.
+
 ## Roll-up — decision topics DO project to entry level
 
 **This deliberately inverts the link-sidecar precedent.** Grammar v2 holds that decision edges are a
@@ -83,8 +98,9 @@ It is also load-bearing. Every existing consumer is entry-level — `check_topic
 counts, the search filter, and `esr` do the same. Without roll-up, an entry whose decisions are fully
 topic-tagged still reports as topicless everywhere that matters, and the backfill buys nothing.
 
-The corpus already behaves this way by hand: authored topics average 2.76 per entry on 2-decision
-entries versus 2.10 on single-decision ones — authors rolling per-decision themes up into one list.
+The corpus already behaves this way at write time: authored topics average 2.76 per entry on 2-decision
+entries versus 2.10 on single-decision ones — write-time authors rolling per-decision themes up into one
+list.
 
 Roll-up is a **read-time derivation** (Invariant #6): the sidecar stores decision-keyed slugs, the
 reader exposes both channels — the per-decision attribution and the deduplicated entry-level union.
