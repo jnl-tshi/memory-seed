@@ -82,20 +82,36 @@ sort would order first-hand and reconstructed blocks against each other, and a `
 appended later would supersede a `write-time` one **on recency alone**. That directly contradicts
 Constitution v1.6, which holds the two are *not equal evidence*.
 
-**Rule: a `derived` block may never supersede a `write-time` block for the same subject. It may only
-fill a gap where no write-time value exists.** Precedence is therefore `(source rank, then recency)`,
-not recency alone. Within a source class, most-recent-wins is unchanged.
+**The rule has two halves** (second half set by JNL 2026-07-26, correcting a first draft that made
+write-time values permanently uncorrectable):
 
-This is not a new decision so much as the written form of one already made: JNL's instruction was that
-the sweep exists "for items which did not receive them at write time". A sweep that could overwrite a
-first-hand value would be a source, not a sweep — the role the measurements say it should not hold.
+1. **A `derived` block never *implicitly* supersedes a `write-time` block.** Precedence is
+   `(source rank, then recency)`, not recency alone. Within a source class, most-recent-wins is
+   unchanged. So a sweep appending later cannot quietly win by being newer.
+2. **A `derived` block may override a `write-time` value only through an explicit `retracts:` naming
+   it — and that retraction is reviewed by a human before it is written.** The override is possible,
+   but it is a stated act rather than a side effect of ordering, and it is gated.
 
-Consequence for the sweep: its candidate set is **subjects with no write-time value**, which is also
-what makes it cheap. It does not re-judge what the write-time agent already answered.
+Half 1 alone would have been wrong. A write-time agent *can* be mistaken, and a sweep reading the
+finished record sometimes has the better view — freezing first-hand values would forfeit exactly the
+corrections worth having. What the two halves together preserve is that a reconstructed value never
+displaces a first-hand one **silently**: it must say what it is retracting, and a person must agree.
 
-*If this over-reads the intent — if a reconstructed value should be able to win on recency after human
-approval, say — it is the one rule here worth correcting before step 1 is built, because the read path
-is written against it.*
+This also keeps the mechanism honest with Constitution v1.6. "Not equal evidence" does not mean
+"reconstructed is never right"; it means the burden sits on the reconstructed side, which is precisely
+what an explicit, reviewed retraction expresses.
+
+Consequence for the sweep: its default candidate set is **subjects with no write-time value** — cheap,
+and it does not re-judge what the write-time agent already answered. Proposing a retraction of an
+existing value is the deliberate, rarer second mode.
+
+**Implementation note — this is not free for topics.** `retracts:` exists today for *links* only
+(built 2026-07-25, with `malformed-retract` / `dangling-retract` / `retract-before-declaration`
+validation), because a link edge is an independent assertion. Topics deliberately have no retract
+construct: they supersede per entry, wholesale, on recency. Half 2 therefore requires extending a
+retract-shaped mechanism to the topic family, or the cross-source override has no way to be *stated*
+and would fall back to the implicit ordering half 1 forbids. Step 1 of the build order must cover
+this; see `sidecar-supersession-model.md`, which currently documents topics as retract-free.
 
 ### The swarm becomes a sweep, not a source
 
@@ -180,7 +196,10 @@ another and gives it **exactly one** owner, which is closer to #6's letter than 
 
 The sequence matters, because a sweep is worthless until there is a single place to compare against.
 
-1. **Block format + `source` provenance field**, in both the link and topic sidecar contracts.
+1. **Block format + `source` provenance field**, in both the link and topic sidecar contracts —
+   **plus a retract-shaped construct for topics**, which today have none (links already have
+   `retracts:`). Without it the cross-source override in the precedence rule cannot be *stated*, and a
+   `derived` value wanting to correct a `write-time` one would have no legal way to say so.
 2. **Ordered write** (sidecar first), with a test asserting the crash-between-writes state is the
    *detected* one.
 3. **Flip `session append` / `memory_session_append`** to fold `--topics`/`--related`/`--replaces`/

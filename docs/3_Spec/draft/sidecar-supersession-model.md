@@ -36,9 +36,18 @@ write-time agent had just done the work and a sweep is reading finished prose. O
 [write-time consolidation proposal](../../2_Todo/write-time-sidecar-consolidation-proposal.md) folds
 write-time values into these same sidecars, that difference stops being readable from the file path and
 must be carried by the block's declared `source: write-time | derived` field — and this rule's
-newest-wins sort will then order first-hand and reconstructed blocks against each other. Whether a
-`derived` block may outrank a `write-time` one on recency alone is the mutability question that proposal
-flags for ratification; it is **not** settled here.
+newest-wins sort will then order first-hand and reconstructed blocks against each other.
+
+**Settled 2026-07-26 by JNL.** A `derived` block never *implicitly* outranks a `write-time` one:
+precedence becomes `(source rank, then recency)`, so a sweep cannot win merely by being newer. It may
+override a write-time value only through an **explicit `retracts:` naming it, reviewed by a human
+before it is written** — possible, but stated and gated, never a side effect of ordering.
+
+Note what that costs this document's own rule that **topics need no retract construct** (they
+supersede per entry, wholesale, on recency). That holds *within* a source class. Across classes it
+does not: a `derived` topic block wanting to correct a `write-time` one has, today, no legal way to
+say so. Extending a retract-shaped mechanism to the topic family is therefore step 1 of the
+consolidation build order, not an optional refinement.
 
 ## What "named reference" means per family — the one real asymmetry
 
