@@ -281,6 +281,18 @@ skills:
     do_not_load_when:
       - classifying one or two lifecycle-link stubs by hand (use end_of_turn.md's Lifecycle Link Sweep)
       - no link audit gaps to judge, or the task is a single authored edge
+
+  - skill: topic_swarm.md
+    required: true
+    load_when:
+      - backfilling controlled-vocabulary topics across the corpus at scale
+      - orchestrating a model-judgment swarm that attributes topics to decisions (<slug>:dN)
+      - running or scoring the topic-backfill pilot against authored topics
+      - writing topic sidecars under sessions/topics/ for many entries at once
+    do_not_load_when:
+      - choosing topics for the entry being written now (use session_logging.md)
+      - correcting the topics of one or two entries by hand
+      - the task is vocabulary maintenance in topics.yaml rather than attribution
 ```
 
 ## Deterministic Use
