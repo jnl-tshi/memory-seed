@@ -100,9 +100,21 @@ These exist only in session-entry Follow-ups today. Nothing below is built.
    lexical score moves recall@5 61% → 75% at weight ~120, for 2.9 s model load and 0.15 s to embed
    544 entries. This contradicts the live spec's "no all-pairs semantic scan" rationale, which should
    be retracted when it lands.
-4. **`compact_mermaid_diagrams` vs `arc2d`** — the skill tells authors to use tier subgraphs; the
-   renderer parses no `subgraph` at all, so grouping is silently lost in both clients. Either narrow
-   the skill or extend the renderer; it affects every future sidecar author and both seed twins.
+4. ~~**`compact_mermaid_diagrams` vs `arc2d`**~~ **RESOLVED — stale as written (verified 2026-07-26).**
+   The premise "the renderer parses no `subgraph` in *both* clients" stopped being true on 2026-07-22:
+   `71cea36` deleted `client/src/arc2d.ts` and `DiagramView.tsx` now renders each sidecar block through
+   **real Mermaid**, so `subgraph` and the full ~30-type vocabulary render in `/next` (both surfaces —
+   the inline reader and the zoom modal route through the same component). The skill was reversed in
+   the same tranche and *already* says "author standard Mermaid", *already* carries the transitional
+   caveat naming the legacy `/` subset parser, and its seed twin is byte-identical — so the "narrow the
+   skill" remedy is done and **no skill edit is needed**. What is genuinely left is not a mismatch but a
+   documented residue: the vanilla `/` UI still ships the hand-written subset renderer
+   (`static/app.js`, `renderDiagramBlock`), so a `subgraph` sidecar shows stray boxes *there only*.
+   That is the correct trade under Invariant #6 — the Markdown is the source of truth and VS Code,
+   GitHub and `/next` all run real Mermaid, so three renderers beat accommodating a retiring fourth.
+   It retires with the `/` UI itself, under the B2 parity-sign-off gate already recorded in Track B
+   below ("the current vanilla `/` UI remains the supported fallback until explicit parity sign-off");
+   **delete the skill's caveat paragraph when that sign-off lands.**
 5. **Cross-session `branch:` contamination** — `session append` stamps `branch:` from the shared git
    HEAD, so a second agent appending while another has a feature branch checked out records the wrong
    branch. Affects every git-derived field, not just this one. Design decision needed before
