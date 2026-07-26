@@ -257,8 +257,16 @@ topics:
   one file is `duplicate-topic-block` — a transcription defect, not a correction.
 - Ordinals are written as `<slug>:dN`; a zero-decision entry takes bare slugs. A file may mix both.
 
-Then run `memory-seed links check` (it owns all three sidecar families) and `memory-seed topics check`,
-and confirm integrity OK before merging.
+Then run `memory-seed links check` — it owns all three sidecar families and is the only command that
+validates a topic sidecar — and confirm integrity OK before merging. (`memory-seed topics check`
+validates the vocabulary file and the topics **authored** in entries; it does not read sidecars.)
+
+This block shape was exercised end to end on 2026-07-26 against a real three-decision entry: `links
+check` passed, `entry_topic_sidecars` returned `(('d1', 'memory-trace'), ('d1', 'ui-design'), ('d2',
+'graph'), ('d3', 'bugfix'))` with the roll-up union on `inferred_topics`, `memory-trace:d1` against an
+authored entry-level `memory-trace` correctly did **not** warn, and refiling the same block under
+today's date failed the check with `topic-sidecar-date-mismatch`. The probe was then removed; no topic
+sidecar is committed.
 
 ## Correcting a batch that turns out wrong
 
