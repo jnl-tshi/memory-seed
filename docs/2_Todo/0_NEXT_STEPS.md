@@ -115,6 +115,21 @@ These exist only in session-entry Follow-ups today. Nothing below is built.
    [information-theoretic disposition](../4_Reference/information-theoretic-evolution-disposition.md)
    (2026-07-25); sequenced **after** the Phase D1 graph-motion work so it lands on the settled
    full-corpus layout. The proposal's ADR-gravity-well layout stays declined until ADR nodes exist.
+   *Note (2026-07-26):* pick the input deliberately — `connectivity` is a **related-only** display
+   weight already driving node radius, while the inspector's `Links` now counts rendered edges of
+   every kind. They are different numbers and the graph currently uses the former.
+8. **Decision rows in the Graph — the fix for the last 9 orphans** (P2). Nine entries whose only
+   relationships are decision-level render as unconnected: an entry-granularity view has no decision
+   row for `B:d2 evolves A:d1` to terminate on, so the edge has nowhere to land. Emitting an
+   entry-level line instead was tried on 2026-07-26 and **reverted** —
+   `test_decision_edges_never_reach_entry_level_consumers` asserts by set-equality against a
+   sidecar-deleted control that the entry-level surface stays indistinguishable from a world without
+   decision edges, and that guard is deliberate. The sanctioned fix is to render the decision rows
+   themselves: `_expand_decision_rows` already exists and `include_decisions` is Trail-only today, so
+   the Graph calling it gives those edges a real endpoint and resolves the orphans without touching
+   the guard. This is also step 1 of the sequencing already recorded in
+   [decision-level-topics-proposal.md](decision-level-topics-proposal.md) ("render the decision-node
+   graph using the substrate that already exists"), so it unblocks that track as well.
 
 ## Shipped 2026-07-18/19 — unreleased, on local main
 
