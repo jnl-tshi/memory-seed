@@ -270,10 +270,11 @@ export default function App() {
   // Flipping the toggle refetches explicitly (see the Decisions chip).
   const includeDecisionsRef = useRef(false);
   includeDecisionsRef.current = graphSettings.showDecisions;
-  // How many Overview nodes to ask the server for. The server's connectivity-
-  // ranked selection (highest-degree seeds first, newest-first tie-break) only
-  // truncates once the candidate pool exceeds this, so raising it via "Show
-  // more" reaches deeper into the ranked list rather than jumping randomly.
+  // How many Overview nodes to ask the server for. This sizes the server's
+  // chronological SPINE - `_overview_slice` takes the newest `limit` entries by
+  // date, then expands one hop over the rendered lifecycle edges - so raising it
+  // via "Show more" walks the window steadily further back in time. Depth-1
+  // expansion is additive, which is why the payload comes back larger than this.
   const [overviewLimit, setOverviewLimit] = useState(OVERVIEW_LIMIT_STEP);
   // Counts from the payload that was on screen when "Show more" was last
   // clicked, tagged with the limit and topic they were fetched under, so the
@@ -777,9 +778,12 @@ export default function App() {
     return loadGraph({ nextScope, nextTopic, nextEdgeTypes, entryId, preferredEntryId: preferredEntryId ?? selected?.source.entry_id, keepCurrentOnEmpty, dateFrom, depth, path, limit });
   }
 
-  // Pages deeper into the server's connectivity ranking rather than widening
-  // a window — the next "Show more" click reaches the next-most-connected
-  // entries, not a random slice.
+  // Widens the chronological window: the next "Show more" click extends the
+  // spine further back in time, so paging is monotonic and shares the Trail's
+  // axis rather than jumping around a ranking. This is load-bearing for the
+  // community-detection ADR - because each page is a DIFFERENT time window, a
+  // derived clustering would recolour every node on every click, which is one
+  // of the reasons Louvain colouring was rejected.
   async function showMoreOverview() {
     const nextLimit = overviewLimit + OVERVIEW_LIMIT_STEP;
     if (graph) previousOverview.current = { limit: overviewLimit, topic: activeTopic, counts: overviewCounts(graph) };
