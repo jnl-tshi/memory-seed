@@ -11,10 +11,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from _git_helpers import run_git
+
 from memory_seed.core import (
     MEMORY_DIR_NAME,
+    _git_capture,
     check_session_links,
     generate_session_entry_id,
+    resolve_runtime,
     session_append_entry,
 )
 
@@ -392,6 +396,161 @@ class SessionAppendTests(unittest.TestCase):
         flagged = check_entry_timestamp_advisories(text, now=now)
 
         self.assertEqual([entry_id for entry_id, _ in flagged], ["ms-bbbbbbbb"])
+
+
+class BranchProvenanceTests(unittest.TestCase):
+    """What `branch:` actually records, per repository layout.
+
+    `branch:` is the ONLY git-derived field on an entry (core.py, the single
+    `_git_capture` call in `session_append_entry`); every other YAML key is
+    caller-supplied, `read_local_user` is a file read, and the entry id hashes
+    timestamp/title/initials/agent/paths. Diagram, topic and link sidecars carry
+    no branch at all.
+
+    What it records is the HEAD of the working tree containing
+    `runtime.workspace_root`, read at write time. That is a property of a
+    *checkout*, not of an agent's session, which is the whole of the
+    cross-session contamination question. These tests pin the empirical matrix
+    behind docs/2_Todo/branch-field-provenance.md so a future change to
+    `resolve_runtime` cannot silently move it.
+    """
+
+    def setUp(self):
+        self.base = Path(tempfile.mkdtemp(prefix="mseed-branch-"))
+        self.addCleanup(self._cleanup)
+        self._repos = []
+        self.primary, self.worktree, self.plain = self._build_repo("tracked", tracked=True)
+
+    def _build_repo(self, name, *, tracked):
+        """A primary checkout, a real nested worktree, and a plain nested dir.
+
+        ``tracked`` decides whether `.memory-seed` is committed. That single bit
+        is what makes worktree isolation work: a worktree only gets its own
+        memory dir if the memory dir is in the tree. `.memory-seed/sessions`
+        alone is not enough - git does not track empty directories.
+        """
+        primary = self.base / name
+        (primary / MEMORY_DIR_NAME / "sessions").mkdir(parents=True)
+        run_git(primary, "init", "-b", "main", check=True)
+        run_git(primary, "config", "user.email", "probe@example.com", check=True)
+        run_git(primary, "config", "user.name", "Probe", check=True)
+        (primary / MEMORY_DIR_NAME / "agent-rules.md").write_text("# rules\n", encoding="utf-8")
+        (primary / MEMORY_DIR_NAME / "sessions" / ".gitkeep").write_text("", encoding="utf-8")
+        ignored = ".claude/worktrees/\n" + ("" if tracked else f"{MEMORY_DIR_NAME}/\n")
+        (primary / ".gitignore").write_text(ignored, encoding="utf-8")
+        run_git(primary, "add", "-A", check=True)
+        run_git(primary, "commit", "-m", "init", check=True)
+        self._repos.append(primary)
+
+        # A real, nested, gitignored worktree on its own branch - the layout
+        # this repo's parallel agents actually run in.
+        worktree = primary / ".claude" / "worktrees" / "real-wt"
+        worktree.parent.mkdir(parents=True, exist_ok=True)
+        run_git(primary, "worktree", "add", "-b", f"feat/{name}", str(worktree), check=True)
+
+        # A plain nested directory: no .git, no .memory-seed of its own.
+        plain = primary / ".claude" / "worktrees" / "plain-dir"
+        plain.mkdir(parents=True)
+
+        # The primary then moves onto a feature branch, standing in for another
+        # agent (or the user) checking one out mid-session.
+        run_git(primary, "checkout", "-b", "claude/feature/someone-else", check=True)
+        return primary, worktree, plain
+
+    def _cleanup(self):
+        for repo in self._repos:
+            run_git(repo, "worktree", "prune")
+        shutil.rmtree(self.base, ignore_errors=True)
+
+    def _stamped_branch(self, cwd):
+        result = session_append_entry(
+            cwd,
+            title="Probe",
+            body=BODY,
+            user_initials="JN",
+            agent_type="claude",
+            timestamp="2026-07-26 01:00",
+            dry_run=True,
+        )
+        self.assertTrue(result.ok, result.issues)
+        for line in (result.rendered or "").splitlines():
+            if line.startswith("branch:"):
+                return line.split(":", 1)[1].strip()
+        return None
+
+    def test_tracked_memory_seed_makes_a_worktree_record_its_own_branch(self):
+        # THE headline result. When `.memory-seed` is committed - as it is in
+        # this repository - a worktree gets its own copy, resolve_runtime stops
+        # there, and git reads that worktree's HEAD. A worktree-isolated agent
+        # is therefore NOT contaminated by whatever the primary has checked out.
+        self.assertEqual(self._stamped_branch(self.worktree), "feat/tracked")
+        self.assertEqual(self._stamped_branch(self.primary), "claude/feature/someone-else")
+
+    def test_untracked_memory_seed_makes_a_worktree_record_the_primarys_branch(self):
+        # The same worktree layout silently flips to the wrong value when
+        # `.memory-seed` is NOT tracked: nothing stops the walk-up, so the agent
+        # writes into the primary's memory dir and stamps the primary's HEAD.
+        # Worktree isolation is a consequence of the memory dir being committed,
+        # not of worktrees as such.
+        _, worktree, _ = self._build_repo("untracked", tracked=False)
+        self.assertEqual(self._stamped_branch(worktree), "claude/feature/someone-else")
+
+    def test_toplevels_agree_when_the_memory_dir_is_in_the_callers_own_tree(self):
+        # The obvious fix - "resolve git relative to cwd rather than the
+        # walked-up workspace_root" - is a NO-OP in every layout that behaves
+        # correctly: git's own discovery walks up exactly as resolve_runtime
+        # does, so both toplevels name the same working tree. In particular it
+        # cannot tell a plain nested dir apart from a legitimate append made
+        # from the primary checkout, which is the case that must keep working.
+        for cwd in (self.primary, self.worktree, self.plain):
+            with self.subTest(cwd=cwd.name):
+                runtime = resolve_runtime(cwd)
+                self.assertEqual(
+                    _git_capture(cwd, "rev-parse", "--show-toplevel"),
+                    _git_capture(runtime.workspace_root, "rev-parse", "--show-toplevel"),
+                )
+
+    def test_toplevels_disagree_exactly_when_the_stamped_branch_is_foreign(self):
+        # ...but they DO disagree in the one layout that produces a wrong value
+        # without any concurrency at all: cwd sits in working tree A while the
+        # memory dir - and therefore the HEAD that gets stamped - belongs to
+        # working tree B. This is the detectable subset, and the only part of
+        # item 5 that code could act on. See docs/2_Todo/branch-field-provenance.md.
+        _, worktree, _ = self._build_repo("untracked", tracked=False)
+        runtime = resolve_runtime(worktree)
+        self.assertNotEqual(
+            _git_capture(worktree, "rev-parse", "--show-toplevel"),
+            _git_capture(runtime.workspace_root, "rev-parse", "--show-toplevel"),
+        )
+
+    def test_explicit_branch_overrides_the_checkouts_head(self):
+        # The documented mitigation: the caller is the only party that knows
+        # which branch its session is really on, so it can say so.
+        result = session_append_entry(
+            self.plain,
+            title="Probe",
+            body=BODY,
+            user_initials="JN",
+            agent_type="claude",
+            timestamp="2026-07-26 01:00",
+            branch="claude/fix/my-own-task",
+            dry_run=True,
+        )
+        self.assertIn("branch: claude/fix/my-own-task", result.rendered)
+
+    def test_auto_branch_false_omits_the_field_inside_a_repository(self):
+        # The other mitigation: record nothing rather than something wrong.
+        result = session_append_entry(
+            self.plain,
+            title="Probe",
+            body=BODY,
+            user_initials="JN",
+            agent_type="claude",
+            timestamp="2026-07-26 01:00",
+            auto_branch=False,
+            dry_run=True,
+        )
+        self.assertNotIn("branch:", result.rendered)
 
 
 if __name__ == "__main__":
