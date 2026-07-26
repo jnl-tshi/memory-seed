@@ -125,6 +125,48 @@ plane content by profile (`coding`, and others), so a starter vocabulary can han
 rather than inventing a parallel concept. What must be *universal* is the two-axis structure; what is
 *per-profile* is which slugs fill it.
 
+**Correction (2026-07-26, after building step 6): `SKILL_PROFILES` cannot carry this, and step 6
+shipped ONE neutral starter instead.** Two properties of the mechanism defeat the idea, and neither
+is visible until you try it:
+
+1. **Profiles are additive at any time; `topics.yaml` is deploy-once.** `memory-seed skills add
+   <profile>` installs a profile on day 30, but the vocabulary is written once at `init` and `update`
+   never overwrites it. A profile added after init could never contribute a slug — so the per-profile
+   vocabulary would silently apply to whichever profiles happened to be selected in the first minute
+   of the project's life, and never again. That is a worse failure than a generic starter, because it
+   is invisible.
+2. **Profiles are composable capability bundles, not mutually exclusive project types.** A project can
+   hold `coding` + `marketing` + `documents` at once. Union-ing three vocabularies needs a merge rule,
+   a collision rule for the same slug arriving at different axes, and a slug-ownership concept that
+   does not exist today. The proposal assumed profiles partition projects; they do not.
+
+So the useful per-project-type variation is real but **needs its own key** — a `--project-type` at
+`init`, or a set of named starter vocabularies to pick from — not a re-use of `SKILL_PROFILES`.
+Recorded as a follow-up rather than built, because it is a new user-facing choice at init and wants
+JNL's call on the axis. What shipped is one starter that is `schema_version: 2`, declares `axis:` on
+every slug, and carries both axes with domain-neutral names (`deliverable`, `research`, `operations`
+/ `planning`, `drafting`, `review`, `correction`, `publishing`), shipped **flat** because a project
+with no corpus has earned no depth. `deliverable` is deliberately a placeholder: the header comment
+says so and tells you to split it, because the area axis is exactly where a project's specificity
+lives and a generic area is the one thing a starter cannot supply.
+
+### Follow-up: a cheap guard against skill-versus-vocabulary staleness
+
+`topic_swarm.md` went factually wrong the moment step 2 landed — it told the swarm to emit `graph` and
+never `related-entries`, which by then was a canonical child slug, and its axis lists were missing all
+31 promoted children. **Nothing went red**, because `docs check` does not cross-validate a skill
+against `topics.yaml`. The staleness would have been carried into a 933-judgment campaign.
+
+Proposed (not built): a `docs check` rule that extracts backticked slugs from the skill's judging-
+criteria section and asserts each resolves as a **canonical** slug in the local `topics.yaml`. Two
+honest caveats, which is why this wants a decision rather than a quiet implementation:
+
+- The skill legitimately names aliases as **counter-examples** ("`performance`, never `perf`"), so the
+  rule needs a scoped region or an opt-out marker rather than scanning the whole file.
+- The shipped skill is generic while the check reads the *local* vocabulary, so it can only guard this
+  repo, not every install. That is still worth having — this repo is where the campaign would run —
+  but it is a lint, not a schema guarantee.
+
 ### What the explicit axis buys immediately
 
 **Validation becomes a shape rule instead of a blunt count.** Today the guard is `MAX_TOPICS_PER_DECISION
