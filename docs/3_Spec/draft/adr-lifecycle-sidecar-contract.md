@@ -10,6 +10,12 @@ parent: ../../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md
 Status: **DRAFT - NOT IMPLEMENTED**. This contract becomes live only after the walking skeleton and validator
 are accepted.
 
+*Amended 2026-07-26. Brought onto the first-hand / reconstructed split and the explicit `source:` provenance
+field accepted in
+[write-time-sidecar-consolidation-proposal.md](../../2_Todo/write-time-sidecar-consolidation-proposal.md).
+This is an alignment pass on a draft, not a ratification: status stays `draft` and no runtime state is
+created.*
+
 ## Authority
 
 One append-only Markdown sidecar is authoritative for an ADR's promotion, stable identity, and lifecycle.
@@ -32,26 +38,81 @@ title: Use SQLite for the local index
 topics:
   - storage
 created_at: 2026-07-16T14:20:00Z
-created_by: jean
+user_initials: JNL
+agent_type: claude
+agent_name: Claude Fable 5
+source: write-time
 ---
 
 ## Proposed - 2026-07-16T14:20:00Z
 
 update_entry_id: mse_...
+source: write-time
 
 ## Accepted - 2026-07-16T16:10:00Z
 
 update_entry_id: mse_...
 expected_previous_status: proposed
+source: write-time
 ```
+
+`user_initials`, `agent_type`, and `agent_name` are the same three fields a session entry carries, and they
+mean the same thing here: who the work was *for*, and which agent performed it. They are not a provenance
+signal — see the next section for why `source:` is a separate field rather than something inferred from them.
 
 Frontmatter identity fields are fixed after creation. Corrections, topic changes, status changes, rejection,
 and supersession are appended transition blocks. `current_status` is the result of replaying the single valid
 transition chain and is never authored as a second state field.
 
 CLI and MCP writers should use one shared core operation, but the file remains directly readable and editable.
-A manual append is authoritative when it satisfies the same schema and validation rules; tooling must not
-claim exclusive ownership of repository memory.
+A direct append — by a person editing the file, or by an agent writing it outside the CLI — is authoritative
+when it satisfies the same schema and validation rules; tooling must not claim exclusive ownership of
+repository memory.
+
+## First-hand and reconstructed
+
+**The split this contract records is first-hand versus reconstructed, not human versus machine.** In this
+repository the author is, in practice, an LLM: the decisions an ADR promotes were written by an agent, and
+`user_initials` records who the session was *for*. So "what the author knew at write time" cannot mean "what a
+person knew" — it means **write-time**, and the honest contrast is:
+
+- **First-hand.** The agent had just made the decision when it marked the decision architecturally
+  significant. It knows the alternatives it rejected and the constraint that forced the call, because it was
+  the one doing the work.
+- **Reconstructed.** A later sweep reads finished prose and infers, from the entry text alone, that a decision
+  looks architecturally significant. It has the record, not the work.
+
+That difference is real and worth preserving. It is not a difference in *species of author*, and this contract
+does not treat one as trustworthy and the other as suspect on those grounds. It treats them differently
+because one observed the decision and one is inferring it.
+
+Measured support for the asymmetry: the topic-swarm pilot (aborted 2026-07-26) scored a cold sweep at
+**0.583 / 0.613** macro-recall against what the write-time agent produced. That is weak as a *source* and
+reasonable as a *check for omissions*, which is exactly the role the sweep is given below. The caveat carried
+over from the pilot applies here too — if both sides are LLM judgments, that figure is inter-annotator
+agreement rather than accuracy, and nobody has adjudicated who is right when they disagree.
+
+### Provenance is a declared field, never a position
+
+`source:` is declared **on the block**. It is never inferred from which file a value sits in, which tool wrote
+it, or which of `user_initials` / `agent_type` / `agent_name` is populated. This mirrors the consolidation
+proposal's rule for the topic and link families, and it uses that proposal's vocabulary rather than a second
+one:
+
+| Value | Meaning |
+|---|---|
+| `source: write-time` | the judgment was made in the same act that did the work |
+| `source: derived` | the judgment was reconstructed later from finished prose |
+
+It appears in two places, meaning the same thing in both:
+
+- **On frontmatter**, it records where the *promotion judgment* originated — whether the decision was marked
+  architecturally significant by the agent that made it, or proposed by a later sweep and then approved.
+  It is an identity field: fixed after creation, like the rest of the frontmatter.
+- **On each transition block**, it records where *that transition's* judgment originated.
+
+A missing `source:` is a validation error, not a default. Inferring it would reintroduce exactly the implicit
+second derivation this field exists to remove.
 
 ## Source decision identity
 
@@ -181,11 +242,47 @@ created when a decision constrains future work in a topic area, and `topics:` is
 This is the division of labour that makes both halves simple: **the entry owns what was decided; the
 sidecar owns which of those decisions still governs.**
 
+## Promotion authority — the sweep proposes, it never promotes
+
+A decision may be marked architecturally significant **at write time**, by the agent that just made it. That
+is the primary path, it is first-hand, and it is the only path that produces `source: write-time`.
+
+A later sweep may **propose** promotion for decisions that received nothing at write time. That is its whole
+job here: find omissions, not re-judge what was already judged.
+
+**The rule, stated once: a swarm may never create an ADR sidecar or append a transition block.** Its output is
+a promotion *candidate* in the ordinary suggestion channel — the same posture `link_swarm` already holds under
+Invariant #5 — and a human-approved run of the promotion operation is what writes the file. The resulting
+frontmatter then carries `source: derived`, which preserves the fact that the judgment was reconstructed even
+though a person approved it. Provenance records where the judgment came from; approval records who let it in.
+Those are two different questions and the file answers both.
+
+So, without inference:
+
+| Movement | May a sweep propose it? | Who commits it |
+|---|---|---|
+| create an ADR (first promotion) | yes, as a candidate | human approval, always |
+| proposed → accepted | yes, as a candidate | human approval, always |
+| proposed → rejected | yes, as a candidate | human approval, always |
+| accepted → superseded | yes, as a candidate | human approval, always |
+
+There is no row where a sweep writes. This is the plan's stated non-goal — *"no automatic ADR promotion or
+confidence-to-authority upgrade"*, and *"leave historical records legacy/unclassified unless a human
+explicitly promotes a decision"* — carried into the file format rather than left as a policy sentence
+somewhere else.
+
+Note the asymmetry with the topic and link families, which is deliberate. There, a sweep appends `source:
+derived` blocks directly, because a wrong topic slug is cheap to retract. Here, the existence of the sidecar
+*is* the promotion, so a written block is already an authority claim. Same vocabulary, stricter gate.
+
 ## Transition rules
 
-- Every transition references exactly one `decision-update` entry.
-- The update entry names the ADR, expected previous status, new status, author, timestamp, rationale, and
-  evidence references.
+- Every transition references exactly one `decision-update` entry, which is a first-hand record by
+  construction: it is written by whoever is making the transition, at the moment they make it.
+- The update entry names the ADR, expected previous status, new status, the session's `user_initials` and the
+  acting agent, timestamp, rationale, and evidence references.
+- Every transition block declares `source:`. In practice this is `write-time`; `derived` records that the
+  transition originated as a sweep candidate and was then approved, per the section above.
 - Allowed status transitions are versioned by schema. The initial set is proposed -> accepted/rejected and
   accepted -> superseded. Reconsideration requires an explicit later schema decision.
 - Supersession names the replacement ADR; the inverse is computed rather than hand-maintained.
@@ -197,6 +294,17 @@ sidecar owns which of those decisions still governs.**
 Validation must detect duplicate ADR IDs, broken source selectors, missing update entries, transition/order
 errors, competing heads, unknown topics, malformed timestamps, and invalid supersession. It reports repair
 guidance but does not silently mutate authored memory.
+
+Provenance adds two checks, and both are errors rather than warnings:
+
+- **Missing `source:`** on frontmatter or on any transition block. There is no default value; a block that
+  does not say where its judgment came from is unvalidatable, not permissive.
+- **`source:` outside `write-time | derived`.** A closed set, for the reason
+  [provenance-authority-crosswalk.md](provenance-authority-crosswalk.md) records at length: a field validated
+  only as "a non-empty string" is how an undeclared parallel vocabulary gets in.
+
+Derived readers may report the write-time/derived split — how many ADRs originated first-hand versus from a
+sweep — and that count is only honest because the field is declared rather than inferred.
 
 ## Derived readers
 
