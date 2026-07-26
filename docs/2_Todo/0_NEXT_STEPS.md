@@ -94,8 +94,17 @@ These exist only in session-entry Follow-ups today. Nothing below is built.
    1,108 file-overlap never-linked pairs and landed **696 decision-level edges**, each carrying a
    structured `edge_confidence` (`link_swarm` skill; specs `edge-confidence-metadata.md`). The graph and
    Trail now **fade low-confidence edges**, and published edges are corrected only via append-only
-   `retracts:` blocks (`link-retraction.md`). *Open follow-ups:* a user-facing confidence threshold/filter
-   control (deferred), and re-running the swarm on the ~200 still-topicless entries.
+   `retracts:` blocks (`link-retraction.md`).
+   *Follow-up CLOSED 2026-07-26:* the user-facing confidence control shipped — an All / ≥0.7 / ≥0.9
+   threshold in the graph filter bar, reusing the tiers the sidecar already stores so it filters on the
+   same boundaries the graph fades on. Defaults to All, because hiding evidence by default would let a
+   viewing preference decide what the corpus appears to contain. Human-authored edges carry no
+   confidence and are never hidden by it. Filtered edges are also dropped from the per-pair outranking
+   input, so a hidden low-confidence edge cannot win its pair and blank the visible relationship.
+   *Follow-up SUPERSEDED:* "re-run the swarm on the ~200 still-topicless entries" understated the job.
+   The topic backfill is ~922 judgment units across the WHOLE corpus (648 of the 888 addressable
+   decisions sit inside already-topiced entries, which carry no per-decision attribution). The
+   `topic_swarm` skill now owns it, with a two-leg pilot gate; nothing has been run.
 3. ~~**Semantic scoring for `link audit`** — measured, unbuilt.~~ **RESOLVED — stale as written
    (verified 2026-07-26).** Both halves of the item were already done and its figures are
    *superseded*, not merely reproduced. Semantic ranking shipped **2026-07-22** in `3deb9c2`
@@ -185,14 +194,34 @@ These exist only in session-entry Follow-ups today. Nothing below is built.
    monotonically 537 → 562 → 636; the `none` bucket (42) and legacy-heading count (25) are frozen
    across all three snapshots, which is what shows the classifier stable and the growth real. Safe to
    size decision-coverage work from these.
-7. **Centrality-driven node prominence** — compute degree (later betweenness/PageRank) on the graph
-   projection and let it drive node size/visual weight, never position. Residue 3 of the
-   [information-theoretic disposition](../4_Reference/information-theoretic-evolution-disposition.md)
-   (2026-07-25); sequenced **after** the Phase D1 graph-motion work so it lands on the settled
-   full-corpus layout. The proposal's ADR-gravity-well layout stays declined until ADR nodes exist.
-   *Note (2026-07-26):* pick the input deliberately — `connectivity` is a **related-only** display
-   weight already driving node radius, while the inspector's `Links` now counts rendered edges of
-   every kind. They are different numbers and the graph currently uses the former.
+7. **Centrality-driven node prominence** — **DEGREE SHIPPED 2026-07-26; betweenness/PageRank open.**
+   Residue 3 of the
+   [information-theoretic disposition](../4_Reference/information-theoretic-evolution-disposition.md).
+   Node size is now `22 + min(20, sqrt(degree) * 5)` over the **payload's** edges of every kind, not
+   the related-only `connectivity` that previously drove radius — an entry whose ties are mostly
+   `evolves` drew small while a chattier but less consequential one drew large. Reading the payload
+   rather than the visible set keeps sizing stable when an edge filter is toggled; sqrt is because
+   degree is heavy-tailed and a linear ramp flattens everything below the hubs. Verified live: 98
+   nodes resolve to 9 distinct sizes over 22–36. Position is untouched.
+   *Still open:* betweenness and PageRank. Unlike degree these are **global** computations, so they
+   are a genuine argument for computing server-side and adding a node field, which degree was not.
+   The proposal's ADR-gravity-well layout stays declined until ADR nodes exist.
+8. **Decision rows in the Graph** — **BACKEND SHIPPED 2026-07-26; client wiring blocked on one
+   contract decision.** `/api/v1/graph/projection` accepts `include_decisions` (default **false**, so
+   the entry-level surface is untouched) and `graph()` takes `decision_row_scope`: `"all"` for the
+   Trail, `"linked"` for the Graph. Forging an entry-level line for a decision edge was tried and
+   **reverted** — `test_decision_edges_never_reach_entry_level_consumers` asserts by set-equality
+   against a sidecar-deleted control that the entry-level surface stays indistinguishable from a world
+   without decision edges, and that guard is deliberate.
+   The scope split is measured, not stylistic: expanding every decision into the force layout added
+   446 rows of which **276 were isolated** — worse than the 9 orphans it set out to fix. Filtering by
+   entry got that to 110; filtering by **ordinal** gets it to **0**.
+   **Your call before a client lands:** with rows on, full-corpus orphans go 83 → 94, because ~11
+   anchors whose only edges were decision-level now float while their rows carry the relationships. A
+   timeline gets parent/child from adjacency; a force graph has no tether between an anchor and its
+   rows, and adding one means a **fifth edge kind** — which the four-independent-never-merged-kinds
+   contract makes a deliberate decision, not an implementation detail. No client shipped, because
+   shipping UI now would bake in whichever answer I guessed.
 8. **Decision rows in the Graph — the fix for the last 9 orphans** (P2). Nine entries whose only
    relationships are decision-level render as unconnected: an entry-granularity view has no decision
    row for `B:d2 evolves A:d1` to terminate on, so the edge has nowhere to land. Emitting an
