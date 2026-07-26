@@ -106,6 +106,27 @@ These exist only in session-entry Follow-ups today. Nothing below is built.
    diverged from `audit_link_gaps`*; the shipped sweep re-measured end-to-end through the real
    function and landed on **weight 160, recall@5 77%, recall@10 82%** (97/104 true edges surfaced).
    Quote the spec's table, not this item's numbers.
+
+   **Re-measured 2026-07-26** on the now-637-entry corpus (133 resolvable author-declared lifecycle
+   pairs, end-to-end through `audit_link_gaps`, `top_k=200`): lexical-only recall@5 **56%**,
+   +semantic **74%**; recall@10 **63% → 82%**; median rank **3 → 2**. recall@10 reproduces the
+   shipped figure exactly; recall@5 lands 3 points under it on a corpus grown from 544 entries.
+   Embedding 637 entries costs **0.17 s**; the one-off model load is **~6 s** cold here (not 2.9 s).
+
+   *What this pass actually fixed* — two real defects the "measured, unbuilt" framing hid, both
+   violations of **expose before you rank**: the cosine was folded invisibly into a field named
+   `file_overlap_score`, and a missing provider degraded to lexical **silently**. That second one is
+   not cosmetic: the semantic term changes the top-5 for **610 of 629** sources, so a silent fallback
+   served a different ranking with nothing on screen to say so. Now `LinkGapCandidate` carries
+   `lexical_score` + `semantic_score` (raw cosine, `None` when off), `link audit` prints a
+   ranking-provenance line and the per-candidate cosine, `--json` carries a `semantic` block, and
+   **`--no-semantic`** ranks lexically without loading a model. Ranking stayed **default-on** rather
+   than being flipped to opt-in: it is a swept, spec-documented default and reverting it would have
+   discarded ~18 points of recall@5 on no evidence.
+
+   *Also corrected:* the spec claimed "the gain is in *reachability*, not reordering". It is the
+   reverse — reachability is 132/133 **either way** (cosine only adds to pairs the lexical gate
+   already admitted, so it structurally cannot improve reach); the whole gain is reordering.
 4. ~~**`compact_mermaid_diagrams` vs `arc2d`**~~ **RESOLVED — stale as written (verified 2026-07-26).**
    The premise "the renderer parses no `subgraph` in *both* clients" stopped being true on 2026-07-22:
    `71cea36` deleted `client/src/arc2d.ts` and `DiagramView.tsx` now renders each sidecar block through
