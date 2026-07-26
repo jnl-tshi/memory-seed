@@ -642,8 +642,16 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # Fail closed when the console script on PATH is a different build from the
-    # checkout the caller is standing in. `version` and `help` are exempt above:
-    # they are how you diagnose exactly this, and neither reads or writes the tree.
+    # checkout the caller is standing in. `version` and `help` are exempt above
+    # (and argparse serves `<cmd> --help` before reaching here): they are how you
+    # diagnose exactly this, and neither reads nor writes the tree.
+    #
+    # `situate` and `worktree guard` are deliberately NOT exempt, though they are
+    # the orientation commands an agent reaches for first. Their output from a
+    # foreign build is precisely the untrustworthy report this guard exists to
+    # stop - a stale worktree list or version read as ground truth is worse than
+    # no report - and the refusal names both resolved paths and the working
+    # invocation, which orients better than a stale answer would.
     provenance = package_provenance(Path("."))
     if provenance.foreign and not provenance.allowed:
         # Echo the caller's own tokens so the remedy line is copy-pasteable;
