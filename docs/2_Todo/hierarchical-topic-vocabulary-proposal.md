@@ -41,8 +41,36 @@ described in a project-local proposal and taught to the swarm in prose. Nothing 
 which axis a slug belongs to, so nothing can check it. Making it a field turns the model from advice
 into structure. `schema_version: 1 → 2` carries this and `parent:` together — one bump, not two.
 
-**A slug may declare a `parent:`.** One parent, maximum depth 2 to start. A child inherits its parent's
-axis; mixing axes across a parent/child edge is a validation error.
+**A slug may declare a `parent:`.** One parent. A child inherits its parent's axis; mixing axes across
+a parent/child edge is a validation error. The hierarchy lives **within** an axis — areas nest under
+areas, activities under activities — never across.
+
+**Depth is earned by concentration, not fixed** (JNL, 2026-07-26). An earlier draft of this proposal
+capped the tree at two levels. That was wrong in both directions: it would force sparse areas to invent
+children they do not need, and cap dense ones short of the specificity the corpus demands. An area of
+higher complexity should gain grandchildren that further break down its children; a thin one should
+stay a leaf.
+
+The trigger is the measurement that started this thread. **A slug earns children when it is carrying
+too much of its scope** — and the existing data anchors where that line sits:
+
+| slug | share | reading |
+|---|---:|---|
+| `memory-trace` | 44.2% | plainly too broad — earns children, and likely grandchildren under `trail` |
+| `graph` | 23.8% | too broad — earns children |
+| `session-logging` | 11.7% | healthy — stays a leaf |
+| `mcp-tools`, `retrieval`, `mermaid`, … | ≤ 4.3% | healthy — stay leaves |
+
+So the line is somewhere between 12% and 24% of the corpus at top level; below it a slug is doing its
+job, above it the label has stopped distinguishing. At deeper levels the same question is asked
+against the **parent's** population rather than the whole corpus — a child taking most of its parent's
+volume is the next candidate to split.
+
+This makes the vocabulary **self-governing**: the concentration review in
+`topic-vocabulary-concentration-review.md` stops being a one-off audit and becomes a periodic health
+check that says *where* to deepen and *when to stop*. Depth is then bounded by evidence rather than by
+a rule nobody can justify — which is the real protection against a taxonomy nobody maintains, since no
+level exists unless the corpus paid for it.
 
 ### The two axes, named for any project — not for software
 
@@ -206,5 +234,10 @@ the graph's parent-colour/child-group split is the harder consumer to get right.
 - **Two derivations risk.** Deriving the parent at read time is a second derivation of a displayed
   fact; the legend and node colour must both read it from **one** function, per the warning already in
   `graphCommunities.ts` — *"two derivations are how a legend ends up quietly lying."*
-- **Depth discipline.** Two levels. Arbitrary depth invites a taxonomy nobody maintains, and the
-  five-question test should be applied to any third level before it exists.
+- **Depth discipline is a measurement, not a cap.** Depth is earned by concentration (see Design), so
+  the guard against a taxonomy nobody maintains is that **no level exists unless the corpus paid for
+  it**. Two failure modes to watch: deepening a slug because it *feels* broad rather than because it
+  measures broad, and letting a level survive after the concentration that justified it has dispersed.
+  Re-run the concentration review after each split — it is the same query, and it says both where to
+  deepen and where a level has stopped earning its place. The five-question test still applies to any
+  level added without a measurement behind it.
