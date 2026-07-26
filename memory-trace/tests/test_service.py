@@ -709,10 +709,61 @@ class TraceServiceTests(unittest.TestCase):
         self.assertEqual([node["entry_id"] for node in agent_graph["nodes"]], ["mse_graph"])
         self.assertEqual({node["entry_id"] for node in topic_graph["nodes"]}, {"mse_ui", "mse_graph"})
 
+    def test_graph_overview_slice_is_a_chronological_spine_plus_what_it_references(self):
+        # The overview grows along the SAME axis the Trail pages along, so
+        # "Show more" walks back through time instead of moving around a
+        # connectivity ranking. An old entry enters only when the spine
+        # references it - which is what makes the Graph show relationships the
+        # purely chronological Trail cannot.
+        self.write_session(
+            "2026-05-01.md",
+            "\n".join(
+                _entry(
+                    f"2026-05-01 0{index}:00 - Ancient note {index}",
+                    f"mse_old{index}",
+                    "Old, unreferenced.",
+                    topics=[f"iso{index}"],
+                )
+                for index in range(1, 5)
+            ),
+        )
+        self.write_session(
+            "2026-05-02.md",
+            _entry("2026-05-02 09:00 - Ancient but referenced", "mse_oldlinked", "Referenced later.", topics=["c"]),
+        )
+        self.write_session(
+            "2026-06-05.md",
+            "\n".join(
+                _entry(
+                    f"2026-06-05 1{index}:00 - Recent step {index}",
+                    f"mse_recent{index}",
+                    "Recent work.",
+                    related=["mse_oldlinked"] if index == 0 else [f"mse_recent{index - 1}"],
+                    topics=["cluster"],
+                )
+                for index in range(3)
+            ),
+        )
+        service = self.service()
+        edge_types = ("related", "replaces", "evolves", "topic")
+
+        overview = service.graph(edge_types=edge_types, limit=3)
+
+        node_ids = {node["id"] for node in overview["nodes"]}
+        # The three newest entries are the spine...
+        self.assertTrue({"mse_recent0", "mse_recent1", "mse_recent2"}.issubset(node_ids))
+        # ...the old entry the spine REFERENCES is pulled in despite its date...
+        self.assertIn("mse_oldlinked", node_ids)
+        # ...and old entries nothing references stay out, even though they would
+        # have been first under plain corpus order.
+        self.assertFalse({f"mse_old{index}" for index in range(1, 5)} & node_ids)
+
     def test_graph_overview_slice_prefers_connected_subgraph(self):
         # Regression: the all-dates overview (no entry_id, no date filter) used
         # to truncate nodes in corpus order, so a limit smaller than the corpus
         # kept the oldest - edgeless - entries and rendered a disconnected map.
+        # Still true under the chronological spine, by a different route: the
+        # newest entries are the linked ones, so newest-first is connected.
         self.write_session(
             "2026-05-01.md",
             "\n".join(
@@ -745,7 +796,10 @@ class TraceServiceTests(unittest.TestCase):
         repeat = service.graph(edge_types=edge_types, limit=6)
 
         node_ids = [node["id"] for node in overview["nodes"]]
-        self.assertEqual(len(node_ids), 6)
+        # `limit` sizes the SPINE, not the payload: depth-1 expansion is additive
+        # on top of it, so the node count is at least the limit and may exceed it
+        # by whatever the spine references.
+        self.assertGreaterEqual(len(node_ids), 6)
         # The slice keeps the connected cluster instead of the oldest rows, so
         # the intra-slice edge set is non-trivial on a corpus that has edges.
         self.assertGreaterEqual(len(overview["edges"]), 4)
@@ -757,7 +811,7 @@ class TraceServiceTests(unittest.TestCase):
         from memory_trace.graph_projection import project_trace_graph
 
         projection = project_trace_graph(overview)
-        self.assertEqual(len(projection["nodes"]), 6)
+        self.assertEqual(len(projection["nodes"]), len(overview["nodes"]))
         self.assertEqual(len(projection["edges"]), len(overview["edges"]))
 
     def test_pinned_ids_survive_the_limit_and_bring_their_lifecycle_neighbours(self):
