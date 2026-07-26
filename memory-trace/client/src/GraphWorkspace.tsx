@@ -455,6 +455,22 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
   // VIEWING PREFERENCE (the Orphans toggle) rather than a structural decision,
   // and when shown they take part in the simulation like anything else.
   const connected = useMemo(() => connectedIds(graph.edges), [graph.edges]);
+  // Degree centrality over the PAYLOAD's edges, which drives node size below.
+  // Two deliberate choices. It counts every edge kind in the payload, not just
+  // `related` — the node's server-computed `connectivity` is a related-only
+  // weight, so an entry whose ties are mostly `evolves` drew small while a
+  // chattier but less consequential one drew large. And it reads the payload
+  // rather than the VISIBLE edge set, so toggling an edge filter re-styles
+  // lines without resizing every node underneath them.
+  const degree = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const edge of graph.edges) {
+      if (edge.source === edge.target) continue;
+      counts.set(edge.source, (counts.get(edge.source) ?? 0) + 1);
+      counts.set(edge.target, (counts.get(edge.target) ?? 0) + 1);
+    }
+    return counts;
+  }, [graph.edges]);
   const renderedNodes = useMemo(
     () => (showOrphans ? graph.nodes : graph.nodes.filter((node) => connected.has(node.id))),
     [graph.nodes, connected, showOrphans],
@@ -535,7 +551,12 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
                 // inferred and unassigned nodes keep the invisible cutout
                 // border, so the rim alone says "this entry declared a topic".
                 borderColour: hasAuthoredCommunity(node) ? authoredBorderColour(colour) : nodeBorder,
-                size: 22 + Math.min(18, node.connectivity * 3),
+                // Square-root scaling, not linear: degree is heavy-tailed, so a
+                // linear ramp spends its whole range on the few hubs and leaves
+                // everything else indistinguishable. sqrt keeps the low end
+                // legible while still ranking the hubs, and the cap stops one
+                // outlier dominating the canvas.
+                size: 22 + Math.min(20, Math.sqrt(degree.get(node.id) ?? 0) * 5),
               },
               position: positions.get(node.id),
             };
