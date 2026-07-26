@@ -486,14 +486,40 @@ class BranchProvenanceTests(unittest.TestCase):
         self.assertEqual(self._stamped_branch(self.worktree), "feat/tracked")
         self.assertEqual(self._stamped_branch(self.primary), "claude/feature/someone-else")
 
-    def test_untracked_memory_seed_makes_a_worktree_record_the_primarys_branch(self):
-        # The same worktree layout silently flips to the wrong value when
-        # `.memory-seed` is NOT tracked: nothing stops the walk-up, so the agent
-        # writes into the primary's memory dir and stamps the primary's HEAD.
-        # Worktree isolation is a consequence of the memory dir being committed,
-        # not of worktrees as such.
+    def test_untracked_memory_seed_worktree_omits_the_branch_rather_than_lying(self):
+        # The same worktree layout would silently stamp the PRIMARY's branch
+        # when `.memory-seed` is not tracked: nothing stops the walk-up, so the
+        # agent writes into the primary's memory dir. Neither HEAD is right -
+        # the session is on the worktree's branch, the file lands on the
+        # primary's - so the field is omitted, on the same principle as the
+        # pre-existing detached-HEAD case. Omission, not refusal: the append
+        # still succeeds and reports no issues.
         _, worktree, _ = self._build_repo("untracked", tracked=False)
-        self.assertEqual(self._stamped_branch(worktree), "claude/feature/someone-else")
+        result = session_append_entry(
+            worktree,
+            title="Probe",
+            body=BODY,
+            user_initials="JN",
+            agent_type="claude",
+            timestamp="2026-07-26 01:00",
+            dry_run=True,
+        )
+        self.assertTrue(result.ok, result.issues)
+        self.assertEqual(result.issues, ())
+        self.assertNotIn("branch:", result.rendered)
+        self.assertIsNone(self._stamped_branch(worktree))
+
+    def test_shared_checkout_concurrency_is_still_invisible(self):
+        # The half that code cannot fix, pinned so nobody mistakes the omission
+        # rule above for a complete answer. A plain nested dir and the primary
+        # itself are the same working tree with the same HEAD, so an agent
+        # working out of either records whatever branch is checked out at write
+        # time - including one another's. Undecidable from git; needs a design
+        # decision, not a heuristic.
+        self.assertEqual(
+            self._stamped_branch(self.plain), self._stamped_branch(self.primary)
+        )
+        self.assertEqual(self._stamped_branch(self.plain), "claude/feature/someone-else")
 
     def test_toplevels_agree_when_the_memory_dir_is_in_the_callers_own_tree(self):
         # The obvious fix - "resolve git relative to cwd rather than the
