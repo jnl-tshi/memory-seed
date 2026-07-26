@@ -820,6 +820,14 @@ MAX_INFERRED_TOPICS = 4
 # labels everything. The rolled-up entry union is deliberately NOT capped: a
 # six-decision entry legitimately spans more ground than a one-decision entry,
 # which is what MAX_INFERRED_TOPICS - a per-ENTRY ceiling - could never express.
+#
+# The axis SHAPE rule in check_session_links sharpens this count; it does not
+# retire it. The two bound different things: the shape rule caps the AREA side
+# at one and requires an axis to be represented, but says nothing about how many
+# activities a decision may carry, so without this ceiling `bugfix, refactor,
+# documentation, testing` on one decision would pass. Count and shape are
+# complementary, and the count is the half that still works on a vocabulary
+# which has not declared its axes.
 MAX_TOPICS_PER_DECISION = 3
 
 # A topic sidecar slug may name the decision it describes: `graph:d1`. A BARE
@@ -2200,13 +2208,24 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     # and an inferred topic that merely restates one the author already wrote
     # is redundant rather than wrong, so it warns.
     topic_docs = list(iter_topic_sidecar_documents(sessions_dir))
+    topic_index = None
+    # Whether the vocabulary declares axes AT ALL. The shape rule below is armed
+    # by this and by nothing else: a schema_version 1 vocabulary, or another
+    # project's that never adopted the two-axis model, declares none, so the
+    # rule stays dormant and `links check` behaves exactly as it did before.
+    # Fail-open on undeclared, matching every other reader of this file.
+    topic_axes_declared = False
     if topic_docs:
         try:
             from .topics import load_topic_index
 
-            topic_resolution = load_topic_index(root).resolution() or {}
+            topic_index = load_topic_index(root)
+            topic_resolution = topic_index.resolution() or {}
+            topic_axes_declared = any(topic_index.axis_of(record.slug) for record in topic_index.topics)
         except Exception:  # noqa: BLE001 - a missing/broken vocabulary must not crash the check
             topic_resolution = {}
+            topic_index = None
+            topic_axes_declared = False
     for topic_doc in topic_docs:
         files_checked += 1
         try:
@@ -2316,6 +2335,45 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                             "topic-sidecar-overreach",
                             f"{subject} carries {len(group)} topics; at most {ceiling} - "
                             "a label that fits everything distinguishes nothing",
+                        )
+                    )
+                # SHAPE, not just count. The ceiling above cannot tell three
+                # activities and no area from a well-formed one-of-each; a
+                # declared `axis:` can. Scoped to DECISION-KEYED groups only:
+                # an entry legitimately spans several areas - 177 of 453 live
+                # entries do - but a decision is one act of work, so only there
+                # is "one area" a real invariant. That is the same asymmetry the
+                # ceiling above already draws between bare and keyed groups, and
+                # it is what keeps this a write-time rule rather than a
+                # retroactive verdict on the corpus.
+                if ordinal is None or not topic_axes_declared or topic_index is None:
+                    continue
+                subject = f"{entry_id}:{ordinal}"
+                # An unknown slug is already reported once below; judging it
+                # here too would spend two errors on one typo.
+                canonical = [topic_resolution[slug] for slug in group if slug in topic_resolution]
+                axes = [topic_index.axis_of(slug) for slug in canonical]
+                areas = sorted({slug for slug, axis in zip(canonical, axes) if axis == "area"})
+                if len(areas) > 1:
+                    issues.append(
+                        LinkIssue(
+                            rel,
+                            "topic-sidecar-multi-area",
+                            f"{subject} carries {len(areas)} area topics ({', '.join(areas)}); at most one - "
+                            "a decision that is genuinely about two areas is two decisions",
+                        )
+                    )
+                # A slug whose axis is undeterminable never fails on its own -
+                # only a group where NOTHING is determinable does. So an
+                # axis-less slug sitting beside an area slug is fine, and the
+                # failure is a property of the group rather than of any member.
+                if canonical and not any(axes):
+                    issues.append(
+                        LinkIssue(
+                            rel,
+                            "topic-sidecar-no-axis",
+                            f"{subject} represents neither axis ({', '.join(sorted(canonical))}); a decision "
+                            "needs at least one of area (what it is about) or activity (what kind of work)",
                         )
                     )
             for slug in slugs:

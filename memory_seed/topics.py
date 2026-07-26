@@ -253,6 +253,37 @@ def load_topic_index(cwd: str | Path = ".") -> TopicIndex:
     return TopicIndex(path=rel, exists=True, schema_version=schema_version, topics=tuple(records))
 
 
+def _parent_cycles(index: TopicIndex) -> tuple[tuple[str, ...], ...]:
+    """Every cycle in the ``parent:`` graph, each reported once.
+
+    ``ancestors()`` deliberately BREAKS on a repeat rather than raising, because
+    it sits on read-time hot paths where a vocabulary defect must never hang or
+    crash retrieval. That termination is what makes a cycle silent, so the
+    detection belongs here in validation instead - the one place whose job is
+    to say a vocabulary is wrong.
+
+    A cycle is reported once per cycle, not once per member: three slugs in a
+    three-cycle are one defect, and three identical issues would only bury it.
+    The rotation-independent frozenset of members is the dedupe key.
+    """
+    by_slug = {record.slug: record for record in index.topics}
+    found: dict[frozenset[str], tuple[str, ...]] = {}
+    for record in index.topics:
+        path: list[str] = []
+        seen: set[str] = set()
+        current: str | None = record.slug
+        while current is not None and current not in seen:
+            seen.add(current)
+            path.append(current)
+            parent = by_slug[current].parent if current in by_slug else ""
+            current = parent or None
+        if current is None:
+            continue  # walked off a root or an undefined parent: no cycle
+        cycle = tuple(path[path.index(current) :])
+        found.setdefault(frozenset(cycle), cycle)
+    return tuple(found.values())
+
+
 def _validate_topic_index(index: TopicIndex) -> tuple[TopicIssue, ...]:
     issues: list[TopicIssue] = []
     seen: dict[str, str] = {}
@@ -266,6 +297,17 @@ def _validate_topic_index(index: TopicIndex) -> tuple[TopicIssue, ...]:
                 issues.append(TopicIssue("error", kind, f"'{name}' appears as both {seen[name]} and {role}", index.path))
             else:
                 seen[name] = role
+    for cycle in _parent_cycles(index):
+        loop = " -> ".join((*cycle, cycle[0]))
+        issues.append(
+            TopicIssue(
+                "error",
+                "parent-cycle",
+                f"parent: forms a cycle ({loop}); a slug cannot be its own ancestor, "
+                "so neither its axis nor its ancestors are derivable",
+                index.path,
+            )
+        )
     return tuple(issues)
 
 

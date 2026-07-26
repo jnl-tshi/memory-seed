@@ -1491,6 +1491,121 @@ class LinksCheckTests(unittest.TestCase):
         self._topic_sidecar(cwd, "2026-06-01", [("mse_bbbbbbbbbbbbbbbb", ["retrieval"])])
         self.assertIn("topic-already-authored", [i.kind for i in check_session_links(cwd=cwd).issues])
 
+    # --- Axis shape rule (step 3 of hierarchical-topic-vocabulary-proposal) ---
+
+    def _axis_vocabulary(self, cwd):
+        """A schema_version 2 vocabulary that DECLARES axes, which is what arms
+        the shape rule. `trail` leaves `axis:` empty on purpose - it must
+        inherit `area` from its parent through `axis_of()`. `misc` is a
+        declared slug with no axis and no axis-declaring ancestor: the
+        undeterminable case the rule must not punish on its own."""
+        (cwd / MEMORY_DIR_NAME).mkdir(parents=True, exist_ok=True)
+        (cwd / MEMORY_DIR_NAME / "topics.yaml").write_text(
+            "schema_version: 2\ntopics:\n"
+            "  - slug: memory-trace\n    label: Memory Trace\n    status: active\n    axis: area\n"
+            "  - slug: trail\n    label: Trail\n    status: active\n    parent: memory-trace\n"
+            "  - slug: graph\n    label: Graph\n    status: active\n    axis: area\n"
+            "  - slug: bugfix\n    label: Bugfix\n    status: active\n    axis: activity\n"
+            "  - slug: documentation\n    label: Docs\n    status: active\n    axis: activity\n"
+            "  - slug: misc\n    label: Misc\n    status: active\n",
+            encoding="utf-8",
+        )
+
+    def _axis_project(self):
+        cwd = self.make_project()
+        self._multi_decision_topic_corpus(cwd)
+        self._axis_vocabulary(cwd)  # overwrites the v1 vocabulary the corpus wrote
+        return cwd
+
+    def _kinds(self, cwd):
+        return [i.kind for i in check_session_links(cwd=cwd).issues]
+
+    def test_two_areas_bind_on_a_decision_but_not_on_the_entry(self):
+        # The whole scoping decision in one test. A DECISION is one act of work
+        # and carries one area; an ENTRY legitimately spans several - 177 of 453
+        # live entries do - so the bare form must stay silent. Without the
+        # negative half this passes against code that judges every group.
+        cwd = self._axis_project()
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_aaaaaaaaaaaaaaaa", ["graph:d1", "memory-trace:d1"])])
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        multi = [i for i in result.issues if i.kind == "topic-sidecar-multi-area"]
+        self.assertTrue(multi)
+        self.assertIn("mse_aaaaaaaaaaaaaaaa:d1", multi[0].detail)
+
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_aaaaaaaaaaaaaaaa", ["graph", "memory-trace"])])
+        entry_level = check_session_links(cwd=cwd)
+        self.assertTrue(entry_level.ok, [i.detail for i in entry_level.issues if i.severity == "error"])
+        self.assertNotIn("topic-sidecar-multi-area", [i.kind for i in entry_level.issues])
+
+    def test_a_child_counts_as_the_area_it_inherits(self):
+        # `trail` declares no axis of its own; it is an area only through its
+        # parent. Pins that the rule reads axis_of() rather than record.axis -
+        # a direct field read would let this pair through.
+        cwd = self._axis_project()
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_aaaaaaaaaaaaaaaa", ["graph:d1", "trail:d1"])])
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        multi = [i for i in result.issues if i.kind == "topic-sidecar-multi-area"]
+        self.assertTrue(multi)
+        self.assertIn("trail", multi[0].detail)
+
+    def test_one_of_each_axis_and_two_activities_both_pass(self):
+        # The shape the count could never distinguish. Two activities and no
+        # second area is well-formed: the rule caps the AREA side only, and the
+        # per-decision count still bounds the rest.
+        cwd = self._axis_project()
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_aaaaaaaaaaaaaaaa", ["graph:d1", "bugfix:d1"])])
+        ok = check_session_links(cwd=cwd)
+        self.assertTrue(ok.ok, [i.detail for i in ok.issues if i.severity == "error"])
+
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_aaaaaaaaaaaaaaaa", ["bugfix:d1", "documentation:d1"])])
+        activities = check_session_links(cwd=cwd)
+        self.assertTrue(activities.ok, [i.detail for i in activities.issues if i.severity == "error"])
+        self.assertNotIn("topic-sidecar-no-axis", [i.kind for i in activities.issues])
+
+    def test_an_axis_less_slug_does_not_fail_beside_one_that_has_an_axis(self):
+        # Fail-open is per SLUG: `misc` is undeterminable, but the group still
+        # represents an axis through `graph`, so nothing fires.
+        cwd = self._axis_project()
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_aaaaaaaaaaaaaaaa", ["graph:d1", "misc:d1"])])
+        result = check_session_links(cwd=cwd)
+        self.assertTrue(result.ok, [i.detail for i in result.issues if i.severity == "error"])
+        self.assertNotIn("topic-sidecar-no-axis", [i.kind for i in result.issues])
+        self.assertNotIn("topic-sidecar-multi-area", [i.kind for i in result.issues])
+
+    def test_a_decision_representing_neither_axis_is_reported(self):
+        # The failure is a property of the GROUP: nothing in it is determinable.
+        cwd = self._axis_project()
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_aaaaaaaaaaaaaaaa", ["misc:d1"])])
+        result = check_session_links(cwd=cwd)
+        self.assertFalse(result.ok)
+        self.assertIn("topic-sidecar-no-axis", [i.kind for i in result.issues])
+
+    def test_an_axis_less_vocabulary_behaves_exactly_as_before(self):
+        # THE fail-open pin. `_vocabulary` is schema_version 1 and declares no
+        # axis anywhere, so the rule is disarmed: the same two-area decision
+        # that errors above must stay clean, and a slug with no derivable axis
+        # must not be reported either. A vocabulary that never adopted the
+        # two-axis model - schema_version 1, or another project's - cannot be
+        # judged against a distinction it never made.
+        cwd = self.make_project()
+        self._multi_decision_topic_corpus(cwd)  # writes the v1 vocabulary
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_aaaaaaaaaaaaaaaa", ["graph:d1", "memory-trace:d1"])])
+        result = check_session_links(cwd=cwd)
+        self.assertTrue(result.ok, [i.detail for i in result.issues if i.severity == "error"])
+        self.assertNotIn("topic-sidecar-multi-area", [i.kind for i in result.issues])
+        self.assertNotIn("topic-sidecar-no-axis", [i.kind for i in result.issues])
+
+    def test_an_unknown_slug_is_reported_once_not_twice(self):
+        # A typo is already `unknown-topic-slug`. Judging its (absent) axis too
+        # would spend two errors on one defect, which is how a check erodes.
+        cwd = self._axis_project()
+        self._topic_sidecar(cwd, "2026-06-01", [("mse_aaaaaaaaaaaaaaaa", ["nonesuch:d1"])])
+        kinds = self._kinds(cwd)
+        self.assertIn("unknown-topic-slug", kinds)
+        self.assertNotIn("topic-sidecar-no-axis", kinds)
+
     # --- Grammar v2 (2026-07-24 mandate): comma ordinals + arrow source ---
 
     def test_comma_multi_ordinal_ref_expands_and_validates_each(self):
