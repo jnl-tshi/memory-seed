@@ -411,6 +411,66 @@ class SessionSchemaTests(unittest.TestCase):
                 "will ever load it",
             )
 
+    def test_every_seeded_skill_runbook_matches_its_live_twin(self):
+        # Generic seed/live parity over every shipped skill runbook. The
+        # registration checks above prove a skill EXISTS and is TRIGGERED; nothing
+        # proved the two copies still say the same thing. Byte parity was asserted
+        # only for the skills hand-listed in
+        # test_extracted_lazy_skills_are_registered_seeded_and_standalone and the
+        # explicit pairs in test_seed_control_plane_matches_live_rationale_guidance,
+        # so a skill outside both lists could drift silently — link_swarm.md was in
+        # exactly that gap on 2026-07-26 (its twins happened to be identical, but
+        # nothing enforced it). Keep this test even though the hand-listed ones
+        # overlap it: those pin CONTENT anchors per skill, this pins COVERAGE.
+        #
+        # Compares seed_file.source rather than re-deriving SEED_SKILLS_DIR / name,
+        # so a SeedFile wired to the wrong source file fails here too. Bytes, not
+        # text: read_text() applies universal-newline translation, which would let
+        # a CRLF/LF divergence pass as equal.
+        #
+        # .agents/ persona templates are excluded structurally, not by special
+        # case — they never match the .memory-seed/skills/ prefix. That is also
+        # correct on the merits: they are project-local, evolve with user approval,
+        # and are already skipped by test_control_plane_files_report_current_version.
+        # Measured 2026-07-26: 4 of 7 live personas already differ from their seed.
+        prefix = ".memory-seed/skills/"
+        # Runtime-local: projects extend the trigger registry with persona entries,
+        # so exact equality is wrong. Seed content is checked for per-line
+        # containment in test_skill_trigger_registry_is_deterministic_and_seeded.
+        registry = f"{prefix}index.md"
+        checked = []
+        skipped = []
+
+        for seed_file in SEED_FILES:
+            if not seed_file.destination.startswith(prefix):
+                continue
+            if seed_file.destination == registry:
+                skipped.append(seed_file.destination)
+                continue
+            live = Path(seed_file.destination)
+            self.assertTrue(live.exists(), f"missing live skill runbook: {live}")
+            self.assertTrue(seed_file.source.exists(), f"missing seed source: {seed_file.source}")
+            self.assertEqual(
+                live.read_bytes(),
+                seed_file.source.read_bytes(),
+                f"{seed_file.destination} has drifted from its seed twin "
+                f"({seed_file.source}); the two must stay byte-identical",
+            )
+            checked.append(seed_file.destination)
+
+        # Without a floor this test passes vacuously if the prefix or the
+        # SEED_FILES layout changes and the filter stops matching anything.
+        self.assertEqual(
+            skipped,
+            [registry],
+            f"{registry} should be the only skill destination exempt from byte parity",
+        )
+        self.assertGreaterEqual(
+            len(checked),
+            25,
+            f"expected every seeded skill runbook to be checked, only saw {len(checked)}: {checked}",
+        )
+
     def test_esr_commands_point_to_end_of_turn_skill(self):
         claude_live = Path(".claude/commands/esr.md").read_text(encoding="utf-8")
         claude_seed = Path("memory_seed/seed/.claude/commands/esr.md").read_text(encoding="utf-8")
