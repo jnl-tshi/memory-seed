@@ -6,6 +6,16 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- **Decision-level topic judgment swarm** (`topic_swarm` skill, 2026-07-26). The sibling of `link_swarm`
+  for the third sidecar family: a suggest-only, mechanically validated, human-approved backfill of
+  `<slug>:dN` topics across the whole corpus, including entries that already carry authored entry-level
+  topics (those have no per-decision attribution). The judgment unit is the **addressable** decision
+  ordinal from `entry_body_decisions()` — not the `- D:` bullet count, which disagrees on 10 entries and
+  would emit `dangling-topic-decision` errors. The campaign is gated behind a two-leg measured pilot
+  with a stated pass/fail line: rolled-up macro-recall against blind-judged authored topics, plus
+  human-adjudicated per-decision attribution that must beat free inheritance. Registered under the
+  `curation` skill profile. No swarm has been run; zero topic sidecars exist. Specs:
+  `docs/3_Spec/draft/decision-level-topic-sidecars.md`, `docs/2_Todo/decision-level-topics-proposal.md`.
 - **Lifecycle-link judgment swarm** (`link_swarm` skill, 2026-07-25). An optional, network-using fan-out
   of small models judges `link audit` gaps at decision granularity — the automated judgment layer above
   the mechanical sweep. It only suggests: a mechanical validator (quote-grounding, ordinal existence,

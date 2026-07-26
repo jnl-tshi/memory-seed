@@ -278,6 +278,20 @@ class SessionSchemaTests(unittest.TestCase):
                 "Trigger Registry Discipline",
                 "Seed / Live Parity",
             ),
+            # Anchored on the claims that carry the skill rather than on the
+            # measured corpus counts, which the skill itself tells the reader to
+            # re-measure before every campaign. What must not silently vanish:
+            # the judgment unit is the ADDRESSABLE ordinal (not the D:-bullet
+            # count), the pilot is a gate with a pass line, the cap is
+            # per-decision, and writes are filed under the ENTRY's date.
+            "topic_swarm.md": (
+                "Decision-Level Topic Judgment Swarm Skill",
+                "The unit is the addressable ordinal, never the decision count",
+                "entry_body_decisions",
+                "this is the gate",
+                "MAX_TOPICS_PER_DECISION = 3",
+                "topic-sidecar-date-mismatch",
+            ),
         }
         live_registry = Path(".memory-seed/skills/index.md").read_text(encoding="utf-8")
         seed_registry = Path("memory_seed/seed/.memory-seed/skills/index.md").read_text(encoding="utf-8")

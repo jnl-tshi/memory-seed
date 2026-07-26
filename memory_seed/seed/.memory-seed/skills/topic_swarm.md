@@ -1,0 +1,298 @@
+---
+memory-system-version: 2.19
+tags:
+  - memory-seed
+  - skill
+  - topic-swarm
+---
+
+# Decision-Level Topic Judgment Swarm Skill
+
+Use this skill to backfill controlled-vocabulary topics at **decision** granularity (`<slug>:dN`) across
+the corpus, when the whole population is to be attributed rather than a handful of entries tagged by
+hand. It is the sibling of `link_swarm.md` and has the same shape and the same guarantees: a mechanical
+enumeration produces the judgment units, a swarm of small models judges each one, an orchestrator
+validates the verdicts mechanically, a **measured pilot** must clear a stated pass line, and a human
+approves the batch before any sidecar is written. Do not reach for this to tag one or two entries — the
+author writes those into the entry's own `topics:` at write time. This is for the backfill campaign.
+
+**Opt-in and cost.** The swarm calls a fan-out of models (a Workflow), so it is network-using and must
+be run deliberately — never as an automatic step. Confirm with the user before launching the fan-out,
+confirm the pilot result before the full run, and confirm again before writing any sidecar. The core
+stays network-free (Constitution Invariant #1); the model calls live entirely in this optional layer,
+and every stored slug is an ordinary sidecar topic with no dependency on the model that suggested it
+(Invariant #5).
+
+## Scope — the whole corpus, not the topicless tail
+
+Measured 2026-07-26 against the live corpus. **Re-measure before launching**; these move as the corpus
+grows, and the campaign plan must quote its own numbers, not these.
+
+| Measure | Value |
+|---|---|
+| Entries carrying an `entry_id` | 635 |
+| **Addressable decision ordinals** (`entry_body_decisions`) | **888** |
+| Entries with **zero** addressable ordinals | 34 |
+| **Total judgment units** (888 decision + 34 bare-entry) | **922** |
+| Entries with authored topics | 429 |
+| Entries with no topics | 206 |
+| Addressable ordinals inside already-topiced entries | 648 |
+
+**Already-topiced entries are in scope.** An entry carrying authored entry-level topics still has no
+per-decision attribution — that attribution is the whole product — so 648 of the 888 ordinals sit
+inside entries that already look tagged. Scoping to the 206 topicless entries would buy 240 ordinals
+and leave the campaign to be run twice.
+
+**The unit is the addressable ordinal, never the decision count.** `dangling-topic-decision` validates
+`dN` against `_entry_decision_ordinals` — `#### Dn - name` headings, or a singular `### Decision`
+reading as `d1`. That is *not* the same as `entry_body_decision_count`, which falls back to counting
+`- D:` / `- Dn:` bullets. The two disagree on 10 entries (906 bullets vs 888 addressable): an old-style
+entry with one `### Decision` heading and inline `- D1:` / `- D2:` bullets has exactly **one**
+addressable ordinal, and emitting `graph:d2` on it is a hard error. **Enumerate with
+`entry_body_decisions()`.** Never count bullets.
+
+The draft spec quotes 881 across 621 entries. That number moved for **two** reasons — corpus growth
+(621 → 635 entries) *and* the unit correction above. A reader who sees only "881 → 888" will assume
+drift and re-derive the wrong figure.
+
+## The pipeline
+
+```
+enumerate judgment units                         (core, mechanical, network-free)
+    -> one task per addressable dN, plus one bare-entry task per zero-decision entry
+PILOT (the gate)                                 (~20 entries with good authored topics, judged blind)
+    -> Leg A machine-scored roll-up recall; Leg B human-adjudicated attribution
+    -> pass line below decides proceed / re-prompt / abort. NOTHING is written by the pilot.
+Workflow fan-out                                 (optional layer, network)
+    -> one haiku agent per judgment unit; each returns <=3 slugs with a grounding quote
+orchestrator validation                          (mechanical-first, no new model calls)
+    -> drop verdicts that fail vocabulary, ordinal existence, the per-decision cap, or quote grounding
+batch approval                                   (the human gate)
+    -> surface the surviving attributions as one batch; the user approves, edits, or rejects
+write + check
+    -> approved slugs written to the ENTRY's date file under sessions/topics/; links check validates
+```
+
+### 1. Mechanical enumeration
+
+There is no `topic audit --json`; the sibling's `link audit` has no counterpart here because topics are
+a per-entry attribute, not a pair. The orchestrator enumerates directly, network-free:
+
+```python
+from memory_seed.core import entry_body_decisions
+from memory_seed.semantic_cache import extract_memory_chunks
+
+for chunk in extract_memory_chunks("."):
+    if not chunk.entry_id:
+        continue
+    decisions = entry_body_decisions(chunk.text)   # [DecisionSummary(ordinal, name, text), ...]
+    # one task per decision; if `decisions` is empty, ONE bare-entry task instead
+```
+
+Each task carries the entry title, the decision's `ordinal`, `name`, and `text`, and the vocabulary
+from `.memory-seed/topics.yaml` (canonical slug + label + description; aliases for recognition only).
+`memory-seed topics suggest --from <file>` is a network-free lexical prior and may seed a shortlist,
+but it is file-level and is not the judgment.
+
+### 2. The judging criteria (what the swarm decides)
+
+Each agent returns, per judgment unit:
+`{entry_id, ordinal, slugs: [...], why, quote, confidence}` — `ordinal` is `null` for a bare-entry task.
+
+The conventions below are corpus-measured, not imposed; they are recorded live in
+`docs/2_Todo/decision-level-topics-proposal.md` and this prompt teaches them verbatim.
+
+1. **Two axes, one of each, ~2 slugs per decision.** Name **where** the work is (area / subsystem:
+   `memory-trace`, `memory-seed`, `graph`, `retrieval`, `session-fuse`, `session-layout`,
+   `session-logging`, `mcp-tools`, `hooks`, `mermaid`, `control-plane`, `process-management`) and
+   **what was done** (activity / kind of work: `ui-design`, `bugfix`, `documentation`,
+   `proposal-lifecycle`, `release`, `git-workflow`, `agent-collaboration`, `tooling-evaluation`).
+   Authored entries average 2.26 canonical slugs; two is the target, not a floor to pad toward.
+2. **Cross-cutting concerns are rare add-ons, not a third axis.** `windows-encoding`, `performance`,
+   and `security` are quality attributes spanning any (area, activity) pair; they total ~11 uses in
+   the whole corpus. Reach for one **only when the quality concern is genuinely the theme** (a
+   `performance` fix in the `graph` layer). A third mandatory axis was assessed and rejected — it has
+   no home in the vocabulary beyond these three low-use slugs and would push the corpus past its
+   measured norm.
+3. **The cap is 3 per decision, and it binds.** `MAX_TOPICS_PER_DECISION = 3`; the rolled-up entry
+   union is deliberately uncapped, because a six-decision entry legitimately spans more ground than a
+   one-decision one. Three is the ceiling, ~2 is the expected output. A label that fits everything
+   distinguishes nothing.
+4. **Canonical slugs only.** Aliases resolve at read time but a sidecar carrying one is a
+   `non-canonical-topic-slug` error. Emit `graph`, never `related-entries`; `session-logging`, never
+   `append-only`. 45 topiced entries use an alias in their authored list — the swarm must not copy that.
+5. **Bare slugs are permanently legal, not a migration stage.** A zero-decision entry (34 of them —
+   a note, an observation, a milestone) can never carry a decision-keyed topic and takes a bare slug.
+   Bare slugs keep the per-*entry* ceiling of 4 (`MAX_INFERRED_TOPICS`), not 3.
+6. **A decision-keyed slug that refines an authored entry-level slug is enrichment, not redundancy.**
+   Attributing `graph:d1` to an entry the author tagged `graph` *adds* the per-decision attribution the
+   author never recorded. That is the point of the campaign; do not suppress it. (`links check` agrees:
+   only *bare* sidecar slugs can trip `topic-already-authored`.)
+
+The `quote` field must be a verbatim phrase from that decision's own body grounding the choice. If the
+agent cannot quote something specific for a slug, that slug is dropped rather than guessed.
+
+### 3. Orchestrator validation (mechanical-first — no new model calls)
+
+Before surfacing anything, the orchestrator drops attributions mechanically. **Anything failing is
+dropped, never repaired** — a repaired verdict is the orchestrator's judgment wearing the swarm's
+provenance.
+
+- **Vocabulary:** the slug must resolve in `.memory-seed/topics.yaml` **as a canonical slug**, not an
+  alias. Unknown → dropped; alias → dropped (not silently canonicalized: the drop is the signal that
+  the prompt taught the wrong spelling).
+- **Ordinal existence:** `dN` must appear in `entry_body_decisions(entry.text)` for that entry. Reuse
+  `links check`'s own `dangling-topic-decision` rule rather than a second implementation.
+- **Per-decision cap:** at most 3 slugs per `(entry_id, ordinal)`; at most 4 for a bare-entry
+  attribution. Over-cap groups are dropped whole, not truncated to the first three.
+- **Quote grounding:** the `quote` must appear in that decision's body (whitespace-normalized substring
+  match). This is the primary hallucination guard — a slug whose quote is not found is discarded.
+- **Duplicate slug:** the same slug twice in one block is a `malformed-topic-sidecar`; dedupe within a
+  block is legal, across decisions of one entry is expected (the roll-up dedupes at read time).
+- **Axis sanity:** spot-check that a block is not two activity slugs with no area, or three
+  cross-cutting slugs — the two shapes the swarm most often over-calls.
+
+Surviving attributions are candidates; everything dropped is logged so the human sees what was filtered
+and why.
+
+### 4. The pilot — this is the gate
+
+**Run the pilot before the campaign, and write nothing from it.** A pilot with no pass/fail line is not
+a gate.
+
+**Sample.** 20 entries drawn from entries that **already carry good authored topics** (2-4 authored
+slugs), stratified **14 with ≥2 addressable ordinals + 6 single-decision** — otherwise Leg B has
+nothing to measure, since inheritance and the swarm are indistinguishable on a one-decision entry. Draw
+with a **recorded fixed seed** so the sample is reproducible and visibly not cherry-picked. As of
+2026-07-26 the pools are 125 multi-decision and 240 single-decision entries.
+
+**Blind means blind.** The authored `topics:` live in the entry's own YAML metadata block. Workers must
+receive the **decision body only**, taken after the metadata fence — the same slice `entry_body_decisions`
+returns. Leaking the metadata block invalidates the whole pilot.
+
+**Leg A — roll-up recall (machine-scored).** The human never recorded per-decision attribution, so
+agreement with what they wrote can only score the **rolled-up union**. Canonicalize *both* sides through
+`topics.yaml` before comparing (45 topiced entries use aliases; unresolved, `related-entries` scores as
+a miss against `graph`). Report macro-averaged recall of the authored set, and precision as a
+diagnostic only — an entry's authored list is a floor, not a ceiling, so a legitimate addition would
+score as a precision error.
+
+Anchored against baselines computed on the same corpus, same canonicalization, same macro-average:
+
+| Predictor | Macro-recall |
+|---|---|
+| Random 2 slugs from the vocabulary | 0.10 |
+| Always the top-2 authored slugs (`graph`, `memory-trace`) | 0.32 |
+| Always the top-3 authored slugs (+ `memory-seed`) | 0.43 |
+| Always the top-4 | 0.52 |
+
+- **PROCEED at macro-recall ≥ 0.70.** The swarm must recover a clear majority of what the author wrote
+  and beat the strongest free constant-guess baseline (0.43) by a wide margin.
+- **ABORT below 0.55.** That is ~0.12 above a predictor that reads nothing; at that level the swarm is
+  not earning 922 judgments and the corpus is better served by inheritance.
+- **Between 0.55 and 0.70:** re-prompt **once**, redraw a fresh disjoint sample of 20, re-run. A second
+  failure aborts. Do not tune the prompt against the same sample — that is fitting to the gate.
+
+**Leg B — attribution, benchmarked against inheritance (human-adjudicated).** Leg A alone would pass a
+swarm that gets every slug right and every attribution wrong, which is exactly the thing decision-level
+topics exist to provide. Inheritance — giving every decision its entry's whole authored topic set — is
+free, needs no swarm, and is already the fallback in the proposal's sequencing. Its recall is 100% by
+construction, so **precision is the only axis on which the swarm can earn its 922 judgments.**
+
+On the 14 multi-decision pilot entries, pool the swarm's `(decision, slug)` pairs and inheritance's,
+deduplicate, present them **interleaved and unlabelled**, and have the human mark each *correctly
+attributed to that decision* or not. Then compare precision on the same adjudication pass.
+
+- **PROCEED when swarm precision exceeds inheritance precision by ≥ 15 points** *and* swarm precision
+  is ≥ 0.75 in absolute terms.
+- **ABORT when the swarm does not beat inheritance,** or when absolute precision is below 0.60. If it
+  cannot beat free, the backfill buys nothing.
+
+**Cost of the gate.** ~50 addressable decisions across the 14 multi-decision entries yield roughly
+150-240 distinct pair judgments after dedupe — on the order of an hour of human attention. Budget it
+honestly: a gate nobody will sit through is not a gate.
+
+**Do not carry the 28% forward as a comparison.** The prior entry-level pilot scored 28% *exact set
+match*, a different and much harsher metric than macro-recall. "0.70 recall" is not "improved from 28%".
+
+### 5. Batch approval (the human gate)
+
+Surface the surviving attributions as ONE batch — entry, decision ordinal and name, the slugs, the
+grounding quote, and the `why`. The user approves the batch, edits individual attributions, or rejects.
+**Never write without this approval** (same gate as persona evolution and stub-to-edge conversion in
+`end_of_turn.md`). A confidence floor may auto-*hide* low-confidence attributions from the batch, but
+never auto-*writes* them. Keep batches small enough to review — one campaign is many batches.
+
+### 6. Write + check
+
+**The file is keyed to the ENTRY's date, not to today.** This is the one place where copying
+`link_swarm.md` will burn you: link sidecars are filed under the day the edge was authored, but
+`topic-sidecar-date-mismatch` is an **error** that compares the entry's own logged date against the
+sidecar's filename date. A batch of 40 entries therefore touches ~40 files —
+`.memory-seed/sessions/topics/YYYY-MM/YYYY-MM-DD.md` for each distinct **entry** date — scattered
+across every month the corpus covers. One block per entry, appended:
+
+````markdown
+---
+tags:
+  - session-log-topics
+topic_date: 2026-05-14
+---
+
+## 2026-05-14 09:02 - topics (swarm batch 3)
+
+```yaml
+entry_id: mse_zwzdjn0m9e34gdth
+topics:
+  - memory-trace:d1
+  - ui-design:d1
+  - graph:d2
+  - bugfix:d2
+```
+````
+
+- The **filename** and `topic_date` are the entry's date. The **heading date** matches the file, as in
+  the diagram and link families; the heading **time** is the block's precedence key.
+- Block identity is `(entry_id, heading timestamp)`. Two blocks for one entry at the same timestamp in
+  one file is `duplicate-topic-block` — a transcription defect, not a correction.
+- Ordinals are written as `<slug>:dN`; a zero-decision entry takes bare slugs. A file may mix both.
+
+Then run `memory-seed links check` — it owns all three sidecar families and is the only command that
+validates a topic sidecar — and confirm integrity OK before merging. (`memory-seed topics check`
+validates the vocabulary file and the topics **authored** in entries; it does not read sidecars.)
+
+This block shape was exercised end to end on 2026-07-26 against a real three-decision entry: `links
+check` passed, `entry_topic_sidecars` returned `(('d1', 'memory-trace'), ('d1', 'ui-design'), ('d2',
+'graph'), ('d3', 'bugfix'))` with the roll-up union on `inferred_topics`, `memory-trace:d1` against an
+authored entry-level `memory-trace` correctly did **not** warn, and refiling the same block under
+today's date failed the check with `topic-sidecar-date-mismatch`. The probe was then removed; no topic
+sidecar is committed.
+
+## Correcting a batch that turns out wrong
+
+Topic sidecars are **append-only with most-recent-wins per entry** — the topic-family instance of
+`docs/3_Spec/draft/sidecar-supersession-model.md`. A topic list is a *state* replaced wholesale by a
+better one, so unlike link edges there is no `retracts:` mechanism and none is needed.
+
+To re-attribute an entry, **append a new block to the same entry-date file under a strictly later
+heading time**. Precedence is `(heading timestamp, block index within the file)` — and because the
+date-mismatch rule pins every block for an entry into that one file, a later *file* can never
+supersede an earlier one. Read the entry's existing blocks and choose a time greater than all of them.
+
+Never edit or delete the superseded block (Invariant #2): it stays readable as the record of what was
+previously believed, and the swarm campaign that produced it stays auditable. Note the batch in the
+heading title (`- topics (swarm batch 3, corrected)`), which is free text.
+
+## Guardrails
+
+- Run on the trunk / integration checkout, not a task branch — sidecars belong on main (see
+  `agent_collaboration.md`).
+- The swarm only *suggests*. The enumeration, the validation, the pilot, the approval, and the write are
+  all outside the model's authority — a stronger `topics suggest`, not a new source of truth.
+- Roll-up to entry level is a **read-time derivation** (Invariant #6). Never store the union; the
+  sidecar holds decision-keyed slugs and `entry_topic_sidecars` exposes both channels.
+- A decision-level consumer must exist before the full campaign runs — the gate recorded in
+  `docs/2_Todo/decision-level-topics-proposal.md`. Judging 922 units that nothing renders is waste.
+
+See `docs/3_Spec/draft/decision-level-topic-sidecars.md` for the grammar and precedence contract, and
+`docs/2_Todo/decision-level-topics-proposal.md` for the two-axis conventions and why the cap is 3.

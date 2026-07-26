@@ -5409,6 +5409,10 @@ SEED_FILES = [
         ".memory-seed/skills/link_swarm.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "topic_swarm.md",
+        ".memory-seed/skills/topic_swarm.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "index.md",
         ".memory-seed/skills/index.md",
     ),
@@ -5729,8 +5733,8 @@ SKILL_PROFILES: dict[str, SkillProfile] = {
         ("skill_architecture.md",),
     ),
     "curation": SkillProfile(
-        "Large-scale memory-graph curation: model-swarm lifecycle-edge enrichment over a mature corpus.",
-        ("link_swarm.md",),
+        "Large-scale memory-graph curation: model-swarm lifecycle-edge and topic enrichment over a mature corpus.",
+        ("link_swarm.md", "topic_swarm.md"),
     ),
 }
 
@@ -5754,6 +5758,7 @@ SKILL_DESCRIPTIONS = {
     "release_publishing.md": "Prepare and verify package releases.",
     "security_triage.md": "Triage security, privacy, and destructive-operation risks.",
     "skill_architecture.md": "Design and maintain skill/profile boundaries and trigger registry entries.",
+    "topic_swarm.md": "Backfill decision-level topics at scale via a pilot-gated, human-approved judgment swarm.",
 }
 
 PROPOSAL_LIFECYCLE_ARTIFACTS = (
