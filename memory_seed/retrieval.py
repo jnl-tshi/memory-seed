@@ -664,28 +664,34 @@ TITLE_OVERLAP_BOOST = 2.0
 SEMANTIC_OVERLAP_BOOST = 160.0
 
 
-def _embed_entries_for_link_audit(chunks: list[MemoryChunk]) -> dict[str, Any] | None:
-    """L2-normalised embeddings per entry, or None when unavailable.
+def _embed_entries_for_link_audit(
+    chunks: list[MemoryChunk],
+) -> tuple[dict[str, Any] | None, str | None, str | None]:
+    """L2-normalised embeddings per entry: (vectors, provider_name, fallback_reason).
 
-    Returns None rather than raising on any failure - a missing provider is the
-    documented lightweight install (`pip install --no-deps memory-seed`), not an
-    error, and link audit must still produce lexical results there.
+    ``vectors`` is None rather than raising on any failure - a missing provider is
+    the documented lightweight install (`pip install --no-deps memory-seed`), not
+    an error, and link audit must still produce lexical results there. The
+    fallback REASON is returned rather than swallowed: because the semantic term
+    dominates ranking, a silent degradation to lexical changes almost every
+    ordering with nothing on screen to say so, so the caller must be able to
+    report it (same contract as `search_memory`'s `semantic_fallback_reason`).
     """
-    provider, _name, fallback = resolve_semantic_provider("link audit", enabled=True)
+    provider, name, fallback = resolve_semantic_provider("link audit", enabled=True)
     if provider is None or fallback:
-        return None
+        return None, name, fallback or "semantic provider unavailable"
     ids = [chunk.entry_id or "" for chunk in chunks]
     try:
         raw = provider.embed([f"{chunk.title}\n{chunk.text}" for chunk in chunks])
-    except Exception:
-        return None
+    except Exception as exc:  # pragma: no cover - provider-specific failure
+        return None, name, str(exc)
     vectors: dict[str, Any] = {}
     for entry_id, vector in zip(ids, raw):
         if not entry_id:
             continue
         norm = sum(value * value for value in vector) ** 0.5 or 1.0
         vectors[entry_id] = [value / norm for value in vector]
-    return vectors
+    return vectors, name, None
 
 # Title words that carry no discriminating signal in this corpus: workstream
 # labels and the verbs nearly every entry title opens with. Without these
@@ -735,6 +741,9 @@ class LinkGapCandidate:
     # median rank from 8 to 3 - file overlap alone ranks whichever foundational
     # entry touched the same high-churn file above the actual predecessor.
     shared_title_terms: tuple[str, ...]
+    # TOTAL rank score, lexical + semantic. The name predates semantic ranking
+    # (2026-07-22) and is kept for its existing consumers; `lexical_score` and
+    # `semantic_score` below decompose it.
     file_overlap_score: float
     # True when a related_entries link already exists but no lifecycle edge -
     # the "supersession mislabelled as related" case the sweep should upgrade.
@@ -745,6 +754,15 @@ class LinkGapCandidate:
     # decisions, so which one an edge targets is a human's (or a judgment
     # agent's) call, exactly as the replaces/evolves/related TYPE already is.
     decisions: tuple[DecisionSummary, ...] = ()
+    # The lexical half of `file_overlap_score` (files + title terms) on its own.
+    lexical_score: float = 0.0
+    # Raw model2vec cosine in [0,1], BEFORE SEMANTIC_OVERLAP_BOOST is applied -
+    # `None` when semantic ranking was off or unavailable. Exposed rather than
+    # left folded into the total because the boost is large (160) and dominates
+    # ranking: without this field an operator cannot tell whether a candidate is
+    # here on shared-file evidence they can check or on an opaque cosine, nor
+    # whether the ranking silently degraded to lexical.
+    semantic_score: float | None = None
 
 
 @dataclass(frozen=True)
@@ -775,12 +793,18 @@ def audit_link_gaps(
     session_date: str | None = None,
     top_k: int = 5,
     semantic_enabled: bool = True,
+    semantic_status: dict[str, Any] | None = None,
 ) -> list[LinkGap]:
     """Find entry pairs that share files or topics but carry no recorded edge.
 
-    Candidate generation deliberately avoids an all-pairs semantic scan: for
-    each target entry the candidate set is the OLDER entries that share >=1
-    ``F:`` file OR >=1 topic with it. File overlap qualifies a pair even when no
+    Candidate MEMBERSHIP is decided lexically and never by an all-pairs semantic
+    scan: for each target entry the candidate set is the OLDER entries that share
+    >=1 ``F:`` file OR >=1 topic with it. (Semantic similarity does participate,
+    as a RANKING term over that set - see ``SEMANTIC_OVERLAP_BOOST`` - and an
+    all-pairs cosine matrix IS computed for it; what the lexical gate rules out
+    is cosine deciding *whether* a pair is a candidate. Cosine is dense, so that
+    would make every earlier entry a candidate for every later one.)
+    File overlap qualifies a pair even when no
     topic is shared - matching files override the absence of a topic link.
     Candidates already captured by any edge (``related_entries`` /
     ``replaces`` / ``evolves``, entry YAML or a link sidecar) are dropped, so
@@ -793,6 +817,12 @@ def audit_link_gaps(
     while candidates remain the full corpus - the end-of-session sweep audits
     only the entries it just wrote (O(K*N), K = today's entries) instead of
     re-auditing history every session.
+
+    ``semantic_enabled=False`` ranks lexically and skips the embedding provider
+    entirely, so no model is loaded (``--no-semantic`` on the CLI). ``semantic_status``,
+    if given, is a dict this fills with ``requested``/``active``/``provider``/
+    ``fallback_reason`` so a caller can report that ranking degraded to lexical
+    instead of presenting a silently different ordering as if nothing changed.
     """
     import math
 
@@ -908,8 +938,17 @@ def audit_link_gaps(
     # Fails open exactly like search_memory: no provider means lexical-only
     # scoring, which is the documented lightweight install, not an error.
     vectors: dict[str, Any] | None = None
+    provider_name: str | None = None
+    fallback_reason: str | None = None
     if semantic_enabled:
-        vectors = _embed_entries_for_link_audit(chunks)
+        vectors, provider_name, fallback_reason = _embed_entries_for_link_audit(chunks)
+    if semantic_status is not None:
+        semantic_status.update(
+            requested=semantic_enabled,
+            active=bool(vectors),
+            provider=provider_name,
+            fallback_reason=fallback_reason,
+        )
 
     def semantic_similarity(source_id: str, candidate_id: str) -> float:
         if not vectors:
@@ -955,11 +994,11 @@ def audit_link_gaps(
                 pass
             else:
                 continue
-            score = FILE_OVERLAP_BOOST * sum(idf(ref) for ref in shared_files) + TITLE_OVERLAP_BOOST * sum(
+            lexical = FILE_OVERLAP_BOOST * sum(idf(ref) for ref in shared_files) + TITLE_OVERLAP_BOOST * sum(
                 title_idf(term) for term in shared_title
             )
             similarity = semantic_similarity(tid, cid)
-            score += SEMANTIC_OVERLAP_BOOST * similarity
+            score = lexical + SEMANTIC_OVERLAP_BOOST * similarity
             candidates.append(
                 LinkGapCandidate(
                     entry_id=cid,
@@ -971,6 +1010,8 @@ def audit_link_gaps(
                     file_overlap_score=round(score, 6),
                     already_related=cid in target_related,
                     decisions=decisions_of.get(cid, ()),
+                    lexical_score=round(lexical, 6),
+                    semantic_score=round(similarity, 6) if vectors else None,
                 )
             )
         candidates.sort(key=lambda c: (c.file_overlap_score, len(c.shared_topics)), reverse=True)
