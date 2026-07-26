@@ -96,10 +96,16 @@ These exist only in session-entry Follow-ups today. Nothing below is built.
    Trail now **fade low-confidence edges**, and published edges are corrected only via append-only
    `retracts:` blocks (`link-retraction.md`). *Open follow-ups:* a user-facing confidence threshold/filter
    control (deferred), and re-running the swarm on the ~200 still-topicless entries.
-3. **Semantic scoring for `link audit`** — measured, unbuilt: adding model2vec cosine to the shipped
-   lexical score moves recall@5 61% → 75% at weight ~120, for 2.9 s model load and 0.15 s to embed
-   544 entries. This contradicts the live spec's "no all-pairs semantic scan" rationale, which should
-   be retracted when it lands.
+3. ~~**Semantic scoring for `link audit`** — measured, unbuilt.~~ **RESOLVED — stale as written
+   (verified 2026-07-26).** Both halves of the item were already done and its figures are
+   *superseded*, not merely reproduced. Semantic ranking shipped **2026-07-22** in `3deb9c2`
+   (`SEMANTIC_OVERLAP_BOOST` in `memory_seed/retrieval.py`), and the spec's "no all-pairs semantic
+   scan" paragraph was retracted **in the same tranche** — `lifecycle-edge-linking-sidecars.md`
+   carries a dated `> **Retracted 2026-07-22:**` block saying exactly what this item asked for. The
+   item's "recall@5 61% → 75% at weight ~120" came from a *pre-ship local scorer that silently
+   diverged from `audit_link_gaps`*; the shipped sweep re-measured end-to-end through the real
+   function and landed on **weight 160, recall@5 77%, recall@10 82%** (97/104 true edges surfaced).
+   Quote the spec's table, not this item's numbers.
 4. ~~**`compact_mermaid_diagrams` vs `arc2d`**~~ **RESOLVED — stale as written (verified 2026-07-26).**
    The premise "the renderer parses no `subgraph` in *both* clients" stopped being true on 2026-07-22:
    `71cea36` deleted `client/src/arc2d.ts` and `DiagramView.tsx` now renders each sidecar block through
