@@ -45,6 +45,12 @@ Nothing about the sample, the model tier, the validator, or the pass line change
 Slugs are never ranked by how often the corpus uses them, and no rule tells a worker
 to guess a slug it cannot ground.
 
+> **Everything above the rule below is orchestrator rationale and is NOT handed to the
+> workers.** Workers receive the `# Your task` section onward and nothing else. Showing
+> a worker the miss histogram would be telling it which slugs to emit more often —
+> frequency information dressed as guidance, i.e. fitting to the gate. The rationale
+> lives here for the human reviewing the re-prompt; the workers see only rules.
+
 ---
 
 # Your task
