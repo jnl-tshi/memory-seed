@@ -56,8 +56,11 @@ session log and code, not against this file's prior claims.
   reconciliation is incremental; the file-entry index is lazy. Forced rebuild 44.25 s / 990 git
   subprocesses → 1.46 s / 7. Live: warm 308 ms, one new commit 1.62 s, one merge 2.20 s.
 - **B0b graph slices closed** — evolution scope, file graph mode (path → entry index derived from the
-  authoring commit's parent), Overview ranked by connectivity across all dates with an honest
-  coverage indicator, Obsidian-style edge filters that hide *lines* not nodes, one line per pair
+  authoring commit's parent), Overview across all dates with an honest coverage indicator — **ranked
+  by connectivity until 2026-07-26, now a chronological spine** (newest `limit` entries plus depth-1
+  over rendered lifecycle edges), so the Graph grows along the axis the Trail pages along; the stale
+  wording here is what led one later analysis to assume the default slice was the densest window
+  available when it is a time window — Obsidian-style edge filters that hide *lines* not nodes, one line per pair
   taken by the strongest relationship, and settled layout positions restored on exact-match remount.
 - **Trail decision rows** — one row per `#### Dn`, the entry row anchoring as a heading with D1..DN
   as pastel subheadings, grouped by bracket, on the already-ratified `(entry_id, dN)` identity.
