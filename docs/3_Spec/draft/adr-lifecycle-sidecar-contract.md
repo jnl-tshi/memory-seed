@@ -76,7 +76,7 @@ repository the author is, in practice, an LLM: the decisions an ADR promotes wer
 `user_initials` records who the session was *for*. So "what the author knew at write time" cannot mean "what a
 person knew" — it means **write-time**, and the honest contrast is:
 
-- **First-hand.** The agent had just made the decision when it marked the decision architecturally
+- **First-hand.** The agent had just made the decision when it marked that decision architecturally
   significant. It knows the alternatives it rejected and the constraint that forced the call, because it was
   the one doing the work.
 - **Reconstructed.** A later sweep reads finished prose and infers, from the entry text alone, that a decision
