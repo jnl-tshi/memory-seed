@@ -238,34 +238,35 @@ These exist only in session-entry Follow-ups today. Nothing below is built.
    *Still open:* betweenness and PageRank. Unlike degree these are **global** computations, so they
    are a genuine argument for computing server-side and adding a node field, which degree was not.
    The proposal's ADR-gravity-well layout stays declined until ADR nodes exist.
-8. **Decision rows in the Graph** — **BACKEND SHIPPED 2026-07-26; client wiring blocked on one
-   contract decision.** `/api/v1/graph/projection` accepts `include_decisions` (default **false**, so
-   the entry-level surface is untouched) and `graph()` takes `decision_row_scope`: `"all"` for the
-   Trail, `"linked"` for the Graph. Forging an entry-level line for a decision edge was tried and
-   **reverted** — `test_decision_edges_never_reach_entry_level_consumers` asserts by set-equality
-   against a sidecar-deleted control that the entry-level surface stays indistinguishable from a world
-   without decision edges, and that guard is deliberate.
+8. **Decision rows in the Graph** — **SHIPPED 2026-07-26, end to end.**
+   `/api/v1/graph/projection` accepts `include_decisions` (default **false**, so the entry-level
+   surface is untouched) and `graph()` takes `decision_row_scope`: `"all"` for the Trail, `"linked"`
+   for the Graph. Forging an entry-level line for a decision edge was tried and **reverted** —
+   `test_decision_edges_never_reach_entry_level_consumers` asserts by set-equality against a
+   sidecar-deleted control that the entry-level surface stays indistinguishable from a world without
+   decision edges, and that guard is deliberate. Asking for rows changes **granularity**, so the edge
+   lands on the decision it names instead of being widened into an entry-level claim.
    The scope split is measured, not stylistic: expanding every decision into the force layout added
    446 rows of which **276 were isolated** — worse than the 9 orphans it set out to fix. Filtering by
    entry got that to 110; filtering by **ordinal** gets it to **0**.
-   **Your call before a client lands:** with rows on, full-corpus orphans go 83 → 94, because ~11
-   anchors whose only edges were decision-level now float while their rows carry the relationships. A
-   timeline gets parent/child from adjacency; a force graph has no tether between an anchor and its
-   rows, and adding one means a **fifth edge kind** — which the four-independent-never-merged-kinds
-   contract makes a deliberate decision, not an implementation detail. No client shipped, because
-   shipping UI now would bake in whichever answer I guessed.
-8. **Decision rows in the Graph — the fix for the last 9 orphans** (P2). Nine entries whose only
-   relationships are decision-level render as unconnected: an entry-granularity view has no decision
-   row for `B:d2 evolves A:d1` to terminate on, so the edge has nowhere to land. Emitting an
-   entry-level line instead was tried on 2026-07-26 and **reverted** —
-   `test_decision_edges_never_reach_entry_level_consumers` asserts by set-equality against a
-   sidecar-deleted control that the entry-level surface stays indistinguishable from a world without
-   decision edges, and that guard is deliberate. The sanctioned fix is to render the decision rows
-   themselves: `_expand_decision_rows` already exists and `include_decisions` is Trail-only today, so
-   the Graph calling it gives those edges a real endpoint and resolves the orphans without touching
-   the guard. This is also step 1 of the sequencing already recorded in
+   **The tether question is answered, and the answer was not an edge.** Containment travels through a
+   structural channel — a synthetic `dgroup:` Cytoscape **compound node** holding both the anchor and
+   its rows as children — so the four-independent-never-merged-kinds contract is untouched and no
+   entry-level fact is emitted. Not the anchor as parent: a compound parent is auto-positioned (this
+   simulation writes every participant's position each tick) and auto-sized (the entry would lose the
+   circle/fill/rim vocabulary the rest of the map reads in). Rows are **not simulation participants**;
+   their position is derived from their anchor's after every paint, which is why turning rows on moves
+   no anchor at all. Live on the real corpus: 112 nodes / 26 rows / 15 groups / 50 edges, 26 of 26 rows
+   parented, 0 outside their group's box, row-to-anchor distance exactly `SATELLITE_RADIUS`; the
+   on→off→on round trip returns 71/0/0/31 and then the identical numbers, with no stale containers.
+   *Open follow-up (small, server-side):* 4 of the 26 rows carry no decision edge, because
+   `only_ordinals` is built from sidecar refs **before** `_decision_edges_for_rows` knows whether the
+   counterpart resolves — an off-slice counterpart mints a row whose edge is then dropped. They are now
+   contained and attributable rather than floating, so this is tidiness rather than a visible defect;
+   the prune belongs after `decision_row_edges` is computed, with its own test.
+   This was also step 1 of the sequencing recorded in
    [decision-level-topics-proposal.md](decision-level-topics-proposal.md) ("render the decision-node
-   graph using the substrate that already exists"), so it unblocks that track as well.
+   graph using the substrate that already exists"), so that track is unblocked.
 
 ## Shipped 2026-07-18/19 — unreleased, on local main
 

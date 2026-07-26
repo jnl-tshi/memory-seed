@@ -3,7 +3,8 @@ import type { Core, NodeSingular } from "cytoscape";
 import type { Simulation, SimulationLinkDatum, SimulationNodeDatum } from "d3-force";
 import { Maximize2, Minus, Plus } from "lucide-react";
 import { type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
-import { connectedIds, nodeSetSignature, seedPositions, type Point } from "./graphLayout";
+import { nodeSetSignature, seedPositions, type Point } from "./graphLayout";
+import { anchorEntryIdFor, connectedIdsWithDecisionAnchors, decisionGroups, isDecisionRowId, parentIdsFor, satellitePositions } from "./graphDecisionRows";
 import { forceParameters, type ForceSettings } from "./graphForces";
 import { outrankedEdgeIds } from "./graphEdges";
 import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, inferredCommunityColours, wearsAuthoredRim, type TopicRoots } from "./graphCommunities";
@@ -91,6 +92,15 @@ const SPAWN_STAGGER_MS = 14;
 /** No page should take longer than this to finish arriving, however large. */
 const SPAWN_TOTAL_CAP_MS = 1100;
 
+/**
+ * Diameter of a decision row, in graph units.
+ *
+ * Comfortably under the smallest entry (22 at degree 0) and under twice the
+ * satellite radius, so a full fan of rows around one anchor stays inside the
+ * group box without touching.
+ */
+const DECISION_ROW_SIZE = 15;
+
 /** True when the reader has asked the system for less animation. */
 function prefersReducedMotion(): boolean {
   return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
@@ -125,10 +135,18 @@ function startSimulation(options: {
   onFirstSettle: () => void;
   /** Called each tick while settling, to keep a growing graph in frame. */
   autoScale?: () => void;
+  /**
+   * Run after every position write. Decision rows are NOT simulation
+   * participants - their position is derived from their anchor's, which is what
+   * makes containment true by construction and why turning rows on moves no
+   * anchor. So they must be re-derived after each paint, including the paints
+   * that happen while a node is being dragged.
+   */
+  afterPaint?: () => void;
   disposed: () => boolean;
   reducedMotion: boolean;
 }): SimulationHandle {
-  const { cy, nodes: graphNodes, edges: graphEdges, forces, settled, onRest, onFirstSettle, autoScale, disposed, reducedMotion } = options;
+  const { cy, nodes: graphNodes, edges: graphEdges, forces, settled, onRest, onFirstSettle, autoScale, afterPaint, disposed, reducedMotion } = options;
   let frame = 0;
   let cancelled = false;
   let fitted = settled;
@@ -156,6 +174,9 @@ function startSimulation(options: {
         if (grabbed.has(node.id)) continue;
         cy.getElementById(node.id).position({ x: node.x, y: node.y });
       }
+      // Inside the same batch: rows follow their anchor in the frame the anchor
+      // moved, so a group never renders mid-stride with its rows a tick behind.
+      afterPaint?.();
     });
   };
 
@@ -458,7 +479,13 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
   // rendering choice, and it hid a fifth of the corpus. Showing them is now a
   // VIEWING PREFERENCE (the Orphans toggle) rather than a structural decision,
   // and when shown they take part in the simulation like anything else.
-  const connected = useMemo(() => connectedIds(graph.edges), [graph.edges]);
+  //
+  // Endpoints credit their ANCHOR as well as themselves, so an entry whose only
+  // relationships are decision-level counts as connected once its rows are on
+  // screen. Without that rule the Orphans filter would hide the anchor and keep
+  // its own decision rows, which is both untrue (the tie exists, it just names a
+  // decision) and structurally broken - a group with no anchor.
+  const connected = useMemo(() => connectedIdsWithDecisionAnchors(graph.edges), [graph.edges]);
   // Degree centrality over the PAYLOAD's edges, which drives node size below.
   // Two deliberate choices. It counts every edge kind in the payload, not just
   // `related` — the node's server-computed `connectivity` is a related-only
@@ -479,6 +506,33 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
     () => (showOrphans ? graph.nodes : graph.nodes.filter((node) => connected.has(node.id))),
     [graph.nodes, connected, showOrphans],
   );
+  // Decision-row containment. Each entry that has rendered rows gets a synthetic
+  // `dgroup:` compound node holding BOTH the anchor and its rows as children —
+  // never the anchor as parent, because a Cytoscape parent is auto-positioned
+  // (and this simulation writes every participant's position every tick) and
+  // auto-sized (so the entry would lose the circle/fill/rim vocabulary the rest
+  // of the map reads). This is the non-edge structural channel: no fifth edge
+  // kind, nothing entry-level emitted, and the four-kind contract untouched.
+  const decisionRowGroups = useMemo(() => decisionGroups(renderedNodes), [renderedNodes]);
+  const rowParentIds = useMemo(() => parentIdsFor(decisionRowGroups), [decisionRowGroups]);
+  // Which nodes each decision row is tied to, so a row can face the relative it
+  // names. Recorded as the counterpart's ANCHOR, never the counterpart row
+  // itself: anchors are the simulation's participants, so aiming at one reads a
+  // position that is settled for the frame rather than one being derived in the
+  // same pass — the arrangement is then deterministic instead of order-dependent.
+  const rowCounterparts = useMemo(() => {
+    const map = new Map<string, string[]>();
+    const add = (rowId: string, otherId: string) => {
+      const anchor = anchorEntryIdFor(otherId);
+      if (anchor === anchorEntryIdFor(rowId)) return;
+      map.set(rowId, [...(map.get(rowId) ?? []), anchor]);
+    };
+    for (const edge of graph.edges) {
+      if (isDecisionRowId(edge.source)) add(edge.source, edge.target);
+      if (isDecisionRowId(edge.target)) add(edge.target, edge.source);
+    }
+    return map;
+  }, [graph.edges]);
   const legend = useMemo(() => communityLegend(renderedNodes, corpusTopics, topicWheel, topicRoots), [renderedNodes, corpusTopics, topicWheel, topicRoots]);
   const colourOf = useMemo(() => communityColourScale(corpusTopics, topicWheel, topicRoots), [corpusTopics, topicWheel, topicRoots]);
   // Authored fill is the MIXTURE of a node's qualifying topics; falls back to
@@ -542,9 +596,20 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       const edgeReplaces = themeToken("--edge-replaces", "#e18494");
       const edgeEvolves = themeToken("--edge-evolves", "#7cc6e8");
       const edgeTopic = themeToken("--edge-topic", "#a88acc");
+      const groupFill = themeToken("--muted", "#8b9a93");
       const cy = createCytoscape({
         container: container.current,
         elements: [
+          // Containers first: Cytoscape requires a parent to exist before a
+          // child names it.
+          ...[...decisionRowGroups.values()].map((group) => ({
+            data: { id: group.groupId, isGroup: "yes" },
+            // Neither selectable nor draggable: a container is scaffolding, and
+            // dragging a compound parent in Cytoscape drags every child with it,
+            // which would move an anchor the simulation owns.
+            selectable: false,
+            grabbable: false,
+          })),
           ...renderedNodes.map((node) => {
             // AUTHORED COLOUR WINS, and the test is whether the node has one -
             // not whether its COMMUNITY qualifies. The two came apart when
@@ -566,6 +631,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
             const colour = authored ?? inferredColours.get(node.id) ?? colourOf(node);
             return {
               data: {
+                parent: rowParentIds.get(node.id),
                 id: node.id,
                 label: "",
                 title: node.label,
@@ -585,8 +651,20 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
                 // everything else indistinguishable. sqrt keeps the low end
                 // legible while still ranking the hubs, and the cap stops one
                 // outlier dominating the canvas.
-                size: 22 + Math.min(20, Math.sqrt(degree.get(node.id) ?? 0) * 5),
+                // A decision row is a SUBDIVISION of its anchor, not a peer, so
+                // it takes a fixed small size instead of a degree-derived one.
+                // Two reasons: degree centrality is a claim about how connected
+                // an ENTRY is, and a row must never out-size the entry that
+                // contains it or the containment reads backwards.
+                size: isDecisionRowId(node.id)
+                  ? DECISION_ROW_SIZE
+                  : 22 + Math.min(20, Math.sqrt(degree.get(node.id) ?? 0) * 5),
+                kind: isDecisionRowId(node.id) ? "decision" : "entry",
               },
+              // A row's position is derived, so letting the pointer move it
+              // would just be a fight the next paint wins. Still tappable —
+              // clicking a decision is how the Inspector reaches it.
+              grabbable: !isDecisionRowId(node.id),
               position: positions.get(node.id),
             };
           }),
@@ -632,6 +710,30 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
               "transition-timing-function": "ease-out",
             },
           },
+          // The decision group's container. Deliberately faint: it exists to
+          // say "these belong to that entry", and a heavy box would compete
+          // with the relationships it surrounds. `events: "no"` keeps it out of
+          // the tap path — a synthetic container is not a selectable memory —
+          // and bottom compound depth keeps it behind its own children.
+          {
+            selector: 'node[isGroup = "yes"]',
+            style: {
+              "shape": "round-rectangle",
+              "background-color": groupFill,
+              "background-opacity": 0.1,
+              "border-width": 1,
+              "border-color": groupFill,
+              "border-opacity": 0.4,
+              "padding": "12px",
+              "label": "",
+              "events": "no",
+              "z-compound-depth": "bottom",
+            },
+          },
+          // A decision row: same fill vocabulary as its anchor (it inherits the
+          // entry's topics), squared off so the shape alone says "part of an
+          // entry" rather than "an entry".
+          { selector: 'node[kind = "decision"]', style: { "shape": "round-diamond", "border-width": 1.5, "font-size": 9 } },
           // A node that has just arrived: no size, no opacity. Removing the
           // class lets the transition above carry it to full, so what a reader
           // sees is the entry expanding into existence at the position the
@@ -677,6 +779,36 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
         // wheel notch — which made crossing that range a grind.
         wheelSensitivity: 1,
       });
+      // Decision rows are DERIVED, not simulated: their position is recomputed
+      // from their anchor's after every position write. That is what makes
+      // containment true by construction — a row cannot drift out of its group,
+      // no leash force is needed, and turning rows ON moves no anchor at all,
+      // because a row exerts no force on anything. The map a reader had is the
+      // map they still have, with decisions added to it.
+      //
+      // Called once immediately as well as on every paint: a settled mount never
+      // ticks (alpha starts at 0), so without this the rows would sit wherever
+      // the position cache left them until something disturbed the graph.
+      const positionDecisionRows = decisionRowGroups.size
+        ? () => {
+            for (const group of decisionRowGroups.values()) {
+              const anchor = cy.getElementById(group.anchorId);
+              if (anchor.empty()) continue;
+              const counterparts = new Map<string, Point[]>();
+              for (const rowId of group.rowIds) {
+                const points: Point[] = [];
+                for (const otherId of rowCounterparts.get(rowId) ?? []) {
+                  const other = cy.getElementById(otherId);
+                  if (!other.empty()) points.push({ ...other.position() });
+                }
+                counterparts.set(rowId, points);
+              }
+              const placed = satellitePositions({ rowIds: group.rowIds, anchor: anchor.position(), counterparts });
+              for (const [rowId, point] of placed) cy.getElementById(rowId).position(point);
+            }
+          }
+        : undefined;
+      positionDecisionRows?.();
       cy.on("tap", "node", (event) => {
         const node = graphRef.current.nodes.find((item) => item.id === event.target.id());
         if (node) onSelectRef.current(node);
@@ -703,6 +835,9 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
         // pull propagates outward through the links rather than fighting it.
         simulation.current?.pin(event.target.id(), event.target.position());
         if (dragResponseRef.current === "reheat") simulation.current?.reheat(0.3);
+        // Fixed drags never wake the loop, so no paint would carry the rows
+        // along with the anchor the pointer is moving.
+        else positionDecisionRows?.();
       });
       cy.on("free", "node", (event) => {
         // Unpin and let it cool. Alpha decay does the rest — no cooling timer,
@@ -770,7 +905,11 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       // never refetches, and nothing reaches Markdown.
       simulation.current = startSimulation({
         cy,
-        nodes: renderedNodes,
+        // Entries only. Rows follow their anchor (see positionDecisionRows) and
+        // group containers are auto-positioned by Cytoscape from their children,
+        // so handing either to the simulation would fight the thing that places
+        // it.
+        nodes: renderedNodes.filter((node) => !isDecisionRowId(node.id)),
         edges: graph.edges,
         forces: forcesRef,
         settled,
@@ -789,6 +928,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
         autoScale: () => {
           if (!disposed) scaleToFitGrowth(cy);
         },
+        afterPaint: positionDecisionRows,
         disposed: () => disposed,
         reducedMotion: prefersReducedMotion(),
       });

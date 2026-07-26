@@ -12,7 +12,13 @@ const meta: Meta<typeof SettingsMenu> = {
     // Required by the Graph tab. Its absence went unnoticed because only a
     // story that actually NAVIGATES to that tab renders the panel that reads
     // it — which is exactly what the keyboard-navigation story does.
-    graphSettings: { dragResponse: "reheat", forces: DEFAULT_FORCES, showOrphans: true, minConfidence: 0 },
+    graphSettings: {
+      dragResponse: "reheat",
+      forces: DEFAULT_FORCES,
+      showOrphans: true,
+      minConfidence: 0,
+      showDecisions: false,
+    },
     dock: "auto",
     theme: "light",
     onTrailStyle: fn(),

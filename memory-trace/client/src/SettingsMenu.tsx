@@ -33,6 +33,12 @@ export type GraphSettings = {
   showOrphans: boolean;
   /** Hide machine-suggested edges below this score; 0 shows every edge. */
   minConfidence: number;
+  /**
+   * Draw one node per `#### Dn` decision, grouped with its entry. DEFAULT OFF -
+   * entry-per-node is the Graph's view, and this changes what the server is
+   * asked for (a granularity change, so it refetches).
+   */
+  showDecisions: boolean;
 };
 
 const TABS = ["Trail", "Graph", "Inspector", "Appearance"] as const;
