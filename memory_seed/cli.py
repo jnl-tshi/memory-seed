@@ -477,6 +477,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="emit judgment-ready candidates (both ends' decision bodies + criteria) for a narrowing agent",
     )
+    link_audit.add_argument(
+        "--no-semantic",
+        dest="semantic",
+        action="store_false",
+        help="rank lexically only (shared files + title terms); skips loading the embedding model",
+    )
     link_add = link_sub.add_parser(
         "add",
         help="add a related_entries edge to the current/newest entry",
@@ -1496,9 +1502,15 @@ def main(argv: list[str] | None = None) -> int:
                 print("link audit --json cannot be combined with --apply", file=sys.stderr)
                 return 2
 
+            semantic_status: dict[str, Any] = {}
             try:
                 gaps = audit_link_gaps(
-                    cwd=cwd, entry_id=args.for_entry, session_date=args.audit_date, top_k=args.top_k
+                    cwd=cwd,
+                    entry_id=args.for_entry,
+                    session_date=args.audit_date,
+                    top_k=args.top_k,
+                    semantic_enabled=args.semantic,
+                    semantic_status=semantic_status,
                 )
             except LookupError as exc:
                 print(str(exc), file=sys.stderr)
@@ -1515,6 +1527,10 @@ def main(argv: list[str] | None = None) -> int:
                     return {"ordinal": d.ordinal, "name": d.name, "text": d.text}
 
                 payload = {
+                    # Ranking provenance, so a judging agent can tell whether the
+                    # order it is reading included the semantic term or silently
+                    # degraded to lexical.
+                    "semantic": semantic_status,
                     "criteria": {
                         "replaces": "the newer decision retires or replaces the older one (the older is now wrong or dead)",
                         "evolves": "the newer decision refines or extends the older one while it stays valid",
@@ -1538,6 +1554,8 @@ def main(argv: list[str] | None = None) -> int:
                                     "shared_topics": list(c.shared_topics),
                                     "shared_title_terms": list(c.shared_title_terms),
                                     "score": c.file_overlap_score,
+                                    "lexical_score": c.lexical_score,
+                                    "semantic_score": c.semantic_score,
                                     "already_related": c.already_related,
                                     "decisions": [_dec(d) for d in c.decisions],
                                 }
@@ -1549,9 +1567,28 @@ def main(argv: list[str] | None = None) -> int:
                 }
                 print(_json.dumps(payload, indent=2))
                 return 0
+            # Ranking provenance BEFORE the ranked list. The semantic term carries a
+            # weight of 160 against unbounded-but-small idf sums, so it dominates
+            # ordering; if the provider is missing the list is a different list and
+            # nothing else on screen would say so.
+            def _semantic_note() -> str:
+                if not semantic_status.get("requested"):
+                    return "Ranking: lexical only (--no-semantic); shared files + title terms."
+                if semantic_status.get("active"):
+                    return f"Ranking: lexical + semantic ({semantic_status.get('provider')})."
+                if not semantic_status.get("fallback_reason"):
+                    # Nothing to embed (empty corpus) - not a provider failure.
+                    return "Ranking: lexical only - no entries to embed."
+                return (
+                    "Ranking: lexical only - semantic ranking was requested but is UNAVAILABLE "
+                    f"({semantic_status.get('fallback_reason')}). Order differs from a semantic run."
+                )
+
             if not gaps:
+                print(_semantic_note())
                 print("No unlinked structural neighbours found (no shared files or topics without an edge).")
                 return 0
+            print(_semantic_note())
             print("Entries sharing files/topics with no recorded edge - classify each and record in a link sidecar:")
 
             def _fmt_decisions(decisions: Any) -> str:
@@ -1575,6 +1612,10 @@ def main(argv: list[str] | None = None) -> int:
                         evidence.append(f"files: {', '.join(cand.shared_files)}")
                     if cand.shared_topics:
                         evidence.append(f"topics: {', '.join(cand.shared_topics)}")
+                    # Cosine last: it is the term the reader cannot verify by eye, so
+                    # it is labelled rather than folded invisibly into the score.
+                    if cand.semantic_score is not None:
+                        evidence.append(f"cosine: {cand.semantic_score:.2f}")
                     if cand.already_related:
                         evidence.append("already related — consider upgrading to a lifecycle edge")
                     print(f"    -> {cand.entry_id}  {cand.session_date}  {cand.title}")

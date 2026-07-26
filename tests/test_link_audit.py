@@ -1,5 +1,11 @@
 """`memory-seed link audit` (Phase 3): find entries that share files/topics but
-carry no recorded edge, without an all-pairs semantic scan.
+carry no recorded edge.
+
+Candidate MEMBERSHIP is decided lexically and never by semantic similarity. An
+all-pairs cosine IS computed (since 2026-07-22) and does reorder the surviving
+candidates; what the lexical gate rules out is cosine deciding *whether* a pair
+is a candidate at all. So the semantic term can change rank but structurally
+cannot change reach - see LinkAuditSemanticExposureTests.
 
 Candidate generation: for each target, only OLDER entries sharing >=1 F: file
 OR >=1 topic. File overlap qualifies a pair even with no shared topic (files
@@ -611,6 +617,216 @@ class LinkAuditTests(unittest.TestCase):
         self.assertEqual(for_code, 2)
         self.assertIn("cannot be combined with --for", for_stderr)
         self.assertFalse((self.sessions / "links").exists())
+
+
+D = "mse_" + "d" * 16  # filler, so idf of a shared file is not log(1) == 0
+
+
+class _StubProvider:
+    """Deterministic embeddings, keyed on which entry_ids are declared "near".
+
+    Real model2vec is a hard dependency, but loading it here would make these
+    assertions depend on a model's opinion of fixture prose. Keying on entry_id
+    rather than a marker word in the text matters: a marker word would also
+    become a shared TITLE term and contaminate the lexical half of the score,
+    which is exactly what these tests need to hold still.
+    """
+
+    name = "stub:test"
+
+    def __init__(self, near=()):
+        self.near = tuple(near)
+        self.calls = 0
+
+    def embed(self, texts):
+        self.calls += 1
+        # Unit basis vectors: "near" entries are identical (cosine 1), everything
+        # else is orthogonal to them (cosine 0). No floating-point slack.
+        return [[1.0, 0.0] if any(eid in text for eid in self.near) else [0.0, 1.0] for text in texts]
+
+
+class LinkAuditSemanticExposureTests(unittest.TestCase):
+    """The semantic term must be inspectable and its absence must be reported.
+
+    Semantic ranking shipped 2026-07-22 defaulted ON, but the cosine was folded
+    into `file_overlap_score` and a missing provider degraded to lexical
+    silently. Measured on the 637-entry corpus the term changes the top-5 for
+    610/629 sources, so a silent fallback is a materially different answer.
+
+    Own setUp rather than subclassing LinkAuditTests: inheriting would re-run
+    that whole class's tests a second time for no added coverage.
+    """
+
+    setUp = LinkAuditTests.setUp
+    _write = LinkAuditTests._write
+    _run_cli = LinkAuditTests._run_cli
+
+    def _patch_provider(self, provider, fallback=None):
+        import memory_seed.retrieval as retrieval
+
+        original = retrieval.resolve_semantic_provider
+        name = getattr(provider, "name", "stub:test")
+        self.addCleanup(lambda: setattr(retrieval, "resolve_semantic_provider", original))
+        retrieval.resolve_semantic_provider = lambda *a, **k: (provider, name, fallback)
+        return provider
+
+    def _pair(self):
+        """A and B share a file (the lexical gate) and are semantically identical.
+
+        The unrelated filler entry is load-bearing: with only the pair in the
+        corpus, idf(shared file) is log(2/2) == 0 and the lexical half of the
+        score would be zero for reasons unrelated to what is under test.
+        """
+        self._write(
+            _entry("2026-06-01 08:00", D, files=["pkg/other.py"]),
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"]),
+            _entry("2026-06-01 10:00", B, files=["pkg/foo.py"]),
+        )
+        return _StubProvider(near=(A, B))
+
+    def test_no_semantic_skips_the_provider_entirely(self):
+        """--no-semantic must load no model - the offline/lightweight path."""
+        import memory_seed.retrieval as retrieval
+
+        self._pair()
+        calls = []
+        original = retrieval.resolve_semantic_provider
+        self.addCleanup(lambda: setattr(retrieval, "resolve_semantic_provider", original))
+
+        def _tripwire(*args, **kwargs):
+            calls.append(1)
+            return None, None, None
+
+        retrieval.resolve_semantic_provider = _tripwire
+
+        status = {}
+        gaps = audit_link_gaps(cwd=self.cwd, entry_id=B, semantic_enabled=False, semantic_status=status)
+
+        self.assertEqual(calls, [], "semantic_enabled=False must not resolve a provider")
+        self.assertEqual(status["requested"], False)
+        self.assertEqual(status["active"], False)
+        self.assertIsNone(gaps[0].candidates[0].semantic_score)
+
+    def test_empty_corpus_still_reports_that_semantic_was_requested(self):
+        """The status dict is seeded before the empty-corpus early return.
+
+        Left unset, `requested` reads False and the CLI would label a default
+        (semantic) run as if `--no-semantic` had been passed.
+        """
+        status = {}
+        gaps = audit_link_gaps(cwd=self.cwd, semantic_status=status)
+
+        self.assertEqual(gaps, [])
+        self.assertEqual(status["requested"], True)
+        self.assertEqual(status["active"], False)
+        self.assertIsNone(status["fallback_reason"])
+
+        code, stdout, _ = self._run_cli("link", "audit")
+        self.assertEqual(code, 0)
+        self.assertIn("no entries to embed", stdout)
+        self.assertNotIn("--no-semantic", stdout)
+
+    def test_unavailable_provider_is_reported_not_swallowed(self):
+        self._pair()
+        self._patch_provider(None, fallback="No module named 'model2vec'")
+
+        status = {}
+        gaps = audit_link_gaps(cwd=self.cwd, entry_id=B, semantic_status=status)
+
+        self.assertEqual(status["requested"], True)
+        self.assertEqual(status["active"], False)
+        self.assertEqual(status["fallback_reason"], "No module named 'model2vec'")
+        # Ranking silently degraded to lexical before this change.
+        self.assertIsNone(gaps[0].candidates[0].semantic_score)
+
+    def test_score_decomposes_into_lexical_plus_weighted_cosine(self):
+        from memory_seed.retrieval import SEMANTIC_OVERLAP_BOOST
+
+        self._patch_provider(self._pair())
+
+        gap = audit_link_gaps(cwd=self.cwd, entry_id=B)[0]
+        cand = gap.candidates[0]
+
+        self.assertEqual(cand.entry_id, A)
+        # A and B are both "near" -> identical unit vectors -> cosine exactly 1.
+        self.assertAlmostEqual(cand.semantic_score, 1.0, places=5)
+        self.assertAlmostEqual(
+            cand.file_overlap_score,
+            cand.lexical_score + SEMANTIC_OVERLAP_BOOST * cand.semantic_score,
+            places=4,
+        )
+        self.assertGreater(cand.lexical_score, 0.0)
+
+    def test_semantic_term_reorders_without_changing_membership(self):
+        """The exposed term must be the thing actually driving the order.
+
+        This is the measured shape of the signal: on the real corpus the semantic
+        term changed the top-5 for 610/629 sources while candidate MEMBERSHIP
+        stayed lexical, because cosine only ever adds to the score of a pair the
+        lexical gate already admitted.
+        """
+        self._write(
+            # A wins lexically: it shares the distinctive title term with C.
+            _entry("2026-06-01 08:00", A, files=["pkg/foo.py"], title="alpha shibboleth"),
+            # B wins semantically: no shared title term, but near C.
+            _entry("2026-06-01 09:00", B, files=["pkg/foo.py"], title="beta"),
+            _entry("2026-06-01 10:00", C, files=["pkg/foo.py"], title="gamma shibboleth"),
+            _entry("2026-06-01 07:00", D, files=["pkg/other.py"]),
+        )
+        self._patch_provider(_StubProvider(near=(B, C)))
+
+        with_semantic = [c.entry_id for c in audit_link_gaps(cwd=self.cwd, entry_id=C)[0].candidates]
+        lexical_only = [
+            c.entry_id for c in audit_link_gaps(cwd=self.cwd, entry_id=C, semantic_enabled=False)[0].candidates
+        ]
+
+        self.assertEqual(lexical_only[0], A, "lexically the shared title term should lead")
+        self.assertEqual(with_semantic[0], B, "semantically the near neighbour should lead")
+        self.assertEqual(set(with_semantic), set(lexical_only), "membership stays lexical")
+        self.assertNotEqual(with_semantic, lexical_only, "ranking differs, membership does not")
+
+    def test_cli_reports_ranking_provenance_and_cosine(self):
+        self._patch_provider(self._pair())
+
+        code, stdout, _ = self._run_cli("link", "audit", "--for", B)
+
+        self.assertEqual(code, 0)
+        self.assertIn("Ranking: lexical + semantic (stub:test)", stdout)
+        self.assertIn("cosine: 1.00", stdout)
+
+    def test_cli_reports_unavailable_semantic_loudly(self):
+        self._pair()
+        self._patch_provider(None, fallback="boom")
+
+        code, stdout, _ = self._run_cli("link", "audit", "--for", B)
+
+        self.assertEqual(code, 0)
+        self.assertIn("UNAVAILABLE", stdout)
+        self.assertIn("boom", stdout)
+        self.assertNotIn("cosine:", stdout)
+
+    def test_cli_no_semantic_flag_labels_lexical_ranking(self):
+        self._patch_provider(self._pair())
+
+        code, stdout, _ = self._run_cli("link", "audit", "--for", B, "--no-semantic")
+
+        self.assertEqual(code, 0)
+        self.assertIn("lexical only (--no-semantic)", stdout)
+        self.assertNotIn("cosine:", stdout)
+
+    def test_json_carries_semantic_block_and_decomposed_scores(self):
+        self._patch_provider(self._pair())
+
+        code, stdout, _ = self._run_cli("link", "audit", "--for", B, "--json")
+        payload = json.loads(stdout)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(payload["semantic"]["active"], True)
+        self.assertEqual(payload["semantic"]["provider"], "stub:test")
+        cand = payload["gaps"][0]["candidates"][0]
+        self.assertAlmostEqual(cand["semantic_score"], 1.0, places=5)
+        self.assertIn("lexical_score", cand)
+        self.assertAlmostEqual(cand["score"], cand["lexical_score"] + 160.0 * cand["semantic_score"], places=4)
 
 
 if __name__ == "__main__":

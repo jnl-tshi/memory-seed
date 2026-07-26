@@ -10,12 +10,31 @@ only the session's own entries against the full corpus). Title-term overlap was 
 and semantic ranking 2026-07-22; see [Candidate scoring](#candidate-scoring-2026-07-21) for both
 measurements.
 
-> **Retracted 2026-07-22:** this paragraph previously claimed "no all-pairs semantic scan" as a
-> deliberate as-built choice. The implied cost was never measured and does not hold: embedding all
-> 544 entries takes 0.15 s after a 2.9 s model load, and the similarity matrix is instant at this
-> corpus size. Semantic similarity is now used — as a ranking term only, never to decide candidate
-> membership, because cosine is dense and would make every earlier entry a candidate for every
-> later one.
+> **Retracted 2026-07-22, scope sharpened 2026-07-26:** this paragraph previously claimed "no
+> all-pairs semantic scan" as a deliberate as-built choice. The implied cost was never measured and
+> does not hold: embedding all 637 entries takes 0.17 s once the model is loaded, and the similarity
+> matrix is instant at this corpus size. Semantic similarity is now used — as a ranking term only,
+> never to decide candidate membership, because cosine is dense and would make every earlier entry a
+> candidate for every later one.
+>
+> To be exact about what survives the retraction, since "no all-pairs semantic scan" is half true and
+> the half that is true still matters:
+> - An all-pairs cosine **is** computed. What remains forbidden is cosine deciding *membership* —
+>   the lexical gate (shared file OR shared topic OR shared title term) still decides which pairs are
+>   candidates at all, and semantic similarity only reorders that set. This is why the semantic term
+>   cannot improve reachability, only rank (measured below).
+> - Ranking is semantic **by default but opt-out**: `link audit --no-semantic` ranks lexically and
+>   loads no model, so the network-free path costs nothing extra.
+> - Model loading is **lazy** — `Model2VecEmbeddingProvider.__init__` loads nothing, and
+>   `_load_model2vec_model` imports `model2vec` inside the function body, so importing
+>   `memory_seed.retrieval` never pulls the model. The default-on path does pay a one-off model load
+>   (measured 6.7 s cold on a Windows dev box, vs the 2.9 s originally recorded elsewhere), which is
+>   the concrete reason `--no-semantic` exists.
+> - Absence is **reported, not silent**: with no provider installed the term is absent and ranking is
+>   lexical — the supported `--no-deps` install, not a failure — but `link audit` now says so on
+>   stdout and in `--json` (`semantic.active`, `semantic.fallback_reason`). Before 2026-07-26 it
+>   degraded silently, which mattered more than it sounds: the term changes the top-5 for 610 of 629
+>   sources, so a silent fallback served a materially different ranking with nothing to flag it.
 
 Since 2026-07-15, `--apply` may create inert, idempotent `classify_pending` stubs; it never writes a
 live edge.
@@ -227,11 +246,21 @@ topics; title-term or file overlap qualifies a pair even without a shared topic)
 
 ### Candidate scoring (2026-07-21)
 
-Score is `FILE_OVERLAP_BOOST × Σ idf(shared file) + TITLE_OVERLAP_BOOST × Σ idf(shared title term)`.
+Score is `FILE_OVERLAP_BOOST × Σ idf(shared file) + TITLE_OVERLAP_BOOST × Σ idf(shared title term)
++ SEMANTIC_OVERLAP_BOOST × cosine`.
 Title terms are the entry title's words minus a stop list (function words, plus the workstream
 labels and opening verbs nearly every title in this corpus uses), with the leading
 `YYYY-MM-DD HH:MM - ` stamp stripped — left in, the year is a term shared by essentially every
 pair, which turns a discriminating signal into a universal one.
+
+The three terms are **separately inspectable** (2026-07-26). `LinkGapCandidate.file_overlap_score`
+is the total (the name predates semantic ranking and is kept for its consumers);
+`lexical_score` is the file+title half, and `semantic_score` is the raw cosine in `[0,1]` *before*
+the ×160 boost, or `null` when semantic ranking was off or unavailable. `link audit` prints the
+cosine per candidate and `--json` carries all three, because at a weight of 160 the semantic term
+dominates ordering and folding it invisibly into a field named `file_overlap_score` left an operator
+unable to tell whether a candidate was surfaced by shared-file evidence they could check or by an
+opaque embedding.
 
 **Measured, not assumed.** Ground truth is the 102 `supersedes`/`evolves` edges authors declared in
 entry YAML across the corpus — human-confirmed, and predating the change that they justify:
@@ -251,9 +280,29 @@ where the real target ranks. `SEMANTIC_OVERLAP_BOOST` is 160, chosen by sweep - 
 tried. With no provider installed the term is simply absent and ranking is lexical, which is the
 supported `--no-deps` install rather than a failure.
 
-The gain is in *reachability*, not reordering: median rank of the true target is 3 either way. File
-overlap alone cannot surface a predecessor that touched different files, which is most of what it
-missed.
+> **Corrected 2026-07-26.** This section previously said "the gain is in *reachability*, not
+> reordering: median rank of the true target is 3 either way." **That is backwards**, and it
+> contradicted its own table — a recall@5 moving 59% → 77% is by definition reordering. Re-measured
+> end-to-end through `audit_link_gaps` on the now-637-entry corpus, against the **133** resolvable
+> author-declared lifecycle pairs, with the ranked list taken to `top_k=200` so reachability and rank
+> are separated rather than conflated:
+>
+> | | reachable at all | recall@1 | recall@5 | recall@10 | median rank |
+> |---|---|---|---|---|---|
+> | lexical only | 132/133 | 34% | 56% | 63% | 3 |
+> | + semantic | 132/133 | **43%** | **74%** | **82%** | **2** |
+>
+> Reachability is **identical** — 132/133 either way, and the one miss is unreachable for both. It
+> cannot be otherwise: cosine only ever adds to the score of a pair the lexical gate already
+> admitted, so the semantic term *cannot* make an unreachable target reachable. The entire gain is
+> reordering, worth +18 points at recall@5. The earlier table's "true edges surfaced" column reading
+> as a reachability gain is consistent with having been measured at a small `top_k` — that is an
+> inference about the older method, not something re-verified here.
+>
+> Corroborating the same conclusion from the other direction: on the full corpus the semantic term
+> changes the top-5 for **610 of 629** audited sources, and 1,501 candidates occupy a top-5 slot only
+> because of it. recall@10 reproduces the earlier 82% exactly; recall@5 lands at 74% against the
+> earlier 77%, on a corpus grown from 544 to 637 entries.
 
 Two candidate-volume changes were designed and **rejected by the same measurement**, recorded so
 they are not re-proposed: a minimum-score floor (cuts candidates per source but leaves 94% of
