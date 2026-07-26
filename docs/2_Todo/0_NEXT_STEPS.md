@@ -119,9 +119,25 @@ These exist only in session-entry Follow-ups today. Nothing below is built.
    HEAD, so a second agent appending while another has a feature branch checked out records the wrong
    branch. Affects every git-derived field, not just this one. Design decision needed before
    multi-session work is routine.
-6. **The ADR corpus table does not reconcile** — `adr-lifecycle-sidecar-contract.md` reports 612
-   entries on 2026-07-20; a recount finds 580. Re-derive both from one classifier before either is
-   used to size decision-coverage work.
+6. ~~**The ADR corpus table does not reconcile.**~~ **RESOLVED 2026-07-26** — re-derived from one
+   classifier (`scripts/count_decision_shapes.py`), run against today's tree *and* against the git
+   trees of the two days that produced the rival figures. **Current, at `0dc423b`: 636 entries**
+   (186 numbered / 407 singular / 1 inline / 42 no-decision), **593 with an addressable decision**
+   (186 + 407, exactly what `_entry_decision_ordinals` returns), 163 multi-decision, **876 addressable
+   decisions**. Population is now stated in the ADR: the **stamped-heading** splitter
+   (`_ENTRY_HEADING_RE`, what `links check` validates against), with the 25 date-only May-2026 legacy
+   headings **excluded** — the looser chunk-extractor boundary gives 661, and `extract_memory_chunks`
+   independently emits exactly that. The filter is **heading shape, not `entry_id` presence**: 9 stamped
+   entries predate the id convention and are counted. *Cause of the mismatch:*
+   the two figures counted different populations and neither said which. **580 was real** — a mid-day
+   2026-07-21 count under the date-only-tolerant splitter (its 66 no-decision matches that splitter's
+   67, not the stamped 42). **612 was inflated** and reproduces under neither splitter: the 07-20 tree
+   measures 537 stamped / 562 tolerant, and the whole error sits in its no-decision bucket (140 vs
+   42/67), consistent with a `sessions/**/*.md` sweep absorbing the 99 decision-less date headings the
+   `links/`+`diagrams/` sidecars held that day. **There was no fall** — stamped totals rise
+   monotonically 537 → 562 → 636; the `none` bucket (42) and legacy-heading count (25) are frozen
+   across all three snapshots, which is what shows the classifier stable and the growth real. Safe to
+   size decision-coverage work from these.
 7. **Centrality-driven node prominence** — compute degree (later betweenness/PageRank) on the graph
    projection and let it drive node size/visual weight, never position. Residue 3 of the
    [information-theoretic disposition](../4_Reference/information-theoretic-evolution-disposition.md)

@@ -333,12 +333,23 @@ validation or detection.
 3. **Is `related_entries` worth extending to decisions**, or is decision granularity only meaningful for the
    typed lifecycle edges? The live spec already scopes `related` as accepted-but-not-the-focus.
 
-4. **RESOLVED 2026-07-22. The ADR's corpus table has been re-derived from a committed classifier**
-   (`scripts/count_decision_shapes.py`) and amended in place: 138 numbered / 383 singular / 1 inline / 42
-   no-decision = 564 entries, 521 with an addressable decision, 115 multi-decision. The disagreement had a
-   mechanism rather than an arithmetic error — two entry splitters over the same files, one requiring a
-   `HH:MM` stamp (564) and one accepting date-only May-2026 headings (589). The 580 below reproduces under
-   neither and is superseded. The original question is kept for the record:
+4. **RESOLVED 2026-07-22, fully reconciled 2026-07-26. The ADR's corpus table has been re-derived from a
+   committed classifier** (`scripts/count_decision_shapes.py`) and amended in place. At the 2026-07-22
+   recount: 138 numbered / 383 singular / 1 inline / 42 no-decision = 564 entries, 521 with an addressable
+   decision, 115 multi-decision. The disagreement had a mechanism rather than an arithmetic error — two
+   entry splitters over the same files, one requiring a `HH:MM` stamp and one accepting date-only May-2026
+   headings.
+
+   *Superseded 2026-07-26.* Running the same classifier against the git trees of the days in question
+   settles the last piece, and corrects one claim made here: **580 does reproduce**. It is a mid-day
+   2026-07-21 count under the *date-only-tolerant* splitter — its no-decision bucket of 66 matches that
+   splitter's 67, not the stamped splitter's 42, and its numbered/singular buckets fall between the
+   end-of-20th and end-of-21st measurements. Only **612** is unreproducible, and its error is confined to
+   the no-decision bucket (140 claimed against 42 stamped / 67 tolerant), most likely a `sessions/**/*.md`
+   sweep that swept in the 99 decision-less date headings the `links/`+`diagrams/` sidecars held that day.
+   There was no fall: measured stamped totals rise monotonically 537 → 562 → 636. **Current figures live
+   in [adr-lifecycle-sidecar-contract.md](adr-lifecycle-sidecar-contract.md); the numbers in this item are
+   a dated historical record, not the present count.** The original question is kept for the record:
 
    [adr-lifecycle-sidecar-contract.md:75-80](adr-lifecycle-sidecar-contract.md) reports
    125 numbered / 346 singular / 1 inline / 140 no-decision on 2026-07-20, totalling 612 entries. A

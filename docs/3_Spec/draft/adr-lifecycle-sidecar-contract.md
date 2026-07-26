@@ -72,34 +72,72 @@ source_decision: d1
 No entry is edited to carry decision metadata. The ordinal is read from the structure the DRAFT grammar
 already imposes, which covers every shape in the corpus.
 
-*Amended 2026-07-22 (JNL). The counts below replace the hand-derived 2026-07-20 figures (125 / 346 / 1 /
-140, totalling 612), which no recount reproduced. They now come from a committed classifier,
-`scripts/count_decision_shapes.py` — re-run it rather than re-deriving by hand.*
+*Amended 2026-07-22 (JNL), refreshed 2026-07-26. The counts below replace the hand-derived 2026-07-20
+figures (125 / 346 / 1 / 140, totalling 612), which no classifier reproduces. They come from a committed
+classifier, `scripts/count_decision_shapes.py` — re-run it rather than re-deriving by hand.*
+
+**Population.** Every count in this section is the **stamped-heading population**: entries split by
+`_ENTRY_HEADING_RE`, which requires a `## YYYY-MM-DD HH:MM - title` heading. That is the same splitter
+`links check` validates against, so what is counted here and what a decision ref is checked against are the
+same set by construction. Id-less / date-only legacy headings — the May-2026 entries written before the
+timestamp convention — are **excluded**; there are 25 of them, and the looser boundary the semantic-cache
+chunk extractor uses admits them for 661. Figures measured at commit `0dc423b` (2026-07-26).
 
 | Entry shape | Count | Ordinal |
 |---|---|---|
-| `#### D1 - name`, `#### D2 - name` | 138 | from the heading number |
-| singular `### Decision` | 383 | **`d1` by convention** — a single decision is the first decision |
+| `#### D1 - name`, `#### D2 - name` | 186 | from the heading number |
+| singular `### Decision` | 407 | **`d1` by convention** — a single decision is the first decision |
 | `### Decisions` with inline `- D1:` bullets | 1 | from the bullet label |
 | no decision section | 42 | nothing to identify; not an ADR source |
 
-Total **564 entries**, of which **521 carry at least one addressable decision** and **115 carry two or
+Total **636 entries**, of which **593 carry at least one addressable decision** and **163 carry two or
 more**. Those two figures are what `_entry_decision_ordinals` actually returns, not a sum of the table, so
 coverage and validation cannot drift apart: the inline-bullet entry is a shape the table recognises but
-yields no ordinal under the current implementation, which is why 138 + 383 = 521 and the inline row adds
+yields no ordinal under the current implementation, which is why 186 + 407 = 593 and the inline row adds
 nothing to it.
 
-**Why the earlier numbers did not reconcile.** Each prior figure was right about its own population and
-neither said which population that was — the corpus has two entry splitters. `_ENTRY_HEADING_RE`, used by
-`links check` and by the script above, requires a `HH:MM` stamp; the semantic-cache entry extractor
-accepts a date-only `## YYYY-MM-DD - title`. The earliest entries (May 2026, before the timestamp
-convention) are date-only, so the extractor counts **589** where the validator counts **564** over
-byte-identical files — and 589 is exactly the `entry_count` Memory Trace displays. The 2026-07-21
-recount's 580 reproduces under neither splitter, on this branch or on the primary checkout, and is treated
-as superseded rather than reconciled.
+**Why the earlier numbers did not reconcile.** Both prior figures were re-derived on 2026-07-26 by running
+today's classifier against the git trees of the days that produced them (`7d39214`, end of 2026-07-20;
+`0f69e48`, end of 2026-07-21). The two disagreements have *different* causes:
+
+- **The 2026-07-21 recount's 580 is real, and it is a looser-splitter count.** Its numbered (131) and
+  singular (382) buckets sit between the end-of-20th and end-of-21st measurements (125 → 136 and
+  369 → 383), placing it mid-day on the 21st; and its no-decision bucket of 66 matches the **date-only
+  tolerant** splitter's 67, not the stamped splitter's 42. Under that boundary the same instant totals 581.
+  So 580 and the stamped-splitter numbers were never in conflict — they counted different populations and
+  neither said which.
+- **The 2026-07-20 hand count's 612 is not reproducible under either splitter.** At that tree the
+  classifier finds 537 stamped / 562 date-only-tolerant. Its numbered (125) and inline (1) are exactly
+  right; the error is concentrated in the no-decision bucket, which claims 140 against a measured 42
+  (stamped) or 67 (tolerant). The discrepancy decomposes cleanly: the total is 50 too high (612 − 562)
+  while the no-decision bucket is 73 too high (140 − 67), and the 23-entry difference is exactly the
+  singular shortfall (346 against a measured 369). So it is two errors, not one — roughly 50 non-entries
+  swept in, *plus* roughly 23 real singular-decision entries misfiled as having none. The corpus holds one
+  obvious population shaped like an entry heading but carrying no decision section: the `links/` and
+  `diagrams/` sidecar families, which on 2026-07-20 held **99 such sidecar headings** (72 + 27) and are not
+  session entries. A sweep that globbed `sessions/**/*.md` without excluding sidecars would absorb them
+  exactly there. No subset reproduces 612 on the nose, so 612 is **superseded, not reconciled**.
+
+**There was never a fall.** The premise that made this look impossible — 612 dropping to 580 under an
+append-only corpus — dissolves once 612 is discarded as inflated: the measured stamped totals rise
+monotonically, 537 (07-20) → 562 (07-21) → 636 (07-26).
+
+Two buckets corroborate that the classifier itself is stable rather than drifting: **no decision section
+is 42 at all three snapshots**, and the date-only legacy heading count is **25 at all three**. Those are
+precisely the buckets append-only growth cannot move — new entries all carry a decision section, and no new
+May-2026 date-only headings can appear — so the whole **+99 entries (537 → 636)** between 07-20 and 07-26
+is corpus growth.
+
+**Cross-checked against the other splitter's own implementation**, not just against a restatement of it:
+`extract_memory_chunks` emits exactly one entry-level chunk per stamped entry plus one per date-only legacy
+heading — 636 + 25 = **661** at `0dc423b`, re-verified at 662 against 637 + 25 one commit later. Of those
+chunks, 628 carry an `entry_id`; the 34 that do not are the 25 date-only May-2026 headings plus 9 stamped
+entries written before the id convention. Note that the population above is defined by **heading shape, not
+by id presence**: those 9 stamped-but-id-less entries are counted, and only the 25 date-only ones are
+excluded. Anyone re-deriving these numbers should filter on the heading, not on `entry_id`.
 
 None of this disturbs the ADR's argument. The singular-to-`d1` convention is what makes the scheme total
-rather than partial, and it holds at every one of these counts: without it the 383 single-decision entries
+rather than partial, and it holds at every one of these counts: without it the 407 single-decision entries
 — still the clear majority — would have no addressable decision at all, and they are exactly the entries
 most likely to hold one clean architectural call.
 
@@ -133,8 +171,9 @@ same ordinal — but only one of them is the key.
 The ADR sidecar records **which decisions are architecturally significant, and their lifecycle**. It does
 not assign identity, and it is not a projection of every decision.
 
-The corpus holds 710 identifiable decisions (same 2026-07-22 recount; the earlier 471 was the superseded
-612-entry table's sum). It should not hold 710 ADRs. Most session decisions are
+The corpus holds 876 addressable decisions across the 636 stamped entries counted above (`0dc423b`,
+2026-07-26; 710 at the 2026-07-22 recount, and the earlier 471 was the superseded 612-entry table's sum).
+It should not hold 876 ADRs. Most session decisions are
 tactical — a scroll band, a lint message, a test rename — and stay entirely in their entry. An ADR is
 created when a decision constrains future work in a topic area, and `topics:` is what groups them, so
 "the storage decisions" or "the retrieval decisions" is a query rather than a folder.
