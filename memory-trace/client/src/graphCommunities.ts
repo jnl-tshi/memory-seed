@@ -160,6 +160,12 @@ export function topicColourScale(
 /**
  * A node's authored colour is the MIXTURE of its qualifying topics.
  *
+ * Roots are deliberately NOT de-duplicated before blending, so a node tagged
+ * `branch-history`, `git-workflow` and `agent-collaboration` weights
+ * git-workflow 2:1 where the flat vocabulary weighted it 1:1. That is the
+ * entry's own emphasis showing through - it really did say two git-workflow
+ * things and one collaboration thing - rather than an artefact to correct.
+ *
  * An entry tagged both `graph` and `memory-trace` is about both, and painting
  * it purely as its community-naming topic hid that. The blend is a uniform
  * OKLab mean, which only became viable with the wheel ordering: adjacent hues
@@ -254,6 +260,26 @@ export const colourForCommunity = communityColourScale(null);
 /** True when the node carries an authored topic community (not inferred, not unassigned). */
 export function hasAuthoredCommunity(node: RendererGraphNode): boolean {
   return (node.community.fingerprint || node.community.id).startsWith(TOPIC_PREFIX);
+}
+
+/**
+ * Whether a node wears the darkened rim that marks authored membership.
+ *
+ * EITHER test passing is enough, and both are needed:
+ *
+ * - `authored` covers the case the community cannot see. An entry tagged only
+ *   with child slugs is named `unassigned` by the server, because grouping
+ *   applies the floor per slug, yet it has a root colour and genuinely authored
+ *   its topics.
+ * - `hasAuthoredCommunity` covers the window before facets arrive. With no
+ *   corpus counts the slot map is empty, so `authoredNodeColour` returns null
+ *   for EVERY node and the fill falls back to the hash. Keying the rim on
+ *   `authored` alone would leave every authored node rimless until the facets
+ *   request lands - and rimless is the graph's word for "this colour was
+ *   borrowed", so the whole graph would briefly disown its own topics.
+ */
+export function wearsAuthoredRim(node: RendererGraphNode, authored: string | null): boolean {
+  return authored !== null || hasAuthoredCommunity(node);
 }
 
 /**

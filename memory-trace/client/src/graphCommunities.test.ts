@@ -9,10 +9,12 @@ import {
   COMMUNITY_COLOURS,
   communityColourScale,
   communityLegend,
+  hasAuthoredCommunity,
   inferredCommunityColours,
   MINIMUM_COLOUR_SEPARATION,
   topicColourScale,
   UNASSIGNED_COLOUR,
+  wearsAuthoredRim,
 } from "./graphCommunities.ts";
 
 // The fifteen communities the real corpus produces, with their measured counts.
@@ -406,6 +408,31 @@ test("a node whose only topics are child slugs still authors a colour", () => {
   assert.notEqual(authored, UNASSIGNED_COLOUR);
   // Both children roll to one root, so the mixture is exactly that root's colour.
   assert.equal(authored, topicColourScale(CORPUS_TOPICS, WHEEL, ROOTS)("git-workflow"));
+});
+
+test("an authored node keeps its rim in the window before facets arrive", () => {
+  // With no corpus counts the slot map is empty, so authoredNodeColour returns
+  // null for EVERY node. Keying the rim on that alone would leave every
+  // authored node rimless until the facets request lands - and rimless is the
+  // graph's word for "this colour was borrowed", so the whole graph would
+  // briefly disown its own topics.
+  const authoredCommunity = { ...node("a", "graph"), source: { topics: ["graph"] } } as never;
+  assert.equal(authoredNodeColour(authoredCommunity, null), null, "no facets means no mixture");
+  assert.ok(wearsAuthoredRim(authoredCommunity, null), "an authored community earns the rim on its own");
+});
+
+test("a child-only node earns the rim its community cannot give it", () => {
+  const childOnly = { ...node("a", null), source: { topics: ["merge"] } } as never;
+  assert.equal(hasAuthoredCommunity(childOnly), false, "the server groups it as unassigned");
+  const authored = authoredNodeColour(childOnly, CORPUS_TOPICS, WHEEL, ROOTS);
+  assert.ok(wearsAuthoredRim(childOnly, authored), "but it authored a topic, so it is not inferred");
+});
+
+test("a genuinely topicless node stays rimless", () => {
+  // The invariant both branches exist to protect: an inferred colour, however
+  // saturated, must never wear the mark of an authored one.
+  const bare = { ...node("a", null), source: { topics: [] } } as never;
+  assert.equal(wearsAuthoredRim(bare, authoredNodeColour(bare, CORPUS_TOPICS, WHEEL, ROOTS)), false);
 });
 
 test("the legend still groups and reports by the CHILD slug", () => {

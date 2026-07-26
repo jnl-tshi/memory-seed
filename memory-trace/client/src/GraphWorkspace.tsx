@@ -6,7 +6,7 @@ import { type RendererGraphEdge, type RendererGraphNode, type RendererGraphRespo
 import { connectedIds, nodeSetSignature, seedPositions, type Point } from "./graphLayout";
 import { forceParameters, type ForceSettings } from "./graphForces";
 import { outrankedEdgeIds } from "./graphEdges";
-import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, inferredCommunityColours, type TopicRoots } from "./graphCommunities";
+import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, inferredCommunityColours, wearsAuthoredRim, type TopicRoots } from "./graphCommunities";
 
 type GraphWorkspaceProps = {
   graph: RendererGraphResponse;
@@ -575,11 +575,11 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
                 // Authored membership wears a rim of its own colour, darkened;
                 // inferred and unassigned nodes keep the invisible cutout
                 // border, so the rim alone says "this entry declared a topic".
-                // Keyed off the SAME test as the fill: a full-strength authored
-                // colour with no rim would be indistinguishable from a
-                // saturated inferred tint, which is the confusion the rim
-                // exists to prevent.
-                borderColour: authored !== null ? authoredBorderColour(colour) : nodeBorder,
+                // Either an authored mixture or an authored community earns it -
+                // see wearsAuthoredRim. A full-strength authored colour with no
+                // rim would be indistinguishable from a saturated inferred tint,
+                // which is the confusion the rim exists to prevent.
+                borderColour: wearsAuthoredRim(node, authored) ? authoredBorderColour(colour) : nodeBorder,
                 // Square-root scaling, not linear: degree is heavy-tailed, so a
                 // linear ramp spends its whole range on the few hubs and leaves
                 // everything else indistinguishable. sqrt keeps the low end
