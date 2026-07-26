@@ -36,7 +36,61 @@ absorbs everything authored as `supersession`, `continuity`, `schema`, `related-
 
 ## Design
 
-**A slug may declare a `parent:`.** One parent, maximum depth 2 to start. `schema_version: 1 → 2`.
+**A slug declares its `axis:` — `area` or `activity`.** The two-axis model is currently *convention*,
+described in a project-local proposal and taught to the swarm in prose. Nothing in the schema knows
+which axis a slug belongs to, so nothing can check it. Making it a field turns the model from advice
+into structure. `schema_version: 1 → 2` carries this and `parent:` together — one bump, not two.
+
+**A slug may declare a `parent:`.** One parent, maximum depth 2 to start. A child inherits its parent's
+axis; mixing axes across a parent/child edge is a validation error.
+
+### The two axes, named for any project — not for software
+
+`area` answers **"what are you working on"**. `activity` answers **"what kind of work is it"**. Neither
+word may assume software, because Memory Seed is a general memory substrate — it can be initialised in
+a Substack folder, a research project, a legal matter.
+
+This is a **shipped defect today**, not just a naming preference. The starter vocabulary in
+`memory_seed/seed/.memory-seed/topics.yaml` is `architecture, bugfix, documentation, release,
+workflow` — every slug assumes a software project, and four of the five are activities, so a new
+project starts with **no area axis at all**. A Substack writer's first experience of the vocabulary is
+being offered "bugfix" and "release". Meanwhile "subsystem" appears throughout the control plane
+(`agent-rules.md`, `agent_collaboration.md`, `session_logging.md`, `topic_swarm.md`), teaching a
+software framing to every project that installs it.
+
+For that Substack folder the axes should read naturally: **areas** like `newsletter`, `essays`,
+`research`, `audience`; **activities** like `drafting`, `editing`, `publishing`, `planning`. If the
+shipped language cannot express that without translation, it is wrong.
+
+**To be precise about what changes and what does not** (JNL, 2026-07-26): `topics:` stays the field
+and stays the category name. It is already neutral and it is what every consumer reads. What is
+retired is the word **"subsystem"** as the *label for the first axis* — that is the term that fails to
+travel, since a Substack folder has areas but no subsystems. So: `topics:` unchanged, axis named
+**area**, and "subsystem" retired from the control plane and its twins.
+
+Equally, this project's own slugs are **fine as they are**. `memory-trace`, `mcp-tools`, `session-fuse`
+are software terms in a software project — correct, and deploy-once project-local state that
+`memory-seed update` never overwrites. The neutrality requirement binds the **schema and the shipped
+control plane**, not a curated local vocabulary.
+
+**Starter vocabularies should vary by project type.** A software project and a writing project want
+different opening slugs, and the useful shape is the same in both: a handful of areas plus a handful of
+activities. There is already a mechanism for this — `SKILL_PROFILES` in `core.py` keys shipped control-
+plane content by profile (`coding`, and others), so a starter vocabulary can hang off the same key
+rather than inventing a parallel concept. What must be *universal* is the two-axis structure; what is
+*per-profile* is which slugs fill it.
+
+### What the explicit axis buys immediately
+
+**Validation becomes a shape rule instead of a blunt count.** Today the guard is `MAX_TOPICS_PER_DECISION
+= 3` — a ceiling that cannot tell three activities and no area from a well-formed one-of-each. With
+`axis:` declared, `links check` can enforce the actual intent: *at most one area per decision, at least
+one axis represented.*
+
+That matters because it is a **measured** failure mode, not a hypothetical. In pilot run 1, **10 of 45
+judgment units emitted no area at all** and only 24 of 45 held the one-area+one-activity shape. Run 2
+fixed it to 45/45 — by *prompting harder*. A prompt-enforced invariant regresses the moment someone
+rewrites the prompt; a schema-enforced one cannot.
 
 **Store the most specific slug; derive ancestors at read time.** An entry tagged `trail` is *also*
 about `memory-trace`, but only `trail` is stored. Consequences:
@@ -103,16 +157,46 @@ activities for **specificity recovery**, not for concentration relief — and ex
 shallower and to matter less. Do areas first; treat activities as a follow-on that reuses the
 mechanism.
 
+## The surface should show the split it now knows about
+
+If the vocabulary distinguishes two axes, a single undifferentiated **Topics** row hides exactly the
+distinction the schema just made explicit. The inspector should carry **two sections — Area and
+Activity** — rather than one list, and the same split belongs in the authoring surface, so an agent or
+human is answering two questions instead of picking from one flat pool.
+
+**Per decision, not per entry.** This is where it earns the most: an entry can legitimately span
+several areas, but a *decision* is a single act of work with one area and usually one activity. Showing
+Area/Activity per decision is what makes the pair meaningful rather than a union of everything the
+entry touched.
+
+The data path for this already exists. `inferred_decision_topics` carries `(ordinal, slug)` pairs and
+the read side already exposes the per-decision channel alongside the rolled-up entry view (shipped
+2026-07-26). So once `axis:` is declared, splitting the display is largely **presentation** — group the
+pairs by decision, then by axis. No new backend field is required.
+
+Sequenced after the graph work rather than before it, because the same `axis:` field feeds both, and
+the graph's parent-colour/child-group split is the harder consumer to get right.
+
 ## Build order
 
-1. **`parent:` field, `schema_version: 2`, read-time ancestor derivation** in `load_topic_index` and
-   `expand_topic_filter`. Nothing else changes behaviour yet.
-2. **Reclassify** the aliases that are really children. This changes what 45 entries *resolve to* —
-   strictly more specific, never contradictory — so re-measure facet counts before and after and
-   record the delta.
-3. **Point community colour at the parent level** and grouping/filtering at the child level.
-4. **Only then** any topic sweep, so it judges against a vocabulary that can express the distinctions
-   being asked for.
+1. **`axis:` + `parent:` fields, `schema_version: 2`, read-time ancestor derivation** in
+   `load_topic_index` and `expand_topic_filter`. One schema bump carrying both. Behaviour-neutral:
+   nothing reads the new fields yet, so the blast radius is visible before anything moves.
+2. **Declare the axis for all 23 existing slugs**, and **reclassify** the aliases that are really
+   children. This changes what 45 entries *resolve to* — strictly more specific, never contradictory —
+   so re-measure facet counts before and after and record the delta.
+3. **Shape validation**: at most one area per decision, at least one axis represented. Replaces the
+   blunt `MAX_TOPICS_PER_DECISION` count with the rule that count was standing in for. Write-time
+   only, per the precedent from the branch-provenance analysis — a check that fires across historical
+   entries is one people learn to ignore.
+4. **Point community colour at the parent level** and grouping/filtering at the child level.
+5. **Split the inspector into Area and Activity sections**, per decision. Mostly presentation, since
+   `inferred_decision_topics` already carries the pairs.
+6. **Retire "subsystem" from the control plane** and ship a two-axis, domain-neutral starter
+   vocabulary keyed by profile.
+7. **Only then** any topic sweep, so it judges against a vocabulary that can express the distinctions
+   being asked for — and so the constrained-choice question ("this entry is `memory-trace`; which
+   child?") replaces the unconstrained 2-of-23 that the pilot measured at 0.613.
 
 ## Risks
 
