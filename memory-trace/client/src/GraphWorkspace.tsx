@@ -6,7 +6,7 @@ import { type RendererGraphEdge, type RendererGraphNode, type RendererGraphRespo
 import { connectedIds, nodeSetSignature, seedPositions, type Point } from "./graphLayout";
 import { forceParameters, type ForceSettings } from "./graphForces";
 import { outrankedEdgeIds } from "./graphEdges";
-import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, hasAuthoredCommunity, inferredCommunityColours, type TopicRoots } from "./graphCommunities";
+import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, inferredCommunityColours, type TopicRoots } from "./graphCommunities";
 
 type GraphWorkspaceProps = {
   graph: RendererGraphResponse;
@@ -483,9 +483,13 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
   const colourOf = useMemo(() => communityColourScale(corpusTopics, topicWheel, topicRoots), [corpusTopics, topicWheel, topicRoots]);
   // Authored fill is the MIXTURE of a node's qualifying topics; falls back to
   // the pure community colour when the mixture cannot be built.
-  const fillOf = useMemo(
-    () => (node: RendererGraphNode) => authoredNodeColour(node, corpusTopics, topicWheel, topicRoots) ?? colourOf(node),
-    [corpusTopics, topicWheel, topicRoots, colourOf],
+  // The authored mixture, or null when the node authored nothing that clears
+  // the floor. Kept as null rather than pre-resolved to a fallback because the
+  // caller needs to know WHETHER a node authored a colour - that is what
+  // decides the rim, and what stops an inferred pastel overriding a real one.
+  const authoredOf = useMemo(
+    () => (node: RendererGraphNode) => authoredNodeColour(node, corpusTopics, topicWheel, topicRoots),
+    [corpusTopics, topicWheel, topicRoots],
   );
   // Topicless nodes take a pastel blend of the communities that reach them
   // (directly, or as decaying residue down a topicless chain). Pastel is a
@@ -542,7 +546,24 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
         container: container.current,
         elements: [
           ...renderedNodes.map((node) => {
-            const colour = inferredColours.get(node.id) ?? (hasAuthoredCommunity(node) ? fillOf(node) : colourOf(node));
+            // AUTHORED COLOUR WINS, and the test is whether the node has one -
+            // not whether its COMMUNITY qualifies. The two came apart when
+            // colour started climbing to the root: an entry tagged only with
+            // child slugs (four children of `control-plane`, say) is named
+            // `unassigned` by the server, because grouping still applies the
+            // floor per slug, yet it plainly authored a topic and now has a
+            // root colour to show for it. Gating on the community handed those
+            // entries a borrowed pastel instead - the entry said what it was
+            // about and the graph answered with a guess from its neighbours.
+            //
+            // Known edge, deliberately left: such a node still RELAYS residue
+            // as a topicless waypoint, because the inference walk decides
+            // membership from the community too. That only affects who receives
+            // a faded tint, never what colour this node shows, and rewriting
+            // the walk's seeding rules is not worth it for the handful of
+            // entries involved.
+            const authored = authoredOf(node);
+            const colour = authored ?? inferredColours.get(node.id) ?? colourOf(node);
             return {
               data: {
                 id: node.id,
@@ -554,7 +575,11 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
                 // Authored membership wears a rim of its own colour, darkened;
                 // inferred and unassigned nodes keep the invisible cutout
                 // border, so the rim alone says "this entry declared a topic".
-                borderColour: hasAuthoredCommunity(node) ? authoredBorderColour(colour) : nodeBorder,
+                // Keyed off the SAME test as the fill: a full-strength authored
+                // colour with no rim would be indistinguishable from a
+                // saturated inferred tint, which is the confusion the rim
+                // exists to prevent.
+                borderColour: authored !== null ? authoredBorderColour(colour) : nodeBorder,
                 // Square-root scaling, not linear: degree is heavy-tailed, so a
                 // linear ramp spends its whole range on the few hubs and leaves
                 // everything else indistinguishable. sqrt keeps the low end

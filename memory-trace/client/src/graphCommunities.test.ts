@@ -388,6 +388,26 @@ test("the legend names the parent when a row borrowed its colour", () => {
   assert.equal(child.colour, parent.colour, "the shared swatch is the point");
 });
 
+test("a node whose only topics are child slugs still authors a colour", () => {
+  // The regression that bit this change in live verification. The renderer used
+  // to reach the authored mixture only when the node's COMMUNITY qualified, and
+  // grouping still applies the floor PER SLUG - so an entry tagged with nothing
+  // but children is named `unassigned` by the server even though it plainly
+  // authored topics. Gating the fill on the community handed those entries a
+  // borrowed pastel from their neighbours instead of the root colour they had
+  // earned. Measured live on mse_nyk16t2d8xexetgv, whose four topics are all
+  // children of `control-plane`.
+  const childOnly = {
+    ...node("a", null), // community: derived:unassigned
+    source: { topics: ["merge", "branch-history"] },
+  } as never;
+  const authored = authoredNodeColour(childOnly, CORPUS_TOPICS, WHEEL, ROOTS);
+  assert.notEqual(authored, null, "child-only topics must still produce an authored colour");
+  assert.notEqual(authored, UNASSIGNED_COLOUR);
+  // Both children roll to one root, so the mixture is exactly that root's colour.
+  assert.equal(authored, topicColourScale(CORPUS_TOPICS, WHEEL, ROOTS)("git-workflow"));
+});
+
 test("the legend still groups and reports by the CHILD slug", () => {
   // Colour climbs; nothing else does. The row is named, counted and identified
   // by the child, which is what the graph filters and reports by.
