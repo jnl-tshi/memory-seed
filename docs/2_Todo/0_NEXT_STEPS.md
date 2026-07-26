@@ -114,7 +114,9 @@ These exist only in session-entry Follow-ups today. Nothing below is built.
    (186 + 407, exactly what `_entry_decision_ordinals` returns), 163 multi-decision, **876 addressable
    decisions**. Population is now stated in the ADR: the **stamped-heading** splitter
    (`_ENTRY_HEADING_RE`, what `links check` validates against), with the 25 date-only May-2026 legacy
-   headings **excluded** — the looser chunk-extractor boundary gives 661. *Cause of the mismatch:*
+   headings **excluded** — the looser chunk-extractor boundary gives 661, and `extract_memory_chunks`
+   independently emits exactly that. The filter is **heading shape, not `entry_id` presence**: 9 stamped
+   entries predate the id convention and are counted. *Cause of the mismatch:*
    the two figures counted different populations and neither said which. **580 was real** — a mid-day
    2026-07-21 count under the date-only-tolerant splitter (its 66 no-decision matches that splitter's
    67, not the stamped 42). **612 was inflated** and reproduces under neither splitter: the 07-20 tree

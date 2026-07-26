@@ -109,11 +109,14 @@ today's classifier against the git trees of the days that produced them (`7d3921
 - **The 2026-07-20 hand count's 612 is not reproducible under either splitter.** At that tree the
   classifier finds 537 stamped / 562 date-only-tolerant. Its numbered (125) and inline (1) are exactly
   right; the error is concentrated in the no-decision bucket, which claims 140 against a measured 42
-  (stamped) or 67 (tolerant). The corpus holds one obvious population shaped like an entry heading but
-  carrying no decision section: the `links/` and `diagrams/` sidecar families, which on 2026-07-20 held 99
-  such headings (72 + 27) and are not session entries. A sweep that globbed `sessions/**/*.md` without
-  excluding sidecars would absorb them exactly there. No subset reproduces 612 on the nose, so 612 is
-  **superseded, not reconciled**.
+  (stamped) or 67 (tolerant). The discrepancy decomposes cleanly: the total is 50 too high (612 − 562)
+  while the no-decision bucket is 73 too high (140 − 67), and the 23-entry difference is exactly the
+  singular shortfall (346 against a measured 369). So it is two errors, not one — roughly 50 non-entries
+  swept in, *plus* roughly 23 real singular-decision entries misfiled as having none. The corpus holds one
+  obvious population shaped like an entry heading but carrying no decision section: the `links/` and
+  `diagrams/` sidecar families, which on 2026-07-20 held **99 such sidecar headings** (72 + 27) and are not
+  session entries. A sweep that globbed `sessions/**/*.md` without excluding sidecars would absorb them
+  exactly there. No subset reproduces 612 on the nose, so 612 is **superseded, not reconciled**.
 
 **There was never a fall.** The premise that made this look impossible — 612 dropping to 580 under an
 append-only corpus — dissolves once 612 is discarded as inflated: the measured stamped totals rise
@@ -122,7 +125,16 @@ monotonically, 537 (07-20) → 562 (07-21) → 636 (07-26).
 Two buckets corroborate that the classifier itself is stable rather than drifting: **no decision section
 is 42 at all three snapshots**, and the date-only legacy heading count is **25 at all three**. Those are
 precisely the buckets append-only growth cannot move — new entries all carry a decision section, and no new
-May-2026 date-only headings can appear — so the entire +99 between 07-20 and 07-26 is corpus growth.
+May-2026 date-only headings can appear — so the whole **+99 entries (537 → 636)** between 07-20 and 07-26
+is corpus growth.
+
+**Cross-checked against the other splitter's own implementation**, not just against a restatement of it:
+`extract_memory_chunks` emits exactly one entry-level chunk per stamped entry plus one per date-only legacy
+heading — 636 + 25 = **661** at `0dc423b`, re-verified at 662 against 637 + 25 one commit later. Of those
+chunks, 628 carry an `entry_id`; the 34 that do not are the 25 date-only May-2026 headings plus 9 stamped
+entries written before the id convention. Note that the population above is defined by **heading shape, not
+by id presence**: those 9 stamped-but-id-less entries are counted, and only the 25 date-only ones are
+excluded. Anyone re-deriving these numbers should filter on the heading, not on `entry_id`.
 
 None of this disturbs the ADR's argument. The singular-to-`d1` convention is what makes the scheme total
 rather than partial, and it holds at every one of these counts: without it the 407 single-decision entries
