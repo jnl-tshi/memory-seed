@@ -1,6 +1,6 @@
 ---
 priority: P2
-next_action: JNL to pick which splits to make. Recommended - carve `trail` out of `memory-trace`, and scope `graph` to the edge data model with a separate slug for the graph VIEW. Do this BEFORE any topic sweep, since a sweep can add a narrower slug to an entry that already carries a broad one (enrichment, not override) but cannot remove the broad one.
+next_action: SUPERSEDED 2026-07-26 as to remedy - the measurements here stand, but the flat splits recommended below are replaced by `hierarchical-topic-vocabulary-proposal.md`, which achieves the same specificity without orphaning the 197 historical `memory-trace` entries from the finer grain. Read this document for the evidence; read that one for what to do.
 ---
 
 # Topic vocabulary: concentration review
