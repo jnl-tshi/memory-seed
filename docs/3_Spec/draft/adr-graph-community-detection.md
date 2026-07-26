@@ -14,6 +14,10 @@ Investigated 2026-07-22 against the live corpus: 565 entries, 669 authored edges
 carrying at least one topic. Measurement scripts are throwaway (`uv run --no-project --with networkx
 --with scikit-learn`); no dependency was added to any manifest.
 
+Re-measured 2026-07-26 for the one variant left unmeasured — Louvain **client-side over the renderer
+payload**, which was still listed as pending B0b work. Verdict unchanged and sharpened; see
+[Addendum 2026-07-26](#addendum-2026-07-26-the-client-side-over-the-payload-variant).
+
 ## Question
 
 Proposal §4.3 assumes communities come from Leiden/Louvain and specifies a fingerprint /
@@ -190,6 +194,92 @@ nodes it was wanted for.
 Consequently §4.3's stable-community apparatus should be marked **not required** rather than
 outstanding, and the topology proposal's assumption that communities come from Leiden/Louvain should
 be amended to record that this was measured and rejected.
+
+## Addendum 2026-07-26: the client-side-over-the-payload variant
+
+`0_NEXT_STEPS.md` continued to carry the B0b line "Topology communities (algorithm choice — Louvain
+recommended, client-side over the existing bounded projection; designed, not yet built)". That line
+predates this ADR by a day and describes a variant the ADR above did **not** measure: the ADR
+clustered the *full corpus with derived file and branch cliques*, whereas a client-side
+implementation can only see the renderer payload, whose edges are authored-only (`related` /
+`replaces` / `evolves` — `topic` is off by default, see `api.ts`). Files are not in the payload at
+all, and files were the one lever the ADR found that rescued density.
+
+Measured in-process with the route's exact kwargs (`TraceService.graph` → `project_trace_graph`, as
+`/api/v1/graph/projection` calls them, `include_decisions=False` /
+`decision_row_scope="linked"` included), then Louvain via `networkx` (`uv run --no-project --with
+networkx --with scikit-learn`; no manifest touched). Two slices only: the client's Overview default
+(`limit=60`) and the same edge types unbounded. **One snapshot, corpus at 641 entries** — which
+includes this session's own entry, so the figures are reproducible from the commit that added this
+addendum and drift by one entry against the commit before it.
+
+| Slice | n | unique pairs | deg/node | isolated | components | giant |
+|---|---:|---:|---:|---:|---:|---:|
+| Overview default (`limit=60`) | 71 | 31 | 0.87 | 35 | **46** | **12.7%** |
+| Full corpus | 641 | 1,123 | 3.50 | 95 | **110** | 77.2% |
+
+Louvain, seed pinned (`seed=20260726`), resolution swept. Seed stability is mean pairwise ARI across
+three *different* seeds on the same graph:
+
+| Slice | res | k | largest | modularity | ms | seed stability |
+|---|---:|---:|---:|---:|---:|---:|
+| default | 0.02–0.5 | 46 | 12.7% | 0.997→0.925 | 2 | 1.000 |
+| default | 1.0 | 47 | 7.0% | 0.859 | 2 | 0.869 |
+| default | 2.0 | 47 | 7.0% | 0.750 | 2 | 1.000 |
+| full | 0.02 | 110 | 77.2% | 0.981 | 33 | 1.000 |
+| full | 0.05 | 110 | 77.2% | 0.953 | 27 | 0.961 |
+| full | 0.1 | 112 | 69.9% | 0.913 | 29 | 0.927 |
+| full | 0.25 | 115 | 34.6% | 0.859 | 35 | 0.687 |
+| full | 0.5 | 118 | 14.2% | 0.803 | 27 | 0.593 |
+| full | 1.0 | 122 | 10.8% | 0.749 | 30 | 0.685 |
+| full | 2.0 | 133 | 6.4% | 0.676 | 27 | 0.737 |
+
+Four findings, none of which overturn the recommendation and one of which strengthens it from
+"produces an unusable partition" to "cannot produce a usable one at all":
+
+**A 16-colour legend is arithmetically unreachable on the payload's edges.** Louvain never merges
+across connected components, so the *floor* on k is the component count: **46 at the default slice,
+110 at full corpus.** The ADR above reached k=15–18 only because file cliques collapsed the graph to
+5 components with a 93% giant. Strip the file edges — which a client-side implementation must,
+because it never receives them — and no resolution setting can bring k below 110. There is no
+matched-k comparison left to run; the granularity a legend needs does not exist in the search space.
+
+**At the default slice there is nothing to detect.** 71 nodes carry 31 authored pairs: 0.87 per node,
+35 of them isolated, largest component 12.7%. Louvain returns k=46–47 at every resolution, which is
+the component structure with the giant split once. Colouring by that would paint 46 near-singleton
+"communities" and a legend of 46 rows, restating something the reader can already see — disconnected
+blobs are visible as blobs. (Verified not an artefact: zero dangling endpoints, zero self-loops, 31
+raw edges = 31 unique pairs.)
+
+**The default slice's sparsity is structural, not incidental, and this is the finding that rules out
+the client-side variant independently of corpus density.** `_overview_slice` is a **chronological
+spine**: the newest `limit` entries by date, plus depth-1 expansion over the rendered lifecycle edge
+types — which is exactly the 60 + 11 = 71 nodes observed. It is deliberately *not* a connectivity
+ranking; that ranking was removed precisely because its membership bore no relation to what the user
+was reading in the Trail. So the default payload is a **time window**, and a recent entry's ties
+mostly point at entries outside the window: only 11 of them get pulled back in. A community
+algorithm run over that payload is not partitioning a neighbourhood structure, it is partitioning a
+week. Worse for a colour encoding, "Show more" walks the window backwards, so the partition — and
+therefore every node's colour — would be recomputed over a different graph on each page. Authored
+topic communities are immune to this by construction: a topic slug does not depend on which slice is
+loaded.
+
+**Corpus growth has not moved the verdict, which was the most plausible challenge to it.** Since the
+ADR's measurement the corpus went 565 → 641 entries and 633 → 1,123 unique authored pairs, so
+authored degree rose from 2.24 to 3.50 — a 56% density increase, largely from the 2026-07-25
+decision-level edge campaign. Component count still sits at 110, and seed stability at the
+resolutions where the largest community is not a blob (0.25–2.0) sits at 0.593–0.737 mean pairwise
+ARI: three seeds disagree about a quarter to a half of assignments, so a pinned seed would buy
+stability against reload but not against growth. "Wait for denser linking" was the obvious way to
+reopen this; one 56% density increase is now on record as not sufficient.
+
+Runtimes (27–35ms for 641 nodes in Python) confirm cost was never the objection. The objection is
+that the output is not a colour encoding.
+
+Consequently the B0b line has been corrected to record the item as **measured and rejected** rather
+than designed-and-pending, and proposal §4.3 is marked not required. The remaining open decision is
+for the maintainer alone: promote this ADR from `draft` to accepted, or fund the one untested route
+below (Leiden).
 
 ## Limitations, recorded not hidden
 
