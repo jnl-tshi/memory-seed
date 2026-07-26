@@ -15,7 +15,8 @@
 | [link-audit-decision-judgment-swarm-proposal.md](link-audit-decision-judgment-swarm-proposal.md) | P2 | — | In-core foundation SHIPPED 2026-07-23 (link audit --json judgment-ready candidates). Open befor… |
 | [memory-seed-workflow-evidence-and-review-workbench-plan.md](memory-seed-workflow-evidence-and-review-workbench-plan.md) | P2 | — | Reconstruct three completed project journeys from existing entries, documents, and Git referenc… |
 | [memory-trace-living-archive-and-editorial-focus-proposal.md](memory-trace-living-archive-and-editorial-focus-proposal.md) | P2 | >- | >- |
-| [branch-field-provenance.md](branch-field-provenance.md) | P3 | [] | JNL decides between options A-D for the shared-checkout case (the decidable case is already fix… |
+| [write-time-sidecar-consolidation-proposal.md](write-time-sidecar-consolidation-proposal.md) | P2 | — | JNL to accept or reject the design. If accepted, build in the stated order — block format + pro… |
+| [branch-field-provenance.md](branch-field-provenance.md) | P3 | [] | None. Decided (JNL, 2026-07-26): A now, D as the standing convention; both are documented. The … |
 | [decision-level-topics-proposal.md](decision-level-topics-proposal.md) | P3 | — | PROPOSAL — decision-level topic *inference* stays gated behind a DECISION-LEVEL GRAPH (JNL's vi… |
 | [memory-trace-semantic-projections-plan.md](memory-trace-semantic-projections-plan.md) | P3 | — | After B0b and the semantic foundation, validate one Decision projection against the real ADR co… |
 | [sidecar-editable-lens-refinement-proposal.md](sidecar-editable-lens-refinement-proposal.md) | P3 | — | SCOPE NARROWED 2026-07-23 — the "add a later edge to an already-blocked entry" case (the withhe… |
