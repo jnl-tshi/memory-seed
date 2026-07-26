@@ -77,6 +77,19 @@ jobs:
       - name: Run React unit tests
         run: npm test
 
+      # Storybook interaction tests run in headless chromium (vite.config.ts
+      # browser project), so the browser binary has to be fetched - npm ci
+      # installs @vitest/browser-playwright but not the browser itself.
+      - name: Install Playwright chromium
+        run: npx playwright install --with-deps chromium
+
+      # These were runnable only by hand until 2026-07-26 and were therefore not
+      # guarding anything: the SettingsMenu keyboard story sat red on main while
+      # this job stayed green, because a Graph tab had been inserted into the
+      # tablist and the story's fixture never gained the prop that tab reads.
+      - name: Run Storybook interaction tests
+        run: npm run test:stories
+
       # Parse every diagram-sidecar Mermaid block through real Mermaid, so an
       # unrenderable diagram fails the build even if the local pre-commit hook
       # was bypassed. links check validates a sidecar's structure but never its
