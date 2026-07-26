@@ -16,9 +16,16 @@ corpus-measured, not imposed, and the topic-backfill swarm prompt is built from 
 
 **The two axes.** A well-tagged entry names one of each, ~2 topics total (corpus average 2.26):
 
-- **Area / subsystem — WHERE the work is:** memory-trace, memory-seed, graph, retrieval, session-fuse,
+- **Area / subsystem — WHERE the work is:** memory-trace, graph, retrieval, session-fuse,
   session-layout, session-logging, mcp-tools, hooks, mermaid, windows-encoding, control-plane,
-  process-management.
+  process-management — plus **`memory-seed`, which is the RESIDUAL area**, not a peer of the others.
+  *(Sharpened 2026-07-26.)* Use it only when no narrower area applies, and **never alongside another
+  area slug**. Its old description named a concrete surface ("Core package, CLI, MCP, seed runtime")
+  *and* a residual ("behavior not captured by narrower topics") in one sentence, which no annotator
+  could apply consistently — measured, the corpus split almost exactly in half: of 107 entries using
+  it, **53 used it as the only area and 54 alongside a narrower one**, which a true residual can never
+  be. Its concrete half also double-named `mcp-tools`' territory (CLI and MCP appear in both
+  descriptions).
 - **Activity / kind of work — WHAT was done:** ui-design, bugfix, documentation, proposal-lifecycle,
   release, git-workflow, agent-collaboration, tooling-evaluation, security, performance.
 
