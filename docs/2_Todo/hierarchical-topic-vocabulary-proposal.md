@@ -31,8 +31,25 @@ forcing a hierarchical vocabulary through the only field available.
 **What the flattening costs.** Alias resolution maps child → parent and *discards the child*. An entry
 authored `continuity` is read as `graph`, forever, with no way to recover that it was about continuity
 specifically. Measured: **43 distinct aliases in use across 45 entries** are having their specificity
-thrown away at read time. It also inflates the parents — part of why `graph` reads at 23.8% is that it
-absorbs everything authored as `supersession`, `continuity`, `schema`, `related-entries` and `topics`.
+thrown away at read time.
+
+**Correction (2026-07-26, after building step 2).** This paragraph originally continued: *"It also
+inflates the parents — part of why `graph` reads at 23.8% is that it absorbs everything authored as
+`supersession`, `continuity`, `schema`, `related-entries` and `topics`."* **That was wrong**, and
+promoting the aliases measured it:
+
+| slug | before | after | movement |
+|---|---:|---:|---|
+| `memory-trace` | 197 | **197** | **none at all** — its only alias in use is one genuine spelling variant |
+| `graph` | 106 | 103 | 3 entries, not the "part of why" claimed |
+| `proposal-lifecycle` | 89 | **77** | the real mover, and **unforecast** — bigger than graph and memory-trace combined |
+
+So **alias flattening was never the source of the concentration.** The specificity recovery is real —
+**42 of the 45** alias-carrying entries gained it, and every parent's rollup is unchanged so filtering
+reach cost nothing — but it is a *different benefit* from breadth relief. The concentration is
+genuine breadth in `memory-trace`, and only new children (step 2's invented half) and the sweep can
+touch it. Kept visible rather than quietly edited: the claim shaped the case for doing this work, and
+the work was still worth doing for the reason that survived.
 
 ## Design
 
