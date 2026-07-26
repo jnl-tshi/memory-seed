@@ -34,6 +34,18 @@ class TopicRecord:
     description: str = ""
     status: str = "active"
     aliases: tuple[str, ...] = ()
+    # Which of the two axes this slug belongs to: "area" (WHAT you are working
+    # on) or "activity" (what KIND of work it is). Empty means undeclared, which
+    # is what every schema_version 1 vocabulary looks like - the field is
+    # additive and nothing may require it until a vocabulary declares it.
+    # Deliberately NOT named "subsystem": the vocabulary ships to projects that
+    # are not software, and an area translates where a subsystem does not.
+    axis: str = ""
+    # Optional parent slug, forming a hierarchy WITHIN an axis. Empty means this
+    # slug is a root. Depth is earned by concentration rather than capped - a
+    # slug carrying too much of its scope earns children, a thin one stays a
+    # leaf - so this can nest arbitrarily deep where the corpus paid for it.
+    parent: str = ""
 
 
 @dataclass(frozen=True)
@@ -44,13 +56,72 @@ class TopicIndex:
     topics: tuple[TopicRecord, ...]
 
     def resolution(self) -> dict[str, str]:
-        """slug -> canonical slug for every canonical and alias name."""
+        """slug -> canonical slug for every canonical and alias name.
+
+        Aliases are SPELLING variants only. A narrower concept belongs in
+        ``parent:`` instead - resolution collapses an alias into its canonical
+        and discards it, so filing a child here destroys the specificity the
+        author recorded.
+        """
         mapping: dict[str, str] = {}
         for record in self.topics:
             mapping.setdefault(record.slug, record.slug)
             for alias in record.aliases:
                 mapping.setdefault(alias, record.slug)
         return mapping
+
+    def ancestors(self, slug: str) -> tuple[str, ...]:
+        """Every parent above ``slug``, nearest first; empty for a root.
+
+        A stored slug implies its ancestors - an entry tagged with a child is
+        also about the child's parent - but only the child is ever stored, so
+        the cap counts one slug and the parent costs no budget.
+        """
+        by_slug = {record.slug: record for record in self.topics}
+        out: list[str] = []
+        seen = {slug}
+        current = by_slug.get(slug)
+        while current is not None and current.parent:
+            if current.parent in seen:  # a cycle is a vocabulary defect; stop rather than hang
+                break
+            out.append(current.parent)
+            seen.add(current.parent)
+            current = by_slug.get(current.parent)
+        return tuple(out)
+
+    def descendants(self, slug: str) -> tuple[str, ...]:
+        """Every slug beneath ``slug`` at any depth. Filters expand DOWNWARD:
+        asking for a parent must match entries tagged with its children."""
+        children: dict[str, list[str]] = {}
+        for record in self.topics:
+            if record.parent:
+                children.setdefault(record.parent, []).append(record.slug)
+        out: list[str] = []
+        stack = list(children.get(slug, ()))
+        seen: set[str] = set()
+        while stack:
+            item = stack.pop()
+            if item in seen:
+                continue
+            seen.add(item)
+            out.append(item)
+            stack.extend(children.get(item, ()))
+        return tuple(out)
+
+    def axis_of(self, slug: str) -> str:
+        """The declared axis, inherited from the nearest ancestor that declares
+        one. Empty when nothing in the chain declares an axis."""
+        by_slug = {record.slug: record for record in self.topics}
+        record = by_slug.get(slug)
+        if record is None:
+            return ""
+        if record.axis:
+            return record.axis
+        for parent in self.ancestors(slug):
+            parent_record = by_slug.get(parent)
+            if parent_record is not None and parent_record.axis:
+                return parent_record.axis
+        return ""
 
 
 @dataclass(frozen=True)
@@ -130,6 +201,8 @@ def load_topic_index(cwd: str | Path = ".") -> TopicIndex:
                     description=str(current.get("description", "")),
                     status=str(current.get("status", "active")) or "active",
                     aliases=tuple(current.get("aliases", ()) or ()),
+                    axis=str(current.get("axis", "") or ""),
+                    parent=str(current.get("parent", "") or ""),
                 )
             )
         current = None
@@ -398,6 +471,12 @@ def expand_topic_filter(cwd: str | Path, requested: list[str] | tuple[str, ...])
     Each requested name resolves to its canonical topic; the match set contains that canonical
     plus every alias of it, so stored entries using either form match. Unknown names pass
     through as-is (fail-open - filtering never errors on vocabulary drift).
+
+    Expansion also runs DOWNWARD through the hierarchy: asking for a parent matches entries tagged
+    with any descendant, because only the most specific slug is ever stored. Without this, filtering
+    on a parent would silently miss every entry that answered more precisely - the opposite of what
+    the hierarchy is for. Expansion never runs upward: asking for a child must not drag in the
+    parent's broader population.
     """
     index = load_topic_index(cwd)
     resolution = index.resolution()
@@ -409,6 +488,8 @@ def expand_topic_filter(cwd: str | Path, requested: list[str] | tuple[str, ...])
         canonical = resolution.get(name)
         if canonical is None:
             expanded.add(name)
-        else:
-            expanded.update(by_canonical.get(canonical, {canonical}))
+            continue
+        expanded.update(by_canonical.get(canonical, {canonical}))
+        for descendant in index.descendants(canonical):
+            expanded.update(by_canonical.get(descendant, {descendant}))
     return expanded
