@@ -89,8 +89,8 @@ topics:
     status: active
     aliases: [frontend-design, visual-design]
   - slug: memory-seed
-    label: Memory Seed Core
-    description: Core package, CLI, MCP, seed runtime, and Memory Seed product behavior not captured by narrower topics.
+    label: Memory Seed (residual area)
+    description: RESIDUAL area - use ONLY when no narrower area applies, and never alongside another area slug. Narrower areas own their surfaces - mcp-tools owns CLI and MCP, retrieval owns search and ranking, graph owns edges, session-fuse owns merge machinery, session-logging owns entry authoring, control-plane owns agent rules and runtime files, release owns packaging. What remains is core library behaviour with no narrower home - validation, situate/esr, runtime resolution, quality metrics.
     status: active
     aliases: [memory-seed-core]
   - slug: control-plane
