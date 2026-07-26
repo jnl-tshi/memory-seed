@@ -2959,7 +2959,13 @@ def session_append_entry(
     - the generated id colliding with an existing one means identical
       metadata - almost certainly a double-append - and errors.
     - ``branch`` is captured from git automatically unless supplied or
-      ``auto_branch=False`` (omitted when detached or not a repository).
+      ``auto_branch=False``. It records the HEAD of the working tree that owns
+      the memory dir, so it is omitted whenever that HEAD would not be this
+      session's branch: detached, not a repository, or the memory dir belongs
+      to a different working tree than the caller (untracked ``.memory-seed``
+      seen from a worktree; a submodule under a superproject). It cannot detect
+      two agents sharing one checkout - their HEAD is identical - so pass
+      ``--branch`` explicitly when several sessions share a working tree.
 
     ``dry_run=True`` runs every guard and returns the id, timestamp, target
     path and ``rendered`` - the exact entry block a real call would append -
@@ -3117,9 +3123,7 @@ def session_append_entry(
 
     resolved_branch = branch
     if resolved_branch is None and auto_branch:
-        lines = _git_capture(runtime.workspace_root, "rev-parse", "--abbrev-ref", "HEAD")
-        if lines and lines[0].strip() and lines[0].strip() != "HEAD":
-            resolved_branch = lines[0].strip()
+        resolved_branch = _auto_captured_branch(runtime.workspace_root, cwd)
 
     # Write-time DRAFT-format gate: the tool owns structure, so it refuses to
     # write a malformed decision record (bare labels, missing R:, wrong
@@ -3169,6 +3173,41 @@ def session_append_entry(
         new_text = existing + block
     write_text_file(target.path, new_text)
     return SessionAppendResult(ok=True, path=target.path, entry_id=entry_id, timestamp=ts, written=True)
+
+
+def _auto_captured_branch(workspace_root: Path, cwd: Path | str) -> str | None:
+    """The branch to stamp on an entry, or ``None`` when no honest answer exists.
+
+    ``branch:`` records the HEAD of the working tree that owns the memory dir,
+    which is only meaningful when the caller is *in* that working tree. When the
+    memory dir was reached by walking up out of the caller's own checkout the
+    two disagree, and neither HEAD is the right answer: the session is on one
+    branch while the entry file lands in another tree's ``.memory-seed`` and
+    will be committed on that tree's branch. Two layouts reach it - an untracked
+    ``.memory-seed`` seen from a worktree (worktree isolation is a consequence
+    of the memory dir being *committed*, not of worktrees as such), and a
+    submodule whose superproject owns the memory dir.
+
+    So this omits, on the same principle as the pre-existing detached-HEAD and
+    not-a-repository cases: a wrong ``branch:`` is durable append-only history,
+    and the caller that actually knows can always pass ``--branch``.
+
+    Note what this deliberately does NOT catch: two agents sharing one checkout.
+    Their HEAD is genuinely identical, so git cannot tell them apart - see
+    docs/2_Todo/branch-field-provenance.md, which is the open half of the
+    question and needs a decision rather than a heuristic.
+    """
+    lines = _git_capture(workspace_root, "rev-parse", "--abbrev-ref", "HEAD")
+    if not lines or not lines[0].strip() or lines[0].strip() == "HEAD":
+        return None
+    caller = Path(cwd).resolve()
+    if caller.is_file():
+        caller = caller.parent
+    if _git_capture(caller, "rev-parse", "--show-toplevel") != _git_capture(
+        workspace_root, "rev-parse", "--show-toplevel"
+    ):
+        return None
+    return lines[0].strip()
 
 
 def _git_capture(root: Path, *args: str) -> list[str] | None:

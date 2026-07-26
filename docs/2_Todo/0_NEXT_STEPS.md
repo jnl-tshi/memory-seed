@@ -115,10 +115,30 @@ These exist only in session-entry Follow-ups today. Nothing below is built.
    It retires with the `/` UI itself, under the B2 parity-sign-off gate already recorded in Track B
    below ("the current vanilla `/` UI remains the supported fallback until explicit parity sign-off");
    **delete the skill's caveat paragraph when that sign-off lands.**
-5. **Cross-session `branch:` contamination** — `session append` stamps `branch:` from the shared git
-   HEAD, so a second agent appending while another has a feature branch checked out records the wrong
-   branch. Affects every git-derived field, not just this one. Design decision needed before
-   multi-session work is routine.
+5. **Cross-session `branch:` contamination** — **HALF FIXED, half needs your decision (2026-07-26).**
+   Investigated against a synthetic-repository matrix rather than by reasoning; full write-up and the
+   options in [`branch-field-provenance.md`](branch-field-provenance.md), matrix pinned as
+   `tests/test_session_append.py::BranchProvenanceTests`. Two corrections to the item as written.
+   **(a) "Affects every git-derived field" is overstated:** `branch:` is the *only* git-derived field
+   on an entry — `session_append_entry` makes exactly one git call (`_auto_captured_branch` in
+   `memory_seed/core.py`); every other YAML key is caller-supplied, `read_local_user` is a file read,
+   `generate_session_entry_id` hashes caller metadata, and `_DiagramSidecarRecord` /
+   `_LinkSidecarRecord` / topic sidecars carry no branch at all. The item shrinks to one field.
+   **(b) The premise does not hold for this repo:** worktree isolation turns out to be a consequence
+   of **`.memory-seed` being committed**, not of worktrees. Because it is tracked here, every real
+   worktree checks out its own copy, `resolve_runtime`'s walk-up stops there, and git reports that
+   worktree's own HEAD — so today's parallel agents each record their branch **correctly**, and the
+   escalation premise ("a second agent appending while another has a feature branch checked out")
+   describes a layout this repo does not currently run. **Fixed:** the same worktree layout with
+   `.memory-seed` *gitignored* silently stamped the primary's branch — a wrong durable value with no
+   concurrency at all — so `branch:` is now omitted when the memory dir belongs to a different
+   working tree than the caller, extending the existing detached-HEAD/not-a-repository omission rule
+   by one clause. Never fires in this repo; it protects downstream PyPI users. **Still open:** two
+   agents sharing *one* checkout have a genuinely identical HEAD, and an agent's session branch is
+   never passed to the CLI, so no code can recover it. `--branch`/`--no-branch` already exist as the
+   workaround. Options A–D in the proposal; recommendation is A (document the workaround) plus D
+   (harness always passes `--branch`), with B (warn on multi-worktree repos) rejected because it
+   would fire on every legitimate primary-checkout append. **Your call.**
 6. ~~**The ADR corpus table does not reconcile.**~~ **RESOLVED 2026-07-26** — re-derived from one
    classifier (`scripts/count_decision_shapes.py`), run against today's tree *and* against the git
    trees of the two days that produced the rival figures. **Current, at `0dc423b`: 636 entries**
