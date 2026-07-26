@@ -2505,6 +2505,16 @@
           },
           {
             "in": "query",
+            "name": "include_decisions",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Decisions",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
             "name": "worktree",
             "required": false,
             "schema": {

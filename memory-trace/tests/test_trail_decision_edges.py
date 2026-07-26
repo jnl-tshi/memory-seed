@@ -258,6 +258,38 @@ class TrailDecisionEdgeTests(unittest.TestCase):
 
         self.assertEqual(edge_set(with_sidecar), edge_set(control))
 
+    def test_graph_can_opt_into_decision_rows_and_expands_only_linked_ordinals(self):
+        # The sanctioned route out of "entries whose only relationships are
+        # decision-level render as orphans": ask for decision ROWS, so the edge
+        # lands on the decision it names instead of being forged into an
+        # entry-level claim. `linked` scope expands only ordinals that actually
+        # carry an edge - expanding everything adds rows with no edge at all,
+        # which in a force layout are just fresh isolates (measured: 276 of 446
+        # on the real corpus).
+        service = self.service()
+
+        entry_only = service.graph(edge_types=EDGE_TYPES, limit=1000)
+        self.assertFalse(
+            [n for n in entry_only["nodes"] if "#decisions/" in n["id"]],
+            "default stays entry-per-node",
+        )
+
+        rows = service.graph(
+            edge_types=EDGE_TYPES, limit=1000, include_decisions=True, decision_row_scope="linked"
+        )
+        row_ids = {n["id"] for n in rows["nodes"] if "#decisions/" in n["id"]}
+        self.assertTrue(row_ids, "opting in must produce decision rows")
+
+        # Every row that exists carries at least one edge: no isolates created.
+        degree: dict[str, int] = {}
+        for edge in rows["edges"]:
+            degree[edge["source"]] = degree.get(edge["source"], 0) + 1
+            degree[edge["target"]] = degree.get(edge["target"], 0) + 1
+        self.assertEqual([r for r in row_ids if not degree.get(r)], [])
+
+        # The opt-in adds rows beside the entry nodes; it never removes one.
+        self.assertTrue({n["id"] for n in entry_only["nodes"]} <= {n["id"] for n in rows["nodes"]})
+
     def test_trail_survives_a_cold_cache_load_of_an_entry_yaml_decision_edge(self):
         # Regression, found live on 2026-07-24: every other test here rebuilds
         # the cache in-process, where decision_edges are still the tuples the
