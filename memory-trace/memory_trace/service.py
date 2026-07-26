@@ -19,7 +19,7 @@ from dataclasses import asdict, fields, replace
 from datetime import date, datetime, time as datetime_time, timedelta
 from importlib import resources
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Collection, Iterable, Mapping, Sequence
 
 # Memory Trace consumes the core control plane's public API only - it never
 # reimplements parsing, ranking, the graph-edge contract, or diagram-sidecar
@@ -52,6 +52,14 @@ ZOOMS = {"day": 24, "12h": 12, "6h": 6, "3h": 3}
 # v2: sha-keyed git-derivation tables (fork_points, commit_parents,
 # changed_paths, file_entries) + trunk watermark meta + lazy file index.
 PROJECTION_SCHEMA_VERSION = 2
+
+# Payload ceiling for graph EDGES, separate from the node ceiling. Nodes are
+# capped at 1000; edges need far more headroom because a slice of N nodes can
+# hold many times N relationships - the real corpus already carries 1231
+# entry-level lifecycle edges across 626 entries, and link-inference campaigns
+# add more. Sharing the node ceiling truncated those edges and made connected
+# entries render as orphans.
+EDGE_PAYLOAD_CEILING = 6000
 
 
 def _git_head(root: Path) -> str | None:
@@ -1597,11 +1605,12 @@ class TraceService:
             visible_ids = _neighborhood(entry_id, reach, depth=max(depth, 1))
             limited_ids = set(visible_ids[: _limit(limit, maximum=1000)])
         else:
-            # Overview (no focus entry): corpus order starts at the oldest
-            # entries, which largely predate lifecycle links and authored
-            # topics, so a positional cut used to yield an edgeless slice.
-            # Prefer a connected subgraph instead, expanding from high-degree
-            # seeds with newest-first tie-breaks.
+            # Overview (no focus entry): a chronological spine of the newest
+            # `limit` entries, plus depth-1 over the lifecycle edges being
+            # rendered so the map shows what that spine references, whenever
+            # those referenced entries were written. The spine is deliberately
+            # the SAME axis the Trail pages along - the two views share a
+            # backbone, and the Graph adds relationship context on top of it.
             visible_ids = list(by_id)
             recency_rank = {
                 item_id: rank
@@ -1614,7 +1623,11 @@ class TraceService:
                 )
             }
             limited_ids = _overview_slice(
-                visible_ids, edges, limit=_limit(limit, maximum=1000), recency_rank=recency_rank
+                visible_ids,
+                edges,
+                limit=_limit(limit, maximum=1000),
+                recency_rank=recency_rank,
+                expand_types={"replaces", "evolves", "related"} & edge_type_set,
             )
         # Pinned entries: the Trail's currently-loaded window. Whatever the
         # ranked overview would have chosen, an entry the user can already SEE
@@ -1670,12 +1683,25 @@ class TraceService:
             # merges/branches inputs are fixed, so lifecycle structure stays
             # entry-scoped by construction.
             nodes = _expand_decision_rows(nodes, self.cache)
-        # The edge cap tracks the node count once pinning has grown it past
-        # `limit`; leaving it at `limit` would let the extra nodes in and then
-        # starve them of the edges that justify their presence. With nothing
-        # pinned every branch above yields at most `limit` ids, so this is the
-        # old cap exactly.
-        edge_cap = _limit(max(limit, len(limited_ids)), maximum=1000)
+        # Edges BETWEEN already-selected nodes are capped only by the hard
+        # ceiling. The cap used to track the node count, which starved exactly
+        # the case the overview now exists to serve: measured on the real corpus
+        # a 469-node slice holds 910 intra-slice edges, so a node-count cap
+        # silently dropped 441 of them - nodes rendered as a sparse dust cloud
+        # while the relationships that justify their presence were cut. Node
+        # count is what `limit` governs; once a node is in, the edges among the
+        # selected set are the whole point of drawing them. The set is
+        # self-bounding (a slice of N nodes can only hold so many edges), so
+        # this is not an open-ended payload.
+        # Edges get their own ceiling, well above the node one. Measured: the
+        # full 626-entry corpus holds 1231 entry-level lifecycle edges, so the
+        # old shared 1000 ceiling silently cut 231 of them - and that truncation
+        # alone accounted for 133 of the 215 nodes that RENDERED as orphans
+        # despite having authored relationships. Nodes stay at 1000 (the corpus
+        # is 626, so that is slack); 6000 gives the edge set room to keep pace
+        # with link-inference campaigns without becoming unbounded, since the
+        # intra-slice set is capped by the node count regardless.
+        edge_cap = _limit(EDGE_PAYLOAD_CEILING, maximum=EDGE_PAYLOAD_CEILING)
         visible_edges = [
             edge
             for edge in edges
@@ -1694,6 +1720,15 @@ class TraceService:
                 confidence = entry_conf.get((edge["source"], edge["target"]))
                 if confidence is not None:
                     edge["confidence"] = confidence
+        # NOTE (2026-07-26): entries whose ONLY relationships are decision-level
+        # still render as orphans here, because an entry-granularity view has no
+        # decision ROW for `B:d2 evolves A:d1` to terminate on. Emitting an
+        # entry-level line for them was tried and reverted: it violates
+        # `test_decision_edges_never_reach_entry_level_consumers`, which asserts
+        # by set-equality against a sidecar-deleted control that the entry-level
+        # surface is indistinguishable from a world where decision edges were
+        # never built. That guard is deliberate, so lifting it is a contract
+        # decision, not an implementation one. Measured scope: 9 entries.
         if include_decisions:
             # Appended AFTER the limited_ids filter on purpose: that set holds
             # entry ids, and a decision-row endpoint is not one, so routing
@@ -3182,46 +3217,52 @@ def _overview_slice(
     *,
     limit: int,
     recency_rank: Mapping[str, int],
+    expand_types: Collection[str] = (),
 ) -> set[str]:
-    """Pick the overview node slice by connectivity instead of corpus order.
+    """A chronological spine, plus whatever that spine references.
 
-    Greedy deterministic expansion: seed with the highest-degree node, then
-    repeatedly take the best-ranked node adjacent to the current selection,
-    starting a new component from the next-best seed only when the frontier is
-    exhausted. Ranking is (degree desc, newest first, node id), a total order,
-    so the same corpus and edge set always select the same slice. Isolated
-    nodes only enter once every reachable connected node is in.
+    The overview takes the newest ``limit`` entries as its **spine**, so the
+    Graph grows along the same axis the Trail does and "Show more" walks
+    steadily back through time instead of jumping around a ranking. Depth-1
+    expansion over ``expand_types`` then pulls in the entries the spine points
+    at **regardless of their date**: the spine is the shared backbone of both
+    views, and the extra nodes exist only so the Graph can show what those
+    entries relate to. The Trail stays purely chronological and is unaffected.
+
+    Expansion is one hop from the spine, never iterated, so a single old entry
+    cannot drag its whole neighbourhood in behind it. ``expand_types`` should be
+    the lifecycle kinds currently being rendered - expanding over an edge type
+    the user has filtered off would add a node whose only tie is invisible, the
+    same rule the pinned-entry expansion follows.
+
+    This replaced a connectivity ranking (highest-degree seeds, greedy frontier)
+    which produced a well-connected map whose membership had no relation to
+    what the user was reading in the Trail. That ranking existed to avoid an
+    edgeless slice, because plain corpus order starts at the OLDEST entries -
+    which mostly predate lifecycle links and topics. Newest-first ordering
+    avoids that failure by construction: recent entries are the linked ones.
     """
     if len(candidate_ids) <= limit:
         return set(candidate_ids)
     candidates = set(candidate_ids)
-    adjacency: dict[str, set[str]] = {item_id: set() for item_id in candidates}
+    # recency_rank is 0 for the newest entry, so ascending rank IS newest-first.
+    # The node id breaks ties so the same corpus always selects the same spine.
+    spine = sorted(candidates, key=lambda item_id: (recency_rank.get(item_id, 0), item_id))[:limit]
+    selected = set(spine)
+    if not expand_types:
+        return selected
+    spine_set = set(spine)
+    expand = set(expand_types)
     for edge in edges:
+        if edge["type"] not in expand:
+            continue
         source, target = edge["source"], edge["target"]
-        if source in candidates and target in candidates and source != target:
-            adjacency[source].add(target)
-            adjacency[target].add(source)
-
-    def rank(item_id: str) -> tuple[int, int, str]:
-        return (-len(adjacency[item_id]), recency_rank.get(item_id, 0), item_id)
-
-    seeds = sorted(candidates, key=rank)
-    seed_index = 0
-    selected: set[str] = set()
-    frontier: set[str] = set()
-    while len(selected) < limit:
-        if frontier:
-            item_id = min(frontier, key=rank)
-            frontier.remove(item_id)
-        else:
-            while seed_index < len(seeds) and seeds[seed_index] in selected:
-                seed_index += 1
-            if seed_index >= len(seeds):
-                break
-            item_id = seeds[seed_index]
-            seed_index += 1
-        selected.add(item_id)
-        frontier |= adjacency[item_id] - selected
+        if source == target:
+            continue
+        if source in spine_set and target in candidates:
+            selected.add(target)
+        elif target in spine_set and source in candidates:
+            selected.add(source)
     return selected
 
 

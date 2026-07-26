@@ -499,19 +499,70 @@ export default function App() {
     return order.filter((kind) => groups.has(kind)).map((kind) => [kind, groups.get(kind)!]);
   }, [contextItems]);
 
-  // Branch and evolves live only in the entry's YAML block, which is now
-  // collapsed — so surface them in the metadata grid instead. Both come from
-  // `entryIndex` (the full-corpus Trail response the context panel already
-  // uses), which carries `branch` per node and typed lifecycle edges; the graph
-  // projection exposes neither, and this avoids widening the v1 contract.
+  // Branch and the authored edge kinds live only in the entry's YAML block,
+  // which is now collapsed — so surface them in the metadata grid instead. All
+  // come from `entryIndex` (the full-corpus Trail response the context panel
+  // already uses), which carries `branch` per node and typed lifecycle edges;
+  // the graph projection exposes neither, and this avoids widening the v1
+  // contract.
   const selectedBranch = selected?.source.entry_id ? indexById.get(selected.source.entry_id)?.branch ?? null : null;
-  const selectedEvolves = useMemo(() => {
+  // Replaces / evolves / related are three INDEPENDENT, never-merged kinds
+  // (graph-edge contract), so each gets its own row rather than one blended
+  // "links" list — the whole point of typing them is that "retires" and "also
+  // see" are not the same claim. Outbound only (`source === entryId`), matching
+  // what the evolves row has always shown: these are the edges this entry
+  // authored, not the ones pointing at it.
+  // Direction is carried per item rather than split into six rows: "what this
+  // entry points at" and "what points back at it" are the same relationship
+  // seen from two ends, and six headings would bury that. Outbound is marked in
+  // the UI; inbound reads plain.
+  const selectedEdgesByKind = useMemo(() => {
     const entryId = selected?.source.entry_id;
-    if (!entryId) return [] as { entryId: string; title: string }[];
-    return (entryIndex?.edges ?? [])
-      .filter((edge) => edge.type === "evolves" && edge.source === entryId)
-      .map((edge) => ({ entryId: edge.target, title: stripTitleStamp(indexById.get(edge.target)?.title ?? edge.target) }));
+    type Item = { entryId: string; title: string; outgoing: boolean };
+    const out: Record<string, Item[]> = { replaces: [], evolves: [], related: [] };
+    if (!entryId) return out;
+    for (const edge of entryIndex?.edges ?? []) {
+      const outgoing: boolean = edge.source === entryId;
+      const incoming: boolean = edge.target === entryId;
+      if (!outgoing && !incoming) continue;
+      const bucket: Item[] | undefined = out[edge.type];
+      if (!bucket) continue;
+      // A decision-level ref addresses `entry#decisions/dN`; the row it names is
+      // a view of that entry, so resolve to the entry for navigation and let the
+      // title carry the decision.
+      const otherId: string = outgoing ? edge.target : edge.source;
+      const baseId: string = otherId.split("#")[0];
+      if (baseId === entryId) continue;
+      const existing = bucket.find((item) => item.entryId === baseId);
+      if (existing) {
+        // Seen from both ends: an entry that points at us AND that we point at
+        // is a two-way tie, so the outgoing mark wins.
+        existing.outgoing = existing.outgoing || outgoing;
+        continue;
+      }
+      bucket.push({
+        entryId: baseId,
+        title: stripTitleStamp(indexById.get(otherId)?.title ?? indexById.get(baseId)?.title ?? baseId),
+        outgoing,
+      });
+    }
+    return out;
   }, [selected?.source.entry_id, entryIndex, indexById]);
+  // "Links" must equal the lines the user can count on the map, so it counts the
+  // RENDERED edges for this node under the current edge-type filter. The node's
+  // `connectivity` is a different quantity - a related-only display weight that
+  // drives node radius - and was what made the number disagree with the picture.
+  const selectedRenderedDegree = useMemo(() => {
+    const entryId = selected?.source.entry_id;
+    if (!entryId || !graph) return null;
+    const visible = new Set(edgeTypes);
+    let degree = 0;
+    for (const edge of graph.edges) {
+      if (!visible.has(edge.edge_type)) continue;
+      if (edge.source === entryId || edge.target === entryId) degree += 1;
+    }
+    return degree;
+  }, [selected?.source.entry_id, graph, edgeTypes]);
 
   // Find-bar matches run over the WHOLE corpus (entryIndex), not the Trail's
   // loaded window — otherwise "next match" could not reach an entry that has
@@ -1164,13 +1215,25 @@ export default function App() {
             {selected.provider && <div className="meta-item"><dt>Provider</dt><dd>{selected.provider}{selected.revision ? ` · ${selected.revision}` : ""}</dd></div>}
             {selected.stale && <div className="meta-item meta-wide"><dt>Freshness</dt><dd className="stale-flag">Stale — projection behind source</dd></div>}
             {selectedBranch && <div className="meta-item meta-wide"><dt>Branch</dt><dd className="meta-mono">{selectedBranch}</dd></div>}
-            <div className="meta-item"><dt>Links</dt><dd>{selected.connectivity}</dd></div>
+            <div className="meta-item"><dt>Links</dt><dd>{selectedRenderedDegree ?? selected.connectivity}</dd></div>
             <div className="meta-item"><dt>Diagrams</dt><dd>{chunk?.diagrams.length ?? 0}</dd></div>
-            {selectedEvolves.length > 0 && (
-              <div className="meta-item meta-wide"><dt>Evolves</dt><dd><span className="meta-links">{selectedEvolves.map((item) => (
-                <button key={item.entryId} type="button" className="meta-link" title={item.entryId} onClick={() => void openEntryInPlace(item.entryId)}>{item.title}</button>
+            {/* Strongest lifecycle claim first: what this entry retires, then
+                what it refines, then what it merely points at. */}
+            {(["replaces", "evolves", "related"] as const).map((kind) => selectedEdgesByKind[kind].length > 0 && (
+              <div className="meta-item meta-wide" key={kind}><dt>{EDGE_LABELS[kind]}</dt><dd><span className="meta-links">{selectedEdgesByKind[kind].map((item) => (
+                <button
+                  key={item.entryId}
+                  type="button"
+                  className={item.outgoing ? "meta-link meta-link-out" : "meta-link meta-link-in"}
+                  title={`${item.entryId} · ${item.outgoing ? "this entry points here" : "points at this entry"}`}
+                  onClick={() => void openEntryInPlace(item.entryId)}
+                >
+                  <span className="meta-link-dir" aria-hidden="true">{item.outgoing ? "→" : "←"}</span>
+                  {item.title}
+                  <span className="sr-only">{item.outgoing ? " (outgoing)" : " (incoming)"}</span>
+                </button>
               ))}</span></dd></div>
-            )}
+            ))}
             <div className="meta-item meta-wide"><dt>Topics</dt><dd>{selected.source.topics.length ? <span className="meta-topics">{selected.source.topics.map((topic) => <span className="meta-topic" key={topic}>{topic}</span>)}</span> : "None"}</dd></div>
           </dl>
           <EntryReader chunk={chunk} matchHeading={matchHeading} onOpenEntry={(entryId) => void openEntryInPlace(entryId)} onOpenFile={(path) => void openFileMode(path)} onOpenDiagram={(title, source) => setDiagramViewer({ title: title || chunk?.title || "Decision diagram", blocks: [{ title, source }] })} look={trailStyle.style} theme={theme} />
