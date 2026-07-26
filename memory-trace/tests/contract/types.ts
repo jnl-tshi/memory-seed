@@ -907,6 +907,7 @@ export interface operations {
                 topic?: string | null;
                 path?: string | null;
                 pinned_ids?: string | null;
+                include_decisions?: boolean;
                 worktree?: string | null;
             };
             header?: never;
