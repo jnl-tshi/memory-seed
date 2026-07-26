@@ -18,11 +18,13 @@ from .core import (
     clear_local_user,
     compact_sessions,
     doctor,
+    foreign_package_message,
     generate_session_entry_id,
     get_version,
     init_project,
     migrate_session_month_layout,
     migrate_session_layout,
+    package_provenance,
     read_declared_integration_mode,
     read_integration_mode,
     read_local_user,
@@ -635,12 +637,23 @@ def main(argv: list[str] | None = None) -> int:
         _print_help(parser)
         return 0
 
-    if args.command in process_tools.PACKAGE_COMMANDS:
-        return process_tools.run_package_process_command("memory-seed", args)
-
     if args.command == "version":
         print(get_version())
         return 0
+
+    # Fail closed when the console script on PATH is a different build from the
+    # checkout the caller is standing in. `version` and `help` are exempt above:
+    # they are how you diagnose exactly this, and neither reads or writes the tree.
+    provenance = package_provenance(Path("."))
+    if provenance.foreign and not provenance.allowed:
+        # Echo the caller's own tokens so the remedy line is copy-pasteable;
+        # args.command alone would drop the subcommand and every flag.
+        invoked = " ".join(sys.argv[1:] if argv is None else argv) or args.command
+        print(foreign_package_message(provenance, command=invoked), file=sys.stderr)
+        return 2
+
+    if args.command in process_tools.PACKAGE_COMMANDS:
+        return process_tools.run_package_process_command("memory-seed", args)
 
     if args.command == "user":
         target = Path(".").resolve()

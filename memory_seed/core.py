@@ -1305,6 +1305,107 @@ def _is_relative_to_casefold(child: Path, parent: Path) -> bool:
     return len(child_parts) >= len(parent_parts) and child_parts[: len(parent_parts)] == parent_parts
 
 
+ALLOW_FOREIGN_PACKAGE_ENV = "MEMORY_SEED_ALLOW_FOREIGN_PACKAGE"
+
+
+@dataclass(frozen=True)
+class PackageProvenance:
+    """Where the running ``memory_seed`` package came from, relative to the caller."""
+
+    checkout_root: Path | None
+    package_root: Path
+    package_version: str
+    checkout_version: str | None
+    foreign: bool
+    allowed: bool
+
+
+def _pyproject_version(root: Path) -> str | None:
+    path = root / "pyproject.toml"
+    try:
+        with path.open("rb") as handle:
+            data = tomllib.load(handle)
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    version = data.get("project", {}).get("version")
+    return version if isinstance(version, str) else None
+
+
+def package_provenance(cwd: str | Path = ".") -> PackageProvenance:
+    """Report whether the imported package IS the source tree the caller stands in.
+
+    The condition is deliberately narrow: it looks for a ``memory_seed/__init__.py``
+    at the caller's cwd or an ancestor - meaning the caller is standing inside a
+    Memory Seed *source checkout* - and then asks whether the package that actually
+    got imported lives inside that same tree.
+
+    A seeded consumer project has no such source tree, so ``foreign`` is always
+    ``False`` there and a normal ``pipx``/``uvx``/``pip`` install is never impugned.
+    An editable install (``pip install -e .``, what ``verify.yml`` does) resolves
+    the package *into* the checkout, so CI never trips this either - a future switch
+    to a non-editable install in CI would, and the failure would look mysterious;
+    that is the one place to remember this predicate exists.
+
+    The hazard it names is real and was observed: in a git worktree
+    ``uv run --no-sync`` leaves ``.venv`` empty, so no console script exists there
+    and ``memory-seed`` resolves through PATH to a *globally installed, older*
+    build. Reads then report phantom errors about code the checkout does not have,
+    and writes regenerate files from that older code - a regression attributable to
+    nothing in the diff.
+    """
+    package_root = Path(__file__).resolve().parent
+    start = Path(cwd).resolve()
+    checkout_root: Path | None = None
+    for candidate in (start, *start.parents):
+        if (candidate / "memory_seed" / "__init__.py").is_file():
+            checkout_root = candidate
+            break
+    foreign = checkout_root is not None and not _is_relative_to_casefold(package_root, checkout_root)
+    return PackageProvenance(
+        checkout_root=checkout_root,
+        package_root=package_root,
+        package_version=VERSION,
+        checkout_version=_pyproject_version(checkout_root) if checkout_root else None,
+        foreign=foreign,
+        allowed=_env_flag(ALLOW_FOREIGN_PACKAGE_ENV),
+    )
+
+
+def _env_flag(name: str) -> bool:
+    value = os.environ.get(name, "").strip().lower()
+    return value not in {"", "0", "false", "no"}
+
+
+def foreign_package_message(provenance: PackageProvenance, *, command: str) -> str:
+    """The refusal text. It must carry both resolved paths and the working command."""
+    checkout = provenance.checkout_root.as_posix() if provenance.checkout_root else "(unknown)"
+    checkout_version = provenance.checkout_version or "unknown"
+    return "\n".join(
+        (
+            f"Refusing to run `memory-seed {command}`: the loaded memory_seed package is not the "
+            "checkout you are standing in.",
+            "",
+            f"  loaded package : {provenance.package_root.as_posix()}  (control plane {provenance.package_version})",
+            f"  checkout root  : {checkout}  (pyproject {checkout_version})",
+            "",
+            "Output from a foreign build is not evidence about this tree. Reads report errors for",
+            "code this checkout does not contain, and writes (`docs index`, `session append`,",
+            "`link audit --apply`) regenerate files from code that is not in your diff.",
+            "",
+            "Run this checkout's own code instead, from the checkout root:",
+            "",
+            "  python -X utf8 -m memory_seed.cli " + command,
+            "  uv run --no-sync python -X utf8 -m memory_seed.cli " + command,
+            "",
+            "In a git worktree, `uv run --no-sync` leaves `.venv` empty, so the `memory-seed`",
+            "console script is absent there and PATH falls through to a global install. Dropping",
+            "`--no-sync`, or `pip install -e .` into the worktree venv, fixes the invocation itself.",
+            "",
+            f"Set {ALLOW_FOREIGN_PACKAGE_ENV}=1 to run anyway (deliberate cross-version runs).",
+        )
+    )
+
+
 def _parse_worktree_list(porcelain: str) -> list[dict[str, str]]:
     items: list[dict[str, str]] = []
     current: dict[str, str] | None = None
