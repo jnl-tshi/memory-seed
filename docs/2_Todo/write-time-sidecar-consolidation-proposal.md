@@ -1,12 +1,20 @@
 ---
 priority: P2
-next_action: JNL to accept or reject the design. If accepted, build in the stated order — block format + provenance field first, then write ordering, then flip `session append`, and only then wire the swarm sweep. The sweep is worthless until there is a single place for it to compare against.
+next_action: ACCEPTED 2026-07-26 by JNL. Build in order — (1) block format + `source` provenance field, (2) sidecar-first write ordering, (3) flip `session append`/`memory_session_append` to fold into the sidecar, (4) branch-scoped swarm sweep. The sweep is worthless until there is a single place for it to compare against. Step 4's weighting depends on the pilot-adjudication outcome; steps 1–3 do not.
 ---
 
 # Write-time consolidation: topics and links live in the sidecar
 
-Status: **PROPOSAL — 2026-07-26.** Raised by JNL across a design conversation that started from "all
-links should live in the link sidecar" and arrived somewhere better.
+Status: **ACCEPTED 2026-07-26 by JNL** (raised the same day). The conversation started from "all links
+should live in the link sidecar" and arrived somewhere better by separating *where the author writes*
+from *where the data lives*.
+
+**Constitution v1.6** was ratified alongside this acceptance and supplies its governing clause:
+provenance is **first-hand vs reconstructed, not human vs machine**, and must be *declared on the
+record rather than inferred from where it is stored*. That is precisely the `source` field in step 1 —
+so the design is no longer merely permitted by Invariant #6's partitioned authority, it is required by
+Invariant #4's clarification. The mutability question flagged below is answered by the same amendment:
+it is a §4 Policy change, since v1.6 adds and removes no capability.
 
 ## Problem
 
