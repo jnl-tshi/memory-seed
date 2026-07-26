@@ -172,11 +172,25 @@ function readGraphSettings(): GraphSettings {
       // Orphans show by default: hiding them is what made the coverage readout
       // look like a cap, and it is a viewing preference either way.
       showOrphans: stored.showOrphans !== false,
+      // Everything shows by default. A machine-suggested edge is already
+      // de-emphasised by opacity, and hiding evidence by default would let a
+      // filter quietly decide what the corpus contains.
+      minConfidence: typeof stored.minConfidence === "number" ? stored.minConfidence : 0,
     };
   } catch {
-    return { dragResponse: "reheat", forces: DEFAULT_FORCES, showOrphans: true };
+    return { dragResponse: "reheat", forces: DEFAULT_FORCES, showOrphans: true, minConfidence: 0 };
   }
 }
+
+// Thresholds match the tiers the sidecar already stores: `low` (<0.7),
+// `review` (>=0.7), `high` (>=0.9). Reusing them means the control filters on
+// the same boundaries the graph already fades on, rather than inventing a
+// second, disagreeing notion of "confident".
+const CONFIDENCE_STEPS: { value: number; label: string; title: string }[] = [
+  { value: 0, label: "All", title: "Every edge, including low-confidence machine suggestions" },
+  { value: 0.7, label: "≥0.7", title: "Hide low-confidence machine suggestions (tier: low)" },
+  { value: 0.9, label: "≥0.9", title: "High-confidence machine suggestions only (tier: high)" },
+];
 
 function titleFor(node: RendererGraphNode | null) {
   return node ? node.label : "No entry selected";
@@ -1170,7 +1184,7 @@ export default function App() {
             reasonable it reads in JSX — lands in an implicit fourth row and
             collapses the actual graph canvas to zero height instead. The
             Overview coverage readout has to live inside this same div. */}
-        {viewMode !== "trail" && scope !== "evolution" && scope !== "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} title={EDGE_DESCRIPTIONS[edgeType]} onClick={() => toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}<button type="button" className="edge-filter edge-orphans" aria-pressed={graphSettings.showOrphans} onClick={() => setGraphSettings({ ...graphSettings, showOrphans: !graphSettings.showOrphans })} title="Entries with no authored link">Orphans</button>{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}{scope === "overview" && graph && <span className="count">· {overviewShownCount} of {graphEntryTotal ?? "…"} entries shown</span>}{scope === "overview" && graph && !overviewExhausted && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showMoreOverview()}>Show more</button>}</div>}
+        {viewMode !== "trail" && scope !== "evolution" && scope !== "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} title={EDGE_DESCRIPTIONS[edgeType]} onClick={() => toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}<button type="button" className="edge-filter edge-orphans" aria-pressed={graphSettings.showOrphans} onClick={() => setGraphSettings({ ...graphSettings, showOrphans: !graphSettings.showOrphans })} title="Entries with no authored link">Orphans</button><span className="edge-filter-group" role="group" aria-label="Minimum edge confidence"><span className="edge-filter-label">Confidence</span>{CONFIDENCE_STEPS.map((step) => <button type="button" key={step.value} className="edge-filter edge-confidence" aria-pressed={graphSettings.minConfidence === step.value} title={step.title} onClick={() => setGraphSettings({ ...graphSettings, minConfidence: step.value })}>{step.label}</button>)}</span>{activeTopic &&<button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}{scope === "overview" && graph && <span className="count">· {overviewShownCount} of {graphEntryTotal ?? "…"} entries shown</span>}{scope === "overview" && graph && !overviewExhausted && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showMoreOverview()}>Show more</button>}</div>}
         {viewMode !== "trail" && scope === "evolution" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span><span className="count">Evolves + Replaces only · lifecycle chain</span>{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
         {viewMode !== "trail" && scope === "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>File</span><span className="count" title={filePath ?? ""}>{"Entries that touched " + (filePath ?? "this file")}</span><button type="button" className="active-topic" onClick={() => void changeScope("overview")}>Clear<X size={13} aria-hidden="true" /></button></div>}
         {viewMode === "trail" ? (
@@ -1191,7 +1205,7 @@ export default function App() {
                 nothing to do with a fixed lineage chain or a file's touches),
                 so a stale toggle left over from Overview/Local must not carry
                 through and blank out edges the user never chose to hide there. */}
-            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} theme={theme} visibleEdgeTypes={scope === "evolution" || scope === "file" ? edgeTypesForScope(scope) : edgeTypes} corpusTopics={facets?.topics ?? null} topicWheel={facets?.topic_wheel ?? null} dragResponse={graphSettings.dragResponse} forces={graphSettings.forces} showOrphans={graphSettings.showOrphans} /></Suspense>}
+            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={selected?.id ?? null} onSelect={select} labelMode={labelMode} theme={theme} visibleEdgeTypes={scope === "evolution" || scope === "file" ? edgeTypesForScope(scope) : edgeTypes} corpusTopics={facets?.topics ?? null} topicWheel={facets?.topic_wheel ?? null} dragResponse={graphSettings.dragResponse} forces={graphSettings.forces} showOrphans={graphSettings.showOrphans} minConfidence={graphSettings.minConfidence} /></Suspense>}
             {!graph && <div className="loading-state">Loading graph</div>}
           </>
         )}

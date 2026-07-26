@@ -31,6 +31,8 @@ export type GraphSettings = {
   dragResponse: "fixed" | "reheat";
   forces: ForceSettings;
   showOrphans: boolean;
+  /** Hide machine-suggested edges below this score; 0 shows every edge. */
+  minConfidence: number;
 };
 
 const TABS = ["Trail", "Graph", "Inspector", "Appearance"] as const;

@@ -21,6 +21,12 @@ type GraphWorkspaceProps = {
   forces: ForceSettings;
   /** Whether entries with no authored edge are drawn at all. */
   showOrphans: boolean;
+  /**
+   * Hide machine-suggested edges scored below this (0 shows everything).
+   * Human-authored edges carry NO confidence and are never hidden by it —
+   * absence means "authored, not scored", never "confidence zero".
+   */
+  minConfidence: number;
   // Corpus-wide topic counts, so community colours are assigned from the whole
   // corpus rather than from whatever subset is currently loaded.
   corpusTopics: Readonly<Record<string, number>> | null;
@@ -338,7 +344,7 @@ function labelIdsFor(graph: RendererGraphResponse, selectedId: string | null, la
 let settledSignature = "";
 const settledPositions = new Map<string, Point>();
 
-export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, visibleEdgeTypes, corpusTopics, topicWheel, dragResponse, forces, showOrphans }: GraphWorkspaceProps) {
+export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, visibleEdgeTypes, corpusTopics, topicWheel, dragResponse, forces, showOrphans, minConfidence }: GraphWorkspaceProps) {
   const container = useRef<HTMLDivElement>(null);
   const cytoscape = useRef<Core | null>(null);
   // Refs so the tap handler and selection effect never force an instance remount.
@@ -351,6 +357,8 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
   const labelIdsRef = useRef<Set<string>>(new Set());
   const visibleEdgeTypesRef = useRef(visibleEdgeTypes);
   visibleEdgeTypesRef.current = visibleEdgeTypes;
+  const minConfidenceRef = useRef(minConfidence);
+  minConfidenceRef.current = minConfidence;
   const dragResponseRef = useRef(dragResponse);
   dragResponseRef.current = dragResponse;
   // The graph's simulation. A ref because it must be reachable from the mount
@@ -400,25 +408,37 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       // promotes whatever it was covering rather than blanking the pair.
       // Keyed on the graph's edge ARRAY IDENTITY, which changes only when a new
       // graph is fetched, so a stale set can never survive a reload.
-      const typesKey = currentVisibleTypes.join(",");
+      // A confidence-filtered edge is hidden for the same reason a
+      // switched-off type is, so it must also be excluded from the
+      // outranking input below. Otherwise a hidden low-confidence edge could
+      // win its pair and blank the visible relationship underneath it.
+      const currentMinConfidence = minConfidenceRef.current;
+      const passesConfidence = (confidence: unknown) =>
+        currentMinConfidence <= 0 || typeof confidence !== "number" || confidence >= currentMinConfidence;
+      const typesKey = `${currentVisibleTypes.join(",")}|${currentMinConfidence}`;
       const memo = outrankedMemo.current;
       let outranked: Set<string>;
       if (memo && memo.edges === graphRef.current.edges && memo.typesKey === typesKey) {
         outranked = memo.value;
       } else {
         outranked = outrankedEdgeIds(
-          cy.edges().map((edge) => ({
-            id: edge.id(),
-            source: edge.data("source"),
-            target: edge.data("target"),
-            type: edge.data("type"),
-          })),
+          cy
+            .edges()
+            .filter((edge) => passesConfidence(edge.data("confidence")))
+            .map((edge) => ({
+              id: edge.id(),
+              source: edge.data("source"),
+              target: edge.data("target"),
+              type: edge.data("type"),
+            })),
           currentVisibleTypes,
         );
         outrankedMemo.current = { edges: graphRef.current.edges, typesKey, value: outranked };
       }
       cy.edges().forEach((edge) => {
-        edge.toggleClass("edge-filtered", !currentVisibleTypes.includes(edge.data("type")));
+        const hidden =
+          !currentVisibleTypes.includes(edge.data("type")) || !passesConfidence(edge.data("confidence"));
+        edge.toggleClass("edge-filtered", hidden);
         edge.toggleClass("edge-outranked", outranked.has(edge.id()));
       });
     });
@@ -752,7 +772,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
     const cy = cytoscape.current;
     if (!cy) return;
     applyPresentation(cy);
-  }, [labelIds, selectedId, graph, visibleEdgeTypes]);
+  }, [labelIds, selectedId, graph, visibleEdgeTypes, minConfidence]);
 
   return <section className="graph-workspace" aria-label="Memory graph workspace">
     {/* Overlaid on the canvas rather than added as a row: .workspace's grid
