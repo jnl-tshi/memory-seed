@@ -8,6 +8,7 @@
     "dev": "vite",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"src/**/*.test.ts\"",
+    "test:stories": "vitest run",
     "lint:sidecars": "node scripts/check-sidecar-mermaid.mjs",
     "hooks:install": "node scripts/install-git-hooks.mjs",
     "storybook": "storybook dev -p 6006",
