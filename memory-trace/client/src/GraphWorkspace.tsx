@@ -4,7 +4,7 @@ import type { Simulation, SimulationLinkDatum, SimulationNodeDatum } from "d3-fo
 import { Maximize2, Minus, Plus } from "lucide-react";
 import { type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
 import { nodeSetSignature, seedPositions, type Point } from "./graphLayout";
-import { anchorEntryIdFor, connectedIdsWithDecisionAnchors, decisionGroups, decisionHaloId, haloDiameter, isDecisionRowId, parentIdsFor, satellitePositions, visibilityIdFor } from "./graphDecisionRows";
+import { anchorEntryIdFor, connectedIdsWithDecisionAnchors, decisionGroups, decisionHaloId, haloDiameter, isDecisionRowId, parentIdsFor, satellitePositions, simulationLinks, visibilityIdFor } from "./graphDecisionRows";
 import { forceParameters, ticksPerPaint, type ForceSettings } from "./graphForces";
 import { outrankedEdgeIds } from "./graphEdges";
 import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, inferredCommunityColours, wearsAuthoredRim, type TopicRoots } from "./graphCommunities";
@@ -213,9 +213,12 @@ function startSimulation(options: {
     return { id: node.id, x: position.x, y: position.y };
   });
   const byId = new Map(simNodes.map((node) => [node.id, node]));
-  const links: ReheatLink[] = graphEdges
-    .filter((edge) => byId.has(edge.source) && byId.has(edge.target))
-    .map((edge) => ({ source: edge.source, target: edge.target }));
+
+  // Decision-level edges are transferred to the entries their rows belong to,
+  // rather than dropped for matching no simulation node. See `simulationLinks`
+  // for why - the short version is that a decision is part of its entry, so a
+  // pull on the part is a pull on the whole.
+  const links: ReheatLink[] = simulationLinks(graphEdges, new Set(byId.keys()));
 
   // Nodes the pointer is currently holding. The simulation reads their position
   // and never writes it: while a node is grabbed, Cytoscape owns where it is.

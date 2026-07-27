@@ -189,6 +189,56 @@ export function connectedIdsWithDecisionAnchors(edges: readonly GraphEdgeLike[])
   return ids;
 }
 
+/**
+ * The links the force simulation should run, with decision-level edges
+ * TRANSFERRED to the entries their rows belong to.
+ *
+ * Decision rows are not simulation bodies - they are satellites placed on a ring
+ * around their anchor every paint, so the simulation never moves one directly.
+ * That left a hole: an edge terminating on a row matched no simulation node and
+ * was dropped from the link force outright, while still being DRAWN. The result
+ * was long unconstrained lines straight across the map, exerting nothing, while
+ * every ordinary edge shortened around them.
+ *
+ * The rule (JNL, 2026-07-27) is that a decision is PART OF its entry, so a pull
+ * on the part is a pull on the whole: the row keeps its rotational freedom and
+ * its fixed offset, and the force its edge represents is applied to the body
+ * that can actually move.
+ *
+ * Two edges are deliberately not links:
+ *
+ *  - both ends inside ONE entry (a decision talking to its sibling). Real as a
+ *    drawn relationship, meaningless as a force - it would pull an entry toward
+ *    itself.
+ *  - the second and later edge between the same PAIR of entries. The map already
+ *    collapses a pair to its single strongest relationship, and without the same
+ *    collapse here a pair joined by five decision-level edges is pulled five
+ *    times as hard as a pair joined by one. The decision-level campaign wrote
+ *    696 such edges, so that is a real distortion rather than a rounding one.
+ *
+ * `known` is the set of ids the simulation actually holds; an endpoint that
+ * resolves outside it is skipped rather than invented.
+ */
+export function simulationLinks(
+  edges: readonly GraphEdgeLike[],
+  known: ReadonlySet<string>,
+): { source: string; target: string }[] {
+  const anchorOf = (id: string) => (known.has(id) ? id : anchorEntryIdFor(id));
+  const seen = new Set<string>();
+  const links: { source: string; target: string }[] = [];
+  for (const edge of edges) {
+    const source = anchorOf(edge.source);
+    const target = anchorOf(edge.target);
+    if (source === target) continue;
+    if (!known.has(source) || !known.has(target)) continue;
+    const pair = source < target ? `${source} ${target}` : `${target} ${source}`;
+    if (seen.has(pair)) continue;
+    seen.add(pair);
+    links.push({ source, target });
+  }
+  return links;
+}
+
 /** How far a decision row sits from its anchor's centre, in graph units. */
 export const SATELLITE_RADIUS = 46;
 
