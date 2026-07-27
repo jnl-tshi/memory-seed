@@ -11,10 +11,12 @@ columns but the split it writes uses the AGREED label only:
     a count both workers reached independently is evidence;
     a count one worker reached is a hypothesis.
 
-That is the conservative reading and it matters at the margin - `trace-harness`
-is 9 by worker 1, 7 by worker 2, and 7 agreed, so it clears the floor of 8 on
-one reading and fails it on another. A proposal that quotes the favourable
-number is not measuring, it is arguing.
+That is the conservative reading and it matters at the margin. `trace-harness`
+is 9 by worker 1, 7 by worker 2, and 7 agreed - a spread wide enough that under
+the floor of 8 it passed on one reading and failed on the other. JNL lowered the
+floor to 5 rather than pick a reading, which settles that row; the rule stays,
+because the next borderline category will land somewhere else and quoting the
+favourable number is arguing, not measuring.
 
 DUAL-TAGGED ENTRIES ARE ADDED BACK. The swarm judged the 116 entries carrying
 `memory-trace` as their only area. Entries already carrying `memory-trace` AND

@@ -320,6 +320,14 @@ categories, and until they can be bounded the rule says leave it flat.
 `MIN_CHILD_ENTRIES` governs whether a new BRANCH of the tree is justified. Below that, **there is no
 floor at all** — a one-off grandchild is fine.
 
+**The floor is 5** (JNL, 2026-07-27, lowered from 8). The original 8 was set before this generation rule
+existed, when a child was the only way to add specificity and that one constant was carrying the whole
+weight of the depth question. It is not any more: this rule decides *where* the floor bites at all, rule
+1 decides whether a level is coherent, and what is left for the number is the narrow job of asking
+whether a new branch has evidence behind it. 8 was too blunt for that — `trace-harness` (7 agreed, with
+a Storybook directory and a CI job behind it) is plainly a real category, and a rule that calls it
+unearned is measuring the wrong thing rather than measuring strictly.
+
 Depth is cheap once a parent exists to aggregate it, and every consumer already rolls up:
 `expand_topic_filter` matches a parent against every descendant transitively (verified to three levels),
 community colour keys on the ROOT so the palette never grows, and analysis can run at whatever

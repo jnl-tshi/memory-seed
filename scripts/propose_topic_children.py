@@ -48,7 +48,17 @@ from memory_seed.topics import load_topic_index  # noqa: E402
 # front so a proposal can FAIL cleanly rather than being argued about: the
 # vocabulary's own promotion rule already declined `supply-chain` and `profiling`
 # for want of evidence, and an invented child has to clear at least as much.
-MIN_CHILD_ENTRIES = 8
+#
+# LOWERED 8 -> 5 by JNL, 2026-07-27. The first number was set before the
+# generation rule existed, when a child was the only way to add specificity and
+# the floor was carrying the whole weight of the depth question. It no longer is:
+# `FLOOR_APPLIES_UP_TO_GENERATION` decides where the floor bites at all, and
+# well-boundedness decides whether a level is coherent. What is left for this
+# constant is the narrow job of saying whether a new BRANCH has evidence behind
+# it, and 8 was too blunt for that - `trace-harness` (7 agreed, with a Storybook
+# directory and a CI job behind it) is plainly a real category, and a rule that
+# calls it unearned is measuring the wrong thing.
+MIN_CHILD_ENTRIES = 5
 
 # ...but the floor applies only to the SECOND generation - a direct child of a
 # root. From the third generation down there is no floor at all (JNL,
