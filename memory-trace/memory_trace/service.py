@@ -29,9 +29,16 @@ from memory_seed.core import (
     iter_diagram_sidecar_documents,
     iter_link_sidecar_documents,
     iter_session_documents,
+    iter_topic_sidecar_documents,
     resolve_runtime,
 )
-from memory_seed.retrieval import EntryRollup, entry_diagram_sidecars, entry_link_sidecars, rollup_entry_matches
+from memory_seed.retrieval import (
+    EntryRollup,
+    augment_chunks_with_topic_sidecars,
+    entry_diagram_sidecars,
+    entry_link_sidecars,
+    rollup_entry_matches,
+)
 from memory_seed.semantic_cache import (
     ContinuityBlock,
     MemoryChunk,
@@ -1231,6 +1238,8 @@ class TraceService:
         # safe: it refreshes exactly when Markdown or a sidecar changes.
         self._derived_memo: tuple[int, tuple[list[MemoryChunk], dict[str, Any], dict[str, Any]]] | None = None
         self._link_sidecar_memo: tuple[int, dict[str, dict[str, Any]]] | None = None
+        # Entry chunks with topic-sidecar attributions merged - see _entry_chunks.
+        self._topic_augmented_memo: tuple[int, list[MemoryChunk]] | None = None
         self._topic_frequency_memo: tuple[int, dict[str, int]] | None = None
         self._topic_wheel_memo: tuple[int, list[str]] | None = None
 
@@ -1350,7 +1359,20 @@ class TraceService:
         if self._derived_memo is not None and self._derived_memo[0] == generation:
             return self._derived_memo[1]
         sidecars = entry_link_sidecars(self.cache.cwd)
-        entries = _augment_with_link_sidecars(self.cache.chunks(granularity="entry"), self.cache.cwd, sidecars=sidecars)
+        # Base is `_entry_chunks()`, which has already merged the topic sidecars -
+        # so the attribution reaches the graph and the facet from ONE merge
+        # rather than two that could drift.
+        #
+        # Topic sidecars are read at READ time, beside the link and diagram
+        # families, not built into the stored chunk. Building them in was the
+        # obvious first move and it is wrong: `_session_documents_for`
+        # deliberately excludes sidecars from the incremental reparse ("they
+        # produce no chunk rows"), so a new attribution changes no session
+        # document, reparses nothing, and leaves the stored chunk carrying the
+        # old topics until someone forces a full rebuild. Measured that way
+        # round first - the facet stayed at 68 slugs with 166 attributions
+        # already on disk.
+        entries = _augment_with_link_sidecars(self._entry_chunks(), self.cache.cwd, sidecars=sidecars)
         graph = build_related_entry_graph(chunks=entries)
         diagram_map = entry_diagram_sidecars(self.cache.cwd)
         bundle = (entries, graph, diagram_map)
@@ -1946,7 +1968,25 @@ class TraceService:
         return self.cache.status()
 
     def _entry_chunks(self) -> list[MemoryChunk]:
-        return self.cache.chunks(granularity="entry")
+        """Entry chunks with their late-attributed topics already merged.
+
+        The topic merge belongs HERE rather than at any one caller, for the same
+        reason `_topics()` unions in one place: six call sites read this - facets,
+        runtime, search, the topic wheel, chains, suggestions - and a slug visible
+        to the graph but not the facet is a filter that offers no way to reach
+        what it can see. Measured that failure directly: with the merge only in
+        `_derived()`, `/api/graph` showed `trail` and `/api/facets` still listed
+        68 slugs without it.
+
+        Memoized on the cache generation, which `_tracked_document_paths` now
+        moves when a topic sidecar changes.
+        """
+        generation = self.cache.generation()
+        if self._topic_augmented_memo is not None and self._topic_augmented_memo[0] == generation:
+            return self._topic_augmented_memo[1]
+        entries = augment_chunks_with_topic_sidecars(self.cache.chunks(granularity="entry"), self.cache.cwd)
+        self._topic_augmented_memo = (generation, entries)
+        return entries
 
     def _suggestions(self, selected: MemoryChunk) -> dict[str, list[dict[str, Any]]]:
         entries = [chunk for chunk in self._entry_chunks() if chunk.chunk_id != selected.chunk_id]
@@ -2457,20 +2497,28 @@ def _chunk_row(chunk: MemoryChunk) -> tuple[Any, ...]:
 
 
 def _tracked_document_paths(runtime: Any) -> list[Path]:
-    """Every file whose content feeds a read result: session documents plus link
-    and diagram sidecars. Sidecars carry lifecycle edges and diagram badges the
-    reader/graph show, so a change to one must invalidate the projection.
+    """Every file whose content feeds a read result: session documents plus link,
+    diagram and topic sidecars. Sidecars carry lifecycle edges, diagram badges and
+    late-attributed topics the reader/graph show, so a change to one must
+    invalidate the projection.
 
     On git this is already caught (sidecars live under the ``.memory-seed/sessions``
     pathspec the freshness check scopes to); enumerating them here makes the
     no-git mtime scan catch them too - so ``rebuilt_at`` is a complete generation
     over ALL inputs, which is what lets the sidecar-derived read structures be
-    memoized safely instead of re-read per request."""
+    memoized safely instead of re-read per request.
+
+    The TOPIC family was missing here until 2026-07-27, which was latent rather
+    than harmless: topic sidecars did not exist in any corpus, so nothing could
+    go stale. The moment 166 of them landed, an untracked family would have meant
+    editing an attribution left the no-git projection serving the old topics with
+    no way to notice."""
     sessions = runtime.memory_dir / "sessions"
     return (
         [doc.path for doc in iter_session_documents(sessions)]
         + [doc.path for doc in iter_link_sidecar_documents(sessions)]
         + [doc.path for doc in iter_diagram_sidecar_documents(sessions)]
+        + [doc.path for doc in iter_topic_sidecar_documents(sessions)]
     )
 
 
@@ -3706,15 +3754,33 @@ def _seriate_circle(items: list[str], weight: dict[tuple[str, str], int]) -> lis
 def _topics(chunk: MemoryChunk) -> list[str]:
     """Effective display topics for an entry (topic-neighbourhoods plan Phase 4).
 
-    Prefer the authored controlled-vocabulary ``topics:`` field; fall back to the
+    Prefer the controlled-vocabulary slugs - authored ``topics:`` UNIONED with
+    ``inferred_topics`` from the topic sidecar family; fall back to the
     hashtag/heading-derived axes (``tags`` | ``contexts``) only for entries that
-    predate the indexed field. The two are never mixed - an entry carrying any
-    authored topic shows exactly its authored slugs, so the facet, chips, topic
-    chains, and filter all speak the controlled vocabulary once an entry adopts
-    it. This single chokepoint feeds facets, nodes, chunk payloads, topic edge
-    chains, and the topic filter."""
-    if chunk.topics:
-        return sorted(set(chunk.topics))
+    carry neither. Controlled and derived-from-headings are never mixed - an
+    entry carrying any controlled slug shows exactly those, so the facet, chips,
+    topic chains, and filter all speak the controlled vocabulary once an entry
+    adopts it. This single chokepoint feeds facets, nodes, chunk payloads, topic
+    edge chains, and the topic filter.
+
+    THE UNION IS DELIBERATE, and it is the one place the two channels merge.
+    ``augment_chunks_with_topic_sidecars`` keeps authored and inferred separable
+    all the way here precisely so this decision is made once, in the open:
+
+      - for REACHABILITY - filtering, facets, community colour - they union. An
+        entry attributed `trail` after the fact is trail work, and a filter that
+        cannot find it is simply wrong.
+      - for PROVENANCE - who said this, and when - they stay apart, which is why
+        the raw fields survive on the chunk for any consumer that wants to draw
+        the distinction.
+
+    Unioning here rather than at each of the eight call sites is what stops the
+    two from disagreeing: a legend coloured from one and a chip list rendered
+    from the other is exactly how a surface ends up quietly lying about itself.
+    """
+    controlled = set(chunk.topics) | set(chunk.inferred_topics or ())
+    if controlled:
+        return sorted(controlled)
     return sorted(set(chunk.tags) | set(chunk.contexts))
 
 
