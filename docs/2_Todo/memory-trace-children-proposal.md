@@ -50,7 +50,7 @@ subject matter is what the entry is about.
 |---|---|---|
 | **`graph-view`** | 63 | the relationship map: orphans, node sizing, community colour, force motion, decision rows |
 | **`trail`** | 40 | the chronological timeline: decision rows, lanes, brackets, group anchors |
-| **`trace-shell`** | 14 | the app frame: settings, panes, docking, typography, theme, find bar |
+| **`trace-ui`** | 14 | the app frame: settings, panes, docking, typography, theme, find bar |
 | **`trace-cache`** | 12 | startup, incremental derivation, freshness, generation, rebuild |
 | **`trace-harness`** | 10 | Storybook, Playwright, e2e, a11y gates, renderer evidence |
 | `inspector` | 7 | the entry reader pane — **below the floor of 8**, revisit |
@@ -94,10 +94,53 @@ It is explicitly **not** the instrument for deflating a parent. Depth does that,
 touching anything an author wrote. Reaching for retraction to fix concentration would mean deleting
 true statements to make a number smaller.
 
+## Cycle 3: two independent swarms, and the numbers that stand
+
+**Settled 2026-07-27 by JNL:** the axes are judged by SEPARATE swarms so each recommends independently
+from the same material. Three cycles ran; the counts below are cycle 3's.
+
+| area answer | entries |
+|---|---|
+| `trail` | 32 |
+| **`TRACE-WIDE`** (the app frame — no child, stays on the root) | 26 |
+| `NONE` (roadmap, release, git housekeeping) | 17 |
+| `trace-cache` | 12 |
+| `trace-harness` | 8 |
+| `graph` (single-area; +63 dual-tagged = **70**) | 7 |
+| `seed-other` / `lifecycle-edges` | 6 |
+| `diagram-view` | 4 |
+| `trace-api` | 2 |
+| `inspector` | 1 |
+
+Neither area worker proposed a new child; both checked explicitly and declined `find-bar` (3) and a
+`lifecycle-edges` child (3) on the floor. After three cycles the area set has stopped moving.
+
+**The activity swarm scored 0.89 against first-hand authored tags** (85 of 95 entries whose author wrote
+an activity slug). The aborted pilot scored 0.583 asking one worker for ~2 slugs from 23 across both
+axes at once. Separating the axes is what moved it — an easier, better-defined question, not a lowered
+gate. 20 further entries carry no authored activity at all, where the swarm adds rather than checks.
+
+### What the split-swarm design exposed: the activity axis is missing `testing`
+
+The area swarm has a home for harness work (`trace-harness`, 8 entries). The activity swarm does not —
+so Storybook, Playwright and CI wiring were filed as **`ui-design`**, with one worker reasoning they
+were "reasonably subsumed" there. Building a test harness is not design work; the vocabulary simply has
+nowhere else to put it.
+
+Neither activity worker proposed it, because each saw only half the corpus and the category clears the
+floor only when pooled. **Proposal detection has to run over the combined result, not per worker** — a
+protocol fix for the sweep, not a one-off.
+
 ## What is being asked
 
-**Approve or reject the five children that clear the floor**: `graph-view`, `trail`, `trace-shell`,
-`trace-cache`, `trace-harness`. Approval means adding five `parent: memory-trace` slugs to
+**Approve or reject the children that clear the floor**: `graph` (70), `trail` (32), `trace-cache` (12),
+and `trace-harness` (8, exactly at the floor). `trace-ui` is WITHDRAWN — it was an area slug for what the
+activity axis already says, and 77% of its entries already carried `ui-design`; that work is `TRACE-WIDE`
+and stays on the root. `inspector` (1) and `diagram-view` (4) remain below the floor.
+
+Separately: **`lifecycle-edges`** under `memory-seed` (approved 2026-07-27) takes the 45 Seed-side edge
+entries plus `graph`'s four existing children, so `graph` can become a Trace child without dragging Seed
+work under it. And an ACTIVITY slug for test/verification work is now evidenced at 8 entries. Approval means adding five `parent: memory-trace` slugs to
 `topics.yaml` — a governance change to deploy-once state, which an agent cannot make.
 
 Nothing else is required. No entry is rewritten, no topic is removed, and the parent keeps its full
