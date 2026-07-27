@@ -131,6 +131,53 @@ Neither activity worker proposed it, because each saw only half the corpus and t
 floor only when pooled. **Proposal detection has to run over the combined result, not per worker** — a
 protocol fix for the sweep, not a one-off.
 
+## THE CONSOLIDATED VOCABULARY DECISION (2026-07-27)
+
+Everything below is one decision. It is the whole ask, and nothing else is blocked on it.
+
+### AREA — children of `memory-trace`
+
+| slug | entries | evidence |
+|---|---|---|
+| `graph` | ~70 | three swarm cycles; **moves from being a root**, keeps no children |
+| `inspector` | ~33 | JNL's framing — *which pane did this touch* — against the swarm's 1 |
+| `trail` | ~32 | three cycles agreed |
+| `settings` | ~14 | JNL, from adjudicating row 16 (`SettingsMenu.tsx` is its own surface) |
+| `trace-cache` | ~12 | three cycles |
+| `trace-harness` | ~8 | at the floor; three cycles, three different counts (10 / 7 / 8) |
+
+Declined for now: **`context`** (~7) — below the floor, and unused across all 22 adjudicated rows.
+
+### AREA — elsewhere
+
+| slug | entries | evidence |
+|---|---|---|
+| `lifecycle-edges` under `memory-seed` | ~45 | takes `graph`'s four current children, which are all edge-MODEL concepts |
+| `package` (root) | ~66 | JNL, from adjudicating row 3; spans Seed and Trace, currently homeless |
+
+### ACTIVITY
+
+| slug | entries | evidence |
+|---|---|---|
+| `feature-build` | **~116 (25% of the corpus)** | JNL. The axis had slugs for fixing, designing, documenting, proposing, merging and shipping — and none for BUILDING. `ui-design` had been absorbing it for UI work, which is why the gap only surfaced on a backend row |
+| `testing` | ~8 | the split-swarm mismatch: the area axis had `trace-harness`, the activity axis had nowhere, so Storybook and Playwright were filed as `ui-design` |
+
+### The rule that separates `feature-build` from `ui-design`
+
+> **`feature-build`** — a capability that did not exist before.
+> **`ui-design`** — changing how an existing thing looks or behaves.
+
+Applied across the 22 adjudicated rows this moved six of them and took `ui-design` from 9 to 4. If the
+line belongs elsewhere, those six move together — it is one decision, not six.
+
+### What is NOT settled
+
+`inspector` is the one count I would not act on blindly: the swarm said **1**, the keyword estimate says
+**~33**. They are answering different questions — *what is this entry about* versus *which pane did it
+touch* — and only the second supports a child. The counts for `package`, `settings` and `feature-build`
+are keyword estimates over titles and bodies, the same method that put `trail` at 40 when the swarm
+found 31. Treat all four as order-of-magnitude.
+
 ## What is being asked
 
 **Approve or reject the children that clear the floor**: `graph` (70), `trail` (32), `trace-cache` (12),

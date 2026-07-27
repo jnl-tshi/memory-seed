@@ -20,6 +20,87 @@ TRACE-WIDE (the app frame, no single part) · seed · NONE (roadmap, release, gi
 **Activities:** ui-design · bugfix · documentation · proposal-lifecycle · git-workflow · release ·
 tooling-evaluation · agent-collaboration · performance · security (or a child of any of these)
 
+## The topic tree, for ruling these rows
+
+Counts are entries currently resolving to that slug. **PROPOSED** items are not in
+`topics.yaml` yet — they are what these rulings help decide, so treat them as available answers.
+
+### AREA — *which part of the system*
+
+- `memory-trace` (203) — The companion review UI package and its views.
+  - `graph` **PROPOSED** (~70) — the relationship map VIEW; moves from being a root.
+    Keeps no children — its current four are edge-MODEL concepts and move to `lifecycle-edges`.
+  - `trail` **PROPOSED** (~32) — the chronological timeline view
+  - `trace-cache` **PROPOSED** (~12) — startup, caching, freshness, worktree switching
+  - `trace-harness` **PROPOSED** (~8) — Storybook, Playwright, e2e, a11y gates, CI wiring
+- `memory-seed` (121) — RESIDUAL area - use ONLY when no narrower area applies, and never alon
+  - `lifecycle-edges` **PROPOSED** (~45) — the edge MODEL: evolves/evolved_by, continuity, supersession
+    - `continuity` (1)  *(moves from `graph`)*
+    - `related-entries` (1)  *(moves from `graph`)*
+    - `schema` (1)  *(moves from `graph`)*
+    - `supersession` (1)  *(moves from `graph`)*
+- `session-logging` (51) — Entry authoring, DRAFT discipline, harvest, and append-only chronology
+  - `backfill` (2) — Recording work into the log after the fact.
+  - `decision-harvest` (1) — Harvesting decisions out of a session into logged entries.
+- `control-plane` (31) — Agent rules, skills governance, and reusable runtime files.
+  - `agent-rules` (1) — The agent-rules runtime file and the policy it carries.
+  - `governance-profile` (2) — Profile-keyed governance of shipped control-plane content.
+  - `lazy-loading` (1) — Progressive disclosure of control-plane content so agents load only wh
+  - `skill-architecture` (2) — How skills are structured, discovered, and governed.
+- `retrieval` (19) — Search, ranking, and the public retrieval service.
+- `mcp-tools` (18) — MCP tool surface and CLI command design.
+  - `cli` (2) — The command-line surface - command design, flags, and output.
+- `session-fuse` (13) — Branch-session fuse and merge-branch integration machinery.
+- `mermaid` (13) — Decision-diagram sidecars and diagram authoring.
+- `windows-encoding` (7) — UTF-8 policy, cp1252 hazards, and encoding hygiene.
+- `process-management` (7) — Package process discovery, shutdown, and upgrade workflows.
+  - `upgrade-workflow` (1) — Upgrading an installed package and the safe-shutdown path around it.
+- `hooks` (5) — Session-start, prompt, and stop hooks.
+- `session-layout` (4) — Session file layouts, migrations, and multi-user structure.
+  - `migration` (2) — Moving an existing session tree onto a new layout.
+  - `multi-user-sessions` (1) — Per-user session structure and the switch away from the flat layout.
+
+**Answers that are not slugs:**
+
+- `TRACE-WIDE` — the Trace app as a whole, not any one part: frame, panes, settings, theme,
+  typography, tabs, find bar. Stays on `memory-trace` itself.
+- `seed` — Memory Seed work that merely carries the tag (validation, parsing, entry-ids).
+- `NONE` — not about the system: roadmap, changelog, release process, git housekeeping.
+
+### ACTIVITY — *what kind of work*
+
+- `ui-design` (100) — Interface layout, visual hierarchy, interaction design, and rendered U
+- `proposal-lifecycle` (81) — Roadmap, proposals, goals, and docs-lifecycle movement.
+  - `goal` (6) — Goal directives and the staged execution runs that discharge them.
+  - `proposal` (6) — Drafting and revising a proposal document.
+  - `roadmap` (4) — Roadmap authoring, refinement, and staging.
+- `documentation` (65) — README, audits, and public-facing docs accuracy.
+  - `document-ingestion` (1) — Bringing external documents and transcripts into the corpus as notes.
+  - `functionality-audit` (3) — Auditing shipped behaviour against what the docs claim, and closing th
+  - `readme` (1) — The README front door and its accuracy.
+- `git-workflow` (64) — Branching, merging, integration topology, and push/publish mechanics.
+  - `branch-history` (3) — Branch topology, provenance, and history guardrails.
+  - `git-publishing` (1) — Push and publish mechanics against the remote.
+  - `merge` (5) — Merging a branch into main and the integration step itself.
+- `agent-collaboration` (50) — Subagents, worktrees, task packets, and multi-agent hazards.
+- `bugfix` (35) — Defect repairs, corrections, and cleanup passes.
+  - `cleanup` (1) — Tidying passes that remove residue rather than fix a reported defect.
+  - `memory-repair` (1) — Repairing the memory tree itself - malformed entries, misplaced files,
+  - `process-correction` (2) — Correcting a followed process rather than a defect in code.
+- `release` (17) — Version cuts, changelog folds, packaging, and publish gates.
+  - `changelog` (1) — Changelog folds, Unreleased hygiene, and release notes.
+  - `release-packaging` (2) — Packaging and distribution artifacts for a cut.
+  - `release-preflight` (1) — Pre-cut checks and gates before a version is published.
+- `tooling-evaluation` (10) — External tool/library assessment and licensing checks.
+  - `design-evaluation` (1) — Weighing an internal design before committing to an implementation.
+  - `licensing` (1) — Licence checks on external tools and libraries before adoption.
+- `performance` (4) — Profiling, caching, and speed work across core and Trace.
+- `security` (1) — Supply-chain and repo hardening - OpenSSF posture, CI security gates, 
+- `testing` **PROPOSED** (~8) — building/maintaining the apparatus that proves code works
+
+**Depth rule** (the one that took worker agreement from 54% to 82%): use the PARENT unless filing
+the entry under a SIBLING of that child would be plainly wrong. Two plausible siblings means parent.
+
 ---
 
 ### 1. 2026-07-11 15:26 - Trace UI pass merged to main (Trail-first, search-as-function)
@@ -33,8 +114,8 @@ tooling-evaluation · agent-collaboration · performance · security (or a child
 - **activity split** — worker 1 said `git-workflow`, worker 2 said `merge`
 
 ```
-area     -> 
-activity -> 
+area     -> session-logging
+activity -> merge
 ```
 
 ### 2. 2026-07-11 16:24 - Phase 0: deterministic synthetic corpora generator
@@ -48,8 +129,8 @@ activity ->
 - **area split** — worker 1 said `trace-harness`, worker 2 said `NONE`
 
 ```
-area     -> 
-activity -> 
+area     -> trace-harness
+activity -> testing
 ```
 
 ### 3. 2026-07-12 00:38 - Bundle Memory Trace as optional extra
@@ -63,8 +144,8 @@ activity ->
 - **both workers disagree with the file-derived label** `seed`
 
 ```
-area     -> 
-activity -> 
+area     -> package
+activity -> release-packaging   (`package` now exists; this is distribution, not a Trace part)
 ```
 
 ### 4. 2026-07-12 12:15 - Fuse Codex branches and align Trace packaging docs
@@ -78,8 +159,8 @@ activity ->
 - **activity split** — worker 1 said `git-workflow`, worker 2 said `merge`
 
 ```
-area     -> 
-activity -> 
+area     -> session-logging   (JNL: merges belong to the session machinery)
+activity -> merge
 ```
 
 ### 5. 2026-07-12 19:44 - Lifecycle-edge hardening complete: link audit + end-of-session sweep
@@ -93,8 +174,8 @@ activity ->
 - **activity split** — worker 1 said `functionality-audit`, worker 2 said `documentation`
 
 ```
-area     -> 
-activity -> 
+area     -> lifecycle-edges
+activity -> feature-build   (JNL: new slug)
 ```
 
 ### 6. 2026-07-14 17:03 - Rename internal Memory Trace module lense.py -> service.py + LenseCache/LenseService -> TraceCache/TraceService (public lense alias preserved)
@@ -108,8 +189,8 @@ activity ->
 - **activity split** — worker 1 said `cleanup`, worker 2 said `bugfix`
 
 ```
-area     -> 
-activity -> 
+area     -> TRACE-WIDE
+activity -> cleanup
 ```
 
 ### 7. 2026-07-16 08:51 - Integrate B0a Memory Trace workspace shell
@@ -123,8 +204,8 @@ activity ->
 - **activity split** — worker 1 said `git-workflow`, worker 2 said `merge`
 
 ```
-area     -> 
-activity -> 
+area     -> session-logging   (JNL: merges belong to the session machinery)
+activity -> merge
 ```
 
 ### 8. 2026-07-16 20:37 - Route exact entry-ID search directly to its entry
@@ -139,8 +220,8 @@ activity ->
 - **activity split** — worker 1 said `bugfix`, worker 2 said `ui-design`
 
 ```
-area     -> 
-activity -> 
+area     -> TRACE-WIDE
+activity -> bugfix
 ```
 
 ### 9. 2026-07-17 17:35 - Ship the B0b Inspector reader with search-match highlighting
@@ -154,8 +235,8 @@ activity ->
 - **activity split** — worker 1 said `release`, worker 2 said `ui-design`
 
 ```
-area     -> 
-activity -> 
+area     -> inspector
+activity -> feature-build   (the reader did not exist before - a capability, not a restyle)
 ```
 
 ### 10. 2026-07-18 10:30 - Ship the B0b Trail view: git-graph timeline over the v1 trail contract
@@ -169,8 +250,8 @@ activity ->
 - **activity split** — worker 1 said `release`, worker 2 said `ui-design`
 
 ```
-area     -> 
-activity -> 
+area     -> trail
+activity -> feature-build   (the Trail view is new here)
 ```
 
 ### 11. 2026-07-18 21:15 - Design feedback round 2: toggle placement, title width, edge semantics, trail tuning panel
@@ -184,8 +265,8 @@ activity ->
 - **area split** — worker 1 said `TRACE-WIDE`, worker 2 said `trail`
 
 ```
-area     -> 
-activity -> 
+area     -> TRACE-WIDE
+activity -> ui-design
 ```
 
 ### 12. 2026-07-18 22:17 - Trail complete: brackets and two-stage selection, continuity lanes, diagram badges
@@ -199,8 +280,8 @@ activity ->
 - **both workers disagree with the file-derived label** `trace-api`
 
 ```
-area     -> 
-activity -> 
+area     -> trail
+activity -> feature-build   (brackets, continuity lanes and badges are new capabilities)
 ```
 
 ### 13. 2026-07-19 00:31 - Fixed-rhythm worktree train loader with hold-until-loaded
@@ -214,8 +295,8 @@ activity ->
 - **area split** — worker 1 said `trace-cache`, worker 2 said `TRACE-WIDE`
 
 ```
-area     -> 
-activity -> 
+area     -> TRACE-WIDE
+activity -> feature-build   (a loading mechanism that did not exist; JNL: wide impact zone)
 ```
 
 ### 14. 2026-07-19 11:33 - Research hand-drawn Trail path geometry
@@ -228,8 +309,8 @@ activity ->
 - **activity split** — worker 1 said `activity-none`, worker 2 said `ui-design`
 
 ```
-area     -> 
-activity -> 
+area     -> trail
+activity -> design-evaluation
 ```
 
 ### 15. 2026-07-19 12:02 - Hand-drawn Trail geometry and dark-mode control contrast
@@ -243,8 +324,8 @@ activity ->
 - **both workers disagree with the file-derived label** `TRACE-WIDE`
 
 ```
-area     -> 
-activity -> 
+area     -> trail
+activity -> ui-design
 ```
 
 ### 16. 2026-07-19 14:48 - Tabbed settings menu, collapsible entry metadata, promoted branch and evolves
@@ -258,8 +339,8 @@ activity ->
 - **area split** — worker 1 said `trail`, worker 2 said `TRACE-WIDE`
 
 ```
-area     -> 
-activity -> 
+area     -> settings
+activity -> feature-build   (SettingsMenu.tsx is new - `settings` is now its own pane)
 ```
 
 ### 17. 2026-07-19 21:24 - Verify persistent full-text navigation in the live Trace preview
@@ -272,8 +353,8 @@ activity ->
 - **activity split** — worker 1 said `activity-none`, worker 2 said `ui-design`
 
 ```
-area     -> 
-activity -> 
+area     -> TRACE-WIDE
+activity -> testing
 ```
 
 ### 18. 2026-07-19 23:27 - One find bar for both search modes, with the match anchored in the reader
@@ -287,8 +368,8 @@ activity ->
 - **both workers disagree with the file-derived label** `inspector`
 
 ```
-area     -> 
-activity -> 
+area     -> TRACE-WIDE
+activity -> ui-design
 ```
 
 ### 19. 2026-07-20 10:06 - Remove locked Codex preview remnant
@@ -302,8 +383,8 @@ activity ->
 - **activity split** — worker 1 said `cleanup`, worker 2 said `bugfix`
 
 ```
-area     -> 
-activity -> 
+area     -> NONE
+activity -> cleanup
 ```
 
 ### 20. 2026-07-20 20:18 - Phase 0: Storybook + a11y-gated test harness for memory-trace client
@@ -317,8 +398,8 @@ activity ->
 - **activity split** — worker 1 said `proposal-lifecycle`, worker 2 said `ui-design`
 
 ```
-area     -> 
-activity -> 
+area     -> trace-harness
+activity -> testing
 ```
 
 ### 21. 2026-07-21 19:25 - Edge precedence per pair, in-place inspector links, stable decision indent
@@ -333,8 +414,8 @@ activity ->
 - **activity split** — worker 1 said `ui-design`, worker 2 said `bugfix`
 
 ```
-area     -> 
-activity -> 
+area     -> graph
+activity -> ui-design
 ```
 
 ### 22. 2026-07-26 01:49 - Run the Storybook interaction tests in CI
@@ -348,6 +429,6 @@ activity ->
 - **activity split** — worker 1 said `proposal-lifecycle`, worker 2 said `git-workflow`
 
 ```
-area     -> 
-activity -> 
+area     -> trace-harness
+activity -> testing
 ```
