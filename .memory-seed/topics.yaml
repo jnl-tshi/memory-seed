@@ -337,7 +337,15 @@ topics:
     # Was 43.7% of the corpus with no children. The five below took it to 12.8% canonical, measured
     # by two blind swarm workers over the whole population (cycles 3 and 4, 2026-07-27). Reach is
     # unchanged at 204 - a filter on this slug still finds every one of them through the children.
-    aliases: [memory-trace-ui]
+    # `lense` and `memory-lense` are the product's OWN former name - `lense.py` ->
+    # `service.py`, `LenseCache` -> `TraceCache`, the `memory-seed[lense]` extra.
+    # Added 2026-07-27 because the full-corpus swarm proposed `GAP:memory-lense`
+    # 23 times and disagreed with `memory-trace` on 15 entries: the vocabulary
+    # simply did not know the old name, so a chunk of real Trace history read as
+    # a missing area. That is what an alias is FOR - a different spelling of the
+    # same concept - and it only surfaced once workers judged without being shown
+    # the old labels.
+    aliases: [memory-trace-ui, lense, memory-lense]
   - slug: trail
     label: Trail
     description: The chronological timeline view - lanes, brackets, branch continuity, the git-graph spine, decision rows in the trail.

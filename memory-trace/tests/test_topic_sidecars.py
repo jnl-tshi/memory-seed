@@ -81,9 +81,20 @@ class TopicUnionTests(unittest.TestCase):
         chunk = self._chunk(topics=("memory-trace",))
         self.assertEqual(_topics(chunk), ["memory-trace"])
 
-    def test_inferred_unions_with_authored(self):
+    def test_the_sidecar_wins_over_the_authored_field(self):
+        # THE AUTHORITY RULE. This asserted a union until 2026-07-27, when the
+        # two-axis campaign gave every entry a complete sidecar reading. A union
+        # then re-admits the coarse pre-axis label the sweep exists to supersede.
         chunk = self._chunk(topics=("memory-trace",), inferred_topics=("trail",))
-        self.assertEqual(_topics(chunk), ["memory-trace", "trail"])
+        self.assertEqual(_topics(chunk), ["trail"])
+
+    def test_authored_topics_still_serve_entries_no_sweep_reached(self):
+        chunk = self._chunk(topics=("memory-trace",))
+        self.assertEqual(_topics(chunk), ["memory-trace"])
+
+    def test_a_sidecar_restating_the_authored_slug_is_stable(self):
+        chunk = self._chunk(topics=("trail",), inferred_topics=("trail",))
+        self.assertEqual(_topics(chunk), ["trail"])
 
     def test_inferred_alone_still_wins_over_the_hashtag_fallback(self):
         # An entry with no authored topics but a sidecar attribution speaks the
@@ -96,11 +107,12 @@ class TopicUnionTests(unittest.TestCase):
         chunk = self._chunk(tags=("#ui",), contexts=("misc",))
         self.assertEqual(_topics(chunk), ["#ui", "misc"])
 
-    def test_duplicate_across_channels_appears_once(self):
-        # A sidecar restating an authored slug is redundant, not an error;
-        # `links check` warns about it. The display must not double it.
-        chunk = self._chunk(topics=("trail",), inferred_topics=("trail",))
-        self.assertEqual(_topics(chunk), ["trail"])
+    def test_a_sidecar_narrows_without_the_parent_leaking_back(self):
+        # The case the authority rule exists for: the sweep says `trail`, the
+        # author said `memory-trace`. Both true, but only one is the corpus's
+        # current reading, and `memory-trace` is still reachable by derivation.
+        chunk = self._chunk(topics=("memory-trace", "ui-design"), inferred_topics=("trail", "graph"))
+        self.assertEqual(_topics(chunk), ["graph", "trail"])
 
 
 class TopicSidecarReadPathTests(unittest.TestCase):
@@ -154,7 +166,9 @@ class TopicSidecarReadPathTests(unittest.TestCase):
         # up on the node, or nothing downstream - filter, facet, colour - can
         # ever see it.
         self._write_sidecar(ENTRY, ["trail"])
-        self.assertEqual(self._entry_topics(ENTRY), {"memory-trace", "trail"})
+        # The sidecar is the authority: `memory-trace` was authored and is now
+        # superseded on the read path, not unioned with.
+        self.assertEqual(self._entry_topics(ENTRY), {"trail"})
 
     def test_unattributed_entry_is_untouched(self):
         self._write_sidecar(ENTRY, ["trail"])
@@ -173,7 +187,7 @@ class TopicSidecarReadPathTests(unittest.TestCase):
         self.assertEqual(self._entry_topics(ENTRY), {"memory-trace"})  # cache now built, no sidecar
         self._write_sidecar(ENTRY, ["trail"])
         # NOT rebuilt: the attribution must surface on the existing cache.
-        self.assertEqual(self._entry_topics(ENTRY, rebuild=False), {"memory-trace", "trail"})
+        self.assertEqual(self._entry_topics(ENTRY, rebuild=False), {"trail"})
 
     def test_attributed_slug_reaches_the_facet_too(self):
         # The graph and the facet read different accessors. A slug the graph can
