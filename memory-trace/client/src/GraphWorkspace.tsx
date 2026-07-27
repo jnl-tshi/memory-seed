@@ -38,6 +38,18 @@ type GraphWorkspaceProps = {
   // palette stays bounded by roots as children populate; grouping, filtering
   // and every label keep reading the child slug.
   topicRoots: TopicRoots | null;
+  /**
+   * The topic the view is filtered to, or null for the whole corpus.
+   *
+   * Colour only. With nothing focused a node takes its topic FAMILY's colour, so
+   * the map splits by family at a glance; filtered to a family, that rule paints
+   * everything one colour, so inside the focus each node reverts to its own
+   * child slug's colour (JNL, 2026-07-27). Membership, grouping and every label
+   * keep reading the child either way — this changes no node set and no layout.
+   */
+  focusTopic: string | null;
+  /** slug -> canonical slug, so an alias never splits from what it denotes. */
+  topicCanonical: TopicRoots | null;
   // Which edge types are switched on in the "Edges" filter row. Obsidian-style:
   // this only toggles line visibility on the graph already in memory — it must
   // never drive which nodes are rendered or trigger a re-layout.
@@ -442,7 +454,7 @@ function labelIdsFor(graph: RendererGraphResponse, selectedId: string | null, la
 let settledSignature = "";
 const settledPositions = new Map<string, Point>();
 
-export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, visibleEdgeTypes, corpusTopics, topicWheel, topicRoots, dragResponse, forces, showOrphans, minConfidence }: GraphWorkspaceProps) {
+export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, visibleEdgeTypes, corpusTopics, topicWheel, topicRoots, focusTopic, topicCanonical, dragResponse, forces, showOrphans, minConfidence }: GraphWorkspaceProps) {
   const container = useRef<HTMLDivElement>(null);
   const cytoscape = useRef<Core | null>(null);
   // Refs so the tap handler and selection effect never force an instance remount.
@@ -609,8 +621,13 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
     }
     return map;
   }, [graph.edges]);
-  const legend = useMemo(() => communityLegend(renderedNodes, corpusTopics, topicWheel, topicRoots), [renderedNodes, corpusTopics, topicWheel, topicRoots]);
-  const colourOf = useMemo(() => communityColourScale(corpusTopics, topicWheel, topicRoots), [corpusTopics, topicWheel, topicRoots]);
+  // `focusTopic` is in every dependency array below on purpose: it changes the
+  // colour KEY (root when nothing is focused, the child's own slug inside the
+  // focus), so a memo that omitted it would keep handing back root colours after
+  // a filter — the same class of silent no-op as the confidence threshold that
+  // was read from a ref but missing from its effect's deps.
+  const legend = useMemo(() => communityLegend(renderedNodes, corpusTopics, topicWheel, topicRoots, focusTopic, topicCanonical), [renderedNodes, corpusTopics, topicWheel, topicRoots, focusTopic, topicCanonical]);
+  const colourOf = useMemo(() => communityColourScale(corpusTopics, topicWheel, topicRoots, focusTopic, topicCanonical), [corpusTopics, topicWheel, topicRoots, focusTopic, topicCanonical]);
   // Authored fill is the MIXTURE of a node's qualifying topics; falls back to
   // the pure community colour when the mixture cannot be built.
   // The authored mixture, or null when the node authored nothing that clears
@@ -618,8 +635,8 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
   // caller needs to know WHETHER a node authored a colour - that is what
   // decides the rim, and what stops an inferred pastel overriding a real one.
   const authoredOf = useMemo(
-    () => (node: RendererGraphNode) => authoredNodeColour(node, corpusTopics, topicWheel, topicRoots),
-    [corpusTopics, topicWheel, topicRoots],
+    () => (node: RendererGraphNode) => authoredNodeColour(node, corpusTopics, topicWheel, topicRoots, focusTopic, topicCanonical),
+    [corpusTopics, topicWheel, topicRoots, focusTopic, topicCanonical],
   );
   // Topicless nodes take a pastel blend of the communities that reach them
   // (directly, or as decaying residue down a topicless chain). Pastel is a

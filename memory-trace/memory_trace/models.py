@@ -113,6 +113,12 @@ class Facets(BaseModel):
     # filtering keep reading the child. A root maps to itself, so an unknown
     # slug can safely fall back to identity.
     topic_roots: dict[str, str]
+    # Every authorable topic name -> the canonical slug it denotes. Distinguishes
+    # an ALIAS (a different spelling of one concept, which must take its
+    # canonical's colour) from a CHILD (a narrower concept, which earns its own) —
+    # a difference topic_roots cannot express, because both map to a root. Read
+    # only where colour is keyed BELOW the root: the focused-topic view.
+    topic_canonical: dict[str, str] = {}
 
 
 class ChunkSummary(BaseModel):

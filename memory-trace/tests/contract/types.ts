@@ -313,6 +313,13 @@ export interface components {
                 [key: string]: number;
             };
             runtime: components["schemas"]["FacetsRuntimeInfo"];
+            /**
+             * Topic Canonical
+             * @default {}
+             */
+            topic_canonical: {
+                [key: string]: string;
+            };
             /** Topic Roots */
             topic_roots: {
                 [key: string]: string;

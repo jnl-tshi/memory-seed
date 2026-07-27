@@ -68,6 +68,39 @@ export function rootOf(slug: string, roots: TopicRoots | null): string {
 }
 
 /**
+ * The key a slug takes its colour from, given which topic is in FOCUS.
+ *
+ * With no topic filter the key is the ROOT: the whole corpus is on screen, and
+ * one hue per family is what makes the map splittable at a glance.
+ *
+ * Filter down to a root and that same rule turns the view one flat colour -
+ * every node now shares the family, so the family has stopped being information.
+ * Inside the focused subtree the key becomes the node's OWN slug, so `goal`,
+ * `proposal` and `roadmap` separate where they were all `proposal-lifecycle`
+ * (JNL, 2026-07-27). Slugs outside the focus keep their root, because a node can
+ * carry a second topic from elsewhere and that topic's family still reads.
+ *
+ * The focus is matched at its own root, so focusing a CHILD expands its whole
+ * family rather than colouring one child and flattening its siblings.
+ */
+export function colourKeyOf(
+  slug: string,
+  roots: TopicRoots | null,
+  focus: string | null = null,
+  canonical: TopicRoots | null = null,
+): string {
+  const root = rootOf(slug, roots);
+  if (focus && root === rootOf(focus, roots)) {
+    // The CANONICAL slug, not the authored spelling. `topic_roots` cannot tell an
+    // alias from a child — both map to a root — so keying on the raw slug would
+    // give `perf` its own colour beside `performance` and draw one concept as two
+    // swatches. A child resolves to itself and still separates.
+    return canonical?.[slug] ?? slug;
+  }
+  return root;
+}
+
+/**
  * Root -> palette slot.
  *
  * COLOUR IS ASSIGNED AT THE ROOT LEVEL; grouping and filtering keep reading the
@@ -111,6 +144,8 @@ function colourSlots(
   corpusTopics: Readonly<Record<string, number>> | null,
   wheel: readonly string[] | null,
   roots: TopicRoots | null = null,
+  focus: string | null = null,
+  canonical: TopicRoots | null = null,
 ): Map<string, number> {
   // Roll corpus counts up to the root before the floor is applied, so a root
   // qualifies on the strength of its whole subtree.
@@ -125,17 +160,43 @@ function colourSlots(
 
   const ordered: string[] = [];
   const seen = new Set<string>();
-  const push = (root: string) => {
-    if (seen.has(root) || !qualifies(root)) return;
-    seen.add(root);
-    ordered.push(root);
+  const push = (key: string) => {
+    if (seen.has(key)) return;
+    seen.add(key);
+    ordered.push(key);
   };
-  if (wheel?.length) for (const topic of wheel) push(rootOf(topic, roots));
+  if (wheel?.length) for (const topic of wheel) { const root = rootOf(topic, roots); if (qualifies(root)) push(root); }
   // Alphabetical tail: qualifying roots the wheel never mentions. This is the
   // whole fallback when there is no wheel, and the completeness guarantee when
   // there is one.
-  for (const root of [...rolled.keys()].sort()) push(root);
-  return new Map(ordered.map((root, index) => [root, index]));
+  for (const root of [...rolled.keys()].sort()) if (qualifies(root)) push(root);
+
+  // The focused family's members are APPENDED, never interleaved. The slot table
+  // is an ordered list, so inserting a child would shift every slot after it and
+  // repaint communities that did not change — the precise instability that put
+  // colour on the root in the first place. Appending leaves every root's slot
+  // exactly where it was, so focusing repaints only inside the focus.
+  //
+  // And a colour is only spent when it SEPARATES something (JNL, 2026-07-27): a
+  // family contributing one member has nothing to distinguish, so no key is
+  // added and the member falls back to its parent's colour through the lookup in
+  // `topicColourScale`. Two or more and each earns its own.
+  //
+  // The floor does not apply here. Every child on this corpus carries 1-6 entries
+  // against a floor of 10 (`merge` 5, `goal` 6, `cli` 1), so applying it would
+  // leave the one view whose purpose is to separate those children with nothing
+  // to separate. The floor exists to keep long-tail topics out of the
+  // corpus-wide palette; inside a single family there is no tail to exclude.
+  if (focus && corpusTopics) {
+    const focusRoot = rootOf(focus, roots);
+    const members = new Set<string>();
+    for (const slug of Object.keys(corpusTopics)) {
+      if (rootOf(slug, roots) !== focusRoot) continue;
+      members.add(canonical?.[slug] ?? slug);
+    }
+    if (members.size > 1) for (const member of [...members].sort()) push(member);
+  }
+  return new Map(ordered.map((key, index) => [key, index]));
 }
 
 /**
@@ -149,10 +210,16 @@ export function topicColourScale(
   corpusTopics: Readonly<Record<string, number>> | null,
   wheel: readonly string[] | null = null,
   roots: TopicRoots | null = null,
+  focus: string | null = null,
+  canonical: TopicRoots | null = null,
 ): (slug: string) => string | null {
-  const slots = colourSlots(corpusTopics, wheel, roots);
+  const slots = colourSlots(corpusTopics, wheel, roots, focus, canonical);
   return (slug) => {
-    const slot = slots.get(rootOf(slug, roots));
+    // The focused key first, the ROOT as the fallback. That fallback is what
+    // "derive the parent's colour" is made of: a family with only one member on
+    // the map gets no key of its own, so the lookup misses and the child lands on
+    // its parent's slot. No branch decides it — the absence of a slot does.
+    const slot = slots.get(colourKeyOf(slug, roots, focus, canonical)) ?? slots.get(rootOf(slug, roots));
     return slot === undefined ? null : colourForSlot(slot);
   };
 }
@@ -178,8 +245,10 @@ export function authoredNodeColour(
   corpusTopics: Readonly<Record<string, number>> | null,
   wheel: readonly string[] | null = null,
   roots: TopicRoots | null = null,
+  focus: string | null = null,
+  canonical: TopicRoots | null = null,
 ): string | null {
-  const bySlug = topicColourScale(corpusTopics, wheel, roots);
+  const bySlug = topicColourScale(corpusTopics, wheel, roots, focus, canonical);
   const colours = (node.source?.topics ?? [])
     .map(bySlug)
     .filter((colour): colour is string => colour !== null);
@@ -217,8 +286,10 @@ export function communityColourScale(
   corpusTopics: Readonly<Record<string, number>> | null,
   wheel: readonly string[] | null = null,
   roots: TopicRoots | null = null,
+  focus: string | null = null,
+  canonical: TopicRoots | null = null,
 ): (node: RendererGraphNode) => string {
-  const bySlug = topicColourScale(corpusTopics, wheel, roots);
+  const bySlug = topicColourScale(corpusTopics, wheel, roots, focus, canonical);
   return (node) => {
     const fingerprint = node.community.fingerprint || node.community.id;
     if (!fingerprint.startsWith(TOPIC_PREFIX)) return UNASSIGNED_COLOUR;
@@ -500,11 +571,15 @@ export function communityLegend(
   corpusTopics: Readonly<Record<string, number>> | null = null,
   wheel: readonly string[] | null = null,
   roots: TopicRoots | null = null,
+  focus: string | null = null,
+  canonical: TopicRoots | null = null,
 ): CommunityLegendEntry[] {
   // ONE colour derivation, shared with the nodes. The legend never computes a
   // colour of its own - including now that the colour climbs to the root, which
-  // is exactly the kind of second derivation that would let the two drift.
-  const colourOf = communityColourScale(corpusTopics, wheel, roots);
+  // is exactly the kind of second derivation that would let the two drift. The
+  // focus travels with it for the same reason: a legend keyed on roots beside
+  // nodes keyed on children is precisely the drift this guards against.
+  const colourOf = communityColourScale(corpusTopics, wheel, roots, focus, canonical);
   const groups = new Map<string, CommunityLegendEntry>();
   for (const node of nodes) {
     const id = node.community.id;

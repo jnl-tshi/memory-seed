@@ -591,6 +591,14 @@
           "runtime": {
             "$ref": "#/components/schemas/FacetsRuntimeInfo"
           },
+          "topic_canonical": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "title": "Topic Canonical",
+            "type": "object"
+          },
           "topic_roots": {
             "additionalProperties": {
               "type": "string"

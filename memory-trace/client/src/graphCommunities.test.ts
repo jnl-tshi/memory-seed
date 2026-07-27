@@ -320,6 +320,95 @@ test("a child takes its root's colour", () => {
   assert.equal(bySlug("trail"), bySlug("memory-trace"));
 });
 
+// --- focus: root colour splits the corpus, child colour splits one family ---
+// The real corpus counts for the children of `git-workflow`. Both are far below
+// the community floor of 10, which is the whole difficulty.
+const FOCUS_TOPICS: Record<string, number> = { ...CORPUS_TOPICS, merge: 5, "branch-history": 3 };
+
+test("focused on a root, its children take DISTINCT colours", () => {
+  // JNL, 2026-07-27. Root colour is what makes the whole map splittable; once
+  // the view IS one root, the family has stopped being information and the
+  // children become it.
+  const focused = topicColourScale(FOCUS_TOPICS, null, ROOTS, "git-workflow");
+  const inside = ["git-workflow", "merge", "branch-history"].map(focused);
+  assert.ok(inside.every((colour) => colour !== null), `every focused child needs a colour: ${inside}`);
+  assert.equal(new Set(inside).size, inside.length, `children must differ: ${inside}`);
+});
+
+test("outside the focus, colour is unchanged", () => {
+  // Caught by this test on first write: expanding the focus INTO the ordered slot
+  // table shifted every slot after it and repainted communities that had not
+  // changed - the exact instability that put colour on the root to begin with.
+  // Focused members are appended past the root table for that reason.
+  const focused = topicColourScale(FOCUS_TOPICS, null, ROOTS, "git-workflow");
+  const flat = topicColourScale(FOCUS_TOPICS, null, ROOTS, null);
+  for (const slug of ["memory-trace", "trail", "graph", "documentation", "ui-design"]) {
+    assert.equal(focused(slug), flat(slug), `${slug} is outside the focus and must not move`);
+  }
+});
+
+test("a family with only one member present derives its PARENT's colour", () => {
+  // JNL, 2026-07-27: a colour is only worth spending when it separates something.
+  // `graph` has no authored children on this corpus, so focusing it must not mint
+  // a new hue - the node keeps the family colour the reader already knows.
+  const focused = topicColourScale(FOCUS_TOPICS, null, ROOTS, "graph");
+  const flat = topicColourScale(FOCUS_TOPICS, null, ROOTS, null);
+  assert.equal(focused("graph"), flat("graph"));
+  // A child with no authored siblings behaves the same way. `trail` is the only
+  // memory-trace member here besides the parent... which is two, so use a family
+  // that genuinely has one: documentation.
+  const docs = topicColourScale({ ...CORPUS_TOPICS, readme: 3 }, null, { ...ROOTS, readme: "documentation" }, "documentation");
+  const docsFlat = topicColourScale({ ...CORPUS_TOPICS, readme: 3 }, null, { ...ROOTS, readme: "documentation" }, null);
+  assert.notEqual(docs("readme"), docsFlat("readme"), "two members present, so they separate");
+});
+
+test("an alias never splits from the slug it denotes, even inside the focus", () => {
+  // topic_roots cannot tell an alias from a child - both map to a root - so the
+  // canonical map is what stops `memory-trace-ui` drawing a second swatch for
+  // `memory-trace` the moment that family is focused.
+  const CANON: Record<string, string> = {
+    "memory-trace": "memory-trace", trail: "trail", "memory-trace-ui": "memory-trace",
+    "git-workflow": "git-workflow", merge: "merge", "branch-history": "branch-history",
+  };
+  const topics = { ...CORPUS_TOPICS, trail: 4, "memory-trace-ui": 2 };
+  const focused = topicColourScale(topics, null, ROOTS, "memory-trace", CANON);
+  assert.equal(focused("memory-trace-ui"), focused("memory-trace"), "an alias is a spelling, not a concept");
+  assert.notEqual(focused("trail"), focused("memory-trace"), "a child is a concept and still separates");
+});
+
+test("the floor is waived inside the focus, or the focused view is colourless", () => {
+  // merge carries 5 and branch-history 3, against a floor of 10. Applying it
+  // would leave exactly the view whose purpose is to separate them with nothing
+  // to separate. Outside the focus the floor still bites.
+  const focused = topicColourScale(FOCUS_TOPICS, null, ROOTS, "git-workflow");
+  assert.notEqual(focused("merge"), null);
+  assert.notEqual(focused("branch-history"), null);
+  assert.equal(focused("licensing"), null, "1 entry outside the focus stays below the floor");
+});
+
+test("focusing a CHILD expands its whole family, not just itself", () => {
+  // Otherwise focusing `merge` would colour one node and flatten its siblings,
+  // which is the same loss of information in a smaller frame.
+  const viaChild = topicColourScale(FOCUS_TOPICS, null, ROOTS, "merge");
+  const viaRoot = topicColourScale(FOCUS_TOPICS, null, ROOTS, "git-workflow");
+  for (const slug of ["merge", "branch-history", "git-workflow", "memory-trace"]) {
+    assert.equal(viaChild(slug), viaRoot(slug), `${slug} should key the same either way`);
+  }
+});
+
+test("the legend follows the same key as the nodes when focused", () => {
+  // A legend keyed on roots beside nodes keyed on children is the drift the
+  // shared derivation exists to prevent.
+  const nodes = [node("a", "git-workflow"), node("b", "merge"), node("c", "branch-history")];
+  const legend = communityLegend(nodes, FOCUS_TOPICS, null, ROOTS, "git-workflow");
+  const colourOf = communityColourScale(FOCUS_TOPICS, null, ROOTS, "git-workflow");
+  for (const entry of legend) {
+    const owner = nodes.find((item) => (item as unknown as { community: { id: string } }).community.id === entry.id)!;
+    assert.equal(entry.colour, colourOf(owner));
+  }
+  assert.equal(new Set(legend.map((entry) => entry.colour)).size, 3, "three children, three swatches");
+});
+
 test("an alias takes the same colour as the slug it is a variant of", () => {
   // The corpus stores whatever spelling was authored and is never rewritten, so
   // an alias that never reaches the map is an entry that never gets a colour.
