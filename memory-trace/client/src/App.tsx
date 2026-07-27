@@ -11,7 +11,7 @@ import { genuineSearchResults } from "./searchResults";
 import { overviewCounts, overviewExhausted as overviewIsExhausted, type OverviewCounts } from "./graphOverview";
 import { animateScrollTo, scrollDurationFor } from "./trailScroll";
 import { compareTrailNodes, isDecisionRow, stripTitleStamp, TRAIL_WINDOW_STEP, trailWindowEntryIds } from "./trailModel";
-import { anchorEntryIdFor, isDecisionRowId } from "./graphDecisionRows";
+import { anchorEntryIdFor, isDecisionRowId, visibilityIdFor } from "./graphDecisionRows";
 
 const GraphWorkspace = lazy(() => import("./GraphWorkspace").then((module) => ({ default: module.GraphWorkspace })));
 const TrailWorkspace = lazy(() => import("./TrailWorkspace").then((module) => ({ default: module.TrailWorkspace })));
@@ -579,6 +579,13 @@ export default function App() {
   // RENDERED edges for this node under the current edge-type filter. The node's
   // `connectivity` is a different quantity - a related-only display weight that
   // drives node radius - and was what made the number disagree with the picture.
+  //
+  // Endpoints are read through visibilityIdFor, so an edge terminating on one of
+  // this entry's DECISION ROWS counts for the entry. Comparing raw ids reported
+  // "Links 0" for an entry whose every relationship is decision-level (found by
+  // JNL on mse_5zg50mzrmtx80c80, 2026-07-27) - which is the strongest possible
+  // misreading: those entries are exactly the ones decision rows exist to serve,
+  // and the panel was telling the reader their work was unconnected.
   const selectedRenderedDegree = useMemo(() => {
     const entryId = selected?.source.entry_id;
     if (!entryId || !graph) return null;
@@ -586,7 +593,7 @@ export default function App() {
     let degree = 0;
     for (const edge of graph.edges) {
       if (!visible.has(edge.edge_type)) continue;
-      if (edge.source === entryId || edge.target === entryId) degree += 1;
+      if (visibilityIdFor(edge.source) === entryId || visibilityIdFor(edge.target) === entryId) degree += 1;
     }
     return degree;
   }, [selected?.source.entry_id, graph, edgeTypes]);

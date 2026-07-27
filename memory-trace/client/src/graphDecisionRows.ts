@@ -74,14 +74,42 @@ export function decisionGroupId(entryId: string): string {
   return `dgroup:${entryId}`;
 }
 
+/**
+ * The synthetic id of a group's visible circle.
+ *
+ * A second element rather than styling the container, because Cytoscape draws a
+ * COMPOUND PARENT as a rectangle whatever its `shape` says — verified live
+ * 2026-07-27 with `shape: ellipse` reported by `style()` and a square on screen.
+ * So the two jobs are split: the compound parent still carries CONTAINMENT (the
+ * structural channel, invisible), and this ordinary child node carries the
+ * DRAWING. It is a sibling of the anchor and the rows, positioned on the anchor,
+ * sized to enclose the ring — see `haloDiameter`.
+ */
+export function decisionHaloId(entryId: string): string {
+  return `dhalo:${entryId}`;
+}
+
 export type DecisionGroup = {
   /** The entry node id (also the group's own anchor child). */
   anchorId: string;
-  /** Its rendered decision-row node ids, in payload order. */
+  /** Its rendered decision-row node ids, in ASCENDING ORDINAL order. */
   rowIds: string[];
   /** The synthetic compound-parent id every member is filed under. */
   groupId: string;
 };
+
+/**
+ * The numeric ordinal in a decision-row id (`...#decisions/d12-slug` -> 12).
+ *
+ * Numeric, not lexical: `d10` sorts after `d9`, the same rule trailModel already
+ * applies to Trail rows. Anything unparseable sorts last rather than throwing —
+ * a row id that does not match the convention is a payload problem, not a reason
+ * to drop a decision off the ring.
+ */
+function ordinalOf(rowId: string): number {
+  const match = /#decisions\/d(\d+)/.exec(rowId);
+  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
+}
 
 type NodeLike = { id: string };
 
@@ -106,6 +134,10 @@ export function decisionGroups(nodes: readonly NodeLike[]): Map<string, Decision
     group.rowIds.push(node.id);
     groups.set(anchorId, group);
   }
+  // Ordinal order, so the ring runs d1, d2, d3 clockwise from the top whatever
+  // order the payload listed them in. Slot position is then readable as the
+  // decision's place in the entry.
+  for (const group of groups.values()) group.rowIds.sort((left, right) => ordinalOf(left) - ordinalOf(right));
   return groups;
 }
 
@@ -120,6 +152,20 @@ export function parentIdsFor(groups: ReadonlyMap<string, DecisionGroup>): Map<st
     for (const rowId of group.rowIds) parents.set(rowId, group.groupId);
   }
   return parents;
+}
+
+/**
+ * The id whose connectedness decides whether this node is drawn.
+ *
+ * For a decision row that is its ANCHOR, never itself. A group appears whole or
+ * not at all: the Orphans filter asks "does this ENTRY have an authored
+ * relationship", and a decision inside a shown entry is not an orphan just
+ * because no link names it — it is a decision that was made. Reading the row's
+ * own degree hid exactly the rows that made a group complete, so a 4-decision
+ * entry drew a ring of 1 (found live 2026-07-27, with Orphans off).
+ */
+export function visibilityIdFor(id: string): string {
+  return isDecisionRowId(id) ? anchorEntryIdFor(id) : id;
 }
 
 /**
@@ -143,21 +189,37 @@ export function connectedIdsWithDecisionAnchors(edges: readonly GraphEdgeLike[])
   return ids;
 }
 
-/** Golden angle - successive fan slots never line up into spokes. */
-const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
-
 /** How far a decision row sits from its anchor's centre, in graph units. */
 export const SATELLITE_RADIUS = 46;
 
-/** Closest two rows of one entry may sit, measured as an angle at the anchor. */
-const MIN_SEPARATION = Math.PI / 5;
+/**
+ * Arc a row needs along the ring: its own diameter plus a clear gap.
+ *
+ * Used only to GROW the radius when a many-decision entry would otherwise crowd
+ * its ring — the spacing stays equal either way.
+ */
+const MIN_ROW_ARC = 26;
 
-/** Fold an angle into (-pi, pi] so two angles can be compared by difference. */
-function normalise(angle: number): number {
-  let value = angle;
-  while (value <= -Math.PI) value += Math.PI * 2;
-  while (value > Math.PI) value -= Math.PI * 2;
-  return value;
+/** Where the ring points when nothing on screen gives it a reason to turn. */
+const DEFAULT_PHASE = -Math.PI / 2;
+
+/** Air between the outermost row and the circle drawn around it. */
+const HALO_CLEARANCE = 15;
+
+/**
+ * How far this entry's rows sit from it, given how many there are.
+ *
+ * Shared by the row placement and the circle drawn around them, so the two can
+ * never disagree about where the ring is.
+ */
+export function ringRadius(rowCount: number, radius = SATELLITE_RADIUS): number {
+  if (rowCount <= 0) return radius;
+  return Math.max(radius, (rowCount * MIN_ROW_ARC) / (Math.PI * 2));
+}
+
+/** Diameter of the circle that encloses one entry's ring of decisions. */
+export function haloDiameter(rowCount: number, radius = SATELLITE_RADIUS): number {
+  return 2 * (ringRadius(rowCount, radius) + HALO_CLEARANCE);
 }
 
 /**
@@ -170,12 +232,21 @@ function normalise(angle: number): number {
  * move a single anchor, because the rows exert no force on anything. The map a
  * reader had is still the map they have, with decisions added to it.
  *
- * Direction carries information where it can: a row with decision edges points
- * at the mean direction of its counterparts, so the line to its relative leaves
- * the group on the side that relative is on. With no counterpart on screen (or a
- * counterpart sitting exactly on the anchor) it falls back to its fan slot,
- * which depends only on the row's index - so the arrangement is deterministic
- * and reproduces across loads.
+ * The rows are spread EQUALLY around the anchor (JNL, 2026-07-27) in ordinal
+ * order, so a group reads as a clock face: the gap between neighbours is always
+ * 360/N and nothing on screen can change it.
+ *
+ * The ring is RIGID BUT FREE TO ROTATE (JNL, 2026-07-27). Equal spacing is the
+ * hard constraint; the ring's phase is the one degree of freedom left, and it is
+ * fitted to the group's own decision edges by `ringPhase` - so a row ends up on
+ * the side its relative is on without any pair of rows ever crowding. An earlier
+ * version aimed each row independently, which bought the same direction hint by
+ * spending the spacing; and a version pinned at 12 o'clock kept the spacing but
+ * threw the direction away. Rotating a rigid ring keeps both.
+ *
+ * The radius grows only when equal spacing would put the rows closer than
+ * `MIN_ROW_ARC` apart, so a 3-decision group and a 12-decision group both read
+ * cleanly without the common case drifting away from its anchor.
  */
 export function satellitePositions(options: {
   rowIds: readonly string[];
@@ -186,33 +257,52 @@ export function satellitePositions(options: {
 }): Map<string, Point> {
   const { rowIds, anchor, counterparts, radius = SATELLITE_RADIUS } = options;
   const positions = new Map<string, Point>();
-  const taken: number[] = [];
+  if (!rowIds.length) return positions;
+  const step = (Math.PI * 2) / rowIds.length;
+  const spread = ringRadius(rowIds.length, radius);
+  const phase = ringPhase({ rowIds, anchor, counterparts });
   rowIds.forEach((rowId, index) => {
-    // A half-slot turn on top of the index so a lone row does not sit due east
-    // of its anchor, where an entry-level edge would run straight through it.
-    let angle = normalise((index + 0.5) * GOLDEN_ANGLE);
-    const targets = counterparts?.get(rowId) ?? [];
+    const angle = phase + index * step;
+    positions.set(rowId, { x: anchor.x + Math.cos(angle) * spread, y: anchor.y + Math.sin(angle) * spread });
+  });
+  return positions;
+}
+
+/**
+ * The rotation that best points each row at its own relatives.
+ *
+ * With slots fixed at `phase + i * step`, the phase that maximises
+ * `sum(cos(phase + i * step - target_i))` is the closed form below - the circular
+ * mean of each row's target direction less the slot it occupies. Exact, one pass,
+ * no search, and it depends only on positions, so it reproduces across loads.
+ *
+ * Falls back to `DEFAULT_PHASE` (straight up) when no row has a counterpart on
+ * screen, or when the targets cancel out exactly - two rows pulling opposite ways
+ * leave the rotation genuinely undetermined, and an arbitrary answer there would
+ * make the ring jitter between equally good positions.
+ */
+export function ringPhase(options: {
+  rowIds: readonly string[];
+  anchor: Point;
+  counterparts?: ReadonlyMap<string, readonly Point[]>;
+}): number {
+  const { rowIds, anchor, counterparts } = options;
+  if (!rowIds.length || !counterparts?.size) return DEFAULT_PHASE;
+  const step = (Math.PI * 2) / rowIds.length;
+  let sumSin = 0;
+  let sumCos = 0;
+  rowIds.forEach((rowId, index) => {
     let dx = 0;
     let dy = 0;
-    for (const target of targets) {
+    for (const target of counterparts.get(rowId) ?? []) {
       dx += target.x - anchor.x;
       dy += target.y - anchor.y;
     }
-    if (Math.sqrt(dx * dx + dy * dy) > 1e-6) angle = Math.atan2(dy, dx);
-    // Two rows of one entry must never coincide, and two counterparts in the
-    // same direction would put them there. A row landing on top of one already
-    // placed rotates away in fixed steps until it clears, so the aim survives as
-    // far as it can and the rows stay legibly apart. Deterministic: the walk
-    // depends only on payload order.
-    for (
-      let attempt = 0;
-      attempt <= rowIds.length * 2 && taken.some((other) => Math.abs(normalise(other - angle)) < MIN_SEPARATION);
-      attempt += 1
-    ) {
-      angle = normalise(angle + MIN_SEPARATION);
-    }
-    taken.push(angle);
-    positions.set(rowId, { x: anchor.x + Math.cos(angle) * radius, y: anchor.y + Math.sin(angle) * radius });
+    if (Math.sqrt(dx * dx + dy * dy) < 1e-6) return;
+    const wanted = Math.atan2(dy, dx) - index * step;
+    sumSin += Math.sin(wanted);
+    sumCos += Math.cos(wanted);
   });
-  return positions;
+  if (Math.sqrt(sumSin * sumSin + sumCos * sumCos) < 1e-6) return DEFAULT_PHASE;
+  return Math.atan2(sumSin, sumCos);
 }
