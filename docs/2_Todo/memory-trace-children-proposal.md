@@ -1,6 +1,6 @@
 ---
 priority: P2
-next_action: APPROVED and applied 2026-07-27 - 17 slugs are live in .memory-seed/topics.yaml. ONE piece is deferred - reparenting `graph` under `memory-trace` would file 45 Seed-side entries under the viewer (measured 18% false positives), so it waits on a reviewed `retracts:` campaign moving them to `lifecycle-edges`. That campaign is the remaining work and needs its own approval.
+next_action: DONE 2026-07-27 - 17 slugs live in .memory-seed/topics.yaml and 166 entries attributed via topic sidecars. Reparenting `graph` is WITHDRAWN, not deferred: it would add 0 true positives and 45 false ones, so no mechanism makes it worthwhile. Remaining open items are the activity axis (no swarm pass yet, `feature-build` unverified at ~116) and validity, still 74% held-out.
 ---
 
 # Proposal: the topic vocabulary change
@@ -41,22 +41,73 @@ the whole package, which is what a residual must not read like, and is why it ha
 Consequence to be aware of: filtering `seed-core` no longer reaches the four areas. Under the residual
 reading that is correct — those entries were never *about* the residual, they were parked there.
 
-**2. Reparenting `graph` under `memory-trace` is DEFERRED, and its own rule is why.**
+**2. Reparenting `graph` under `memory-trace` is WITHDRAWN — not deferred.**
 
-The move was approved and is still right in principle. Applying it and measuring showed it files **45
-Seed-side entries under the viewer** — a filter on `memory-trace` returning 249 rows instead of 204, an
-**18% false-positive rate**, pulling in "Draft evolution-edges proposal" and "Replace core topics with
-structured continuity field". `lifecycle-edges` exists to take those 45, but **nothing carries it yet**.
+I first reported this as blocked pending a reassignment campaign, and that was wrong. Three reasons, in
+order of how long each stays true:
 
-That is rule 3 — *a slug must fit every ancestor* — and precisely the failure it describes: invisible
-pollution of an ancestor's filter, where nobody inspecting `memory-trace` can see which descendant put
-a stray entry there. The rule was written the same morning and it caught the change its own author was
-making.
+**It has no upside.** 64 entries carry `graph` *with* `memory-trace`; 45 carry it *without*. The 64
+already reach `memory-trace` directly, so reparenting adds **0 true positives and 45 false ones** — a
+filter returning 249 rows instead of 204, an 18% false-positive rate, pulling in "Draft evolution-edges
+proposal" and "Replace core topics with structured continuity field". That is arithmetic. No future
+mechanism changes it, which is why the reassignment campaign was never the answer.
 
-**Unblocking it** needs the 45 reassigned to `lifecycle-edges` first. Entries are append-only, so that
-is a reviewed derived-override (`retracts:`) campaign, not an edit, and it needs its own approval. The
-four data-model children *did* move, which seeds `lifecycle-edges` with real entries and is the first
-step.
+**Topic retraction does not exist.** Moving the 45 would need a derived block overriding an authored
+slug. [sidecar-supersession-model.md](../3_Spec/draft/sidecar-supersession-model.md) specs that as
+*"step 1 of the consolidation build order"* and nothing implements it;
+`augment_chunks_with_topic_sidecars` deliberately does not union into `chunk.topics`, so a sidecar
+cannot un-say an authored topic.
+
+**It would fail the retraction rule anyway.** JNL, 2026-07-27: *"a retraction should be judgeable as
+'was this claim wrong?'. If the answer is 'no, it was true but I would rather it were more specific',
+the answer is a child slug, not a retract."* `graph` on "Draft evolution-edges proposal" was **true** —
+the Seed edge model *is* the graph's data model. This is the 86-entry parent-retraction trap wearing a
+new costume.
+
+What remains true is that `graph` names two things. That is now recorded rather than fixed:
+`lifecycle-edges` gives the Seed edge model its own root and took the four data-model children, so new
+work has somewhere specific to go. The historical dual meaning stays, because every one of those tags
+was true when written. `graph-view` is **not** being resurrected — it would be a slug with zero authored
+entries and zero swarm evidence, the case `settings` and `workspace-bar` were declined for.
+
+## The attribution campaign — 166 entries, applied 2026-07-27
+
+The swarm's agreed labels are now written as **topic sidecars**, the first in this repo:
+`.memory-seed/sessions/topics/YYYY-MM/YYYY-MM-DD.md`, 18 files, one block per entry filed under the
+entry's own date.
+
+| slug | entries | | slug | entries |
+|---|---:|---|---|---:|
+| `trail` | 34 | | `docs-lifecycle` | 11 |
+| `lifecycle-edges` | 34 | | `graph` | 7 |
+| `topic-vocabulary` | 25 | | `diagram-view` | 6 |
+| `trace-cache` | 14 | | `panes` | 5 |
+| `trace-harness` | 12 | | `topbar` | 4 |
+| `test-suite` | 12 | | `inspector` | 2 |
+| | | | `navigation` | 1 |
+
+**This is enrichment, not correction.** No authored topic is touched, contradicted or removed — the
+sidecar is a separate `inferred_topics` channel beside what the author wrote. Every entry that had a
+coarse area slug keeps it and gains a specific one.
+
+**What was filtered out before writing**, rather than left for the validator to catch: the ballot
+options `NONE` (46), `TRACE-WIDE` (35), `OTHER-ROOT` (34) and `SEED-WIDE` (5) are answers, not slugs;
+`seed-other` (3) and `trace-api` (1) are not canonical and `trace-api` was explicitly declined. The 21
+rows where the two workers disagreed get no sidecar at all.
+
+**A footgun for the next campaign:** `entry_topic_sidecars` is **most-recent-wins per entry, wholesale**
+— a topic list is a state replaced by a better one, not a set that unions. These blocks carry one area
+slug and no activity. An activity-axis campaign writing sidecars for the same entries will **replace**
+these entirely, not merge with them. It must carry the area slug forward in the same block.
+
+**On the `topic_swarm.md` STOP notice:** it aborts the **decision-level** `<slug>:dN` backfill — 933
+judgment units against a 0.70 roll-up-recall gate. This campaign is entry-level area attribution from an
+already-run swarm at 92–94% agreement, under the separated-axis premise the STOP explicitly asks for
+(*"reviving this campaign requires a changed premise"*). Different unit, different gate, different
+premise — stated here so it is not later read as a bypass.
+
+One quirk worth knowing: `topics check` still reports these slugs as `unused-topic`, because that rule
+counts **authored** topics only and does not see the sidecar channel. 166 entries carry them.
 
 *The ask that was approved is preserved below.*
 
