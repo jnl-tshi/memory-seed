@@ -1724,17 +1724,27 @@ class TraceService:
             #
             # `decision_row_scope` differs by surface. The Trail wants every
             # multi-decision entry expanded ("all") - a timeline row earns its
-            # place by existing. A graph wants "linked": a decision row with no
-            # decision edge is a fresh isolate in a force layout, and expanding
-            # the whole corpus produced 276 of them, so rows appear only where
-            # a decision edge actually terminates.
-            only_ordinals: dict[str, set[str]] | None = None
+            # place by existing. A graph wants "linked": a decision row used to
+            # arrive as a fresh isolate in a force layout, and expanding the whole
+            # corpus produced 276 of them, so an entry earns expansion by
+            # carrying a decision edge at all.
+            #
+            # The unit is the ENTRY, not the ordinal (2026-07-27, JNL). Selecting
+            # ordinals drew a group holding 3 of an entry's 4 decisions, and a
+            # reader cannot tell a decision with no relationships from one that
+            # does not exist - so a group that claims to contain an entry has to
+            # contain all of it. Safe now that rows are CONTAINED: an edgeless row
+            # sits on its anchor's ring rather than floating, which is what made
+            # per-ordinal filtering look necessary in the first place.
+            only_entries: set[str] | None = None
             if decision_row_scope == "linked":
-                only_ordinals = {}
+                only_entries = set()
 
                 def _want(entry_id: str, ordinal: str) -> None:
+                    # An ordinal on either end is what marks the entry as
+                    # decision-linked; which ordinal it was no longer matters.
                     if entry_id and ordinal:
-                        only_ordinals.setdefault(entry_id, set()).add(ordinal)
+                        only_entries.add(entry_id)
 
                 for source_entry_id, sidecar in self._link_sidecars().items():
                     for _kind, src_ordinal, target_entry_id, tgt_ordinal in sidecar.get("decision_edges", ()):
@@ -1746,7 +1756,7 @@ class TraceService:
                     ):
                         _want(chunk.entry_id or "", src_ordinal)
                         _want(target_entry_id, tgt_ordinal)
-            nodes = _expand_decision_rows(nodes, self.cache, only_ordinals=only_ordinals)
+            nodes = _expand_decision_rows(nodes, self.cache, only_entries=only_entries)
         # Edges BETWEEN already-selected nodes are capped only by the hard
         # ceiling. The cap used to track the node count, which starved exactly
         # the case the overview now exists to serve: measured on the real corpus
@@ -3409,7 +3419,7 @@ def _expand_decision_rows(
     nodes: list[dict[str, Any]],
     cache: TraceCache,
     *,
-    only_ordinals: Mapping[str, Collection[str]] | None = None,
+    only_entries: Collection[str] | None = None,
 ) -> list[dict[str, Any]]:
     """One Trail row per decision for multi-decision entries.
 
@@ -3438,22 +3448,32 @@ def _expand_decision_rows(
     branch geometry are computed from the entry-level inputs BEFORE this runs
     and stay entry-scoped by construction.
 
-    ``only_ordinals`` (entry_id -> {"d1", "d3"}) narrows expansion to named
-    decisions. The Trail passes None and expands every decision of every
-    multi-decision entry, because a timeline row earns its place by existing and
-    the document reading above ("a document does not skip heading 1") applies.
+    ``only_entries`` narrows expansion to the named ENTRIES, and expands every
+    decision of each one. The Trail passes None and expands every decision of
+    every multi-decision entry, because a timeline row earns its place by
+    existing and the document reading above ("a document does not skip heading
+    1") applies.
 
-    A force-directed GRAPH is the opposite: a decision row carrying no decision
-    edge is simply a new isolate. Measured on the real corpus, expanding
-    everything added 446 rows of which 276 were isolated - the cure was worse
-    than the 9 orphans it set out to fix. Passing the ordinals that actually
-    carry an edge makes rows appear exactly where a relationship lands, and the
-    document rule does not apply because a graph is not a document. The group
-    anchor keeps the entry id, so entry-level edges still terminate correctly.
+    A force-directed GRAPH has to choose which entries are worth expanding: a
+    decision row used to arrive as a fresh isolate, and expanding the whole
+    corpus added 446 rows of which 276 were isolated - worse than the 9 orphans
+    it set out to fix. So the Graph passes the entries that carry a decision edge
+    at all.
+
+    The unit is the ENTRY, not the ordinal, and that is a 2026-07-27 correction
+    (JNL). Filtering per ordinal drew a group holding 3 of an entry's 4
+    decisions - the reader cannot tell a decision without relationships from a
+    decision that does not exist, so the group misrepresented the entry it
+    claims to contain. It was defensible only while a row with no edge floated
+    free; compound containment retired that, since an edgeless row now sits on
+    its anchor's ring where it reads as "this decision, no links" - which is
+    true, and which the ring's slot ordering makes legible. The group anchor
+    keeps the entry id either way, so entry-level edges still terminate
+    correctly.
     """
     entry_ids = {node["entry_id"] for node in nodes if node.get("entry_id")}
-    if only_ordinals is not None:
-        entry_ids &= set(only_ordinals)
+    if only_entries is not None:
+        entry_ids &= set(only_entries)
     if not entry_ids:
         return nodes
     decisions_by_entry: dict[str, list[tuple[int, MemoryChunk]]] = {}
@@ -3468,14 +3488,11 @@ def _expand_decision_rows(
     for node in nodes:
         entry_id = node.get("entry_id") or ""
         group = decisions_by_entry.get(entry_id)
-        if group and only_ordinals is not None:
-            wanted = set(only_ordinals.get(entry_id, ()))
-            group = [item for item in group if f"d{item[0]}" in wanted]
-        # Under `only_ordinals` a single named decision is still worth a row -
-        # it is the endpoint an edge names. The >=2 rule is the Trail's
-        # "don't expand a one-decision entry into a redundant subheading",
-        # which only applies when expansion is unconditional.
-        minimum = 1 if only_ordinals is not None else 2
+        # Under `only_entries` a single decision is still worth a row - it is the
+        # endpoint an edge names. The >=2 rule is the Trail's "don't expand a
+        # one-decision entry into a redundant subheading", which only applies
+        # when expansion is unconditional.
+        minimum = 1 if only_entries is not None else 2
         if not group or len(group) < minimum:
             expanded.append(node)
             continue

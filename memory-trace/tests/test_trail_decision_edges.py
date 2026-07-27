@@ -258,14 +258,19 @@ class TrailDecisionEdgeTests(unittest.TestCase):
 
         self.assertEqual(edge_set(with_sidecar), edge_set(control))
 
-    def test_graph_can_opt_into_decision_rows_and_expands_only_linked_ordinals(self):
+    def test_graph_can_opt_into_decision_rows_and_expands_linked_entries_whole(self):
         # The sanctioned route out of "entries whose only relationships are
         # decision-level render as orphans": ask for decision ROWS, so the edge
         # lands on the decision it names instead of being forged into an
-        # entry-level claim. `linked` scope expands only ordinals that actually
-        # carry an edge - expanding everything adds rows with no edge at all,
-        # which in a force layout are just fresh isolates (measured: 276 of 446
-        # on the real corpus).
+        # entry-level claim.
+        #
+        # `linked` scope selects ENTRIES, and expands each selected one WHOLE.
+        # It used to select ordinals, which drew a group holding 3 of an entry's
+        # 4 decisions (found live 2026-07-27): a reader cannot tell a decision
+        # with no relationships from a decision that does not exist, so a
+        # container that claims an entry has to hold all of it. Per-ordinal
+        # filtering was defensible only while an edgeless row floated free as a
+        # fresh isolate; compound containment retired that.
         service = self.service()
 
         entry_only = service.graph(edge_types=EDGE_TYPES, limit=1000)
@@ -280,12 +285,28 @@ class TrailDecisionEdgeTests(unittest.TestCase):
         row_ids = {n["id"] for n in rows["nodes"] if "#decisions/" in n["id"]}
         self.assertTrue(row_ids, "opting in must produce decision rows")
 
-        # Every row that exists carries at least one edge: no isolates created.
-        degree: dict[str, int] = {}
-        for edge in rows["edges"]:
-            degree[edge["source"]] = degree.get(edge["source"], 0) + 1
-            degree[edge["target"]] = degree.get(edge["target"], 0) + 1
-        self.assertEqual([r for r in row_ids if not degree.get(r)], [])
+        # mse_tgt00000000aaaa is linked at d2 ONLY, and has two decisions. Both
+        # must appear: the group is complete or it misrepresents the entry.
+        expanded = sorted(rid for rid in row_ids if rid.startswith("mse_tgt00000000aaaa#"))
+        self.assertEqual(
+            expanded,
+            [
+                "mse_tgt00000000aaaa#decisions/d1-keep-the-parser",
+                "mse_tgt00000000aaaa#decisions/d2-default-the-range-to-seven-days",
+            ],
+            "a linked entry expands whole, including the decisions no edge names",
+        )
+        # And the completeness is honest about the edge: d1 exists as a node but
+        # carries no relationship, because none was authored.
+        endpoints = {edge["source"] for edge in rows["edges"]} | {edge["target"] for edge in rows["edges"]}
+        self.assertNotIn("mse_tgt00000000aaaa#decisions/d1-keep-the-parser", endpoints)
+
+        # Selection is still by evidence: an entry no decision edge names is not
+        # expanded at all, so "linked" remains a narrowing and not "all".
+        self.assertFalse(
+            [rid for rid in row_ids if rid.startswith("mse_src00000000cccc#")],
+            "an entry with no decision-level ref of its own stays unexpanded",
+        )
 
         # The opt-in adds rows beside the entry nodes; it never removes one.
         self.assertTrue({n["id"] for n in entry_only["nodes"]} <= {n["id"] for n in rows["nodes"]})

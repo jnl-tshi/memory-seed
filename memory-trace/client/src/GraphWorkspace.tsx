@@ -4,7 +4,7 @@ import type { Simulation, SimulationLinkDatum, SimulationNodeDatum } from "d3-fo
 import { Maximize2, Minus, Plus } from "lucide-react";
 import { type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
 import { nodeSetSignature, seedPositions, type Point } from "./graphLayout";
-import { anchorEntryIdFor, connectedIdsWithDecisionAnchors, decisionGroups, isDecisionRowId, parentIdsFor, satellitePositions } from "./graphDecisionRows";
+import { anchorEntryIdFor, connectedIdsWithDecisionAnchors, decisionGroups, decisionHaloId, haloDiameter, isDecisionRowId, parentIdsFor, satellitePositions, visibilityIdFor } from "./graphDecisionRows";
 import { forceParameters, type ForceSettings } from "./graphForces";
 import { outrankedEdgeIds } from "./graphEdges";
 import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, inferredCommunityColours, wearsAuthoredRim, type TopicRoots } from "./graphCommunities";
@@ -93,6 +93,43 @@ const SPAWN_STAGGER_MS = 14;
 const SPAWN_TOTAL_CAP_MS = 1100;
 
 /**
+ * How often the camera may re-measure a growing graph, in ms.
+ *
+ * `scaleToFitGrowth` used to run on EVERY tick, and its `boundingBox()` over the
+ * whole element set is not cheap: measured on the real corpus 8.65ms at 294
+ * nodes and 11.26ms at 453, against a 16.7ms frame — before the fit it may then
+ * trigger, another 10ms. That is a sixth of the settle's whole frame budget
+ * spent asking a question whose answer changes slowly, and it was a measurable
+ * part of why paging the Overview froze the page (2026-07-27: ~365 long tasks
+ * averaging 74ms, 27 of 37 seconds with the main thread blocked).
+ *
+ * 4Hz is far faster than a graph's bounding box actually grows while settling,
+ * so the camera behaves the same and the cost drops by ~93%.
+ */
+const AUTO_SCALE_INTERVAL_MS = 250;
+
+/**
+ * Where a WARM (grown) mount starts and stops its settle.
+ *
+ * Node count is not what makes paging expensive — the number of TICKS is. From
+ * alpha 1 to the d3 default alphaMin of 0.001 is ~300 ticks, and at ~450 nodes
+ * each tick costs tens of milliseconds of canvas redraw, so one "Show more" held
+ * the main thread for ~20s and three of them for a minute.
+ *
+ * A warm mount does not need that budget: every incumbent came back from a
+ * settled layout and only the arriving page has to travel. Starting lower keeps
+ * the incumbents from being thrown around, and stopping at a higher floor ends
+ * the run once motion is no longer visible — together ~130 ticks rather than
+ * ~300. Lowering the START alone would not have worked: ticks scale with
+ * log(alpha0 / alphaMin), so alpha 0.4 buys only 14%.
+ *
+ * A COLD mount keeps the full budget: it has no good positions to preserve, and
+ * a first load is small enough that the cost does not bite.
+ */
+const WARM_ALPHA_START = 0.6;
+const WARM_ALPHA_MIN = 0.03;
+
+/**
  * Diameter of a decision row, in graph units.
  *
  * Comfortably under the smallest entry (22 at degree 0) and under twice the
@@ -131,9 +168,15 @@ function startSimulation(options: {
   edges: readonly RendererGraphEdge[];
   forces: { current: ForceSettings };
   settled: boolean;
+  /**
+   * Some nodes came back from a previous layout — a "Show more" page, typically.
+   * Those are already where they belong, so only the newcomers have to travel
+   * and the settle can stop far earlier. See `WARM_ALPHA_*`.
+   */
+  warmSeeded: boolean;
   onRest: () => void;
   onFirstSettle: () => void;
-  /** Called each tick while settling, to keep a growing graph in frame. */
+  /** Keeps a growing graph in frame. Throttled — see `AUTO_SCALE_INTERVAL_MS`. */
   autoScale?: () => void;
   /**
    * Run after every position write. Decision rows are NOT simulation
@@ -146,7 +189,7 @@ function startSimulation(options: {
   disposed: () => boolean;
   reducedMotion: boolean;
 }): SimulationHandle {
-  const { cy, nodes: graphNodes, edges: graphEdges, forces, settled, onRest, onFirstSettle, autoScale, afterPaint, disposed, reducedMotion } = options;
+  const { cy, nodes: graphNodes, edges: graphEdges, forces, settled, warmSeeded, onRest, onFirstSettle, autoScale, afterPaint, disposed, reducedMotion } = options;
   let frame = 0;
   let cancelled = false;
   let fitted = settled;
@@ -192,6 +235,10 @@ function startSimulation(options: {
     sim = null;
   };
 
+  // Last time the camera re-measured the graph. Starts at 0 so the first tick
+  // after a mount always scales — a newly grown set is exactly when it matters.
+  let lastAutoScale = 0;
+
   const run = () => {
     if (frame || cancelled) return;
     const step = () => {
@@ -204,7 +251,15 @@ function startSimulation(options: {
       // and without this they simply grow off-screen. Only ever zooms OUT, and
       // only while settling — panning or zooming by hand after that is never
       // overridden.
-      if (!fitted && autoScale) autoScale();
+      //
+      // Throttled rather than per-tick: measuring the bounding box costs more
+      // than the physics and the paint put together at corpus scale, and the
+      // answer moves far slower than 60Hz. See AUTO_SCALE_INTERVAL_MS.
+      const now = performance.now();
+      if (!fitted && autoScale && now - lastAutoScale >= AUTO_SCALE_INTERVAL_MS) {
+        lastAutoScale = now;
+        autoScale();
+      }
       if (sim.alpha() < sim.alphaMin()) {
         // At rest: persist, fit once more so the final shape is framed, and
         // stop burning frames.
@@ -242,6 +297,11 @@ function startSimulation(options: {
     applyForces();
     sim = simulation;
 
+    // A grown set stops sooner: the incumbents are already settled, so the run
+    // exists only to place the arriving page. Set before the branches below so
+    // the reduced-motion block and every later reheat honour the same floor.
+    if (warmSeeded) simulation.alphaMin(WARM_ALPHA_MIN);
+
     if (settled) {
       // Cached positions are already a resting state — fit and idle. Nothing
       // ticks until a drag or a force change asks for it, which is what keeps
@@ -261,7 +321,7 @@ function startSimulation(options: {
       fitted = true;
       return;
     }
-    simulation.alpha(1);
+    simulation.alpha(warmSeeded ? WARM_ALPHA_START : 1);
     run();
   })();
 
@@ -502,8 +562,11 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
     }
     return counts;
   }, [graph.edges]);
+  // A decision row is kept or dropped with its ANCHOR, never on its own degree —
+  // see visibilityIdFor. Otherwise the Orphans filter takes a group apart and
+  // leaves it claiming fewer decisions than the entry has.
   const renderedNodes = useMemo(
-    () => (showOrphans ? graph.nodes : graph.nodes.filter((node) => connected.has(node.id))),
+    () => (showOrphans ? graph.nodes : graph.nodes.filter((node) => connected.has(visibilityIdFor(node.id)))),
     [graph.nodes, connected, showOrphans],
   );
   // Decision-row containment. Each entry that has rendered rows gets a synthetic
@@ -515,11 +578,11 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
   // kind, nothing entry-level emitted, and the four-kind contract untouched.
   const decisionRowGroups = useMemo(() => decisionGroups(renderedNodes), [renderedNodes]);
   const rowParentIds = useMemo(() => parentIdsFor(decisionRowGroups), [decisionRowGroups]);
-  // Which nodes each decision row is tied to, so a row can face the relative it
-  // names. Recorded as the counterpart's ANCHOR, never the counterpart row
-  // itself: anchors are the simulation's participants, so aiming at one reads a
-  // position that is settled for the frame rather than one being derived in the
-  // same pass — the arrangement is then deterministic instead of order-dependent.
+  // What each decision row is tied to, so its ring can rotate to face its own
+  // relatives. Recorded as the counterpart's ANCHOR, never the counterpart row:
+  // anchors are the simulation's participants, so the position read is settled
+  // for the frame rather than being derived in the same pass — which is what
+  // keeps the rotation deterministic instead of order-dependent.
   const rowCounterparts = useMemo(() => {
     const map = new Map<string, string[]>();
     const add = (rowId: string, otherId: string) => {
@@ -607,6 +670,20 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
             // Neither selectable nor draggable: a container is scaffolding, and
             // dragging a compound parent in Cytoscape drags every child with it,
             // which would move an anchor the simulation owns.
+            selectable: false,
+            grabbable: false,
+          })),
+          // The visible circle. A child of the container rather than the
+          // container itself, because Cytoscape draws a compound parent as a
+          // rectangle whatever its shape says. Sized to enclose the ring and
+          // positioned on the anchor by the same pass that places the rows.
+          ...[...decisionRowGroups.values()].map((group) => ({
+            data: {
+              id: decisionHaloId(group.anchorId),
+              parent: group.groupId,
+              isHalo: "yes",
+              size: haloDiameter(group.rowIds.length),
+            },
             selectable: false,
             grabbable: false,
           })),
@@ -703,6 +780,9 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
               "text-margin-y": 8,
               "width": "data(size)",
               "height": "data(size)",
+              // Above the decision-group halo, which asks for 0. Every real node
+              // has to sit on top of the disc that frames it.
+              "z-index": 10,
               // Newly loaded entries grow into place rather than blinking in —
               // see the .spawning rules below.
               "transition-property": "width, height, opacity",
@@ -715,19 +795,41 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
           // with the relationships it surrounds. `events: "no"` keeps it out of
           // the tap path — a synthetic container is not a selectable memory —
           // and bottom compound depth keeps it behind its own children.
+          //
+          // Invisible: the shape a reader sees is the halo below, because
+          // Cytoscape draws a compound parent as a rectangle whatever `shape`
+          // says. This element's whole job is the `parent` relationship.
           {
             selector: 'node[isGroup = "yes"]',
             style: {
-              "shape": "round-rectangle",
-              "background-color": groupFill,
-              "background-opacity": 0.1,
-              "border-width": 1,
-              "border-color": groupFill,
-              "border-opacity": 0.4,
-              "padding": "12px",
+              "background-opacity": 0,
+              "border-width": 0,
+              "padding": "0px",
               "label": "",
               "events": "no",
               "z-compound-depth": "bottom",
+            },
+          },
+          // The group's visible CIRCLE (JNL, 2026-07-27), not a box: the rows sit
+          // on a ring at equal angles, so a circle is the shape that arrangement
+          // actually has. A rectangle drew corners the content never reached and
+          // read as a container of records rather than one memory with its
+          // decisions. Faint, and behind its siblings, so it frames the group
+          // without competing with the relationships crossing it.
+          {
+            selector: 'node[isHalo = "yes"]',
+            style: {
+              "shape": "ellipse",
+              "width": "data(size)",
+              "height": "data(size)",
+              "background-color": groupFill,
+              "background-opacity": 0.09,
+              "border-width": 1,
+              "border-color": groupFill,
+              "border-opacity": 0.34,
+              "label": "",
+              "events": "no",
+              "z-index": 0,
             },
           },
           // A decision row: same fill vocabulary as its anchor (it inherits the
@@ -794,6 +896,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
             for (const group of decisionRowGroups.values()) {
               const anchor = cy.getElementById(group.anchorId);
               if (anchor.empty()) continue;
+              const at = anchor.position();
               const counterparts = new Map<string, Point[]>();
               for (const rowId of group.rowIds) {
                 const points: Point[] = [];
@@ -801,10 +904,13 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
                   const other = cy.getElementById(otherId);
                   if (!other.empty()) points.push({ ...other.position() });
                 }
-                counterparts.set(rowId, points);
+                if (points.length) counterparts.set(rowId, points);
               }
-              const placed = satellitePositions({ rowIds: group.rowIds, anchor: anchor.position(), counterparts });
+              const placed = satellitePositions({ rowIds: group.rowIds, anchor: at, counterparts });
               for (const [rowId, point] of placed) cy.getElementById(rowId).position(point);
+              // The circle is centred on the anchor, so it stays concentric with
+              // the ring it frames however the anchor moves.
+              cy.getElementById(decisionHaloId(group.anchorId)).position({ x: at.x, y: at.y });
             }
           }
         : undefined;
@@ -913,6 +1019,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
         edges: graph.edges,
         forces: forcesRef,
         settled,
+        warmSeeded,
         onRest: () => {
           if (disposed) return;
           settledSignature = signature;
