@@ -106,28 +106,33 @@ topics:
     status: active
     parent: session-logging
     aliases: []
-  # `graph` STAYS A ROOT, and the reparenting under `memory-trace` is DEFERRED - approved in
-  # principle 2026-07-27, then blocked by its own rule when the move was measured.
+  # `graph` STAYS A ROOT. Reparenting it under `memory-trace` was approved 2026-07-27 and is now
+  # WITHDRAWN - not deferred. Three reasons, in order of how long each will stay true:
   #
-  # The reasoning for moving it is sound: 64 entries carry `graph` WITH memory-trace (the rendered
-  # relationship map) and 45 carry it WITHOUT (the Seed-side edge model), which are two areas
-  # sharing a word. `lifecycle-edges` below exists to take the Seed half.
+  # 1. IT HAS NO UPSIDE. Measured: 64 entries carry `graph` WITH `memory-trace` and 45 carry it
+  #    WITHOUT. The 64 already reach `memory-trace` directly, so reparenting adds **0 true
+  #    positives and 45 false ones** - a filter on `memory-trace` returning 249 rows instead of
+  #    204, an 18% false-positive rate, pulling in "Draft evolution-edges proposal" and "Replace
+  #    core topics with structured continuity field". This is arithmetic; no future mechanism
+  #    changes it.
+  # 2. TOPIC RETRACTION DOES NOT EXIST. The way to move the 45 would be a derived block overriding
+  #    the authored slug, which sidecar-supersession-model.md specs as "step 1 of the consolidation
+  #    build order" and nothing implements. `augment_chunks_with_topic_sidecars` deliberately does
+  #    not union into `chunk.topics`, so a sidecar cannot un-say an authored topic.
+  # 3. IT WOULD FAIL THE RETRACTION RULE ANYWAY. JNL, 2026-07-27: "a retraction should be judgeable
+  #    as *was this claim wrong?*. If the answer is 'no, it was true but I would rather it were more
+  #    specific', the answer is a child slug, not a retract." `graph` on "Draft evolution-edges
+  #    proposal" was TRUE - the Seed edge model IS the graph's data model. This is the 86-entry
+  #    parent-retraction trap in a new costume.
   #
-  # BUT NOTHING CARRIES `lifecycle-edges` YET. Making the move today would file all 45 Seed-side
-  # entries under Memory Trace, because they resolve through `graph`. Measured on the working
-  # change before reverting it: a filter on `memory-trace` returned 249 entries instead of 204, an
-  # 18% false-positive rate, pulling in rows like "Draft evolution-edges proposal" and "Replace
-  # core topics with structured continuity field" - work with no connection to the viewer.
+  # What remains true is that `graph` names two things. That is now recorded rather than fixed:
+  # `lifecycle-edges` below gives the Seed edge MODEL its own root and takes the four data-model
+  # children, so new work has somewhere specific to go. The historical dual meaning stays, because
+  # every one of those tags was true when written.
   #
-  # That is exactly rule 3 of hierarchical-topic-vocabulary-proposal.md - a slug must fit EVERY
-  # ancestor - and it is the failure mode the rule was written for: invisible pollution of an
-  # ancestor's filter, where nobody inspecting `memory-trace` can see which descendant put the
-  # entry there. The rule was written the same day, and it caught the change its own author was
-  # making.
-  #
-  # UNBLOCKING IT needs the 45 reassigned to `lifecycle-edges` first. Entries are append-only, so
-  # that is a reviewed derived-override campaign (`retracts:`), not an edit - and it needs its own
-  # approval. Until then `graph` keeps both meanings and stays where it is.
+  # Do NOT resurrect `graph-view` as a Trace child either - it would be a slug with zero authored
+  # entries and zero swarm evidence, which is the case `settings` and `workspace-bar` were declined
+  # for, and reason 1 makes it unnecessary.
   - slug: graph
     label: Decision Graph
     description: Related-entry edges, lifecycle edges, continuity lineage, and graph schema. Still spans the Trace view and the Seed edge model - see the note above.
