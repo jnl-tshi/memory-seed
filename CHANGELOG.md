@@ -6,6 +6,19 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- **Stale-console-script guard** (`package_provenance()` in `core.py`). When a `memory_seed/` source
+  tree exists at or above the working directory and the imported package resolves **outside** it, the
+  CLI refuses with exit code 2 and prints both resolved paths, both versions, and the working
+  invocation; `version` and `help` stay runnable because they are how the mismatch gets diagnosed, and
+  `MEMORY_SEED_ALLOW_FOREIGN_PACKAGE=1` permits a deliberate cross-version run. The MCP server warns on
+  stderr instead of refusing, so a stale launch never takes the harness's server down. This closes a
+  confirmed silent-corruption path: in a git worktree `uv run --no-sync` leaves `.venv` empty, so no
+  console script exists there and `memory-seed` resolves through PATH to an older global build — whose
+  `docs check` reported phantom lane errors for folders this tree allowlists and whose `docs index`
+  regenerated `docs/README.md` from stale code, dropping a lane count, a regression attributable to
+  nothing in the diff. The predicate is silent under an editable install, so `verify.yml` (already on
+  `python -m memory_seed.cli`) is unaffected. A *pre-guard* global build cannot check itself; refresh
+  the global install so the next stale invocation is loud.
 - **Decision-level topic judgment swarm** (`topic_swarm` skill, 2026-07-26). The sibling of `link_swarm`
   for the third sidecar family: a suggest-only, mechanically validated, human-approved backfill of
   `<slug>:dN` topics across the whole corpus, including entries that already carry authored entry-level

@@ -12,6 +12,8 @@ from .core import (
     _git_text,
     branch_status,
     commit_reference_ids,
+    foreign_package_message,
+    package_provenance,
     resolve_runtime,
     session_fuse,
     worktree_guard,
@@ -755,6 +757,13 @@ def main(argv: list[str] | None = None) -> int:
         help="disable Model2Vec semantic scoring and use lexical metadata ranking only",
     )
     args = parser.parse_args(argv)
+    # Advisory, never fatal - unlike the CLI, which refuses. A hard block here
+    # would take the harness's MCP server down at launch, and the server's own
+    # tools are how an agent would read the diagnosis. The launcher's cwd is the
+    # only thing measurable at startup; per-call `cwd` arguments are not.
+    provenance = package_provenance(Path("."))
+    if provenance.foreign and not provenance.allowed:
+        print(foreign_package_message(provenance, command="mcp"), file=sys.stderr, flush=True)
     if args.stdio:
         return serve_stdio(semantic_enabled=not args.no_semantic)
     parser.print_help()

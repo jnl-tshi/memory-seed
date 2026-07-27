@@ -47,3 +47,30 @@ python -m unittest discover -s memory-trace/tests
 
 The React workspace under `memory-trace/client/` uses Node 22: `npm ci && npm run typecheck && npm run build`.
 Built assets are committed; CI fails if they drift from source.
+
+## Running the CLI against this checkout
+
+Verification commands must run **this checkout's** code. Use the module form from the checkout root:
+
+```bash
+python -X utf8 -m memory_seed.cli docs check
+```
+
+The bare `memory-seed` console script is correct in the primary checkout (where the project is
+installed editable) and for anyone who installed the published package. It is **not** safe in a git
+worktree: `uv run --no-sync` leaves the worktree `.venv` empty, so no console script exists there and
+the name resolves through PATH to whatever `memory-seed` is installed globally — an older build whose
+`docs check` reports errors for lanes this tree allowlists, and whose `docs index` rewrites
+`docs/README.md` from code that is not in your diff. That mismatch is a confirmed cause of a docs-index
+regression landing on a green-looking local run.
+
+`memory_seed.core.package_provenance()` gates this: when a `memory_seed/` source tree exists at or above
+the working directory and the imported package resolves outside it, the CLI refuses with exit code 2 and
+prints both resolved paths (`memory-seed version` and `help` stay runnable, since they are how you
+diagnose it). Set `MEMORY_SEED_ALLOW_FOREIGN_PACKAGE=1` for a deliberate cross-version run. The guard is
+silent under an editable install, which is what `verify.yml` uses — CI has always invoked
+`python -m memory_seed.cli` and needs no change.
+
+The guard cannot catch a *pre-guard* global build, which has no such check compiled in; refresh the
+global install (`uv tool upgrade memory-seed`, or `pip install -e .` into the worktree venv) so the
+next stale-invocation attempt is loud rather than silent.
