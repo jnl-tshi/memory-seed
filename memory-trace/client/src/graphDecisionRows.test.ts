@@ -12,6 +12,7 @@ import {
   ringPhase,
   satellitePositions,
   SATELLITE_RADIUS,
+  simulationLinks,
   visibilityIdFor,
 } from "./graphDecisionRows.ts";
 
@@ -210,4 +211,73 @@ test("row placement is deterministic - the same payload reproduces the same map"
   const first = satellitePositions({ rowIds: [ROW_A1, ROW_A2], anchor });
   const second = satellitePositions({ rowIds: [ROW_A1, ROW_A2], anchor });
   assert.deepEqual([...first.entries()], [...second.entries()]);
+});
+
+
+// --- simulationLinks: decision-level forces pass through to the entry --------
+
+const KNOWN = new Set(["mse_a", "mse_b", "mse_c"]);
+
+test("an edge on a decision row pulls that row's ENTRY", () => {
+  // The bug this replaced: the row matched no simulation node, so the edge was
+  // dropped from the link force while still being drawn - a line across the map
+  // exerting nothing.
+  const links = simulationLinks([{ source: ROW_A1, target: "mse_b" }], KNOWN);
+  assert.deepEqual(links, [{ source: "mse_a", target: "mse_b" }]);
+});
+
+test("an edge between two entries' rows joins the two entries", () => {
+  const links = simulationLinks([{ source: ROW_A1, target: ROW_B3 }], KNOWN);
+  assert.deepEqual(links, [{ source: "mse_a", target: "mse_b" }]);
+});
+
+test("an edge between two rows of the SAME entry is not a link", () => {
+  // Drawn, but meaningless as a force: it would pull an entry toward itself.
+  assert.deepEqual(simulationLinks([{ source: ROW_A1, target: ROW_A2 }], KNOWN), []);
+});
+
+test("a pair joined many times over is pulled once", () => {
+  // Five decision-level edges between the same entries must not pull five times
+  // as hard as one entry-level edge. 696 decision edges exist; this is the
+  // difference between a map and a knot.
+  const links = simulationLinks(
+    [
+      { source: ROW_A1, target: ROW_B3 },
+      { source: ROW_A2, target: "mse_b" },
+      { source: "mse_a", target: "mse_b" },
+      { source: "mse_b", target: ROW_A1 },
+    ],
+    KNOWN,
+  );
+  assert.deepEqual(links, [{ source: "mse_a", target: "mse_b" }]);
+});
+
+test("direction does not create a second link for the same pair", () => {
+  const links = simulationLinks(
+    [
+      { source: "mse_a", target: "mse_b" },
+      { source: "mse_b", target: "mse_a" },
+    ],
+    KNOWN,
+  );
+  assert.equal(links.length, 1);
+});
+
+test("an endpoint outside the simulation is skipped, not invented", () => {
+  assert.deepEqual(simulationLinks([{ source: "mse_a", target: "mse_zz" }], KNOWN), []);
+  assert.deepEqual(simulationLinks([{ source: "mse_zz#decisions/d1-x", target: "mse_a" }], KNOWN), []);
+});
+
+test("ordinary entry-to-entry edges are unchanged", () => {
+  const links = simulationLinks(
+    [
+      { source: "mse_a", target: "mse_b" },
+      { source: "mse_b", target: "mse_c" },
+    ],
+    KNOWN,
+  );
+  assert.deepEqual(links, [
+    { source: "mse_a", target: "mse_b" },
+    { source: "mse_b", target: "mse_c" },
+  ]);
 });
