@@ -106,9 +106,31 @@ topics:
     status: active
     parent: session-logging
     aliases: []
+  # `graph` STAYS A ROOT, and the reparenting under `memory-trace` is DEFERRED - approved in
+  # principle 2026-07-27, then blocked by its own rule when the move was measured.
+  #
+  # The reasoning for moving it is sound: 64 entries carry `graph` WITH memory-trace (the rendered
+  # relationship map) and 45 carry it WITHOUT (the Seed-side edge model), which are two areas
+  # sharing a word. `lifecycle-edges` below exists to take the Seed half.
+  #
+  # BUT NOTHING CARRIES `lifecycle-edges` YET. Making the move today would file all 45 Seed-side
+  # entries under Memory Trace, because they resolve through `graph`. Measured on the working
+  # change before reverting it: a filter on `memory-trace` returned 249 entries instead of 204, an
+  # 18% false-positive rate, pulling in rows like "Draft evolution-edges proposal" and "Replace
+  # core topics with structured continuity field" - work with no connection to the viewer.
+  #
+  # That is exactly rule 3 of hierarchical-topic-vocabulary-proposal.md - a slug must fit EVERY
+  # ancestor - and it is the failure mode the rule was written for: invisible pollution of an
+  # ancestor's filter, where nobody inspecting `memory-trace` can see which descendant put the
+  # entry there. The rule was written the same day, and it caught the change its own author was
+  # making.
+  #
+  # UNBLOCKING IT needs the 45 reassigned to `lifecycle-edges` first. Entries are append-only, so
+  # that is a reviewed derived-override campaign (`retracts:`), not an edit - and it needs its own
+  # approval. Until then `graph` keeps both meanings and stays where it is.
   - slug: graph
     label: Decision Graph
-    description: Related-entry edges, lifecycle edges, continuity lineage, and graph schema.
+    description: Related-entry edges, lifecycle edges, continuity lineage, and graph schema. Still spans the Trace view and the Seed edge model - see the note above.
     status: active
     axis: area
     # `topics` is FLAGGED AS WRONG and deliberately left as an alias. Its single authored use
@@ -118,30 +140,39 @@ topics:
     # every entry carries. Promoting it to a canonical slug would offer that collision to every
     # future author and to the swarm. It stays resolvable so the entry stays valid; the real fix is
     # to drop the alias once that entry's intent can be re-expressed.
+    #
+    # NOTE: that alias is now doubly wrong - `topic-vocabulary` is a canonical root as of
+    # 2026-07-27, so `topics` reads as an alias for the graph while naming the thing next door.
     aliases: [topics]
+  # The four below DID move from `graph` to `lifecycle-edges`, even though `graph` itself did not
+  # move. They are all data-MODEL concepts - what an edge IS - and they were the evidence that
+  # `graph`'s centre of gravity is the Seed side. Moving them is safe in a way moving `graph` was
+  # not: every entry authoring one of these is Seed edge work, so no filter gains a false positive.
+  # It also seeds `lifecycle-edges` with real entries, which is the first step toward unblocking
+  # the deferred reparenting above.
   - slug: related-entries
     label: Related Entries
     description: Undirected related-entry edges and their authoring surface.
     status: active
-    parent: graph
+    parent: lifecycle-edges
     aliases: []
   - slug: supersession
     label: Supersession
     description: Supersedes/superseded_by lifecycle edges and retirement records.
     status: active
-    parent: graph
+    parent: lifecycle-edges
     aliases: []
   - slug: continuity
     label: Continuity
     description: Continuity lineage across renames, migrations, and artifact history.
     status: active
-    parent: graph
+    parent: lifecycle-edges
     aliases: []
   - slug: schema
     label: Graph Schema
     description: The shape of graph and sidecar records - fields, versions, and their contracts.
     status: active
-    parent: graph
+    parent: lifecycle-edges
     aliases: []
   - slug: proposal-lifecycle
     label: Proposal Lifecycle
@@ -295,28 +326,173 @@ topics:
     aliases: []
   - slug: memory-trace
     label: Memory Trace
-    description: The companion review UI package and its views.
+    description: The companion review UI package and its views. A real subsystem parent, not a residual - filing Trace work here is correct when no child fits.
     status: active
     axis: area
-    # 43.7% of the corpus and no children, because none were authored. Every candidate child
-    # (`trail`, the shell, the search UI) is named in the concentration review but was never
-    # written into a topics: list, so this slug's breadth cannot be relieved by reclassification -
-    # only by the sweep in step 7. Recording that here so the gap is not mistaken for an oversight.
+    # Was 43.7% of the corpus with no children. The five below took it to 12.8% canonical, measured
+    # by two blind swarm workers over the whole population (cycles 3 and 4, 2026-07-27). Reach is
+    # unchanged at 204 - a filter on this slug still finds every one of them through the children.
     aliases: [memory-trace-ui]
+  - slug: trail
+    label: Trail
+    description: The chronological timeline view - lanes, brackets, branch continuity, the git-graph spine, decision rows in the trail.
+    status: active
+    parent: memory-trace
+    aliases: []
+  - slug: trace-cache
+    label: Trace Cache
+    description: Memory Trace startup, caching, incremental derivation, freshness, and worktree switching.
+    status: active
+    parent: memory-trace
+    aliases: []
+  - slug: trace-harness
+    label: Trace Harness
+    description: The test apparatus for the Trace client - Storybook, Playwright, e2e, a11y gates, and its CI wiring.
+    status: active
+    parent: memory-trace
+    aliases: []
+  # `panes` earns its place on evidence that surprised the proposal: of its 13 entries, 5 chose
+  # `panes` ITSELF - work spanning several panes at once, with no single child fitting. So it
+  # clears the floor even with every child removed, which is a grouping parent doing its job
+  # rather than a bag holding thin slugs.
+  #
+  # Its children are bounded by the DOM: a change is in one region or another, so two siblings
+  # cannot overlap. That is the strongest kind of boundary the vocabulary has, and it is why they
+  # are admissible at 1 and 2 entries - generation 3 carries no floor.
+  #
+  # `settings` and `workspace-bar` were PROPOSED AND DECLINED. Both are equally well bounded and
+  # equally floor-free, and NEITHER blind worker placed a single entry on either. A slug with no
+  # precedent is one that gets applied wrongly the first time it is used. Add them when the corpus
+  # asks for them, not before.
+  - slug: panes
+    label: Panes
+    description: Memory Trace UI panes. Use a specific pane when the work is in one; use this slug when it genuinely spans several.
+    status: active
+    parent: memory-trace
+    aliases: []
+  - slug: topbar
+    label: Top Bar
+    description: The header strip - search box, view switch, worktree picker, refresh.
+    status: active
+    parent: panes
+    aliases: []
+  - slug: navigation
+    label: Navigation Pane
+    description: The left aside - project picker, topic filters, and the entry list.
+    status: active
+    parent: panes
+    aliases: []
+  - slug: inspector
+    label: Inspector
+    description: The entry reader aside - an entry's body, metadata, and links.
+    status: active
+    parent: panes
+    aliases: []
+  - slug: diagram-view
+    label: Diagram View
+    description: The Mermaid diagram viewer and its zoom-pan modal.
+    status: active
+    parent: panes
+    aliases: []
+  # THE LINE BETWEEN THESE TWO IS THE WHOLE POINT OF ADDING `feature-build`, and it is one rule:
+  #
+  #   feature-build - a capability that did not exist before.
+  #   ui-design     - changing how an existing thing looks or behaves.
+  #
+  # The axis had slugs for fixing, designing, documenting, proposing, merging and shipping, and
+  # none for BUILDING. `ui-design` had been absorbing it for UI work, which is why the gap only
+  # surfaced on a backend row during adjudication. Applied across the 22 adjudicated rows the rule
+  # moved six of them and took `ui-design` from 9 to 4.
+  #
+  # Estimated at ~116 entries (25% of the corpus) by keyword, which would make it the largest
+  # activity slug - but the activity axis has had NO swarm pass, and cycle 4 showed what these
+  # estimates are worth: `inspector` was estimated at ~40 and measured 1. Treat the number as
+  # unverified; the category is a ruling.
+  - slug: feature-build
+    label: Feature Build
+    description: Building a capability that did not exist before, on any surface. Not ui-design, which changes how an existing thing looks or behaves.
+    status: active
+    axis: activity
+    aliases: []
+  - slug: testing
+    label: Testing
+    description: Writing, wiring, or gating tests and verification - as an activity, whatever area it lands in.
+    status: active
+    axis: activity
+    # Found by the split-swarm design, not by a person: the AREA axis had a home for harness work
+    # (`trace-harness`) and the ACTIVITY axis had none, so Storybook and Playwright entries were
+    # filed as `ui-design` - one worker reasoning they were "reasonably subsumed" there. Building a
+    # test harness is not design work. Neither worker proposed the slug, because each saw only half
+    # the corpus and it clears the floor only when pooled: proposal detection has to run over the
+    # COMBINED result, which is a protocol fix for the sweep rather than a one-off.
+    aliases: []
   - slug: ui-design
     label: UI Design
-    description: Interface layout, visual hierarchy, interaction design, and rendered UI behavior.
+    description: Changing how an existing thing looks or behaves - interface layout, visual hierarchy, interaction design, rendered UI behaviour. Not feature-build, which creates a capability that did not exist.
     status: active
     axis: activity
     aliases: [frontend-design, visual-design]
-  - slug: memory-seed
-    label: Memory Seed (residual area)
-    description: RESIDUAL area - use ONLY when no narrower area applies, and never alongside another area slug. Narrower areas own their surfaces - mcp-tools owns CLI and MCP, retrieval owns search and ranking, graph owns edges, session-fuse owns merge machinery, session-logging owns entry authoring, control-plane owns agent rules and runtime files, release owns packaging. What remains is core library behaviour with no narrower home - validation, situate/esr, runtime resolution, quality metrics.
+  # RENAMED `memory-seed` -> `seed-core` 2026-07-27 (user-approved). The old name read like the
+  # whole package, which is exactly what a residual must NOT read like - it invited every entry
+  # with no obvious home, and collected 127 of them. `memory-seed` stays an alias, so every entry
+  # that authored it resolves here and nothing is rewritten.
+  #
+  # The residual rule below is UNCHANGED and is why the four new areas are ROOTS rather than
+  # children of this slug: anything specific enough to name is by construction not residual. The
+  # swarm measured that rule holding - of the 39 entries it declined to file under a new area, 34
+  # belonged to a DIFFERENT existing root and only 5 were genuinely residual.
+  - slug: seed-core
+    label: Seed Core (residual area)
+    description: RESIDUAL area - use ONLY when no narrower area applies, and never alongside another area slug. Narrower areas own their surfaces - mcp-tools owns CLI and MCP, retrieval owns search and ranking, lifecycle-edges owns the edge model, topic-vocabulary owns the topic system, test-suite owns the test corpus, docs-lifecycle owns the docs lanes, session-fuse owns merge machinery, session-logging owns entry authoring, control-plane owns agent rules and runtime files, release owns packaging. What remains is core library behaviour with no narrower home - validation, situate/esr, runtime resolution, quality metrics.
     status: active
     axis: area
     # A residual area takes no children by definition: anything specific enough to name is by
     # construction not residual and belongs under the area that owns it.
-    aliases: [memory-seed-core]
+    aliases: [memory-seed, memory-seed-core]
+  # THE FOUR AREAS BELOW ARE ROOTS, NOT CHILDREN OF seed-core (user-approved 2026-07-27). Counts
+  # are swarm-agreed - two workers judging blind, 119/126 agreement, only labels both reached
+  # independently are counted.
+  - slug: lifecycle-edges
+    label: Lifecycle Edges
+    description: The relationship MODEL between entries - link sidecars, evolves/supersedes/replaces/related edges, decision-level refs, and the edge rules in links check and link audit.
+    status: active
+    axis: area
+    # 63 entries, the largest of the four, and already near the band that earns children of its
+    # own - the ~14 `Cycle N` link-campaign entries are the obvious `link-swarm`, floor-free at
+    # generation 3 whenever someone wants it.
+    aliases: []
+  - slug: topic-vocabulary
+    label: Topic Vocabulary
+    description: This file and the system around it - axes, hierarchy, concentration, the topic swarm, caps and aliases.
+    status: active
+    axis: area
+    # The area doing the classifying had no slug of its own, so every entry about the vocabulary -
+    # including the ones that created this slug - landed on the residual with nothing more specific
+    # available. 25 entries, and the swarm's count matched the hand classification exactly.
+    aliases: []
+  - slug: test-suite
+    label: Test Suite
+    description: The pytest suite as an artefact - splitting, culling, coverage measurement, slow-test markers, harness dedup.
+    status: active
+    axis: area
+    aliases: []
+  - slug: docs-lifecycle
+    label: Docs Lifecycle
+    description: The docs/ lane system - which folder a doc lives in, docs check, docs index, and roadmap reconciliation sweeps.
+    status: active
+    axis: area
+    aliases: []
+  # `package` comes from JNL's adjudication of a contested row, NOT from a swarm pass. It spans
+  # Seed and Trace - a package-wide rename, the extras layout, the install path - and was landing
+  # on whichever residual was nearest. Unlike the four above it has no measured count; the
+  # CATEGORY is a ruling, which is different evidence from a count, not weaker evidence of the
+  # same kind. Roots carry no floor, so nothing is being waived.
+  - slug: package
+    label: Package
+    description: Distribution shape across both products - package metadata, extras, install paths, module layout, and cross-package renames.
+    status: active
+    axis: area
+    aliases: []
   - slug: control-plane
     label: Control Plane
     description: Agent rules, skills governance, and reusable runtime files.

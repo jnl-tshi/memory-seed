@@ -1,6 +1,6 @@
 ---
 priority: P2
-next_action: JNL to rule on the table in "The ask". Every area count is now swarm-measured (cycle 4) and both splits score ACCEPTABLE - memory-trace 42.9%->12.8%, memory-seed 26.7%->9.9%. Nine rows are ready; the open question is how many pane children to create, since two of the six came back with zero entries. Nothing may be written to topics.yaml before that.
+next_action: APPROVED and applied 2026-07-27 - 17 slugs are live in .memory-seed/topics.yaml. ONE piece is deferred - reparenting `graph` under `memory-trace` would file 45 Seed-side entries under the viewer (measured 18% false positives), so it waits on a reviewed `retracts:` campaign moving them to `lifecycle-edges`. That campaign is the remaining work and needs its own approval.
 ---
 
 # Proposal: the topic vocabulary change
@@ -12,6 +12,53 @@ No vocabulary change has been made; `topics.yaml` is untouched.
 > **The filename says `memory-trace-children` and the scope outgrew it.** The ask now also covers a
 > child under `memory-seed`, a new root, and two activity slugs. The file keeps its name so inbound
 > links and the docs index stay valid; the title is the accurate one.
+
+## APPROVED AND APPLIED — 2026-07-27
+
+JNL approved. **17 slugs are live in `.memory-seed/topics.yaml`**, no entry was rewritten, no topic was
+removed, and every existing filter returns exactly what it returned before.
+
+| what landed | slugs |
+|---|---|
+| under `memory-trace` | `trail`, `trace-cache`, `trace-harness`, `panes` |
+| under `panes` | `topbar`, `navigation`, `inspector`, `diagram-view` |
+| new area roots | `lifecycle-edges`, `topic-vocabulary`, `test-suite`, `docs-lifecycle`, `package` |
+| new activity roots | `feature-build`, `testing` |
+| renamed | `memory-seed` → **`seed-core`** (old name kept as an alias) |
+| reparented | `continuity`, `related-entries`, `schema`, `supersession`: `graph` → `lifecycle-edges` |
+| **declined** | `settings`, `workspace-bar` — zero agreed entries each |
+
+**Two decisions were taken at apply time and both are reversible one line at a time.**
+
+**1. The four Seed areas are ROOTS, not children of `seed-core`** (JNL's ruling). `topics.yaml` declares
+the old `memory-seed` slug a RESIDUAL area — *"a residual area takes no children by definition: anything
+specific enough to name is by construction not residual"* — and its peers `graph`, `retrieval`,
+`session-logging`, `mcp-tools` are all roots already. Making the four children would have contradicted
+that rule; making them roots keeps it, and the swarm had just measured the rule holding (34 of 39
+declined entries belonged to a *different existing root*). The rename follows: `memory-seed` read like
+the whole package, which is what a residual must not read like, and is why it had collected 127 entries.
+
+Consequence to be aware of: filtering `seed-core` no longer reaches the four areas. Under the residual
+reading that is correct — those entries were never *about* the residual, they were parked there.
+
+**2. Reparenting `graph` under `memory-trace` is DEFERRED, and its own rule is why.**
+
+The move was approved and is still right in principle. Applying it and measuring showed it files **45
+Seed-side entries under the viewer** — a filter on `memory-trace` returning 249 rows instead of 204, an
+**18% false-positive rate**, pulling in "Draft evolution-edges proposal" and "Replace core topics with
+structured continuity field". `lifecycle-edges` exists to take those 45, but **nothing carries it yet**.
+
+That is rule 3 — *a slug must fit every ancestor* — and precisely the failure it describes: invisible
+pollution of an ancestor's filter, where nobody inspecting `memory-trace` can see which descendant put
+a stray entry there. The rule was written the same morning and it caught the change its own author was
+making.
+
+**Unblocking it** needs the 45 reassigned to `lifecycle-edges` first. Entries are append-only, so that
+is a reviewed derived-override (`retracts:`) campaign, not an edit, and it needs its own approval. The
+four data-model children *did* move, which seeds `lifecycle-edges` with real entries and is the first
+step.
+
+*The ask that was approved is preserved below.*
 
 ## The ask
 
