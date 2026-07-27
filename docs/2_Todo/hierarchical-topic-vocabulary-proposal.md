@@ -300,3 +300,59 @@ the graph's parent-colour/child-group split is the harder consumer to get right.
   Re-run the concentration review after each split — it is the same query, and it says both where to
   deepen and where a level has stopped earning its place. The five-question test still applies to any
   level added without a measurement behind it.
+
+## Three rules settled 2026-07-27 (JNL)
+
+### 1. Levels must be well bounded
+
+A child earns its place by being *distinguishable without judgement*, not merely by being narrower.
+The strongest boundaries are physical: `panes` splits into `inspector`, `topbar`, `navigation`,
+`settings`, `workspace-bar` and `diagram-view` because each names a region that exists in the DOM — a
+change is in one `<aside>` or another, so two siblings cannot overlap. Definitions written by hand carry
+no such guarantee, which is why reading the component tree beat inferring groupings from entries.
+
+Where no boundary exists, do not create the level however large the parent. `ui-design` (100) is the
+open case: its plausible children — layout, theme, typography, motion, accessibility — are judgement
+categories, and until they can be bounded the rule says leave it flat.
+
+### 2. The floor applies only to the SECOND generation
+
+`MIN_CHILD_ENTRIES` governs whether a new BRANCH of the tree is justified. Below that, **there is no
+floor at all** — a one-off grandchild is fine.
+
+Depth is cheap once a parent exists to aggregate it, and every consumer already rolls up:
+`expand_topic_filter` matches a parent against every descendant transitively (verified to three levels),
+community colour keys on the ROOT so the palette never grows, and analysis can run at whatever
+generation makes sense. A grandchild is therefore strictly more information than its parent carried
+alone, at no cost to any reader who wants the coarser view.
+
+This deliberately creates an incentive to GROUP. Sub-floor candidates that share a natural parent should
+be proposed underneath it rather than beside it — which is exactly what `panes` did: six children of
+2–6 entries each, all failing the floor individually, all floor-free once `panes` (23) carried them.
+
+Not to be confused with `COMMUNITY_TOPIC_FLOOR` (10), which decides which topics may NAME a graph
+community. That one stays: it governs how many colours the palette hands out, not what the vocabulary
+may say.
+
+### 3. A slug must fit every ancestor, not just its immediate parent
+
+This is what rule 2 costs, and the cost falls on the **workers**. Assigning `inspector` asserts three
+things at once — that the work is in the inspector pane, *and* that it is `panes` work, *and* that it is
+`memory-trace` work. If any link in that chain is false then the slug is false, however well the leaf
+itself fits; the worker emits the deepest ancestor that *is* true, or nothing.
+
+The reason is that roll-up is a promise, not a convenience. Depth is free (rule 2) **because** every
+consumer aggregates upward, so a filter on `memory-trace` is guaranteed to return everything filed
+anywhere beneath it. A leaf that breaks its chain does not mislabel one entry — it pollutes every
+ancestor's filter above it, and does so **invisibly**, since nobody reading `memory-trace` can see which
+leaf put a stray entry there. The deeper the tree grows, the further one bad fit propagates, so this
+rule is what keeps rule 2 from compounding.
+
+The two pressures are therefore bounded against each other: the swarm brief's rule 4 says *take the
+narrowest slug that fits*, and this says *narrower is better only while every level above stays true*.
+When in doubt, go up a level — a correct parent beats a plausible child.
+
+No script can check semantic fit, so the tooling makes the claim visible instead.
+`propose_topic_children.py` prints the chain a candidate must satisfy — `git-workflow > merge > <child>`
+— in both `gather` and `score`, and `topic_swarm.md` teaches the rule inline in §2 rule 4, where the
+pressure toward specificity is applied rather than as a footnote read after the damage is done.
