@@ -1318,6 +1318,29 @@ class TraceService:
             roots[name] = ancestors[-1] if ancestors else canonical
         return roots
 
+    def topic_canonical(self) -> dict[str, str]:
+        """Every authorable topic NAME -> the canonical slug it denotes.
+
+        The sibling of ``topic_roots``, and needed for the same reason the roots
+        map is: the renderer cannot derive the vocabulary's shape. Roots alone
+        are not enough to tell an ALIAS from a CHILD - both map to a root, and
+        `perf`/`performance` looks identical to `merge`/`git-workflow` through
+        that map. The difference matters wherever colour is keyed below the root
+        (the focused-topic view): a child is a narrower concept and earns its own
+        colour, while an alias is only a different spelling and must take the
+        colour of the slug it denotes, or one concept draws two swatches.
+
+        A canonical slug maps to itself, so the map is total over the vocabulary
+        and an unknown slug falls back to plain identity. Not memoized, for the
+        same reason as ``topic_roots``: it reads topics.yaml, which is outside the
+        cache's freshness signal.
+        """
+        try:
+            index = load_topic_index(self.cache.cwd)
+        except Exception:  # noqa: BLE001 - a broken vocabulary must not take the whole facets payload down
+            return {}
+        return dict(index.resolution())
+
     def _derived(self) -> tuple[list[MemoryChunk], dict[str, Any], dict[str, Any]]:
         """Augmented all-entry chunks + related graph + diagram-sidecar map,
         memoized per cache generation. Filtered views (graph()) reuse the
@@ -1393,6 +1416,11 @@ class TraceService:
             # by the roots and does not grow (or reshuffle) as children populate;
             # grouping and filtering stay at the child level.
             "topic_roots": self.topic_roots(),
+            # slug -> canonical slug. Tells an ALIAS (a spelling of the same
+            # concept) from a CHILD (a narrower one), which the roots map alone
+            # cannot: both map to a root. Only matters where colour is keyed
+            # below the root, i.e. the focused-topic view.
+            "topic_canonical": self.topic_canonical(),
         }
 
     def search(
