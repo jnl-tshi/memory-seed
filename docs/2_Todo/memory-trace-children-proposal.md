@@ -1,119 +1,117 @@
 ---
 priority: P2
-next_action: JNL to approve or reject the four candidate children, and to decide the redundant-tag question that the measurement exposed. Nothing may be written to topics.yaml before that.
+next_action: JNL to approve or reject the five candidate children. Nothing may be written to topics.yaml before that.
 ---
 
-# Proposal: children for `memory-trace`, and what the measurement says instead
+# Proposal: children for `memory-trace`
 
-Status: **PROPOSAL — 2026-07-27.** The first run of proposal mode
+Status: **PROPOSAL — 2026-07-27, rewritten the same day.** The first run of proposal mode
 (`scripts/propose_topic_children.py`), triggered by the concentration measurement as
 [vocabulary-proposal-mode-proposal.md](vocabulary-proposal-mode-proposal.md) requires. No vocabulary
 change has been made; `topics.yaml` is untouched.
 
-## Why this slug is open
+> **The first version of this document reached the wrong conclusion, and it is corrected below rather
+> than deleted.** It claimed that the 86 entries carrying `memory-trace` *and* a finer area slug were
+> redundantly tagged, and that the fix was to retract the parent. JNL corrected it: `memory-trace`
+> names the **subsystem** and the finer slug names the **component**, so the two are different facts,
+> not a duplicate. The original conclusion also mis-read the measurement — see "What I measured wrong".
 
-`measure_topic_concentration.py`, 2026-07-27:
+## What I measured wrong
 
-| slug | entries | share | rollup |
-|---|---|---|---|
-| **memory-trace** | 202 | **43.9%** | 202 |
-| memory-seed | 116 | 25.2% | 116 |
-| graph | 108 | 23.5% | 111 |
-| ui-design | 100 | 21.7% | 100 |
+`memory-trace` is on 202 of 461 topiced entries, 43.8%. I treated that as the problem. It is not: that
+is the root's **reach**, and a subsystem root is *supposed* to reach a large share of the work.
 
-`memory-trace` is on nearly half of every topiced entry, and it has **no children at all**. It is the
-work queue's first item and the reason the sweep has nothing useful to ask.
+The number a hierarchy actually deflates is the **canonical** count — entries that land ON the root
+because nothing more specific exists. `measure_topic_concentration.py` prints both columns and says so
+in its own docstring; I read the wrong one. Today the two are identical (202 / 202) for exactly one
+reason: `memory-trace` has no children, so every entry has nowhere else to land.
 
-## The finding that changes the shape of the answer
+**Reach is preserved by derivation, not by tagging.** Store the most specific slug and the ancestors
+follow — `ancestors()` walks up, `expand_topic_filter` expands down. Filtering on `memory-trace` still
+finds all 202 after a split. That is the whole point of the hierarchy, and it is why nothing needs to
+be retracted for concentration to fall.
 
-**43% of the entries carrying `memory-trace` already carry a finer AREA slug.** 86 of 202:
+## Projection under the corrected framing
 
-| also carries | entries |
-|---|---|
-| `graph` | 63 |
-| `memory-seed` | 9 |
-| `mermaid` | 6 |
-| `control-plane` | 3 |
-| `session-logging` | 3 |
-| `session-layout` | 2 |
-| `process-management`, `continuity` | 1 each |
+Each entry authoring only its deepest area slug:
 
-For those entries `memory-trace` is not under-specified, it is **redundant** — a blanket "this is the
-Trace app" tag sitting beside the slug that already says which part. No child can fix that, because the
-specificity is already recorded. The remedy is to stop the parent claiming them, which is a
-**retraction**, not a vocabulary addition.
-
-Only the other **116** entries (57%) have `memory-trace` as their only area tag. Those are the entries a
-child could legitimately claim, and they are what the candidates below are measured against.
+| | entries | share |
+|---|---|---|
+| `memory-trace` **reach** (rollup) | 202 | unchanged |
+| `memory-trace` **canonical**, today | 202 | 43.8% |
+| `memory-trace` **canonical**, with the children below | **~49** | **10.6%** |
 
 ## Candidates
 
-Axis `area`, matching the parent — a child never crosses axes. Counts are entries where `memory-trace`
-is the only area tag.
+Axis `area`, matching the parent — a child never crosses axes. Counts are entries where the candidate's
+subject matter is what the entry is about.
 
-| candidate | entries | % of corpus | verdict |
-|---|---|---|---|
-| **`trail`** — the chronological timeline: decision rows, lanes, brackets, group anchors | 40 | 8.7% | **clears** |
-| **`trace-shell`** — the app frame: settings, panes, docking, typography, theme, find bar | 14 | 3.0% | **clears** |
-| **`trace-cache`** — startup, incremental derivation, freshness, generation, rebuild | 12 | 2.6% | **clears** |
-| **`trace-harness`** — Storybook, Playwright, e2e, a11y gates, renderer evidence | 10 | 2.2% | **clears** |
-| `inspector` — the entry reader pane | 7 | 1.5% | under floor (8) |
-| `diagram-view` — the Mermaid viewer | 4 | 0.9% | under floor (8) |
-| `trace-api` — versioned contract, projection payloads | 3 | 0.7% | under floor (8) |
+| candidate | entries | what it covers |
+|---|---|---|
+| **`graph-view`** | 63 | the relationship map: orphans, node sizing, community colour, force motion, decision rows |
+| **`trail`** | 40 | the chronological timeline: decision rows, lanes, brackets, group anchors |
+| **`trace-shell`** | 14 | the app frame: settings, panes, docking, typography, theme, find bar |
+| **`trace-cache`** | 12 | startup, incremental derivation, freshness, generation, rebuild |
+| **`trace-harness`** | 10 | Storybook, Playwright, e2e, a11y gates, renderer evidence |
+| `inspector` | 7 | the entry reader pane — **below the floor of 8**, revisit |
+| `diagram-view` | 4 | the Mermaid viewer — below floor |
+| `trace-api` | 3 | versioned contract, projection payloads — below floor |
 
-`trail` is a strong candidate on its own evidence: at 40 entries it is larger than eleven of the
-vocabulary's existing roots.
+### `graph-view` exists because `graph` is doing two jobs
 
-Deliberately **not** proposed: a `graph-view` child. 63 of these entries already carry the `graph`
-root, so the seam is covered — minting a Trace-flavoured duplicate of an existing area slug would be
-the unearned depth the promotion rule exists to refuse.
+The first version declined this child on the grounds that the `graph` root already covered the seam.
+The corpus says otherwise — `graph` currently spans two subsystems:
 
-## The scorer's verdict: REJECT
+- **63 entries** carry `graph` *with* `memory-trace`: the Trace graph **view** — "Graph orphans: edge
+  ceiling", "Size graph nodes by degree centrality", "Continuous whole-graph physics".
+- **45 entries** carry `graph` *without* it: the Seed **edge model** — "Draft evolution-edges
+  proposal", "Replace core topics with structured continuity field", "Complete MCP sidecar-edge
+  parity".
 
-```
-  trail            40   8.7%   ok        trace-cache    12   2.6%   ok
-  trace-shell      14   3.0%   ok        trace-harness  10   2.2%   ok
-  inspector         7   1.5%   UNDER FLOOR (8)
-  diagram-view      4   0.9%   UNDER FLOOR (8)
-  trace-api         3   0.7%   UNDER FLOOR (8)
-  (residual on the parent)   112   24.3%
+Those are different areas that happen to share a word. `graph`'s existing children (`continuity`,
+`related-entries`, `schema`, `supersession`) are all data-model concepts, which confirms where that
+slug's centre of gravity is: the Seed side. A Trace `graph-view` child would take rendering concerns,
+and its own grandchildren — if it ever earns them — would be rendering concerns too.
 
-REJECT:
-  - three candidates below the floor of 8
-  - parent still 24.3% after the split, target is <=20%
-```
+**`graph` therefore has a concentration problem of its own**, and it is the next item in the work
+queue, not part of this proposal.
 
-The four qualifying children take `memory-trace` from 43.9% to **24.3%** — a large improvement that
-still misses the target, and it misses it *because of the 86 redundant tags*, not because the children
-are wrong. The arithmetic is worth stating plainly:
+## Under-floor candidates
 
-- children alone: 202 → 112 entries, **24.3%**
-- children **and** retracting the 86 redundant parent tags: 202 → 40 entries, **8.7%**
+`inspector` (7), `diagram-view` (4) and `trace-api` (3) are real distinctions that have not yet earned
+a slug. The floor is what separates earned depth from a vocabulary that grows whenever someone wants a
+finer label. `inspector` is one entry short and will likely qualify on its own within a week of
+inspector work.
 
-Splitting solves about half the problem. The other half is a tag that should never have been on those
-entries beside a finer one.
+## Retraction: narrow, and not this
+
+**Settled 2026-07-27 by JNL.** A topic retraction mechanism is worth having, scoped to **corrections** —
+a topic that is genuinely wrong, or a `derived` block correcting a `write-time` one, which
+[sidecar-supersession-model.md](../3_Spec/draft/sidecar-supersession-model.md) already identifies as
+having no legal spelling today.
+
+It is explicitly **not** the instrument for deflating a parent. Depth does that, by derivation, without
+touching anything an author wrote. Reaching for retraction to fix concentration would mean deleting
+true statements to make a number smaller.
 
 ## What is being asked
 
-1. **Approve or reject the four children** — `trail`, `trace-shell`, `trace-cache`, `trace-harness`.
-   Approval means adding four `parent: memory-trace` slugs to `topics.yaml`, which is a governance
-   change to deploy-once state and cannot be made by an agent.
-2. **Decide the redundant-tag question.** Should `memory-trace` come off an entry that already carries a
-   finer area slug? This is the larger half of the concentration and it needs a mechanism that does not
-   exist: links have `retracts:`, topics do not. Under the standing rule that swarm output may only
-   override write-time data through a reviewed retraction, there is currently no legal way to remove a
-   topic an author wrote.
-3. The three under-floor candidates should be **declined for now** and revisited if their areas grow —
-   the floor is what stops the vocabulary acquiring depth it has not earned.
+**Approve or reject the five children that clear the floor**: `graph-view`, `trail`, `trace-shell`,
+`trace-cache`, `trace-harness`. Approval means adding five `parent: memory-trace` slugs to
+`topics.yaml` — a governance change to deploy-once state, which an agent cannot make.
+
+Nothing else is required. No entry is rewritten, no topic is removed, and the parent keeps its full
+reach.
 
 ## Notes for whoever picks this up
 
-- The three sub-floor candidates are real distinctions, just not yet load-bearing ones. `inspector` at 7
-  is one entry short and will likely qualify on its own within a week of inspector work.
-- Clustering here was keyword-led over entry titles and then reviewed, not a swarm fan-out. That is
-  weaker evidence than reading the bodies, and it is why this document reports counts and quotes rather
-  than asserting the split is correct. A swarm pass over the 116 would firm up the boundaries —
-  particularly the 26 that matched nothing.
-- Re-run any number in this document with:
+- Clustering was keyword-led over entry titles and then reviewed, not a swarm pass over the bodies.
+  That is weaker evidence than the design asks for: 26 of the 116 single-area entries matched no
+  pattern, and those boundaries are the ones a swarm would firm up.
+- Re-run any number here with:
+  `python scripts/measure_topic_concentration.py`
   `python scripts/propose_topic_children.py gather memory-trace`
   `python scripts/propose_topic_children.py score memory-trace <split.json>`
+- The scorer's floor and target are stated in code (`MIN_CHILD_ENTRIES`, `TARGET_PARENT_SHARE`). It
+  scores the *canonical* residual, so re-running it after this reframe requires the split to include
+  `graph-view` — without that child it still reports REJECT, correctly.
