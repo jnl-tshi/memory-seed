@@ -1,0 +1,126 @@
+mse_03bwbpzck2qdkeh7	docs-lifecycle	Docs sweep: record session durable facts (swarm, edge_confidence, retraction, decision-level, confidence rendering)
+mse_61bnt9ty6rfgpw1e	docs-lifecycle	Reconcile roadmap, durable facts and audit with the 2026-07-21/22 tranche
+mse_s0rh0b60tv8ssjzd	docs-lifecycle	Fix cross-platform docs-index ordering exposed by the new CI gate
+mse_ntkt6m0pqd0g8c9j	docs-lifecycle	Ship marker-scoped docs index completing lifecycle Phases 2-3
+mse_mr0dhy4s09wcsf9v	docs-lifecycle	Retire the legacy completed archive into the Completed lane
+mse_f8qh5388msxbd0mn	docs-lifecycle	Wire docs check into esr and CI
+mse_7thr675q235n2161	docs-lifecycle	Doc-hygiene sweep: index-check CI, BG2 close, BG1 status fix, open-decisions gate
+mse_5nr2pvjyrs92bvj2	docs-lifecycle	Ship docs check and repair the spec_binding drift it found
+mse_dqwvb8gxnn88ch3b	lifecycle-edges	Derived overrides write-time only via a reviewed retracts
+mse_s0kh1h39kzdgyk38	lifecycle-edges	Decision-level topic grammar and the sidecar supersession model
+mse_pndcc168895x59ex	lifecycle-edges	Lifecycle-link judgment swarm becomes a durable repo skill
+mse_p4xd3wqf214nqtmv	lifecycle-edges	Link campaign: 696 decision-level edges written with structured per-edge confidence
+mse_jkfnrc6r9jwr353k	lifecycle-edges	Decision-level related_entries: generalize the decision-ref grammar
+mse_fsdq53qa5ak68xqh	lifecycle-edges	Convert audit downgrades to append-only retracts (Invariant #2); fix arrow-bare retract twin
+mse_c3a4z35t4m4rjf1n	lifecycle-edges	Append-only link retraction: retracts: block to downgrade/remove published edges
+mse_bx4zjr3cy79w7jme	lifecycle-edges	Inferred-topic read channel with most-recent-wins precedence
+mse_5yk4ewb14hpvyxjs	lifecycle-edges	Hand-audit the 8 litmus-flagged campaign edges: downgrade 5 evolves to related
+mse_smz281cjrvh1j22d	lifecycle-edges	Vocabulary unified: supersedes becomes replaces across Seed and Trace
+mse_scrxc2q4m4k6xsz4	lifecycle-edges	Cycle 7: six edges, six verified quotes, zero rejections
+mse_kdhw53hzp4nh8wwm	lifecycle-edges	Decision granularity is mandated: :dN on both ends, source names itself with an arrow
+mse_h297nf3qghp7ysyk	lifecycle-edges	Reconcile decision granularity: name an ordinal only when there is a choice
+mse_888p3x61z0kev9cp	lifecycle-edges	Write-time decision refs: :dN lands in entry YAML with the taught litmus
+mse_6s46whjzghew9w08	lifecycle-edges	Cycle 9 closes the AR sweep: 68 validated edges across the programme
+mse_4cbv09gbm3m1k1xt	lifecycle-edges	Cycle 6: second blocks are routine; the identity fix earns its keep
+mse_3rxfe786hwape4hs	lifecycle-edges	Cycle 8: five deferral completions; the deepest lineage reaches four decisions
+mse_x4ek3tdcpkcpkkra	lifecycle-edges	Cycle 3: batching cuts cost 4.6x at equal quality; five more edges land
+mse_qr4m514ad0ajrt1n	lifecycle-edges	link audit gains decision awareness in its output; swarm scoped as an optional layer
+mse_nj92736b1vfzmhez	lifecycle-edges	Cycle 4: the swarm converges with the validator on the held-out set
+mse_h95qjk483b0ga8r8	lifecycle-edges	Cycle 5: full bodies win; the repeat-source wall becomes the bottleneck
+mse_aaf70nt2cme37439	lifecycle-edges	Cycle 2: rules halve over-calling; quote check catches its first bad edge
+mse_6cec6ad63n5wtpr1	lifecycle-edges	Close the P1 ref-extraction corruption in links check
+mse_67y44fsj2srz0eyz	lifecycle-edges	Swarm run 0: eight validated decision edges land, four hit the append-only wall
+mse_58rgfg4n8vfqbvfw	lifecycle-edges	Link-sidecar block identity fix: later edges append, the withheld ledger empties
+mse_4f16xe7ztx7dwvgx	lifecycle-edges	Cycle 1: ten validated upgrade edges land; overhead, not context, is the cost
+mse_xfbcr3n4vet62hmh	lifecycle-edges	Rank link-audit candidates by semantic similarity
+mse_3e63pfckz4rzkw25	lifecycle-edges	Decision-level sidecar refs reach the Trail decision row; ADR corpus recount
+mse_p62d4y4df0d8pz4x	lifecycle-edges	Score link-audit candidates on shared title terms
+mse_j55kt6mq230zj2p4	lifecycle-edges	Draft decision-level refs for link sidecars
+mse_ad6fgzpnqe10j91c	lifecycle-edges	Decision edges must cross entries; endpoints may mix granularity
+mse_9fv6g3ma2xpzczjz	lifecycle-edges	Classify all 69 open link-sidecar stubs
+mse_49j7822hdwsnm517	lifecycle-edges	Audit the decision-ref draft's empirical claims
+mse_fx8e2z5vpptfxvf8	lifecycle-edges	Link sidecars can record examined-and-empty: add edge_status, not a manifest
+mse_1cabc5sw1g4hkb25	lifecycle-edges	Ship link add and block the P2 backfill on Invariant 2
+mse_sdh0v1jsgxaamax5	test-suite	Retire the 6,500-line test_memory_seed.py: AST-driven split into 12 concern-based files
+mse_sb631pxd2yf10x9n	test-suite	Roadmap update: record the test-suite protection-value audit's completion
+mse_qv549zxf8wtmaamg	test-suite	Structural split of test_session_fuse_and_merge.py resolved
+mse_n1kke4khqa2rw645	test-suite	Phase 2c cull: 8 smaller split files, reviewed, all Keep
+mse_k6bv01p72n121eec	test-suite	Phase 2c cull: test_links_check.py, move + review
+mse_g1ntzqqkwdht2b15	test-suite	Phase 2c cull: test_session_fuse_and_merge.py, reviewed, all Keep
+mse_fh4sp1twn0w662jb	test-suite	Test-suite audit pass 1: measure, then tier 92 slow tests behind an integration marker
+mse_f15dhdn52ytwgy5k	test-suite	Harness dedup: one shared run_git(), each caller keeps its own check/timeout
+mse_5c6v18dw5c47a2pf	test-suite	Phase 2c cull: remaining 18 original unit-test files, all Keep + one 3-test Expand
+mse_4nahwc2p4r7r0smd	test-suite	Phase 2c cull: test_cli_help.py, review + one closed coverage gap
+mse_46ztm2fr5t1x1nhv	test-suite	Coverage measured, flakiness baselined: cli.py is the real gap, not the count
+mse_3d80z4k6hb4rftq1	test-suite	Phase 2c cull: test_project_lifecycle.py, reviewed, all Keep
+mse_1gcbzv5w9cgw7bga	test-suite	Close the seed registry / SEED_FILES consistency gap with a two-direction test
+mse_zcmnjhax0k4w6nk5	topic-vocabulary	Floor down to 5: the constant stopped carrying the depth question
+mse_z110ha6vj0zx354s	topic-vocabulary	One approvable vocabulary list, and the counts it quotes do not reproduce
+mse_wj0rjzw49kyj4kxs	topic-vocabulary	The third hierarchy rule: a slug must fit every ancestor, or roll-up is a lie
+mse_ttym9avz2hhf7s6s	topic-vocabulary	Two hierarchy rules: levels must be bounded, and depth below generation 2 is free
+mse_kys1ygxq2sxcnfbs	topic-vocabulary	Correction: depth deflates a parent, retraction is for corrections only
+mse_hxz9sjqsbj0wx2nc	topic-vocabulary	Three swarm cycles: split the axes, and the constrained question scores 0.89
+mse_fdvkdmq9mvfg9bv0	topic-vocabulary	Controlled swarm experiment: separate both axes, and one sentence about depth is worth 28 points
+mse_c34tddektr8x3t27	topic-vocabulary	Proposal mode built; its first run rejects the memory-trace split and names why
+mse_b95ahk5wz1pzeedn	topic-vocabulary	Held-out run: reliability generalises, validity is unestablished, and the behavioural gold set failed
+mse_8392b2vme5pgvr55	topic-vocabulary	Adjudicating 22 rows found the vocabulary's largest gap: a quarter of the corpus has no activity
+mse_xc3f1we7p4808mra	topic-vocabulary	Resolve the memory-seed slug ambiguity that was deciding the swarm gate
+mse_wj8p66t3v1pbpzth	topic-vocabulary	Hierarchy step 3: axis shape validation at write time, and the silent parent cycle
+mse_tv2hja047a9az5fw	topic-vocabulary	Swarm proposal mode: assignment writes, proposal advises
+mse_s2v8qjc51hx0zp65	topic-vocabulary	Topic-swarm pilot run 1: Leg A 0.583, re-prompt band, gate still open
+mse_rx13gpyr398vh0gf	topic-vocabulary	Hierarchy step 1: axis and parent fields, behaviour-neutral
+mse_r1kqge2jnv7w9mwp	topic-vocabulary	Topic concentration review: memory-trace and graph are too broad
+mse_ptqkjznweyy1qefc	topic-vocabulary	Hierarchical topic vocabulary: parents colour, children group
+mse_kdtas1ae28tk3x3j	topic-vocabulary	Declare the topic axis, de-software the vocabulary language, split the surface
+mse_jqpmdemhxa2pv380	topic-vocabulary	Topic depth earned by concentration; area and activity confirmed as the axes
+mse_gymjttp497nvahnw	topic-vocabulary	Topic-swarm pilot run 2 aborts the decision-level backfill at Leg A 0.613
+mse_25zzy3cmdjgrsf69	topic-vocabulary	Hierarchy step 2: axis declared, 31 authored aliases promoted to children
+mse_n8yj9v0yv2jyg37a	topic-vocabulary	Inferred-topic consumers: union for reachability, separate for provenance
+mse_jz0pwv0ngzzxr484	topic-vocabulary	Topic vocabulary: raise the cap to 4, defer decision-level keying
+mse_ke0f6x2v8zmd3yrf	topic-vocabulary	Add security and performance to the topic vocabulary
+mse_vy8tq90rr4br8a0z	topic-vocabulary	Repair topic vocabulary for recent entries
+mse_zq69mbr57qnppm36	RESIDUAL	Constitution v1.5: retire the diagram-repair carve-out, ratify minimal-sufficient-context
+mse_z7rfq8x5qjfbyzdc	RESIDUAL	Write-time consolidation proposal: same surface, sidecar storage, swarm as sweep
+mse_x1ha2e26md3q83zv	RESIDUAL	Source outranks recency: close the precedence hole in the consolidation design
+mse_tyj5wy264y84rhnf	RESIDUAL	Constitution v1.6: first-hand vs reconstructed provenance; consolidation accepted
+mse_1ghkqp2qa8e926nx	RESIDUAL	Reconcile the open-threads list with eleven landed workstreams
+mse_75r7hmeqxjaas97n	RESIDUAL	Diagram sidecar append path via block identity
+mse_5zg50mzrmtx80c80	RESIDUAL	Information-theoretic proposal: retire on arrival, disposition + three residues
+mse_qgj4wmmjm0p5axte	RESIDUAL	First-message operating-mode gate lands in orientation.md, not agent-rules.md
+mse_x4hxjf88v3vns5sp	RESIDUAL	The diagram repair became a constitutional amendment
+mse_y8eds7vvbcshxvcp	RESIDUAL	Clear the control-plane references to the banned subgraph technique
+mse_dc48xabd9c2gg6pa	RESIDUAL	Sidecar diagram repair and the parser traps behind it
+mse_bz03mjc3mvxk8t68	RESIDUAL	Narrow the compact-Mermaid skill to the subset Arc 2d actually parses
+mse_gtn504wfjt3c34p6	RESIDUAL	Memory Trace incremental startup: bulk git reads, persisted derivations, lazy bootstrap
+mse_9r00krq403dsmdnq	RESIDUAL	Lightweight install path and visible semantic-ranking status
+mse_27jbk0z5nkg4jabe	RESIDUAL	Machine guard for entry-free branch merges
+mse_zdw5vvvazqcac1ky	RESIDUAL	Phase 0: remove the memory-seed[lense] deprecation shim (Track A.4 resolved)
+mse_wq9mynw3bmqrh7hn	RESIDUAL	Phase 0: add the ESR Persona Usage Check (Track C.2 resolved)
+mse_v9stt3nxkg7s4m84	RESIDUAL	ADR decision identity is the entry id plus an ordinal; a singular Decision reads as d1
+mse_tx1c338ca1ybr666	RESIDUAL	Retire both inbox proposal sets; correct a false crosswalk claim before it became the record
+mse_gerb0g4ax513jcm4	RESIDUAL	Clear the orphaned worktrees; the lock was a git-for-Windows quirk, not OneDrive
+mse_skcmezqbxxh5dtp6	RESIDUAL	Block false-anchor session merges and un-blind the body lint
+mse_nzf2pfkwnehx5b70	RESIDUAL	Close out all open branches and worktrees
+mse_jgppt40tm13wk9yk	RESIDUAL	Catch unclosed metadata fences at the links-check gate
+mse_ys6bsx9spwja7yfy	RESIDUAL	Deterministic clock: memory_entry_id stamps server time and warns on drift
+mse_q46hv7m7x3b2j1zg	RESIDUAL	Non-blocking entry-future-timestamp advisory in links check
+mse_6pj7hkwwp5va9jaq	RESIDUAL	Correct authored-timestamp drift; entry times are inputs, not clock-derived
+mse_1ryp0gf7vhqyhkdf	RESIDUAL	Worktree navigation in the React workspace via a scoped v1 contract
+mse_zwsfxe97yndqf8pr	RESIDUAL	Assess unpromoted system-evolution lessons
+mse_xje157km2m3rfzv0	RESIDUAL	Publish BG1 provenance authority crosswalk and surface the v1 contract break
+mse_te4e7yvt571nkh16	RESIDUAL	Cut Memory Seed 2.19.0
+mse_sp421s7cxtrbfqha	RESIDUAL	Add reusable full verification gates
+mse_rn6fbgb7z90ng7jy	RESIDUAL	Fix the lense shim CI failure and re-cut v2.19.0
+mse_qgc90wxjngj6ss11	RESIDUAL	Audit test coverage, deprecation status, and release gates
+mse_p6rzcmftzt6ga9pm	RESIDUAL	Unify the session entry-boundary grammar
+mse_ksp4agbh7rpn21wq	RESIDUAL	Ship the OpenSSF in-repo slice with SHA-pinned hardened workflows
+mse_h4tfxhfzcm40em0x	RESIDUAL	Verify and close out the v2.19.0 release
+mse_efeqfyaf40w6dvj7	RESIDUAL	Add a non-blocking decision-density advisory
+mse_c86qbwe1xp2sctq3	RESIDUAL	Ship the Track E worktree remover and prove it end-to-end
+mse_b1q6bjqv5w1zyn2k	RESIDUAL	Ship memory-quality metrics v0 and record the first baseline
+mse_a0mbycf08bfp7p8x	RESIDUAL	Ratify Constitution 1.2 human-gated metadata curation
+mse_9xfpvhqrm44jedce	RESIDUAL	BG1 step 4: display authority and provenance distinctly in the Trace inspector
+mse_42xwbxbv50phwb6b	RESIDUAL	Enum-constrain authority_class and break v1 to close the taxonomy debt
+mse_1yk6gw5chvv6xks5	RESIDUAL	Ship the Track E dry-run worktree classifier
+mse_1wz44tdd04pt5yx4	RESIDUAL	Make links check shallow-clone aware and give CI full history
+mse_w2fk7qnx4t9b3vmh	RESIDUAL	Memory-Entry trailer stamping in session merge-branch
