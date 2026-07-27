@@ -32,6 +32,14 @@ def _entry(dt, eid):
     return f"## {dt} - entry\n\n```yaml\nentry_id: {eid}\n```\n\n- note\n"
 
 
+def _sidecar_block(dt, eid, family):
+    """A sidecar block, which NAMES an entry rather than carrying one."""
+    return (
+        f"---\ntags:\n  - session-log-{family}\n---\n\n"
+        f"## {dt} - a block\n\n```yaml\nentry_id: {eid}\n```\n"
+    )
+
+
 class GitHookTests(unittest.TestCase):
     def setUp(self):
         self.cwd = Path(tempfile.mkdtemp(prefix="mseed-hook-"))
@@ -172,6 +180,47 @@ class GitHookTests(unittest.TestCase):
         self._git("commit", "-m", "test: fixture with an entry_id line")
 
         self.assertNotIn("Memory-Entry:", self._last_message())
+
+    @pytest.mark.integration
+    def test_sidecar_entry_ids_are_not_stamped(self):
+        """A sidecar REFERENCES an entry; it does not carry one.
+
+        A trailer claims "this commit carries this entry". A session document's
+        `entry_id:` is the entry being authored; a sidecar's names one authored
+        somewhere else, often months earlier. Latent until a topic sweep wrote
+        one block per entry across the whole corpus and two commits stamped 520
+        trailers apiece - before that, sidecars named two or three at a time and
+        the over-stamping was invisible.
+        """
+        install_git_hooks(self.cwd)
+        for family in ("topics", "links", "diagrams"):
+            folder = self.sessions.parent / family / "2026-06"
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / "2026-06-13.md").write_text(
+                _sidecar_block("2026-06-13 09:00", EID, family), encoding="utf-8"
+            )
+        self._git("add", "-A")
+        self._git("commit", "-m", "docs: sidecars only")
+
+        self.assertNotIn("Memory-Entry:", self._last_message())
+
+    @pytest.mark.integration
+    def test_a_session_entry_is_still_stamped_beside_its_sidecar(self):
+        # The exclusion must not swallow the real thing when one commit carries
+        # both - the ordinary shape of a session that also sweeps.
+        install_git_hooks(self.cwd)
+        (self.sessions / "2026-06-13.md").write_text(_entry("2026-06-13 09:00", EID), encoding="utf-8")
+        folder = self.sessions.parent / "topics" / "2026-06"
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "2026-06-13.md").write_text(
+            _sidecar_block("2026-06-13 09:00", EID2, "topics"), encoding="utf-8"
+        )
+        self._git("add", "-A")
+        self._git("commit", "-m", "docs: entry plus its sidecar")
+
+        message = self._last_message()
+        self.assertIn(f"Memory-Entry: {EID}", message)
+        self.assertNotIn(f"Memory-Entry: {EID2}", message)
 
     @pytest.mark.integration
     def test_new_trailer_joins_an_existing_trailer_block_contiguously(self):

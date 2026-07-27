@@ -1260,8 +1260,40 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertFalse(result.committed)
         self.assertTrue(result.merge_in_progress)
         self.assertTrue(result.issues)
-        self.assertIn("not recognized by any session/diagram/link classifier", result.issues[0])
+        self.assertIn("not recognized by any session/diagram/link/topic classifier", result.issues[0])
         self.assertTrue((cwd / ".git" / "MERGE_HEAD").exists())
+
+    @pytest.mark.integration
+    def test_session_merge_branch_names_the_topic_family_and_says_what_to_do(self):
+        # The topic sidecar family shipped after the fuse and was never taught
+        # to it, so it lands in the same refusal - correctly, since resetting it
+        # to base would drop a branch's attributions. What it must NOT do is
+        # read like an unknown-file bug: hit live on 2026-07-27 when a sweep
+        # wrote 43 topic sidecars, and the message sent the operator looking for
+        # a classifier defect instead of telling them to take MERGE_HEAD's side.
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_aaaaaaaaaaaaaaaa", branch="main")
+        sidecar = cwd / MEMORY_DIR_NAME / "sessions" / "topics" / "2026-07" / "2026-07-10.md"
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        sidecar.write_text("base content\n", encoding="utf-8")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        sidecar.write_text("branch content\n", encoding="utf-8")
+        self._commit_all(cwd, "branch attributes topics")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertTrue(result.merge_in_progress)
+        issue = result.issues[0]
+        self.assertIn("is a TOPIC sidecar", issue)
+        self.assertIn("git checkout MERGE_HEAD", issue)
+        # And the branch's attributions are still there - the whole point of
+        # refusing. Had the guard let the base-reset loop run, this would read
+        # "base content" and the branch's topic work would be gone with nothing
+        # downstream to put it back.
+        self.assertEqual(sidecar.read_text(encoding="utf-8"), "branch content\n")
 
     @pytest.mark.integration
     def test_session_prepare_pr_branch_commits_chronological_merge_on_task_branch(self):

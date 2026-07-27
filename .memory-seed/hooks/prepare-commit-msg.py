@@ -31,11 +31,29 @@ def staged_entry_ids() -> list[str]:
     # Restricted to session trees (root and nested subproject runtimes): the
     # control-plane repo's own test fixtures also contain entry_id: lines and
     # must never be stamped.
+    #
+    # SIDECARS ARE EXCLUDED, and that is the whole correctness of this hook.
+    # A trailer claims "this commit CARRIES this entry". A session document's
+    # `entry_id:` is the entry being authored; a sidecar's is a REFERENCE to one
+    # authored somewhere else entirely - possibly months earlier.
+    #
+    # Latent until 2026-07-27, when a topic sweep wrote one sidecar block per
+    # entry across the whole corpus and two commits stamped 520 trailers each.
+    # Before that, sidecars named two or three entries at a time and the
+    # over-stamping was invisible. Links and diagrams have always had the same
+    # defect at a smaller scale, so all three are excluded rather than just the
+    # family that made it obvious.
     proc = subprocess.run(
         [
             "git", "diff", "--cached", "-U0", "--",
             ".memory-seed/sessions",
             ":(glob)**/.memory-seed/sessions/**",
+            ":(exclude,glob)**/.memory-seed/sessions/topics/**",
+            ":(exclude,glob)**/.memory-seed/sessions/links/**",
+            ":(exclude,glob)**/.memory-seed/sessions/diagrams/**",
+            ":(exclude).memory-seed/sessions/topics",
+            ":(exclude).memory-seed/sessions/links",
+            ":(exclude).memory-seed/sessions/diagrams",
         ],
         capture_output=True,
         text=True,

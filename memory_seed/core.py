@@ -3728,6 +3728,37 @@ def _link_doc_from_relative_path(rel_path: str) -> tuple[str | None, str] | None
     return None
 
 
+def _topic_sidecar_tree_path(rel_path: str) -> bool:
+    """True for a path under ``sessions/topics``, the fourth sidecar family.
+
+    Deliberately NOT part of ``_is_recognized_session_tree_path``. That function
+    gates the base-reset loop, and its contract is "the fuse can rebuild this
+    from parsed records" - which for topics is not yet true. Recognising the
+    family without fusing it would let the loop reset topic sidecars to base and
+    silently drop a branch's attributions, which is precisely the loss the guard
+    exists to prevent. This exists only so the refusal can SAY which family it
+    hit and what to do about it.
+    """
+    parts = Path(rel_path).parts
+    return len(parts) >= 4 and parts[0] == MEMORY_DIR_NAME and parts[1] == "sessions" and parts[2] == "topics"
+
+
+def _unfusable_session_path_reason(rel_path: str) -> str:
+    """Why the fuse will not touch this path, in words an operator can act on."""
+    if _topic_sidecar_tree_path(rel_path):
+        return (
+            "is a TOPIC sidecar, the one sidecar family session-fuse cannot yet rebuild - the family "
+            "shipped after the fuse and was never taught to it. Topic blocks are keyed by "
+            "(entry_id, heading timestamp) and are most-recent-wins wholesale per entry, so when only "
+            "one side changed the file the correct resolution is to take that side: "
+            "`git checkout MERGE_HEAD -- <path>` for branch-side work, then commit the merge by hand."
+        )
+    return (
+        "changed under .memory-seed/sessions but is not recognized by any session/diagram/link/topic "
+        "classifier."
+    )
+
+
 def _is_recognized_session_tree_path(rel_path: str) -> bool:
     """True if a ``.memory-seed/sessions`` path is one the fuse can rebuild from parsed records.
 
@@ -4882,9 +4913,9 @@ def session_merge_branch(
         if not _is_recognized_session_tree_path(rel_path):
             result.merge_in_progress = True
             result.issues.append(
-                f"{rel_path}: changed under .memory-seed/sessions but not recognized by any session/diagram/"
-                "link classifier; refusing to reset it to base content, which would silently discard branch "
-                "work. Merge left in progress for manual resolution."
+                f"{rel_path}: {_unfusable_session_path_reason(rel_path)} Refusing to reset it to base "
+                "content, which would silently discard branch work. Merge left in progress for manual "
+                "resolution."
             )
             return result
         code, _ = _git_text(root, ("checkout", base_commit, "--", rel_path))
@@ -5057,9 +5088,9 @@ def session_prepare_pr_branch(
         if not _is_recognized_session_tree_path(rel_path):
             result.merge_in_progress = True
             result.issues.append(
-                f"{rel_path}: changed under .memory-seed/sessions but not recognized by any session/diagram/"
-                "link classifier; refusing to reset it to base content, which would silently discard branch "
-                "work. Merge left in progress for manual resolution."
+                f"{rel_path}: {_unfusable_session_path_reason(rel_path)} Refusing to reset it to base "
+                "content, which would silently discard branch work. Merge left in progress for manual "
+                "resolution."
             )
             return result
         code, _ = _git_text(root, ("checkout", plan.base_commit, "--", rel_path))
