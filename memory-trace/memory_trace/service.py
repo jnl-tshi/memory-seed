@@ -3754,33 +3754,44 @@ def _seriate_circle(items: list[str], weight: dict[tuple[str, str], int]) -> lis
 def _topics(chunk: MemoryChunk) -> list[str]:
     """Effective display topics for an entry (topic-neighbourhoods plan Phase 4).
 
-    Prefer the controlled-vocabulary slugs - authored ``topics:`` UNIONED with
-    ``inferred_topics`` from the topic sidecar family; fall back to the
-    hashtag/heading-derived axes (``tags`` | ``contexts``) only for entries that
-    carry neither. Controlled and derived-from-headings are never mixed - an
-    entry carrying any controlled slug shows exactly those, so the facet, chips,
-    topic chains, and filter all speak the controlled vocabulary once an entry
-    adopts it. This single chokepoint feeds facets, nodes, chunk payloads, topic
-    edge chains, and the topic filter.
+    THE SIDECAR IS THE AUTHORITY (JNL, 2026-07-27). Where an entry has topic
+    sidecar attributions, those ARE its topics - the authored ``topics:`` field
+    does not union into the answer. Falling back, in order:
 
-    THE UNION IS DELIBERATE, and it is the one place the two channels merge.
-    ``augment_chunks_with_topic_sidecars`` keeps authored and inferred separable
-    all the way here precisely so this decision is made once, in the open:
+      1. ``inferred_topics``  - the sidecar's reading, if the entry has one
+      2. authored ``topics:`` - for entries no sweep has reached
+      3. ``tags`` | ``contexts`` - hashtag/heading axes, for entries predating
+         the controlled vocabulary entirely
 
-      - for REACHABILITY - filtering, facets, community colour - they union. An
-        entry attributed `trail` after the fact is trail work, and a filter that
-        cannot find it is simply wrong.
-      - for PROVENANCE - who said this, and when - they stay apart, which is why
-        the raw fields survive on the chunk for any consumer that wants to draw
-        the distinction.
+    This replaced a UNION on the day the two-axis campaign attributed all 686
+    entries. The union was right while sidecars were sparse enrichment - an entry
+    tagged `memory-trace` gaining `trail` genuinely is both. It stops being right
+    once the sidecar carries a COMPLETE reading of every decision on two declared
+    axes: unioning then re-admits the coarse pre-axis label the sweep exists to
+    supersede, and an entry reads as both `memory-seed` and `topic-vocabulary`
+    with no way to tell which the corpus currently believes.
 
-    Unioning here rather than at each of the eight call sites is what stops the
-    two from disagreeing: a legend coloured from one and a chip list rendered
-    from the other is exactly how a surface ends up quietly lying about itself.
+    Nothing authored is edited, deleted, or contradicted on disk - the entry's
+    own YAML is untouched and stays readable as what its author wrote. Only which
+    of the two a READER is shown changes, which is what makes this reversible:
+    revert this function and every prior answer returns.
+
+    The way back for ONE entry rather than all of them is a ``retracts:`` block
+    in a later sidecar - see ``docs/3_Spec/draft/sidecar-supersession-model.md``,
+    which specs it and notes nothing implements it yet. Until it does, the
+    granular rollback is a sidecar block re-stating the authored slugs, and the
+    coarse one is reverting the sidecar commit.
+
+    Controlled and derived-from-headings are still never mixed. This single
+    chokepoint feeds facets, nodes, chunk payloads, topic edge chains, and the
+    filter, which is what stops a legend coloured from one channel and a chip
+    list rendered from another from quietly disagreeing.
     """
-    controlled = set(chunk.topics) | set(chunk.inferred_topics or ())
-    if controlled:
-        return sorted(controlled)
+    inferred = set(chunk.inferred_topics or ())
+    if inferred:
+        return sorted(inferred)
+    if chunk.topics:
+        return sorted(set(chunk.topics))
     return sorted(set(chunk.tags) | set(chunk.contexts))
 
 
