@@ -49,6 +49,25 @@ does not: a `derived` topic block wanting to correct a `write-time` one has, tod
 say so. Extending a retract-shaped mechanism to the topic family is therefore step 1 of the
 consolidation build order, not an optional refinement.
 
+### Topic retraction is scoped to CORRECTIONS, and to nothing else
+
+**Settled 2026-07-27 by JNL.** Keep it narrow. A topic retraction says *this topic is wrong* — an
+author's slip, or a `derived` block correcting a `write-time` one. That is the whole use case.
+
+It is explicitly **not** the way to reduce a parent's concentration. That temptation is real and it was
+acted on: the first `memory-trace` children proposal argued for retracting the parent from 86 entries
+that also carried a finer area slug, on the grounds that the parent was redundant there. It is not
+redundant — the root names the **subsystem** and the finer slug names the **component**, so both are
+true, and a hierarchy exists precisely to hold facts at more than one level.
+
+The mechanism that deflates a parent is **depth**, and it costs nothing: store the most specific slug
+and derive the ancestors (`ancestors()` up, `expand_topic_filter` down), so the parent keeps its full
+reach while its canonical count falls. Retraction deletes a statement; derivation reorganises one. Only
+the second is appropriate for a number that is merely too large.
+
+The practical guard: a retraction should be judgeable as *"was this claim wrong?"*. If the answer is
+"no, it was true but I would rather it were more specific", the answer is a child slug, not a retract.
+
 ## What "named reference" means per family — the one real asymmetry
 
 The rule is uniform; the **unit** the reference names is not, and getting it backwards silently
