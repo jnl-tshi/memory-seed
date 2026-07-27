@@ -5,7 +5,7 @@ import { Maximize2, Minus, Plus } from "lucide-react";
 import { type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
 import { nodeSetSignature, seedPositions, type Point } from "./graphLayout";
 import { anchorEntryIdFor, connectedIdsWithDecisionAnchors, decisionGroups, decisionHaloId, haloDiameter, isDecisionRowId, parentIdsFor, satellitePositions, visibilityIdFor } from "./graphDecisionRows";
-import { forceParameters, type ForceSettings } from "./graphForces";
+import { forceParameters, ticksPerPaint, type ForceSettings } from "./graphForces";
 import { outrankedEdgeIds } from "./graphEdges";
 import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, inferredCommunityColours, wearsAuthoredRim, type TopicRoots } from "./graphCommunities";
 
@@ -239,12 +239,25 @@ function startSimulation(options: {
   // after a mount always scales — a newly grown set is exactly when it matters.
   let lastAutoScale = 0;
 
+  // Fixed for the life of this simulation: the element set does not change
+  // without a remount, and re-deriving it per frame would be the kind of
+  // per-tick work this exists to remove. Edges are counted because they are
+  // drawn — at corpus scale there are as many of them as nodes.
+  const ticksPerFrame = ticksPerPaint(graphNodes.length + graphEdges.length);
+
   const run = () => {
     if (frame || cancelled) return;
     const step = () => {
       frame = 0;
       if (cancelled || disposed() || !sim) return;
-      sim.tick();
+      // Several physics steps per painted frame once the canvas is large enough
+      // for the repaint to dominate — see ticksPerPaint. Alpha decays per TICK,
+      // so this reaches rest after the same number of ticks in a fraction of the
+      // frames: the settle is cheaper AND shorter, not stretched out.
+      for (let tick = 0; tick < ticksPerFrame; tick += 1) {
+        sim.tick();
+        if (sim.alpha() < sim.alphaMin()) break;
+      }
       paint();
       // Keep the growing graph in view while it expands. A page of new entries
       // pushes the bounding box outward as the simulation makes room for them,

@@ -1,7 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { DEFAULT_FORCES, forceParameters, LINK_DISTANCE, readForceSettings } from "./graphForces.ts";
+import { DEFAULT_FORCES, forceParameters, LINK_DISTANCE, readForceSettings, ticksPerPaint } from "./graphForces.ts";
+
+test("physics steps per painted frame scale with the canvas, and stay bounded", () => {
+  // Measured 2026-07-27: a frame in which anything moved costs ~85ms at ~1180
+  // elements whether ONE node moved or all 303 did, so the lever is painting less
+  // often. A small graph pays nothing for that and keeps per-tick motion.
+  assert.equal(ticksPerPaint(133), 1, "a small graph keeps the smoothest motion");
+  assert.equal(ticksPerPaint(400), 1);
+  assert.equal(ticksPerPaint(800), 2);
+  assert.equal(ticksPerPaint(1180), 3, "the corpus-scale case measured at ~85ms per painted frame");
+  // Bounded: three steps still reads as movement, and an unbounded ramp would
+  // eventually make the settle teleport.
+  assert.equal(ticksPerPaint(100000), 3);
+  // Degenerate inputs must never ask for zero steps, which would stall the loop.
+  assert.equal(ticksPerPaint(0), 1);
+  assert.equal(ticksPerPaint(-5), 1);
+  assert.equal(ticksPerPaint(Number.NaN), 1);
+});
 
 test("sliders map to sane force units at both ends", () => {
   const low = forceParameters({ centre: 0, repel: 0, linkForce: 0 });
