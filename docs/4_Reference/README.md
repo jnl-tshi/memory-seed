@@ -41,4 +41,5 @@ Current Memory Trace provenance:
 | [memory-trace-next-generation-plan-document-set.md](memory-trace-next-generation-plan-document-set.md) | — | — | — |
 | [memory-trail-competitor-analysis.md](memory-trail-competitor-analysis.md) | — | — | — |
 | [openssf-scorecard-notes.md](openssf-scorecard-notes.md) | — | — | — |
+| [topic-swarm-reliability-experiment.md](topic-swarm-reliability-experiment.md) | — | — | reference |
 <!-- docs-index:end -->

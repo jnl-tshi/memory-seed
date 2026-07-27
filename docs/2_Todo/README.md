@@ -11,10 +11,12 @@
 | [memory-trace-graph-visualisation-and-temporal-topology-proposal.md](memory-trace-graph-visualisation-and-temporal-topology-proposal.md) | P1 | — | promoted-to-todo |
 | [memory-trace-structural-graph-enrichment-provider-proposal.md](memory-trace-structural-graph-enrichment-provider-proposal.md) | P1 | — | promoted-to-todo |
 | [memory-trace-three-region-workspace-and-dockable-inspector-proposal.md](memory-trace-three-region-workspace-and-dockable-inspector-proposal.md) | P1 | — | promoted-to-todo |
+| [adjudication-queue.md](adjudication-queue.md) | P2 | — | JNL to rule each row; the rulings become the project's only validity ground truth. |
 | [document-lifecycle-system-plan.md](document-lifecycle-system-plan.md) | P2 | — | Phases 2-3 COMPLETE 2026-07-17: migration, `docs check` (also in esr + CI), and `docs index` (m… |
 | [hierarchical-topic-vocabulary-proposal.md](hierarchical-topic-vocabulary-proposal.md) | P2 | — | JNL to accept or reject. If accepted the order is - (1) `parent:` field + schema_version 2 + re… |
 | [link-audit-decision-judgment-swarm-proposal.md](link-audit-decision-judgment-swarm-proposal.md) | P2 | — | In-core foundation SHIPPED 2026-07-23 (link audit --json judgment-ready candidates). Open befor… |
 | [memory-seed-workflow-evidence-and-review-workbench-plan.md](memory-seed-workflow-evidence-and-review-workbench-plan.md) | P2 | — | Reconstruct three completed project journeys from existing entries, documents, and Git referenc… |
+| [memory-trace-children-proposal.md](memory-trace-children-proposal.md) | P2 | — | JNL to approve or reject the five candidate children. Nothing may be written to topics.yaml bef… |
 | [memory-trace-living-archive-and-editorial-focus-proposal.md](memory-trace-living-archive-and-editorial-focus-proposal.md) | P2 | >- | >- |
 | [topic-vocabulary-concentration-review.md](topic-vocabulary-concentration-review.md) | P2 | — | SUPERSEDED 2026-07-26 as to remedy - the measurements here stand, but the flat splits recommend… |
 | [vocabulary-proposal-mode-proposal.md](vocabulary-proposal-mode-proposal.md) | P2 | — | JNL to accept or reject. If accepted, build after step 5 and before step 7 - the sweep needs so… |
