@@ -50,6 +50,33 @@ from memory_seed.topics import load_topic_index  # noqa: E402
 # for want of evidence, and an invented child has to clear at least as much.
 MIN_CHILD_ENTRIES = 8
 
+# ...but the floor applies only to the SECOND generation - a direct child of a
+# root. From the third generation down there is no floor at all (JNL,
+# 2026-07-27).
+#
+# The reason is that depth is cheap once a parent exists to aggregate it. Every
+# consumer already rolls up: `expand_topic_filter` matches a parent against every
+# descendant transitively, community colour keys on the ROOT so the palette never
+# grows, and any analysis can be run at whatever generation makes sense. A
+# one-off grandchild therefore costs nothing and loses nothing - it is strictly
+# more information than its parent carried alone.
+#
+# What the floor still buys at generation 2 is a check on whether a new BRANCH of
+# the tree is justified at all. That is the expensive decision; refining a branch
+# that already exists is not.
+#
+# The incentive this creates is deliberate: three sub-floor candidates that share
+# a natural grouping should be proposed UNDER that grouping rather than beside it.
+# `panes` was the worked example - inspector (6), topbar (6), navigation (4),
+# settings (4), workspace-bar (2) and diagram-view (2) all fail the floor
+# individually, while `panes` clears it at 23 and makes every one of them a
+# floor-free grandchild.
+#
+# NOT to be confused with COMMUNITY_TOPIC_FLOOR (10) in graphCommunities.ts, which
+# governs which topics may NAME a graph community. That one stays: it is about
+# how many colours the palette hands out, not about what the vocabulary may say.
+FLOOR_APPLIES_UP_TO_GENERATION = 2
+
 # A split that leaves the parent above this has not solved the problem it was
 # triggered by. Same number the concentration review used to call a slug broad.
 TARGET_PARENT_SHARE = 0.20
@@ -102,7 +129,14 @@ def score(root: Path, slug: str, split_path: Path) -> int:
     total_topiced = sum(1 for _c, t in entries if t)
     split: dict[str, list[str]] = json.loads(split_path.read_text(encoding="utf-8"))
 
+    # Generation of the PROPOSED children: root is 1, so a child of a root is 2.
+    generation = len(index.ancestors(slug)) + 2
+    floored = generation <= FLOOR_APPLIES_UP_TO_GENERATION
     print(f"parent {slug}: {len(carrying)} entries, {len(carrying) / total_topiced:.1%} of {total_topiced}")
+    print(
+        f"proposed children are generation {generation} - "
+        + (f"floor of {MIN_CHILD_ENTRIES} applies" if floored else "NO FLOOR (depth is free below generation 2)")
+    )
     print()
     claimed: set[str] = set()
     failures: list[str] = []
@@ -111,9 +145,16 @@ def score(root: Path, slug: str, split_path: Path) -> int:
         unknown = [i for i in ids if i not in by_id]
         overlap = sorted(set(known) & claimed)
         claimed.update(known)
-        verdict = "ok" if len(known) >= MIN_CHILD_ENTRIES else f"UNDER FLOOR ({MIN_CHILD_ENTRIES})"
-        if len(known) < MIN_CHILD_ENTRIES:
-            failures.append(f"{child} claims {len(known)}, floor is {MIN_CHILD_ENTRIES}")
+        if not floored:
+            verdict = "ok (no floor at this depth)"
+        elif len(known) >= MIN_CHILD_ENTRIES:
+            verdict = "ok"
+        else:
+            verdict = f"UNDER FLOOR ({MIN_CHILD_ENTRIES})"
+            failures.append(
+                f"{child} claims {len(known)}, floor is {MIN_CHILD_ENTRIES}"
+                " - consider proposing it UNDER a grouping child instead, where no floor applies"
+            )
         if unknown:
             failures.append(f"{child} names {len(unknown)} entries that do not carry {slug}: {unknown[:3]}")
         if overlap:
@@ -134,7 +175,12 @@ def score(root: Path, slug: str, split_path: Path) -> int:
         for failure in failures:
             print(f"  - {failure}")
         return 1
-    print(f"ACCEPTABLE: every child clears {MIN_CHILD_ENTRIES}, parent falls to {share:.1%}")
+    cleared = (
+        f"every child clears {MIN_CHILD_ENTRIES}"
+        if floored
+        else f"generation {generation} carries no floor, so size was not a criterion"
+    )
+    print(f"ACCEPTABLE: {cleared}, parent falls to {share:.1%}")
     return 0
 
 
