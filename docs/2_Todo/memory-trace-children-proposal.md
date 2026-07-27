@@ -137,16 +137,32 @@ Everything below is one decision. It is the whole ask, and nothing else is block
 
 ### AREA — children of `memory-trace`
 
-| slug | entries | evidence |
-|---|---|---|
-| `graph` | ~70 | three swarm cycles; **moves from being a root**, keeps no children |
-| `inspector` | ~33 | JNL's framing — *which pane did this touch* — against the swarm's 1 |
-| `trail` | ~32 | three cycles agreed |
-| `settings` | ~14 | JNL, from adjudicating row 16 (`SettingsMenu.tsx` is its own surface) |
-| `trace-cache` | ~12 | three cycles |
-| `trace-harness` | ~8 | at the floor; three cycles, three different counts (10 / 7 / 8) |
+**Every pane is named** (JNL, 2026-07-27), so no surface is homeless and `TRACE-WIDE` can mean only what
+is genuinely cross-cutting. The slugs come from the app's real regions, not from invented groupings:
 
-Declined for now: **`context`** (~7) — below the floor, and unused across all 22 adjudicated rows.
+| slug | the region it names | est. | |
+|---|---|---|---|
+| `graph` | `GraphWorkspace` — the relationship map | 146 | moves from being a root |
+| `trail` | `TrailWorkspace` — the timeline | 133 | |
+| `inspector` | `<aside class="inspector">` — the reader | 40 | |
+| `topbar` | `<header class="topbar">` — search, view switch, worktree picker, refresh | 17 | |
+| `navigation` | `<aside class="navigation-pane">` — project, topics, context list | 14 | replaces the earlier `context`, which was a SECTION inside it |
+| `settings` | `SettingsMenu.tsx` | 14 | |
+| `workspace-bar` | scope / range / labels / edge filters | 11 | |
+| `trace-cache` | startup, caching, freshness, worktree switching | 12 | not a pane |
+| `trace-harness` | Storybook, Playwright, e2e, CI wiring | 8 | not a pane; at the floor |
+
+Below the floor: **`diagram-view`** (3) — `DiagramViewer.tsx` is a real surface but has not earned a slug.
+
+**These counts are upper bounds.** They come from keyword presence over titles and bodies, so `trail`
+133 and `graph` 146 against 203 memory-trace entries means most entries MENTION both. The swarm's
+stricter "what is this entry about" reading gave `trail` 32 and `graph` 70. What the numbers establish
+is that each pane is nameable and non-trivial — not that each owns that many entries.
+
+**What naming every pane did to `TRACE-WIDE`:** re-ruling the 22 adjudicated rows with the full set
+moved three of six off it, all to `topbar` (search routing, full-text navigation, the unified find bar).
+`TRACE-WIDE` now holds three: a package-wide module rename, a multi-pane design pass, and a loading
+mechanism JNL ruled wide-impact. That is what the answer should mean — cross-cutting, not homeless.
 
 ### AREA — elsewhere
 

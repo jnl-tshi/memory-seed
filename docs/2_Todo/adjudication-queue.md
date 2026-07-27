@@ -220,7 +220,7 @@ activity -> merge
 - **activity split** — worker 1 said `bugfix`, worker 2 said `ui-design`
 
 ```
-area     -> TRACE-WIDE
+area     -> topbar   (search is a topbar affordance, not an app-wide change)
 activity -> bugfix
 ```
 
@@ -353,7 +353,7 @@ activity -> feature-build   (SettingsMenu.tsx is new - `settings` is now its own
 - **activity split** — worker 1 said `activity-none`, worker 2 said `ui-design`
 
 ```
-area     -> TRACE-WIDE
+area     -> topbar   (full-text navigation lives in the find bar)
 activity -> testing
 ```
 
@@ -368,7 +368,7 @@ activity -> testing
 - **both workers disagree with the file-derived label** `inspector`
 
 ```
-area     -> TRACE-WIDE
+area     -> topbar   (the find bar IS the topbar; the reader anchor is secondary)
 activity -> ui-design
 ```
 
