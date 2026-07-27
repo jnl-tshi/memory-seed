@@ -1,6 +1,6 @@
 ---
 priority: P2
-next_action: JNL to rule on the table in "The ask" - eight slugs are ready, four under each root (memory-trace 43.1%->18.0%, memory-seed 26.6%->9.5%, both under target), and the rest are argued but unmeasured. The two halves differ in evidence strength; see the evidence column. Nothing may be written to topics.yaml before that.
+next_action: JNL to rule on the table in "The ask". Every area count is now swarm-measured (cycle 4) and both splits score ACCEPTABLE - memory-trace 42.9%->12.8%, memory-seed 26.7%->9.9%. Nine rows are ready; the open question is how many pane children to create, since two of the six came back with zero entries. Nothing may be written to topics.yaml before that.
 ---
 
 # Proposal: the topic vocabulary change
@@ -21,42 +21,41 @@ entry is rewritten, no topic is removed, and every parent keeps its full reach b
 **The `evidence` column is the point.** These rows are not equally well supported, and the previous
 version of this document presented them as if they were.
 
+Every count below is now **swarm-measured** — two workers judging blind, and only labels they reached
+independently are counted. Cycle 4 (2026-07-27) covered the last unjudged material, so no row rests on
+a keyword estimate any more.
+
 | slug | parent | axis | count | evidence | admitted by | ready? |
 |---|---|---|---:|---|---|---|
-| `graph` | `memory-trace` | area | **70** | two blind workers agreed, + 64 dual-tagged | floor (≥5) | **yes** |
-| `trail` | `memory-trace` | area | **30** | two blind workers agreed | floor (≥5) | **yes** |
-| `trace-cache` | `memory-trace` | area | **12** | two blind workers agreed | floor (≥5) | **yes** |
-| `trace-harness` | `memory-trace` | area | **7** | two blind workers agreed (w1 said 9) | floor (≥5) | **yes** |
-| `panes` | `memory-trace` | area | ~23 | keyword estimate, never put to a swarm | floor (≥5) — plausibly, unverified | no |
-| `inspector` | `panes` | area | 1–40 | swarm 1, keyword ~40 — see below | no floor at gen 3 | no |
-| `topbar` | `panes` | area | ~17 | keyword estimate | no floor at gen 3 | no |
-| `navigation` | `panes` | area | ~14 | keyword estimate | no floor at gen 3 | no |
-| `settings` | `panes` | area | ~14 | keyword estimate | no floor at gen 3 | no |
-| `workspace-bar` | `panes` | area | ~11 | keyword estimate | no floor at gen 3 | no |
-| `diagram-view` | `panes` | area | 4 | two blind workers agreed | no floor at gen 3 | no |
-| `lifecycle-edges` | `memory-seed` | area | **63** | union of two measured sets — see below | floor (≥5) | **yes**, and you already approved it |
-| `topic-vocabulary` | `memory-seed` | area | **25** | hand-classified over all 126 titles | floor (≥5) | **yes** |
-| `test-suite` | `memory-seed` | area | **13** | hand-classified over all 126 titles | floor (≥5) | **yes** |
-| `docs-lifecycle` | `memory-seed` | area | **8** | hand-classified over all 126 titles | floor (≥5) | **yes** |
-| `package` | *(root)* | area | ~66 | your ruling from adjudication row 3 | root, no floor | no |
-| `feature-build` | *(root)* | activity | ~116 | your ruling; the axis had no verb for BUILDING | root, no floor | no |
-| `testing` | *(root)* | activity | ~8 | the split-swarm mismatch, pooled across workers | root, no floor | no |
+| `graph` | `memory-trace` | area | **70** | agreed, + 64 dual-tagged | floor (≥5) | **yes** |
+| `trail` | `memory-trace` | area | **34** | agreed | floor (≥5) | **yes** |
+| `trace-cache` | `memory-trace` | area | **14** | agreed | floor (≥5) | **yes** |
+| `trace-harness` | `memory-trace` | area | **12** | agreed | floor (≥5) | **yes** |
+| `panes` | `memory-trace` | area | **13** | agreed — 5 as a multi-pane label, 8 in its children | floor (≥5) | **yes** |
+| `topbar` | `panes` | area | **4** | agreed (keyword estimate said ~17) | no floor at gen 3 | **yes** |
+| `diagram-view` | `panes` | area | **2** | agreed | no floor at gen 3 | **yes** |
+| `inspector` | `panes` | area | **1** | agreed (keyword estimate said ~40) | no floor at gen 3 | your call |
+| `navigation` | `panes` | area | **1** | agreed (keyword estimate said ~14) | no floor at gen 3 | your call |
+| `settings` | `panes` | area | **0** | **neither worker placed a single entry here** | no floor at gen 3 | **no** |
+| `workspace-bar` | `panes` | area | **0** | **neither worker placed a single entry here** | no floor at gen 3 | **no** |
+| `lifecycle-edges` | `memory-seed` | area | **32** here, **63** with the Seed-side `graph` set | agreed | floor (≥5) | **yes**, and you already approved it |
+| `topic-vocabulary` | `memory-seed` | area | **25** | agreed | floor (≥5) | **yes** |
+| `test-suite` | `memory-seed` | area | **12** | agreed | floor (≥5) | **yes** |
+| `docs-lifecycle` | `memory-seed` | area | **11** | agreed | floor (≥5) | **yes** |
+| `package` | *(root)* | area | ~66 | your ruling from adjudication row 3 | root, no floor | not measured |
+| `feature-build` | *(root)* | activity | ~116 | your ruling; the axis had no verb for BUILDING | root, no floor | not measured |
+| `testing` | *(root)* | activity | ~8 | the split-swarm mismatch, pooled across workers | root, no floor | not measured |
 
-**Eight rows are ready now** — four under each root — and they carry the concentration between them:
+**Both roots clear the target, and both splits score ACCEPTABLE:**
 
 | root | canonical today | with its ready children | target |
 |---|---:|---:|---|
-| `memory-trace` | 43.1% | **18.0%** | ≤20% ✔ |
-| `memory-seed` | 26.6% | **9.5%** | ≤20% ✔ |
+| `memory-trace` | 42.9% | **12.8%** | ≤20% ✔ |
+| `memory-seed` | 26.7% | **9.9%** | ≤20% ✔ |
 
-Both clear the target on the ready rows alone. Everything else can wait for evidence without blocking
-it.
-
-**The two halves are not equally evidenced, and the `evidence` column says which is which.** The
-`memory-trace` children come from two blind workers who agreed 92% of the time. The `memory-seed`
-children are my classification of all 126 titles, with no second reader and no swarm pass — better than
-the keyword regex that reached only 42 of 126, weaker than blind agreement. If you want one of the two
-halves measured properly before signing, it is this one.
+**The thing to decide is no longer whether the children are real — it is how many pane children to
+create.** `panes` earns its place at 13. Four of its six proposed children came back at 4, 2, 1 and 1;
+the other two came back at **zero**. Details in "What cycle 4 changed".
 
 > **The floor moved from 8 to 5 (JNL, 2026-07-27)**, which is what made `trace-harness` the fourth ready
 > row instead of an open question. The reasoning is in
@@ -78,6 +77,59 @@ Three things the table cannot show:
   no floor applies to them.
 - **`trace-api` is deliberately not in the table.** 1 agreed entry, no grouping parent, and unlike
   `trace-harness` nobody has argued for it. It stays on the root.
+
+### What cycle 4 changed
+
+Two blind haiku workers judged the 79-entry `memory-trace` residual against the full pane vocabulary,
+and all 127 `memory-seed` entries against the four proposed children. Raw answers:
+`docs/4_Reference/topic-swarm-cycles/cycle4-*.tsv`.
+
+**1. The pane children collapsed, and by an order of magnitude.** The keyword estimates were measuring
+*which pane a change touched*; the swarm was asked *what the entry is about*. Only one of those supports
+a slug:
+
+| pane | keyword estimate | swarm-agreed |
+|---|---:|---:|
+| `inspector` | ~40 | **1** |
+| `topbar` | ~17 | **4** |
+| `navigation` | ~14 | **1** |
+| `settings` | ~14 | **0** |
+| `workspace-bar` | ~11 | **0** |
+| `diagram-view` | ~4 | **2** |
+
+This is the `inspector` question answered: **1, not 40.** Display panes get *touched* by everything,
+which is exactly why the earlier count was worthless. The document flagged all six as
+order-of-magnitude estimates; the order of magnitude was wrong.
+
+**2. `panes` survives anyway, and on better grounds than its children.** It clears the floor at 13 — but
+**5 of those are entries where a worker chose `panes` itself**, meaning the work genuinely spanned
+several panes and no single child fitted. That is the grouping parent doing the job it was created for,
+rather than being a bag for six thin slugs. It would clear the floor even if every child were dropped.
+
+**3. `settings` and `workspace-bar` got zero.** Not "few" — neither worker independently placed a single
+entry on either. Rule 2 admits them at generation 3 without a count, and rule 1 says they are perfectly
+bounded. Neither rule says to create a slug for which no evidence exists at all. **I would not create
+these two**: a slug with no precedent is a slug that will be applied wrongly the first time it is used.
+`inspector` (1) and `navigation` (1) are a genuine judgement call — real but barely attested.
+
+**4. `trace-harness` is no longer marginal.** The residual pass found five more, taking it from 7 to
+**12**. The floor question that dominated the last two hours is moot on the evidence.
+
+**5. The `memory-seed` half validated.** My hand classification agreed with the two blind workers on
+**103 of 118 rows (87%)**, and the counts landed within one to three of my estimates — `topic-vocabulary`
+exactly 25. The swarm found *more* `docs-lifecycle` (11 vs 8) and slightly less `lifecycle-edges`
+(32 vs 35). Nothing in the split was overturned.
+
+**6. The residual claim held.** Of the 39 `memory-seed` entries the swarm declined to file under a
+child, **34 went to `OTHER-ROOT`** — their real subject is session logging, Mermaid, releases or git
+housekeeping, and `memory-seed` was merely the package the work happened in. Only 5 were genuinely
+`SEED-WIDE`. The residual is entries that already have a home elsewhere, which is what a healthy one
+looks like.
+
+**Reliability, for the record:** `memory-seed` agreement **119/126 = 94%** — the highest of any run so
+far. The `memory-trace` residual came in at **65/79 = 82%**, the lowest. That ordering is the expected
+one and worth keeping: the residual is by construction the material the earlier passes found hardest,
+so a lower number there is the pool being difficult rather than the method degrading.
 
 ### The rules each row is admitted by
 
@@ -101,34 +153,32 @@ Reproduce with:
 python scripts/tally_swarm_area.py . --out split.json && python scripts/propose_topic_children.py score memory-trace split.json
 ```
 
-```
-entries carrying memory-trace : 204
-judged by both workers        : 116
-agreed                        : 107  (92%)
+Cycle 3 judged the 116 single-area entries (agreement 107/116 = **92%**); cycle 4 judged the 79-entry
+residual left over (65/79 = **82%**). Together they cover the whole population.
 
-parent memory-trace: 204 entries, 43.1% of 473
+```
+parent memory-trace: 204 entries, 42.9% of 475
 proposed children are generation 2 - floor of 5 applies
 every claimed entry must be true at EVERY level: memory-trace > <child>
 
-  graph                            70 entries  14.8% of corpus   ok
-  trace-cache                      12 entries   2.5% of corpus   ok
-  trace-harness                     7 entries   1.5% of corpus   ok
-  trail                            30 entries   6.3% of corpus   ok
+  graph                            70 entries  14.7% of corpus   ok
+  panes                            13 entries   2.7% of corpus   ok
+  trace-cache                      14 entries   2.9% of corpus   ok
+  trace-harness                    12 entries   2.5% of corpus   ok
+  trail                            34 entries   7.2% of corpus   ok
 
-  (residual on the parent)         85 entries  18.0% of corpus
+  (residual on the parent)         61 entries  12.8% of corpus
 
-ACCEPTABLE: every child clears 5, parent falls to 18.0%
+ACCEPTABLE: every child clears 5, parent falls to 12.8%
 ```
 
-The tally script quotes the **agreed** column — the label both blind workers reached independently —
-because a count one worker reached is a hypothesis. That is why the numbers here are slightly lower
-than the ones this document carried before it was consolidated: `trace-harness` was presented as 8 and
-is 7, `TRACE-WIDE` as 26 and is 23.
+Both cycles quote the **agreed** column — the label both blind workers reached independently — because
+a count one worker reached is a hypothesis. That is why these numbers are lower than the ones this
+document carried before it was consolidated: `TRACE-WIDE` was presented as 26 and is 23.
 
-The spread on `trace-harness` — 9 by worker 1, 7 by worker 2 — was wide enough that under the old floor
-of 8 it passed on one reading and failed on the other. **Lowering the floor to 5 settled it** without
-anyone having to pick a reading, which is the better outcome: the answer no longer depends on which
-worker you believe.
+The spread on `trace-harness` — 9 by worker 1, 7 by worker 2 in cycle 3 — was wide enough that under the
+old floor of 8 it passed on one reading and failed on the other. Lowering the floor to 5 settled it
+without anyone having to pick a reading, and cycle 4 then took it to 12, which settles it on evidence.
 
 ### The live run behind the `memory-seed` rows
 
@@ -136,37 +186,38 @@ worker you believe.
 concentration left in the vocabulary. Four children, each bounded by a path rather than a definition,
 which is rule 1:
 
-| child | the boundary that makes it unambiguous | entries |
+| child | the boundary that makes it unambiguous | swarm-agreed |
 |---|---|---:|
-| `lifecycle-edges` | `.memory-seed/sessions/links/`, the edge rules in `links check` / `link audit` | 35 here, **63** with the Seed-side `graph` entries |
+| `lifecycle-edges` | `.memory-seed/sessions/links/`, the edge rules in `links check` / `link audit` | 32 here, **63** with the Seed-side `graph` entries |
 | `topic-vocabulary` | `memory_seed/topics.py`, `.memory-seed/topics.yaml`, `scripts/*topic*` | 25 |
-| `test-suite` | `tests/` | 13 |
-| `docs-lifecycle` | `docs/` lanes, `docs check` / `docs index` | 8 |
+| `test-suite` | `tests/` | 12 |
+| `docs-lifecycle` | `docs/` lanes, `docs check` / `docs index` | 11 |
 
 ```
-parent memory-seed: 126 entries, 26.6% of 474
+parent memory-seed: 127 entries, 26.7% of 475
 proposed children are generation 2 - floor of 5 applies
 every claimed entry must be true at EVERY level: memory-seed > <child>
 
-  docs-lifecycle                    8 entries   1.7% of corpus   ok
-  lifecycle-edges                  35 entries   7.4% of corpus   ok
-  test-suite                       13 entries   2.7% of corpus   ok
+  docs-lifecycle                   11 entries   2.3% of corpus   ok
+  lifecycle-edges                  32 entries   6.7% of corpus   ok
+  test-suite                       12 entries   2.5% of corpus   ok
   topic-vocabulary                 25 entries   5.3% of corpus   ok
 
-  (residual on the parent)         45 entries   9.5% of corpus
+  (residual on the parent)         47 entries   9.9% of corpus
 
-ACCEPTABLE: every child clears 5, parent falls to 9.5%
+ACCEPTABLE: every child clears 5, parent falls to 9.9%
 ```
 
 **`topic-vocabulary` closes a gap this work had been living inside.** The area doing the classifying had
 no slug of its own, so every entry about the vocabulary — including all of today's — landed on the
 `memory-seed` root with nothing more specific available.
 
-**The 45-entry residual is healthy, not homeless.** Reading it back, most of it already has a better
-home on an *existing* root rather than a new child: ~10 entries are session-grammar work already
-carrying `session-logging`, four are `release`, four are `mermaid`, four are worktree hygiene carrying
-`git-workflow`. What is left is genuinely package-level. That is what a residual should look like — the
-opposite of the `TRACE-WIDE` problem, where the catch-all was absorbing work that had nowhere to go.
+**The residual is healthy, not homeless — and the swarm was asked to prove it.** `OTHER-ROOT` was put on
+the ballot precisely so this claim could fail: it lets a worker say *the real subject is a different
+existing area, and `memory-seed` is merely the package the work happened in*. Of the 39 entries declined
+for a child, **34 went to `OTHER-ROOT`** and only 5 were genuinely `SEED-WIDE`. Session logging, Mermaid,
+releases and git housekeeping — all already have roots. That is the opposite of the `TRACE-WIDE` problem,
+where the catch-all was absorbing work with nowhere to go.
 
 **Two candidates were declined by the floor, and correctly.** `worktree` (4 entries: the Track E
 remover, the dry-run classifier, the orphaned-worktree clearance, the branch closeout) and
@@ -174,32 +225,21 @@ remover, the dry-run classifier, the orphaned-worktree clearance, the branch clo
 distinctions with clean boundaries; neither has five entries yet. At a floor of 5 that is a near miss
 rather than a dismissal, and either could qualify within a week.
 
-### What is NOT measured, stated plainly
+### What is still NOT measured
 
-- **The pane split has never been run over the population.** The swarm judged 116 entries against a
-  vocabulary with no pane labels, so `topbar`, `navigation`, `settings` and `workspace-bar` have
-  keyword estimates only. The evidence for them is the DOM boundary (rule 1) plus a re-ruling of 22
-  adjudicated rows, where naming the panes moved three of six entries off `TRACE-WIDE`. That is a good
-  argument and a small sample.
-- **`panes` itself is therefore unverified at the floor.** It needs ≥5 of the 85-entry residual, and
-  the 23 entries both workers called `TRACE-WIDE` are where they would come from. At a floor of 5 this
-  is a low bar and the keyword estimate of ~23 clears it four times over — but it is still an estimate,
-  and `panes` is the row the other six hang off, so it should be the one thing actually measured.
-- **`inspector` is the count I would not act on blindly.** The swarm said **1**; the keyword estimate
-  says **~40**. They answer different questions — *what is this entry about* versus *which pane did it
-  touch* — and only the first supports a slug. Display panes get touched by everything.
-- **`package`, `settings` and `feature-build` are keyword estimates** over titles and bodies. That is
-  the same method that put `trail` at 40 where the swarm found 30. Order-of-magnitude only.
-- **The whole `memory-seed` half is one reader's classification.** I read all 126 titles and assigned
-  81 of them; there was no swarm pass and no second reader, so nothing here has the 92% blind-agreement
-  backing the `memory-trace` rows. It is a real improvement on the earlier keyword regex, which reached
-  only 42 of 126 and left the boundaries to guesswork — but a single reader who also wrote the
-  boundaries is exactly the arrangement the split-swarm experiment was designed to avoid.
+Cycle 4 closed the area axis. What it did not touch:
 
-**One area swarm pass closes every gap above** — the 85-entry `memory-trace` residual with the pane
-vocabulary in hand, and the 126 `memory-seed` entries against the four proposed children. That is a
-measurement, not a rewrite, and none of the eight ready rows depends on it. It is also the one step
-here that needs deliberate opt-in: the swarm is a model fan-out, so it is network-using and costs.
+- **`package`, `feature-build` and `testing`** — the three rows from adjudication. Keyword estimates over
+  titles and bodies, the same method that put `inspector` at 40 where the swarm found 1. Treat the
+  numbers as unreliable in the same way; the *categories* rest on your rulings, which is different
+  evidence, not weaker.
+- **Validity, as opposed to reliability.** Two workers agreeing 94% of the time means the question is
+  well-posed, not that the answers are right. The held-out run put validity at **74%** against authored
+  tags, and nothing since has moved that. Every count in this document is a reliable measurement of a
+  judgement, not a ground truth.
+- **The activity axis** has had no equivalent pass. `feature-build` at ~116 would be the largest
+  activity slug in the vocabulary if the estimate is anywhere near right, and it is the one row here big
+  enough that being wrong about it would matter.
 
 ---
 
@@ -233,14 +273,14 @@ Each entry authoring only its deepest area slug:
 | | entries | share |
 |---|---:|---:|
 | `memory-trace` **reach** (rollup) | 204 | unchanged, always |
-| `memory-trace` **canonical**, today | 204 | 43.1% |
-| `memory-trace` **canonical**, with the four ready children | **85** | **18.0%** |
-| …and again once the pane split is measured | fewer | lower |
+| `memory-trace` **canonical**, today | 204 | 42.9% |
+| `memory-trace` **canonical**, with the five measured children | **61** | **12.8%** |
 
-> The **~49 / 10.6%** this row claimed earlier assumed every candidate landed, including the whole pane
-> split. The 85 above is what the four measurement-backed children alone deliver, and it is a live
-> scorer figure rather than a projection — see "The live run behind the yes rows". It already clears the
-> 20% target, which is why the unmeasured rows block nothing.
+> This row has been wrong twice, in both directions, and both times because it was a projection rather
+> than a run. It first claimed **~49 / 10.6%**, assuming every candidate landed. It was then corrected to
+> **85 / 18.0%** — a real scorer figure, but of a shape that excluded `panes`. The 61 above is the
+> measured split with all five children, and it is what the scorer prints. The lesson is the one this
+> document keeps relearning: quote the run, not the estimate.
 
 ## Candidates — SUPERSEDED, kept as the record
 
@@ -373,24 +413,27 @@ anything tagged with any of the children thanks to the hierarchy."* It costs one
 option; the six children then sit at generation 3 where no floor applies, which is what makes
 `inspector` (1) and `diagram-view` (4) admissible at all.
 
-| slug | the region it names | keyword est. | |
-|---|---|---|---|
-| `graph` | `GraphWorkspace` — the relationship map | 146 | not a pane; a workspace, and reparented from root |
-| `trail` | `TrailWorkspace` — the timeline | 133 | not a pane; a workspace |
-| `panes` | the grouping parent for the six below | ~23 | |
-| `inspector` | `<aside class="inspector">` — the reader | ~40 | |
-| `topbar` | `<header class="topbar">` — search, view switch, worktree picker, refresh | ~17 | |
-| `navigation` | `<aside class="navigation-pane">` — project, topics, context list | ~14 | replaces the earlier `context`, which was a SECTION inside it |
-| `settings` | `SettingsMenu.tsx` | ~14 | |
-| `workspace-bar` | scope / range / labels / edge filters | ~11 | |
-| `diagram-view` | `DiagramViewer.tsx` | 4 | the only pane child with a swarm-agreed count |
-| `trace-cache` | startup, caching, freshness, worktree switching | 12 | not a pane |
-| `trace-harness` | Storybook, Playwright, e2e, CI wiring | 7 | not a pane; **one short of the floor** |
+| slug | the region it names | keyword est. | **measured** | |
+|---|---|---:|---:|---|
+| `graph` | `GraphWorkspace` — the relationship map | 146 | **70** | not a pane; a workspace, reparented from root |
+| `trail` | `TrailWorkspace` — the timeline | 133 | **34** | not a pane; a workspace |
+| `panes` | the grouping parent for the six below | ~23 | **13** | 5 of those chose `panes` itself |
+| `inspector` | `<aside class="inspector">` — the reader | ~40 | **1** | |
+| `topbar` | `<header class="topbar">` — search, view switch, worktree picker, refresh | ~17 | **4** | |
+| `navigation` | `<aside class="navigation-pane">` — project, topics, context list | ~14 | **1** | replaces the earlier `context`, which was a SECTION inside it |
+| `settings` | `SettingsMenu.tsx` | ~14 | **0** | |
+| `workspace-bar` | scope / range / labels / edge filters | ~11 | **0** | |
+| `diagram-view` | `DiagramViewer.tsx` | 4 | **2** | |
+| `trace-cache` | startup, caching, freshness, worktree switching | 12 | **14** | not a pane |
+| `trace-harness` | Storybook, Playwright, e2e, CI wiring | 7 | **12** | not a pane |
 
-**These counts are upper bounds.** They come from keyword presence over titles and bodies, so `trail`
-133 and `graph` 146 against 204 memory-trace entries means most entries MENTION both. The swarm's
-stricter "what is this entry about" reading gave `trail` **30** and `graph` 70. What the keyword numbers
-establish is that each pane is nameable and non-trivial — not that each owns that many entries.
+**The keyword column was wrong by up to 40x, and the reason is worth keeping.** It counted keyword
+presence over titles and bodies, which measures *which pane a change mentioned* — and a display pane
+gets mentioned by nearly everything. The swarm was asked what the entry is ABOUT. `inspector` is the
+extreme case: ~40 by keyword, **1** by two workers judging independently.
+
+The keyword numbers were never useless — they established that each pane is *nameable*, which is rule 1
+and is why `panes` survives. They were just never a count of anything.
 
 **What naming every pane did to `TRACE-WIDE`:** re-ruling the 22 adjudicated rows with the full set
 moved three of six off it, all to `topbar` (search routing, full-text navigation, the unified find bar).
@@ -401,8 +444,8 @@ mechanism JNL ruled wide-impact. That is what the answer should mean — cross-c
 
 | slug | entries | evidence |
 |---|---|---|
-| `lifecycle-edges` under `memory-seed` | ~45 | takes `graph`'s four current children, which are all edge-MODEL concepts |
-| `package` (root) | ~66 | JNL, from adjudicating row 3; spans Seed and Trace, currently homeless |
+| `lifecycle-edges` under `memory-seed` | **63** measured | takes `graph`'s four current children, which are all edge-MODEL concepts |
+| `package` (root) | ~66, unmeasured | JNL, from adjudicating row 3; spans Seed and Trace, currently homeless |
 
 ### ACTIVITY
 
@@ -448,9 +491,14 @@ So the two are one move, not two: **`lifecycle-edges` is what makes `graph` safe
   `docs/4_Reference/memory-seed-area-split.tsv` — all 126 entries with their assigned child (or
   `RESIDUAL`) and title, so the split can be argued with line by line instead of taken on trust. Feed
   it to the scorer by pivoting it into `{child: [ids]}`.
+- **Cycle 4's raw answers are committed** as
+  `docs/4_Reference/topic-swarm-cycles/cycle4-{trace-residual,seed-population}-w{1,2}.tsv`, one file per
+  worker per population. `scripts/tally_area_swarm_json.py` rebuilds the agreement table, the
+  disagreement list and the scorer split from a run's JSON.
 - Re-run everything with:
   `python scripts/measure_topic_concentration.py`
-  `python scripts/tally_swarm_area.py . --out split.json`
+  `python scripts/tally_swarm_area.py . --out split.json`        (cycle 3)
+  `python scripts/tally_area_swarm_json.py answers.json mt`       (cycle 4)
   `python scripts/propose_topic_children.py score memory-trace split.json`
   `python scripts/propose_topic_children.py gather memory-seed`
 - The scorer's floor and target are stated in code (`MIN_CHILD_ENTRIES`, `TARGET_PARENT_SHARE`), and it

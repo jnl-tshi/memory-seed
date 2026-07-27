@@ -16,7 +16,7 @@
 | [hierarchical-topic-vocabulary-proposal.md](hierarchical-topic-vocabulary-proposal.md) | P2 | — | JNL to accept or reject. If accepted the order is - (1) `parent:` field + schema_version 2 + re… |
 | [link-audit-decision-judgment-swarm-proposal.md](link-audit-decision-judgment-swarm-proposal.md) | P2 | — | In-core foundation SHIPPED 2026-07-23 (link audit --json judgment-ready candidates). Open befor… |
 | [memory-seed-workflow-evidence-and-review-workbench-plan.md](memory-seed-workflow-evidence-and-review-workbench-plan.md) | P2 | — | Reconstruct three completed project journeys from existing entries, documents, and Git referenc… |
-| [memory-trace-children-proposal.md](memory-trace-children-proposal.md) | P2 | — | JNL to rule on the table in "The ask" - eight slugs are ready, four under each root (memory-tra… |
+| [memory-trace-children-proposal.md](memory-trace-children-proposal.md) | P2 | — | JNL to rule on the table in "The ask". Every area count is now swarm-measured (cycle 4) and bot… |
 | [memory-trace-living-archive-and-editorial-focus-proposal.md](memory-trace-living-archive-and-editorial-focus-proposal.md) | P2 | >- | >- |
 | [topic-vocabulary-concentration-review.md](topic-vocabulary-concentration-review.md) | P2 | — | SUPERSEDED 2026-07-26 as to remedy - the measurements here stand, but the flat splits recommend… |
 | [vocabulary-proposal-mode-proposal.md](vocabulary-proposal-mode-proposal.md) | P2 | — | JNL to accept or reject. If accepted, build after step 5 and before step 7 - the sweep needs so… |
