@@ -1,6 +1,6 @@
 ---
 priority: P2
-next_action: JNL to rule on the table in "The ask" - four slugs are measurement-backed and ready (graph, trail, trace-cache, trace-harness; they take memory-trace canonical to 18.0%, under target), the rest are argued but unmeasured. Nothing may be written to topics.yaml before that.
+next_action: JNL to rule on the table in "The ask" - eight slugs are ready, four under each root (memory-trace 43.1%->18.0%, memory-seed 26.6%->9.5%, both under target), and the rest are argued but unmeasured. The two halves differ in evidence strength; see the evidence column. Nothing may be written to topics.yaml before that.
 ---
 
 # Proposal: the topic vocabulary change
@@ -34,14 +34,29 @@ version of this document presented them as if they were.
 | `settings` | `panes` | area | ~14 | keyword estimate | no floor at gen 3 | no |
 | `workspace-bar` | `panes` | area | ~11 | keyword estimate | no floor at gen 3 | no |
 | `diagram-view` | `panes` | area | 4 | two blind workers agreed | no floor at gen 3 | no |
-| `lifecycle-edges` | `memory-seed` | area | ~45 | your ruling + `graph`'s 4 existing children | floor (≥5) | you already approved it |
+| `lifecycle-edges` | `memory-seed` | area | **63** | union of two measured sets — see below | floor (≥5) | **yes**, and you already approved it |
+| `topic-vocabulary` | `memory-seed` | area | **25** | hand-classified over all 126 titles | floor (≥5) | **yes** |
+| `test-suite` | `memory-seed` | area | **13** | hand-classified over all 126 titles | floor (≥5) | **yes** |
+| `docs-lifecycle` | `memory-seed` | area | **8** | hand-classified over all 126 titles | floor (≥5) | **yes** |
 | `package` | *(root)* | area | ~66 | your ruling from adjudication row 3 | root, no floor | no |
 | `feature-build` | *(root)* | activity | ~116 | your ruling; the axis had no verb for BUILDING | root, no floor | no |
 | `testing` | *(root)* | activity | ~8 | the split-swarm mismatch, pooled across workers | root, no floor | no |
 
-**Four rows are ready now**, and they carry the concentration between them. Approving only those takes
-`memory-trace` canonical from 43.1% to **18.0%**, under the 20% target, which is the entire problem this
-was triggered by. Everything else can wait for evidence without blocking it.
+**Eight rows are ready now** — four under each root — and they carry the concentration between them:
+
+| root | canonical today | with its ready children | target |
+|---|---:|---:|---|
+| `memory-trace` | 43.1% | **18.0%** | ≤20% ✔ |
+| `memory-seed` | 26.6% | **9.5%** | ≤20% ✔ |
+
+Both clear the target on the ready rows alone. Everything else can wait for evidence without blocking
+it.
+
+**The two halves are not equally evidenced, and the `evidence` column says which is which.** The
+`memory-trace` children come from two blind workers who agreed 92% of the time. The `memory-seed`
+children are my classification of all 126 titles, with no second reader and no swarm pass — better than
+the keyword regex that reached only 42 of 126, weaker than blind agreement. If you want one of the two
+halves measured properly before signing, it is this one.
 
 > **The floor moved from 8 to 5 (JNL, 2026-07-27)**, which is what made `trace-harness` the fourth ready
 > row instead of an open question. The reasoning is in
@@ -49,12 +64,18 @@ was triggered by. Everything else can wait for evidence without blocking it.
 > set before the generation rule existed, when this one constant carried the whole depth question, and
 > it is now doing a much narrower job.
 
-Two things the table cannot show:
+Three things the table cannot show:
 
 - **`graph` and `lifecycle-edges` are one move, not two.** `graph` cannot be reparented under
   `memory-trace` while 45 of its entries are Seed-side edge-model work — that would be the
   ancestor-fit violation rule 3 forbids. `lifecycle-edges` is what takes them. Approving `graph`
   without it would file 45 entries under a subsystem they have nothing to do with.
+- **`lifecycle-edges` is 63, not the ~45 this document said earlier.** Two sets were being counted
+  separately: 45 entries carry `graph` without `memory-trace` (the Seed-side edge model), and 35 carry
+  `memory-seed` and are edge work. They overlap on **17**, so the union is **63** — 13.3% of the corpus,
+  and the second-largest slug in the whole ask after `graph`. It is big enough to earn grandchildren
+  immediately: the ~14 `Cycle N` link-campaign entries are an obvious `link-swarm`, and at generation 3
+  no floor applies to them.
 - **`trace-api` is deliberately not in the table.** 1 agreed entry, no grouping parent, and unlike
   `trace-harness` nobody has argued for it. It stays on the root.
 
@@ -72,7 +93,7 @@ From [hierarchical-topic-vocabulary-proposal.md](hierarchical-topic-vocabulary-p
 3. **A slug must fit every ancestor** — the constraint that pays for rule 2, and a worker rule rather
    than a vocabulary rule.
 
-### The live run behind the "yes" rows
+### The live run behind the `memory-trace` rows
 
 Reproduce with:
 
@@ -109,6 +130,50 @@ of 8 it passed on one reading and failed on the other. **Lowering the floor to 5
 anyone having to pick a reading, which is the better outcome: the answer no longer depends on which
 worker you believe.
 
+### The live run behind the `memory-seed` rows
+
+`memory-seed` is 126 entries with **no children at all** — since the `memory-trace` split, the largest
+concentration left in the vocabulary. Four children, each bounded by a path rather than a definition,
+which is rule 1:
+
+| child | the boundary that makes it unambiguous | entries |
+|---|---|---:|
+| `lifecycle-edges` | `.memory-seed/sessions/links/`, the edge rules in `links check` / `link audit` | 35 here, **63** with the Seed-side `graph` entries |
+| `topic-vocabulary` | `memory_seed/topics.py`, `.memory-seed/topics.yaml`, `scripts/*topic*` | 25 |
+| `test-suite` | `tests/` | 13 |
+| `docs-lifecycle` | `docs/` lanes, `docs check` / `docs index` | 8 |
+
+```
+parent memory-seed: 126 entries, 26.6% of 474
+proposed children are generation 2 - floor of 5 applies
+every claimed entry must be true at EVERY level: memory-seed > <child>
+
+  docs-lifecycle                    8 entries   1.7% of corpus   ok
+  lifecycle-edges                  35 entries   7.4% of corpus   ok
+  test-suite                       13 entries   2.7% of corpus   ok
+  topic-vocabulary                 25 entries   5.3% of corpus   ok
+
+  (residual on the parent)         45 entries   9.5% of corpus
+
+ACCEPTABLE: every child clears 5, parent falls to 9.5%
+```
+
+**`topic-vocabulary` closes a gap this work had been living inside.** The area doing the classifying had
+no slug of its own, so every entry about the vocabulary — including all of today's — landed on the
+`memory-seed` root with nothing more specific available.
+
+**The 45-entry residual is healthy, not homeless.** Reading it back, most of it already has a better
+home on an *existing* root rather than a new child: ~10 entries are session-grammar work already
+carrying `session-logging`, four are `release`, four are `mermaid`, four are worktree hygiene carrying
+`git-workflow`. What is left is genuinely package-level. That is what a residual should look like — the
+opposite of the `TRACE-WIDE` problem, where the catch-all was absorbing work that had nowhere to go.
+
+**Two candidates were declined by the floor, and correctly.** `worktree` (4 entries: the Track E
+remover, the dry-run classifier, the orphaned-worktree clearance, the branch closeout) and
+`constitution` (4: v1.2 ratification, v1.5, v1.6, the diagram-repair amendment). Both are real
+distinctions with clean boundaries; neither has five entries yet. At a floor of 5 that is a near miss
+rather than a dismissal, and either could qualify within a week.
+
 ### What is NOT measured, stated plainly
 
 - **The pane split has never been run over the population.** The swarm judged 116 entries against a
@@ -125,10 +190,16 @@ worker you believe.
   touch* — and only the first supports a slug. Display panes get touched by everything.
 - **`package`, `settings` and `feature-build` are keyword estimates** over titles and bodies. That is
   the same method that put `trail` at 40 where the swarm found 30. Order-of-magnitude only.
+- **The whole `memory-seed` half is one reader's classification.** I read all 126 titles and assigned
+  81 of them; there was no swarm pass and no second reader, so nothing here has the 92% blind-agreement
+  backing the `memory-trace` rows. It is a real improvement on the earlier keyword regex, which reached
+  only 42 of 126 and left the boundaries to guesswork — but a single reader who also wrote the
+  boundaries is exactly the arrangement the split-swarm experiment was designed to avoid.
 
-**The obvious way to close all four gaps at once** is one area swarm pass over the 85-entry residual
-with the pane vocabulary in hand. That is a measurement, not a rewrite, and nothing about the four
-ready rows depends on it.
+**One area swarm pass closes every gap above** — the 85-entry `memory-trace` residual with the pane
+vocabulary in hand, and the 126 `memory-seed` entries against the four proposed children. That is a
+measurement, not a rewrite, and none of the eight ready rows depends on it. It is also the one step
+here that needs deliberate opt-in: the swarm is a model fan-out, so it is network-using and costs.
 
 ---
 
@@ -373,9 +444,14 @@ So the two are one move, not two: **`lifecycle-edges` is what makes `graph` safe
 - Clustering for the unmeasured rows was keyword-led over entry titles and then reviewed, not a swarm
   pass over the bodies. 26 of the 116 single-area entries matched no pattern, and those boundaries are
   the ones a swarm would firm up.
+- **The `memory-seed` classification is committed** as
+  `docs/4_Reference/memory-seed-area-split.tsv` — all 126 entries with their assigned child (or
+  `RESIDUAL`) and title, so the split can be argued with line by line instead of taken on trust. Feed
+  it to the scorer by pivoting it into `{child: [ids]}`.
 - Re-run everything with:
   `python scripts/measure_topic_concentration.py`
   `python scripts/tally_swarm_area.py . --out split.json`
   `python scripts/propose_topic_children.py score memory-trace split.json`
+  `python scripts/propose_topic_children.py gather memory-seed`
 - The scorer's floor and target are stated in code (`MIN_CHILD_ENTRIES`, `TARGET_PARENT_SHARE`), and it
   scores the *canonical* residual, not reach.
