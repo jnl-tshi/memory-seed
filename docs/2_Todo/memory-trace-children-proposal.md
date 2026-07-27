@@ -1,6 +1,6 @@
 ---
 priority: P2
-next_action: JNL to rule on the table in "The ask" - three slugs are measurement-backed and ready, six are argued but unmeasured, and one (trace-harness) fails the floor by one entry and needs a call. Nothing may be written to topics.yaml before that.
+next_action: JNL to rule on the table in "The ask" - four slugs are measurement-backed and ready (graph, trail, trace-cache, trace-harness; they take memory-trace canonical to 18.0%, under target), the rest are argued but unmeasured. Nothing may be written to topics.yaml before that.
 ---
 
 # Proposal: the topic vocabulary change
@@ -23,25 +23,31 @@ version of this document presented them as if they were.
 
 | slug | parent | axis | count | evidence | admitted by | ready? |
 |---|---|---|---:|---|---|---|
-| `graph` | `memory-trace` | area | **70** | two blind workers agreed, + 64 dual-tagged | floor (≥8) | **yes** |
-| `trail` | `memory-trace` | area | **30** | two blind workers agreed | floor (≥8) | **yes** |
-| `trace-cache` | `memory-trace` | area | **12** | two blind workers agreed | floor (≥8) | **yes** |
-| `trace-harness` | `memory-trace` | area | **7** | agreed count; w1 said 9, w2 said 7 | **FAILS floor by 1** | **needs your call** |
-| `panes` | `memory-trace` | area | ~23 | keyword estimate, never put to a swarm | floor (≥8) — plausibly, unverified | no |
+| `graph` | `memory-trace` | area | **70** | two blind workers agreed, + 64 dual-tagged | floor (≥5) | **yes** |
+| `trail` | `memory-trace` | area | **30** | two blind workers agreed | floor (≥5) | **yes** |
+| `trace-cache` | `memory-trace` | area | **12** | two blind workers agreed | floor (≥5) | **yes** |
+| `trace-harness` | `memory-trace` | area | **7** | two blind workers agreed (w1 said 9) | floor (≥5) | **yes** |
+| `panes` | `memory-trace` | area | ~23 | keyword estimate, never put to a swarm | floor (≥5) — plausibly, unverified | no |
 | `inspector` | `panes` | area | 1–40 | swarm 1, keyword ~40 — see below | no floor at gen 3 | no |
 | `topbar` | `panes` | area | ~17 | keyword estimate | no floor at gen 3 | no |
 | `navigation` | `panes` | area | ~14 | keyword estimate | no floor at gen 3 | no |
 | `settings` | `panes` | area | ~14 | keyword estimate | no floor at gen 3 | no |
 | `workspace-bar` | `panes` | area | ~11 | keyword estimate | no floor at gen 3 | no |
 | `diagram-view` | `panes` | area | 4 | two blind workers agreed | no floor at gen 3 | no |
-| `lifecycle-edges` | `memory-seed` | area | ~45 | your ruling + `graph`'s 4 existing children | floor (≥8) | you already approved it |
+| `lifecycle-edges` | `memory-seed` | area | ~45 | your ruling + `graph`'s 4 existing children | floor (≥5) | you already approved it |
 | `package` | *(root)* | area | ~66 | your ruling from adjudication row 3 | root, no floor | no |
 | `feature-build` | *(root)* | activity | ~116 | your ruling; the axis had no verb for BUILDING | root, no floor | no |
 | `testing` | *(root)* | activity | ~8 | the split-swarm mismatch, pooled across workers | root, no floor | no |
 
-**Three rows are ready now**, and they are the three that carry the concentration. Approving only
-those takes `memory-trace` canonical from 43.2% to **16.7%**, under the 20% target, which is the
-entire problem this was triggered by. Everything else can wait for evidence without blocking it.
+**Four rows are ready now**, and they carry the concentration between them. Approving only those takes
+`memory-trace` canonical from 43.1% to **18.0%**, under the 20% target, which is the entire problem this
+was triggered by. Everything else can wait for evidence without blocking it.
+
+> **The floor moved from 8 to 5 (JNL, 2026-07-27)**, which is what made `trace-harness` the fourth ready
+> row instead of an open question. The reasoning is in
+> [hierarchical-topic-vocabulary-proposal.md](hierarchical-topic-vocabulary-proposal.md) rule 2: 8 was
+> set before the generation rule existed, when this one constant carried the whole depth question, and
+> it is now doing a much narrower job.
 
 Two things the table cannot show:
 
@@ -60,7 +66,7 @@ From [hierarchical-topic-vocabulary-proposal.md](hierarchical-topic-vocabulary-p
 1. **Levels must be well bounded** — a child earns its place by being distinguishable without
    judgement. The `panes` children qualify on this one strongly: each names a DOM region, so two
    siblings cannot overlap.
-2. **The floor applies to generation 2 only** — `MIN_CHILD_ENTRIES = 8` decides whether a new BRANCH
+2. **The floor applies to generation 2 only** — `MIN_CHILD_ENTRIES = 5` decides whether a new BRANCH
    is justified. Below that there is no floor, which is why the six pane children need no count and
    `panes` itself does.
 3. **A slug must fit every ancestor** — the constraint that pays for rule 2, and a worker rule rather
@@ -79,36 +85,29 @@ entries carrying memory-trace : 204
 judged by both workers        : 116
 agreed                        : 107  (92%)
 
-parent memory-trace: 204 entries, 43.2% of 472
-proposed children are generation 2 - floor of 8 applies
+parent memory-trace: 204 entries, 43.1% of 473
+proposed children are generation 2 - floor of 5 applies
+every claimed entry must be true at EVERY level: memory-trace > <child>
 
   graph                            70 entries  14.8% of corpus   ok
   trace-cache                      12 entries   2.5% of corpus   ok
-  trace-harness                     7 entries   1.5% of corpus   UNDER FLOOR (8)
-  trail                            30 entries   6.4% of corpus   ok
+  trace-harness                     7 entries   1.5% of corpus   ok
+  trail                            30 entries   6.3% of corpus   ok
 
-  (residual on the parent)         79 entries  16.7% of corpus
+  (residual on the parent)         85 entries  18.0% of corpus
+
+ACCEPTABLE: every child clears 5, parent falls to 18.0%
 ```
 
 The tally script quotes the **agreed** column — the label both blind workers reached independently —
-because a count one worker reached is a hypothesis. That choice is what exposes the `trace-harness`
-problem, and it is why the numbers here are slightly lower than the ones this document carried
-earlier.
+because a count one worker reached is a hypothesis. That is why the numbers here are slightly lower
+than the ones this document carried before it was consolidated: `trace-harness` was presented as 8 and
+is 7, `TRACE-WIDE` as 26 and is 23.
 
-### The one thing that needs a decision, not more evidence
-
-**`trace-harness` is 9 by worker 1, 7 by worker 2, 7 agreed.** It clears the floor on one reading and
-fails on the other, and it has no natural parent to sit under — it is not a pane. So the scorer's
-usual remedy ("propose it under a grouping child") does not apply. Three options:
-
-- **Wait.** It stays on the root until it reaches 8 agreed. Costs nothing; CI work will get it there.
-- **Approve at 7**, on the grounds that the floor is a guard against unearned depth and a
-  one-entry miss on a category with a Storybook directory behind it is not that.
-- **Fold it into `panes`** — rejected here: a test harness is not a pane, and stretching `panes` to
-  hold it would break rule 1, which is the rule that makes the pane set worth having.
-
-I would wait. But it is a judgement call about your own vocabulary, which is why it is listed rather
-than decided.
+The spread on `trace-harness` — 9 by worker 1, 7 by worker 2 — was wide enough that under the old floor
+of 8 it passed on one reading and failed on the other. **Lowering the floor to 5 settled it** without
+anyone having to pick a reading, which is the better outcome: the answer no longer depends on which
+worker you believe.
 
 ### What is NOT measured, stated plainly
 
@@ -117,16 +116,18 @@ than decided.
   keyword estimates only. The evidence for them is the DOM boundary (rule 1) plus a re-ruling of 22
   adjudicated rows, where naming the panes moved three of six entries off `TRACE-WIDE`. That is a good
   argument and a small sample.
-- **`panes` itself is therefore unverified at the floor.** It needs ≥8 of the 79-entry residual, and
-  the 23 entries both workers called `TRACE-WIDE` are where they would come from. Plausible, unproven.
+- **`panes` itself is therefore unverified at the floor.** It needs ≥5 of the 85-entry residual, and
+  the 23 entries both workers called `TRACE-WIDE` are where they would come from. At a floor of 5 this
+  is a low bar and the keyword estimate of ~23 clears it four times over — but it is still an estimate,
+  and `panes` is the row the other six hang off, so it should be the one thing actually measured.
 - **`inspector` is the count I would not act on blindly.** The swarm said **1**; the keyword estimate
   says **~40**. They answer different questions — *what is this entry about* versus *which pane did it
   touch* — and only the first supports a slug. Display panes get touched by everything.
 - **`package`, `settings` and `feature-build` are keyword estimates** over titles and bodies. That is
   the same method that put `trail` at 40 where the swarm found 30. Order-of-magnitude only.
 
-**The obvious way to close all four gaps at once** is one area swarm pass over the 79-entry residual
-with the pane vocabulary in hand. That is a measurement, not a rewrite, and nothing about the three
+**The obvious way to close all four gaps at once** is one area swarm pass over the 85-entry residual
+with the pane vocabulary in hand. That is a measurement, not a rewrite, and nothing about the four
 ready rows depends on it.
 
 ---
@@ -161,13 +162,14 @@ Each entry authoring only its deepest area slug:
 | | entries | share |
 |---|---:|---:|
 | `memory-trace` **reach** (rollup) | 204 | unchanged, always |
-| `memory-trace` **canonical**, today | 204 | 43.2% |
-| `memory-trace` **canonical**, with the three ready children | **79** | **16.7%** |
+| `memory-trace` **canonical**, today | 204 | 43.1% |
+| `memory-trace` **canonical**, with the four ready children | **85** | **18.0%** |
+| …and again once the pane split is measured | fewer | lower |
 
-> The **~49 / 10.6%** this row claimed earlier assumed every candidate landed, including the pane split
-> and `trace-harness`. The 79 above is what the three measurement-backed children alone deliver, and it
-> is a live scorer figure rather than a projection — see "The live run behind the yes rows". It already
-> clears the 20% target, which is why the unmeasured rows do not block anything.
+> The **~49 / 10.6%** this row claimed earlier assumed every candidate landed, including the whole pane
+> split. The 85 above is what the four measurement-backed children alone deliver, and it is a live
+> scorer figure rather than a projection — see "The live run behind the yes rows". It already clears the
+> 20% target, which is why the unmeasured rows block nothing.
 
 ## Candidates — SUPERSEDED, kept as the record
 
@@ -212,12 +214,14 @@ no new slug for the 64 rendering entries, and no entry filed under a parent it d
 
 ## Under-floor candidates — resolved by the generation rule
 
-This section originally rejected `inspector`, `diagram-view` and `trace-api` for want of 8 entries. The
-floor rule settled later the same day makes most of that moot: it applies to **generation 2 only**, so
-`inspector` and `diagram-view` are admissible as grandchildren under `panes` regardless of count.
+This section originally rejected `inspector`, `diagram-view` and `trace-api` for want of 8 entries.
+Two later rulings made most of that moot: the floor applies to **generation 2 only**, so `inspector`
+and `diagram-view` are admissible as grandchildren under `panes` regardless of count, and the floor
+itself came down to 5, which cleared `trace-harness`.
 
-What survives is `trace-api` (1 agreed), which has no grouping parent — the same position
-`trace-harness` is in, and the same open call.
+What survives is `trace-api` at **1 agreed** — still under a floor of 5, and with no grouping parent
+to fall under. It stays on the root. That is the rule doing its job rather than failing: a single
+entry is not a category, at any floor.
 
 ## Retraction: narrow, and not this
 
