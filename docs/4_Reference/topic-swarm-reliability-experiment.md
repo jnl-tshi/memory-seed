@@ -113,3 +113,76 @@ Depth-only disagreements 12 → 3; genuine category disagreements 6 → 4.
 - Validity rests on authored tags, which are a proxy. The gold set remains the expensive missing piece.
 - Only one coherence rule was tested (`trace-harness` implies a test-shaped activity). Others —
   `lifecycle-edges` implying a model activity, `NONE` area implying a process activity — are unwritten.
+
+---
+
+# Held-out validation, and a gold set that failed (2026-07-27)
+
+The briefs were frozen and scored once on the **77 entries never used for tuning**
+(`exp_holdout.tsv`, zero overlap with the 39-row dev set).
+
+## Reliability held; the depth rule generalised
+
+| | dev | held-out |
+|---|---|---|
+| area | 97% | **90%** |
+| activity, exact slug | 82% | **82%** |
+| activity, root | 90% | **90%** |
+
+The activity numbers are *identical* out of sample, which is the strong result: the depth rule was
+written after seeing the disagreements it fixes, and it still transferred exactly. Area lost 7 points —
+the ordinary cost of tuning definitions against rows already inspected.
+
+Three of area's eight held-out disagreements involve `NONE`, which is the least-defined boundary in the
+brief. That is the next thing to fix.
+
+## Validity did not hold, and the earlier figure was overstated
+
+| | validity | n |
+|---|---|---|
+| dev (reported earlier as 0.89) | 87% | 62 |
+| **held-out** | **74%** | 128 |
+
+The intervals overlap (dev 95% CI reaches down to 79%, held-out up to 82%), so the two are not cleanly
+distinguishable — but the dev figure rested on 31 tagged entries and was reported without an interval,
+which is what made it look decisive. **74% on n=128 is the better estimate.** The claim that the
+constrained question comfortably clears the 0.70 pilot gate is withdrawn; it sits just above it.
+
+## The behavioural gold set FAILED, and is recorded as a negative result
+
+87% of entries record their touched files, so the area axis looked derivable without human judgement:
+an entry that changed `TrailWorkspace.tsx` is `trail` work. `scripts/derive_area_gold.py` implements it.
+It does not work, and the reason is worth keeping:
+
+- **v1** labelled by "exactly one mappable area". It called *"Trail complete: brackets and two-stage
+  selection"* `trace-api`, because the only mappable file it listed was `models.py`. The rule captured
+  *which file happened to be mappable*, not what the entry was about.
+- **v2** added rarity weighting — the same idf principle `link audit` uses — dropping any path appearing
+  in more than 3% of entries (`App.tsx`, `styles.css`, `models.py`). Better constructed, but the score
+  moved only 76% → 78% and the same misses survived.
+
+Inspecting them, **the workers are right and the derived labels are wrong**. Files record what an entry
+TOUCHED; topics record what it was ABOUT. A Trail feature that also adjusts a payload model touches the
+model. Those are different questions and no path map closes the gap.
+
+So the 78% is not a validity measurement — it is agreement between two fallible schemes. Reporting it as
+validity would have dressed a wrong label as objective merely because a script produced it.
+
+**What could still work:** weight by how many of an entry's rare files fall in each area rather than
+requiring exactly one, or restrict the set to entries whose files sit wholly within one area. Both give
+a much smaller set. Smaller is correct — a gold set earns authority by being unarguable.
+
+## Where this leaves the project
+
+| | status |
+|---|---|
+| area reliability | **90% held-out** — solid |
+| activity reliability | **82%/90% held-out** — solid, and generalises |
+| validity, either axis | **not established** |
+
+The vocabulary decision does not depend on the gap: `graph` (70), `trail` (32) and `trace-cache` (12)
+rest on counts three cycles agreed on. **The sweep does** — writing labels into the corpus needs a
+validity number that does not currently exist.
+
+`docs/2_Todo/adjudication-queue.md` holds the 22 contested rows of 77. Ruling those is the only route to
+ground truth left, and it is bounded: the 55 uncontested rows need no human time.
