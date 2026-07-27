@@ -103,6 +103,8 @@ def gather(root: Path, slug: str, limit: int | None) -> int:
     total_topiced = sum(1 for _c, t in entries if t)
     print(f"# {slug}: {len(carrying)} entries, {len(carrying) / max(1, total_topiced):.1%} of {total_topiced} topiced")
     print(f"# axis: {index.axis_of(slug) or '(none)'}")
+    chain = list(reversed(index.ancestors(slug))) + [slug]
+    print(f"# a child here must be true at every level: {' > '.join(chain)} > <child>")
     existing = sorted(index.descendants(slug))
     print(f"# existing children: {', '.join(existing) if existing else '(none)'}")
     print()
@@ -130,13 +132,21 @@ def score(root: Path, slug: str, split_path: Path) -> int:
     split: dict[str, list[str]] = json.loads(split_path.read_text(encoding="utf-8"))
 
     # Generation of the PROPOSED children: root is 1, so a child of a root is 2.
-    generation = len(index.ancestors(slug)) + 2
+    chain = list(reversed(index.ancestors(slug))) + [slug]
+    generation = len(chain) + 1
     floored = generation <= FLOOR_APPLIES_UP_TO_GENERATION
     print(f"parent {slug}: {len(carrying)} entries, {len(carrying) / total_topiced:.1%} of {total_topiced}")
     print(
         f"proposed children are generation {generation} - "
         + (f"floor of {MIN_CHILD_ENTRIES} applies" if floored else "NO FLOOR (depth is free below generation 2)")
     )
+    # The chain is the claim every listed entry is being made to satisfy. Depth is
+    # free only because consumers roll up, and roll-up is a PROMISE: filtering on
+    # any name below returns these entries. A child that does not fit an ancestor
+    # pollutes that ancestor's filter invisibly - nobody looking at the parent sees
+    # which leaf put the entry there. No script can check the fit; printing the
+    # chain puts it in front of whoever can.
+    print(f"every claimed entry must be true at EVERY level: {' > '.join(chain)} > <child>")
     print()
     claimed: set[str] = set()
     failures: list[str] = []

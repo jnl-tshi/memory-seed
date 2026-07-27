@@ -167,6 +167,19 @@ The conventions below are corpus-measured, not imposed; they are recorded live i
    `performance`, never `perf`; `memory-trace`, never `memory-trace-ui`. Only 11 topiced entries still
    author an alias (12 distinct, measured 2026-07-26 — down from 45 because 31 of the old aliases were
    the second kind and became child slugs) — the swarm must not copy even those.
+
+   **A slug must fit EVERY ancestor, not just its immediate parent** (JNL, 2026-07-27). Before
+   emitting a grandchild, check the whole chain: `inspector` asserts the work is in the inspector pane,
+   AND that it is `panes` work, AND that it is `memory-trace` work. If any link in that chain would be
+   wrong, the slug is wrong — emit the deepest ancestor that *is* true instead, or nothing.
+
+   This is what pays for depth. Specificity is free only because every consumer rolls up
+   (`expand_topic_filter` matches a parent against all its descendants), and roll-up is a promise:
+   filtering on `memory-trace` returns this entry. A leaf that does not honour its chain does not
+   merely mislabel one entry — it silently pollutes every ancestor's filter, and it does so invisibly,
+   because nobody inspecting `memory-trace` sees which leaf put the entry there. Rule 4's pressure
+   toward the narrowest slug is therefore bounded by this: **narrower is better only while every level
+   above stays true.** When in doubt, go up a level; a correct parent beats a plausible child.
 5. **Bare slugs are permanently legal, not a migration stage.** A zero-decision entry (34 of them —
    a note, an observation, a milestone) can never carry a decision-keyed topic and takes a bare slug.
    Bare slugs keep the per-*entry* ceiling of 4 (`MAX_INFERRED_TOPICS`), not 3.
