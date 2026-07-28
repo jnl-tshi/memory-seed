@@ -6,6 +6,7 @@ import { type RendererGraphEdge, type RendererGraphNode, type RendererGraphRespo
 import { nodeSetSignature, seedPositions, type Point } from "./graphLayout";
 import { anchorEntryIdFor, connectedIdsWithDecisionAnchors, decisionGroups, decisionHaloId, haloDiameter, isDecisionRowId, parentIdsFor, satellitePositions, simulationLinks, visibilityIdFor } from "./graphDecisionRows";
 import { allSpiralAssignments, spiralSeedOffsets, type SpiralAssignment } from "./graphSpiral";
+import { edgeCrossingForce } from "./graphCrossings";
 import { forceParameters, ticksPerPaint, type ForceSettings } from "./graphForces";
 import { outrankedEdgeIds } from "./graphEdges";
 import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, inferredCommunityColours, wearsAuthoredRim, type TopicRoots } from "./graphCommunities";
@@ -141,6 +142,16 @@ const AUTO_SCALE_INTERVAL_MS = 250;
  */
 const WARM_ALPHA_START = 0.6;
 const WARM_ALPHA_MIN = 0.03;
+
+/**
+ * How hard crossing edges push apart. Not exposed as a slider — this is a
+ * background readability nudge, not a layout the user is meant to be tuning,
+ * the way the spiral is. Chosen small relative to the link/charge forces it
+ * runs alongside: it should tip a genuinely close call toward uncrossing over
+ * many ticks, not fight the forces holding a dense cluster together. See
+ * graphCrossings.ts for why leaving some crossings in place is expected.
+ */
+const CROSSING_STRENGTH = 6;
 
 /**
  * Diameter of a decision row, in graph units.
@@ -282,6 +293,12 @@ const simNodes: ReheatNode[] = graphNodes.map((node) => {
   // for why - the short version is that a decision is part of its entry, so a
   // pull on the part is a pull on the whole.
   const links: ReheatLink[] = simulationLinks(graphEdges, new Set(byId.keys()));
+  // A plain id-pair copy, taken before forceLink gets anywhere near `links` -
+  // that force resolves each link's .source/.target from an id string into a
+  // node object reference the moment it initializes, so reading `links`
+  // itself from another force would sometimes see strings and sometimes
+  // objects depending on ordering. edgeCrossingForce only ever needs ids.
+  const crossingEdges = links.map((link) => ({ source: link.source as string, target: link.target as string }));
 
   // Which nodes belong to a long lifecycle chain, and how far out each sits.
   // Computed once per simulation, like `links`: the element set does not change
@@ -428,6 +445,12 @@ const simNodes: ReheatNode[] = graphNodes.map((node) => {
       .force("charge", d3.forceManyBody<ReheatNode>())
       .force("x", d3.forceX<ReheatNode>(0))
       .force("y", d3.forceY<ReheatNode>(0))
+      // Readability nudge: pushes crossing edges apart. Ordered before the
+      // spiral force, not after — a chain's radial spring is the stronger,
+      // more specific claim about where a chain member belongs, and should
+      // get the last word on this tick's position, not have it undone by a
+      // crossing found against an edge that is about to move anyway.
+      .force("crossing", edgeCrossingForce(() => crossingEdges, () => CROSSING_STRENGTH))
       // Last, so it resolves against positions the other three have already
       // moved this tick rather than against last tick's.
       .force("spiral", chainSpiralForce(currentSeats, () => forceParameters(forces.current).spiralStrength))
