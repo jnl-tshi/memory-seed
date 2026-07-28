@@ -84,6 +84,29 @@ class WorktreesResponse(BaseModel):
     default: str
 
 
+class DirectoryEntry(BaseModel):
+    name: str
+    path: str
+    # Cheap existence check only (a directory named .memory-seed is present) -
+    # not a doctor() pass/fail. The picker uses this to hint which folders are
+    # worth trying to open, not to promise they will open successfully.
+    has_memory_seed: bool
+
+
+class BrowseResponse(BaseModel):
+    path: str
+    parent: str | None
+    entries: list[DirectoryEntry]
+
+
+class OpenProjectResponse(BaseModel):
+    ok: bool
+    worktree: WorktreeInfo | None = None
+    # Human-readable doctor() findings when ok is False - what is missing or
+    # out of date, so the picker can say why rather than just refusing.
+    issues: list[str] = Field(default_factory=list)
+
+
 class RuntimeInfo(BaseModel):
     label: str
     workspace_root: str

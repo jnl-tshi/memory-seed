@@ -51,6 +51,39 @@
         "title": "BranchInfo",
         "type": "object"
       },
+      "BrowseResponse": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/DirectoryEntry"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "parent",
+          "entries"
+        ],
+        "title": "BrowseResponse",
+        "type": "object"
+      },
       "ChunkBrief": {
         "description": "The compact shape used for commit_entries/suggestions (_chunk_summary).",
         "properties": {
@@ -563,6 +596,29 @@
           "from"
         ],
         "title": "ContinuityItem",
+        "type": "object"
+      },
+      "DirectoryEntry": {
+        "properties": {
+          "has_memory_seed": {
+            "title": "Has Memory Seed",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "path",
+          "has_memory_seed"
+        ],
+        "title": "DirectoryEntry",
         "type": "object"
       },
       "EdgeType": {
@@ -1079,6 +1135,36 @@
           "name"
         ],
         "title": "OntologyNode",
+        "type": "object"
+      },
+      "OpenProjectResponse": {
+        "properties": {
+          "issues": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "worktree": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorktreeInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "OpenProjectResponse",
         "type": "object"
       },
       "ProvenanceClass": {
@@ -2110,6 +2196,52 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/browse": {
+      "get": {
+        "operationId": "v1_browse_api_v1_browse_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowseResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "V1 Browse"
+      }
+    },
     "/api/v1/chunks/{chunk_id}": {
       "get": {
         "operationId": "v1_chunk_api_v1_chunks__chunk_id__get",
@@ -2617,6 +2749,45 @@
           }
         },
         "summary": "V1 Renderer Graph"
+      }
+    },
+    "/api/v1/projects": {
+      "post": {
+        "operationId": "v1_open_project_api_v1_projects_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenProjectResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "V1 Open Project"
       }
     },
     "/api/v1/runtime": {

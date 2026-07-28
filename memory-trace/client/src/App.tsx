@@ -1,10 +1,11 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { ChevronDown, ChevronUp, GitBranch, LayoutPanelLeft, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, X } from "lucide-react";
+import { ChevronDown, ChevronUp, FolderOpen, GitBranch, LayoutPanelLeft, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, X } from "lucide-react";
 import { SettingsMenu, type GraphSettings, type InspectorDock, type Theme, type TrailStyle } from "./SettingsMenu";
 import { DEFAULT_FORCES, readForceSettings } from "./graphForces";
 import { api, DEFAULT_GRAPH_EDGE_TYPES, GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, SEARCH_LIMIT, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
 import { EntryReader, type DiagramSidecar } from "./EntryReader";
 import { DiagramViewer, type DiagramBlock } from "./DiagramViewer";
+import { FolderPicker } from "./FolderPicker";
 import { readerScrollTarget } from "./inspectorScroll";
 import { searchResultCursor, stepSearchCursor } from "./searchNavigation";
 import { genuineSearchResults } from "./searchResults";
@@ -261,6 +262,7 @@ export default function App() {
   const [entryIndex, setEntryIndex] = useState<TrailResponse | null>(null);
   const [worktrees, setWorktrees] = useState<WorktreesResponse | null>(null);
   const [worktree, setWorktree] = useState<string | null>(null);
+  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   // The vanilla "train of thought" worktree loader, kept with a fixed rhythm:
   // the ride always lasts at least the baseline so it stays readable now that
   // switches are fast; only genuinely longer compute extends the middle leg.
@@ -688,9 +690,14 @@ export default function App() {
   // Switching worktree swaps the entire corpus: scope the API, clear every
   // per-corpus piece of state, and reload. Each checkout is its own memory
   // view (different branches carry different session entries).
-  async function chooseWorktree(path: string) {
+  async function chooseWorktree(path: string, labelOverride?: string) {
     const next = worktrees && path === worktrees.default ? null : path;
-    const label = worktrees?.worktrees.find((item) => item.path === path)?.label ?? "";
+    // `worktrees` state may not have caught up yet if this is called right
+    // after registering a brand-new entry (setWorktrees and this call land in
+    // the same handler, before the re-render that would make the lookup see
+    // it) - the caller passes the label it already has in that case instead
+    // of relying on the lookup.
+    const label = labelOverride ?? worktrees?.worktrees.find((item) => item.path === path)?.label ?? "";
     const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
     setSwitchLabel(label);
     setSwitchStage(0);
@@ -732,6 +739,19 @@ export default function App() {
       setSwitchLabel(null);
       setSwitchStage(0);
     }
+  }
+
+  // FolderPicker has already validated and registered the folder server-side
+  // (it only calls back with onOpened on a genuine ok:true) - this just
+  // catches the app up: refresh the worktree list so the new entry's label
+  // and future dropdown row exist, close the picker, then run the SAME
+  // switch choreography a git-worktree pick uses.
+  async function handleProjectOpened(path: string) {
+    const updated = await worktreesQuery();
+    setWorktrees(updated);
+    setFolderPickerOpen(false);
+    const label = updated.worktrees.find((item) => item.path === path)?.label ?? path.split(/[\\/]/).pop() ?? path;
+    await chooseWorktree(path, label);
   }
 
   const ensureTrailVisible = useCallback((count: number) => setTrailWindow((value) => Math.max(value, count)), []);
@@ -1304,6 +1324,9 @@ export default function App() {
             </select>
           </label>
         )}
+        <button type="button" className="open-folder-button" onClick={() => setFolderPickerOpen(true)}>
+          <FolderOpen size={14} aria-hidden="true" /> Open folder…
+        </button>
         <section className="navigation-section ontology-section">
           <h2>Ontology</h2>
           {ontologyAxes.length > 1 && (
@@ -1443,6 +1466,7 @@ export default function App() {
         </div>}
       </aside>}
       {diagramViewer && <DiagramViewer title={diagramViewer.title} blocks={diagramViewer.blocks} look={trailStyle.style} theme={theme} onClose={() => setDiagramViewer(null)} />}
+      {folderPickerOpen && <FolderPicker onClose={() => setFolderPickerOpen(false)} onOpened={handleProjectOpened} />}
     </div>
   );
 }
