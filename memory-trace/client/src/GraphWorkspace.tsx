@@ -227,10 +227,11 @@ function startSimulation(options: {
 // That is the guarantee that the dense sections keep exactly the physics they
 // had: measured on the live corpus, 6 chains qualify (46 nodes, 7%) and the
 // 289-node hub component is rejected by the path-like test.
-function chainSpiralForce(assignments: ReadonlyMap<string, SpiralAssignment>, strength: () => number) {
+function chainSpiralForce(seats: () => ReadonlyMap<string, SpiralAssignment>, strength: () => number) {
   let nodes: ReheatNode[] = [];
   const force = (alpha: number) => {
     const power = strength();
+    const assignments = seats();
     if (!power || !assignments.size) return;
     const sumX = new Map<string, number>();
     const sumY = new Map<string, number>();
@@ -281,7 +282,27 @@ const simNodes: ReheatNode[] = graphNodes.map((node) => {
   // Computed once per simulation, like `links`: the element set does not change
   // without a remount, and re-deriving components per tick would be exactly the
   // per-tick work `ticksPerPaint` exists to avoid.
-  const spiralSeats = spiralAssignments(spiralChains(graphNodes, graphEdges));
+  // Seats are re-derived when the GEOMETRY settings change, not just the
+  // strength. Moving "min chain length" changes which components qualify, and
+  // "tightness" changes every radius, so a closure over one fixed assignment
+  // would leave both sliders doing nothing until the next remount. Memoized on
+  // the parameter values so the ordinary case - a strength change, or a tick -
+  // still costs one comparison rather than a component walk.
+  let seatKey = "";
+  let seatCache = new Map<string, SpiralAssignment>();
+  const currentSeats = (): ReadonlyMap<string, SpiralAssignment> => {
+    const params = forceParameters(forces.current);
+    const key = `${params.spiralMinLength}:${params.spiralStep}`;
+    if (key !== seatKey) {
+      seatKey = key;
+      seatCache = spiralAssignments(
+        spiralChains(graphNodes, graphEdges, { minLength: params.spiralMinLength }),
+        { step: params.spiralStep },
+      );
+    }
+    return seatCache;
+  };
+  const spiralSeats = currentSeats();
 
   // Seed each chain member's ANGLE around its chain's current centroid. The
   // radial spring fixes how far a node sits from that centre and nothing fixes
@@ -290,7 +311,7 @@ const simNodes: ReheatNode[] = graphNodes.map((node) => {
   // the topology it starts with, so the seed makes the correct winding the one
   // the springs then maintain. Every node still moves; only the start is chosen.
   if (spiralSeats.size) {
-    const offsets = spiralSeedOffsets(spiralSeats);
+    const offsets = spiralSeedOffsets(spiralSeats, { angleStep: forceParameters(forces.current).spiralAngle });
     const centres = new Map<string, { x: number; y: number; n: number }>();
     for (const node of simNodes) {
       const seat = spiralSeats.get(node.id);
@@ -402,7 +423,7 @@ const simNodes: ReheatNode[] = graphNodes.map((node) => {
       .force("y", d3.forceY<ReheatNode>(0))
       // Last, so it resolves against positions the other three have already
       // moved this tick rather than against last tick's.
-      .force("spiral", chainSpiralForce(spiralSeats, () => forceParameters(forces.current).spiralStrength))
+      .force("spiral", chainSpiralForce(currentSeats, () => forceParameters(forces.current).spiralStrength))
       .stop();
     applyForces = () => {
       const params = forceParameters(forces.current);

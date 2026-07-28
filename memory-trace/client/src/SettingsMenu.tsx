@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { prefersReducedMotion } from "./trailScroll";
-import { DEFAULT_FORCES, type ForceSettings } from "./graphForces";
+import { DEFAULT_FORCES, forceParameters, type ForceSettings } from "./graphForces";
 
 // One home for preferences that used to be scattered across three surfaces:
 // dock buttons pinned inside the inspector, a Style menu in the Trail's view
@@ -221,12 +221,29 @@ export function SettingsMenu({
                   <input type="range" min={0} max={1} step={0.01} value={graphSettings.forces.linkForce} aria-label="Link force"
                     onChange={(event) => setForce({ linkForce: Number(event.target.value) })} />
                 </div>
-                {/* Felt ONLY by long lifecycle chains - 5.5% of nodes on this
-                    corpus. 0 turns it off and leaves them to the other three. */}
+                {/* Chain spiral. Felt ONLY by long lifecycle threads, so these
+                    four never touch the dense sections. Readouts show the DERIVED
+                    unit, not the 0-1 slider: "8 entries" and "30 units" are what
+                    the layout acts on, and a bare 0.24 tells nobody anything. */}
                 <div className="trail-settings-row">
-                  <span>Chain spiral <b>{graphSettings.forces.spiral.toFixed(2)}</b></span>
+                  <span>Chain spiral <b>{graphSettings.forces.spiral === 0 ? "off" : graphSettings.forces.spiral.toFixed(2)}</b></span>
                   <input type="range" min={0} max={1} step={0.01} value={graphSettings.forces.spiral} aria-label="Chain spiral"
                     onChange={(event) => setForce({ spiral: Number(event.target.value) })} />
+                </div>
+                <div className="trail-settings-row">
+                  <span>Spiral: min chain <b>{forceParameters(graphSettings.forces).spiralMinLength} entries</b></span>
+                  <input type="range" min={0} max={1} step={0.01} value={graphSettings.forces.spiralMinLength} aria-label="Spiral minimum chain length"
+                    onChange={(event) => setForce({ spiralMinLength: Number(event.target.value) })} />
+                </div>
+                <div className="trail-settings-row">
+                  <span>Spiral: tightness <b>{forceParameters(graphSettings.forces).spiralStep.toFixed(0)} units</b></span>
+                  <input type="range" min={0} max={1} step={0.01} value={graphSettings.forces.spiralTightness} aria-label="Spiral tightness"
+                    onChange={(event) => setForce({ spiralTightness: Number(event.target.value) })} />
+                </div>
+                <div className="trail-settings-row">
+                  <span>Spiral: winding <b>{(forceParameters(graphSettings.forces).spiralAngle * 57.2958).toFixed(0)}&deg;/step</b></span>
+                  <input type="range" min={0} max={1} step={0.01} value={graphSettings.forces.spiralWinding} aria-label="Spiral winding"
+                    onChange={(event) => setForce({ spiralWinding: Number(event.target.value) })} />
                 </div>
                 <div className="trail-settings-row">
                   <span>Drag response</span>

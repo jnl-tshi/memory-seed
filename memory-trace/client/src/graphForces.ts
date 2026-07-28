@@ -26,6 +26,12 @@ export type ForceSettings = {
   linkForce: number;
   /** How hard a long lifecycle chain is wound into a spiral. 0 disables it. */
   spiral: number;
+  /** How short a chain may be and still be wound. Low = only long threads. */
+  spiralMinLength: number;
+  /** How far apart successive members sit radially. Low = a tight coil. */
+  spiralTightness: number;
+  /** How far around the centre each successive member steps. */
+  spiralWinding: number;
 };
 
 /** The distance an edge tries to hold. Matches the old cose idealEdgeLength. */
@@ -44,6 +50,12 @@ export const DEFAULT_FORCES: ForceSettings = {
   // members adjacent. Below ~0.2 the thread stays a wandering line; above ~0.6
   // the ring wins and consecutive entries stop reading as consecutive.
   spiral: 0.4,
+  // Defaults reproduce the measured configuration: floor 8, step 30, angle
+  // 1.75 rad. Those are the numbers the probe reported 89% age-ordered over
+  // 633 degrees on, so the shipped defaults are the ones with evidence.
+  spiralMinLength: 5 / 21,
+  spiralTightness: 22 / 60,
+  spiralWinding: 1.35 / 2.6,
 };
 
 const clamp01 = (value: unknown, fallback: number): number =>
@@ -56,6 +68,9 @@ export function readForceSettings(stored: unknown): ForceSettings {
     repel: clamp01(source.repel, DEFAULT_FORCES.repel),
     linkForce: clamp01(source.linkForce, DEFAULT_FORCES.linkForce),
     spiral: clamp01(source.spiral, DEFAULT_FORCES.spiral),
+    spiralMinLength: clamp01(source.spiralMinLength, DEFAULT_FORCES.spiralMinLength),
+    spiralTightness: clamp01(source.spiralTightness, DEFAULT_FORCES.spiralTightness),
+    spiralWinding: clamp01(source.spiralWinding, DEFAULT_FORCES.spiralWinding),
   };
 }
 
@@ -70,6 +85,12 @@ export type ForceParameters = {
   linkDistance: number;
   /** Per-chain radial spring strength. 0 leaves chains to the other forces. */
   spiralStrength: number;
+  /** Fewest members a component may have and still be wound. */
+  spiralMinLength: number;
+  /** Graph units between successive members' radii. */
+  spiralStep: number;
+  /** Radians between successive members when a chain is seeded. */
+  spiralAngle: number;
 };
 
 /**
@@ -95,6 +116,16 @@ export function forceParameters(settings: ForceSettings): ForceParameters {
     // consecutive members sit, and a radial spring that outmuscles the link
     // force turns a readable thread into a bare ring.
     spiralStrength: settings.spiral * 0.5,
+    // 3..24 members. Below 5 a chain's centre sits among its own members and
+    // "inner versus outer" stops meaning anything - measured 40-50% ordered,
+    // no better than chance - so the low end is offered but is not the default.
+    spiralMinLength: Math.round(3 + settings.spiralMinLength * 21),
+    // 8..68 graph units. Small coils a chain tightly; large unwinds it toward a
+    // ring where consecutive entries stop reading as consecutive.
+    spiralStep: 8 + settings.spiralTightness * 60,
+    // 0.4..3.0 radians. Around 1.75 a chain of 5 completes more than one turn,
+    // which is what makes the winding direction unambiguous.
+    spiralAngle: 0.4 + settings.spiralWinding * 2.6,
   };
 }
 
