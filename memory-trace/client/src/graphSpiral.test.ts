@@ -5,6 +5,7 @@ import {
   MIN_CHAIN_LENGTH,
   SPIRAL_INNER_RADIUS,
   SPIRAL_RADIUS_STEP,
+  chainSpine,
   spiralAssignments,
   spiralChains,
 } from "./graphSpiral.ts";
@@ -70,7 +71,7 @@ test("an edge naming an absent node is ignored rather than inventing one", () =>
 
 test("radius grows with age, so the oldest sits innermost", () => {
   const { nodes, edges } = chainFixture(9);
-  const seats = spiralAssignments(spiralChains(nodes, edges));
+  const seats = spiralAssignments(spiralChains(nodes, edges), edges);
   assert.equal(seats.get("n0")?.radius, SPIRAL_INNER_RADIUS);
   assert.equal(seats.get("n8")?.radius, SPIRAL_INNER_RADIUS + 8 * SPIRAL_RADIUS_STEP);
   assert.ok((seats.get("n0")?.radius ?? 0) < (seats.get("n8")?.radius ?? 0));
@@ -84,7 +85,7 @@ test("radius follows age ORDER, not elapsed time", () => {
   const stamps = ["2026-01-01", "2026-01-02", "2026-01-03", "2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04", "2026-07-05"];
   const nodes = ids.map((id, i) => node(id, `${stamps[i]}T09:00`));
   const edges = ids.slice(1).map((id, i) => edge(ids[i], id));
-  const seats = spiralAssignments(spiralChains(nodes, edges));
+  const seats = spiralAssignments(spiralChains(nodes, edges), edges);
   const radii = ids.map((id) => seats.get(id)!.radius);
   const gaps = radii.slice(1).map((r, i) => r - radii[i]);
   assert.deepEqual(new Set(gaps), new Set([SPIRAL_RADIUS_STEP]));
@@ -92,7 +93,7 @@ test("radius follows age ORDER, not elapsed time", () => {
 
 test("every member of one chain shares a centre", () => {
   const { nodes, edges } = chainFixture(9);
-  const seats = spiralAssignments(spiralChains(nodes, edges));
+  const seats = spiralAssignments(spiralChains(nodes, edges), edges);
   const chains = new Set([...seats.values()].map((s) => s.chain));
   assert.equal(chains.size, 1);
 });
@@ -102,7 +103,70 @@ test("nodes outside a chain get no seat at all", () => {
   // exactly the forces it had before.
   const { nodes, edges } = chainFixture(9);
   const loose = [...nodes, node("loose", "2026-06-20T09:00")];
-  const seats = spiralAssignments(spiralChains(loose, edges));
+  const seats = spiralAssignments(spiralChains(loose, edges), edges);
   assert.equal(seats.has("loose"), false);
   assert.equal(seats.size, 9);
+});
+
+
+// --- Spine and spurs -------------------------------------------------------
+
+test("the spine is the longest path through the component", () => {
+  // A 9-node chain with a spur hanging off the middle. The spine must be the
+  // nine, not a route that detours through the spur.
+  const { nodes, edges } = chainFixture(9);
+  const withSpur = [...nodes, node("spur", "2026-06-20T09:00")];
+  const withEdge = [...edges, edge("n4", "spur")];
+  const chains = spiralChains(withSpur, withEdge);
+  const adjacency = new Map();
+  for (const e of withEdge) {
+    if (!adjacency.has(e.source)) adjacency.set(e.source, new Set());
+    if (!adjacency.has(e.target)) adjacency.set(e.target, new Set());
+    adjacency.get(e.source).add(e.target);
+    adjacency.get(e.target).add(e.source);
+  }
+  const spine = chainSpine(chains[0], adjacency);
+  assert.equal(spine.length, 9);
+  assert.equal(spine.includes("spur"), false);
+});
+
+test("a terminating spur is marked, and sits OUTSIDE its anchor", () => {
+  // The whole point: it points away from the centre instead of landing inside
+  // the coil where it reads as part of the sequence.
+  const { nodes, edges } = chainFixture(9);
+  const withSpur = [...nodes, node("spur", "2026-06-20T09:00")];
+  const withEdge = [...edges, edge("n4", "spur")];
+  const seats = spiralAssignments(spiralChains(withSpur, withEdge), withEdge);
+  const spur = seats.get("spur");
+  const anchor = seats.get("n4");
+  assert.equal(spur?.spur, true);
+  assert.equal(anchor?.spur, false);
+  assert.ok((spur?.radius ?? 0) > (anchor?.radius ?? 0), "a spur sits further out than its anchor");
+  assert.equal(spur?.index, anchor?.index, "and shares its anchor's angle, so it lies on the same ray");
+});
+
+test("every spine member is marked as spine", () => {
+  const { nodes, edges } = chainFixture(9);
+  const seats = spiralAssignments(spiralChains(nodes, edges), edges);
+  assert.equal([...seats.values()].every((s) => !s.spur), true);
+});
+
+test("a spur does not shift the seats of the spine", () => {
+  // A side-node used to join the centroid and bend the spiral; the radii the
+  // spine holds must be identical whether or not it is there.
+  const { nodes, edges } = chainFixture(9);
+  const bare = spiralAssignments(spiralChains(nodes, edges), edges);
+  const withSpur = [...nodes, node("spur", "2026-06-20T09:00")];
+  const withEdge = [...edges, edge("n4", "spur")];
+  const spurred = spiralAssignments(spiralChains(withSpur, withEdge), withEdge);
+  for (const id of nodes.map((n) => n.id)) {
+    assert.equal(spurred.get(id)?.radius, bare.get(id)?.radius, `${id} moved`);
+  }
+});
+
+test("the spine runs oldest to newest", () => {
+  const { nodes, edges } = chainFixture(9);
+  const seats = spiralAssignments(spiralChains(nodes, edges), edges);
+  assert.equal(seats.get("n0")?.index, 0);
+  assert.equal(seats.get("n8")?.index, 8);
 });

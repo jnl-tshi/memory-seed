@@ -76,8 +76,52 @@ export interface SpiralAssignment {
   chain: string;
   /** Distance this node should hold from its chain's centre. */
   radius: number;
-  /** 0-based position in age order, oldest first. Exposed for tests and tuning. */
+  /** 0-based position along the SPINE, oldest first. A spur inherits its
+   *  anchor's index - it sits at the same point in the story. */
   index: number;
+  /**
+   * True for a node hanging OFF the spine rather than lying along it.
+   *
+   * A spur is pushed outward past its anchor and is excluded from the chain's
+   * centroid. Both matter: a terminating side-node that joined the centroid
+   * dragged the centre toward itself and bent the spiral out of shape, and
+   * without the extra radius it sat wherever the link force happened to leave
+   * it, often INSIDE the coil where it read as part of the sequence.
+   */
+  spur: boolean;
+}
+
+/**
+ * The longest path through a component - its spine.
+ *
+ * Two breadth-first passes: the farthest node from any start is an endpoint of
+ * a longest path, and the farthest node from THAT is the other end. Exact on a
+ * tree, and these components are near-trees by construction (mean degree <= 2.4),
+ * so a cycle can only make it slightly short - never wrong in a way that
+ * matters, since anything off the returned path is treated as a spur.
+ */
+export function chainSpine(members: readonly string[], adjacency: ReadonlyMap<string, Set<string>>): string[] {
+  if (members.length < 2) return [...members];
+  const walk = (from: string) => {
+    const previous = new Map<string, string | null>([[from, null]]);
+    const queue = [from];
+    let last = from;
+    for (let head = 0; head < queue.length; head += 1) {
+      const id = queue[head];
+      last = id;
+      for (const next of adjacency.get(id) ?? []) {
+        if (previous.has(next)) continue;
+        previous.set(next, id);
+        queue.push(next);
+      }
+    }
+    return { last, previous };
+  };
+  const first = walk(members[0]).last;
+  const { last, previous } = walk(first);
+  const path: string[] = [];
+  for (let at: string | null | undefined = last; at != null; at = previous.get(at)) path.push(at);
+  return path;
 }
 
 const timeOf = (node: SpiralNodeLike): string => node.datetime || node.date || "";
@@ -153,6 +197,7 @@ export function spiralChains(
  */
 export function spiralAssignments(
   chains: readonly (readonly string[])[],
+  edges: readonly SpiralEdgeLike[] = [],
   options?: { innerRadius?: number; step?: number },
 ): Map<string, SpiralAssignment> {
   const innerRadius = options?.innerRadius ?? SPIRAL_INNER_RADIUS;
@@ -161,9 +206,43 @@ export function spiralAssignments(
   for (const members of chains) {
     if (!members.length) continue;
     const chain = members[0];
-    members.forEach((id, index) => {
-      out.set(id, { chain, radius: innerRadius + index * step, index });
+    const inChain = new Set(members);
+    const adjacency = new Map<string, Set<string>>();
+    for (const edge of edges) {
+      if (edge.type && !CHAIN_EDGE_KINDS.has(edge.type)) continue;
+      if (!inChain.has(edge.source) || !inChain.has(edge.target) || edge.source === edge.target) continue;
+      if (!adjacency.has(edge.source)) adjacency.set(edge.source, new Set());
+      if (!adjacency.has(edge.target)) adjacency.set(edge.target, new Set());
+      adjacency.get(edge.source)!.add(edge.target);
+      adjacency.get(edge.target)!.add(edge.source);
+    }
+    // With no edges given, every member is treated as spine - the pre-spine
+    // behaviour, and what a caller asking only about radii wants.
+    let spine = adjacency.size ? chainSpine(members, adjacency) : [...members];
+    // Orient oldest-first. `members` arrives in age order, so whichever end of
+    // the spine appears earlier there is the older one.
+    if (spine.length > 1 && members.indexOf(spine[0]) > members.indexOf(spine[spine.length - 1])) {
+      spine = spine.reverse();
+    }
+    const seatOf = new Map<string, number>();
+    spine.forEach((id, index) => {
+      seatOf.set(id, index);
+      out.set(id, { chain, radius: innerRadius + index * step, index, spur: false });
     });
+    // Anything off the spine hangs off its nearest spine node, one step further
+    // out - so it points AWAY from the centre instead of sitting inside the coil.
+    for (const id of members) {
+      if (seatOf.has(id)) continue;
+      let anchorIndex = 0;
+      for (const neighbour of adjacency.get(id) ?? []) {
+        const seat = seatOf.get(neighbour);
+        if (seat !== undefined) {
+          anchorIndex = seat;
+          break;
+        }
+      }
+      out.set(id, { chain, radius: innerRadius + (anchorIndex + 1) * step, index: anchorIndex, spur: true });
+    }
   }
   return out;
 }
@@ -195,6 +274,10 @@ export function spiralSeedOffsets(
   const angleStep = options?.angleStep ?? SPIRAL_ANGLE_STEP;
   const out = new Map<string, { dx: number; dy: number }>();
   for (const [id, seat] of assignments) {
+    // A spur takes its ANCHOR's angle - `index` is the anchor's seat - and its
+    // own larger radius, so it starts on the same ray, further out. That is
+    // what "points away from the centre" means geometrically, and seeding it
+    // there is what stops the link force parking it inside the coil.
     const angle = seat.index * angleStep;
     out.set(id, { dx: Math.cos(angle) * seat.radius, dy: Math.sin(angle) * seat.radius });
   }
