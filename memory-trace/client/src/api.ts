@@ -16,6 +16,9 @@ export type ContinuityItem = components["schemas"]["ContinuityItem"];
 export type TrailEdge = components["schemas"]["GraphEdge"];
 export type WorktreesResponse = components["schemas"]["WorktreesResponse"];
 export type WorktreeInfo = components["schemas"]["WorktreeInfo"];
+export type BrowseResponse = components["schemas"]["BrowseResponse"];
+export type DirectoryEntry = components["schemas"]["DirectoryEntry"];
+export type OpenProjectResponse = components["schemas"]["OpenProjectResponse"];
 
 export type GraphQueryOptions = {
   entryId?: string | null;
@@ -95,6 +98,33 @@ export async function api<T>(path: string): Promise<T> {
 
 export function worktreesQuery(): Promise<WorktreesResponse> {
   return api<WorktreesResponse>("/worktrees");
+}
+
+// Browsing and opening a project both bypass `api<T>()` deliberately: they
+// read/act on the SERVER's filesystem and the process-wide project registry,
+// not the currently active worktree's corpus, so the `?worktree=` scoping
+// api<T>() always appends would be meaningless (or misleading) on both.
+
+/** Subdirectories of `path` (server filesystem), or the home directory when
+ * omitted - the folder picker's one call per navigation step. */
+export async function browseQuery(path?: string | null): Promise<BrowseResponse> {
+  const params = new URLSearchParams();
+  if (path) params.set("path", path);
+  const qs = params.toString();
+  const response = await fetch(`/api/v1/browse${qs ? `?${qs}` : ""}`, { cache: "no-store" });
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  return response.json() as Promise<BrowseResponse>;
+}
+
+/** Validates `path` as a correctly-initialised memory-seed project and, if it
+ * passes, registers it as a switchable worktree entry. `ok: false` with
+ * `issues` is a normal outcome (not an initialised project yet), not a
+ * request error - only a genuine transport/server failure throws. */
+export async function openProject(path: string): Promise<OpenProjectResponse> {
+  const params = new URLSearchParams({ path });
+  const response = await fetch(`/api/v1/projects?${params.toString()}`, { method: "POST" });
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  return response.json() as Promise<OpenProjectResponse>;
 }
 
 // connectedNodeIds was removed when every node started rendering. Its premise

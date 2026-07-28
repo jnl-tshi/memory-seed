@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/api/v1/browse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** V1 Browse */
+        get: operations["v1_browse_api_v1_browse_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/chunks/{chunk_id}": {
         parameters: {
             query?: never;
@@ -66,6 +83,23 @@ export interface paths {
         get: operations["v1_renderer_graph_api_v1_graph_projection_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** V1 Open Project */
+        post: operations["v1_open_project_api_v1_projects_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -168,6 +202,15 @@ export interface components {
             estimated: boolean;
             fork: components["schemas"]["ForkPoint"] | null;
             merge: components["schemas"]["CommitInfo"] | null;
+        };
+        /** BrowseResponse */
+        BrowseResponse: {
+            /** Entries */
+            entries: components["schemas"]["DirectoryEntry"][];
+            /** Parent */
+            parent: string | null;
+            /** Path */
+            path: string;
         };
         /**
          * ChunkBrief
@@ -299,6 +342,15 @@ export interface components {
             kind: string;
             /** To */
             to?: string | null;
+        };
+        /** DirectoryEntry */
+        DirectoryEntry: {
+            /** Has Memory Seed */
+            has_memory_seed: boolean;
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
         };
         /**
          * EdgeType
@@ -514,6 +566,14 @@ export interface components {
              * @default 0
              */
             total: number;
+        };
+        /** OpenProjectResponse */
+        OpenProjectResponse: {
+            /** Issues */
+            issues?: string[];
+            /** Ok */
+            ok: boolean;
+            worktree?: components["schemas"]["WorktreeInfo"] | null;
         };
         /**
          * ProvenanceClass
@@ -836,6 +896,37 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    v1_browse_api_v1_browse_get: {
+        parameters: {
+            query?: {
+                path?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrowseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     v1_chunk_api_v1_chunks__chunk_id__get: {
         parameters: {
             query?: {
@@ -972,6 +1063,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RendererGraphResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    v1_open_project_api_v1_projects_post: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenProjectResponse"];
                 };
             };
             /** @description Validation Error */

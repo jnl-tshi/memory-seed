@@ -26,6 +26,7 @@ from typing import Any, Callable, Collection, Iterable, Mapping, Sequence
 # reading. These are the frozen surfaces the distribution split depends on.
 from memory_seed.core import (
     DECISION_TITLE_ORDINAL_RE,
+    doctor,
     iter_diagram_sidecar_documents,
     iter_link_sidecar_documents,
     iter_session_documents,
@@ -376,6 +377,66 @@ def list_worktrees(cwd: str | Path = ".") -> list[dict[str, Any]]:
     for index, entry in enumerate(worktrees):
         entry["is_primary"] = index == 0
     return worktrees
+
+
+def browse_directory(path: str | None) -> dict[str, Any]:
+    """Subdirectories of ``path`` (or the home directory), each flagged with
+    whether it has a ``.memory-seed/`` of its own - the client's folder picker
+    marks those as openable without running the heavier `doctor()` check on
+    every entry just to draw a list. Hidden directories are omitted, matching
+    an ordinary file-picker's default view; permission errors on individual
+    entries are swallowed rather than failing the whole listing, since a
+    filesystem walk of an arbitrary folder can always hit one it cannot read.
+    """
+    from fastapi import HTTPException
+
+    base = Path(path).expanduser().resolve() if path else Path.home()
+    if not base.is_dir():
+        raise HTTPException(status_code=400, detail=f"{base} is not a directory")
+    try:
+        children = sorted(
+            (item for item in base.iterdir() if not item.name.startswith(".") and item.is_dir()),
+            key=lambda item: item.name.lower(),
+        )
+    except PermissionError:
+        children = []
+    entries = []
+    for child in children:
+        try:
+            has_memory_seed = (child / ".memory-seed").is_dir()
+        except OSError:
+            has_memory_seed = False
+        entries.append({"name": child.name, "path": str(child), "has_memory_seed": has_memory_seed})
+    parent = str(base.parent) if base.parent != base else None
+    return {"path": str(base), "parent": parent, "entries": entries}
+
+
+def validate_project_init(path: str) -> tuple[Path | None, list[str]]:
+    """Whether ``path`` is a correctly initialised memory-seed project.
+
+    Reuses `doctor()` - the same check `memory-seed doctor` runs - rather than
+    a lighter ad-hoc existence check, because "correctly initialised" means
+    what doctor already means: every selected agent's seed file present and
+    at the current VERSION, every bootstrap-generated file present. A folder
+    with a `.memory-seed/` directory that fails either is exactly the case
+    this is meant to catch, not wave through.
+    """
+    candidate = Path(path).expanduser()
+    if not candidate.is_dir():
+        return None, [f"{candidate} is not a directory"]
+    candidate = candidate.resolve()
+    result = doctor(candidate)
+    if result.ok:
+        return candidate, []
+    issues = list(result.missing)
+    issues += [
+        f"{mismatch['file']}: expected version {mismatch['expected']}, found {mismatch['actual']}"
+        for mismatch in result.version_mismatches
+    ]
+    issues += [f"missing bootstrap file: {item}" for item in result.bootstrap_missing]
+    if not issues:
+        issues = ["not a correctly initialised .memory-seed project"]
+    return None, issues
 
 
 class TraceCache:
@@ -2150,11 +2211,22 @@ def create_app(
     worktree_services: dict[Path, TraceService] = {launch_path: service}
     worktree_lock = threading.Lock()
 
+    # Opened external projects: folders outside this repo's own worktrees,
+    # admitted one at a time through /api/v1/projects after passing
+    # validate_project_init(). Process-lifetime, not persisted - reopening
+    # after a restart goes through the same picker and check again. Kept in
+    # the SAME shape list_worktrees() produces so worktree_entries() can just
+    # concatenate them, which is what lets every existing worktree-scoped
+    # endpoint (facets/search/graph/...) serve an opened folder with no
+    # changes beyond this: service_for()'s allowlist is derived from
+    # worktree_entries() already.
+    external_projects: dict[Path, dict[str, Any]] = {}
+
     def worktree_entries() -> list[dict[str, Any]]:
         entries = list_worktrees(launch_path)
         if not entries:
-            return [{"path": str(launch_path), "branch": None, "head": None, "is_primary": True}]
-        return entries
+            entries = [{"path": str(launch_path), "branch": None, "head": None, "is_primary": True}]
+        return entries + list(external_projects.values())
 
     def service_for(worktree: str | None) -> TraceService:
         if not worktree:
@@ -2235,12 +2307,17 @@ def create_app(
         for entry in worktree_entries():
             path = str(Path(entry["path"]).resolve())
             branch = entry.get("branch")
+            # "(detached)" is a git-HEAD concept - true and useful for an
+            # actual worktree with no checked-out branch, but misleading on an
+            # opened external folder, which was never a git worktree to begin
+            # with (it may not even be a git repo).
+            label = branch or (Path(path).name if entry.get("external") else f"{Path(path).name} (detached)")
             out.append(
                 {
                     "id": path,
                     "path": path,
                     "branch": branch,
-                    "label": branch or f"{Path(path).name} (detached)",
+                    "label": label,
                     "is_primary": bool(entry.get("is_primary")),
                     "is_default": Path(path).resolve() == launch_path,
                 }
@@ -2351,13 +2428,54 @@ def create_app(
     # additive, not a replacement, so a future React client has something
     # stable to build against. /api/timeline has no v1 counterpart: Trail is
     # its designated successor (roadmap Phase 4) and nothing consumes it.
-    from .models import ChunkResponse, Facets, GraphResponse, RendererGraphResponse, RuntimeInfo, SearchResponse, TrailResponse, WorktreesResponse
+    from .models import BrowseResponse, ChunkResponse, Facets, GraphResponse, OpenProjectResponse, RendererGraphResponse, RuntimeInfo, SearchResponse, TrailResponse, WorktreesResponse
 
     @app.get("/api/v1/worktrees", response_model=WorktreesResponse)
     def v1_worktrees() -> dict[str, Any]:
         # Same enumeration as the legacy surface, typed: every git worktree of
-        # the launch repository is a switchable corpus view.
+        # the launch repository is a switchable corpus view, plus any folder
+        # opened this session through /api/v1/projects.
         return api_worktrees()
+
+    @app.get("/api/v1/browse", response_model=BrowseResponse)
+    def v1_browse(path: str | None = None) -> dict[str, Any]:
+        # No worktree scoping: this walks the SERVER's filesystem to help the
+        # user find a folder to open, not the corpus of whichever project is
+        # currently active.
+        return browse_directory(path)
+
+    @app.post("/api/v1/projects", response_model=OpenProjectResponse)
+    def v1_open_project(path: str) -> dict[str, Any]:
+        # A query param, not a JSON body: every other scoping param in this
+        # file (worktree=, path= for /browse) is one, and a locally-imported
+        # Pydantic request-body type cannot be resolved here - this module
+        # has `from __future__ import annotations` on, which stringifies
+        # every parameter annotation, and FastAPI can only re-resolve a
+        # stringified annotation against the function's MODULE globals, not
+        # a name imported inside the enclosing create_app() call. Response
+        # models sidestep this (they're eagerly-evaluated decorator
+        # arguments, not annotations), which is why those stay local-imported
+        # elsewhere in this file with no issue - only a body parameter type
+        # hits it.
+        candidate, issues = validate_project_init(path)
+        if candidate is None:
+            return {"ok": False, "worktree": None, "issues": issues}
+        with worktree_lock:
+            entry = {"path": str(candidate), "branch": None, "head": None, "is_primary": False, "external": True}
+            external_projects[candidate] = entry
+        path = str(candidate)
+        return {
+            "ok": True,
+            "worktree": {
+                "id": path,
+                "path": path,
+                "branch": None,
+                "label": candidate.name,
+                "is_primary": False,
+                "is_default": False,
+            },
+            "issues": [],
+        }
 
     @app.get("/api/v1/runtime", response_model=RuntimeInfo)
     def v1_runtime(worktree: str | None = None) -> dict[str, Any]:
