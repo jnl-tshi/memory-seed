@@ -2,9 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  CHAIN_KIND_GROUPS,
+  LIFECYCLE_CHAIN_KINDS,
   MIN_CHAIN_LENGTH,
+  MIN_SPINE_CONCORDANCE,
+  RELATED_CHAIN_KINDS,
   SPIRAL_INNER_RADIUS,
   SPIRAL_RADIUS_STEP,
+  allSpiralAssignments,
   chainSpine,
   spiralAssignments,
   spiralChains,
@@ -169,4 +174,162 @@ test("the spine runs oldest to newest", () => {
   const seats = spiralAssignments(spiralChains(nodes, edges), edges);
   assert.equal(seats.get("n0")?.index, 0);
   assert.equal(seats.get("n8")?.index, 8);
+});
+
+// --- related as a second, lower-priority kind-group ------------------------
+//
+// A chain built entirely from `related` edges did not spiral (JNL, 2026-07-28).
+// Merging `related` into the SAME connectivity graph as lifecycle edges was
+// measured and rejected: on the live corpus it produced one ~500-node
+// component that the degree caps correctly reject, because many nodes carry
+// both kinds of edge to overlapping neighbours. Evaluated on its own, related
+// looks nothing like that - these tests pin the two-group design that
+// followed: independent connectivity per kind, tried in priority order,
+// merged by `allSpiralAssignments`.
+
+test("a related-only path is invisible to the DEFAULT (lifecycle) call", () => {
+  const { nodes, edges } = chainFixture(9);
+  const related = edges.map((e) => ({ ...e, type: "related" }));
+  assert.deepEqual(spiralChains(nodes, related), []);
+});
+
+test("the same path qualifies when asked for the related kind explicitly", () => {
+  const { nodes, edges } = chainFixture(9);
+  const related = edges.map((e) => ({ ...e, type: "related" }));
+  const chains = spiralChains(nodes, related, { kinds: RELATED_CHAIN_KINDS });
+  assert.equal(chains.length, 1);
+  assert.equal(chains[0].length, 9);
+});
+
+test("CHAIN_KIND_GROUPS tries lifecycle before related", () => {
+  assert.equal(CHAIN_KIND_GROUPS[0], LIFECYCLE_CHAIN_KINDS);
+  assert.equal(CHAIN_KIND_GROUPS[1], RELATED_CHAIN_KINDS);
+});
+
+test("allSpiralAssignments finds a related-only chain lifecycle never would", () => {
+  const { nodes, edges } = chainFixture(9);
+  const related = edges.map((e) => ({ ...e, type: "related" }));
+  const seats = allSpiralAssignments(nodes, related);
+  assert.equal(seats.size, 9);
+  assert.equal(seats.get("n0")?.radius, SPIRAL_INNER_RADIUS);
+});
+
+test("a lifecycle chain takes priority: overlapping nodes keep their lifecycle seat", () => {
+  // n0..n8 form a qualifying LIFECYCLE chain. A `related` edge also joins n8 to
+  // an otherwise separate 8-node related path - if related won the overlap,
+  // n8 would be reseated into the related chain's geometry instead.
+  const life = chainFixture(9, "n");
+  const rel = chainFixture(8, "r");
+  const bridge = { source: "n8", target: "r0", type: "related" };
+  const relatedEdges = rel.edges.map((e) => ({ ...e, type: "related" }));
+  const seats = allSpiralAssignments([...life.nodes, ...rel.nodes], [...life.edges, ...relatedEdges, bridge]);
+
+  const n8 = seats.get("n8");
+  assert.equal(n8?.chain, "n0", "n8 keeps its LIFECYCLE chain, not the related one");
+  assert.equal(n8?.spur, false);
+});
+
+test("a related chain still forms around the nodes lifecycle did not claim", () => {
+  // Same fixture as above: r0..r7 have no lifecycle edges of their own, so once
+  // n8 is excluded (claimed by the lifecycle group) they must still connect to
+  // each other directly and qualify as their own related chain.
+  const life = chainFixture(9, "n");
+  const rel = chainFixture(8, "r");
+  const bridge = { source: "n8", target: "r0", type: "related" };
+  const relatedEdges = rel.edges.map((e) => ({ ...e, type: "related" }));
+  const seats = allSpiralAssignments([...life.nodes, ...rel.nodes], [...life.edges, ...relatedEdges, bridge]);
+
+  const relatedChains = new Set(rel.nodes.map((n) => seats.get(n.id)?.chain).filter(Boolean));
+  assert.equal(relatedChains.size, 1, "r0..r7 form exactly one chain among themselves");
+  assert.equal([...relatedChains][0], "r0");
+  for (const n of rel.nodes) assert.notEqual(seats.get(n.id)?.chain, "n0");
+});
+
+test("removing a claimed cut-node can split a related chain in two, and each half is judged on its own", () => {
+  // r0..r3 - CLAIMED - r4..r7, where CLAIMED is a lifecycle-chain member that
+  // also happens to sit on the related path. Once it is excluded, the related
+  // graph splits into two 4-node halves - each below MIN_CHAIN_LENGTH, so
+  // neither should qualify on its own.
+  const life = chainFixture(9, "n");
+  const before = ["r0", "r1", "r2", "r3"].map((id, i) => node(id, `2026-06-${10 + i}T09:00`));
+  const after = ["r4", "r5", "r6", "r7"].map((id, i) => node(id, `2026-06-${14 + i}T09:00`));
+  const relatedPath = [
+    edge("r0", "r1", "related"),
+    edge("r1", "r2", "related"),
+    edge("r2", "r3", "related"),
+    edge("r3", "n8", "related"), // n8 is the cut-node: claimed by the lifecycle chain
+    edge("n8", "r4", "related"),
+    edge("r4", "r5", "related"),
+    edge("r5", "r6", "related"),
+    edge("r6", "r7", "related"),
+  ];
+  const seats = allSpiralAssignments([...life.nodes, ...before, ...after], [...life.edges, ...relatedPath]);
+
+  assert.equal(seats.get("n8")?.chain, "n0", "the cut-node keeps its lifecycle seat");
+  for (const id of ["r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7"]) {
+    assert.equal(seats.has(id), false, `${id} is on a 4-node fragment, below the floor`);
+  }
+});
+
+// --- The concordance gate ---------------------------------------------------
+//
+// Shape (size, degree) says a component is THREAD-LIKE. It says nothing about
+// whether walking the thread walks through TIME - true for lifecycle edges by
+// construction, but not for `related`, which records topical similarity with
+// no temporal direction. Measured live on 2026-07-28: a chain that passed
+// every degree check still only tracked chronology 76% of the time and its
+// SIMULATED position was worse (53%) than that - a spiral that gets "the
+// middle is older" wrong on a quarter of its members, which actively
+// misleads rather than approximates. These tests pin the gate that catches it.
+
+test("a chain whose topology zig-zags through time is excluded", () => {
+  // A path a-b-c-...-h, degree- and size-qualifying, but dated so that walking
+  // it does NOT walk through time: alternating early/late timestamps.
+  const ids = ["a", "b", "c", "d", "e", "f", "g", "h"];
+  const stamps = [
+    "2026-06-10", "2026-06-01", "2026-06-11", "2026-06-02",
+    "2026-06-12", "2026-06-03", "2026-06-13", "2026-06-04",
+  ];
+  const nodes = ids.map((id, i) => node(id, `${stamps[i]}T09:00`));
+  const edges = ids.slice(1).map((id, i) => edge(ids[i], id, "related"));
+  assert.deepEqual(spiralChains(nodes, edges, { kinds: RELATED_CHAIN_KINDS, minLength: 8 }), []);
+});
+
+test("the same shape, dated monotonically, is NOT excluded", () => {
+  // Confirms the gate is about ORDER, not about being `related` per se - an
+  // identical topology that does track time still qualifies.
+  const { nodes, edges } = chainFixture(8);
+  const related = edges.map((e) => ({ ...e, type: "related" }));
+  const chains = spiralChains(nodes, related, { kinds: RELATED_CHAIN_KINDS, minLength: 8 });
+  assert.equal(chains.length, 1);
+});
+
+test("a lower minConcordance readmits the zig-zag chain", () => {
+  // The threshold is a real option, not a hardcoded cliff - a caller (the
+  // settings UI, or a future experiment) can move it.
+  const ids = ["a", "b", "c", "d", "e", "f", "g", "h"];
+  const stamps = [
+    "2026-06-10", "2026-06-01", "2026-06-11", "2026-06-02",
+    "2026-06-12", "2026-06-03", "2026-06-13", "2026-06-04",
+  ];
+  const nodes = ids.map((id, i) => node(id, `${stamps[i]}T09:00`));
+  const edges = ids.slice(1).map((id, i) => edge(ids[i], id, "related"));
+  const excluded = spiralChains(nodes, edges, { kinds: RELATED_CHAIN_KINDS, minLength: 8 });
+  const readmitted = spiralChains(nodes, edges, { kinds: RELATED_CHAIN_KINDS, minLength: 8, minConcordance: 0 });
+  assert.deepEqual(excluded, []);
+  assert.equal(readmitted.length, 1);
+});
+
+test("the default MIN_SPINE_CONCORDANCE sits between the measured pass and fail cases", () => {
+  // 0.76 failed live, 0.95/1.00 passed. The default must separate them with
+  // real margin on both sides, not sit on a razor's edge next to one case.
+  assert.ok(MIN_SPINE_CONCORDANCE > 0.76, "must exclude the measured failing chain");
+  assert.ok(MIN_SPINE_CONCORDANCE < 0.95, "must not exclude the measured passing chains");
+});
+
+test("lifecycle chains are unaffected by the gate at the default threshold", () => {
+  // Lifecycle edges are authored older->newer, so topology IS chronology; the
+  // gate should never bind on the default (lifecycle) kind-group in practice.
+  const { nodes, edges } = chainFixture(9);
+  assert.equal(spiralChains(nodes, edges).length, 1);
 });

@@ -5,7 +5,7 @@ import { Maximize2, Minus, Plus } from "lucide-react";
 import { type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
 import { nodeSetSignature, seedPositions, type Point } from "./graphLayout";
 import { anchorEntryIdFor, connectedIdsWithDecisionAnchors, decisionGroups, decisionHaloId, haloDiameter, isDecisionRowId, parentIdsFor, satellitePositions, simulationLinks, visibilityIdFor } from "./graphDecisionRows";
-import { spiralAssignments, spiralChains, spiralSeedOffsets, type SpiralAssignment } from "./graphSpiral";
+import { allSpiralAssignments, spiralSeedOffsets, type SpiralAssignment } from "./graphSpiral";
 import { forceParameters, ticksPerPaint, type ForceSettings } from "./graphForces";
 import { outrankedEdgeIds } from "./graphEdges";
 import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, inferredCommunityColours, wearsAuthoredRim, type TopicRoots } from "./graphCommunities";
@@ -300,11 +300,12 @@ const simNodes: ReheatNode[] = graphNodes.map((node) => {
     const key = `${params.spiralMinLength}:${params.spiralStep}`;
     if (key !== seatKey) {
       seatKey = key;
-      seatCache = spiralAssignments(
-        spiralChains(graphNodes, graphEdges, { minLength: params.spiralMinLength }),
-        graphEdges,
-        { step: params.spiralStep },
-      );
+      // Both kind-groups (lifecycle, then related) in priority order - see
+      // `allSpiralAssignments` for why they are never pooled into one graph.
+      seatCache = allSpiralAssignments(graphNodes, graphEdges, {
+        minLength: params.spiralMinLength,
+        step: params.spiralStep,
+      });
     }
     return seatCache;
   };

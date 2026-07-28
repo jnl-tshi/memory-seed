@@ -1,5 +1,5 @@
 /**
- * Long lifecycle chains, and the radius each of their members should sit at.
+ * Long chains, and the radius each of their members should sit at.
  *
  * A chain of `evolves`/`replaces` edges is a story told in order, and a force
  * layout draws it as a wandering thread that crosses the map and reads as
@@ -18,6 +18,17 @@
  * members and NOBODY ELSE. A node outside a qualifying chain gets no radial
  * force at all - not a weak one - so the crowded middle of the graph is
  * governed by exactly the forces it was before.
+ *
+ * TWO KIND-GROUPS, TRIED IN PRIORITY ORDER (JNL, 2026-07-28: a chain drawn in
+ * `related` edges did not spiral, and should). Lifecycle edges (`evolves`,
+ * `replaces`, `continuity`) are tried first; `related` is tried second, over
+ * only whatever nodes lifecycle chains did not already claim. They are NEVER
+ * merged into one connectivity graph - measured, and merging produces a single
+ * ~500-node component that the degree caps correctly reject, because many
+ * nodes carry both kinds of edge to overlapping neighbours. Evaluated on its
+ * own, `related` looks nothing like that: a dominant blob plus several
+ * genuinely path-shaped threads. See `CHAIN_KIND_GROUPS` and
+ * `allSpiralAssignments`, the entry point that applies the priority order.
  */
 
 export interface SpiralNodeLike {
@@ -34,10 +45,36 @@ export interface SpiralEdgeLike {
   type?: string | null;
 }
 
-/** Edge kinds that make a chain. `related` is excluded and that is the point:
- *  it is symmetric and dense, and treating it as chain evidence would sweep
- *  most of the corpus into one component that is not a story at all. */
-export const CHAIN_EDGE_KINDS = new Set(["evolves", "replaces", "continuity"]);
+/**
+ * Lifecycle edges: authored, directional, the strongest chain evidence.
+ * Renamed from `CHAIN_EDGE_KINDS` when `related` was added as a SEPARATE,
+ * lower-priority group below - see `CHAIN_KIND_GROUPS`.
+ */
+export const LIFECYCLE_CHAIN_KINDS = new Set(["evolves", "replaces", "continuity"]);
+
+/**
+ * `related` on its own, never merged with lifecycle edges into one connectivity
+ * graph. Merging was tried and measured: on the live corpus it produces ONE
+ * 496-node component (because many nodes carry both kinds of edge to
+ * overlapping neighbours), which the degree caps correctly reject - so the
+ * merge bought nothing. Evaluated as its OWN graph, `related` looks completely
+ * different: one 405-node blob (still correctly rejected) plus several
+ * genuinely path-shaped components, including a 15-node chain at max degree 3
+ * / mean degree 1.87 - well inside the same bounds lifecycle chains meet.
+ * `related` is symmetric and dense in aggregate, but a specific thread of it
+ * can still be a real story; the two only look the same when pooled together.
+ */
+export const RELATED_CHAIN_KINDS = new Set(["related"]);
+
+/**
+ * Kind-groups tried in PRIORITY order. Earlier groups claim nodes first; a
+ * later group's connectivity is computed only among what is left over, so a
+ * node with an authored lifecycle edge always keeps that home and a `related`
+ * thread never reassigns it. See `allSpiralAssignments`, the entry point that
+ * actually applies this order - `spiralChains`/`spiralAssignments` take one
+ * group at a time and know nothing about priority themselves.
+ */
+export const CHAIN_KIND_GROUPS: readonly (ReadonlySet<string>)[] = [LIFECYCLE_CHAIN_KINDS, RELATED_CHAIN_KINDS];
 
 /** Shorter runs are a fork in a workstream, not a thread worth winding.
  *
@@ -63,6 +100,32 @@ export const MAX_CHAIN_DEGREE = 3;
  *  mean degree under 2, so anything above that carries extra edges - cycles and
  *  cross-links - and is a mesh rather than a thread. */
 export const MAX_CHAIN_MEAN_DEGREE = 2.4;
+
+/**
+ * The floor on how well a chain's TOPOLOGY has to track actual chronology
+ * before it is allowed to spiral, measured as the fraction of member pairs
+ * whose spine order agrees with their timestamp order (the better of the two
+ * directions, since which end is "first" is not yet decided at this point).
+ *
+ * Size and degree caps say a component is SHAPED like a thread. They say
+ * nothing about whether walking that thread actually walks through time -
+ * true for lifecycle edges by construction (`evolves`/`replaces` are authored
+ * FROM an older entry TO a newer one, so topology and chronology are the same
+ * fact twice), but not for `related`, which records topical similarity with no
+ * temporal direction at all.
+ *
+ * Measured directly on the corpus (2026-07-28, JNL circled a chain that was
+ * not spiraling): a lifecycle chain scored 95% concordant, and one candidate
+ * `related` chain scored 100% - but a second, the one actually circled, scored
+ * only 76%, and its rendered position was WORSE after the simulation settled
+ * (53%) than its topology alone predicted. Winding it would draw a spiral that
+ * gets "the middle is older" wrong on roughly a quarter of its members - not a
+ * rough approximation of the timeline, a materially misleading one, which is
+ * worse than the plain unwound line it replaces. 0.85 sits with real margin on
+ * both sides of the measured cases: comfortably above the 76% that failed,
+ * comfortably below the 95%/100% that passed.
+ */
+export const MIN_SPINE_CONCORDANCE = 0.85;
 
 /** Where a chain's innermost (oldest) member sits, in graph units. */
 export const SPIRAL_INNER_RADIUS = 46;
@@ -127,27 +190,61 @@ export function chainSpine(members: readonly string[], adjacency: ReadonlyMap<st
 const timeOf = (node: SpiralNodeLike): string => node.datetime || node.date || "";
 
 /**
- * Members of every qualifying chain, oldest first.
+ * What fraction of member PAIRS agree between the spine's walked order and
+ * their actual timestamp order - the better of the two directions, since
+ * which end reads as "first" is not decided yet at this point.
  *
- * A chain is a connected component over lifecycle edges only, at least
- * `MIN_CHAIN_LENGTH` long, and path-like rather than hub-like. Ordering is by
- * timestamp rather than by walking the edges: a component may branch, and a
- * walk would have to pick an arbitrary path through it, whereas time is total
+ * This is what `MIN_SPINE_CONCORDANCE` gates on. 1.0 means the topology and
+ * the calendar tell the same story; 0.5 means they are unrelated; a lifecycle
+ * chain scores near 1.0 by construction, a `related` chain scores whatever the
+ * corpus happens to give it.
+ */
+function spineConcordance(spine: readonly string[], known: ReadonlyMap<string, SpiralNodeLike>): number {
+  if (spine.length < 2) return 1;
+  const times = spine.map((id) => timeOf(known.get(id)!));
+  let forward = 0;
+  let total = 0;
+  for (let i = 0; i < times.length; i += 1) {
+    for (let j = i + 1; j < times.length; j += 1) {
+      total += 1;
+      if (times[j] >= times[i]) forward += 1;
+    }
+  }
+  return total ? Math.max(forward, total - forward) / total : 1;
+}
+
+/**
+ * Members of every qualifying chain, oldest first, for ONE kind-group.
+ *
+ * A chain is a connected component over the given edge `kinds` (lifecycle
+ * edges unless told otherwise - see `CHAIN_KIND_GROUPS` for running several
+ * groups in priority order), at least `MIN_CHAIN_LENGTH` long, and path-like
+ * rather than hub-like. Ordering is by timestamp rather than by walking the
+ * edges: a component may branch, and a walk would have to pick an arbitrary
+ * path through it, whereas time is total
  * and is the axis the spiral is meant to encode.
  */
 export function spiralChains(
   nodes: readonly SpiralNodeLike[],
   edges: readonly SpiralEdgeLike[],
-  options?: { minLength?: number; maxMeanDegree?: number; maxDegree?: number },
+  options?: {
+    minLength?: number;
+    maxMeanDegree?: number;
+    maxDegree?: number;
+    kinds?: ReadonlySet<string>;
+    minConcordance?: number;
+  },
 ): string[][] {
   const minLength = options?.minLength ?? MIN_CHAIN_LENGTH;
   const maxMeanDegree = options?.maxMeanDegree ?? MAX_CHAIN_MEAN_DEGREE;
   const maxDegree = options?.maxDegree ?? MAX_CHAIN_DEGREE;
+  const kinds = options?.kinds ?? LIFECYCLE_CHAIN_KINDS;
+  const minConcordance = options?.minConcordance ?? MIN_SPINE_CONCORDANCE;
   const known = new Map(nodes.map((node) => [node.id, node]));
   const adjacency = new Map<string, Set<string>>();
   let kept = 0;
   for (const edge of edges) {
-    if (edge.type && !CHAIN_EDGE_KINDS.has(edge.type)) continue;
+    if (edge.type && !kinds.has(edge.type)) continue;
     if (!known.has(edge.source) || !known.has(edge.target) || edge.source === edge.target) continue;
     kept += 1;
     if (!adjacency.has(edge.source)) adjacency.set(edge.source, new Set());
@@ -177,6 +274,14 @@ export function spiralChains(
     const degrees = component.map((id) => adjacency.get(id)?.size ?? 0);
     if (Math.max(...degrees) > maxDegree) continue;
     if (degrees.reduce((a, b) => a + b, 0) / component.length > maxMeanDegree) continue;
+    // Shape alone is not enough: a component can be perfectly path-like and
+    // still not track time, because only lifecycle edges are authored with a
+    // direction. `adjacency` already contains only this component's own
+    // same-kind edges (components partition the graph, so no neighbour of a
+    // member can lie outside it), so the spine walked here is exactly the one
+    // `spiralAssignments` will walk again later - duplicated on purpose rather
+    // than threading a cache through two functions with different callers.
+    if (spineConcordance(chainSpine(component, adjacency), known) < minConcordance) continue;
     component.sort((a, b) => {
       const ta = timeOf(known.get(a)!);
       const tb = timeOf(known.get(b)!);
@@ -198,10 +303,11 @@ export function spiralChains(
 export function spiralAssignments(
   chains: readonly (readonly string[])[],
   edges: readonly SpiralEdgeLike[] = [],
-  options?: { innerRadius?: number; step?: number },
+  options?: { innerRadius?: number; step?: number; kinds?: ReadonlySet<string> },
 ): Map<string, SpiralAssignment> {
   const innerRadius = options?.innerRadius ?? SPIRAL_INNER_RADIUS;
   const step = options?.step ?? SPIRAL_RADIUS_STEP;
+  const kinds = options?.kinds ?? LIFECYCLE_CHAIN_KINDS;
   const out = new Map<string, SpiralAssignment>();
   for (const members of chains) {
     if (!members.length) continue;
@@ -209,7 +315,7 @@ export function spiralAssignments(
     const inChain = new Set(members);
     const adjacency = new Map<string, Set<string>>();
     for (const edge of edges) {
-      if (edge.type && !CHAIN_EDGE_KINDS.has(edge.type)) continue;
+      if (edge.type && !kinds.has(edge.type)) continue;
       if (!inChain.has(edge.source) || !inChain.has(edge.target) || edge.source === edge.target) continue;
       if (!adjacency.has(edge.source)) adjacency.set(edge.source, new Set());
       if (!adjacency.has(edge.target)) adjacency.set(edge.target, new Set());
@@ -242,6 +348,50 @@ export function spiralAssignments(
         }
       }
       out.set(id, { chain, radius: innerRadius + (anchorIndex + 1) * step, index: anchorIndex, spur: true });
+    }
+  }
+  return out;
+}
+
+/**
+ * The seats for every kind-group, tried in PRIORITY order and merged.
+ *
+ * This is the entry point a caller should use - `spiralChains`/
+ * `spiralAssignments` know about only one kind-group each and nothing about
+ * priority between them.
+ *
+ * Each group's connectivity is computed only among nodes the EARLIER groups
+ * did not already claim. A node with an authored lifecycle edge always keeps
+ * that home; a `related` thread never reassigns it, and its own component is
+ * whatever remains connected once such nodes are removed from consideration -
+ * which may be smaller than the raw `related` component, or split in two if a
+ * claimed node was the only thing joining two halves. That is the intended
+ * behaviour, not a bug: a `related` story yields to a stronger, authored one
+ * wherever they overlap, rather than the two silently fighting over one seat.
+ */
+export function allSpiralAssignments(
+  nodes: readonly SpiralNodeLike[],
+  edges: readonly SpiralEdgeLike[],
+  options?: {
+    groups?: readonly (ReadonlySet<string>)[];
+    minLength?: number;
+    maxMeanDegree?: number;
+    maxDegree?: number;
+    minConcordance?: number;
+    innerRadius?: number;
+    step?: number;
+  },
+): Map<string, SpiralAssignment> {
+  const groups = options?.groups ?? CHAIN_KIND_GROUPS;
+  const claimed = new Set<string>();
+  const out = new Map<string, SpiralAssignment>();
+  for (const kinds of groups) {
+    const available = nodes.filter((node) => !claimed.has(node.id));
+    const chains = spiralChains(available, edges, { ...options, kinds });
+    const seats = spiralAssignments(chains, edges, { ...options, kinds });
+    for (const [id, seat] of seats) {
+      out.set(id, seat);
+      claimed.add(id);
     }
   }
   return out;
