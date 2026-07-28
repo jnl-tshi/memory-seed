@@ -312,6 +312,13 @@ export interface components {
             agents: {
                 [key: string]: number;
             };
+            /**
+             * Ontology
+             * @default {}
+             */
+            ontology: {
+                [key: string]: components["schemas"]["OntologyNode"][];
+            };
             runtime: components["schemas"]["FacetsRuntimeInfo"];
             /**
              * Topic Canonical
@@ -476,6 +483,37 @@ export interface components {
             short: string;
             /** Subject */
             subject: string;
+        };
+        /**
+         * OntologyNode
+         * @description One vocabulary slug, with its subtree. Recursive to arbitrary depth.
+         *
+         *     `count` is the slug's own attributions; `total` includes every descendant,
+         *     which is what SELECTING the node returns - `expand_topic_filter` matches a
+         *     parent against its whole subtree. A navigator that showed `count` beside a
+         *     parent whose children hold most of the corpus would print a number that
+         *     disagrees with the result it produces.
+         */
+        OntologyNode: {
+            /**
+             * Children
+             * @default []
+             */
+            children: components["schemas"]["OntologyNode"][];
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
         };
         /**
          * ProvenanceClass

@@ -12,6 +12,7 @@ import { overviewCounts, overviewExhausted as overviewIsExhausted, type Overview
 import { animateScrollTo, scrollDurationFor } from "./trailScroll";
 import { compareTrailNodes, isDecisionRow, stripTitleStamp, TRAIL_WINDOW_STEP, trailWindowEntryIds } from "./trailModel";
 import { anchorEntryIdFor, isDecisionRowId, visibilityIdFor } from "./graphDecisionRows";
+import { ancestorIdsOf, TreeView, type OntologyNode } from "./TreeView";
 
 const GraphWorkspace = lazy(() => import("./GraphWorkspace").then((module) => ({ default: module.GraphWorkspace })));
 const TrailWorkspace = lazy(() => import("./TrailWorkspace").then((module) => ({ default: module.TrailWorkspace })));
@@ -123,6 +124,27 @@ function readTheme(): Theme {
   const stored = localStorage.getItem("memory-trace:theme");
   if (stored === "light" || stored === "dark") return stored;
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+// Which ontology axis the navigator is browsing. Persisted because it is a
+// standing preference about how you think about the corpus, not a transient
+// view state - somebody who navigates by activity should not have to re-pick it
+// every session.
+function readOntologyAxis(): string {
+  return localStorage.getItem("memory-trace:ontology-axis") || "area";
+}
+
+// Expansion is persisted per axis and MERGED across them, so switching axis and
+// back finds the tree as you left it. One flat set keyed by slug is enough:
+// slugs are unique across axes, and a slug that later moves or disappears just
+// stops matching.
+function readOntologyExpanded(): Set<string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem("memory-trace:ontology-expanded") || "[]");
+    return new Set(Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string") : []);
+  } catch {
+    return new Set();
+  }
 }
 
 // Trail stroke presentation. Lifted out of TrailWorkspace so the settings menu
@@ -760,6 +782,63 @@ export default function App() {
   }
 
   const topics = useMemo(() => Object.entries(facets?.topics ?? {}).slice(0, 10), [facets]);
+
+  // --- Ontology navigator ---------------------------------------------------
+  // The vocabulary's shape arrives per axis from the server, so adding an axis
+  // needs no change here: the toggle is built from the keys.
+  const [ontologyAxis, setOntologyAxis] = useState<string>(readOntologyAxis);
+  const [expandedOntology, setExpandedOntology] = useState<Set<string>>(readOntologyExpanded);
+  const ontology = useMemo(() => (facets?.ontology ?? {}) as Record<string, OntologyNode[]>, [facets]);
+  // Area first, then activity, then anything else alphabetically. "What is this
+  // about" is the question people reach for first, and alphabetical order would
+  // put Activities there purely by spelling.
+  const AXIS_ORDER = ["area", "activity"];
+  const ontologyAxes = useMemo(
+    () =>
+      Object.keys(ontology).sort((a, b) => {
+        const ia = AXIS_ORDER.indexOf(a);
+        const ib = AXIS_ORDER.indexOf(b);
+        if (ia !== ib) return (ia < 0 ? AXIS_ORDER.length : ia) - (ib < 0 ? AXIS_ORDER.length : ib);
+        return a.localeCompare(b);
+      }),
+    [ontology],
+  );
+  // Falls back to the first available axis when the stored one is gone, so a
+  // vocabulary that drops an axis degrades to a working panel rather than an
+  // empty one.
+  const activeAxis = ontologyAxes.includes(ontologyAxis) ? ontologyAxis : (ontologyAxes[0] ?? "area");
+  const ontologyNodes = ontology[activeAxis] ?? [];
+
+  const chooseOntologyAxis = useCallback((axis: string) => {
+    setOntologyAxis(axis);
+    localStorage.setItem("memory-trace:ontology-axis", axis);
+  }, []);
+
+  const toggleOntologyNode = useCallback((id: string) => {
+    setExpandedOntology((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      localStorage.setItem("memory-trace:ontology-expanded", JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
+
+  // A topic selected ANYWHERE - a graph node, a restored session - opens its
+  // ancestor chain, so the navigator always shows where the current filter sits
+  // instead of highlighting a row folded out of sight.
+  useEffect(() => {
+    if (!activeTopic || !ontologyNodes.length) return;
+    const chain = ancestorIdsOf(ontologyNodes, activeTopic);
+    if (!chain.length) return;
+    setExpandedOntology((previous) => {
+      if (chain.every((id) => previous.has(id))) return previous;
+      const next = new Set(previous);
+      chain.forEach((id) => next.add(id));
+      localStorage.setItem("memory-trace:ontology-expanded", JSON.stringify([...next]));
+      return next;
+    });
+  }, [activeTopic, ontologyNodes]);
   const inspectorVisible = dock !== "hidden";
   // Every fetched node now renders — edgeless entries included, placed in a
   // halo around the connected core — so the payload size IS what is on screen.
@@ -1213,7 +1292,45 @@ export default function App() {
             </select>
           </label>
         )}
-        <section className="navigation-section"><h2>Topics</h2><div className="topic-list"><button type="button" className={activeTopic === null ? "topic active" : "topic"} onClick={() => void chooseTopic(null)} aria-pressed={activeTopic === null}>All</button>{topics.map(([topic, count]) => <button type="button" className={activeTopic === topic ? "topic active" : "topic"} key={topic} onClick={() => void chooseTopic(topic)} aria-pressed={activeTopic === topic}>{topic}<b>{count}</b></button>)}</div></section>
+        <section className="navigation-section ontology-section">
+          <h2>Ontology</h2>
+          {ontologyAxes.length > 1 && (
+            <div className="ontology-toggle" role="group" aria-label="Ontology axis">
+              {ontologyAxes.map((axis) => (
+                <button
+                  type="button"
+                  key={axis}
+                  className={axis === activeAxis ? "ontology-mode active" : "ontology-mode"}
+                  onClick={() => chooseOntologyAxis(axis)}
+                  aria-pressed={axis === activeAxis}
+                >
+                  {axis === "area" ? "Areas" : axis === "activity" ? "Activities" : axis}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            className={activeTopic === null ? "ontology-all active" : "ontology-all"}
+            onClick={() => void chooseTopic(null)}
+            aria-pressed={activeTopic === null}
+          >
+            All
+          </button>
+          {ontologyNodes.length ? (
+            <TreeView
+              nodes={ontologyNodes}
+              selectedId={activeTopic}
+              expandedIds={expandedOntology}
+              onToggle={toggleOntologyNode}
+              onSelect={(id) => void chooseTopic(id === activeTopic ? null : id)}
+            />
+          ) : (
+            // The flat list is the fallback, not a parallel feature: a project
+            // whose vocabulary declares no axes still needs to filter.
+            <div className="topic-list">{topics.map(([topic, count]) => <button type="button" className={activeTopic === topic ? "topic active" : "topic"} key={topic} onClick={() => void chooseTopic(topic)} aria-pressed={activeTopic === topic}>{topic}<b>{count}</b></button>)}</div>
+          )}
+        </section>
         <section className="navigation-section entry-list"><h2>{selected?.source.entry_id ? "Context" : "Recent"}</h2>{selected?.source.entry_id && <p className="context-subject" title={selected.label}>{stripTitleStamp(selected.label)}</p>}{contextGroups.length ? contextGroups.map(([kind, group]) => <div key={kind} className="context-group">{kind !== "recent" && <h3 className={`context-group-h context-type-${kind}`}>{kind === "commit" ? "same commit" : kind}</h3>}{group.map((item) => <button key={item.key} type="button" className="entry" title={item.title} onClick={() => void openEntryInPlace(item.entryId)}><span>{item.title}</span></button>)}</div>) : <p className="context-empty">{selected?.source.entry_id ? "No linked context for this entry." : "Loading entries"}</p>}</section>
       </aside>}
 

@@ -1443,7 +1443,61 @@ class TraceService:
             # cannot: both map to a root. Only matters where colour is keyed
             # below the root, i.e. the focused-topic view.
             "topic_canonical": self.topic_canonical(),
+            # The vocabulary's SHAPE, per axis, as a recursive tree. `topic_roots`
+            # answers "which root does this belong to" and deliberately collapses
+            # everything between; a navigator has to render what it collapsed.
+            "ontology": self.ontology(topics),
         }
+
+    def ontology(self, counts: dict[str, int] | None = None) -> dict[str, list[dict[str, Any]]]:
+        """The vocabulary as one recursive tree per axis.
+
+        ``{"area": [node, ...], "activity": [node, ...]}`` where a node is
+        ``{id, name, count, total, children}`` - the same shape all the way down,
+        so a renderer recurses and never needs to know how deep the tree goes.
+        Keyed BY AXIS rather than returned as one forest because the two axes
+        answer different questions and are navigated one at a time; a third axis
+        would be a third key and no consumer change.
+
+        ``count`` is the slug's own attributions. ``total`` includes every
+        descendant, which is what selecting that node actually returns -
+        `expand_topic_filter` matches a parent against its whole subtree. Showing
+        `count` next to a parent whose children hold most of the corpus would
+        make the number disagree with the result, which is the specific way a
+        legend lies about itself.
+
+        Aliases are deliberately absent: they are spellings, not concepts, and a
+        navigator that listed `memory-trace-ui` beside `memory-trace` would offer
+        two doors into one room. Empty on a broken vocabulary, matching every
+        other reader of topics.yaml - a navigator that vanishes is better than a
+        payload that 500s.
+        """
+        try:
+            index = load_topic_index(self.cache.cwd)
+        except Exception:  # noqa: BLE001 - a broken vocabulary must not take facets down
+            return {}
+        counts = counts or {}
+        children_of: dict[str | None, list[Any]] = {}
+        for record in index.topics:
+            children_of.setdefault(record.parent or None, []).append(record)
+
+        def build(record: Any) -> dict[str, Any]:
+            kids = sorted(children_of.get(record.slug, []), key=lambda r: r.slug)
+            built = [build(kid) for kid in kids]
+            own = int(counts.get(record.slug, 0))
+            return {
+                "id": record.slug,
+                "name": record.label or record.slug,
+                "count": own,
+                "total": own + sum(kid["total"] for kid in built),
+                "children": built,
+            }
+
+        out: dict[str, list[dict[str, Any]]] = {}
+        for root in sorted(children_of.get(None, []), key=lambda r: r.slug):
+            axis = index.axis_of(root.slug) or "other"
+            out.setdefault(axis, []).append(build(root))
+        return out
 
     def search(
         self,
