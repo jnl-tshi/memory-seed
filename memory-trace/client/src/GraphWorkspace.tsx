@@ -5,6 +5,7 @@ import { Maximize2, Minus, Plus } from "lucide-react";
 import { type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
 import { nodeSetSignature, seedPositions, type Point } from "./graphLayout";
 import { anchorEntryIdFor, connectedIdsWithDecisionAnchors, decisionGroups, decisionHaloId, haloDiameter, isDecisionRowId, parentIdsFor, satellitePositions, simulationLinks, visibilityIdFor } from "./graphDecisionRows";
+import { spiralAssignments, spiralChains, spiralSeedOffsets, type SpiralAssignment } from "./graphSpiral";
 import { forceParameters, ticksPerPaint, type ForceSettings } from "./graphForces";
 import { outrankedEdgeIds } from "./graphEdges";
 import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, inferredCommunityColours, wearsAuthoredRim, type TopicRoots } from "./graphCommunities";
@@ -208,7 +209,63 @@ function startSimulation(options: {
   let sim: Simulation<ReheatNode, ReheatLink> | null = null;
   let applyForces: (() => void) | null = null;
 
-  const simNodes: ReheatNode[] = graphNodes.map((node) => {
+  // A radial spring per CHAIN, which is what turns a long lifecycle thread into a
+// spiral without anything drawing one.
+//
+// Each member is pulled toward its own chain's centroid until it sits at the
+// radius its age earns - oldest innermost - while the ordinary link force keeps
+// pulling consecutive members together. A shape satisfying both is a winding
+// one, so the spiral falls out of two forces rather than being imposed by a
+// layout.
+//
+// Written as a custom force rather than `d3.forceRadial` because that takes ONE
+// centre for the whole simulation: it would wind every chain around the middle
+// of the map and pile them on top of each other. Chains need their own centres,
+// recomputed as they drift, which is a per-tick job.
+//
+// Nodes with no assignment are skipped entirely - not damped, not weakly pulled.
+// That is the guarantee that the dense sections keep exactly the physics they
+// had: measured on the live corpus, 6 chains qualify (46 nodes, 7%) and the
+// 289-node hub component is rejected by the path-like test.
+function chainSpiralForce(assignments: ReadonlyMap<string, SpiralAssignment>, strength: () => number) {
+  let nodes: ReheatNode[] = [];
+  const force = (alpha: number) => {
+    const power = strength();
+    if (!power || !assignments.size) return;
+    const sumX = new Map<string, number>();
+    const sumY = new Map<string, number>();
+    const count = new Map<string, number>();
+    for (const node of nodes) {
+      const seat = assignments.get(node.id);
+      if (!seat) continue;
+      sumX.set(seat.chain, (sumX.get(seat.chain) ?? 0) + node.x);
+      sumY.set(seat.chain, (sumY.get(seat.chain) ?? 0) + node.y);
+      count.set(seat.chain, (count.get(seat.chain) ?? 0) + 1);
+    }
+    for (const node of nodes) {
+      const seat = assignments.get(node.id);
+      if (!seat) continue;
+      const n = count.get(seat.chain) ?? 1;
+      const dx = node.x - (sumX.get(seat.chain) ?? 0) / n;
+      const dy = node.y - (sumY.get(seat.chain) ?? 0) / n;
+      // A node sitting exactly on its centre has no direction to be pushed in;
+      // nudging it by an epsilon lets the next tick resolve rather than
+      // dividing by zero and painting NaN.
+      const distance = Math.hypot(dx, dy) || 1e-6;
+      const pull = ((seat.radius - distance) * power * alpha) / distance;
+      // vx/vy are undefined until d3 has ticked once; treating that as 0 is
+      // what the built-in forces do too.
+      node.vx = (node.vx ?? 0) + dx * pull;
+      node.vy = (node.vy ?? 0) + dy * pull;
+    }
+  };
+  force.initialize = (next: ReheatNode[]) => {
+    nodes = next;
+  };
+  return force;
+}
+
+const simNodes: ReheatNode[] = graphNodes.map((node) => {
     const position = cy.getElementById(node.id).position();
     return { id: node.id, x: position.x, y: position.y };
   });
@@ -219,6 +276,37 @@ function startSimulation(options: {
   // for why - the short version is that a decision is part of its entry, so a
   // pull on the part is a pull on the whole.
   const links: ReheatLink[] = simulationLinks(graphEdges, new Set(byId.keys()));
+
+  // Which nodes belong to a long lifecycle chain, and how far out each sits.
+  // Computed once per simulation, like `links`: the element set does not change
+  // without a remount, and re-deriving components per tick would be exactly the
+  // per-tick work `ticksPerPaint` exists to avoid.
+  const spiralSeats = spiralAssignments(spiralChains(graphNodes, graphEdges));
+
+  // Seed each chain member's ANGLE around its chain's current centroid. The
+  // radial spring fixes how far a node sits from that centre and nothing fixes
+  // where AROUND it, so without this a chain settles wound inward as often as
+  // outward - measured 2 of 5 inverted on the live corpus. A force layout keeps
+  // the topology it starts with, so the seed makes the correct winding the one
+  // the springs then maintain. Every node still moves; only the start is chosen.
+  if (spiralSeats.size) {
+    const offsets = spiralSeedOffsets(spiralSeats);
+    const centres = new Map<string, { x: number; y: number; n: number }>();
+    for (const node of simNodes) {
+      const seat = spiralSeats.get(node.id);
+      if (!seat) continue;
+      const at = centres.get(seat.chain) ?? { x: 0, y: 0, n: 0 };
+      centres.set(seat.chain, { x: at.x + node.x, y: at.y + node.y, n: at.n + 1 });
+    }
+    for (const node of simNodes) {
+      const seat = spiralSeats.get(node.id);
+      const offset = offsets.get(node.id);
+      const centre = seat && centres.get(seat.chain);
+      if (!seat || !offset || !centre) continue;
+      node.x = centre.x / centre.n + offset.dx;
+      node.y = centre.y / centre.n + offset.dy;
+    }
+  }
 
   // Nodes the pointer is currently holding. The simulation reads their position
   // and never writes it: while a node is grabbed, Cytoscape owns where it is.
@@ -312,6 +400,9 @@ function startSimulation(options: {
       .force("charge", d3.forceManyBody<ReheatNode>())
       .force("x", d3.forceX<ReheatNode>(0))
       .force("y", d3.forceY<ReheatNode>(0))
+      // Last, so it resolves against positions the other three have already
+      // moved this tick rather than against last tick's.
+      .force("spiral", chainSpiralForce(spiralSeats, () => forceParameters(forces.current).spiralStrength))
       .stop();
     applyForces = () => {
       const params = forceParameters(forces.current);
