@@ -238,7 +238,11 @@ function chainSpiralForce(seats: () => ReadonlyMap<string, SpiralAssignment>, st
     const count = new Map<string, number>();
     for (const node of nodes) {
       const seat = assignments.get(node.id);
-      if (!seat) continue;
+      // SPINE ONLY. A terminating spur that joined the centroid pulled the
+      // centre toward itself, and every other member's radius is measured from
+      // that centre - so one side-node bent the whole spiral. Excluded here, a
+      // spur is pushed outward by its own radius and pulls on nothing.
+      if (!seat || seat.spur) continue;
       sumX.set(seat.chain, (sumX.get(seat.chain) ?? 0) + node.x);
       sumY.set(seat.chain, (sumY.get(seat.chain) ?? 0) + node.y);
       count.set(seat.chain, (count.get(seat.chain) ?? 0) + 1);
@@ -246,7 +250,8 @@ function chainSpiralForce(seats: () => ReadonlyMap<string, SpiralAssignment>, st
     for (const node of nodes) {
       const seat = assignments.get(node.id);
       if (!seat) continue;
-      const n = count.get(seat.chain) ?? 1;
+      const n = count.get(seat.chain) ?? 0;
+      if (!n) continue;
       const dx = node.x - (sumX.get(seat.chain) ?? 0) / n;
       const dy = node.y - (sumY.get(seat.chain) ?? 0) / n;
       // A node sitting exactly on its centre has no direction to be pushed in;
@@ -297,6 +302,7 @@ const simNodes: ReheatNode[] = graphNodes.map((node) => {
       seatKey = key;
       seatCache = spiralAssignments(
         spiralChains(graphNodes, graphEdges, { minLength: params.spiralMinLength }),
+        graphEdges,
         { step: params.spiralStep },
       );
     }
