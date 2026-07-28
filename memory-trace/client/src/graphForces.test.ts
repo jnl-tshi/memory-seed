@@ -65,3 +65,45 @@ test("stored settings are validated, not trusted", () => {
   // A partial blob keeps defaults for the rest.
   assert.equal(readForceSettings({ centre: 0.8 }).repel, DEFAULT_FORCES.repel);
 });
+
+// --- Chain spiral controls -------------------------------------------------
+
+test("the shipped defaults ARE the configuration that was measured", () => {
+  // 8 entries / 30 units / 1.75 rad is the setup the headless probe reported
+  // 89% age-ordered over 633 degrees on. If a default drifts off it, the
+  // evidence quoted for the feature stops describing what ships.
+  const p = forceParameters(DEFAULT_FORCES);
+  assert.equal(p.spiralMinLength, 8);
+  assert.equal(Math.round(p.spiralStep), 30);
+  assert.ok(Math.abs(p.spiralAngle - 1.75) < 0.005, `angle ${p.spiralAngle}`);
+});
+
+test("spiral strength 0 disables the force outright", () => {
+  assert.equal(forceParameters({ ...DEFAULT_FORCES, spiral: 0 }).spiralStrength, 0);
+});
+
+test("every spiral control is monotonic across its slider", () => {
+  const at = (over: Partial<typeof DEFAULT_FORCES>) => forceParameters({ ...DEFAULT_FORCES, ...over });
+  assert.ok(at({ spiralMinLength: 0 }).spiralMinLength < at({ spiralMinLength: 1 }).spiralMinLength);
+  assert.ok(at({ spiralTightness: 0 }).spiralStep < at({ spiralTightness: 1 }).spiralStep);
+  assert.ok(at({ spiralWinding: 0 }).spiralAngle < at({ spiralWinding: 1 }).spiralAngle);
+  assert.ok(at({ spiral: 0 }).spiralStrength < at({ spiral: 1 }).spiralStrength);
+});
+
+test("min chain length is a whole number of entries at every slider position", () => {
+  // It counts nodes; a fractional floor would compare against a component size
+  // and behave differently either side of a value the UI never shows.
+  for (let i = 0; i <= 20; i += 1) {
+    const value = forceParameters({ ...DEFAULT_FORCES, spiralMinLength: i / 20 }).spiralMinLength;
+    assert.equal(value, Math.round(value));
+  }
+});
+
+test("the spiral never outmuscles the link force it works alongside", () => {
+  // A radial spring stronger than the link force turns a readable thread into a
+  // bare ring: the radius wins and consecutive entries stop reading as adjacent.
+  const maxSpiral = forceParameters({ ...DEFAULT_FORCES, spiral: 1 }).spiralStrength;
+  const minLink = forceParameters({ ...DEFAULT_FORCES, linkForce: 0 }).linkStrength;
+  assert.ok(maxSpiral < 1, `spiral tops out at ${maxSpiral}`);
+  assert.ok(minLink > 0, "link force never reaches zero");
+});
