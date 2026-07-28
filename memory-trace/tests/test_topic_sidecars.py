@@ -30,6 +30,7 @@ from memory_trace.service import _topics, _tracked_document_paths, create_app
 
 ENTRY = "mse_" + "d" * 16
 OTHER = "mse_" + "e" * 16
+PAIRED = "mse_" + "f" * 16  # its own id: two entries sharing one is a UNIQUE violation
 
 
 def _entry(dt, entry_id, title, topics=()):
@@ -220,3 +221,101 @@ class TopicSidecarReadPathTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DecisionRowPairTests(unittest.TestCase):
+    """Each decision row carries its OWN area and activity.
+
+    Before this, every row in a group took the entry's rolled-up topics, so an
+    entry that is `retrieval` work on d1 and `agent-rules` work on d2 rendered
+    both rows identically. 109 entries in the live corpus have decisions whose
+    areas genuinely differ; all of them were averaged away.
+    """
+
+    def _entry_chunk(self, pairs):
+        from datetime import date, datetime
+
+        return MemoryChunk(
+            chunk_id=PAIRED,
+            granularity="entry",
+            entry_id=PAIRED,
+            source_path="s.md",
+            source_file="s.md",
+            session_date=date(2026, 6, 2),
+            entry_datetime=datetime(2026, 6, 2, 9, 0),
+            heading_path=(),
+            heading_level=2,
+            title="Two decisions",
+            tags=(),
+            contexts=(),
+            lexical_terms=(),
+            start_line=1,
+            end_line=9,
+            text="body",
+            inferred_decision_topics=tuple(pairs),
+        )
+
+    def _section(self, ordinal, name):
+        from datetime import date, datetime
+
+        return MemoryChunk(
+            chunk_id=f"{PAIRED}#decisions/d{ordinal}-{name}",
+            granularity="section",
+            entry_id=PAIRED,
+            source_path="s.md",
+            source_file="s.md",
+            session_date=date(2026, 6, 2),
+            entry_datetime=datetime(2026, 6, 2, 9, 0),
+            heading_path=(),
+            heading_level=4,
+            title=f"D{ordinal} - {name}",
+            tags=(),
+            contexts=(),
+            lexical_terms=(),
+            start_line=1,
+            end_line=4,
+            text="d",
+        )
+
+    def test_each_row_gets_its_own_pair(self):
+        from memory_trace.service import _expand_decision_rows
+
+        sections = [self._section(1, "first"), self._section(2, "second")]
+
+        class _Cache:
+            def chunks(self, *, granularity=None):
+                return sections
+
+        entry = self._entry_chunk(
+            [("d1", "memory-trace"), ("d1", "bugfix"), ("d2", "graph"), ("d2", "ui-design")]
+        )
+        node = {"id": PAIRED, "entry_id": PAIRED, "topics": ["memory-trace", "bugfix"]}
+
+        rows = _expand_decision_rows([node], _Cache(), attributions={PAIRED: entry})
+        by = {r["decision_ordinal"]: r for r in rows if r.get("decision_ordinal")}
+
+        self.assertEqual(by["d1"]["decision_area"], ["memory-trace"])
+        self.assertEqual(by["d1"]["decision_activity"], ["bugfix"])
+        self.assertEqual(by["d2"]["decision_area"], ["graph"])
+        self.assertEqual(by["d2"]["decision_activity"], ["ui-design"])
+        # The flat union stays, for consumers that only want "what is this about".
+        self.assertEqual(by["d2"]["topics"], ["graph", "ui-design"])
+
+    def test_a_decision_without_attribution_falls_back_to_the_entry(self):
+        # A row with no colour would read as a defect rather than missing data.
+        from memory_trace.service import _expand_decision_rows
+
+        sections = [self._section(1, "first"), self._section(2, "second")]
+
+        class _Cache:
+            def chunks(self, *, granularity=None):
+                return sections
+
+        entry = self._entry_chunk([("d1", "memory-trace"), ("d1", "bugfix")])
+        node = {"id": PAIRED, "entry_id": PAIRED, "topics": ["memory-trace", "bugfix"]}
+
+        rows = _expand_decision_rows([node], _Cache(), attributions={PAIRED: entry})
+        by = {r["decision_ordinal"]: r for r in rows if r.get("decision_ordinal")}
+
+        self.assertEqual(by["d2"]["decision_area"], [])
+        self.assertEqual(by["d2"]["topics"], ["memory-trace", "bugfix"])

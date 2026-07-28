@@ -312,23 +312,73 @@ def entry_topic_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
                 continue
             rolled: list[str] = []
             pairs: list[tuple[str, str]] = []
-            for line in _frontmatter_list_region(yaml_block, "topics").splitlines():
-                stripped = line.strip()
-                if not stripped.startswith("-"):
+            axis_pairs: dict[str, list[tuple[str, str]]] = {"area": [], "activity": []}
+            # TWO SHAPES ARE ACCEPTED under `topics:`. The nested one declares
+            # the axis structurally:
+            #
+            #     topics:
+            #       area:
+            #         - graph:d1
+            #       activity:
+            #         - bugfix:d1
+            #
+            # and the flat one - every sidecar written before 2026-07-27 - lists
+            # slugs directly and leaves the axis to be derived from topics.yaml.
+            #
+            # The nested form is readable by the flat reader (it collects the
+            # same `- ` lines and ignores the sub-keys), which is what makes the
+            # migration safe in both directions: an old reader sees a correct if
+            # axis-blind list rather than an empty one.
+            region = _frontmatter_list_region(yaml_block, "topics")
+            # Split on the axis sub-keys by INDENT, not with
+            # `_frontmatter_list_region`. That helper stops at the first line
+            # that is not indented at all, so asking it for `area` inside this
+            # region runs straight through `activity:` and returns both lists -
+            # which read back as every activity slug also being an area.
+            axis_regions: dict[str, list[str]] = {"area": [], "activity": []}
+            current = ""
+            for line in region.splitlines():
+                key = line.strip().rstrip(":")
+                if line.strip().endswith(":") and key in axis_regions:
+                    current = key
                     continue
-                token = stripped[1:].strip().strip("'\"")
-                if not token:
-                    continue
-                slug, ordinal, well_formed = _parse_topic_slug(token)
-                if not well_formed:
-                    continue
-                pairs.append((ordinal or "", slug))
-                if slug not in rolled:
-                    rolled.append(slug)
+                if current:
+                    axis_regions[current].append(line)
+            nested = any(axis_regions.values())
+            buckets = (
+                [(axis, lines) for axis, lines in axis_regions.items()]
+                if nested
+                else [("", region.splitlines())]
+            )
+            for axis, source in buckets:
+                for line in source:
+                    stripped = line.strip()
+                    if not stripped.startswith("-"):
+                        continue
+                    token = stripped[1:].strip().strip("'\"")
+                    if not token:
+                        continue
+                    slug, ordinal, well_formed = _parse_topic_slug(token)
+                    if not well_formed:
+                        continue
+                    pairs.append((ordinal or "", slug))
+                    if axis:
+                        axis_pairs[axis].append((ordinal or "", slug))
+                    if slug not in rolled:
+                        rolled.append(slug)
             if not pairs:
                 continue
             block_precedence[entry_id] = precedence
-            sidecars[entry_id] = {"topics": tuple(rolled), "decision_topics": tuple(pairs)}
+            sidecars[entry_id] = {
+                "topics": tuple(rolled),
+                "decision_topics": tuple(pairs),
+                # Empty for a flat block: the axis was never DECLARED there, and
+                # deriving it here would hand consumers a guess wearing the same
+                # shape as a fact. A consumer that wants the axis of a flat
+                # sidecar asks topics.yaml, which is where that answer lives.
+                "decision_area": tuple(axis_pairs["area"]),
+                "decision_activity": tuple(axis_pairs["activity"]),
+            }
     return sidecars
 
 

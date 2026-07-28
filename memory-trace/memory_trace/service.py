@@ -1806,7 +1806,16 @@ class TraceService:
                     ):
                         _want(chunk.entry_id or "", src_ordinal)
                         _want(target_entry_id, tgt_ordinal)
-            nodes = _expand_decision_rows(nodes, self.cache, only_entries=only_entries)
+            nodes = _expand_decision_rows(
+                nodes,
+                self.cache,
+                only_entries=only_entries,
+                attributions={
+                    chunk.entry_id: chunk
+                    for chunk in self._entry_chunks()
+                    if chunk.entry_id and chunk.inferred_decision_topics
+                },
+            )
         # Edges BETWEEN already-selected nodes are capped only by the hard
         # ceiling. The cap used to track the node count, which starved exactly
         # the case the overview now exists to serve: measured on the real corpus
@@ -3491,11 +3500,32 @@ def _graph_node(
     }
 
 
+def _AXIS_OF(slug: str) -> str | None:
+    """The axis a slug sits on, memoized on the vocabulary.
+
+    A module-level cache because `_expand_decision_rows` asks per slug per row
+    and `load_topic_index` re-reads topics.yaml every call. Fails open to None
+    on a missing or broken vocabulary, matching every other reader of that file.
+    """
+    global _AXIS_CACHE
+    if _AXIS_CACHE is None:
+        try:
+            index = load_topic_index(".")
+            _AXIS_CACHE = {t.slug: index.axis_of(t.slug) for t in index.topics}
+        except Exception:  # noqa: BLE001 - a broken vocabulary must not break rendering
+            _AXIS_CACHE = {}
+    return _AXIS_CACHE.get(slug)
+
+
+_AXIS_CACHE: dict[str, str | None] | None = None
+
+
 def _expand_decision_rows(
     nodes: list[dict[str, Any]],
     cache: TraceCache,
     *,
     only_entries: Collection[str] | None = None,
+    attributions: dict[str, MemoryChunk] | None = None,
 ) -> list[dict[str, Any]]:
     """One Trail row per decision for multi-decision entries.
 
@@ -3577,7 +3607,25 @@ def _expand_decision_rows(
         anchor["decision_ordinal"] = None
         anchor["decision_count"] = len(group)
         expanded.append(anchor)
+        # Per-decision attribution, keyed by ordinal. A decision carries its OWN
+        # area and activity; inheriting the entry's rollup is what made every row
+        # in a group take one colour. Measured before this: 109 entries have
+        # decisions whose areas genuinely differ - `ms-845042c7` is `retrieval`
+        # on d1/d2 and `agent-rules` on d3 - and all of them rendered as
+        # `retrieval`, averaging away the distinction decision granularity exists
+        # to record.
+        source = (attributions or {}).get(entry_id)
+        by_ordinal: dict[str, dict[str, list[str]]] = {}
+        for ord_key, slug in getattr(source, "inferred_decision_topics", ()) or ():
+            if not ord_key:
+                continue
+            axis = _AXIS_OF(slug)
+            if axis:
+                by_ordinal.setdefault(ord_key, {}).setdefault(axis, []).append(slug)
         for ordinal, chunk in group:
+            axes = by_ordinal.get(f"d{ordinal}", {})
+            area = sorted(axes.get("area", ()))
+            activity = sorted(axes.get("activity", ()))
             expanded.append(
                 dict(
                     node,
@@ -3585,6 +3633,13 @@ def _expand_decision_rows(
                     chunk_id=chunk.chunk_id,
                     title=chunk.title,
                     granularity="section",
+                    # The pair, and the flat union for consumers that just want
+                    # "what is this row about". Falls back to the anchor's topics
+                    # when a decision has no attribution - a row with no colour
+                    # would read as a defect rather than as missing data.
+                    topics=sorted({*area, *activity}) or node.get("topics") or [],
+                    decision_area=area,
+                    decision_activity=activity,
                     # Entry-scoped affordances stay on the anchor row only:
                     # duplicated continuity glyphs / diagram badges on every
                     # decision row would misread as N distinct events. Same
