@@ -588,6 +588,17 @@
             "title": "Agents",
             "type": "object"
           },
+          "ontology": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/OntologyNode"
+              },
+              "type": "array"
+            },
+            "default": {},
+            "title": "Ontology",
+            "type": "object"
+          },
           "runtime": {
             "$ref": "#/components/schemas/FacetsRuntimeInfo"
           },
@@ -1031,6 +1042,43 @@
           "entry_ids"
         ],
         "title": "MergeEvent",
+        "type": "object"
+      },
+      "OntologyNode": {
+        "description": "One vocabulary slug, with its subtree. Recursive to arbitrary depth.\n\n`count` is the slug's own attributions; `total` includes every descendant,\nwhich is what SELECTING the node returns - `expand_topic_filter` matches a\nparent against its whole subtree. A navigator that showed `count` beside a\nparent whose children hold most of the corpus would print a number that\ndisagrees with the result it produces.",
+        "properties": {
+          "children": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/OntologyNode"
+            },
+            "title": "Children",
+            "type": "array"
+          },
+          "count": {
+            "default": 0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "OntologyNode",
         "type": "object"
       },
       "ProvenanceClass": {

@@ -98,6 +98,23 @@ class FacetsRuntimeInfo(RuntimeInfo):
     chunk_count: int
 
 
+class OntologyNode(BaseModel):
+    """One vocabulary slug, with its subtree. Recursive to arbitrary depth.
+
+    `count` is the slug's own attributions; `total` includes every descendant,
+    which is what SELECTING the node returns - `expand_topic_filter` matches a
+    parent against its whole subtree. A navigator that showed `count` beside a
+    parent whose children hold most of the corpus would print a number that
+    disagrees with the result it produces.
+    """
+
+    id: str
+    name: str
+    count: int = 0
+    total: int = 0
+    children: list["OntologyNode"] = []
+
+
 class Facets(BaseModel):
     runtime: FacetsRuntimeInfo
     agents: dict[str, int]
@@ -119,6 +136,15 @@ class Facets(BaseModel):
     # a difference topic_roots cannot express, because both map to a root. Read
     # only where colour is keyed BELOW the root: the focused-topic view.
     topic_canonical: dict[str, str] = {}
+    # The vocabulary's SHAPE, per axis, as a recursive tree - what the navigator
+    # renders. `topic_roots` answers "which root owns this slug" and collapses
+    # everything between; a browser has to draw what it collapsed.
+    #
+    # Keyed BY AXIS rather than as one forest: the axes answer different
+    # questions and are navigated one at a time, so a third axis is a third key
+    # and no consumer change. Defaults to empty, which is also what a broken
+    # vocabulary yields - a navigator that disappears beats a payload that fails.
+    ontology: dict[str, list[OntologyNode]] = {}
 
 
 class ChunkSummary(BaseModel):

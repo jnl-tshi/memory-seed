@@ -442,3 +442,48 @@ button.trail-diagram-badge {
    `max-width: none` overrides the inline max-width Mermaid's useMaxWidth sets
    on its own root <svg>, which would otherwise cap the stage below full fit. */
 .diagram-stage .diagram-host svg { width: 100%; max-width: none; height: auto; }
+
+/* --- Ontology navigator ---------------------------------------------------
+   The vocabulary is the primary way into the graph, so it reads as a tree
+   rather than a bag of chips. Styling stays inside the existing token set - no
+   new colours - because this replaces a panel rather than introducing a
+   surface. */
+.ontology-toggle { display: flex; gap: 2px; margin-bottom: 8px; padding: 2px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--hover); }
+.ontology-mode { flex: 1; border: 0; border-radius: 4px; padding: 4px 6px; background: transparent; color: var(--text-2); font-size: 11px; cursor: pointer; }
+.ontology-mode:hover { color: var(--text); }
+.ontology-mode:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+.ontology-mode.active { background: var(--accent-chip-bg); color: var(--on-accent); }
+.ontology-all { width: 100%; margin-bottom: 4px; border: 1px solid var(--border-2); border-radius: 4px; padding: 3px 6px; background: transparent; color: var(--text-2); font-size: 11px; text-align: left; cursor: pointer; }
+.ontology-all:hover { border-color: var(--accent); color: var(--text); }
+.ontology-all.active { border-color: var(--accent); background: var(--accent-chip-bg); color: var(--on-accent); }
+
+.tree, .tree-branch .tree { margin: 0; padding: 0; list-style: none; }
+.tree-item { min-width: 0; }
+.tree-row { display: flex; align-items: center; gap: 2px; border-radius: 4px; padding-right: 4px; }
+.tree-row:hover { background: var(--hover); }
+.tree-row.selected { background: var(--accent-chip-bg); }
+.tree-row.selected .tree-label, .tree-row.selected .tree-count { color: var(--on-accent); }
+/* Chevron and label are SEPARATE buttons: expanding a branch to look inside it
+   is a different intent from filtering the graph to it, and one control doing
+   both makes the cheaper action impossible. */
+.tree-chevron { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 14px; height: 18px; border: 0; padding: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.tree-chevron svg { transition: transform 140ms ease; }
+.tree-chevron.open svg { transform: rotate(90deg); }
+.tree-chevron:hover { color: var(--text); }
+.tree-chevron.placeholder { cursor: default; }
+.tree-label { flex: 1 1 auto; display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; border: 0; padding: 3px 0; background: transparent; color: var(--text-2); font-size: 12px; text-align: left; cursor: pointer; }
+.tree-label:hover { color: var(--text); }
+.tree-label:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; border-radius: 3px; }
+.tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-count { flex: 0 0 auto; color: var(--accent); font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 600; }
+
+/* grid-template-rows animates to content height without measuring it, which is
+   what lets an arbitrarily deep subtree open smoothly. `visibility` (not
+   `display`) keeps the subtree mounted so the transition has a start state and
+   a deep branch is not re-created on every toggle. */
+.tree-branch { display: grid; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows 160ms ease, visibility 160ms; }
+.tree-branch > * { overflow: hidden; min-height: 0; }
+.tree-branch.open { grid-template-rows: 1fr; visibility: visible; }
+@media (prefers-reduced-motion: reduce) {
+  .tree-branch, .tree-chevron svg { transition: none; }
+}
