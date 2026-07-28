@@ -221,6 +221,13 @@ export function SettingsMenu({
                   <input type="range" min={0} max={1} step={0.01} value={graphSettings.forces.linkForce} aria-label="Link force"
                     onChange={(event) => setForce({ linkForce: Number(event.target.value) })} />
                 </div>
+                {/* Felt ONLY by long lifecycle chains - 5.5% of nodes on this
+                    corpus. 0 turns it off and leaves them to the other three. */}
+                <div className="trail-settings-row">
+                  <span>Chain spiral <b>{graphSettings.forces.spiral.toFixed(2)}</b></span>
+                  <input type="range" min={0} max={1} step={0.01} value={graphSettings.forces.spiral} aria-label="Chain spiral"
+                    onChange={(event) => setForce({ spiral: Number(event.target.value) })} />
+                </div>
                 <div className="trail-settings-row">
                   <span>Drag response</span>
                   <div className="segment-control">

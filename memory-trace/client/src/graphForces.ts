@@ -24,6 +24,8 @@ export type ForceSettings = {
   repel: number;
   /** How hard an edge pulls its endpoints together. */
   linkForce: number;
+  /** How hard a long lifecycle chain is wound into a spiral. 0 disables it. */
+  spiral: number;
 };
 
 /** The distance an edge tries to hold. Matches the old cose idealEdgeLength. */
@@ -38,6 +40,10 @@ export const DEFAULT_FORCES: ForceSettings = {
   centre: 0.35,
   repel: 0.5,
   linkForce: 0.35,
+  // Enough to wind a chain without overpowering the link force that keeps its
+  // members adjacent. Below ~0.2 the thread stays a wandering line; above ~0.6
+  // the ring wins and consecutive entries stop reading as consecutive.
+  spiral: 0.4,
 };
 
 const clamp01 = (value: unknown, fallback: number): number =>
@@ -49,6 +55,7 @@ export function readForceSettings(stored: unknown): ForceSettings {
     centre: clamp01(source.centre, DEFAULT_FORCES.centre),
     repel: clamp01(source.repel, DEFAULT_FORCES.repel),
     linkForce: clamp01(source.linkForce, DEFAULT_FORCES.linkForce),
+    spiral: clamp01(source.spiral, DEFAULT_FORCES.spiral),
   };
 }
 
@@ -61,6 +68,8 @@ export type ForceParameters = {
   linkStrength: number;
   /** forceLink distance, in graph units. */
   linkDistance: number;
+  /** Per-chain radial spring strength. 0 leaves chains to the other forces. */
+  spiralStrength: number;
 };
 
 /**
@@ -81,6 +90,11 @@ export function forceParameters(settings: ForceSettings): ForceParameters {
     chargeStrength: -(60 + settings.repel * settings.repel * 1740),
     linkStrength: 0.02 + settings.linkForce * 0.78,
     linkDistance: LINK_DISTANCE,
+    // Bounded well under the link strength it works alongside: the spiral sets
+    // the RADIUS a chain member holds, the link force still owns how close
+    // consecutive members sit, and a radial spring that outmuscles the link
+    // force turns a readable thread into a bare ring.
+    spiralStrength: settings.spiral * 0.5,
   };
 }
 
