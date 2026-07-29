@@ -54,6 +54,17 @@ skills:
     do_not_load_when:
       - direct single-agent edits with no branch, worktree, merge, or handoff implications
 
+  - skill: superpowers_integration.md
+    required: true
+    load_when:
+      - routing independent read-only investigation to Superpowers parallel dispatch
+      - routing an approved multi-task same-session plan to Superpowers SDD
+      - verifying optional Superpowers availability, version, scratch isolation, or the return handoff
+      - deciding whether an external execution workflow may run inside a Memory Seed worktree
+    do_not_load_when:
+      - Superpowers is unavailable and the task remains entirely in the normal Memory Seed workflow
+      - a mechanical one-task edit, unresolved architecture, coupled writes, or shared control-plane work
+
   - skill: history_retrieval.md
     required: true
     load_when:

@@ -779,6 +779,14 @@ Markdown-authoritative, so Invariant #6-clean (no derived-state surface).
    personas with no recorded `agent_name` use over a conservative window and **proposes** flipping them to
    `status: inactive` (approval-gated; never auto-applies; deactivate ≠ delete). Built as propose-and-wait
    per the open-decisions gate above.
+3. **Superpowers collaboration integration** — **ACTIVE P2, started 2026-07-29**.
+   [superpowers-collaboration-integration-proposal.md](superpowers-collaboration-integration-proposal.md).
+   Optional direct delegation only where Superpowers has the stronger proven workflow: independent
+   read-only diagnosis and approved same-session SDD. Memory Seed keeps the Worker Context safety
+   envelope, owned worktrees, durable memory, \`integration_mode\`, \`merge_trigger\`, session fusion, and
+   cleanup. Phase 1 ships the thin adapter and retained-boundary contracts; Phase 2 requires two real-plan
+   pilots plus a compaction/resume test before broader promotion. Five-question test → **Validation,
+   Trust, Application**, with Capture improved at the durable SDD return receipt.
 
 The two compound (fewer active personas → lighter worker *and* primary startup load) but neither blocks the
 other. Both sit **below Track A's open tails** in priority — small, sequence-flexible guidance changes.

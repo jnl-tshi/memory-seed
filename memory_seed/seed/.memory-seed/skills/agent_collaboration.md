@@ -122,12 +122,22 @@ preflight:
   - "git rev-parse --show-toplevel"
   - "git rev-parse HEAD"
   - "git status --short"
+baseline_validation:
+  - "<smallest command that proves the starting surface>"
+baseline_result: "pass|known-failure|not-run"
+baseline_failure_owner: "<human|orchestrator|existing-issue|none>"
+creation_preflight:
+  repository_context: "top-level|submodule"
+  placement_ignored: true
+  setup_detected:
+    - "<recommended command; never automatically authorized>"
 validation:
   - "<commands or checks to run>"
 handoff_output:
+  - "status: DONE|DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED"
   - "summary"
   - "files changed"
-  - "commit hashes"
+  - "commit range and hashes"
   - "tests run and result"
   - "known risks or conflicts"
 conflict_escalation:
@@ -139,6 +149,34 @@ review_loop:
 ```
 
 Keep packets narrow. Do not hand a worker the whole repository history when a path list, current plan, and a few relevant files are enough. Use capability tiers, never vendor or model names — providers change; roles and capability requirements are durable.
+
+## Optional Superpowers Delegation
+
+Superpowers is an **optional orchestration capability**, never a Memory Seed core dependency. Use the
+project's `superpowers_integration.md` skill when an active platform exposes the verified official
+`dispatching-parallel-agents` and `subagent-driven-development` skills. Do not infer availability from a
+cache directory, a package manifest, or a stale plugin version: the required skills must be callable in
+the active client and within the adapter's supported version range.
+
+- **Independent read-only diagnosis:** delegate to Superpowers parallel dispatch when domains are known
+  to be independent. There is no Task Packet write entitlement; each investigator still verifies its tree
+  before citations are trusted.
+- **Multi-task same-session implementation:** delegate the task execution and internal review loop to
+  Superpowers SDD only after the Scope and Plan Gates pass.
+- **Parallel code-writing:** keep Memory Seed Fan-Out. Separate worktrees, Task Packets, ownership, and
+  sequential integration remain necessary.
+- **Worktree creation, branch landing, durable memory, and cleanup:** never delegate. Memory Seed owns
+  these controls regardless of which task workflow ran.
+
+Every SDD worker and reviewer receives the Worker Context Contract safety envelope: `persona`,
+`context_load`, `base_sha`, the packet preflight (including `worktree guard`), `allowed_files`, and
+`forbidden_files`. Superpowers owns its task brief and review procedure inside that envelope; it does not
+replace the safety rails.
+
+Before SDD starts, verify `.superpowers/sdd/` is git-ignored and clean. It is plan-scoped disposable
+scratch, never a Git worktree, a staged artifact, or authoritative Memory Seed history. At completion,
+capture only the validated return receipt (plan, completed ranges, final review, deferred findings, and
+residual risk) in the orchestrator's durable handoff.
 
 ## Fan-Out Recipe: Explore / Plan / Implement / Validate
 
@@ -153,7 +191,7 @@ Gates, in order:
 5. **Worktree Gate.** Parallel code-writing workers get separate worktrees, each with a bounded task packet. Workers never touch shared memory/session/control-plane files unless explicitly assigned — those stay orchestrator-owned per `shared_file_policy`.
 6. **Pre-Review Validation Gate.** Each worker commits its own work and reports changed files, checks run, failures, skipped checks and why, and known risks *before* review. No uncommitted worker state gets integrated.
 7. **Integration Gate.** The orchestrator merges worker branches one at a time into an integration branch, inspects the diff after each merge, resolves conflicts only via the named owner, and reruns targeted validation. No octopus merges for code. When branch-local session entries or diagram sidecars exist, integrate that branch with `memory-seed session merge-branch --branch <branch>` — it dry-runs the fuse, performs the `--no-ff` merge, applies the fuse, and commits in one gated step. The lower-level `session fuse` dry-run/`--apply` pair remains available for manually inspected merges. Do not fall back to a plain `git merge` for session paths: `.memory-seed/sessions/**` carries a `-merge` attribute, so concurrent session edits conflict wholesale by design (see **Session Files Do Not Line-Merge** below).
-8. **Bounded Review-to-Rework Loop.** An independent validator (same strong tier as planning) reviews the integrated diff against the plan. Findings route back to the Worktree Gate for revision, tracked by `review_loop.current_iteration` and capped at `max_iterations` (default 2) — then automation stops and produces a human decision summary. The loop must not restart exploration or planning automatically.
+8. **Bounded Review-to-Rework Loop.** For Memory Seed Fan-Out, an independent validator (same strong tier as planning) reviews the integrated diff against the plan. Findings route back to the Worktree Gate for revision, tracked by `review_loop.current_iteration` and capped at `max_iterations` (default 2) — then automation stops and produces a human decision summary. The loop must not restart exploration or planning automatically. Superpowers SDD uses its own finite, scoped review circuit breaker; at its cap, it returns a recorded adjudication to this orchestrator rather than silently continuing.
 9. **Final Handoff Gate.** The orchestrator (never the workers) writes the integration artifact and the handoff session entry: base SHA, worker branches/worktrees, validation evidence, review result, unresolved risks. Workers' reported commit hashes belong in the handoff entry's records. Set the entry's optional `branch:` field (see `session_logging.md`) from the Task Packet's `working_branch` — a durable record-time label, not a worktree path.
 
 Capability tier guidance: exploration economy/standard; planning **frontier**; implementation standard; integration frontier or a senior orchestrator; review **frontier**. Planning and review both warrant the top tier — a weak plan is more expensive to catch later than a weak review.
@@ -174,6 +212,27 @@ Capability tier guidance: exploration economy/standard; planning **frontier**; i
 - Do not create a worktree inside a tracked directory unless the worktree directory is ignored.
 - **Pass `--branch` explicitly whenever sessions may share a working tree.** `session append` auto-captures `branch:` from git HEAD, and two sessions in one working tree have a genuinely identical HEAD — a session's own branch is never passed to the CLI, so no check or heuristic can recover it. Standing convention: the harness (or an orchestrator appending on a worker's behalf) passes `--branch <name>` on every append, taken from the Task Packet's `working_branch`; use `--no-branch` when the session has no branch worth recording. Worktree-isolated agents may rely on auto-capture, but passing the flag is never wrong. Field semantics live in `session_logging.md`.
 - A branch is a **workstream, not a single commit**: keep follow-on fixes, evolutions, and adjacent tweaks of the same goal on the SAME branch — the tell is an `evolves`/`related` lifecycle edge to the entry you just wrote, or the same files/area. Open a new branch only for a genuinely new, independent goal; avoid BOTH stacking unrelated work in one branch AND spawning a fresh branch per commit. Merge the batched workstream at a stable, tested stopping point, never after every commit.
+
+## Branch Finish Contract
+
+Before a branch can land, the orchestrator must:
+
+1. Verify the owned task worktree is clean and record `merge-base(<base>, HEAD)`.
+2. Run branch-head validation appropriate to the risk tier.
+3. Require Superpowers' final whole-branch review result when SDD ran; otherwise use the Memory Seed
+   Fan-Out validator result.
+4. Preview session-memory fusion and surface every blocker.
+5. Present only integration choices allowed by `integration_mode` and `merge_trigger`.
+6. On a live user go-ahead, integrate through `session merge-branch`, `session integrate`, or
+   `session open-pr` as the configured mode permits — never a raw merge workaround.
+7. Validate the **integrated tree**, not just the branch head.
+8. Only after integrated validation passes, run the existing fail-closed cleanup classifier. Branch
+   deletion remains a separate decision.
+9. Append the handoff record with branch, worktree, merge commit, validation, review result, and
+   retained risks.
+
+Under `merge_trigger: manual`, step 5 is a hold. A dry-run is always allowed; a failed integrated-tree
+validation leaves the branch and worktree intact.
 
 ## Branch History Preservation
 

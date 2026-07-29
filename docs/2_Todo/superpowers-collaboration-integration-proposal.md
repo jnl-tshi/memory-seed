@@ -1,7 +1,10 @@
 ---
 title: Superpowers collaboration integration proposal
-status: proposed
+status: active
 date: 2026-07-29
+priority: P2
+next_action: "Complete Phase 0 routing checks, then use the adapter on the first suitable approved multi-task plan."
+supported_superpowers_release: ">=6.2.0,<7.0.0"
 sources:
   - https://github.com/obra/superpowers
   - https://github.com/obra/superpowers/releases/tag/v6.2.0
@@ -9,9 +12,9 @@ sources:
 
 # Superpowers collaboration integration proposal
 
-Status: **PROPOSED — awaiting JNL review**.
+Status: **ACTIVE — implementation started 2026-07-29**.
 
-Priority if promoted: **P2**.
+Priority: **P2**.
 
 Source: a 2026-07-29 comparison of Memory Seed 2.19's collaboration workflow with Superpowers 6.2.0's
 `using-git-worktrees`, `dispatching-parallel-agents`, `subagent-driven-development`, and
@@ -25,11 +28,12 @@ Non-goals: copying or forking Superpowers skills; creating a Memory Seed imitati
 subagent-driven-development; replacing Memory Seed's worktree guard, Task Packet, session fuse, risk gate,
 or integration modes; forcing Superpowers onto small tasks; changing the Constitution.
 
-Dependencies: the official Superpowers Codex plugin at version 6.2.0 or later for the direct-delegation
-pilot. The proposal does not itself authorize installation or control-plane edits.
+Dependencies: an active exposure of the official Superpowers `dispatching-parallel-agents` and
+`subagent-driven-development` skills at **>=6.2.0,<7.0.0**. The adapter is optional: the Memory Seed
+core, bootstrap, doctor, session storage, retrieval, and integration commands must work without it.
 
-Next action if approved: promote this document to `docs/2_Todo/`, make the official plugin available to a
-pilot Codex session, and run the interoperability baseline before changing Memory Seed.
+Next action: complete the routing baseline and use the adapter only on a suitable approved plan. Any
+future Superpowers major-version change requires a fresh interoperability baseline before use.
 
 ## Governing rule
 
@@ -39,6 +43,20 @@ Where Superpowers already performs a workflow better and Memory Seed has no clea
 Do not rewrite a mature external workflow merely to make it look native. Memory Seed should own only the
 boundaries where it has a demonstrable advantage: repository safety, project memory, provider-neutral
 context, consent, and session-aware integration.
+
+## Constitutional fit and non-negotiable boundaries
+
+This proposal improves **Validation** (recorded baselines, exact-range review, integrated-tree checks),
+**Trust** (guarded routing, explicit ownership, human merge consent), and **Application** (a callable
+optional workflow for capable clients). It also improves **Capture** at the SDD handoff by preserving
+first-hand completion and review evidence in the durable session record. It does not change retrieval
+ranking.
+
+The adapter is an optional orchestration implementation, not Memory Seed core. Its absence must leave a
+named, functionally complete Memory Seed fallback; no session entry, schema, retrieval result, or
+authoritative meaning may depend on Superpowers, its model, or its version. Superpowers scratch state is
+git-ignored, untracked, and disposable. Only the validated return receipt and Memory Seed session entry
+are durable authority.
 
 ## Executive decision
 
@@ -70,6 +88,10 @@ The main change from Memory Seed's current posture is explicit: when a Level 2 t
 implementation plan and is suitable for same-session task execution, invoke
 `superpowers:subagent-driven-development`. Do not recreate that process inside
 `agent_collaboration.md`.
+
+The existing two-iteration Memory Seed loop remains the cap for Memory Seed Fan-Out. Superpowers' own
+finite review circuit breaker is a deliberate, route-specific evolution for SDD only; its terminal
+adjudication must return to the same human/orchestrator decision point rather than silently continuing.
 
 ## Improve the Memory Seed-owned stages too
 
@@ -126,6 +148,10 @@ because they need deterministic implementation and regression coverage.
   setup command and apply Memory Seed's existing network, dependency ownership, and approval rules.
 - Do not replace Memory Seed's measured worktree identity with directory-name inference.
 - Do not copy Superpowers' plan ledger into `.memory-seed/`; retain only the durable outcome at handoff.
+- Do not make a Superpowers plugin or network access a bootstrap, core, doctor, session, or retrieval
+  dependency. A missing or unsupported exposure is a named fallback, never a broken runtime.
+- Do not treat `.superpowers/sdd/` as project memory. It must be ignored before SDD starts, never staged,
+  and removed by the SDD lifecycle after its validated receipt is captured.
 - Do not run two review controllers. Superpowers owns review inside SDD; Memory Seed's scoped review
   applies only to its separate-worktree fan-out route.
 - Do not let a generic finish routine merge, delete, or clean up around `integration_mode`,
@@ -306,7 +332,7 @@ Invoke SDD only when all are true:
 - tasks can be executed sequentially without rewriting the architecture midstream;
 - the work is already in a Memory Seed-approved owned worktree;
 - the base SHA and baseline validation are recorded;
-- the relevant Superpowers version is available.
+- the relevant Superpowers version is verified within the supported range.
 
 Do not invoke it for:
 
@@ -321,6 +347,22 @@ Once SDD is invoked, let its current reviewed lifecycle run rather than replacin
 with Memory Seed's generic two-iteration loop.
 
 ### Boundary contract
+
+Every Superpowers implementer and reviewer receives a mandatory **Memory Seed safety envelope**. It is
+the Worker Context Contract, not a second implementation process:
+
+```yaml
+persona: "<one domain persona or none>"
+context_load: "packet"
+base_sha: "<verified commit>"
+preflight:
+  - "memory-seed worktree guard --agent <agent_type> --write-intent"
+allowed_files: []
+forbidden_files: []
+```
+
+Each worker verifies its base SHA, reports the preflight, and stays within its file boundary before it
+acts. Superpowers owns the task brief and review lifecycle inside that envelope.
 
 Memory Seed supplies SDD with:
 
@@ -361,8 +403,10 @@ Memory Seed then appends the durable session entry summarizing:
 - adjudicated or residual risks;
 - integration decision.
 
-Do not copy `.superpowers/sdd/` into `.memory-seed/` and do not index it. Superpowers owns its disposable
-workspace and lifecycle.
+Do not copy `.superpowers/sdd/` into `.memory-seed/` and do not index it. It is a plan-scoped scratch
+directory, **not a Git worktree**: Memory Seed's owned session worktree and task branch remain the sole
+Git workspace and branch lifecycle. Verify `.superpowers/sdd/` is ignored before SDD starts; do not stage
+its contents. Superpowers owns its disposable workspace and lifecycle.
 
 ## Area 4 — finishing a branch
 
@@ -500,8 +544,9 @@ Add one small optional skill, provisionally `superpowers_integration.md`, in the
 Its only responsibilities:
 
 - detect whether the required Superpowers skills are available;
+- verify the supported release range; rebaseline before allowing a major-version change;
 - apply the ownership/routing table in this proposal;
-- hand Memory Seed's verified plan/worktree context into Superpowers;
+- hand every worker the mandatory Memory Seed safety envelope plus verified plan/worktree context;
 - return control to Memory Seed before integration;
 - name the fallback when Superpowers is unavailable.
 
@@ -510,8 +555,10 @@ It must not restate SDD, parallel-dispatch, or review procedures.
 Update `agent_collaboration.md` only with:
 
 - the Task Packet baseline fields;
+- creation preflight and worker-return fields;
 - the three-route parallel decision;
 - a pointer to the adapter for SDD;
+- the SDD return receipt and ignored-scratch requirement;
 - the Branch Finish Contract.
 
 Update the live and seed skill twins and the trigger registry together.
@@ -547,6 +594,10 @@ remove the adapter and keep the evidence. Do not respond by copying Superpowers 
 - Integrated-tree validation runs before cleanup eligibility.
 - The interoperability pack passes on Codex and one other supported harness.
 - Superpowers unavailability produces an explicit fallback or blocker.
+- Each delegated worker retains the Worker Context Contract's `base_sha`, preflight, worktree guard, and
+  file-boundary protections.
+- `.superpowers/sdd/` is ignored, untracked, and absent from commits.
+- The supported Superpowers release is verified; a major-version change is blocked pending rebaseline.
 - Live and seed Memory Seed skill twins remain byte-identical.
 - No Superpowers implementation text, model name, or `.superpowers/` artifact becomes part of Memory
   Seed's authoritative core.
@@ -563,13 +614,11 @@ remove the adapter and keep the evidence. Do not respond by copying Superpowers 
 | Superpowers generic finish bypasses Memory Seed integration | Return control before finishing; Memory Seed owns landing |
 | Adapter becomes a fork over time | Size and responsibility limit; no copied procedure; remove it if direct delegation stops working |
 
-## Decision requested
+## Implementation authorization
 
-Approve, revise, defer, or reject this proposal.
-
-Approval should initially authorize **Phase 0 only**: establish the interoperability baseline and confirm
-the official plugin surface. It should not yet authorize control-plane skill edits, a seed change, or
-branch integration.
+JNL approved the constitutional corrections and the start of implementation on 2026-07-29. This authorizes
+the optional adapter, live/seed collaboration contracts, and project-local ignored scratch path. It does
+not authorize a branch landing: `merge_trigger: manual` still requires a separate explicit go-ahead.
 
 ## Sources
 
