@@ -5810,6 +5810,10 @@ SEED_FILES = [
         ".memory-seed/skills/code_search.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "graphify_analysis.md",
+        ".memory-seed/skills/graphify_analysis.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "agent_collaboration.md",
         ".memory-seed/skills/agent_collaboration.md",
     ),

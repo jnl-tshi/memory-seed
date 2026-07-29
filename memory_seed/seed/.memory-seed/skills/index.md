@@ -35,6 +35,14 @@ skills:
       - task only touches memory control-plane docs
       - exact file path and required lines are already known
 
+  - skill: graphify_analysis.md
+    required: true
+    load_when:
+      - architecture, dependency-impact, call-path, community, or structural-code analysis is needed
+      - deciding which files or symbols are affected by a proposed code change
+    do_not_load_when:
+      - routine semantic or symbol lookup (use code_search.md and Semble)
+
   - skill: agent_collaboration.md
     required: true
     load_when:
