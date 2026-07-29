@@ -154,6 +154,31 @@ class SessionFuseAndMergeTests(unittest.TestCase):
             ]
         return "\n".join(lines)
 
+    def _topic_sidecar_text(self, date, blocks):
+        """Each block is ``(time, title, entry_id, area, activity)``."""
+        lines = [
+            "---",
+            "tags:",
+            "  - session-log-topics",
+            f"topic_date: {date}",
+            "---",
+            "",
+        ]
+        for time, title, entry_id, area, activity in blocks:
+            lines += [
+                f"## {date} {time} - {title}",
+                "",
+                "```yaml",
+                f"entry_id: {entry_id}",
+                "topics:",
+                "  area:",
+            ]
+            lines += [f"    - {topic}" for topic in area]
+            lines += ["  activity:"]
+            lines += [f"    - {topic}" for topic in activity]
+            lines += ["```", ""]
+        return "\n".join(lines)
+
     def _grouped_session_text(self, date, entries):
         lines = [
             "---",
@@ -962,7 +987,7 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertFalse((cwd / MEMORY_DIR_NAME / "sessions" / "2026-07" / "2026-07-11.md").exists())
         self.assertEqual(self._git(cwd, "log", "--merges", "-1", "--format=%P").stdout.strip(), "")
 
-    def test_is_recognized_session_tree_path_covers_session_diagram_and_link(self):
+    def test_is_recognized_session_tree_path_covers_all_fused_families(self):
         # The guard's recognizer set must equal the fuse's handled set, or the
         # guard eats the fix (link paths) or fails to eat the next gap.
         from memory_seed.core import _is_recognized_session_tree_path
@@ -970,6 +995,7 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertTrue(_is_recognized_session_tree_path(".memory-seed/sessions/2026-07/2026-07-10.md"))
         self.assertTrue(_is_recognized_session_tree_path(".memory-seed/sessions/diagrams/2026-07/2026-07-10.md"))
         self.assertTrue(_is_recognized_session_tree_path(".memory-seed/sessions/links/2026-07/2026-07-10.md"))
+        self.assertTrue(_is_recognized_session_tree_path(".memory-seed/sessions/topics/2026-07/2026-07-10.md"))
         self.assertFalse(_is_recognized_session_tree_path(".memory-seed/sessions/decisions/2026-07-10.md"))
         self.assertFalse(_is_recognized_session_tree_path("notes.txt"))
 
@@ -1264,36 +1290,156 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertTrue((cwd / ".git" / "MERGE_HEAD").exists())
 
     @pytest.mark.integration
-    def test_session_merge_branch_names_the_topic_family_and_says_what_to_do(self):
-        # The topic sidecar family shipped after the fuse and was never taught
-        # to it, so it lands in the same refusal - correctly, since resetting it
-        # to base would drop a branch's attributions. What it must NOT do is
-        # read like an unknown-file bug: hit live on 2026-07-27 when a sweep
-        # wrote 43 topic sidecars, and the message sent the operator looking for
-        # a classifier defect instead of telling them to take MERGE_HEAD's side.
+    def test_session_merge_branch_imports_topic_sidecar_added_on_branch(self):
         cwd = self.make_project()
         self._write_grouped_session(cwd, "2026-07-10", "mse_aaaaaaaaaaaaaaaa", branch="main")
         sidecar = cwd / MEMORY_DIR_NAME / "sessions" / "topics" / "2026-07" / "2026-07-10.md"
         sidecar.parent.mkdir(parents=True, exist_ok=True)
-        sidecar.write_text("base content\n", encoding="utf-8")
         self._init_git_project(cwd)
         self._commit_all(cwd, "base")
         self._git(cwd, "switch", "-c", "feature-merge")
-        sidecar.write_text("branch content\n", encoding="utf-8")
+        sidecar.write_text(
+            self._topic_sidecar_text(
+                "2026-07-10",
+                [("09:15", "Attribution", "mse_aaaaaaaaaaaaaaaa", ["graph:d1"], ["feature-build:d1"])],
+            ),
+            encoding="utf-8",
+        )
         self._commit_all(cwd, "branch attributes topics")
         self._git(cwd, "switch", "main")
 
         result = session_merge_branch(cwd=cwd, branch="feature-merge")
 
-        self.assertTrue(result.merge_in_progress)
-        issue = result.issues[0]
-        self.assertIn("is a TOPIC sidecar", issue)
-        self.assertIn("git checkout MERGE_HEAD", issue)
-        # And the branch's attributions are still there - the whole point of
-        # refusing. Had the guard let the base-reset loop run, this would read
-        # "base content" and the branch's topic work would be gone with nothing
-        # downstream to put it back.
-        self.assertEqual(sidecar.read_text(encoding="utf-8"), "branch content\n")
+        self.assertEqual(result.issues, [])
+        self.assertTrue(result.committed)
+        self.assertEqual(
+            result.planned_topic_sidecars,
+            [
+                "mse_aaaaaaaaaaaaaaaa 2026-07-10 09:15 -> "
+                ".memory-seed/sessions/topics/2026-07/2026-07-10.md"
+            ],
+        )
+        self.assertIn("graph:d1", sidecar.read_text(encoding="utf-8"))
+        self.assertEqual(
+            self._git(
+                cwd,
+                "show",
+                "HEAD:.memory-seed/sessions/topics/2026-07/2026-07-10.md",
+            ).stdout,
+            sidecar.read_text(encoding="utf-8"),
+        )
+
+    def test_modified_existing_topic_sidecar_block_is_refused(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_aaaaaaaaaaaaaaaa", branch="main")
+        sidecar = cwd / MEMORY_DIR_NAME / "sessions" / "topics" / "2026-07" / "2026-07-10.md"
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        original = ("09:15", "Attribution", "mse_aaaaaaaaaaaaaaaa", ["graph:d1"], ["feature-build:d1"])
+        sidecar.write_text(self._topic_sidecar_text("2026-07-10", [original]), encoding="utf-8")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        modified = ("09:15", "Attribution", "mse_aaaaaaaaaaaaaaaa", ["graph:d1"], ["bugfix:d1"])
+        sidecar.write_text(self._topic_sidecar_text("2026-07-10", [modified]), encoding="utf-8")
+        self._commit_all(cwd, "modify published topic block")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertFalse(result.committed)
+        self.assertTrue(any("existing topic sidecar modified" in issue for issue in result.issues))
+
+    def test_topic_sidecar_without_parent_entry_is_refused(self):
+        cwd = self.make_project()
+        (cwd / "README.md").write_text("base\n", encoding="utf-8")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        sidecar = cwd / MEMORY_DIR_NAME / "sessions" / "topics" / "2026-07" / "2026-07-10.md"
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        sidecar.write_text(
+            self._topic_sidecar_text(
+                "2026-07-10",
+                [("09:15", "Orphan", "mse_aaaaaaaaaaaaaaaa", ["graph:d1"], ["feature-build:d1"])],
+            ),
+            encoding="utf-8",
+        )
+        self._commit_all(cwd, "orphan topic sidecar")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertFalse(result.committed)
+        self.assertTrue(any("without a parent entry" in issue for issue in result.issues))
+
+    def test_topic_sidecar_date_mismatch_is_refused(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_aaaaaaaaaaaaaaaa", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        sidecar = cwd / MEMORY_DIR_NAME / "sessions" / "topics" / "2026-07" / "2026-07-11.md"
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        sidecar.write_text(
+            self._topic_sidecar_text(
+                "2026-07-11",
+                [("09:15", "Wrong day", "mse_aaaaaaaaaaaaaaaa", ["graph:d1"], ["feature-build:d1"])],
+            ),
+            encoding="utf-8",
+        )
+        self._commit_all(cwd, "misfiled topic sidecar")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertFalse(result.committed)
+        self.assertTrue(any("topic date 2026-07-11 does not match entry date 2026-07-10" in issue for issue in result.issues))
+
+    def test_topic_sidecar_without_parseable_heading_timestamp_is_refused(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_aaaaaaaaaaaaaaaa", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        sidecar = cwd / MEMORY_DIR_NAME / "sessions" / "topics" / "2026-07" / "2026-07-10.md"
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        sidecar.write_text(
+            "## Not a timestamp - Attribution\n\n```yaml\n"
+            "entry_id: mse_aaaaaaaaaaaaaaaa\n"
+            "topics:\n  area:\n    - graph:d1\n  activity:\n    - feature-build:d1\n```\n",
+            encoding="utf-8",
+        )
+        self._commit_all(cwd, "malformed topic heading")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertFalse(result.committed)
+        self.assertTrue(any("no parseable timestamped entry blocks" in issue for issue in result.issues))
+
+    @pytest.mark.integration
+    def test_second_topic_sidecar_block_for_same_entry_imports_chronologically(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_aaaaaaaaaaaaaaaa", branch="main")
+        sidecar = cwd / MEMORY_DIR_NAME / "sessions" / "topics" / "2026-07" / "2026-07-10.md"
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        later = ("12:00", "Later", "mse_aaaaaaaaaaaaaaaa", ["graph:d1"], ["bugfix:d1"])
+        sidecar.write_text(self._topic_sidecar_text("2026-07-10", [later]), encoding="utf-8")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        self._git(cwd, "switch", "-c", "feature-merge")
+        earlier = ("10:00", "Earlier", "mse_aaaaaaaaaaaaaaaa", ["graph:d1"], ["feature-build:d1"])
+        sidecar.write_text(self._topic_sidecar_text("2026-07-10", [earlier, later]), encoding="utf-8")
+        self._commit_all(cwd, "add earlier topic declaration")
+        self._git(cwd, "switch", "main")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertEqual(result.issues, [])
+        self.assertTrue(result.committed)
+        text = sidecar.read_text(encoding="utf-8")
+        self.assertEqual(text.count("entry_id: mse_aaaaaaaaaaaaaaaa"), 2)
+        self.assertLess(text.index("## 2026-07-10 10:00"), text.index("## 2026-07-10 12:00"))
 
     @pytest.mark.integration
     def test_session_prepare_pr_branch_commits_chronological_merge_on_task_branch(self):
