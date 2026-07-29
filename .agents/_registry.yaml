@@ -6,28 +6,28 @@ agents:
   solo-founder:
     file: solo-founder.md
     role: Co-founder / Generalist
-    status: active
+    status: inactive
     entity_name: Stark
     user_name: Nathan
     business_name: memory-seed
   developer:
     file: developer.md
     role: Software Engineer / Staff IC
-    status: active
+    status: inactive
     entity_name: Ada
     user_name: Nathan
     business_name: memory-seed
   content-creator:
     file: content-creator.md
     role: Content Strategist / Writer
-    status: active
+    status: inactive
     entity_name: Didion
     user_name: Nathan
     business_name: memory-seed
   copywriter:
     file: copywriter.md
     role: Conversion Copywriter
-    status: active
+    status: inactive
     entity_name: Hopkins
     user_name: Nathan
     business_name: memory-seed
