@@ -136,11 +136,26 @@ session log, not transcribed from memory.
 
 - **The topic-family fuse is still not built.** `session merge-branch` correctly refuses to reset a
   topic-sidecar file it cannot rebuild (now with a clear message naming the family and the fix command),
-  but the actual fuse-mirroring for topic sidecars — matching the link family's existing ~76-reference
+  but the actual fuse-mirroring for topic sidecars — matching the link family's ~76-reference
   machinery — was sized and explicitly deferred. This is the single largest remaining item from the whole
   campaign.
 - **Topics have no `retracts:` construct yet** — only links do. Needed for step 1 of the write-time
   consolidation build; not yet built as of this tranche.
+- **PROPOSAL (2026-07-29): even the link family's existing fuse has a gap worth closing alongside the
+  topic-family build above, not instead of it.** `session merge-branch` silently dropped a branch-side
+  edit that converted an existing `classify_pending` stub into a live `evolves:` block - the merge
+  reported success and stamped a trailer, but `git show --stat` on the resulting commit showed only the
+  session-log entry landed, not the sidecar edit it described. `_plan_session_fuse`'s own code
+  (`memory_seed/core.py`, the link-sidecar block-identity loop) appears to intend an explicit
+  `existing link sidecar modified for entry_id ...` issue for exactly this case - same-(entry_id,
+  timestamp) blocks with different text on each side - which should abort the fuse loudly rather than
+  drop it quietly; why it didn't fire here is unconfirmed, not yet root-caused past that first layer.
+  Reapplied directly to `main` as a one-off workaround (see `mse_m9kmrztj8kswee35`,
+  `.memory-seed/sessions/2026-07-29.md`). The ask, scoped together with the topic-family build: (a) either
+  make in-place stub-to-live-edge conversion (the sanctioned `end_of_turn.md` Lifecycle Link Sweep
+  workflow) an explicitly RECOGNISED, importable fuse case for every sidecar family, or (b) guarantee the
+  refusal is always LOUD, per this project's own 2026-07-21 precedent for exactly this class of
+  silent-failure bug. Silent success is the one outcome that should never be possible here.
 - Swarm-based topic discovery for a *new* project (not this corpus) remains a design proposal only
   (`docs/2_Todo/topic-discovery-from-evidence.md`), not implemented.
 
