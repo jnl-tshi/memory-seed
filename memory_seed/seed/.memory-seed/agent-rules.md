@@ -77,7 +77,7 @@ At the start of work:
 7. Establish current project state: read the newest session document in full (and skim the one before it), selected by session date across `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`, `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md`, and the legacy flat/day layouts. Read it directly — do not use `memory_search` to find the latest state (see Recency vs. Topical Retrieval). A SessionStart hook injects this automatically where supported; do the read yourself when it is not. For a one-shot reconciliation of local state — git posture, the newest session entry, worktrees, and the local-vs-CHANGELOG version — run `memory-seed situate` and follow `.memory-seed/skills/orientation.md` (the start-of-session mirror of End Of Turn); it also prompts verifying the *published* version from the source of truth instead of assuming. On the **first substantive message**, once the user's intent is known, run that skill's **operating-mode gate**: it sets the enforcement-classed session variables (`checkout_posture`, `integration_mode`/`merge_trigger`, `write_intent`, `risk_tier`, `orchestration_level`, `worktree_decision`, `skills_to_load`) in order, and read-only work exits it after step 3.
 8. Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry.
 9. Load full `.memory-seed/skills/*.md` runbooks only when the trigger registry matches the current task.
-10. If `.agents/_registry.yaml` exists at the workspace root, read it and load all persona files with `status: active`. Apply persona rules alongside this agent-rules.md and policy.md. Record `agent_name` (the persona's slug) in every session log entry this turn. **Primary agents only:** a spawned worker inherits state from its Task Packet and follows the Worker Context Contract in `.memory-seed/skills/agent_collaboration.md` — packet + at most one persona + triggered skills, skipping 4/7/8/10, but still running `base_sha`/preflight and the worktree guard.
+10. If `.agents/_registry.yaml` exists at the workspace root, read it and load all persona files with `status: active`. Apply persona rules alongside this agent-rules.md and policy.md. Record `agent_name` (the persona's slug) in every session log entry this turn. **No hook checks this** — unlike step 7's session-state read, nothing injects or reminds, so a skip here fails silently; verify it yourself every turn a persona is active, not just at session start. **Primary agents only:** a spawned worker inherits state from its Task Packet and follows the Worker Context Contract in `.memory-seed/skills/agent_collaboration.md` — packet + at most one persona + triggered skills, skipping 4/7/8/10, but still running `base_sha`/preflight and the worktree guard.
 
 When multiple personas are active, the one most relevant to the current task governs. Default to the first active entry in `_registry.yaml` when ambiguous.
 
@@ -181,7 +181,7 @@ Cross-cutting principles that apply to any agent and any task:
 - A branch is a **workstream, not a single commit**: batch follow-on fixes, evolutions, and adjacent tweaks of the same goal onto the SAME branch — the tell is an `evolves`/`related` lifecycle edge to the entry you just wrote, or the same files/area — and merge the batch into the base at a stable, tested stopping point, not after every commit. Open a NEW branch only for a genuinely new, independent goal. Preserve visible branch history for distinct workstreams by loading `agent_collaboration.md` before editing and using a task branch/worktree unless the user chooses another history model; for branch/worktree write work, run its agent-namespace guard preflight first.
 - Use qualitative risk tiers before acting by loading `.memory-seed/skills/risk_signaling.md` for ambiguous, destructive, irreversible, externally visible, financial, security-sensitive, or shared-control-plane work.
 - Load `.memory-seed/skills/skill_architecture.md` before adding, removing, renaming, splitting, or refactoring skills, editing `skills/index.md`, changing profiles, or moving procedural guidance between this file, `policy.md`, and skills.
-- Before integration, read `.memory-seed/project.yaml` `integration_mode`: unset/`local-merge` runs `session integrate` or `merge-branch` from the integration/base checkout and never pushes; `pr` runs `session integrate` or `open-pr` from the task branch, where only the declared mode authorizes a normal non-force push and PR. A Task Packet's `integration_artifact` overrides the default; force and other destructive operations remain gated.
+- Before integration, read `.memory-seed/project.yaml` `integration_mode`: unset/`local-merge` runs `session integrate` or `merge-branch` from the integration/base checkout and never pushes; `pr` runs `session integrate` or `open-pr` from the task branch, where only the declared mode authorizes a normal non-force push and PR. A Task Packet's `integration_artifact` overrides the default; force and other destructive operations remain gated. **No hook checks this either** — misreading it risks an unwanted push or PR, so re-read the mode immediately before the integration step itself, not from memory of an earlier turn.
 ## End Of Turn
 After any turn where meaningful work was completed, append a concise entry to the active session target before the turn ends. Deferring or batching session log writes is a discipline failure.
 
@@ -197,25 +197,7 @@ These triggers require review, not automatic edits. Promote stable conclusions, 
 
 ## Skill Loading
 
-Skills are lazy-loaded runbooks. Read `.memory-seed/skills/index.md` first as the one-stop deterministic trigger registry. Load full skill runbooks only when the registry matches the task.
-
-- `index.md`: deterministic trigger registry; read during startup before loading full skills.
-- `agent_collaboration.md`: coordinating subagents, branch/worktree work, and multi-developer agent workflows.
-- `history_retrieval.md`: MCP retrieval mechanics, topical-vs-recency retrieval, and history/current-authority conflict handling.
-- `session_logging.md`: session log schema, DRAFT labels, examples, `related_entries`, and append-only chronology.
-- `compact_mermaid_diagrams.md`: compact Mermaid layout, choosing among the ~30 available diagram types, and the expectation that an ADR sidecar carries a diagram. Sidecars are full standard Mermaid — `subgraph` grouping and the whole arrow vocabulary render.
-- `end_of_turn.md`: full ESR checklist, consolidation review, artifact sweep, persona/skill evolution, and baseline-promotion review.
-- `memory_hygiene.md`: publishable-memory posture, secrets minimization, and reusable-template hygiene.
-- `risk_signaling.md`: qualitative risk tiers and STOP categories for ambiguous, destructive, irreversible, security-sensitive, externally visible, financial, or shared-control-plane actions.
-- `subproject_runtime.md`: nested runtime creation, inheritance choices, bootstrap target boundaries, and parent/root summaries.
-- `code_search.md`: searching source code or repo structure efficiently.
-- `data_architecture.md`: changing durable data structures, indexes, schemas, or retrieval behavior.
-- `local_compilation.md`: validating local build/test/package/run behavior.
-- `memory_consolidation.md`: compacting session memory and promoting durable facts.
-- `memory_doctor.md`: validating runtime health and migration integrity.
-- `skill_architecture.md`: maintaining skill/profile boundaries, trigger registry entries, and seed/live parity.
-- `release_publishing.md`: preparing or publishing package releases.
-- `security_triage.md`: reviewing security-sensitive changes.
+Skills are lazy-loaded runbooks. `index.md`: deterministic trigger registry — read `.memory-seed/skills/index.md` first, the authoritative `load_when`/`do_not_load_when` map for every skill; this section is a pointer to it, not a second copy. Two are worth knowing by name because nearly every turn needs them: `session_logging.md` (session entry shape, DRAFT labels, `related_entries`) and `end_of_turn.md` (the closeout obligation below, full ESR checklist). Every other skill routes through the registry as normal — load only what a `load_when` rule actually matches.
 
 Evaluate registry rules in listed order, load every matching required skill, and keep the loaded set as small as the task safely allows. For sub-projects, use the nearest runtime's registry first; inherited parent registries apply only when enabled and not locally overridden or disabled.
 

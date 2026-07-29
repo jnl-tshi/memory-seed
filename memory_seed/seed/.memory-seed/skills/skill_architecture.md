@@ -22,6 +22,8 @@ Use this skill when changing Memory Seed skills, profiles, trigger registry entr
 
 Keep procedural details in skills. A rule can move out of `agent-rules.md` only when the remaining text lets an agent safely know which skill to load before acting.
 
+The length is a real, enforced budget, not an informal guideline: `tests/test_session_schema.py::test_agent_rules_remain_a_startup_contract_not_an_embedded_runbook` asserts it stays at or under **280 lines**. Moving a rule out of `agent-rules.md` should shrink this number. Favor spending headroom on a step that is high-consequence but easy to skip — conditional, self-directed, and backed by no automatic hook or reminder — over adding new features; a full budget is what leaves exactly that kind of step too thin to earn real weight.
+
 ## Existing Skill Homes
 
 Prefer extending an existing skill over creating a new one:

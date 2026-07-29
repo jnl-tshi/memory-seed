@@ -345,7 +345,7 @@ class SessionSchemaTests(unittest.TestCase):
 
         self.assertLessEqual(
             len(content.splitlines()),
-            260,
+            280,
             "agent-rules.md should stay compact enough for startup loading",
         )
         for phrase in (
