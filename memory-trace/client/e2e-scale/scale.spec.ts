@@ -37,32 +37,6 @@ async function snapshot(page: Page) {
 // Re-run the SHIPPED cose options at a given iteration budget and time it on
 // the main thread. This is the exact question "does layoutIterations hold at
 // full size" — measured, not reasoned.
-async function timeLayout(page: Page, numIter: number) {
-  return page.evaluate(async (iters) => {
-    const cy = (window as any).memoryTraceNextDebug.graphCy;
-    const saved = cy.nodes().map((n: any) => ({ id: n.id(), ...n.position() }));
-    const t0 = performance.now();
-    const layout = cy.layout({
-      name: "cose",
-      animate: false,
-      padding: 52,
-      randomize: false,
-      nodeRepulsion: () => 12_000,
-      idealEdgeLength: () => 150,
-      gravity: 0.3,
-      numIter: iters,
-    });
-    await new Promise<void>((resolve) => {
-      layout.one("layoutstop", () => resolve());
-      layout.run();
-    });
-    const ms = performance.now() - t0;
-    // Restore so the measurement does not perturb later steps.
-    cy.batch(() => saved.forEach((p: any) => cy.$id(p.id).position({ x: p.x, y: p.y })));
-    return Math.round(ms);
-  }, numIter);
-}
-
 // Interaction budget: zoom, pan and selection restyle, each timed to the frame
 // that actually paints the result.
 async function timeInteractions(page: Page) {
@@ -105,15 +79,21 @@ async function showMore(page: Page) {
     return `${cy.nodes().length}/${cy.edges().length}`;
   });
   await button.click();
-  await page.waitForFunction(
-    (prev) => {
-      const cy = (window as any).memoryTraceNextDebug?.graphCy;
-      return cy && `${cy.nodes().length}/${cy.edges().length}` !== prev;
-    },
-    before,
-    { timeout: 120_000 },
-  );
-  return true;
+  try {
+    await page.waitForFunction(
+      (prev) => {
+        const cy = (window as any).memoryTraceNextDebug?.graphCy;
+        return cy && `${cy.nodes().length}/${cy.edges().length}` !== prev;
+      },
+      before,
+      { timeout: 10_000 },
+    );
+    return true;
+  } catch {
+    // The API can return the same capped projection for one final wider ask.
+    // Treat that as exhaustion rather than holding the acceptance run hostage.
+    return false;
+  }
 }
 
 test("graph scale acceptance at full corpus size", async ({ page }) => {
@@ -124,24 +104,19 @@ test("graph scale acceptance at full corpus size", async ({ page }) => {
 
   let step = 0;
   for (;;) {
-    // Let the mount's own layout settle before measuring.
-    await page.waitForTimeout(1_500);
+    // Measure the shipped incremental simulation. Re-running CoSE here would
+    // benchmark a renderer the application no longer uses.
+    await page.waitForTimeout(500);
     const snap = await snapshot(page);
-    const shipped900 = await timeLayout(page, 900);
-    const nodeCount = snap.nodes;
-    const scaled = nodeCount <= 150 ? 900 : Math.max(120, Math.round(900 * (150 / nodeCount)));
-    const shippedCold = await timeLayout(page, scaled);
-    const shippedWarm = await timeLayout(page, nodeCount <= 150 ? 900 : Math.max(80, Math.round(scaled / 2)));
     const interactions = await timeInteractions(page);
     steps.push({
       step,
       nodes: snap.nodes,
       edges: snap.edges,
       distinctColours: snap.distinctColours,
-      layoutMs: { at900Iterations: shipped900, atShippedColdBudget: shippedCold, coldBudgetIterations: scaled, atShippedWarmBudget: shippedWarm },
       interactions,
     });
-    console.log(JSON.stringify(steps[steps.length - 1]));
+    console.log(JSON.stringify({ step, nodes: snap.nodes, edges: snap.edges, slowestInteractionMs: Math.max(...Object.values(interactions)) }));
     step += 1;
     if (!(await showMore(page))) break;
     if (step > 24) break;
@@ -149,6 +124,16 @@ test("graph scale acceptance at full corpus size", async ({ page }) => {
   results.firstPaintMs = firstPaintMs;
   results.steps = steps;
   fs.writeFileSync(OUT, JSON.stringify(results, null, 2));
+
+  const final = steps.at(-1) as { nodes: number; edges: number; interactions: Record<string, number> };
+  const slowestInteraction = Math.max(...Object.values(final.interactions));
+  // These acceptance budgets cover the actual interactive renderer. The floor
+  // confirms that paging reached the full current projection, rather than only
+  // exercising its first page.
+  expect(firstPaintMs).toBeLessThanOrEqual(5_000);
+  expect(final.nodes).toBeGreaterThanOrEqual(600);
+  expect(final.edges).toBeGreaterThanOrEqual(1_200);
+  expect(slowestInteraction).toBeLessThanOrEqual(250);
 });
 
 test("community colours are stable across two reloads at full size", async ({ page }) => {
@@ -156,7 +141,7 @@ test("community colours are stable across two reloads at full size", async ({ pa
     await enterGraph(page);
     // Grow to full size so the stability probe runs on the largest node set.
     for (let i = 0; i < 24; i += 1) {
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(500);
       if (!(await showMore(page))) break;
     }
     await page.waitForTimeout(1_500);

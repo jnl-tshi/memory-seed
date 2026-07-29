@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Core, NodeSingular } from "cytoscape";
 import type { Simulation, SimulationLinkDatum, SimulationNodeDatum } from "d3-force";
-import { Maximize2, Minus, Plus } from "lucide-react";
+import { ListTree, Maximize2, Minus, Network, Plus } from "lucide-react";
 import { type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
 import { nodeSetSignature, seedPositions, type Point } from "./graphLayout";
 import { anchorEntryIdFor, connectedIdsWithDecisionAnchors, decisionGroups, decisionHaloId, haloDiameter, isDecisionRowId, parentIdsFor, satellitePositions, simulationLinks, visibilityIdFor } from "./graphDecisionRows";
@@ -600,6 +600,7 @@ let settledSignature = "";
 const settledPositions = new Map<string, Point>();
 
 export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, visibleEdgeTypes, corpusTopics, topicWheel, topicRoots, focusTopic, topicCanonical, dragResponse, forces, showOrphans, minConfidence }: GraphWorkspaceProps) {
+  const [showList, setShowList] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   const cytoscape = useRef<Core | null>(null);
   // Refs so the tap handler and selection effect never force an instance remount.
@@ -739,6 +740,23 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
     () => (showOrphans ? graph.nodes : graph.nodes.filter((node) => connected.has(visibilityIdFor(node.id)))),
     [graph.nodes, connected, showOrphans],
   );
+  // The map uses community colour and geometry; this alternative preserves the
+  // same filtered node set in a keyboard-operable, textual form. Keeping it
+  // derived from renderedNodes means it cannot silently disagree with the
+  // Orphans/decision filters shown above the workspace.
+  const listGroups = useMemo(() => {
+    const groups = new Map<string, RendererGraphNode[]>();
+    for (const node of renderedNodes) {
+      const label = node.community?.label || "Unassigned";
+      groups.set(label, [...(groups.get(label) ?? []), node]);
+    }
+    return [...groups.entries()]
+      .map(([label, nodes]) => ({
+        label,
+        nodes: [...nodes].sort((left, right) => left.temporal.value.localeCompare(right.temporal.value) || left.label.localeCompare(right.label)),
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label));
+  }, [renderedNodes]);
   // Decision-row containment. Each entry that has rendered rows gets a synthetic
   // `dgroup:` compound node holding BOTH the anchor and its rows as children —
   // never the anchor as parent, because a Cytoscape parent is auto-positioned
@@ -1270,11 +1288,24 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       </div>
     )}
     <div className="graph-controls" aria-label="Graph view controls">
+      <button className="icon-button" type="button" onClick={() => setShowList((current) => !current)} aria-label={showList ? "Show graph map" : "Show graph list"} aria-pressed={showList} title={showList ? "Show graph map" : "Show graph list"}>{showList ? <Network size={16} /> : <ListTree size={16} />}</button>
       <button className="icon-button" type="button" onClick={() => zoom(1 / ZOOM_STEP)} aria-label="Zoom out" title="Zoom out"><Minus size={16} /></button>
       <button className="icon-button" type="button" onClick={fit} aria-label="Fit graph" title="Fit graph"><Maximize2 size={16} /></button>
       <button className="icon-button" type="button" onClick={() => zoom(ZOOM_STEP)} aria-label="Zoom in" title="Zoom in"><Plus size={16} /></button>
     </div>
-    <div className="graph-canvas" ref={container} aria-label="Memory graph" role="application" tabIndex={0} aria-keyshortcuts="+ - 0 ArrowLeft ArrowRight" onKeyDown={(event) => {
+    {showList && <section className="graph-list-view" aria-label="Graph entries list" tabIndex={-1}>
+      <p className="graph-list-summary">{renderedNodes.length} displayed entries. Select an entry to inspect it.</p>
+      {listGroups.map((group) => <section className="community-group" key={group.label} aria-label={`${group.label} entries`}>
+        <h2>{group.label} <span className="graph-list-count">{group.nodes.length}</span></h2>
+        <ul className="graph-list-items">
+          {group.nodes.map((node) => <li key={node.id}><button type="button" className={`graph-list-item${selectedId === node.id ? " selected" : ""}`} aria-current={selectedId === node.id ? "true" : undefined} onClick={() => onSelect(node)}>
+            <span>{node.label}</span>
+            <small>{node.temporal.value} · {node.connectivity} connections</small>
+          </button></li>)}
+        </ul>
+      </section>)}
+    </section>}
+    <div className={`graph-canvas${showList ? " graph-canvas-hidden" : ""}`} ref={container} aria-label="Memory graph" aria-hidden={showList || undefined} role="application" tabIndex={showList ? -1 : 0} aria-keyshortcuts="+ - 0 ArrowLeft ArrowRight" onKeyDown={(event) => {
       if (event.key === "+" || event.key === "=") { event.preventDefault(); zoom(ZOOM_STEP); }
       if (event.key === "-") { event.preventDefault(); zoom(1 / ZOOM_STEP); }
       if (event.key === "0" || event.key === "Home") { event.preventDefault(); fit(); }
