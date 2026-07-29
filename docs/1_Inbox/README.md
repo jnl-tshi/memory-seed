@@ -1,6 +1,6 @@
 # Inbox
 
-Status: **EMPTY 2026-07-20 — no documents of any kind remain**.
+Status: **ACTIVE 2026-07-29 — one proposal awaiting review**.
 
 Place new, unassessed proposals and source captures here. Once evaluated, move each document to its canonical
 active, reference, completed, rejected, superseded, or deferred lane. Do not leave an accepted actionable
@@ -10,8 +10,13 @@ untriaged captures.
 
 ## Current contents
 
-Nothing but this README. The two assessment artifacts and the design-reference folder that sat here after
-the 2026-07-20 triage were themselves reference material, not undecided captures — moved the same day to
+- [`superpowers-collaboration-integration-proposal.md`](superpowers-collaboration-integration-proposal.md)
+  — routes each collaboration stage to whichever system has the stronger implementation, using
+  Superpowers directly for independent read-only fan-out and multi-task SDD while Memory Seed retains
+  worktree safety, durable memory, integration, and cleanup. Awaiting JNL review.
+
+The two assessment artifacts and the design-reference folder that sat here after the 2026-07-20 triage
+were themselves reference material, not undecided captures — moved the same day to
 [`../4_Reference/`](../4_Reference/) once that was noticed:
 
 - [`../4_Reference/INBOX-ASSESSMENT.md`](../4_Reference/INBOX-ASSESSMENT.md) — the 2026-07-18 pre-triage
@@ -43,5 +48,7 @@ the 2026-07-20 triage were themselves reference material, not undecided captures
   reference material rather than undecided Inbox captures.
 
 <!-- docs-index:begin -->
-_(no documents in this lane)_
+| Document | Priority | Blocked by | Next action / pointer |
+|---|---|---|---|
+| [superpowers-collaboration-integration-proposal.md](superpowers-collaboration-integration-proposal.md) | — | — | proposed |
 <!-- docs-index:end -->
