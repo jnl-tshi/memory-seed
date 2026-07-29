@@ -1,18 +1,22 @@
 # Next Steps
 
 Status: **ACTIVE — Constitution-aligned** (v1.0 ratified 2026-07-14; v1.1 2026-07-16; v1.2 2026-07-17;
-v1.3 2026-07-19; v1.4 2026-07-23).
-Updated: 2026-07-23
+v1.3 2026-07-19; v1.4 2026-07-23; v1.5 2026-07-26; v1.6 2026-07-26).
+Updated: 2026-07-29
 
 > ▶ **Foundation and memory-quality core shipped 2026-07-15.** The
 > [derived-projection Phase 1](derived-projection-implementation-plan.md) (git-watermark warm start +
 > atomic swap + three read-path perf refinements) **shipped 2026-07-15** — the plan's former "do first"
-> foundation is done. Work still sequences *under* [`docs/CONSTITUTION.md`](../CONSTITUTION.md) **v1.4**
+> foundation is done. Work still sequences *under* [`docs/CONSTITUTION.md`](../CONSTITUTION.md) **v1.6**
 > (each item answers the five-question test — Capture / Validation / Retrieval / Trust / Application — and
 > respects Invariant #6: Markdown = source of truth; every DB/cache is a derived, rebuildable projection).
 > **v1.3 (2026-07-19)** amended Invariant #2 with write-surface parity: any surface that writes session
 > memory must run the same validation as every other, which is what permitted — and constrains — the
-> gated MCP write path below.
+> gated MCP write path below. **v1.5 (2026-07-26)** retired the v1.4 diagram-repair carve-out (an append
+> path made the exception unnecessary) and ratified the *minimal but sufficient context* principle.
+> **v1.6 (2026-07-26)** settled provenance as **first-hand vs reconstructed** rather than human-vs-machine
+> — every YAML topic/edge in this corpus was agent-chosen, so the real distinction is who observed the
+> fact directly — and is what the new topic-sidecar authority (below) is built on.
 > The ranking/graph core now includes the full-corpus gate, `replacing_head` plus its bounded boost,
 > and inert `link audit --apply` scaffolding. **2.19.0 released 2026-07-17** (live on PyPI). **B0a
 > graph/workspace contracts and renderer evidence are complete;
@@ -20,6 +24,11 @@ Updated: 2026-07-23
 > SHIPPED 2026-07-21** — it was the last deferred piece of the derived-projection plan, taken because
 > the profile had moved: parsing was no longer the cost, per-history-item git work was
 > (44.25 s / 990 git subprocesses → 1.46 s / 7).
+> **Two large tranches landed 2026-07-26/27 and 2026-07-28/29** (below, in their own dated sections): a
+> two-axis (area/activity) hierarchical topic vocabulary with per-decision declared attribution replacing
+> the old flat/derived topic model, and a graph-navigation/physics tranche (ontology tree navigation,
+> lifecycle chains spiralling by age, soft crossing-avoidance) plus a new capability — Trace can now open
+> any correctly-initialised folder from inside the app, not just switch between this repo's own worktrees.
 Source: the `docs/` lifecycle lanes (folder = state — see [`../README.md`](../README.md)), `CHANGELOG.md`,
 and `docs/3_Spec/`. Rebuilt 2026-07-14 from a full inbox+todo evaluation; re-baselined 2026-07-15 after the
 Foundation shipped (per-doc status verified against CHANGELOG + code, not this file's prior claims).
@@ -45,6 +54,95 @@ Foundation shipped (per-doc status verified against CHANGELOG + code, not this f
   integration-mode phases, and lifecycle-link scaffold steps 1–3.
 - **Release cadence:** 2.19.0 is **released** (2026-07-17). The next tranche accumulates under
   `CHANGELOG.md` "## Unreleased"; publishing remains a manual-approval gate at the pypi environment.
+
+## Shipped 2026-07-28/29 — unreleased, on local main
+
+Two back-to-back tranches: the graph became explicitly ontology-aware and physically legible, then Trace
+gained a capability outside any existing roadmap phase — opening an arbitrary correctly-initialised folder.
+
+- **The ontology becomes the graph's navigation** — the flat "Topics" chip list in the navigation pane
+  became a recursive Areas/Activities tree (`TreeView.tsx`, a generic component with no topic knowledge;
+  expansion state owned by the caller so switching axis doesn't forget where you were), backed by a new
+  `ontology` facet keyed by axis (`{axis: [OntologyNode, ...]}`, the same shape at every depth). Selecting
+  a parent implicitly selects its whole subtree.
+- **The topic axis is now DECLARED per decision, not derived from `topics.yaml`** — sidecars nest
+  `topics: / area: / activity:` structurally, so "one area and one activity per decision" is a shape, not
+  a rule someone has to remember to check; decision rows in the graph stop inheriting their entry's rolled
+  up topics and can finally show two decisions in the same entry differing by area or activity.
+- **Long lifecycle chains wind into a spiral, oldest innermost** — a per-chain radial spring force (not a
+  drawn shape) pulls each chain member to the radius its age earns, seeded so the winding direction is
+  unambiguous; four real-unit controls (strength, minimum chain length, tightness, winding) replaced a
+  single strength-only slider; terminating spurs hang off the spine instead of bending the whole spiral.
+  `related` edges then became a SECOND, lower-priority chain kind (tried only over nodes a lifecycle chain
+  did not already claim) — gated by a concordance check, since unlike `evolves`/`replaces`, a `related`
+  chain's topology carries no promise it tracks chronology; a chain that fails the check stays a plain
+  line rather than spiralling dishonestly.
+- **The layout leans away from crossing edges** — a bounded, grid-bucketed soft force nudges genuinely
+  crossing edges apart every tick (an explicit ideal, not a hard rule — some crossings in dense clusters
+  are expected to survive). Overview paging also gained a "Show less" button mirroring "Show more."
+- **Trace can open any folder from inside the app** — a new capability, not previously scoped by any
+  roadmap phase. A folder-browser modal walks the server's filesystem; opening a folder runs the real
+  `doctor()` check (the same one `memory-seed doctor` runs) and only registers it as a switchable project
+  if it passes — "correctly initialised" means what it already means elsewhere in this codebase, not a
+  lighter existence test. Opened folders join the SAME allowlist git worktrees already use, so every
+  existing endpoint (facets/search/graph/trail) serves one with no further backend changes.
+
+### Open follow-ups from this tranche
+
+- One specific chain a session's screenshot circled still does not spiral, deliberately: its topology
+  tracks chronology only ~76% of the time (measured), which the concordance gate correctly rejects — the
+  gate working as designed, not an unmet request.
+- Opened external folders are not persisted across a server restart and there is no "recent folders"
+  list; both are straightforward additions to the new registry if wanted.
+- Crossing-avoidance strength has no user-facing control and no way to disable it — deliberately kept
+  internal until a concrete reason surfaces to expose it.
+
+## Shipped 2026-07-26 (late) / 27 — unreleased, on local main
+
+A full day-plus reworking memory-seed's topic vocabulary into a two-axis, hierarchical model with
+per-decision attribution — the topic system's biggest change since it was introduced. Summarized from the
+session log, not transcribed from memory.
+
+- **Constitution v1.5/v1.6** — retired the v1.4 diagram-repair exception (an append path made it
+  unnecessary) and ratified minimal-sufficient-context (v1.5); settled provenance as first-hand vs
+  reconstructed rather than human-vs-machine, since every YAML topic/edge in this corpus was agent-chosen
+  (v1.6). A write-time consolidation design was accepted on the same footing: topics/links move from
+  entry-YAML into sidecar blocks under one owner, each carrying an explicit `source: write-time|derived`
+  field. Derived data may override write-time data only through an explicit, human-reviewed `retracts:`
+  — never implicitly on recency alone.
+- **The swarm-driven decision-level topic BACKFILL was tried twice and explicitly ABORTED** — two pilot
+  runs scored macro-recall 0.583 and 0.613 against a 0.70 gate; zero sidecars were written. A later
+  adjudication pass found the scoring denominator itself was ambiguous (a stricter reading scores 0.798),
+  but the abort stands on its own terms regardless — what changed was the stated reason, not the verdict.
+- **The vocabulary itself was redesigned, not just re-scored**: two axes (`area`/`activity`) with declared
+  `parent:` fields, write-time shape validation (one area per decision, parent-cycle detection), colour
+  keyed on the root while grouping/filtering read the child, and depth earned by concentration rather than
+  capped. 17 new slugs landed (`memory-seed` renamed to `seed-core` with the old name kept as an alias;
+  four new area roots split out: `lifecycle-edges`, `topic-vocabulary`, `test-suite`, `docs-lifecycle`).
+  Reparenting `graph` under `memory-trace` was proposed, then explicitly WITHDRAWN — measured to add 0
+  true positives against 45 false ones.
+- **A full decision-level attribution campaign then succeeded where the abandoned backfill failed** — by
+  changing the premise: swarm output became curated evidence rather than a scored, auto-applied answer.
+  1,030 decision units judged, 2,013 attributions written, 95% carrying both axes. The sidecar became
+  **the topic authority**: `_topics()` now reads sidecar → authored → hashtag, in that order, instead of
+  unioning sidecar and authored topics — nothing on disk is edited, and it is reversible by design.
+- **Two consumer bugs were found and fixed while verifying the sidecar landed correctly**: a
+  commit-message hook was stamping ~520 spurious `Memory-Entry:` trailers per sidecar-heavy commit (it
+  scanned every entry a sidecar *referenced*, not just entries a commit *authored*); and decision-level
+  graph edges were being drawn but silently excluded from the physics simulation (22% of drawn edges, 316
+  of 1,463) — they now transfer to their row's anchor entry with de-duplication.
+
+### Open follow-ups from this tranche
+
+- **The topic-family fuse is still not built.** `session merge-branch` correctly refuses to reset a
+  topic-sidecar file it cannot rebuild (now with a clear message naming the family and the fix command),
+  but the actual fuse-mirroring for topic sidecars — matching the link family's existing ~76-reference
+  machinery — was sized and explicitly deferred. This is the single largest remaining item from the whole
+  campaign.
+- **Topics have no `retracts:` construct yet** — only links do. Needed for step 1 of the write-time
+  consolidation build; not yet built as of this tranche.
+- Swarm-based topic discovery for a *new* project (not this corpus) remains a design proposal only
+  (`docs/2_Todo/topic-discovery-from-evidence.md`), not implemented.
 
 ## Shipped 2026-07-21/22 — unreleased, on local main
 
@@ -614,6 +712,13 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   What remains of B0b is therefore formal accessibility/scale acceptance, plus promoting the ADR from
   `draft` to accepted.
   Keep the SVG renderer until explicit parity sign-off.
+  **Navigation and layout gained ground 2026-07-28/29** (full detail in the dated "Shipped" section
+  above): the flat topic-chip navigation became a recursive Areas/Activities ontology tree; long
+  lifecycle chains now wind into a spiral aged oldest-innermost, with a concordance gate so a chain only
+  spirals when its topology actually tracks chronology; the layout gained a soft crossing-avoidance
+  force; and Trace can now open any correctly-initialised folder from inside the app, not only switch
+  between this repo's own git worktrees — a capability outside B0b's original scope. None of this moves
+  the "what remains" line above: accessibility/scale acceptance and the ADR promotion are still open.
   Only after B0b acceptance may the
   [`structural-provider proposal`](memory-trace-structural-graph-enrichment-provider-proposal.md) define a
   provider-neutral contract and pilot optional `code-review-graph`; providers never own canonical decision
