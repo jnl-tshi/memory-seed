@@ -717,12 +717,19 @@ def main(argv: list[str] | None = None) -> int:
                 for issue in result.issues:
                     print(f"  - {issue}", file=sys.stderr)
                 return 1
-            if not (result.planned_entries or result.planned_sidecars or result.planned_link_sidecars or result.removed_sources):
+            if not (
+                result.planned_entries
+                or result.planned_sidecars
+                or result.planned_link_sidecars
+                or result.planned_topic_sidecars
+                or result.removed_sources
+            ):
                 print("No branch session entries or sidecars need fusing.")
                 return 0
             entry_verb = "Imported" if args.apply else "Would import"
             diagram_verb = "Imported diagram" if args.apply else "Would import diagram"
             link_verb = "Imported link sidecar" if args.apply else "Would import link sidecar"
+            topic_verb = "Imported topic sidecar" if args.apply else "Would import topic sidecar"
             remove_verb = "Removed source" if args.apply else "Would remove source"
             for planned in result.planned_entries:
                 print(f"{entry_verb}: {planned}")
@@ -730,6 +737,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{diagram_verb}: {planned}")
             for planned in result.planned_link_sidecars:
                 print(f"{link_verb}: {planned}")
+            for planned in result.planned_topic_sidecars:
+                print(f"{topic_verb}: {planned}")
             for source in result.removed_sources:
                 print(f"{remove_verb}: {source}")
             if result.already_present:
@@ -771,6 +780,7 @@ def main(argv: list[str] | None = None) -> int:
             entry_verb = "Would import" if args.dry_run else "Imported"
             diagram_verb = "Would import diagram" if args.dry_run else "Imported diagram"
             link_verb = "Would import link sidecar" if args.dry_run else "Imported link sidecar"
+            topic_verb = "Would import topic sidecar" if args.dry_run else "Imported topic sidecar"
             remove_verb = "Would remove source" if args.dry_run else "Removed source"
             for planned in result.planned_entries:
                 print(f"{entry_verb}: {planned}")
@@ -778,6 +788,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{diagram_verb}: {planned}")
             for planned in result.planned_link_sidecars:
                 print(f"{link_verb}: {planned}")
+            for planned in result.planned_topic_sidecars:
+                print(f"{topic_verb}: {planned}")
             for source in result.removed_sources:
                 print(f"{remove_verb}: {source}")
             if result.already_present:
@@ -846,6 +858,7 @@ def main(argv: list[str] | None = None) -> int:
             entry_verb = "Would prepare" if args.dry_run else "Prepared"
             diagram_verb = "Would prepare diagram" if args.dry_run else "Prepared diagram"
             link_verb = "Would prepare link sidecar" if args.dry_run else "Prepared link sidecar"
+            topic_verb = "Would prepare topic sidecar" if args.dry_run else "Prepared topic sidecar"
             remove_verb = "Would remove source" if args.dry_run else "Removed source"
             for planned in result.planned_entries:
                 print(f"{entry_verb}: {planned}")
@@ -853,6 +866,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{diagram_verb}: {planned}")
             for planned in result.planned_link_sidecars:
                 print(f"{link_verb}: {planned}")
+            for planned in result.planned_topic_sidecars:
+                print(f"{topic_verb}: {planned}")
             for source in result.removed_sources:
                 print(f"{remove_verb}: {source}")
             if result.already_present:
@@ -892,6 +907,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"Prepared diagram: {planned}")
             for planned in result.planned_link_sidecars:
                 print(f"Prepared link sidecar: {planned}")
+            for planned in result.planned_topic_sidecars:
+                print(f"Prepared topic sidecar: {planned}")
             for source in result.removed_sources:
                 print(f"Removed source: {source}")
             if result.already_present:
@@ -938,6 +955,8 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"Prepared diagram: {planned}")
                 for planned in result.planned_link_sidecars:
                     print(f"Prepared link sidecar: {planned}")
+                for planned in result.planned_topic_sidecars:
+                    print(f"Prepared topic sidecar: {planned}")
                 for source in result.removed_sources:
                     print(f"Removed source: {source}")
                 if result.pr_title:
@@ -982,6 +1001,7 @@ def main(argv: list[str] | None = None) -> int:
             entry_verb = "Would import" if args.dry_run else "Imported"
             diagram_verb = "Would import diagram" if args.dry_run else "Imported diagram"
             link_verb = "Would import link sidecar" if args.dry_run else "Imported link sidecar"
+            topic_verb = "Would import topic sidecar" if args.dry_run else "Imported topic sidecar"
             remove_verb = "Would remove source" if args.dry_run else "Removed source"
             for planned in result.planned_entries:
                 print(f"{entry_verb}: {planned}")
@@ -989,6 +1009,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{diagram_verb}: {planned}")
             for planned in result.planned_link_sidecars:
                 print(f"{link_verb}: {planned}")
+            for planned in result.planned_topic_sidecars:
+                print(f"{topic_verb}: {planned}")
             for source in result.removed_sources:
                 print(f"{remove_verb}: {source}")
             if result.already_present:

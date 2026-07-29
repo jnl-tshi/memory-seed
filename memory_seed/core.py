@@ -245,10 +245,9 @@ class TopicSidecarDocument:
 
     Exists for the same reason those do: append-only forbids reopening a
     published entry, so a topic learned about it later has nowhere else to
-    live. Modelled on the DIAGRAM family rather than the link one on purpose -
-    a topic is a per-entry ATTRIBUTE, like a diagram, not an edge between two
-    entries, so none of the link contract (forward-only, chronology, dangling
-    refs, block identity) applies to it.
+    live. A topic is a per-entry ATTRIBUTE rather than an edge, but its sidecar
+    block identity still mirrors links and diagrams: ``(entry_id, heading
+    timestamp)`` permits append-only re-attribution.
     """
 
     path: Path
@@ -366,6 +365,16 @@ class _LinkSidecarRecord:
     target_path: str
 
 
+@dataclass(frozen=True)
+class _TopicSidecarRecord:
+    text: str
+    entry_id: str | None
+    timestamp: str | None
+    topic_date: str | None
+    source_path: str
+    target_path: str
+
+
 @dataclass
 class SessionFuseResult:
     changed: bool
@@ -373,6 +382,7 @@ class SessionFuseResult:
     planned_entries: list[str] = field(default_factory=list)
     planned_sidecars: list[str] = field(default_factory=list)
     planned_link_sidecars: list[str] = field(default_factory=list)
+    planned_topic_sidecars: list[str] = field(default_factory=list)
     removed_sources: list[str] = field(default_factory=list)
     already_present: list[str] = field(default_factory=list)
     issues: list[str] = field(default_factory=list)
@@ -387,6 +397,7 @@ class SessionMergeBranchResult:
     planned_entries: list[str] = field(default_factory=list)
     planned_sidecars: list[str] = field(default_factory=list)
     planned_link_sidecars: list[str] = field(default_factory=list)
+    planned_topic_sidecars: list[str] = field(default_factory=list)
     removed_sources: list[str] = field(default_factory=list)
     already_present: list[str] = field(default_factory=list)
     stamped_entries: list[str] = field(default_factory=list)
@@ -402,9 +413,11 @@ class _SessionFusePlan:
     import_entries: tuple[_SessionEntryRecord, ...]
     import_sidecars: tuple[_DiagramSidecarRecord, ...]
     import_link_sidecars: tuple[_LinkSidecarRecord, ...]
+    import_topic_sidecars: tuple[_TopicSidecarRecord, ...]
     planned_entries: tuple[str, ...]
     planned_sidecars: tuple[str, ...]
     planned_link_sidecars: tuple[str, ...]
+    planned_topic_sidecars: tuple[str, ...]
     removed_sources: tuple[str, ...]
 
 
@@ -418,6 +431,7 @@ class SessionPreparePrBranchResult:
     planned_entries: list[str] = field(default_factory=list)
     planned_sidecars: list[str] = field(default_factory=list)
     planned_link_sidecars: list[str] = field(default_factory=list)
+    planned_topic_sidecars: list[str] = field(default_factory=list)
     removed_sources: list[str] = field(default_factory=list)
     already_present: list[str] = field(default_factory=list)
     stamped_entries: list[str] = field(default_factory=list)
@@ -444,6 +458,7 @@ class SessionOpenPrResult:
     planned_entries: list[str] = field(default_factory=list)
     planned_sidecars: list[str] = field(default_factory=list)
     planned_link_sidecars: list[str] = field(default_factory=list)
+    planned_topic_sidecars: list[str] = field(default_factory=list)
     removed_sources: list[str] = field(default_factory=list)
     already_present: list[str] = field(default_factory=list)
     stamped_entries: list[str] = field(default_factory=list)
@@ -3728,31 +3743,32 @@ def _link_doc_from_relative_path(rel_path: str) -> tuple[str | None, str] | None
     return None
 
 
-def _topic_sidecar_tree_path(rel_path: str) -> bool:
-    """True for a path under ``sessions/topics``, the fourth sidecar family.
-
-    Deliberately NOT part of ``_is_recognized_session_tree_path``. That function
-    gates the base-reset loop, and its contract is "the fuse can rebuild this
-    from parsed records" - which for topics is not yet true. Recognising the
-    family without fusing it would let the loop reset topic sidecars to base and
-    silently drop a branch's attributions, which is precisely the loss the guard
-    exists to prevent. This exists only so the refusal can SAY which family it
-    hit and what to do about it.
-    """
-    parts = Path(rel_path).parts
-    return len(parts) >= 4 and parts[0] == MEMORY_DIR_NAME and parts[1] == "sessions" and parts[2] == "topics"
+def _topic_doc_from_relative_path(rel_path: str) -> tuple[str | None, str] | None:
+    """Classify a path under ``sessions/topics``, mirroring the link family."""
+    path = Path(rel_path)
+    parts = path.parts
+    if len(parts) < 4 or parts[0] != MEMORY_DIR_NAME or parts[1] != "sessions" or parts[2] != "topics":
+        return None
+    rest = parts[3:]
+    if len(rest) == 1:
+        match = SESSION_DATE_RE.match(rest[0])
+        if match and _valid_session_date(match.group(1)):
+            return match.group(1), "legacy-topic"
+        return None, "legacy-topic"
+    if len(rest) == 2:
+        month_match = SESSION_MONTH_DIR_RE.match(rest[0])
+        date_match = SESSION_DATE_RE.match(rest[1])
+        if month_match and date_match:
+            month_str = month_match.group(1)
+            date_str = date_match.group(1)
+            if _valid_session_date(date_str) and date_str.startswith(month_str + "-"):
+                return date_str, "month-topic"
+        return None, "month-topic"
+    return None
 
 
 def _unfusable_session_path_reason(rel_path: str) -> str:
     """Why the fuse will not touch this path, in words an operator can act on."""
-    if _topic_sidecar_tree_path(rel_path):
-        return (
-            "is a TOPIC sidecar, the one sidecar family session-fuse cannot yet rebuild - the family "
-            "shipped after the fuse and was never taught to it. Topic blocks are keyed by "
-            "(entry_id, heading timestamp) and are most-recent-wins wholesale per entry, so when only "
-            "one side changed the file the correct resolution is to take that side: "
-            "`git checkout MERGE_HEAD -- <path>` for branch-side work, then commit the merge by hand."
-        )
     return (
         "changed under .memory-seed/sessions but is not recognized by any session/diagram/link/topic "
         "classifier."
@@ -3773,6 +3789,7 @@ def _is_recognized_session_tree_path(rel_path: str) -> bool:
         _session_doc_from_relative_path(rel_path) is not None
         or _diagram_doc_from_relative_path(rel_path) is not None
         or _link_doc_from_relative_path(rel_path) is not None
+        or _topic_doc_from_relative_path(rel_path) is not None
     )
 
 
@@ -3788,6 +3805,10 @@ def _diagram_target_relative_path(date_str: str) -> str:
 
 def _link_target_relative_path(date_str: str) -> str:
     return (Path(MEMORY_DIR_NAME) / "sessions" / "links" / date_str[:7] / f"{date_str}.md").as_posix()
+
+
+def _topic_target_relative_path(date_str: str) -> str:
+    return (Path(MEMORY_DIR_NAME) / "sessions" / "topics" / date_str[:7] / f"{date_str}.md").as_posix()
 
 
 def _split_entry_records(text: str, *, source_path: str, session_date: str, user: str | None) -> list[_SessionEntryRecord]:
@@ -3867,6 +3888,20 @@ def _link_file_prefix(text: str, date_str: str) -> str:
     )
 
 
+def _topic_file_prefix(text: str, date_str: str) -> str:
+    if text.startswith("---"):
+        end = text.find("\n---", 3)
+        if end != -1:
+            return text[: end + 4].rstrip() + "\n\n"
+    return (
+        "---\n"
+        "tags:\n"
+        "  - session-log-topics\n"
+        f"topic_date: {date_str}\n"
+        "---\n\n"
+    )
+
+
 def _split_diagram_records(text: str, *, source_path: str, diagram_date: str | None) -> list[_DiagramSidecarRecord]:
     blocks = list(_ENTRY_TS_YAML_RE.finditer(text))
     records: list[_DiagramSidecarRecord] = []
@@ -3911,6 +3946,30 @@ def _split_link_sidecar_records(text: str, *, source_path: str, link_date: str |
     return records
 
 
+def _split_topic_sidecar_records(
+    text: str, *, source_path: str, topic_date: str | None
+) -> list[_TopicSidecarRecord]:
+    blocks = list(_ENTRY_TS_YAML_RE.finditer(text))
+    records: list[_TopicSidecarRecord] = []
+    for index, block in enumerate(blocks):
+        section_end = blocks[index + 1].start() if index + 1 < len(blocks) else len(text)
+        block_text = text[block.start():section_end].rstrip() + "\n"
+        timestamp, yaml_block = block.groups()
+        entry_id_match = _ENTRY_ID_RE.search(yaml_block)
+        target_date = topic_date or timestamp[:10]
+        records.append(
+            _TopicSidecarRecord(
+                text=block_text,
+                entry_id=entry_id_match.group(1) if entry_id_match else None,
+                timestamp=timestamp,
+                topic_date=topic_date,
+                source_path=source_path,
+                target_path=_topic_target_relative_path(target_date),
+            )
+        )
+    return records
+
+
 def _git_lines(root: Path, args: Sequence[str]) -> tuple[int, list[str]]:
     code, text = _git_text(root, args)
     if code != 0 or not text:
@@ -3947,7 +4006,7 @@ def _git_ref_paths(root: Path, ref: str) -> list[str]:
 
 
 def _changed_session_paths(root: Path, base: str, branch: str) -> set[str] | None:
-    """Session/diagram/link file paths changed on ``branch`` relative to its merge-base with ``base``.
+    """Session/diagram/link/topic paths changed on ``branch`` relative to its merge-base with ``base``.
 
     Uses a three-dot diff (``base...branch`` == merge-base(base, branch)..branch) so only the
     branch's own additions are in scope. Two-dot would also surface base's post-divergence session
@@ -4075,6 +4134,32 @@ def _link_sidecars_from_ref(root: Path, ref: str) -> dict[tuple[str, str], _Link
     return sidecars
 
 
+def _topic_sidecar_records_from_ref(
+    root: Path,
+    ref: str,
+    *,
+    only_paths: set[str] | None = None,
+    decode_issues: list[str] | None = None,
+) -> list[_TopicSidecarRecord]:
+    records: list[_TopicSidecarRecord] = []
+    for rel_path in _git_ref_paths(root, ref):
+        if only_paths is not None and rel_path not in only_paths:
+            continue
+        doc = _topic_doc_from_relative_path(rel_path)
+        if doc is None:
+            continue
+        topic_date, _layout = doc
+        text = _git_show_text(root, ref, rel_path)
+        if text is _GIT_SHOW_DECODE_ERROR:
+            if decode_issues is not None:
+                decode_issues.append(f"could not decode {rel_path} as UTF-8")
+            continue
+        if text is None:
+            continue
+        records.extend(_split_topic_sidecar_records(text, source_path=rel_path, topic_date=topic_date))
+    return records
+
+
 def _working_tree_entries(root: Path, rel_path: str, *, date_str: str, user: str | None) -> list[_SessionEntryRecord]:
     path = root / rel_path
     if not path.exists():
@@ -4099,6 +4184,14 @@ def _working_tree_link_sidecars(root: Path, rel_path: str, *, link_date: str) ->
     return _split_link_sidecar_records(text, source_path=rel_path, link_date=link_date)
 
 
+def _working_tree_topic_sidecars(root: Path, rel_path: str, *, topic_date: str) -> list[_TopicSidecarRecord]:
+    path = root / rel_path
+    if not path.exists():
+        return []
+    text = read_text_file(path)
+    return _split_topic_sidecar_records(text, source_path=rel_path, topic_date=topic_date)
+
+
 # The one ordering every session-file writer uses. Timestamps are fixed-width,
 # so lexicographic equals chronological.
 #
@@ -4117,11 +4210,15 @@ def _working_tree_link_sidecars(root: Path, rel_path: str, *, link_date: str) ->
 # arbitrary - ids are metadata hashes, so it reorders same-minute entries into a
 # meaningless sequence and discards the append order, which is real evidence of
 # what happened first.
-def _session_record_sort_key(record: _SessionEntryRecord | _DiagramSidecarRecord | _LinkSidecarRecord) -> tuple[str]:
+def _session_record_sort_key(
+    record: _SessionEntryRecord | _DiagramSidecarRecord | _LinkSidecarRecord | _TopicSidecarRecord,
+) -> tuple[str]:
     return (record.timestamp or "",)
 
 
-def _records_are_chronological(records: Sequence[_SessionEntryRecord | _DiagramSidecarRecord | _LinkSidecarRecord]) -> bool:
+def _records_are_chronological(
+    records: Sequence[_SessionEntryRecord | _DiagramSidecarRecord | _LinkSidecarRecord | _TopicSidecarRecord],
+) -> bool:
     timestamps = [record.timestamp for record in records]
     if any(timestamp is None for timestamp in timestamps):
         return False
@@ -4153,6 +4250,14 @@ def _write_chronological_link_sidecar_file(path: Path, date_str: str, records: S
     prefix = _link_file_prefix(existing_text, date_str)
     ordered = sorted(records, key=_session_record_sort_key)
     # Same blank-line separation contract as the session-file writer above.
+    body = "\n\n".join(record.text.rstrip() for record in ordered).rstrip()
+    write_text_file(path, prefix + body + "\n")
+
+
+def _write_chronological_topic_sidecar_file(path: Path, date_str: str, records: Sequence[_TopicSidecarRecord]) -> None:
+    existing_text = read_text_file(path) if path.exists() else ""
+    prefix = _topic_file_prefix(existing_text, date_str)
+    ordered = sorted(records, key=_session_record_sort_key)
     body = "\n\n".join(record.text.rstrip() for record in ordered).rstrip()
     write_text_file(path, prefix + body + "\n")
 
@@ -4367,6 +4472,17 @@ def _plan_session_fuse(
         only_paths=changed_paths,
         decode_issues=issues,
     )
+    base_topic_sidecar_records = _topic_sidecar_records_from_ref(root, base_commit)
+    source_topic_sidecar_records = _topic_sidecar_records_from_ref(
+        root,
+        source_commit,
+        only_paths=changed_paths,
+        decode_issues=issues,
+    )
+    parsed_topic_paths = {record.source_path for record in source_topic_sidecar_records}
+    for rel_path in sorted(changed_paths):
+        if _topic_doc_from_relative_path(rel_path) is not None and rel_path not in parsed_topic_paths:
+            issues.append(f"{rel_path}: topic sidecar has no parseable timestamped entry blocks")
 
     base_entries: dict[str, _SessionEntryRecord] = {}
     source_entries: dict[str, _SessionEntryRecord] = {}
@@ -4378,11 +4494,14 @@ def _plan_session_fuse(
     # the collection loop below.
     base_link_sidecars: dict[tuple[str, str], _LinkSidecarRecord] = {}
     source_link_sidecars: dict[tuple[str, str], _LinkSidecarRecord] = {}
+    base_topic_sidecars: dict[tuple[str, str], _TopicSidecarRecord] = {}
+    source_topic_sidecars: dict[tuple[str, str], _TopicSidecarRecord] = {}
 
     import_entries: list[_SessionEntryRecord] = []
     imported_ids: set[str] = set()
     import_sidecars: list[_DiagramSidecarRecord] = []
     import_link_sidecars: list[_LinkSidecarRecord] = []
+    import_topic_sidecars: list[_TopicSidecarRecord] = []
 
     seen_source_entries: set[str] = set()
     duplicate_source_entries: set[str] = set()
@@ -4463,6 +4582,35 @@ def _plan_session_fuse(
     for entry_id, timestamp in sorted(duplicate_source_link_sidecars):
         issues.append(
             f"source {source_label}: duplicate link sidecar blocks safe fuse: {entry_id} at {timestamp or '(unknown time)'}"
+        )
+
+    # Topic sidecar block identity is also (entry_id, heading timestamp).
+    # Re-attribution appends a later block; the reader selects the most recent
+    # block wholesale, preserving the older attribution as authored history.
+    seen_source_topic_sidecars: set[tuple[str, str]] = set()
+    duplicate_source_topic_sidecars: set[tuple[str, str]] = set()
+    for record in base_topic_sidecar_records:
+        if record.entry_id:
+            key = (record.entry_id, record.timestamp or "")
+            if key not in base_topic_sidecars:
+                base_topic_sidecars[key] = record
+    for record in source_topic_sidecar_records:
+        if not record.entry_id:
+            issues.append(
+                f"{record.source_path}: topic sidecar block at "
+                f"{record.timestamp or '(unknown time)'} has no entry_id"
+            )
+            continue
+        key = (record.entry_id, record.timestamp or "")
+        if key in seen_source_topic_sidecars:
+            duplicate_source_topic_sidecars.add(key)
+            continue
+        seen_source_topic_sidecars.add(key)
+        source_topic_sidecars[key] = record
+    for entry_id, timestamp in sorted(duplicate_source_topic_sidecars):
+        issues.append(
+            f"source {source_label}: duplicate topic sidecar blocks safe fuse: "
+            f"{entry_id} at {timestamp or '(unknown time)'}"
         )
 
     for entry_id, source_entry in sorted(source_entries.items(), key=lambda item: (item[1].timestamp or "", item[0])):
@@ -4555,12 +4703,48 @@ def _plan_session_fuse(
             continue
         import_link_sidecars.append(source_link_sidecar)
 
+    for (entry_id, _block_ts), source_topic_sidecar in sorted(
+        source_topic_sidecars.items(), key=lambda item: (item[1].timestamp or "", item[0])
+    ):
+        base_topic_sidecar = base_topic_sidecars.get((entry_id, _block_ts))
+        if base_topic_sidecar is not None:
+            if base_topic_sidecar.text != source_topic_sidecar.text:
+                issues.append(
+                    f"{source_topic_sidecar.source_path}: existing topic sidecar modified "
+                    f"for entry_id {entry_id}"
+                )
+            continue
+        parent_entry = source_entries.get(entry_id) if entry_id in imported_ids else base_entries.get(entry_id)
+        if parent_entry is None:
+            issues.append(
+                f"{source_topic_sidecar.source_path}: topic sidecar references entry_id {entry_id} "
+                "without a parent entry on the base branch or accepted for this fuse"
+            )
+            continue
+        if parent_entry.timestamp is None:
+            issues.append(f"{source_topic_sidecar.source_path}: parent entry_id {entry_id} has no parseable timestamp")
+            continue
+        if source_topic_sidecar.timestamp is None:
+            issues.append(
+                f"{source_topic_sidecar.source_path}: topic sidecar for entry_id {entry_id} "
+                "has no parseable timestamp"
+            )
+            continue
+        if source_topic_sidecar.topic_date and source_topic_sidecar.topic_date != parent_entry.timestamp[:10]:
+            issues.append(
+                f"{source_topic_sidecar.source_path}: topic date {source_topic_sidecar.topic_date} "
+                f"does not match entry date {parent_entry.timestamp[:10]} for {entry_id}"
+            )
+            continue
+        import_topic_sidecars.append(source_topic_sidecar)
+
     if issues:
         return None, issues
 
     planned_entries: list[str] = []
     planned_sidecars: list[str] = []
     planned_link_sidecars: list[str] = []
+    planned_topic_sidecars: list[str] = []
     removed_sources: list[str] = []
 
     for entry in import_entries:
@@ -4581,6 +4765,14 @@ def _plan_session_fuse(
             if link_sidecar.source_path not in removed_sources:
                 removed_sources.append(link_sidecar.source_path)
 
+    for topic_sidecar in import_topic_sidecars:
+        planned_topic_sidecars.append(
+            f"{topic_sidecar.entry_id} {topic_sidecar.timestamp} -> {topic_sidecar.target_path}"
+        )
+        if topic_sidecar.source_path != topic_sidecar.target_path and topic_sidecar.source_path not in base_paths:
+            if topic_sidecar.source_path not in removed_sources:
+                removed_sources.append(topic_sidecar.source_path)
+
     return _SessionFusePlan(
         source_label=source_label,
         source_commit=source_commit,
@@ -4589,9 +4781,11 @@ def _plan_session_fuse(
         import_entries=tuple(import_entries),
         import_sidecars=tuple(import_sidecars),
         import_link_sidecars=tuple(import_link_sidecars),
+        import_topic_sidecars=tuple(import_topic_sidecars),
         planned_entries=tuple(planned_entries),
         planned_sidecars=tuple(planned_sidecars),
         planned_link_sidecars=tuple(planned_link_sidecars),
+        planned_topic_sidecars=tuple(planned_topic_sidecars),
         removed_sources=tuple(removed_sources),
     ), []
 
@@ -4600,6 +4794,7 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
     planned_entries = list(plan.planned_entries)
     planned_sidecars = list(plan.planned_sidecars)
     planned_link_sidecars = list(plan.planned_link_sidecars)
+    planned_topic_sidecars = list(plan.planned_topic_sidecars)
     removed_sources = list(plan.removed_sources)
     already_present: list[str] = []
 
@@ -4615,9 +4810,14 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
     for link_sidecar in plan.import_link_sidecars:
         link_sidecars_by_target.setdefault(link_sidecar.target_path, []).append(link_sidecar)
 
+    topic_sidecars_by_target: dict[str, list[_TopicSidecarRecord]] = {}
+    for topic_sidecar in plan.import_topic_sidecars:
+        topic_sidecars_by_target.setdefault(topic_sidecar.target_path, []).append(topic_sidecar)
+
     session_writes: list[tuple[Path, str, str | None, list[_SessionEntryRecord]]] = []
     diagram_writes: list[tuple[Path, str, list[_DiagramSidecarRecord]]] = []
     link_sidecar_writes: list[tuple[Path, str, list[_LinkSidecarRecord]]] = []
+    topic_sidecar_writes: list[tuple[Path, str, list[_TopicSidecarRecord]]] = []
 
     for target_rel, incoming in entries_by_target.items():
         target_path = root / target_rel
@@ -4688,6 +4888,41 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
             return SessionFuseResult(changed=False, issues=[f"{target_rel}: imported link sidecar blocks are not chronological"])
         link_sidecar_writes.append((target_path, date_str, writable_records))
 
+    for target_rel, incoming in topic_sidecars_by_target.items():
+        target_path = root / target_rel
+        date_str = incoming[0].target_path.rsplit("/", 1)[-1].removesuffix(".md")
+        existing = _working_tree_topic_sidecars(root, target_rel, topic_date=date_str)
+        if not _records_are_chronological(existing):
+            return SessionFuseResult(
+                changed=False,
+                issues=[f"{target_rel}: existing topic sidecar blocks are not chronological"],
+            )
+        by_key = {
+            (record.entry_id, record.timestamp or ""): record for record in existing if record.entry_id
+        }
+        writable_records = list(existing)
+        for record in incoming:
+            current = by_key.get((record.entry_id or "", record.timestamp or ""))
+            if current is not None:
+                if current.text == record.text:
+                    already_present.append(record.entry_id or "")
+                    continue
+                return SessionFuseResult(
+                    changed=False,
+                    issues=[
+                        f"{target_rel}: topic sidecar for entry_id {record.entry_id} "
+                        "already exists with different text"
+                    ],
+                )
+            writable_records.append(record)
+        writable_records = sorted(writable_records, key=_session_record_sort_key)
+        if not _records_are_chronological(writable_records):
+            return SessionFuseResult(
+                changed=False,
+                issues=[f"{target_rel}: imported topic sidecar blocks are not chronological"],
+            )
+        topic_sidecar_writes.append((target_path, date_str, writable_records))
+
     for target_path, date_str, user, writable_records in session_writes:
         target_path.parent.mkdir(parents=True, exist_ok=True)
         if user and not target_path.exists():
@@ -4702,16 +4937,27 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
         target_path.parent.mkdir(parents=True, exist_ok=True)
         _write_chronological_link_sidecar_file(target_path, date_str, writable_records)
 
+    for target_path, date_str, writable_records in topic_sidecar_writes:
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        _write_chronological_topic_sidecar_file(target_path, date_str, writable_records)
+
     for source_rel in removed_sources:
         source_path = root / source_rel
         if source_path.exists() and source_path.is_file():
             source_path.unlink()
 
     return SessionFuseResult(
-        changed=bool(planned_entries or planned_sidecars or planned_link_sidecars or removed_sources),
+        changed=bool(
+            planned_entries
+            or planned_sidecars
+            or planned_link_sidecars
+            or planned_topic_sidecars
+            or removed_sources
+        ),
         planned_entries=planned_entries,
         planned_sidecars=planned_sidecars,
         planned_link_sidecars=planned_link_sidecars,
+        planned_topic_sidecars=planned_topic_sidecars,
         removed_sources=removed_sources,
         already_present=already_present,
     )
@@ -4777,6 +5023,7 @@ def session_fuse(
             planned_entries=list(plan.planned_entries),
             planned_sidecars=list(plan.planned_sidecars),
             planned_link_sidecars=list(plan.planned_link_sidecars),
+            planned_topic_sidecars=list(plan.planned_topic_sidecars),
             removed_sources=list(plan.removed_sources),
         )
     return _apply_session_fuse_plan(root, plan)
@@ -4873,6 +5120,7 @@ def session_merge_branch(
         planned_entries=list(preview.planned_entries),
         planned_sidecars=list(preview.planned_sidecars),
         planned_link_sidecars=list(preview.planned_link_sidecars),
+        planned_topic_sidecars=list(preview.planned_topic_sidecars),
         removed_sources=list(preview.removed_sources),
         already_present=list(preview.already_present),
     )
@@ -4934,6 +5182,7 @@ def session_merge_branch(
     result.planned_entries = list(applied.planned_entries)
     result.planned_sidecars = list(applied.planned_sidecars)
     result.planned_link_sidecars = list(applied.planned_link_sidecars)
+    result.planned_topic_sidecars = list(applied.planned_topic_sidecars)
     result.removed_sources = list(applied.removed_sources)
     result.already_present = list(applied.already_present)
 
@@ -5054,6 +5303,7 @@ def session_prepare_pr_branch(
         planned_entries=list(plan.planned_entries),
         planned_sidecars=list(plan.planned_sidecars),
         planned_link_sidecars=list(plan.planned_link_sidecars),
+        planned_topic_sidecars=list(plan.planned_topic_sidecars),
         removed_sources=list(plan.removed_sources),
     )
     if dry_run:
@@ -5107,6 +5357,7 @@ def session_prepare_pr_branch(
     result.planned_entries = list(applied.planned_entries)
     result.planned_sidecars = list(applied.planned_sidecars)
     result.planned_link_sidecars = list(applied.planned_link_sidecars)
+    result.planned_topic_sidecars = list(applied.planned_topic_sidecars)
     result.removed_sources = list(applied.removed_sources)
     result.already_present = list(applied.already_present)
 
@@ -5170,6 +5421,7 @@ def _format_pr_body(
     planned_entries: Sequence[str],
     planned_sidecars: Sequence[str],
     planned_link_sidecars: Sequence[str],
+    planned_topic_sidecars: Sequence[str],
     removed_sources: Sequence[str],
     changed: bool,
 ) -> str:
@@ -5198,6 +5450,11 @@ def _format_pr_body(
     lines.extend(["", "## Link sidecars", ""])
     if planned_link_sidecars:
         lines.extend(f"- `{planned}`" for planned in planned_link_sidecars)
+    else:
+        lines.append("- None.")
+    lines.extend(["", "## Topic sidecars", ""])
+    if planned_topic_sidecars:
+        lines.extend(f"- `{planned}`" for planned in planned_topic_sidecars)
     else:
         lines.append("- None.")
     lines.extend(["", "## Source path removals", ""])
@@ -5329,6 +5586,7 @@ def session_open_pr(
         planned_entries=list(prepared.planned_entries),
         planned_sidecars=list(prepared.planned_sidecars),
         planned_link_sidecars=list(prepared.planned_link_sidecars),
+        planned_topic_sidecars=list(prepared.planned_topic_sidecars),
         removed_sources=list(prepared.removed_sources),
         already_present=list(prepared.already_present),
         stamped_entries=list(prepared.stamped_entries),
@@ -5348,6 +5606,7 @@ def session_open_pr(
         planned_entries=result.planned_entries,
         planned_sidecars=result.planned_sidecars,
         planned_link_sidecars=result.planned_link_sidecars,
+        planned_topic_sidecars=result.planned_topic_sidecars,
         removed_sources=result.removed_sources,
         changed=prepared.changed,
     )

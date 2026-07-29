@@ -134,11 +134,10 @@ session log, not transcribed from memory.
 
 ### Open follow-ups from this tranche
 
-- **The topic-family fuse is still not built.** `session merge-branch` correctly refuses to reset a
-  topic-sidecar file it cannot rebuild (now with a clear message naming the family and the fix command),
-  but the actual fuse-mirroring for topic sidecars — matching the link family's ~76-reference
-  machinery — was sized and explicitly deferred. This is the single largest remaining item from the whole
-  campaign.
+- **Topic-family fuse implementation completed on `codex/feature/topic-sidecar-fuse`.**
+  `session merge-branch` now parses, plans, applies, chronologically rewrites, and reports topic-sidecar
+  blocks with the same `(entry_id, heading timestamp)` identity and append-only safety checks as links
+  and diagrams. Landing remains gated by the project's manual merge trigger.
 - **Topics have no `retracts:` construct yet** — only links do. Needed for step 1 of the write-time
   consolidation build; not yet built as of this tranche.
 - **PROPOSAL (2026-07-29): even the link family's existing fuse has a gap worth closing alongside the
@@ -155,7 +154,9 @@ session log, not transcribed from memory.
   make in-place stub-to-live-edge conversion (the sanctioned `end_of_turn.md` Lifecycle Link Sweep
   workflow) an explicitly RECOGNISED, importable fuse case for every sidecar family, or (b) guarantee the
   refusal is always LOUD, per this project's own 2026-07-21 precedent for exactly this class of
-  silent-failure bug. Silent success is the one outcome that should never be possible here.
+  silent-failure bug. The current synthetic regression correctly refuses the exact stub-to-live edit
+  before merge, but the historical real-branch anomaly has not been reproduced or root-caused; do not
+  treat the topic-family implementation as resolving that separate investigation.
 - Swarm-based topic discovery for a *new* project (not this corpus) remains a design proposal only
   (`docs/2_Todo/topic-discovery-from-evidence.md`), not implemented.
 
