@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { DiagramView } from "./DiagramView";
 import { fitTransform, panBy, zoomAbout, type Transform } from "./diagramZoom";
 import type { TraceLook } from "./mermaidConfig";
@@ -34,6 +34,19 @@ export function DiagramViewer({
 }) {
   // At most one diagram is active. null means "none - the wheel scrolls".
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  // Capture before the dialog focuses itself, then return the reader to the
+  // badge or diagram preview that opened it after the modal unmounts.
+  const returnFocus = useRef<HTMLElement | null>(document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  const titleId = useId();
+
+  useEffect(() => {
+    closeButton.current?.focus();
+    return () => {
+      const opener = returnFocus.current;
+      if (opener?.isConnected) opener.focus();
+    };
+  }, []);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -59,10 +72,10 @@ export function DiagramViewer({
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="diagram-viewer" role="dialog" aria-modal="true" aria-label="Decision diagram">
+      <div className="diagram-viewer" role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <div className="diagram-viewer-head">
-          <span className="count">{title || "Decision diagram"}</span>
-          <button type="button" className="diagram-viewer-close" onClick={onClose} aria-label="Close">
+          <span className="count" id={titleId}>{title || "Decision diagram"}</span>
+          <button ref={closeButton} type="button" className="diagram-viewer-close" onClick={onClose} aria-label="Close decision diagram">
             ×
           </button>
         </div>

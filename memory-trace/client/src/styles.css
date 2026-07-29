@@ -372,6 +372,7 @@ button:not(:disabled):active { transform: translateY(0); transition-duration: 40
   padding: 0 4px;
 }
 .diagram-viewer-close:hover { color: var(--text); }
+.diagram-viewer-close:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 2px; }
 .diagram-viewer-body { overflow: auto; padding: 12px; }
 .diagram-view { margin: 0 0 16px; }
 .diagram-view:last-child { margin-bottom: 0; }
@@ -523,6 +524,7 @@ button.trail-diagram-badge {
 }
 .folder-picker-close { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 2px; }
 .folder-picker-close:hover { color: var(--text); }
+.folder-picker-close:focus-visible, .folder-picker-path button:focus-visible, .folder-picker-entry:focus-visible, .folder-picker-open-row:focus-visible, .folder-picker-foot button:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 2px; }
 .folder-picker-path {
   display: flex;
   align-items: center;

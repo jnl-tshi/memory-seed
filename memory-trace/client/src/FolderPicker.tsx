@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { ArrowUp, Folder, FolderCheck, Loader2, X } from "lucide-react";
 import { browseQuery, openProject, type DirectoryEntry } from "./api";
 
@@ -25,6 +25,11 @@ export function FolderPicker({ onClose, onOpened }: { onClose: () => void; onOpe
   // Guards a stale browse response from clobbering a faster, later one - the
   // same request-token pattern App.tsx's loadGraph uses.
   const request = useRef(0);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  // The opener is captured before this modal takes focus. Restoring it when
+  // the picker unmounts keeps keyboard users in the place they chose to open.
+  const returnFocus = useRef<HTMLElement | null>(document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  const titleId = useId();
 
   const browse = useCallback(async (target: string | null) => {
     const current = ++request.current;
@@ -47,6 +52,14 @@ export function FolderPicker({ onClose, onOpened }: { onClose: () => void; onOpe
   useEffect(() => {
     void browse(null);
   }, [browse]);
+
+  useEffect(() => {
+    closeButton.current?.focus();
+    return () => {
+      const opener = returnFocus.current;
+      if (opener?.isConnected) opener.focus();
+    };
+  }, []);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -78,10 +91,10 @@ export function FolderPicker({ onClose, onOpened }: { onClose: () => void; onOpe
 
   return (
     <div className="folder-picker-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div className="folder-picker" role="dialog" aria-modal="true" aria-label="Open folder">
+      <div className="folder-picker" role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <div className="folder-picker-head">
-          <span className="count">Open folder</span>
-          <button type="button" className="folder-picker-close" onClick={onClose} aria-label="Close"><X size={16} /></button>
+          <span className="count" id={titleId}>Open folder</span>
+          <button ref={closeButton} type="button" className="folder-picker-close" onClick={onClose} aria-label="Close open folder"><X size={16} aria-hidden="true" /></button>
         </div>
         <div className="folder-picker-path">
           <button type="button" onClick={() => void browse(parent)} disabled={!parent || loading} aria-label="Up one level" title="Up one level">
@@ -91,12 +104,12 @@ export function FolderPicker({ onClose, onOpened }: { onClose: () => void; onOpe
         </div>
         <div className="folder-picker-body">
           {browseError && <div className="error-state">{browseError}</div>}
-          {!browseError && loading && <div className="loading-state"><Loader2 size={14} className="spin" aria-hidden="true" /> Reading folder…</div>}
+          {!browseError && loading && <div className="loading-state" role="status"><Loader2 size={14} className="spin" aria-hidden="true" /> Reading folder…</div>}
           {!browseError && !loading && entries.length === 0 && <div className="empty">No subfolders here.</div>}
           {!browseError && !loading && entries.map((entry) => (
             <div key={entry.path} className="folder-picker-row">
               <button type="button" className="folder-picker-entry" onClick={() => void browse(entry.path)}>
-                {entry.has_memory_seed ? <FolderCheck size={15} className="folder-picker-marked" /> : <Folder size={15} />}
+                {entry.has_memory_seed ? <FolderCheck size={15} className="folder-picker-marked" aria-hidden="true" /> : <Folder size={15} aria-hidden="true" />}
                 <span>{entry.name}</span>
               </button>
               <button type="button" className="folder-picker-open-row" disabled={opening} onClick={() => void handleOpen(entry.path)}>
@@ -106,7 +119,7 @@ export function FolderPicker({ onClose, onOpened }: { onClose: () => void; onOpe
           ))}
         </div>
         {openIssues && (
-          <div className="folder-picker-issues">
+          <div className="folder-picker-issues" role="alert">
             <p>Can&rsquo;t open this folder:</p>
             <ul>{openIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul>
           </div>
