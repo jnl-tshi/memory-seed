@@ -132,9 +132,11 @@ and a human each hit it on the path they actually walk, cross-referencing rather
   for any branch/worktree work, sits beside the worktree-identity rules that share this failure mode,
   and the packet field it draws from is defined a few sections above.
 
-Deliberately **not** in `.memory-seed/agent-rules.md`: its ~260-line startup budget is documented as
-exactly full, and this is procedural detail, which by the repo's own skill-architecture rule belongs
-in a lazily loaded skill rather than the non-deferrable startup contract. Deliberately **not** in
+Deliberately **not** in `.memory-seed/agent-rules.md`: this is procedural detail, which by the repo's
+own skill-architecture rule belongs in a lazily loaded skill rather than the non-deferrable startup
+contract — true regardless of how much budget the file has. (The budget itself was raised 260 → 280 on
+2026-07-29 to give two other thin, high-consequence startup steps more weight; that headroom is spent,
+not available for procedural detail like this.) Deliberately **not** in
 `.memory-seed/policy.md` either, which is scoped to behavioral constraints only and has no seed twin,
 so a downstream user would never receive it.
 
