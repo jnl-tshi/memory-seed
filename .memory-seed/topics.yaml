@@ -148,7 +148,17 @@ topics:
     #
     # NOTE: that alias is now doubly wrong - `topic-vocabulary` is a canonical root as of
     # 2026-07-27, so `topics` reads as an alias for the graph while naming the thing next door.
-    aliases: [topics]
+    #
+    # `settings` is FLAGGED AS WRONG and deliberately left as an alias (2026-07-29). One entry
+    # ("Four spiral controls, reading in real units rather than slider positions") used it after
+    # `settings` was already PROPOSED AND DECLINED as a `panes` child below - no worker ever placed
+    # an entry there, so it was never earned as its own concept. Structural evidence (a graphify
+    # AST pass over memory-trace/client/src) puts `SettingsMenu.tsx` and `graphForces.ts` in the
+    # SAME community as `GraphWorkspace.tsx` - the entry is graph-physics tuning exposed through a
+    # Settings panel, not a settings concept in its own right, and it already links to a `graph`
+    # entry (the chain-spiral work it tunes). Resolving to `graph` fixes the one wrong use without
+    # reopening the `panes`-child ruling, which is about minting a NEW slug, not this.
+    aliases: [topics, settings]
   # The four below DID move from `graph` to `lifecycle-edges`, even though `graph` itself did not
   # move. They are all data-MODEL concepts - what an edge IS - and they were the evidence that
   # `graph`'s centre of gravity is the Seed side. Moving them is safe in a way moving `graph` was
@@ -377,6 +387,10 @@ topics:
   # equally floor-free, and NEITHER blind worker placed a single entry on either. A slug with no
   # precedent is one that gets applied wrongly the first time it is used. Add them when the corpus
   # asks for them, not before.
+  #
+  # This ruling still stands (2026-07-29): `settings` now resolves as an ALIAS on `graph` below,
+  # for the one entry that used it wrongly - that is fixing a wrong slug, not minting a new one, and
+  # does not reopen this decision.
   - slug: panes
     label: Panes
     description: Memory Trace UI panes. Use a specific pane when the work is in one; use this slug when it genuinely spans several.
