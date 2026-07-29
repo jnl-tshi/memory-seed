@@ -30,6 +30,7 @@ This file contains behavioral constraints only. Functional runbooks belong in `.
 - Prefer dry-run, preview, or targeted verification when available.
 - Prefer local deterministic behavior over hosted or vendor-specific assumptions.
 - Correct a published lifecycle edge (downgrade or remove) through an append-only `retracts:` block in a NEW sidecar block — never by editing the published block in place. `session merge-branch` refuses in-place edits to existing link sidecars (Invariant #2); do not bypass it. Machine-suggested edges (a link swarm) only suggest — the mechanical validator and a human approval gate every write.
+- General precedence rule across sidecar families (Constitution v1.6, 2026-07-26): a `derived` block may never *implicitly* override a `write-time` block on recency alone — it may only fill a gap. An explicit override requires a human-reviewed `retracts:` naming the block it supersedes. Provenance is recorded as **first-hand vs reconstructed** (who observed the fact directly), not human-vs-machine — every YAML topic/edge in this corpus is agent-chosen, so that axis was never the real distinction.
 - Before trusting a subagent's file reads, citations, or "this doesn't exist" claims for this repository, verify `pwd` and `git rev-parse HEAD` against the intended base commit — a pinned or frozen worktree can silently diverge from the live tree.
 
 ## File Ownership
