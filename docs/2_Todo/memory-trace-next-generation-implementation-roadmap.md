@@ -141,10 +141,10 @@ Exit:
 - Inspector docking, keyboard control, and responsive behaviour pass B0b workspace acceptance;
 - reading layout decision recorded.
 
-Implementation status (2026-07-16): exact `mse_` and legacy `ms-` entry-ID navigation, ranked search
-results, resilient shared selection, persisted Inspector docking, keyboard canvas controls, and responsive
-React workspace controls are implemented. Reader highlighting, evidence workspace, and Trail transition
-remain open, so this phase is not accepted yet.
+Implementation status (2026-07-30): exact `mse_` and legacy `ms-` entry-ID navigation, ranked search,
+resilient shared selection, persisted Inspector docking, keyboard canvas controls, responsive React workspace
+controls, and the M1 decision reader/evidence-return path are implemented. Trail transition remains open, so
+this phase is not accepted yet.
 
 ## 7. Phase 4 — Trail parity
 
