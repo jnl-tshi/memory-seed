@@ -1,0 +1,68 @@
+{
+  "valid": {
+    "schema": "memory-seed/retrieval-spec",
+    "version": 1,
+    "required": {
+      "constitution": true,
+      "related_decisions": {"depth": 2},
+      "evidence": {"mode": "latest"}
+    }
+  },
+  "unknown": {
+    "schema": "memory-seed/retrieval-spec",
+    "version": 1,
+    "required": {
+      "constitution": true,
+      "related_decisions": {"depth": 2},
+      "evidence": {"mode": "latest"}
+    },
+    "typo": true
+  },
+  "limits": {
+    "schema": "memory-seed/retrieval-spec",
+    "version": 1,
+    "required": {
+      "constitution": true,
+      "related_decisions": {"depth": 2},
+      "evidence": {"mode": "latest"}
+    },
+    "limits": {"max_entries": 101}
+  },
+  "numeric_version": {
+    "schema": "memory-seed/retrieval-spec",
+    "version": 1.0,
+    "required": {"constitution": true, "related_decisions": {"depth": 2}, "evidence": {"mode": "latest"}}
+  },
+  "missing_classification": {"required": "fail", "optional": "report"},
+  "deferred": {
+    "profile": {
+      "schema": "memory-seed/retrieval-spec",
+      "version": 1,
+      "required": {"constitution": true, "related_decisions": {"depth": 2}, "evidence": {"mode": "latest"}},
+      "profile": "implementation"
+    },
+    "adr": {
+      "schema": "memory-seed/retrieval-spec",
+      "version": 1,
+      "required": {"constitution": true, "related_decisions": {"depth": 2}, "related_adrs": {"status": ["accepted"]}, "evidence": {"mode": "latest"}}
+    },
+    "links": {
+      "schema": "memory-seed/retrieval-spec",
+      "version": 1,
+      "required": {"constitution": true, "related_decisions": {"depth": 2}, "evidence": {"mode": "latest"}},
+      "optional": {"links": {"kinds": ["evolves"]}}
+    },
+    "timeout": {
+      "schema": "memory-seed/retrieval-spec",
+      "version": 1,
+      "required": {"constitution": true, "related_decisions": {"depth": 2}, "evidence": {"mode": "latest"}},
+      "limits": {"timeout_ms": 5000}
+    },
+    "format": {
+      "schema": "memory-seed/retrieval-spec",
+      "version": 1,
+      "required": {"constitution": true, "related_decisions": {"depth": 2}, "evidence": {"mode": "latest"}},
+      "output": {"format": "evidence-pack"}
+    }
+  }
+}

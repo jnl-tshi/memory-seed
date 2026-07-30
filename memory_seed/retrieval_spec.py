@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping
+from pathlib import PureWindowsPath
 from typing import Any
 
 
@@ -100,7 +101,14 @@ def _string_list(value: Any, path: str, *, path_values: bool = False) -> list[st
         item_path = f"{path}[{index}]"
         if not isinstance(item, str) or not item.strip():
             _error(item_path, "must be a non-empty string")
-        if path_values and (item.startswith(("/", "\\")) or "\\" in item or ".." in item.split("/")):
+        windows_path = PureWindowsPath(item)
+        if path_values and (
+            item.startswith(("/", "\\"))
+            or "\\" in item
+            or windows_path.drive
+            or windows_path.is_absolute()
+            or ".." in item.split("/")
+        ):
             _error(item_path, "must be a runtime-relative POSIX path without parent traversal")
         result.append(item)
     if len(set(result)) != len(result):
@@ -121,7 +129,7 @@ def normalize_retrieval_spec(spec: Mapping[str, Any]) -> dict[str, Any]:
             _error(required_key, "is required")
     if spec["schema"] != SCHEMA:
         _error("schema", f"must equal {SCHEMA!r}")
-    if isinstance(spec["version"], bool) or spec["version"] != VERSION:
+    if type(spec["version"]) is not int or spec["version"] != VERSION:
         _error("version", f"must equal integer {VERSION}")
 
     required = _mapping(spec["required"], "required")
