@@ -46,3 +46,6 @@ memory-trace/tests/capture/*.gif
 .claude/worktrees/
 .gemini/worktrees/
 .cursor/worktrees/
+
+# Disposable Superpowers SDD task briefs, reports, and review packages.
+.superpowers/sdd/

@@ -108,7 +108,7 @@ untyped `related_entries` curation. The counts below are generated — hand-edit
 overwritten on the next `docs index` run.
 
 <!-- docs-index:begin -->
-Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 0 · 2_Todo 36 · 3_Spec 8 · 4_Reference 18 · 5_Completed 61 · 6_Rejected 0 · 7_Replaced 29 · 8_Deferred 4
+Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 0 · 2_Todo 37 · 3_Spec 8 · 4_Reference 18 · 5_Completed 61 · 6_Rejected 0 · 7_Replaced 29 · 8_Deferred 4
 
 Top open items (P0/P1 in `2_Todo/`):
 - **P1** [declarative-retrieval-specification-proposal.md](2_Todo/declarative-retrieval-specification-proposal.md) — Freeze the v1 slice and fixtures, then implement the shared resolver and MCP preview/resolve path.
@@ -120,4 +120,5 @@ Top open items (P0/P1 in `2_Todo/`):
 - **P1** [memory-trace-graph-visualisation-and-temporal-topology-proposal.md](2_Todo/memory-trace-graph-visualisation-and-temporal-topology-proposal.md) — —
 - **P1** [memory-trace-structural-graph-enrichment-provider-proposal.md](2_Todo/memory-trace-structural-graph-enrichment-provider-proposal.md) — —
 - **P1** [memory-trace-three-region-workspace-and-dockable-inspector-proposal.md](2_Todo/memory-trace-three-region-workspace-and-dockable-inspector-proposal.md) — —
+- **P1** [retrieval-specification-m0-m1-implementation-plan.md](2_Todo/retrieval-specification-m0-m1-implementation-plan.md) — Complete Task 1 schema and fixture acceptance, then deliver the Task 2 resolver/MCP vertical slice.
 <!-- docs-index:end -->

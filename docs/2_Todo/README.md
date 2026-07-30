@@ -12,6 +12,7 @@
 | [memory-trace-graph-visualisation-and-temporal-topology-proposal.md](memory-trace-graph-visualisation-and-temporal-topology-proposal.md) | P1 | — | promoted-to-todo |
 | [memory-trace-structural-graph-enrichment-provider-proposal.md](memory-trace-structural-graph-enrichment-provider-proposal.md) | P1 | — | promoted-to-todo |
 | [memory-trace-three-region-workspace-and-dockable-inspector-proposal.md](memory-trace-three-region-workspace-and-dockable-inspector-proposal.md) | P1 | — | promoted-to-todo |
+| [retrieval-specification-m0-m1-implementation-plan.md](retrieval-specification-m0-m1-implementation-plan.md) | P1 | — | Complete Task 1 schema and fixture acceptance, then deliver the Task 2 resolver/MCP vertical sl… |
 | [adjudication-queue.md](adjudication-queue.md) | P2 | — | JNL to rule each row; the rulings become the project's only validity ground truth. |
 | [document-lifecycle-system-plan.md](document-lifecycle-system-plan.md) | P2 | — | Phases 2-3 COMPLETE 2026-07-17: migration, `docs check` (also in esr + CI), and `docs index` (m… |
 | [hierarchical-topic-vocabulary-proposal.md](hierarchical-topic-vocabulary-proposal.md) | P2 | — | JNL to accept or reject. If accepted the order is - (1) `parent:` field + schema_version 2 + re… |
