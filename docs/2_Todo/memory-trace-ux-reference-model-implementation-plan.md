@@ -4,7 +4,7 @@ date: "2026-07-30"
 project: "memory-seed"
 status: "active"
 priority: "P1"
-next_action: "Implement M1 decision reader and evidence-return path against memory-trace-ux-m0-interaction-matrix.md."
+next_action: "Implement M2 Trail history orientation and filtering against memory-trace-ux-m0-interaction-matrix.md."
 source: "JNL-supplied UX reference model (2026-07-30); existing Memory Trace plans and specifications"
 ---
 
@@ -114,9 +114,18 @@ Exit criteria:
 - The roadmap, coverage matrix, and this plan agree on what is delivered versus only designed.
 
 Delivery: [`memory-trace-ux-m0-interaction-matrix.md`](memory-trace-ux-m0-interaction-matrix.md)
-freezes the shared terminology, named inputs, and fixture gaps. M1 is now the next actionable slice.
+freezes the shared terminology, named inputs, and fixture gaps. M1 shipped on 2026-07-30; M2 is now the next actionable slice.
 
 ### M1 — decision reader and evidence return path
+
+**Delivered 2026-07-30.** The Inspector now projects one selected `(entry_id, decision)` as a decision-first
+reader, preserves that identity while an in-place exact-Markdown evidence view is open, and returns to the
+saved Inspector scroll position without changing the Trail selection. It names Recorded, Derived, and
+Suggested state in text; derives typed lifecycle items from the existing Trail projection; and fails closed
+when an event has no canonical source anchor. No canonical field or write path was added.
+
+Delivery evidence: `memory-trace/client/src/EntryReader.tsx`, `App.tsx`, and
+`decisionReaderModel.test.ts`; 233 frontend tests, TypeScript typecheck, and production build passed.
 
 Build the inspector's decision-first reading mode around one stable decision identity. Present, in order:
 

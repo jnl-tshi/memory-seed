@@ -3,10 +3,11 @@ import { ChevronDown, ChevronUp, FolderOpen, GitBranch, LayoutPanelLeft, Network
 import { SettingsMenu, type GraphSettings, type InspectorDock, type Theme, type TrailStyle } from "./SettingsMenu";
 import { DEFAULT_FORCES, readForceSettings } from "./graphForces";
 import { api, DEFAULT_GRAPH_EDGE_TYPES, GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, SEARCH_LIMIT, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
-import { EntryReader, type DiagramSidecar } from "./EntryReader";
+import { EntryReader, type DiagramSidecar, type ReaderRelationship } from "./EntryReader";
 import { DiagramViewer, type DiagramBlock } from "./DiagramViewer";
 import { FolderPicker } from "./FolderPicker";
 import { readerScrollTarget } from "./inspectorScroll";
+import { readerInformationState, relationshipsForDecision } from "./decisionReaderModel";
 import { searchResultCursor, stepSearchCursor } from "./searchNavigation";
 import { genuineSearchResults } from "./searchResults";
 import { overviewCounts, overviewExhausted as overviewIsExhausted, type OverviewCounts } from "./graphOverview";
@@ -239,6 +240,11 @@ export default function App() {
   const [graph, setGraph] = useState<RendererGraphResponse | null>(null);
   const [selected, setSelected] = useState<RendererGraphNode | null>(null);
   const [chunk, setChunk] = useState<ChunkResponse | null>(null);
+  // An evidence view is a mode of the same selection, never a new route or
+  // fetch. Keeping it here lets Return restore the inspector position while
+  // preserving the Trail's selected `(entry_id, decision)` identity.
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
+  const evidenceReturnScroll = useRef(0);
   // Decision-diagram viewer. Held at App level rather than inside the Trail or
   // the reader because both surfaces open the same modal, and it must sit
   // above the whole workspace.
@@ -482,6 +488,7 @@ export default function App() {
   // Two-stage selection: clicking the already-selected entry mutes the focus
   // emphasis (pinned) without losing the selection; clicking again unmutes.
   const select = useCallback((node: RendererGraphNode, options: { preserveSearch?: boolean; preserveHint?: boolean } = {}) => {
+    setEvidenceOpen(false);
     setSelected((prior) => {
       if (prior?.id === node.id) { setSelectionMuted((muted) => !muted); return prior; }
       setSelectionMuted(false);
@@ -600,6 +607,25 @@ export default function App() {
     }
     return out;
   }, [selected?.source.entry_id, entryIndex, indexById]);
+
+  // The reader is stricter than the entry metadata: when a Trail decision row
+  // is active, show only relationships that terminate on THAT row. The entry
+  // anchor remains the reading identity for a normal one-decision entry.
+  const readerRelationships = useMemo<ReaderRelationship[]>(() => {
+    const entryId = selected?.source.entry_id;
+    if (!entryId) return [];
+    const activeId = matchHint?.entryId === entryId && matchHint.decisionChunkId
+      ? matchHint.decisionChunkId
+      : entryId;
+    return relationshipsForDecision(entryIndex?.edges ?? [], activeId, entryId).map((relationship) => ({
+      kind: relationship.kind,
+      entryId: relationship.entryId,
+      title: stripTitleStamp(indexById.get(relationship.otherId)?.title ?? indexById.get(relationship.entryId)?.title ?? relationship.otherId),
+      outgoing: relationship.outgoing,
+    }));
+  }, [selected?.source.entry_id, matchHint, entryIndex, indexById]);
+
+  const readerState = readerInformationState(selected?.authority_class, selected?.provenance_class);
   // "Links" must equal the lines the user can count on the map, so it counts the
   // RENDERED edges for this node under the current edge-type filter. The node's
   // `connectivity` is a different quantity - a related-only display weight that
@@ -937,6 +963,7 @@ export default function App() {
   // toggle the mute state instead of moving the decision focus. Only the
   // matchHint (reader scroll + Trail row highlight) changes.
   function selectFromTrail(entryId: string | null, chunkId: string, decision?: { heading: string }) {
+    setEvidenceOpen(false);
     const sameEntry = entryId != null && selected?.source.entry_id === entryId;
     if (sameEntry && decision) {
       if (matchHint?.decisionChunkId === chunkId) { setSelectionMuted((muted) => !muted); return; }
@@ -1203,6 +1230,28 @@ export default function App() {
   // the previous result must not highlight a same-named heading in this one.
   const matchHeading = matchHint && selected?.source.entry_id === matchHint.entryId ? matchHint.heading : null;
 
+  function openEvidence() {
+    evidenceReturnScroll.current = inspectorContent.current?.scrollTop ?? 0;
+    setEvidenceOpen(true);
+  }
+
+  function returnFromEvidence() {
+    setEvidenceOpen(false);
+    requestAnimationFrame(() => {
+      const container = inspectorContent.current;
+      if (!container) return;
+      container.scrollTop = evidenceReturnScroll.current;
+      container.querySelector<HTMLElement>("[data-decision-reader]")?.focus({ preventScroll: true });
+    });
+  }
+
+  function openSiblingDecision(heading: string) {
+    const entryId = selected?.source.entry_id;
+    if (!entryId) return;
+    const node = (effectiveTrail?.nodes ?? []).find((item) => item.entry_id === entryId && item.title === heading);
+    if (node) selectFromTrail(entryId, node.chunk_id, { heading });
+  }
+
   // What the Trail renders: with no topic active, the entry index IS the
   // topic-null Trail (identical request), so one full-corpus fetch serves the
   // timeline and every cross-corpus lookup; a topic filter is a genuinely
@@ -1462,7 +1511,7 @@ export default function App() {
             ))}
             <div className="meta-item meta-wide"><dt>Topics</dt><dd>{selected.source.topics.length ? <span className="meta-topics">{selected.source.topics.map((topic) => <span className="meta-topic" key={topic}>{topic}</span>)}</span> : "None"}</dd></div>
           </dl>
-          <EntryReader chunk={chunk} matchHeading={matchHeading} onOpenEntry={(entryId) => void openEntryInPlace(entryId)} onOpenFile={(path) => void openFileMode(path)} onOpenDiagram={(title, source) => setDiagramViewer({ title: title || chunk?.title || "Decision diagram", blocks: [{ title, source }] })} look={trailStyle.style} theme={theme} />
+          <EntryReader chunk={chunk} matchHeading={matchHeading} decisionHeading={matchHeading} relationships={readerRelationships} stateLabel={readerState} worktree={worktree} evidenceOpen={evidenceOpen} onOpenEntry={(entryId) => void openEntryInPlace(entryId)} onOpenDecision={openSiblingDecision} onOpenFile={(path) => void openFileMode(path)} onOpenEvidence={openEvidence} onReturnEvidence={returnFromEvidence} onOpenDiagram={(title, source) => setDiagramViewer({ title: title || chunk?.title || "Decision diagram", blocks: [{ title, source }] })} look={trailStyle.style} theme={theme} />
         </div>}
       </aside>}
       {diagramViewer && <DiagramViewer title={diagramViewer.title} blocks={diagramViewer.blocks} look={trailStyle.style} theme={theme} onClose={() => setDiagramViewer(null)} />}

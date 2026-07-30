@@ -3,6 +3,7 @@ import { ChevronRight } from "lucide-react";
 import type { ChunkResponse } from "./api";
 import { DiagramView } from "./DiagramView";
 import type { TraceLook } from "./mermaidConfig";
+import { decisionSections, evidenceAnchor, selectedDecision } from "./decisionReaderModel";
 
 // ChunkResponse.diagrams is typed as a generic record array in the OpenAPI
 // contract (the backend's sidecar dict has no schema of its own); this is the
@@ -13,6 +14,13 @@ export interface DiagramSidecar {
   title?: string | null;
   mermaid_blocks?: string[];
 }
+
+export type ReaderRelationship = {
+  kind: "replaces" | "evolves" | "related";
+  entryId: string;
+  title: string;
+  outgoing: boolean;
+};
 
 // Every entry body opens with a fenced YAML metadata block. Most of it is
 // either shown in the inspector's metadata grid or rarely needed, so it is
@@ -213,29 +221,69 @@ function fileTokens(text: string): string[] {
     .filter((token) => token.length > 1 && /[/\\]|\.\w{1,5}$/.test(token));
 }
 
-function lineRangeLabel(range: number[]): string {
-  if (range.length === 2 && (range[0] || range[1])) return `:${range[0]}-${range[1]}`;
-  return "";
-}
-
 export function EntryReader({
   chunk,
   matchHeading,
+  decisionHeading,
+  relationships,
+  stateLabel,
+  worktree,
+  evidenceOpen,
   onOpenEntry,
+  onOpenDecision,
   onOpenFile,
+  onOpenEvidence,
+  onReturnEvidence,
   onOpenDiagram,
   look,
   theme,
 }: {
   chunk: ChunkResponse | null;
   matchHeading: string | null;
+  decisionHeading: string | null;
+  relationships: ReaderRelationship[];
+  stateLabel: "Recorded" | "Derived" | "Suggested";
+  worktree: string | null;
+  evidenceOpen: boolean;
   onOpenEntry: (entryId: string) => void;
+  onOpenDecision: (heading: string) => void;
   onOpenFile: (path: string) => void;
+  onOpenEvidence: () => void;
+  onReturnEvidence: () => void;
   onOpenDiagram: (title: string | null, source: string) => void;
   look: TraceLook;
   theme: string;
 }) {
   if (!chunk) return <p className="reader-empty">Loading entry details</p>;
+
+  const sourceAnchor = evidenceAnchor(chunk.path, chunk.line_range);
+  const decisions = decisionSections(chunk.text || chunk.excerpt || "");
+  const activeDecision = selectedDecision(decisions, decisionHeading);
+
+  // Evidence is an in-place reader mode rather than a route change. The App
+  // keeps the selected `(entry_id, decision)` and the inspector scroll snapshot,
+  // so Return restores the Trail context instead of re-running selection.
+  if (evidenceOpen) {
+    return (
+      <div className="reader evidence-reader" data-reader-mode="evidence">
+        <section className="detail-section evidence-source" aria-labelledby="evidence-source-title">
+          <div className="reader-return-row">
+            <button type="button" className="reader-return" onClick={onReturnEvidence} autoFocus>
+              Return to decision
+            </button>
+            <span className="state-badge recorded">Recorded source</span>
+          </div>
+          <h4 id="evidence-source-title">Exact Markdown evidence</h4>
+          {sourceAnchor.available ? (
+            <p className="evidence-path"><code>{sourceAnchor.label}</code></p>
+          ) : (
+            <p className="missing-source" role="status">{sourceAnchor.label}. No excerpt or generated replacement is shown.</p>
+          )}
+          {sourceAnchor.available && <pre className="raw-markdown"><code>{chunk.text || chunk.excerpt || "No source excerpt was returned."}</code></pre>}
+        </section>
+      </div>
+    );
+  }
 
   const linkGroups: Array<[string, string[]]> = (
     [
@@ -254,6 +302,47 @@ export function EntryReader({
 
   return (
     <div className="reader">
+      {activeDecision && (
+        <section className="decision-focus" data-decision-reader tabIndex={-1} aria-labelledby="active-decision-title">
+          <div className="decision-focus-kicker">
+            <span className={`state-badge ${stateLabel.toLowerCase()}`}>{stateLabel}</span>
+            {activeDecision.ordinal && <span className="count">{activeDecision.ordinal.toUpperCase()}</span>}
+            {worktree && <span className="count" title={worktree}>Worktree · {worktree.split(/[\\/]/).filter(Boolean).pop()}</span>}
+          </div>
+          <h3 id="active-decision-title">{activeDecision.title}</h3>
+          {activeDecision.text ? <div className="markdown decision-body">{renderMarkdown(activeDecision.text, null, onOpenFile)}</div> : <p className="reader-empty">No decision body was recorded.</p>}
+          {decisions.length > 1 && (
+            <div className="decision-siblings">
+              <span className="count">Other decisions in this entry</span>
+              {decisions.map((decision) => (
+                <button
+                  key={decision.heading}
+                  type="button"
+                  className="decision-sibling"
+                  aria-current={decision.heading === activeDecision.heading ? "true" : undefined}
+                  disabled={decision.heading === activeDecision.heading}
+                  onClick={() => onOpenDecision(decision.heading)}
+                >
+                  {decision.ordinal?.toUpperCase() ?? "Decision"} · {decision.title}
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {relationships.length > 0 && (
+        <section className="detail-section reader-lifecycle">
+          <h4>Lifecycle <span className="count">Derived from typed links</span></h4>
+          {relationships.map((relationship) => (
+            <button key={`${relationship.kind}-${relationship.entryId}`} type="button" className="link-card" onClick={() => onOpenEntry(relationship.entryId)}>
+              <span>{relationship.kind} {relationship.outgoing ? "→" : "←"} {relationship.title}</span>
+              <small className="count">Derived · typed relationship projection</small>
+            </button>
+          ))}
+        </section>
+      )}
+
       {chunk.sections.length > 0 && (
         <div className="chip-list">
           {chunk.sections.map((section) => (
@@ -264,26 +353,29 @@ export function EntryReader({
         </div>
       )}
 
-      <div className="markdown">{renderMarkdown(chunk.text || chunk.excerpt || "", matchHeading, onOpenFile)}</div>
+      <section className="detail-section session-context">
+        <h4>Session context <span className="count">Recorded entry</span></h4>
+        <div className="markdown">{renderMarkdown(chunk.text || chunk.excerpt || "", matchHeading, onOpenFile)}</div>
+      </section>
 
-      {(commit || chunk.path) && (
-        <section className="detail-section">
-          <h4>Evidence</h4>
-          {commit && (
-            <div className="commit-card">
-              <code>{commit.short}</code>
-              <span>{commit.subject}</span>
-              <small className="count">{commit.date}</small>
-            </div>
-          )}
-          {chunk.path && (
-            <div className="count evidence-path">
-              {chunk.path}
-              {lineRangeLabel(chunk.line_range ?? [])}
-            </div>
-          )}
-        </section>
-      )}
+      <section className="detail-section">
+        <h4>Evidence</h4>
+        {commit && (
+          <div className="commit-card">
+            <code>{commit.short}</code>
+            <span>{commit.subject}</span>
+            <small className="count">{commit.date}</small>
+          </div>
+        )}
+        {sourceAnchor.available ? (
+          <button type="button" className="evidence-link" onClick={onOpenEvidence}>
+            <span>{sourceAnchor.label}</span>
+            <small>Open exact Markdown and return here</small>
+          </button>
+        ) : (
+          <p className="missing-source" role="status">{sourceAnchor.label}. This reader will not manufacture a summary.</p>
+        )}
+      </section>
 
       {linkGroups.length > 0 && (
         <section className="detail-section">
@@ -356,7 +448,7 @@ export function EntryReader({
         </section>
       )}
 
-      {!chunk.text && !linkGroups.length && !commit && (
+      {!chunk.text && !linkGroups.length && !commit && !activeDecision && (
         <Fragment>
           <p className="reader-empty">No further detail recorded for this entry.</p>
         </Fragment>
