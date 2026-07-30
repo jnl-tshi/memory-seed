@@ -1,13 +1,17 @@
 ---
 priority: P2
-next_action: ACCEPTED 2026-07-26 by JNL. Build in order — (1) block format + `source` provenance field, (2) sidecar-first write ordering, (3) flip `session append`/`memory_session_append` to fold into the sidecar, (4) branch-scoped swarm sweep. The sweep is worthless until there is a single place for it to compare against. Step 4's weighting depends on the pilot-adjudication outcome; steps 1–3 do not.
+next_action: M1 topics-and-links transaction is in progress on `codex/feature/decision-sidecar-transaction`; extend the now-staged writer to diagrams, then ADR lenses and parsed fusion fixtures.
 ---
 
-# Write-time consolidation: topics and links live in the sidecar
+# Decision-sidecar transaction: write-time semantic records live in their sidecars
 
 Status: **ACCEPTED 2026-07-26 by JNL** (raised the same day). The conversation started from "all links
 should live in the link sidecar" and arrived somewhere better by separating *where the author writes*
 from *where the data lives*.
+
+> **M0 completed 2026-07-30; M1 topics-and-links writer started.** The accepted change is expanded into a single
+> `DecisionSidecarEnvelope` transaction. It writes an immutable entry narrative plus decision-keyed topic,
+> link, diagram, and (when warranted) ADR records; it is core tooling, not a skill or a closing checklist.
 
 **Constitution v1.6** was ratified alongside this acceptance and supplies its governing clause:
 provenance is **first-hand vs reconstructed, not human vs machine**, and must be *declared on the
@@ -37,11 +41,13 @@ validated, is empty. So consolidating topics does not remove a split — it prev
 
 ## The design
 
-**Authoring does not change. Storage does.**
+**The agent has one write operation. Storage has one owner per data type.**
 
-An agent still passes `--topics` / `--related` / `--replaces` / `--evolves` to the same gated tool.
-That tool, as part of its run, folds those values into the entry's **sidecar block** instead of the
-entry's YAML. One surface to write through; one place the data lives.
+An agent sends one decision-keyed payload to the gated MCP/CLI writer after using Task/Context Packets and
+MCP retrieval to inspect the work and relevant history. The shared core mints the entry id, validates the
+complete request, and writes the entry narrative plus topic, link, diagram, and (when warranted) ADR records.
+New semantic data belongs in the respective sidecar; entry-YAML topic/link fields remain legacy-read
+compatibility during migration.
 
 This matters because the two things were being conflated. Every objection raised against
 "consolidate into the sidecar" was really an objection to *changing how authors work* — a separate
@@ -54,6 +60,21 @@ What survives unchanged:
   (Invariant #2, v1.3) is untouched.
 - **`dry_run`** still returns the byte-exact block a real call would append.
 - **Append-only.** A sidecar block is appended, never rewritten.
+
+### M0: DecisionSidecarEnvelope v1
+
+The envelope is a core-tooling request, not a skill or a closing checklist. For each addressable decision it
+can carry an area/activity attribution, typed lifecycle assertions, optional Mermaid diagrams, and an ADR
+disposition. It returns a dry-run artifact manifest and, after a real write, a receipt naming every Markdown
+artifact produced.
+
+The ADR is a high-signal design-thread lens: it holds the thread's current governing decision and its curated
+direct predecessors. This does not give ADRs a second lifecycle-edge authority. Every predecessor must cite a
+link-sidecar assertion, whose `evolves` or `replaces` meaning remains canonical in the link ledger. A
+write-time agent may promote a genuinely architectural decision; a swarm may only propose ADR action.
+
+The full request, authority table, recovery protocol, branch-fusion rules, and golden fixtures are frozen in
+[`decision-sidecar-envelope-contract.md`](../3_Spec/draft/decision-sidecar-envelope-contract.md).
 
 ### Provenance becomes explicit rather than positional
 
@@ -195,6 +216,10 @@ another and gives it **exactly one** owner, which is closer to #6's letter than 
 ## Build order
 
 The sequence matters, because a sweep is worthless until there is a single place to compare against.
+
+**M0 (in progress):** freeze the DecisionSidecarEnvelope v1 contract and fixtures first. It defines
+decision-keyed payloads, per-type ownership, non-authoritative crash recovery, ADR design-thread lineage,
+and parsed append-only branch fusion before a writer or merge path changes.
 
 1. **Block format + `source` provenance field**, in both the link and topic sidecar contracts —
    **plus a retract-shaped construct for topics**, which today have none (links already have

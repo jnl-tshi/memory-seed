@@ -1,0 +1,11 @@
+base_entries: [mse_base]
+branches:
+  - entry_id: mse_a
+    timestamp: 2026-07-30 10:01
+    decision: d1
+  - entry_id: mse_b
+    timestamp: 2026-07-30 10:02
+    decision: d1
+expected:
+  result: accept
+  canonical_order: [mse_a:d1, mse_b:d1]

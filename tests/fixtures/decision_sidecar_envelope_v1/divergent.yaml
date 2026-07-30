@@ -1,0 +1,6 @@
+records:
+  - identity: topic:mse_current:d1:write-time
+    content: {area: seed-core, activity: feature-build}
+  - identity: topic:mse_current:d1:write-time
+    content: {area: memory-trace, activity: feature-build}
+expected: reject-divergent-identity

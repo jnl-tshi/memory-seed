@@ -360,6 +360,11 @@ def main(argv: list[str] | None = None) -> int:
     session_append_parser.add_argument("--agent-type", required=True, help="agent_type field, e.g. claude")
     session_append_parser.add_argument("--agent-name", default=None, help="agent_name field (default: null)")
     session_append_parser.add_argument("--topics", default="", help="comma-separated controlled-vocabulary slugs or aliases")
+    session_append_parser.add_argument(
+        "--decisions-file",
+        default=None,
+        help="JSON list of decision-sidecar objects; mutually exclusive with --topics/--related/--replaces/--evolves",
+    )
     # Repeatable (one ref per flag) AND comma-separated (legacy form), because
     # grammar v2 puts commas INSIDE a ref (`mse_x:d1,d4`) - see _ref_list.
     session_append_parser.add_argument(
@@ -1144,6 +1149,17 @@ def main(argv: list[str] | None = None) -> int:
             if not body.strip():
                 print("Entry body is empty (pass --body-file or pipe the D/R/A/F/T prose on stdin).", file=sys.stderr)
                 return 1
+            decisions: list[dict] = []
+            if args.decisions_file:
+                try:
+                    decoded = json.loads(Path(args.decisions_file).read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError) as exc:
+                    print(f"Could not read --decisions-file as JSON: {exc}", file=sys.stderr)
+                    return 1
+                if not isinstance(decoded, list):
+                    print("--decisions-file must contain a JSON list of decision objects.", file=sys.stderr)
+                    return 1
+                decisions = decoded
 
             def _csv(raw: str) -> tuple[str, ...]:
                 return tuple(item.strip() for item in raw.split(",") if item.strip())
@@ -1182,6 +1198,7 @@ def main(argv: list[str] | None = None) -> int:
                 related_entries=_ref_list(args.related),
                 replaces=_ref_list(args.replaces),
                 evolves=_ref_list(args.evolves),
+                decisions=decisions,
                 project_path=args.project_path,
                 subproject_path=args.subproject_path,
                 branch=args.branch,

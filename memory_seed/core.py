@@ -11,7 +11,7 @@ import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Iterator, Literal, Sequence
+from typing import Any, Callable, Iterator, Literal, Mapping, Sequence
 
 from .text_files import (
     read_json_file,
@@ -3102,6 +3102,186 @@ class SessionAppendResult:
     # confirms itself with id/path, and echoing the body back would just bloat
     # every payload with text the caller sent in.
     rendered: str | None = None
+    # Semantic fields authored through the decision envelope live in their
+    # respective sidecars.  A successful write returns the durable receipt;
+    # a dry run additionally returns the exact sidecar blocks for inspection.
+    sidecar_paths: tuple[Path, ...] = ()
+    rendered_sidecars: dict[str, str] | None = None
+    journal_path: Path | None = None
+
+
+@dataclass(frozen=True)
+class _DecisionSidecarWrite:
+    """Validated, decision-scoped payload ready for sidecar rendering."""
+
+    decision: str
+    topics: tuple[str, ...]
+    related_entries: tuple[str, ...]
+    replaces: tuple[str, ...]
+    evolves: tuple[str, ...]
+
+
+def _normalise_decision_sidecars(
+    decisions: Sequence[Mapping[str, Any]],
+    *,
+    own_ordinals: set[str],
+    topic_resolution: Mapping[str, str],
+    topic_axes: Mapping[str, str],
+) -> tuple[list[_DecisionSidecarWrite], list[str]]:
+    """Turn the v1 decision envelope into existing sidecar grammar.
+
+    The public envelope is deliberately ergonomic (``area``/``activity`` and
+    a decision-local link map); durable sidecars retain their established
+    grammar.  This keeps all current link/topic readers, validators and fuse
+    code authoritative instead of teaching each one a second representation.
+    """
+    issues: list[str] = []
+    normalised: list[_DecisionSidecarWrite] = []
+    seen_decisions: set[str] = set()
+    allowed_link_keys = {"related_entries", "replaces", "evolves"}
+
+    for index, raw in enumerate(decisions, start=1):
+        if not isinstance(raw, Mapping):
+            issues.append(f"decisions[{index}] must be an object")
+            continue
+        decision = raw.get("decision")
+        if not isinstance(decision, str) or not decision:
+            issues.append(f"decisions[{index}].decision must name a body ordinal such as 'd1'")
+            continue
+        if decision not in own_ordinals:
+            available = ", ".join(sorted(own_ordinals, key=lambda item: int(item[1:]))) or "none"
+            issues.append(f"decisions[{index}].decision '{decision}' is not recorded in the body (available: {available})")
+            continue
+        if decision in seen_decisions:
+            issues.append(f"decisions[{index}].decision '{decision}' appears more than once")
+            continue
+        seen_decisions.add(decision)
+
+        raw_topics = raw.get("topics", {})
+        if raw_topics is None:
+            raw_topics = {}
+        if not isinstance(raw_topics, Mapping):
+            issues.append(f"decisions[{index}].topics must be an object with optional area and activity")
+            raw_topics = {}
+        unknown_topic_keys = set(raw_topics) - {"area", "activity", "source"}
+        if unknown_topic_keys:
+            issues.append(
+                f"decisions[{index}].topics has unsupported field(s): {', '.join(sorted(str(key) for key in unknown_topic_keys))}"
+            )
+        source = raw_topics.get("source")
+        if source is not None and source != "write-time":
+            issues.append(f"decisions[{index}].topics.source must be 'write-time' when supplied")
+
+        raw_area = raw_topics.get("area")
+        if raw_area is not None and not isinstance(raw_area, str):
+            issues.append(f"decisions[{index}].topics.area must be one controlled-vocabulary slug")
+        raw_activity = raw_topics.get("activity")
+        if raw_activity is None:
+            activity_values: list[str] = []
+        elif isinstance(raw_activity, str):
+            activity_values = [raw_activity]
+        elif isinstance(raw_activity, Sequence) and not isinstance(raw_activity, (str, bytes)) and all(
+            isinstance(value, str) for value in raw_activity
+        ):
+            activity_values = list(raw_activity)
+        else:
+            issues.append(f"decisions[{index}].topics.activity must be a slug or a list of slugs")
+            activity_values = []
+        raw_topic_values = ([raw_area] if isinstance(raw_area, str) else []) + activity_values
+        canonical_topics: list[str] = []
+        for slug in raw_topic_values:
+            canonical = topic_resolution.get(slug)
+            if canonical is None:
+                issues.append(f"decisions[{index}].topics -> unknown topic '{slug}' (not a canonical slug or alias in topics.yaml)")
+            elif canonical not in canonical_topics:
+                canonical_topics.append(canonical)
+        if isinstance(raw_area, str):
+            canonical_area = topic_resolution.get(raw_area)
+            if canonical_area and topic_axes and topic_axes.get(canonical_area) != "area":
+                issues.append(
+                    f"decisions[{index}].topics.area '{raw_area}' is not an area topic in topics.yaml"
+                )
+        for activity in activity_values:
+            canonical_activity = topic_resolution.get(activity)
+            if canonical_activity and topic_axes and topic_axes.get(canonical_activity) != "activity":
+                issues.append(
+                    f"decisions[{index}].topics.activity '{activity}' is not an activity topic in topics.yaml"
+                )
+        if len(canonical_topics) > MAX_TOPICS_PER_DECISION:
+            issues.append(
+                f"decisions[{index}] ({decision}) carries {len(canonical_topics)} topics; at most {MAX_TOPICS_PER_DECISION}"
+            )
+
+        raw_links = raw.get("links", {})
+        if raw_links is None:
+            raw_links = {}
+        if not isinstance(raw_links, Mapping):
+            issues.append(f"decisions[{index}].links must be an object")
+            raw_links = {}
+        unknown_link_keys = set(raw_links) - allowed_link_keys
+        if unknown_link_keys:
+            issues.append(
+                f"decisions[{index}].links has unsupported field(s): {', '.join(sorted(str(key) for key in unknown_link_keys))}"
+            )
+
+        rendered_links: dict[str, tuple[str, ...]] = {}
+        for kind in sorted(allowed_link_keys):
+            raw_refs = raw_links.get(kind, [])
+            if raw_refs is None:
+                raw_refs = []
+            if not isinstance(raw_refs, Sequence) or isinstance(raw_refs, (str, bytes)) or not all(
+                isinstance(value, str) and value.strip() for value in raw_refs
+            ):
+                issues.append(f"decisions[{index}].links.{kind} must be a list of non-empty references")
+                raw_refs = []
+            refs: list[str] = []
+            for ref in raw_refs:
+                if "->" in ref:
+                    issues.append(
+                        f"decisions[{index}].links.{kind} must omit the source prefix; decision '{decision}' supplies it"
+                    )
+                    continue
+                refs.append(f"{decision} -> {ref}")
+            rendered_links[kind] = tuple(refs)
+
+        normalised.append(
+            _DecisionSidecarWrite(
+                decision=decision,
+                topics=tuple(canonical_topics),
+                related_entries=rendered_links["related_entries"],
+                replaces=rendered_links["replaces"],
+                evolves=rendered_links["evolves"],
+            )
+        )
+    return normalised, issues
+
+
+def _decision_sidecar_journal_path(runtime: Runtime, entry_id: str) -> Path:
+    """Local, non-authoritative staging record for a composite write."""
+    return runtime.memory_dir / "transactions" / "decision-sidecar" / f"{entry_id}.json"
+
+
+def _decision_sidecar_journal(
+    *,
+    entry_id: str,
+    timestamp: str,
+    entry_path: Path,
+    rendered_entry: str,
+    sidecar_paths: Mapping[str, Path],
+    rendered_sidecars: Mapping[str, str],
+) -> dict[str, Any]:
+    """The exact plan a retry may finish, never a source of memory truth."""
+    return {
+        "schema_version": 1,
+        "status": "pending",
+        "entry_id": entry_id,
+        "timestamp": timestamp,
+        "entry": {"path": str(entry_path), "rendered": rendered_entry},
+        "sidecars": {
+            kind: {"path": str(path), "rendered": rendered_sidecars[kind]}
+            for kind, path in sidecar_paths.items()
+        },
+    }
 
 
 def session_append_entry(
@@ -3116,6 +3296,7 @@ def session_append_entry(
     related_entries: Sequence[str] = (),
     replaces: Sequence[str] = (),
     evolves: Sequence[str] = (),
+    decisions: Sequence[Mapping[str, Any]] = (),
     project_path: str = ".",
     subproject_path: str | None = None,
     branch: str | None = None,
@@ -3211,14 +3392,79 @@ def session_append_entry(
                     _corpus_ordinals.setdefault(seen_id, set()).add(ordinal)
         return _corpus_ordinals
 
+    # The entry's own decisions come from the body being appended.  Both the
+    # decision envelope and legacy lifecycle grammar validate against them.
+    own_ordinals = set(_entry_decision_ordinals(body))
+    own_listed = ",".join(sorted(own_ordinals, key=lambda o: int(o[1:])))
+
+    # Decision envelopes are the new write-time authority for semantic fields.
+    # Keeping them mutually exclusive with the legacy entry-YAML parameters
+    # prevents one write from publishing two competing homes for an edge or
+    # topic while leaving older CLI/API callers fully compatible.
+    if decisions and any((topics, related_entries, replaces, evolves)):
+        issues.append(
+            "decisions cannot be combined with legacy topics/related_entries/replaces/evolves; "
+            "semantic fields must have one sidecar authority"
+        )
+
+    canonical_topics: list[str] = []
+    topic_resolution: Mapping[str, str] = {}
+    topic_axes: Mapping[str, str] = {}
+    has_decision_topics = any(
+        isinstance(decision, Mapping) and bool(decision.get("topics")) for decision in decisions
+    ) if isinstance(decisions, Sequence) and not isinstance(decisions, (str, bytes)) else False
+    if topics or has_decision_topics:
+        from .topics import load_topic_index
+
+        index = load_topic_index(cwd)
+        topic_resolution = index.resolution()
+        topic_axes = {
+            slug: index.axis_of(slug)
+            for slug in set(topic_resolution.values())
+        }
+        # Projects with a v1 vocabulary deliberately have no axis enforcement;
+        # topic membership is still valid during that migration state.
+        if not any(topic_axes.values()):
+            topic_axes = {}
+        if not topic_resolution:
+            issues.append("topics given but no controlled vocabulary exists (.memory-seed/topics.yaml)")
+        else:
+            for topic in topics:
+                slug = topic_resolution.get(topic)
+                if slug is None:
+                    issues.append(f"unknown topic '{topic}' (not a canonical slug or alias in topics.yaml)")
+                elif slug not in canonical_topics:
+                    canonical_topics.append(slug)
+
+    decision_writes: list[_DecisionSidecarWrite] = []
+    if decisions:
+        if not isinstance(decisions, Sequence) or isinstance(decisions, (str, bytes)):
+            issues.append("decisions must be a list of decision objects")
+        else:
+            decision_writes, decision_issues = _normalise_decision_sidecars(
+                decisions,
+                own_ordinals=own_ordinals,
+                topic_resolution=topic_resolution,
+                topic_axes=topic_axes,
+            )
+            issues.extend(decision_issues)
+
+    sidecar_related_entries = [
+        ref for decision in decision_writes for ref in decision.related_entries
+    ]
+    sidecar_replaces = [ref for decision in decision_writes for ref in decision.replaces]
+    sidecar_evolves = [ref for decision in decision_writes for ref in decision.evolves]
+
     # The granularity mandate (JNL 2026-07-24) is HARD here, unlike the
     # links-check advisory: this is the one moment the ref is still unwritten,
     # so demanding precision costs a keystroke now instead of a permanent gap.
-    # The entry's own decisions come from the body being appended - when it
-    # has two or more, every lifecycle ref must say which decision authors it.
-    own_ordinals = set(_entry_decision_ordinals(body))
-    own_listed = ",".join(sorted(own_ordinals, key=lambda o: int(o[1:])))
-    for kind, refs in (("related_entries", related_entries), ("replaces", replaces), ("evolves", evolves)):
+    # When it has two or more, every lifecycle ref must say which decision
+    # authors it.
+    for kind, refs in (
+        ("related_entries", [*related_entries, *sidecar_related_entries]),
+        ("replaces", [*replaces, *sidecar_replaces]),
+        ("evolves", [*evolves, *sidecar_evolves]),
+    ):
         for ref in refs:
             parsed_items = _parse_list_ref_multi(ref)
             first = parsed_items[0]
@@ -3277,22 +3523,6 @@ def session_append_entry(
                     f"prefix which one authors the edge - 'dN -> {ref}'"
                 )
 
-    canonical_topics: list[str] = []
-    if topics:
-        from .topics import load_topic_index
-
-        index = load_topic_index(cwd)
-        resolution = index.resolution()
-        if not resolution:
-            issues.append("topics given but no controlled vocabulary exists (.memory-seed/topics.yaml)")
-        else:
-            for topic in topics:
-                slug = resolution.get(topic)
-                if slug is None:
-                    issues.append(f"unknown topic '{topic}' (not a canonical slug or alias in topics.yaml)")
-                elif slug not in canonical_topics:
-                    canonical_topics.append(slug)
-
     entry_id = generate_session_entry_id(
         timestamp=ts,
         title=title,
@@ -3301,11 +3531,7 @@ def session_append_entry(
         project_path=project_path,
         subproject_path=subproject_path,
     )
-    if entry_id in known:
-        issues.append(
-            f"generated id {entry_id} already exists - identical metadata (timestamp/title/initials/agent/paths); "
-            "this looks like a double-append"
-        )
+    entry_already_exists = entry_id in known
 
     resolved_branch = branch
     if resolved_branch is None and auto_branch:
@@ -3316,9 +3542,6 @@ def session_append_entry(
     # multi-decision shape). The message names the fix; see session_logging.md.
     for issue in entry_body_format_issues(body):
         issues.append(f"body format: {issue}")
-
-    if issues:
-        return SessionAppendResult(ok=False, path=target.path, timestamp=ts, issues=tuple(issues))
 
     yaml_lines = [
         f"entry_id: {entry_id}",
@@ -3343,22 +3566,190 @@ def session_append_entry(
     block = "\n".join(
         [f"## {ts} - {title}", "", "```yaml", *yaml_lines, "```", "", body.strip(), ""]
     )
+    rendered_sidecars: dict[str, str] = {}
+    topic_tokens = [
+        f"{slug}:{decision.decision}"
+        for decision in decision_writes
+        for slug in decision.topics
+    ]
+    if topic_tokens:
+        rendered_sidecars["topics"] = "\n".join(
+            [
+                f"## {ts} - {title}",
+                "",
+                "```yaml",
+                f"entry_id: {entry_id}",
+                "source: write-time",
+                "topics:",
+                *(f"  - {token}" for token in topic_tokens),
+                "```",
+                "",
+            ]
+        )
+    sidecar_link_values = {
+        "related_entries": sidecar_related_entries,
+        "replaces": sidecar_replaces,
+        "evolves": sidecar_evolves,
+    }
+    if any(sidecar_link_values.values()):
+        link_lines = [f"## {ts} - {title}", "", "```yaml", f"entry_id: {entry_id}", "source: write-time"]
+        for key, values in sidecar_link_values.items():
+            if values:
+                link_lines.append(f"{key}:")
+                link_lines.extend(f"  - {value}" for value in values)
+        rendered_sidecars["links"] = "\n".join([*link_lines, "```", ""])
+
+    sidecar_paths: dict[str, Path] = {}
+    if "topics" in rendered_sidecars:
+        sidecar_paths["topics"] = runtime.workspace_root / _topic_target_relative_path(date_part)
+    if "links" in rendered_sidecars:
+        sidecar_paths["links"] = runtime.workspace_root / _link_target_relative_path(date_part)
+    journal_path = _decision_sidecar_journal_path(runtime, entry_id) if sidecar_paths else None
+    journal = _decision_sidecar_journal(
+        entry_id=entry_id,
+        timestamp=ts,
+        entry_path=target.path,
+        rendered_entry=block,
+        sidecar_paths=sidecar_paths,
+        rendered_sidecars=rendered_sidecars,
+    ) if journal_path else None
+
+    # A pending transaction is the sole exception to the ordinary duplicate-id
+    # refusal: it may finish only the exact entry and sidecar bytes it staged
+    # before an interruption.  This is deliberately checked before the normal
+    # write path, because an interruption after publishing the entry otherwise
+    # makes the duplicate guard prevent the receipt from ever completing.
+    recovering = False
+    if journal_path is not None and journal is not None and journal_path.exists():
+        try:
+            existing_journal = read_json_file(journal_path)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            issues.append(f"cannot recover decision-sidecar journal {journal_path}: {exc}")
+        else:
+            if not isinstance(existing_journal, dict) or existing_journal.get("status") != "pending":
+                issues.append(f"decision-sidecar journal {journal_path} is not a recoverable pending transaction")
+            else:
+                comparable = {key: value for key, value in existing_journal.items() if key != "status"}
+                expected = {key: value for key, value in journal.items() if key != "status"}
+                if comparable != expected:
+                    issues.append(
+                        f"pending decision-sidecar journal {journal_path} conflicts with this write; refusing to mix transactions"
+                    )
+                else:
+                    recovering = True
+
+    if entry_already_exists:
+        if not recovering:
+            issues.append(
+                f"generated id {entry_id} already exists - identical metadata (timestamp/title/initials/agent/paths); "
+                "this looks like a double-append"
+            )
+        else:
+            existing_entry = read_text_file(target.path) if target.path.exists() else ""
+            if block.rstrip() not in existing_entry:
+                issues.append(
+                    f"pending decision-sidecar journal {journal_path} names an existing id but not its exact staged entry; "
+                    "refusing to duplicate or overwrite history"
+                )
+
+    if issues:
+        return SessionAppendResult(ok=False, path=target.path, timestamp=ts, issues=tuple(issues))
+
     # Every guard has passed and the block is assembled. A dry run stops here
     # with the exact bytes a real call would append - still short of the only
     # write in this function, and short of the create=True re-resolution below,
     # so it cannot bring a file into being. Seeing the final output before
     # committing to the write is the point of the dummy pass.
     if dry_run:
-        return SessionAppendResult(ok=True, path=target.path, entry_id=entry_id, timestamp=ts, written=False, rendered=block)
+        return SessionAppendResult(
+            ok=True,
+            path=target.path,
+            entry_id=entry_id,
+            timestamp=ts,
+            written=False,
+            rendered=block,
+            sidecar_paths=tuple(sidecar_paths.values()),
+            rendered_sidecars=rendered_sidecars or None,
+            journal_path=journal_path,
+        )
+
+    # Sidecars are the semantic source of truth, so publish them before the
+    # entry that makes their parent visible. The journal is staged first, so a
+    # retry can finish the exact plan without duplicating published blocks.
+    if journal_path is not None and journal is not None:
+        if not journal_path.exists():
+            write_json_file(journal_path, journal)
+    if "topics" in rendered_sidecars:
+        topic_path = sidecar_paths["topics"]
+        existing_topics = read_text_file(topic_path) if topic_path.exists() else ""
+        if rendered_sidecars["topics"].rstrip() not in existing_topics:
+            topic_records = _split_topic_sidecar_records(
+                existing_topics,
+                source_path=_topic_target_relative_path(date_part),
+                topic_date=date_part,
+            )
+            topic_records.append(
+                _TopicSidecarRecord(
+                    text=rendered_sidecars["topics"],
+                    entry_id=entry_id,
+                    timestamp=ts,
+                    topic_date=date_part,
+                    source_path=_topic_target_relative_path(date_part),
+                    target_path=_topic_target_relative_path(date_part),
+                )
+            )
+            _write_chronological_topic_sidecar_file(topic_path, date_part, topic_records)
+    if "links" in rendered_sidecars:
+        link_path = sidecar_paths["links"]
+        existing_links = read_text_file(link_path) if link_path.exists() else ""
+        if rendered_sidecars["links"].rstrip() not in existing_links:
+            link_records = _split_link_sidecar_records(
+                existing_links,
+                source_path=_link_target_relative_path(date_part),
+                link_date=date_part,
+            )
+            link_records.append(
+                _LinkSidecarRecord(
+                    text=rendered_sidecars["links"],
+                    entry_id=entry_id,
+                    timestamp=ts,
+                    link_date=date_part,
+                    source_path=_link_target_relative_path(date_part),
+                    target_path=_link_target_relative_path(date_part),
+                )
+            )
+            _write_chronological_link_sidecar_file(link_path, date_part, link_records)
 
     target = session_target(cwd, date_str=date_part, explicit_user=explicit_user, create=True)
     existing = read_text_file(target.path) if target.path.exists() else ""
-    if existing.strip():
-        new_text = existing.rstrip("\n") + "\n\n" + block
-    else:
-        new_text = existing + block
-    write_text_file(target.path, new_text)
-    return SessionAppendResult(ok=True, path=target.path, entry_id=entry_id, timestamp=ts, written=True)
+    if block.rstrip() not in existing:
+        if existing.strip():
+            new_text = existing.rstrip("\n") + "\n\n" + block
+        else:
+            new_text = existing + block
+        write_text_file(target.path, new_text)
+    if journal_path is not None and journal is not None:
+        if block.rstrip() not in read_text_file(target.path):
+            raise RuntimeError(f"decision-sidecar entry verification failed for {target.path}; journal remains pending")
+        for kind, sidecar_path in sidecar_paths.items():
+            if rendered_sidecars[kind].rstrip() not in read_text_file(sidecar_path):
+                raise RuntimeError(f"decision-sidecar {kind} verification failed for {sidecar_path}; journal remains pending")
+        journal["status"] = "complete"
+        journal["recovered"] = recovering
+        journal["receipt"] = {
+            "entry_path": str(target.path),
+            "sidecar_paths": [str(path) for path in sidecar_paths.values()],
+        }
+        write_json_file(journal_path, journal)
+    return SessionAppendResult(
+        ok=True,
+        path=target.path,
+        entry_id=entry_id,
+        timestamp=ts,
+        written=True,
+        sidecar_paths=tuple(sidecar_paths.values()),
+        journal_path=journal_path,
+    )
 
 
 def _auto_captured_branch(workspace_root: Path, cwd: Path | str) -> str | None:
