@@ -49,6 +49,42 @@ Memory Seed is a **portable, local-first, Markdown-first memory and control-plan
 ---
 
 ## 2. System map
+
+At the highest level, Memory Seed has **one source of truth**: the human-verifiable Markdown
+Sessions and ADRs that the Memory Seed Core interprets as the canonical knowledge graph. Memory
+Trace gives people a review interface over that same knowledge, while REST, MCP, and CLI expose it
+to tools, orchestrators, and workers. Humans and agents therefore inspect the same durable context
+through different interfaces rather than maintaining separate memories.
+
+### Conceptual architecture
+
+```mermaid
+flowchart TD
+  TRACE["Memory Trace<br>human interface"]
+  MARKDOWN["Markdown Sessions / ADRs<br>human-verifiable durable layer"]
+  CORE["Memory Seed Core<br>canonical knowledge graph"]
+
+  subgraph Interfaces["Adapters and interfaces"]
+    direction LR
+    REST["REST"]
+    MCP["MCP"]
+    CLI["CLI"]
+  end
+
+  CONSUMERS["Orchestrator + Workers<br>agent consumers"]
+
+  TRACE --> MARKDOWN
+  MARKDOWN --> CORE
+  CORE --> REST
+  CORE --> MCP
+  CORE --> CLI
+  REST --> CONSUMERS
+  MCP --> CONSUMERS
+  CLI --> CONSUMERS
+```
+
+### Implementation map
+
 ```mermaid
 graph TD
   subgraph TopTier["Entry points and packages"]
