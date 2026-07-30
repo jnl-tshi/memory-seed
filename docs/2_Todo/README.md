@@ -3,7 +3,7 @@
 <!-- docs-index:begin -->
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
-| [declarative-retrieval-specification-proposal.md](declarative-retrieval-specification-proposal.md) | P1 | — | Run the final whole-branch re-review after the bounded repair; if clean, hold for explicit user… |
+| [declarative-retrieval-specification-proposal.md](declarative-retrieval-specification-proposal.md) | P1 | — | Obtain explicit user approval for the configured manual merge; do not merge or push before that… |
 | [derived-projection-implementation-plan.md](derived-projection-implementation-plan.md) | P1 | — | Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, … |
 | [memory-provenance-and-authority-taxonomy-proposal.md](memory-provenance-and-authority-taxonomy-proposal.md) | P1 | — | Steps 5–6 (GATED on the participant/role model + a user go): implement actionability as a polic… |
 | [memory-quality-metrics-v0-proposal.md](memory-quality-metrics-v0-proposal.md) | P1 | user review — is the baseline useful and repeatable? (propo… | JNL reviews docs/4_Reference/memory-quality-v0-baseline.md. Only then propose targets, ESR surf… |
@@ -12,7 +12,7 @@
 | [memory-trace-graph-visualisation-and-temporal-topology-proposal.md](memory-trace-graph-visualisation-and-temporal-topology-proposal.md) | P1 | — | promoted-to-todo |
 | [memory-trace-structural-graph-enrichment-provider-proposal.md](memory-trace-structural-graph-enrichment-provider-proposal.md) | P1 | — | promoted-to-todo |
 | [memory-trace-three-region-workspace-and-dockable-inspector-proposal.md](memory-trace-three-region-workspace-and-dockable-inspector-proposal.md) | P1 | — | promoted-to-todo |
-| [retrieval-specification-m0-m1-implementation-plan.md](retrieval-specification-m0-m1-implementation-plan.md) | P1 | — | Run the final whole-branch re-review after the bounded repair; if clean, hold for explicit user… |
+| [retrieval-specification-m0-m1-implementation-plan.md](retrieval-specification-m0-m1-implementation-plan.md) | P1 | — | Obtain explicit user approval for the configured manual merge; do not merge or push before that… |
 | [adjudication-queue.md](adjudication-queue.md) | P2 | — | JNL to rule each row; the rulings become the project's only validity ground truth. |
 | [document-lifecycle-system-plan.md](document-lifecycle-system-plan.md) | P2 | — | Phases 2-3 COMPLETE 2026-07-17: migration, `docs check` (also in esr + CI), and `docs index` (m… |
 | [hierarchical-topic-vocabulary-proposal.md](hierarchical-topic-vocabulary-proposal.md) | P2 | — | JNL to accept or reject. If accepted the order is - (1) `parent:` field + schema_version 2 + re… |

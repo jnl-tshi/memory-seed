@@ -2,9 +2,9 @@
 title: Declarative Retrieval Specification primitive
 status: active
 priority: P1
-next_action: Run the final whole-branch re-review after the bounded repair; if clean, hold for explicit user-approved manual merge.
+next_action: Obtain explicit user approval for the configured manual merge; do not merge or push before that approval.
 blocked_by:
-  - Final whole-branch re-review and explicit user approval for manual merge
+  - Explicit user approval for manual merge
 sources:
   - memory-trace-evidence-annotations-and-projection-architecture.md
   - ../5_Completed/worker-context-minimisation-proposal.md
@@ -14,7 +14,7 @@ spec_binding: null
 
 # Declarative Retrieval Specification Primitive
 
-Status: **ACTIVE PROPOSAL — M0/M1 IMPLEMENTED ON A REVIEW BRANCH, NOT LANDED**.
+Status: **ACTIVE PROPOSAL — M0/M1 REVIEWED ON A BRANCH, NOT LANDED**.
 
 Priority: **P1**. The critical path is intentionally narrow enough to unblock real orchestrator/worker use through MCP before profiles, composition, caching, or UI authoring are complete.
 

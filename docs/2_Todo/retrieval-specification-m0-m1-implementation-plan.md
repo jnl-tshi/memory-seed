@@ -2,7 +2,7 @@
 title: Retrieval Specification M0-M1 implementation plan
 status: active
 priority: P1
-next_action: Run the final whole-branch re-review after the bounded repair; if clean, hold for explicit user-approved manual merge.
+next_action: Obtain explicit user approval for the configured manual merge; do not merge or push before that approval.
 sources:
   - declarative-retrieval-specification-proposal.md
 spec_binding: null
@@ -13,9 +13,9 @@ spec_binding: null
 This is the executable critical path for the active [Declarative Retrieval Specification
 proposal](declarative-retrieval-specification-proposal.md). It deliberately covers only M0 then M1.
 
-Implementation state: Tasks 1 and 2 are implemented on the review branch, and the final bounded repair is
-complete. The branch is not landed or shipped; whole-branch re-review and explicit approval for the
-manual merge remain.
+Implementation state: Tasks 1 and 2, the bounded repair, and the final whole-branch re-review are
+complete on the review branch. The branch is not landed or shipped; only explicit approval for the
+configured manual merge remains.
 
 ## Global constraints
 

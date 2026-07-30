@@ -111,7 +111,7 @@ overwritten on the next `docs index` run.
 Counts (Markdown files directly in each lane, lane `README.md` excluded): 1_Inbox 0 · 2_Todo 37 · 3_Spec 8 · 4_Reference 18 · 5_Completed 61 · 6_Rejected 0 · 7_Replaced 29 · 8_Deferred 4
 
 Top open items (P0/P1 in `2_Todo/`):
-- **P1** [declarative-retrieval-specification-proposal.md](2_Todo/declarative-retrieval-specification-proposal.md) — Run the final whole-branch re-review after the bounded repair; if clean, hold for explicit user-approved manual merge.
+- **P1** [declarative-retrieval-specification-proposal.md](2_Todo/declarative-retrieval-specification-proposal.md) — Obtain explicit user approval for the configured manual merge; do not merge or push before that approval.
 - **P1** [derived-projection-implementation-plan.md](2_Todo/derived-projection-implementation-plan.md) — Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, low-urgency) = incremental ingest, gated on …
 - **P1** [memory-provenance-and-authority-taxonomy-proposal.md](2_Todo/memory-provenance-and-authority-taxonomy-proposal.md) — Steps 5–6 (GATED on the participant/role model + a user go): implement actionability as a policy result with reason codes; add fail-closed …
 - **P1** [memory-quality-metrics-v0-proposal.md](2_Todo/memory-quality-metrics-v0-proposal.md) — JNL reviews docs/4_Reference/memory-quality-v0-baseline.md. Only then propose targets, ESR surfacing, further metrics, or §8 graduation.
@@ -120,5 +120,5 @@ Top open items (P0/P1 in `2_Todo/`):
 - **P1** [memory-trace-graph-visualisation-and-temporal-topology-proposal.md](2_Todo/memory-trace-graph-visualisation-and-temporal-topology-proposal.md) — —
 - **P1** [memory-trace-structural-graph-enrichment-provider-proposal.md](2_Todo/memory-trace-structural-graph-enrichment-provider-proposal.md) — —
 - **P1** [memory-trace-three-region-workspace-and-dockable-inspector-proposal.md](2_Todo/memory-trace-three-region-workspace-and-dockable-inspector-proposal.md) — —
-- **P1** [retrieval-specification-m0-m1-implementation-plan.md](2_Todo/retrieval-specification-m0-m1-implementation-plan.md) — Run the final whole-branch re-review after the bounded repair; if clean, hold for explicit user-approved manual merge.
+- **P1** [retrieval-specification-m0-m1-implementation-plan.md](2_Todo/retrieval-specification-m0-m1-implementation-plan.md) — Obtain explicit user approval for the configured manual merge; do not merge or push before that approval.
 <!-- docs-index:end -->
