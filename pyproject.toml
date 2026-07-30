@@ -71,6 +71,7 @@ memory_seed = [
   "seed/.memory-seed/project-bootstrap.md",
   "seed/.memory-seed/topics.yaml",
   "seed/.memory-seed/skills/agent_collaboration.md",
+  "seed/.memory-seed/skills/superpowers_integration.md",
   "seed/.memory-seed/skills/security_triage.md",
   "seed/.memory-seed/skills/copywriter-conversion.md",
   "seed/.memory-seed/skills/code_search.md",

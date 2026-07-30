@@ -1,6 +1,6 @@
 # Inbox
 
-Status: **EMPTY 2026-07-20 — no documents of any kind remain**.
+Status: **EMPTY 2026-07-29 — no documents of any kind remain**.
 
 Place new, unassessed proposals and source captures here. Once evaluated, move each document to its canonical
 active, reference, completed, rejected, superseded, or deferred lane. Do not leave an accepted actionable
@@ -10,8 +10,12 @@ untriaged captures.
 
 ## Current contents
 
-Nothing but this README. The two assessment artifacts and the design-reference folder that sat here after
-the 2026-07-20 triage were themselves reference material, not undecided captures — moved the same day to
+Nothing but this README. The Superpowers collaboration proposal was approved for implementation and promoted
+to [`../2_Todo/superpowers-collaboration-integration-proposal.md`](../2_Todo/superpowers-collaboration-integration-proposal.md)
+on 2026-07-29.
+
+The two assessment artifacts and the design-reference folder that sat here after the 2026-07-20 triage
+were themselves reference material, not undecided captures — moved the same day to
 [`../4_Reference/`](../4_Reference/) once that was noticed:
 
 - [`../4_Reference/INBOX-ASSESSMENT.md`](../4_Reference/INBOX-ASSESSMENT.md) — the 2026-07-18 pre-triage

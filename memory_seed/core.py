@@ -29,6 +29,7 @@ MEMORY_DIR_NAME = ".memory-seed"
 LEGACY_MEMORY_DIR_NAME = ".AGENTS"
 BACKUP_IGNORE_ENTRY = ".memory-seed/backups/"
 LOCAL_CONFIG_IGNORE_ENTRY = ".memory-seed/local.yaml"
+SUPERPOWERS_SDD_IGNORE_ENTRY = ".superpowers/sdd/"
 DEFAULT_WORKTREE_NAMESPACES = {
     "codex": ".codex/worktrees",
     "claude": ".claude/worktrees",
@@ -5818,6 +5819,10 @@ SEED_FILES = [
         ".memory-seed/skills/agent_collaboration.md",
     ),
     SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "skills" / "superpowers_integration.md",
+        ".memory-seed/skills/superpowers_integration.md",
+    ),
+    SeedFile(
         SEED_ROOT / MEMORY_DIR_NAME / "skills" / "history_retrieval.md",
         ".memory-seed/skills/history_retrieval.md",
     ),
@@ -6151,6 +6156,7 @@ SKILL_PROFILES: dict[str, SkillProfile] = {
             "local_compilation.md",
             "data_architecture.md",
             "developer-rendered-ui-debugging.md",
+            "superpowers_integration.md",
         ),
     ),
     "security": SkillProfile(
@@ -6211,6 +6217,7 @@ SKILL_DESCRIPTIONS = {
     "release_publishing.md": "Prepare and verify package releases.",
     "security_triage.md": "Triage security, privacy, and destructive-operation risks.",
     "skill_architecture.md": "Design and maintain skill/profile boundaries and trigger registry entries.",
+    "superpowers_integration.md": "Route optional Superpowers delegation while retaining Memory Seed safety and integration ownership.",
     "topic_swarm.md": "Backfill decision-level topics at scale via a pilot-gated, human-approved judgment swarm.",
 }
 
@@ -7927,6 +7934,8 @@ def init_project(
     cfg = MEMORY_DIR_NAME + "/project.yaml"
     if cfg not in created:
         created.append(cfg)
+    if "superpowers_integration.md" in selected_optional and _ensure_superpowers_sdd_gitignore(target_root):
+        created.append(".gitignore")
 
     _rewrite_skill_registry(target_root, set(CORE_SKILL_NAMES) | selected_optional)
     for artifact in _create_skill_artifacts(target_root, selected_optional):
@@ -8010,6 +8019,11 @@ def update_project(cwd: str | Path = ".", dry_run: bool = False) -> InitResult:
             created.append(destination)
 
     _rewrite_skill_registry(target_root, set(CORE_SKILL_NAMES) | skill_selection.selected)
+    if (
+        "superpowers_integration.md" in skill_selection.selected
+        and _ensure_superpowers_sdd_gitignore(target_root)
+    ):
+        created.append(".gitignore")
     for artifact in _create_skill_artifacts(target_root, skill_selection.selected):
         if artifact not in created:
             created.append(artifact)
@@ -8155,6 +8169,11 @@ def add_skill(cwd: str | Path = ".", name: str = "") -> dict:
     selected_optional = selection.selected | to_add
     ignored = set(OPTIONAL_SKILL_NAMES) - selected_optional
     _write_project_skills(target_root, profiles=profiles, selected=selected_optional, ignored=ignored)
+    if (
+        "superpowers_integration.md" in selected_optional
+        and _ensure_superpowers_sdd_gitignore(target_root)
+    ):
+        created.append(".gitignore")
     _rewrite_skill_registry(target_root, set(CORE_SKILL_NAMES) | selected_optional)
     for artifact in _create_skill_artifacts(target_root, selected_optional):
         created.append(artifact)
@@ -8588,6 +8607,15 @@ def _copy_text_file(source: Path, destination: Path) -> None:
 
 def _ensure_backup_gitignore(target_root: Path) -> None:
     _ensure_gitignore_entry(target_root, BACKUP_IGNORE_ENTRY)
+
+
+def _ensure_superpowers_sdd_gitignore(target_root: Path) -> bool:
+    """Ignore disposable SDD output when its optional adapter is selected."""
+    gitignore = target_root / ".gitignore"
+    if gitignore.exists() and SUPERPOWERS_SDD_IGNORE_ENTRY in read_text_file(gitignore).splitlines():
+        return False
+    _ensure_gitignore_entry(target_root, SUPERPOWERS_SDD_IGNORE_ENTRY)
+    return True
 
 
 def _ensure_gitignore_entry(target_root: Path, entry: str) -> None:
