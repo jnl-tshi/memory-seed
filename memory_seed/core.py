@@ -402,6 +402,10 @@ class SessionMergeBranchResult:
     removed_sources: list[str] = field(default_factory=list)
     already_present: list[str] = field(default_factory=list)
     stamped_entries: list[str] = field(default_factory=list)
+    source_worktree: str | None = None
+    worktree_cleanup_status: str | None = None
+    worktree_cleanup_detail: str | None = None
+    worktree_cleanup_attempts: int = 0
     issues: list[str] = field(default_factory=list)
 
 
@@ -1431,7 +1435,14 @@ def _parse_worktree_list(porcelain: str) -> list[dict[str, str]]:
                 items.append(current)
             current = {"path": raw[len("worktree "):].strip()}
             continue
-        if current is None or " " not in raw:
+        if current is None:
+            continue
+        if " " not in raw:
+            # Git emits flags such as `locked` without a value. Preserve them
+            # so every caller can fail closed rather than treating a locked
+            # worktree as a removable clean checkout.
+            if raw in {"locked", "prunable"}:
+                current[raw] = ""
             continue
         key, value = raw.split(" ", 1)
         current[key] = value.strip()
@@ -5052,6 +5063,76 @@ def _merge_trigger_block(root: Path, user_approved: bool) -> str | None:
     )
 
 
+def _source_branch_worktree(root: Path, branch: str) -> tuple[Path | None, str | None]:
+    """Return the registered non-primary worktree for ``branch`` if one exists.
+
+    A merge branch can be a bare ref, so the absence of a worktree is a normal
+    no-op. This deliberately identifies only the branch being integrated;
+    post-merge hygiene must not sweep unrelated worktrees as a side effect.
+    """
+    code, porcelain = _git_text(root, ("worktree", "list", "--porcelain"))
+    if code != 0:
+        return None, "could not enumerate registered worktrees"
+    for index, item in enumerate(_parse_worktree_list(porcelain)):
+        branch_ref = item.get("branch", "")
+        if branch_ref.removeprefix("refs/heads/") != branch:
+            continue
+        if index == 0:
+            return None, "source branch resolves to the primary worktree"
+        raw_path = item.get("path", "")
+        try:
+            path = Path(raw_path).resolve()
+        except (OSError, ValueError):
+            return None, "source worktree path could not be resolved"
+        if "locked" in item or "prunable" in item:
+            return path, "source worktree is locked or prunable"
+        return path, None
+    return None, None
+
+
+def _cleanup_merged_source_worktree(
+    root: Path, branch: str
+) -> tuple[str | None, str | None, str | None, int]:
+    """Attempt the narrow, post-commit cleanup for one integrated branch.
+
+    The existing worktree-GC remover owns bounded retry and its no-raw-delete
+    guarantee. A failed cleanup is reporting-only: the merge is already a
+    durable fact, while a locked OneDrive checkout remains recoverable for a
+    later explicit cleanup pass.
+    """
+    path, discovery_issue = _source_branch_worktree(root, branch)
+    if path is None:
+        return None, "retained", discovery_issue or "no registered source worktree", 0
+    if discovery_issue:
+        return str(path), "retained", discovery_issue, 0
+
+    code, status = _git_text(path, ("status", "--porcelain"))
+    if code != 0:
+        return str(path), "retained", "could not verify source worktree cleanliness", 0
+    if status.strip():
+        return str(path), "retained", "source worktree has uncommitted or untracked changes", 0
+
+    merged_code, _ = _git_text(root, ("merge-base", "--is-ancestor", branch, "HEAD"))
+    if merged_code != 0:
+        return str(path), "retained", "source branch is not confirmed merged into HEAD", 0
+
+    # Keep the lock-aware, Git-only remover in one place. It has no raw
+    # filesystem fallback, even when Git reports a Windows/OneDrive denial.
+    from .worktree_gc import _remove_one_worktree
+
+    removed, attempts, detail = _remove_one_worktree(root, str(path), max_attempts=3)
+    if removed:
+        return str(path), "removed", detail, attempts
+
+    # Windows may deregister a worktree while failing to delete its directory.
+    # Re-read registration so callers can distinguish a hidden Trace worktree
+    # from an active checkout that was retained for later attention.
+    remaining, _ = _source_branch_worktree(root, branch)
+    if remaining is None:
+        return str(path), "deregistered-with-residue", detail, attempts
+    return str(path), "retained", detail, attempts
+
+
 def session_merge_branch(
     cwd: str | Path = ".",
     *,
@@ -5116,6 +5197,7 @@ def session_merge_branch(
     if preview.issues:
         return SessionMergeBranchResult(committed=False, issues=list(preview.issues))
 
+    source_worktree, source_worktree_issue = _source_branch_worktree(root, branch)
     result = SessionMergeBranchResult(
         committed=False,
         planned_entries=list(preview.planned_entries),
@@ -5124,6 +5206,9 @@ def session_merge_branch(
         planned_topic_sidecars=list(preview.planned_topic_sidecars),
         removed_sources=list(preview.removed_sources),
         already_present=list(preview.already_present),
+        source_worktree=str(source_worktree) if source_worktree is not None else None,
+        worktree_cleanup_status="planned" if source_worktree is not None else None,
+        worktree_cleanup_detail=source_worktree_issue,
     )
     if dry_run:
         return result
@@ -5218,6 +5303,14 @@ def session_merge_branch(
         return result
 
     result.committed = True
+    if result.source_worktree is not None:
+        cleanup_path, cleanup_status, cleanup_detail, cleanup_attempts = _cleanup_merged_source_worktree(
+            root, branch
+        )
+        result.source_worktree = cleanup_path or result.source_worktree
+        result.worktree_cleanup_status = cleanup_status
+        result.worktree_cleanup_detail = cleanup_detail
+        result.worktree_cleanup_attempts = cleanup_attempts
     return result
 
 

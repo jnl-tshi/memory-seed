@@ -55,6 +55,39 @@ from .text_files import (
 )
 
 
+def _print_session_merge_worktree_cleanup(result, *, dry_run: bool) -> None:
+    """Report narrow source-worktree cleanup without hiding merge success."""
+    if result.source_worktree is None:
+        return
+    if dry_run:
+        if result.worktree_cleanup_detail:
+            print(
+                f"Source worktree would be retained: {result.source_worktree} "
+                f"({result.worktree_cleanup_detail})"
+            )
+            return
+        print(
+            "Would verify and remove the clean source worktree after a successful merge: "
+            f"{result.source_worktree}"
+        )
+        return
+    if result.worktree_cleanup_status == "removed":
+        print(f"Removed source worktree: {result.source_worktree}")
+        return
+    if result.worktree_cleanup_status == "deregistered-with-residue":
+        print(
+            "Source worktree was deregistered, but its on-disk directory needs later cleanup: "
+            f"{result.source_worktree} ({result.worktree_cleanup_detail or 'git worktree remove failed'})",
+            file=sys.stderr,
+        )
+        return
+    print(
+        f"Source worktree retained: {result.source_worktree} "
+        f"({result.worktree_cleanup_detail or 'cleanup was not safe'})",
+        file=sys.stderr,
+    )
+
+
 def _print_help(parser: argparse.ArgumentParser) -> None:
     print(parser.format_help().rstrip())
     print()
@@ -868,6 +901,7 @@ def main(argv: list[str] | None = None) -> int:
                     if entry_id:
                         print(f"Already present: {entry_id}")
             if args.dry_run:
+                _print_session_merge_worktree_cleanup(result, dry_run=True)
                 print("Dry run - no merge performed. Rerun without --dry-run to merge and fuse.")
             elif result.committed:
                 print("Merge committed.")
@@ -896,6 +930,7 @@ def main(argv: list[str] | None = None) -> int:
                         "reorder the steps).",
                         file=sys.stderr,
                     )
+                _print_session_merge_worktree_cleanup(result, dry_run=False)
             else:
                 print(f"Branch {args.branch} is already merged into HEAD; nothing to do.")
             return 0
@@ -1089,11 +1124,13 @@ def main(argv: list[str] | None = None) -> int:
                     if entry_id:
                         print(f"Already present: {entry_id}")
             if args.dry_run:
+                _print_session_merge_worktree_cleanup(result, dry_run=True)
                 print("Dry run - no merge performed. Rerun without --dry-run to merge and fuse.")
             elif result.committed:
                 print("Merge committed.")
                 if result.stamped_entries:
                     print(f"Stamped {len(result.stamped_entries)} Memory-Entry trailer(s) on the merge commit.")
+                _print_session_merge_worktree_cleanup(result, dry_run=False)
             else:
                 print(f"Branch {args.branch} is already merged into HEAD; nothing to do.")
             return 0
