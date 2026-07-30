@@ -1,6 +1,6 @@
 ---
 priority: P2
-next_action: M1 topics-and-links writer is in progress on `codex/feature/decision-sidecar-transaction`; add the staged recovery journal, then extend the envelope to diagrams, ADR lenses, and parsed fusion fixtures.
+next_action: M1 topics-and-links transaction is in progress on `codex/feature/decision-sidecar-transaction`; extend the now-staged writer to diagrams, then ADR lenses and parsed fusion fixtures.
 ---
 
 # Decision-sidecar transaction: write-time semantic records live in their sidecars

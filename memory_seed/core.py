@@ -3095,6 +3095,7 @@ class SessionAppendResult:
     # a dry run additionally returns the exact sidecar blocks for inspection.
     sidecar_paths: tuple[Path, ...] = ()
     rendered_sidecars: dict[str, str] | None = None
+    journal_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -3241,6 +3242,33 @@ def _normalise_decision_sidecars(
             )
         )
     return normalised, issues
+
+
+def _decision_sidecar_journal_path(runtime: Runtime, entry_id: str) -> Path:
+    """Local, non-authoritative staging record for a composite write."""
+    return runtime.memory_dir / "transactions" / "decision-sidecar" / f"{entry_id}.json"
+
+
+def _decision_sidecar_journal(
+    *,
+    entry_id: str,
+    timestamp: str,
+    entry_path: Path,
+    sidecar_paths: Mapping[str, Path],
+    rendered_sidecars: Mapping[str, str],
+) -> dict[str, Any]:
+    """The exact plan a retry may finish, never a source of memory truth."""
+    return {
+        "schema_version": 1,
+        "status": "pending",
+        "entry_id": entry_id,
+        "timestamp": timestamp,
+        "entry_path": str(entry_path),
+        "sidecars": {
+            kind: {"path": str(path), "rendered": rendered_sidecars[kind]}
+            for kind, path in sidecar_paths.items()
+        },
+    }
 
 
 def session_append_entry(
@@ -3570,6 +3598,14 @@ def session_append_entry(
         sidecar_paths["topics"] = runtime.workspace_root / _topic_target_relative_path(date_part)
     if "links" in rendered_sidecars:
         sidecar_paths["links"] = runtime.workspace_root / _link_target_relative_path(date_part)
+    journal_path = _decision_sidecar_journal_path(runtime, entry_id) if sidecar_paths else None
+    journal = _decision_sidecar_journal(
+        entry_id=entry_id,
+        timestamp=ts,
+        entry_path=target.path,
+        sidecar_paths=sidecar_paths,
+        rendered_sidecars=rendered_sidecars,
+    ) if journal_path else None
 
     # Every guard has passed and the block is assembled. A dry run stops here
     # with the exact bytes a real call would append - still short of the only
@@ -3586,51 +3622,86 @@ def session_append_entry(
             rendered=block,
             sidecar_paths=tuple(sidecar_paths.values()),
             rendered_sidecars=rendered_sidecars or None,
+            journal_path=journal_path,
         )
 
     # Sidecars are the semantic source of truth, so publish them before the
-    # entry that makes their parent visible. A failure after this point leaves
-    # a conspicuous orphan sidecar rather than silently dropping semantics;
-    # the receipt exposes every touched file. The staged recovery journal is a
-    # later envelope milestone, so this slice does not claim atomic recovery.
+    # entry that makes their parent visible. The journal is staged first, so a
+    # retry can finish the exact plan without duplicating published blocks.
+    recovering = False
+    if journal_path is not None and journal is not None:
+        if journal_path.exists():
+            try:
+                existing_journal = read_json_file(journal_path)
+            except (OSError, ValueError, json.JSONDecodeError) as exc:
+                return SessionAppendResult(
+                    ok=False,
+                    path=target.path,
+                    timestamp=ts,
+                    issues=(f"cannot recover decision-sidecar journal {journal_path}: {exc}",),
+                    journal_path=journal_path,
+                )
+            if not isinstance(existing_journal, dict) or existing_journal.get("status") != "pending":
+                return SessionAppendResult(
+                    ok=False,
+                    path=target.path,
+                    timestamp=ts,
+                    issues=(f"decision-sidecar journal {journal_path} is not a recoverable pending transaction",),
+                    journal_path=journal_path,
+                )
+            comparable = {key: value for key, value in existing_journal.items() if key != "status"}
+            expected = {key: value for key, value in journal.items() if key != "status"}
+            if comparable != expected:
+                return SessionAppendResult(
+                    ok=False,
+                    path=target.path,
+                    timestamp=ts,
+                    issues=(f"pending decision-sidecar journal {journal_path} conflicts with this write; refusing to mix transactions",),
+                    journal_path=journal_path,
+                )
+            recovering = True
+        else:
+            write_json_file(journal_path, journal)
     if "topics" in rendered_sidecars:
         topic_path = sidecar_paths["topics"]
         existing_topics = read_text_file(topic_path) if topic_path.exists() else ""
-        topic_records = _split_topic_sidecar_records(
-            existing_topics,
-            source_path=_topic_target_relative_path(date_part),
-            topic_date=date_part,
-        )
-        topic_records.append(
-            _TopicSidecarRecord(
-                text=rendered_sidecars["topics"],
-                entry_id=entry_id,
-                timestamp=ts,
-                topic_date=date_part,
+        if rendered_sidecars["topics"].rstrip() not in existing_topics:
+            topic_records = _split_topic_sidecar_records(
+                existing_topics,
                 source_path=_topic_target_relative_path(date_part),
-                target_path=_topic_target_relative_path(date_part),
+                topic_date=date_part,
             )
-        )
-        _write_chronological_topic_sidecar_file(topic_path, date_part, topic_records)
+            topic_records.append(
+                _TopicSidecarRecord(
+                    text=rendered_sidecars["topics"],
+                    entry_id=entry_id,
+                    timestamp=ts,
+                    topic_date=date_part,
+                    source_path=_topic_target_relative_path(date_part),
+                    target_path=_topic_target_relative_path(date_part),
+                )
+            )
+            _write_chronological_topic_sidecar_file(topic_path, date_part, topic_records)
     if "links" in rendered_sidecars:
         link_path = sidecar_paths["links"]
         existing_links = read_text_file(link_path) if link_path.exists() else ""
-        link_records = _split_link_sidecar_records(
-            existing_links,
-            source_path=_link_target_relative_path(date_part),
-            link_date=date_part,
-        )
-        link_records.append(
-            _LinkSidecarRecord(
-                text=rendered_sidecars["links"],
-                entry_id=entry_id,
-                timestamp=ts,
-                link_date=date_part,
+        if rendered_sidecars["links"].rstrip() not in existing_links:
+            link_records = _split_link_sidecar_records(
+                existing_links,
                 source_path=_link_target_relative_path(date_part),
-                target_path=_link_target_relative_path(date_part),
+                link_date=date_part,
             )
-        )
-        _write_chronological_link_sidecar_file(link_path, date_part, link_records)
+            link_records.append(
+                _LinkSidecarRecord(
+                    text=rendered_sidecars["links"],
+                    entry_id=entry_id,
+                    timestamp=ts,
+                    link_date=date_part,
+                    source_path=_link_target_relative_path(date_part),
+                    target_path=_link_target_relative_path(date_part),
+                )
+            )
+            _write_chronological_link_sidecar_file(link_path, date_part, link_records)
 
     target = session_target(cwd, date_str=date_part, explicit_user=explicit_user, create=True)
     existing = read_text_file(target.path) if target.path.exists() else ""
@@ -3639,6 +3710,19 @@ def session_append_entry(
     else:
         new_text = existing + block
     write_text_file(target.path, new_text)
+    if journal_path is not None and journal is not None:
+        if block.rstrip() not in read_text_file(target.path):
+            raise RuntimeError(f"decision-sidecar entry verification failed for {target.path}; journal remains pending")
+        for kind, sidecar_path in sidecar_paths.items():
+            if rendered_sidecars[kind].rstrip() not in read_text_file(sidecar_path):
+                raise RuntimeError(f"decision-sidecar {kind} verification failed for {sidecar_path}; journal remains pending")
+        journal["status"] = "complete"
+        journal["recovered"] = recovering
+        journal["receipt"] = {
+            "entry_path": str(target.path),
+            "sidecar_paths": [str(path) for path in sidecar_paths.values()],
+        }
+        write_json_file(journal_path, journal)
     return SessionAppendResult(
         ok=True,
         path=target.path,
@@ -3646,6 +3730,7 @@ def session_append_entry(
         timestamp=ts,
         written=True,
         sidecar_paths=tuple(sidecar_paths.values()),
+        journal_path=journal_path,
     )
 
 

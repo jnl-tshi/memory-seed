@@ -6,6 +6,7 @@ classification, body prose - passed through verbatim). Nothing is written
 when any guard fails, and all failures report together.
 """
 
+import json
 import shutil
 import tempfile
 import unittest
@@ -96,6 +97,11 @@ topics:
         self.assertNotIn("topics:", entry)
         self.assertNotIn("evolves:", entry)
         self.assertEqual(len(result.sidecar_paths), 2)
+        self.assertIsNotNone(result.journal_path)
+        journal = json.loads(result.journal_path.read_text(encoding="utf-8"))
+        self.assertEqual(journal["status"], "complete")
+        self.assertFalse(journal["recovered"])
+        self.assertEqual(journal["receipt"]["sidecar_paths"], [str(path) for path in result.sidecar_paths])
         topic_path = self.cwd / MEMORY_DIR_NAME / "sessions" / "topics" / "2026-06" / "2026-06-13.md"
         link_path = self.cwd / MEMORY_DIR_NAME / "sessions" / "links" / "2026-06" / "2026-06-13.md"
         self.assertIn(f"entry_id: {result.entry_id}", topic_path.read_text(encoding="utf-8"))

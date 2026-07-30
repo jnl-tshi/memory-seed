@@ -37,6 +37,7 @@ graphify-out/
 memory-trace/tests/capture/*.webm
 memory-trace/tests/capture/*.gif
 .memory-seed/local.yaml
+.memory-seed/transactions/
 
 # Local editor config
 .vscode/

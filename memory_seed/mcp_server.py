@@ -679,6 +679,7 @@ def call_tool(
             "path": str(result.path) if result.path else None,
             "issues": list(result.issues),
             "sidecar_paths": [str(path) for path in result.sidecar_paths],
+            "journal_path": str(result.journal_path) if result.journal_path else None,
         }
         # Only a dry run carries the rendered block: pre-commit inspection is
         # its purpose, while echoing the body back after a real write would
