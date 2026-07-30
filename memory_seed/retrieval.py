@@ -413,31 +413,96 @@ def _merge_candidate(
 def _decision_candidates(
     chunk: MemoryChunk,
     *,
+    root: Path,
+    source_lines: dict[str, tuple[str, ...]],
     selected_by: set[str],
     reasons: set[str],
     graph_distance: int,
+    ordinals: set[str] | None = None,
 ) -> list[_RetrievalCandidate]:
     from .core import entry_body_decisions
 
     decisions = entry_body_decisions(chunk.text)
     if not decisions:
         return []
-    multiple = len(decisions) > 1
-    return [
-        _RetrievalCandidate(
-            ref=f"{chunk.entry_id}:{decision.ordinal}" if multiple else str(chunk.entry_id),
-            kind="decision",
-            source=chunk.source_path,
-            line_range=(chunk.start_line, chunk.end_line),
-            chunk_id=chunk.chunk_id,
-            session_date=chunk.session_date.isoformat(),
-            graph_distance=graph_distance,
-            text=decision.text or chunk.text,
-            selected_by=set(selected_by),
-            reasons=set(reasons),
+    path_lines = source_lines.get(chunk.source_path)
+    if path_lines is None:
+        source = _runtime_scoped_path(root, chunk.source_path)
+        try:
+            path_lines = tuple(source.read_text(encoding="utf-8").splitlines())
+        except (OSError, UnicodeDecodeError) as exc:
+            raise RetrievalSpecResolutionError(
+                "unfetchable_ref",
+                "canonical session Markdown is unreadable",
+                stage="related_decisions",
+                details={"source": chunk.source_path},
+            ) from exc
+        source_lines[chunk.source_path] = path_lines
+
+    entry_start = max(0, chunk.start_line - 1)
+    entry_end = min(len(path_lines), chunk.end_line)
+    numbered: list[tuple[int, str]] = []
+    singular: int | None = None
+    for index in range(entry_start, entry_end):
+        line = path_lines[index]
+        match = re.match(r"^####\s+D(\d+)\s*[-–]", line)
+        if match:
+            numbered.append((index, f"d{int(match.group(1))}"))
+        elif singular is None and re.match(r"^###\s+Decision\s*$", line):
+            singular = index
+
+    starts = numbered if numbered else ([(singular, "d1")] if singular is not None else [])
+    spans: dict[str, tuple[int, int, str]] = {}
+    for start, ordinal in starts:
+        end = entry_end
+        for index in range(start + 1, entry_end):
+            if re.match(r"^#{2,4}\s", path_lines[index]):
+                end = index
+                break
+        spans[ordinal] = (
+            start + 1,
+            max(start + 1, end),
+            "\n".join(path_lines[start:end]),
         )
-        for decision in decisions
-    ]
+
+    multiple = len(decisions) > 1
+    candidates: list[_RetrievalCandidate] = []
+    for decision in decisions:
+        if ordinals is not None and decision.ordinal not in ordinals:
+            continue
+        span = spans.get(decision.ordinal)
+        if span is None:
+            raise RetrievalSpecResolutionError(
+                "unfetchable_ref",
+                "canonical decision line range could not be resolved",
+                stage="related_decisions",
+                details={
+                    "ref": f"{chunk.entry_id}:{decision.ordinal}",
+                    "source": chunk.source_path,
+                },
+            )
+        candidates.append(
+            _RetrievalCandidate(
+                ref=(
+                    f"{chunk.entry_id}:{decision.ordinal}"
+                    if multiple
+                    else str(chunk.entry_id)
+                ),
+                kind="decision",
+                source=chunk.source_path,
+                line_range=(span[0], span[1]),
+                # A decision is fetched by its exact canonical Markdown lines.
+                # Reusing the entry chunk id here would fetch every decision in
+                # the entry and invalidate both this estimate and pack bounds.
+                chunk_id=None,
+                session_date=chunk.session_date.isoformat(),
+                graph_distance=graph_distance,
+                text=span[2],
+                selected_by=set(selected_by),
+                reasons=set(reasons),
+            )
+        )
+    return candidates
 
 
 def _entry_candidate(
@@ -543,6 +608,7 @@ def _build_retrieval_plan(
             completed_stages=completed,
             details={"clause": "required.constitution"},
         ) from exc
+    constitution_text = "\n".join(constitution_text.splitlines())
     constitution_source = constitution_path.relative_to(root).as_posix()
     _merge_candidate(
         candidates,
@@ -594,7 +660,16 @@ def _build_retrieval_plan(
         clock, started, timeout_ms, stage="topic_filters", completed_stages=completed
     )
 
-    root_reasons: dict[str, set[str]] = {}
+    # Empty ordinal means an entry-level selector. A concrete ``dN`` means the
+    # canonical topic sidecar attributed only that decision, and the resolver
+    # must not flatten the match back to every decision in the entry.
+    root_selection: dict[str, dict[str, set[str]]] = {}
+
+    def add_root(entry_id: str, ordinal: str, reason: str) -> None:
+        root_selection.setdefault(entry_id, {}).setdefault(ordinal, set()).add(
+            reason
+        )
+
     topic_index = load_topic_index(root)
     resolution = topic_index.resolution()
     for requested in normalized["filters"]["topics"]:
@@ -608,10 +683,38 @@ def _build_retrieval_plan(
                 }
             )
         for chunk in chunks:
-            effective_topics = set(chunk.topics) | set(chunk.inferred_topics)
-            if effective_topics & expanded and chunk.entry_id:
-                root_reasons.setdefault(chunk.entry_id, set()).add(
-                    f"topic {requested!r} matched canonical or sidecar metadata"
+            if not chunk.entry_id:
+                continue
+            if chunk.inferred_topics:
+                matched = False
+                for ordinal, slug in chunk.inferred_decision_topics:
+                    if slug in expanded:
+                        add_root(
+                            chunk.entry_id,
+                            ordinal,
+                            f"topic {requested!r} matched canonical sidecar metadata",
+                        )
+                        matched = True
+                # Legacy sidecars still expose a rolled-up channel. Preserve
+                # their entry-level meaning when no decision pair is present.
+                if (
+                    not matched
+                    and not chunk.inferred_decision_topics
+                    and set(chunk.inferred_topics) & expanded
+                ):
+                    add_root(
+                        chunk.entry_id,
+                        "",
+                        f"topic {requested!r} matched canonical sidecar metadata",
+                    )
+            elif set(chunk.topics) & expanded:
+                # Canonical precedence is sidecar -> authored. Authored topics
+                # are an entry-level fallback only when no sidecar attribution
+                # exists, never a union with the current sidecar reading.
+                add_root(
+                    chunk.entry_id,
+                    "",
+                    f"topic {requested!r} matched canonical authored metadata",
                 )
     completed.append("topic_filters")
     trace.append(
@@ -621,8 +724,12 @@ def _build_retrieval_plan(
             "requested": list(normalized["filters"]["topics"]),
             "matched_entries": sum(
                 1
-                for reasons in root_reasons.values()
-                if any(reason.startswith("topic ") for reason in reasons)
+                for selectors in root_selection.values()
+                if any(
+                    reason.startswith("topic ")
+                    for reasons in selectors.values()
+                    for reason in reasons
+                )
             ),
         }
     )
@@ -637,7 +744,9 @@ def _build_retrieval_plan(
         matched = False
         for chunk in chunks:
             if requested in _entry_file_refs(chunk.text) and chunk.entry_id:
-                root_reasons.setdefault(chunk.entry_id, set()).add(
+                add_root(
+                    chunk.entry_id,
+                    "",
                     f"path {requested!r} matched canonical session file evidence"
                 )
                 matched = True
@@ -652,6 +761,7 @@ def _build_retrieval_plan(
                     completed_stages=completed,
                     details={"path": requested},
                 ) from exc
+            text = "\n".join(text.splitlines())
             source = target.relative_to(root).as_posix()
             direct_markdown.append(
                 _RetrievalCandidate(
@@ -686,8 +796,12 @@ def _build_retrieval_plan(
             "requested": normalized_paths,
             "matched_entries": sum(
                 1
-                for reasons in root_reasons.values()
-                if any(reason.startswith("path ") for reason in reasons)
+                for selectors in root_selection.values()
+                if any(
+                    reason.startswith("path ")
+                    for reasons in selectors.values()
+                    for reason in reasons
+                )
             ),
             "direct_markdown": len(direct_markdown),
         }
@@ -698,58 +812,153 @@ def _build_retrieval_plan(
 
     graph = build_related_entry_graph(root, chunks=chunks)
     depth_limit = normalized["required"]["related_decisions"]["depth"]
-    distances: dict[str, int] = {}
-    frontier = sorted(root_reasons)
-    for entry_id in frontier:
-        distances[entry_id] = 0
+    from .core import entry_body_decisions
+
+    decision_ordinals = {
+        entry_id: tuple(
+            decision.ordinal for decision in entry_body_decisions(chunk.text)
+        )
+        for entry_id, chunk in by_id.items()
+    }
+
+    def target_states(
+        entry_id: str,
+        ordinal: str | None = None,
+    ) -> list[tuple[str, str]]:
+        if entry_id not in by_id:
+            return []
+        available = decision_ordinals.get(entry_id, ()) or ("",)
+        selected = (
+            [ordinal]
+            if ordinal
+            else list(available)
+        )
+        selected = [item for item in selected if item in available]
+        root_selectors = root_selection.get(entry_id)
+        if root_selectors is not None and "" not in root_selectors:
+            allowed = set(root_selectors)
+            selected = [item for item in selected if item in allowed]
+        return [(entry_id, item) for item in selected]
+
+    root_state_reasons: dict[tuple[str, str], set[str]] = {}
+    for entry_id, selectors in root_selection.items():
+        for state in target_states(entry_id):
+            ordinal = state[1]
+            reasons = set(selectors.get("", ()))
+            reasons.update(selectors.get(ordinal, ()))
+            root_state_reasons[state] = reasons
+
+    decision_inbound: dict[
+        str, list[tuple[str, str, str, str]]
+    ] = {}
+    for source_id, chunk in sorted(by_id.items()):
+        for kind, source_ordinal, target_id, target_ordinal in sorted(
+            set(chunk.decision_edges)
+        ):
+            if target_id in by_id and target_id != source_id:
+                decision_inbound.setdefault(target_id, []).append(
+                    (source_id, kind, source_ordinal, target_ordinal)
+                )
+
+    distances: dict[tuple[str, str], int] = {
+        state: 0 for state in root_state_reasons
+    }
+    frontier = sorted(distances)
+
+    def enqueue(state: tuple[str, str], next_distance: int) -> None:
+        if state not in distances or next_distance < distances[state]:
+            distances[state] = next_distance
+            frontier.append(state)
+
     while frontier:
-        entry_id = frontier.pop(0)
-        distance = distances[entry_id]
+        frontier.sort(key=lambda state: (distances[state], state[0], state[1]))
+        entry_id, ordinal = frontier.pop(0)
+        distance = distances[(entry_id, ordinal)]
         if distance >= depth_limit:
             continue
         node = graph.get(entry_id)
-        if node is None:
-            continue
-        neighbours = sorted(
-            set(
-                node.outbound
-                + node.inbound
-                + node.replaces
-                + node.replaced_by
-                + node.evolves
-                + node.evolved_by
+        next_distance = distance + 1
+        if node is not None:
+            neighbours = sorted(
+                set(
+                    node.outbound
+                    + node.inbound
+                    + node.replaces
+                    + node.replaced_by
+                    + node.evolves
+                    + node.evolved_by
+                )
             )
-        )
-        for neighbour in neighbours:
-            next_distance = distance + 1
-            if neighbour in by_id and (
-                neighbour not in distances or next_distance < distances[neighbour]
+            for neighbour in neighbours:
+                for state in target_states(neighbour):
+                    enqueue(state, next_distance)
+
+        for (
+            _kind,
+            source_ordinal,
+            target_id,
+            target_ordinal,
+        ) in sorted(set(by_id[entry_id].decision_edges)):
+            if source_ordinal and source_ordinal != ordinal:
+                continue
+            for state in target_states(
+                target_id,
+                target_ordinal or None,
             ):
-                distances[neighbour] = next_distance
-                frontier.append(neighbour)
-        frontier.sort()
+                enqueue(state, next_distance)
+
+        for (
+            source_id,
+            _kind,
+            source_ordinal,
+            target_ordinal,
+        ) in sorted(decision_inbound.get(entry_id, ())):
+            if target_ordinal and target_ordinal != ordinal:
+                continue
+            for state in target_states(
+                source_id,
+                source_ordinal or None,
+            ):
+                enqueue(state, next_distance)
 
     related_count = 0
-    decision_refs_by_entry: dict[str, list[str]] = {}
-    for entry_id, distance in sorted(distances.items(), key=lambda item: (item[1], item[0])):
+    root_decision_refs_by_entry: dict[str, list[str]] = {}
+    source_lines: dict[str, tuple[str, ...]] = {}
+    for (entry_id, ordinal), distance in sorted(
+        distances.items(),
+        key=lambda item: (item[1], item[0][0], item[0][1]),
+    ):
+        if not ordinal:
+            continue
         chunk = by_id[entry_id]
-        reasons = set(root_reasons.get(entry_id, ()))
+        state = (entry_id, ordinal)
+        reasons = set(root_state_reasons.get(state, ()))
         reasons.add(f"related decision graph distance {distance}")
         decision_candidates = _decision_candidates(
             chunk,
+            root=root,
+            source_lines=source_lines,
             selected_by={"required.related_decisions"},
             reasons=reasons,
             graph_distance=distance,
+            ordinals={ordinal},
         )
         for candidate in decision_candidates:
             _merge_candidate(candidates, candidate)
-            decision_refs_by_entry.setdefault(entry_id, []).append(candidate.ref)
+            if state in root_state_reasons:
+                root_decision_refs_by_entry.setdefault(entry_id, []).append(
+                    candidate.ref
+                )
             related_count += 1
 
     latest_root: MemoryChunk | None = None
-    if root_reasons:
+    if root_selection:
         latest_root = max(
-            (by_id[entry_id] for entry_id in root_reasons if entry_id in by_id),
+            (
+                by_id[entry_id]
+                for entry_id in root_selection
+                if entry_id in by_id
+            ),
             key=lambda chunk: (
                 chunk.session_date,
                 chunk.entry_datetime or datetime.min,
@@ -759,7 +968,7 @@ def _build_retrieval_plan(
             default=None,
         )
     if latest_root is not None:
-        refs = decision_refs_by_entry.get(str(latest_root.entry_id), [])
+        refs = root_decision_refs_by_entry.get(str(latest_root.entry_id), [])
         if refs:
             for ref in refs:
                 candidates[ref].selected_by.add("required.evidence")
@@ -779,8 +988,11 @@ def _build_retrieval_plan(
         {
             "stage": "related_decisions",
             "reader": "canonical session/link graph reader",
-            "root_entries": len(root_reasons),
-            "visited_entries": len(distances),
+            "root_entries": len(root_selection),
+            "visited_entries": len({entry_id for entry_id, _ in distances}),
+            "visited_decisions": len(
+                [ordinal for _, ordinal in distances if ordinal]
+            ),
             "candidate_count": related_count,
             "depth": depth_limit,
         }
@@ -791,7 +1003,7 @@ def _build_retrieval_plan(
 
     optional = normalized["optional"]["sessions"]
     optional_count = 0
-    if optional and root_reasons:
+    if optional and root_selection:
         ordered_chunks = sorted(
             by_id.values(),
             key=lambda chunk: (
@@ -804,11 +1016,16 @@ def _build_retrieval_plan(
         indexes = {
             str(chunk.entry_id): index for index, chunk in enumerate(ordered_chunks)
         }
-        root_indexes = [indexes[entry_id] for entry_id in root_reasons if entry_id in indexes]
+        root_indexes = [
+            indexes[entry_id]
+            for entry_id in root_selection
+            if entry_id in indexes
+        ]
+        visited_entries = {entry_id for entry_id, _ordinal in distances}
         neighbours = [
             chunk
             for chunk in ordered_chunks
-            if chunk.entry_id not in distances
+            if chunk.entry_id not in visited_entries
         ]
         neighbours.sort(
             key=lambda chunk: (
@@ -1663,6 +1880,17 @@ def augment_chunks_with_link_sidecars(
                 merged.append(ref)
         return tuple(merged)
 
+    def union_decisions(
+        base: tuple[tuple[str, str, str, str], ...],
+        extra: Iterable[tuple[str, str, str, str]],
+    ) -> tuple[tuple[str, str, str, str], ...]:
+        merged = list(base)
+        for kind, source_ordinal, target_id, target_ordinal in extra:
+            canonical = (kind, source_ordinal, target_id, target_ordinal)
+            if canonical not in merged:
+                merged.append(canonical)
+        return tuple(merged)
+
     augmented: list[MemoryChunk] = []
     for chunk in entries:
         extra = sidecars.get(chunk.entry_id or "")
@@ -1675,6 +1903,10 @@ def augment_chunks_with_link_sidecars(
                 related_entries=union(chunk.related_entries, extra.get("related_entries", ()), chunk.entry_id),
                 replaces=union(chunk.replaces, extra.get("replaces", ()), chunk.entry_id),
                 evolves=union(chunk.evolves, extra.get("evolves", ()), chunk.entry_id),
+                decision_edges=union_decisions(
+                    chunk.decision_edges,
+                    extra.get("decision_edges", ()),
+                ),
             )
         )
     return augmented

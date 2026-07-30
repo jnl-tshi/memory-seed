@@ -2,9 +2,9 @@
 title: Declarative Retrieval Specification primitive
 status: active
 priority: P1
-next_action: Complete the M0/M1 task and whole-branch reviews, then land the critical-path slice.
+next_action: Run the final whole-branch re-review after the bounded repair; if clean, hold for explicit user-approved manual merge.
 blocked_by:
-  - Stable Evidence Pack fields used by the minimum vertical slice
+  - Final whole-branch re-review and explicit user approval for manual merge
 sources:
   - memory-trace-evidence-annotations-and-projection-architecture.md
   - ../5_Completed/worker-context-minimisation-proposal.md
@@ -14,13 +14,13 @@ spec_binding: null
 
 # Declarative Retrieval Specification Primitive
 
-Status: **ACTIVE PROPOSAL — PLANNED, NOT IMPLEMENTED**.
+Status: **ACTIVE PROPOSAL — M0/M1 IMPLEMENTED ON A REVIEW BRANCH, NOT LANDED**.
 
 Priority: **P1**. The critical path is intentionally narrow enough to unblock real orchestrator/worker use through MCP before profiles, composition, caching, or UI authoring are complete.
 
 Scope: Object model, schema, Task Packet binding, deterministic Evidence Pack resolution, MCP, profiles, composition, provenance, validation, observability, security, and delivery sequence.
 
-Non-goals: Building an orchestrator; storing prompts or model reasoning; making a cache authoritative; changing default `memory_search` ranking; granting worker permissions; or implying implementation.
+Non-goals: Building an orchestrator; storing prompts or model reasoning; making a cache authoritative; changing default `memory_search` ranking; granting worker permissions; or extending the implemented M0/M1 slice into profiles, composition, Trace, caching, providers, or advanced selectors.
 
 Five-question test: **Retrieval, Validation, Trust, Application**.
 
@@ -351,7 +351,7 @@ The critical path is only **M0 → M1**. B0b, full ADR lifecycle, annotation aut
 
 Not blockers: final profile path, pack IDs, inline-pack threshold, token-count proxy, and separate MCP `get` versus inline-only first release.
 
-The M0/M1 branch supports only inline spec objects, MCP preview/resolve, and CLI preview; it is not shipped
-until task-level and whole-branch review pass and the branch lands. No profile, named spec, composition
-rule, or Task Packet field is a supported API; existing `memory_search` ranking, packs, and packets remain
-unchanged.
+The M0/M1 branch implements only inline spec objects, MCP preview/resolve, and CLI preview. Its bounded
+final repair is complete, but the branch still awaits whole-branch re-review and explicit user approval
+for manual merge; it is not landed or shipped. No profile, named spec, composition rule, or Task Packet
+field is a supported API; existing `memory_search` ranking, packs, and packets remain unchanged.

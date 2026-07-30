@@ -138,8 +138,13 @@ class RetrievalSpecResolverTests(unittest.TestCase):
         self.write_link_sidecar(root)
         return root
 
-    def write_entry(self, root, day, entry_id, title, body):
+    def write_entry(self, root, day, entry_id, title, body, *, topics=()):
         path = root / ".memory-seed" / "sessions" / f"{day}.md"
+        topic_lines = (
+            "topics:\n" + "".join(f"  - {topic}\n" for topic in topics)
+            if topics
+            else ""
+        )
         path.write_text(
             f"## {day} 09:00 - {title}\n\n"
             "```yaml\n"
@@ -148,6 +153,7 @@ class RetrievalSpecResolverTests(unittest.TestCase):
             "agent_type: codex\n"
             "project_path: .\n"
             "subproject_path: null\n"
+            f"{topic_lines}"
             "```\n\n"
             f"{body}\n",
             encoding="utf-8",
@@ -318,6 +324,164 @@ class RetrievalSpecResolverTests(unittest.TestCase):
             [item["ref"] for item in second["evidence"]],
         )
         self.assertEqual(canonical_retrieval_json(first), canonical_retrieval_json(second))
+
+    def test_omitted_sessions_spec_previews_and_resolves_with_one_fingerprint(self):
+        root = self.make_project()
+        spec = copy.deepcopy(FIXTURE_SPEC)
+        spec.pop("optional")
+        preview = preview_retrieval_spec(spec, root)
+        pack = resolve_retrieval_spec(spec, root)
+        self.assertIsNone(preview["effective_spec"]["optional"]["sessions"])
+        self.assertEqual(
+            preview["effective_spec_fingerprint"],
+            pack["effective_spec_fingerprint"],
+        )
+        self.assertTrue(validate_evidence_pack(pack, root)["valid"])
+
+    def test_sidecar_topics_override_authored_topics_and_select_only_attributed_decision(self):
+        root = self.make_project()
+        self.write_entry(
+            root,
+            "2026-07-02",
+            "mse_side0002",
+            "Topic sidecar decisions",
+            "### Decision\n\n"
+            "#### D1 - Canonical sidecar decision\n\n"
+            "- D: Use current sidecar attribution.\n"
+            "- R: The sidecar is authoritative.\n\n"
+            "#### D2 - Stale authored decision\n\n"
+            "- D: Do not re-admit stale authored topics.\n"
+            "- R: Decision precision is part of selection.\n",
+            topics=("session-fuse",),
+        )
+        topic_sidecar = (
+            root
+            / ".memory-seed"
+            / "sessions"
+            / "topics"
+            / "2026-07"
+            / "2026-07-02.md"
+        )
+        topic_sidecar.write_text(
+            "## 2026-07-02 10:00 - Topic attribution\n\n"
+            "```yaml\n"
+            "entry_id: mse_side0002\n"
+            "topics:\n"
+            "  activity:\n"
+            "    - worktree-integration:d1\n"
+            "```\n",
+            encoding="utf-8",
+        )
+
+        stale = copy.deepcopy(FIXTURE_SPEC)
+        stale["filters"] = {"topics": ["session-fuse"]}
+        stale.pop("optional")
+        with self.assertRaises(RetrievalSpecResolutionError) as missing:
+            resolve_retrieval_spec(stale, root)
+        self.assertEqual(missing.exception.code, "missing_required")
+
+        precise = copy.deepcopy(stale)
+        precise["filters"]["topics"] = ["worktree-integration"]
+        pack = resolve_retrieval_spec(precise, root)
+        refs = {item["ref"] for item in pack["evidence"]}
+        self.assertIn("mse_side0002:d1", refs)
+        self.assertNotIn("mse_side0002:d2", refs)
+
+    def test_decision_sidecar_edges_traverse_to_the_exact_target(self):
+        root = self.make_project()
+        self.write_entry(
+            root,
+            "2026-07-02",
+            "mse_side0002",
+            "Decision edge source",
+            "### Decision\n\n"
+            "#### D1 - Linked source\n\n"
+            "- D: Follow the decision edge.\n\n"
+            "#### D2 - Unlinked source\n\n"
+            "- D: Stay outside the traversal.\n",
+        )
+        self.write_entry(
+            root,
+            "2026-07-08",
+            "mse_target0008",
+            "Decision edge target",
+            "### Decision\n\n"
+            "#### D1 - Linked target\n\n"
+            "- D: Resolve this exact target.\n\n"
+            "#### D2 - Unlinked target\n\n"
+            "- D: Do not broaden the edge to this decision.\n",
+        )
+        link_sidecar = (
+            root
+            / ".memory-seed"
+            / "sessions"
+            / "links"
+            / "2026-07"
+            / "2026-07-02.md"
+        )
+        link_sidecar.write_text(
+            "## 2026-07-02 10:05 - Related target decision\n\n"
+            "```yaml\n"
+            "entry_id: mse_side0002\n"
+            "related_entries:\n"
+            "  - d1 -> mse_target0008:d1\n"
+            "```\n",
+            encoding="utf-8",
+        )
+        spec = copy.deepcopy(FIXTURE_SPEC)
+        spec["filters"] = {"topics": ["session-fuse"]}
+        spec.pop("optional")
+        pack = resolve_retrieval_spec(spec, root)
+        refs = {item["ref"] for item in pack["evidence"]}
+        self.assertIn("mse_side0002:d1", refs)
+        self.assertNotIn("mse_side0002:d2", refs)
+        self.assertIn("mse_target0008:d1", refs)
+        self.assertNotIn("mse_target0008:d2", refs)
+
+    def test_token_estimates_match_fetch_recipes_without_duplicate_entry_fetches(self):
+        root = self.make_project()
+        self.write_entry(
+            root,
+            "2026-07-02",
+            "mse_side0002",
+            "Precise fetch decisions",
+            "### Decision\n\n"
+            "#### D1 - Selected\n\n"
+            f"- D: {'selected evidence ' * 80}\n\n"
+            "#### D2 - Not selected\n\n"
+            f"- D: {'unrelated evidence ' * 240}\n",
+        )
+        spec = copy.deepcopy(FIXTURE_SPEC)
+        spec["filters"] = {"topics": ["session-fuse"]}
+        spec.pop("optional")
+        pack = resolve_retrieval_spec(spec, root)
+        fetched_proxy_total = 0
+        chunk_fetches = []
+        for item in pack["evidence"]:
+            fetch = item["fetch"]
+            if fetch.get("tool") == "memory_get_chunk":
+                chunk_id = fetch["arguments"]["chunk_id"]
+                chunk_fetches.append(chunk_id)
+                fetched_text = call_tool(
+                    "memory_get_chunk",
+                    {"chunk_id": chunk_id, "cwd": str(root)},
+                )["chunk"]["text"]
+            else:
+                source_lines = (root / fetch["path"]).read_text(
+                    encoding="utf-8"
+                ).splitlines()
+                fetched_text = "\n".join(
+                    source_lines[fetch["line_start"] - 1 : fetch["line_end"]]
+                )
+            fetched_proxy = max(
+                1, (len(fetched_text.encode("utf-8")) + 3) // 4
+            )
+            self.assertEqual(item["token_estimate"], fetched_proxy)
+            fetched_proxy_total += fetched_proxy
+        self.assertEqual(pack["token_estimate"], fetched_proxy_total)
+        self.assertLessEqual(fetched_proxy_total, spec["limits"]["max_tokens"])
+        self.assertEqual(len(chunk_fetches), len(set(chunk_fetches)))
+        self.assertNotIn("mse_side0002", chunk_fetches)
 
     def test_cli_and_mcp_preview_are_byte_equivalent_canonical_json(self):
         root = self.make_project()

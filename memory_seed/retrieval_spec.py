@@ -93,9 +93,20 @@ def _known_keys(mapping: Mapping[str, Any], path: str, allowed: set[str]) -> Non
             _error(full_path, "is unknown; unknown clauses are rejected before selection")
 
 
-def _string_list(value: Any, path: str, *, path_values: bool = False) -> list[str]:
-    if not isinstance(value, list) or not value:
-        _error(path, "must be a non-empty list of strings")
+def _string_list(
+    value: Any,
+    path: str,
+    *,
+    path_values: bool = False,
+    allow_empty: bool = False,
+) -> list[str]:
+    if not isinstance(value, list) or (not value and not allow_empty):
+        _error(
+            path,
+            "must be a list of strings"
+            if allow_empty
+            else "must be a non-empty list of strings",
+        )
     result: list[str] = []
     for index, item in enumerate(value):
         item_path = f"{path}[{index}]"
@@ -151,7 +162,7 @@ def normalize_retrieval_spec(spec: Mapping[str, Any]) -> dict[str, Any]:
     optional_in = _mapping(spec.get("optional", {}), "optional")
     _known_keys(optional_in, "optional", {"sessions"})
     sessions: dict[str, int] | None = None
-    if "sessions" in optional_in:
+    if "sessions" in optional_in and optional_in["sessions"] is not None:
         session_map = _mapping(optional_in["sessions"], "optional.sessions")
         _known_keys(session_map, "optional.sessions", {"neighbouring_entries"})
         if set(session_map) != {"neighbouring_entries"}:
@@ -162,9 +173,18 @@ def normalize_retrieval_spec(spec: Mapping[str, Any]) -> dict[str, Any]:
     _known_keys(filters_in, "filters", {"topics", "paths"})
     filters: dict[str, list[str]] = {"topics": [], "paths": []}
     if "topics" in filters_in:
-        filters["topics"] = _string_list(filters_in["topics"], "filters.topics")
+        filters["topics"] = _string_list(
+            filters_in["topics"],
+            "filters.topics",
+            allow_empty=True,
+        )
     if "paths" in filters_in:
-        filters["paths"] = _string_list(filters_in["paths"], "filters.paths", path_values=True)
+        filters["paths"] = _string_list(
+            filters_in["paths"],
+            "filters.paths",
+            path_values=True,
+            allow_empty=True,
+        )
 
     ordering = list(DEFAULT_ORDERING) if "ordering" not in spec else _string_list(spec["ordering"], "ordering")
     if ordering != list(DEFAULT_ORDERING):

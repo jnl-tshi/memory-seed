@@ -45,6 +45,19 @@ class RetrievalSpecTests(unittest.TestCase):
         self.assertEqual(canonical_retrieval_spec_json(FIXTURES["valid"]), canonical_retrieval_spec_json(reordered))
         self.assertEqual(retrieval_spec_fingerprint(FIXTURES["valid"]), retrieval_spec_fingerprint(reordered))
 
+    def test_normalized_form_is_idempotent_and_keeps_the_omitted_sessions_fingerprint(self):
+        normalized = normalize_retrieval_spec(FIXTURES["valid"])
+        self.assertIsNone(normalized["optional"]["sessions"])
+        self.assertEqual(normalize_retrieval_spec(normalized), normalized)
+        self.assertEqual(
+            canonical_retrieval_spec_json(normalized),
+            canonical_retrieval_spec_json(FIXTURES["valid"]),
+        )
+        self.assertEqual(
+            retrieval_spec_fingerprint(normalized),
+            retrieval_spec_fingerprint(FIXTURES["valid"]),
+        )
+
     def test_unknown_and_deferred_clauses_fail_before_selection(self):
         with self.assertRaisesRegex(RetrievalSpecValidationError, "is unknown"):
             normalize_retrieval_spec(FIXTURES["unknown"])
