@@ -2,7 +2,7 @@
 title: "Memory Trace UX M0 interaction matrix"
 status: active
 priority: P1
-next_action: "Implement M2 Trail history orientation and filtering against the named fixtures."
+next_action: "Implement M3 bounded graph perspectives and controlled expansion against the named fixtures."
 blocked_by: []
 sources:
   - memory-trace-ux-reference-model-implementation-plan.md
@@ -39,7 +39,7 @@ Status: **M0 and M1 delivered 2026-07-30.** This is the single reconciliation po
 | Decision reader and exact evidence return | Delivered (M1) | entry body, typed Trail sidecar projection, evidence anchor | Inspector / Reader | Keyboard action opens exact Markdown and returns to the unchanged decision/Trail context. | `decisionReaderModel.test.ts`: multi-decision, missing-source, superseded fixture; build/typecheck |
 | Recorded / derived / suggested grammar | Delivered in Reader (M1) | provenance class and source anchor | Inspector / Reader | Text badge accompanies the state; missing evidence is explicit. | `decisionReaderModel.test.ts` provenance-state fixture |
 | Quick Open, structured search, commands | Proposed (M4) | object IDs and explicit criteria | navigation | Every action is keyboard-operable; criteria visible. | Query-mode fixture |
-| Highlight-first filtering | Proposed (M2) | canonical Trail window and query | Trail | Selection persists and changes announce. | Filtered-selection fixture |
+| Highlight-first filtering | Delivered (M2) | canonical Trail window and query | Trail | Highlight is the default; an explicit match-only mode retains the selected entry context and reports the same bounded row window. | `trailSearch.test.ts` filtered-selection fixture; Trail range indicator |
 | One-hop graph expansion with list equivalent | Proposed (M3) | graph node/edge fields | Graph | Expand/inspect has non-canvas route. | Bounded-neighbourhood fixture |
 | Resume / deterministic attention | Deferred (M5) | local state plus integrity rules | optional home | Rule and remediation always named. | Attention-rule fixture |
 
@@ -47,4 +47,5 @@ Status: **M0 and M1 delivered 2026-07-30.** This is the single reconciliation po
 
 - Every M1–M5 behaviour now names its data owner; none creates a renderer-owned semantic field or canonical write path.
 - M1 is complete: its reader/evidence-return fixture suite covers multi-decision, generated/source-control state, missing source, and a superseding decision edge.
-- M2–M5 remain sequenced, not implied by current Trail or graph implementation.
+- M2 is complete: provenance topology and semantic lineage have distinct legend groups; match-only filtering is an explicit presentation step that retains selected context; range and marker geometry reuse the rendered Trail window.
+- M3–M5 remain sequenced, not implied by current Trail or graph implementation.

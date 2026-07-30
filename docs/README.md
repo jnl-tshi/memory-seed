@@ -120,7 +120,7 @@ Top open items (P0/P1 in `2_Todo/`):
 - **P1** [memory-trace-graph-visualisation-and-temporal-topology-proposal.md](2_Todo/memory-trace-graph-visualisation-and-temporal-topology-proposal.md) — —
 - **P1** [memory-trace-structural-graph-enrichment-provider-proposal.md](2_Todo/memory-trace-structural-graph-enrichment-provider-proposal.md) — —
 - **P1** [memory-trace-three-region-workspace-and-dockable-inspector-proposal.md](2_Todo/memory-trace-three-region-workspace-and-dockable-inspector-proposal.md) — —
-- **P1** [memory-trace-ux-m0-interaction-matrix.md](2_Todo/memory-trace-ux-m0-interaction-matrix.md) — Implement M2 Trail history orientation and filtering against the named fixtures.
-- **P1** [memory-trace-ux-reference-model-implementation-plan.md](2_Todo/memory-trace-ux-reference-model-implementation-plan.md) — Implement M2 Trail history orientation and filtering against memory-trace-ux-m0-interaction-matrix.md.
+- **P1** [memory-trace-ux-m0-interaction-matrix.md](2_Todo/memory-trace-ux-m0-interaction-matrix.md) — Implement M3 bounded graph perspectives and controlled expansion against the named fixtures.
+- **P1** [memory-trace-ux-reference-model-implementation-plan.md](2_Todo/memory-trace-ux-reference-model-implementation-plan.md) — Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-interaction-matrix.md.
 - **P1** [retrieval-specification-m0-m1-implementation-plan.md](2_Todo/retrieval-specification-m0-m1-implementation-plan.md) — Obtain explicit user approval for the configured manual merge; do not merge or push before that approval.
 <!-- docs-index:end -->
