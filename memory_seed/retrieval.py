@@ -16,11 +16,14 @@ docs/3_Spec/graph-edge-contract.md.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
+import time
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping
 
 if TYPE_CHECKING:
     from .core import DecisionSummary
@@ -239,6 +242,1202 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
         sidecar = entry_diagram_sidecars(cwd).get(found.entry_id or "")
         payload["diagrams"] = [sidecar] if sidecar else []
     return payload
+
+
+RETRIEVAL_RESOLVER_VERSION = 1
+RETRIEVAL_PREVIEW_SCHEMA = "memory-seed/retrieval-spec-preview"
+EVIDENCE_PACK_SCHEMA = "memory-seed/evidence-pack"
+EVIDENCE_PACK_VERSION = 1
+DEFAULT_RETRIEVAL_TIMEOUT_MS = 5_000
+_RETRIEVAL_REQUIRED_CLAUSES = (
+    "required.constitution",
+    "required.related_decisions",
+    "required.evidence",
+)
+_FORBIDDEN_RETRIEVAL_PATH_PARTS = frozenset(
+    {".git", ".codex", ".claude", ".cursor", ".gemini"}
+)
+
+
+class RetrievalSpecResolutionError(RuntimeError):
+    """Structured, fail-closed error from Retrieval Specification resolution."""
+
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        stage: str,
+        completed_stages: Iterable[str] = (),
+        details: Mapping[str, Any] | None = None,
+    ) -> None:
+        self.code = code
+        self.message = message
+        self.stage = stage
+        self.completed_stages = tuple(completed_stages)
+        self.details = dict(details or {})
+        super().__init__(f"retrieval resolution {code} at {stage}: {message}")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "code": self.code,
+            "message": self.message,
+            "stage": self.stage,
+            "completed_stages": list(self.completed_stages),
+            "details": self.details,
+        }
+
+
+@dataclass
+class _RetrievalCandidate:
+    ref: str
+    kind: str
+    source: str
+    line_range: tuple[int, int]
+    chunk_id: str | None
+    session_date: str | None
+    graph_distance: int | None
+    text: str
+    selected_by: set[str]
+    reasons: set[str]
+
+    @property
+    def token_estimate(self) -> int:
+        # Fixed local proxy. It is deliberately provider/tokenizer independent.
+        return max(1, (len(self.text.encode("utf-8")) + 3) // 4)
+
+
+def canonical_retrieval_json(payload: Mapping[str, Any]) -> str:
+    """Canonical JSON shared byte-for-byte by CLI and MCP adapters."""
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def _retrieval_corpus_revision(
+    cwd: str | Path,
+    normalized_spec: Mapping[str, Any],
+) -> str:
+    """Content-address the exact local Markdown families this resolver reads."""
+    from .core import _git_text, resolve_runtime
+
+    runtime = resolve_runtime(cwd)
+    root = runtime.workspace_root.resolve()
+    inputs: set[Path] = set()
+    for constitution in (root / "docs" / "CONSTITUTION.md", root / "CONSTITUTION.md"):
+        if constitution.is_file():
+            inputs.add(constitution)
+    topics_index = runtime.memory_dir / "topics.yaml"
+    if topics_index.is_file():
+        inputs.add(topics_index)
+    sessions = runtime.memory_dir / "sessions"
+    if sessions.is_dir():
+        inputs.update(path for path in sessions.rglob("*.md") if path.is_file())
+    for relative in normalized_spec["filters"]["paths"]:
+        if any(
+            part.lower() in _FORBIDDEN_RETRIEVAL_PATH_PARTS
+            for part in Path(relative).parts
+        ):
+            continue
+        candidate = (root / relative).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            continue
+        if candidate.is_file() and candidate.suffix.lower() == ".md":
+            inputs.add(candidate)
+
+    digest = hashlib.sha256()
+    digest.update(b"memory-seed-retrieval-corpus-v1\0")
+    for path in sorted(inputs, key=lambda item: item.as_posix()):
+        try:
+            relative = path.relative_to(root).as_posix()
+        except ValueError:
+            relative = path.as_posix()
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        try:
+            digest.update(path.read_bytes())
+        except OSError as exc:
+            digest.update(f"<unreadable:{type(exc).__name__}>".encode("utf-8"))
+        digest.update(b"\0")
+    code, head = _git_text(root, ("rev-parse", "HEAD"))
+    content_revision = "sha256:" + digest.hexdigest()
+    return f"git:{head}:{content_revision}" if code == 0 and head else content_revision
+
+
+def _runtime_scoped_path(root: Path, relative: str) -> Path:
+    parts = Path(relative).parts
+    if any(part.lower() in _FORBIDDEN_RETRIEVAL_PATH_PARTS for part in parts):
+        raise RetrievalSpecResolutionError(
+            "forbidden_path",
+            "path enters an agent or Git control directory",
+            stage="path_filters",
+            details={"path": relative},
+        )
+    target = (root / relative).resolve()
+    try:
+        target.relative_to(root.resolve())
+    except ValueError as exc:
+        raise RetrievalSpecResolutionError(
+            "forbidden_path",
+            "path resolves outside the active runtime",
+            stage="path_filters",
+            details={"path": relative},
+        ) from exc
+    return target
+
+
+def _candidate_sort_key(candidate: _RetrievalCandidate) -> tuple[Any, ...]:
+    required = any(clause.startswith("required.") for clause in candidate.selected_by)
+    distance = -1 if candidate.graph_distance is None else candidate.graph_distance
+    # ISO dates sort lexically; invert their integer representation for newest first.
+    recency = -int(candidate.session_date.replace("-", "")) if candidate.session_date else 0
+    return (0 if required else 1, distance, recency, candidate.ref)
+
+
+def _merge_candidate(
+    candidates: dict[str, _RetrievalCandidate],
+    candidate: _RetrievalCandidate,
+) -> None:
+    existing = candidates.get(candidate.ref)
+    if existing is None:
+        candidates[candidate.ref] = candidate
+        return
+    existing.selected_by.update(candidate.selected_by)
+    existing.reasons.update(candidate.reasons)
+    if existing.graph_distance is None:
+        existing.graph_distance = candidate.graph_distance
+    elif candidate.graph_distance is not None:
+        existing.graph_distance = min(existing.graph_distance, candidate.graph_distance)
+
+
+def _decision_candidates(
+    chunk: MemoryChunk,
+    *,
+    root: Path,
+    source_lines: dict[str, tuple[str, ...]],
+    selected_by: set[str],
+    reasons: set[str],
+    graph_distance: int,
+    ordinals: set[str] | None = None,
+) -> list[_RetrievalCandidate]:
+    from .core import entry_body_decisions
+
+    decisions = entry_body_decisions(chunk.text)
+    if not decisions:
+        return []
+    path_lines = source_lines.get(chunk.source_path)
+    if path_lines is None:
+        source = _runtime_scoped_path(root, chunk.source_path)
+        try:
+            path_lines = tuple(source.read_text(encoding="utf-8").splitlines())
+        except (OSError, UnicodeDecodeError) as exc:
+            raise RetrievalSpecResolutionError(
+                "unfetchable_ref",
+                "canonical session Markdown is unreadable",
+                stage="related_decisions",
+                details={"source": chunk.source_path},
+            ) from exc
+        source_lines[chunk.source_path] = path_lines
+
+    entry_start = max(0, chunk.start_line - 1)
+    entry_end = min(len(path_lines), chunk.end_line)
+    numbered: list[tuple[int, str]] = []
+    singular: int | None = None
+    for index in range(entry_start, entry_end):
+        line = path_lines[index]
+        match = re.match(r"^####\s+D(\d+)\s*[-–]", line)
+        if match:
+            numbered.append((index, f"d{int(match.group(1))}"))
+        elif singular is None and re.match(r"^###\s+Decision\s*$", line):
+            singular = index
+
+    starts = numbered if numbered else ([(singular, "d1")] if singular is not None else [])
+    spans: dict[str, tuple[int, int, str]] = {}
+    for start, ordinal in starts:
+        end = entry_end
+        for index in range(start + 1, entry_end):
+            if re.match(r"^#{2,4}\s", path_lines[index]):
+                end = index
+                break
+        spans[ordinal] = (
+            start + 1,
+            max(start + 1, end),
+            "\n".join(path_lines[start:end]),
+        )
+
+    multiple = len(decisions) > 1
+    candidates: list[_RetrievalCandidate] = []
+    for decision in decisions:
+        if ordinals is not None and decision.ordinal not in ordinals:
+            continue
+        span = spans.get(decision.ordinal)
+        if span is None:
+            raise RetrievalSpecResolutionError(
+                "unfetchable_ref",
+                "canonical decision line range could not be resolved",
+                stage="related_decisions",
+                details={
+                    "ref": f"{chunk.entry_id}:{decision.ordinal}",
+                    "source": chunk.source_path,
+                },
+            )
+        candidates.append(
+            _RetrievalCandidate(
+                ref=(
+                    f"{chunk.entry_id}:{decision.ordinal}"
+                    if multiple
+                    else str(chunk.entry_id)
+                ),
+                kind="decision",
+                source=chunk.source_path,
+                line_range=(span[0], span[1]),
+                # A decision is fetched by its exact canonical Markdown lines.
+                # Reusing the entry chunk id here would fetch every decision in
+                # the entry and invalidate both this estimate and pack bounds.
+                chunk_id=None,
+                session_date=chunk.session_date.isoformat(),
+                graph_distance=graph_distance,
+                text=span[2],
+                selected_by=set(selected_by),
+                reasons=set(reasons),
+            )
+        )
+    return candidates
+
+
+def _entry_candidate(
+    chunk: MemoryChunk,
+    *,
+    selected_by: set[str],
+    reasons: set[str],
+    graph_distance: int,
+) -> _RetrievalCandidate:
+    return _RetrievalCandidate(
+        ref=str(chunk.entry_id or chunk.chunk_id),
+        kind="session",
+        source=chunk.source_path,
+        line_range=(chunk.start_line, chunk.end_line),
+        chunk_id=chunk.chunk_id,
+        session_date=chunk.session_date.isoformat(),
+        graph_distance=graph_distance,
+        text=chunk.text,
+        selected_by=set(selected_by),
+        reasons=set(reasons),
+    )
+
+
+def _check_retrieval_timeout(
+    clock: Callable[[], float],
+    started: float,
+    timeout_ms: int,
+    *,
+    stage: str,
+    completed_stages: list[str],
+) -> None:
+    if (clock() - started) * 1_000 <= timeout_ms:
+        return
+    raise RetrievalSpecResolutionError(
+        "timeout",
+        f"resolution exceeded the local {timeout_ms} ms deadline",
+        stage=stage,
+        completed_stages=completed_stages,
+    )
+
+
+def _build_retrieval_plan(
+    normalized: Mapping[str, Any],
+    cwd: str | Path,
+    *,
+    clock: Callable[[], float],
+    started: float,
+    timeout_ms: int,
+) -> dict[str, Any]:
+    from .core import resolve_runtime
+    from .semantic_cache import _entry_file_refs
+    from .topics import expand_topic_filter, load_topic_index
+
+    completed: list[str] = []
+    trace: list[dict[str, Any]] = []
+    warnings: list[dict[str, str]] = []
+    runtime = resolve_runtime(cwd)
+    root = runtime.workspace_root.resolve()
+    if not runtime.memory_dir.is_dir():
+        raise RetrievalSpecResolutionError(
+            "missing_required",
+            "active .memory-seed runtime is absent",
+            stage="runtime",
+            completed_stages=completed,
+            details={"clauses": list(_RETRIEVAL_REQUIRED_CLAUSES)},
+        )
+    completed.append("runtime")
+    trace.append(
+        {
+            "stage": "runtime",
+            "reader": "resolve_runtime",
+            "workspace": root.as_posix(),
+        }
+    )
+    _check_retrieval_timeout(
+        clock, started, timeout_ms, stage="constitution", completed_stages=completed
+    )
+
+    candidates: dict[str, _RetrievalCandidate] = {}
+    constitution_path = next(
+        (
+            path
+            for path in (root / "docs" / "CONSTITUTION.md", root / "CONSTITUTION.md")
+            if path.is_file()
+        ),
+        None,
+    )
+    if constitution_path is None:
+        raise RetrievalSpecResolutionError(
+            "missing_required",
+            "canonical Constitution Markdown was not found",
+            stage="constitution",
+            completed_stages=completed,
+            details={"clause": "required.constitution"},
+        )
+    try:
+        constitution_text = constitution_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise RetrievalSpecResolutionError(
+            "missing_required",
+            "canonical Constitution Markdown is unreadable",
+            stage="constitution",
+            completed_stages=completed,
+            details={"clause": "required.constitution"},
+        ) from exc
+    constitution_text = "\n".join(constitution_text.splitlines())
+    constitution_source = constitution_path.relative_to(root).as_posix()
+    _merge_candidate(
+        candidates,
+        _RetrievalCandidate(
+            ref=constitution_source,
+            kind="constitution",
+            source=constitution_source,
+            line_range=(1, max(1, len(constitution_text.splitlines()))),
+            chunk_id=None,
+            session_date=None,
+            graph_distance=None,
+            text=constitution_text,
+            selected_by={"required.constitution"},
+            reasons={"governing Constitution required by the inline v1 contract"},
+        ),
+    )
+    completed.append("constitution")
+    trace.append(
+        {
+            "stage": "constitution",
+            "reader": "canonical Constitution Markdown reader",
+            "candidate_count": 1,
+        }
+    )
+    _check_retrieval_timeout(
+        clock, started, timeout_ms, stage="sessions", completed_stages=completed
+    )
+
+    chunks = augment_chunks_with_topic_sidecars(
+        augment_chunks_with_link_sidecars(
+            extract_memory_chunks(root, granularity="entry"),
+            root,
+        ),
+        root,
+    )
+    by_id: dict[str, MemoryChunk] = {}
+    for chunk in chunks:
+        if chunk.entry_id and chunk.entry_id not in by_id:
+            by_id[chunk.entry_id] = chunk
+    completed.append("sessions")
+    trace.append(
+        {
+            "stage": "sessions",
+            "reader": "canonical session-log reader",
+            "candidate_count": len(by_id),
+        }
+    )
+    _check_retrieval_timeout(
+        clock, started, timeout_ms, stage="topic_filters", completed_stages=completed
+    )
+
+    # Empty ordinal means an entry-level selector. A concrete ``dN`` means the
+    # canonical topic sidecar attributed only that decision, and the resolver
+    # must not flatten the match back to every decision in the entry.
+    root_selection: dict[str, dict[str, set[str]]] = {}
+
+    def add_root(entry_id: str, ordinal: str, reason: str) -> None:
+        root_selection.setdefault(entry_id, {}).setdefault(ordinal, set()).add(
+            reason
+        )
+
+    topic_index = load_topic_index(root)
+    resolution = topic_index.resolution()
+    for requested in normalized["filters"]["topics"]:
+        expanded = expand_topic_filter(root, [requested])
+        if requested not in resolution:
+            warnings.append(
+                {
+                    "code": "unknown_topic",
+                    "clause": "filters.topics",
+                    "detail": requested,
+                }
+            )
+        for chunk in chunks:
+            if not chunk.entry_id:
+                continue
+            if chunk.inferred_topics:
+                matched = False
+                for ordinal, slug in chunk.inferred_decision_topics:
+                    if slug in expanded:
+                        add_root(
+                            chunk.entry_id,
+                            ordinal,
+                            f"topic {requested!r} matched canonical sidecar metadata",
+                        )
+                        matched = True
+                # Legacy sidecars still expose a rolled-up channel. Preserve
+                # their entry-level meaning when no decision pair is present.
+                if (
+                    not matched
+                    and not chunk.inferred_decision_topics
+                    and set(chunk.inferred_topics) & expanded
+                ):
+                    add_root(
+                        chunk.entry_id,
+                        "",
+                        f"topic {requested!r} matched canonical sidecar metadata",
+                    )
+            elif set(chunk.topics) & expanded:
+                # Canonical precedence is sidecar -> authored. Authored topics
+                # are an entry-level fallback only when no sidecar attribution
+                # exists, never a union with the current sidecar reading.
+                add_root(
+                    chunk.entry_id,
+                    "",
+                    f"topic {requested!r} matched canonical authored metadata",
+                )
+    completed.append("topic_filters")
+    trace.append(
+        {
+            "stage": "topic_filters",
+            "reader": "topic-sidecar reader with topic vocabulary expansion",
+            "requested": list(normalized["filters"]["topics"]),
+            "matched_entries": sum(
+                1
+                for selectors in root_selection.values()
+                if any(
+                    reason.startswith("topic ")
+                    for reasons in selectors.values()
+                    for reason in reasons
+                )
+            ),
+        }
+    )
+    _check_retrieval_timeout(
+        clock, started, timeout_ms, stage="path_filters", completed_stages=completed
+    )
+
+    direct_markdown: list[_RetrievalCandidate] = []
+    normalized_paths = list(normalized["filters"]["paths"])
+    for requested in normalized_paths:
+        target = _runtime_scoped_path(root, requested)
+        matched = False
+        for chunk in chunks:
+            if requested in _entry_file_refs(chunk.text) and chunk.entry_id:
+                add_root(
+                    chunk.entry_id,
+                    "",
+                    f"path {requested!r} matched canonical session file evidence"
+                )
+                matched = True
+        if target.is_file() and target.suffix.lower() == ".md":
+            try:
+                text = target.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as exc:
+                raise RetrievalSpecResolutionError(
+                    "forbidden_path",
+                    "declared Markdown path is unreadable",
+                    stage="path_filters",
+                    completed_stages=completed,
+                    details={"path": requested},
+                ) from exc
+            text = "\n".join(text.splitlines())
+            source = target.relative_to(root).as_posix()
+            direct_markdown.append(
+                _RetrievalCandidate(
+                    ref=source,
+                    kind="markdown",
+                    source=source,
+                    line_range=(1, max(1, len(text.splitlines()))),
+                    chunk_id=None,
+                    session_date=None,
+                    graph_distance=0,
+                    text=text,
+                    selected_by={"required.evidence", "filters.paths"},
+                    reasons={f"declared canonical Markdown path {requested!r}"},
+                )
+            )
+            matched = True
+        if not matched:
+            warnings.append(
+                {
+                    "code": "path_no_evidence",
+                    "clause": "filters.paths",
+                    "detail": requested,
+                }
+            )
+    for candidate in direct_markdown:
+        _merge_candidate(candidates, candidate)
+    completed.append("path_filters")
+    trace.append(
+        {
+            "stage": "path_filters",
+            "reader": "runtime-bounded canonical Markdown path reader",
+            "requested": normalized_paths,
+            "matched_entries": sum(
+                1
+                for selectors in root_selection.values()
+                if any(
+                    reason.startswith("path ")
+                    for reasons in selectors.values()
+                    for reason in reasons
+                )
+            ),
+            "direct_markdown": len(direct_markdown),
+        }
+    )
+    _check_retrieval_timeout(
+        clock, started, timeout_ms, stage="related_decisions", completed_stages=completed
+    )
+
+    graph = build_related_entry_graph(root, chunks=chunks)
+    depth_limit = normalized["required"]["related_decisions"]["depth"]
+    from .core import entry_body_decisions
+
+    decision_ordinals = {
+        entry_id: tuple(
+            decision.ordinal for decision in entry_body_decisions(chunk.text)
+        )
+        for entry_id, chunk in by_id.items()
+    }
+
+    def target_states(
+        entry_id: str,
+        ordinal: str | None = None,
+    ) -> list[tuple[str, str]]:
+        if entry_id not in by_id:
+            return []
+        available = decision_ordinals.get(entry_id, ()) or ("",)
+        selected = (
+            [ordinal]
+            if ordinal
+            else list(available)
+        )
+        selected = [item for item in selected if item in available]
+        root_selectors = root_selection.get(entry_id)
+        if root_selectors is not None and "" not in root_selectors:
+            allowed = set(root_selectors)
+            selected = [item for item in selected if item in allowed]
+        return [(entry_id, item) for item in selected]
+
+    root_state_reasons: dict[tuple[str, str], set[str]] = {}
+    for entry_id, selectors in root_selection.items():
+        for state in target_states(entry_id):
+            ordinal = state[1]
+            reasons = set(selectors.get("", ()))
+            reasons.update(selectors.get(ordinal, ()))
+            root_state_reasons[state] = reasons
+
+    decision_inbound: dict[
+        str, list[tuple[str, str, str, str]]
+    ] = {}
+    for source_id, chunk in sorted(by_id.items()):
+        for kind, source_ordinal, target_id, target_ordinal in sorted(
+            set(chunk.decision_edges)
+        ):
+            if target_id in by_id and target_id != source_id:
+                decision_inbound.setdefault(target_id, []).append(
+                    (source_id, kind, source_ordinal, target_ordinal)
+                )
+
+    distances: dict[tuple[str, str], int] = {
+        state: 0 for state in root_state_reasons
+    }
+    frontier = sorted(distances)
+
+    def enqueue(state: tuple[str, str], next_distance: int) -> None:
+        if state not in distances or next_distance < distances[state]:
+            distances[state] = next_distance
+            frontier.append(state)
+
+    while frontier:
+        frontier.sort(key=lambda state: (distances[state], state[0], state[1]))
+        entry_id, ordinal = frontier.pop(0)
+        distance = distances[(entry_id, ordinal)]
+        if distance >= depth_limit:
+            continue
+        node = graph.get(entry_id)
+        next_distance = distance + 1
+        if node is not None:
+            neighbours = sorted(
+                set(
+                    node.outbound
+                    + node.inbound
+                    + node.replaces
+                    + node.replaced_by
+                    + node.evolves
+                    + node.evolved_by
+                )
+            )
+            for neighbour in neighbours:
+                for state in target_states(neighbour):
+                    enqueue(state, next_distance)
+
+        for (
+            _kind,
+            source_ordinal,
+            target_id,
+            target_ordinal,
+        ) in sorted(set(by_id[entry_id].decision_edges)):
+            if source_ordinal and source_ordinal != ordinal:
+                continue
+            for state in target_states(
+                target_id,
+                target_ordinal or None,
+            ):
+                enqueue(state, next_distance)
+
+        for (
+            source_id,
+            _kind,
+            source_ordinal,
+            target_ordinal,
+        ) in sorted(decision_inbound.get(entry_id, ())):
+            if target_ordinal and target_ordinal != ordinal:
+                continue
+            for state in target_states(
+                source_id,
+                source_ordinal or None,
+            ):
+                enqueue(state, next_distance)
+
+    related_count = 0
+    root_decision_refs_by_entry: dict[str, list[str]] = {}
+    source_lines: dict[str, tuple[str, ...]] = {}
+    for (entry_id, ordinal), distance in sorted(
+        distances.items(),
+        key=lambda item: (item[1], item[0][0], item[0][1]),
+    ):
+        if not ordinal:
+            continue
+        chunk = by_id[entry_id]
+        state = (entry_id, ordinal)
+        reasons = set(root_state_reasons.get(state, ()))
+        reasons.add(f"related decision graph distance {distance}")
+        decision_candidates = _decision_candidates(
+            chunk,
+            root=root,
+            source_lines=source_lines,
+            selected_by={"required.related_decisions"},
+            reasons=reasons,
+            graph_distance=distance,
+            ordinals={ordinal},
+        )
+        for candidate in decision_candidates:
+            _merge_candidate(candidates, candidate)
+            if state in root_state_reasons:
+                root_decision_refs_by_entry.setdefault(entry_id, []).append(
+                    candidate.ref
+                )
+            related_count += 1
+
+    latest_root: MemoryChunk | None = None
+    if root_selection:
+        latest_root = max(
+            (
+                by_id[entry_id]
+                for entry_id in root_selection
+                if entry_id in by_id
+            ),
+            key=lambda chunk: (
+                chunk.session_date,
+                chunk.entry_datetime or datetime.min,
+                chunk.start_line,
+                chunk.entry_id or "",
+            ),
+            default=None,
+        )
+    if latest_root is not None:
+        refs = root_decision_refs_by_entry.get(str(latest_root.entry_id), [])
+        if refs:
+            for ref in refs:
+                candidates[ref].selected_by.add("required.evidence")
+                candidates[ref].reasons.add("latest matching canonical session evidence")
+        else:
+            _merge_candidate(
+                candidates,
+                _entry_candidate(
+                    latest_root,
+                    selected_by={"required.evidence"},
+                    reasons={"latest matching canonical session evidence"},
+                    graph_distance=0,
+                ),
+            )
+    completed.append("related_decisions")
+    trace.append(
+        {
+            "stage": "related_decisions",
+            "reader": "canonical session/link graph reader",
+            "root_entries": len(root_selection),
+            "visited_entries": len({entry_id for entry_id, _ in distances}),
+            "visited_decisions": len(
+                [ordinal for _, ordinal in distances if ordinal]
+            ),
+            "candidate_count": related_count,
+            "depth": depth_limit,
+        }
+    )
+    _check_retrieval_timeout(
+        clock, started, timeout_ms, stage="optional_sessions", completed_stages=completed
+    )
+
+    optional = normalized["optional"]["sessions"]
+    optional_count = 0
+    if optional and root_selection:
+        ordered_chunks = sorted(
+            by_id.values(),
+            key=lambda chunk: (
+                chunk.session_date,
+                chunk.entry_datetime or datetime.min,
+                chunk.start_line,
+                chunk.entry_id or "",
+            ),
+        )
+        indexes = {
+            str(chunk.entry_id): index for index, chunk in enumerate(ordered_chunks)
+        }
+        root_indexes = [
+            indexes[entry_id]
+            for entry_id in root_selection
+            if entry_id in indexes
+        ]
+        visited_entries = {entry_id for entry_id, _ordinal in distances}
+        neighbours = [
+            chunk
+            for chunk in ordered_chunks
+            if chunk.entry_id not in visited_entries
+        ]
+        neighbours.sort(
+            key=lambda chunk: (
+                min(abs(indexes[str(chunk.entry_id)] - root_index) for root_index in root_indexes),
+                -int(chunk.session_date.strftime("%Y%m%d")),
+                chunk.entry_id or "",
+            )
+        )
+        for chunk in neighbours[: optional["neighbouring_entries"]]:
+            distance = min(
+                abs(indexes[str(chunk.entry_id)] - root_index)
+                for root_index in root_indexes
+            )
+            _merge_candidate(
+                candidates,
+                _entry_candidate(
+                    chunk,
+                    selected_by={"optional.sessions"},
+                    reasons={f"chronological neighbour distance {distance}"},
+                    graph_distance=distance,
+                ),
+            )
+            optional_count += 1
+        if optional_count == 0:
+            warnings.append(
+                {
+                    "code": "optional_missing",
+                    "clause": "optional.sessions",
+                    "detail": "no neighbouring canonical session entries were available",
+                }
+            )
+    completed.append("optional_sessions")
+    trace.append(
+        {
+            "stage": "optional_sessions",
+            "reader": "canonical session-log reader",
+            "candidate_count": optional_count,
+        }
+    )
+
+    missing = [
+        clause
+        for clause in _RETRIEVAL_REQUIRED_CLAUSES
+        if not any(clause in candidate.selected_by for candidate in candidates.values())
+    ]
+    if missing:
+        raise RetrievalSpecResolutionError(
+            "missing_required",
+            "one or more required clauses produced no canonical evidence",
+            stage="required_coverage",
+            completed_stages=completed,
+            details={"clauses": missing},
+        )
+    _check_retrieval_timeout(
+        clock, started, timeout_ms, stage="limits", completed_stages=completed
+    )
+
+    ordered = sorted(candidates.values(), key=_candidate_sort_key)
+    selected: list[_RetrievalCandidate] = []
+    omitted: list[_RetrievalCandidate] = []
+    tokens = 0
+    max_entries = normalized["limits"]["max_entries"]
+    max_tokens = normalized["limits"]["max_tokens"]
+    for candidate in ordered:
+        if (
+            len(selected) >= max_entries
+            or tokens + candidate.token_estimate > max_tokens
+        ):
+            omitted.append(candidate)
+            continue
+        selected.append(candidate)
+        tokens += candidate.token_estimate
+    covered = {
+        clause
+        for candidate in selected
+        for clause in candidate.selected_by
+        if clause in _RETRIEVAL_REQUIRED_CLAUSES
+    }
+    lost = [clause for clause in _RETRIEVAL_REQUIRED_CLAUSES if clause not in covered]
+    if lost:
+        raise RetrievalSpecResolutionError(
+            "required_limit_exceeded",
+            "limits would remove required clause coverage",
+            stage="limits",
+            completed_stages=completed,
+            details={
+                "clauses": lost,
+                "max_entries": max_entries,
+                "max_tokens": max_tokens,
+            },
+        )
+    if omitted:
+        warnings.append(
+            {
+                "code": "truncated",
+                "clause": "limits",
+                "detail": f"{len(omitted)} candidate(s) omitted",
+            }
+        )
+    completed.append("limits")
+    trace.append(
+        {
+            "stage": "limits",
+            "reader": "M1 bounded-pack limiter",
+            "candidate_count": len(ordered),
+            "selected_count": len(selected),
+            "omitted_count": len(omitted),
+            "token_estimate": tokens,
+        }
+    )
+    return {
+        "selected": selected,
+        "candidate_count": len(ordered),
+        "omitted_count": len(omitted),
+        "token_estimate": tokens,
+        "warnings": warnings,
+        "trace": trace,
+        "completed_stages": completed,
+    }
+
+
+def _evidence_record(
+    candidate: _RetrievalCandidate,
+    *,
+    include_excerpt: bool,
+) -> dict[str, Any]:
+    fetch = (
+        {
+            "tool": "memory_get_chunk",
+            "arguments": {"chunk_id": candidate.chunk_id},
+        }
+        if candidate.chunk_id
+        else {
+            "path": candidate.source,
+            "line_start": candidate.line_range[0],
+            "line_end": candidate.line_range[1],
+        }
+    )
+    return {
+        "ref": candidate.ref,
+        "kind": candidate.kind,
+        "source": candidate.source,
+        "line_range": list(candidate.line_range),
+        "chunk_id": candidate.chunk_id,
+        "session_date": candidate.session_date,
+        "graph_distance": candidate.graph_distance,
+        "selected_by": sorted(candidate.selected_by),
+        "reasons": sorted(candidate.reasons),
+        "token_estimate": candidate.token_estimate,
+        "fetch": fetch,
+        "excerpt": _excerpt(candidate.text) if include_excerpt else None,
+    }
+
+
+def _evidence_pack_fingerprint(pack: Mapping[str, Any]) -> str:
+    identity = {
+        "pack_schema": pack["pack_schema"],
+        "pack_version": pack["pack_version"],
+        "resolver_version": pack["resolver_version"],
+        "corpus_revision": pack["corpus_revision"],
+        "effective_spec_fingerprint": pack["effective_spec_fingerprint"],
+        "evidence": [
+            {
+                key: item[key]
+                for key in (
+                    "ref",
+                    "kind",
+                    "source",
+                    "line_range",
+                    "chunk_id",
+                    "graph_distance",
+                    "selected_by",
+                )
+            }
+            for item in pack["evidence"]
+        ],
+    }
+    return "sha256:" + hashlib.sha256(
+        canonical_retrieval_json(identity).encode("utf-8")
+    ).hexdigest()
+
+
+def _stable_retrieval_plan(
+    spec: Mapping[str, Any],
+    cwd: str | Path,
+    *,
+    clock: Callable[[], float],
+    timeout_ms: int,
+    revision_reader: Callable[[str | Path, Mapping[str, Any]], str],
+) -> tuple[dict[str, Any], dict[str, Any], str, int, float]:
+    from .retrieval_spec import normalize_retrieval_spec
+
+    normalized = normalize_retrieval_spec(spec)
+    started = clock()
+    seen: list[tuple[str, str]] = []
+    for attempt in (1, 2):
+        start_revision = revision_reader(cwd, normalized)
+        plan = _build_retrieval_plan(
+            normalized,
+            cwd,
+            clock=clock,
+            started=started,
+            timeout_ms=timeout_ms,
+        )
+        end_revision = revision_reader(cwd, normalized)
+        _check_retrieval_timeout(
+            clock,
+            started,
+            timeout_ms,
+            stage="revision_check",
+            completed_stages=plan["completed_stages"],
+        )
+        seen.append((start_revision, end_revision))
+        if start_revision == end_revision:
+            return normalized, plan, start_revision, attempt, started
+    raise RetrievalSpecResolutionError(
+        "corpus_changed",
+        "corpus changed during both resolution attempts",
+        stage="revision_check",
+        completed_stages=plan["completed_stages"],
+        details={"attempts": [list(pair) for pair in seen]},
+    )
+
+
+def preview_retrieval_spec(
+    spec: Mapping[str, Any],
+    cwd: str | Path = ".",
+    *,
+    _clock: Callable[[], float] = time.monotonic,
+    _timeout_ms: int = DEFAULT_RETRIEVAL_TIMEOUT_MS,
+    _revision_reader: Callable[
+        [str | Path, Mapping[str, Any]], str
+    ] = _retrieval_corpus_revision,
+) -> dict[str, Any]:
+    """Validate and plan an inline spec without creating an Evidence Pack."""
+    from .retrieval_spec import retrieval_spec_fingerprint
+
+    normalized, plan, revision, attempt, started = _stable_retrieval_plan(
+        spec,
+        cwd,
+        clock=_clock,
+        timeout_ms=_timeout_ms,
+        revision_reader=_revision_reader,
+    )
+    preview = {
+        "preview_schema": RETRIEVAL_PREVIEW_SCHEMA,
+        "preview_version": 1,
+        "resolver_version": RETRIEVAL_RESOLVER_VERSION,
+        "valid": True,
+        "corpus_revision": revision,
+        "effective_spec": normalized,
+        "effective_spec_fingerprint": retrieval_spec_fingerprint(normalized),
+        "candidate_count": plan["candidate_count"],
+        "selected_count": len(plan["selected"]),
+        "omitted_count": plan["omitted_count"],
+        "token_estimate": plan["token_estimate"],
+        "warnings": plan["warnings"],
+        "plan": plan["trace"],
+        "revision_attempt": attempt,
+        "write_surface": "read-only; no Evidence Pack created",
+    }
+    _check_retrieval_timeout(
+        _clock,
+        started,
+        _timeout_ms,
+        stage="preview_format",
+        completed_stages=[*plan["completed_stages"], "revision_check"],
+    )
+    return preview
+
+
+def resolve_retrieval_spec(
+    spec: Mapping[str, Any],
+    cwd: str | Path = ".",
+    *,
+    _clock: Callable[[], float] = time.monotonic,
+    _timeout_ms: int = DEFAULT_RETRIEVAL_TIMEOUT_MS,
+    _revision_reader: Callable[
+        [str | Path, Mapping[str, Any]], str
+    ] = _retrieval_corpus_revision,
+) -> dict[str, Any]:
+    """Resolve an inline spec into one deterministic, ephemeral Evidence Pack."""
+    from .retrieval_spec import retrieval_spec_fingerprint
+
+    normalized, plan, revision, attempt, started = _stable_retrieval_plan(
+        spec,
+        cwd,
+        clock=_clock,
+        timeout_ms=_timeout_ms,
+        revision_reader=_revision_reader,
+    )
+    pack: dict[str, Any] = {
+        "pack_schema": EVIDENCE_PACK_SCHEMA,
+        "pack_version": EVIDENCE_PACK_VERSION,
+        "resolver_version": RETRIEVAL_RESOLVER_VERSION,
+        "corpus_revision": revision,
+        "effective_spec": normalized,
+        "effective_spec_fingerprint": retrieval_spec_fingerprint(normalized),
+        "completeness": "partial" if plan["omitted_count"] else "complete",
+        "warnings": plan["warnings"],
+        "evidence": [
+            _evidence_record(
+                candidate,
+                include_excerpt=normalized["output"]["include_excerpts"],
+            )
+            for candidate in plan["selected"]
+        ],
+        "resolution_trace": (
+            [*plan["trace"], {"stage": "revision_check", "attempt": attempt}]
+            if normalized["output"]["include_resolution_trace"]
+            else []
+        ),
+        "token_estimate": plan["token_estimate"],
+        "fingerprint": "",
+    }
+    pack["fingerprint"] = _evidence_pack_fingerprint(pack)
+    _check_retrieval_timeout(
+        _clock,
+        started,
+        _timeout_ms,
+        stage="pack_format",
+        completed_stages=[*plan["completed_stages"], "revision_check"],
+    )
+    return pack
+
+
+def validate_evidence_pack(
+    pack: Mapping[str, Any],
+    cwd: str | Path = ".",
+    *,
+    _revision_reader: Callable[
+        [str | Path, Mapping[str, Any]], str
+    ] = _retrieval_corpus_revision,
+) -> dict[str, Any]:
+    """Reject stale, tampered, or no-longer-fetchable ephemeral packs."""
+    from .core import resolve_runtime
+    from .retrieval_spec import retrieval_spec_fingerprint
+
+    if pack.get("pack_schema") != EVIDENCE_PACK_SCHEMA or pack.get(
+        "pack_version"
+    ) != EVIDENCE_PACK_VERSION:
+        raise RetrievalSpecResolutionError(
+            "invalid_pack",
+            "unsupported Evidence Pack identity",
+            stage="pack_validation",
+        )
+    effective_spec = pack.get("effective_spec")
+    if not isinstance(effective_spec, Mapping):
+        raise RetrievalSpecResolutionError(
+            "invalid_pack",
+            "effective_spec is missing",
+            stage="pack_validation",
+        )
+    if pack.get("effective_spec_fingerprint") != retrieval_spec_fingerprint(
+        effective_spec
+    ):
+        raise RetrievalSpecResolutionError(
+            "fingerprint_mismatch",
+            "effective_spec does not match its fingerprint",
+            stage="pack_validation",
+        )
+    current_revision = _revision_reader(cwd, effective_spec)
+    if current_revision != pack.get("corpus_revision"):
+        raise RetrievalSpecResolutionError(
+            "stale_pack",
+            "Evidence Pack corpus revision is not current",
+            stage="pack_validation",
+            details={
+                "pack_revision": pack.get("corpus_revision"),
+                "current_revision": current_revision,
+            },
+        )
+    if pack.get("fingerprint") != _evidence_pack_fingerprint(pack):
+        raise RetrievalSpecResolutionError(
+            "fingerprint_mismatch",
+            "Evidence Pack fingerprint does not match its canonical references",
+            stage="pack_validation",
+        )
+    root = Path(resolve_runtime(cwd).workspace_root).resolve()
+    for item in pack.get("evidence", []):
+        source = item.get("source")
+        if not isinstance(source, str):
+            raise RetrievalSpecResolutionError(
+                "unfetchable_ref",
+                "evidence source is missing",
+                stage="pack_validation",
+            )
+        path = _runtime_scoped_path(root, source)
+        if not path.is_file():
+            raise RetrievalSpecResolutionError(
+                "unfetchable_ref",
+                f"canonical Markdown source is absent: {source}",
+                stage="pack_validation",
+                details={"ref": item.get("ref")},
+            )
+        chunk_id = item.get("chunk_id")
+        if chunk_id:
+            try:
+                get_chunk(str(chunk_id), root)
+            except ValueError as exc:
+                raise RetrievalSpecResolutionError(
+                    "unfetchable_ref",
+                    f"chunk is absent: {chunk_id}",
+                    stage="pack_validation",
+                    details={"ref": item.get("ref")},
+                ) from exc
+    return {
+        "valid": True,
+        "corpus_revision": current_revision,
+        "fingerprint": pack["fingerprint"],
+        "ref_count": len(pack.get("evidence", [])),
+    }
 
 
 _DIAGRAM_ENTRY_RE = re.compile(
@@ -681,6 +1880,17 @@ def augment_chunks_with_link_sidecars(
                 merged.append(ref)
         return tuple(merged)
 
+    def union_decisions(
+        base: tuple[tuple[str, str, str, str], ...],
+        extra: Iterable[tuple[str, str, str, str]],
+    ) -> tuple[tuple[str, str, str, str], ...]:
+        merged = list(base)
+        for kind, source_ordinal, target_id, target_ordinal in extra:
+            canonical = (kind, source_ordinal, target_id, target_ordinal)
+            if canonical not in merged:
+                merged.append(canonical)
+        return tuple(merged)
+
     augmented: list[MemoryChunk] = []
     for chunk in entries:
         extra = sidecars.get(chunk.entry_id or "")
@@ -693,6 +1903,10 @@ def augment_chunks_with_link_sidecars(
                 related_entries=union(chunk.related_entries, extra.get("related_entries", ()), chunk.entry_id),
                 replaces=union(chunk.replaces, extra.get("replaces", ()), chunk.entry_id),
                 evolves=union(chunk.evolves, extra.get("evolves", ()), chunk.entry_id),
+                decision_edges=union_decisions(
+                    chunk.decision_edges,
+                    extra.get("decision_edges", ()),
+                ),
             )
         )
     return augmented

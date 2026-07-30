@@ -625,6 +625,29 @@ def main(argv: list[str] | None = None) -> int:
     compact_parser.add_argument("--all", action="store_true", dest="scan_all", help="scan all sessions")
     compact_parser.add_argument("--output", type=str, default=None, help="write summary to file instead of stdout")
 
+    retrieval_spec_parser = subparsers.add_parser(
+        "retrieval-spec",
+        help="validate and preview an inline Retrieval Specification",
+    )
+    retrieval_spec_sub = retrieval_spec_parser.add_subparsers(
+        dest="retrieval_spec_command",
+        required=True,
+    )
+    retrieval_spec_preview = retrieval_spec_sub.add_parser(
+        "preview",
+        help="plan a JSON inline spec against canonical Markdown without creating a pack",
+    )
+    retrieval_spec_preview.add_argument(
+        "--spec-file",
+        required=True,
+        help="UTF-8 JSON file containing the inline spec; use - for stdin",
+    )
+    retrieval_spec_preview.add_argument(
+        "--cwd",
+        default=".",
+        help="project path used for nearest-runtime discovery (default: current directory)",
+    )
+
     subparsers.add_parser("doctor", help="check Memory Seed control-plane files")
     subparsers.add_parser("version", help="print Memory Seed control-plane version")
 
@@ -662,6 +685,54 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command in process_tools.PACKAGE_COMMANDS:
         return process_tools.run_package_process_command("memory-seed", args)
+
+    if args.command == "retrieval-spec":
+        from .retrieval import (
+            RetrievalSpecResolutionError,
+            canonical_retrieval_json,
+            preview_retrieval_spec,
+        )
+        from .retrieval_spec import RetrievalSpecValidationError
+
+        try:
+            raw = (
+                sys.stdin.read()
+                if args.spec_file == "-"
+                else Path(args.spec_file).read_text(encoding="utf-8")
+            )
+            spec = json.loads(raw)
+            if not isinstance(spec, dict):
+                raise ValueError("spec must be an inline JSON object")
+            payload = {
+                "ok": True,
+                "preview": preview_retrieval_spec(spec, args.cwd),
+            }
+            sys.stdout.write(canonical_retrieval_json(payload))
+            return 0
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+            if isinstance(exc, RetrievalSpecValidationError):
+                error = {
+                    "code": "invalid_spec",
+                    "message": str(exc),
+                    "stage": "validation",
+                    "completed_stages": [],
+                    "details": {},
+                }
+            else:
+                error = {
+                    "code": "invalid_spec",
+                    "message": str(exc),
+                    "stage": "input",
+                    "completed_stages": [],
+                    "details": {},
+                }
+            sys.stderr.write(canonical_retrieval_json({"ok": False, "error": error}))
+            return 2
+        except RetrievalSpecResolutionError as exc:
+            sys.stderr.write(
+                canonical_retrieval_json({"ok": False, "error": exc.to_dict()})
+            )
+            return 1
 
     if args.command == "user":
         target = Path(".").resolve()

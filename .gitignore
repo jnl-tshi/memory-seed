@@ -47,5 +47,5 @@ memory-trace/tests/capture/*.gif
 .gemini/worktrees/
 .cursor/worktrees/
 
-# Disposable Superpowers SDD ledger, briefs, reports, and review packages.
+# Disposable Superpowers SDD task ledger, briefs, reports, and review packages.
 .superpowers/sdd/
