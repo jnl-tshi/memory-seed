@@ -1168,7 +1168,10 @@ sidecars to own declared lifecycles. The active semantic foundation will prove A
 three real decisions after B0b and BG1/BG2; current ADR status and every index/view remain derived. A later
 workflow-review workbench and one Decision projection depend on that proof. Evidence Envelope and Capability
 Status phases were folded into the existing evidence architecture. Publishability and a generic skill/router
-architecture remain deferred.
+architecture remain deferred. A first-class
+[`Retrieval Specification`](../2_Todo/declarative-retrieval-specification-proposal.md) is now proposed,
+not implemented: a versioned request resolves deterministically into an Evidence Pack which a Task Packet
+can reference, keeping orchestrators thin while preserving the same Markdown/Trace evidence for humans.
 
 ### Near term - current lead
 
@@ -1189,10 +1192,13 @@ graph TD
   end
   subgraph FollowOnTier["Sequenced follow-ons"]
     direction LR
+    RETSPEC["Retrieval Specification<br>M0 contract → M1 MCP slice"]
     SEM["ADR sidecar<br>foundation"] ~~~ REVIEW["Workflow evidence<br>review workbench"] ~~~ PROJ["Decision<br>projection"]
   end
   CurrentTier ~~~ GuardTier
   GuardTier ~~~ FollowOnTier
+  B0B ~~~ RETSPEC
+  RETSPEC --> SEM
   B0B --> SEM
   SEM --> REVIEW
   SEM --> PROJ
