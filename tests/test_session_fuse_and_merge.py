@@ -673,6 +673,69 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertEqual(self._git(cwd, "status", "--short").stdout.strip(), "")
 
     @pytest.mark.integration
+    def test_session_merge_branch_removes_its_clean_registered_source_worktree(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        source = cwd.parent / f"{cwd.name}-feature-merge"
+        self._git(cwd, "worktree", "add", "-b", "feature-merge", str(source))
+        self._write_grouped_session(source, "2026-07-11", "mse_1111111111111111", branch="feature-merge")
+        self._commit_all(source, "feature session")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertTrue(result.committed)
+        self.assertEqual(result.worktree_cleanup_status, "removed")
+        self.assertEqual(result.source_worktree, str(source.resolve()))
+        self.assertGreaterEqual(result.worktree_cleanup_attempts, 1)
+        self.assertFalse(source.exists())
+        self.assertNotIn(str(source.resolve()).replace("\\", "/"), self._git(cwd, "worktree", "list").stdout)
+        self.assertIn("feature-merge", self._git(cwd, "branch").stdout)
+
+    @pytest.mark.integration
+    def test_session_merge_branch_retains_a_dirty_registered_source_worktree(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        source = cwd.parent / f"{cwd.name}-feature-merge"
+        self._git(cwd, "worktree", "add", "-b", "feature-merge", str(source))
+        self._write_grouped_session(source, "2026-07-11", "mse_1111111111111111", branch="feature-merge")
+        self._commit_all(source, "feature session")
+        (source / "UNCOMMITTED.txt").write_text("retain me\n", encoding="utf-8")
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertTrue(result.committed)
+        self.assertEqual(result.worktree_cleanup_status, "retained")
+        self.assertIn("uncommitted", result.worktree_cleanup_detail or "")
+        self.assertTrue(source.exists())
+        self._git(cwd, "worktree", "remove", "--force", str(source))
+
+    @pytest.mark.integration
+    def test_session_merge_branch_retains_a_locked_registered_source_worktree(self):
+        cwd = self.make_project()
+        self._write_grouped_session(cwd, "2026-07-10", "mse_0123456789abcdef", branch="main")
+        self._init_git_project(cwd)
+        self._commit_all(cwd, "base")
+        source = cwd.parent / f"{cwd.name}-feature-merge"
+        self._git(cwd, "worktree", "add", "-b", "feature-merge", str(source))
+        self._write_grouped_session(source, "2026-07-11", "mse_1111111111111111", branch="feature-merge")
+        self._commit_all(source, "feature session")
+        self._git(cwd, "worktree", "lock", str(source))
+
+        result = session_merge_branch(cwd=cwd, branch="feature-merge")
+
+        self.assertTrue(result.committed)
+        self.assertEqual(result.worktree_cleanup_status, "retained")
+        self.assertEqual(result.source_worktree, str(source.resolve()))
+        self.assertIn("locked", result.worktree_cleanup_detail or "")
+        self.assertTrue(source.exists())
+        self._git(cwd, "worktree", "unlock", str(source))
+        self._git(cwd, "worktree", "remove", "--force", str(source))
+
+    @pytest.mark.integration
     def test_session_merge_branch_leaves_non_session_conflicts_in_progress(self):
         cwd = self.make_project()
         (cwd / "notes.txt").write_text("base\n", encoding="utf-8")
