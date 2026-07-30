@@ -1205,9 +1205,11 @@ three real decisions after B0b and BG1/BG2; current ADR status and every index/v
 workflow-review workbench and one Decision projection depend on that proof. Evidence Envelope and Capability
 Status phases were folded into the existing evidence architecture. Publishability and a generic skill/router
 architecture remain deferred. A first-class
-[`Retrieval Specification`](../2_Todo/declarative-retrieval-specification-proposal.md) is now proposed,
-not implemented: a versioned request resolves deterministically into an Evidence Pack which a Task Packet
-can reference, keeping orchestrators thin while preserving the same Markdown/Trace evidence for humans.
+[`Retrieval Specification`](../2_Todo/declarative-retrieval-specification-proposal.md) now has its M0/M1
+inline slice implemented on `main` (merge `3577e9`, 2026-07-30): a versioned request resolves
+deterministically into an Evidence Pack which a Task Packet can reference, keeping orchestrators thin while
+preserving the same Markdown/Trace evidence for humans. Profiles, composition, Trace integration, and
+advanced selectors remain planned rather than implied by that first slice.
 
 ### Near term - current lead
 

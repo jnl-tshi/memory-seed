@@ -3,7 +3,7 @@
 <!-- docs-index:begin -->
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
-| [declarative-retrieval-specification-proposal.md](declarative-retrieval-specification-proposal.md) | P1 | — | Obtain explicit user approval for the configured manual merge; do not merge or push before that… |
+| [declarative-retrieval-specification-proposal.md](declarative-retrieval-specification-proposal.md) | P1 | [] | Keep the delivered M0/M1 inline slice stable; evaluate the enabling M2 profile work only after … |
 | [derived-projection-implementation-plan.md](derived-projection-implementation-plan.md) | P1 | — | Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, … |
 | [memory-provenance-and-authority-taxonomy-proposal.md](memory-provenance-and-authority-taxonomy-proposal.md) | P1 | — | Steps 5–6 (GATED on the participant/role model + a user go): implement actionability as a polic… |
 | [memory-quality-metrics-v0-proposal.md](memory-quality-metrics-v0-proposal.md) | P1 | user review — is the baseline useful and repeatable? (propo… | JNL reviews docs/4_Reference/memory-quality-v0-baseline.md. Only then propose targets, ESR surf… |

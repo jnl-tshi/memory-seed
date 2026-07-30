@@ -792,12 +792,13 @@ Markdown-authoritative, so Invariant #6-clean (no derived-state surface).
 The two compound (fewer active personas → lighter worker *and* primary startup load) but neither blocks the
 other. Both sit **below Track A's open tails** in priority — small, sequence-flexible guidance changes.
 
-3. **Declarative Retrieval Specification primitive (P1, planned; not implemented)** —
+3. **Declarative Retrieval Specification primitive (P1, M0/M1 delivered; M2–M5 planned)** —
    [`declarative-retrieval-specification-proposal.md`](declarative-retrieval-specification-proposal.md).
    Context construction becomes a versioned request resolved by Memory Seed into a deterministic Evidence
-   Pack and bound to a Task Packet. The blocker path is only M0 (v1 contract/fixtures) → M1 (shared
-   resolver plus MCP preview/resolve). Profiles, composition, Trace, and advanced selectors are enabling
-   or later work and do not block first orchestrator/worker use.
+   Pack and bound to a Task Packet. The former blocker path — M0 (v1 contract/fixtures) → M1 (shared
+   resolver plus MCP preview/resolve) — landed on `main` through merge `3577e9` on 2026-07-30. Profiles,
+   composition, Trace, and advanced selectors remain enabling or later work and do not block first
+   orchestrator/worker use.
 ### Track D — semantic memory and workflow evolution
 
 Approved 2026-07-16 after full Inbox triage. These plans are dependency-ordered and do not displace B0b:
