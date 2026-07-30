@@ -35,30 +35,78 @@
   },
   "missing_classification": {"required": "fail", "optional": "report"},
   "deferred": {
+    "id": {
+      "schema": "memory-seed/retrieval-spec",
+      "version": 1,
+      "required": {"constitution": true, "related_decisions": {"depth": 2}, "evidence": {"mode": "latest"}},
+      "id": "implementation-default"
+    },
     "profile": {
       "schema": "memory-seed/retrieval-spec",
       "version": 1,
       "required": {"constitution": true, "related_decisions": {"depth": 2}, "evidence": {"mode": "latest"}},
       "profile": "implementation"
     },
-    "adr": {
+    "profiles": {
+      "schema": "memory-seed/retrieval-spec",
+      "version": 1,
+      "required": {"constitution": true, "related_decisions": {"depth": 2}, "evidence": {"mode": "latest"}},
+      "profiles": ["implementation"]
+    },
+    "extends": {
+      "schema": "memory-seed/retrieval-spec",
+      "version": 1,
+      "required": {"constitution": true, "related_decisions": {"depth": 2}, "evidence": {"mode": "latest"}},
+      "extends": "base"
+    },
+    "extensions": {
+      "schema": "memory-seed/retrieval-spec",
+      "version": 1,
+      "required": {"constitution": true, "related_decisions": {"depth": 2}, "evidence": {"mode": "latest"}},
+      "extensions": {"example": true}
+    },
+    "required.related_adrs": {
       "schema": "memory-seed/retrieval-spec",
       "version": 1,
       "required": {"constitution": true, "related_decisions": {"depth": 2}, "related_adrs": {"status": ["accepted"]}, "evidence": {"mode": "latest"}}
     },
-    "links": {
+    "optional.links": {
       "schema": "memory-seed/retrieval-spec",
       "version": 1,
       "required": {"constitution": true, "related_decisions": {"depth": 2}, "evidence": {"mode": "latest"}},
       "optional": {"links": {"kinds": ["evolves"]}}
     },
-    "timeout": {
+    "optional.tests": {
+      "schema": "memory-seed/retrieval-spec",
+      "version": 1,
+      "required": {"constitution": true, "related_decisions": {"depth": 2}, "evidence": {"mode": "latest"}},
+      "optional": {"tests": {"include_failures": true}}
+    },
+    "optional.alternatives": {
+      "schema": "memory-seed/retrieval-spec",
+      "version": 1,
+      "required": {"constitution": true, "related_decisions": {"depth": 2}, "evidence": {"mode": "latest"}},
+      "optional": {"alternatives": {"include_rejected": true}}
+    },
+    "filters.include_superseded": {
+      "schema": "memory-seed/retrieval-spec",
+      "version": 1,
+      "required": {"constitution": true, "related_decisions": {"depth": 2}, "evidence": {"mode": "latest"}},
+      "filters": {"include_superseded": true}
+    },
+    "limits.timeout_ms": {
       "schema": "memory-seed/retrieval-spec",
       "version": 1,
       "required": {"constitution": true, "related_decisions": {"depth": 2}, "evidence": {"mode": "latest"}},
       "limits": {"timeout_ms": 5000}
     },
-    "format": {
+    "limits.max_sections_per_entry": {
+      "schema": "memory-seed/retrieval-spec",
+      "version": 1,
+      "required": {"constitution": true, "related_decisions": {"depth": 2}, "evidence": {"mode": "latest"}},
+      "limits": {"max_sections_per_entry": 4}
+    },
+    "output.format": {
       "schema": "memory-seed/retrieval-spec",
       "version": 1,
       "required": {"constitution": true, "related_decisions": {"depth": 2}, "evidence": {"mode": "latest"}},

@@ -5,6 +5,7 @@ from pathlib import Path
 from memory_seed.retrieval_spec import (
     DEFAULT_LIMITS,
     RetrievalSpecValidationError,
+    _DEFERRED,
     canonical_retrieval_spec_json,
     classify_missing_clause,
     normalize_retrieval_spec,
@@ -47,6 +48,7 @@ class RetrievalSpecTests(unittest.TestCase):
     def test_unknown_and_deferred_clauses_fail_before_selection(self):
         with self.assertRaisesRegex(RetrievalSpecValidationError, "is unknown"):
             normalize_retrieval_spec(FIXTURES["unknown"])
+        self.assertEqual(set(FIXTURES["deferred"]), set(_DEFERRED))
         for name, spec in FIXTURES["deferred"].items():
             with self.subTest(name=name), self.assertRaisesRegex(RetrievalSpecValidationError, "is unsupported"):
                 normalize_retrieval_spec(spec)
