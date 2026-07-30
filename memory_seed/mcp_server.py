@@ -23,11 +23,15 @@ from .core import (
 # future companion UI distribution consume, so every surface returns the same
 # answers. `format_search_results` is re-exported here for compatibility.
 from .retrieval import (
+    RetrievalSpecResolutionError,
     augment_chunks_with_link_sidecars,
+    canonical_retrieval_json,
     chunk_to_dict,
     format_search_results,
     get_chunk,
+    preview_retrieval_spec,
     ranked_to_dict,
+    resolve_retrieval_spec,
     search_memory,
 )
 from .semantic_cache import (
@@ -43,6 +47,38 @@ SERVER_VERSION = "0.1.0"
 
 
 TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "memory_retrieval_spec_preview",
+        "description": (
+            "Validate and plan one inline Retrieval Specification against canonical local Markdown. "
+            "Read-only; creates no Evidence Pack and supports no profile or named-spec lookup."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "spec": {"type": "object"},
+                "cwd": {"type": "string", "default": "."},
+            },
+            "required": ["spec"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_retrieval_spec_resolve",
+        "description": (
+            "Resolve one inline Retrieval Specification into an ephemeral Evidence Pack returned inline. "
+            "Read-only; no cache, registry, provider, profile, or Trace dependency."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "spec": {"type": "object"},
+                "cwd": {"type": "string", "default": "."},
+            },
+            "required": ["spec"],
+            "additionalProperties": False,
+        },
+    },
     {
         "name": "memory_search",
         "description": "Search local Memory Seed session logs and return ranked, source-linked context chunks.",
@@ -311,6 +347,48 @@ def call_tool(
     today: date | None = None,
 ) -> dict[str, Any]:
     args = arguments or {}
+    if name in {
+        "memory_retrieval_spec_preview",
+        "memory_retrieval_spec_resolve",
+    }:
+        from .retrieval_spec import RetrievalSpecValidationError
+
+        spec = args.get("spec")
+        if not isinstance(spec, dict):
+            return {
+                "ok": False,
+                "error": {
+                    "code": "invalid_spec",
+                    "message": "spec must be an inline JSON object",
+                    "stage": "validation",
+                    "completed_stages": [],
+                    "details": {},
+                },
+            }
+        try:
+            if name == "memory_retrieval_spec_preview":
+                return {
+                    "ok": True,
+                    "preview": preview_retrieval_spec(spec, args.get("cwd", ".")),
+                }
+            return {
+                "ok": True,
+                "pack": resolve_retrieval_spec(spec, args.get("cwd", ".")),
+            }
+        except RetrievalSpecValidationError as exc:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "invalid_spec",
+                    "message": str(exc),
+                    "stage": "validation",
+                    "completed_stages": [],
+                    "details": {},
+                },
+            }
+        except RetrievalSpecResolutionError as exc:
+            return {"ok": False, "error": exc.to_dict()}
+
     if name == "memory_search":
         query = _required_str(args, "query")
         return search_memory(
@@ -703,13 +781,27 @@ def handle_jsonrpc_message(
             if params.get("name") == "memory_search" and "semantic_enabled" not in arguments:
                 arguments = {**arguments, "semantic_enabled": default_semantic_enabled}
             tool_result = call_tool(params.get("name"), arguments)
+            tool_text = (
+                canonical_retrieval_json(tool_result)
+                if params.get("name")
+                in {
+                    "memory_retrieval_spec_preview",
+                    "memory_retrieval_spec_resolve",
+                }
+                else json.dumps(
+                    tool_result,
+                    indent=2,
+                    sort_keys=True,
+                    ensure_ascii=False,
+                )
+            )
             return _result(
                 message_id,
                 {
                     "content": [
                         {
                             "type": "text",
-                            "text": json.dumps(tool_result, indent=2, sort_keys=True, ensure_ascii=False),
+                            "text": tool_text,
                         }
                     ]
                 },

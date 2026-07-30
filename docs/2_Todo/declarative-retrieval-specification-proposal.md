@@ -2,7 +2,7 @@
 title: Declarative Retrieval Specification primitive
 status: active
 priority: P1
-next_action: Freeze the v1 slice and fixtures, then implement the shared resolver and MCP preview/resolve path.
+next_action: Complete the M0/M1 task and whole-branch reviews, then land the critical-path slice.
 blocked_by:
   - Stable Evidence Pack fields used by the minimum vertical slice
 sources:
@@ -94,6 +94,46 @@ retrieval:
 ```
 
 The worker consumes the resolved bounded result and does not reinterpret the profile unless delegated.
+
+### M1 inline-only developer example
+
+The minimum vertical slice supports only the inline object below. This is an illustrative Task Packet
+handoff convention, not a new validated Task Packet field, named-spec registry, or profile API:
+
+```yaml
+objective: implement topic sidecars
+retrieval:
+  inline:
+    schema: memory-seed/retrieval-spec
+    version: 1
+    required:
+      constitution: true
+      related_decisions: {depth: 2}
+      evidence: {mode: latest}
+    optional:
+      sessions: {neighbouring_entries: 15}
+    filters:
+      topics: [session-fuse, worktree-integration]
+      paths: [memory_seed/core.py]
+    ordering: [required_first, graph_distance, recency, stable_identity]
+    limits: {max_entries: 30, max_tokens: 12000}
+    on_missing: {required: fail, optional: report}
+    output: {include_resolution_trace: true, include_excerpts: true}
+```
+
+The orchestrator passes the value of `retrieval.inline` directly as the MCP `spec` argument. Preview
+returns `{"ok": true, "preview": {...}}`; resolve returns
+`{"ok": true, "pack": {...}}`, with the ephemeral pack inline and no cache/get registry. The equivalent
+read-only CLI preview is:
+
+```text
+memory-seed retrieval-spec preview --spec-file retrieval-spec.json --cwd .
+```
+
+Both adapters serialize the same mapping with sorted keys, compact separators, and UTF-8 JSON. Error
+payloads use `{"ok": false, "error": {"code", "message", "stage", "completed_stages", "details"}}`.
+Profiles, `profile_version`, `overrides`, composition, named specs, Task Packet schema enforcement, and
+Evidence Pack lookup remain later milestones.
 
 ## Retrieval Specification v1
 
@@ -311,4 +351,7 @@ The critical path is only **M0 → M1**. B0b, full ADR lifecycle, annotation aut
 
 Not blockers: final profile path, pack IDs, inline-pack threshold, token-count proxy, and separate MCP `get` versus inline-only first release.
 
-Until M1 passes, docs must say planned/proposed/not implemented; no profile or Task Packet field is a supported API; no roadmap marks this shipped; existing search, packs, and packets remain unchanged.
+The M0/M1 branch supports only inline spec objects, MCP preview/resolve, and CLI preview; it is not shipped
+until task-level and whole-branch review pass and the branch lands. No profile, named spec, composition
+rule, or Task Packet field is a supported API; existing `memory_search` ranking, packs, and packets remain
+unchanged.

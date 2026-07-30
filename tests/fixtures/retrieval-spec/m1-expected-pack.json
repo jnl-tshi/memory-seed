@@ -1,0 +1,20 @@
+{
+  "ordered_refs": [
+    "docs/CONSTITUTION.md",
+    "mse_side0002",
+    "mse_base0001",
+    "mse_neigh003",
+    "mse_neigh004",
+    "mse_neigh005",
+    "mse_neigh006",
+    "mse_neigh007"
+  ],
+  "required_clauses": [
+    "required.constitution",
+    "required.related_decisions",
+    "required.evidence"
+  ],
+  "pack_schema": "memory-seed/evidence-pack",
+  "pack_version": 1,
+  "resolver_version": 1
+}
