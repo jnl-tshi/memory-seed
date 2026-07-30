@@ -2,9 +2,8 @@
 title: Declarative Retrieval Specification primitive
 status: active
 priority: P1
-next_action: Obtain explicit user approval for the configured manual merge; do not merge or push before that approval.
-blocked_by:
-  - Explicit user approval for manual merge
+next_action: Keep the delivered M0/M1 inline slice stable; evaluate the enabling M2 profile work only after the current sidecar and Trace priorities.
+blocked_by: []
 sources:
   - memory-trace-evidence-annotations-and-projection-architecture.md
   - ../5_Completed/worker-context-minimisation-proposal.md
@@ -14,7 +13,7 @@ spec_binding: null
 
 # Declarative Retrieval Specification Primitive
 
-Status: **ACTIVE PROPOSAL — M0/M1 REVIEWED ON A BRANCH, NOT LANDED**.
+Status: **ACTIVE PROPOSAL — M0/M1 DELIVERED ON `main` 2026-07-30; M2–M5 remain planned.**
 
 Priority: **P1**. The critical path is intentionally narrow enough to unblock real orchestrator/worker use through MCP before profiles, composition, caching, or UI authoring are complete.
 
@@ -291,7 +290,7 @@ Preview/resolve are memory-read-only. Resolve creates an ephemeral pack outside 
 
 **Blocker** is required for safe real MCP use. **Enabling** improves reuse/review. **Later** must not delay proof.
 
-### M0 — v1 contract (blocker)
+### M0 — v1 contract (blocker, delivered 2026-07-30)
 
 Dependencies: current Evidence Pack builder and retrieval service.
 
@@ -299,7 +298,7 @@ Deliverables: freeze inline support for Constitution, topic/path filters, bounde
 
 Acceptance: no ambiguous defaults; each field supported/rejected/deferred; normalized YAML/JSON fingerprint identically; unsupported fields fail.
 
-### M1 — minimum vertical slice (blocker)
+### M1 — minimum vertical slice (blocker, delivered 2026-07-30)
 
 Dependencies: M0 and stable pack fields used by the slice.
 
@@ -335,7 +334,7 @@ After owner contracts: ADR lifecycle/status, annotation actionability, git/PR/te
 
 ```mermaid
 flowchart TD
-  M0["M0: v1 contract<br>BLOCKER"] --> M1["M1: MCP slice<br>BLOCKER / unblocks use"]
+  M0["M0: v1 contract<br>DELIVERED"] --> M1["M1: MCP slice<br>DELIVERED / unblocks use"]
   M1 --> M2["M2: profiles<br>ENABLING"]
   M2 --> M3["M3: composition + policy<br>ENABLING"]
   M1 --> M4["M4: Trace + envelope<br>ENABLING"]
@@ -345,13 +344,14 @@ flowchart TD
   AUTH["Authority model"] -. "actionability/providers" .-> M5
 ```
 
-The critical path is only **M0 → M1**. B0b, full ADR lifecycle, annotation authority, composition, Trace, semantic ranking, and hosted infrastructure do not block the useful first slice.
+The critical path was **M0 → M1**, and it landed through merge `3577e9` on 2026-07-30. B0b, full ADR lifecycle, annotation authority, composition, Trace, semantic ranking, and hosted infrastructure did not block that useful first slice.
 
 ## Open decisions and status guard
 
 Not blockers: final profile path, pack IDs, inline-pack threshold, token-count proxy, and separate MCP `get` versus inline-only first release.
 
-The M0/M1 branch implements only inline spec objects, MCP preview/resolve, and CLI preview. Its bounded
-final repair is complete, but the branch still awaits whole-branch re-review and explicit user approval
-for manual merge; it is not landed or shipped. No profile, named spec, composition rule, or Task Packet
-field is a supported API; existing `memory_search` ranking, packs, and packets remain unchanged.
+M0/M1 delivered only inline spec objects, MCP preview/resolve, and CLI preview. The branch received its
+whole-branch review and merged to `main` as `3577e9` on 2026-07-30. No profile, named spec, composition
+rule, or Task Packet field is a supported API; existing `memory_search` ranking, packs, and packets remain
+unchanged. This document stays active because M2–M5 are deliberately enabling/later work, not because the
+first useful slice remains blocked.
