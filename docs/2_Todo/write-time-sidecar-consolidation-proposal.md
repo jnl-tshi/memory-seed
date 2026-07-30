@@ -1,6 +1,6 @@
 ---
 priority: P2
-next_action: M0 is in progress on `codex/feature/decision-sidecar-transaction`: freeze the DecisionSidecarEnvelope v1 contract and golden fixtures, including ADR decision-thread lineage and parsed append-only branch fusion.
+next_action: M1 topics-and-links writer is in progress on `codex/feature/decision-sidecar-transaction`; add the staged recovery journal, then extend the envelope to diagrams, ADR lenses, and parsed fusion fixtures.
 ---
 
 # Decision-sidecar transaction: write-time semantic records live in their sidecars
@@ -9,7 +9,7 @@ Status: **ACCEPTED 2026-07-26 by JNL** (raised the same day). The conversation s
 should live in the link sidecar" and arrived somewhere better by separating *where the author writes*
 from *where the data lives*.
 
-> **M0 started 2026-07-30.** The accepted topics-and-links change is expanded into a single
+> **M0 completed 2026-07-30; M1 topics-and-links writer started.** The accepted change is expanded into a single
 > `DecisionSidecarEnvelope` transaction. It writes an immutable entry narrative plus decision-keyed topic,
 > link, diagram, and (when warranted) ADR records; it is core tooling, not a skill or a closing checklist.
 

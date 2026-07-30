@@ -238,7 +238,10 @@ TOOLS: list[dict[str, Any]] = [
             "Append a session entry with every structural guarantee enforced. THIS IS THE ONLY WAY TO AUTHOR AN ENTRY - "
             "do not hand-write session files. The tool owns structure (target path, heading timestamp from the server "
             "clock, canonical entry_id, YAML shape, chronological ordering) and refuses malformed or out-of-order writes; "
-            "you own voice (title, topics, lifecycle classification, and the D/R/A/F/T body prose, all taken verbatim). "
+            "you own voice (title and D/R/A/F/T body prose, all taken verbatim). New semantic fields belong in the "
+            "decision-sidecar envelope: use `decisions` to attach each body decision's controlled topics and lifecycle "
+            "links. The writer stores those only in topic/link sidecars, before it publishes the narrative entry; do not "
+            "combine `decisions` with the legacy top-level topic/link fields. "
             "Guards run together and nothing is written when any fails: chronology, ref existence (fabricated ids are "
             "refused), forward-only lifecycle edges, controlled topic vocabulary, id collision, and DRAFT body format. "
             "Refusals come back as ok=false with an issues list, each independently fixable. Pair with "
@@ -261,6 +264,19 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "Controlled-vocabulary slugs or aliases; aliases are stored canonically. Unknown slugs are refused.",
+                },
+                "decisions": {
+                    "type": "array",
+                    "description": "Decision-sidecar envelope v1. One object per body decision: {decision: 'dN', topics: {area?: slug, activity?: slug | slug[], source?: 'write-time'}, links: {related_entries?: entry_id[], replaces?: entry_id[], evolves?: entry_id[]}}. Topic and lifecycle values are written to their respective sidecars; omit a field when that decision has no relevant assertion.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "decision": {"type": "string", "description": "Body decision ordinal, e.g. d1."},
+                            "topics": {"type": "object"},
+                            "links": {"type": "object"},
+                        },
+                        "required": ["decision"],
+                    },
                 },
                 "related_entries": {"type": "array", "items": {"type": "string"}, "description": "entry_id values this entry relates to. Must already exist and predate it."},
                 "replaces": {"type": "array", "items": {"type": "string"}, "description": "entry_id values this entry retires (the old decision is now wrong or dead). Granularity is mandated (2026-07-24): name an ordinal only when the entry it belongs to has 2+ decisions. A target with 2+ decisions must be narrowed as <entry_id>:dN (comma-separated for several, e.g. mse_x:d1,d4); a single- or no-decision target stays a bare id (:d1 there is rejected as redundant). When THIS entry's body has 2+ decisions each item needs a 'dN -> ' prefix naming the authoring decision."},
@@ -643,6 +659,7 @@ def call_tool(
             related_entries=list(args.get("related_entries") or []),
             replaces=list(args.get("replaces") or args.get("supersedes") or []),  # legacy key accepted
             evolves=list(args.get("evolves") or []),
+            decisions=list(args.get("decisions") or []),
             project_path=str(args.get("project_path", ".")),
             subproject_path=_optional_str(args, "subproject_path"),
             branch=_optional_str(args, "branch"),
@@ -661,12 +678,15 @@ def call_tool(
             "timestamp": result.timestamp,
             "path": str(result.path) if result.path else None,
             "issues": list(result.issues),
+            "sidecar_paths": [str(path) for path in result.sidecar_paths],
         }
         # Only a dry run carries the rendered block: pre-commit inspection is
         # its purpose, while echoing the body back after a real write would
         # bloat every payload with text the caller already has.
         if result.rendered is not None:
             payload["rendered"] = result.rendered
+        if result.rendered_sidecars is not None:
+            payload["rendered_sidecars"] = result.rendered_sidecars
         if supplied:
             drift = _clock_drift_warning(supplied, now)
             if drift:

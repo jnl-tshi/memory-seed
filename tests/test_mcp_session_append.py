@@ -69,6 +69,40 @@ class MemorySessionAppendTests(unittest.TestCase):
         self.assertIn(f"related_entries:\n  - {first['entry_id']}", written)
         self.assertIn(f"evolves:\n  - {first['entry_id']}", written)
 
+    def test_decision_envelope_returns_sidecar_receipt_and_preview(self):
+        (self.cwd / MEMORY_DIR_NAME / "topics.yaml").write_text(
+            """schema_version: 2
+topics:
+  - slug: schema
+    axis: area
+  - slug: feature-build
+    axis: activity
+""",
+            encoding="utf-8",
+        )
+        older = self._append(title="Earlier", _now="2026-06-13 08:00")
+        payload = {
+            "decisions": [
+                {
+                    "decision": "d1",
+                    "topics": {"area": "schema", "activity": "feature-build"},
+                    "links": {"evolves": [older["entry_id"]]},
+                }
+            ]
+        }
+        preview = self._append(_now="2026-06-13 09:00", dry_run=True, **payload)
+
+        self.assertTrue(preview["ok"], preview["issues"])
+        self.assertEqual(len(preview["sidecar_paths"]), 2)
+        self.assertIn("topics", preview["rendered_sidecars"])
+        self.assertIn("links", preview["rendered_sidecars"])
+        written = self._append(_now="2026-06-13 09:00", **payload)
+        self.assertTrue(written["ok"], written["issues"])
+        self.assertEqual(len(written["sidecar_paths"]), 2)
+        entry = Path(written["path"]).read_text(encoding="utf-8")
+        self.assertNotIn("topics:", entry)
+        self.assertNotIn("evolves:", entry)
+
     # --- refusals are data, not transport errors ------------------------
 
     def test_guard_refusals_come_back_as_issues_not_exceptions(self):

@@ -64,6 +64,58 @@ class SessionAppendTests(unittest.TestCase):
         self.assertIn("- D: Something durable.", text)
         self.assertTrue(check_session_links(cwd=self.cwd).ok)
 
+    def test_decision_envelope_writes_topics_and_links_only_to_sidecars(self):
+        # The entry owns its narrative.  Decision-scoped semantic assertions
+        # are published in the existing append-only sidecar formats, where the
+        # checker and branch fuse already know how to validate them.
+        (self.cwd / MEMORY_DIR_NAME / "topics.yaml").write_text(
+            """schema_version: 2
+topics:
+  - slug: schema
+    axis: area
+  - slug: feature-build
+    axis: activity
+""",
+            encoding="utf-8",
+        )
+        older = self._append(title="Earlier decision", timestamp="2026-06-13 08:00")
+        result = self._append(
+            title="Sidecar decision",
+            timestamp="2026-06-13 09:00",
+            decisions=[
+                {
+                    "decision": "d1",
+                    "topics": {"area": "schema", "activity": "feature-build", "source": "write-time"},
+                    "links": {"evolves": [older.entry_id]},
+                }
+            ],
+        )
+
+        self.assertTrue(result.ok, result.issues)
+        entry = result.path.read_text(encoding="utf-8")
+        self.assertNotIn("topics:", entry)
+        self.assertNotIn("evolves:", entry)
+        self.assertEqual(len(result.sidecar_paths), 2)
+        topic_path = self.cwd / MEMORY_DIR_NAME / "sessions" / "topics" / "2026-06" / "2026-06-13.md"
+        link_path = self.cwd / MEMORY_DIR_NAME / "sessions" / "links" / "2026-06" / "2026-06-13.md"
+        self.assertIn(f"entry_id: {result.entry_id}", topic_path.read_text(encoding="utf-8"))
+        self.assertIn("- schema:d1", topic_path.read_text(encoding="utf-8"))
+        self.assertIn("- feature-build:d1", topic_path.read_text(encoding="utf-8"))
+        self.assertIn(f"- d1 -> {older.entry_id}", link_path.read_text(encoding="utf-8"))
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
+
+    def test_decision_envelope_refuses_legacy_semantic_fields_and_bad_ordinals(self):
+        result = self._append(
+            topics=["schema"],
+            decisions=[{"decision": "d9", "topics": {"area": "schema"}}],
+        )
+
+        self.assertFalse(result.ok)
+        joined = " ".join(result.issues)
+        self.assertIn("one sidecar authority", joined)
+        self.assertIn("not recorded in the body", joined)
+        self.assertEqual(list((self.cwd / MEMORY_DIR_NAME / "sessions").rglob("*.md")), [])
+
     def _append_multi_decision_older(self):
         body = (
             "### Decisions\n\n"
