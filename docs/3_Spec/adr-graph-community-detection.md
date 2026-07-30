@@ -1,7 +1,7 @@
 ---
 title: ADR graph community detection
 status: accepted
-spec_binding: accepted
+spec_binding: live
 parent: ../../2_Todo/memory-trace-graph-visualisation-and-temporal-topology-proposal.md
 ---
 
