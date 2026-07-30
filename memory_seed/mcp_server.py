@@ -353,6 +353,29 @@ def call_tool(
     }:
         from .retrieval_spec import RetrievalSpecValidationError
 
+        if not isinstance(args, dict):
+            return {
+                "ok": False,
+                "error": {
+                    "code": "invalid_arguments",
+                    "message": "tool arguments must be a JSON object",
+                    "stage": "validation",
+                    "completed_stages": [],
+                    "details": {},
+                },
+            }
+        unsupported = sorted(set(args) - {"spec", "cwd"})
+        if unsupported:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "invalid_arguments",
+                    "message": "unsupported retrieval tool argument(s)",
+                    "stage": "validation",
+                    "completed_stages": [],
+                    "details": {"unsupported_arguments": unsupported},
+                },
+            }
         spec = args.get("spec")
         if not isinstance(spec, dict):
             return {

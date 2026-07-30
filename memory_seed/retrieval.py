@@ -998,7 +998,7 @@ def _stable_retrieval_plan(
     clock: Callable[[], float],
     timeout_ms: int,
     revision_reader: Callable[[str | Path, Mapping[str, Any]], str],
-) -> tuple[dict[str, Any], dict[str, Any], str, int]:
+) -> tuple[dict[str, Any], dict[str, Any], str, int, float]:
     from .retrieval_spec import normalize_retrieval_spec
 
     normalized = normalize_retrieval_spec(spec)
@@ -1014,9 +1014,16 @@ def _stable_retrieval_plan(
             timeout_ms=timeout_ms,
         )
         end_revision = revision_reader(cwd, normalized)
+        _check_retrieval_timeout(
+            clock,
+            started,
+            timeout_ms,
+            stage="revision_check",
+            completed_stages=plan["completed_stages"],
+        )
         seen.append((start_revision, end_revision))
         if start_revision == end_revision:
-            return normalized, plan, start_revision, attempt
+            return normalized, plan, start_revision, attempt, started
     raise RetrievalSpecResolutionError(
         "corpus_changed",
         "corpus changed during both resolution attempts",
@@ -1039,14 +1046,14 @@ def preview_retrieval_spec(
     """Validate and plan an inline spec without creating an Evidence Pack."""
     from .retrieval_spec import retrieval_spec_fingerprint
 
-    normalized, plan, revision, attempt = _stable_retrieval_plan(
+    normalized, plan, revision, attempt, started = _stable_retrieval_plan(
         spec,
         cwd,
         clock=_clock,
         timeout_ms=_timeout_ms,
         revision_reader=_revision_reader,
     )
-    return {
+    preview = {
         "preview_schema": RETRIEVAL_PREVIEW_SCHEMA,
         "preview_version": 1,
         "resolver_version": RETRIEVAL_RESOLVER_VERSION,
@@ -1063,6 +1070,14 @@ def preview_retrieval_spec(
         "revision_attempt": attempt,
         "write_surface": "read-only; no Evidence Pack created",
     }
+    _check_retrieval_timeout(
+        _clock,
+        started,
+        _timeout_ms,
+        stage="preview_format",
+        completed_stages=[*plan["completed_stages"], "revision_check"],
+    )
+    return preview
 
 
 def resolve_retrieval_spec(
@@ -1078,7 +1093,7 @@ def resolve_retrieval_spec(
     """Resolve an inline spec into one deterministic, ephemeral Evidence Pack."""
     from .retrieval_spec import retrieval_spec_fingerprint
 
-    normalized, plan, revision, attempt = _stable_retrieval_plan(
+    normalized, plan, revision, attempt, started = _stable_retrieval_plan(
         spec,
         cwd,
         clock=_clock,
@@ -1110,6 +1125,13 @@ def resolve_retrieval_spec(
         "fingerprint": "",
     }
     pack["fingerprint"] = _evidence_pack_fingerprint(pack)
+    _check_retrieval_timeout(
+        _clock,
+        started,
+        _timeout_ms,
+        stage="pack_format",
+        completed_stages=[*plan["completed_stages"], "revision_check"],
+    )
     return pack
 
 

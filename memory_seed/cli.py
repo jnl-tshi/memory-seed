@@ -707,7 +707,7 @@ def main(argv: list[str] | None = None) -> int:
                 "ok": True,
                 "preview": preview_retrieval_spec(spec, args.cwd),
             }
-            print(canonical_retrieval_json(payload))
+            sys.stdout.write(canonical_retrieval_json(payload))
             return 0
         except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
             if isinstance(exc, RetrievalSpecValidationError):
@@ -726,12 +726,11 @@ def main(argv: list[str] | None = None) -> int:
                     "completed_stages": [],
                     "details": {},
                 }
-            print(canonical_retrieval_json({"ok": False, "error": error}), file=sys.stderr)
+            sys.stderr.write(canonical_retrieval_json({"ok": False, "error": error}))
             return 2
         except RetrievalSpecResolutionError as exc:
-            print(
-                canonical_retrieval_json({"ok": False, "error": exc.to_dict()}),
-                file=sys.stderr,
+            sys.stderr.write(
+                canonical_retrieval_json({"ok": False, "error": exc.to_dict()})
             )
             return 1
 

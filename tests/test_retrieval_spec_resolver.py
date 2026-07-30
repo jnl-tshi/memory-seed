@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 from memory_seed.cli import main as cli_main
 from memory_seed.mcp_server import TOOLS, call_tool, handle_jsonrpc_message
@@ -60,6 +61,17 @@ class _RevisionSequence:
         except StopIteration:
             pass
         return self.last
+
+
+class _CallDeadlineClock:
+    def __init__(self, cross_on_call, *, elapsed=0.010):
+        self.cross_on_call = cross_on_call
+        self.elapsed = elapsed
+        self.calls = 0
+
+    def __call__(self):
+        self.calls += 1
+        return self.elapsed if self.calls >= self.cross_on_call else 0.0
 
 
 class RetrievalSpecResolverTests(unittest.TestCase):
@@ -210,6 +222,44 @@ class RetrievalSpecResolverTests(unittest.TestCase):
             )
             self.assertNotIn("profile", tool["inputSchema"]["properties"])
 
+    def test_mcp_rejects_unknown_arguments_before_retrieval(self):
+        root = self.make_project()
+        for tool_name, service_name in (
+            (
+                "memory_retrieval_spec_preview",
+                "memory_seed.mcp_server.preview_retrieval_spec",
+            ),
+            (
+                "memory_retrieval_spec_resolve",
+                "memory_seed.mcp_server.resolve_retrieval_spec",
+            ),
+        ):
+            with self.subTest(tool=tool_name), patch(service_name) as service:
+                response = handle_jsonrpc_message(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 7,
+                        "method": "tools/call",
+                        "params": {
+                            "name": tool_name,
+                            "arguments": {
+                                "spec": FIXTURE_SPEC,
+                                "cwd": str(root),
+                                "profile": "deferred",
+                                "unknown": 1,
+                            },
+                        },
+                    }
+                )
+                payload = json.loads(response["result"]["content"][0]["text"])
+                self.assertFalse(payload["ok"])
+                self.assertEqual(payload["error"]["code"], "invalid_arguments")
+                self.assertEqual(
+                    payload["error"]["details"]["unsupported_arguments"],
+                    ["profile", "unknown"],
+                )
+                service.assert_not_called()
+
     def test_real_mcp_topic_sidecar_resolution_is_bounded_and_fetchable(self):
         root = self.make_project()
         response = handle_jsonrpc_message(
@@ -298,7 +348,9 @@ class RetrievalSpecResolverTests(unittest.TestCase):
                 ]
             )
         self.assertEqual(exit_code, 0)
-        self.assertEqual(output.getvalue().strip(), expected_bytes)
+        self.assertEqual(output.getvalue(), expected_bytes)
+        self.assertEqual(output.getvalue().encode("utf-8"), expected_bytes.encode("utf-8"))
+        self.assertFalse(output.getvalue().endswith(("\r", "\n")))
         self.assertEqual(expected_bytes, canonical_retrieval_json(json.loads(expected_bytes)))
 
     def test_missing_required_and_forbidden_path_fail_closed(self):
@@ -373,6 +425,25 @@ class RetrievalSpecResolverTests(unittest.TestCase):
             )
         self.assertEqual(changed.exception.code, "corpus_changed")
         self.assertEqual(len(changed.exception.details["attempts"]), 2)
+
+    def test_timeout_crossed_during_pack_finalization_fails(self):
+        root = self.make_project()
+        # Calls 1-8 cover start + reader stages; call 9 is the stable
+        # end-revision deadline check; call 10 is after pack construction and
+        # fingerprinting. Only the final check crosses the deadline.
+        clock = _CallDeadlineClock(10)
+        with self.assertRaises(RetrievalSpecResolutionError) as timeout:
+            resolve_retrieval_spec(
+                FIXTURE_SPEC,
+                root,
+                _clock=clock,
+                _timeout_ms=1,
+                _revision_reader=lambda _cwd, _spec: "r1",
+            )
+        self.assertEqual(clock.calls, 10)
+        self.assertEqual(timeout.exception.code, "timeout")
+        self.assertEqual(timeout.exception.stage, "pack_format")
+        self.assertIn("revision_check", timeout.exception.completed_stages)
 
     def test_stale_and_tampered_packs_are_rejected(self):
         root = self.make_project()
