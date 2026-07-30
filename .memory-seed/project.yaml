@@ -3,6 +3,6 @@ participants:
     initials: JNL
     display_name: Jean Nathan Tshibuyi
 
-# Hold branch landings for an explicit user go-ahead (operating-mode-variables).
-# The handoff commands refuse without --user-approved; the MCP integrate declines.
-merge_trigger: manual
+# Verified local integrations may land without a per-merge prompt. Agents still
+# use the session fuse and stop on validation failures or unresolved conflicts.
+merge_trigger: automatic
