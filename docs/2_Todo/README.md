@@ -22,7 +22,7 @@
 | [topic-discovery-from-evidence.md](topic-discovery-from-evidence.md) | P2 | — | JNL to accept or reject the model. Nothing is built. The DAG claim (S4) was MEASURED against th… |
 | [topic-vocabulary-concentration-review.md](topic-vocabulary-concentration-review.md) | P2 | — | SUPERSEDED 2026-07-26 as to remedy - the measurements here stand, but the flat splits recommend… |
 | [vocabulary-proposal-mode-proposal.md](vocabulary-proposal-mode-proposal.md) | P2 | — | JNL to accept or reject. If accepted, build after step 5 and before step 7 - the sweep needs so… |
-| [write-time-sidecar-consolidation-proposal.md](write-time-sidecar-consolidation-proposal.md) | P2 | — | ACCEPTED 2026-07-26 by JNL. Build in order — (1) block format + `source` provenance field, (2) … |
+| [write-time-sidecar-consolidation-proposal.md](write-time-sidecar-consolidation-proposal.md) | P2 | — | M1 topics-and-links transaction is in progress on `codex/feature/decision-sidecar-transaction`;… |
 | [branch-field-provenance.md](branch-field-provenance.md) | P3 | [] | None. Decided (JNL, 2026-07-26): A now, D as the standing convention; both are documented. The … |
 | [decision-level-topics-proposal.md](decision-level-topics-proposal.md) | P3 | — | PROPOSAL — decision-level topic *inference* stays gated behind a DECISION-LEVEL GRAPH (JNL's vi… |
 | [memory-trace-semantic-projections-plan.md](memory-trace-semantic-projections-plan.md) | P3 | — | After B0b and the semantic foundation, validate one Decision projection against the real ADR co… |

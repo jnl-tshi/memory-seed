@@ -3254,6 +3254,7 @@ def _decision_sidecar_journal(
     entry_id: str,
     timestamp: str,
     entry_path: Path,
+    rendered_entry: str,
     sidecar_paths: Mapping[str, Path],
     rendered_sidecars: Mapping[str, str],
 ) -> dict[str, Any]:
@@ -3263,7 +3264,7 @@ def _decision_sidecar_journal(
         "status": "pending",
         "entry_id": entry_id,
         "timestamp": timestamp,
-        "entry_path": str(entry_path),
+        "entry": {"path": str(entry_path), "rendered": rendered_entry},
         "sidecars": {
             kind: {"path": str(path), "rendered": rendered_sidecars[kind]}
             for kind, path in sidecar_paths.items()
@@ -3518,11 +3519,7 @@ def session_append_entry(
         project_path=project_path,
         subproject_path=subproject_path,
     )
-    if entry_id in known:
-        issues.append(
-            f"generated id {entry_id} already exists - identical metadata (timestamp/title/initials/agent/paths); "
-            "this looks like a double-append"
-        )
+    entry_already_exists = entry_id in known
 
     resolved_branch = branch
     if resolved_branch is None and auto_branch:
@@ -3533,9 +3530,6 @@ def session_append_entry(
     # multi-decision shape). The message names the fix; see session_logging.md.
     for issue in entry_body_format_issues(body):
         issues.append(f"body format: {issue}")
-
-    if issues:
-        return SessionAppendResult(ok=False, path=target.path, timestamp=ts, issues=tuple(issues))
 
     yaml_lines = [
         f"entry_id: {entry_id}",
@@ -3603,9 +3597,51 @@ def session_append_entry(
         entry_id=entry_id,
         timestamp=ts,
         entry_path=target.path,
+        rendered_entry=block,
         sidecar_paths=sidecar_paths,
         rendered_sidecars=rendered_sidecars,
     ) if journal_path else None
+
+    # A pending transaction is the sole exception to the ordinary duplicate-id
+    # refusal: it may finish only the exact entry and sidecar bytes it staged
+    # before an interruption.  This is deliberately checked before the normal
+    # write path, because an interruption after publishing the entry otherwise
+    # makes the duplicate guard prevent the receipt from ever completing.
+    recovering = False
+    if journal_path is not None and journal is not None and journal_path.exists():
+        try:
+            existing_journal = read_json_file(journal_path)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            issues.append(f"cannot recover decision-sidecar journal {journal_path}: {exc}")
+        else:
+            if not isinstance(existing_journal, dict) or existing_journal.get("status") != "pending":
+                issues.append(f"decision-sidecar journal {journal_path} is not a recoverable pending transaction")
+            else:
+                comparable = {key: value for key, value in existing_journal.items() if key != "status"}
+                expected = {key: value for key, value in journal.items() if key != "status"}
+                if comparable != expected:
+                    issues.append(
+                        f"pending decision-sidecar journal {journal_path} conflicts with this write; refusing to mix transactions"
+                    )
+                else:
+                    recovering = True
+
+    if entry_already_exists:
+        if not recovering:
+            issues.append(
+                f"generated id {entry_id} already exists - identical metadata (timestamp/title/initials/agent/paths); "
+                "this looks like a double-append"
+            )
+        else:
+            existing_entry = read_text_file(target.path) if target.path.exists() else ""
+            if block.rstrip() not in existing_entry:
+                issues.append(
+                    f"pending decision-sidecar journal {journal_path} names an existing id but not its exact staged entry; "
+                    "refusing to duplicate or overwrite history"
+                )
+
+    if issues:
+        return SessionAppendResult(ok=False, path=target.path, timestamp=ts, issues=tuple(issues))
 
     # Every guard has passed and the block is assembled. A dry run stops here
     # with the exact bytes a real call would append - still short of the only
@@ -3628,39 +3664,8 @@ def session_append_entry(
     # Sidecars are the semantic source of truth, so publish them before the
     # entry that makes their parent visible. The journal is staged first, so a
     # retry can finish the exact plan without duplicating published blocks.
-    recovering = False
     if journal_path is not None and journal is not None:
-        if journal_path.exists():
-            try:
-                existing_journal = read_json_file(journal_path)
-            except (OSError, ValueError, json.JSONDecodeError) as exc:
-                return SessionAppendResult(
-                    ok=False,
-                    path=target.path,
-                    timestamp=ts,
-                    issues=(f"cannot recover decision-sidecar journal {journal_path}: {exc}",),
-                    journal_path=journal_path,
-                )
-            if not isinstance(existing_journal, dict) or existing_journal.get("status") != "pending":
-                return SessionAppendResult(
-                    ok=False,
-                    path=target.path,
-                    timestamp=ts,
-                    issues=(f"decision-sidecar journal {journal_path} is not a recoverable pending transaction",),
-                    journal_path=journal_path,
-                )
-            comparable = {key: value for key, value in existing_journal.items() if key != "status"}
-            expected = {key: value for key, value in journal.items() if key != "status"}
-            if comparable != expected:
-                return SessionAppendResult(
-                    ok=False,
-                    path=target.path,
-                    timestamp=ts,
-                    issues=(f"pending decision-sidecar journal {journal_path} conflicts with this write; refusing to mix transactions",),
-                    journal_path=journal_path,
-                )
-            recovering = True
-        else:
+        if not journal_path.exists():
             write_json_file(journal_path, journal)
     if "topics" in rendered_sidecars:
         topic_path = sidecar_paths["topics"]
@@ -3705,11 +3710,12 @@ def session_append_entry(
 
     target = session_target(cwd, date_str=date_part, explicit_user=explicit_user, create=True)
     existing = read_text_file(target.path) if target.path.exists() else ""
-    if existing.strip():
-        new_text = existing.rstrip("\n") + "\n\n" + block
-    else:
-        new_text = existing + block
-    write_text_file(target.path, new_text)
+    if block.rstrip() not in existing:
+        if existing.strip():
+            new_text = existing.rstrip("\n") + "\n\n" + block
+        else:
+            new_text = existing + block
+        write_text_file(target.path, new_text)
     if journal_path is not None and journal is not None:
         if block.rstrip() not in read_text_file(target.path):
             raise RuntimeError(f"decision-sidecar entry verification failed for {target.path}; journal remains pending")
