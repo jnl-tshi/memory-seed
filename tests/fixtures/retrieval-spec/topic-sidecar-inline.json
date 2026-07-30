@@ -1,0 +1,16 @@
+{
+  "schema": "memory-seed/retrieval-spec",
+  "version": 1,
+  "required": {
+    "constitution": true,
+    "related_decisions": {"depth": 2},
+    "evidence": {"mode": "latest"}
+  },
+  "optional": {"sessions": {"neighbouring_entries": 15}},
+  "filters": {
+    "topics": ["session-fuse", "worktree-integration"],
+    "paths": ["memory_seed/core.py"]
+  },
+  "limits": {"max_entries": 30, "max_tokens": 12000},
+  "output": {"include_resolution_trace": true, "include_excerpts": true}
+}
