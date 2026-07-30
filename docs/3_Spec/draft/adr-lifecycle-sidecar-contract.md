@@ -18,7 +18,8 @@ created.*
 
 ## Authority
 
-One append-only Markdown sidecar is authoritative for an ADR's promotion, stable identity, and lifecycle.
+One append-only Markdown sidecar is authoritative for an ADR's promotion, stable identity, lifecycle, and
+high-signal design-thread lens.
 The original and decision-update entries are authoritative for narrative rationale and evidence. Current
 project files and live specs remain authoritative for what is implemented now. Registries, databases,
 `current_status`, and UI views are derived.
@@ -288,6 +289,18 @@ derived` blocks directly, because a wrong topic slug is cheap to retract. Here, 
 - Supersession names the replacement ADR; the inverse is computed rather than hand-maintained.
 - Competing transitions from the same previous status are a conflict requiring explicit resolution, never a
   last-writer-wins merge.
+
+## Design-thread lineage
+
+An ADR is a high-signal lens over an architectural design thread: it records the current governing decision
+and the direct earlier decisions it evolved from or replaced. An advance appends the prior current decision to
+`direct_predecessors` and installs the newer one as `current_decision`.
+
+The direct-predecessor list is authoritative only as the ADR's curated membership/lens. It does **not** own
+the lifecycle relation: every predecessor must cite a decision-level link-sidecar assertion, and the link
+sidecar remains the sole owner of whether the relationship is `evolves` or `replaces`. Readers can therefore
+follow an ADR to the decision governing that design thread, then traverse its deliberate direct lineage
+without inventing a second graph or losing the full lifecycle ledger.
 
 ## Validation
 

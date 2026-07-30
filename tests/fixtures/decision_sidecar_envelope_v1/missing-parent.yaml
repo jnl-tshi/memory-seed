@@ -1,0 +1,7 @@
+base_entries: []
+source_entries: []
+sidecar:
+  entry_id: mse_missing
+  decision: d1
+  source: write-time
+expected: reject-missing-parent

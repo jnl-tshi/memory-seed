@@ -1,0 +1,28 @@
+entry:
+  entry_id: mse_current
+  timestamp: 2026-07-30 10:00
+  decisions: [d1]
+topics:
+  - entry_id: mse_current
+    decision: d1
+    area: seed-core
+    activity: feature-build
+    source: write-time
+links:
+  - entry_id: mse_current
+    decision: d1
+    evolves: mse_prior:d1
+    source: write-time
+diagrams:
+  - entry_id: mse_current
+    decision: d1
+    title: Transaction flow
+    source: write-time
+adr:
+  adr_id: adr_decision_sidecar_transaction
+  current_decision: mse_current:d1
+  direct_predecessors:
+    - decision: mse_prior:d1
+      relation_assertion: link:mse_current:d1:evolves:mse_prior:d1
+  source: write-time
+expected: accept

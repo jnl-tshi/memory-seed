@@ -1,0 +1,8 @@
+adr_id: adr_decision_sidecar_transaction
+base_current_decision: mse_prior:d1
+transitions:
+  - current_decision: mse_a:d1
+    expected_previous_decision: mse_prior:d1
+  - current_decision: mse_b:d1
+    expected_previous_decision: mse_prior:d1
+expected: reject-competing-transition
