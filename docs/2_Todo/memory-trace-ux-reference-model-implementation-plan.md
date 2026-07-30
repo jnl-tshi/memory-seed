@@ -2,9 +2,9 @@
 title: "Memory Trace UX reference-model implementation plan"
 date: "2026-07-30"
 project: "memory-seed"
-status: "proposed"
+status: "active"
 priority: "P1"
-next_action: "Reconcile the current proposed UX contract against the M0 interaction matrix, then implement the smallest uncovered, fixture-backed increment."
+next_action: "Implement M1 decision reader and evidence-return path against memory-trace-ux-m0-interaction-matrix.md."
 source: "JNL-supplied UX reference model (2026-07-30); existing Memory Trace plans and specifications"
 ---
 
@@ -97,7 +97,7 @@ relying on status prose that may lag a merged branch.
 
 ## 4. Implementation sequence
 
-### M0 — interaction contract reconciliation and fixture matrix
+### M0 — interaction contract reconciliation and fixture matrix (**delivered 2026-07-30**)
 
 Create one implementation matrix that maps each existing behaviour and each new clarification to: its
 authoritative input, API/projection field, UI surface, keyboard/a11y expectation, fixture, and acceptance
@@ -112,6 +112,9 @@ Exit criteria:
 - No M1–M5 ticket relies on an unstated data owner or renderer-specific semantic field.
 - The matrix names a deterministic fixture for every provenance-state and cross-view selection claim.
 - The roadmap, coverage matrix, and this plan agree on what is delivered versus only designed.
+
+Delivery: [`memory-trace-ux-m0-interaction-matrix.md`](memory-trace-ux-m0-interaction-matrix.md)
+freezes the shared terminology, named inputs, and fixture gaps. M1 is now the next actionable slice.
 
 ### M1 — decision reader and evidence return path
 
@@ -257,8 +260,8 @@ polish is accepted only after semantic, keyboard, and fixture parity pass.
 
 ## 7. Delivery and governance
 
-M0 is the next actionable step. Each later milestone should become a bounded implementation ticket only
-after M0 identifies a real uncovered behaviour and attaches its fixture and acceptance gate. A milestone is
+M0 is complete. Each later milestone should become a bounded implementation ticket only after its named
+fixture and acceptance gate are attached. A milestone is
 not complete merely because the interface resembles a reference product: it must pass the five-question
 test.
 
