@@ -711,7 +711,7 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   entries logged after merge record `branch: main`), and corrected; 8 unit tests cover both the
   merge-based and plain-commit shapes. Verified live against real multi-entry files (23 entries for
   `App.tsx`) with real relationship edges rendered between them. **Topology communities: MEASURED AND
-  REJECTED, not pending** — [`adr-graph-community-detection.md`](../3_Spec/draft/adr-graph-community-detection.md).
+  REJECTED, not pending** — [`adr-graph-community-detection.md`](../3_Spec/adr-graph-community-detection.md).
   This line previously read "Louvain recommended, client-side over the existing bounded projection;
   designed, not yet built", which the ADR contradicted a day later and its 2026-07-26 addendum closed
   for the client-side variant specifically. Node colour means *authored topic community*; Louvain
@@ -725,16 +725,17 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   rose 56% since the first measurement without moving the verdict.
   §4.3's stable-community apparatus is **not required**. The only untested route that could reopen
   this is Leiden, which needs `leidenalg`/`igraph` — a new runtime dependency, so a maintainer call.
-  What remains of B0b is therefore formal accessibility/scale acceptance, plus promoting the ADR from
-  `draft` to accepted.
+  **B0b formal accessibility/scale acceptance completed 2026-07-29**: packaged-browser checks cover
+  focus restoration and keyboard selection through the graph's non-visual list alternative; the full
+  corpus scale harness reaches 707 nodes / 1,269 edges with a 1.2 s first graph paint, stable colour
+  assignment across reloads, and a 250 ms interaction ceiling. The ADR is accepted.
   Keep the SVG renderer until explicit parity sign-off.
   **Navigation and layout gained ground 2026-07-28/29** (full detail in the dated "Shipped" section
   above): the flat topic-chip navigation became a recursive Areas/Activities ontology tree; long
   lifecycle chains now wind into a spiral aged oldest-innermost, with a concordance gate so a chain only
   spirals when its topology actually tracks chronology; the layout gained a soft crossing-avoidance
   force; and Trace can now open any correctly-initialised folder from inside the app, not only switch
-  between this repo's own git worktrees — a capability outside B0b's original scope. None of this moves
-  the "what remains" line above: accessibility/scale acceptance and the ADR promotion are still open.
+  between this repo's own git worktrees — a capability outside B0b's original scope.
   Only after B0b acceptance may the
   [`structural-provider proposal`](memory-trace-structural-graph-enrichment-provider-proposal.md) define a
   provider-neutral contract and pilot optional `code-review-graph`; providers never own canonical decision
