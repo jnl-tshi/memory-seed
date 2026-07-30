@@ -146,7 +146,7 @@ Agent, user, node class, and provenance remain available as secondary modes, but
 
 > **NOT REQUIRED — amended 2026-07-22, re-confirmed 2026-07-26.** This section assumed communities
 > come from Leiden/Louvain. That assumption was measured against the live corpus and rejected; see
-> [`adr-graph-community-detection.md`](../3_Spec/draft/adr-graph-community-detection.md). Shipped
+> [`adr-graph-community-detection.md`](../3_Spec/adr-graph-community-detection.md). Shipped
 > communities are derived from **authored topics**, so a community's identity *is* a topic slug —
 > stable by construction, measured at zero changes across corpus growth and rebuild. The whole
 > apparatus below (fingerprint, member-overlap comparison, colour retention, `community_previous_id`)
@@ -711,7 +711,7 @@ Phases A-B are **B0a pre-React** work. They settle contracts and evidence withou
 
 | Risk | Mitigation |
 |---|---|
-| Community colours change after rebuild | Communities are named by authored topic slug, so identity is stable by construction — measured at zero changes across growth and rebuild. Overlap-based reassignment (§4.3) is not required; see [`adr-graph-community-detection.md`](../3_Spec/draft/adr-graph-community-detection.md) |
+| Community colours change after rebuild | Communities are named by authored topic slug, so identity is stable by construction — measured at zero changes across growth and rebuild. Overlap-based reassignment (§4.3) is not required; see [`adr-graph-community-detection.md`](../3_Spec/adr-graph-community-detection.md) |
 | Temporal force damages cluster readability | Mild default, explicit Off control, fixture-based threshold |
 | Continuous force simulation blocks reading or input | Settled default, bounded live-motion threshold, cancellable cooling budget, and end-state fallback |
 | Motion implies false historical evidence | Explain motion as renderer-local exploration; preserve exact dates in Inspector and Trail |
