@@ -41,6 +41,19 @@ export type MergeDot = { row: number; sha: string; short: string; subject: strin
 export type ContinuityEvent = { key: string; row: number; entryId: string; kind: string; from: string; to: string | null; chainKey: string; lane: number };
 export type ContinuityChain = { chainKey: string; lane: number; rows: number[]; events: ContinuityEvent[] };
 
+/** The visible extent of the primary branch's history spine.
+ *
+ * A direct `main` entry and a merge commit are both real trunk events.  The
+ * newest event sits at the smallest row index, while the oldest sits at the
+ * largest; using the newest main row for both ends silently collapses the
+ * spine whenever a direct entry is newer than the latest merge.
+ */
+export function trunkRowRange(mainRows: readonly number[], mergeRows: readonly number[]): Span | null {
+  const rows = [...mainRows, ...mergeRows];
+  if (!rows.length) return null;
+  return { first: Math.min(...rows), last: Math.max(...rows) };
+}
+
 export type TrailModel = {
   items: TrailItem[];
   total: number;

@@ -4,6 +4,7 @@ import type { TrailStyle } from "./SettingsMenu";
 import {
   buildTrailModel,
   trailStamp,
+  trunkRowRange,
   decisionEndpointLabel,
   entryIdOfRowId,
   inDecisionGroup,
@@ -272,17 +273,16 @@ export function TrailWorkspace({
     laneSegments.push(railStroke(`seg-${branch}`, x, rowY(rows[0]), x, rowY(rows[rows.length - 1]), `${branch}:lane`, colorOf.get(branch)));
   });
 
-  // Main trunk: solid spine from main's newest real commit (newest of {main
-  // entry, merge dot}) down to its newest entry; dashed phantom above.
+  // Main trunk: solid spine across every real visible trunk event (direct
+  // main entry or merge dot), with a dashed phantom above the newest one.
   const mainRows = branchRows.get("main") || [];
   const mergeRowsForTrunk = mergeEvents.map((event) => event.row);
   const trunk: ReactElement[] = [];
-  if (mainRows.length || mergeRowsForTrunk.length) {
+  const trunkRows = trunkRowRange(mainRows, mergeRowsForTrunk);
+  if (trunkRows) {
     const mainX = laneX("main");
-    const topRow = Math.min(...(mainRows.length ? [mainRows[0]] : []), ...mergeRowsForTrunk);
-    const topY = Math.max(0, rowY(topRow));
-    const bottomRow = mainRows.length ? mainRows[0] : Math.max(...mergeRowsForTrunk);
-    const bottomY = rowY(bottomRow);
+    const topY = Math.max(0, rowY(trunkRows.first));
+    const bottomY = rowY(trunkRows.last);
     if (bottomY > topY) {
       trunk.push(railStroke("trunk-solid", mainX, topY, mainX, bottomY, "main:trunk", mainColor));
     }

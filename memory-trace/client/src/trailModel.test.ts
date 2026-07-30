@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildTrailModel, compareTrailNodes, decisionEndpointLabel, entryIdOfRowId, inDecisionGroup, isDecisionEdge, isDecisionRow, lifecycleEdgeClass, pastelOf, trailWindowEntryIds } from "./trailModel.ts";
+import { buildTrailModel, compareTrailNodes, decisionEndpointLabel, entryIdOfRowId, inDecisionGroup, isDecisionEdge, isDecisionRow, lifecycleEdgeClass, pastelOf, trailWindowEntryIds, trunkRowRange } from "./trailModel.ts";
 import type { TrailEvent, TrailResponse } from "./api.ts";
 
 const PALETTE = [
@@ -54,6 +54,15 @@ test("pastelOf is deterministic, lighter, and keeps hues distinct", () => {
     );
   });
   assert.equal(new Set(pastels).size, PALETTE.length, "distinct hues stay distinct");
+});
+
+test("trunkRowRange keeps the main spine visible between direct main work and a merged branch", () => {
+  // Rows are newest-first. A direct main entry at row 2 followed by a merge at
+  // row 7 must draw a spine through both; using row 2 as both bounds makes
+  // main disappear except for its dot.
+  assert.deepEqual(trunkRowRange([2], [7]), { first: 2, last: 7 });
+  assert.deepEqual(trunkRowRange([2, 9], [7]), { first: 2, last: 9 });
+  assert.equal(trunkRowRange([], []), null);
 });
 
 test("compareTrailNodes orders a group anchor < D1 < D2 < D10 at identical timestamps", () => {
