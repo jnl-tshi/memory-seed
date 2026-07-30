@@ -143,8 +143,10 @@ Exit:
 
 Implementation status (2026-07-30): exact `mse_` and legacy `ms-` entry-ID navigation, ranked search,
 resilient shared selection, persisted Inspector docking, keyboard canvas controls, responsive React workspace
-controls, and the M1 decision reader/evidence-return path are implemented. Trail transition remains open, so
-this phase is not accepted yet.
+controls, M1's decision reader/evidence-return path, and M2's Trail orientation/filtering path are implemented.
+M2 keeps topology and lineage visually distinct, offers highlight-first then match-only filtering without
+ejecting selection, and marks the exact bounded row window. Trail transition remains open, so this phase is
+not accepted yet.
 
 ## 7. Phase 4 — Trail parity
 

@@ -4,7 +4,7 @@ date: "2026-07-30"
 project: "memory-seed"
 status: "active"
 priority: "P1"
-next_action: "Implement M2 Trail history orientation and filtering against memory-trace-ux-m0-interaction-matrix.md."
+next_action: "Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-interaction-matrix.md."
 source: "JNL-supplied UX reference model (2026-07-30); existing Memory Trace plans and specifications"
 ---
 
@@ -114,7 +114,7 @@ Exit criteria:
 - The roadmap, coverage matrix, and this plan agree on what is delivered versus only designed.
 
 Delivery: [`memory-trace-ux-m0-interaction-matrix.md`](memory-trace-ux-m0-interaction-matrix.md)
-freezes the shared terminology, named inputs, and fixture gaps. M1 shipped on 2026-07-30; M2 is now the next actionable slice.
+freezes the shared terminology, named inputs, and fixture gaps. M1 and M2 shipped on 2026-07-30; M3 is now the next actionable slice.
 
 ### M1 — decision reader and evidence return path
 
@@ -148,6 +148,15 @@ Exit criteria:
   superseded decision.
 
 ### M2 — Trail history orientation and filtering
+
+**Delivered 2026-07-30.** Trail now keeps its direct-main/merge spine, separates provenance topology from
+decision-lineage overlays in a stable legend, and treats query filtering as two explicit states: first
+highlight in chronological context, then optionally show matches only. The selected entry remains visible
+in the narrowed view. Its range indicator and match markers derive from the exact same bounded Trail row
+window; no cache, query, or semantic relationship is repurposed as branch chronology.
+
+Delivery evidence: `TrailWorkspace.tsx`, `trailSearch.ts`, `trailSearch.test.ts`, and the existing
+`trailModel.test.ts` trunk fixture; 235 frontend tests, TypeScript typecheck, and production build passed.
 
 Complete the history-inspection behaviours that make the Trail feel familiar without reducing it to a Git
 log:

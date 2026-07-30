@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type CSSProperties, type ReactElement } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import type { TrailResponse, TrailEdge, TrailEvent } from "./api";
 import type { TrailStyle } from "./SettingsMenu";
 import {
@@ -22,6 +22,7 @@ import {
   TRAIL_REL_ZONE,
   TRAIL_ROW,
 } from "./trailModel";
+import { matchingTrailGroupEntries, trailRowMatches, visibleInTrailMatchMode } from "./trailSearch";
 import { elbowTo, handDrawnPoints, moveTo, pressurePath, ribbonPath, runBody, runPath, sampleQuadratic } from "./trailPath";
 import { animateScrollTo, bandScrollTarget, scrollDurationFor } from "./trailScroll";
 
@@ -149,27 +150,26 @@ export function TrailWorkspace({
   // disappears under a query.
   const searchTerm = query.trim().toLowerCase();
   const searching = searchTerm !== "";
-  const rowMatchOwn = (node: TrailEvent) =>
-    searching &&
-    (stripTitleStamp(node.title).toLowerCase().includes(searchTerm) ||
-      (node.branch || "").toLowerCase().includes(searchTerm) ||
-      (node.entry_id || "").toLowerCase().includes(searchTerm));
+  // A query first highlights the surrounding chronology.  Narrowing to matches
+  // is a deliberate second action: it must never eject the active decision.
+  const [showMatchesOnly, setShowMatchesOnly] = useState(false);
+  useEffect(() => {
+    if (!searching) setShowMatchesOnly(false);
+  }, [searching]);
   // Search highlights whole decision GROUPS (per JNL): if any row of a
   // multi-decision entry matches - the entry title on the anchor, or a
   // decision name on a child - every row sharing that entry_id lights up, so
   // a match never leaves siblings dimmed mid-group.
   const matchedGroupEntries = useMemo(() => {
     if (!searching) return new Set<string>();
-    const matched = new Set<string>();
-    for (const node of model.items) {
-      if (node.kind !== "node" || !inDecisionGroup(node.node)) continue;
-      if (rowMatchOwn(node.node) && node.node.entry_id) matched.add(node.node.entry_id);
-    }
-    return matched;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- rowMatchOwn derives from searchTerm
+    return matchingTrailGroupEntries(
+      model.items.flatMap((item) => item.kind === "node" ? [item.node] : []),
+      searchTerm,
+    );
   }, [model.items, searchTerm, searching]);
-  const rowMatch = (node: TrailEvent) =>
-    rowMatchOwn(node) || Boolean(inDecisionGroup(node) && node.entry_id && matchedGroupEntries.has(node.entry_id));
+  const rowMatch = (node: TrailEvent) => trailRowMatches(node, searchTerm, matchedGroupEntries);
+  const isVisibleInMatchMode = (node: TrailEvent) =>
+    visibleInTrailMatchMode(node, showMatchesOnly, rowMatch(node), selectedEntryId);
 
   // Continuity zone is deferred (0 for now); the relationship zone is kept
   // reserved so lifecycle-arrow lanes slot in later without re-laying-out.
@@ -690,6 +690,7 @@ export function TrailWorkspace({
     const selected = isSelected(node);
     const matched = rowMatch(node);
     const miss = searching && !matched && !selected;
+    const hiddenByMatchMode = !isVisibleInMatchMode(node);
     const isChild = isDecisionRow(node);
     // Decision rows share the anchor's timestamp; repeating it would read as N
     // separate moments, so only the anchor shows the time.
@@ -700,9 +701,10 @@ export function TrailWorkspace({
         data-entry={node.entry_id || undefined}
         data-decision={node.decision_ordinal || undefined}
         type="button"
-        className={`trail-row${isChild ? " decision-row" : ""}${selected ? (selectionMuted ? " pinned" : " selected") : ""}${matched ? " search-match" : ""}${miss ? " search-miss" : ""}${chainPrimary.has(node.id) ? " chain-primary" : chainSecondary.has(node.id) ? " chain-secondary" : ""}${commitSiblings.has(node.id) ? " commit-sibling" : ""}`}
+        className={`trail-row${isChild ? " decision-row" : ""}${selected ? (selectionMuted ? " pinned" : " selected") : ""}${matched ? " search-match" : ""}${miss ? " search-miss" : ""}${hiddenByMatchMode ? " match-filtered" : ""}${chainPrimary.has(node.id) ? " chain-primary" : chainSecondary.has(node.id) ? " chain-secondary" : ""}${commitSiblings.has(node.id) ? " commit-sibling" : ""}`}
         style={{ "--indent": `${rowIndent(envelopeLane[index])}px` } as CSSProperties}
         title={`${node.title}${branch ? ` · ${branch}` : ""}`}
+        hidden={hiddenByMatchMode}
         onClick={() => {
           suppressScroll.current = true;
           onSelectEntry(node.entry_id, node.chunk_id, isChild ? { heading: node.title } : undefined);
@@ -744,6 +746,12 @@ export function TrailWorkspace({
 
   const shown = items.filter((item) => item.kind === "node" && !isDecisionRow(item.node)).length;
   const matchCount = searching ? items.filter((item) => item.kind === "node" && rowMatch(item.node)).length : 0;
+  // The orientation indicator deliberately derives from the same `items`
+  // window used to render rows. It is not a second query, cache, or estimate.
+  const matchMarkerRows = items.flatMap((item, index) =>
+    item.kind === "node" && !isDecisionRow(item.node) && rowMatch(item.node) ? [index] : [],
+  );
+  const rangeHeight = Math.max(14, Math.round((shown / Math.max(total, 1)) * 100));
 
   return (
     <div className="trail-workspace">
@@ -752,7 +760,16 @@ export function TrailWorkspace({
           <strong>{shown}</strong> of {total} entries · newest first
           {searching && <> · <strong>{matchCount}</strong> match{matchCount === 1 ? "" : "es"}</>}
         </span>
-        <span className="trail-legend" aria-label="Relationship legend">
+        <span className="trail-range" role="img" aria-label={`Visible chronological range: newest ${shown} of ${total} entries${searching ? `, ${matchCount} matches` : ""}`} title="Visible range and search markers use the same Trail window as the rows">
+          <span className="trail-range-track">
+            <span className="trail-range-window" style={{ "--range-height": `${rangeHeight}%` } as CSSProperties}>
+              {matchMarkerRows.map((row) => <span key={row} className="trail-range-match" style={{ "--match-position": `${((row + 0.5) / Math.max(items.length, 1)) * 100}%` } as CSSProperties} />)}
+            </span>
+          </span>
+        </span>
+        <span className="trail-legend" aria-label="Trail visual grammar">
+          <span className="trail-legend-group"><b>Provenance</b><span className="trail-legend-item"><span className="trail-legend-line trail-legend-solid" style={{ borderColor: mainColor }} />branch / worktree lanes</span><span className="trail-legend-item">fork · merge topology</span></span>
+          <span className="trail-legend-group"><b>Decision lineage</b>
           {continuityLaneCount > 0 && (
             <>
               <span className="trail-legend-item"><span className="trail-cont-key" style={{ borderColor: "var(--accent)" }} />rename</span>
@@ -771,7 +788,11 @@ export function TrailWorkspace({
             <span className="trail-legend-item"><span className="trail-legend-line trail-legend-solid" style={{ borderColor: "var(--edge-evolves)" }} />solid = names a decision</span>
           )}
           <span className="trail-legend-item"><span className="trail-legend-line" style={{ borderColor: "var(--edge-related)" }} />related · on select</span>
+          </span>
         </span>
+        {searching && <button type="button" className="trail-match-mode" aria-pressed={showMatchesOnly} onClick={() => setShowMatchesOnly((value) => !value)}>
+          {showMatchesOnly ? "Show chronology" : "Show matches only"}
+        </button>}
         {shown < total && (
           <button type="button" className="trail-more" onClick={onLoadMore}>
             Load older

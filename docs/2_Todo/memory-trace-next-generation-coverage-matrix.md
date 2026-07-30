@@ -29,10 +29,12 @@ Resolution:
 - Promote the Trail/search/graph UX and derived-artifact provenance contracts into `docs/3_Spec/`.
 - Keep existing active implementation plans where they still own concrete remaining work.
 - Preserve completed plans as historical evidence; cross-link them to the new governing documents rather than reopening them.
-- **UX M0/M1 delivered 2026-07-30:** `memory-trace-ux-m0-interaction-matrix.md` names the authoritative
+- **UX M0–M2 delivered 2026-07-30:** `memory-trace-ux-m0-interaction-matrix.md` names the authoritative
   inputs, deterministic fixtures, and delivery status for Trail, Graph, Inspector, Reader, search, and
   information-state grammar. The Reader now projects an exact-source return path without a new renderer or
-  canonical data field; the next UX increment is M2 Trail orientation/filtering.
+  canonical data field. M2 adds a topology-versus-lineage legend, highlight-first/match-only Trail filtering
+  that retains selected context, and canonical-window range/match orientation; the next UX increment is M3
+  bounded graph perspectives and controlled expansion.
 
 ## Coverage Matrix
 
