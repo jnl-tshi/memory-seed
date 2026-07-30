@@ -27,6 +27,7 @@ These files are not completed proposals. Completed proposal and source-plan docu
 <!-- docs-index:begin -->
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
+| [adr-graph-community-detection.md](adr-graph-community-detection.md) | — | — | accepted |
 | [functionality-audit.md](functionality-audit.md) | — | — | — |
 | [graph-edge-contract.md](graph-edge-contract.md) | — | — | — |
 | [lifecycle-edge-linking-sidecars.md](lifecycle-edge-linking-sidecars.md) | — | — | — |

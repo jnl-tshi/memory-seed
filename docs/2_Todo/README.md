@@ -12,6 +12,7 @@
 | [memory-trace-graph-visualisation-and-temporal-topology-proposal.md](memory-trace-graph-visualisation-and-temporal-topology-proposal.md) | P1 | — | promoted-to-todo |
 | [memory-trace-structural-graph-enrichment-provider-proposal.md](memory-trace-structural-graph-enrichment-provider-proposal.md) | P1 | — | promoted-to-todo |
 | [memory-trace-three-region-workspace-and-dockable-inspector-proposal.md](memory-trace-three-region-workspace-and-dockable-inspector-proposal.md) | P1 | — | promoted-to-todo |
+| [memory-trace-ux-reference-model-implementation-plan.md](memory-trace-ux-reference-model-implementation-plan.md) | P1 | — | Reconcile the current proposed UX contract against the M0 interaction matrix, then implement th… |
 | [retrieval-specification-m0-m1-implementation-plan.md](retrieval-specification-m0-m1-implementation-plan.md) | P1 | — | Obtain explicit user approval for the configured manual merge; do not merge or push before that… |
 | [adjudication-queue.md](adjudication-queue.md) | P2 | — | JNL to rule each row; the rulings become the project's only validity ground truth. |
 | [document-lifecycle-system-plan.md](document-lifecycle-system-plan.md) | P2 | — | Phases 2-3 COMPLETE 2026-07-17: migration, `docs check` (also in esr + CI), and `docs index` (m… |
@@ -41,4 +42,5 @@
 | [openssf-credibility-proposals.md](openssf-credibility-proposals.md) | — | — | — |
 | [related-entries-p2-mutation-plan.md](related-entries-p2-mutation-plan.md) | — | — | — |
 | [session-decision-diagrams-plan.md](session-decision-diagrams-plan.md) | — | — | — |
+| [skillopt-fit-analysis.md](skillopt-fit-analysis.md) | — | — | proposal |
 <!-- docs-index:end -->
