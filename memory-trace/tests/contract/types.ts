@@ -462,6 +462,10 @@ export interface components {
             decision_count: number;
             /** Decision Ordinal */
             decision_ordinal?: string | null;
+            /** Decision Topics */
+            decision_topics?: {
+                [key: string]: string[];
+            };
             /** Entry Id */
             entry_id: string | null;
             /** Granularity */
@@ -661,6 +665,10 @@ export interface components {
             agent: string;
             /** Chunk Id */
             chunk_id: string;
+            /** Decision Topics */
+            decision_topics?: {
+                [key: string]: string[];
+            };
             /** Entry Id */
             entry_id: string | null;
             /** Topics */
@@ -827,6 +835,10 @@ export interface components {
             decision_count: number;
             /** Decision Ordinal */
             decision_ordinal?: string | null;
+            /** Decision Topics */
+            decision_topics?: {
+                [key: string]: string[];
+            };
             /** Entry Id */
             entry_id: string | null;
             /** Granularity */

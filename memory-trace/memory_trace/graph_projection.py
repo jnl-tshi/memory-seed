@@ -152,6 +152,29 @@ def community_for_topics(
     }
 
 
+def _display_topics(raw: Mapping[str, Any]) -> list[str]:
+    """Entry topics plus decision topics, de-duplicated for parent display.
+
+    The raw `topics` field stays entry-level for filtering. This union is used
+    only to name the renderer community and is never sent back to the service.
+    """
+    merged: list[str] = []
+
+    def add(values: Any) -> None:
+        if not isinstance(values, (list, tuple)):
+            return
+        for topic in values:
+            if isinstance(topic, str) and topic not in merged:
+                merged.append(topic)
+
+    add(raw.get("topics"))
+    decision_topics = raw.get("decision_topics")
+    if isinstance(decision_topics, Mapping):
+        for values in decision_topics.values():
+            add(values)
+    return merged
+
+
 def load_graph_fixture(path: str | Path) -> dict[str, Any]:
     """Load and validate a JSON fixture before a renderer prototype consumes it."""
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -206,6 +229,7 @@ def project_trace_graph(
         if isinstance(entry_id, str) and entry_id:
             entry_id_by_node[node_id] = entry_id
         temporal_value, temporal_precision = _trace_temporal_value(raw, index)
+        display_topics = _display_topics(raw)
         nodes.append(
             {
                 "id": node_id,
@@ -214,7 +238,7 @@ def project_trace_graph(
                 "provenance_class": raw.get("provenance_class", "authored_memory"),
                 "authority_class": "authored",
                 "community": (
-                    community_for_topics(raw.get("topics") or [], topic_frequencies)
+                    community_for_topics(display_topics, topic_frequencies)
                     if topic_frequencies is not None
                     else dict(UNASSIGNED_COMMUNITY)
                 ),
@@ -235,6 +259,7 @@ def project_trace_graph(
                     "entry_id": raw.get("entry_id"),
                     "agent": raw.get("agent", "unknown"),
                     "topics": raw.get("topics", []),
+                    "decision_topics": raw.get("decision_topics", {}),
                 },
             }
         )

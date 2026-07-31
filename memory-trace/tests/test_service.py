@@ -758,6 +758,97 @@ class TraceServiceTests(unittest.TestCase):
         # have been first under plain corpus order.
         self.assertFalse({f"mse_old{index}" for index in range(1, 5)} & node_ids)
 
+    def test_local_scope_and_contextual_ontology_ignore_display_edge_types(self):
+        # The topic edge joins the focus to a third entry with a distinct
+        # Activity. It is display-only: choosing the topic chip must not pull
+        # that entry into Local scope or make its Activity available.
+        memory = self.cwd / ".memory-seed"
+        (memory / "topics.yaml").write_text(
+            """schema_version: 2
+topics:
+  - slug: area-one
+    axis: area
+  - slug: area-two
+    axis: area
+  - slug: activity-x
+    axis: activity
+  - slug: activity-y
+    axis: activity
+""",
+            encoding="utf-8",
+        )
+        self.write_session(
+            "2026-07-01.md",
+            "\n".join(
+                [
+                    _entry("2026-07-01 09:00 - Local focus", "mse_scope_focus", "Focus node."),
+                    _entry(
+                        "2026-07-01 10:00 - Lifecycle neighbour",
+                        "mse_scope_lifecycle",
+                        "Lifecycle node.",
+                        related=["mse_scope_focus"],
+                    ),
+                    _entry("2026-07-01 11:00 - Topic-only neighbour", "mse_scope_topic", "Topic node."),
+                ]
+            ),
+        )
+        sidecar = memory / "sessions" / "topics" / "2026-07" / "2026-07-01.md"
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        sidecar.write_text(
+            """---
+tags:
+  - session-log-topics
+topic_date: 2026-07-01
+---
+
+## 2026-07-01 09:00 - Local focus
+
+```yaml
+entry_id: mse_scope_focus
+topics:
+  area:
+    - area-one:d1
+  activity:
+    - activity-x:d1
+```
+
+## 2026-07-01 10:00 - Lifecycle neighbour
+
+```yaml
+entry_id: mse_scope_lifecycle
+topics:
+  area:
+    - area-one:d1
+  activity:
+    - activity-x:d1
+```
+
+## 2026-07-01 11:00 - Topic-only neighbour
+
+```yaml
+entry_id: mse_scope_topic
+topics:
+  area:
+    - area-one:d1
+  activity:
+    - activity-y:d1
+```
+""",
+            encoding="utf-8",
+        )
+        service = self.service()
+
+        hidden = service.graph(entry_id="mse_scope_focus", edge_types=("related",), limit=100)
+        shown = service.graph(entry_id="mse_scope_focus", edge_types=("related", "topic"), limit=100)
+
+        expected_ids = {"mse_scope_focus", "mse_scope_lifecycle"}
+        self.assertEqual({node["id"] for node in hidden["nodes"]}, expected_ids)
+        self.assertEqual({node["id"] for node in shown["nodes"]}, expected_ids)
+        self.assertEqual(hidden["ontology"], shown["ontology"])
+        self.assertNotIn("activity-y", json.dumps(shown["ontology"]))
+        self.assertEqual({edge["type"] for edge in hidden["edges"]}, {"related"})
+        self.assertEqual({edge["type"] for edge in shown["edges"]}, {"related", "topic"})
+
     def test_graph_overview_slice_prefers_connected_subgraph(self):
         # Regression: the all-dates overview (no entry_id, no date filter) used
         # to truncate nodes in corpus order, so a limit smaller than the corpus
@@ -883,9 +974,9 @@ class TraceServiceTests(unittest.TestCase):
             baseline_ids,
         )
 
-    def test_pinned_expansion_ignores_edge_types_the_user_filtered_off(self):
-        # Expanding over an edge that will not render would add a node whose
-        # only tie to the map is invisible - an unexplained dot.
+    def test_pinned_expansion_uses_stable_lifecycle_scope_not_display_edge_types(self):
+        # Pinned entries legitimately expand the logical response, but the
+        # lifecycle neighbour they add is independent of the display chips.
         self.write_session(
             "2026-06-05.md",
             "\n".join(
@@ -901,10 +992,17 @@ class TraceServiceTests(unittest.TestCase):
         )
         service = self.service()
 
+        with_related = service.graph(edge_types=("related",), limit=1, pinned_ids=["mse_cluster4"])
         without_related = service.graph(edge_types=("replaces", "evolves"), limit=1, pinned_ids=["mse_cluster4"])
-        ids = {node["id"] for node in without_related["nodes"]}
-        self.assertIn("mse_cluster4", ids)
-        self.assertNotIn("mse_cluster3", ids)
+
+        self.assertEqual(
+            {node["id"] for node in without_related["nodes"]},
+            {node["id"] for node in with_related["nodes"]},
+        )
+        self.assertIn("mse_cluster4", {node["id"] for node in without_related["nodes"]})
+        self.assertIn("mse_cluster3", {node["id"] for node in without_related["nodes"]})
+        self.assertEqual({edge["type"] for edge in without_related["edges"]}, set())
+        self.assertEqual({edge["type"] for edge in with_related["edges"]}, {"related"})
 
     def test_chunk_api_accepts_encoded_path_chunk_ids(self):
         self.write_session(

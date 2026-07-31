@@ -9,7 +9,7 @@ import { allSpiralAssignments, spiralSeedOffsets, type SpiralAssignment } from "
 import { edgeCrossingForce } from "./graphCrossings";
 import { forceParameters, ticksPerPaint, type ForceSettings } from "./graphForces";
 import { outrankedEdgeIds } from "./graphEdges";
-import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, inferredCommunityColours, wearsAuthoredRim, type TopicRoots } from "./graphCommunities";
+import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, wearsAuthoredRim, type TopicRoots } from "./graphCommunities";
 
 type GraphWorkspaceProps = {
   graph: RendererGraphResponse;
@@ -791,22 +791,12 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
   // was read from a ref but missing from its effect's deps.
   const legend = useMemo(() => communityLegend(renderedNodes, corpusTopics, topicWheel, topicRoots, focusTopic, topicCanonical), [renderedNodes, corpusTopics, topicWheel, topicRoots, focusTopic, topicCanonical]);
   const colourOf = useMemo(() => communityColourScale(corpusTopics, topicWheel, topicRoots, focusTopic, topicCanonical), [corpusTopics, topicWheel, topicRoots, focusTopic, topicCanonical]);
-  // Authored fill is the MIXTURE of a node's qualifying topics; falls back to
-  // the pure community colour when the mixture cannot be built.
   // The authored mixture, or null when the node authored nothing that clears
   // the floor. Kept as null rather than pre-resolved to a fallback because the
-  // caller needs to know WHETHER a node authored a colour - that is what
-  // decides the rim, and what stops an inferred pastel overriding a real one.
+  // caller needs to know WHETHER a node authored a colour.
   const authoredOf = useMemo(
     () => (node: RendererGraphNode) => authoredNodeColour(node, corpusTopics, topicWheel, topicRoots, focusTopic, topicCanonical),
     [corpusTopics, topicWheel, topicRoots, focusTopic, topicCanonical],
-  );
-  // Topicless nodes take a pastel blend of the communities that reach them
-  // (directly, or as decaying residue down a topicless chain). Pastel is a
-  // property of the community colour alone, so no theme dependency here.
-  const inferredColours = useMemo(
-    () => inferredCommunityColours(renderedNodes, graph.edges, colourOf),
-    [renderedNodes, graph.edges, colourOf],
   );
   const labelIds = useMemo(() => labelIdsFor(graph, selectedId, labelMode), [graph, labelMode, selectedId]);
   labelIdsRef.current = labelIds;
@@ -881,24 +871,11 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
             grabbable: false,
           })),
           ...renderedNodes.map((node) => {
-            // AUTHORED COLOUR WINS, and the test is whether the node has one -
-            // not whether its COMMUNITY qualifies. The two came apart when
-            // colour started climbing to the root: an entry tagged only with
-            // child slugs (four children of `control-plane`, say) is named
-            // `unassigned` by the server, because grouping still applies the
-            // floor per slug, yet it plainly authored a topic and now has a
-            // root colour to show for it. Gating on the community handed those
-            // entries a borrowed pastel instead - the entry said what it was
-            // about and the graph answered with a guess from its neighbours.
-            //
-            // Known edge, deliberately left: such a node still RELAYS residue
-            // as a topicless waypoint, because the inference walk decides
-            // membership from the community too. That only affects who receives
-            // a faded tint, never what colour this node shows, and rewriting
-            // the walk's seeding rules is not worth it for the handful of
-            // entries involved.
+            // Colour is authored-only. The parent may display the union of its
+            // entry and ordinal-preserving decision topics, but links never
+            // supply a hidden topic channel: topicless nodes remain neutral.
             const authored = authoredOf(node);
-            const colour = authored ?? inferredColours.get(node.id) ?? colourOf(node);
+            const colour = authored ?? colourOf(node);
             return {
               data: {
                 parent: rowParentIds.get(node.id),
@@ -909,12 +886,10 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
                 selected: "no",
                 colour,
                 // Authored membership wears a rim of its own colour, darkened;
-                // inferred and unassigned nodes keep the invisible cutout
-                // border, so the rim alone says "this entry declared a topic".
+                // unassigned nodes keep the invisible cutout border, so the
+                // rim alone says "this entry declared a topic".
                 // Either an authored mixture or an authored community earns it -
-                // see wearsAuthoredRim. A full-strength authored colour with no
-                // rim would be indistinguishable from a saturated inferred tint,
-                // which is the confusion the rim exists to prevent.
+                // see wearsAuthoredRim.
                 borderColour: wearsAuthoredRim(node, authored) ? authoredBorderColour(colour) : nodeBorder,
                 // Square-root scaling, not linear: degree is heavy-tailed, so a
                 // linear ramp spends its whole range on the few hubs and leaves

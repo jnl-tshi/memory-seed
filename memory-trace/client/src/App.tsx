@@ -1595,7 +1595,7 @@ export default function App() {
                 </button>
               ))}</span></dd></div>
             ))}
-            <div className="meta-item meta-wide"><dt>Topics</dt><dd>{selected.source.topics.length ? <span className="meta-topics">{selected.source.topics.map((topic) => <span className="meta-topic" key={topic}>{topic}</span>)}</span> : "None"}</dd></div>
+            <div className="meta-item meta-wide"><dt>Topics</dt><dd>{selected.source.topics.length || Object.keys(selected.source.decision_topics ?? {}).length ? <span className="meta-topic-groups">{selected.source.topics.length > 0 && <span className="meta-topic-group"><span className="meta-topic-origin">Entry</span><span className="meta-topics">{selected.source.topics.map((topic) => <span className="meta-topic" key={topic}>{topic}</span>)}</span></span>}{Object.entries(selected.source.decision_topics ?? {}).map(([ordinal, topics]) => <span className="meta-topic-group" key={ordinal}><span className="meta-topic-origin">{ordinal.toUpperCase()}</span><span className="meta-topics">{topics.map((topic) => <span className="meta-topic" key={topic}>{topic}</span>)}</span></span>)}</span> : "None"}</dd></div>
             </dl>
           </details>
           <EntryReader chunk={chunk} matchHeading={matchHeading} decisionHeading={matchHeading} relationships={readerRelationships} evidenceOpen={evidenceOpen} onOpenEntry={(entryId) => void openEntryInPlace(entryId)} onOpenDecision={openSiblingDecision} onOpenFile={(path) => void openFileMode(path)} onOpenEvidence={openEvidence} onReturnEvidence={returnFromEvidence} onOpenDiagram={(title, source) => setDiagramViewer({ title: title || chunk?.title || "Decision diagram", blocks: [{ title, source }] })} look={trailStyle.style} theme={theme} />

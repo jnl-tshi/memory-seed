@@ -1587,12 +1587,14 @@ class TraceService:
         leaves alternative choices available rather than forcing a user to
         clear their current choice before changing it.
         """
-        return self.ontology(
-            _contextual_ontology_counts(
-                entries,
-                cwd=self.cache.cwd,
-                area=area,
-                activity=activity,
+        return _prune_empty_ontology(
+            self.ontology(
+                _contextual_ontology_counts(
+                    entries,
+                    cwd=self.cache.cwd,
+                    area=area,
+                    activity=activity,
+                )
             )
         )
 
@@ -1820,8 +1822,14 @@ class TraceService:
         )
         node_id = _graph_node_id_for(granularity)
         edge_type_set = set(edge_types)
+        # Scope selection is deliberately independent of edge display. A
+        # display chip can hide or show a relationship, but it must never
+        # reshape the logical Graph response that drives contextual ontology.
+        # Only authored lifecycle relationships define that response; derived
+        # topic/agent/day (and branch) edges are display-only.
+        scope_edge_types = {"related", "replaces", "evolves"}
         base_by_id = {node_id(chunk): chunk for chunk in base_entries if node_id(chunk)}
-        base_edges = _graph_edges(base_entries, edge_type_set, node_id=node_id)
+        scope_edges = _graph_edges(base_entries, scope_edge_types, node_id=node_id)
         base_visible_ids = list(base_by_id)
         if entry_ids is not None:
             # File mode: an exact, pre-resolved membership set (every entry
@@ -1841,7 +1849,7 @@ class TraceService:
             # still terminates on the decision row, via
             # _decision_edges_for_rows), so nothing here projects "B:d2 evolves
             # A:d1" up into "B evolves A".
-            reach = list(base_edges)
+            reach = list(scope_edges)
             if include_decisions:
                 for source_entry_id, sidecar in self._link_sidecars().items():
                     for kind, _src_ordinal, target_entry_id, _ordinal in sidecar.get("decision_edges", ()):
@@ -1868,10 +1876,10 @@ class TraceService:
             }
             base_limited_ids = _overview_slice(
                 base_visible_ids,
-                base_edges,
+                scope_edges,
                 limit=_limit(limit, maximum=1000),
                 recency_rank=recency_rank,
-                expand_types={"replaces", "evolves", "related"} & edge_type_set,
+                expand_types=scope_edge_types,
             )
         # Pinned entries: the Trail's currently-loaded window. Whatever the
         # ranked overview would have chosen, an entry the user can already SEE
@@ -1882,15 +1890,14 @@ class TraceService:
         # it was never a claim about what the user is allowed to see.
         if pinned_ids:
             pinned = [item_id for item_id in pinned_ids if item_id in base_by_id]
-            # Depth-1 over the lifecycle edges that are actually being RENDERED,
-            # so a pinned entry arrives with its most relevant relationships
-            # rather than as a lone dot. Expanding over an edge type the user
-            # has filtered off would add a node whose only tie is invisible.
-            lifecycle = {"replaces", "evolves", "related"} & edge_type_set
-            if lifecycle:
+            # Depth-1 over the same stable lifecycle relationships used for
+            # scope selection. Pins legitimately add visible entries, but
+            # changing display chips must not decide which neighbours a pin
+            # contributes to the logical response.
+            if scope_edge_types:
                 pinned_set = set(pinned)
-                for edge in base_edges:
-                    if edge["type"] not in lifecycle:
+                for edge in scope_edges:
+                    if edge["type"] not in scope_edge_types:
                         continue
                     for near, far in ((edge["source"], edge["target"]), (edge["target"], edge["source"])):
                         if near in pinned_set and far in base_by_id:
@@ -3559,6 +3566,31 @@ def _contextual_ontology_counts(
     return counts
 
 
+def _prune_empty_ontology(ontology: dict[str, list[dict[str, Any]]]) -> dict[str, list[dict[str, Any]]]:
+    """Remove zero-total branches from a contextual ontology response."""
+
+    def prune(node: dict[str, Any]) -> dict[str, Any] | None:
+        if node["total"] == 0:
+            return None
+        return {
+            **node,
+            "children": [
+                pruned
+                for child in node["children"]
+                if (pruned := prune(child)) is not None
+            ],
+        }
+
+    # Keep every known axis even when its entire contextual branch was pruned.
+    # `{area: [], activity: []}` is a loaded empty response; `{}` means the
+    # server did not provide a contextual ontology and the client may use its
+    # full-corpus fallback.
+    return {
+        axis: [pruned for node in nodes if (pruned := prune(node)) is not None]
+        for axis, nodes in ontology.items()
+    }
+
+
 def _timeline_buckets(
     entries: Sequence[MemoryChunk],
     start_day: date,
@@ -3739,13 +3771,14 @@ def _overview_slice(
     expansion over ``expand_types`` then pulls in the entries the spine points
     at **regardless of their date**: the spine is the shared backbone of both
     views, and the extra nodes exist only so the Graph can show what those
-    entries relate to. The Trail stays purely chronological and is unaffected.
+    entries relate to. The caller supplies the stable scope relationships here;
+    edge-display settings only control which edges are emitted later. The Trail
+    stays purely chronological and is unaffected.
 
     Expansion is one hop from the spine, never iterated, so a single old entry
     cannot drag its whole neighbourhood in behind it. ``expand_types`` should be
-    the lifecycle kinds currently being rendered - expanding over an edge type
-    the user has filtered off would add a node whose only tie is invisible, the
-    same rule the pinned-entry expansion follows.
+    the authored lifecycle kinds that define scope, not caller-selected display
+    types; otherwise toggling an edge chip would change node membership.
 
     This replaced a connectivity ranking (highest-degree seeds, greedy frontier)
     which produced a well-connected map whose membership had no relation to
@@ -3802,6 +3835,22 @@ def _graph_node_id_for(granularity: str) -> Callable[[MemoryChunk], str | None]:
     return lambda chunk: chunk.entry_id
 
 
+def _decision_topics(chunk: MemoryChunk) -> dict[str, list[str]]:
+    """Decision topics grouped by their authored ``dN`` ordinal.
+
+    This remains a display channel rather than a flat substitute for `_topics`:
+    Area/Activity filtering must still join pairs within one decision.
+    """
+    grouped: dict[str, list[str]] = {}
+    for ordinal, slug in chunk.inferred_decision_topics or ():
+        if not ordinal or not slug:
+            continue
+        values = grouped.setdefault(ordinal, [])
+        if slug not in values:
+            values.append(slug)
+    return grouped
+
+
 def _graph_node(
     chunk: MemoryChunk,
     *,
@@ -3826,6 +3875,7 @@ def _graph_node(
         "branch_inferred": inferred_main,
         "agent": chunk.agent_type or chunk.agent_name or "unknown",
         "topics": _topics(chunk),
+        "decision_topics": _decision_topics(chunk),
         "granularity": chunk.granularity,
         "continuity": _continuity_to_api(chunk),
         "connectivity": connectivity,
@@ -3956,17 +4006,19 @@ def _expand_decision_rows(
         # `retrieval`, averaging away the distinction decision granularity exists
         # to record.
         source = (attributions or {}).get(entry_id)
+        decision_topics = _decision_topics(source) if source else dict(node.get("decision_topics") or {})
         by_ordinal: dict[str, dict[str, list[str]]] = {}
-        for ord_key, slug in getattr(source, "inferred_decision_topics", ()) or ():
-            if not ord_key:
-                continue
-            axis = _AXIS_OF(slug)
-            if axis:
-                by_ordinal.setdefault(ord_key, {}).setdefault(axis, []).append(slug)
+        for ord_key, topics in decision_topics.items():
+            for slug in topics:
+                axis = _AXIS_OF(slug)
+                if axis:
+                    by_ordinal.setdefault(ord_key, {}).setdefault(axis, []).append(slug)
         for ordinal, chunk in group:
-            axes = by_ordinal.get(f"d{ordinal}", {})
+            ordinal_key = f"d{ordinal}"
+            axes = by_ordinal.get(ordinal_key, {})
             area = sorted(axes.get("area", ()))
             activity = sorted(axes.get("activity", ()))
+            own_topics = decision_topics.get(ordinal_key, [])
             expanded.append(
                 dict(
                     node,
@@ -3974,11 +4026,13 @@ def _expand_decision_rows(
                     chunk_id=chunk.chunk_id,
                     title=chunk.title,
                     granularity="section",
-                    # The pair, and the flat union for consumers that just want
-                    # "what is this row about". Falls back to the anchor's topics
-                    # when a decision has no attribution - a row with no colour
-                    # would read as a defect rather than as missing data.
-                    topics=sorted({*area, *activity}) or node.get("topics") or [],
+                    # A decision row carries only its own authored topics. The
+                    # parent can display its authored union, but an untagged
+                    # decision remains neutral rather than borrowing it.
+                    topics=own_topics,
+                    # Decision rows keep only their own mapping: siblings
+                    # must never be represented as part of this decision.
+                    decision_topics={ordinal_key: own_topics} if own_topics else {},
                     decision_area=area,
                     decision_activity=activity,
                     # Entry-scoped affordances stay on the anchor row only:

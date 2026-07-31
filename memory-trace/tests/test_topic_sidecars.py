@@ -8,8 +8,8 @@ corpus and changed nothing a user could see.
 
 These tests pin the three things that wiring had to get right:
 
-1. `_topics()` UNIONS the inferred channel with the authored one, so a filter,
-   facet, chip and community colour all find a late-attributed entry.
+1. `_topics()` gives the sidecar-derived channel authority, while decision
+   attribution stays ordinal-keyed for rendering.
 2. The union happens at that one chokepoint. Every consumer reads it, which is
    what stops a legend coloured from one channel and a chip list rendered from
    the other from disagreeing.
@@ -25,12 +25,16 @@ from pathlib import Path
 from unittest import mock
 
 from memory_seed.core import resolve_runtime
+from memory_seed.retrieval import augment_chunks_with_topic_sidecars
 from memory_seed.semantic_cache import MemoryChunk
-from memory_trace.service import _topics, _tracked_document_paths, create_app
+from memory_trace.graph_projection import project_trace_graph
+from memory_trace.service import TraceCache, _graph_node, _topics, _tracked_document_paths, create_app
 
 ENTRY = "mse_" + "d" * 16
 OTHER = "mse_" + "e" * 16
 PAIRED = "mse_" + "f" * 16  # its own id: two entries sharing one is a UNIQUE violation
+REAL_ENTRY = "mse_d06t9bccm3yykfqs"
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _entry(dt, entry_id, title, topics=()):
@@ -219,6 +223,38 @@ class TopicSidecarReadPathTests(unittest.TestCase):
         )
 
 
+class RealCorpusDecisionSidecarTests(unittest.TestCase):
+    """The authored 2026-07-31 sidecar projects exact decision ordinals."""
+
+    def setUp(self):
+        self.cache_root = Path(tempfile.mkdtemp(prefix="mseed-real-topic-sidecar-cache-"))
+        self.addCleanup(lambda: shutil.rmtree(self.cache_root, ignore_errors=True))
+
+    def test_real_entry_projects_its_authored_decision_topics(self):
+        cache = TraceCache(REPOSITORY_ROOT, cache_root=self.cache_root)
+        parent = next(chunk for chunk in cache.chunks(granularity="entry") if chunk.entry_id == REAL_ENTRY)
+        enriched = next(
+            chunk
+            for chunk in augment_chunks_with_topic_sidecars([parent], REPOSITORY_ROOT)
+            if chunk.entry_id == REAL_ENTRY
+        )
+
+        node = _graph_node(enriched)
+        self.assertCountEqual(node["topics"], ["session-logging", "bugfix", "memory-trace", "security"])
+        self.assertEqual(
+            node["decision_topics"],
+            {
+                "d1": ["session-logging", "bugfix"],
+                "d2": ["memory-trace", "security"],
+            },
+        )
+        projected = project_trace_graph(
+            {"nodes": [node], "edges": []},
+            topic_frequencies={topic: 10 for topic in node["topics"]},
+        )
+        self.assertNotEqual(projected["nodes"][0]["community"]["id"], "community:unassigned")
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -277,6 +313,28 @@ class DecisionRowPairTests(unittest.TestCase):
             text="d",
         )
 
+    def test_graph_node_keeps_decision_topics_ordinal_keyed(self):
+        from memory_trace.service import _graph_node
+
+        entry = self._entry_chunk(
+            [("d1", "memory-trace"), ("d1", "bugfix"), ("d2", "graph"), ("d2", "ui-design")]
+        )
+        node = _graph_node(entry)
+
+        self.assertEqual(node["decision_topics"], {
+            "d1": ["memory-trace", "bugfix"],
+            "d2": ["graph", "ui-design"],
+        })
+
+    def test_graph_node_without_decision_topics_keeps_legacy_entry_topics(self):
+        from memory_trace.service import _graph_node
+
+        entry = self._entry_chunk([])
+        node = _graph_node(entry)
+
+        self.assertEqual(node["decision_topics"], {})
+        self.assertEqual(node["topics"], [])
+
     def test_each_row_gets_its_own_pair(self):
         from memory_trace.service import _expand_decision_rows
 
@@ -300,9 +358,10 @@ class DecisionRowPairTests(unittest.TestCase):
         self.assertEqual(by["d2"]["decision_activity"], ["ui-design"])
         # The flat union stays, for consumers that only want "what is this about".
         self.assertEqual(by["d2"]["topics"], ["graph", "ui-design"])
+        self.assertEqual(by["d2"]["decision_topics"], {"d2": ["graph", "ui-design"]})
+        self.assertNotIn("d1", by["d2"]["decision_topics"])
 
-    def test_a_decision_without_attribution_falls_back_to_the_entry(self):
-        # A row with no colour would read as a defect rather than missing data.
+    def test_a_decision_without_attribution_stays_neutral(self):
         from memory_trace.service import _expand_decision_rows
 
         sections = [self._section(1, "first"), self._section(2, "second")]
@@ -312,10 +371,16 @@ class DecisionRowPairTests(unittest.TestCase):
                 return sections
 
         entry = self._entry_chunk([("d1", "memory-trace"), ("d1", "bugfix")])
-        node = {"id": PAIRED, "entry_id": PAIRED, "topics": ["memory-trace", "bugfix"]}
+        node = {"id": PAIRED, "entry_id": PAIRED, "date": "2026-06-02", "topics": ["memory-trace", "bugfix"]}
 
         rows = _expand_decision_rows([node], _Cache(), attributions={PAIRED: entry})
         by = {r["decision_ordinal"]: r for r in rows if r.get("decision_ordinal")}
 
         self.assertEqual(by["d2"]["decision_area"], [])
-        self.assertEqual(by["d2"]["topics"], ["memory-trace", "bugfix"])
+        self.assertEqual(by["d2"]["topics"], [])
+        self.assertEqual(by["d2"]["decision_topics"], {})
+        projected = project_trace_graph(
+            {"nodes": [by["d2"]], "edges": []},
+            topic_frequencies={"memory-trace": 10, "bugfix": 10},
+        )
+        self.assertEqual(projected["nodes"][0]["community"]["id"], "community:unassigned")

@@ -135,6 +135,40 @@ class GraphProjectionFixtureTests(unittest.TestCase):
         self.assertIsNone(by_type["related"].get("confidence"))
         self.assertEqual(projection["nodes"][0]["source"]["chunk_id"], None)
 
+    def test_decision_topics_preserve_ordinals_and_drive_parent_display(self):
+        projection = project_trace_graph(
+            {
+                "nodes": [
+                    {
+                        "id": "mse_decisions",
+                        "entry_id": "mse_decisions",
+                        "title": "Decision-only topics",
+                        "date": "2026-07-16",
+                        "datetime": "2026-07-16T09:00:00+00:00",
+                        "connectivity": 0,
+                        "importance_score": 0.0,
+                        "topics": [],
+                        "decision_topics": {
+                            "d1": ["memory-trace", "ui-design"],
+                            "d2": ["memory-trace", "graph"],
+                        },
+                    }
+                ],
+                "edges": [],
+            },
+            topic_frequencies={"memory-trace": 12, "ui-design": 12, "graph": 12},
+        )
+
+        node = projection["nodes"][0]
+        self.assertEqual(node["source"]["topics"], [])
+        self.assertEqual(
+            node["source"]["decision_topics"],
+            {"d1": ["memory-trace", "ui-design"], "d2": ["memory-trace", "graph"]},
+        )
+        # Parent display topics are a stable de-duplicated union, used for
+        # community/colour but never fed back into source.topics or filters.
+        self.assertEqual(node["community"]["fingerprint"], "topic:graph")
+
     def test_adapter_consumes_a_real_trace_service_graph(self):
         project = Path(tempfile.mkdtemp(prefix="memory-trace-projection-"))
         cache_root = Path(tempfile.mkdtemp(prefix="memory-trace-projection-cache-"))
