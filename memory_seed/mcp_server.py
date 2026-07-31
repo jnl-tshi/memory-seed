@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -44,6 +45,85 @@ from .semantic_cache import (
 
 SERVER_NAME = "memory-seed"
 SERVER_VERSION = "0.1.0"
+_MCP_TOPIC_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+
+
+def _mcp_authored_decision_issues(body: str, decisions: Any) -> list[str]:
+    """Validate the MCP-only authored-topic contract before any write.
+
+    ``session_append_entry`` intentionally remains permissive enough to import
+    and repair historical entries.  MCP is the authoring boundary, so it makes
+    every body decision explicit and classifies it with authored area/activity
+    topics before the core writer can publish either an entry or a sidecar.
+    """
+    from .core import entry_body_decisions
+
+    issues: list[str] = []
+    expected = [decision.ordinal for decision in entry_body_decisions(body)]
+    if not isinstance(decisions, list) or not decisions:
+        return [
+            "decisions is required and must be a non-empty list with one topic envelope for every body decision"
+        ]
+
+    supplied_ordinals: list[str] = []
+    for index, raw in enumerate(decisions, start=1):
+        if not isinstance(raw, dict):
+            issues.append(f"decisions[{index}] must be an object")
+            continue
+        ordinal = raw.get("decision")
+        if not isinstance(ordinal, str) or not ordinal.strip():
+            issues.append(f"decisions[{index}].decision must name a body ordinal such as 'd1'")
+        else:
+            supplied_ordinals.append(ordinal)
+
+        topics = raw.get("topics")
+        if not isinstance(topics, dict):
+            issues.append(f"decisions[{index}].topics must be an object with required area and activity")
+            continue
+
+        area = topics.get("area")
+        if not isinstance(area, str) or not _MCP_TOPIC_SLUG_RE.fullmatch(area):
+            issues.append(f"decisions[{index}].topics.area must be one non-empty topic slug")
+
+        activity = topics.get("activity")
+        if isinstance(activity, str):
+            activity_values = [activity]
+        elif isinstance(activity, list):
+            activity_values = activity
+        else:
+            activity_values = []
+        if not activity_values or not all(
+            isinstance(value, str) and _MCP_TOPIC_SLUG_RE.fullmatch(value)
+            for value in activity_values
+        ):
+            issues.append(
+                f"decisions[{index}].topics.activity must be one non-empty topic slug or a non-empty list of topic slugs"
+            )
+
+    expected_set = set(expected)
+    supplied_set = set(supplied_ordinals)
+    missing = sorted(
+        {
+            ordinal
+            for ordinal in expected
+            if supplied_ordinals.count(ordinal) < expected.count(ordinal)
+        }
+    )
+    unexpected = sorted(supplied_set - expected_set)
+    duplicate = sorted({ordinal for ordinal in supplied_ordinals if supplied_ordinals.count(ordinal) > 1})
+    if missing:
+        issues.append(
+            "decisions must cover every body decision exactly once; missing " + ", ".join(missing)
+        )
+    if unexpected:
+        issues.append(
+            "decisions must name only body decision ordinals; unexpected " + ", ".join(unexpected)
+        )
+    if duplicate:
+        issues.append(
+            "decisions must cover every body decision exactly once; duplicated " + ", ".join(duplicate)
+        )
+    return issues
 
 
 TOOLS: list[dict[str, Any]] = [
@@ -303,15 +383,30 @@ TOOLS: list[dict[str, Any]] = [
                 },
                 "decisions": {
                     "type": "array",
-                    "description": "Decision-sidecar envelope v1. One object per body decision: {decision: 'dN', topics: {area?: slug, activity?: slug | slug[], source?: 'write-time'}, links: {related_entries?: entry_id[], replaces?: entry_id[], evolves?: entry_id[]}}. Topic and lifecycle values are written to their respective sidecars; omit a field when that decision has no relevant assertion.",
+                    "minItems": 1,
+                    "description": "Required decision-sidecar envelope. Supply exactly one object for every body decision: {decision: 'dN', topics: {area: slug, activity: slug | slug[], source?: 'write-time'}, links: {related_entries?: entry_id[], replaces?: entry_id[], evolves?: entry_id[]}}. Each decision must carry one Area and at least one Activity; topic and lifecycle values are written only to their respective sidecars.",
                     "items": {
                         "type": "object",
                         "properties": {
-                            "decision": {"type": "string", "description": "Body decision ordinal, e.g. d1."},
-                            "topics": {"type": "object"},
+                            "decision": {"type": "string", "minLength": 1, "description": "Body decision ordinal, e.g. d1."},
+                            "topics": {
+                                "type": "object",
+                                "properties": {
+                                    "area": {"type": "string", "minLength": 1, "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$", "description": "One controlled-vocabulary Area slug or alias."},
+                                    "activity": {
+                                        "oneOf": [
+                                            {"type": "string", "minLength": 1, "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"},
+                                            {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1, "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"}},
+                                        ],
+                                        "description": "One or more controlled-vocabulary Activity slugs or aliases.",
+                                    },
+                                    "source": {"type": "string", "enum": ["write-time"]},
+                                },
+                                "required": ["area", "activity"],
+                            },
                             "links": {"type": "object"},
                         },
-                        "required": ["decision"],
+                        "required": ["decision", "topics"],
                     },
                 },
                 "related_entries": {"type": "array", "items": {"type": "string"}, "description": "entry_id values this entry relates to. Must already exist and predate it."},
@@ -328,7 +423,7 @@ TOOLS: list[dict[str, Any]] = [
                 "user": {"type": "string", "description": "Override the active user slug when resolving a per-user target."},
                 "dry_run": {"type": "boolean", "default": False, "description": "Run every guard and report entry_id, timestamp, path and `rendered` - the exact entry block a real call would append - without writing."},
             },
-            "required": ["title", "body", "user_initials", "agent_type"],
+            "required": ["title", "body", "user_initials", "agent_type", "decisions"],
         },
     },
     {
@@ -753,6 +848,10 @@ def call_tool(
         if not isinstance(body, str) or not body.strip():
             return {"ok": False, "written": False, "issues": ["body is empty - pass the D/R/A/F/T prose"]}
 
+        authored_decision_issues = _mcp_authored_decision_issues(body, args.get("decisions"))
+        if authored_decision_issues:
+            return {"ok": False, "written": False, "issues": authored_decision_issues}
+
         result = session_append_entry(
             cwd,
             title=_required_str(args, "title"),
@@ -764,7 +863,7 @@ def call_tool(
             related_entries=list(args.get("related_entries") or []),
             replaces=list(args.get("replaces") or args.get("supersedes") or []),  # legacy key accepted
             evolves=list(args.get("evolves") or []),
-            decisions=list(args.get("decisions") or []),
+            decisions=args["decisions"],
             project_path=str(args.get("project_path", ".")),
             subproject_path=_optional_str(args, "subproject_path"),
             branch=_optional_str(args, "branch"),

@@ -1,9 +1,8 @@
 """`memory_session_append`: the gated MCP write surface.
 
-Every structural guard lives in `session_append_entry`, so these tests cover the
-marshalling layer and the two things the MCP surface adds that the CLI does not
-have: a caller-supplied `cwd`, and refusals that must arrive as data rather than
-as a JSON-RPC error.
+Most structural guards live in `session_append_entry`; these tests also cover
+the stricter authored-topic contract at the MCP boundary, a caller-supplied
+`cwd`, and refusals that must arrive as data rather than as a JSON-RPC error.
 """
 
 import shutil
@@ -14,7 +13,24 @@ from pathlib import Path
 from memory_seed.core import MEMORY_DIR_NAME
 from memory_seed.mcp_server import TOOLS, call_tool
 
-BODY = "### Decision\n\n- D: Ship the gated append path.\n- R: The ungated one skipped every guard.\n"
+BODY = (
+    "### Decision\n\n"
+    "- D: Ship the gated append path.\n"
+    "- R: The ungated one skipped every guard.\n\n"
+    "### Summary\n\n"
+    "The MCP writer records this decision with authored topics.\n"
+)
+MULTI_DECISION_BODY = (
+    "### Decisions\n\n"
+    "#### D1 - Gate authoring\n\n"
+    "- D: Require an authored topic envelope.\n"
+    "- R: Every decision needs durable topic coverage.\n\n"
+    "#### D2 - Keep imports compatible\n\n"
+    "- D: Keep the core append interface permissive.\n"
+    "- R: Historical repair must remain possible.\n\n"
+    "### Summary\n\n"
+    "The MCP boundary is stricter than lower-level repair paths.\n"
+)
 
 
 class MemorySessionAppendTests(unittest.TestCase):
@@ -22,6 +38,16 @@ class MemorySessionAppendTests(unittest.TestCase):
         self.cwd = Path(tempfile.mkdtemp(prefix="mseed-mcp-append-"))
         self.addCleanup(lambda: shutil.rmtree(self.cwd, ignore_errors=True))
         (self.cwd / MEMORY_DIR_NAME / "sessions").mkdir(parents=True, exist_ok=True)
+        (self.cwd / MEMORY_DIR_NAME / "topics.yaml").write_text(
+            """schema_version: 2
+topics:
+  - slug: schema
+    axis: area
+  - slug: feature-build
+    axis: activity
+""",
+            encoding="utf-8",
+        )
 
     def _append(self, **overrides):
         args = {
@@ -31,6 +57,12 @@ class MemorySessionAppendTests(unittest.TestCase):
             "user_initials": "JNL",
             "agent_type": "claude",
             "auto_branch": False,
+            "decisions": [
+                {
+                    "decision": "d1",
+                    "topics": {"area": "schema", "activity": "feature-build"},
+                }
+            ],
         }
         args.update(overrides)
         return call_tool("memory_session_append", args)
@@ -61,25 +93,25 @@ class MemorySessionAppendTests(unittest.TestCase):
         second = self._append(
             title="Second",
             _now="2026-06-13 10:00",
-            related_entries=[first["entry_id"]],
-            evolves=[first["entry_id"]],
+            decisions=[
+                {
+                    "decision": "d1",
+                    "topics": {"area": "schema", "activity": "feature-build"},
+                    "links": {
+                        "related_entries": [first["entry_id"]],
+                        "evolves": [first["entry_id"]],
+                    },
+                }
+            ],
         )
         self.assertTrue(second["ok"], second["issues"])
-        written = Path(second["path"]).read_text(encoding="utf-8")
-        self.assertIn(f"related_entries:\n  - {first['entry_id']}", written)
-        self.assertIn(f"evolves:\n  - {first['entry_id']}", written)
+        written = "\n".join(
+            Path(path).read_text(encoding="utf-8") for path in second["sidecar_paths"]
+        )
+        self.assertIn(f"related_entries:\n  - d1 -> {first['entry_id']}", written)
+        self.assertIn(f"evolves:\n  - d1 -> {first['entry_id']}", written)
 
     def test_decision_envelope_returns_sidecar_receipt_and_preview(self):
-        (self.cwd / MEMORY_DIR_NAME / "topics.yaml").write_text(
-            """schema_version: 2
-topics:
-  - slug: schema
-    axis: area
-  - slug: feature-build
-    axis: activity
-""",
-            encoding="utf-8",
-        )
         older = self._append(title="Earlier", _now="2026-06-13 08:00")
         payload = {
             "decisions": [
@@ -121,7 +153,7 @@ topics:
             title="Multiply broken",
             _now="2026-06-13 08:00",
             related_entries=["mse_" + "z" * 16],
-            body="- D: no reason given\n",
+            body="### Decision\n\n- D: no reason given\n\n### Summary\n\nStill malformed.\n",
         )
         self.assertFalse(result["ok"])
         joined = " ".join(result["issues"])
@@ -140,6 +172,67 @@ topics:
         result = self._append(body="   ")
         self.assertFalse(result["ok"])
         self.assertFalse(result["written"])
+        self.assertEqual(self._session_files(), [])
+
+    def test_missing_decisions_are_refused_before_any_write(self):
+        args = {
+            "cwd": str(self.cwd),
+            "title": "Missing envelope",
+            "body": BODY,
+            "user_initials": "JNL",
+            "agent_type": "claude",
+            "auto_branch": False,
+            "_now": "2026-06-13 09:00",
+        }
+        result = call_tool("memory_session_append", args)
+
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["written"])
+        self.assertTrue(any("decisions is required" in issue for issue in result["issues"]))
+        self.assertEqual(self._session_files(), [])
+
+    def test_empty_decisions_are_refused_before_any_write(self):
+        result = self._append(decisions=[])
+
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["written"])
+        self.assertTrue(any("decisions is required" in issue for issue in result["issues"]))
+        self.assertEqual(self._session_files(), [])
+
+    def test_missing_area_is_refused_before_any_write(self):
+        result = self._append(
+            decisions=[{"decision": "d1", "topics": {"activity": "feature-build"}}]
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["written"])
+        self.assertTrue(any("topics.area" in issue for issue in result["issues"]))
+        self.assertEqual(self._session_files(), [])
+
+    def test_missing_activity_is_refused_before_any_write(self):
+        result = self._append(
+            decisions=[{"decision": "d1", "topics": {"area": "schema"}}]
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["written"])
+        self.assertTrue(any("topics.activity" in issue for issue in result["issues"]))
+        self.assertEqual(self._session_files(), [])
+
+    def test_partial_multi_decision_coverage_is_refused_before_any_write(self):
+        result = self._append(
+            body=MULTI_DECISION_BODY,
+            decisions=[
+                {
+                    "decision": "d1",
+                    "topics": {"area": "schema", "activity": "feature-build"},
+                }
+            ],
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["written"])
+        self.assertTrue(any("missing d2" in issue for issue in result["issues"]))
         self.assertEqual(self._session_files(), [])
 
     # --- dry run --------------------------------------------------------
@@ -276,6 +369,18 @@ class McpWriteSurfaceTests(unittest.TestCase):
         # that this change did not sanction.
         writers = sorted(tool["name"] for tool in TOOLS if "dry_run" in tool["inputSchema"]["properties"])
         self.assertEqual(writers, ["memory_session_append", "memory_session_integrate"])
+
+    def test_append_schema_advertises_the_required_authored_topic_envelope(self):
+        append_tool = next(tool for tool in TOOLS if tool["name"] == "memory_session_append")
+        schema = append_tool["inputSchema"]
+        decision = schema["properties"]["decisions"]
+        topics = decision["items"]["properties"]["topics"]
+
+        self.assertIn("decisions", schema["required"])
+        self.assertEqual(decision["minItems"], 1)
+        self.assertEqual(decision["items"]["required"], ["decision", "topics"])
+        self.assertEqual(topics["required"], ["area", "activity"])
+        self.assertEqual(topics["properties"]["activity"]["oneOf"][1]["minItems"], 1)
 
 
 if __name__ == "__main__":
