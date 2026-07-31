@@ -3673,12 +3673,23 @@ def session_append_entry(
             journal_path=journal_path,
         )
 
-    # Sidecars are the semantic source of truth, so publish them before the
-    # entry that makes their parent visible. The journal is staged first, so a
-    # retry can finish the exact plan without duplicating published blocks.
+    # Stage the recovery receipt before publishing any durable artifact. Publish
+    # the parent entry before its enrichment sidecars: an interrupted write can
+    # then be incomplete, but never exposes a sidecar whose parent is absent to
+    # readers and link validation. A retry reuses the exact staged plan.
     if journal_path is not None and journal is not None:
         if not journal_path.exists():
             write_json_file(journal_path, journal)
+
+    target = session_target(cwd, date_str=date_part, explicit_user=explicit_user, create=True)
+    existing = read_text_file(target.path) if target.path.exists() else ""
+    if block.rstrip() not in existing:
+        if existing.strip():
+            new_text = existing.rstrip("\n") + "\n\n" + block
+        else:
+            new_text = existing + block
+        write_text_file(target.path, new_text)
+
     if "topics" in rendered_sidecars:
         topic_path = sidecar_paths["topics"]
         existing_topics = read_text_file(topic_path) if topic_path.exists() else ""
@@ -3720,14 +3731,6 @@ def session_append_entry(
             )
             _write_chronological_link_sidecar_file(link_path, date_part, link_records)
 
-    target = session_target(cwd, date_str=date_part, explicit_user=explicit_user, create=True)
-    existing = read_text_file(target.path) if target.path.exists() else ""
-    if block.rstrip() not in existing:
-        if existing.strip():
-            new_text = existing.rstrip("\n") + "\n\n" + block
-        else:
-            new_text = existing + block
-        write_text_file(target.path, new_text)
     if journal_path is not None and journal is not None:
         if block.rstrip() not in read_text_file(target.path):
             raise RuntimeError(f"decision-sidecar entry verification failed for {target.path}; journal remains pending")

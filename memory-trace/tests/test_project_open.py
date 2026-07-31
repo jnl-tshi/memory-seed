@@ -16,7 +16,7 @@ from pathlib import Path
 from unittest import mock
 
 from memory_seed.core import init_project
-from memory_trace.service import create_app
+from memory_trace.service import _is_loopback_host, create_app
 
 
 def _entry(title, entry_id, body, *, agent="codex", topics=None):
@@ -51,7 +51,7 @@ class ProjectOpenTests(unittest.TestCase):
             encoding="utf-8",
         )
         with mock.patch.dict(os.environ, {"MEMORY_SEED_LENSE_CACHE_ROOT": str(self.cache_root)}):
-            self.app = create_app(self.cwd, rebuild_cache=True)
+            self.app = create_app(self.cwd, rebuild_cache=True, allow_external_project_access=True)
 
     def client(self):
         from fastapi.testclient import TestClient
@@ -79,6 +79,13 @@ class ProjectOpenTests(unittest.TestCase):
 
     # --- browse -------------------------------------------------------
 
+    def test_loopback_host_detection(self):
+        self.assertTrue(_is_loopback_host("127.0.0.1"))
+        self.assertTrue(_is_loopback_host("::1"))
+        self.assertTrue(_is_loopback_host("localhost"))
+        self.assertFalse(_is_loopback_host("0.0.0.0"))
+        self.assertFalse(_is_loopback_host("192.168.1.8"))
+
     def test_browse_flags_which_subdirectories_have_a_memory_seed(self):
         base = self.make_dir("browse-base")
         (base / "with-seed" / ".memory-seed").mkdir(parents=True)
@@ -101,6 +108,15 @@ class ProjectOpenTests(unittest.TestCase):
         not_a_dir = self.cwd / ".memory-seed" / "sessions" / "2026-06-01.md"
         response = self.client().get("/api/v1/browse", params={"path": str(not_a_dir)})
         self.assertEqual(response.status_code, 400)
+
+    def test_external_project_routes_are_denied_without_loopback_access(self):
+        from fastapi.testclient import TestClient
+
+        with mock.patch.dict(os.environ, {"MEMORY_SEED_LENSE_CACHE_ROOT": str(self.cache_root)}):
+            client = TestClient(create_app(self.cwd, rebuild_cache=True))
+
+        self.assertEqual(client.get("/api/v1/browse").status_code, 403)
+        self.assertEqual(client.post("/api/v1/projects", params={"path": str(self.cwd)}).status_code, 403)
 
     # --- open -----------------------------------------------------------
 

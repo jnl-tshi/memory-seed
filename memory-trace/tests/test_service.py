@@ -959,7 +959,7 @@ class MemoryTraceCliAndVanillaUiTests(unittest.TestCase):
 
         with (
             mock.patch.dict(sys.modules, {"uvicorn": uvicorn}),
-            mock.patch("memory_trace.service.create_app", return_value=app),
+            mock.patch("memory_trace.service.create_app", return_value=app) as create,
             mock.patch("memory_trace.service.webbrowser.open") as open_browser,
         ):
             code = run_server(args)
@@ -972,7 +972,40 @@ class MemoryTraceCliAndVanillaUiTests(unittest.TestCase):
                 mock.call("http://127.0.0.1:8765/next", new=2),
             ],
         )
+        create.assert_called_once_with(
+            ".",
+            rebuild_cache=False,
+            static_root=None,
+            allow_external_project_access=True,
+        )
         uvicorn.run.assert_called_once_with(app, host="127.0.0.1", port=8765, log_level="info")
+
+    def test_run_server_disables_external_project_access_for_non_loopback_host(self):
+        app = object()
+        uvicorn = mock.Mock()
+        args = argparse.Namespace(
+            cwd=".",
+            host="0.0.0.0",
+            port=8765,
+            no_open=True,
+            open_both=False,
+            rebuild_cache=False,
+            static_root=None,
+        )
+
+        with (
+            mock.patch.dict(sys.modules, {"uvicorn": uvicorn}),
+            mock.patch("memory_trace.service.create_app", return_value=app) as create,
+        ):
+            code = run_server(args)
+
+        self.assertEqual(code, 0)
+        create.assert_called_once_with(
+            ".",
+            rebuild_cache=False,
+            static_root=None,
+            allow_external_project_access=False,
+        )
 
     def test_source_checkout_launcher_opens_both_views(self):
         launcher = Path(__file__).resolve().parents[2] / "scripts" / "launch-memory-trace.ps1"

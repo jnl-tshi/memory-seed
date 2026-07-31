@@ -71,6 +71,10 @@ Vanilla is served at `/`; the React preview is served at `/next`. Options:
 without copying files; also settable as `MEMORY_TRACE_STATIC_ROOT`). Asset `?v=` tags are
 content-hashed at serve time, so edited assets are never masked by a stale browser cache.
 
+The external-project folder picker is available only when Trace is bound to a loopback host
+(`127.0.0.1`, `::1`, or `localhost`). It reads the server filesystem, so `/api/v1/browse` and
+`/api/v1/projects` return `403` when Trace is bound to a network-facing host.
+
 ## Next frontend preview
 
 `/next` serves the packaged React and TypeScript workspace shell. It consumes

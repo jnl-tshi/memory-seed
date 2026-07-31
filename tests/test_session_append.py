@@ -122,8 +122,8 @@ topics:
         self.assertIn("not recorded in the body", joined)
         self.assertEqual(list((self.cwd / MEMORY_DIR_NAME / "sessions").rglob("*.md")), [])
 
-    def test_pending_journal_recovers_after_entry_write_interrupt(self):
-        """A retry completes, rather than duplicates, an entry written before a crash."""
+    def test_pending_journal_recovers_after_sidecar_write_interrupt(self):
+        """An interrupted sidecar write keeps the already-published parent valid."""
         from unittest.mock import patch
 
         (self.cwd / MEMORY_DIR_NAME / "topics.yaml").write_text(
@@ -146,22 +146,20 @@ topics:
                 "links": {"evolves": [older.entry_id]},
             }],
         }
-        target = self.cwd / MEMORY_DIR_NAME / "sessions" / "2026-06" / "2026-06-13.md"
-        from memory_seed.core import write_text_file as real_write_text_file
+        from memory_seed.core import _write_chronological_topic_sidecar_file as real_write_topic_sidecar
 
-        def interrupt_entry_write(path, content):
-            if path == target and "Interrupted sidecar decision" in content:
-                real_write_text_file(path, content)
-                raise OSError("simulated interruption after entry write")
-            return real_write_text_file(path, content)
+        def interrupt_topic_write(path, topic_date, records):
+            real_write_topic_sidecar(path, topic_date, records)
+            raise OSError("simulated interruption after topic sidecar write")
 
-        with patch("memory_seed.core.write_text_file", side_effect=interrupt_entry_write):
-            with self.assertRaisesRegex(OSError, "simulated interruption after entry write"):
+        with patch("memory_seed.core._write_chronological_topic_sidecar_file", side_effect=interrupt_topic_write):
+            with self.assertRaisesRegex(OSError, "simulated interruption after topic sidecar write"):
                 self._append(**payload)
 
         journals = list((self.cwd / MEMORY_DIR_NAME / "transactions" / "decision-sidecar").glob("*.json"))
         self.assertEqual(len(journals), 1)
         self.assertEqual(json.loads(journals[0].read_text(encoding="utf-8"))["status"], "pending")
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
         altered = self._append(
             **payload,
             body="### Decision\n\n- D: Alter the retry.\n- R: It must be refused.\n",
@@ -172,7 +170,7 @@ topics:
         self.assertTrue(recovered.ok, recovered.issues)
         self.assertEqual(json.loads(journals[0].read_text(encoding="utf-8"))["status"], "complete")
         self.assertTrue(json.loads(journals[0].read_text(encoding="utf-8"))["recovered"])
-        written = target.read_text(encoding="utf-8")
+        written = recovered.path.read_text(encoding="utf-8")
         self.assertEqual(written.count("Interrupted sidecar decision"), 1)
         self.assertTrue(check_session_links(cwd=self.cwd).ok)
 
