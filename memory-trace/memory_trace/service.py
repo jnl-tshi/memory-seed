@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import ipaddress
 import re
 import json
 import os
@@ -68,6 +69,17 @@ PROJECTION_SCHEMA_VERSION = 2
 # add more. Sharing the node ceiling truncated those edges and made connected
 # entries render as orphans.
 EDGE_PAYLOAD_CEILING = 6000
+
+
+def _is_loopback_host(host: str) -> bool:
+    """Whether ``host`` can only accept connections from this machine."""
+    normalized = host.strip().lower()
+    if normalized == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(normalized).is_loopback
+    except ValueError:
+        return False
 
 
 def _git_head(root: Path) -> str | None:
@@ -2155,6 +2167,7 @@ def create_app(
     *,
     rebuild_cache: bool = False,
     static_root: str | Path | None = None,
+    allow_external_project_access: bool = False,
 ) -> Any:
     try:
         from fastapi import FastAPI, HTTPException, Query
@@ -2439,6 +2452,11 @@ def create_app(
 
     @app.get("/api/v1/browse", response_model=BrowseResponse)
     def v1_browse(path: str | None = None) -> dict[str, Any]:
+        if not allow_external_project_access:
+            raise HTTPException(
+                status_code=403,
+                detail="browsing server directories is only available on a loopback Memory Trace server",
+            )
         # No worktree scoping: this walks the SERVER's filesystem to help the
         # user find a folder to open, not the corpus of whichever project is
         # currently active.
@@ -2446,6 +2464,11 @@ def create_app(
 
     @app.post("/api/v1/projects", response_model=OpenProjectResponse)
     def v1_open_project(path: str) -> dict[str, Any]:
+        if not allow_external_project_access:
+            raise HTTPException(
+                status_code=403,
+                detail="opening external projects is only available on a loopback Memory Trace server",
+            )
         # A query param, not a JSON body: every other scoping param in this
         # file (worktree=, path= for /browse) is one, and a locally-imported
         # Pydantic request-body type cannot be resolved here - this module
@@ -2640,7 +2663,12 @@ def run_server(args: argparse.Namespace) -> int:
         print(missing_optional_dependency_hint(), file=os.sys.stderr)
         return 1
     try:
-        app = create_app(args.cwd, rebuild_cache=args.rebuild_cache, static_root=getattr(args, "static_root", None))
+        app = create_app(
+            args.cwd,
+            rebuild_cache=args.rebuild_cache,
+            static_root=getattr(args, "static_root", None),
+            allow_external_project_access=_is_loopback_host(args.host),
+        )
     except RuntimeError as exc:
         print(str(exc), file=os.sys.stderr)
         return 1
