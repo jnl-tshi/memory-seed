@@ -300,12 +300,17 @@ export function EntryReader({
 
   return (
     <div className="reader">
-      {summarySections.map((section, index) => (
+      {summarySections.length ? summarySections.map((section, index) => (
         <section className={`detail-section entry-segment${section.heading === matchHeading ? " reader-match-anchor" : ""}`} key={`${section.heading}-${index}`}>
           <h4>{section.heading}</h4>
           <div className="markdown">{renderMarkdown(section.text, null, onOpenFile)}</div>
         </section>
-      ))}
+      )) : (
+        <section className="detail-section entry-segment reader-legacy-summary">
+          <h4>Summary</h4>
+          <p className="reader-empty">No summary was recorded for this legacy entry.</p>
+        </section>
+      )}
 
       {decisions.length > 0 && (
         <section className="detail-section decisions-segment" aria-labelledby={`${decisionRegionId}-title`}>

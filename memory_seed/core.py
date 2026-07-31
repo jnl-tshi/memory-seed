@@ -1652,6 +1652,7 @@ _BARE_DRAFT_RE = re.compile(r"^(D|R|A|F|T)\d*\s*:")         # column-0 label wit
 _BULLET_DRAFT_RE = re.compile(r"^-\s+(D|R|A|F|T)\d*\s*:")   # '- D:' list item
 _INLINE_NUMBERED_DECISION_RE = re.compile(r"^-\s+D\d+\s*:")  # '- D1:' inline (should be '#### Dn')
 _ENTRY_SECTION_RE = re.compile(r"^#{2,4}\s+(Summary|Decision|Decisions|Implementation|Validation|Follow-up)", re.I)
+_SUMMARY_HEADING_RE = re.compile(r"^###\s+Summary\s*$", re.I)
 _SINGULAR_DECISION_HEADING_RE = re.compile(r"^###\s+Decision\s*$")
 _NUMBERED_DECISION_HEADING_RE = re.compile(r"^####\s+D\d+\s*[-–]")  # '#### D1 - name'
 # Same heading, capturing the ordinal and the name after the dash.
@@ -1667,7 +1668,7 @@ _ANY_D_LABEL_RE = re.compile(r"^\s*-?\s*D\d*\s*:")
 _ANY_R_LABEL_RE = re.compile(r"^\s*-?\s*R\d*\s*:")
 
 
-def entry_body_format_issues(body: str) -> list[str]:
+def entry_body_format_issues(body: str, *, require_summary: bool = False) -> list[str]:
     """Return DRAFT-format problems in one entry BODY (text after the ```yaml
     block), or [] when well formed. Flags: bare ``D:``/``R:`` labels that are not
     ``- `` list items; DRAFT prose with no ``### Decision``/``### Summary``
@@ -1675,13 +1676,18 @@ def entry_body_format_issues(body: str) -> list[str]:
     inline ``- Dn:`` (should be ``### Decisions`` + ``#### Dn - name``); and a
     decision (``D:``) with no reason (``R:`` is mandatory). Entries with no DRAFT
     labels at all (e.g. a plain ``### Summary`` note) are never flagged - the lint
-    only rejects malformed DRAFT usage, it does not force DRAFT on every entry."""
+    only rejects malformed DRAFT usage, it does not force DRAFT on every entry.
+
+    ``require_summary`` is the write-time policy for new entries. Integrity
+    checks leave it false so historic records remain readable rather than being
+    retroactively labelled malformed or rewritten."""
     lines = body.splitlines()
     issues: list[str] = []
     bare = [ln for ln in lines if _BARE_DRAFT_RE.match(ln)]
     bulleted = [ln for ln in lines if _BULLET_DRAFT_RE.match(ln)]
     inline_numbered = any(_INLINE_NUMBERED_DECISION_RE.match(ln) for ln in lines)
     has_section = any(_ENTRY_SECTION_RE.match(ln) for ln in lines)
+    has_summary = any(_SUMMARY_HEADING_RE.match(ln) for ln in lines)
     singular_decision = any(_SINGULAR_DECISION_HEADING_RE.match(ln) for ln in lines)
     if bare:
         labels = ", ".join(sorted({ln.split(":", 1)[0].strip() for ln in bare}))
@@ -1697,6 +1703,8 @@ def entry_body_format_issues(body: str) -> list[str]:
         issues.append("multiple decisions under a singular '### Decision' - use '### Decisions' + '#### Dn - name' subsections")
     if (bare or bulleted) and any(_ANY_D_LABEL_RE.match(ln) for ln in lines) and not any(_ANY_R_LABEL_RE.match(ln) for ln in lines):
         issues.append("a decision (D:) has no reason (R:) - R is mandatory")
+    if require_summary and not has_summary:
+        issues.append("entry has no '### Summary' section - every newly recorded entry needs context")
     return issues
 
 
@@ -3540,7 +3548,7 @@ def session_append_entry(
     # Write-time DRAFT-format gate: the tool owns structure, so it refuses to
     # write a malformed decision record (bare labels, missing R:, wrong
     # multi-decision shape). The message names the fix; see session_logging.md.
-    for issue in entry_body_format_issues(body):
+    for issue in entry_body_format_issues(body, require_summary=True):
         issues.append(f"body format: {issue}")
 
     yaml_lines = [

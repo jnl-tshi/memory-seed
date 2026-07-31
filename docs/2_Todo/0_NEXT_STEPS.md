@@ -68,8 +68,10 @@ window with a D1/D2 selector.
 Implement [`memory-trace-ux-reference-model-implementation-plan.md`](memory-trace-ux-reference-model-implementation-plan.md)
 M3 as the next bounded slice:
 
-1. Make **Area** and **Activity** first-class graph perspectives while preserving the selected decision,
-   canonical edge semantics, and the existing renderer-neutral projection contract.
+1. **Delivered:** coordinated Area + Activity facets now persist across Trail and Graph, retain selection,
+   use decision-level matching, and reduce choices from the active logical view. Continue M3 by evolving
+   the graph presentation of those facets while preserving canonical edge semantics and the existing
+   renderer-neutral projection contract.
 2. Add previewed, reversible **one-hop expansion** with explicit node/edge counts and bounded growth; do
    not turn the global graph into the default view.
 3. Provide a keyboard-operable, non-canvas list equivalent for every expanded neighbourhood and verify

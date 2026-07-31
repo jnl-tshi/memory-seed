@@ -428,6 +428,10 @@ class RendererGraphResponse(BaseModel):
     # "X of Y shown" cannot count entries no graph could show. Optional: the
     # bounded benchmark fixtures project without it.
     entry_total: int | None = None
+    # Contextual, self-excluding Area/Activity availability for this exact
+    # projection. It is derived from the active view before ontology filters,
+    # never from the viewport.
+    ontology: dict[str, list[OntologyNode]] = {}
 
 
 class GraphResponse(BaseModel):
@@ -441,6 +445,7 @@ class GraphResponse(BaseModel):
     # merge/fork/estimated. Empty/estimated when git or trailers are absent.
     merges: list[MergeEvent]
     branches: dict[str, BranchInfo]
+    ontology: dict[str, list[OntologyNode]] = {}
 
 
 class TrailEvent(GraphNode):
@@ -462,3 +467,4 @@ class TrailResponse(BaseModel):
     # primary consumer of these fields (trunk merge dots, fork/merge lanes).
     merges: list[MergeEvent]
     branches: dict[str, BranchInfo]
+    ontology: dict[str, list[OntologyNode]] = {}

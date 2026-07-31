@@ -23,7 +23,7 @@ from memory_seed.core import (
     session_append_entry,
 )
 
-BODY = "### Decision\n\n- D: Something durable.\n- R: Because."
+BODY = "### Summary\n\n- Context for this entry.\n\n### Decision\n\n- D: Something durable.\n- R: Because."
 
 
 class SessionAppendTests(unittest.TestCase):
@@ -176,7 +176,7 @@ topics:
 
     def _append_multi_decision_older(self):
         body = (
-            "### Decisions\n\n"
+            "### Summary\n\n- Context.\n\n### Decisions\n\n"
             "#### D1 - First call\n\n- D: alpha\n- R: because\n\n"
             "#### D2 - Second call\n\n- D: beta\n- R: reasons\n"
         )
@@ -269,7 +269,7 @@ topics:
     def test_append_mandates_arrow_source_prefix_for_multi_decision_body(self):
         older = self._append_multi_decision_older()
         multi_body = (
-            "### Decisions\n\n"
+            "### Summary\n\n- Context.\n\n### Decisions\n\n"
             "#### D1 - keep\n\n- D: a\n- R: because\n\n"
             "#### D2 - change\n\n- D: b\n- R: reasons\n"
         )
@@ -453,7 +453,7 @@ topics:
         from memory_seed.core import entry_body_advisories, entry_body_format_issues
 
         body = (
-            "### Decisions\n\n"
+            "### Summary\n\n- Context.\n\n### Decisions\n\n"
             "#### D1 - one\n\n- D: a\n- R: r\n\n"
             "#### D2 - two\n\n- D: b\n- R: r\n\n"
             "#### D3 - three\n\n- D: c\n- R: r\n"
@@ -463,6 +463,16 @@ topics:
         # session append calls entry_body_format_issues and refuses on any hit.
         self.assertEqual(entry_body_format_issues(body), [])
         self.assertEqual(len(entry_body_advisories(body)), 1)
+
+    def test_append_requires_a_summary_for_new_entries_only(self):
+        refused = self._append(body="### Decision\n\n- D: Something durable.\n- R: Because.")
+
+        self.assertFalse(refused.ok)
+        self.assertTrue(any("no '### Summary'" in issue for issue in refused.issues), refused.issues)
+        # The shared corpus lint stays historical/read-only: existing entries
+        # lacking a Summary are rendered as legacy records, not rejected data.
+        from memory_seed.core import entry_body_format_issues
+        self.assertEqual(entry_body_format_issues("### Decision\n\n- D: old.\n- R: because."), [])
 
     def test_future_timestamp_advisory_grace_window_and_past_are_quiet(self):
         from datetime import datetime, timedelta

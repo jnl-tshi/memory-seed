@@ -27,6 +27,12 @@ type GraphScope = "overview" | "local" | "evolution" | "file";
 type GraphViewMode = "graph" | "trail";
 type LabelMode = "focus" | "minimal" | "all";
 type GraphRange = "recent" | "all";
+type OntologySelection = { area: string | null; activity: string | null };
+
+const EMPTY_ONTOLOGY_SELECTION: OntologySelection = { area: null, activity: null };
+function ontologySelectionKey(selection: OntologySelection) {
+  return `${selection.area ?? ""}|${selection.activity ?? ""}`;
+}
 
 // Evolution scope shows a selected entry's lifecycle chain rather than its
 // full local neighborhood: only the two edge types that carry lineage, and a
@@ -311,8 +317,9 @@ export default function App() {
   // exhaustion test can ask "did asking for more actually bring back more?"
   // rather than the node-count-only test that retired the button early
   // (see graphOverview.ts for the measurements).
-  const previousOverview = useRef<{ limit: number; topic: string | null; counts: OverviewCounts } | null>(null);
-  const [activeTopic, setActiveTopic] = useState<string | null>(null);
+  const previousOverview = useRef<{ limit: number; selectionKey: string; counts: OverviewCounts } | null>(null);
+  const [ontologySelection, setOntologySelection] = useState<OntologySelection>(EMPTY_ONTOLOGY_SELECTION);
+  const [contextualOntology, setContextualOntology] = useState<Record<string, OntologyNode[]>>({});
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchResponse | null>(null);
   const fullTextCursorRef = useRef(-1);
@@ -327,10 +334,14 @@ export default function App() {
   const inspectorContent = useRef<HTMLDivElement>(null);
   const cancelInspectorScroll = useRef<(() => void) | null>(null);
   const inspectorScrollFor = useRef<string | null>(null);
+  // A decision-selector click changes the Trail/reader selection so typed
+  // relationships stay exact, but it is local navigation inside the bounded
+  // Decision window. Its outer Inspector position must remain the reader's.
+  const preservedInspectorScroll = useRef<number | null>(null);
 
   const loadGraph = useCallback(async ({
     nextScope,
-    nextTopic,
+    nextSelection,
     nextEdgeTypes,
     entryId,
     preferredEntryId,
@@ -341,7 +352,7 @@ export default function App() {
     limit,
   }: {
     nextScope: GraphScope;
-    nextTopic: string | null;
+    nextSelection: OntologySelection;
     nextEdgeTypes: RendererGraphEdge["edge_type"][];
     entryId?: string | null;
     preferredEntryId?: string | null;
@@ -363,7 +374,8 @@ export default function App() {
         pinnedIds: pinnedIdsRef.current,
         entryId: entryId ?? (nextScope !== "overview" && nextScope !== "file" ? preferredEntryId : null),
         edgeTypes: nextEdgeTypes,
-        topic: nextTopic,
+        area: nextSelection.area,
+        activity: nextSelection.activity,
         dateFrom,
         depth,
         path: nextScope === "file" ? path : null,
@@ -373,6 +385,7 @@ export default function App() {
       if (request !== graphRequest.current) return null;
       if (keepCurrentOnEmpty && nextGraph.nodes.length === 0) return nextGraph;
       setGraph(nextGraph);
+      setContextualOntology(nextGraph.ontology ?? {});
       // Prefer the requested entry, then the prior selection's node in the
       // new graph. A prior selection NOT present in the fetched slice is
       // KEPT, not replaced - a Trail selection must survive switching into a
@@ -393,7 +406,7 @@ export default function App() {
       setError(null);
       setTrailError(null);
       // The full-corpus index is the ACTIVE view's data in Trail mode (the
-      // topic-null Trail renders straight from it), so it fires first and is
+      // unfiltered Trail renders straight from it), so it fires first and is
       // awaited; runtime/facets/worktrees are shell metadata and load
       // independently. The graph projection is fetched only when Graph is
       // the active workspace - Trail startup never pays for it.
@@ -403,14 +416,16 @@ export default function App() {
       setRuntime(nextRuntime);
       setFacets(nextFacets);
       try {
-        setEntryIndex(await indexPromise);
+        const nextIndex = await indexPromise;
+        setEntryIndex(nextIndex);
+        setContextualOntology(nextIndex.ontology ?? {});
       } catch (reason) {
         setTrailError(reason instanceof Error ? reason.message : "Unable to load the Trail.");
       }
       if (viewMode === "graph") {
         await loadGraph({
           nextScope: scope,
-          nextTopic: activeTopic,
+          nextSelection: ontologySelection,
           nextEdgeTypes: edgeTypesForScope(scope),
           preferredEntryId: selected?.source.entry_id,
           dateFrom: scope === "overview" && range === "recent" ? recentDateFrom(nextRuntime) : null,
@@ -420,30 +435,38 @@ export default function App() {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to load Memory Trace.");
     }
-  }, [activeTopic, loadGraph, overviewLimit, range, scope, selected?.source.entry_id, viewMode]);
+  }, [loadGraph, ontologySelection, overviewLimit, range, scope, selected?.source.entry_id, viewMode]);
 
   // The Trail is a full-history timeline with its own client-side window, so it
   // ignores the graph's recent-range control and fetches the whole corpus (up to
-  // the endpoint cap), respecting only the active topic filter. With NO topic
+  // the endpoint cap), respecting the active Area and Activity filters. With no
   // active it renders directly from the entry index (one fetch serves both the
   // Trail and every cross-corpus lookup); this fetch exists only for the
-  // topic-filtered view, which is a genuinely different query.
+  // ontology selection it renders directly from the entry index; any selection
+  // is a genuinely different query.
   const loadTrail = useCallback(async () => {
     try {
       setTrailError(null);
-      setTrail(await trailQuery({ topic: activeTopic, limit: 1000 }));
+      const nextTrail = await trailQuery({ area: ontologySelection.area, activity: ontologySelection.activity, limit: 1000 });
+      setTrail(nextTrail);
+      setContextualOntology(nextTrail.ontology ?? {});
     } catch (reason) {
       setTrailError(reason instanceof Error ? reason.message : "Unable to load the Trail.");
     }
-  }, [activeTopic]);
+  }, [ontologySelection]);
 
   useEffect(() => { void load(); }, []); // Initial project load only; controls issue deliberate scoped requests.
   useEffect(() => {
     if (viewMode !== "trail") return;
     setTrailWindow(TRAIL_WINDOW_STEP);
-    if (activeTopic !== null) void loadTrail();
-    else setTrail(null); // topic cleared: render from the index, drop stale filtered data
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- activeTopic is loadTrail's own dep
+    if (ontologySelection.area || ontologySelection.activity) void loadTrail();
+    else {
+      // The unfiltered Trail renders from the full entry index. Drop the last
+      // contextual response too, otherwise the navigator would continue to
+      // offer options from the previous filtered Graph or Trail view.
+      setTrail(null);
+      setContextualOntology({});
+    }
   }, [viewMode, loadTrail]);
   useEffect(() => { localStorage.setItem("memory-trace:inspector-dock", dock); }, [dock]);
   useEffect(() => { localStorage.setItem("memory-trace:nav-width", String(navWidth)); }, [navWidth]);
@@ -746,7 +769,8 @@ export default function App() {
       // view switch and show another corpus's map.
       setGraph(null);
       setTrailWindow(TRAIL_WINDOW_STEP);
-      setActiveTopic(null);
+      setOntologySelection(EMPTY_ONTOLOGY_SELECTION);
+      setContextualOntology({});
       setScope("overview");
       // load() awaits the new corpus's entry index (the Trail's data source
       // with no topic active) and, in Graph view, the graph fetch - so the
@@ -833,7 +857,10 @@ export default function App() {
   // needs no change here: the toggle is built from the keys.
   const [ontologyAxis, setOntologyAxis] = useState<string>(readOntologyAxis);
   const [expandedOntology, setExpandedOntology] = useState<Set<string>>(readOntologyExpanded);
-  const ontology = useMemo(() => (facets?.ontology ?? {}) as Record<string, OntologyNode[]>, [facets]);
+  const ontology = useMemo(
+    () => (Object.keys(contextualOntology).length ? contextualOntology : (facets?.ontology ?? {})) as Record<string, OntologyNode[]>,
+    [contextualOntology, facets],
+  );
   // Area first, then activity, then anything else alphabetically. "What is this
   // about" is the question people reach for first, and alphabetical order would
   // put Activities there purely by spelling.
@@ -873,8 +900,9 @@ export default function App() {
   // ancestor chain, so the navigator always shows where the current filter sits
   // instead of highlighting a row folded out of sight.
   useEffect(() => {
-    if (!activeTopic || !ontologyNodes.length) return;
-    const chain = ancestorIdsOf(ontologyNodes, activeTopic);
+    const selectedOnAxis = ontologySelection[activeAxis as keyof OntologySelection] ?? null;
+    if (!selectedOnAxis || !ontologyNodes.length) return;
+    const chain = ancestorIdsOf(ontologyNodes, selectedOnAxis);
     if (!chain.length) return;
     setExpandedOntology((previous) => {
       if (chain.every((id) => previous.has(id))) return previous;
@@ -883,7 +911,7 @@ export default function App() {
       localStorage.setItem("memory-trace:ontology-expanded", JSON.stringify([...next]));
       return next;
     });
-  }, [activeTopic, ontologyNodes]);
+  }, [activeAxis, ontologyNodes, ontologySelection]);
   const inspectorVisible = dock !== "hidden";
   // Every fetched node now renders — edgeless entries included, placed in a
   // halo around the connected core — so the payload size IS what is on screen.
@@ -901,12 +929,12 @@ export default function App() {
   // testing nodes alone capped Overview at 397 of 589 entries.
   const overviewExhausted = useMemo(() => {
     const previous = previousOverview.current;
-    const usable = previous && previous.limit < overviewLimit && previous.topic === activeTopic ? previous.counts : null;
+    const usable = previous && previous.limit < overviewLimit && previous.selectionKey === ontologySelectionKey(ontologySelection) ? previous.counts : null;
     return overviewIsExhausted(graph ? overviewCounts(graph) : null, usable, overviewLimit);
-  }, [activeTopic, graph, overviewLimit]);
+  }, [graph, ontologySelection, overviewLimit]);
 
-  async function requestGraph(nextScope: GraphScope, nextTopic = activeTopic, nextEdgeTypes = edgeTypesForScope(nextScope), entryId?: string | null, preferredEntryId?: string | null, keepCurrentOnEmpty = false, dateFrom = nextScope === "overview" && range === "recent" ? recentDateFrom(runtime) : null, depth = nextScope === "evolution" ? EVOLUTION_DEPTH : undefined, path = nextScope === "file" ? filePath : null, limit = nextScope === "overview" ? overviewLimit : undefined) {
-    return loadGraph({ nextScope, nextTopic, nextEdgeTypes, entryId, preferredEntryId: preferredEntryId ?? selected?.source.entry_id, keepCurrentOnEmpty, dateFrom, depth, path, limit });
+  async function requestGraph(nextScope: GraphScope, nextSelection = ontologySelection, nextEdgeTypes = edgeTypesForScope(nextScope), entryId?: string | null, preferredEntryId?: string | null, keepCurrentOnEmpty = false, dateFrom = nextScope === "overview" && range === "recent" ? recentDateFrom(runtime) : null, depth = nextScope === "evolution" ? EVOLUTION_DEPTH : undefined, path = nextScope === "file" ? filePath : null, limit = nextScope === "overview" ? overviewLimit : undefined) {
+    return loadGraph({ nextScope, nextSelection, nextEdgeTypes, entryId, preferredEntryId: preferredEntryId ?? selected?.source.entry_id, keepCurrentOnEmpty, dateFrom, depth, path, limit });
   }
 
   // Widens the chronological window: the next "Show more" click extends the
@@ -917,9 +945,9 @@ export default function App() {
   // of the reasons Louvain colouring was rejected.
   async function showMoreOverview() {
     const nextLimit = overviewLimit + OVERVIEW_LIMIT_STEP;
-    if (graph) previousOverview.current = { limit: overviewLimit, topic: activeTopic, counts: overviewCounts(graph) };
+    if (graph) previousOverview.current = { limit: overviewLimit, selectionKey: ontologySelectionKey(ontologySelection), counts: overviewCounts(graph) };
     setOverviewLimit(nextLimit);
-    await requestGraph("overview", activeTopic, undefined, undefined, undefined, false, undefined, undefined, undefined, nextLimit);
+    await requestGraph("overview", ontologySelection, undefined, undefined, undefined, false, undefined, undefined, undefined, nextLimit);
   }
 
   // The inverse walk: back off one page toward the first, floored at the
@@ -931,19 +959,18 @@ export default function App() {
     const nextLimit = Math.max(OVERVIEW_LIMIT_STEP, overviewLimit - OVERVIEW_LIMIT_STEP);
     previousOverview.current = null;
     setOverviewLimit(nextLimit);
-    await requestGraph("overview", activeTopic, undefined, undefined, undefined, false, undefined, undefined, undefined, nextLimit);
+    await requestGraph("overview", ontologySelection, undefined, undefined, undefined, false, undefined, undefined, undefined, nextLimit);
   }
 
   async function focusEntry(entryId: string, options: { preserveHint?: boolean; preserveSearch?: boolean } = {}) {
     if (!options.preserveHint) setMatchHint(null);
-    const nextGraph = await requestGraph("local", null, undefined, entryId, entryId, true, null);
+    const nextGraph = await requestGraph("local", ontologySelection, undefined, entryId, entryId, true, null);
     if (!nextGraph) return;
     if (!nextGraph.nodes.some((node) => node.source.entry_id === entryId)) {
       setError(`No entry exists with id ${entryId}.`);
       return;
     }
     setScope("local");
-    setActiveTopic(null);
     if (!options.preserveSearch) {
       setSearch(null);
       setFullTextCursor(-1);
@@ -1142,14 +1169,14 @@ export default function App() {
       return;
     }
     setScope(nextScope);
-    await requestGraph(nextScope, activeTopic, undefined, entryId, entryId);
+    await requestGraph(nextScope, ontologySelection, undefined, entryId, entryId);
   }
 
   async function openFileMode(path: string) {
     setFilePath(path);
     setScope("file");
     setViewMode("graph");
-    await requestGraph("file", activeTopic, undefined, null, null, false, undefined, undefined, path);
+    await requestGraph("file", ontologySelection, undefined, null, null, false, undefined, undefined, path);
   }
 
   // Graph data is lazy: the first switch into Graph view (or the first after
@@ -1165,19 +1192,26 @@ export default function App() {
     // non-null graph was reused unconditionally.
     const fetched = new Set(fetchedPinnedIds.current);
     const missingPins = pinnedIdsRef.current.some((id) => !fetched.has(id));
-    if (graph === null || missingPins) void requestGraph(scope, activeTopic, undefined, scope !== "overview" && scope !== "file" ? selected?.source.entry_id : null, selected?.source.entry_id);
+    if (graph === null || missingPins) void requestGraph(scope, ontologySelection, undefined, scope !== "overview" && scope !== "file" ? selected?.source.entry_id : null, selected?.source.entry_id);
   }
 
-  async function chooseTopic(nextTopic: string | null) {
-    setActiveTopic(nextTopic);
+  async function chooseOntologyValue(axis: keyof OntologySelection, value: string | null) {
+    const nextSelection = { ...ontologySelection, [axis]: value };
+    setOntologySelection(nextSelection);
     if (viewMode !== "graph") {
-      // Trail mode refetches through its own topic effect. The graph (if one
-      // was ever fetched) now describes the wrong topic: drop it so the next
+      // Trail mode refetches through its own selection effect. The graph (if one
+      // was ever fetched) now describes the wrong facet set: drop it so the next
       // switch to Graph view fetches fresh instead of showing stale scope.
       setGraph(null);
       return;
     }
-    await requestGraph(scope, nextTopic, undefined, scope !== "overview" && scope !== "file" ? selected?.source.entry_id : null);
+    await requestGraph(scope, nextSelection, undefined, scope !== "overview" && scope !== "file" ? selected?.source.entry_id : null);
+  }
+
+  async function clearOntologyFilters() {
+    setOntologySelection(EMPTY_ONTOLOGY_SELECTION);
+    if (viewMode !== "graph") { setGraph(null); return; }
+    await requestGraph(scope, EMPTY_ONTOLOGY_SELECTION, undefined, scope !== "overview" && scope !== "file" ? selected?.source.entry_id : null);
   }
 
   // Obsidian-style: this is a client-side visibility filter over the already-
@@ -1196,7 +1230,7 @@ export default function App() {
     // Only ENABLING an unfetched type refetches. Turning a type off, or turning
     // one back on that is already in the payload, stays instant.
     if (!fetchedEdgeTypes.current.includes(edgeType) && next.includes(edgeType)) {
-      void requestGraph(scope, activeTopic, next);
+      void requestGraph(scope, ontologySelection, next);
     }
   }
 
@@ -1217,12 +1251,12 @@ export default function App() {
     // The chip state travels with the refetch: a `topic` the reader switched on
     // was fetched deliberately, and falling back to the scope default here would
     // silently drop it.
-    await requestGraph(scope, activeTopic, edgeTypes, undefined, selected?.source.entry_id);
+    await requestGraph(scope, ontologySelection, edgeTypes, undefined, selected?.source.entry_id);
   }
 
   async function changeRange(nextRange: GraphRange) {
     setRange(nextRange);
-    await requestGraph(scope, activeTopic, undefined, scope === "local" ? selected?.source.entry_id : null, undefined, false, nextRange === "recent" ? recentDateFrom(runtime) : null);
+    await requestGraph(scope, ontologySelection, undefined, scope === "local" ? selected?.source.entry_id : null, undefined, false, nextRange === "recent" ? recentDateFrom(runtime) : null);
   }
 
   // The hint only applies to the entry it was computed for — a stale hint from
@@ -1248,14 +1282,27 @@ export default function App() {
     const entryId = selected?.source.entry_id;
     if (!entryId) return;
     const node = (effectiveTrail?.nodes ?? []).find((item) => item.entry_id === entryId && item.title === heading);
-    if (node) selectFromTrail(entryId, node.chunk_id, { heading });
+    if (node) {
+      preservedInspectorScroll.current = inspectorContent.current?.scrollTop ?? null;
+      selectFromTrail(entryId, node.chunk_id, { heading });
+    }
   }
 
   // What the Trail renders: with no topic active, the entry index IS the
-  // topic-null Trail (identical request), so one full-corpus fetch serves the
-  // timeline and every cross-corpus lookup; a topic filter is a genuinely
+  // unfiltered Trail (identical request), so one full-corpus fetch serves the
+  // timeline and every cross-corpus lookup; an ontology selection is a genuinely
   // different query and uses its own fetched `trail`.
-  const effectiveTrail = activeTopic === null ? entryIndex : trail;
+  const hasOntologySelection = Boolean(ontologySelection.area || ontologySelection.activity);
+  const effectiveTrail = hasOntologySelection ? trail : entryIndex;
+  const ontologyFilterChips = (
+    <>
+      {(["area", "activity"] as const).map((axis) => ontologySelection[axis] && (
+        <button type="button" className="active-topic" key={axis} onClick={() => void chooseOntologyValue(axis, null)}>
+          {axis === "area" ? "Area: " : "Activity: "}{ontologySelection[axis]}<X size={13} aria-hidden="true" />
+        </button>
+      ))}
+    </>
+  );
   // Everything the Trail can currently show is pinned into the Graph. Kept in
   // sync eagerly (not at fetch time) so that growing the window in Trail view
   // and only later switching to Graph still carries the newly loaded entries.
@@ -1279,6 +1326,15 @@ export default function App() {
     const key = `${chunk.chunk_id}::${matchHeading ?? ""}`;
     if (inspectorScrollFor.current === key) return;
     inspectorScrollFor.current = key;
+    if (preservedInspectorScroll.current !== null) {
+      // The nested EntryReader effect brings the decision into the bounded
+      // Decision window. Do not turn that local movement into an outer-pane
+      // jump just because the same click updates the Trail selection identity.
+      cancelInspectorScroll.current?.();
+      container.scrollTop = Math.max(0, Math.min(preservedInspectorScroll.current, container.scrollHeight - container.clientHeight));
+      preservedInspectorScroll.current = null;
+      return;
+    }
     const top = element
       ? element.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop
       : 0;
@@ -1394,24 +1450,26 @@ export default function App() {
           )}
           <button
             type="button"
-            className={activeTopic === null ? "ontology-all active" : "ontology-all"}
-            onClick={() => void chooseTopic(null)}
-            aria-pressed={activeTopic === null}
+            className={ontologySelection[activeAxis as keyof OntologySelection] === null ? "ontology-all active" : "ontology-all"}
+            onClick={() => void chooseOntologyValue(activeAxis as keyof OntologySelection, null)}
+            aria-pressed={ontologySelection[activeAxis as keyof OntologySelection] === null}
           >
-            All
+            {activeAxis === "area" ? "All areas" : activeAxis === "activity" ? "All activities" : "All"}
           </button>
+          {hasOntologySelection && <button type="button" className="ontology-clear" onClick={() => void clearOntologyFilters()}>Clear filters</button>}
+          {hasOntologySelection && <div className="ontology-filter-chips" aria-label="Active ontology filters">{ontologyFilterChips}</div>}
           {ontologyNodes.length ? (
             <TreeView
               nodes={ontologyNodes}
-              selectedId={activeTopic}
+              selectedId={ontologySelection[activeAxis as keyof OntologySelection] ?? null}
               expandedIds={expandedOntology}
               onToggle={toggleOntologyNode}
-              onSelect={(id) => void chooseTopic(id === activeTopic ? null : id)}
+              onSelect={(id) => void chooseOntologyValue(activeAxis as keyof OntologySelection, id === ontologySelection[activeAxis as keyof OntologySelection] ? null : id)}
             />
           ) : (
             // The flat list is the fallback, not a parallel feature: a project
             // whose vocabulary declares no axes still needs to filter.
-            <div className="topic-list">{topics.map(([topic, count]) => <button type="button" className={activeTopic === topic ? "topic active" : "topic"} key={topic} onClick={() => void chooseTopic(topic)} aria-pressed={activeTopic === topic}>{topic}<b>{count}</b></button>)}</div>
+            <div className="topic-list">{topics.map(([topic, count]) => <button type="button" className={ontologySelection[activeAxis as keyof OntologySelection] === topic ? "topic active" : "topic"} key={topic} onClick={() => void chooseOntologyValue(activeAxis as keyof OntologySelection, topic)} aria-pressed={ontologySelection[activeAxis as keyof OntologySelection] === topic}>{topic}<b>{count}</b></button>)}</div>
           )}
         </section>
         <section className="navigation-section entry-list"><h2>{selected?.source.entry_id ? "Context" : "Recent"}</h2>{selected?.source.entry_id && <p className="context-subject" title={selected.label}>{stripTitleStamp(selected.label)}</p>}{contextGroups.length ? contextGroups.map(([kind, group]) => <div key={kind} className="context-group">{kind !== "recent" && <h3 className={`context-group-h context-type-${kind}`}>{kind === "commit" ? "same commit" : kind}</h3>}{group.map((item) => <button key={item.key} type="button" className="entry" title={item.title} onClick={() => void openEntryInPlace(item.entryId)}><span>{item.title}</span></button>)}</div>) : <p className="context-empty">{selected?.source.entry_id ? "No linked context for this entry." : "Loading entries"}</p>}</section>
@@ -1444,9 +1502,9 @@ export default function App() {
             reasonable it reads in JSX — lands in an implicit fourth row and
             collapses the actual graph canvas to zero height instead. The
             Overview coverage readout has to live inside this same div. */}
-        {viewMode !== "trail" && scope !== "evolution" && scope !== "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} title={EDGE_DESCRIPTIONS[edgeType]} onClick={() => toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}<button type="button" className="edge-filter edge-orphans" aria-pressed={graphSettings.showOrphans} onClick={() => setGraphSettings({ ...graphSettings, showOrphans: !graphSettings.showOrphans })} title="Entries with no authored link">Orphans</button><button type="button" className="edge-filter edge-decisions" aria-pressed={graphSettings.showDecisions} disabled={isLoading} onClick={() => void toggleDecisions()} title="One node per numbered decision, grouped with its entry — the endpoint a decision-level edge actually names">Decisions</button><span className="edge-filter-group" role="group" aria-label="Minimum edge confidence"><span className="edge-filter-label">Confidence</span>{CONFIDENCE_STEPS.map((step) => <button type="button" key={step.value} className="edge-filter edge-confidence" aria-pressed={graphSettings.minConfidence === step.value} title={step.title} onClick={() => setGraphSettings({ ...graphSettings, minConfidence: step.value })}>{step.label}</button>)}</span>{activeTopic &&<button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}{scope === "overview" && graph && <span className="count">· {overviewShownCount} of {graphEntryTotal ?? "…"} entries shown</span>}{scope === "overview" && graph && overviewLimit > OVERVIEW_LIMIT_STEP && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showLessOverview()}>Show less</button>}{scope === "overview" && graph && !overviewExhausted && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showMoreOverview()}>Show more</button>}</div>}
-        {viewMode !== "trail" && scope === "evolution" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span><span className="count">Evolves + Replaces only · lifecycle chain</span>{activeTopic && <button type="button" className="active-topic" onClick={() => void chooseTopic(null)}>{activeTopic}<X size={13} aria-hidden="true" /></button>}</div>}
-        {viewMode !== "trail" && scope === "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>File</span><span className="count" title={filePath ?? ""}>{"Entries that touched " + (filePath ?? "this file")}</span><button type="button" className="active-topic" onClick={() => void changeScope("overview")}>Clear<X size={13} aria-hidden="true" /></button></div>}
+        {viewMode !== "trail" && scope !== "evolution" && scope !== "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} title={EDGE_DESCRIPTIONS[edgeType]} onClick={() => toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}<button type="button" className="edge-filter edge-orphans" aria-pressed={graphSettings.showOrphans} onClick={() => setGraphSettings({ ...graphSettings, showOrphans: !graphSettings.showOrphans })} title="Entries with no authored link">Orphans</button><button type="button" className="edge-filter edge-decisions" aria-pressed={graphSettings.showDecisions} disabled={isLoading} onClick={() => void toggleDecisions()} title="One node per numbered decision, grouped with its entry — the endpoint a decision-level edge actually names">Decisions</button><span className="edge-filter-group" role="group" aria-label="Minimum edge confidence"><span className="edge-filter-label">Confidence</span>{CONFIDENCE_STEPS.map((step) => <button type="button" key={step.value} className="edge-filter edge-confidence" aria-pressed={graphSettings.minConfidence === step.value} title={step.title} onClick={() => setGraphSettings({ ...graphSettings, minConfidence: step.value })}>{step.label}</button>)}</span>{ontologyFilterChips}{scope === "overview" && graph && <span className="count">· {overviewShownCount} of {graphEntryTotal ?? "…"} entries shown</span>}{scope === "overview" && graph && overviewLimit > OVERVIEW_LIMIT_STEP && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showLessOverview()}>Show less</button>}{scope === "overview" && graph && !overviewExhausted && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showMoreOverview()}>Show more</button>}</div>}
+        {viewMode !== "trail" && scope === "evolution" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span><span className="count">Evolves + Replaces only · lifecycle chain</span>{ontologyFilterChips}</div>}
+        {viewMode !== "trail" && scope === "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>File</span><span className="count" title={filePath ?? ""}>{"Entries that touched " + (filePath ?? "this file")}</span>{ontologyFilterChips}<button type="button" className="active-topic" onClick={() => void changeScope("overview")}>Clear<X size={13} aria-hidden="true" /></button></div>}
         {viewMode === "trail" ? (
           <>
             {trailError && <div className="error-state" role="alert">{trailError}</div>}
@@ -1465,7 +1523,7 @@ export default function App() {
                 nothing to do with a fixed lineage chain or a file's touches),
                 so a stale toggle left over from Overview/Local must not carry
                 through and blank out edges the user never chose to hide there. */}
-            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={(matchHint?.entryId === selected?.source.entry_id ? matchHint?.decisionChunkId : undefined) ?? selected?.id ?? null} onSelect={selectFromGraph} labelMode={labelMode} theme={theme} visibleEdgeTypes={scope === "evolution" || scope === "file" ? edgeTypesForScope(scope) : edgeTypes} corpusTopics={facets?.topics ?? null} topicWheel={facets?.topic_wheel ?? null} topicRoots={facets?.topic_roots ?? null} focusTopic={activeTopic} topicCanonical={facets?.topic_canonical ?? null} dragResponse={graphSettings.dragResponse} forces={graphSettings.forces} showOrphans={graphSettings.showOrphans} minConfidence={graphSettings.minConfidence} /></Suspense>}
+            {graph && <Suspense fallback={<div className="loading-state">Loading graph</div>}><GraphWorkspace graph={graph} selectedId={(matchHint?.entryId === selected?.source.entry_id ? matchHint?.decisionChunkId : undefined) ?? selected?.id ?? null} onSelect={selectFromGraph} labelMode={labelMode} theme={theme} visibleEdgeTypes={scope === "evolution" || scope === "file" ? edgeTypesForScope(scope) : edgeTypes} corpusTopics={facets?.topics ?? null} topicWheel={facets?.topic_wheel ?? null} topicRoots={facets?.topic_roots ?? null} focusTopic={ontologySelection.area ?? ontologySelection.activity} topicCanonical={facets?.topic_canonical ?? null} dragResponse={graphSettings.dragResponse} forces={graphSettings.forces} showOrphans={graphSettings.showOrphans} minConfidence={graphSettings.minConfidence} /></Suspense>}
             {!graph && <div className="loading-state">Loading graph</div>}
           </>
         )}
