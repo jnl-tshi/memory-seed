@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { outrankedEdgeIds, pairKey, type PresentableEdge } from "./graphEdges.ts";
+import { forceEligibleEdges, outrankedEdgeIds, pairKey, type PresentableEdge } from "./graphEdges.ts";
 
 const ALL = ["replaces", "evolves", "related", "topic", "branch"];
 const edge = (id: string, source: string, target: string, type: string): PresentableEdge => ({ id, source, target, type });
@@ -50,4 +50,24 @@ test("distinct pairs never compete, and a filtered type is not reported as outra
 test("an unknown edge type ranks last but is still drawn when alone", () => {
   assert.deepEqual(drawn([edge("1", "a", "b", "mystery")], ["mystery"]), ["mystery"]);
   assert.deepEqual(drawn([edge("1", "a", "b", "mystery"), edge("2", "a", "b", "topic")], ["mystery", "topic"]), ["topic"]);
+});
+
+test("only displayed edges remain eligible for graph forces", () => {
+  const edges = [
+    { id: "1", edge_type: "related", confidence: 0.95 },
+    { id: "2", edge_type: "topic", confidence: 0.99 },
+    { id: "3", edge_type: "related", confidence: 0.4 },
+    { id: "4", edge_type: "related", confidence: null },
+  ];
+
+  assert.deepEqual(
+    forceEligibleEdges(edges, ["related"], 0.7).map((item) => item.id),
+    ["1", "4"],
+    "a switched-off type and a confidence-filtered edge exert no force",
+  );
+  assert.deepEqual(
+    forceEligibleEdges(edges, ["topic"], 0).map((item) => item.id),
+    ["2"],
+    "changing the edge filter replaces the force edge set rather than retaining old links",
+  );
 });

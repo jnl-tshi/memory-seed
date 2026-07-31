@@ -46,8 +46,9 @@ const EVOLUTION_DEPTH = 8;
 // What the fetch asks the server for, keyed only by scope — never by the
 // "Edges" filter row's toggle state. That row is a client-side visibility
 // filter over an already-fetched graph (Obsidian-style: lines appear and
-// disappear, nodes don't), not a query parameter, so the node set and the
-// cose layout stay put no matter which chips are on.
+// disappear, nodes don't), not a query parameter, so the node set stays stable.
+// The client-side simulation separately removes the force of every hidden
+// edge, allowing the remaining relationships to settle without a refetch.
 function edgeTypesForScope(targetScope: GraphScope): RendererGraphEdge["edge_type"][] {
   return targetScope === "evolution" ? EVOLUTION_EDGE_TYPES : DEFAULT_GRAPH_EDGE_TYPES;
 }

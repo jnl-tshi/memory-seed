@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Core, NodeSingular } from "cytoscape";
-import type { Simulation, SimulationLinkDatum, SimulationNodeDatum } from "d3-force";
+import type { ForceLink, Simulation, SimulationLinkDatum, SimulationNodeDatum } from "d3-force";
 import { ListTree, Maximize2, Minus, Network, Plus } from "lucide-react";
 import { type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse } from "./api";
 import { nodeSetSignature, seedPositions, type Point } from "./graphLayout";
@@ -8,7 +8,7 @@ import { anchorEntryIdFor, connectedIdsWithDecisionAnchors, decisionGroups, deci
 import { allSpiralAssignments, spiralSeedOffsets, type SpiralAssignment } from "./graphSpiral";
 import { edgeCrossingForce } from "./graphCrossings";
 import { forceParameters, ticksPerPaint, type ForceSettings } from "./graphForces";
-import { outrankedEdgeIds } from "./graphEdges";
+import { forceEligibleEdges, outrankedEdgeIds } from "./graphEdges";
 import { authoredBorderColour, authoredNodeColour, communityColourScale, communityLegend, wearsAuthoredRim, type TopicRoots } from "./graphCommunities";
 
 type GraphWorkspaceProps = {
@@ -81,6 +81,8 @@ type SimulationHandle = {
   pin: (id: string, position: { x: number; y: number } | null) => void;
   /** Re-read the force settings and apply them without restarting. */
   retune: () => void;
+  /** Replace the relationships that currently exert link/shape forces. */
+  replaceEdges: (edges: readonly RendererGraphEdge[]) => boolean;
   /** Save current positions without stopping — for a drag that woke nothing. */
   persistNow: () => void;
   stop: () => void;
@@ -213,7 +215,7 @@ function startSimulation(options: {
   disposed: () => boolean;
   reducedMotion: boolean;
 }): SimulationHandle {
-  const { cy, nodes: graphNodes, edges: graphEdges, forces, settled, warmSeeded, onRest, onFirstSettle, autoScale, afterPaint, disposed, reducedMotion } = options;
+  const { cy, nodes: graphNodes, edges: initialGraphEdges, forces, settled, warmSeeded, onRest, onFirstSettle, autoScale, afterPaint, disposed, reducedMotion } = options;
   let frame = 0;
   let cancelled = false;
   let fitted = settled;
@@ -292,13 +294,15 @@ const simNodes: ReheatNode[] = graphNodes.map((node) => {
   // rather than dropped for matching no simulation node. See `simulationLinks`
   // for why - the short version is that a decision is part of its entry, so a
   // pull on the part is a pull on the whole.
-  const links: ReheatLink[] = simulationLinks(graphEdges, new Set(byId.keys()));
+  const knownNodeIds = new Set(byId.keys());
+  let graphEdges = [...initialGraphEdges];
+  let links: ReheatLink[] = simulationLinks(graphEdges, knownNodeIds);
   // A plain id-pair copy, taken before forceLink gets anywhere near `links` -
   // that force resolves each link's .source/.target from an id string into a
   // node object reference the moment it initializes, so reading `links`
   // itself from another force would sometimes see strings and sometimes
   // objects depending on ordering. edgeCrossingForce only ever needs ids.
-  const crossingEdges = links.map((link) => ({ source: link.source as string, target: link.target as string }));
+  let crossingEdges = links.map((link) => ({ source: link.source as string, target: link.target as string }));
 
   // Which nodes belong to a long lifecycle chain, and how far out each sits.
   // Computed once per simulation, like `links`: the element set does not change
@@ -391,7 +395,25 @@ const simNodes: ReheatNode[] = graphNodes.map((node) => {
   // without a remount, and re-deriving it per frame would be the kind of
   // per-tick work this exists to remove. Edges are counted because they are
   // drawn — at corpus scale there are as many of them as nodes.
-  const ticksPerFrame = ticksPerPaint(graphNodes.length + graphEdges.length);
+  let ticksPerFrame = ticksPerPaint(graphNodes.length + graphEdges.length);
+
+  const replaceGraphEdges = (nextEdges: readonly RendererGraphEdge[]) => {
+    if (
+      graphEdges.length === nextEdges.length
+      && graphEdges.every((edge, index) => edge.id === nextEdges[index]?.id)
+    ) return false;
+    graphEdges = [...nextEdges];
+    links = simulationLinks(graphEdges, knownNodeIds);
+    // Copy before forceLink resolves the string ids into node objects.
+    crossingEdges = links.map((link) => ({ source: link.source as string, target: link.target as string }));
+    ticksPerFrame = ticksPerPaint(graphNodes.length + graphEdges.length);
+    // Geometry eligibility can change even when the force sliders did not.
+    seatKey = "";
+    if (sim) {
+      sim.force<ForceLink<ReheatNode, ReheatLink>>("link")?.links(links);
+    }
+    return true;
+  };
 
   const run = () => {
     if (frame || cancelled) return;
@@ -519,6 +541,7 @@ const simNodes: ReheatNode[] = graphNodes.map((node) => {
       }
     },
     retune: () => applyForces?.(),
+    replaceEdges: replaceGraphEdges,
     // Fixed-mode drags never wake the loop, so nothing would otherwise write
     // the new position into the cache and a remount would undo the arrangement.
     persistNow: () => {
@@ -654,7 +677,8 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
       // selection, which contradicted their own chip reading as ON and made
       // the map's lineage invisible until you happened to click the right
       // node. Turning a chip off still hides that type outright, Obsidian
-      // style, and never touches which nodes exist or where they sit.
+      // style, without changing graph membership. Its physical pull is removed
+      // separately below so hidden relationships cannot keep shaping the map.
       //
       // One line per PAIR: two entries often carry several relationships at
       // once, which drew coincident lines and let the weakest one (a topic
@@ -1184,7 +1208,7 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
         // so handing either to the simulation would fight the thing that places
         // it.
         nodes: renderedNodes.filter((node) => !isDecisionRowId(node.id)),
-        edges: graph.edges,
+        edges: forceEligibleEdges(graph.edges, visibleEdgeTypesRef.current, minConfidenceRef.current),
         forces: forcesRef,
         settled,
         warmSeeded,
@@ -1231,13 +1255,25 @@ export function GraphWorkspace({ graph, selectedId, onSelect, labelMode, theme, 
     simulation.current?.reheat(0.3);
   }, [forces]);
 
-  // Presentation updates on selection/label/edge-filter changes: in place, no
-  // element churn, no layout, no camera movement.
+  // Presentation updates happen in place and never wake the simulation merely
+  // because selection or labels changed.
   useEffect(() => {
     const cy = cytoscape.current;
     if (!cy) return;
     applyPresentation(cy);
   }, [labelIds, selectedId, graph, visibleEdgeTypes, minConfidence]);
+
+  // Edge filters keep the fetched node set stable, but the active simulation
+  // uses the same displayed edge set. Once a line is removed its link,
+  // crossing, and spiral forces are removed too. Reheating lets the remaining
+  // forces settle from the current positions without remounting Cytoscape or
+  // moving the camera. A no-op filter change does not disturb a settled map.
+  useEffect(() => {
+    const currentSimulation = simulation.current;
+    if (!currentSimulation) return;
+    const changed = currentSimulation.replaceEdges(forceEligibleEdges(graph.edges, visibleEdgeTypes, minConfidence));
+    if (changed) currentSimulation.reheat(0.35);
+  }, [graph.edges, visibleEdgeTypes, minConfidence]);
 
   return <section className="graph-workspace" aria-label="Memory graph workspace">
     {/* Overlaid on the canvas rather than added as a row: .workspace's grid
