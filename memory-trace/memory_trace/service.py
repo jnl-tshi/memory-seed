@@ -3576,10 +3576,13 @@ def _prune_empty_ontology(ontology: dict[str, list[dict[str, Any]]]) -> dict[str
             ],
         }
 
+    # Keep every known axis even when its entire contextual branch was pruned.
+    # `{area: [], activity: []}` is a loaded empty response; `{}` means the
+    # server did not provide a contextual ontology and the client may use its
+    # full-corpus fallback.
     return {
-        axis: pruned_nodes
+        axis: [pruned for node in nodes if (pruned := prune(node)) is not None]
         for axis, nodes in ontology.items()
-        if (pruned_nodes := [pruned for node in nodes if (pruned := prune(node)) is not None])
     }
 
 

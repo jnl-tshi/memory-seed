@@ -107,6 +107,15 @@ topics:
         self.assertEqual([node["id"] for node in ontology["activity"]], ["activity-root"])
         self.assertEqual([node["id"] for node in ontology["activity"][0]["children"]], ["activity-x"])
 
+    def test_contextual_ontology_keeps_known_axes_when_every_branch_is_empty(self):
+        service = TraceService(SimpleNamespace(cwd=self.cwd))
+
+        ontology = service.contextual_ontology([self.entry("mse_unattributed", [])])
+
+        # An empty contextual response is still loaded data, not an absent
+        # response: the client distinguishes this from the full corpus tree.
+        self.assertEqual(ontology, {"area": [], "activity": []})
+
 
 if __name__ == "__main__":
     unittest.main()
