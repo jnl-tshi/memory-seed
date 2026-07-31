@@ -266,6 +266,11 @@ def project_trace_graph(
     # their exact two-key shape.
     if isinstance(entry_total, int):
         projected["entry_total"] = entry_total
+    # The renderer does not interpret ontology, but the navigation shell needs
+    # the server-calculated availability that belongs to this same projection.
+    # Keep benchmark fixtures exact: only live Trace responses carry the key.
+    if isinstance(graph.get("ontology"), dict):
+        projected["ontology"] = graph["ontology"]
     return projected
 
 

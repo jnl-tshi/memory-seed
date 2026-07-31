@@ -26,6 +26,8 @@ export type GraphQueryOptions = {
   edgeTypes?: RendererGraphEdge["edge_type"][];
   limit?: number;
   topic?: string | null;
+  area?: string | null;
+  activity?: string | null;
   dateFrom?: string | null;
   path?: string | null;
   /** Entry ids that must appear whatever the ranked slice would have chosen -
@@ -142,6 +144,8 @@ export function graphQuery(options: GraphQueryOptions = {}): Promise<RendererGra
   if (options.entryId) params.set("entry_id", options.entryId);
   if (options.depth) params.set("depth", String(options.depth));
   if (options.topic) params.set("topic", options.topic);
+  if (options.area) params.set("area", options.area);
+  if (options.activity) params.set("activity", options.activity);
   if (options.dateFrom) params.set("date_from", options.dateFrom);
   if (options.path) params.set("path", options.path);
   if (options.pinnedIds?.length) params.set("pinned_ids", options.pinnedIds.join(","));
@@ -164,7 +168,7 @@ export function searchQuery(query: string): Promise<SearchResponse> {
   return api<SearchResponse>(`/search?${params.toString()}`);
 }
 
-export type TrailQueryOptions = { topic?: string | null; dateFrom?: string | null; limit?: number };
+export type TrailQueryOptions = { topic?: string | null; area?: string | null; activity?: string | null; dateFrom?: string | null; limit?: number };
 
 // The Trail is a dedicated product surface: /api/v1/trail fixes its own edge set
 // (branch/replaces/evolves/related) and entry granularity, so — unlike the
@@ -173,6 +177,8 @@ export function trailQuery(options: TrailQueryOptions = {}): Promise<TrailRespon
   const params = new URLSearchParams();
   params.set("limit", String(options.limit ?? 1000));
   if (options.topic) params.set("topic", options.topic);
+  if (options.area) params.set("area", options.area);
+  if (options.activity) params.set("activity", options.activity);
   if (options.dateFrom) params.set("date_from", options.dateFrom);
   return api<TrailResponse>(`/trail?${params.toString()}`);
 }

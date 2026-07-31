@@ -187,6 +187,13 @@ Make **Area** and **Activity** first-class perspectives, not cosmetic filters. A
 grouping and vocabulary shown in graph navigation while preserving the same selected decision identity and
 underlying edge semantics.
 
+**M3a delivered 2026-07-31:** Area and Activity are now coordinated, independent facets over the active
+Trail or Graph result set. Each remains selected while the other axis is edited and while switching views;
+the server supplies self-excluding availability from the logical view (not the viewport), and a combined
+selection matches only when both values occur on the same decision attribution. Existing entries without a
+recorded Summary remain readable as legacy records; newly appended entries require one so every Inspector
+entry has a context block before its decisions.
+
 The default graph remains one-hop and local to a selected decision, topic, document, or search result.
 Users can expand deliberately, choose relationship/node/date filters, inspect a legend, and return to the
 corresponding Trail anchor. Overview/global mode remains gated on density, performance, and a usable
@@ -196,6 +203,8 @@ Exit criteria:
 
 - Perspective changes do not mutate, hide, or recategorise canonical memory; they only choose a derived
   lens.
+- Area and Activity selections persist independently across Trail/Graph, contextual choices are calculated
+  against the active logical view, and multi-decision matches never combine two different decisions.
 - Each node and edge exposes type, state/authority, source, and a list/table equivalent.
 - Expansion preserves selection and has an accessible non-visual route to the same neighbourhood.
 

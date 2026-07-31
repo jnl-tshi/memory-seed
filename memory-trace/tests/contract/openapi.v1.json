@@ -1002,6 +1002,17 @@
             },
             "title": "Nodes",
             "type": "array"
+          },
+          "ontology": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/OntologyNode"
+              },
+              "type": "array"
+            },
+            "default": {},
+            "title": "Ontology",
+            "type": "object"
           }
         },
         "required": [
@@ -1363,6 +1374,17 @@
             },
             "title": "Nodes",
             "type": "array"
+          },
+          "ontology": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/OntologyNode"
+              },
+              "type": "array"
+            },
+            "default": {},
+            "title": "Ontology",
+            "type": "object"
           }
         },
         "required": [
@@ -2068,6 +2090,17 @@
             },
             "title": "Nodes",
             "type": "array"
+          },
+          "ontology": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/OntologyNode"
+              },
+              "type": "array"
+            },
+            "default": {},
+            "title": "Ontology",
+            "type": "object"
           }
         },
         "required": [
@@ -2486,6 +2519,38 @@
           },
           {
             "in": "query",
+            "name": "area",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Area"
+            }
+          },
+          {
+            "in": "query",
+            "name": "activity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Activity"
+            }
+          },
+          {
+            "in": "query",
             "name": "worktree",
             "required": false,
             "schema": {
@@ -2665,6 +2730,38 @@
                 }
               ],
               "title": "Topic"
+            }
+          },
+          {
+            "in": "query",
+            "name": "area",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Area"
+            }
+          },
+          {
+            "in": "query",
+            "name": "activity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Activity"
             }
           },
           {
@@ -3136,6 +3233,38 @@
                 }
               ],
               "title": "Topic"
+            }
+          },
+          {
+            "in": "query",
+            "name": "area",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Area"
+            }
+          },
+          {
+            "in": "query",
+            "name": "activity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Activity"
             }
           },
           {

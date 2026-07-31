@@ -37,7 +37,7 @@ related_entries:
 
 ### Summary
 
-- What changed or what was checked.
+- Required for every newly appended entry: state the context, change, or check.
 
 ### Decision
 
@@ -323,7 +323,8 @@ Use one entry when several decisions belong to one coherent task, plan, or user 
 The DRAFT shapes above are checked by tooling, so a malformed entry cannot enter
 through the sanctioned path and is caught everywhere else:
 
-- `memory-seed session append` **rejects** a malformed body before writing - bare
+- `memory-seed session append` **rejects** a malformed body before writing - a missing `### Summary`
+  on a new entry, bare
   `D:`/`R:` labels that are not `- ` list items, DRAFT prose with no section
   heading, several decisions crammed under a singular `### Decision`, or a `D:`
   with no `R:`. The error names the fix.
@@ -333,7 +334,8 @@ through the sanctioned path and is caught everywhere else:
   unterminated fence swallows the following text and leaves the entry unparseable
   to the fuse. The fix is to close the fence, never to delete the metadata.
 
-The check (`core.entry_body_format_issues`) is **structural only** - it never
-decides whether a turn is one decision or several (that stays authoring
-judgement). Fix a flagged entry to the templates above; do not hand-write a
-malformed entry to bypass the gate.
+The shared integrity check (`core.entry_body_format_issues`) is **structural only** - it never
+decides whether a turn is one decision or several (that stays authoring judgement), and it does not
+retroactively flag historic entries without a Summary. Write-time append validation additionally requires
+a Summary for new entries. Fix a flagged entry to the templates above; do not hand-write a malformed entry
+to bypass the gate.

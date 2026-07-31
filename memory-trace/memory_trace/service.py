@@ -1572,6 +1572,30 @@ class TraceService:
             out.setdefault(axis, []).append(build(root))
         return out
 
+    def contextual_ontology(
+        self,
+        entries: Sequence[MemoryChunk],
+        *,
+        area: str | None = None,
+        activity: str | None = None,
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Return self-excluding ontology counts for one logical view.
+
+        An Area is counted with the selected Activity (and vice versa) only
+        when both live on the same decision attribution. This is deliberately
+        computed before the caller applies both filters to visible rows: it
+        leaves alternative choices available rather than forcing a user to
+        clear their current choice before changing it.
+        """
+        return self.ontology(
+            _contextual_ontology_counts(
+                entries,
+                cwd=self.cache.cwd,
+                area=area,
+                activity=activity,
+            )
+        )
+
     def search(
         self,
         *,
@@ -1771,6 +1795,8 @@ class TraceService:
         date_from: str | None = None,
         date_to: str | None = None,
         topic: str | None = None,
+        area: str | None = None,
+        activity: str | None = None,
         include_decisions: bool = False,
         decision_row_scope: str = "all",
     ) -> dict[str, Any]:
@@ -1786,25 +1812,26 @@ class TraceService:
         # touch the augmented edge fields. Sidecar edits still show promptly:
         # a sidecar change bumps the generation, invalidating this bundle.
         all_entries, _all_graph, diagram_map = self._derived()
-        entries = _filter_chunks(
-            all_entries, agent=agent, user=user, date_from=date_from, date_to=date_to, topic=topic, cwd=self.cache.cwd
+        # First resolve the logical view *without* ontology. The Area/Activity
+        # picker is a coordinated facet over this set; it must not depend on
+        # which nodes happen to be rendered after filtering or viewport work.
+        base_entries = _filter_chunks(
+            all_entries, agent=agent, user=user, date_from=date_from, date_to=date_to, cwd=self.cache.cwd
         )
         node_id = _graph_node_id_for(granularity)
-        by_id = {node_id(chunk): chunk for chunk in entries if node_id(chunk)}
         edge_type_set = set(edge_types)
-        edges = _graph_edges(entries, edge_type_set, node_id=node_id)
-        graph = build_related_entry_graph(chunks=entries)
-        connectivity = _connectivity_degrees(entries, node_id=node_id, graph=graph)
-        importance = _importance_scores(entries, node_id=node_id, graph=graph)
+        base_by_id = {node_id(chunk): chunk for chunk in base_entries if node_id(chunk)}
+        base_edges = _graph_edges(base_entries, edge_type_set, node_id=node_id)
+        base_visible_ids = list(base_by_id)
         if entry_ids is not None:
             # File mode: an exact, pre-resolved membership set (every entry
             # whose landing commit touched a given file), not a neighborhood
             # expansion from one focus entry. An empty list is a real answer
             # (an unrecognized or untouched path), not "no filter requested" -
             # it must not fall through to the overview branch below.
-            visible_ids = [item_id for item_id in entry_ids if item_id in by_id]
-            limited_ids = set(visible_ids[: _limit(limit, maximum=1000)])
-        elif entry_id and entry_id in by_id:
+            base_visible_ids = [item_id for item_id in entry_ids if item_id in base_by_id]
+            base_limited_ids = set(base_visible_ids[: _limit(limit, maximum=1000)])
+        elif entry_id and entry_id in base_by_id:
             # Membership only: a decision edge's two entries must be able to
             # reach each other when one is focused, or upgrading a ref from
             # entry-level to `:dN` would make its far end vanish from focus
@@ -1814,13 +1841,13 @@ class TraceService:
             # still terminates on the decision row, via
             # _decision_edges_for_rows), so nothing here projects "B:d2 evolves
             # A:d1" up into "B evolves A".
-            reach = list(edges)
+            reach = list(base_edges)
             if include_decisions:
                 for source_entry_id, sidecar in self._link_sidecars().items():
                     for kind, _src_ordinal, target_entry_id, _ordinal in sidecar.get("decision_edges", ()):
                         reach.append({"source": source_entry_id, "target": target_entry_id, "type": kind})
-            visible_ids = _neighborhood(entry_id, reach, depth=max(depth, 1))
-            limited_ids = set(visible_ids[: _limit(limit, maximum=1000)])
+            base_visible_ids = _neighborhood(entry_id, reach, depth=max(depth, 1))
+            base_limited_ids = set(base_visible_ids[: _limit(limit, maximum=1000)])
         else:
             # Overview (no focus entry): a chronological spine of the newest
             # `limit` entries, plus depth-1 over the lifecycle edges being
@@ -1828,20 +1855,20 @@ class TraceService:
             # those referenced entries were written. The spine is deliberately
             # the SAME axis the Trail pages along - the two views share a
             # backbone, and the Graph adds relationship context on top of it.
-            visible_ids = list(by_id)
+            base_visible_ids = list(base_by_id)
             recency_rank = {
                 item_id: rank
                 for rank, (item_id, _chunk) in enumerate(
                     sorted(
-                        by_id.items(),
+                        base_by_id.items(),
                         key=lambda item: (_chunk_datetime(item[1]), item[1].start_line),
                         reverse=True,
                     )
                 )
             }
-            limited_ids = _overview_slice(
-                visible_ids,
-                edges,
+            base_limited_ids = _overview_slice(
+                base_visible_ids,
+                base_edges,
                 limit=_limit(limit, maximum=1000),
                 recency_rank=recency_rank,
                 expand_types={"replaces", "evolves", "related"} & edge_type_set,
@@ -1854,7 +1881,7 @@ class TraceService:
         # additive and EXEMPT from `limit`: the limit ranks what to volunteer,
         # it was never a claim about what the user is allowed to see.
         if pinned_ids:
-            pinned = [item_id for item_id in pinned_ids if item_id in by_id]
+            pinned = [item_id for item_id in pinned_ids if item_id in base_by_id]
             # Depth-1 over the lifecycle edges that are actually being RENDERED,
             # so a pinned entry arrives with its most relevant relationships
             # rather than as a lone dot. Expanding over an edge type the user
@@ -1862,21 +1889,43 @@ class TraceService:
             lifecycle = {"replaces", "evolves", "related"} & edge_type_set
             if lifecycle:
                 pinned_set = set(pinned)
-                for edge in edges:
+                for edge in base_edges:
                     if edge["type"] not in lifecycle:
                         continue
                     for near, far in ((edge["source"], edge["target"]), (edge["target"], edge["source"])):
-                        if near in pinned_set and far in by_id:
+                        if near in pinned_set and far in base_by_id:
                             pinned.append(far)
             # `visible_ids` is the whole corpus in overview mode, so membership
             # is tested against a set rather than rescanning the list per pin.
-            already_visible = set(visible_ids)
+            already_visible = set(base_visible_ids)
             for item_id in pinned:
-                if item_id not in limited_ids:
-                    limited_ids.add(item_id)
+                if item_id not in base_limited_ids:
+                    base_limited_ids.add(item_id)
                     if item_id not in already_visible:
-                        visible_ids.append(item_id)
+                        base_visible_ids.append(item_id)
                         already_visible.add(item_id)
+        scoped_entries = [
+            base_by_id[item_id]
+            for item_id in base_visible_ids
+            if item_id in base_limited_ids and item_id in base_by_id
+        ]
+        # A legacy one-axis topic filter remains supported for the generic API,
+        # but the React navigator sends Area and Activity independently.
+        entries = _filter_chunks(
+            scoped_entries,
+            topic=topic,
+            area=area,
+            activity=activity,
+            cwd=self.cache.cwd,
+        )
+        by_id = {node_id(chunk): chunk for chunk in entries if node_id(chunk)}
+        visible_ids = list(by_id)
+        limited_ids = set(visible_ids)
+        edges = _graph_edges(entries, edge_type_set, node_id=node_id)
+        graph = build_related_entry_graph(chunks=entries)
+        connectivity = _connectivity_degrees(entries, node_id=node_id, graph=graph)
+        importance = _importance_scores(entries, node_id=node_id, graph=graph)
+        contextual_ontology = self.contextual_ontology(scoped_entries, area=area, activity=activity)
         inferred_main = self.cache.main_commit_entries()
         # Entry ids carrying an authored Class-2 decision-diagram sidecar, from
         # the per-generation derived bundle (a newly authored diagram bumps the
@@ -2097,6 +2146,7 @@ class TraceService:
             # "X of Y" counts entries no graph could ever show and reads as a
             # cap. Measured 2026-07-22: 603 entry chunks, 569 addressable.
             "entry_total": len(by_id),
+            "ontology": contextual_ontology,
         }
 
     def rebuild(self) -> dict[str, Any]:
@@ -2554,6 +2604,8 @@ def create_app(
         date_from: str | None = None,
         date_to: str | None = None,
         topic: str | None = None,
+        area: str | None = None,
+        activity: str | None = None,
         worktree: str | None = None,
     ) -> dict[str, Any]:
         return service_for(worktree).graph(
@@ -2567,6 +2619,8 @@ def create_app(
             date_from=date_from,
             date_to=date_to,
             topic=topic,
+            area=area,
+            activity=activity,
         )
 
     @app.get("/api/v1/graph/projection", response_model=RendererGraphResponse)
@@ -2581,6 +2635,8 @@ def create_app(
         date_from: str | None = None,
         date_to: str | None = None,
         topic: str | None = None,
+        area: str | None = None,
+        activity: str | None = None,
         path: str | None = None,
         pinned_ids: str | None = None,
         # Opt-in per-decision rows, DEFAULT OFF. The entry-level surface is
@@ -2616,6 +2672,8 @@ def create_app(
                 date_from=date_from,
                 date_to=date_to,
                 topic=topic,
+                area=area,
+                activity=activity,
                 include_decisions=include_decisions,
                 decision_row_scope="linked",
             )
@@ -2631,6 +2689,8 @@ def create_app(
         date_from: str | None = None,
         date_to: str | None = None,
         topic: str | None = None,
+        area: str | None = None,
+        activity: str | None = None,
         worktree: str | None = None,
     ) -> dict[str, Any]:
         # Fixed to the Trail's own edge set (app.js TRAIL_EDGE_TYPES) - the
@@ -2651,6 +2711,8 @@ def create_app(
             date_from=date_from,
             date_to=date_to,
             topic=topic,
+            area=area,
+            activity=activity,
         )
 
     return app
@@ -3392,6 +3454,8 @@ def _filter_chunks(
     date_from: str | None = None,
     date_to: str | None = None,
     topic: str | None = None,
+    area: str | None = None,
+    activity: str | None = None,
     cwd: str | Path | None = None,
 ) -> list[MemoryChunk]:
     start = _parse_date(date_from)
@@ -3407,6 +3471,8 @@ def _filter_chunks(
         topic_match = expand_topic_filter(cwd, [topic]) if cwd is not None else {topic}
     else:
         topic_match = None
+    area_match = expand_topic_filter(cwd, [area]) if area and cwd is not None else ({area} if area else None)
+    activity_match = expand_topic_filter(cwd, [activity]) if activity and cwd is not None else ({activity} if activity else None)
     return [
         chunk
         for chunk in chunks
@@ -3415,7 +3481,82 @@ def _filter_chunks(
         and (start is None or chunk.session_date >= start)
         and (end is None or chunk.session_date <= end)
         and (topic_match is None or bool(topic_match & set(_topics(chunk))))
+        and _matches_ontology_selection(chunk, area_match=area_match, activity_match=activity_match, cwd=cwd)
     ]
+
+
+def _decision_topic_groups(chunk: MemoryChunk, *, cwd: str | Path | None) -> list[dict[str, set[str]]]:
+    """Return per-decision Area/Activity membership, with a legacy fallback.
+
+    The sidecar's ordinal is the joining key. A flat topic union is used only
+    where the historic record has no decision attribution to preserve the
+    reader's existing entry-level semantics.
+    """
+    try:
+        index = load_topic_index(cwd) if cwd is not None else None
+    except Exception:  # noqa: BLE001 - a damaged vocabulary must fail open
+        index = None
+
+    def axis_of(slug: str) -> str | None:
+        return index.axis_of(slug) if index is not None else None
+
+    groups: dict[str, dict[str, set[str]]] = {}
+    for ordinal, slug in chunk.inferred_decision_topics or ():
+        axis = axis_of(slug)
+        if axis in {"area", "activity"}:
+            groups.setdefault(ordinal or "", {}).setdefault(axis, set()).add(slug)
+    if groups:
+        return list(groups.values())
+    legacy: dict[str, set[str]] = {}
+    for slug in _topics(chunk):
+        axis = axis_of(slug)
+        if axis in {"area", "activity"}:
+            legacy.setdefault(axis, set()).add(slug)
+    return [legacy] if legacy else []
+
+
+def _matches_ontology_selection(
+    chunk: MemoryChunk,
+    *,
+    area_match: set[str] | None,
+    activity_match: set[str] | None,
+    cwd: str | Path | None,
+) -> bool:
+    if area_match is None and activity_match is None:
+        return True
+    for group in _decision_topic_groups(chunk, cwd=cwd):
+        if area_match is not None and not (area_match & group.get("area", set())):
+            continue
+        if activity_match is not None and not (activity_match & group.get("activity", set())):
+            continue
+        return True
+    return False
+
+
+def _contextual_ontology_counts(
+    entries: Sequence[MemoryChunk],
+    *,
+    cwd: str | Path | None,
+    area: str | None,
+    activity: str | None,
+) -> dict[str, int]:
+    """Count self-excluding facet choices once per entry and slug."""
+    area_match = expand_topic_filter(cwd, [area]) if area and cwd is not None else ({area} if area else None)
+    activity_match = expand_topic_filter(cwd, [activity]) if activity and cwd is not None else ({activity} if activity else None)
+    counts: dict[str, int] = {}
+    for target_axis, required_match, required_axis in (
+        ("area", activity_match, "activity"),
+        ("activity", area_match, "area"),
+    ):
+        for chunk in entries:
+            seen: set[str] = set()
+            for group in _decision_topic_groups(chunk, cwd=cwd):
+                if required_match is not None and not (required_match & group.get(required_axis, set())):
+                    continue
+                seen.update(group.get(target_axis, set()))
+            for slug in seen:
+                counts[slug] = counts.get(slug, 0) + 1
+    return counts
 
 
 def _timeline_buckets(

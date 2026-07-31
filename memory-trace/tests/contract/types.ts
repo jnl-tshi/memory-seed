@@ -500,6 +500,13 @@ export interface components {
             merges: components["schemas"]["MergeEvent"][];
             /** Nodes */
             nodes: components["schemas"]["GraphNode"][];
+            /**
+             * Ontology
+             * @default {}
+             */
+            ontology: {
+                [key: string]: components["schemas"]["OntologyNode"][];
+            };
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -640,6 +647,13 @@ export interface components {
             entry_total?: number | null;
             /** Nodes */
             nodes: components["schemas"]["RendererGraphNode"][];
+            /**
+             * Ontology
+             * @default {}
+             */
+            ontology: {
+                [key: string]: components["schemas"]["OntologyNode"][];
+            };
         };
         /** RendererGraphSource */
         RendererGraphSource: {
@@ -851,6 +865,13 @@ export interface components {
             merges: components["schemas"]["MergeEvent"][];
             /** Nodes */
             nodes: components["schemas"]["TrailEvent"][];
+            /**
+             * Ontology
+             * @default {}
+             */
+            ontology: {
+                [key: string]: components["schemas"]["OntologyNode"][];
+            };
         };
         /** ValidationError */
         ValidationError: {
@@ -1004,6 +1025,8 @@ export interface operations {
                 date_from?: string | null;
                 date_to?: string | null;
                 topic?: string | null;
+                area?: string | null;
+                activity?: string | null;
                 worktree?: string | null;
             };
             header?: never;
@@ -1045,6 +1068,8 @@ export interface operations {
                 date_from?: string | null;
                 date_to?: string | null;
                 topic?: string | null;
+                area?: string | null;
+                activity?: string | null;
                 path?: string | null;
                 pinned_ids?: string | null;
                 include_decisions?: boolean;
@@ -1190,6 +1215,8 @@ export interface operations {
                 date_from?: string | null;
                 date_to?: string | null;
                 topic?: string | null;
+                area?: string | null;
+                activity?: string | null;
                 worktree?: string | null;
             };
             header?: never;

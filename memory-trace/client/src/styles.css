@@ -492,6 +492,9 @@ button.trail-diagram-badge {
 .ontology-all { width: 100%; margin-bottom: 4px; border: 1px solid var(--border-2); border-radius: 4px; padding: 3px 6px; background: transparent; color: var(--text-2); font-size: 11px; text-align: left; cursor: pointer; }
 .ontology-all:hover { border-color: var(--accent); color: var(--text); }
 .ontology-all.active { border-color: var(--accent); background: var(--accent-chip-bg); color: var(--on-accent); }
+.ontology-clear { width: 100%; margin: 0 0 7px; border: 0; background: transparent; color: var(--muted); padding: 2px 6px; font: inherit; font-size: 11px; text-align: left; text-decoration: underline; cursor: pointer; }
+.ontology-clear:hover, .ontology-clear:focus-visible { color: var(--accent); }.ontology-clear:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+.ontology-filter-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 7px; }.ontology-filter-chips .active-topic { max-width: 100%; margin: 0; }.ontology-filter-chips .active-topic svg { flex: none; }
 
 .tree, .tree-branch .tree { margin: 0; padding: 0; list-style: none; }
 .tree-item { min-width: 0; }
