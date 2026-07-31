@@ -1475,7 +1475,6 @@ export default function App() {
         {dock !== "bottom" && <div className="pane-resize pane-resize-inspector" role="separator" aria-orientation="vertical" aria-label="Resize inspector" title="Drag to resize" onPointerDown={startPaneResize("inspector")} />}
         <div className="inspector-bar"><div><span className="eyebrow">Inspector</span><h2>{titleFor(selected)}</h2></div><button className="icon-button" type="button" onClick={() => setDock("hidden")} aria-label="Hide inspector" title="Hide inspector"><X size={17} /></button></div>
         {selected && <div className="inspector-content" ref={inspectorContent}>
-          <EntryReader chunk={chunk} matchHeading={matchHeading} decisionHeading={matchHeading} relationships={readerRelationships} evidenceOpen={evidenceOpen} onOpenEntry={(entryId) => void openEntryInPlace(entryId)} onOpenDecision={openSiblingDecision} onOpenFile={(path) => void openFileMode(path)} onOpenEvidence={openEvidence} onReturnEvidence={returnFromEvidence} onOpenDiagram={(title, source) => setDiagramViewer({ title: title || chunk?.title || "Decision diagram", blocks: [{ title, source }] })} look={trailStyle.style} theme={theme} />
           <details className="entry-details">
             <summary>Entry details</summary>
             <dl className="metadata">
@@ -1509,6 +1508,7 @@ export default function App() {
             <div className="meta-item meta-wide"><dt>Topics</dt><dd>{selected.source.topics.length ? <span className="meta-topics">{selected.source.topics.map((topic) => <span className="meta-topic" key={topic}>{topic}</span>)}</span> : "None"}</dd></div>
             </dl>
           </details>
+          <EntryReader chunk={chunk} matchHeading={matchHeading} decisionHeading={matchHeading} relationships={readerRelationships} evidenceOpen={evidenceOpen} onOpenEntry={(entryId) => void openEntryInPlace(entryId)} onOpenDecision={openSiblingDecision} onOpenFile={(path) => void openFileMode(path)} onOpenEvidence={openEvidence} onReturnEvidence={returnFromEvidence} onOpenDiagram={(title, source) => setDiagramViewer({ title: title || chunk?.title || "Decision diagram", blocks: [{ title, source }] })} look={trailStyle.style} theme={theme} />
         </div>}
       </aside>}
       {diagramViewer && <DiagramViewer title={diagramViewer.title} blocks={diagramViewer.blocks} look={trailStyle.style} theme={theme} onClose={() => setDiagramViewer(null)} />}
