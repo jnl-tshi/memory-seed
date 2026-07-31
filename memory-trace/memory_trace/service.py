@@ -3826,6 +3826,22 @@ def _graph_node_id_for(granularity: str) -> Callable[[MemoryChunk], str | None]:
     return lambda chunk: chunk.entry_id
 
 
+def _decision_topics(chunk: MemoryChunk) -> dict[str, list[str]]:
+    """Decision topics grouped by their authored ``dN`` ordinal.
+
+    This remains a display channel rather than a flat substitute for `_topics`:
+    Area/Activity filtering must still join pairs within one decision.
+    """
+    grouped: dict[str, list[str]] = {}
+    for ordinal, slug in chunk.inferred_decision_topics or ():
+        if not ordinal or not slug:
+            continue
+        values = grouped.setdefault(ordinal, [])
+        if slug not in values:
+            values.append(slug)
+    return grouped
+
+
 def _graph_node(
     chunk: MemoryChunk,
     *,
@@ -3850,6 +3866,7 @@ def _graph_node(
         "branch_inferred": inferred_main,
         "agent": chunk.agent_type or chunk.agent_name or "unknown",
         "topics": _topics(chunk),
+        "decision_topics": _decision_topics(chunk),
         "granularity": chunk.granularity,
         "continuity": _continuity_to_api(chunk),
         "connectivity": connectivity,
@@ -3980,17 +3997,19 @@ def _expand_decision_rows(
         # `retrieval`, averaging away the distinction decision granularity exists
         # to record.
         source = (attributions or {}).get(entry_id)
+        decision_topics = _decision_topics(source) if source else dict(node.get("decision_topics") or {})
         by_ordinal: dict[str, dict[str, list[str]]] = {}
-        for ord_key, slug in getattr(source, "inferred_decision_topics", ()) or ():
-            if not ord_key:
-                continue
-            axis = _AXIS_OF(slug)
-            if axis:
-                by_ordinal.setdefault(ord_key, {}).setdefault(axis, []).append(slug)
+        for ord_key, topics in decision_topics.items():
+            for slug in topics:
+                axis = _AXIS_OF(slug)
+                if axis:
+                    by_ordinal.setdefault(ord_key, {}).setdefault(axis, []).append(slug)
         for ordinal, chunk in group:
-            axes = by_ordinal.get(f"d{ordinal}", {})
+            ordinal_key = f"d{ordinal}"
+            axes = by_ordinal.get(ordinal_key, {})
             area = sorted(axes.get("area", ()))
             activity = sorted(axes.get("activity", ()))
+            own_topics = decision_topics.get(ordinal_key, [])
             expanded.append(
                 dict(
                     node,
@@ -4002,7 +4021,10 @@ def _expand_decision_rows(
                     # "what is this row about". Falls back to the anchor's topics
                     # when a decision has no attribution - a row with no colour
                     # would read as a defect rather than as missing data.
-                    topics=sorted({*area, *activity}) or node.get("topics") or [],
+                    topics=own_topics or node.get("topics") or [],
+                    # Decision rows keep only their own mapping: siblings
+                    # must never be represented as part of this decision.
+                    decision_topics={ordinal_key: own_topics} if own_topics else {},
                     decision_area=area,
                     decision_activity=activity,
                     # Entry-scoped affordances stay on the anchor row only:

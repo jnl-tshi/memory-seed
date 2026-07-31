@@ -277,6 +277,28 @@ class DecisionRowPairTests(unittest.TestCase):
             text="d",
         )
 
+    def test_graph_node_keeps_decision_topics_ordinal_keyed(self):
+        from memory_trace.service import _graph_node
+
+        entry = self._entry_chunk(
+            [("d1", "memory-trace"), ("d1", "bugfix"), ("d2", "graph"), ("d2", "ui-design")]
+        )
+        node = _graph_node(entry)
+
+        self.assertEqual(node["decision_topics"], {
+            "d1": ["memory-trace", "bugfix"],
+            "d2": ["graph", "ui-design"],
+        })
+
+    def test_graph_node_without_decision_topics_keeps_legacy_entry_topics(self):
+        from memory_trace.service import _graph_node
+
+        entry = self._entry_chunk([])
+        node = _graph_node(entry)
+
+        self.assertEqual(node["decision_topics"], {})
+        self.assertEqual(node["topics"], [])
+
     def test_each_row_gets_its_own_pair(self):
         from memory_trace.service import _expand_decision_rows
 
@@ -300,6 +322,8 @@ class DecisionRowPairTests(unittest.TestCase):
         self.assertEqual(by["d2"]["decision_activity"], ["ui-design"])
         # The flat union stays, for consumers that only want "what is this about".
         self.assertEqual(by["d2"]["topics"], ["graph", "ui-design"])
+        self.assertEqual(by["d2"]["decision_topics"], {"d2": ["graph", "ui-design"]})
+        self.assertNotIn("d1", by["d2"]["decision_topics"])
 
     def test_a_decision_without_attribution_falls_back_to_the_entry(self):
         # A row with no colour would read as a defect rather than missing data.

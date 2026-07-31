@@ -342,6 +342,9 @@ class GraphNode(BaseModel):
     branch_inferred: bool
     agent: str
     topics: list[str]
+    # Decision-derived topics retain their Dn association. `topics` remains
+    # entry-level so display aggregation cannot widen filtering.
+    decision_topics: dict[str, list[str]] = Field(default_factory=dict)
     granularity: str
     continuity: list[ContinuityItem]
     connectivity: int
@@ -378,6 +381,8 @@ class RendererGraphSource(BaseModel):
     entry_id: str | None
     agent: str
     topics: list[str]
+    # Kept separate from entry-level `topics`; renderer aggregation is display-only.
+    decision_topics: dict[str, list[str]] = Field(default_factory=dict)
 
 
 class RendererGraphCommunity(BaseModel):

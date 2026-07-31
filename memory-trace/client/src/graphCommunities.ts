@@ -249,7 +249,14 @@ export function authoredNodeColour(
   canonical: TopicRoots | null = null,
 ): string | null {
   const bySlug = topicColourScale(corpusTopics, wheel, roots, focus, canonical);
-  const colours = (node.source?.topics ?? [])
+  // `source.topics` stays the entry-level contract. Decision topics are a
+  // display-only extension: parents with decision-only attribution still wear
+  // their authored colour, without flattening that attribution for filtering.
+  const displayTopics = [
+    ...(node.source?.topics ?? []),
+    ...Object.values(node.source?.decision_topics ?? {}).flat(),
+  ].filter((topic, index, all) => all.indexOf(topic) === index);
+  const colours = displayTopics
     .map(bySlug)
     .filter((colour): colour is string => colour !== null);
   if (!colours.length) return null;

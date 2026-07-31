@@ -888,6 +888,16 @@
             ],
             "title": "Decision Ordinal"
           },
+          "decision_topics": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Decision Topics",
+            "type": "object"
+          },
           "entry_id": {
             "anyOf": [
               {
@@ -1403,6 +1413,16 @@
           "chunk_id": {
             "title": "Chunk Id",
             "type": "string"
+          },
+          "decision_topics": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Decision Topics",
+            "type": "object"
           },
           "entry_id": {
             "anyOf": [
@@ -1975,6 +1995,16 @@
               }
             ],
             "title": "Decision Ordinal"
+          },
+          "decision_topics": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Decision Topics",
+            "type": "object"
           },
           "entry_id": {
             "anyOf": [

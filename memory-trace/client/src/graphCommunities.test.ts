@@ -266,6 +266,23 @@ test("a multi-topic node is painted the mixture, between its topics", () => {
   assert.ok(oklabDistance(blend, pureTrace) < span);
 });
 
+test("decision-only topics author a parent's display colour without changing entry topics", () => {
+  const decisionOnly = {
+    ...node("a", "graph"),
+    source: { topics: [], decision_topics: { d1: ["graph"], d2: ["memory-trace", "graph"] } },
+  } as never;
+  const bySlug = topicColourScale(CORPUS_TOPICS, WHEEL);
+  const colour = authoredNodeColour(decisionOnly, CORPUS_TOPICS, WHEEL);
+  const deDuplicated = authoredNodeColour(
+    { ...node("b", "graph"), source: { topics: ["graph", "memory-trace"], decision_topics: {} } } as never,
+    CORPUS_TOPICS,
+    WHEEL,
+  );
+  assert.ok(colour, "decision topics make the parent authored rather than unassigned");
+  assert.notEqual(colour, bySlug("graph"), "the de-duplicated union includes memory-trace too");
+  assert.equal(colour, deDuplicated, "repeated decision topics do not add colour weight");
+});
+
 test("below-floor topics do not drag the mixture", () => {
   const bySlug = topicColourScale(CORPUS_TOPICS, WHEEL);
   const noisy = { ...node("a", "graph"), source: { topics: ["graph", "licensing"] } } as never;

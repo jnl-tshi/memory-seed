@@ -73,6 +73,17 @@ class OpenApiContractFixtureTests(unittest.TestCase):
         for name in ("GraphNode", "TrailEvent"):
             self.assertIn("provenance_class", schemas[name]["properties"], name)
 
+    def test_graph_contract_preserves_ordinal_decision_topics(self):
+        schemas = self.fixture["components"]["schemas"]
+        self.assertEqual(
+            schemas["GraphNode"]["properties"]["decision_topics"]["additionalProperties"]["items"]["type"],
+            "string",
+        )
+        self.assertEqual(
+            schemas["RendererGraphSource"]["properties"]["decision_topics"]["additionalProperties"]["items"]["type"],
+            "string",
+        )
+
     def test_continuity_schema_uses_ordered_kind_from_to_shape(self):
         schemas = self.fixture["components"]["schemas"]
         continuity = schemas["ContinuityItem"]
