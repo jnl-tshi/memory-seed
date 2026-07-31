@@ -361,8 +361,7 @@ class DecisionRowPairTests(unittest.TestCase):
         self.assertEqual(by["d2"]["decision_topics"], {"d2": ["graph", "ui-design"]})
         self.assertNotIn("d1", by["d2"]["decision_topics"])
 
-    def test_a_decision_without_attribution_falls_back_to_the_entry(self):
-        # A row with no colour would read as a defect rather than missing data.
+    def test_a_decision_without_attribution_stays_neutral(self):
         from memory_trace.service import _expand_decision_rows
 
         sections = [self._section(1, "first"), self._section(2, "second")]
@@ -372,10 +371,16 @@ class DecisionRowPairTests(unittest.TestCase):
                 return sections
 
         entry = self._entry_chunk([("d1", "memory-trace"), ("d1", "bugfix")])
-        node = {"id": PAIRED, "entry_id": PAIRED, "topics": ["memory-trace", "bugfix"]}
+        node = {"id": PAIRED, "entry_id": PAIRED, "date": "2026-06-02", "topics": ["memory-trace", "bugfix"]}
 
         rows = _expand_decision_rows([node], _Cache(), attributions={PAIRED: entry})
         by = {r["decision_ordinal"]: r for r in rows if r.get("decision_ordinal")}
 
         self.assertEqual(by["d2"]["decision_area"], [])
-        self.assertEqual(by["d2"]["topics"], ["memory-trace", "bugfix"])
+        self.assertEqual(by["d2"]["topics"], [])
+        self.assertEqual(by["d2"]["decision_topics"], {})
+        projected = project_trace_graph(
+            {"nodes": [by["d2"]], "edges": []},
+            topic_frequencies={"memory-trace": 10, "bugfix": 10},
+        )
+        self.assertEqual(projected["nodes"][0]["community"]["id"], "community:unassigned")

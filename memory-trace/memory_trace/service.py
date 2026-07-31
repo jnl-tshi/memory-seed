@@ -4020,11 +4020,10 @@ def _expand_decision_rows(
                     chunk_id=chunk.chunk_id,
                     title=chunk.title,
                     granularity="section",
-                    # The pair, and the flat union for consumers that just want
-                    # "what is this row about". Falls back to the anchor's topics
-                    # when a decision has no attribution - a row with no colour
-                    # would read as a defect rather than as missing data.
-                    topics=own_topics or node.get("topics") or [],
+                    # A decision row carries only its own authored topics. The
+                    # parent can display its authored union, but an untagged
+                    # decision remains neutral rather than borrowing it.
+                    topics=own_topics,
                     # Decision rows keep only their own mapping: siblings
                     # must never be represented as part of this decision.
                     decision_topics={ordinal_key: own_topics} if own_topics else {},
