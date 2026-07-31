@@ -8,8 +8,8 @@ corpus and changed nothing a user could see.
 
 These tests pin the three things that wiring had to get right:
 
-1. `_topics()` UNIONS the inferred channel with the authored one, so a filter,
-   facet, chip and community colour all find a late-attributed entry.
+1. `_topics()` gives the sidecar-derived channel authority, while decision
+   attribution stays ordinal-keyed for rendering.
 2. The union happens at that one chokepoint. Every consumer reads it, which is
    what stops a legend coloured from one channel and a chip list rendered from
    the other from disagreeing.
@@ -25,12 +25,16 @@ from pathlib import Path
 from unittest import mock
 
 from memory_seed.core import resolve_runtime
+from memory_seed.retrieval import augment_chunks_with_topic_sidecars
 from memory_seed.semantic_cache import MemoryChunk
-from memory_trace.service import _topics, _tracked_document_paths, create_app
+from memory_trace.graph_projection import project_trace_graph
+from memory_trace.service import TraceCache, _graph_node, _topics, _tracked_document_paths, create_app
 
 ENTRY = "mse_" + "d" * 16
 OTHER = "mse_" + "e" * 16
 PAIRED = "mse_" + "f" * 16  # its own id: two entries sharing one is a UNIQUE violation
+REAL_ENTRY = "mse_d06t9bccm3yykfqs"
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _entry(dt, entry_id, title, topics=()):
@@ -217,6 +221,38 @@ class TopicSidecarReadPathTests(unittest.TestCase):
             any("sessions/topics/" in p for p in paths),
             f"topic sidecars missing from the tracked inputs: {paths}",
         )
+
+
+class RealCorpusDecisionSidecarTests(unittest.TestCase):
+    """The authored 2026-07-31 sidecar projects exact decision ordinals."""
+
+    def setUp(self):
+        self.cache_root = Path(tempfile.mkdtemp(prefix="mseed-real-topic-sidecar-cache-"))
+        self.addCleanup(lambda: shutil.rmtree(self.cache_root, ignore_errors=True))
+
+    def test_real_entry_projects_its_authored_decision_topics(self):
+        cache = TraceCache(REPOSITORY_ROOT, cache_root=self.cache_root)
+        parent = next(chunk for chunk in cache.chunks(granularity="entry") if chunk.entry_id == REAL_ENTRY)
+        enriched = next(
+            chunk
+            for chunk in augment_chunks_with_topic_sidecars([parent], REPOSITORY_ROOT)
+            if chunk.entry_id == REAL_ENTRY
+        )
+
+        node = _graph_node(enriched)
+        self.assertCountEqual(node["topics"], ["session-logging", "bugfix", "memory-trace", "security"])
+        self.assertEqual(
+            node["decision_topics"],
+            {
+                "d1": ["session-logging", "bugfix"],
+                "d2": ["memory-trace", "security"],
+            },
+        )
+        projected = project_trace_graph(
+            {"nodes": [node], "edges": []},
+            topic_frequencies={topic: 10 for topic in node["topics"]},
+        )
+        self.assertNotEqual(projected["nodes"][0]["community"]["id"], "community:unassigned")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { hexToOklab, minimumSeparation, oklabDistance } from "./colour.ts";
+import { minimumSeparation, oklabDistance } from "./colour.ts";
 import {
   authoredNodeColour,
   colourForCommunity,
@@ -10,7 +10,6 @@ import {
   communityColourScale,
   communityLegend,
   hasAuthoredCommunity,
-  inferredCommunityColours,
   MINIMUM_COLOUR_SEPARATION,
   topicColourScale,
   UNASSIGNED_COLOUR,
@@ -128,100 +127,15 @@ test("every palette colour is distinct", () => {
   assert.equal(new Set(COMMUNITY_COLOURS).size, COMMUNITY_COLOURS.length);
 });
 
-// --- Inferred pastel for entries with no topic ---
-
-const edge = (source: string, target: string) => ({ source, target });
-const scale = communityColourScale(CORPUS_TOPICS);
-
-test("a topicless node takes a pastel of the community it connects to", () => {
-  const inferred = inferredCommunityColours([node("plain", null), node("g1", "graph")], [edge("plain", "g1")], scale);
-  assert.ok(inferred.has("plain"));
-  assert.ok(!inferred.has("g1"), "a node with its own topic is never overridden");
-  const full = scale(node("g1", "graph"));
-  assert.notEqual(inferred.get("plain"), full, "inferred must never equal the authored colour");
-  // Pastel means LIGHTER than the full colour, not blended toward a dark page.
-  assert.ok(hexToOklab(inferred.get("plain")!)[0] > hexToOklab(full)[0]);
-});
-
-test("more agreeing neighbours means a stronger colour", () => {
-  const one = inferredCommunityColours(
-    [node("p", null), node("g1", "graph")],
-    [edge("p", "g1")],
-    scale,
-  ).get("p")!;
-  const three = inferredCommunityColours(
-    [node("p", null), node("g1", "graph"), node("g2", "graph"), node("g3", "graph")],
-    [edge("p", "g1"), edge("p", "g2"), edge("p", "g3")],
-    scale,
-  ).get("p")!;
-  const full = scale(node("g1", "graph"));
-  assert.ok(
-    oklabDistance(three, full) < oklabDistance(one, full),
-    "three agreeing neighbours must sit closer to the full colour than one",
-  );
-});
-
-test("strength is capped below the authored colour even under overwhelming agreement", () => {
-  const many = [node("p", null), ...Array.from({ length: 12 }, (_, i) => node(`g${i}`, "graph"))];
-  const inferred = inferredCommunityColours(many, many.slice(1).map((n, i) => edge("p", `g${i}`)), scale);
-  assert.notEqual(inferred.get("p"), scale(node("g0", "graph")));
-});
-
-test("mixed neighbourhoods blend rather than letting the majority take the node", () => {
-  const mixed = inferredCommunityColours(
-    [node("p", null), node("g1", "graph"), node("g2", "graph"), node("r1", "release")],
-    [edge("p", "g1"), edge("p", "g2"), edge("p", "r1")],
-    scale,
-  ).get("p")!;
-  const pureGraph = inferredCommunityColours(
-    [node("p", null), node("g1", "graph"), node("g2", "graph"), node("g3", "graph")],
-    [edge("p", "g1"), edge("p", "g2"), edge("p", "g3")],
-    scale,
-  ).get("p")!;
-  assert.notEqual(mixed, pureGraph, "a release vote must pull the blend off the pure graph colour");
-});
-
-test("residue travels down a topicless chain and weakens with every hop", () => {
-  // g1 -> a -> b -> c: a chain of topicless entries hanging off one classified
-  // node. Each link should be fainter (further from the full colour) than the
-  // one before it.
-  const nodes = [node("g1", "graph"), node("a", null), node("b", null), node("c", null)];
-  const chain = [edge("g1", "a"), edge("a", "b"), edge("b", "c")];
-  const inferred = inferredCommunityColours(nodes, chain, scale);
-  const full = scale(node("g1", "graph"));
-  const fade = ["a", "b", "c"].map((id) => oklabDistance(inferred.get(id)!, full));
-  assert.ok(fade[0] < fade[1] && fade[1] < fade[2], `residue must decay along the chain, got ${fade}`);
-});
-
-test("residue stops dead at the hop cap", () => {
-  const ids = ["a", "b", "c", "d", "e"];
-  const nodes = [node("g1", "graph"), ...ids.map((id) => node(id, null))];
-  const chain = [edge("g1", "a"), edge("a", "b"), edge("b", "c"), edge("c", "d"), edge("d", "e")];
-  const inferred = inferredCommunityColours(nodes, chain, scale);
-  assert.ok(inferred.has("c"), "hop 3 is inside the cap");
-  assert.ok(!inferred.has("d"), "hop 4 is beyond the cap and must stay neutral");
-  assert.ok(!inferred.has("e"));
-});
-
-test("classified nodes never relay residue", () => {
-  // g1 -> r1 -> b: the walk from g1 must NOT pass through classified r1, so b
-  // sees only release, not graph.
-  const nodes = [node("g1", "graph"), node("r1", "release"), node("b", null)];
-  const inferred = inferredCommunityColours(nodes, [edge("g1", "r1"), edge("r1", "b")], scale);
-  const viaRelease = inferredCommunityColours([node("r1", "release"), node("b", null)], [edge("r1", "b")], scale);
-  assert.equal(inferred.get("b"), viaRelease.get("b"), "graph's colour must not leak through release");
-});
-
-test("ties do not depend on edge order", () => {
-  const nodes = [node("plain", null), node("g1", "graph"), node("r1", "release")];
-  const forward = inferredCommunityColours(nodes, [edge("plain", "g1"), edge("plain", "r1")], scale);
-  const backward = inferredCommunityColours(nodes, [edge("plain", "r1"), edge("plain", "g1")], scale);
-  assert.equal(forward.get("plain"), backward.get("plain"));
-});
-
-test("a topicless island with no classified contact stays neutral", () => {
-  const inferred = inferredCommunityColours([node("a", null), node("b", null)], [edge("a", "b")], scale);
-  assert.equal(inferred.size, 0);
+test("a topicless linked node stays neutral", () => {
+  const topicless = {
+    ...node("plain", null),
+    // The relationship is intentionally present but cannot become a topic
+    // channel. GraphWorkspace passes only this authored source to colouring.
+    source: { topics: [], decision_topics: {}, links: ["g1"] },
+  } as never;
+  assert.equal(authoredNodeColour(topicless, CORPUS_TOPICS), null);
+  assert.equal(communityColourScale(CORPUS_TOPICS)(topicless), UNASSIGNED_COLOUR);
 });
 
 // --- Wheel ordering and topic mixtures ---
@@ -281,6 +195,20 @@ test("decision-only topics author a parent's display colour without changing ent
   assert.ok(colour, "decision topics make the parent authored rather than unassigned");
   assert.notEqual(colour, bySlug("graph"), "the de-duplicated union includes memory-trace too");
   assert.equal(colour, deDuplicated, "repeated decision topics do not add colour weight");
+});
+
+test("authored decision rows retain only their own ordinal topics", () => {
+  const parent = {
+    ...node("parent", "graph"),
+    source: { topics: [], decision_topics: { d1: ["graph"], d2: ["memory-trace"] } },
+  } as never;
+  const d1 = { ...node("parent:d1", "graph"), source: { topics: [], decision_topics: { d1: ["graph"] } } } as never;
+  const d2 = { ...node("parent:d2", "memory-trace"), source: { topics: [], decision_topics: { d2: ["memory-trace"] } } } as never;
+  const bySlug = topicColourScale(CORPUS_TOPICS, WHEEL);
+
+  assert.ok(authoredNodeColour(parent, CORPUS_TOPICS, WHEEL), "the union colours the parent for display");
+  assert.equal(authoredNodeColour(d1, CORPUS_TOPICS, WHEEL), bySlug("graph"));
+  assert.equal(authoredNodeColour(d2, CORPUS_TOPICS, WHEEL), bySlug("memory-trace"));
 });
 
 test("below-floor topics do not drag the mixture", () => {
