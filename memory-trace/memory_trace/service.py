@@ -1822,8 +1822,14 @@ class TraceService:
         )
         node_id = _graph_node_id_for(granularity)
         edge_type_set = set(edge_types)
+        # Scope selection is deliberately independent of edge display. A
+        # display chip can hide or show a relationship, but it must never
+        # reshape the logical Graph response that drives contextual ontology.
+        # Only authored lifecycle relationships define that response; derived
+        # topic/agent/day (and branch) edges are display-only.
+        scope_edge_types = {"related", "replaces", "evolves"}
         base_by_id = {node_id(chunk): chunk for chunk in base_entries if node_id(chunk)}
-        base_edges = _graph_edges(base_entries, edge_type_set, node_id=node_id)
+        scope_edges = _graph_edges(base_entries, scope_edge_types, node_id=node_id)
         base_visible_ids = list(base_by_id)
         if entry_ids is not None:
             # File mode: an exact, pre-resolved membership set (every entry
@@ -1843,7 +1849,7 @@ class TraceService:
             # still terminates on the decision row, via
             # _decision_edges_for_rows), so nothing here projects "B:d2 evolves
             # A:d1" up into "B evolves A".
-            reach = list(base_edges)
+            reach = list(scope_edges)
             if include_decisions:
                 for source_entry_id, sidecar in self._link_sidecars().items():
                     for kind, _src_ordinal, target_entry_id, _ordinal in sidecar.get("decision_edges", ()):
@@ -1870,10 +1876,10 @@ class TraceService:
             }
             base_limited_ids = _overview_slice(
                 base_visible_ids,
-                base_edges,
+                scope_edges,
                 limit=_limit(limit, maximum=1000),
                 recency_rank=recency_rank,
-                expand_types={"replaces", "evolves", "related"} & edge_type_set,
+                expand_types=scope_edge_types,
             )
         # Pinned entries: the Trail's currently-loaded window. Whatever the
         # ranked overview would have chosen, an entry the user can already SEE
@@ -1884,15 +1890,14 @@ class TraceService:
         # it was never a claim about what the user is allowed to see.
         if pinned_ids:
             pinned = [item_id for item_id in pinned_ids if item_id in base_by_id]
-            # Depth-1 over the lifecycle edges that are actually being RENDERED,
-            # so a pinned entry arrives with its most relevant relationships
-            # rather than as a lone dot. Expanding over an edge type the user
-            # has filtered off would add a node whose only tie is invisible.
-            lifecycle = {"replaces", "evolves", "related"} & edge_type_set
-            if lifecycle:
+            # Depth-1 over the same stable lifecycle relationships used for
+            # scope selection. Pins legitimately add visible entries, but
+            # changing display chips must not decide which neighbours a pin
+            # contributes to the logical response.
+            if scope_edge_types:
                 pinned_set = set(pinned)
-                for edge in base_edges:
-                    if edge["type"] not in lifecycle:
+                for edge in scope_edges:
+                    if edge["type"] not in scope_edge_types:
                         continue
                     for near, far in ((edge["source"], edge["target"]), (edge["target"], edge["source"])):
                         if near in pinned_set and far in base_by_id:
@@ -3766,13 +3771,14 @@ def _overview_slice(
     expansion over ``expand_types`` then pulls in the entries the spine points
     at **regardless of their date**: the spine is the shared backbone of both
     views, and the extra nodes exist only so the Graph can show what those
-    entries relate to. The Trail stays purely chronological and is unaffected.
+    entries relate to. The caller supplies the stable scope relationships here;
+    edge-display settings only control which edges are emitted later. The Trail
+    stays purely chronological and is unaffected.
 
     Expansion is one hop from the spine, never iterated, so a single old entry
     cannot drag its whole neighbourhood in behind it. ``expand_types`` should be
-    the lifecycle kinds currently being rendered - expanding over an edge type
-    the user has filtered off would add a node whose only tie is invisible, the
-    same rule the pinned-entry expansion follows.
+    the authored lifecycle kinds that define scope, not caller-selected display
+    types; otherwise toggling an edge chip would change node membership.
 
     This replaced a connectivity ranking (highest-degree seeds, greedy frontier)
     which produced a well-connected map whose membership had no relation to
