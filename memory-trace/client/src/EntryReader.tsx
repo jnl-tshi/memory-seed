@@ -1,9 +1,9 @@
-import { Fragment, useId, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import type { ChunkResponse } from "./api";
 import { DiagramView } from "./DiagramView";
 import type { TraceLook } from "./mermaidConfig";
-import { decisionSections, evidenceAnchor, selectedDecision } from "./decisionReaderModel";
+import { decisionSections, entrySections, evidenceAnchor, selectedDecision } from "./decisionReaderModel";
 
 // ChunkResponse.diagrams is typed as a generic record array in the OpenAPI
 // contract (the backend's sidecar dict has no schema of its own); this is the
@@ -158,10 +158,7 @@ function renderMarkdown(text: string, highlight: string | null, onOpenFile: (pat
     if (draftBullet) {
       draft = draftBullet[1];
       const body = draftBullet[2].trim();
-      // "Decision" is already the heading above; labelling it again is noise.
-      if (draft !== "D") {
-        out.push(<h5 key={key++} className={`draft-label draft-${draft.toLowerCase()}`}>{DRAFT_LABELS[draft]}</h5>);
-      }
+      out.push(<h5 key={key++} className={`draft-label draft-${draft.toLowerCase()}`}>{DRAFT_LABELS[draft]}</h5>);
       if (!body) continue;
       if (draft === "F") {
         const files = fileTokens(body);
@@ -202,8 +199,7 @@ function renderMarkdown(text: string, highlight: string | null, onOpenFile: (pat
 
 // DRAFT is the entry grammar: Decision, Reason, Alternatives, Files, Tests.
 // Stored as terse "- D:" / "- R:" bullets, which is compact to author and
-// unreadable to scan — so the reader spells them out. D carries no label of its
-// own: the "Decision" heading above it already names it.
+// unreadable to scan — so the reader spells every field out consistently.
 const DRAFT_LABELS: Record<string, string> = { D: "Decision", R: "Reason", A: "Alternatives", F: "Files", T: "Tests" };
 const DRAFT_BULLET = /^-\s*([DRAFT]):\s*(.*)$/;
 
@@ -226,8 +222,6 @@ export function EntryReader({
   matchHeading,
   decisionHeading,
   relationships,
-  stateLabel,
-  worktree,
   evidenceOpen,
   onOpenEntry,
   onOpenDecision,
@@ -242,8 +236,6 @@ export function EntryReader({
   matchHeading: string | null;
   decisionHeading: string | null;
   relationships: ReaderRelationship[];
-  stateLabel: "Recorded" | "Derived" | "Suggested";
-  worktree: string | null;
   evidenceOpen: boolean;
   onOpenEntry: (entryId: string) => void;
   onOpenDecision: (heading: string) => void;
@@ -254,11 +246,27 @@ export function EntryReader({
   look: TraceLook;
   theme: string;
 }) {
-  if (!chunk) return <p className="reader-empty">Loading entry details</p>;
-
-  const sourceAnchor = evidenceAnchor(chunk.path, chunk.line_range);
-  const decisions = decisionSections(chunk.text || chunk.excerpt || "");
+  const decisionWindow = useRef<HTMLDivElement>(null);
+  const decisionNodes = useRef<Record<string, HTMLElement | null>>({});
+  const decisionRegionId = useId();
+  const markdown = chunk?.text || chunk?.excerpt || "";
+  const sourceAnchor = evidenceAnchor(chunk?.path, chunk?.line_range);
+  const decisions = decisionSections(markdown);
   const activeDecision = selectedDecision(decisions, decisionHeading);
+  const sections = entrySections(markdown);
+  const summarySections = sections.filter((section) => section.heading.toLowerCase() === "summary");
+  const supportingSections = sections.filter((section) => section.heading.toLowerCase() !== "summary");
+
+  useEffect(() => {
+    const container = decisionWindow.current;
+    const target = activeDecision ? decisionNodes.current[activeDecision.heading] : null;
+    if (!container || !target) return;
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+    container.scrollTo({ top: Math.max(0, top), behavior: reducedMotion ? "auto" : "smooth" });
+  }, [activeDecision?.heading, chunk?.chunk_id]);
+
+  if (!chunk) return <p className="reader-empty">Loading entry details</p>;
 
   // Evidence is an in-place reader mode rather than a route change. The App
   // keeps the selected `(entry_id, decision)` and the inspector scroll snapshot,
@@ -271,9 +279,8 @@ export function EntryReader({
             <button type="button" className="reader-return" onClick={onReturnEvidence} autoFocus>
               Return to decision
             </button>
-            <span className="state-badge recorded">Recorded source</span>
           </div>
-          <h4 id="evidence-source-title">Exact Markdown evidence</h4>
+          <h4 id="evidence-source-title">Exact Markdown</h4>
           {sourceAnchor.available ? (
             <p className="evidence-path"><code>{sourceAnchor.label}</code></p>
           ) : (
@@ -285,137 +292,112 @@ export function EntryReader({
     );
   }
 
-  const linkGroups: Array<[string, string[]]> = (
-    [
-      ["Related", chunk.related_entries ?? []],
-      ["Backlinks", chunk.backlinks ?? []],
-    ] as Array<[string, string[]]>
-  ).filter(([, ids]) => ids.length > 0);
-
   const suggestionGroups: Array<[string, ChunkResponse["suggestions"][keyof ChunkResponse["suggestions"]]]> = (
     Object.entries(chunk.suggestions ?? {}) as Array<
       [string, ChunkResponse["suggestions"][keyof ChunkResponse["suggestions"]]]
     >
   ).filter(([, items]) => items.length > 0);
 
-  const commit = chunk.commit;
-
   return (
     <div className="reader">
-      {activeDecision && (
-        <section className="decision-focus" data-decision-reader tabIndex={-1} aria-labelledby="active-decision-title">
-          <div className="decision-focus-kicker">
-            <span className={`state-badge ${stateLabel.toLowerCase()}`}>{stateLabel}</span>
-            {activeDecision.ordinal && <span className="count">{activeDecision.ordinal.toUpperCase()}</span>}
-            {worktree && <span className="count" title={worktree}>Worktree · {worktree.split(/[\\/]/).filter(Boolean).pop()}</span>}
+      {summarySections.map((section, index) => (
+        <section className={`detail-section entry-segment${section.heading === matchHeading ? " reader-match-anchor" : ""}`} key={`${section.heading}-${index}`}>
+          <h4>{section.heading}</h4>
+          <div className="markdown">{renderMarkdown(section.text, null, onOpenFile)}</div>
+        </section>
+      ))}
+
+      {decisions.length > 0 && (
+        <section className="detail-section decisions-segment" aria-labelledby={`${decisionRegionId}-title`}>
+          <div className="segment-heading">
+            <h4 id={`${decisionRegionId}-title`}>Decisions</h4>
+            <span className="count">{decisions.length}</span>
           </div>
-          <h3 id="active-decision-title">{activeDecision.title}</h3>
-          {activeDecision.text ? <div className="markdown decision-body">{renderMarkdown(activeDecision.text, null, onOpenFile)}</div> : <p className="reader-empty">No decision body was recorded.</p>}
           {decisions.length > 1 && (
-            <div className="decision-siblings">
-              <span className="count">Other decisions in this entry</span>
-              {decisions.map((decision) => (
-                <button
-                  key={decision.heading}
-                  type="button"
-                  className="decision-sibling"
-                  aria-current={decision.heading === activeDecision.heading ? "true" : undefined}
-                  disabled={decision.heading === activeDecision.heading}
-                  onClick={() => onOpenDecision(decision.heading)}
-                >
-                  {decision.ordinal?.toUpperCase() ?? "Decision"} · {decision.title}
-                </button>
-              ))}
-            </div>
+            <nav className="decision-selector" aria-label="Decisions in this entry">
+              {decisions.map((decision) => {
+                const selected = decision.heading === activeDecision?.heading;
+                return (
+                  <button key={decision.heading} type="button" className="decision-selector-item" aria-current={selected ? "true" : undefined} aria-controls={decisionRegionId} onClick={() => onOpenDecision(decision.heading)}>
+                    <span>{decision.ordinal?.toUpperCase() ?? "Decision"}</span>
+                    <small>{decision.title}</small>
+                  </button>
+                );
+              })}
+            </nav>
           )}
+          <div className="decision-window" id={decisionRegionId} ref={decisionWindow} tabIndex={0} aria-label="Decision details">
+            {decisions.map((decision) => {
+              const selected = decision.heading === activeDecision?.heading;
+              const headingId = `${decisionRegionId}-${decision.ordinal ?? "decision"}`;
+              return (
+                <article
+                  key={decision.heading}
+                  ref={(node) => { decisionNodes.current[decision.heading] = node; }}
+                  className={`decision-entry${selected ? " selected" : ""}${decision.heading === matchHeading ? " reader-match-anchor" : ""}`}
+                  data-decision-reader={selected ? true : undefined}
+                  tabIndex={selected ? -1 : undefined}
+                  aria-labelledby={headingId}
+                >
+                  <header className="decision-entry-heading">
+                    {decision.ordinal && <span className="decision-ordinal">{decision.ordinal.toUpperCase()}</span>}
+                    <h3 id={headingId}>{decision.title}</h3>
+                  </header>
+                  {decision.text ? <div className="markdown decision-body">{renderMarkdown(decision.text, null, onOpenFile)}</div> : <p className="reader-empty">No decision body was recorded.</p>}
+                </article>
+              );
+            })}
+          </div>
         </section>
       )}
 
+      {supportingSections.map((section, index) => (
+        <section className={`detail-section entry-segment${section.heading === matchHeading ? " reader-match-anchor" : ""}`} key={`${section.heading}-${index}`}>
+          <h4>{section.heading}</h4>
+          <div className="markdown">{renderMarkdown(section.text, null, onOpenFile)}</div>
+        </section>
+      ))}
+
       {relationships.length > 0 && (
         <section className="detail-section reader-lifecycle">
-          <h4>Lifecycle <span className="count">Derived from typed links</span></h4>
+          <h4>Related decisions</h4>
           {relationships.map((relationship) => (
-            <button key={`${relationship.kind}-${relationship.entryId}`} type="button" className="link-card" onClick={() => onOpenEntry(relationship.entryId)}>
+            <button key={`${relationship.kind}-${relationship.entryId}`} type="button" className={`link-card relationship-${relationship.outgoing ? "out" : "in"}`} onClick={() => onOpenEntry(relationship.entryId)}>
               <span>{relationship.kind} {relationship.outgoing ? "→" : "←"} {relationship.title}</span>
-              <small className="count">Derived · typed relationship projection</small>
             </button>
           ))}
         </section>
       )}
 
-      {chunk.sections.length > 0 && (
-        <div className="chip-list">
-          {chunk.sections.map((section) => (
-            <span key={section} className="chip">
-              {section}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <section className="detail-section session-context">
-        <h4>Session context <span className="count">Recorded entry</span></h4>
-        <div className="markdown">{renderMarkdown(chunk.text || chunk.excerpt || "", matchHeading, onOpenFile)}</div>
-      </section>
-
       <section className="detail-section">
-        <h4>Evidence</h4>
-        {commit && (
-          <div className="commit-card">
-            <code>{commit.short}</code>
-            <span>{commit.subject}</span>
-            <small className="count">{commit.date}</small>
-          </div>
-        )}
+        <h4>Source</h4>
         {sourceAnchor.available ? (
           <button type="button" className="evidence-link" onClick={onOpenEvidence}>
-            <span>{sourceAnchor.label}</span>
-            <small>Open exact Markdown and return here</small>
+            <span>View exact Markdown</span>
+            <small>{sourceAnchor.label}</small>
           </button>
         ) : (
           <p className="missing-source" role="status">{sourceAnchor.label}. This reader will not manufacture a summary.</p>
         )}
       </section>
 
-      {linkGroups.length > 0 && (
-        <section className="detail-section">
-          <h4>Linked memories</h4>
-          {linkGroups.map(([label, ids]) => (
-            <div key={label} className="link-group">
-              <div className="count">
-                {label} · {ids.length}
-              </div>
-              {ids.map((id) => (
-                <button key={id} type="button" className="link-card" onClick={() => onOpenEntry(id)}>
-                  {id}
-                </button>
-              ))}
-            </div>
-          ))}
-        </section>
-      )}
-
       {suggestionGroups.length > 0 && (
-        <section className="detail-section">
-          <h4>Related activity</h4>
-          {suggestionGroups.map(([label, items]) => (
-            <div key={label} className="link-group">
-              <div className="count">{label.replace(/_/g, " ")}</div>
-              {items.map((item) => (
-                <button
-                  key={item.chunk_id}
-                  type="button"
-                  className="link-card"
-                  disabled={!item.entry_id}
-                  onClick={() => item.entry_id && onOpenEntry(item.entry_id)}
-                >
-                  <span>{item.title}</span>
-                  <small className="count">{item.date}</small>
-                </button>
-              ))}
-            </div>
-          ))}
-        </section>
+        <details className="reader-disclosure">
+          <summary>Related activity <span className="count">{suggestionGroups.reduce((total, [, items]) => total + items.length, 0)}</span></summary>
+          <div className="reader-disclosure-content">
+            {suggestionGroups.map(([label, items]) => (
+              <div key={label} className="link-group">
+                <div className="count">{label.replace(/_/g, " ")}</div>
+                {items.map((item) => (
+                  <button key={item.chunk_id} type="button" className="link-card" disabled={!item.entry_id} onClick={() => item.entry_id && onOpenEntry(item.entry_id)}>
+                    <span>{item.title}</span>
+                    <small className="count">{item.date}</small>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        </details>
       )}
 
       {chunk.diagrams.length > 0 && (
@@ -448,7 +430,7 @@ export function EntryReader({
         </section>
       )}
 
-      {!chunk.text && !linkGroups.length && !commit && !activeDecision && (
+      {!chunk.text && !activeDecision && (
         <Fragment>
           <p className="reader-empty">No further detail recorded for this entry.</p>
         </Fragment>

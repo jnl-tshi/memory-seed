@@ -202,10 +202,43 @@ button:not(:disabled):active { transform: translateY(0); transition-duration: 40
    live motion stops above the measured node budget. */
 .settings-note { color: var(--muted); font-size: 11px; line-height: 1.45; }
 
-.reader { display: grid; gap: 18px; }.reader-empty { margin: 0; color: var(--muted); font-size: 13px; }
-/* M1 reader: decision first, with the surrounding entry still visibly present
-   below it. State is named in text, so it never depends on colour alone. */
-.decision-focus { display: grid; gap: 9px; padding: 11px; border: 1px solid var(--accent); border-radius: 6px; background: var(--selected-bg); }.decision-focus:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 2px; }.decision-focus-kicker, .reader-return-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }.decision-focus h3 { margin: 0; color: var(--text-bright); font-size: 15px; line-height: 1.32; }.decision-body { padding-top: 2px; }.state-badge { display: inline-block; border: 1px solid var(--border-2); border-radius: 999px; background: var(--chip); color: var(--text-2); padding: 1px 7px; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }.state-badge.suggested { border-color: var(--match-border); background: var(--match-bg); color: var(--advisory-text); }.state-badge.derived { border-style: dashed; }.decision-siblings { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding-top: 5px; border-top: 1px solid var(--border); }.decision-siblings > .count { flex-basis: 100%; }.decision-sibling { max-width: 100%; overflow: hidden; border: 1px solid var(--border-2); border-radius: 3px; background: var(--panel); color: var(--text-2); padding: 2px 6px; font: inherit; font-size: 11px; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }.decision-sibling:hover:not(:disabled), .decision-sibling:focus-visible { border-color: var(--accent); color: var(--text); }.decision-sibling:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }.decision-sibling:disabled { border-color: var(--accent); color: var(--text-bright); cursor: default; }
+.reader { display: grid; gap: 0; }.reader-empty { margin: 0; color: var(--muted); font-size: 13px; }
+/* The entry is the unit of meaning. Decisions are peers inside one bounded
+   reader rather than separate cards competing for importance. */
+.reader > .detail-section:first-child { padding-top: 0; border-top: 0; }
+.segment-heading, .reader-return-row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.segment-heading .count { margin-left: auto; }
+.decision-selector { display: flex; gap: 3px; overflow-x: auto; padding: 1px 0 5px; }
+.decision-selector-item { flex: 1 0 92px; min-width: 0; display: grid; gap: 1px; overflow: hidden; border: 0; border-bottom: 2px solid transparent; border-radius: 2px 2px 0 0; background: transparent; color: var(--muted); padding: 5px 6px; text-align: left; cursor: pointer; }
+.decision-selector-item span { font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.decision-selector-item small { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.decision-selector-item:hover, .decision-selector-item:focus-visible { background: var(--hover); color: var(--text); }
+.decision-selector-item:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+.decision-selector-item[aria-current="true"] { border-bottom-color: var(--accent); color: var(--text-bright); }
+.decision-window { max-height: min(48vh, 520px); overflow: auto; overscroll-behavior: contain; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); scroll-behavior: smooth; }
+.decision-window:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+.decision-entry { display: grid; gap: 7px; padding: 14px 8px 16px; border-left: 2px solid transparent; border-bottom: 1px solid var(--border); scroll-margin-top: 0; }
+.decision-entry:last-child { border-bottom: 0; }
+.decision-entry.selected { border-left-color: var(--accent); background: var(--selected-bg); }
+.decision-entry-heading { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 8px; }
+.decision-entry-heading h3 { margin: 0; color: var(--text-bright); font-family: var(--font-display); font-size: 15px; line-height: 1.3; }
+.decision-entry-heading h3:only-child { grid-column: 1 / -1; }
+.decision-ordinal { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.decision-body { padding-top: 1px; }
+.reader-match-anchor { box-shadow: inset 2px 0 0 var(--match-border); background: var(--match-bg); }
+.relationship-out { border-color: var(--accent); }
+.relationship-in { border-style: dashed; }
+.reader-disclosure, .entry-details { border-top: 1px solid var(--border); }
+.reader-disclosure { padding-top: 13px; }
+.reader-disclosure summary, .entry-details summary { color: var(--muted); font-size: 11px; font-weight: 650; cursor: pointer; }
+.reader-disclosure summary:hover, .entry-details summary:hover { color: var(--text-bright); }
+.reader-disclosure-content { display: grid; gap: 10px; padding-top: 10px; }
+.entry-details { margin-top: 16px; padding-top: 11px; }
+.entry-details .metadata { margin: 10px 0 0; padding-bottom: 0; border-bottom: 0; }
+.trace-shell.inspector-bottom .decision-window { max-height: none; overflow: visible; }
+@container inspector (max-width: 280px) { .decision-window { max-height: none; overflow: visible; } }
+@media (max-width: 860px) { .decision-window { max-height: none; overflow: visible; } }
+@media (prefers-reduced-motion: reduce) { .decision-window { scroll-behavior: auto; } }
 /* Collapsible entry metadata. The grid 0fr->1fr trick animates to auto height,
    which a plain max-height cannot do honestly; <details> was rejected because
    the browser hides its content the moment it closes, so the closing animation
@@ -243,10 +276,6 @@ button:not(:disabled):active { transform: translateY(0); transition-duration: 40
    and the Files block becomes one pill per path. */
 .draft-label { margin: 12px 0 3px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 .draft-label::before { content: ""; display: inline-block; width: 12px; margin-right: 6px; border-top: 2px solid currentColor; vertical-align: middle; }
-.draft-r { color: var(--edge-evolves); }
-.draft-a { color: var(--edge-replaces); }
-.draft-f { color: var(--accent); }
-.draft-t { color: var(--edge-related); }
 .markdown p.draft-body { margin: 0 0 6px; }
 .file-pills { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
 .file-pill { max-width: 100%; overflow: hidden; border: 1px solid var(--border-2); border-radius: 3px; background: var(--code-bg); color: var(--text-2); padding: 2px 6px; font-family: ui-monospace, Consolas, monospace; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }

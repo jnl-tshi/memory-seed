@@ -27,8 +27,8 @@ Dependencies: [`../3_Spec/memory-trace-trail-search-and-graph-ux.md`](../3_Spec/
 [`memory-trace-graph-and-workspace-proposal-set-index.md`](memory-trace-graph-and-workspace-proposal-set-index.md),
 and the renderer-neutral graph and provenance specifications.
 Acceptance criteria: Each implemented increment is fixture- and accessibility-gated, preserves exact
-Markdown/Git provenance and the active Trail parity contract, and exposes whether displayed information is
-recorded, derived, or suggested.
+Markdown/Git provenance and the active Trail parity contract, and exposes the origin of sidecar or projected
+information where it can be recorded, derived, or suggested.
 
 ## 1. Purpose and decision
 
@@ -56,10 +56,12 @@ This proposal is conformant only under the following rules.
 1. **Trace is a derived, local-first experience layer.** Markdown entries, append-only sidecars, and Git
    remain the authority. Viewport positions, layout choices, clusters, cached results, and inferred
    relationships are rebuildable projections.
-2. **The decision is the primary reading target; the entry is durable context.** A decision cannot be
-   detached from the entry, author, time, branch, and evidence that establish its provenance.
-3. **Authority must be visible.** Every material claim is labelled as recorded (first-hand), derived
-   deterministically, or suggested/reconstructed. A confidence value alone is insufficient.
+2. **The entry is the reading context; each decision remains a stable target.** Multi-decision entries keep
+   their summary and supporting sections once, while every D1/D2 decision has equal weight in one selectable
+   reader. A decision cannot be detached from the entry and evidence that establish its context.
+3. **Authority must be available without crowding authored content.** Canonical DRAFT fields are recorded by
+   definition. Sidecar and projected claims expose whether they are recorded, derived deterministically, or
+   suggested/reconstructed; technical detail may sit behind a disclosure.
 4. **Evidence is navigable.** The UI links to the exact Markdown file, decision slice, heading, or source
    artefact that supports a claim. It must not silently substitute a generated summary for that source.
 5. **Chronology and semantic lineage have separate visual grammars.** Git/worktree/merge lanes show where
@@ -86,7 +88,7 @@ gaps into an explicit build sequence:
 | Existing contract | Implementation clarification from the reference model |
 | --- | --- |
 | Trail is primary and has branch/merge lanes. | Long histories need a continuously visible main/trunk spine, a clear range/minimap model, highlight-before-filter behaviour, and retained selection while filters change. |
-| Inspector is a document/evidence workspace. | It needs an explicit decision reader: decision, rationale, consequences, lifecycle, evidence, then surrounding session context. |
+| Inspector is a document/evidence workspace. | It needs a lightweight segmented reader: summary, one equal-weight decision window, supporting entry sections, related decisions, source, then disclosed technical detail. |
 | Graph starts local and is bounded. | Area and Activity become named perspectives that apply consistently to graph grouping, Trail filters, search suggestions, and decision badges. |
 | Search navigates from ranked results to Trail. | Quick Open, structured historical query, and UI command modes must be distinguishable and show their applied criteria rather than silently translating them. |
 | Shared selection spans Trail, graph, and inspector. | A selection must stay anchored through source navigation, filter changes, and local graph expansion. |
@@ -118,22 +120,24 @@ freezes the shared terminology, named inputs, and fixture gaps. M1 and M2 shippe
 
 ### M1 — decision reader and evidence return path
 
-**Delivered 2026-07-30.** The Inspector now projects one selected `(entry_id, decision)` as a decision-first
-reader, preserves that identity while an in-place exact-Markdown evidence view is open, and returns to the
-saved Inspector scroll position without changing the Trail selection. It names Recorded, Derived, and
-Suggested state in text; derives typed lifecycle items from the existing Trail projection; and fails closed
-when an event has no canonical source anchor. No canonical field or write path was added.
+**Delivered 2026-07-30; refined 2026-07-31.** The Inspector now presents the canonical entry as lightweight
+segments and keeps its decisions together in one bounded reader. A D1/D2 selector scrolls to the selected
+decision without hiding its siblings or changing their visual weight. Exact Markdown opens in place and
+returns to the saved Inspector position without changing Trail selection. Typed relationships preserve their
+direction grammar, technical metadata sits under Entry details, and a missing canonical source fails closed.
+No canonical field or write path was added.
 
 Delivery evidence: `memory-trace/client/src/EntryReader.tsx`, `App.tsx`, and
-`decisionReaderModel.test.ts`; 233 frontend tests, TypeScript typecheck, and production build passed.
+`decisionReaderModel.test.ts`; 235 frontend tests, TypeScript typecheck, production build, and responsive
+browser verification passed.
 
-Build the inspector's decision-first reading mode around one stable decision identity. Present, in order:
+Build the Inspector around one stable entry and decision identity. Present, in order:
 
-1. decision title and recorded metadata (date, branch/worktree, author/agent context, state);
-2. the decision, rationale, and consequences from its entry;
-3. predecessor, successor, and typed related items;
-4. evidence links with exact anchors and source provenance; and
-5. the surrounding session entry and sibling decisions as context.
+1. entry summary, when present;
+2. a decision segment whose selector scrolls one equal-weight D1/D2 reader;
+3. supporting entry sections such as Implementation, Validation, and Follow-up;
+4. typed related decisions and an exact source action; and
+5. related activity and technical metadata behind quiet disclosures.
 
 Opening an evidence target must preserve a return path to the originating decision and its Trail scroll
 position. Raw Markdown must remain reachable. If an evidence excerpt is unavailable, the UI reports the
@@ -143,9 +147,9 @@ Exit criteria:
 
 - Keyboard-only users can enter, inspect, follow evidence, and return without losing selected decision or
   Trail position.
-- Every displayed lifecycle or evidence assertion identifies its source and state class.
-- Reader tests cover a multi-decision entry, an external/generated event, a missing source, and a
-  superseded decision.
+- Every displayed lifecycle or evidence assertion identifies direction or source without applying an
+  information-state badge to the canonical DRAFT entry as a whole.
+- Reader tests cover entry segmentation, a multi-decision entry, a missing source, and a superseded decision.
 
 ### M2 — Trail history orientation and filtering
 
@@ -248,7 +252,7 @@ Use text, icon/shape, and accessible label together—never colour alone:
 
 | State | Meaning | UI treatment |
 | --- | --- | --- |
-| Recorded | First-hand value stored in canonical Markdown/sidecar at write time. | Canonical-source label and direct source link. |
+| Recorded | First-hand value stored in canonical Markdown/sidecar at write time. Canonical DRAFT entry content is always in this state. | No redundant badge on DRAFT fields; keep exact Markdown reachable. Label a recorded origin only when mixed sidecar/projection origins need distinction. |
 | Derived | Deterministically calculated from canonical data or repository facts. | Calculation/source-revision label. |
 | Suggested | Reconstructed or model-assisted candidate awaiting validation. | Explicit suggestion label, evidence, and no authoritative styling. |
 

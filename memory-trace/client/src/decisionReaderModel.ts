@@ -10,6 +10,11 @@ export type DecisionSection = {
   text: string;
 };
 
+export type EntrySection = {
+  heading: string;
+  text: string;
+};
+
 const NUMBERED_DECISION = /^(#{3,6})\s+(?:decision\s*)?(d?\d+)\s*[-:]\s*(.+)$/i;
 const SINGLE_DECISION = /^(#{3,6})\s+decision\s*$/i;
 
@@ -37,7 +42,7 @@ export function decisionSections(markdown: string): DecisionSection[] {
       return;
     }
     const single = line.match(SINGLE_DECISION);
-    if (single) sections.push({ ordinal: null, heading: "Decision", title: "Recorded decision", start: index, level: single[1].length });
+    if (single) sections.push({ ordinal: null, heading: "Decision", title: "Decision", start: index, level: single[1].length });
   });
 
   return sections.map((section, index) => {
@@ -48,6 +53,29 @@ export function decisionSections(markdown: string): DecisionSection[] {
     }
     const text = lines.slice(section.start + 1, end).join("\n").trim();
     return { ...section, title: section.ordinal ? section.title : draftDecisionTitle(text) ?? section.title, text };
+  });
+}
+
+/** Entry-level reader sections, excluding the decision wrapper itself. */
+export function entrySections(markdown: string): EntrySection[] {
+  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  const starts: Array<{ heading: string; start: number }> = [];
+  let inFence = false;
+
+  lines.forEach((line, index) => {
+    if (line.trim().startsWith("```")) { inFence = !inFence; return; }
+    if (inFence) return;
+    const heading = line.match(/^###\s+(.+)$/);
+    if (!heading || /^decisions?$/i.test(heading[1].trim())) return;
+    starts.push({ heading: heading[1].trim(), start: index });
+  });
+
+  return starts.map((section) => {
+    let end = lines.length;
+    for (let cursor = section.start + 1; cursor < lines.length; cursor += 1) {
+      if (/^#{1,3}\s+/.test(lines[cursor])) { end = cursor; break; }
+    }
+    return { heading: section.heading, text: lines.slice(section.start + 1, end).join("\n").trim() };
   });
 }
 
@@ -66,13 +94,7 @@ export function evidenceAnchor(path: string | null | undefined, lineRange: numbe
   if (!path) return { available: false, label: "Missing canonical source anchor", source: null };
   const [start, end] = lineRange ?? [];
   const location = start ? `:${start}${end && end !== start ? `-${end}` : ""}` : "";
-  return { available: true, label: `Recorded source · ${path}${location}`, source: path };
-}
-
-/** Information state is an explicit grammar, not a colour choice. */
-export function readerInformationState(authorityClass: string | null | undefined, provenanceClass: string | null | undefined): "Recorded" | "Derived" | "Suggested" {
-  if (["provider_extracted", "provider_resolved", "provider_inferred", "generated"].includes(authorityClass ?? "")) return "Suggested";
-  return provenanceClass === "source_control" ? "Derived" : "Recorded";
+  return { available: true, label: `${path}${location}`, source: path };
 }
 
 export type DecisionEdge = { source: string; target: string; type: string };
