@@ -5,9 +5,10 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 from memory_seed.semantic_cache import MemoryChunk
-from memory_trace.service import _contextual_ontology_counts, _filter_chunks
+from memory_trace.service import TraceService, _contextual_ontology_counts, _filter_chunks
 
 
 class OntologyFacetTests(unittest.TestCase):
@@ -19,13 +20,25 @@ class OntologyFacetTests(unittest.TestCase):
         (memory / "topics.yaml").write_text(
             """schema_version: 2
 topics:
+  - slug: area-root
+    axis: area
+  - slug: area-empty
+    parent: area-root
+  - slug: area-parent
+    parent: area-root
   - slug: area-a
-    axis: area
+    parent: area-parent
   - slug: area-b
-    axis: area
-  - slug: activity-x
+    parent: area-root
+  - slug: activity-root
     axis: activity
+  - slug: activity-empty
+    parent: activity-root
+  - slug: activity-x
+    parent: activity-root
   - slug: activity-y
+    parent: activity-root
+  - slug: activity-empty-root
     axis: activity
 """,
             encoding="utf-8",
@@ -78,6 +91,21 @@ topics:
         self.assertEqual(counts["activity-y"], 1)
         self.assertEqual(counts["area-a"], 1)
         self.assertEqual(counts["area-b"], 1)
+
+    def test_contextual_ontology_prunes_empty_branches_but_keeps_populated_ancestors(self):
+        service = TraceService(SimpleNamespace(cwd=self.cwd))
+        entries = [self.entry("mse_populated", [("d1", "area-a"), ("d1", "activity-x")])]
+
+        ontology = service.contextual_ontology(entries)
+
+        area_root = ontology["area"][0]
+        self.assertEqual(area_root["id"], "area-root")
+        self.assertEqual(area_root["count"], 0)
+        self.assertEqual(area_root["total"], 1)
+        self.assertEqual([node["id"] for node in area_root["children"]], ["area-parent"])
+        self.assertEqual(area_root["children"][0]["children"][0]["id"], "area-a")
+        self.assertEqual([node["id"] for node in ontology["activity"]], ["activity-root"])
+        self.assertEqual([node["id"] for node in ontology["activity"][0]["children"]], ["activity-x"])
 
 
 if __name__ == "__main__":

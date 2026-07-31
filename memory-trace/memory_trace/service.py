@@ -1587,12 +1587,14 @@ class TraceService:
         leaves alternative choices available rather than forcing a user to
         clear their current choice before changing it.
         """
-        return self.ontology(
-            _contextual_ontology_counts(
-                entries,
-                cwd=self.cache.cwd,
-                area=area,
-                activity=activity,
+        return _prune_empty_ontology(
+            self.ontology(
+                _contextual_ontology_counts(
+                    entries,
+                    cwd=self.cache.cwd,
+                    area=area,
+                    activity=activity,
+                )
             )
         )
 
@@ -3557,6 +3559,28 @@ def _contextual_ontology_counts(
             for slug in seen:
                 counts[slug] = counts.get(slug, 0) + 1
     return counts
+
+
+def _prune_empty_ontology(ontology: dict[str, list[dict[str, Any]]]) -> dict[str, list[dict[str, Any]]]:
+    """Remove zero-total branches from a contextual ontology response."""
+
+    def prune(node: dict[str, Any]) -> dict[str, Any] | None:
+        if node["total"] == 0:
+            return None
+        return {
+            **node,
+            "children": [
+                pruned
+                for child in node["children"]
+                if (pruned := prune(child)) is not None
+            ],
+        }
+
+    return {
+        axis: pruned_nodes
+        for axis, nodes in ontology.items()
+        if (pruned_nodes := [pruned for node in nodes if (pruned := prune(node)) is not None])
+    }
 
 
 def _timeline_buckets(
