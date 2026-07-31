@@ -7,7 +7,7 @@ import { EntryReader, type DiagramSidecar, type ReaderRelationship } from "./Ent
 import { DiagramViewer, type DiagramBlock } from "./DiagramViewer";
 import { FolderPicker } from "./FolderPicker";
 import { readerScrollTarget } from "./inspectorScroll";
-import { readerInformationState, relationshipsForDecision } from "./decisionReaderModel";
+import { relationshipsForDecision } from "./decisionReaderModel";
 import { searchResultCursor, stepSearchCursor } from "./searchNavigation";
 import { genuineSearchResults } from "./searchResults";
 import { overviewCounts, overviewExhausted as overviewIsExhausted, type OverviewCounts } from "./graphOverview";
@@ -625,7 +625,6 @@ export default function App() {
     }));
   }, [selected?.source.entry_id, matchHint, entryIndex, indexById]);
 
-  const readerState = readerInformationState(selected?.authority_class, selected?.provenance_class);
   // "Links" must equal the lines the user can count on the map, so it counts the
   // RENDERED edges for this node under the current edge-type filter. The node's
   // `connectivity` is a different quantity - a related-only display weight that
@@ -1275,7 +1274,7 @@ export default function App() {
     // A section that matched gets anchored under the top edge; an entry-level
     // match (no matching subsection, so nothing to point at) goes to the head
     // of the entry rather than inheriting the last one's scroll offset.
-    const element = matchHeading ? container.querySelector<HTMLElement>(".match-highlight") : null;
+    const element = matchHeading ? container.querySelector<HTMLElement>(".reader-match-anchor") : null;
     if (matchHeading && !element) return;
     const key = `${chunk.chunk_id}::${matchHeading ?? ""}`;
     if (inspectorScrollFor.current === key) return;
@@ -1476,12 +1475,10 @@ export default function App() {
         {dock !== "bottom" && <div className="pane-resize pane-resize-inspector" role="separator" aria-orientation="vertical" aria-label="Resize inspector" title="Drag to resize" onPointerDown={startPaneResize("inspector")} />}
         <div className="inspector-bar"><div><span className="eyebrow">Inspector</span><h2>{titleFor(selected)}</h2></div><button className="icon-button" type="button" onClick={() => setDock("hidden")} aria-label="Hide inspector" title="Hide inspector"><X size={17} /></button></div>
         {selected && <div className="inspector-content" ref={inspectorContent}>
-          {/* Metadata is grouped rather than one long column, and the grid is a
-              CSS container query on the pane itself — so it reflows as the
-              inspector is dragged wider/narrower and when it docks to the
-              bottom, independently of the viewport. Authority and provenance
-              stay on separate lines: they are distinct axes (BG1), never merged. */}
-          <dl className="metadata">
+          <EntryReader chunk={chunk} matchHeading={matchHeading} decisionHeading={matchHeading} relationships={readerRelationships} evidenceOpen={evidenceOpen} onOpenEntry={(entryId) => void openEntryInPlace(entryId)} onOpenDecision={openSiblingDecision} onOpenFile={(path) => void openFileMode(path)} onOpenEvidence={openEvidence} onReturnEvidence={returnFromEvidence} onOpenDiagram={(title, source) => setDiagramViewer({ title: title || chunk?.title || "Decision diagram", blocks: [{ title, source }] })} look={trailStyle.style} theme={theme} />
+          <details className="entry-details">
+            <summary>Entry details</summary>
+            <dl className="metadata">
             <div className="meta-item meta-wide"><dt>Entry ID</dt><dd className="meta-mono">{selected.source.entry_id || "Not recorded"}</dd></div>
             <div className="meta-item"><dt>Date</dt><dd>{selected.temporal.value}</dd></div>
             <div className="meta-item"><dt>Agent</dt><dd>{selected.source.agent}</dd></div>
@@ -1510,8 +1507,8 @@ export default function App() {
               ))}</span></dd></div>
             ))}
             <div className="meta-item meta-wide"><dt>Topics</dt><dd>{selected.source.topics.length ? <span className="meta-topics">{selected.source.topics.map((topic) => <span className="meta-topic" key={topic}>{topic}</span>)}</span> : "None"}</dd></div>
-          </dl>
-          <EntryReader chunk={chunk} matchHeading={matchHeading} decisionHeading={matchHeading} relationships={readerRelationships} stateLabel={readerState} worktree={worktree} evidenceOpen={evidenceOpen} onOpenEntry={(entryId) => void openEntryInPlace(entryId)} onOpenDecision={openSiblingDecision} onOpenFile={(path) => void openFileMode(path)} onOpenEvidence={openEvidence} onReturnEvidence={returnFromEvidence} onOpenDiagram={(title, source) => setDiagramViewer({ title: title || chunk?.title || "Decision diagram", blocks: [{ title, source }] })} look={trailStyle.style} theme={theme} />
+            </dl>
+          </details>
         </div>}
       </aside>}
       {diagramViewer && <DiagramViewer title={diagramViewer.title} blocks={diagramViewer.blocks} look={trailStyle.style} theme={theme} onClose={() => setDiagramViewer(null)} />}

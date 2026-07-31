@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decisionSections, evidenceAnchor, readerInformationState, relationshipsForDecision, selectedDecision } from "./decisionReaderModel.ts";
+import { decisionSections, entrySections, evidenceAnchor, relationshipsForDecision, selectedDecision } from "./decisionReaderModel.ts";
 
 const MULTI_DECISION = `## 2026-07-30 10:00 - Example
 
@@ -35,19 +35,21 @@ test("models a regular one-decision entry and retains its authored D statement",
   assert.equal(sections[0].text, "- D: Keep the entry as context.");
 });
 
+test("models summary and supporting entry sections without duplicating the decisions wrapper", () => {
+  const sections = entrySections(`### Summary\n\n- A compact overview.\n\n${MULTI_DECISION}\n\n### Implementation\n\n- Built the reader.\n\n### Follow-up\n\n- Verify the layout.`);
+  assert.deepEqual(sections.map((section) => section.heading), ["Summary", "Validation", "Implementation", "Follow-up"]);
+  assert.match(sections[0].text, /compact overview/);
+  assert.match(sections[1].text, /Reader fixture passes/);
+  assert.doesNotMatch(sections.map((section) => section.text).join("\n"), /Preserve Markdown authority/);
+});
+
 test("never manufactures evidence when a source anchor is absent", () => {
   assert.deepEqual(evidenceAnchor(null, []), { available: false, label: "Missing canonical source anchor", source: null });
   assert.deepEqual(evidenceAnchor(".memory-seed/sessions/2026-07/2026-07-30.md", [18, 30]), {
     available: true,
-    label: "Recorded source · .memory-seed/sessions/2026-07/2026-07-30.md:18-30",
+    label: ".memory-seed/sessions/2026-07/2026-07-30.md:18-30",
     source: ".memory-seed/sessions/2026-07/2026-07-30.md",
   });
-});
-
-test("names derived and suggested records instead of styling them as recorded", () => {
-  assert.equal(readerInformationState("authored", "source_control"), "Derived");
-  assert.equal(readerInformationState("generated", "generated_artefact"), "Suggested");
-  assert.equal(readerInformationState("authored", "authored_memory"), "Recorded");
 });
 
 test("a superseding decision exposes only its own typed lifecycle edge", () => {
