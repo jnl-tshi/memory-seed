@@ -23,6 +23,27 @@ export function pairKey(source: string, target: string): string {
 
 export type PresentableEdge = { id: string; source: string; target: string; type: string };
 
+export type ForceEligibleEdge = { edge_type: string; confidence?: number | null };
+
+/**
+ * Edges that are allowed to influence the active force simulation.
+ *
+ * The server payload remains stable while an edge chip is toggled so graph
+ * membership and contextual facets do not churn. Physics is a presentation
+ * concern, though: a line that the reader removed must stop pulling its
+ * endpoints together. Confidence filtering follows the same rule.
+ */
+export function forceEligibleEdges<T extends ForceEligibleEdge>(
+  edges: readonly T[],
+  visibleTypes: readonly string[],
+  minConfidence: number,
+): T[] {
+  return edges.filter((edge) =>
+    visibleTypes.includes(edge.edge_type)
+    && (minConfidence <= 0 || typeof edge.confidence !== "number" || edge.confidence >= minConfidence),
+  );
+}
+
 /** Ids of edges that lose their pair's line and must not be drawn.
  *
  * Two entries often carry several relationships at once, which drew coincident
