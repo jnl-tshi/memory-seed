@@ -2,7 +2,7 @@
 
 Status: **ACTIVE — Constitution-aligned** (v1.0 ratified 2026-07-14; v1.1 2026-07-16; v1.2 2026-07-17;
 v1.3 2026-07-19; v1.4 2026-07-23; v1.5 2026-07-26; v1.6 2026-07-26).
-Updated: 2026-07-29
+Updated: 2026-07-31
 
 > ▶ **Foundation and memory-quality core shipped 2026-07-15.** The
 > [derived-projection Phase 1](derived-projection-implementation-plan.md) (git-watermark warm start +
@@ -19,8 +19,10 @@ Updated: 2026-07-29
 > fact directly — and is what the new topic-sidecar authority (below) is built on.
 > The ranking/graph core now includes the full-corpus gate, `replacing_head` plus its bounded boost,
 > and inert `link audit --apply` scaffolding. **2.19.0 released 2026-07-17** (live on PyPI). **B0a
-> graph/workspace contracts and renderer evidence are complete;
-> B2/B0b React parity is the current lead.** The projection's **incremental-ingest fast-follow
+> graph/workspace contracts and B0b formal accessibility/scale acceptance are complete. The UX
+> reference-model sequence delivered M1 Decision Reader and M2 Trail orientation on 2026-07-30, then
+> refined the Inspector on 2026-07-31; M3 bounded graph perspectives and controlled expansion is the
+> next Memory Trace slice.** The projection's **incremental-ingest fast-follow
 > SHIPPED 2026-07-21** — it was the last deferred piece of the derived-projection plan, taken because
 > the profile had moved: parsing was no longer the cost, per-history-item git work was
 > (44.25 s / 990 git subprocesses → 1.46 s / 7).
@@ -54,6 +56,28 @@ Foundation shipped (per-doc status verified against CHANGELOG + code, not this f
   integration-mode phases, and lifecycle-link scaffold steps 1–3.
 - **Release cadence:** 2.19.0 is **released** (2026-07-17). The next tranche accumulates under
   `CHANGELOG.md` "## Unreleased"; publishing remains a manual-approval gate at the pypi environment.
+
+## Immediate next step — Memory Trace UX M3
+
+M0 interaction reconciliation, M1 decision reading/evidence return, and M2 Trail history orientation are
+delivered. The 2026-07-31 M1 refinement keeps canonical DRAFT content lightweight: it is recorded by
+definition, while recorded/derived/suggested origin treatment is reserved for sidecar or projected
+information whose origin can vary. Multi-decision entries now use one equal-weight, scrollable decision
+window with a D1/D2 selector.
+
+Implement [`memory-trace-ux-reference-model-implementation-plan.md`](memory-trace-ux-reference-model-implementation-plan.md)
+M3 as the next bounded slice:
+
+1. Make **Area** and **Activity** first-class graph perspectives while preserving the selected decision,
+   canonical edge semantics, and the existing renderer-neutral projection contract.
+2. Add previewed, reversible **one-hop expansion** with explicit node/edge counts and bounded growth; do
+   not turn the global graph into the default view.
+3. Provide a keyboard-operable, non-canvas list equivalent for every expanded neighbourhood and verify
+   selection continuity, reduced-motion behaviour, and the named bounded-neighbourhood fixture.
+
+After M3 passes its fixture and accessibility gates, continue to M4 Quick Open/structured discovery.
+M5 deterministic resume/attention remains later and must expose a stated evidence rule rather than a
+hidden priority score.
 
 ## Shipped 2026-07-28/29 — unreleased, on local main
 
@@ -480,8 +504,8 @@ Replace-with-invariant / Move / Delete. Full record:
 Engineering gates that autonomous work has pushed as far as it reasonably can; each needs one decision
 before its next step. (Market/account items live under "Parked" below.)
 
-1. **BG1 steps 5–7 — actionability policy + §7 graduation.** Step 4 (display authority/provenance in the
-   inspector) **shipped 2026-07-17**. Step 5–6 add an
+1. **BG1 steps 5–7 — actionability policy + §7 graduation.** Step 4 (expose authority/provenance in
+   Inspector Entry details) **shipped 2026-07-17 and was visually simplified 2026-07-31**. Step 5–6 add an
    `actionability` field computed by policy with machine-readable reason codes, plus fixtures proving
    generated/provider content **cannot** become actionable on its own; step 7 is the Constitution §7
    amendment that would let annotation/generated content become agent-actionable.
@@ -519,8 +543,9 @@ before its next step. (Market/account items live under "Parked" below.)
 ## Live work — sequenced (Constitution-aligned)
 
 Active work, sequenced under the Constitution (each item answers the five-question test — Capture /
-Validation / Retrieval / Trust / Application — and respects Invariant #6). The foundation and
-memory-quality core shipped 2026-07-15, so **B0a graph/workspace work now leads**.
+Validation / Retrieval / Trust / Application — and respects Invariant #6). The foundation,
+memory-quality core, B0a contracts, and B0b formal acceptance have shipped, so **the Memory Trace UX
+sequence now leads with M3 bounded graph perspectives and controlled expansion**.
 
 ### Foundation — derived-projection Phase 1 ✅ SHIPPED 2026-07-15
 
@@ -530,14 +555,10 @@ with a byte-identical rebuild, a **git-watermark warm start** (O(changes) freshn
 and **atomic build/swap**, plus three read-path perf refinements (`chunk()` 132 ms → 3.9 ms). Plan:
 [`derived-projection-implementation-plan.md`](derived-projection-implementation-plan.md). Five-question
 test → **Retrieval** (fast reads) + **Application** (usable Trace on large histories).
-**Remaining fast-follow (deferred, low-urgency):** *incremental ingest* — re-project only the delta files'
-chunks and recompute whole-history git meta only when HEAD moved, gated behind an
-`incremental == full-rebuild` equivalence test. Reads are already ~3.9 ms, and the 2026-07-18
-worktree-switch profiling re-confirmed the deferral: chunk parsing is ~0.35s of a ~10.3s rebuild (~3%) at
-~500 entries — the dominant 92% (per-merge `git merge-base` spawns) was fixed instead via the process-wide
-fork-point memo + `ensure_current` warm starts. Incremental ingest waits until corpus scale
-makes parse time material (~5k+ entries). **Phase 2** (git-rooted historical integrity, G6/G7) is the next projection increment after the
-trio.
+**Incremental ingest shipped 2026-07-21:** immutable Git derivations persist across rebuilds,
+reconciliation is incremental, and the file-entry index is lazy. The measured forced rebuild moved from
+44.25 s / 990 Git subprocesses to 1.46 s / 7. **Phase 2** (git-rooted historical integrity, G6/G7) is the
+next projection increment when that track resumes.
 
 ### Ranking & graph quality — core SHIPPED 2026-07-15 (gate → surface → capture)
 
@@ -650,11 +671,10 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   interactive element classes had `outline: none` on `:focus-visible`, relying only on a subtle
   border/background/text-color shift as the sole keyboard-focus signal (some with no visual change at
   all). Added a real outline to each, matching the pattern other elements already used correctly.
-  **Still open:** focus restoration and screen-reader labels beyond one component's Storybook coverage,
-  and graph alternatives (no non-visual equivalent for the Cytoscape canvas evaluated yet) — this was a
-  first pass, not the completed audit. The current
-  vanilla `/` UI remains the supported fallback until explicit
-  parity sign-off.
+  **Accessibility/scale closeout completed 2026-07-29:** packaged-browser checks cover focus restoration,
+  keyboard graph selection through the non-visual list alternative, stable colour across reloads, and
+  the full-corpus performance ceiling. The current vanilla `/` UI remains the supported fallback until
+  explicit React parity sign-off.
 - **B0b — Native graph/workspace implementation** *(started 2026-07-16; implemented through roadmap
   Phases 3 and 5)* — the first React shell provides a lazy Cytoscape graph, bounded initial graph range,
   shared entry selection, right/bottom/auto/hidden persisted Inspector controls, and the additive
@@ -666,7 +686,11 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   renders connected context while the list retains unlinked records. **The Inspector reader shipped
   2026-07-17** — a markdown-rendered entry body (frontmatter code block, headings, bullets, inline
   code/bold), search-match subsection highlighting at parity with the vanilla reader, an evidence strip
-  (commit + `path:line`), and navigable linked-memories/related-activity cards. **The Trail view shipped
+  (commit + `path:line`), and navigable linked-memories/related-activity cards. **Decision Reader M1 and
+  Trail orientation M2 shipped 2026-07-30; the Inspector was refined 2026-07-31** into lightweight entry
+  segments with one equal-weight, scrollable decision window. Canonical DRAFT content carries no
+  redundant Recorded badge; technical sidecar/projection origin remains available under Entry details.
+  **The Trail view shipped
   2026-07-18** (first slice) — a `Trail` presentation mode over `/api/v1/trail` with a pure, testable
   `trailModel` (day-grouped newest-first rows, greedy branch-lane interval packing with the main-lane-0
   guard, commit-time `interpRow`), rendering the git-graph rail (lane segments, solid+phantom main spine,
@@ -745,7 +769,8 @@ Governance (read to sequence, not build): [`memory-trace-product-and-system-arch
   [`memory-provenance-and-authority-taxonomy-proposal.md`](memory-provenance-and-authority-taxonomy-proposal.md).
   Keep provenance, authority, lifecycle, and actionability as separate fields; do not create a single
   trust score. **Steps 1–4 SHIPPED** — the enum-constrained `AuthorityClass`/`ProvenanceClass` on the
-  node (2.19), and the inspector now displays authority + provenance distinctly (2026-07-17). Steps 5–7
+  node (2.19), and Entry details expose authority + provenance without crowding the canonical entry
+  reading surface (refined 2026-07-31). Steps 5–7
   (actionability policy, fail-closed fixtures, §7 graduation) are the **open-decisions gate #1** above.
 - **BG2 — Memory-quality metrics v0** — ✅ **v0 SHIPPED 2026-07-17; usefulness review COMPLETE**
   (proposal step 6). [`memory-quality-metrics-v0-proposal.md`](memory-quality-metrics-v0-proposal.md).
