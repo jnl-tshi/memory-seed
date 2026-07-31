@@ -28,6 +28,8 @@ type GraphViewMode = "graph" | "trail";
 type LabelMode = "focus" | "minimal" | "all";
 type GraphRange = "recent" | "all";
 type OntologySelection = { area: string | null; activity: string | null };
+type DecisionSelectionOrigin = "workspace" | "selector";
+type DecisionRevealRequest = { entryId: string; heading: string; sequence: number };
 
 const EMPTY_ONTOLOGY_SELECTION: OntologySelection = { area: null, activity: null };
 function ontologySelectionKey(selection: OntologySelection) {
@@ -334,6 +336,7 @@ export default function App() {
   const inspectorContent = useRef<HTMLDivElement>(null);
   const cancelInspectorScroll = useRef<(() => void) | null>(null);
   const inspectorScrollFor = useRef<string | null>(null);
+  const [decisionRevealRequest, setDecisionRevealRequest] = useState<DecisionRevealRequest | null>(null);
   // A decision-selector click changes the Trail/reader selection so typed
   // relationships stay exact, but it is local navigation inside the bounded
   // Decision window. Its outer Inspector position must remain the reader's.
@@ -988,8 +991,25 @@ export default function App() {
   // selected, `select()` must not run at all - its same-node guard would
   // toggle the mute state instead of moving the decision focus. Only the
   // matchHint (reader scroll + Trail row highlight) changes.
-  function selectFromTrail(entryId: string | null, chunkId: string, decision?: { heading: string }) {
+  function selectFromTrail(
+    entryId: string | null,
+    chunkId: string,
+    decision?: { heading: string },
+    origin: DecisionSelectionOrigin = "workspace",
+  ) {
     setEvidenceOpen(false);
+    if (origin === "workspace" && decision && entryId) {
+      // Trail rows and visible Graph decision nodes are external navigation.
+      // The Inspector must reveal the Decisions segment before the nested
+      // reader aligns the exact decision inside its own bounded window. A
+      // sequence keeps a re-click actionable even when the selection identity
+      // itself did not change.
+      setDecisionRevealRequest((previous) => ({
+        entryId,
+        heading: decision.heading,
+        sequence: (previous?.sequence ?? 0) + 1,
+      }));
+    }
     const sameEntry = entryId != null && selected?.source.entry_id === entryId;
     if (sameEntry && decision) {
       if (matchHint?.decisionChunkId === chunkId) { setSelectionMuted((muted) => !muted); return; }
@@ -1282,9 +1302,9 @@ export default function App() {
     const entryId = selected?.source.entry_id;
     if (!entryId) return;
     const node = (effectiveTrail?.nodes ?? []).find((item) => item.entry_id === entryId && item.title === heading);
-    if (node) {
+    if (node && matchHint?.decisionChunkId !== node.chunk_id) {
       preservedInspectorScroll.current = inspectorContent.current?.scrollTop ?? null;
-      selectFromTrail(entryId, node.chunk_id, { heading });
+      selectFromTrail(entryId, node.chunk_id, { heading }, "selector");
     }
   }
 
@@ -1321,9 +1341,21 @@ export default function App() {
     // A section that matched gets anchored under the top edge; an entry-level
     // match (no matching subsection, so nothing to point at) goes to the head
     // of the entry rather than inheriting the last one's scroll offset.
-    const element = matchHeading ? container.querySelector<HTMLElement>(".reader-match-anchor") : null;
-    if (matchHeading && !element) return;
-    const key = `${chunk.chunk_id}::${matchHeading ?? ""}`;
+    const matchedElement = matchHeading ? container.querySelector<HTMLElement>(".reader-match-anchor") : null;
+    if (matchHeading && !matchedElement) return;
+    const revealDecisionSection = Boolean(
+      matchHeading
+      && decisionRevealRequest
+      && decisionRevealRequest.entryId === selected?.source.entry_id
+      && decisionRevealRequest.heading === matchHeading,
+    );
+    // External decision navigation has two independent scroll targets: the
+    // outer Inspector reveals the Decisions segment, while EntryReader scrolls
+    // its nested window to the exact decision article.
+    const element = revealDecisionSection
+      ? container.querySelector<HTMLElement>(".decisions-segment") ?? matchedElement
+      : matchedElement;
+    const key = `${chunk.chunk_id}::${matchHeading ?? ""}${revealDecisionSection ? `::reveal-${decisionRevealRequest?.sequence}` : ""}`;
     if (inspectorScrollFor.current === key) return;
     inspectorScrollFor.current = key;
     if (preservedInspectorScroll.current !== null) {
@@ -1344,7 +1376,7 @@ export default function App() {
     if (target === null) return;
     cancelInspectorScroll.current?.();
     cancelInspectorScroll.current = animateScrollTo(container, target, scrollDurationFor(target - container.scrollTop));
-  }, [chunk, matchHeading]);
+  }, [chunk, decisionRevealRequest, matchHeading, selected?.source.entry_id]);
   useEffect(() => () => cancelInspectorScroll.current?.(), []);
 
   return (
