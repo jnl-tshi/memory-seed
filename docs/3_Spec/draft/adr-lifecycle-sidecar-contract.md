@@ -41,7 +41,6 @@ topics:
 created_at: 2026-07-16T14:20:00Z
 user_initials: JNL
 agent_type: claude
-agent_name: Claude Fable 5
 source: write-time
 ---
 
@@ -57,7 +56,7 @@ expected_previous_status: proposed
 source: write-time
 ```
 
-`user_initials`, `agent_type`, and `agent_name` are the same three fields a session entry carries, and they
+`user_initials` and `agent_type` are the same attribution fields a session entry carries, and they
 mean the same thing here: who the work was *for*, and which agent performed it. They are not a provenance
 signal — see the next section for why `source:` is a separate field rather than something inferred from them.
 
@@ -96,7 +95,7 @@ agreement rather than accuracy, and nobody has adjudicated who is right when the
 ### Provenance is a declared field, never a position
 
 `source:` is declared **on the block**. It is never inferred from which file a value sits in, which tool wrote
-it, or which of `user_initials` / `agent_type` / `agent_name` is populated. This mirrors the consolidation
+it, or which of `user_initials` / `agent_type` is populated. This mirrors the consolidation
 proposal's rule for the topic and link families, and it uses that proposal's vocabulary rather than a second
 one:
 

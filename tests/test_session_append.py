@@ -62,6 +62,7 @@ class SessionAppendTests(unittest.TestCase):
         text = result.path.read_text(encoding="utf-8")
         self.assertIn("## 2026-06-13 09:00 - First decision", text)
         self.assertIn(f"entry_id: {expected_id}", text)
+        self.assertNotIn("agent_name:", text)
         self.assertIn("- D: Something durable.", text)
         self.assertTrue(check_session_links(cwd=self.cwd).ok)
 

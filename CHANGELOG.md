@@ -50,6 +50,11 @@ All notable changes to Memory Seed are summarized here.
 
 ### Changed
 
+- **Session-entry persona-name metadata retired.** New entries carry `agent_type` but no longer accept or
+  write `agent_name`; the CLI, MCP schema, retrieval payloads, Memory Trace contracts, and active
+  control-plane documentation use the reduced shape. Historical append-only entries remain untouched
+  and readable. The dependent end-of-turn persona-usage heuristic was retired with its lossy signal.
+
 - **`related_entries` may carry decision-level refs (`:dN`)** (JNL's direction
   2026-07-25). The decision-ref grammar, previously scoped to
   `replaces`/`evolves`, now generalizes to `related` too: `related_entries:

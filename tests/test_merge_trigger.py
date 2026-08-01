@@ -34,7 +34,7 @@ def _write_config(root, value):
 def _entry(ts, eid, title, branch):
     return (
         f"## {ts} - {title}\n\n```yaml\nentry_id: {eid}\nuser_initials: JNL\nagent_type: claude\n"
-        f"agent_name: null\nproject_path: .\nsubproject_path: null\nbranch: {branch}\n```\n\n"
+        f"project_path: .\nsubproject_path: null\nbranch: {branch}\n```\n\n"
         "### Decision\n\n- D: something\n- R: because\n\n"
     )
 

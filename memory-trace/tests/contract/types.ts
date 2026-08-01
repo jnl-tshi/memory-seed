@@ -234,8 +234,6 @@ export interface components {
         };
         /** ChunkMetadata */
         ChunkMetadata: {
-            /** Agent Name */
-            agent_name: string | null;
             /** Agent Type */
             agent_type: string | null;
             /** File Hash Id */
@@ -253,8 +251,6 @@ export interface components {
         };
         /** ChunkResponse */
         ChunkResponse: {
-            /** Agent Name */
-            agent_name: string | null;
             /** Agent Type */
             agent_type: string | null;
             /** Backlinks */
@@ -717,8 +713,6 @@ export interface components {
         };
         /** SearchResult */
         SearchResult: {
-            /** Agent Name */
-            agent_name: string | null;
             /** Agent Type */
             agent_type: string | null;
             /** Best Match Chunk Id */

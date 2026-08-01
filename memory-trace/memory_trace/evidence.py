@@ -238,7 +238,6 @@ def _entry_payload(
         "session_date": payload["session_date"],
         "entry_datetime": payload["entry_datetime"],
         "agent_type": payload["agent_type"],
-        "agent_name": payload["agent_name"],
         "user": payload["user"],
         "branch": payload["branch"],
         "topics": payload["topics"],

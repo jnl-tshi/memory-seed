@@ -28,7 +28,7 @@ Two corrections, both empirical.
 **"Affects every git-derived field" is overstated.** `branch:` is the *only* git-derived field on an
 entry. `session_append_entry` makes exactly one git call (the `_auto_captured_branch` helper in
 `memory_seed/core.py`, previously a bare `_git_capture` inline). Everything else on the entry is
-caller-supplied or locally computed: `user_initials`, `agent_type`, `agent_name`, `project_path`,
+caller-supplied or locally computed: `user_initials`, `agent_type`, `project_path`,
 `subproject_path`, `topics` and the lifecycle refs all arrive as arguments; `read_local_user` reads
 `.memory-seed/local-user`, a file, not `git config`; and `generate_session_entry_id` hashes
 timestamp/title/initials/agent/paths. The diagram, topic and link sidecars carry no branch at all

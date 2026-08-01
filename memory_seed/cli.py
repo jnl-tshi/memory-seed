@@ -358,7 +358,6 @@ def main(argv: list[str] | None = None) -> int:
     session_append_parser.add_argument("--title", required=True, help="entry title (text after 'YYYY-MM-DD HH:MM - ')")
     session_append_parser.add_argument("--user-initials", required=True, help="user_initials field, e.g. JNL")
     session_append_parser.add_argument("--agent-type", required=True, help="agent_type field, e.g. claude")
-    session_append_parser.add_argument("--agent-name", default=None, help="agent_name field (default: null)")
     session_append_parser.add_argument("--topics", default="", help="comma-separated controlled-vocabulary slugs or aliases")
     session_append_parser.add_argument(
         "--decisions-file",
@@ -1193,7 +1192,6 @@ def main(argv: list[str] | None = None) -> int:
                 body=body,
                 user_initials=args.user_initials,
                 agent_type=args.agent_type,
-                agent_name=args.agent_name,
                 topics=_csv(args.topics),
                 related_entries=_ref_list(args.related),
                 replaces=_ref_list(args.replaces),

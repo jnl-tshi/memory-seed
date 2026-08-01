@@ -733,7 +733,7 @@ memory_search(query, cwd=".", top_k=8, lambda_days=0.01, recency_enabled=true, r
 memory_get_chunk(chunk_id, cwd=".")
 memory_link_suggest(cwd=".", entry_id=null, top_k=5)
 memory_link_show(entry_id, cwd=".")
-memory_session_append(title, body, user_initials, agent_type, cwd=".", agent_name=null, topics=null, related_entries=null, replaces=null, evolves=null, project_path=".", subproject_path=null, branch=null, auto_branch=true, timestamp=null, user=null, dry_run=false)
+memory_session_append(title, body, user_initials, agent_type, cwd=".", topics=null, related_entries=null, replaces=null, evolves=null, project_path=".", subproject_path=null, branch=null, auto_branch=true, timestamp=null, user=null, dry_run=false)
 memory_session_integrate(branch, cwd=".", dry_run=false)
 memory_topics_list(cwd=".")
 memory_topic_inspect(topic, cwd=".")
