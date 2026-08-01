@@ -25,6 +25,7 @@ strategy from the product specifications and implementation lifecycle in `docs/`
 
 Supporting provenance:
 
+- [Competitive pricing workbook](market/Cost%20analysis.xlsx)
 - [Market-fit report](market/memory-seed-market-fit-report.md)
 - [Market-fit visual appendix](market/memory-seed-market-fit-visual-appendix.md)
 - [GitLens competitor report](market/memory-seed-gitlens-competitor-report.md)
@@ -55,4 +56,3 @@ Create these only when there is maintained content to place in them:
 - **Active hypothesis**: current strategic choice awaiting market validation.
 - **Supporting provenance**: useful historical evidence; not the current conclusion by itself.
 - **Retired**: retained for history and linked to its replacement.
-
