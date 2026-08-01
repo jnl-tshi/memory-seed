@@ -850,6 +850,9 @@ The publish workflow lives at `.github/workflows/publish.yml`. It runs tests, bu
 
 ## Learn More
 
+- [Business knowledge](business/README.md) — market size, competitors, pricing, and the current
+  developer project-memory wedge.
+
 - [CHANGELOG](CHANGELOG.md) — what shipped in each release.
 - [Active roadmap](docs/2_Todo/0_NEXT_STEPS.md) — the current implementation-run brief and stage plan.
 - [Functionality audit](docs/3_Spec/functionality-audit.md) — the live normative inventory of every surface.

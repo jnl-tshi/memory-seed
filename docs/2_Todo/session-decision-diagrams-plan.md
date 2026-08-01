@@ -62,8 +62,8 @@ well that **no session entry has ever embedded a diagram**. That is fine while t
 
 It stops being fine when Memory Trace becomes a paid tool for **non-technical stakeholders**
 (project managers, clients, reviewers) to review developers' agent-driven work - the commercial wedge
-in `docs/4_Reference/memory-seed-market-fit-visual-appendix.md` (Diagram 11) and the "branded reports,
-exportable timelines, project handover packs" paid tier in `docs/4_Reference/memory-seed-market-fit-report.md`.
+in `business/market/memory-seed-market-fit-visual-appendix.md` (Diagram 11) and the "branded reports,
+exportable timelines, project handover packs" paid tier in `business/market/memory-seed-market-fit-report.md`.
 A wall of prose decision records is a weak product for that audience.
 
 The naive fix - "encourage agents to embed Mermaid in the log" - fails twice: it did not move the base
@@ -221,8 +221,8 @@ The uniform, non-technical-facing deliverable and the one genuinely new Class-1 
 
 - Conversation 2026-07-05 (JNL): the Mermaid-in-logs question -> the two-class realization -> the
   no-LLM-can't-derive-from-prose constraint -> the sidecar-at-entry-time mechanism.
-- Paid handover/report framing: `docs/4_Reference/memory-seed-market-fit-report.md` (paid tiers) and
-  `docs/4_Reference/memory-seed-market-fit-visual-appendix.md` (Diagram 11, Trace as commercial wedge).
+- Paid handover/report framing: `business/market/memory-seed-market-fit-report.md` (paid tiers) and
+  `business/market/memory-seed-market-fit-visual-appendix.md` (Diagram 11, Trace as commercial wedge).
 - Class-1 substrate and canonical reader: [`../3_Spec/graph-edge-contract.md`](../3_Spec/graph-edge-contract.md).
 - Consumers: [`memory-trace-distribution-plan.md`](../5_Completed/memory-trace-distribution-plan.md),
   [`completed/memory-explorer-entry-level-ui-results-plan.md`](../5_Completed/memory-explorer-entry-level-ui-results-plan.md).

@@ -11,7 +11,7 @@ parent: "memory-trace-product-and-system-architecture-blueprint.md"
 
 Status: Active commercial strategy proposal, promoted from inbox on 2026-07-11.
 Priority: P4 for product packaging/pricing decisions after local product value is demonstrable.
-Source reference: `../4_Reference/memory-trace-next-generation-plan-document-set.md`, informed by `../4_Reference/memory-seed-market-fit-report.md`.
+Source reference: `../4_Reference/memory-trace-next-generation-plan-document-set.md`, informed by `../../business/market/memory-seed-market-fit-report.md`.
 Scope: Commercial wedge, free/paid boundary, tier hypotheses, AI economics, validation plan, metrics, and monetisation risks.
 Non-goals: No final pricing, no billing implementation, no claim of demonstrated product-market fit, no paywall on the core local Trail.
 Dependencies: `memory-trace-product-and-system-architecture-blueprint.md`, `memory-trace-hosted-product-and-security-architecture.md`, and real usage/interview validation.

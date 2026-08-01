@@ -11,7 +11,7 @@ related:
   - "docs/4_Reference/memory-quality-v0-baseline.md"
   - "docs/5_Completed/real-corpus-ranking-validation-gate-proposal.md"
   - "docs/3_Spec/memory-trace-derived-artifact-provenance-contract.md"
-  - "docs/4_Reference/memory-seed-strategic-synthesis-report.md"
+  - "business/wedges/memory-seed-strategic-synthesis-report.md"
 ---
 
 # Memory Quality Metrics v0 Proposal

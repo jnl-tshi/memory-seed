@@ -1,7 +1,8 @@
 # Reference Documents
 
-This folder holds source reports, market research, design notes, and competitor evidence that inform
-Memory Seed planning but are not active implementation proposals.
+This folder holds technical source reports, design notes, and product evidence that inform Memory Seed
+planning but are not active implementation proposals. Maintained market, competitor, pricing, and
+commercial-wedge material lives in the repository's [`business/`](../../business/README.md) area.
 
 Lifecycle:
 
@@ -33,13 +34,8 @@ Current Memory Trace provenance:
 | [INBOX-CAPABILITY-CROSSWALK.md](INBOX-CAPABILITY-CROSSWALK.md) | — | — | inbox-crosswalk |
 | [information-theoretic-evolution-disposition.md](information-theoretic-evolution-disposition.md) | — | — | disposition |
 | [memory-quality-v0-baseline.md](memory-quality-v0-baseline.md) | — | — | — |
-| [memory-seed-gitlens-competitor-report.md](memory-seed-gitlens-competitor-report.md) | — | — | — |
-| [memory-seed-market-fit-report.md](memory-seed-market-fit-report.md) | — | — | — |
-| [memory-seed-market-fit-visual-appendix.md](memory-seed-market-fit-visual-appendix.md) | — | — | — |
 | [memory-seed-rectification-priorities-report.md](memory-seed-rectification-priorities-report.md) | — | — | — |
-| [memory-seed-strategic-synthesis-report.md](memory-seed-strategic-synthesis-report.md) | — | — | — |
 | [memory-trace-next-generation-plan-document-set.md](memory-trace-next-generation-plan-document-set.md) | — | — | — |
-| [memory-trail-competitor-analysis.md](memory-trail-competitor-analysis.md) | — | — | — |
 | [openssf-scorecard-notes.md](openssf-scorecard-notes.md) | — | — | — |
 | [topic-swarm-reliability-experiment.md](topic-swarm-reliability-experiment.md) | — | — | reference |
 <!-- docs-index:end -->

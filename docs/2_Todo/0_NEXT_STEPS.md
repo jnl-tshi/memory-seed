@@ -940,10 +940,10 @@ material, not buildable plans). They overlap the existing corpus (`memory-seed-m
 next-gen blueprint, `agent-rules.md` Working Principles) more than they add; the useful extracted and
 remaining ideas are:
 
-- [`../4_Reference/memory-seed-gitlens-competitor-report.md`](../4_Reference/memory-seed-gitlens-competitor-report.md)
+- [`../../business/market/memory-seed-gitlens-competitor-report.md`](../../business/market/memory-seed-gitlens-competitor-report.md)
   — GitLens as a competitor/integration target; differentiate on decision/reasoning provenance (not
   Git-history features); "memory beside the commit/PR being viewed" tactics.
-- [`../4_Reference/memory-seed-strategic-synthesis-report.md`](../4_Reference/memory-seed-strategic-synthesis-report.md)
+- [`../../business/wedges/memory-seed-strategic-synthesis-report.md`](../../business/wedges/memory-seed-strategic-synthesis-report.md)
   — Memory-Quality as a first-class KPI set and a named layered-maturity ladder (raw activity → … →
   institutional knowledge). The measurable, non-gameable subset is now active as
   [`memory-quality-metrics-v0-proposal.md`](memory-quality-metrics-v0-proposal.md).

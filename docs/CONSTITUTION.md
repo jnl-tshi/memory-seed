@@ -25,10 +25,10 @@ across the codebase,
 Memory Seed is **the local-first, model-independent memory substrate that preserves a project's reasoning
 — its decisions, evidence, and context — so humans and AI agents can continue work without repeating
 prior investigation.** It is infrastructure that many clients consume, not an application. *(Source: the
-discovery proposal's strategic-position statement; `4_Reference/memory-seed-market-fit-report.md`.)*
+discovery proposal's strategic-position statement; `../business/market/memory-seed-market-fit-report.md`.)*
 
 It is **not** another documentation tool, Git client, or knowledge graph. Its differentiation lives above
-the Git-history layer: decision and reasoning provenance. *(Ref: `4_Reference/memory-seed-gitlens-competitor-report.md`.)*
+the Git-history layer: decision and reasoning provenance. *(Ref: `../business/market/memory-seed-gitlens-competitor-report.md`.)*
 
 ---
 
@@ -212,7 +212,7 @@ safety depend on it. Today only the DRAFT labels (Decision/Reason/Alternatives/F
 stale/orphan/contradiction rate. The Constitution defines *what* quality is; implementations decide *how*
 to measure it. Today `links check`, `topics check`, and `esr` are the partial instrumentation; named
 quality metrics (stale-rate, orphan-rate, evidence/decision coverage) are not yet tracked.
-*(Ref: `4_Reference/memory-seed-strategic-synthesis-report.md`.)*
+*(Ref: `../business/wedges/memory-seed-strategic-synthesis-report.md`.)*
 
 ## 9. The five-question test
 
