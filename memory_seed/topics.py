@@ -507,7 +507,12 @@ def check_topics(cwd: str | Path = ".") -> TopicsCheckResult:
     )
 
 
-def expand_topic_filter(cwd: str | Path, requested: list[str] | tuple[str, ...]) -> set[str]:
+def expand_topic_filter(
+    cwd: str | Path,
+    requested: list[str] | tuple[str, ...],
+    *,
+    index: TopicIndex | None = None,
+) -> set[str]:
     """Expand requested topic slugs to the full match set for filtering.
 
     Each requested name resolves to its canonical topic; the match set contains that canonical
@@ -520,7 +525,11 @@ def expand_topic_filter(cwd: str | Path, requested: list[str] | tuple[str, ...])
     the hierarchy is for. Expansion never runs upward: asking for a child must not drag in the
     parent's broader population.
     """
-    index = load_topic_index(cwd)
+    # A Trace request can apply several coordinated facet operations over the
+    # same corpus. Let that caller parse the vocabulary once and reuse the
+    # immutable index throughout the request; ordinary callers keep the
+    # existing read-on-demand behaviour.
+    index = index or load_topic_index(cwd)
     resolution = index.resolution()
     by_canonical: dict[str, set[str]] = {}
     for name, canonical in resolution.items():

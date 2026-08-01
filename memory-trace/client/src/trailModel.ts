@@ -99,6 +99,21 @@ export function inDecisionGroup(node: TrailEvent): boolean {
   return Boolean(node.decision_ordinal) || (node.decision_count ?? 0) > 0;
 }
 
+/** Resolve Inspector navigation against the full entry index.
+ *
+ * Ontology filters control workspace membership, not which authored decisions
+ * the Inspector is allowed to read. A selected entry may remain as context
+ * outside the current filter, so its decision row can be absent from the
+ * filtered Trail while still existing in the full index.
+ */
+export function decisionRowForHeading(
+  nodes: readonly TrailEvent[],
+  entryId: string,
+  heading: string,
+): TrailEvent | undefined {
+  return nodes.find((node) => node.entry_id === entryId && node.title === heading && isDecisionRow(node));
+}
+
 // Does either end of this edge name a specific decision rather than a whole
 // entry? Keyed on the row id rather than a payload flag because that is what
 // the endpoint IS: `_decision_edges_for_rows` terminates a decision-level edge

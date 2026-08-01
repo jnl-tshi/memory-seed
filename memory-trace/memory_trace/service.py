@@ -49,7 +49,7 @@ from memory_seed.semantic_cache import (
     extract_memory_chunks,
     rank_memory_chunks,
 )
-from memory_seed.topics import expand_topic_filter, load_topic_index
+from memory_seed.topics import TopicIndex, expand_topic_filter, load_topic_index
 from .graph_projection import MINIMUM_COMMUNITY_TOPIC_FREQUENCY, project_trace_graph
 
 
@@ -1522,7 +1522,12 @@ class TraceService:
             "ontology": self.ontology(topics),
         }
 
-    def ontology(self, counts: dict[str, int] | None = None) -> dict[str, list[dict[str, Any]]]:
+    def ontology(
+        self,
+        counts: dict[str, int] | None = None,
+        *,
+        topic_index: TopicIndex | None = None,
+    ) -> dict[str, list[dict[str, Any]]]:
         """The vocabulary as one recursive tree per axis.
 
         ``{"area": [node, ...], "activity": [node, ...]}`` where a node is
@@ -1546,7 +1551,7 @@ class TraceService:
         payload that 500s.
         """
         try:
-            index = load_topic_index(self.cache.cwd)
+            index = topic_index or load_topic_index(self.cache.cwd)
         except Exception:  # noqa: BLE001 - a broken vocabulary must not take facets down
             return {}
         counts = counts or {}
@@ -1578,6 +1583,7 @@ class TraceService:
         *,
         area: str | None = None,
         activity: str | None = None,
+        topic_index: TopicIndex | None = None,
     ) -> dict[str, list[dict[str, Any]]]:
         """Return self-excluding ontology counts for one logical view.
 
@@ -1587,6 +1593,10 @@ class TraceService:
         leaves alternative choices available rather than forcing a user to
         clear their current choice before changing it.
         """
+        try:
+            index = topic_index or load_topic_index(self.cache.cwd)
+        except Exception:  # noqa: BLE001 - a broken vocabulary must not take facets down
+            return {}
         return _prune_empty_ontology(
             self.ontology(
                 _contextual_ontology_counts(
@@ -1594,7 +1604,9 @@ class TraceService:
                     cwd=self.cache.cwd,
                     area=area,
                     activity=activity,
-                )
+                    topic_index=index,
+                ),
+                topic_index=index,
             )
         )
 
@@ -1813,6 +1825,12 @@ class TraceService:
         # touch the augmented edge fields. Sidecar edits still show promptly:
         # a sidecar change bumps the generation, invalidating this bundle.
         all_entries, _all_graph, diagram_map = self._derived()
+        # Area/Activity matching, contextual counts, and decision-row colouring
+        # all consult the same immutable vocabulary. Parse it once for this
+        # request instead of re-reading topics.yaml for every entry and axis.
+        # On the current 783-entry corpus the repeated reads made a filtered
+        # Trail request take roughly four seconds.
+        topic_index = load_topic_index(self.cache.cwd)
         # First resolve the logical view *without* ontology. The Area/Activity
         # picker is a coordinated facet over this set; it must not depend on
         # which nodes happen to be rendered after filtering or viewport work.
@@ -1923,6 +1941,7 @@ class TraceService:
             area=area,
             activity=activity,
             cwd=self.cache.cwd,
+            topic_index=topic_index,
         )
         by_id = {node_id(chunk): chunk for chunk in entries if node_id(chunk)}
         visible_ids = list(by_id)
@@ -1931,7 +1950,12 @@ class TraceService:
         graph = build_related_entry_graph(chunks=entries)
         connectivity = _connectivity_degrees(entries, node_id=node_id, graph=graph)
         importance = _importance_scores(entries, node_id=node_id, graph=graph)
-        contextual_ontology = self.contextual_ontology(scoped_entries, area=area, activity=activity)
+        contextual_ontology = self.contextual_ontology(
+            scoped_entries,
+            area=area,
+            activity=activity,
+            topic_index=topic_index,
+        )
         inferred_main = self.cache.main_commit_entries()
         # Entry ids carrying an authored Class-2 decision-diagram sidecar, from
         # the per-generation derived bundle (a newly authored diagram bumps the
@@ -1992,6 +2016,7 @@ class TraceService:
                 nodes,
                 self.cache,
                 only_entries=only_entries,
+                topic_index=topic_index,
                 attributions={
                     chunk.entry_id: chunk
                     for chunk in self._entry_chunks()
@@ -3462,9 +3487,15 @@ def _filter_chunks(
     area: str | None = None,
     activity: str | None = None,
     cwd: str | Path | None = None,
+    topic_index: TopicIndex | None = None,
 ) -> list[MemoryChunk]:
     start = _parse_date(date_from)
     end = _parse_date(date_to)
+    if topic_index is None and cwd is not None and (topic or area or activity):
+        try:
+            topic_index = load_topic_index(cwd)
+        except Exception:  # noqa: BLE001 - a damaged vocabulary must fail open
+            topic_index = None
     # Vocabulary-aware topic filter (topic-neighbourhoods plan Phase 4): expand
     # the requested slug to its canonical form plus every alias from
     # topics.yaml, so filtering by a canonical topic matches entries that stored
@@ -3473,11 +3504,11 @@ def _filter_chunks(
     # project with no topics.yaml) passes through as an exact-match set, so
     # pre-vocabulary filtering is unchanged.
     if topic:
-        topic_match = expand_topic_filter(cwd, [topic]) if cwd is not None else {topic}
+        topic_match = expand_topic_filter(cwd, [topic], index=topic_index) if cwd is not None else {topic}
     else:
         topic_match = None
-    area_match = expand_topic_filter(cwd, [area]) if area and cwd is not None else ({area} if area else None)
-    activity_match = expand_topic_filter(cwd, [activity]) if activity and cwd is not None else ({activity} if activity else None)
+    area_match = expand_topic_filter(cwd, [area], index=topic_index) if area and cwd is not None else ({area} if area else None)
+    activity_match = expand_topic_filter(cwd, [activity], index=topic_index) if activity and cwd is not None else ({activity} if activity else None)
     return [
         chunk
         for chunk in chunks
@@ -3486,11 +3517,22 @@ def _filter_chunks(
         and (start is None or chunk.session_date >= start)
         and (end is None or chunk.session_date <= end)
         and (topic_match is None or bool(topic_match & set(_topics(chunk))))
-        and _matches_ontology_selection(chunk, area_match=area_match, activity_match=activity_match, cwd=cwd)
+        and _matches_ontology_selection(
+            chunk,
+            area_match=area_match,
+            activity_match=activity_match,
+            cwd=cwd,
+            topic_index=topic_index,
+        )
     ]
 
 
-def _decision_topic_groups(chunk: MemoryChunk, *, cwd: str | Path | None) -> list[dict[str, set[str]]]:
+def _decision_topic_groups(
+    chunk: MemoryChunk,
+    *,
+    cwd: str | Path | None,
+    topic_index: TopicIndex | None = None,
+) -> list[dict[str, set[str]]]:
     """Return per-decision Area/Activity membership, with a legacy fallback.
 
     The sidecar's ordinal is the joining key. A flat topic union is used only
@@ -3498,7 +3540,7 @@ def _decision_topic_groups(chunk: MemoryChunk, *, cwd: str | Path | None) -> lis
     reader's existing entry-level semantics.
     """
     try:
-        index = load_topic_index(cwd) if cwd is not None else None
+        index = topic_index or (load_topic_index(cwd) if cwd is not None else None)
     except Exception:  # noqa: BLE001 - a damaged vocabulary must fail open
         index = None
 
@@ -3526,10 +3568,11 @@ def _matches_ontology_selection(
     area_match: set[str] | None,
     activity_match: set[str] | None,
     cwd: str | Path | None,
+    topic_index: TopicIndex | None = None,
 ) -> bool:
     if area_match is None and activity_match is None:
         return True
-    for group in _decision_topic_groups(chunk, cwd=cwd):
+    for group in _decision_topic_groups(chunk, cwd=cwd, topic_index=topic_index):
         if area_match is not None and not (area_match & group.get("area", set())):
             continue
         if activity_match is not None and not (activity_match & group.get("activity", set())):
@@ -3544,10 +3587,16 @@ def _contextual_ontology_counts(
     cwd: str | Path | None,
     area: str | None,
     activity: str | None,
+    topic_index: TopicIndex | None = None,
 ) -> dict[str, int]:
     """Count self-excluding facet choices once per entry and slug."""
-    area_match = expand_topic_filter(cwd, [area]) if area and cwd is not None else ({area} if area else None)
-    activity_match = expand_topic_filter(cwd, [activity]) if activity and cwd is not None else ({activity} if activity else None)
+    if topic_index is None and cwd is not None:
+        try:
+            topic_index = load_topic_index(cwd)
+        except Exception:  # noqa: BLE001 - a damaged vocabulary must fail open
+            topic_index = None
+    area_match = expand_topic_filter(cwd, [area], index=topic_index) if area and cwd is not None else ({area} if area else None)
+    activity_match = expand_topic_filter(cwd, [activity], index=topic_index) if activity and cwd is not None else ({activity} if activity else None)
     counts: dict[str, int] = {}
     for target_axis, required_match, required_axis in (
         ("area", activity_match, "activity"),
@@ -3555,7 +3604,7 @@ def _contextual_ontology_counts(
     ):
         for chunk in entries:
             seen: set[str] = set()
-            for group in _decision_topic_groups(chunk, cwd=cwd):
+            for group in _decision_topic_groups(chunk, cwd=cwd, topic_index=topic_index):
                 if required_match is not None and not (required_match & group.get(required_axis, set())):
                     continue
                 seen.update(group.get(target_axis, set()))
@@ -3889,32 +3938,13 @@ def _graph_node(
     }
 
 
-def _AXIS_OF(slug: str) -> str | None:
-    """The axis a slug sits on, memoized on the vocabulary.
-
-    A module-level cache because `_expand_decision_rows` asks per slug per row
-    and `load_topic_index` re-reads topics.yaml every call. Fails open to None
-    on a missing or broken vocabulary, matching every other reader of that file.
-    """
-    global _AXIS_CACHE
-    if _AXIS_CACHE is None:
-        try:
-            index = load_topic_index(".")
-            _AXIS_CACHE = {t.slug: index.axis_of(t.slug) for t in index.topics}
-        except Exception:  # noqa: BLE001 - a broken vocabulary must not break rendering
-            _AXIS_CACHE = {}
-    return _AXIS_CACHE.get(slug)
-
-
-_AXIS_CACHE: dict[str, str | None] | None = None
-
-
 def _expand_decision_rows(
     nodes: list[dict[str, Any]],
     cache: TraceCache,
     *,
     only_entries: Collection[str] | None = None,
     attributions: dict[str, MemoryChunk] | None = None,
+    topic_index: TopicIndex | None = None,
 ) -> list[dict[str, Any]]:
     """One Trail row per decision for multi-decision entries.
 
@@ -3971,6 +4001,10 @@ def _expand_decision_rows(
         entry_ids &= set(only_entries)
     if not entry_ids:
         return nodes
+    try:
+        index = topic_index or load_topic_index(cache.cwd)
+    except Exception:  # noqa: BLE001 - a broken vocabulary must not break rows
+        index = None
     decisions_by_entry: dict[str, list[tuple[int, MemoryChunk]]] = {}
     for chunk in cache.chunks(granularity="section"):
         if chunk.entry_id not in entry_ids:
@@ -4008,7 +4042,7 @@ def _expand_decision_rows(
         by_ordinal: dict[str, dict[str, list[str]]] = {}
         for ord_key, topics in decision_topics.items():
             for slug in topics:
-                axis = _AXIS_OF(slug)
+                axis = index.axis_of(slug) if index is not None else None
                 if axis:
                     by_ordinal.setdefault(ord_key, {}).setdefault(axis, []).append(slug)
         for ordinal, chunk in group:

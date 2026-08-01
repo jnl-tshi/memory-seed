@@ -12,7 +12,7 @@ import { searchResultCursor, stepSearchCursor } from "./searchNavigation";
 import { genuineSearchResults } from "./searchResults";
 import { overviewCounts, overviewExhausted as overviewIsExhausted, type OverviewCounts } from "./graphOverview";
 import { animateScrollTo, scrollDurationFor } from "./trailScroll";
-import { compareTrailNodes, isDecisionRow, stripTitleStamp, TRAIL_WINDOW_STEP, trailWindowEntryIds } from "./trailModel";
+import { compareTrailNodes, decisionRowForHeading, isDecisionRow, stripTitleStamp, TRAIL_WINDOW_STEP, trailWindowEntryIds } from "./trailModel";
 import { anchorEntryIdFor, isDecisionRowId, visibilityIdFor } from "./graphDecisionRows";
 import { ancestorIdsOf, TreeView, type OntologyNode } from "./TreeView";
 
@@ -1302,7 +1302,11 @@ export default function App() {
   function openSiblingDecision(heading: string) {
     const entryId = selected?.source.entry_id;
     if (!entryId) return;
-    const node = (effectiveTrail?.nodes ?? []).find((item) => item.entry_id === entryId && item.title === heading);
+    // The Inspector always reads the complete selected entry, even when that
+    // entry is retained as context outside the current ontology result. Resolve
+    // its decision identity from the full index rather than the filtered Trail,
+    // otherwise the selector silently stops when the row is filtered out.
+    const node = decisionRowForHeading(entryIndex?.nodes ?? effectiveTrail?.nodes ?? [], entryId, heading);
     if (node && matchHint?.decisionChunkId !== node.chunk_id) {
       preservedInspectorScroll.current = inspectorContent.current?.scrollTop ?? null;
       selectFromTrail(entryId, node.chunk_id, { heading }, "selector");
