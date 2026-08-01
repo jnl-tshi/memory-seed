@@ -230,7 +230,6 @@
   "contradictions": [],
   "entries": [
     {
-      "agent_name": null,
       "agent_type": "codex",
       "branch": null,
       "chunk_id": "mse_aaaaaaaaaaaaaaaa",
@@ -278,7 +277,6 @@
       "user": null
     },
     {
-      "agent_name": null,
       "agent_type": "claude",
       "branch": "feature/evolve",
       "chunk_id": "mse_bbbbbbbbbbbbbbbb",
@@ -339,7 +337,6 @@
       "user": null
     },
     {
-      "agent_name": null,
       "agent_type": "codex",
       "branch": null,
       "chunk_id": "mse_cccccccccccccccc",
@@ -389,7 +386,6 @@
       "user": null
     },
     {
-      "agent_name": null,
       "agent_type": "codex",
       "branch": "feature/evolve",
       "chunk_id": "mse_dddddddddddddddd",
@@ -484,7 +480,7 @@
     ]
   },
   "missing_evidence": [],
-  "pack_fingerprint": "sha256:889e1750b6b14282067d3b1131faf28edb14477b6dccccbf2b83b7f529e639b3",
+  "pack_fingerprint": "sha256:e6b1bdda2c247985bf257a05de4d577893d01eed8cb5e81336db67cb85f3a0e3",
   "pack_type": "timeline_evidence_pack",
   "provenance": {
     "builder": {

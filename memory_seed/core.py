@@ -3299,7 +3299,6 @@ def session_append_entry(
     body: str,
     user_initials: str,
     agent_type: str,
-    agent_name: str | None = None,
     topics: Sequence[str] = (),
     related_entries: Sequence[str] = (),
     replaces: Sequence[str] = (),
@@ -3555,7 +3554,6 @@ def session_append_entry(
         f"entry_id: {entry_id}",
         f"user_initials: {user_initials}",
         f"agent_type: {agent_type}",
-        f"agent_name: {agent_name if agent_name else 'null'}",
         f"project_path: {project_path}",
         f"subproject_path: {subproject_path if subproject_path else 'null'}",
     ]

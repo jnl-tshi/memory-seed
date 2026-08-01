@@ -1487,7 +1487,7 @@ class TraceService:
         users: dict[str, int] = {}
         topics: dict[str, int] = {}
         for chunk in entries:
-            agents[chunk.agent_type or chunk.agent_name or "unknown"] = agents.get(chunk.agent_type or chunk.agent_name or "unknown", 0) + 1
+            agents[chunk.agent_type or "unknown"] = agents.get(chunk.agent_type or "unknown", 0) + 1
             if chunk.user:
                 users[chunk.user] = users.get(chunk.user, 0) + 1
             for topic in _topics(chunk):
@@ -1729,7 +1729,6 @@ class TraceService:
             "metadata": {
                 "source": selected.source_path,
                 "agent_type": selected.agent_type,
-                "agent_name": selected.agent_name,
                 "user": selected.user,
                 "file_hash_id": selected.file_hash_id,
                 "project_path": selected.project_path,
@@ -3377,7 +3376,6 @@ def _chunk_to_api(chunk: MemoryChunk) -> dict[str, Any]:
         "contexts": list(chunk.contexts),
         "lexical_terms": list(chunk.lexical_terms),
         "agent_type": chunk.agent_type,
-        "agent_name": chunk.agent_name,
         "user": chunk.user,
         "branch": chunk.branch,
         "text": chunk.text,
@@ -3483,7 +3481,7 @@ def _filter_chunks(
     return [
         chunk
         for chunk in chunks
-        if (not agent or chunk.agent_type == agent or chunk.agent_name == agent)
+        if (not agent or chunk.agent_type == agent)
         and (not user or chunk.user == user)
         and (start is None or chunk.session_date >= start)
         and (end is None or chunk.session_date <= end)
@@ -3688,7 +3686,7 @@ def _graph_edges(
     for chunk in entries:
         for topic in _topics(chunk):
             topic_groups.setdefault(topic, []).append(chunk)
-        agent_groups.setdefault(chunk.agent_type or chunk.agent_name or "unknown", []).append(chunk)
+        agent_groups.setdefault(chunk.agent_type or "unknown", []).append(chunk)
         day_groups.setdefault(chunk.session_date.isoformat(), []).append(chunk)
         # Trail view: entries sharing a recorded `branch:` value form a
         # time-ordered intra-branch lineage thread (same shape as topic/agent/day
@@ -3873,7 +3871,7 @@ def _graph_node(
         "datetime": chunk.entry_datetime.isoformat() if chunk.entry_datetime else None,
         "branch": chunk.branch or ("main" if inferred_main else None),
         "branch_inferred": inferred_main,
-        "agent": chunk.agent_type or chunk.agent_name or "unknown",
+        "agent": chunk.agent_type or "unknown",
         "topics": _topics(chunk),
         "decision_topics": _decision_topics(chunk),
         "granularity": chunk.granularity,
@@ -4149,7 +4147,7 @@ def _chunk_summary(chunk: MemoryChunk) -> dict[str, Any]:
         "title": chunk.title,
         "date": chunk.session_date.isoformat(),
         "time": chunk.entry_datetime.strftime("%H:%M") if chunk.entry_datetime else None,
-        "agent": chunk.agent_type or chunk.agent_name or "unknown",
+        "agent": chunk.agent_type or "unknown",
         "topics": _topics(chunk),
     }
 

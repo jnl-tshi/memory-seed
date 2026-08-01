@@ -473,7 +473,7 @@ graph TD
 
 ### G. Personas (`.agents/`)
 - Vendor-neutral persona templates (developer, content-creator, researcher, sales-rep, solo-founder, copywriter) + `_registry.yaml`. Each defines identity, memory protocol, rules, skill routing, and an append-only `## Project Adaptations` log.
-- **Persona evolution** is approval-gated: at session end an agent may draft <=3 adaptations and must get user approval before editing the persona file. `agent_name` is recorded in session entries when a persona is active.
+- **Persona evolution** is approval-gated: at session end an agent may draft <=3 adaptations and must get user approval before editing the persona file. Persona selection remains runtime context and is not stored in session entries.
 
 ```mermaid
 graph TD
@@ -491,8 +491,8 @@ graph TD
 
   subgraph SessionTier["Session effects"]
     direction LR
-    NAME["agent_name<br>in log"] ~~~ DRAFT["Draft adaptations"]
-    APPROVAL["User approval"] ~~~ EDIT["Edit persona"]
+    DRAFT["Draft adaptations"] ~~~ APPROVAL["User approval"]
+    APPROVAL ~~~ EDIT["Edit persona"]
   end
 
   RegistryTier ~~~ PersonaTier
@@ -599,7 +599,7 @@ graph TD
 ```
 
 ### J. Session log model
-- Append-only dated files now write to `sessions/YYYY-MM/YYYY-MM-DD.md` or `sessions/YYYY-MM/YYYY-MM-DD/<user>.md`; legacy `sessions/YYYY-MM-DD.md` and `sessions/YYYY-MM-DD/<user>.md` remain readable. Entries carry a YAML block (`entry_id`, `user_initials`, `agent_type`, `agent_name?`, `project_path`, `subproject_path`, optional `related_entries`). The **DRAFT** record is the baseline shape: D (Decision) and R (Reason) mandatory; A (Alternatives), F (Files), T (Tests) optional. Strict ascending-time, append-at-end chronology.
+- Append-only dated files now write to `sessions/YYYY-MM/YYYY-MM-DD.md` or `sessions/YYYY-MM/YYYY-MM-DD/<user>.md`; legacy `sessions/YYYY-MM-DD.md` and `sessions/YYYY-MM-DD/<user>.md` remain readable. Entries carry a YAML block (`entry_id`, `user_initials`, `agent_type`, `project_path`, `subproject_path`, optional `related_entries`). Historical entries may still contain the retired `agent_name` key; readers ignore it. The **DRAFT** record is the baseline shape: D (Decision) and R (Reason) mandatory; A (Alternatives), F (Files), T (Tests) optional. Strict ascending-time, append-at-end chronology.
 - **Entry IDs (widened in 2.12).** New generated `entry_id`s use deterministic 80-bit `mse_` Base32 IDs (`generate_session_entry_id()`); legacy 32-bit `ms-` IDs remain valid and are never rewritten.
 - **Integrity validation (new in 2.12, grouped-aware after current work).** `check_session_links()` / `memory-seed links check` scans for duplicate `entry_id`/`hash_id` and dangling refs, exiting non-zero as a CI gate. The legacy-flat `related_entries` scan gap was fixed in 2.14. It also validates `supersedes` refs (dangling/self/postdates/cycle), `commits:` hashes (malformed/unknown when git is present), and decision-diagram sidecars under both `sessions/diagrams/YYYY-MM-DD.md` and `sessions/diagrams/YYYY-MM/YYYY-MM-DD.md` (`malformed-diagram`, `orphan-diagram`, `diagram-date-mismatch`; sidecars always optional).
 - **Decision diagram sidecars (diagrams plan Phase 1; grouped after current work; trigger tightened, unreleased).** Authored reasoning diagrams append to `sessions/diagrams/YYYY-MM/YYYY-MM-DD.md` - one dated file per day, mirroring the grouped session-log convention for filesystem readability; legacy sidecars under `sessions/diagrams/YYYY-MM-DD.md` remain readable. Each diagram is a `## <timestamp> - <title>` heading block naming its `entry_id` in a fenced yaml block, followed by fenced mermaid block(s), never inlined in the append-only session log itself. Sidecars stay optional and still require the same spatial/temporal/concurrent bar as the Mermaid Working Principle, but branch/merge topology, old-to-new layout migrations, schema/compatibility flows, multi-agent concurrency, command lifecycle flows, and retrieval/data pipeline decisions are now **positive triggers** rather than an "only if it clearly helps" judgment call - when one applies and no sidecar is written, the entry must state why under `A:`/`Follow-up`. Authoring guidance lives in `session_logging.md` + `end_of_turn.md` (live + seed); metadata surfaces through `retrieval.entry_diagram_sidecars()` (opt-in `include_diagrams`, never set by the MCP tool contract) and the Memory Trace chunk view.
@@ -1000,7 +1000,7 @@ The qualities the design optimises for (the "why it is shaped this way"):
   - `memory_topics_list(cwd=".")`, `memory_topic_inspect(topic, cwd=".")`, and `memory_topics_check(cwd=".")` -> read-only topic vocabulary listing, alias-aware single-topic inspection with entry usage, and validation mirroring `memory-seed topics check`.
   - `memory_branch_status(cwd=".")`, `memory_worktree_guard(agent_type, write_intent=false, allow_root_write=false, cwd=".")`, and `memory_session_fuse_preview(branch, cwd=".", base="HEAD")` -> read-only branch posture, agent worktree namespace classification, and branch-local fuse plan.
 - **CLI exit codes:** `0` success, `1` failure (e.g. nothing to do, invalid agent slug, unhealthy runtime).
-- **File-format contracts:** session-entry YAML keys (`entry_id`, `user_initials`, `agent_type`, `agent_name?`, `project_path`, `subproject_path`); per-user session **file** frontmatter (`schema_version: 2`, `session_date`, `hash_id`, `user`, `created_at`, since 2.10); `skills/index.md` trigger schema (`skill`, `required`, `load_when`, `do_not_load_when`, `persona?`); `project.yaml` (`agents:`, `skills:`, `participants:`); `memory-system-version` frontmatter on control-plane files; the routing managed block delimited by `<!-- BEGIN memory-seed -->` / `<!-- END memory-seed -->` in foreign entry-point files.
+- **File-format contracts:** session-entry YAML keys (`entry_id`, `user_initials`, `agent_type`, `project_path`, `subproject_path`); per-user session **file** frontmatter (`schema_version: 2`, `session_date`, `hash_id`, `user`, `created_at`, since 2.10); `skills/index.md` trigger schema (`skill`, `required`, `load_when`, `do_not_load_when`, `persona?`); `project.yaml` (`agents:`, `skills:`, `participants:`); `memory-system-version` frontmatter on control-plane files; the routing managed block delimited by `<!-- BEGIN memory-seed -->` / `<!-- END memory-seed -->` in foreign entry-point files.
 - **Local user identity:** gitignored `.memory-seed/local.yaml` (`user:` slug) and the `MEMORY_SEED_USER` environment variable select the active user for session targeting and the user-aware hooks (since 2.10).
 - **Per-agent config targets:** see the wiring map in section 4.4 (each agent's hook + MCP files).
 

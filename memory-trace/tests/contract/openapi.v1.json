@@ -147,17 +147,6 @@
       },
       "ChunkMetadata": {
         "properties": {
-          "agent_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Agent Name"
-          },
           "agent_type": {
             "anyOf": [
               {
@@ -232,7 +221,6 @@
         "required": [
           "source",
           "agent_type",
-          "agent_name",
           "user",
           "file_hash_id",
           "project_path",
@@ -244,17 +232,6 @@
       },
       "ChunkResponse": {
         "properties": {
-          "agent_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Agent Name"
-          },
           "agent_type": {
             "anyOf": [
               {
@@ -519,7 +496,6 @@
           "contexts",
           "lexical_terms",
           "agent_type",
-          "agent_name",
           "user",
           "branch",
           "text",
@@ -1585,17 +1561,6 @@
       },
       "SearchResult": {
         "properties": {
-          "agent_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Agent Name"
-          },
           "agent_type": {
             "anyOf": [
               {
@@ -1876,7 +1841,6 @@
           "contexts",
           "lexical_terms",
           "agent_type",
-          "agent_name",
           "user",
           "branch",
           "text",

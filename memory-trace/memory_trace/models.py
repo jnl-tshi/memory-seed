@@ -190,7 +190,6 @@ class ChunkSummary(BaseModel):
     contexts: list[str]
     lexical_terms: list[str]
     agent_type: str | None
-    agent_name: str | None
     user: str | None
     branch: str | None
     text: str
@@ -305,7 +304,6 @@ class Suggestions(BaseModel):
 class ChunkMetadata(BaseModel):
     source: str | None
     agent_type: str | None
-    agent_name: str | None
     user: str | None
     file_hash_id: str | None
     project_path: str | None

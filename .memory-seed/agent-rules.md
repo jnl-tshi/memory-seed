@@ -77,7 +77,7 @@ At the start of work:
 7. Establish current project state: read the newest session document in full (and skim the one before it), selected by session date across `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md`, `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md`, and the legacy flat/day layouts. Read it directly — do not use `memory_search` to find the latest state (see Recency vs. Topical Retrieval). A SessionStart hook injects this automatically where supported; do the read yourself when it is not. For a one-shot reconciliation of local state — git posture, the newest session entry, worktrees, and the local-vs-CHANGELOG version — run `memory-seed situate` and follow `.memory-seed/skills/orientation.md` (the start-of-session mirror of End Of Turn); it also prompts verifying the *published* version from the source of truth instead of assuming. On the **first substantive message**, once the user's intent is known, run that skill's **operating-mode gate**: it sets the enforcement-classed session variables (`checkout_posture`, `integration_mode`/`merge_trigger`, `write_intent`, `risk_tier`, `orchestration_level`, `worktree_decision`, `skills_to_load`) in order, and read-only work exits it after step 3.
 8. Read `.memory-seed/skills/index.md` as the deterministic skill trigger registry.
 9. Load full `.memory-seed/skills/*.md` runbooks only when the trigger registry matches the current task.
-10. If `.agents/_registry.yaml` exists at the workspace root, read it and load all persona files with `status: active`. Apply persona rules alongside this agent-rules.md and policy.md. Record `agent_name` (the persona's slug) in every session log entry this turn. **No hook checks this** — unlike step 7's session-state read, nothing injects or reminds, so a skip here fails silently; verify it yourself every turn a persona is active, not just at session start. **Primary agents only:** a spawned worker inherits state from its Task Packet and follows the Worker Context Contract in `.memory-seed/skills/agent_collaboration.md` — packet + at most one persona + triggered skills, skipping 4/7/8/10, but still running `base_sha`/preflight and the worktree guard.
+10. If `.agents/_registry.yaml` exists at the workspace root, read it and load all persona files with `status: active`. Apply persona rules alongside this agent-rules.md and policy.md. **Primary agents only:** a spawned worker inherits state from its Task Packet and follows the Worker Context Contract in `.memory-seed/skills/agent_collaboration.md` — packet + at most one persona + triggered skills, skipping 4/7/8/10, but still running `base_sha`/preflight and the worktree guard.
 
 When multiple personas are active, the one most relevant to the current task governs. Default to the first active entry in `_registry.yaml` when ambiguous.
 
@@ -185,7 +185,7 @@ Cross-cutting principles that apply to any agent and any task:
 ## End Of Turn
 After any turn where meaningful work was completed, append a concise entry to the active session target before the turn ends. Deferring or batching session log writes is a discipline failure.
 
-Start with `memory-seed esr` - one read-only report covering the mechanical checks (links, topics, session-scoped link audit, worktree posture, seed-twin drift). Then load `.memory-seed/skills/end_of_turn.md` for the full ESR checklist: session entry, lifecycle link sweep, consolidation review, policy/index/skill review, verification, orphan and artifact sweep, stale worktree sweep, persona evolution, skill evolution, unregistered persona check, persona usage check (propose deactivating an active-but-unused persona, never auto-applied), and baseline-promotion review.
+Start with `memory-seed esr` - one read-only report covering the mechanical checks (links, topics, session-scoped link audit, worktree posture, seed-twin drift). Then load `.memory-seed/skills/end_of_turn.md` for the full ESR checklist: session entry, lifecycle link sweep, consolidation review, policy/index/skill review, verification, orphan and artifact sweep, stale worktree sweep, persona evolution, skill evolution, unregistered persona check, and baseline-promotion review.
 
 Load `.memory-seed/skills/session_logging.md` for session frontmatter, entry YAML, DRAFT labels, entry shapes, append-only chronology, `related_entries`, and examples.
 
@@ -221,7 +221,7 @@ Load `.memory-seed/skills/memory_hygiene.md` for private/public risk distinction
 
 ## Session Log Format
 
-Session entries use dated files under `.memory-seed/sessions/`. Entries include a current-time heading plus YAML fields for auditability: `entry_id`, `user_initials`, `agent_type`, `project_path`, and `subproject_path`; include `agent_name` when a persona is active and `related_entries` when meaningful prior entries are linked.
+Session entries use dated files under `.memory-seed/sessions/`. Entries include a current-time heading plus YAML fields for auditability: `entry_id`, `user_initials`, `agent_type`, `project_path`, and `subproject_path`; include `related_entries` when meaningful prior entries are linked.
 
 Keep entries concise, reason-aware, and append-only. Load `.memory-seed/skills/session_logging.md` for the full schema, DRAFT decision record, branch/commit/supersession fields, examples, repair rules, and the local-identity/session-layout model.
 

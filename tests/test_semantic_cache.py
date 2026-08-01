@@ -58,6 +58,7 @@ class SemanticCacheTests(unittest.TestCase):
             "entry_id: ms-ranking1\n"
             "user_initials: JN\n"
             "agent_type: codex\n"
+            "agent_name: legacy-persona\n"
             "project_path: .\n"
             "subproject_path: null\n"
             "```\n\n"
@@ -76,6 +77,7 @@ class SemanticCacheTests(unittest.TestCase):
         self.assertEqual(chunks[0].entry_id, "ms-ranking1")
         self.assertEqual(chunks[0].user_initials, "JN")
         self.assertEqual(chunks[0].agent_type, "codex")
+        self.assertFalse(hasattr(chunks[0], "agent_name"))
         self.assertEqual(chunks[0].project_path, ".")
         self.assertIsNone(chunks[0].subproject_path)
         self.assertEqual(chunks[0].heading_path, ("2026-05-18 10:30 - Ranking Engine",))

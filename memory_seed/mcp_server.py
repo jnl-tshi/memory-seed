@@ -375,7 +375,6 @@ TOOLS: list[dict[str, Any]] = [
                 },
                 "user_initials": {"type": "string", "description": "user_initials field, e.g. JNL."},
                 "agent_type": {"type": "string", "description": "agent_type field, e.g. claude."},
-                "agent_name": {"type": "string", "description": "Active .agents/ persona slug; omit for null."},
                 "topics": {
                     "type": "array",
                     "items": {"type": "string"},
@@ -858,7 +857,6 @@ def call_tool(
             body=body,
             user_initials=_required_str(args, "user_initials"),
             agent_type=_required_str(args, "agent_type"),
-            agent_name=_optional_str(args, "agent_name"),
             topics=list(args.get("topics") or []),
             related_entries=list(args.get("related_entries") or []),
             replaces=list(args.get("replaces") or args.get("supersedes") or []),  # legacy key accepted

@@ -83,6 +83,7 @@ topics:
         written = Path(result["path"]).read_text(encoding="utf-8")
         self.assertIn("## 2026-06-13 09:00 - Gated append", written)
         self.assertIn(result["entry_id"], written)
+        self.assertNotIn("agent_name:", written)
         self.assertIn("- D: Ship the gated append path.", written)
 
     def test_lifecycle_edges_arrive_as_arrays_not_csv(self):
@@ -381,6 +382,7 @@ class McpWriteSurfaceTests(unittest.TestCase):
         self.assertEqual(decision["items"]["required"], ["decision", "topics"])
         self.assertEqual(topics["required"], ["area", "activity"])
         self.assertEqual(topics["properties"]["activity"]["oneOf"][1]["minItems"], 1)
+        self.assertNotIn("agent_name", schema["properties"])
 
 
 if __name__ == "__main__":

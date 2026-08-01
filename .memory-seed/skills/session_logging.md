@@ -28,7 +28,6 @@ session_date: 2026-05-02
 entry_id: mse_0123456789abcdef
 user_initials: USER
 agent_type: codex
-agent_name: null
 project_path: .
 subproject_path: null
 related_entries:
@@ -48,7 +47,7 @@ related_entries:
 - T: Tests or validation outcome. (optional)
 ````
 
-`agent_type` is the LLM model or vendor. `agent_name` is the active `.agents/` persona slug, or `null` when no persona is active. `related_entries` is an optional list of related `entry_id` values, legacy `ms-` or current `mse_`, that link this entry to prior entries. It forms the canonical graph edges surfaced by `memory_search` / `memory_get_chunk` and validated by `memory-seed links check`. To fill it, prefer the `memory_link_suggest` MCP tool (or `memory-seed link suggest`), which ranks older candidate entries and returns a paste-ready list instead of guessing. To append the entry, use `memory_session_append` (or `memory-seed session append`); a `dry_run` returns the resolved target path, the canonical `entry_id`, and `rendered` — the exact block a real call would append — without writing; when committing after a preview, echo the returned `timestamp` into the real call so a minute tick cannot change the id.
+`agent_type` is the LLM model or vendor. `related_entries` is an optional list of related `entry_id` values, legacy `ms-` or current `mse_`, that link this entry to prior entries. It forms the canonical graph edges surfaced by `memory_search` / `memory_get_chunk` and validated by `memory-seed links check`. To fill it, prefer the `memory_link_suggest` MCP tool (or `memory-seed link suggest`), which ranks older candidate entries and returns a paste-ready list instead of guessing. To append the entry, use `memory_session_append` (or `memory-seed session append`); a `dry_run` returns the resolved target path, the canonical `entry_id`, and `rendered` — the exact block a real call would append — without writing; when committing after a preview, echo the returned `timestamp` into the real call so a minute tick cannot change the id.
 
 `replaces` is an optional sibling list of `entry_id` values marking earlier decisions this entry explicitly replaces or deprecates — a typed status edge, kept separate from `related_entries` (relatedness) and never merged with it. Forward-only: reference only entries that already existed when this one was written; `links check` rejects a `replaces` ref whose target postdates the referencing entry, a self-reference, or a cycle. A replaced entry stays fully retrievable — supersession deprioritizes, never hides. A feature removal with no successor still replaces the removed feature's decision entries — the removing entry's `D:`/`R:` states that nothing replaces it. The computed inverse (`replaced_by`) is available read-time via `memory-seed link show`, `memory_get_chunk`, and on `memory_search` results; it is never written into any file — `links check` flags a stored `replaced_by:`/`evolved_by:` key as `authored-inverse-field`. Legacy corpora may still spell this field `supersedes:` (renamed 2026-07-24); every reader and validator accepts both, and new entries must write `replaces:`.
 

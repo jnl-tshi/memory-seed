@@ -98,7 +98,6 @@ class MemoryChunk:
     entry_id: str | None = None
     user_initials: str | None = None
     agent_type: str | None = None
-    agent_name: str | None = None
     project_path: str | None = None
     subproject_path: str | None = None
     user: str | None = None
@@ -1178,7 +1177,6 @@ def _extract_entry_chunks_from_file(
                     entry_id=entry_id,
                     user_initials=_metadata_value(metadata, "user_initials"),
                     agent_type=_metadata_value(metadata, "agent_type"),
-                    agent_name=_metadata_value(metadata, "agent_name"),
                     project_path=_metadata_value(metadata, "project_path"),
                     subproject_path=_metadata_value(metadata, "subproject_path"),
                     user=user,
@@ -1223,7 +1221,6 @@ def _extract_entry_chunks_from_file(
                     entry_id=entry_id,
                     user_initials=_metadata_value(metadata, "user_initials"),
                     agent_type=_metadata_value(metadata, "agent_type"),
-                    agent_name=_metadata_value(metadata, "agent_name"),
                     project_path=_metadata_value(metadata, "project_path"),
                     subproject_path=_metadata_value(metadata, "subproject_path"),
                     user=user,
@@ -1270,7 +1267,6 @@ def _extract_entry_chunks_from_file(
                     entry_id=entry_id,
                     user_initials=_metadata_value(metadata, "user_initials"),
                     agent_type=_metadata_value(metadata, "agent_type"),
-                    agent_name=_metadata_value(metadata, "agent_name"),
                     project_path=_metadata_value(metadata, "project_path"),
                     subproject_path=_metadata_value(metadata, "subproject_path"),
                     user=user,
