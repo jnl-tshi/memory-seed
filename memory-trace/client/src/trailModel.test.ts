@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildTrailModel, compareTrailNodes, decisionEndpointLabel, entryIdOfRowId, inDecisionGroup, isDecisionEdge, isDecisionRow, lifecycleEdgeClass, pastelOf, trailWindowEntryIds, trunkRowRange } from "./trailModel.ts";
+import { buildTrailModel, compareTrailNodes, decisionEndpointLabel, decisionRowForHeading, entryIdOfRowId, inDecisionGroup, isDecisionEdge, isDecisionRow, lifecycleEdgeClass, pastelOf, trailWindowEntryIds, trunkRowRange } from "./trailModel.ts";
 import type { TrailEvent, TrailResponse } from "./api.ts";
 
 const PALETTE = [
@@ -85,6 +85,22 @@ test("isDecisionRow and inDecisionGroup differ exactly on the group anchor", () 
   const d1 = node({ id: "mse_a#decisions/d1-w", decision_ordinal: "d1" });
   assert.deepEqual([ordinary, anchor, d1].map(isDecisionRow), [false, false, true]);
   assert.deepEqual([ordinary, anchor, d1].map(inDecisionGroup), [false, true, true]);
+});
+
+test("decision selector resolves a row from the full index when filters hide it", () => {
+  const d2 = node({
+    id: "mse_a#decisions/d2-hidden",
+    chunk_id: "mse_a#decisions/d2-hidden",
+    entry_id: "mse_a",
+    title: "D2 - Hidden by the active facet",
+    decision_ordinal: "d2",
+    granularity: "section",
+  });
+  const filteredRows = [node({ id: "mse_other", entry_id: "mse_other" })];
+  const fullIndexRows = [...filteredRows, d2];
+
+  assert.equal(decisionRowForHeading(filteredRows, "mse_a", d2.title), undefined);
+  assert.equal(decisionRowForHeading(fullIndexRows, "mse_a", d2.title)?.chunk_id, d2.chunk_id);
 });
 
 test("buildTrailModel keeps decision rows unique, grouped, and never bisected by the window", () => {

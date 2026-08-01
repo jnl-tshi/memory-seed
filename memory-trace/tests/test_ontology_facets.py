@@ -4,10 +4,12 @@ from datetime import date, datetime
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from types import SimpleNamespace
 
 from memory_seed.semantic_cache import MemoryChunk
+from memory_seed.topics import load_topic_index
 from memory_trace.service import TraceService, _contextual_ontology_counts, _filter_chunks
 
 
@@ -115,6 +117,23 @@ topics:
         # An empty contextual response is still loaded data, not an absent
         # response: the client distinguishes this from the full corpus tree.
         self.assertEqual(ontology, {"area": [], "activity": []})
+
+    def test_each_facet_operation_parses_the_vocabulary_once(self):
+        entries = [
+            self.entry(f"mse_{index}", [("d1", "area-a"), ("d1", "activity-x")])
+            for index in range(40)
+        ]
+        service = TraceService(SimpleNamespace(cwd=self.cwd))
+
+        with patch("memory_trace.service.load_topic_index", wraps=load_topic_index) as loader:
+            filtered = _filter_chunks(entries, area="area-a", activity="activity-x", cwd=self.cwd)
+        self.assertEqual(len(filtered), len(entries))
+        self.assertEqual(loader.call_count, 1, "filter cost must not scale with entry count")
+
+        with patch("memory_trace.service.load_topic_index", wraps=load_topic_index) as loader:
+            ontology = service.contextual_ontology(entries, area="area-a", activity="activity-x")
+        self.assertTrue(ontology["area"])
+        self.assertEqual(loader.call_count, 1, "counts and tree must share one parsed index")
 
 
 if __name__ == "__main__":
