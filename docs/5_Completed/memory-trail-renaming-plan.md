@@ -104,7 +104,7 @@ not a squatter or an unrelated tool - the same-niche positioning ("decision memo
 logging for AI-assisted development - track architectural decisions across sessions") overlaps
 Memory Seed's own product space, not merely its candidate name.
 
-**Refined 2026-07-05** by [`memory-trail-competitor-analysis.md`](../4_Reference/memory-trail-competitor-analysis.md)
+**Refined 2026-07-05** by [`memory-trail-competitor-analysis.md`](../../business/market/memory-trail-competitor-analysis.md)
 (full evaluation): the PyPI package itself is an inert placeholder (`log()`/`recall()` both raise
 `NotImplementedError`; CLI prints "Coming Soon") reserving a name inside a different product line
 (Clarity Gate). The actual functioning artifact is a **separate GitHub repo**

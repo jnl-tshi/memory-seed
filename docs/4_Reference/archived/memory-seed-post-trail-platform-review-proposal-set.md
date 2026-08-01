@@ -40,7 +40,7 @@ that gate.
 | One provider lifecycle and publishability boundary | Split into shared capability status plus deferred security work. | [`memory-seed-publishability-check-evaluation.md`](../../8_Deferred/memory-seed-publishability-check-evaluation.md) |
 | Projection modules | Covered by the candidate projection contract and its implementation plan. | [`derived-read-model-projection-contract.md`](../../3_Spec/draft/derived-read-model-projection-contract.md) |
 | Quality metrics inspection lens | Already owned by the active read-only metrics proposal. | [`memory-quality-metrics-v0-proposal.md`](../../2_Todo/memory-quality-metrics-v0-proposal.md) |
-| Thin VS Code / GitLens surface | Keep as reference input until local APIs and Trail parity are accepted. | [`memory-seed-gitlens-competitor-report.md`](../memory-seed-gitlens-competitor-report.md) |
+| Thin VS Code / GitLens surface | Keep as reference input until local APIs and Trail parity are accepted. | [`memory-seed-gitlens-competitor-report.md`](../../../business/market/memory-seed-gitlens-competitor-report.md) |
 
 ## Corrections made while triaging
 

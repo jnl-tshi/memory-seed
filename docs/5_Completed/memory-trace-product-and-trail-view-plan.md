@@ -19,7 +19,7 @@ format: "Markdown research proposal"
 > in the unpushed Memory Trace worktree.
 > **Source:** Conversation 2026-07-05 (JNL): use **Memory Trace** as the overall package/product name,
 > with **Memory Trail** as a core feature inside Trace for branch and supersession evolution.
-> Prior source notes: [`../../4_Reference/memory-trail-competitor-analysis.md`](../4_Reference/memory-trail-competitor-analysis.md)
+> Prior source notes: [`../../business/market/memory-trail-competitor-analysis.md`](../../business/market/memory-trail-competitor-analysis.md)
 > and [`completed/memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md).
 > **Scope:** Product/package naming, package extraction gate, the Trail feature concept, and the
 > minimal data-model/API/UI work needed to show feature evolution from branch labels plus
@@ -40,7 +40,7 @@ format: "Markdown research proposal"
 
 [`completed/memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md)'s Phase-0 check found
 `memory-seed-trail` free on PyPI but "Memory Trail" already the name of a real (if small) same-niche
-product ([analyzed here](../4_Reference/memory-trail-competitor-analysis.md)). This proposal offers a resolution:
+product ([analyzed here](../../business/market/memory-trail-competitor-analysis.md)). This proposal offers a resolution:
 
 - **Product/package name: Memory Trace.** Names the whole thing - durable, cross-agent, human-
   auditable project memory.
@@ -261,7 +261,7 @@ though the decision and commit both still exist.
 
 - Conversation 2026-07-05 (JNL): the Trace/Trail naming refinement and the record-time capture
   preference.
-- [`memory-trail-competitor-analysis.md`](../4_Reference/memory-trail-competitor-analysis.md) - the positioning-
+- [`memory-trail-competitor-analysis.md`](../../business/market/memory-trail-competitor-analysis.md) - the positioning-
   collision finding this proposal's naming half resolves.
 - [`memory-trail-renaming-plan.md`](memory-trail-renaming-plan.md) - the open naming decision
   this proposal offers a resolution path for, without deciding it here.
