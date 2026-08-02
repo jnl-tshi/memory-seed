@@ -25,15 +25,7 @@ Keep individual assistant turns short. For multi-report or multi-artifact work, 
 directly to a file with the Write tool and return only a one-line confirmation — never stream long
 report bodies into the chat.
 
-## Orientation
-
-Before answering "what state is the project in?", verify against live sources, not worktree snapshots:
-run `git fetch --all --prune`, check `git log --oneline -5 origin/main`, and confirm the published
-version with `pip index versions memory-seed` (or the PyPI JSON API). Never state a current version
-from a local worktree checkout.
-
-## Merge & Branch Safety
-
-After every merge, verify the full changeset landed: run `git diff --stat <branch>..HEAD` and confirm
-it is empty, and explicitly check that sidecar/metadata files (not just session-log entries) are
-present. Never `git checkout` a branch while uncommitted edits exist — stash or commit first.
+This section is Claude-specific because it governs assistant turn shape. Vendor-neutral constraints —
+**Orientation** (verify state against live sources, never a worktree snapshot) and **Merge And Branch
+Safety** (prove the changeset landed; never check out over uncommitted edits) — live in
+`.memory-seed/policy.md`, which every agent reads and which `update` never replaces.

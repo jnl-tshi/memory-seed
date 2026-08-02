@@ -21,6 +21,17 @@ This file contains behavioral constraints only. Functional runbooks belong in `.
 - Keep the memory core plain Markdown and predictable for file-reading agents.
 - Preserve compatibility for legacy `.AGENTS/` projects in code unless intentionally removing a legacy path.
 
+## Orientation
+
+- Before answering "what state is the project in?", verify against live sources, not worktree snapshots: run `git fetch --all --prune`, check `git log --oneline -5 origin/main`, and confirm the published version from the PyPI JSON API (`https://pypi.org/pypi/memory-seed/json`; `pip index versions memory-seed` is experimental and often unavailable).
+- Never state a current version from a local worktree checkout. A worktree can be pinned to an old commit and will report stale state confidently.
+
+## Merge And Branch Safety
+
+- After every merge, verify the full changeset landed: run `git diff --stat <branch>..HEAD` and confirm it is empty, and explicitly check that sidecar and metadata files are present, not just session-log entries.
+- Never `git checkout` a branch while uncommitted edits exist — stash or commit first.
+- Prefer `session merge-branch` over a raw `git merge` for branches carrying session entries: it dry-runs the fuse, preserves chronology, and stamps `Memory-Entry:` trailers. A raw line-merge of a session file is what the fuse exists to prevent.
+
 ## Safety
 
 - Do not write secrets, tokens, credentials, private keys, or unnecessary personal data into memory files.
