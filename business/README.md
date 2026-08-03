@@ -41,6 +41,20 @@ Supporting provenance:
 
 - [Strategic synthesis report](wedges/memory-seed-strategic-synthesis-report.md)
 
+### Research
+
+| Dossier | Purpose | Status |
+|---|---|---|
+| [Governance & standards research programme](research/README.md) | Seven sequenced evidence-based reports on the standards landscape, decision-evidence model, strategic fit, benchmarking, ADR conventions, customer profiles, and roadmap | Supporting provenance |
+
+Start with [Report 7 §4](research/memory-seed-strategic-roadmap-report.md), the ninety-day plan — it is
+the only section that asks for action rather than attention. The most reusable artefact is
+[Report 1 §3](research/standards-and-regulatory-landscape-report.md), which maps 21 governance frameworks
+onto eight decision-evidence questions with clause citations.
+
+These are dated research passes, not living dossiers. Conclusions that survive belong in the canonical
+dossiers above.
+
 ## Reserved future areas
 
 Create these only when there is maintained content to place in them:
