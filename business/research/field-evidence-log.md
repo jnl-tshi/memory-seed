@@ -138,6 +138,125 @@ record without a reason, and guaranteed injection at session start.
 
 ---
 
+## E2 — Direct message with `Environmental_Ask675`, 2026-08-03
+
+**Source:** private exchange following E1, initiated as the Report 6 §7 follow-up. Asked what would have
+saved them six months, and whether an out-of-the-box tool would have been used or whether they would still
+have built their own.
+
+### What was observed
+
+> *"Honest answer: early on, yes, I'd probably have tried an out-of-the-box thing. But the reason mine works
+> isn't the decision log — it's that the rules live inside the instructions each agent actually loads, and
+> that the system got refined every time it failed in front of me. That co-evolution is the part I don't
+> think ships in a box: the tool would need to make capturing a decision cheaper than not capturing it, at
+> the moment it happens, or people stop feeding it — same reason my notes file failed. If you build that
+> part well, it's useful. If it's another file format plus discipline, people already have that and it
+> already fails."*
+
+### Why this is the most important quote in the log
+
+It contains a market answer, a design criterion, and a disqualifier in one paragraph.
+
+1. **A tool could have won them.** *"Early on, yes, I'd probably have tried an out-of-the-box thing."* The
+   build-your-own outcome was not preference; it was the absence of an option.
+2. **The design criterion, stated exactly:** *"make capturing a decision cheaper than not capturing it, at
+   the moment it happens."* Not easier. Not enforced. **Cheaper than the alternative of skipping it.**
+3. **The disqualifier:** *"If it's another file format plus discipline, people already have that and it
+   already fails."*
+
+**Point 3 is the sharpest criticism this project has received, and it lands.** Memory Seed is, from the
+outside, a file format plus discipline — with enforcement added. **Enforcement and cheapness are not the
+same thing.** Enforcement means you cannot skip it; cheapness means you do not want to. A write-time gate
+that refuses a malformed record makes capture *mandatory*, which is a different property and could even
+read as friction.
+
+The honest defence is that the MCP authoring path and the SessionStart hook shift the *cost* rather than
+merely imposing a rule: the agent that just made the decision writes the entry, so the human is not the
+bottleneck — which is precisely the mechanism this same responder described in E1. **That defence is
+plausible and untested.** It is the single most important thing to test, and it is testable: does an agent
+with the MCP tool available record decisions without being asked, in real sessions?
+
+**Also recorded:** *"the system got refined every time it failed in front of me. That co-evolution is the
+part I don't think ships in a box."* A packaged tool cannot deliver the learning that comes from a system
+breaking in front of its author. Whether that is a permanent moat for self-built systems or an argument for
+shipping a configurable skeleton is an open question.
+
+---
+
+## E3 — r/softwarearchitecture, 2026-08-03
+
+**Source:** our own post, *"If you stopped writing ADRs, what actually made you stop?"*, opening with the
+MSR study finding that ~50% of ADR-adopting repositories hold only one to five records.
+
+**Engagement at capture:** ~2.7K views · 3 upvotes · 5 comments.
+
+### What was observed
+
+**`svhelloworld` — the finding that most challenges the product thesis:**
+
+> *"I don't think they are terribly useful as a historical artifact. But as a design artifact to generate
+> conversations, explore alternatives, get more than just the architect's voice into the architecture design
+> process, I think moving ADRs through a PR process is invaluable. I never go back and revisit closed user
+> stories and I don't think about them as system documentation. I feel the same way about ADRs."*
+
+**`Lilacsoftlips`, independently agreeing:**
+
+> *"The team has to care. I find a full adr to be kinda pointless. Design docs/reviews are ephemeral imo.
+> They are almost never revisited. Documenting the decision in the pr/code documentation is sufficient in
+> most cases."*
+
+**`Clyde_Frag`, on the time horizon:**
+
+> *"In an industry where people typically stick around at a company for 3-4 years max, it can feel like a
+> pointless exercise and it's something that requires buy in from the whole team."*
+
+**`SJrX`, the counter-case** — writes many ADRs, finds them *"useful for understanding and reasoning through
+a problem"*, finished their draft ADRs on the way out of a job and reports the successor was glad of them.
+Also: *"It is hard to keep up with publishing them."*
+
+**`heavy-minium`, unelaborated:** *"There are almost always better, more specific places to position the
+decisions than one big central register. ADRs are really just the most primitive form of taking architecture
+notes."* Asked to expand; no answer at capture.
+
+### What this establishes
+
+**Two independent practitioners say the value of an ADR is in the writing, not the reading.** Deliberation,
+forcing alternatives into the open, getting more than the architect's voice in — those survive. The
+retrievable-historical-record premise does not. `SJrX` frames the same thing positively: useful *for
+reasoning through* a problem.
+
+**Nobody in this thread cited retrieval as the payoff.** That directly attacks the assumption every report
+in this programme rested on.
+
+**The named blockers are social, not technical:** the team has to care; buy-in is required; tenure is 3–4
+years so the long-horizon argument is weak; keeping up with publishing is hard. **Not one person blamed
+tooling.**
+
+### The reconciliation — and the strongest reframe available
+
+E1 and E3 appear to contradict each other. In the agent thread, everyone wanted decisions retrievable and
+built systems to make it so. In the human thread, experienced engineers say nobody ever re-reads them.
+
+**Both are true, because the reader changed.**
+
+Humans do not re-read decision records — two independent reports here, consistent with the MSR abandonment
+data. **Agents read them every session, mechanically, without motivation or recall limits.** The value
+proposition shifts from *"a future colleague will thank you"* — which this evidence suggests is false — to
+*"your agent loads this before it proposes anything"*, which is a mechanical property rather than an
+aspirational one.
+
+That reframe is worth more than any framework mapping in Reports 1–5. It also explains the abandonment
+literature: ADRs failed for two decades because the reader was a human who never came back. **The reader
+arriving is the change, not the format.**
+
+**Caveat, and it is a real one:** if the value is deliberation rather than retrieval, then the product's
+job is partly to improve *the moment of deciding* — which is closer to `svhelloworld`'s "move it through a
+PR process" than to a searchable corpus. Do not let the reframe become a reason to stop listening; both
+readings should be tested.
+
+---
+
 ## Method notes for future entries
 
 - **Post as a practitioner with a real question.** Never pitch. If the pain is not described unprompted, that
