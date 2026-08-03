@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "note": "Answer key for the agent-capture experiment. Judges must NEVER be shown this file; collect.py keeps it out of judge packets. Seeded decisions are the denominator for capture rate.",
+  "tasks": [
+    {
+      "id": "T1",
+      "brief": "T1-slug-validator.md",
+      "class": "implementation-choice",
+      "seeded_decisions": [
+        {
+          "key": "T1-D1",
+          "description": "Chose regex full-match vs character-scan implementation for is_valid_slug, with a reason",
+          "diff_expected": true
+        }
+      ]
+    },
+    {
+      "id": "T2",
+      "brief": "T2-commented-settings.md",
+      "class": "constrained-design-choice",
+      "seeded_decisions": [
+        {
+          "key": "T2-D1",
+          "description": "Chose the commented-settings mechanism (comment-strip preprocessor vs TOML-with-fallback vs other) under the stdlib-only and backward-compatibility constraints",
+          "diff_expected": true
+        },
+        {
+          "key": "T2-D2",
+          "description": "Chose how existing plain settings.json files keep working (fallback/migration behaviour)",
+          "diff_expected": true,
+          "optional": true,
+          "note": "Some mechanisms make this implicit in T2-D1; count it only when the transcript shows it was weighed separately."
+        }
+      ]
+    },
+    {
+      "id": "T3",
+      "brief": "T3-unicode-proposal.md",
+      "class": "no-diff-determination",
+      "seeded_decisions": [
+        {
+          "key": "T3-D1",
+          "description": "Adopted or declined the unidecode dependency; the policy's stdlib-only constraint makes decline the expected outcome, producing a decision with no code diff",
+          "diff_expected": false
+        }
+      ]
+    }
+  ]
+}

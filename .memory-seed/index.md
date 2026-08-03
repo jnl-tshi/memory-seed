@@ -104,6 +104,15 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Public docs: `README.md`, `CHANGELOG.md`, `docs/2_Todo/0_NEXT_STEPS.md`.
 - Docs taxonomy: `docs/1_Inbox/` holds unassessed incoming material; `docs/2_Todo/` holds active roadmap proposals; `docs/3_Spec/` holds live normative specs (with candidates in `draft/`); `docs/4_Reference/` holds source research; and terminal outcomes live in `docs/5_Completed/`, `6_Rejected/`, `7_Replaced/`, or `8_Deferred/`. The legacy `docs/2_Todo/completed/` archive was retired 2026-07-17: its 43 documents and nested `agent-templates/` moved to `docs/5_Completed/`, so every terminal doc now sits in a lane.
 - **Business knowledge area: `business/`** — commercial strategy, kept deliberately separate from `docs/`, which holds product specification and implementation lifecycle. `business/README.md` is its front door and states the convention: living *dossiers* are canonical and maintained, while dated *supporting provenance* reports are kept beside the dossier they inform. Areas are `market/` (size, competitor landscape, competitor pricing), `wedges/` (the active developer project-memory hypothesis), and `research/` (a seven-report governance and strategy programme, 2026-08-01). Reports move here out of `docs/4_Reference/` rather than being copied, so a document has one home. `docs check` does not validate this tree — its links are checked by hand.
+- **Experiment area: `experiments/agent-capture/`** — the pre-registered agent decision-capture
+  experiment (does an agent with the MCP write path record decisions unprompted; scaffolding
+  dose-response L0–L3). Tracked content is the generator, stubs, task briefs with answer key, run
+  harness, and `PREREGISTRATION.md`; `templates/` and `runs/` are **generated and gitignored** —
+  each generated fixture is a standalone git repo with its own `.memory-seed/` runtime, which is the
+  experiment's readout. Fixture runtimes are throwaway sub-project runtimes and are deliberately NOT
+  individually registered here. Isolation is structural (nearest-runtime discovery) and was proven at
+  build time: a fixture write left the parent corpus counts unchanged. Findings flow to
+  `business/research/field-evidence-log.md`.
 - **Sub-project: `demo/`** — HyperFrames video composition (30 s product demo, MP4). Has its own `.memory-seed/` runtime; inherits root policy. HyperFrames owns `demo/AGENTS.md` and `demo/CLAUDE.md`; each now carries an injected `<!-- BEGIN memory-seed -->` routing block (2.8) so agents are routed into the demo runtime without clobbering HyperFrames content.
 
 ## Design Decisions
