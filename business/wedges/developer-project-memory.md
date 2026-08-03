@@ -1,7 +1,7 @@
 ---
 title: "Developer Project-Memory Wedge"
 status: active-hypothesis
-last_reviewed: "2026-08-01"
+last_reviewed: "2026-08-03"
 next_review_due: "2026-10-01"
 confidence: medium
 ---
@@ -16,6 +16,35 @@ for developers and human-AI engineering teams**.
 Memory Seed should enter through the recurring failure to preserve what was decided, why it was decided,
 which evidence supported it, and what later replaced it across coding-agent sessions. It should not enter
 as a generic chatbot memory, coding agent, project board, or enterprise search product.
+
+## Operating premise
+
+Ratified 2026-08-03 (JNL): **agents are the primary readers and writers of project memory; humans
+curate, verify, and resolve disputes.**
+
+Consequences this dossier now assumes:
+
+- **One authoritative store, never fragmented.** Concern-scoped and per-audience views are derived
+  projections over the single corpus; rationale is not scattered into per-concern documents. This is
+  Constitution Invariant #6 applied as strategy, and it is the answer to the field critique that
+  decisions belong "where people are looking" — views multiply, the store does not split.
+- **Agent consumption is push-first.** Session-start loading and ranked retrieval are the primary read
+  path. Token cost is the ergonomics, so minimal-but-sufficient context is a core product property
+  rather than an aspiration.
+- **Memory Trace is the human surface**, designed for the cold, high-stakes lookup — the incident
+  "why", onboarding, promotion approval, verifying what agents recorded — not habitual reading. Field
+  evidence says humans do not revisit decision records; Trace exists so the rare visit succeeds
+  instantly.
+- **Write-time capture runs through the agent that made the decision.** A validation-refused write
+  costs an agent a retry, not resentment, which is how the field's cheapness criterion — "capturing
+  must be cheaper than not capturing, at the moment it happens" — is met mechanically rather than by
+  discipline.
+
+Evidence: [field evidence log, E1–E3](../research/field-evidence-log.md). Standing caveats: the premise
+does not date the agent-coding world's arrival or name who pays before it comes — the validation
+requirements below stand unchanged — and it raises the urgency of the passive-capture test, because
+agent transcripts are minable and first-hand capture's measured advantage over reconstruction
+(0.583/0.613 macro-recall, topic-swarm pilot) is one repository's data.
 
 ## Initial customer and user
 
@@ -133,6 +162,9 @@ Before broadening the wedge, collect evidence from at least:
 
 ## Unresolved validation questions
 
+- Do agents with the MCP write path available record decisions without being prompted, in real
+  sessions? This is the untested defence of write-time capture (field evidence E2) and now the
+  premise's most important test.
 - Is the beachhead solo developers, technical founders, or an engineering-platform team?
 - Is the decisive paid feature hosted retrieval, team governance, Memory Trace, or handover reporting?
 - How much deliberate authoring can users tolerate before passive assistance becomes necessary?
@@ -141,6 +173,10 @@ Before broadening the wedge, collect evidence from at least:
 
 ## Change log
 
+- **2026-08-03:** Ratified the operating premise — agents are the primary readers and writers; one
+  authoritative store with derived views; Trace as the human cold-lookup and trust surface;
+  write-time capture through the deciding agent — with field evidence E1–E3 attached. Added the
+  unprompted-agent-authoring validation question.
 - **2026-08-01:** Created the living wedge dossier and defined the initial customer, promise,
   alternatives, validation requirements, and pivot signals.
 
