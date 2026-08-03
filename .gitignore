@@ -50,3 +50,8 @@ memory-trace/tests/capture/*.gif
 
 # Disposable Superpowers SDD task ledger, briefs, reports, and review packages.
 .superpowers/sdd/
+
+# Agent-capture experiment: generated fixture templates and disposable run
+# readouts. The tracked definition is the generator + stubs, not the output.
+experiments/agent-capture/templates/
+experiments/agent-capture/runs/
