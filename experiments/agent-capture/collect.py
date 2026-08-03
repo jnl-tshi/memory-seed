@@ -42,6 +42,28 @@ def split_entries(text: str) -> list[str]:
     return entries
 
 
+def _guard_signals(run_dir: Path) -> dict:
+    """Did the worktree guard tell this session not to write, and did it write anyway?
+
+    `memory_worktree_guard` classifies every fixture as `root-checkout` and blocks write intent
+    without `allow_root_write` (core.py:1580-1585). That is stock behaviour, so the fixtures keep
+    it - but it means a session can fail to record because it was *told not to*, which is a
+    different finding from an agent that never thought to record. Only levels carrying the rules
+    contract prompt an agent to consult the guard at all, so left unmeasured this could masquerade
+    as scaffolding suppressing capture. Cheap textual detection over whichever transcript exists.
+    """
+    text = ""
+    for name in ("transcript.json", "transcript.jsonl"):
+        path = run_dir / name
+        if path.exists():
+            text = path.read_text(encoding="utf-8")
+            break
+    return {
+        "guard_called": "worktree_guard" in text,
+        "guard_blocked": '"safe_to_write": false' in text.replace("\\", ""),
+    }
+
+
 def _harness_failure(run_dir: Path, manifest: dict) -> str | None:
     """Why this run is not evidence about capture behaviour, or None if it is.
 
@@ -101,6 +123,7 @@ def analyse_run(run_dir: Path) -> dict:
         "exit_code": manifest.get("exit_code"),
         "brief_override": bool(manifest.get("brief_override")),
         "harness_failure": _harness_failure(run_dir, manifest),
+        **_guard_signals(run_dir),
         "entry_count": len(entries),
         "decision_entry_count": sum(1 for e in entries if e["decision_count"]),
         "decision_count": sum(e["decision_count"] for e in entries),
@@ -185,6 +208,7 @@ def main() -> int:
                 **{k: analysis[k] for k in (
                     "run_id", "level", "task", "agent", "exit_code",
                     "entry_count", "decision_entry_count", "decision_count",
+                    "guard_called", "guard_blocked",
                 )},
                 "expected_required_decisions": expected.get("required"),
                 "expected_optional_decisions": expected.get("optional"),
