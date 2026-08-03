@@ -419,6 +419,7 @@ class _SessionFusePlan:
     import_sidecars: tuple[_DiagramSidecarRecord, ...]
     import_link_sidecars: tuple[_LinkSidecarRecord, ...]
     import_topic_sidecars: tuple[_TopicSidecarRecord, ...]
+    adr_writes: tuple[tuple[str, str], ...]
     planned_entries: tuple[str, ...]
     planned_sidecars: tuple[str, ...]
     planned_link_sidecars: tuple[str, ...]
@@ -3127,6 +3128,14 @@ class _DecisionSidecarWrite:
     related_entries: tuple[str, ...]
     replaces: tuple[str, ...]
     evolves: tuple[str, ...]
+    adr: "_AdrPromotionWrite | None" = None
+
+
+@dataclass(frozen=True)
+class _AdrPromotionWrite:
+    adr_id: str
+    title: str
+    direct_predecessors: tuple[tuple[str, str], ...]
 
 
 def _normalise_decision_sidecars(
@@ -3252,6 +3261,60 @@ def _normalise_decision_sidecars(
                 refs.append(f"{decision} -> {ref}")
             rendered_links[kind] = tuple(refs)
 
+        adr_write: _AdrPromotionWrite | None = None
+        raw_adr = raw.get("adr")
+        if raw_adr is not None:
+            if not isinstance(raw_adr, Mapping):
+                issues.append(f"decisions[{index}].adr must be an object")
+            else:
+                unknown_adr_keys = set(raw_adr) - {
+                    "disposition", "adr_id", "title", "direct_predecessors"
+                }
+                if unknown_adr_keys:
+                    issues.append(
+                        f"decisions[{index}].adr has unsupported field(s): "
+                        + ", ".join(sorted(str(key) for key in unknown_adr_keys))
+                    )
+                if raw_adr.get("disposition") != "promote":
+                    issues.append(f"decisions[{index}].adr.disposition must be 'promote'")
+                adr_id = raw_adr.get("adr_id")
+                adr_title = raw_adr.get("title")
+                if not isinstance(adr_id, str) or not adr_id.strip():
+                    issues.append(f"decisions[{index}].adr.adr_id must be a non-empty ADR id")
+                if not isinstance(adr_title, str) or not adr_title.strip():
+                    issues.append(f"decisions[{index}].adr.title must be non-empty")
+                predecessor_values = raw_adr.get("direct_predecessors", [])
+                predecessors: list[tuple[str, str]] = []
+                if not isinstance(predecessor_values, Sequence) or isinstance(
+                    predecessor_values, (str, bytes)
+                ):
+                    issues.append(f"decisions[{index}].adr.direct_predecessors must be a list")
+                    predecessor_values = []
+                for predecessor_index, predecessor in enumerate(predecessor_values, start=1):
+                    if not isinstance(predecessor, Mapping):
+                        issues.append(
+                            f"decisions[{index}].adr.direct_predecessors[{predecessor_index}] must be an object"
+                        )
+                        continue
+                    predecessor_decision = predecessor.get("decision")
+                    assertion = predecessor.get("relation_assertion") or predecessor.get("assertion")
+                    if not isinstance(predecessor_decision, str) or not predecessor_decision.strip():
+                        issues.append(
+                            f"decisions[{index}].adr.direct_predecessors[{predecessor_index}].decision must be non-empty"
+                        )
+                    if not isinstance(assertion, str) or not assertion.strip():
+                        issues.append(
+                            f"decisions[{index}].adr.direct_predecessors[{predecessor_index}].relation_assertion must be non-empty"
+                        )
+                    if isinstance(predecessor_decision, str) and isinstance(assertion, str):
+                        predecessors.append((predecessor_decision, assertion))
+                if isinstance(adr_id, str) and isinstance(adr_title, str):
+                    adr_write = _AdrPromotionWrite(
+                        adr_id=adr_id.strip(),
+                        title=adr_title.strip(),
+                        direct_predecessors=tuple(predecessors),
+                    )
+
         normalised.append(
             _DecisionSidecarWrite(
                 decision=decision,
@@ -3259,6 +3322,7 @@ def _normalise_decision_sidecars(
                 related_entries=rendered_links["related_entries"],
                 replaces=rendered_links["replaces"],
                 evolves=rendered_links["evolves"],
+                adr=adr_write,
             )
         )
     return normalised, issues
@@ -3304,6 +3368,8 @@ def session_append_entry(
     replaces: Sequence[str] = (),
     evolves: Sequence[str] = (),
     decisions: Sequence[Mapping[str, Any]] = (),
+    adr_review_contexts: Sequence[Mapping[str, Any]] = (),
+    adr_review_outcomes: Mapping[str, tuple[str, Mapping[str, Any]]] | None = None,
     project_path: str = ".",
     subproject_path: str | None = None,
     branch: str | None = None,
@@ -3605,11 +3671,101 @@ def session_append_entry(
                 link_lines.extend(f"  - {value}" for value in values)
         rendered_sidecars["links"] = "\n".join([*link_lines, "```", ""])
 
+    # A reviewed MCP retry publishes its ADR ledger events in the same
+    # recoverable, parent-first transaction as the session and link/topic
+    # sidecars. The receipt gate lives at the MCP boundary, but the core still
+    # validates the exact matched set so direct callers cannot manufacture a
+    # partial review transaction.
+    if adr_review_contexts:
+        from .adr import (
+            append_outcome_event,
+            canonical_decision_refs,
+            parse_adr,
+            render_adr,
+            validate_adr,
+        )
+
+        outcomes = adr_review_outcomes or {}
+        matched_adr_ids = {
+            str(context.get("adr_id", ""))
+            for context in adr_review_contexts
+            if context.get("adr_id")
+        }
+        if set(outcomes) != matched_adr_ids:
+            issues.append("ADR review outcomes do not exactly match the reviewed ADR set")
+        raw_decisions = {
+            str(item.get("decision")): item
+            for item in decisions
+            if isinstance(item, Mapping) and item.get("decision")
+        }
+        for context in adr_review_contexts:
+            adr_id = str(context.get("adr_id", ""))
+            outcome_pair = outcomes.get(adr_id)
+            if not adr_id or outcome_pair is None:
+                continue
+            ordinal, raw_outcome = outcome_pair
+            adr_path = runtime.memory_dir / "decisions" / f"{adr_id}.md"
+            if not adr_path.is_file():
+                issues.append(f"ADR review target {adr_id} no longer exists")
+                continue
+            record = parse_adr(adr_path)
+            matched_decisions = tuple(
+                str(ref) for ref in context.get("matched_decisions", ()) if ref
+            )
+            outcome = dict(raw_outcome)
+            if outcome.get("outcome") not in {"revise", "no-change"}:
+                issues.append(f"ADR {adr_id} has unsupported review outcome")
+                continue
+            assertions: dict[str, str] = {}
+            authored = raw_decisions.get(ordinal)
+            links = authored.get("links", {}) if isinstance(authored, Mapping) else {}
+            if isinstance(links, Mapping):
+                for kind in ("evolves", "replaces"):
+                    values = links.get(kind, ())
+                    if not isinstance(values, Sequence) or isinstance(values, (str, bytes)):
+                        continue
+                    for raw_ref in values:
+                        if not isinstance(raw_ref, str):
+                            continue
+                        for target_ref in canonical_decision_refs(cwd, raw_ref):
+                            if target_ref in matched_decisions:
+                                assertions[target_ref] = (
+                                    f"link:{entry_id}:{ordinal}:{kind}:{target_ref}"
+                                )
+            if outcome.get("outcome") == "revise":
+                missing_assertions = sorted(set(matched_decisions) - set(assertions))
+                if missing_assertions:
+                    issues.append(
+                        f"ADR {adr_id} revise outcome has no lifecycle assertion for: "
+                        + ", ".join(missing_assertions)
+                    )
+                outcome["assertions"] = assertions
+            append_outcome_event(
+                record,
+                outcome=outcome,
+                decision_ref=f"{entry_id}:{ordinal}",
+                matched_decisions=matched_decisions,
+                update_entry_id=entry_id,
+                timestamp=f"{ts.replace(' ', 'T')}:00",
+            )
+            adr_issues = validate_adr(
+                record,
+                cwd,
+                pending_decisions=(f"{entry_id}:{ordinal}",),
+                pending_entries=(entry_id,),
+            )
+            issues.extend(f"ADR {adr_id}: {issue}" for issue in adr_issues)
+            rendered_sidecars[f"adr:{adr_id}"] = render_adr(record)
+
     sidecar_paths: dict[str, Path] = {}
     if "topics" in rendered_sidecars:
         sidecar_paths["topics"] = runtime.workspace_root / _topic_target_relative_path(date_part)
     if "links" in rendered_sidecars:
         sidecar_paths["links"] = runtime.workspace_root / _link_target_relative_path(date_part)
+    for kind in sorted(rendered_sidecars):
+        if kind.startswith("adr:"):
+            adr_id = kind.split(":", 1)[1]
+            sidecar_paths[kind] = runtime.memory_dir / "decisions" / f"{adr_id}.md"
     journal_path = _decision_sidecar_journal_path(runtime, entry_id) if sidecar_paths else None
     journal = _decision_sidecar_journal(
         entry_id=entry_id,
@@ -3736,6 +3892,13 @@ def session_append_entry(
                 )
             )
             _write_chronological_link_sidecar_file(link_path, date_part, link_records)
+
+    for kind, adr_path in sidecar_paths.items():
+        if not kind.startswith("adr:"):
+            continue
+        existing_adr = read_text_file(adr_path) if adr_path.exists() else ""
+        if existing_adr != rendered_sidecars[kind]:
+            write_text_file(adr_path, rendered_sidecars[kind])
 
     if journal_path is not None and journal is not None:
         if block.rstrip() not in read_text_file(target.path):
@@ -4411,7 +4574,13 @@ def _git_show_text(root: Path, ref: str, rel_path: str) -> str | None | object:
 
 
 def _git_ref_paths(root: Path, ref: str) -> list[str]:
-    code, lines = _git_lines(root, ("ls-tree", "-r", "--name-only", ref, "--", f"{MEMORY_DIR_NAME}/sessions"))
+    code, lines = _git_lines(
+        root,
+        (
+            "ls-tree", "-r", "--name-only", ref, "--",
+            f"{MEMORY_DIR_NAME}/sessions", f"{MEMORY_DIR_NAME}/decisions",
+        ),
+    )
     if code != 0:
         return []
     return lines
@@ -4433,7 +4602,10 @@ def _changed_session_paths(root: Path, base: str, branch: str) -> set[str] | Non
     """
     code, lines = _git_lines(
         root,
-        ("diff", "--name-only", f"{base}...{branch}", "--", f"{MEMORY_DIR_NAME}/sessions"),
+        (
+            "diff", "--name-only", f"{base}...{branch}", "--",
+            f"{MEMORY_DIR_NAME}/sessions", f"{MEMORY_DIR_NAME}/decisions",
+        ),
     )
     if code != 0:
         return None
@@ -5150,6 +5322,66 @@ def _plan_session_fuse(
             continue
         import_topic_sidecars.append(source_topic_sidecar)
 
+    # ADRs are full rendered projections over append-only event ledgers, so
+    # they reconcile structurally rather than with line-based text merging.
+    # Source events may refer to session entries imported by this same plan;
+    # admit those identities during validation but write sessions first.
+    from .adr import parse_adr_text, reconcile_adr_records, render_adr, validate_adr
+
+    adr_writes: list[tuple[str, str]] = []
+    pending_entries = tuple(record.entry_id for record in import_entries if record.entry_id)
+    pending_decisions: list[str] = []
+    for record in import_entries:
+        if not record.entry_id:
+            continue
+        pending_decisions.extend(
+            f"{record.entry_id}:{ordinal}"
+            for ordinal in _entry_decision_ordinals(record.text)
+        )
+    adr_prefix = f"{MEMORY_DIR_NAME}/decisions/"
+    for rel_path in sorted(path for path in changed_paths if path.startswith(adr_prefix) and path.endswith(".md")):
+        source_text = _git_show_text(root, source_commit, rel_path)
+        if source_text is _GIT_SHOW_DECODE_ERROR:
+            issues.append(f"could not decode {rel_path} as UTF-8")
+            continue
+        if source_text is None:
+            # Deletions are never imported by the append-only fuse.
+            continue
+        try:
+            incoming_adr = parse_adr_text(source_text, path=root / rel_path)
+        except (ValueError, json.JSONDecodeError) as exc:
+            issues.append(f"{rel_path}: {exc}")
+            continue
+        if render_adr(incoming_adr) != source_text:
+            issues.append(f"{rel_path}: derived Current view is stale on source")
+            continue
+        base_text = _git_show_text(root, base_commit, rel_path)
+        if base_text is _GIT_SHOW_DECODE_ERROR:
+            issues.append(f"could not decode base {rel_path} as UTF-8")
+            continue
+        if base_text is None:
+            merged_adr = incoming_adr
+        else:
+            try:
+                base_adr = parse_adr_text(base_text, path=root / rel_path)
+            except (ValueError, json.JSONDecodeError) as exc:
+                issues.append(f"base {rel_path}: {exc}")
+                continue
+            merged_adr, merge_issues = reconcile_adr_records(base_adr, incoming_adr)
+            issues.extend(f"{rel_path}: {issue}" for issue in merge_issues)
+            if merged_adr is None:
+                continue
+        adr_issues = validate_adr(
+            merged_adr,
+            root,
+            pending_decisions=pending_decisions,
+            pending_entries=pending_entries,
+        )
+        issues.extend(f"{rel_path}: {issue}" for issue in adr_issues)
+        rendered_adr = render_adr(merged_adr)
+        if base_text != rendered_adr:
+            adr_writes.append((rel_path, rendered_adr))
+
     if issues:
         return None, issues
 
@@ -5185,6 +5417,9 @@ def _plan_session_fuse(
             if topic_sidecar.source_path not in removed_sources:
                 removed_sources.append(topic_sidecar.source_path)
 
+    for rel_path, _rendered in adr_writes:
+        planned_sidecars.append(f"ADR -> {rel_path}")
+
     return _SessionFusePlan(
         source_label=source_label,
         source_commit=source_commit,
@@ -5194,6 +5429,7 @@ def _plan_session_fuse(
         import_sidecars=tuple(import_sidecars),
         import_link_sidecars=tuple(import_link_sidecars),
         import_topic_sidecars=tuple(import_topic_sidecars),
+        adr_writes=tuple(adr_writes),
         planned_entries=tuple(planned_entries),
         planned_sidecars=tuple(planned_sidecars),
         planned_link_sidecars=tuple(planned_link_sidecars),
@@ -5352,6 +5588,11 @@ def _apply_session_fuse_plan(root: Path, plan: _SessionFusePlan) -> SessionFuseR
     for target_path, date_str, writable_records in topic_sidecar_writes:
         target_path.parent.mkdir(parents=True, exist_ok=True)
         _write_chronological_topic_sidecar_file(target_path, date_str, writable_records)
+
+    for target_rel, rendered_adr in plan.adr_writes:
+        target_path = root / target_rel
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        write_text_file(target_path, rendered_adr)
 
     for source_rel in removed_sources:
         source_path = root / source_rel

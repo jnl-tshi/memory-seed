@@ -363,6 +363,31 @@ button:not(:disabled):active { transform: translateY(0); transition-duration: 40
 @media (max-width: 700px) { .view-switch span { display: none; } }.workspace-bar { min-height: auto; align-items: flex-start; padding: 12px; }.workspace-actions { max-width: none; justify-content: flex-start; }.graph-filter-bar { padding: 6px 12px; }.error-state { top: 150px; right: 12px; left: 12px; }.graph-list-view { padding: 12px; } }
 @media (max-width: 580px) { .trace-search-wrap { min-width: 0; }.trace-search input { font-size: 12px; }.topbar-actions { gap: 3px; }.workspace-actions { gap: 5px; }.label-menu span { display: none; }.segment-control button { padding: 4px 6px; }.graph-filter-bar { gap: 4px; }.edge-filter { padding: 4px 6px; } }
 
+/* Living ADR workspace: the left column is the concern index; the right is
+   the concise accepted view followed by the append-only evolution ledger. */
+.adr-workspace { grid-row: 2 / 4; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(220px, 30%) minmax(0, 1fr); background: var(--bg); }
+.adr-index { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); border-right: 1px solid var(--border); background: var(--bar); }
+.adr-search { display: flex; align-items: center; gap: 7px; margin: 12px; padding: 7px 9px; border: 1px solid var(--border-2); border-radius: 5px; color: var(--muted); background: var(--bg); }
+.adr-search input { min-width: 0; width: 100%; border: 0; outline: 0; color: var(--text); background: transparent; font: inherit; }
+.adr-index-list { min-height: 0; overflow: auto; padding: 0 8px 12px; }
+.adr-index-item { width: 100%; display: grid; gap: 4px; margin: 2px 0; padding: 10px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--text-2); text-align: left; cursor: pointer; }
+.adr-index-item span { font-weight: 650; }.adr-index-item small { color: var(--muted); font-family: ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
+.adr-index-item:hover, .adr-index-item:focus-visible { border-color: var(--border-2); background: var(--hover); }.adr-index-item.active { border-color: var(--accent); background: var(--selected-bg); color: var(--text-bright); }
+.adr-detail { min-width: 0; min-height: 0; overflow: auto; padding: clamp(16px, 3vw, 34px); }
+.adr-current, .adr-pending, .adr-ledger { max-width: 850px; margin: 0 auto 24px; }
+.adr-current { padding: clamp(18px, 3vw, 30px); border: 1px solid var(--border-2); border-radius: 8px; background: var(--panel); box-shadow: 0 12px 36px color-mix(in srgb, var(--shadow) 35%, transparent); }
+.adr-current-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }.adr-current h2 { margin: 3px 0 18px; font-family: var(--font-display); font-size: clamp(22px, 3vw, 32px); color: var(--text-bright); }.adr-current h3 { margin: 18px 0 4px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }.adr-current p { margin: 0; color: var(--text-2); line-height: 1.65; }
+.adr-status { border: 1px solid var(--border-2); border-radius: 999px; padding: 4px 9px; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }.adr-status.accepted { border-color: var(--success, #4b8c67); color: var(--success, #4b8c67); }
+.adr-authority { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding: 9px 11px; border-left: 3px solid var(--accent); background: var(--accent-chip-bg); color: var(--text-2); }.adr-authority > span { font-size: 11px; font-weight: 750; text-transform: uppercase; }
+.adr-ref { border: 0; background: transparent; color: var(--accent-bright); padding: 0; font: 600 11.5px ui-monospace, Consolas, monospace; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; overflow-wrap: anywhere; }
+.adr-topics { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 20px; }.adr-topics span { border: 1px solid var(--border-2); border-radius: 999px; padding: 3px 8px; color: var(--muted); font-size: 11px; }
+.adr-pending { padding: 14px 16px; border: 1px dashed var(--accent); border-radius: 6px; }.adr-pending h3 { margin: 0 0 8px; font-size: 13px; }.adr-pending .adr-ref { margin-right: 12px; }
+.adr-ledger > h3 { display: flex; align-items: center; gap: 7px; color: var(--text-bright); }
+.adr-event { position: relative; margin: 0 0 10px 12px; padding: 13px 15px 13px 20px; border-left: 2px solid var(--border-2); background: var(--panel); }.adr-event::before { content: ""; position: absolute; left: -6px; top: 18px; width: 10px; height: 10px; border-radius: 50%; background: var(--border-2); }.adr-event.authoritative { border-left-color: var(--accent); }.adr-event.authoritative::before { background: var(--accent); }
+.adr-event-head { display: flex; justify-content: space-between; gap: 14px; margin-bottom: 6px; color: var(--text-2); font-size: 11px; font-weight: 750; text-transform: uppercase; }.adr-event-head time { color: var(--muted); font-weight: 500; }.adr-event p { margin: 8px 0 0; color: var(--text-2); line-height: 1.5; }.adr-predecessors { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; color: var(--muted); font-size: 11px; }.adr-event-muted { color: var(--muted); }.adr-event-muted summary { cursor: pointer; font-size: 12px; }
+.adr-empty { grid-row: 2 / 4; display: grid; place-content: center; padding: 30px; text-align: center; color: var(--muted); }.adr-empty h2 { color: var(--text-bright); }
+@media (max-width: 760px) { .adr-workspace { grid-template-columns: 1fr; grid-template-rows: minmax(160px, 32vh) minmax(420px, 1fr); }.adr-index { border-right: 0; border-bottom: 1px solid var(--border); }.adr-detail { padding: 14px; } }
+
 /* Decision-diagram viewer — class names and geometry lifted from the vanilla
    UI (static/styles.css) rather than re-invented, so a diagram opened from
    either client looks identical and one stylesheet change tracks both. */

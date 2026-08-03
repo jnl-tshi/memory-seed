@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { ChevronDown, ChevronUp, FolderOpen, GitBranch, LayoutPanelLeft, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, X } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronUp, FolderOpen, GitBranch, LayoutPanelLeft, Network, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw, Search, X } from "lucide-react";
 import { SettingsMenu, type GraphSettings, type InspectorDock, type Theme, type TrailStyle } from "./SettingsMenu";
 import { DEFAULT_FORCES, readForceSettings } from "./graphForces";
 import { api, DEFAULT_GRAPH_EDGE_TYPES, GRAPH_EDGE_TYPES, graphQuery, isCanonicalEntryId, SEARCH_LIMIT, searchQuery, setActiveWorktree, trailQuery, worktreesQuery, type ChunkResponse, type Facets, type RendererGraphEdge, type RendererGraphNode, type RendererGraphResponse, type RuntimeInfo, type SearchResponse, type SearchResult, type TrailResponse, type WorktreesResponse } from "./api";
@@ -18,13 +18,14 @@ import { ancestorIdsOf, TreeView, type OntologyNode } from "./TreeView";
 
 const GraphWorkspace = lazy(() => import("./GraphWorkspace").then((module) => ({ default: module.GraphWorkspace })));
 const TrailWorkspace = lazy(() => import("./TrailWorkspace").then((module) => ({ default: module.TrailWorkspace })));
+const AdrWorkspace = lazy(() => import("./AdrWorkspace").then((module) => ({ default: module.AdrWorkspace })));
 // decisionChunkId: set when the hint targets one decision of a multi-decision
 // entry (a Trail decision-row click, or a full-text match whose best section
 // IS a decision) - the Trail highlights that row specifically while the
 // reader scrolls to the same heading.
 type MatchHint = { entryId: string; heading: string; decisionChunkId?: string };
 type GraphScope = "overview" | "local" | "evolution" | "file";
-type GraphViewMode = "graph" | "trail";
+type GraphViewMode = "graph" | "trail" | "adrs";
 type LabelMode = "focus" | "minimal" | "all";
 type GraphRange = "recent" | "all";
 type OntologySelection = { area: string | null; activity: string | null };
@@ -1059,6 +1060,13 @@ export default function App() {
     selectFromTrail(node.source.entry_id ?? anchorEntryIdFor(node.id), node.source.chunk_id ?? node.id, { heading: node.label });
   }
 
+  function openAdrDecision(decisionRef: string, excerpt: string) {
+    const [entryId, ordinal = "d1"] = decisionRef.split(":", 2);
+    const heading = excerpt.split(/\r?\n/, 1)[0]?.trim() || (ordinal === "d1" ? "Decision" : ordinal.toUpperCase());
+    setDock((value) => value === "hidden" ? "auto" : value);
+    selectFromTrail(entryId, decisionRef, { heading });
+  }
+
   // Cycle to the next/previous match, wrapping around. Selecting the entry is
   // all this does — the Trail watches the selection and eases the row into
   // view, growing its window first when the match is older than what is loaded.
@@ -1439,6 +1447,7 @@ export default function App() {
         <div className="segment-control view-switch" aria-label="Workspace view">
           <button type="button" aria-pressed={viewMode === "trail"} title="Chronological decision timeline with branch lanes." onClick={() => setViewMode("trail")}><GitBranch size={14} aria-hidden="true" /><span>Trail</span></button>
           <button type="button" aria-pressed={viewMode === "graph"} title="Relationship map of entries and the links between them." onClick={switchToGraphView}><Network size={14} aria-hidden="true" /><span>Graph</span></button>
+          <button type="button" aria-pressed={viewMode === "adrs"} title="Living architectural concerns, accepted heads, and evolution chains." onClick={() => setViewMode("adrs")}><BookOpen size={14} aria-hidden="true" /><span>ADRs</span></button>
         </div>
         <div className="topbar-actions">
           <SettingsMenu trailStyle={trailStyle} onTrailStyle={setTrailStyle} graphSettings={graphSettings} onGraphSettings={setGraphSettings} dock={dock} onDock={setDock} theme={theme} onTheme={setTheme} />
@@ -1533,15 +1542,15 @@ export default function App() {
         {/* Scope, date range and labels only shape the GRAPH projection — the
             Trail always renders full history through its own window — so they
             are hidden in Trail view rather than sitting there inert. */}
-        <div className="workspace-bar"><div><span className="eyebrow">{viewMode === "trail" ? "Trail" : "Graph workspace"}</span><h1>{viewMode === "trail" ? "Decision timeline" : "Relationship map"}</h1></div><div className="workspace-actions">{viewMode !== "trail" && <><div className="segment-control" aria-label="Graph scope"><button type="button" aria-pressed={scope === "overview"} title="The whole corpus as one map, most-connected entries first." onClick={() => void changeScope("overview")}>Overview</button><button type="button" aria-pressed={scope === "local"} title="Just the selected entry and its immediate neighbours." onClick={() => void changeScope("local")}>Local</button><button type="button" aria-pressed={scope === "evolution"} title="The selected entry's lifecycle chain — replaces and evolves only." onClick={() => void changeScope("evolution")}>Evolution</button>{filePath && <button type="button" aria-pressed={scope === "file"} title="Entries that touched this file." onClick={() => void openFileMode(filePath)}>{"File: " + (filePath.split(/[\\/]/).pop() ?? filePath)}</button>}</div><div className="segment-control" aria-label="Graph date range"><button type="button" aria-pressed={range === "recent"} title="Limit to recent entries." onClick={() => void changeRange("recent")}>Recent</button><button type="button" aria-pressed={range === "all"} title="Include the entire history." onClick={() => void changeRange("all")}>All dates</button></div><label className="label-menu"><span>Labels</span><select value={labelMode} onChange={(event) => setLabelMode(event.target.value as LabelMode)} aria-label="Graph labels"><option value="focus">Focus</option><option value="minimal">Minimal</option><option value="all">All</option></select></label></>}<span className="status-pill">{viewMode === "trail" ? "Trail" : isLoading ? "Updating" : "Cytoscape.js"}</span></div></div>
+        <div className="workspace-bar"><div><span className="eyebrow">{viewMode === "trail" ? "Trail" : viewMode === "adrs" ? "ADRs" : "Graph workspace"}</span><h1>{viewMode === "trail" ? "Decision timeline" : viewMode === "adrs" ? "Architectural decisions" : "Relationship map"}</h1></div><div className="workspace-actions">{viewMode === "graph" && <><div className="segment-control" aria-label="Graph scope"><button type="button" aria-pressed={scope === "overview"} title="The whole corpus as one map, most-connected entries first." onClick={() => void changeScope("overview")}>Overview</button><button type="button" aria-pressed={scope === "local"} title="Just the selected entry and its immediate neighbours." onClick={() => void changeScope("local")}>Local</button><button type="button" aria-pressed={scope === "evolution"} title="The selected entry's lifecycle chain — replaces and evolves only." onClick={() => void changeScope("evolution")}>Evolution</button>{filePath && <button type="button" aria-pressed={scope === "file"} title="Entries that touched this file." onClick={() => void openFileMode(filePath)}>{"File: " + (filePath.split(/[\\/]/).pop() ?? filePath)}</button>}</div><div className="segment-control" aria-label="Graph date range"><button type="button" aria-pressed={range === "recent"} title="Limit to recent entries." onClick={() => void changeRange("recent")}>Recent</button><button type="button" aria-pressed={range === "all"} title="Include the entire history." onClick={() => void changeRange("all")}>All dates</button></div><label className="label-menu"><span>Labels</span><select value={labelMode} onChange={(event) => setLabelMode(event.target.value as LabelMode)} aria-label="Graph labels"><option value="focus">Focus</option><option value="minimal">Minimal</option><option value="all">All</option></select></label></>}<span className="status-pill">{viewMode === "trail" ? "Trail" : viewMode === "adrs" ? "Living ledger" : isLoading ? "Updating" : "Cytoscape.js"}</span></div></div>
         {/* One row, one flow child: .workspace's grid reserves exactly three
             rows (bar / filters / content), so a second sibling here — however
             reasonable it reads in JSX — lands in an implicit fourth row and
             collapses the actual graph canvas to zero height instead. The
             Overview coverage readout has to live inside this same div. */}
-        {viewMode !== "trail" && scope !== "evolution" && scope !== "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} title={EDGE_DESCRIPTIONS[edgeType]} onClick={() => toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}<button type="button" className="edge-filter edge-orphans" aria-pressed={graphSettings.showOrphans} onClick={() => setGraphSettings({ ...graphSettings, showOrphans: !graphSettings.showOrphans })} title="Entries with no authored link">Orphans</button><button type="button" className="edge-filter edge-decisions" aria-pressed={graphSettings.showDecisions} disabled={isLoading} onClick={() => void toggleDecisions()} title="One node per numbered decision, grouped with its entry — the endpoint a decision-level edge actually names">Decisions</button><span className="edge-filter-group" role="group" aria-label="Minimum edge confidence"><span className="edge-filter-label">Confidence</span>{CONFIDENCE_STEPS.map((step) => <button type="button" key={step.value} className="edge-filter edge-confidence" aria-pressed={graphSettings.minConfidence === step.value} title={step.title} onClick={() => setGraphSettings({ ...graphSettings, minConfidence: step.value })}>{step.label}</button>)}</span>{ontologyFilterChips}{scope === "overview" && graph && <span className="count">· {overviewShownCount} of {graphEntryTotal ?? "…"} entries shown</span>}{scope === "overview" && graph && overviewLimit > OVERVIEW_LIMIT_STEP && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showLessOverview()}>Show less</button>}{scope === "overview" && graph && !overviewExhausted && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showMoreOverview()}>Show more</button>}</div>}
-        {viewMode !== "trail" && scope === "evolution" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span><span className="count">Evolves + Replaces only · lifecycle chain</span>{ontologyFilterChips}</div>}
-        {viewMode !== "trail" && scope === "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>File</span><span className="count" title={filePath ?? ""}>{"Entries that touched " + (filePath ?? "this file")}</span>{ontologyFilterChips}<button type="button" className="active-topic" onClick={() => void changeScope("overview")}>Clear<X size={13} aria-hidden="true" /></button></div>}
+        {viewMode === "graph" && scope !== "evolution" && scope !== "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span>{GRAPH_EDGE_TYPES.map((edgeType) => <button type="button" key={edgeType} className={`edge-filter edge-${edgeType}`} aria-pressed={edgeTypes.includes(edgeType)} title={EDGE_DESCRIPTIONS[edgeType]} onClick={() => toggleEdge(edgeType)}>{EDGE_LABELS[edgeType]}</button>)}<button type="button" className="edge-filter edge-orphans" aria-pressed={graphSettings.showOrphans} onClick={() => setGraphSettings({ ...graphSettings, showOrphans: !graphSettings.showOrphans })} title="Entries with no authored link">Orphans</button><button type="button" className="edge-filter edge-decisions" aria-pressed={graphSettings.showDecisions} disabled={isLoading} onClick={() => void toggleDecisions()} title="One node per numbered decision, grouped with its entry — the endpoint a decision-level edge actually names">Decisions</button><span className="edge-filter-group" role="group" aria-label="Minimum edge confidence"><span className="edge-filter-label">Confidence</span>{CONFIDENCE_STEPS.map((step) => <button type="button" key={step.value} className="edge-filter edge-confidence" aria-pressed={graphSettings.minConfidence === step.value} title={step.title} onClick={() => setGraphSettings({ ...graphSettings, minConfidence: step.value })}>{step.label}</button>)}</span>{ontologyFilterChips}{scope === "overview" && graph && <span className="count">· {overviewShownCount} of {graphEntryTotal ?? "…"} entries shown</span>}{scope === "overview" && graph && overviewLimit > OVERVIEW_LIMIT_STEP && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showLessOverview()}>Show less</button>}{scope === "overview" && graph && !overviewExhausted && <button type="button" className="active-topic" disabled={isLoading} onClick={() => void showMoreOverview()}>Show more</button>}</div>}
+        {viewMode === "graph" && scope === "evolution" && <div className="graph-filter-bar" aria-label="Graph filters"><span>Edges</span><span className="count">Evolves + Replaces only · lifecycle chain</span>{ontologyFilterChips}</div>}
+        {viewMode === "graph" && scope === "file" && <div className="graph-filter-bar" aria-label="Graph filters"><span>File</span><span className="count" title={filePath ?? ""}>{"Entries that touched " + (filePath ?? "this file")}</span>{ontologyFilterChips}<button type="button" className="active-topic" onClick={() => void changeScope("overview")}>Clear<X size={13} aria-hidden="true" /></button></div>}
         {viewMode === "trail" ? (
           <>
             {trailError && <div className="error-state" role="alert">{trailError}</div>}
@@ -1553,6 +1562,10 @@ export default function App() {
               <div className="loading-state">Loading trail</div>
             )}
           </>
+        ) : viewMode === "adrs" ? (
+          <Suspense fallback={<div className="loading-state">Loading ADRs</div>}>
+            <AdrWorkspace scopeKey={worktree ?? worktrees?.default ?? "default"} onOpenDecision={openAdrDecision} />
+          </Suspense>
         ) : (
           <>
             {error && <div className="error-state" role="alert">{error}</div>}

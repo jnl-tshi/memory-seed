@@ -10,6 +10,28 @@ parent: ../../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md
 Status: **DRAFT - NOT IMPLEMENTED**. This contract becomes live only after the walking skeleton and validator
 are accepted.
 
+## Format basis
+
+Memory Seed uses a **composed ADR** compatible with the semantic core shared by the Nygard and MADR
+templates:
+
+- Title
+- Status
+- Context and Problem Statement
+- Considered Options
+- Decision Outcome
+- Consequences
+
+The sidecar does not copy those narratives. It points to the immutable source decision, whose DRAFT fields
+remain authoritative for Summary/Context, Decision, Reason and Alternatives. A reader composes the familiar
+ADR view from that source and reports `not recorded` when a consequence was not explicitly captured; it must
+not infer missing consequences. The sidecar itself owns only promotion, stable ADR identity, the curated
+design-thread pointer and the append-only lifecycle below.
+
+This deliberate composition preserves the recognizable ADR reading model without creating two authoritative
+copies of the rationale. It is a Memory Seed ADR format (`format: memory-seed-adr/1`), not a claim of byte-level
+MADR compatibility.
+
 *Amended 2026-07-26. Brought onto the first-hand / reconstructed split and the explicit `source:` provenance
 field accepted in
 [write-time-sidecar-consolidation-proposal.md](../../2_Todo/write-time-sidecar-consolidation-proposal.md).
@@ -31,6 +53,7 @@ when this draft is adopted; this documentation pass does not create runtime stat
 
 ```markdown
 ---
+format: memory-seed-adr/1
 schema_version: 1
 adr_id: adr_...
 source_entry_id: mse_...
@@ -43,6 +66,30 @@ user_initials: JNL
 agent_type: claude
 source: write-time
 ---
+
+# Use SQLite for the local index
+
+## Status
+
+Derived by replaying Lifecycle; never duplicated as mutable frontmatter.
+
+## Context and Problem Statement
+
+Resolve Summary and Reason from `mse_...:d1`.
+
+## Considered Options
+
+Resolve Alternatives from `mse_...:d1`; report `not recorded` when absent.
+
+## Decision Outcome
+
+Resolve Decision and Reason from `mse_...:d1`.
+
+### Consequences
+
+Resolve explicitly recorded consequences from `mse_...:d1`; never infer missing consequences.
+
+## Lifecycle
 
 ## Proposed - 2026-07-16T14:20:00Z
 

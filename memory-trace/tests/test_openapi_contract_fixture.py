@@ -35,6 +35,8 @@ class OpenApiContractFixtureTests(unittest.TestCase):
             "/api/v1/runtime",
             "/api/v1/facets",
             "/api/v1/search",
+            "/api/v1/adrs",
+            "/api/v1/adrs/{adr_id}",
             "/api/v1/chunks/{chunk_id}",
             "/api/v1/graph",
             "/api/v1/graph/projection",

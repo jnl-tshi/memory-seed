@@ -84,6 +84,59 @@ class WorktreesResponse(BaseModel):
     default: str
 
 
+class AdrPredecessor(BaseModel):
+    decision: str
+    relation_assertion: str
+
+
+class AdrEvent(BaseModel):
+    kind: str
+    event_id: str
+    timestamp: str
+    source: str
+    decision_ref: str | None = None
+    update_entry_id: str | None = None
+    expected_authoritative_decision: str | None = None
+    predecessors: list[AdrPredecessor] = Field(default_factory=list)
+    supporting_decisions: list[str] = Field(default_factory=list)
+    matched_decisions: list[str] = Field(default_factory=list)
+    decision: str = ""
+    why: str = ""
+    evolution: str = ""
+    reason: str = ""
+    replacement_adr: str | None = None
+
+
+class AdrCurrent(BaseModel):
+    decision_ref: str | None = None
+    decision: str = ""
+    why: str = ""
+    evolution: str = ""
+
+
+class AdrRecordResponse(BaseModel):
+    adr_id: str
+    title: str
+    topics: list[str] = Field(default_factory=list)
+    created_at: str
+    source: str
+    current_status: str
+    authoritative_decision: str | None = None
+    pending_decisions: list[str] = Field(default_factory=list)
+    rejected_decisions: list[str] = Field(default_factory=list)
+    superseded_by: str | None = None
+    membership: list[str] = Field(default_factory=list)
+    current: AdrCurrent
+    digest: str
+    path: str | None = None
+    events: list[AdrEvent] = Field(default_factory=list)
+    source_excerpts: dict[str, str] = Field(default_factory=dict)
+
+
+class AdrsResponse(BaseModel):
+    adrs: list[AdrRecordResponse]
+
+
 class DirectoryEntry(BaseModel):
     name: str
     path: str

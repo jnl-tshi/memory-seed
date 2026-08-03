@@ -20,6 +20,44 @@ export type BrowseResponse = components["schemas"]["BrowseResponse"];
 export type DirectoryEntry = components["schemas"]["DirectoryEntry"];
 export type OpenProjectResponse = components["schemas"]["OpenProjectResponse"];
 
+export type AdrPredecessor = { decision: string; relation_assertion: string };
+export type AdrEvent = {
+  kind: "revision-proposed" | "revision-accepted" | "revision-rejected" | "reviewed-no-change" | "adr-superseded";
+  event_id: string;
+  timestamp: string;
+  source: string;
+  decision_ref: string | null;
+  update_entry_id: string | null;
+  expected_authoritative_decision: string | null;
+  predecessors: AdrPredecessor[];
+  supporting_decisions: string[];
+  matched_decisions: string[];
+  decision: string;
+  why: string;
+  evolution: string;
+  reason: string;
+  replacement_adr: string | null;
+};
+export type AdrRecord = {
+  adr_id: string;
+  title: string;
+  topics: string[];
+  created_at: string;
+  source: string;
+  current_status: string;
+  authoritative_decision: string | null;
+  pending_decisions: string[];
+  rejected_decisions: string[];
+  superseded_by: string | null;
+  membership: string[];
+  current: { decision_ref: string | null; decision: string; why: string; evolution: string };
+  digest: string;
+  path: string | null;
+  events: AdrEvent[];
+  source_excerpts: Record<string, string>;
+};
+export type AdrsResponse = { adrs: AdrRecord[] };
+
 export type GraphQueryOptions = {
   entryId?: string | null;
   depth?: number;
@@ -100,6 +138,14 @@ export async function api<T>(path: string): Promise<T> {
 
 export function worktreesQuery(): Promise<WorktreesResponse> {
   return api<WorktreesResponse>("/worktrees");
+}
+
+export function adrsQuery(): Promise<AdrsResponse> {
+  return api<AdrsResponse>("/adrs");
+}
+
+export function adrQuery(adrId: string): Promise<AdrRecord> {
+  return api<AdrRecord>(`/adrs/${encodeURIComponent(adrId)}`);
 }
 
 // Browsing and opening a project both bypass `api<T>()` deliberately: they
