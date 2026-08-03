@@ -7,7 +7,7 @@
 | [derived-projection-implementation-plan.md](derived-projection-implementation-plan.md) | P1 | — | Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, … |
 | [memory-provenance-and-authority-taxonomy-proposal.md](memory-provenance-and-authority-taxonomy-proposal.md) | P1 | — | Steps 5–6 (GATED on the participant/role model + a user go): implement actionability as a polic… |
 | [memory-quality-metrics-v0-proposal.md](memory-quality-metrics-v0-proposal.md) | P1 | user review — is the baseline useful and repeatable? (propo… | JNL reviews docs/4_Reference/memory-quality-v0-baseline.md. Only then propose targets, ESR surf… |
-| [memory-seed-semantic-record-and-signal-foundation-plan.md](memory-seed-semantic-record-and-signal-foundation-plan.md) | P1 | — | Prove the append-only ADR sidecar contract on three existing decisions after B0b Trail parity a… |
+| [memory-seed-semantic-record-and-signal-foundation-plan.md](memory-seed-semantic-record-and-signal-foundation-plan.md) | P1 | — | Evaluate the remaining record_kind and retrieval-signal work after the provenance and quality g… |
 | [memory-trace-graph-and-workspace-proposal-set-index.md](memory-trace-graph-and-workspace-proposal-set-index.md) | P1 | — | promoted-to-todo |
 | [memory-trace-graph-visualisation-and-temporal-topology-proposal.md](memory-trace-graph-visualisation-and-temporal-topology-proposal.md) | P1 | — | promoted-to-todo |
 | [memory-trace-structural-graph-enrichment-provider-proposal.md](memory-trace-structural-graph-enrichment-provider-proposal.md) | P1 | — | promoted-to-todo |

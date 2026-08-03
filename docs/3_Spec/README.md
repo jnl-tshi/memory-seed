@@ -20,6 +20,9 @@ Candidate specs that are **not yet binding** live in [`draft/`](draft/); retired
   link sidecars (format, read/validation semantics, MCP scope boundary) plus its design record -
   implemented 2026-07-12; it stays here because the sidecar format is a normative contract, not a
   finished plan.
+- `adr-lifecycle-sidecar-contract.md` is the live contract for concern-based living ADRs, append-only
+  replay, mandatory MCP review, transactional publication, branch reconciliation, and Trace read surfaces;
+  the retired pointer-only candidate remains under `deprecated/` for provenance only.
 
 These files are not completed proposals. Completed proposal and source-plan documents belong in
 `docs/5_Completed/`; source-only research belongs in `docs/4_Reference/`.
@@ -28,6 +31,7 @@ These files are not completed proposals. Completed proposal and source-plan docu
 | Document | Priority | Blocked by | Next action / pointer |
 |---|---|---|---|
 | [adr-graph-community-detection.md](adr-graph-community-detection.md) | — | — | accepted |
+| [adr-lifecycle-sidecar-contract.md](adr-lifecycle-sidecar-contract.md) | — | — | live |
 | [functionality-audit.md](functionality-audit.md) | — | — | — |
 | [graph-edge-contract.md](graph-edge-contract.md) | — | — | — |
 | [lifecycle-edge-linking-sidecars.md](lifecycle-edge-linking-sidecars.md) | — | — | — |

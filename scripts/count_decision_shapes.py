@@ -1,7 +1,7 @@
 """Classify every session entry by the shape of its decision section.
 
-This is the ONE agreed classifier behind the corpus table in
-``docs/3_Spec/draft/adr-lifecycle-sidecar-contract.md``. That table's numbers
+This is the ONE agreed classifier behind the historical corpus table in
+``docs/3_Spec/deprecated/adr-lifecycle-sidecar-pointer-prototype.md``. That table's numbers
 were authored by hand on 2026-07-20 and a later recount disagreed with them
 (see open question 4 in ``decision-level-link-sidecar-refs.md``), so the fix is
 not a better hand count but a script anyone can re-run.

@@ -405,6 +405,60 @@ def main(argv: list[str] | None = None) -> int:
     session_entry_id_parser.add_argument("--project-path", default=".", help="project_path field (default: .)")
     session_entry_id_parser.add_argument("--subproject-path", default=None, help="subproject_path field (default: null)")
 
+    adr_parser = subparsers.add_parser("adr", help="promote and transition append-only ADR sidecars")
+    adr_sub = adr_parser.add_subparsers(dest="adr_command", required=True)
+    adr_promote = adr_sub.add_parser("promote", help="promote one existing decision into a proposed ADR")
+    adr_promote.add_argument("--adr-id", required=True, help="stable lowercase id, e.g. adr_local_index")
+    adr_promote.add_argument("--entry-id", required=True, help="source session entry id")
+    adr_promote.add_argument("--decision", required=True, help="source decision ordinal, e.g. d1")
+    adr_promote.add_argument("--title", required=True)
+    adr_promote.add_argument("--topics", default="", help="comma-separated topic slugs")
+    adr_promote.add_argument("--user-initials", required=True)
+    adr_promote.add_argument("--agent-type", required=True)
+    adr_promote.add_argument("--source", required=True, choices=("write-time", "derived"))
+    adr_promote.add_argument("--summary-decision", default="See the authoritative session decision.")
+    adr_promote.add_argument("--why", default="See the authoritative session decision rationale.")
+    adr_promote.add_argument("--evolution", default="This is the first revision of this architectural concern.")
+    adr_promote.add_argument("--update-entry-id", default=None, help="promotion/update entry; defaults to source entry")
+    adr_promote.add_argument(
+        "--predecessor",
+        action="append",
+        default=[],
+        help="decision=relation_assertion, e.g. mse_old:d1=link:mse_new:d1:evolves:mse_old:d1",
+    )
+    adr_promote.add_argument("--timestamp", default=None, help="UTC ISO timestamp; default: now")
+    adr_promote.add_argument("--dry-run", action="store_true")
+    adr_revise = adr_sub.add_parser("revise", help="append a proposed revision without changing authority")
+    adr_revise.add_argument("--adr-id", required=True)
+    adr_revise.add_argument("--decision-ref", required=True, help="canonical session decision ref")
+    adr_revise.add_argument("--decision", required=True, help="concise current-decision synopsis")
+    adr_revise.add_argument("--why", required=True)
+    adr_revise.add_argument("--evolution", required=True)
+    adr_revise.add_argument("--update-entry-id", required=True)
+    adr_revise.add_argument("--source", required=True, choices=("write-time", "derived"))
+    adr_revise.add_argument("--predecessor", action="append", default=[], help="decision=relation_assertion")
+    adr_revise.add_argument("--timestamp", default=None)
+    adr_revise.add_argument("--dry-run", action="store_true")
+    adr_transition = adr_sub.add_parser("transition", help="append an expected-state ADR transition")
+    adr_transition.add_argument("--adr-id", required=True)
+    adr_transition.add_argument("--status", required=True, choices=("accepted", "rejected", "superseded"))
+    adr_transition.add_argument("--update-entry-id", required=True)
+    adr_transition.add_argument("--decision-ref", default=None)
+    adr_transition.add_argument("--expected-authoritative-decision", default=None)
+    adr_transition.add_argument("--expected-previous-status", default=None, help="legacy status guard")
+    adr_transition.add_argument("--source", required=True, choices=("write-time", "derived"))
+    adr_transition.add_argument("--replacement-adr", default=None)
+    adr_transition.add_argument("--reason", default="")
+    adr_transition.add_argument("--timestamp", default=None, help="UTC ISO timestamp; default: now")
+    adr_transition.add_argument("--dry-run", action="store_true")
+    adr_show = adr_sub.add_parser("show", help="show one ADR and its derived current status")
+    adr_show.add_argument("adr_id")
+    adr_show.add_argument("--json", action="store_true")
+    adr_list = adr_sub.add_parser("list", help="list architectural concerns and their accepted heads")
+    adr_list.add_argument("--json", action="store_true")
+    adr_check = adr_sub.add_parser("check", help="validate every ADR sidecar")
+    adr_check.add_argument("--json", action="store_true")
+
     branch_parser = subparsers.add_parser("branch", help="inspect Git branch/worktree posture")
     branch_sub = branch_parser.add_subparsers(dest="branch_command", required=True)
     branch_status_parser = branch_sub.add_parser(
@@ -794,6 +848,132 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print("No Memory Seed user configured.")
             return 0
+
+    if args.command == "adr":
+        from .adr import (
+            AdrPredecessor,
+            adr_to_dict,
+            check_adrs,
+            iter_adrs,
+            parse_adr,
+            promote_decision,
+            revise_adr,
+            transition_adr,
+        )
+
+        cwd = Path(".").resolve()
+        if args.adr_command == "promote":
+            predecessors: list[AdrPredecessor] = []
+            for raw in args.predecessor:
+                if "=" not in raw:
+                    print("--predecessor must be decision=relation_assertion", file=sys.stderr)
+                    return 1
+                decision, assertion = raw.split("=", 1)
+                predecessors.append(AdrPredecessor(decision.strip(), assertion.strip()))
+            result = promote_decision(
+                cwd,
+                adr_id=args.adr_id,
+                source_entry_id=args.entry_id,
+                source_decision=args.decision,
+                title=args.title,
+                topics=tuple(item.strip() for item in args.topics.split(",") if item.strip()),
+                user_initials=args.user_initials,
+                agent_type=args.agent_type,
+                source=args.source,
+                decision=args.summary_decision,
+                why=args.why,
+                evolution=args.evolution,
+                update_entry_id=args.update_entry_id,
+                direct_predecessors=predecessors,
+                timestamp=args.timestamp,
+                dry_run=args.dry_run,
+            )
+        elif args.adr_command == "revise":
+            predecessors = []
+            for raw in args.predecessor:
+                if "=" not in raw:
+                    print("--predecessor must be decision=relation_assertion", file=sys.stderr)
+                    return 1
+                predecessor, assertion = raw.split("=", 1)
+                predecessors.append(AdrPredecessor(predecessor.strip(), assertion.strip()))
+            result = revise_adr(
+                cwd,
+                adr_id=args.adr_id,
+                decision_ref=args.decision_ref,
+                decision=args.decision,
+                why=args.why,
+                evolution=args.evolution,
+                update_entry_id=args.update_entry_id,
+                source=args.source,
+                predecessors=predecessors,
+                timestamp=args.timestamp,
+                dry_run=args.dry_run,
+            )
+        elif args.adr_command == "transition":
+            result = transition_adr(
+                cwd,
+                adr_id=args.adr_id,
+                status=args.status,
+                decision_ref=args.decision_ref,
+                update_entry_id=args.update_entry_id,
+                expected_authoritative_decision=args.expected_authoritative_decision,
+                expected_previous_status=args.expected_previous_status,
+                source=args.source,
+                replacement_adr=args.replacement_adr,
+                reason=args.reason,
+                timestamp=args.timestamp,
+                dry_run=args.dry_run,
+            )
+        elif args.adr_command == "show":
+            path = resolve_runtime(cwd).memory_dir / "decisions" / f"{args.adr_id}.md"
+            if not path.exists():
+                print(f"ADR not found: {args.adr_id}", file=sys.stderr)
+                return 1
+            record = parse_adr(path)
+            if args.json:
+                print(json.dumps(adr_to_dict(record), indent=2))
+                return 0
+            print(f"{record.adr_id}: {record.title}")
+            print(f"Current decision: {record.current_decision}")
+            print(f"Current status: {record.current_status or 'invalid/unset'}")
+            print(f"Source: {record.source}")
+            print(f"Path: {path}")
+            return 0
+        elif args.adr_command == "list":
+            records = list(iter_adrs(cwd))
+            if args.json:
+                print(json.dumps([adr_to_dict(record, include_events=False) for record in records], indent=2))
+            elif not records:
+                print("No ADR sidecars")
+            else:
+                for record in records:
+                    print(
+                        f"{record.adr_id}\t{record.current_status}\t"
+                        f"{record.authoritative_decision or '-'}\t{record.title}"
+                    )
+            return 0
+        else:
+            ok, issues = check_adrs(cwd)
+            if args.json:
+                print(json.dumps({"ok": ok, "issues": issues}, indent=2))
+            elif ok:
+                print("ADR sidecars OK")
+            else:
+                print("ADR sidecar issues:", file=sys.stderr)
+                for issue in issues:
+                    print(f"  - {issue}", file=sys.stderr)
+            return 0 if ok else 1
+        if not result.ok:
+            print("ADR write refused:", file=sys.stderr)
+            for issue in result.issues:
+                print(f"  - {issue}", file=sys.stderr)
+            return 1
+        verb = "Would write" if args.dry_run else "Wrote"
+        print(f"{verb} {result.adr_id} ({result.current_status}) to {result.path}")
+        if result.rendered:
+            print()
+            print(result.rendered, end="")
+        return 0
 
     if args.command == "session":
         if args.session_command == "target":

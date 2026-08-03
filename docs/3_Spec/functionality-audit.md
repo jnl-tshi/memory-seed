@@ -1213,8 +1213,9 @@ advanced selectors remain planned rather than implied by that first slice.
 
 ### Near term - current lead
 
-- **B0b Trail parity and acceptance** - complete the React Trail/reader/diagram/accessibility gaps while
-  retaining vanilla fallback. The semantic-record foundation begins only after this exit and BG1/BG2.
+- **B0b Trail parity and acceptance** - complete the remaining formal scale sign-off while retaining vanilla
+  fallback. The living ADR foundation shipped 2026-08-03; later semantic-record/ranking work still waits for
+  BG1/BG2.
 
 ### Current implementation order
 
@@ -1231,7 +1232,7 @@ graph TD
   subgraph FollowOnTier["Sequenced follow-ons"]
     direction LR
     RETSPEC["Retrieval Specification<br>M0 contract → M1 MCP slice"]
-    SEM["ADR sidecar<br>foundation"] ~~~ REVIEW["Workflow evidence<br>review workbench"] ~~~ PROJ["Decision<br>projection"]
+    SEM["ADR sidecar foundation<br>SHIPPED 2026-08-03"] ~~~ REVIEW["Workflow evidence<br>review workbench"] ~~~ PROJ["Decision<br>projection"]
   end
   CurrentTier ~~~ GuardTier
   GuardTier ~~~ FollowOnTier

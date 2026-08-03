@@ -20,6 +20,11 @@ export type BrowseResponse = components["schemas"]["BrowseResponse"];
 export type DirectoryEntry = components["schemas"]["DirectoryEntry"];
 export type OpenProjectResponse = components["schemas"]["OpenProjectResponse"];
 
+export type AdrPredecessor = components["schemas"]["AdrPredecessor"];
+export type AdrEvent = components["schemas"]["AdrEvent"];
+export type AdrRecord = components["schemas"]["AdrRecordResponse"];
+export type AdrsResponse = components["schemas"]["AdrsResponse"];
+
 export type GraphQueryOptions = {
   entryId?: string | null;
   depth?: number;
@@ -100,6 +105,14 @@ export async function api<T>(path: string): Promise<T> {
 
 export function worktreesQuery(): Promise<WorktreesResponse> {
   return api<WorktreesResponse>("/worktrees");
+}
+
+export function adrsQuery(): Promise<AdrsResponse> {
+  return api<AdrsResponse>("/adrs");
+}
+
+export function adrQuery(adrId: string): Promise<AdrRecord> {
+  return api<AdrRecord>(`/adrs/${encodeURIComponent(adrId)}`);
 }
 
 // Browsing and opening a project both bypass `api<T>()` deliberately: they

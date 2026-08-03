@@ -34,6 +34,7 @@ from memory_seed.core import (
     iter_topic_sidecar_documents,
     resolve_runtime,
 )
+from memory_seed.adr import adr_membership, adr_review_context, adr_to_dict, iter_adrs, parse_adr
 from memory_seed.retrieval import (
     EntryRollup,
     augment_chunks_with_topic_sidecars,
@@ -1479,6 +1480,24 @@ class TraceService:
             "date_bounds": [min(dates).isoformat(), max(dates).isoformat()] if dates else [None, None],
         }
 
+    def adrs(self) -> dict[str, Any]:
+        """Concise living architectural concerns for the ADR workspace."""
+        return {
+            "adrs": [adr_to_dict(record, include_events=False) for record in iter_adrs(self.cache.cwd)]
+        }
+
+    def adr(self, adr_id: str) -> dict[str, Any]:
+        path = self.cache.runtime.memory_dir / "decisions" / f"{adr_id}.md"
+        if not path.is_file():
+            raise KeyError(adr_id)
+        record = parse_adr(path)
+        payload = adr_to_dict(record)
+        contexts = adr_review_context(self.cache.cwd, sorted(adr_membership(record)))
+        context = next((item for item in contexts if item.get("adr_id") == adr_id), None)
+        if context:
+            payload["source_excerpts"] = context.get("source_excerpts", {})
+        return payload
+
     def facets(self) -> dict[str, Any]:
         entries = self._entry_chunks()
         all_chunks = self.cache.chunks()
@@ -2522,7 +2541,7 @@ def create_app(
     # additive, not a replacement, so a future React client has something
     # stable to build against. /api/timeline has no v1 counterpart: Trail is
     # its designated successor (roadmap Phase 4) and nothing consumes it.
-    from .models import BrowseResponse, ChunkResponse, Facets, GraphResponse, OpenProjectResponse, RendererGraphResponse, RuntimeInfo, SearchResponse, TrailResponse, WorktreesResponse
+    from .models import AdrRecordResponse, AdrsResponse, BrowseResponse, ChunkResponse, Facets, GraphResponse, OpenProjectResponse, RendererGraphResponse, RuntimeInfo, SearchResponse, TrailResponse, WorktreesResponse
 
     @app.get("/api/v1/worktrees", response_model=WorktreesResponse)
     def v1_worktrees() -> dict[str, Any]:
@@ -2584,6 +2603,17 @@ def create_app(
     @app.get("/api/v1/runtime", response_model=RuntimeInfo)
     def v1_runtime(worktree: str | None = None) -> dict[str, Any]:
         return service_for(worktree).runtime()
+
+    @app.get("/api/v1/adrs", response_model=AdrsResponse)
+    def v1_adrs(worktree: str | None = None) -> dict[str, Any]:
+        return service_for(worktree).adrs()
+
+    @app.get("/api/v1/adrs/{adr_id}", response_model=AdrRecordResponse)
+    def v1_adr(adr_id: str, worktree: str | None = None) -> dict[str, Any]:
+        try:
+            return service_for(worktree).adr(adr_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="ADR not found") from None
 
     @app.get("/api/v1/facets", response_model=Facets)
     def v1_facets(worktree: str | None = None) -> dict[str, Any]:

@@ -146,7 +146,7 @@ Rules:
 
 **Scope — this is a link-sidecar field.** `.memory-seed/sessions/` holds more than one sidecar kind:
 diagram sidecars under `sessions/diagrams/…` and link sidecars under `sessions/links/…`, with the ADR
-lifecycle sidecar in [draft](draft/adr-lifecycle-sidecar-contract.md) as a prospective third. "Sidecar"
+lifecycle sidecar in the [live ADR contract](adr-lifecycle-sidecar-contract.md) as a third. "Sidecar"
 unqualified is therefore ambiguous across this document — `edge_status` belongs to **link sidecars
 only**, and its name says which question it answers (are there lifecycle *edges*?).
 

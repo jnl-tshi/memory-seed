@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/api/v1/adrs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** V1 Adrs */
+        get: operations["v1_adrs_api_v1_adrs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/adrs/{adr_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** V1 Adr */
+        get: operations["v1_adr_api_v1_adrs__adr_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/browse": {
         parameters: {
             query?: never;
@@ -178,6 +212,119 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdrCurrent */
+        AdrCurrent: {
+            /**
+             * Decision
+             * @default
+             */
+            decision: string;
+            /** Decision Ref */
+            decision_ref?: string | null;
+            /**
+             * Evolution
+             * @default
+             */
+            evolution: string;
+            /**
+             * Why
+             * @default
+             */
+            why: string;
+        };
+        /** AdrEvent */
+        AdrEvent: {
+            /**
+             * Decision
+             * @default
+             */
+            decision: string;
+            /** Decision Ref */
+            decision_ref?: string | null;
+            /** Event Id */
+            event_id: string;
+            /**
+             * Evolution
+             * @default
+             */
+            evolution: string;
+            /** Expected Authoritative Decision */
+            expected_authoritative_decision?: string | null;
+            /** Kind */
+            kind: string;
+            /** Matched Decisions */
+            matched_decisions?: string[];
+            /** Predecessors */
+            predecessors?: components["schemas"]["AdrPredecessor"][];
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /** Replacement Adr */
+            replacement_adr?: string | null;
+            /** Source */
+            source: string;
+            /** Supporting Decisions */
+            supporting_decisions?: string[];
+            /** Timestamp */
+            timestamp: string;
+            /** Update Entry Id */
+            update_entry_id?: string | null;
+            /**
+             * Why
+             * @default
+             */
+            why: string;
+        };
+        /** AdrPredecessor */
+        AdrPredecessor: {
+            /** Decision */
+            decision: string;
+            /** Relation Assertion */
+            relation_assertion: string;
+        };
+        /** AdrRecordResponse */
+        AdrRecordResponse: {
+            /** Adr Id */
+            adr_id: string;
+            /** Authoritative Decision */
+            authoritative_decision?: string | null;
+            /** Created At */
+            created_at: string;
+            current: components["schemas"]["AdrCurrent"];
+            /** Current Status */
+            current_status: string;
+            /** Digest */
+            digest: string;
+            /** Events */
+            events?: components["schemas"]["AdrEvent"][];
+            /** Membership */
+            membership?: string[];
+            /** Path */
+            path?: string | null;
+            /** Pending Decisions */
+            pending_decisions?: string[];
+            /** Rejected Decisions */
+            rejected_decisions?: string[];
+            /** Source */
+            source: string;
+            /** Source Excerpts */
+            source_excerpts?: {
+                [key: string]: string;
+            };
+            /** Superseded By */
+            superseded_by?: string | null;
+            /** Title */
+            title: string;
+            /** Topics */
+            topics?: string[];
+        };
+        /** AdrsResponse */
+        AdrsResponse: {
+            /** Adrs */
+            adrs: components["schemas"]["AdrRecordResponse"][];
+        };
         /**
          * AuthorityClass
          * @description What authority an item's *meaning* carries — a separate axis from
@@ -923,6 +1070,70 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    v1_adrs_api_v1_adrs_get: {
+        parameters: {
+            query?: {
+                worktree?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdrsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    v1_adr_api_v1_adrs__adr_id__get: {
+        parameters: {
+            query?: {
+                worktree?: string | null;
+            };
+            header?: never;
+            path: {
+                adr_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdrRecordResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     v1_browse_api_v1_browse_get: {
         parameters: {
             query?: {

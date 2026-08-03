@@ -1,6 +1,302 @@
 {
   "components": {
     "schemas": {
+      "AdrCurrent": {
+        "properties": {
+          "decision": {
+            "default": "",
+            "title": "Decision",
+            "type": "string"
+          },
+          "decision_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Ref"
+          },
+          "evolution": {
+            "default": "",
+            "title": "Evolution",
+            "type": "string"
+          },
+          "why": {
+            "default": "",
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "title": "AdrCurrent",
+        "type": "object"
+      },
+      "AdrEvent": {
+        "properties": {
+          "decision": {
+            "default": "",
+            "title": "Decision",
+            "type": "string"
+          },
+          "decision_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Ref"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "string"
+          },
+          "evolution": {
+            "default": "",
+            "title": "Evolution",
+            "type": "string"
+          },
+          "expected_authoritative_decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Authoritative Decision"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "matched_decisions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Matched Decisions",
+            "type": "array"
+          },
+          "predecessors": {
+            "items": {
+              "$ref": "#/components/schemas/AdrPredecessor"
+            },
+            "title": "Predecessors",
+            "type": "array"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          },
+          "replacement_adr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replacement Adr"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "supporting_decisions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Supporting Decisions",
+            "type": "array"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "update_entry_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Update Entry Id"
+          },
+          "why": {
+            "default": "",
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "event_id",
+          "timestamp",
+          "source"
+        ],
+        "title": "AdrEvent",
+        "type": "object"
+      },
+      "AdrPredecessor": {
+        "properties": {
+          "decision": {
+            "title": "Decision",
+            "type": "string"
+          },
+          "relation_assertion": {
+            "title": "Relation Assertion",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "relation_assertion"
+        ],
+        "title": "AdrPredecessor",
+        "type": "object"
+      },
+      "AdrRecordResponse": {
+        "properties": {
+          "adr_id": {
+            "title": "Adr Id",
+            "type": "string"
+          },
+          "authoritative_decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authoritative Decision"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "current": {
+            "$ref": "#/components/schemas/AdrCurrent"
+          },
+          "current_status": {
+            "title": "Current Status",
+            "type": "string"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/AdrEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "membership": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Membership",
+            "type": "array"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "pending_decisions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pending Decisions",
+            "type": "array"
+          },
+          "rejected_decisions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rejected Decisions",
+            "type": "array"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "source_excerpts": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Source Excerpts",
+            "type": "object"
+          },
+          "superseded_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Superseded By"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "topics": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Topics",
+            "type": "array"
+          }
+        },
+        "required": [
+          "adr_id",
+          "title",
+          "created_at",
+          "source",
+          "current_status",
+          "current",
+          "digest"
+        ],
+        "title": "AdrRecordResponse",
+        "type": "object"
+      },
+      "AdrsResponse": {
+        "properties": {
+          "adrs": {
+            "items": {
+              "$ref": "#/components/schemas/AdrRecordResponse"
+            },
+            "title": "Adrs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "adrs"
+        ],
+        "title": "AdrsResponse",
+        "type": "object"
+      },
       "AuthorityClass": {
         "description": "What authority an item's *meaning* carries \u2014 a separate axis from\n``ProvenanceClass`` (where it came from). Fixed vocabulary from the\nprovenance/authority taxonomy (BG1) so generated or provider-derived content\ncan never masquerade as authored project memory.\n\nConfidence is separate metadata and can never upgrade authority.",
         "enum": [
@@ -2223,6 +2519,107 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/adrs": {
+      "get": {
+        "operationId": "v1_adrs_api_v1_adrs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "worktree",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Worktree"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdrsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "V1 Adrs"
+      }
+    },
+    "/api/v1/adrs/{adr_id}": {
+      "get": {
+        "operationId": "v1_adr_api_v1_adrs__adr_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "adr_id",
+            "required": true,
+            "schema": {
+              "title": "Adr Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "worktree",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Worktree"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdrRecordResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "V1 Adr"
+      }
+    },
     "/api/v1/browse": {
       "get": {
         "operationId": "v1_browse_api_v1_browse_get",

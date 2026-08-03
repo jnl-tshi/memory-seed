@@ -6,7 +6,7 @@ sources:
   - ../7_Replaced/information-theoretic-evolution-exploration.md
   - INBOX-CAPABILITY-CROSSWALK.md
   - ../CONSTITUTION.md
-  - ../3_Spec/draft/adr-lifecycle-sidecar-contract.md
+  - ../3_Spec/adr-lifecycle-sidecar-contract.md
   - ../3_Spec/draft/edge-confidence-metadata.md
   - ../3_Spec/draft/link-retraction.md
   - ../3_Spec/lifecycle-edge-linking-sidecars.md
@@ -47,7 +47,7 @@ deleted.
 | Governance — Constitution evolves only by reviewed proposal, never automatically | Constitution §11 Governance, practiced through the v1.1–v1.4 amendment log; the proposal restates the ratified mechanism | none |
 | "Structure must earn its existence" / Information Gain as a gate | Constitution §9 five-question test; §3 "Immediate value before future value"; crosswalk row A6-9 (none) | none |
 | Information Gain as a **measured metric** | Quality-metrics v0 framework ships the metric scaffolding; the constrained-context gold set (crosswalk genuine delta, A5) is the prerequisite and does not exist | narrow — owner is the quality-metrics plan; blocked on the A5 gold set |
-| ADR layer (compressed architectural knowledge above entries) | [ADR lifecycle sidecar contract](../3_Spec/draft/adr-lifecycle-sidecar-contract.md) (draft), gated on the semantic-record plan's walking skeleton; NEXT_STEPS already sequences "prove append-only ADR sidecars on three real decisions" | narrow — the gap is implementation of an owned draft, not architecture |
+| ADR layer (compressed architectural knowledge above entries) | [Living ADR sidecar contract](../3_Spec/adr-lifecycle-sidecar-contract.md), implemented and dogfooded on three concerns on 2026-08-03 | closed for the ADR foundation; later semantic-signal work remains separate |
 | Knowledge distillation — ADRs preserve decision-making ability, not summary prose | The draft ADR contract's authority split: sidecar owns lifecycle, entries own narrative rationale and evidence | none (within the draft's scope) |
 | Redundancy as independent evidence; losing one edge does not lose the knowledge | Four never-merged edge kinds; supersession damping never removes results (Invariant #7); no single edge is authoritative for retrieval | none |
 | Entropy / "does this edge reduce retrieval uncertainty" framing | Lens only — no mechanism proposed; the shipped analogue is "Expose before you rank" + `ranking-ab` ablation, which measures whether a signal helps | none as philosophy; the measurement gap is the same A5 gold set above |

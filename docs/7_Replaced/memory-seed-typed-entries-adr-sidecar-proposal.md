@@ -9,7 +9,7 @@ replaced_on: "2026-07-16"
 
 **Status:** Superseded 2026-07-16.
 **Superseded by:** [`memory-seed-semantic-record-and-signal-foundation-plan.md`](../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md)
-and [`adr-lifecycle-sidecar-contract.md`](../3_Spec/draft/adr-lifecycle-sidecar-contract.md). The successor
+and [`adr-lifecycle-sidecar-contract.md`](../3_Spec/adr-lifecycle-sidecar-contract.md). The successor
 keeps authoritative ADR sidecars but replaces mutable generated YAML with append-only Markdown and derives
 current status from transition replay.
 

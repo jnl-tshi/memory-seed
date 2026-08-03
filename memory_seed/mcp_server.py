@@ -6,7 +6,7 @@ import re
 import sys
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from .core import (
     MEMORY_DIR_NAME,
@@ -349,6 +349,50 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "memory_adrs_list",
+        "description": "List living architectural decision threads and their replay-derived authoritative heads. Read-only.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"cwd": {"type": "string", "default": "."}},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_adr_show",
+        "description": "Read one composed ADR sidecar and return its replay-derived status and source decision.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "default": "."},
+                "adr_id": {"type": "string"},
+            },
+            "required": ["adr_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_adr_review",
+        "description": "Resolve lifecycle decision references to every ADR whose current or historical lineage they affect. Read-only.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cwd": {"type": "string", "default": "."},
+                "targets": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+            },
+            "required": ["targets"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "memory_adrs_check",
+        "description": "Validate every ADR sidecar and replay its append-only lifecycle. Read-only.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"cwd": {"type": "string", "default": "."}},
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "memory_session_append",
         "description": (
             "Append a session entry with every structural guarantee enforced. THIS IS THE ONLY WAY TO AUTHOR AN ENTRY - "
@@ -404,6 +448,24 @@ TOOLS: list[dict[str, Any]] = [
                                 "required": ["area", "activity"],
                             },
                             "links": {"type": "object"},
+                            "adrs": {
+                                "type": "array",
+                                "description": "Mandatory review outcomes for ADRs matched by this decision's evolves/replaces links.",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "adr_id": {"type": "string"},
+                                        "outcome": {"type": "string", "enum": ["revise", "no-change"]},
+                                        "decision": {"type": "string"},
+                                        "why": {"type": "string"},
+                                        "evolution": {"type": "string"},
+                                        "reason": {"type": "string"},
+                                        "assertions": {"type": "object"},
+                                    },
+                                    "required": ["adr_id", "outcome"],
+                                    "additionalProperties": False,
+                                },
+                            },
                         },
                         "required": ["decision", "topics"],
                     },
@@ -420,6 +482,7 @@ TOOLS: list[dict[str, Any]] = [
                     "description": "Heading timestamp 'YYYY-MM-DD HH:MM'. OMIT in normal use: the server stamps from its own clock. Two sanctioned explicit uses: echoing a dry_run's returned timestamp back on the real write (the id is a hash of the timestamp, so a fresh stamp that ticks to the next minute mints a DIFFERENT id than previewed - echoing pins preview and write to the same bytes), and backfill. Values far from the server clock earn a drift warning.",
                 },
                 "user": {"type": "string", "description": "Override the active user slug when resolving a per-user target."},
+                "adr_review_receipt": {"type": "string", "description": "Content-bound receipt returned by the mandatory ADR review gate."},
                 "dry_run": {"type": "boolean", "default": False, "description": "Run every guard and report entry_id, timestamp, path and `rendered` - the exact entry block a real call would append - without writing."},
             },
             "required": ["title", "body", "user_initials", "agent_type", "decisions"],
@@ -739,6 +802,46 @@ def call_tool(
             "write_surface": "Read-only. Use CLI/project file edits with user approval to change topics.yaml.",
         }
 
+    if name == "memory_adrs_list":
+        from .adr import adr_to_dict, iter_adrs
+
+        cwd = Path(str(args.get("cwd", "."))).resolve()
+        return {"ok": True, "adrs": [adr_to_dict(record, include_events=False) for record in iter_adrs(cwd)]}
+
+    if name == "memory_adr_show":
+        from .adr import adr_to_dict, parse_adr
+
+        cwd = Path(str(args.get("cwd", "."))).resolve()
+        adr_id = _required_str(args, "adr_id")
+        path = resolve_runtime(cwd).memory_dir / "decisions" / f"{adr_id}.md"
+        if not path.exists():
+            return {"ok": False, "issues": [f"ADR not found: {adr_id}"]}
+        try:
+            record = parse_adr(path)
+        except (OSError, ValueError) as exc:
+            return {"ok": False, "issues": [str(exc)]}
+        return {"ok": True, **adr_to_dict(record)}
+
+    if name == "memory_adr_review":
+        from .adr import adr_review_context, canonical_decision_refs
+
+        cwd = Path(str(args.get("cwd", "."))).resolve()
+        raw_targets = args.get("targets")
+        if not isinstance(raw_targets, list) or not raw_targets:
+            return {"ok": False, "issues": ["targets must be a non-empty list"]}
+        targets: list[str] = []
+        for raw in raw_targets:
+            if isinstance(raw, str):
+                targets.extend(canonical_decision_refs(cwd, raw))
+        contexts = adr_review_context(cwd, tuple(dict.fromkeys(targets)))
+        return {"ok": True, "targets": list(dict.fromkeys(targets)), "matched_adrs": contexts}
+
+    if name == "memory_adrs_check":
+        from .adr import check_adrs
+
+        ok, issues = check_adrs(Path(str(args.get("cwd", "."))).resolve())
+        return {"ok": ok, "issues": issues}
+
     if name == "memory_session_integrate":
         from .core import read_integration_mode, read_merge_trigger, session_merge_branch
 
@@ -851,6 +954,91 @@ def call_tool(
         if authored_decision_issues:
             return {"ok": False, "written": False, "issues": authored_decision_issues}
 
+        # A lifecycle link to any current or historical ADR member is a
+        # mandatory, content-bound review gate. MCP cannot push unsolicited
+        # context, so the first append call returns the ADRs and writes zero
+        # bytes; the caller retries with the exact receipt and one outcome per
+        # matched ADR.
+        from .adr import adr_review_context, lifecycle_targets, review_receipt
+
+        decisions = args["decisions"]
+        targets = lifecycle_targets(cwd, decisions)
+        review_contexts = adr_review_context(cwd, targets)
+        receipt_decisions = [
+            {key: value for key, value in decision_item.items() if key != "adrs"}
+            if isinstance(decision_item, Mapping)
+            else decision_item
+            for decision_item in decisions
+        ]
+        proposal = {
+            "title": args.get("title"),
+            "body": body,
+            "timestamp": supplied or now,
+            "user_initials": args.get("user_initials"),
+            "agent_type": args.get("agent_type"),
+            # Review outcomes are supplied only on the retry. They are not
+            # part of the proposed session decision whose exact content the
+            # receipt binds; including them would make every valid retry stale.
+            "decisions": receipt_decisions,
+        }
+        expected_receipt = review_receipt(cwd, proposal=proposal, contexts=review_contexts)
+        review_outcomes: dict[str, tuple[str, dict[str, Any]]] = {}
+        duplicate_outcomes: set[str] = set()
+        malformed_outcomes: list[str] = []
+        for decision_item in decisions:
+            if not isinstance(decision_item, Mapping):
+                continue
+            ordinal = str(decision_item.get("decision", ""))
+            for action in decision_item.get("adrs", []) if isinstance(decision_item.get("adrs"), list) else []:
+                if isinstance(action, dict) and isinstance(action.get("adr_id"), str):
+                    adr_id = action["adr_id"]
+                    if adr_id in review_outcomes:
+                        duplicate_outcomes.add(adr_id)
+                    review_outcomes[adr_id] = (ordinal, action)
+                    outcome = action.get("outcome")
+                    if outcome == "revise" and not all(
+                        isinstance(action.get(field), str) and action[field].strip()
+                        for field in ("decision", "why", "evolution")
+                    ):
+                        malformed_outcomes.append(
+                            f"ADR {adr_id} revise outcome requires non-empty decision, why, and evolution"
+                        )
+                    if outcome == "no-change" and not (
+                        isinstance(action.get("reason"), str) and action["reason"].strip()
+                    ):
+                        malformed_outcomes.append(
+                            f"ADR {adr_id} no-change outcome requires a non-empty reason"
+                        )
+        matched_ids = {str(item["adr_id"]) for item in review_contexts}
+        supplied_ids = set(review_outcomes)
+        receipt_ok = args.get("adr_review_receipt") == expected_receipt
+        outcomes_ok = supplied_ids == matched_ids and not duplicate_outcomes and not malformed_outcomes
+        review_attempted = bool(review_contexts or supplied_ids or args.get("adr_review_receipt"))
+        if review_attempted and (not review_contexts or not receipt_ok or not outcomes_ok):
+            issues = ["ADR review is required before this lifecycle-linked session entry can be written"]
+            if args.get("adr_review_receipt") and not receipt_ok:
+                issues.append("adr_review_receipt is stale or does not match the proposed entry and current ADR ledgers")
+            if supplied_ids != matched_ids:
+                missing = sorted(matched_ids - supplied_ids)
+                extra = sorted(supplied_ids - matched_ids)
+                if missing:
+                    issues.append("missing ADR review outcome(s): " + ", ".join(missing))
+                if extra:
+                    issues.append("unexpected ADR review outcome(s): " + ", ".join(extra))
+            if duplicate_outcomes:
+                issues.append("duplicated ADR review outcome(s): " + ", ".join(sorted(duplicate_outcomes)))
+            issues.extend(malformed_outcomes)
+            return {
+                "ok": False,
+                "written": False,
+                "review_required": True,
+                "issues": issues,
+                "adr_review_receipt": expected_receipt,
+                "matched_adrs": review_contexts,
+                "lifecycle_targets": list(targets),
+                "timestamp": supplied or now,
+            }
+
         result = session_append_entry(
             cwd,
             title=_required_str(args, "title"),
@@ -862,6 +1050,8 @@ def call_tool(
             replaces=list(args.get("replaces") or args.get("supersedes") or []),  # legacy key accepted
             evolves=list(args.get("evolves") or []),
             decisions=args["decisions"],
+            adr_review_contexts=review_contexts,
+            adr_review_outcomes=review_outcomes,
             project_path=str(args.get("project_path", ".")),
             subproject_path=_optional_str(args, "subproject_path"),
             branch=_optional_str(args, "branch"),
