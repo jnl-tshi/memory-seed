@@ -168,6 +168,43 @@ def write_judge_packet(run_dir: Path, analysis: dict) -> None:
     (run_dir / "judge_packet.md").write_text(packet, encoding="utf-8")
 
 
+def print_dose_response(summary: list[dict]) -> None:
+    """The pre-registered shape: recorded-anything rate per level, broken out by task.
+
+    Deliberately NOT the capture rate from the thresholds - that one is judged (does the recorded
+    reason match what actually happened?) and cannot be computed from counts. This is the mechanical
+    precursor: did the session write a decision-bearing entry at all. Reading it as the capture rate
+    would overstate every arm, since an entry that records the wrong decision still counts here.
+    """
+    levels = sorted({row["level"] for row in summary if row.get("level")})
+    tasks = sorted({row["task"] for row in summary if row.get("task")})
+    if not levels:
+        return
+
+    width = max(len(t) for t in tasks) if tasks else 4
+    print("\nRecorded a decision-bearing entry (mechanical, NOT the judged capture rate)")
+    print("  level | " + " | ".join(f"{t:>{width}}" for t in tasks) + " |    all")
+    for level in levels:
+        cells = []
+        for task in tasks:
+            rows = [r for r in summary if r["level"] == level and r["task"] == task]
+            hits = sum(1 for r in rows if r["decision_entry_count"])
+            cells.append(f"{hits}/{len(rows)}".rjust(width) if rows else "-".rjust(width))
+        rows = [r for r in summary if r["level"] == level]
+        hits = sum(1 for r in rows if r["decision_entry_count"])
+        rate = f"{hits / len(rows):.2f}" if rows else "-"
+        print(f"  {level:>5} | " + " | ".join(cells) + f" | {hits:>2}/{len(rows):<2} {rate}")
+
+    guarded = [r for r in summary if r.get("guard_blocked")]
+    if guarded:
+        silent = [r for r in guarded if not r["decision_entry_count"]]
+        print(
+            f"\n  worktree guard returned a block in {len(guarded)} run(s); "
+            f"{len(silent)} of those recorded nothing - "
+            "check these before reading a low arm as disinterest."
+        )
+
+
 def main() -> int:
     if not RUNS.is_dir():
         raise SystemExit("no runs/ directory - nothing to collect")
@@ -216,7 +253,7 @@ def main() -> int:
         )
 
     (RUNS / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps(summary, indent=2))
+    print_dose_response(summary)
     print(f"\n{len(summary)} run(s) collected; judge packets written per run (answer key withheld)")
     if in_flight:
         print(f"{len(in_flight)} run(s) still in flight, not collected: {', '.join(in_flight)}")
