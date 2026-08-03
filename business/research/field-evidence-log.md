@@ -219,6 +219,51 @@ Also: *"It is hard to keep up with publishing them."*
 decisions than one big central register. ADRs are really just the most primitive form of taking architecture
 notes."* Asked to expand; no answer at capture.
 
+**`amendCommit` — the most detailed abandonment narrative collected, and the most consequential.**
+Engagement at this capture: ~3.5K views · 3 upvotes · 7 comments.
+
+> *"We had a couple of meetings about how to properly adopt coding agents… I chose to suggest ADRs as one
+> way to track our decisions. The proposal was adopted.*
+>
+> *A few months later, my team does not care, **they refused to adopt an agent that would validate new code
+> against existing ADRs**, I'm the only one to write any ADR and nobody has time for review (or any
+> discussion leading to a shared vision on architecture); then my engineering manager wanted us to move ADRs
+> from our repos to a common 'architecture' repo, **which puts it away from actual, runnable code, and gates
+> it behind a review process nobody really owns**.*
+>
+> *I'm moving on and they're going to keep vibe-coding features with zero harness because improved DX is not
+> 'customer centric' and is not 'respecting individual developers in their independent use of agents'."*
+
+Three findings, in ascending order of importance.
+
+**1. Moving the record away from the code killed it.** *"Puts it away from actual, runnable code, and gates
+it behind a review process nobody really owns."* This is direct field evidence for repo-local, Git-native
+storage — Memory Seed's core architectural choice — observed as the *failure* of the alternative rather than
+argued from principle. It also answers `heavy-minium`'s "better places than one central register": a central
+register is exactly what failed here.
+
+**2. The agent-validates-against-ADRs mechanism was offered and refused.** Not "nobody thought of it" —
+someone proposed it and the team said no. This is the first evidence that the mechanism can exist and still
+lose.
+
+**3. The stated reason is a cultural objection no report anticipated:** enforcement was rejected as failing
+to respect *"individual developers in their independent use of agents."* **Constraining an agent was read as
+constraining the developer.** That is a governance-versus-autonomy conflict, and it is a category-level
+barrier rather than a product-level one — a competitor with better tooling would have hit the same wall.
+
+### How this qualifies the reframe below
+
+The reader-changed argument holds — agents do read what humans do not. But **it is not sufficient**. The
+agent only reads the record if the organisation permits the agent to be constrained by it, and here a team
+explicitly declined that. *"The team has to care"* has now been said twice in one thread, once by someone
+who cared and left.
+
+**Implication for Report 6's ICPs.** ICP-2 (the small AI-forward team) is harder than assumed unless the
+team *already* cares — adoption cannot be driven by the one person who does. ICP-1 (the solo or
+technical-founder builder) has no such problem, because the person deciding and the person adopting are the
+same. This strengthens the case for entering solo-first and treating team adoption as an expansion that
+requires an existing culture rather than one the tool can create.
+
 ### What this establishes
 
 **Two independent practitioners say the value of an ADR is in the writing, not the reading.** Deliberation,
