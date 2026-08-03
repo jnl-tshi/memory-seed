@@ -120,6 +120,34 @@ class QualityReportTests(unittest.TestCase):
         # message changes, this fails instead of the metric quietly showing 2/2.
         self.assertEqual((coverage.numerator, coverage.denominator), (1, 2))
 
+    def test_subdirectory_cwd_measures_the_same_corpus_as_the_runtime_root(self):
+        cwd = self.make_project()
+        self.write_day(
+            cwd,
+            _entry("2026-05-10 09:00 - A", "ms-a0000000", "### Decision\n\n- D: a.\n- R: because."),
+            _entry("2026-05-10 10:00 - B", "ms-b0000000", "### Decision\n\n- D: b with no reason."),
+        )
+        # A real subdirectory of the runtime root with no `.memory-seed/` of its
+        # own, so runtime discovery walks up to `cwd` - modelled on invoking the
+        # CLI from `memory-trace/`.
+        subdir = cwd / "memory-trace"
+        subdir.mkdir()
+
+        from_root = build_quality_report(cwd)
+        from_subdir = build_quality_report(subdir)
+
+        # The uncovered decision is the discriminator. `source_path` is relative
+        # to the runtime root, so joining it onto the subdirectory missed every
+        # session file; the reads failed, `format_issues` came back empty, and
+        # the metric reported 100% instead of measuring. Without the B entry
+        # both runs report 100% and this test proves nothing.
+        for metric_id in ("draft_reason_coverage", "unlinked_entry_rate"):
+            root_metric = self.metric(from_root, metric_id)
+            subdir_metric = self.metric(from_subdir, metric_id)
+            self.assertEqual(root_metric, subdir_metric, metric_id)
+        coverage = self.metric(from_subdir, "draft_reason_coverage")
+        self.assertEqual((coverage.numerator, coverage.denominator), (1, 2))
+
     def test_bg1_dependent_metrics_are_unavailable_not_not_applicable(self):
         cwd = self.make_project()
         self.write_day(

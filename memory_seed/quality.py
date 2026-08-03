@@ -223,12 +223,16 @@ def _declares_a_decision(text: str) -> bool:
 
 def build_quality_report(cwd: str | Path = ".") -> QualityReport:
     """Measure the corpus. Read-only: performs no writes and needs no network."""
-    from .core import check_entry_format
+    from .core import check_entry_format, resolve_runtime
     from .retrieval import augment_chunks_with_link_sidecars
     from .semantic_cache import build_related_entry_graph, extract_memory_chunks
     from .text_files import read_text_file
 
-    root = Path(cwd).resolve()
+    # The runtime root, not the raw cwd: `chunk.source_path` is relativized
+    # against `runtime.workspace_root` by the extractor, so joining it onto a
+    # cwd one directory down misses every file. Same idiom as retrieval.py's
+    # Evidence Pack validation.
+    root = Path(resolve_runtime(cwd).workspace_root).resolve()
     chunks = [
         chunk
         for chunk in augment_chunks_with_link_sidecars(
@@ -240,11 +244,13 @@ def build_quality_report(cwd: str | Path = ".") -> QualityReport:
 
     entry_texts = {chunk.entry_id: chunk.text for chunk in chunks}
     format_issues: list[tuple[str, str]] = []
+    # No `except OSError: continue` here. Every path is a file the extractor
+    # read moments ago, so a miss is a broken invariant, not a corpus fact -
+    # and swallowing it silently drops `format_issues` to empty, which renders
+    # as 100% coverage. A measurement that cannot read its input must fail, not
+    # report a number it did not measure.
     for path in sorted({root / chunk.source_path for chunk in chunks}):
-        try:
-            format_issues.extend(check_entry_format(read_text_file(path)))
-        except OSError:
-            continue
+        format_issues.extend(check_entry_format(read_text_file(path)))
 
     today = datetime.now(timezone.utc).date()
     metrics = [
