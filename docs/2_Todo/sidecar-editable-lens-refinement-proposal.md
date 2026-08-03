@@ -120,7 +120,7 @@ decision that the 2026-07-22 revert shows is wanted but not urgent.
 
 - `docs/CONSTITUTION.md` — Invariant #2 (append-only + exceptions 1.2, 1.4), Invariant #6 (partitioned
   Markdown authority, 1.1), §11 Governance.
-- `docs/3_Spec/draft/adr-lifecycle-sidecar-contract.md`, `decision-level-link-sidecar-refs.md` — how
+- `docs/3_Spec/adr-lifecycle-sidecar-contract.md`, `decision-level-link-sidecar-refs.md` — how
   link sidecars own and source lifecycle edges.
 - 2026-07-22 link-sidecar revert (`revert(links): restore the demonstration sidecar edit`) — the
   finding that no operation exists to narrow a published edge.

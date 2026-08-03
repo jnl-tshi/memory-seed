@@ -18,9 +18,14 @@ from .core import (
     resolve_runtime,
     write_text_file,
 )
+from .topics import load_topic_index
 
 
 ADR_ID_RE = re.compile(r"^adr_[a-z0-9][a-z0-9_-]{0,79}$")
+EVENT_ID_RE = re.compile(r"^adre_[a-z0-9][a-z0-9_]{0,63}$")
+ADR_TIMESTAMP_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?$"
+)
 DECISION_REF_RE = re.compile(r"^(mse_[a-z0-9]+|ms-[a-z0-9]+):d([1-9][0-9]*)$")
 ENTRY_ID_RE = re.compile(r"^(mse_[a-z0-9]+|ms-[a-z0-9]+)$")
 LINK_ASSERTION_RE = re.compile(
@@ -133,6 +138,19 @@ def _event_id(*values: object) -> str:
     return "adre_" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:20]
 
 
+def _parse_adr_timestamp(value: str) -> datetime | None:
+    """Parse the ADR ledger's ISO-8601 timestamp grammar for validation/order."""
+    if not ADR_TIMESTAMP_RE.fullmatch(value):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00" if value.endswith("Z") else value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
 def _scalar(block: str, key: str) -> str | None:
     match = re.search(rf"^{re.escape(key)}:\s*([^\n]+?)\s*$", block, re.MULTILINE)
     if not match:
@@ -209,7 +227,7 @@ def render_event(event: AdrEvent) -> str:
     for heading, text in (("Decision", event.decision), ("Why", event.why), ("Evolution", event.evolution), ("Reason", event.reason)):
         if text:
             lines.extend(["", f"#### {heading}", "", text])
-    return "\n".join([*lines, "", ""])
+    return "\n".join(lines)
 
 
 def render_adr(record: AdrRecord) -> str:
@@ -227,7 +245,8 @@ def render_adr(record: AdrRecord) -> str:
         "### How it evolved", "", proposal.evolution if proposal else "No evolution has been recorded.", "",
         "<!-- memory-seed-derived-current-view:end -->", "", "## Event ledger", "", "",
     ]
-    return "\n".join(front + view) + "".join(render_event(event) for event in record.events)
+    events = "\n\n".join(render_event(event) for event in record.events)
+    return "\n".join(front + view) + events + "\n"
 
 
 def parse_adr_text(text: str, *, path: Path | None = None) -> AdrRecord:
@@ -377,28 +396,51 @@ def validate_adr(record: AdrRecord, cwd: str | Path = ".", *, pending_decisions:
         issues.append("unsupported ADR schema_version; expected 1")
     if not ADR_ID_RE.fullmatch(record.adr_id):
         issues.append("adr_id must match adr_<lowercase-slug>")
+    if not record.title.strip() or not record.user_initials.strip() or not record.agent_type.strip():
+        issues.append("ADR title and creation attribution must be non-empty")
+    created_at = _parse_adr_timestamp(record.created_at)
+    if created_at is None:
+        issues.append("created_at must be an ISO-8601 timestamp")
     if record.source not in ALLOWED_SOURCES:
         issues.append("frontmatter source must be write-time or derived")
+    topic_index = load_topic_index(cwd)
+    if record.topics and not topic_index.exists:
+        issues.append("ADR topics require .memory-seed/topics.yaml")
+    else:
+        topic_resolution = topic_index.resolution()
+        for topic in record.topics:
+            if topic not in topic_resolution or topic_resolution[topic] != topic:
+                issues.append(f"ADR topic '{topic}' is not a canonical slug in topics.yaml")
     if not record.events:
         return [*issues, "ADR sidecar must contain at least one event"]
     ids: set[str] = set()
     statuses: dict[str, str] = {}
     authoritative: str | None = None
-    last_timestamp = ""
+    last_timestamp: datetime | None = None
     superseded = False
     for index, event in enumerate(record.events, 1):
         label = f"event {index} ({event.kind})"
         if event.kind not in EVENT_TYPES:
             issues.append(f"{label} has unsupported type")
-        if not event.event_id or event.event_id in ids:
-            issues.append(f"{label} has missing or duplicate event_id")
+        if not EVENT_ID_RE.fullmatch(event.event_id):
+            issues.append(f"{label} has malformed event_id")
+        if event.event_id in ids:
+            issues.append(f"{label} has duplicate event_id")
         ids.add(event.event_id)
         if event.source not in ALLOWED_SOURCES:
             issues.append(f"{label} source must be write-time or derived")
-        if event.timestamp < last_timestamp:
-            issues.append(f"{label} is not in ascending timestamp order")
-        last_timestamp = event.timestamp
-        if event.update_entry_id and event.update_entry_id not in known | pending_entry_ids:
+        event_timestamp = _parse_adr_timestamp(event.timestamp)
+        if event_timestamp is None:
+            issues.append(f"{label} timestamp must be ISO-8601")
+        else:
+            if created_at is not None and event_timestamp < created_at:
+                issues.append(f"{label} predates ADR creation")
+            if last_timestamp is not None and event_timestamp < last_timestamp:
+                issues.append(f"{label} is not in ascending timestamp order")
+            last_timestamp = event_timestamp
+        if not event.update_entry_id:
+            issues.append(f"{label} requires update_entry_id")
+        elif event.update_entry_id not in known | pending_entry_ids:
             issues.append(f"{label} references missing update entry {event.update_entry_id}")
         if event.kind == "revision-proposed":
             ref = event.decision_ref or ""

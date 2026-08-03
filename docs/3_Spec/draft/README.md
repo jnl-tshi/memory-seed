@@ -8,7 +8,6 @@ spec moves up to `3_Spec/`; if abandoned it goes to `6_Rejected/`.
 
 **Contents physically here:**
 
-- `adr-lifecycle-sidecar-contract.md` - candidate append-only ADR promotion/lifecycle sidecar;
 - `derived-read-model-projection-contract.md` - candidate local projection contract;
 - `memory-trace-hosted-markdown-settlement-contract.md` - candidate hosted settlement/rebuildability gate;
 - `provenance-authority-crosswalk.md` - BG1 steps 1-2: the provenance/authority field inventory and alias

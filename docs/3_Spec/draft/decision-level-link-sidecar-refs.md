@@ -20,9 +20,9 @@ JNL's mandate) decision granularity is no longer optional at write time: both en
 
 **Scope.** This amends the **link sidecar** (`.memory-seed/sessions/links/…`) so a lifecycle edge can
 terminate on a specific decision rather than a whole entry. It borrows the decision identity ratified in
-[adr-lifecycle-sidecar-contract.md](adr-lifecycle-sidecar-contract.md) but does **not** touch that ADR
-lifecycle sidecar family (`.memory-seed/decisions/<adr_id>.md`), which stays draft and unbuilt. Two
-different sidecar kinds; only the identity scheme is shared.
+[adr-lifecycle-sidecar-contract.md](../adr-lifecycle-sidecar-contract.md) but does **not** define or mutate
+the now-live ADR lifecycle sidecar family (`.memory-seed/decisions/<adr_id>.md`). Two different sidecar
+kinds; only the canonical decision-reference grammar is shared.
 
 **Scope extension — entry YAML at write time (JNL's direction, 2026-07-24, IMPLEMENTED).** The `:dN`
 target grammar is also valid in a session entry's **own** `replaces:`/`evolves:` lists at authoring
@@ -58,7 +58,7 @@ Two things changed that make this worth building now:
 
 1. The decision identity was ratified 2026-07-20: a decision is the pair `(entry_id, dN)`, total across
    all corpus shapes via the singular-`### Decision` → `d1` convention
-   ([adr-lifecycle-sidecar-contract.md:62](adr-lifecycle-sidecar-contract.md)).
+   ([adr-lifecycle-sidecar-contract.md](../adr-lifecycle-sidecar-contract.md)).
 2. The Trail renders one row per decision as of 2026-07-21, so a decision-terminated edge now has
    somewhere to land. Before that it would have been an edge with no visible endpoint.
 
@@ -92,7 +92,7 @@ trailing colon), and it survives the regex-based block parser the reader actuall
 `mse_abc#decisions/d2-some-slug` is what a reader can copy out of Memory Trace, so it is accepted on read
 and normalised to the pair. It is **not** canonical and writers never emit it, for the reason the ADR
 already gives — it is an address, not an identity
-([adr-lifecycle-sidecar-contract.md:89](adr-lifecycle-sidecar-contract.md)) — plus one that bites harder
+([adr-lifecycle-sidecar-contract.md](../adr-lifecycle-sidecar-contract.md)) — plus one that bites harder
 here: the slug **cannot express d1 of a singular `### Decision` entry**, because no `#decisions/d1-…`
 chunk is generated for that shape.
 
@@ -348,10 +348,11 @@ validation or detection.
    the no-decision bucket (140 claimed against 42 stamped / 67 tolerant), most likely a `sessions/**/*.md`
    sweep that swept in the 99 decision-less date headings the `links/`+`diagrams/` sidecars held that day.
    There was no fall: measured stamped totals rise monotonically 537 → 562 → 636. **Current figures live
-   in [adr-lifecycle-sidecar-contract.md](adr-lifecycle-sidecar-contract.md); the numbers in this item are
-   a dated historical record, not the present count.** The original question is kept for the record:
+   in the [deprecated pointer prototype](../deprecated/adr-lifecycle-sidecar-pointer-prototype.md); the
+   numbers in this item are a dated historical record, not the present count.** The original question is
+   kept for the record:
 
-   [adr-lifecycle-sidecar-contract.md:75-80](adr-lifecycle-sidecar-contract.md) reports
+   The [deprecated pointer prototype](../deprecated/adr-lifecycle-sidecar-pointer-prototype.md) reports
    125 numbered / 346 singular / 1 inline / 140 no-decision on 2026-07-20, totalling 612 entries. A
    recount on 2026-07-21 finds **580 entries** — fewer than a day later, which append-only makes
    impossible — and 66 no-decision against the ADR's 140. The numbered and singular figures move in the

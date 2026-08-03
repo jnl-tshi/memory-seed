@@ -26,7 +26,7 @@ None of the gaps requires inventing anything new.**
 | [Report 1](standards-and-regulatory-landscape-report.md) §5.13 | Nygard / MADR / 42010 field-by-field spine comparison |
 | [Report 2](decision-governance-evidence-spine-report.md) | Verified capture surface and the six confirmed absences |
 | [Report 3](memory-seed-strategic-fit-report.md) | Competitive finding: no ADR tool validates anything |
-| **`3_Spec/draft/adr-lifecycle-sidecar-contract.md`** | **The existing designed answer. DRAFT — NOT IMPLEMENTED** |
+| **`3_Spec/adr-lifecycle-sidecar-contract.md`** | **The implemented living ADR contract (promoted 2026-08-03)** |
 | [`3_Spec/graph-edge-contract.md`](../../docs/3_Spec/graph-edge-contract.md) | The four edge kinds, forward-only and acyclic |
 | **`7_Replaced/memory-seed-typed-entries-adr-sidecar-proposal.md`** | **Why the earlier shape was replaced — the most important input** |
 | `2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md` | The active successor |
@@ -318,10 +318,11 @@ parallel scheme.**
 
 ### 8.1 How to store ADRs
 
-**Build the draft `adr-lifecycle-sidecar-contract.md` as specified.** It is already correct:
-one append-only Markdown file per ADR at `.memory-seed/decisions/<adr_id>.md`, identity fields frozen in
-frontmatter, transitions as appended blocks, `current_status` **derived by replaying the transition chain
-and never authored**.
+**Implementation outcome (2026-08-03): the ADR contract is now live.** The shipped model keeps the
+report's essential recommendation—one append-only Markdown file per architectural concern at
+`.memory-seed/decisions/<adr_id>.md`, stable identity frontmatter, and status derived by replay rather
+than authored state—while replacing the pointer-only draft with a living revision ledger and a
+regenerable current view.
 
 **The reason this shape is right is recorded in the repo's own history.** The predecessor proposed
 mutable machine-maintained YAML with an authored `current_status` and a "do not edit manually" banner.
@@ -329,13 +330,13 @@ It was replaced on 2026-07-16 precisely because a mutable status field is a seco
 can drift, which Invariant #2 forbids. **Do not reopen that.**
 
 **Do not adopt a mandatory entry `type` field.** The replaced proposal wanted one; it did not survive,
-and Report 2 confirms no `type` exists today. `(entry_id, dN)` plus the promotion sidecar already
+and Report 2 confirms no `type` exists today. `(entry_id, dN)` plus the living ADR sidecar already
 distinguishes governing decisions from tactical ones without classifying every entry up front.
 
 ### 8.2 How to reference ADRs
 
 **No change.** `(entry_id, dN)` is already the identity, grammar v2 already mandates decision-level refs
-when either end has multiple decisions, and the draft contract already resolves ADR → source decision by
+when either end has multiple decisions, and the live contract resolves ADR → source decision by
 that pair. The ecosystem's `NNNN-title.md` convention is a *filename* scheme, not an identity scheme, and
 adopting it would add a second identifier for the same thing.
 
@@ -344,7 +345,7 @@ adopting it would add a second identifier for the same thing.
 | # | Addition | Justification | Cost |
 |---|---|---|---|
 | 1 | **Evaluation criteria** — an optional DRAFT sub-label under `A:`, or a `Decision Drivers` field on the ADR sidecar | MADR has it; **CMMI DAR independently requires it**; Report 2 confirmed it absent. Two unrelated traditions demanding the same field | Low — grammar addition |
-| 2 | **Status via transition replay** | The draft contract already specifies it; matches the ecosystem's common core exactly | Medium — build the contract |
+| 2 | **Status via transition replay** | The live contract implements it; matches the ecosystem's common core exactly | Shipped 2026-08-03 |
 | 3 | **Accepted downside** — the Y-statement's *"accepting [downside]"* clause | Records the cost knowingly taken. `A:` records what was rejected; nothing records what was accepted *despite* | Low — grammar addition |
 
 **Do not add:** review dates (no convention has them, and Report 1 shows only management-system standards

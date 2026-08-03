@@ -826,12 +826,12 @@ other. Both sit **below Track A's open tails** in priority — small, sequence-f
 
 Approved 2026-07-16 after full Inbox triage. These plans are dependency-ordered and do not displace B0b:
 
-1. **Semantic record and signal foundation (P1)** —
+1. **Semantic record and signal foundation (P1; ADR foundation shipped 2026-08-03)** —
    [`memory-seed-semantic-record-and-signal-foundation-plan.md`](memory-seed-semantic-record-and-signal-foundation-plan.md).
-   After B0b plus BG1/BG2, prove authoritative append-only Markdown ADR sidecars on three real decisions.
-   Entries retain rationale/evidence; the sidecar owns promotion/lifecycle; current status and indexes are
-   derived. Historical entries are not rewritten and ranking cannot change before signal exposure plus the
-   real-corpus gate.
+   Living concern-based ADRs, mandatory MCP review, structural branch fusion, CLI/MCP/Trace surfaces, and
+   three-concern dogfooding are complete. Entries retain detailed evidence; the ADR owns its curated synopsis,
+   concern membership, and accepted head; status and indexes are derived. The remaining `record_kind` and
+   retrieval-signal work still waits for BG1/BG2 and cannot change ranking before the real-corpus gate.
 2. **Workflow evidence and review workbench (P2)** —
    [`memory-seed-workflow-evidence-and-review-workbench-plan.md`](memory-seed-workflow-evidence-and-review-workbench-plan.md).
    Reconstruct three real idea-to-outcome journeys before defining a deterministic review queue. No raw

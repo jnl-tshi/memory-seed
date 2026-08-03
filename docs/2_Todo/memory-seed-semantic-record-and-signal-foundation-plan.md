@@ -2,27 +2,28 @@
 title: Memory Seed semantic record and signal foundation
 status: active
 priority: P1
-next_action: Prove the append-only ADR sidecar contract on three existing decisions after B0b Trail parity and the BG1 provenance crosswalk.
+next_action: Evaluate the remaining record_kind and retrieval-signal work after the provenance and quality gates; the living ADR foundation shipped 2026-08-03.
 blocked_by:
-  - React Trail parity and B0b acceptance
   - memory-provenance-and-authority-taxonomy-proposal.md
   - memory-quality-metrics-v0-proposal.md
 sources:
   - ../7_Replaced/memory-seed-typed-entries-adr-sidecar-proposal.md
   - ../7_Replaced/memory-signal-hierarchy-exploration.md
-spec_binding: ../3_Spec/draft/adr-lifecycle-sidecar-contract.md
+spec_binding: ../3_Spec/adr-lifecycle-sidecar-contract.md
 ---
 
 # Semantic Record and Signal Foundation
 
-Status: **ACTIVE, BLOCKED BY NAMED GATES**. This plan owns explicit decision identity, ADR lifecycle,
-and the inspectable signals that may later influence retrieval.
+Status: **ACTIVE FOR PHASES 3-4**. The living ADR foundation and deterministic writers shipped and were
+dogfooded on 2026-08-03; the remaining semantic-record and retrieval-signal work stays blocked by the named
+provenance and quality gates.
 
 ## Outcome
 
 Give Memory Seed a small, high-signal decision corpus without rewriting chronological history or making a
-database authoritative. An ADR sidecar is the canonical record of ADR promotion, identity, and lifecycle;
-the referenced entries remain canonical for rationale and evidence.
+database authoritative. An ADR sidecar is the canonical record of architectural-concern membership, its
+curated Decision/Why/Evolution synopsis, revision ledger, and governing head; referenced session decisions
+remain the detailed evidence authority.
 
 Five-question test: **Capture**, **Retrieval**, and **Trust**.
 
@@ -31,9 +32,10 @@ Five-question test: **Capture**, **Retrieval**, and **Trust**.
 | Concern | Canonical owner |
 |---|---|
 | What was recorded at the time | Original append-only session entry |
-| ADR promotion, stable identity, and lifecycle | One append-only Markdown ADR sidecar |
-| Why a lifecycle transition occurred | Referenced `decision-update` entry |
-| Current ADR status | Derived from the latest valid sidecar transition |
+| ADR concern membership, curated synopsis, and lifecycle | One append-only Markdown ADR sidecar |
+| Detailed evidence and rationale for a referenced decision | Original append-only session entry |
+| Why an ADR revision or no-change review occurred | The ledger event synopsis plus its referenced update entry |
+| Current ADR status and governing head | Derived by replaying accepted ledger revisions |
 | Current implementation truth | Current project files and live specs |
 | Search index, registry, or Trace view | Rebuildable projection |
 
@@ -41,10 +43,10 @@ This is partitioned authority, not dual authority: each field has one declared o
 
 ## Scope
 
-1. Adopt the candidate ADR sidecar contract and shared validator.
-2. Promote three existing real-corpus decisions without editing their source entries.
-3. Add deterministic CLI and MCP operations for promotion and transition through one shared core.
-4. Expose ADR identity, lifecycle, topic, provenance, and source references before changing ranking.
+1. **Delivered 2026-08-03:** adopt the living ADR sidecar contract and shared validator.
+2. **Delivered 2026-08-03:** dogfood three real architectural concerns without editing source entries.
+3. **Delivered 2026-08-03:** add deterministic CLI/MCP operations and the mandatory MCP review gate.
+4. **Delivered 2026-08-03:** expose ADR identity, lifecycle, provenance, references, API, and Trace workspace.
 5. Evaluate a deliberately small `record_kind` vocabulary for **new tool-created records only**.
 6. Run a real-corpus retrieval comparison before any decision signal affects default ordering.
 
@@ -58,20 +60,20 @@ This is partitioned authority, not dual authority: each field has one declared o
 
 ## Implementation sequence
 
-### Phase 1 - ADR walking skeleton
+### Phase 1 - Living ADR walking skeleton — SHIPPED 2026-08-03
 
-- Adopt `docs/3_Spec/draft/adr-lifecycle-sidecar-contract.md` as the candidate contract. **Its decision
-  identity was amended 2026-07-20**: a decision is the pair `(source_entry_id, source_decision)`, the
-  ordinal derived from the DRAFT grammar with a singular `### Decision` read as `d1`. The sidecar no
-  longer invents a decision key, heading path, or source-text fingerprint — so this phase implements a
-  pointer, not an identity scheme.
-- Promote three decisions spanning a direct decision entry, a multi-decision entry, and a legacy entry.
-- Prove exact source resolution, append-only transition order, and full context retrieval.
+- Adopted `docs/3_Spec/adr-lifecycle-sidecar-contract.md` as the live contract. Decision identity remains
+  `(entry_id, dN)`, but the implemented sidecar is one living record per architectural concern rather than
+  the retired pointer-only prototype.
+- Dogfooded three concerns spanning multi-revision history, one decision shared by two ADRs, and a converging
+  predecessor chain.
+- Proved exact source resolution, append-only replay, mandatory review of any lineage member, and full context
+  retrieval without rewriting historical entries.
 - **Also measure, added 2026-07-20:** ambiguity reduction against authoring cost. This phase *is* step 2
   of the corrected pre-triage sequence in [INBOX-ASSESSMENT.md](../4_Reference/INBOX-ASSESSMENT.md) — same
   three decisions, same contract, same decision-level identity — so step 2 discharges here rather than as
   separate work. The natural subject is the entry-level supersession collateral recorded in
-  `mse_mkxdvaxvw99dz4s0`, and the natural target shape is the contract's own `source_decision` anchor.
+  `mse_mkxdvaxvw99dz4s0`, and the natural target shape is the contract's canonical `decision_ref`.
 - **Record eligibility, not just outcome** *(crosswalk delta 3/10, adversarially verified)*: when a record
   is evaluated and found **not to need** a sidecar, say so. Today `classify_pending` means "undecided",
   which is not the same claim. The vocabulary already exists and is proven — `memory_seed/quality.py:35`
@@ -80,12 +82,14 @@ This is partitioned authority, not dual authority: each field has one declared o
   looked and found an empty population"). This is extending a proven pattern to record level, not a new
   design.
 
-### Phase 2 - Deterministic writers and integrity
+### Phase 2 - Deterministic writers and integrity — SHIPPED 2026-08-03
 
-- Implement shared `promote_decision`, `transition_adr`, `supersede_adr`, and validation operations.
-- Require expected-state optimistic concurrency for transitions.
-- Detect missing source/update entries, invalid transitions, competing heads, and malformed sidecars.
-- Keep repair explicit; validators never silently rewrite the ledger.
+- Implemented shared promote, revise, transition, replay, review, and validation operations.
+- Expected-head optimistic concurrency, cycle detection, and competing-head rejection are enforced.
+- CLI writers and read-only MCP tools share the same core; `memory_session_append` remains the fail-closed
+  transactional MCP backstop.
+- Structural branch reconciliation preserves independent events, deduplicates exact repeats, and reports
+  divergent IDs or competing acceptances as conflicts.
 - **Branch-safe integration, noted 2026-07-20 — follow the link-sidecar pattern.** Link sidecars were
   silently discarded by `session merge-branch`: the sessions-tree fuse's base-reset loop diffed and reset
   every path under `.memory-seed/sessions`, but the classifier that decides what the fuse can rebuild
@@ -93,13 +97,8 @@ This is partitioned authority, not dual authority: each field has one declared o
   session) generalizes the fuse to a third sidecar kind exactly as diagram sidecars were the first, and
   adds a defense-in-depth guard — `_is_recognized_session_tree_path` in `memory_seed/core.py` — that
   refuses to reset any session-tree path no classifier recognizes, rather than silently discarding it.
-  Whatever integration path the ADR sidecar gets (folded into this same fuse if it lands under
-  `sessions/`, or its own merge handling at its current candidate location
-  `.memory-seed/decisions/<adr_id>.md`) must not reproduce this failure: a branch-authored transition
-  block must never be silently reset to base content by a merge. This is the acceptance criterion below
-  ("sidecar loss is reported as missing authored memory, not silently reconstructed") applied specifically
-  to branch merges, not just working-tree corruption — prove it with the same kind of test this fix adds:
-  an end-to-end branch merge, not just the writer in isolation.
+  The implemented `.memory-seed/decisions/<adr_id>.md` reconciliation follows that requirement: branch-authored
+  events are structurally fused, never reset to base text, and explicit conflicts stop integration.
 
 ### Phase 3 - Semantic records
 
@@ -115,10 +114,14 @@ This is partitioned authority, not dual authority: each field has one declared o
 
 ## Acceptance criteria
 
+The ADR-specific criteria below passed on 2026-08-03. Phases 3-4 retain their own signal/ranking gates.
+
 - A decision in an immutable historical entry can be promoted without modifying that entry.
 - ADR identity and lifecycle are readable from one append-only Markdown sidecar.
-- Every transition resolves to a decision-update entry containing attributable rationale.
+- Every event's `update_entry_id` resolves to an existing session entry; proposals and no-change reviews
+  carry the concise ADR-owned rationale their event types require.
 - `current_status` is computed, never duplicated as authoritative state.
-- Sidecar loss is reported as missing authored memory, not silently reconstructed as if promotion occurred.
+- A missing `.memory-seed/decisions/` directory is a valid empty ADR corpus; existing sidecars are validated
+  and never reconstructed from sessions as if promotion had occurred.
 - All indexes and Trace views rebuild from repository Markdown.
 - Legacy retrieval remains complete and superseded history remains discoverable.

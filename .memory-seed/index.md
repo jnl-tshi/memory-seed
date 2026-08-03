@@ -74,9 +74,11 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - Inbox triage completed 2026-07-16 under Constitution v1.1 (the constitution has since been amended
   several times; the CURRENT ratified version is **v1.6** as of 2026-07-26 — read `docs/CONSTITUTION.md`,
   not this historical note, for the governing text). After B0b plus the provenance/quality gates,
-  `docs/2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md` leads the semantic program with
-  authoritative append-only Markdown ADR sidecars; workflow evidence/review and one Decision projection
-  follow. Publishability and a generic skill/workflow router remain deferred. The worktree hygiene plan uses
+  `docs/2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md` leads the semantic program. Its
+  living ADR foundation shipped 2026-08-03: one append-only concern record under `.memory-seed/decisions/`,
+  mandatory MCP review for any lineage-linked evolution/replacement, structural branch fusion, read-only
+  ADR MCP tools, and the Trace ADR workspace. Remaining record-kind/ranking signals stay gated; workflow
+  evidence/review and one Decision projection follow. Publishability and a generic skill/workflow router remain deferred. The worktree hygiene plan uses
   worktree=session, branch=task, and `<agent>/<kind>/<topic>` for new branches.
 - Memory Trace startup is incremental as of 2026-07-21: immutable git derivations (fork points, commit parents, changed paths) persist across rebuilds, reconciliation is incremental, and the file-entry index is lazy. This completed the derived-projection plan's last deferred piece. Warm start is ~308 ms; a forced rebuild went 44.25 s / 990 git subprocesses to 1.46 s / 7.
 - Decision identity is `(entry_id, dN)` and the Trail renders it: the entry row anchors as a heading with D1..DN as pastel subheading rows. Decision-level link-sidecar refs are IMPLEMENTED (grammar v2, 2026-07-24): `<entry_id>:dN`, comma multi-ordinal `:d1,d4`, and a `dN -> ` source-arrow prefix name the authoring decision; `replaces`/`evolves`/`related_entries` all carry decision granularity and stay a distinct edge set (a decision edge is never projected up to its entry). Spec: `docs/3_Spec/draft/decision-level-link-sidecar-refs.md`.
@@ -90,7 +92,7 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 ## Topology
 
 - Root routing files: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md` (Copilot thin router).
-- Runtime files: `.memory-seed/agent-rules.md`, `.memory-seed/project-bootstrap.md`, bootstrap-generated `.memory-seed/index.md`, bootstrap-generated `.memory-seed/policy.md`, init-managed `.memory-seed/project.yaml` (agent, skill, and participant selection), `.memory-seed/skills/`, `.memory-seed/sessions/`, `.memory-seed/archive/`, `.memory-seed/hooks/`.
+- Runtime files: `.memory-seed/agent-rules.md`, `.memory-seed/project-bootstrap.md`, bootstrap-generated `.memory-seed/index.md`, bootstrap-generated `.memory-seed/policy.md`, init-managed `.memory-seed/project.yaml` (agent, skill, and participant selection), `.memory-seed/skills/`, `.memory-seed/sessions/`, `.memory-seed/decisions/` (optional living ADR corpus), `.memory-seed/archive/`, `.memory-seed/hooks/`.
 - Lifecycle hooks (`.memory-seed/hooks/`): `session-log-check.py` (turn-end log reminder), `memory-retrieval-check.py` (per-prompt topical-retrieval reminder), `session-start-context.py` (SessionStart — injects the newest session entries so agents establish current state by recency, not semantic search), `prepare-commit-msg.py` (a **git** hook, not an agent hook: auto-stamps `Memory-Entry:` trailers for staged session entries; shim installed into the git common dir by `init` / `memory-seed hooks install`, never blocks a commit). Per-agent events differ: Claude `Stop`/`UserPromptSubmit`/`SessionStart`; Codex same; Gemini `AfterAgent`/`BeforeAgent`/`SessionStart` (it has no `Stop`/`UserPromptSubmit`); Cursor `afterAgentResponse`/`sessionStart`.
 - Agent hook configs (auto-merged by `init`/`update`): `.claude/settings.json`, `.codex/hooks.json`, `.gemini/settings.json`, `.cursor/hooks.json`, plus Copilot CLI `.github/hooks/memory-seed.json` (sessionStart prompt hook).
 - Agent MCP configs (auto-registered by `init`/`update`): `.mcp.json` (Claude Code, project root), `.cursor/mcp.json` (Cursor), `.gemini/settings.json` (Gemini), `.codex/config.toml` (Codex, trusted directories only), `.github/mcp.json` (Copilot CLI, `mcpServers` key), `.vscode/mcp.json` (VS Code Copilot, `servers` key).
@@ -121,9 +123,9 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
 - `skills/*.md` are lazy-loaded execution runbooks.
 - `.memory-seed/sessions/` is the rationale and audit trail for decisions; `index.md` should store current orientation and durable conclusions, not full decision history.
 - Authoritative memory may be partitioned across append-only Markdown entries and narrowly scoped Markdown
-  sidecars. Under the adopted but not-yet-implemented ADR contract, the sidecar will own promotion and
-  lifecycle while entries own rationale/evidence; current status, registries, indexes, databases, and Trace
-  views are derived.
+  sidecars. Under the live ADR contract, session decisions own detailed rationale/evidence while one living
+  concern ADR owns its curated Decision/Why/Evolution synopsis, lineage membership, and accepted head;
+  current status, registries, indexes, databases, API responses, and Trace views are derived.
 - `memory-seed update` archives replaced reusable control-plane files under `.memory-seed/archive/<old-version>/` or `.memory-seed/archive/unknown-<timestamp>/` before refreshing them.
 - MCP memory search uses the Model2Vec static embedding provider `model2vec:minishlab/potion-base-8M` by default and falls back to lexical, metadata, and recency ranking if semantic scoring fails or is disabled.
 - Claude Code reads project-scope MCP servers from a project-root `.mcp.json`, NOT from `.claude/settings.json > mcpServers` (silently ignored). Versions 2.2.0–2.3.0 mis-wrote it to settings.json; `update` now writes `.mcp.json` and strips the dead block (ours-only).

@@ -25,7 +25,7 @@ that is wrong is the half that matters commercially.**
 | `memory_seed/core.py`, `memory_seed/cli.py`, `memory_seed/topics.py` | Verified capture surface — every coverage claim below cites `file:line` |
 | `memory-trace/memory_trace/evidence.py` | Evidence Pack surface |
 | [`3_Spec/graph-edge-contract.md`](../../docs/3_Spec/graph-edge-contract.md) | Normative edge semantics |
-| [`3_Spec/draft/adr-lifecycle-sidecar-contract.md`](../../docs/3_Spec/draft/adr-lifecycle-sidecar-contract.md) | **DRAFT — NOT IMPLEMENTED.** Cited as intent, never as capability |
+| [`3_Spec/adr-lifecycle-sidecar-contract.md`](../../docs/3_Spec/adr-lifecycle-sidecar-contract.md) | **IMPLEMENTED 2026-08-03.** This report originally cited its predecessor as intent; the link now resolves to the promoted live contract. |
 | [`CONSTITUTION.md`](../../docs/CONSTITUTION.md) v1.6 | Invariant #4 on provenance; §9 five-question test |
 | `.memory-seed/skills/session_logging.md` | DRAFT label contract |
 
@@ -197,8 +197,8 @@ The only matches are the `--user-approved` CLI flag (`cli.py:296,307,334,350`; `
 It authorises an action and **leaves no record on the decision**. Human approval is real in Memory Seed's
 workflow — the link swarm and the draft ADR promotion path both require it — but it is a gate that forgets.
 
-The project's own draft contract states the requirement and does not meet it. From
-`adr-lifecycle-sidecar-contract.md`: *"Provenance records where the judgment came from; approval records who
+At report time, the project's draft pointer contract stated the requirement and did not meet it. From
+that now-deprecated prototype: *"Provenance records where the judgment came from; approval records who
 let it in. Those are two different questions and the file answers both."* The block shape it specifies carries
 `update_entry_id`, `expected_previous_status`, and `source:` — and no approver. The answer to "who let it in"
 is reachable only by inference from `user_initials`, which the same document says means something else.
@@ -221,7 +221,7 @@ joint-third most demanded question — and Memory Seed answers it with a filenam
 
 | Capability | Status | Which framework needs it |
 |---|---|---|
-| **Decision status** (proposed/accepted/rejected/superseded) | **ABSENT.** The only `status:` in the codebase is `TopicRecord.status` (`topics.py:35`) — the lifecycle of a *vocabulary slug*. Decision state is expressed only indirectly through edges. The ADR sidecar contract that would add it is **DRAFT, NOT IMPLEMENTED** | Every ADR convention; ISO 42001 9.3; the AI Act's conformity lifecycle |
+| **Decision status** (proposed/accepted/rejected/superseded) | **SHIPPED 2026-08-03.** At report time this was absent. Living ADR ledgers now derive proposed, accepted, rejected, and superseded concern state, plus auditable no-change reviews; session decisions outside an ADR still have no universal authored status. | Every ADR convention; ISO 42001 9.3; the AI Act's conformity lifecycle |
 | **Evaluation criteria** (the criteria alternatives were judged *by*, distinct from the alternatives) | **ABSENT.** `A:` records alternatives with prose reasons; no structured criteria field exists | **CMMI DAR requires exactly this** — recorded alternatives evaluated against explicitly recorded criteria |
 | **Retention period / review date** | **ABSENT.** No `retention`, `expiry`, or `review_date` field | AI Act Art. 18 (10 years); HIPAA §164.316(b)(2)(i) (6 years) and (b)(2)(iii) (periodic review) |
 | **Confidence on a decision** | **ABSENT** on decisions. `edge_confidence` exists but is per-*edge*, in link sidecars (`core.py:986-1009`) | NIST AI RMF MANAGE 1.1 go/no-go determinations |
@@ -314,8 +314,8 @@ through one underlying model.*
 2. **E8 is answered with a filename convention** against 11 frameworks wanting an asset or system inventory.
 3. **No decision status, no evaluation criteria, no retention model.** These are not exotic: CMMI DAR needs
    criteria, the AI Act needs 10-year retention, every ADR convention needs status.
-4. **The ADR lifecycle contract that would supply status and promotion is DRAFT, NOT IMPLEMENTED.** Reasoning
-   from it as a capability would be a category error.
+4. **This was true at report time; the living ADR lifecycle shipped on 2026-08-03.** It now supplies
+   concern-level status and explicit promotion, without adding universal mutable status to session decisions.
 5. **The Evidence Pack has no export path.** `EvidencePack = dict[str, Any]` (`evidence.py:40`); callers
    serialise it themselves. No auditor-facing artefact exists.
 
@@ -327,14 +327,15 @@ The frameworks want evidence about *organisational* decisions: risk treatment ch
 processing purposes, AI system design choices, change authorisations. Memory Seed captures *engineering
 session* decisions: a scroll band, a lint message, a test rename.
 
-This is not an outside criticism — it is the project's own position. From
-`adr-lifecycle-sidecar-contract.md`: the corpus holds 876 addressable decisions and *"It should not hold 876
+This is not an outside criticism — it was the project's own position in the
+[deprecated pointer prototype](../../docs/3_Spec/deprecated/adr-lifecycle-sidecar-pointer-prototype.md):
+the corpus held 876 addressable decisions and *"It should not hold 876
 ADRs. Most session decisions are tactical… and stay entirely in their entry."*
 
-The two populations overlap but are not the same set, and **the overlap is not currently marked.** The ADR
-sidecar exists precisely to mark it, and it is not built. Until something distinguishes the governing decisions
-from the tactical ones, an evidence pack over the corpus is not governance evidence — it is a work log that
-contains some.
+The two populations overlap but are not the same set. **At report time the overlap was not marked.** The
+living ADR sidecar shipped on 2026-08-03 and now marks governing decisions for curated architectural
+concerns; it intentionally does not classify every tactical session decision. An evidence pack over the
+unfiltered session corpus therefore remains a work log unless a consumer scopes it through that concern set.
 
 ### Verdict
 
@@ -369,12 +370,13 @@ Stated so the next reports can test rather than assume:
 
 ## 7. What this hands to Report 3
 
-**Four named preconditions**, in the order the evidence ranks them:
+**Four named preconditions at report time**, in the order the evidence ranked them. Items 1 and 2 were
+subsequently addressed for ADR concerns by the living sidecar shipped on 2026-08-03:
 
-1. **E7 — a recorded approval.** Absent, REQUIRED in 10 of 19, and the project's own draft contract already
-   states the requirement without meeting it. Highest-value single addition.
-2. **Marking which decisions govern.** Without it, no evidence pack is governance evidence. The draft ADR
-   sidecar is the designed answer and is unbuilt.
+1. **E7 — a recorded approval.** At report time absent and REQUIRED in 10 of 19; the deprecated pointer
+   contract stated the requirement without meeting it. The living ledger now records acceptance events.
+2. **Marking which decisions govern.** At report time the ADR sidecar was unbuilt. The living current view
+   now marks the accepted head unambiguously for each architectural concern.
 3. **E8 — affected systems beyond file paths.** REQUIRED in 11 of 19.
 4. **An export path for Evidence Packs.** The hard part is built; the artefact has no door out.
 

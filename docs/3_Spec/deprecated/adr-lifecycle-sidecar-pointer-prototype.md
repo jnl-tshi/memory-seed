@@ -1,14 +1,16 @@
 ---
-title: ADR lifecycle sidecar contract
-status: draft
-spec_binding: draft
+title: Deprecated ADR pointer-sidecar prototype
+status: deprecated
+spec_binding: deprecated
+deprecated_by: ../adr-lifecycle-sidecar-contract.md
 parent: ../../2_Todo/memory-seed-semantic-record-and-signal-foundation-plan.md
 ---
 
-# ADR Lifecycle Sidecar Contract
+# Deprecated ADR Pointer-Sidecar Prototype
 
-Status: **DRAFT - NOT IMPLEMENTED**. This contract becomes live only after the walking skeleton and validator
-are accepted.
+Status: **DEPRECATED 2026-08-03**. This unimplemented pointer-only candidate was replaced by the
+[living ADR sidecar contract](../adr-lifecycle-sidecar-contract.md). It is retained only as design
+provenance and is not a supported format.
 
 ## Format basis
 
@@ -359,7 +361,7 @@ Provenance adds two checks, and both are errors rather than warnings:
 - **Missing `source:`** on frontmatter or on any transition block. There is no default value; a block that
   does not say where its judgment came from is unvalidatable, not permissive.
 - **`source:` outside `write-time | derived`.** A closed set, for the reason
-  [provenance-authority-crosswalk.md](provenance-authority-crosswalk.md) records at length: a field validated
+  [provenance-authority-crosswalk.md](../draft/provenance-authority-crosswalk.md) records at length: a field validated
   only as "a non-empty string" is how an undeclared parallel vocabulary gets in.
 
 Derived readers may report the write-time/derived split — how many ADRs originated first-hand versus from a

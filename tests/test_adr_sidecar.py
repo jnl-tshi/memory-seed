@@ -248,7 +248,7 @@ topics:
             source_entry_id="mse_current",
             source_decision="d1",
             title="Decision sidecar transaction",
-            topics=("seed-core",),
+            topics=("schema",),
             user_initials="JNL",
             agent_type="codex",
             source="write-time",
@@ -323,6 +323,27 @@ topics:
         self.assertIn("source must be", joined)
         self.assertIn("missing decision", joined)
 
+    def test_integrity_rejects_malformed_timestamps_event_ids_topics_and_missing_provenance(self):
+        promoted = self._promote_accepted()
+        base = parse_adr(promoted.path)
+
+        malformed_created = copy.deepcopy(base)
+        malformed_created.created_at = "not-a-timestamp"
+        self.assertTrue(any("created_at" in issue for issue in validate_adr(malformed_created, self.root)))
+
+        malformed_event = copy.deepcopy(base)
+        malformed_event.events[0] = replace(
+            malformed_event.events[0], event_id="x", timestamp="not-a-timestamp", update_entry_id=None
+        )
+        event_issues = "\n".join(validate_adr(malformed_event, self.root))
+        self.assertIn("malformed event_id", event_issues)
+        self.assertIn("timestamp must be ISO-8601", event_issues)
+        self.assertIn("requires update_entry_id", event_issues)
+
+        unknown_topic = copy.deepcopy(base)
+        unknown_topic.topics = ("not-controlled",)
+        self.assertTrue(any("not a canonical slug" in issue for issue in validate_adr(unknown_topic, self.root)))
+
     def test_direct_predecessor_round_trips(self):
         result = promote_decision(
             self.root,
@@ -354,7 +375,7 @@ topics:
             source_entry_id="mse_current",
             source_decision="d1",
             title="Decision sidecar transaction",
-            topics=("seed-core",),
+            topics=("schema",),
             user_initials="JNL",
             agent_type="codex",
             source="write-time",
