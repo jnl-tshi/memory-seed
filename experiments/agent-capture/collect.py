@@ -71,7 +71,9 @@ def analyse_run(run_dir: Path) -> dict:
         "run_id": run_dir.name,
         "level": manifest.get("level"),
         "task": manifest.get("task"),
+        "agent": manifest.get("agent"),
         "exit_code": manifest.get("exit_code"),
+        "brief_override": bool(manifest.get("brief_override")),
         "entry_count": len(entries),
         "decision_entry_count": sum(1 for e in entries if e["decision_count"]),
         "decision_count": sum(e["decision_count"] for e in entries),
@@ -90,8 +92,15 @@ def write_judge_packet(run_dir: Path, analysis: dict) -> None:
                 brief_text = (TASKS / task["brief"]).read_text(encoding="utf-8")
                 break
 
-    transcript_path = run_dir / "transcript.json"
-    transcript = transcript_path.read_text(encoding="utf-8") if transcript_path.exists() else ""
+    # Claude writes transcript.json (one object); Codex `--json` writes transcript.jsonl.
+    # Resolve by existence rather than by agent so a packet is never silently transcript-less.
+    transcript, fence = "", "json"
+    for name in ("transcript.json", "transcript.jsonl"):
+        path = run_dir / name
+        if path.exists():
+            transcript = path.read_text(encoding="utf-8")
+            fence = "jsonl" if name.endswith(".jsonl") else "json"
+            break
 
     recorded = "\n\n---\n\n".join(entry["body"] for entry in analysis["entries"]) or "(nothing recorded)"
 
@@ -104,7 +113,7 @@ def write_judge_packet(run_dir: Path, analysis: dict) -> None:
         "no real decision (noise)?\n\n"
         "## Task brief\n\n" + brief_text + "\n\n"
         "## Recorded session entries\n\n" + recorded + "\n\n"
-        "## Transcript (JSON)\n\n```json\n" + transcript + "\n```\n"
+        "## Transcript\n\n```" + fence + "\n" + transcript + "\n```\n"
     )
     (run_dir / "judge_packet.md").write_text(packet, encoding="utf-8")
 
@@ -123,14 +132,21 @@ def main() -> int:
     }
 
     summary = []
+    skipped: list[str] = []
     for run_dir in sorted(path for path in RUNS.iterdir() if path.is_dir()):
         analysis = analyse_run(run_dir)
+        # Instrument probes ran a substituted brief, so their store is not evidence about
+        # capture behaviour. Excluded here rather than filtered later, so they can never be
+        # pooled into a capture-rate table by accident.
+        if analysis.get("brief_override"):
+            skipped.append(run_dir.name)
+            continue
         write_judge_packet(run_dir, analysis)
         expected = expected_by_task.get(analysis.get("task") or "", {})
         summary.append(
             {
                 **{k: analysis[k] for k in (
-                    "run_id", "level", "task", "exit_code",
+                    "run_id", "level", "task", "agent", "exit_code",
                     "entry_count", "decision_entry_count", "decision_count",
                 )},
                 "expected_required_decisions": expected.get("required"),
@@ -141,6 +157,8 @@ def main() -> int:
     (RUNS / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2))
     print(f"\n{len(summary)} run(s) collected; judge packets written per run (answer key withheld)")
+    if skipped:
+        print(f"{len(skipped)} instrument probe(s) excluded: {', '.join(skipped)}")
     return 0
 
 

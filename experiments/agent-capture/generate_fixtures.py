@@ -77,26 +77,41 @@ def _delete(fixture: Path, relative: str, log: list[str]) -> None:
     log.append(f"deleted {relative}")
 
 
-def _write_local_mcp(fixture: Path, log: list[str]) -> None:
+def _write_local_mcp(fixture: Path, agent: str, log: list[str]) -> None:
     """Pin the MCP server to the local working tree (H4).
 
     Stock init writes `uvx --from memory-seed`, which resolves the published PyPI package.
     The experiment tests the local code, so we bake the generating interpreter and the repo
     root's PYTHONPATH. `python -m` also prepends the process cwd to sys.path, but the process
     cwd is the FIXTURE (the client spawns the server there), so PYTHONPATH is what finds the
-    local package.
+    local package. Claude reads `.mcp.json`; Codex reads `.codex/config.toml`.
     """
-    payload = {
-        "mcpServers": {
-            "memory-seed": {
-                "command": sys.executable,
-                "args": ["-m", "memory_seed.mcp_server", "--stdio"],
-                "env": {"PYTHONPATH": str(REPO_ROOT)},
+    if agent == "claude":
+        payload = {
+            "mcpServers": {
+                "memory-seed": {
+                    "command": sys.executable,
+                    "args": ["-m", "memory_seed.mcp_server", "--stdio"],
+                    "env": {"PYTHONPATH": str(REPO_ROOT)},
+                }
             }
         }
-    }
-    (fixture / ".mcp.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    log.append(".mcp.json rewritten to local working tree (absolute interpreter + PYTHONPATH)")
+        (fixture / ".mcp.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        log.append(".mcp.json rewritten to local working tree (absolute interpreter + PYTHONPATH)")
+    elif agent == "codex":
+        # TOML literal (single-quoted) strings take Windows backslashes verbatim.
+        toml_text = (
+            "[mcp_servers.memory-seed]\n"
+            f"command = '{sys.executable}'\n"
+            'args = ["-m", "memory_seed.mcp_server", "--stdio"]\n'
+            f"env = {{ PYTHONPATH = '{REPO_ROOT}' }}\n"
+        )
+        config = fixture / ".codex" / "config.toml"
+        config.parent.mkdir(exist_ok=True)
+        config.write_text(toml_text, encoding="utf-8")
+        log.append(".codex/config.toml rewritten to local working tree (absolute interpreter + PYTHONPATH)")
+    else:
+        raise SystemExit(f"no MCP wiring defined for agent {agent!r}")
 
 
 def _strip_claude_hooks(fixture: Path, log: list[str]) -> None:
@@ -158,13 +173,17 @@ def build_fixture(level: str, agent: str) -> Path:
         init_project(cwd=fixture, agents={agent})
         log.append(f"init_project(agents={{{agent!r}}}) - full install")
 
-    # 4. Per-level strips.
+    # 4. Per-level strips, agent-aware. Codex reads AGENTS.md natively (no CODEX.md routing
+    #    file) and keeps its MCP registration in .codex/config.toml, so .codex/ is never
+    #    deleted wholesale - only its hooks.json is scaffolding.
+    routing_strips = {
+        "claude": ("AGENTS.md", "CLAUDE.md", ".claude"),
+        "codex": ("AGENTS.md", ".codex/hooks.json"),
+    }[agent]
     if level in ("L0", "L1"):
         for relative in (
-            "AGENTS.md",
-            "CLAUDE.md",
+            *routing_strips,
             ".agents",
-            ".claude",
             ".memory-seed/agent-rules.md",
             ".memory-seed/project-bootstrap.md",
             ".memory-seed/skills",
@@ -179,12 +198,15 @@ def build_fixture(level: str, agent: str) -> Path:
     if level == "L2":
         _delete(fixture, ".memory-seed/hooks", log)
         _delete(fixture, ".git/hooks/prepare-commit-msg", log)
-        _strip_claude_hooks(fixture, log)
+        if agent == "claude":
+            _strip_claude_hooks(fixture, log)
+        elif agent == "codex":
+            _delete(fixture, ".codex/hooks.json", log)
     # L3: untouched.
 
     # 5. Constant stubs, local MCP pin, integration mode.
     _install_stubs(fixture, log)
-    _write_local_mcp(fixture, log)
+    _write_local_mcp(fixture, agent, log)
     _append_integration_mode(fixture, log)
 
     # 6. Manifest: the fixture's provenance, reviewable in the parent repo via this script.

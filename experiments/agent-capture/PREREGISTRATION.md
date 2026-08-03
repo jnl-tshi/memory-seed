@@ -79,3 +79,44 @@ N ≥ 5 sessions per (level × task) cell, i.e. ≥ 60 scored sessions for the 4
    sampling breadth. Results generalise to these task classes, not to all engineering work.
 4. **Headless ≠ interactive.** No human interrupts, no mid-session steering. This matches the
    delegated-agent use case the premise targets, and does not match pair-style usage.
+
+---
+
+## Amendment 2026-08-04 — Codex arm added for instrument validation
+
+Appended, not edited: no scored run has happened yet, and the append-only rule is the point.
+
+**Why.** The Claude CLI's OAuth session expired and could not be refreshed, blocking the smoke
+probes. JNL authorised validating the instrument through Codex instead. **Codex runs validate the
+harness, not the hypothesis.** Codex and Claude results must never be pooled into one capture-rate
+table — different tool surface, different system prompt, and (see below) a materially thinner
+transcript.
+
+**Codex harness constants** (identical across Codex arms, recorded in each `RUN_MANIFEST.json`):
+
+| Constant | Why it is needed |
+|---|---|
+| `-c projects={"<run dir>"={trust_level="trusted"}}` | Codex loads project-scoped `.codex/config.toml` and `.codex/hooks.json` only for *trusted* paths; every run directory is a fresh untrusted path. The whole-table form avoids the dotted-path parser, which splits on `.` |
+| `--dangerously-bypass-approvals-and-sandbox` | `approval_policy="never"` does **not** cover MCP tool calls — a probe with it set returned `user cancelled MCP tool call`. Analogue of Claude's `--dangerously-skip-permissions` |
+| `-c features.apps=false` | This machine's Codex exposes 240 MCP tools (~139k input tokens of tool surface per turn) from account-level connectors. Disabling `apps` removes them and leaves the project's memory-seed server intact |
+| explicit MCP `cwd` pin (per run, `run.py:_pin_codex_mcp_cwd`) | Stock config leaves `cwd` unset; the server resolves `cwd="."` against its own process cwd (H4), and H1 has no boundary guard, so an unpinned write could land in the **parent** store while the agent reports success |
+
+**Instrument-probe runs.** `run.py --brief` substitutes the task brief for validation probes. Such
+runs set `brief_override: true` and `collect.py` **excludes** them from `summary.json` and writes no
+judge packet for them, so a probe can never be pooled into a scored table.
+
+**Validation results (2026-08-04, both probes `parent_isolated: true`).**
+
+| Assertion | Result |
+|---|---|
+| L0 MCP write resolves to the fixture store, not the parent | PASS — entry written to `<run>/.memory-seed/sessions/2026-08/2026-08-04.md`; parent store unchanged at 154 files / 2,729,148 bytes |
+| Store validators fire inside the fixture | PASS — first append refused for an invalid activity topic and a missing `### Summary` |
+| L3 agent hooks fire from the fixture's own `.codex/hooks.json` | PASS — SessionStart's "Situate" orientation block observed, reporting the *fixture's* branch and empty store |
+| L3 git hook stamps the fixture's own commit | PASS — `Memory-Entry: mse_dm8fjga4gn7znzg8` on fixture commit `94b7cd9` |
+| L0 fires nothing | PASS — no orientation output, no `prepare-commit-msg`, no `.codex/hooks.json` |
+
+**New limitation (5): the Codex transcript is thinner than Claude's.** Codex `--json` emits
+`mcp_tool_call` items with arguments and results, plus the final `agent_message`, but **no reasoning
+items** — only a `reasoning_output_tokens` count. Faithfulness on the Codex arm can therefore only
+be judged against observable behaviour (tool calls, edits, final message), not against stated
+reasoning. This is a second, independent reason the two arms are not comparable.
