@@ -215,9 +215,50 @@ MSR study finding that ~50% of ADR-adopting repositories hold only one to five r
 a problem"*, finished their draft ADRs on the way out of a job and reports the successor was glad of them.
 Also: *"It is hard to keep up with publishing them."*
 
-**`heavy-minium`, unelaborated:** *"There are almost always better, more specific places to position the
-decisions than one big central register. ADRs are really just the most primitive form of taking architecture
-notes."* Asked to expand; no answer at capture.
+### The register critique — a coherent counter-position from three responders
+
+`heavy-minium` opened with *"there are almost always better, more specific places to position the decisions
+than one big central register. ADRs are really just the most primitive form of taking architecture notes."*
+Asked to expand, they did:
+
+> *"You'll almost always have a piece about security, something about integration/contracts/boundaries, data
+> architecture/schema evolution/migration, domain models, environments, reliability, observability —
+> whatever. My point is that instead of converging everything into one place, it may be better to place it
+> directly where people are looking for it and in the format most appropriate and easy to digest and
+> manage."*
+
+Two others in the same thread argue the same shape from different angles:
+
+- **`Lilacsoftlips`:** *"Documenting the decision in the pr/code documentation is sufficient in most cases."*
+- **`DrShocker`:** *"Sometimes when a test is something like 'fix ticket #123' and I find it failing after
+  I'm doing something else, that can help me figure out if the test is locking down the right behavior or
+  not. Otherwise I have to assume sometimes without much context whether the test is doing anything
+  worthwhile."*
+
+**The position, stated fairly: put the reason where you will trip over it — in the concern's own document,
+in the PR, in the test name — not in a register you must remember to consult.** Note that none of them
+argues against recording rationale. The disagreement is about *placement*, and it is the most substantive
+architectural criticism the project has received.
+
+**What it lands on.** Memory Seed *is* a central register. `F:` records which files a decision touched; it
+does not put the reason in the file. Someone reading the security config does not encounter the security
+decision.
+
+**What partially answers it.** The record is repo-local rather than in a separate wiki — and `amendCommit`'s
+account above is direct evidence that moving records *out* of the repo is what kills them. The two-axis topic
+vocabulary and `adr list`, which the shipped implementation describes as listing *architectural concerns and
+their accepted heads*, are concern-scoped views over a single store. That is closer to `heavy-minium`'s ask
+than a flat register, though not the same as native placement in each concern's own document.
+
+**Where the counter-position is weakest, and this is the reconciliation:** annotation-at-point-of-use can
+only be **pulled** — it helps whoever is already looking at that file. A register can be **pushed**, loaded
+at session start before anything is proposed. For a human reader, scattered annotation is plainly better:
+you encounter it without effort. For an agent starting cold on a task, it is worse, because nothing puts the
+security decision in front of an agent editing an unrelated module.
+
+**This is the same axis as E2's loading finding, arriving from the opposite direction, and it sharpens the
+product question rather than settling it: is the register a store that feeds retrieval, or is it the
+artefact itself?** The first survives this critique. The second does not.
 
 **`amendCommit` — the most detailed abandonment narrative collected, and the most consequential.**
 Engagement at this capture: ~3.5K views · 3 upvotes · 7 comments.
