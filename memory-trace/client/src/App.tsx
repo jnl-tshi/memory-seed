@@ -13,6 +13,7 @@ import { genuineSearchResults } from "./searchResults";
 import { overviewCounts, overviewExhausted as overviewIsExhausted, type OverviewCounts } from "./graphOverview";
 import { animateScrollTo, scrollDurationFor } from "./trailScroll";
 import { compareTrailNodes, decisionRowForHeading, isDecisionRow, stripTitleStamp, TRAIL_WINDOW_STEP, trailWindowEntryIds } from "./trailModel";
+import { resolveAdrDecisionNavigation } from "./adrWorkspaceModel";
 import { anchorEntryIdFor, isDecisionRowId, visibilityIdFor } from "./graphDecisionRows";
 import { ancestorIdsOf, TreeView, type OntologyNode } from "./TreeView";
 
@@ -1061,10 +1062,13 @@ export default function App() {
   }
 
   function openAdrDecision(decisionRef: string, excerpt: string) {
-    const [entryId, ordinal = "d1"] = decisionRef.split(":", 2);
-    const heading = excerpt.split(/\r?\n/, 1)[0]?.trim() || (ordinal === "d1" ? "Decision" : ordinal.toUpperCase());
+    const navigation = resolveAdrDecisionNavigation(decisionRef, entryIndex?.nodes ?? []);
+    if (!navigation) {
+      setError(`The source decision ${decisionRef} is not available in this worktree's Trail.`);
+      return;
+    }
     setDock((value) => value === "hidden" ? "auto" : value);
-    selectFromTrail(entryId, decisionRef, { heading });
+    selectFromTrail(navigation.entryId, navigation.chunkId, { heading: navigation.heading });
   }
 
   // Cycle to the next/previous match, wrapping around. Selecting the entry is
@@ -1564,7 +1568,7 @@ export default function App() {
           </>
         ) : viewMode === "adrs" ? (
           <Suspense fallback={<div className="loading-state">Loading ADRs</div>}>
-            <AdrWorkspace scopeKey={worktree ?? worktrees?.default ?? "default"} onOpenDecision={openAdrDecision} />
+            <AdrWorkspace key={worktree ?? worktrees?.default ?? "default"} scopeKey={worktree ?? worktrees?.default ?? "default"} onOpenDecision={openAdrDecision} />
           </Suspense>
         ) : (
           <>
