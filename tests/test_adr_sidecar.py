@@ -1,4 +1,5 @@
 import copy
+import shutil
 import tempfile
 import unittest
 from dataclasses import replace
@@ -103,6 +104,66 @@ subproject_path: null
 
 - D: Use the composite writer.
 - R: It preserves one validated boundary.
+
+## 2026-07-30 12:00 - Branch A decision
+
+```yaml
+entry_id: mse_brancha
+user_initials: JNL
+agent_type: codex
+project_path: .
+subproject_path: null
+```
+
+### Decision
+
+- D: Explore branch A.
+- R: It exercises independent ADR lineage.
+
+## 2026-07-30 12:01 - Branch B decision
+
+```yaml
+entry_id: mse_branchb
+user_initials: JNL
+agent_type: codex
+project_path: .
+subproject_path: null
+```
+
+### Decision
+
+- D: Explore branch B.
+- R: It exercises independent ADR lineage.
+
+## 2026-07-30 12:02 - Converged decision
+
+```yaml
+entry_id: mse_converge
+user_initials: JNL
+agent_type: codex
+project_path: .
+subproject_path: null
+```
+
+### Decision
+
+- D: Converge the branches.
+- R: The accepted root remains an ancestor.
+
+## 2026-07-30 12:03 - Outside lineage decision
+
+```yaml
+entry_id: mse_outside1
+user_initials: JNL
+agent_type: codex
+project_path: .
+subproject_path: null
+```
+
+### Decision
+
+- D: Keep an unrelated decision.
+- R: It must not trigger unrelated ADR review.
 """,
             encoding="utf-8",
         )
@@ -149,7 +210,7 @@ topics:
         self.assertTrue(accepted.ok, accepted.issues)
         return promoted
 
-    def _review_payload(self, *, title="Review lineage", timestamp="2026-07-30 12:00"):
+    def _review_payload(self, *, title="Review lineage", timestamp="2026-07-30 12:10"):
         return {
             "cwd": str(self.root),
             "title": title,
@@ -168,6 +229,14 @@ topics:
     @staticmethod
     def _no_change(adr_id="adr_decision_sidecar_transaction", reason="No change is needed."):
         return {"adr_id": adr_id, "outcome": "no-change", "reason": reason}
+
+    @staticmethod
+    def _workspace_snapshot(root: Path):
+        return {
+            path.relative_to(root).as_posix(): path.read_bytes()
+            for path in sorted(root.rglob("*"))
+            if path.is_file()
+        }
 
     def test_promote_replays_proposed_status_without_editing_source(self):
         source = (self.root / ".memory-seed" / "sessions" / "2026-07" / "2026-07-30.md").read_text(
@@ -341,7 +410,7 @@ topics:
             "body": "### Summary\n\n- Evolve the writer.\n\n### Decision\n\n- D: Add the ADR ledger to the transaction.\n- R: Review and mutation must remain atomic.",
             "user_initials": "JNL",
             "agent_type": "codex",
-            "timestamp": "2026-07-30 12:00",
+            "timestamp": "2026-07-30 12:10",
             "auto_branch": False,
             "decisions": [{
                 "decision": "d1",
@@ -349,15 +418,12 @@ topics:
                 "links": {"evolves": ["mse_12345678"]},
             }],
         }
-        session_file = self.root / ".memory-seed" / "sessions" / "2026-07" / "2026-07-30.md"
-        before_session = session_file.read_bytes()
-        before_adr = promoted.path.read_bytes()
+        before_gate = self._workspace_snapshot(self.root)
         gated = call_tool("memory_session_append", payload)
         self.assertFalse(gated["ok"])
         self.assertTrue(gated["review_required"])
         self.assertFalse(gated["written"])
-        self.assertEqual(session_file.read_bytes(), before_session)
-        self.assertEqual(promoted.path.read_bytes(), before_adr)
+        self.assertEqual(self._workspace_snapshot(self.root), before_gate)
         self.assertEqual(gated["matched_adrs"][0]["authoritative_decision"], "mse_12345678:d1")
 
         payload["adr_review_receipt"] = gated["adr_review_receipt"]
@@ -481,25 +547,43 @@ topics:
     def test_lineage_validation_requires_accepted_convergence_and_rejects_cycles_and_competing_heads(self):
         promoted = self._promote_accepted()
         record = parse_adr(promoted.path)
-        converging = AdrEvent(
-            "revision-proposed", "adre_converging", "2026-07-30T12:00:00", "write-time",
-            "mse_current:d2", "mse_update", predecessors=(AdrPredecessor(
-                "mse_12345678:d1", "link:mse_current:d2:evolves:mse_12345678:d1",
-            ),), decision="Converge on the accepted transaction.", why="It retains its validation boundary.",
+        branch_a = AdrEvent(
+            "revision-proposed", "adre_branch_a", "2026-07-30T12:00:00", "write-time",
+            "mse_brancha:d1", "mse_update", predecessors=(AdrPredecessor(
+                "mse_12345678:d1", "link:mse_brancha:d1:evolves:mse_12345678:d1",
+            ),), decision="Explore branch A.", why="It descends from the accepted root.",
         )
-        record.events.extend([converging, AdrEvent(
-            "revision-accepted", "adre_converging_accept", "2026-07-30T12:30:00", "write-time",
-            "mse_current:d2", "mse_update", "mse_12345678:d1",
+        branch_b = AdrEvent(
+            "revision-proposed", "adre_branch_b", "2026-07-30T12:01:00", "write-time",
+            "mse_branchb:d1", "mse_update", predecessors=(AdrPredecessor(
+                "mse_12345678:d1", "link:mse_branchb:d1:evolves:mse_12345678:d1",
+            ),), decision="Explore branch B.", why="It descends from the accepted root.",
+        )
+        converging = AdrEvent(
+            "revision-proposed", "adre_converging", "2026-07-30T12:02:00", "write-time",
+            "mse_converge:d1", "mse_update", predecessors=(
+                AdrPredecessor("mse_brancha:d1", "link:mse_converge:d1:evolves:mse_brancha:d1"),
+                AdrPredecessor("mse_branchb:d1", "link:mse_converge:d1:evolves:mse_branchb:d1"),
+            ), decision="Converge both branches.", why="Their common root remains accepted.",
+        )
+        record.events.extend([branch_a, branch_b, converging, AdrEvent(
+            "revision-accepted", "adre_converging_accept", "2026-07-30T12:03:00", "write-time",
+            "mse_converge:d1", "mse_update", "mse_12345678:d1",
         )])
         self.assertEqual(validate_adr(record, self.root), [])
-        self.assertEqual(record.authoritative_decision, "mse_current:d2")
+        self.assertEqual(record.authoritative_decision, "mse_converge:d1")
 
         divergent = copy.deepcopy(parse_adr(promoted.path))
         divergent.events.extend([
-            AdrEvent("revision-proposed", "adre_branch", "2026-07-30T12:00:00", "write-time",
-                     "mse_current:d2", "mse_update", decision="Branch away.", why="Test the guard."),
-            AdrEvent("revision-accepted", "adre_branch_accept", "2026-07-30T12:30:00", "write-time",
-                     "mse_current:d2", "mse_update", "mse_12345678:d1"),
+            replace(branch_a, predecessors=(AdrPredecessor(
+                "mse_prior:d1", "link:mse_brancha:d1:evolves:mse_prior:d1",
+            ),)),
+            replace(branch_b, predecessors=(AdrPredecessor(
+                "mse_prior:d1", "link:mse_branchb:d1:evolves:mse_prior:d1",
+            ),)),
+            converging,
+            AdrEvent("revision-accepted", "adre_bad_convergence_accept", "2026-07-30T12:03:00", "write-time",
+                     "mse_converge:d1", "mse_update", "mse_12345678:d1"),
         ])
         divergent_issues = validate_adr(divergent, self.root)
         self.assertTrue(any("does not descend from authoritative decision" in issue for issue in divergent_issues), divergent_issues)
@@ -529,15 +613,15 @@ topics:
         historical = self._promote_accepted("adr_historical")
         revised = revise_adr(
             self.root, adr_id="adr_historical", decision_ref="mse_current:d2", decision="Historical revision.",
-            why="Retain it as a review target.", evolution="It was rejected.", update_entry_id="mse_update",
+            why="Retain it as a review target.", evolution="It becomes the accepted successor.", update_entry_id="mse_update",
             source="write-time", predecessors=(AdrPredecessor("mse_12345678:d1", "link:mse_current:d2:evolves:mse_12345678:d1"),),
             timestamp="2026-07-30T12:00:00",
         )
         self.assertTrue(revised.ok, revised.issues)
         self.assertTrue(transition_adr(
-            self.root, adr_id="adr_historical", status="rejected", decision_ref="mse_current:d2",
+            self.root, adr_id="adr_historical", status="accepted", decision_ref="mse_current:d2",
             update_entry_id="mse_update", expected_authoritative_decision="mse_12345678:d1", source="write-time",
-            reason="Keep the original.", timestamp="2026-07-30T12:30:00",
+            timestamp="2026-07-30T12:30:00",
         ).ok)
         pending = promote_decision(
             self.root, adr_id="adr_pending", source_entry_id="mse_current", source_decision="d1",
@@ -569,20 +653,39 @@ topics:
             "adr_accepted", "adr_historical", "adr_pending", "adr_rejected", "adr_predecessor",
         })
         self.assertEqual(canonical_decision_refs(self.root, "mse_12345678"), ("mse_12345678:d1",))
-        self.assertEqual(
-            {context["adr_id"] for context in adr_review_context(self.root, ("mse_12345678:d1",))},
-            {"adr_accepted", "adr_historical"},
+        historical_context = next(
+            context for context in adr_review_context(self.root, ("mse_12345678:d1",))
+            if context["adr_id"] == "adr_historical"
         )
+        self.assertEqual(historical_context["matched_decisions"], ["mse_12345678:d1"])
+        self.assertEqual(historical_context["authoritative_decision"], "mse_current:d2")
+        gate = call_tool("memory_session_append", self._review_payload())
+        self.assertFalse(gate["ok"])
+        self.assertTrue(gate["review_required"])
+        historical_gate_context = next(
+            context for context in gate["matched_adrs"] if context["adr_id"] == "adr_historical"
+        )
+        self.assertEqual(historical_gate_context["matched_decisions"], ["mse_12345678:d1"])
+        self.assertEqual(historical_gate_context["authoritative_decision"], "mse_current:d2")
         self.assertEqual(accepted.path.name, "adr_accepted.md")
         self.assertEqual(historical.path.name, "adr_historical.md")
 
-    def test_related_entries_and_outside_lineage_do_not_trigger_review_gate(self):
+    def test_related_entries_and_outside_lineage_lifecycle_links_do_not_trigger_review_gate(self):
         self._promote_accepted()
         payload = self._review_payload()
         payload["decisions"][0]["links"] = {"related_entries": ["mse_12345678"]}
         result = call_tool("memory_session_append", payload)
         self.assertTrue(result["ok"], result["issues"])
         self.assertNotIn("review_required", result)
+        for index, kind in enumerate(("evolves", "replaces"), start=1):
+            with self.subTest(kind=kind):
+                outside = self._review_payload(
+                    title=f"Outside lineage {kind}", timestamp=f"2026-07-30 12:1{index}"
+                )
+                outside["decisions"][0]["links"] = {kind: ["mse_outside1"]}
+                result = call_tool("memory_session_append", outside)
+                self.assertTrue(result["ok"], result["issues"])
+                self.assertNotIn("review_required", result)
 
     def test_receipts_bind_all_proposal_fields_workspace_and_adr_ledger(self):
         promoted = self._promote_accepted()
@@ -600,12 +703,33 @@ topics:
             changed["decisions"][0]["adrs"] = [self._no_change()]
             refused = call_tool("memory_session_append", changed)
             self.assertFalse(refused["ok"])
+            self.assertFalse(refused["written"])
             self.assertIn("stale", "\n".join(refused["issues"]))
+
+        with tempfile.TemporaryDirectory() as alternate_temp:
+            alternate = Path(alternate_temp) / "complete-runtime"
+            shutil.copytree(self.root, alternate)
+            alternate_payload = copy.deepcopy(payload)
+            alternate_payload["cwd"] = str(alternate)
+            alternate_payload["adr_review_receipt"] = receipt
+            alternate_payload["decisions"][0]["adrs"] = [self._no_change()]
+            before_alternate = self._workspace_snapshot(alternate)
+            refused = call_tool("memory_session_append", alternate_payload)
+            self.assertFalse(refused["ok"])
+            self.assertFalse(refused["written"])
+            self.assertIn("adr_review_receipt is stale", "\n".join(refused["issues"]))
+            self.assertEqual(self._workspace_snapshot(alternate), before_alternate)
+
         changed_link = copy.deepcopy(payload)
         changed_link["decisions"][0]["links"] = {"replaces": ["mse_12345678"]}
         changed_link["adr_review_receipt"] = receipt
         changed_link["decisions"][0]["adrs"] = [self._no_change()]
-        self.assertIn("stale", "\n".join(call_tool("memory_session_append", changed_link)["issues"]))
+        before_link = self._workspace_snapshot(self.root)
+        refused_link = call_tool("memory_session_append", changed_link)
+        self.assertFalse(refused_link["ok"])
+        self.assertFalse(refused_link["written"])
+        self.assertIn("stale", "\n".join(refused_link["issues"]))
+        self.assertEqual(self._workspace_snapshot(self.root), before_link)
 
         revised = revise_adr(
             self.root, adr_id="adr_decision_sidecar_transaction", decision_ref="mse_current:d2",
@@ -618,16 +742,12 @@ topics:
         changed_ledger = copy.deepcopy(payload)
         changed_ledger["adr_review_receipt"] = receipt
         changed_ledger["decisions"][0]["adrs"] = [self._no_change()]
-        self.assertIn("stale", "\n".join(call_tool("memory_session_append", changed_ledger)["issues"]))
-
-        contexts = adr_review_context(self.root, ("mse_12345678:d1",))
-        from memory_seed.adr import review_receipt
-        alternate_workspace = self.root / "alternate-workspace"
-        (alternate_workspace / ".memory-seed").mkdir(parents=True)
-        self.assertNotEqual(
-            review_receipt(self.root, proposal={"same": "proposal"}, contexts=contexts),
-            review_receipt(alternate_workspace, proposal={"same": "proposal"}, contexts=contexts),
-        )
+        before_ledger = self._workspace_snapshot(self.root)
+        refused_ledger = call_tool("memory_session_append", changed_ledger)
+        self.assertFalse(refused_ledger["ok"])
+        self.assertFalse(refused_ledger["written"])
+        self.assertIn("stale", "\n".join(refused_ledger["issues"]))
+        self.assertEqual(self._workspace_snapshot(self.root), before_ledger)
         self.assertTrue(promoted.path.exists())
 
     def test_review_outcomes_must_be_exact_unique_and_well_formed(self):
@@ -653,17 +773,19 @@ topics:
         gated = call_tool("memory_session_append", payload)
         payload["adr_review_receipt"] = gated["adr_review_receipt"]
         payload["decisions"][0]["adrs"] = [self._no_change()]
+        before_membership = adr_membership(parse_adr(promoted.path))
         written = call_tool("memory_session_append", payload)
         self.assertTrue(written["ok"], written["issues"])
         record = parse_adr(promoted.path)
         self.assertEqual(record.authoritative_decision, "mse_12345678:d1")
         self.assertEqual(record.events[-1].kind, "reviewed-no-change")
-        before = (written["path"], Path(written["path"]).read_bytes(), promoted.path.read_bytes())
+        self.assertEqual(adr_membership(record), before_membership)
+        before = self._workspace_snapshot(self.root)
         replay = call_tool("memory_session_append", payload)
         self.assertFalse(replay["ok"])
+        self.assertFalse(replay["written"])
         self.assertIn("stale", "\n".join(replay["issues"]))
-        self.assertEqual(before[1], Path(written["path"]).read_bytes())
-        self.assertEqual(before[2], promoted.path.read_bytes())
+        self.assertEqual(self._workspace_snapshot(self.root), before)
 
     def test_interrupted_adr_transaction_recovers_parent_first_once(self):
         promoted = self._promote_accepted()
@@ -698,17 +820,38 @@ topics:
         self.assertEqual(duplicate_issues, [])
         self.assertEqual(duplicate.events, base.events)
 
-        incoming = copy.deepcopy(base)
-        incoming.events.append(AdrEvent(
-            "revision-proposed", "adre_independent", "2026-07-30T12:00:00", "write-time",
-            "mse_current:d2", "mse_update", predecessors=(AdrPredecessor(
-                "mse_12345678:d1", "link:mse_current:d2:evolves:mse_12345678:d1",
-            ),), decision="Independent proposal.", why="It remains pending.",
-        ))
-        merged, issues = reconcile_adr_records(base, incoming)
+        branch_a = AdrEvent(
+            "revision-proposed", "adre_merge_branch_a", "2026-07-30T12:00:00", "write-time",
+            "mse_brancha:d1", "mse_update", predecessors=(AdrPredecessor(
+                "mse_12345678:d1", "link:mse_brancha:d1:evolves:mse_12345678:d1",
+            ),), decision="Branch A proposal.", why="It is independent branch-local work.",
+        )
+        branch_b = AdrEvent(
+            "revision-proposed", "adre_merge_branch_b", "2026-07-30T12:01:00", "write-time",
+            "mse_branchb:d1", "mse_update", predecessors=(AdrPredecessor(
+                "mse_12345678:d1", "link:mse_branchb:d1:evolves:mse_12345678:d1",
+            ),), decision="Branch B proposal.", why="It is independent branch-local work.",
+        )
+        left = copy.deepcopy(base)
+        left.events.append(branch_a)
+        right = copy.deepcopy(base)
+        right.events.append(branch_b)
+        self.assertEqual(validate_adr(left, self.root), [])
+        self.assertEqual(validate_adr(right, self.root), [])
+        merged, issues = reconcile_adr_records(left, right)
         self.assertEqual(issues, [])
         self.assertEqual([event.timestamp for event in merged.events], sorted(event.timestamp for event in merged.events))
-        self.assertEqual(merged.events[-1].event_id, "adre_independent")
+        self.assertEqual({event.event_id for event in merged.events}, {
+            *(event.event_id for event in base.events), "adre_merge_branch_a", "adre_merge_branch_b",
+        })
+        self.assertEqual(merged.authoritative_decision, "mse_12345678:d1")
+        self.assertEqual(merged.state.pending_decisions, ("mse_brancha:d1", "mse_branchb:d1"))
+        current_view = render_adr(merged)
+        self.assertIn("Status: **Accepted**", current_view)
+        self.assertIn("Authoritative decision: `mse_12345678:d1`", current_view)
+        self.assertIn("### Decision\n\nUse the composite writer.", current_view)
+        self.assertIn("### Why\n\nIt preserves a single validation boundary.", current_view)
+        self.assertIn("### How it evolved\n\nThis is the first revision of this architectural concern.", current_view)
         replayed = parse_adr_text(render_adr(merged))
         self.assertEqual(replayed.authoritative_decision, "mse_12345678:d1")
         self.assertEqual(render_adr(replayed), render_adr(merged))
@@ -718,14 +861,19 @@ topics:
         _, divergent_issues = reconcile_adr_records(base, divergent)
         self.assertTrue(any("diverges across branches" in issue for issue in divergent_issues), divergent_issues)
 
-        competing = copy.deepcopy(base)
-        competing.events.extend([
-            AdrEvent("revision-proposed", "adre_competing", "2026-07-30T12:00:00", "write-time",
-                     "mse_current:d2", "mse_update", decision="Compete.", why="Test conflict."),
-            AdrEvent("revision-accepted", "adre_competing_accept", "2026-07-30T12:30:00", "write-time",
-                     "mse_current:d2", "mse_update", None),
-        ])
-        _, competing_issues = reconcile_adr_records(base, competing)
+        left_accepted = copy.deepcopy(base)
+        left_accepted.events.extend([branch_a, AdrEvent(
+            "revision-accepted", "adre_merge_branch_a_accept", "2026-07-30T12:02:00", "write-time",
+            "mse_brancha:d1", "mse_update", "mse_12345678:d1",
+        )])
+        right_accepted = copy.deepcopy(base)
+        right_accepted.events.extend([branch_b, AdrEvent(
+            "revision-accepted", "adre_merge_branch_b_accept", "2026-07-30T12:03:00", "write-time",
+            "mse_branchb:d1", "mse_update", "mse_12345678:d1",
+        )])
+        self.assertEqual(validate_adr(left_accepted, self.root), [])
+        self.assertEqual(validate_adr(right_accepted, self.root), [])
+        _, competing_issues = reconcile_adr_records(left_accepted, right_accepted)
         self.assertTrue(any("competing acceptance" in issue for issue in competing_issues), competing_issues)
 
 
