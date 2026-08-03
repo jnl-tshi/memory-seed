@@ -344,6 +344,47 @@ topics:
         unknown_topic.topics = ("not-controlled",)
         self.assertTrue(any("not a canonical slug" in issue for issue in validate_adr(unknown_topic, self.root)))
 
+    def test_lifecycle_writers_refuse_noncanonical_or_unrecognized_existing_bytes(self):
+        promoted = self._promote_accepted()
+        path = promoted.path
+        canonical = path.read_text(encoding="utf-8")
+
+        noncanonical = canonical.replace("## Event ledger", "Authored note.\n\n## Event ledger", 1)
+        path.write_text(noncanonical, encoding="utf-8")
+        revised = revise_adr(
+            self.root,
+            adr_id="adr_decision_sidecar_transaction",
+            decision_ref="mse_current:d2",
+            decision="Do not normalize existing bytes.",
+            why="Append-only history must fail closed.",
+            evolution="It would follow the accepted head.",
+            update_entry_id="mse_update",
+            source="write-time",
+            predecessors=(AdrPredecessor(
+                "mse_12345678:d1", "link:mse_current:d2:evolves:mse_12345678:d1",
+            ),),
+            timestamp="2026-07-30T12:00:00",
+        )
+        self.assertFalse(revised.ok)
+        self.assertTrue(any("not canonical" in issue for issue in revised.issues), revised.issues)
+        self.assertEqual(path.read_text(encoding="utf-8"), noncanonical)
+
+        unknown_event = canonical + "\n### revision-withdrawn - 2026-07-30T12:00:00\n\nAuthored bytes.\n"
+        path.write_text(unknown_event, encoding="utf-8")
+        transitioned = transition_adr(
+            self.root,
+            adr_id="adr_decision_sidecar_transaction",
+            status="superseded",
+            update_entry_id="mse_update",
+            expected_authoritative_decision="mse_12345678:d1",
+            replacement_adr="adr_replacement",
+            source="write-time",
+            timestamp="2026-07-30T12:00:00",
+        )
+        self.assertFalse(transitioned.ok)
+        self.assertTrue(any("not canonical" in issue for issue in transitioned.issues), transitioned.issues)
+        self.assertEqual(path.read_text(encoding="utf-8"), unknown_event)
+
     def test_direct_predecessor_round_trips(self):
         result = promote_decision(
             self.root,
@@ -463,6 +504,23 @@ topics:
         self.assertEqual(record.current_status, "accepted")
         self.assertIn(written["entry_id"] + ":d1", record.state.pending_decisions)
         self.assertTrue(call_tool("memory_adrs_check", {"cwd": str(self.root)})["ok"])
+
+    def test_mcp_review_retry_refuses_to_normalize_noncanonical_adr_bytes(self):
+        promoted = self._promote_accepted()
+        payload = self._review_payload()
+        gated = call_tool("memory_session_append", payload)
+        self.assertTrue(gated["review_required"])
+
+        source = promoted.path.read_text(encoding="utf-8")
+        noncanonical = source.replace("## Event ledger", "Authored note.\n\n## Event ledger", 1)
+        promoted.path.write_text(noncanonical, encoding="utf-8")
+        before_retry = self._workspace_snapshot(self.root)
+        payload["adr_review_receipt"] = gated["adr_review_receipt"]
+        payload["decisions"][0]["adrs"] = [self._no_change()]
+        refused = call_tool("memory_session_append", payload)
+        self.assertFalse(refused["ok"])
+        self.assertTrue(any("not canonical" in issue for issue in refused["issues"]), refused["issues"])
+        self.assertEqual(self._workspace_snapshot(self.root), before_retry)
 
     def test_changed_reviewed_draft_invalidates_receipt(self):
         promoted = promote_decision(

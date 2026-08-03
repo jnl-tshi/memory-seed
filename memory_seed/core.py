@@ -3680,7 +3680,7 @@ def session_append_entry(
         from .adr import (
             append_outcome_event,
             canonical_decision_refs,
-            parse_adr,
+            load_adr_for_write,
             render_adr,
             validate_adr,
         )
@@ -3708,7 +3708,10 @@ def session_append_entry(
             if not adr_path.is_file():
                 issues.append(f"ADR review target {adr_id} no longer exists")
                 continue
-            record = parse_adr(adr_path)
+            record, existing_adr_issues = load_adr_for_write(adr_path, cwd)
+            if record is None:
+                issues.extend(f"ADR {adr_id}: {issue}" for issue in existing_adr_issues)
+                continue
             matched_decisions = tuple(
                 str(ref) for ref in context.get("matched_decisions", ()) if ref
             )
@@ -5366,6 +5369,9 @@ def _plan_session_fuse(
                 base_adr = parse_adr_text(base_text, path=root / rel_path)
             except (ValueError, json.JSONDecodeError) as exc:
                 issues.append(f"base {rel_path}: {exc}")
+                continue
+            if render_adr(base_adr) != base_text:
+                issues.append(f"base {rel_path}: derived Current view is stale")
                 continue
             merged_adr, merge_issues = reconcile_adr_records(base_adr, incoming_adr)
             issues.extend(f"{rel_path}: {issue}" for issue in merge_issues)

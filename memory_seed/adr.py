@@ -279,6 +279,21 @@ def parse_adr(path: Path) -> AdrRecord:
     return parse_adr_text(read_text_file(path), path=path)
 
 
+def load_adr_for_write(path: Path, cwd: str | Path = ".") -> tuple[AdrRecord | None, tuple[str, ...]]:
+    """Load an existing ADR only when a writer can append without normalizing authored bytes."""
+    try:
+        source_text = read_text_file(path)
+        record = parse_adr_text(source_text, path=path)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        return None, (f"existing ADR is not writable: {exc}",)
+    issues = validate_adr(record, cwd)
+    if render_adr(record) != source_text:
+        issues.append(
+            "existing ADR is not canonical; run adr check and repair it explicitly before lifecycle writes"
+        )
+    return (None, tuple(issues)) if issues else (record, ())
+
+
 def reconcile_adr_records(base: AdrRecord, incoming: AdrRecord) -> tuple[AdrRecord | None, list[str]]:
     """Structurally merge two branch-local ledgers for one concern.
 
@@ -618,7 +633,10 @@ def revise_adr(cwd: str | Path = ".", *, adr_id: str, decision_ref: str, decisio
     path = resolve_runtime(cwd).memory_dir / "decisions" / f"{adr_id}.md"
     if not path.exists():
         return AdrOperationResult(False, path, adr_id, issues=("ADR does not exist",))
-    record, stamp = parse_adr(path), timestamp or _now()
+    record, existing_issues = load_adr_for_write(path, cwd)
+    if record is None:
+        return AdrOperationResult(False, path, adr_id, issues=existing_issues)
+    stamp = timestamp or _now()
     record.events.append(AdrEvent("revision-proposed", _event_id(adr_id, "proposed", decision_ref, stamp), stamp, source, decision_ref, update_entry_id, predecessors=tuple(predecessors), supporting_decisions=tuple(supporting_decisions), decision=decision, why=why, evolution=evolution))
     return _save(record, cwd, dry_run)
 
@@ -627,7 +645,10 @@ def transition_adr(cwd: str | Path = ".", *, adr_id: str, status: str, decision_
     path = resolve_runtime(cwd).memory_dir / "decisions" / f"{adr_id}.md"
     if not path.exists():
         return AdrOperationResult(False, path, adr_id, issues=("ADR does not exist",))
-    record, stamp = parse_adr(path), timestamp or _now()
+    record, existing_issues = load_adr_for_write(path, cwd)
+    if record is None:
+        return AdrOperationResult(False, path, adr_id, issues=existing_issues)
+    stamp = timestamp or _now()
     if expected_previous_status and record.current_status != expected_previous_status:
         return AdrOperationResult(False, path, adr_id, record.current_status, record.authoritative_decision, (f"expected previous status {expected_previous_status}, current status is {record.current_status}",))
     if decision_ref is None and status in {"accepted", "rejected"}:
