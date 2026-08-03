@@ -14,9 +14,16 @@ export function resolveAdrDecisionNavigation(
   const entryId = match?.groups?.entryId;
   const ordinal = match?.groups?.ordinal?.toLowerCase();
   if (!entryId || !ordinal) return null;
-  const row = rows.find((candidate) => candidate.entry_id === entryId && candidate.decision_ordinal?.toLowerCase() === ordinal);
-  if (!row) return null;
-  return { entryId, chunkId: row.chunk_id, heading: row.title };
+  const expanded = rows.find((candidate) => candidate.entry_id === entryId && candidate.decision_ordinal?.toLowerCase() === ordinal);
+  if (expanded) return { entryId, chunkId: expanded.chunk_id, heading: expanded.title };
+  // A singular `### Decision` intentionally remains the entry row in Trail:
+  // it has no decision ordinal, and its authored reader heading is `Decision`.
+  // Never use this fallback for a multi-decision entry whose expanded D1 row is
+  // missing, or a malformed index could collapse a precise selection to a
+  // whole entry.
+  const singular = ordinal === "d1" && rows.find((candidate) => candidate.entry_id === entryId && candidate.decision_ordinal == null && candidate.decision_count <= 1);
+  if (!singular) return null;
+  return { entryId, chunkId: singular.chunk_id, heading: "Decision" };
 }
 
 export function filterAdrs(records: readonly AdrRecord[], query: string): AdrRecord[] {

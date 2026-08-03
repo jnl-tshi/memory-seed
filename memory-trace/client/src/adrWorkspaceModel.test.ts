@@ -40,6 +40,15 @@ test("ADR source navigation uses the exact Trail decision row identity and headi
   assert.equal(resolveAdrDecisionNavigation("mse_source:d3", [row({})]), null);
 });
 
+test("a singular D1 ADR resolves to its entry-row Trail identity and Decision heading", () => {
+  const navigation = resolveAdrDecisionNavigation("mse_source:d1", [row({
+    id: "mse_source", chunk_id: "mse_source", title: "2026-08-03 10:00 - Choose the cache format",
+    granularity: "entry", decision_ordinal: null, decision_count: 1,
+  })]);
+  assert.deepEqual(navigation, { entryId: "mse_source", chunkId: "mse_source", heading: "Decision" });
+  assert.equal(resolveAdrDecisionNavigation("mse_source:d1", [row({ decision_ordinal: null, decision_count: 2 })]), null);
+});
+
 test("a superseded ADR retires its accepted head and names the replacement", () => {
   assert.deepEqual(adrAuthority(record({ current_status: "superseded", superseded_by: "adr_trace_cache" })), {
     label: "Last accepted / retired", decisionRef: "mse_source:d2", replacementAdr: "adr_trace_cache",

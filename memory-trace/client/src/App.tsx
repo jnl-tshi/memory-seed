@@ -1067,6 +1067,7 @@ export default function App() {
       setError(`The source decision ${decisionRef} is not available in this worktree's Trail.`);
       return;
     }
+    setError(null);
     setDock((value) => value === "hidden" ? "auto" : value);
     selectFromTrail(navigation.entryId, navigation.chunkId, { heading: navigation.heading });
   }
@@ -1567,9 +1568,12 @@ export default function App() {
             )}
           </>
         ) : viewMode === "adrs" ? (
-          <Suspense fallback={<div className="loading-state">Loading ADRs</div>}>
-            <AdrWorkspace key={worktree ?? worktrees?.default ?? "default"} scopeKey={worktree ?? worktrees?.default ?? "default"} onOpenDecision={openAdrDecision} />
-          </Suspense>
+          <>
+            {error && <div className="error-state" role="alert">{error}</div>}
+            <Suspense fallback={<div className="loading-state">Loading ADRs</div>}>
+              <AdrWorkspace key={worktree ?? worktrees?.default ?? "default"} scopeKey={worktree ?? worktrees?.default ?? "default"} onOpenDecision={openAdrDecision} />
+            </Suspense>
+          </>
         ) : (
           <>
             {error && <div className="error-state" role="alert">{error}</div>}
