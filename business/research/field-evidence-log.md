@@ -343,7 +343,47 @@ readings should be tested.
 
 ---
 
-## Method notes for future entries
+## E4 — Natural experiment: this repository's own history, 2026-08-03
+
+**Source:** the parent repo's git log and session corpus, with scaffolding boundaries dated from
+`CHANGELOG.md`: the `Memory-Entry:` trailer convention introduced 2026-07-03 (rule in `agent-rules.md`,
+applied manually); the auto-stamping `prepare-commit-msg` hook shipped in 2.18.0 on **2026-07-13**;
+the SessionStart orientation hook shipped in 2.6.0 on 2026-06-13; session-log-check escalation in
+2.17.0 on 2026-07-10. Read-only measurement, reproducible from the commands in the session entry.
+
+### What was observed
+
+**Trailer coverage on commits touching session entry files** (sidecar-only commits excluded — the
+hook's actual target):
+
+| Period | Coverage |
+|---|---|
+| Before the convention existed (< 2026-07-03) | 0/35 (**0%**) |
+| **Rule era** — convention in `agent-rules.md`, applied manually (07-03 → 07-12) | 47/134 (**35%**) |
+| **Mechanism era** — git hook stamps automatically (≥ 07-13) | 355/494 (**72%**) |
+
+**Session entries per active day:** 7.9 (pre-SessionStart-hook) → 9.1 (post) → 22.4 (after
+escalation + stamping era).
+
+### What this establishes
+
+**The same obligation, in the same repository, followed by the same kinds of agents, doubled from
+35% to 72% compliance when it changed from a rule to a mechanism** — at a sharply dated boundary.
+This is E2's loading lesson (*"a rule only binds if it's in the prompt the session actually loads"*)
+measured rather than reported, and it hands the fixture experiment a real prior: the rule-vs-mechanism
+delta was ~2× here, so large between-level effects at L2→L3 are plausible.
+
+### What it does not establish
+
+- **Nothing about L0/L1.** This repo carried the full rules contract throughout; the natural
+  experiment only spans rule-with-contract → rule-plus-mechanism.
+- **The entries-per-day series is activity-confounded and is NOT attributed.** The 9.1 → 22.4 jump
+  coincides with the swarm campaigns and the research programme — the work itself exploded. Only the
+  trailer series has a clean mechanism boundary.
+- **Observational throughout**: agents changed over the period, conventions matured, and the agent
+  performing this measurement is part of the hook-era data.
+- **The 28% residual in the hook era is unaudited** — some of it is commits the hook legitimately
+  skips; a commit-level audit would be needed before treating 72% as the mechanism's ceiling.
 
 - **Post as a practitioner with a real question.** Never pitch. If the pain is not described unprompted, that
   is the finding.
