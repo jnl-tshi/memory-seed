@@ -42,6 +42,32 @@ def split_entries(text: str) -> list[str]:
     return entries
 
 
+def _harness_failure(run_dir: Path, manifest: dict) -> str | None:
+    """Why this run is not evidence about capture behaviour, or None if it is.
+
+    A rate-limited, timed-out or crashed session records nothing - and an empty store is exactly
+    what "the agent did not capture" also looks like. Scoring the two the same way would turn every
+    harness problem into a false negative, biasing capture rate DOWN in whichever arm happened to
+    hit the limits. These are separated out and counted, never silently dropped.
+    """
+    if manifest.get("timed_out"):
+        return "timed_out"
+    if manifest.get("exit_code") not in (0, None):
+        return f"exit_code={manifest.get('exit_code')}"
+    transcript = run_dir / "transcript.json"
+    if transcript.exists():
+        try:
+            payload = json.loads(transcript.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return "unparseable_transcript"
+        if isinstance(payload, dict):
+            if payload.get("is_error"):
+                return f"session_error:{payload.get('subtype') or payload.get('stop_reason')}"
+            if payload.get("stop_reason") not in (None, "end_turn", "stop_sequence", "tool_use"):
+                return f"stop_reason={payload.get('stop_reason')}"
+    return None
+
+
 def analyse_run(run_dir: Path) -> dict:
     manifest_path = run_dir / "RUN_MANIFEST.json"
     manifest = (
@@ -74,6 +100,7 @@ def analyse_run(run_dir: Path) -> dict:
         "agent": manifest.get("agent"),
         "exit_code": manifest.get("exit_code"),
         "brief_override": bool(manifest.get("brief_override")),
+        "harness_failure": _harness_failure(run_dir, manifest),
         "entry_count": len(entries),
         "decision_entry_count": sum(1 for e in entries if e["decision_count"]),
         "decision_count": sum(e["decision_count"] for e in entries),
@@ -133,13 +160,23 @@ def main() -> int:
 
     summary = []
     skipped: list[str] = []
+    failed: list[tuple[str, str]] = []
+    in_flight: list[str] = []
     for run_dir in sorted(path for path in RUNS.iterdir() if path.is_dir()):
+        # run.py writes RUN_MANIFEST.json last, so its absence means the session is still going.
+        # Without this guard a collect() during a batch scores in-flight runs as empty stores.
+        if not (run_dir / "RUN_MANIFEST.json").exists():
+            in_flight.append(run_dir.name)
+            continue
         analysis = analyse_run(run_dir)
         # Instrument probes ran a substituted brief, so their store is not evidence about
         # capture behaviour. Excluded here rather than filtered later, so they can never be
         # pooled into a capture-rate table by accident.
         if analysis.get("brief_override"):
             skipped.append(run_dir.name)
+            continue
+        if analysis.get("harness_failure"):
+            failed.append((run_dir.name, analysis["harness_failure"]))
             continue
         write_judge_packet(run_dir, analysis)
         expected = expected_by_task.get(analysis.get("task") or "", {})
@@ -157,8 +194,15 @@ def main() -> int:
     (RUNS / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2))
     print(f"\n{len(summary)} run(s) collected; judge packets written per run (answer key withheld)")
+    if in_flight:
+        print(f"{len(in_flight)} run(s) still in flight, not collected: {', '.join(in_flight)}")
     if skipped:
         print(f"{len(skipped)} instrument probe(s) excluded: {', '.join(skipped)}")
+    if failed:
+        print(f"{len(failed)} harness failure(s) excluded (NOT zero-capture evidence):")
+        for run_id, reason in failed:
+            print(f"  {run_id}: {reason}")
+        print("  Re-run these cells to restore balance before reading the matrix.")
     return 0
 
 
