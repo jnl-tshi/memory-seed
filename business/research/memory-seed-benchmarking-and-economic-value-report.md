@@ -182,6 +182,25 @@ Each is placed in one of four buckets.
 **Action: none.** Building parallel versions would fork the metric definitions the v0 proposal
 deliberately froze.
 
+> **Amendment, 2026-08-03 — add one metric from the field.** See the
+> [field evidence log](field-evidence-log.md). A practitioner running a decision log describes the moment
+> it started working: *"re-derivations started dying at the proposal stage — the agent finds the June
+> record and says 'this was tried, here's why it failed' instead of proposing it. That exact sentence, from
+> the agent, is how you know it's working."*
+>
+> **Adopt this as the primary field metric: proposal-stage re-derivation catches.** Count sessions where an
+> agent declines its own proposal by citing a prior record. It is observable in normal work, needs no gold
+> set, no grader, and no survey — which makes it cheaper and more direct than anything designed in §5, and
+> it measures the outcome rather than a proxy for it. It does not replace the gold set (which controls
+> conditions); it is what to watch in production.
+>
+> **Second amendment — token cost is a live counter-pressure, not a theoretical one.** Another responder
+> deletes their context file once a problem is solved: *"removing it clears up context so lower token
+> cost."* Someone is actively trading durable memory away to save tokens. That confirms §5.2's token
+> efficiency as the right lead metric and adds a risk the economic model should carry: **accumulated
+> decision history has an ongoing per-session cost**, so retrieval that loads *less* while answering the
+> same question is itself the value, not merely an efficiency.
+
 ### Bucket B — specified by the inherited decision-quality candidate
 
 | Requested metric | How the gold-set instrument covers it |

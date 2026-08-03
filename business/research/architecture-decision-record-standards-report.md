@@ -17,6 +17,28 @@ validated relationship integrity, and amending a decision without superseding it
 things the conventions do better: evaluation criteria, a status vocabulary, and a published location.
 None of the gaps requires inventing anything new.**
 
+> **Amendment, 2026-08-03 — §8.1 is done. This report's central premise is now stale.**
+>
+> This report was written while the ADR lifecycle sidecar contract was marked *DRAFT — NOT IMPLEMENTED*,
+> and it recommended building it as specified. **It shipped the same day** (`codex/feature/adr-sidecar`,
+> merged at `0fed577`). The contract moved from `3_Spec/draft/` into the live spec lane, its predecessor
+> went to `3_Spec/deprecated/`, and three ADRs now exist in `.memory-seed/decisions/`.
+>
+> What shipped, verified against the CLI and a live sidecar: `adr promote | revise | transition | show |
+> list | check`; frontmatter carrying `adr_id`, `topics`, `created_at`, `user_initials`, `agent_type` and
+> **`source: write-time`**; an authority pointer at decision granularity (`mse_…:d1`); and a **derived**
+> current view rendered between markers rather than an authored status field — exactly the
+> replay-don't-store rule §8.1 argued for, and the thing the replaced 2026-07-16 proposal got wrong.
+>
+> `revise` — *"append a proposed revision without changing authority"* — is the amend-without-superseding
+> path §4 identified as absent from every canonical convention. It is now built.
+>
+> **What this does not change:** the three recommended additions in §8.3 (evaluation criteria, accepted
+> downside, and — now partly satisfied — status), the arguments against new edge kinds and review cycles in
+> §9, and the caution in §10 that alignment with a convention is not evidence the convention works. Report 4
+> still applies: ADR adoption has never been correlated with any downstream outcome, and shipping a
+> promotion layer does not change that.
+
 ---
 
 ## Inputs
@@ -145,6 +167,20 @@ Consolidating Report 1's spine comparison with the new research, against Memory 
 | Status | `Status` | `status` | — | **absent (draft only)** |
 | Supersession link | Status text | `superseded by` | — | **`replaces` — typed, validated** |
 | **Amend without supersede** | **absent** | **absent** | **absent** | **`evolves` — typed, validated** |
+
+> **Amendment, 2026-08-03 — a failure mode the literature does not name.** See the
+> [field evidence log](field-evidence-log.md). Asked what problems ADRs had actually caused, a practitioner
+> answered: *"making the AI not willing to go with your product decision because it doesn't understand the
+> ADR."*
+>
+> **The record becomes over-authoritative and blocks a legitimate new decision.** Every source in §4 treats
+> staleness as a record falling *behind* reality. This is the opposite failure: a record that is obeyed when
+> it should have been superseded. Neither Nygard, MADR, adr-tools, nor the academic lineage names it.
+>
+> It sharpens why `evolves` and `replaces` matter — an amendment path is not only for the author's
+> convenience, it is what stops a superseded decision from being enforced against its successor. It also
+> argues for surfacing supersession state *at retrieval time*, not merely storing it: an agent that reads a
+> decision without seeing it has been replaced will apply it.
 
 **Two observations.**
 

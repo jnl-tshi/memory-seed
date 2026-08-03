@@ -23,6 +23,34 @@ All six prior reports, plus the business dossiers ([wedge](../wedges/developer-p
 [market size](../market/market-size.md), [competitors](../market/competitor-landscape.md)) and
 [`CONSTITUTION.md`](../../docs/CONSTITUTION.md).
 
+> **Amendment, 2026-08-03 — Test 1 has now run.** See the [field evidence log](field-evidence-log.md).
+> Six of six responders described the pain unprompted; every one had built their own workaround. Two
+> revisions follow. Neither changes the ninety-day plan in §4 — they change what §2 question 4 ranks first.
+>
+> **(a) The binding constraint is loading, not storage.** This report and the six before it treated the
+> record as the product and retrieval as a feature. A practitioner who spent months on the problem reports
+> the reverse: *"a rule only binds if it's in the prompt the session actually loads… rules that lived in a
+> shared doc got ignored under pressure."* Push — startup-loading the decisions relevant to the task —
+> beats pull, where the agent must remember to search. **The SessionStart hook and MCP retrieval move from
+> plumbing to headline**, and belong alongside the promotion layer rather than below it.
+>
+> **(c) The #1 ranked feature shipped the same day.** §2 question 4 ranked *"mark which decisions govern"*
+> first and called it *"the only one that changes the product's category."* It was built and merged on
+> 2026-08-03 (`memory-seed adr`, three live ADRs, contract promoted out of draft — see the
+> [ADR report's amendment](architecture-decision-record-standards-report.md)). **Year 1 Q2 of §10 is
+> therefore complete before Q1's tests have run**, which inverts the sequencing this report argued for.
+> That is not a failure — the capability is real and correctly built — but it means the ninety-day plan in
+> §4 is now the *only* outstanding item, and the argument for running the tests before building is spent.
+> Evidence Pack export becomes the next unbuilt feature on the list.
+>
+> **(b) The convergent design is a threat as well as a validation.** One person independently reproduced
+> structured decision records, rejected-alternatives-as-a-field, never-delete-only-mark-superseded, and
+> write-at-the-moment-of-abandonment — alone, part-time, with no prior art. **The moat is not the data
+> model.** If one exists it is in what they did *not* build: validated referential integrity on
+> supersession, enforcement that refuses a record without a reason, and guaranteed injection at session
+> start. Risk #2 in §6 (nobody does the authoring) is partly answered by their mechanism — have the agent
+> that lived the failure write it down before it moves on — which is worth adopting explicitly.
+
 **Standing caveat, unchanged through seven reports: no user has been interviewed, no purchase attempted,
 no retention observed.** Everything below is inference. The recommendations are ordered so the cheapest
 disconfirmations come first, precisely because of that.

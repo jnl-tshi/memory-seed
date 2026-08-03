@@ -20,6 +20,16 @@ that survive belong in the canonical dossiers under [`market/`](../market/) and
 | 6 | [Ideal customer profile](memory-seed-ideal-customer-profile-report.md) | Which market is worth entering first? | Complete |
 | 7 | [Strategic roadmap](memory-seed-strategic-roadmap-report.md) | What should Memory Seed become, and what should it avoid? | Complete |
 
+## Field evidence
+
+| Document | Purpose | Status |
+|---|---|---|
+| [Field evidence log](field-evidence-log.md) | What actual practitioners said, unprompted. The first demand evidence the project has collected | **Active — living log** |
+
+Unlike the seven reports, this one is **living**: append an entry per evidence-gathering pass. It records
+observation and source before interpretation, and tracks what each pass revises in the reports above.
+Its first entry already revises Reports 4, 5, and 7.
+
 ## Reading order
 
 **If you read one thing: [Report 7 §4](memory-seed-strategic-roadmap-report.md), the ninety-day plan.**
