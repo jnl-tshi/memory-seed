@@ -79,9 +79,11 @@ def rmtree_force(path: Path) -> None:
 def _parent_fingerprint() -> dict:
     """Cheap proof that a run left the parent repository alone.
 
-    The Codex arm runs unsandboxed, so isolation is asserted rather than assumed: the parent's
-    session store (the thing an unpinned MCP write would land in) and the parent's working-tree
-    dirtiness are both captured before and after every run.
+    The Codex arm runs unsandboxed, so isolation is asserted rather than assumed. The parent's
+    session store is where an unpinned MCP write would land, so `session_files`/`session_bytes`
+    carry the pass/fail signal. `dirty_paths` is captured alongside them but is **informational
+    only**: a scored batch can easily overlap an editing session in the shared primary checkout,
+    and an assertion that cries wolf on somebody else's unrelated edit stops being read.
     """
     sessions = REPO_ROOT / ".memory-seed" / "sessions"
     files = sorted(path for path in sessions.rglob("*") if path.is_file())
@@ -269,7 +271,10 @@ def main() -> int:
     finally:
         manifest["finished_at"] = _dt.datetime.now().isoformat(timespec="seconds")
         manifest["parent_after"] = _parent_fingerprint()
-        manifest["parent_isolated"] = manifest["parent_after"] == manifest["parent_before"]
+        manifest["parent_isolated"] = all(
+            manifest["parent_after"][key] == manifest["parent_before"][key]
+            for key in ("session_files", "session_bytes")
+        )
         (run_dir / "RUN_MANIFEST.json").write_text(
             json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
         )
@@ -285,8 +290,16 @@ def main() -> int:
     )
     if not manifest["parent_isolated"]:
         print(
-            "WARNING: parent repository changed during this run - "
+            "WARNING: the PARENT session store changed during this run - "
             f"before={manifest['parent_before']} after={manifest['parent_after']}",
+            file=sys.stderr,
+        )
+    elif manifest["parent_after"]["dirty_paths"] != manifest["parent_before"]["dirty_paths"]:
+        print(
+            "note: the parent working tree changed during this run (informational - most likely a "
+            "concurrent editing session in the shared checkout, not this run). "
+            f"dirty_paths {manifest['parent_before']['dirty_paths']} -> "
+            f"{manifest['parent_after']['dirty_paths']}",
             file=sys.stderr,
         )
     print(f"readout: {run_dir / '.memory-seed' / 'sessions'}")

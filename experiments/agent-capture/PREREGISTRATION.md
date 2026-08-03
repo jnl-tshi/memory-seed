@@ -115,6 +115,20 @@ judge packet for them, so a probe can never be pooled into a scored table.
 | L3 git hook stamps the fixture's own commit | PASS — `Memory-Entry: mse_dm8fjga4gn7znzg8` on fixture commit `94b7cd9` |
 | L0 fires nothing | PASS — no orientation output, no `prepare-commit-msg`, no `.codex/hooks.json` |
 
+**Open items — the Claude arm is NOT validated by association.** Every hazard the Codex probes
+found has a Claude analogue that has never been checked, because the Claude probes were blocked on
+expired CLI auth. These block scoring on the Claude arm; they do not block scoring on Codex.
+
+| Open item | What must be shown, and how |
+|---|---|
+| MCP process cwd | That the Claude-spawned server resolves to the fixture store, not the parent. `.mcp.json` has no `cwd` field, so this arm relies entirely on `subprocess.run(cwd=run_dir)` being inherited — the exact assumption that was refused for Codex, against an `H1` that has no boundary guard. Run the same probe: call `memory_topics_list` and check the vocabulary returns the stock seed placeholders (deliverable / research / operations / planning) rather than the parent's 69 topics. That single signal discriminates |
+| Account-level tool surface | That the measured tool surface is the fixture's, not the operator's. Codex silently contributed 240 tools (~139k input tokens per turn) from account-level connectors; `~/.claude/` may carry its own user-level MCP servers. Count the tools a fixture session actually sees and record it per run |
+| User-level instructions | The Design section above lists `~/.claude/CLAUDE.md` as a constant that differences out. That holds *within* the Claude arm and is false as a claim about cross-agent comparability — a second reason for the no-pooling rule, not an argument that pooling is safe |
+
+**Identity in fixture stores.** Probe A's fixture entry recorded `user_initials: JNL`, inherited from
+the parent's identity default. Harmless internally, but judge packets are built out of these stores:
+strip or pseudonymise before any packet goes to an external reviewer.
+
 **New limitation (5): the Codex transcript is thinner than Claude's.** Codex `--json` emits
 `mcp_tool_call` items with arguments and results, plus the final `agent_message`, but **no reasoning
 items** — only a `reasoning_output_tokens` count. Faithfulness on the Codex arm can therefore only

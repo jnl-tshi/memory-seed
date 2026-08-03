@@ -48,17 +48,25 @@ the 2026-08-04 amendment to [PREREGISTRATION.md](PREREGISTRATION.md).
 
 ## Invariants (violating any of these invalidates a run)
 
-1. Sessions launch with **cwd = the run directory** — the MCP server inherits it, and the store
-   resolves inside the fixture (`resolve_runtime` walks upward; H1/H4 in the plan).
+1. Sessions launch with **cwd = the run directory**, and the store must resolve inside the fixture
+   (`resolve_runtime` walks upward with no boundary guard; H1/H4 in the plan). The Codex arm pins
+   the MCP server's `cwd` explicitly per run rather than trusting inheritance; the Claude arm still
+   relies on inheritance and that assumption is **unprobed** (see invariant 5).
 2. Fixtures are their **own git repos** — the commit hook installs into the fixture's `.git`, and
    the parent's `prepare-commit-msg` glob can never stamp fixture entries onto parent commits.
 3. Task briefs **never mention memory, recording, or documentation** — that signal is exactly the
    treatment being dosed.
 4. Judge packets **never contain the answer key or the level label**.
 5. Nothing here is scored until the smoke probes (one L0, one L3, unscored) have validated the
-   instrument and PREREGISTRATION.md is committed unchanged.
-6. Every run fingerprints the parent repo before and after and records `parent_isolated` in its
-   manifest. The Codex arm runs unsandboxed, so isolation is **asserted per run**, not assumed.
+   instrument **for that agent**. As of 2026-08-04 Codex has passed both; **Claude has passed
+   neither** — its probes were blocked on expired CLI auth, and both hazards the Codex probes turned
+   up (MCP process cwd, an inherited account-level tool surface) have Claude analogues that are
+   still unchecked. Passing on one agent validates nothing about the other; the open items are
+   listed in the [PREREGISTRATION.md](PREREGISTRATION.md) amendment.
+6. Every run fingerprints the parent's **session store** before and after and records
+   `parent_isolated`. The Codex arm runs unsandboxed, so isolation is asserted per run, not
+   assumed. Parent working-tree dirtiness is recorded alongside it but is informational only — the
+   primary checkout is shared, so another session's edits are not this run's doing.
 7. Results from different agents are **never pooled**. One capture-rate table per agent.
 
 ## Findings flow
