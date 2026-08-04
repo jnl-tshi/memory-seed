@@ -1,0 +1,159 @@
+{
+  "schema": "context-gold.v1",
+  "approval_status": "DRAFT-PENDING-OWNER-APPROVAL",
+  "base_sha": "f11a5dcb453f1a160864a10c7c5a1ee81ade0e48",
+  "notice": "Candidate labels for review. Scored execution is forbidden until the repository owner changes approval_status in a separate approval commit.",
+  "tasks": [
+    {
+      "task_id": "CTX-01",
+      "required_adr_ids": ["adr_mcp_decision_envelope_review"],
+      "authoritative_refs": ["mse_17d0qqh34a07qp5b:d1"],
+      "required_lineage_edges": [],
+      "relevant_refs": ["mse_17d0qqh34a07qp5b:d1"],
+      "distractor_refs": ["mse_17d0qqh34a07qp5b:d2", "mse_kbc2mq9972ppy1vw:d1"],
+      "expected_statuses": {"adr_mcp_decision_envelope_review": "accepted"},
+      "insufficient_evidence": false,
+      "allowed_citations": ["adr_mcp_decision_envelope_review", "mse_17d0qqh34a07qp5b:d1"]
+    },
+    {
+      "task_id": "CTX-02",
+      "required_adr_ids": ["adr_mcp_decision_envelope_review"],
+      "authoritative_refs": ["mse_17d0qqh34a07qp5b:d1"],
+      "required_lineage_edges": [
+        {"source": "mse_ddeat5w29spep3qw:d1", "target": "mse_z7rfq8x5qjfbyzdc:d1", "type": "evolves"},
+        {"source": "mse_17d0qqh34a07qp5b:d1", "target": "mse_ddeat5w29spep3qw:d1", "type": "evolves"},
+        {"source": "mse_17d0qqh34a07qp5b:d1", "target": "mse_z7rfq8x5qjfbyzdc:d1", "type": "evolves"}
+      ],
+      "relevant_refs": ["mse_z7rfq8x5qjfbyzdc:d1", "mse_ddeat5w29spep3qw:d1", "mse_17d0qqh34a07qp5b:d1"],
+      "distractor_refs": ["mse_17d0qqh34a07qp5b:d2", "mse_d06t9bccm3yykfqs:d2"],
+      "expected_statuses": {"adr_mcp_decision_envelope_review": "accepted"},
+      "insufficient_evidence": false,
+      "allowed_citations": ["adr_mcp_decision_envelope_review", "mse_z7rfq8x5qjfbyzdc:d1", "mse_ddeat5w29spep3qw:d1", "mse_17d0qqh34a07qp5b:d1"]
+    },
+    {
+      "task_id": "CTX-03",
+      "required_adr_ids": ["adr_parent_first_sidecar_transaction"],
+      "authoritative_refs": ["mse_17d0qqh34a07qp5b:d2"],
+      "required_lineage_edges": [],
+      "relevant_refs": ["mse_17d0qqh34a07qp5b:d2"],
+      "distractor_refs": ["mse_17d0qqh34a07qp5b:d1", "mse_d06t9bccm3yykfqs:d2"],
+      "expected_statuses": {"adr_parent_first_sidecar_transaction": "accepted"},
+      "insufficient_evidence": false,
+      "allowed_citations": ["adr_parent_first_sidecar_transaction", "mse_17d0qqh34a07qp5b:d2"]
+    },
+    {
+      "task_id": "CTX-04",
+      "required_adr_ids": ["adr_parent_first_sidecar_transaction"],
+      "authoritative_refs": ["mse_17d0qqh34a07qp5b:d2"],
+      "required_lineage_edges": [
+        {"source": "mse_d06t9bccm3yykfqs:d1", "target": "mse_qbp1ndbnhezj34eb:d1", "type": "evolves"},
+        {"source": "mse_17d0qqh34a07qp5b:d2", "target": "mse_d06t9bccm3yykfqs:d1", "type": "evolves"}
+      ],
+      "relevant_refs": ["mse_qbp1ndbnhezj34eb:d1", "mse_d06t9bccm3yykfqs:d1", "mse_17d0qqh34a07qp5b:d2"],
+      "distractor_refs": ["mse_d06t9bccm3yykfqs:d2", "mse_kbc2mq9972ppy1vw:d2"],
+      "expected_statuses": {"adr_parent_first_sidecar_transaction": "accepted"},
+      "insufficient_evidence": false,
+      "allowed_citations": ["adr_parent_first_sidecar_transaction", "mse_qbp1ndbnhezj34eb:d1", "mse_d06t9bccm3yykfqs:d1", "mse_17d0qqh34a07qp5b:d2"]
+    },
+    {
+      "task_id": "CTX-05",
+      "required_adr_ids": ["adr_session_decision_authority"],
+      "authoritative_refs": ["mse_17d0qqh34a07qp5b:d1"],
+      "required_lineage_edges": [],
+      "relevant_refs": ["mse_17d0qqh34a07qp5b:d1"],
+      "distractor_refs": ["mse_17d0qqh34a07qp5b:d2", "mse_kbc2mq9972ppy1vw:d1"],
+      "expected_statuses": {"adr_session_decision_authority": "accepted"},
+      "insufficient_evidence": false,
+      "allowed_citations": ["adr_session_decision_authority", "mse_17d0qqh34a07qp5b:d1"]
+    },
+    {
+      "task_id": "CTX-06",
+      "required_adr_ids": ["adr_mcp_decision_envelope_review", "adr_session_decision_authority"],
+      "authoritative_refs": ["mse_17d0qqh34a07qp5b:d1"],
+      "required_lineage_edges": [],
+      "relevant_refs": ["mse_17d0qqh34a07qp5b:d1"],
+      "distractor_refs": ["adr_parent_first_sidecar_transaction", "mse_17d0qqh34a07qp5b:d2"],
+      "expected_statuses": {"adr_mcp_decision_envelope_review": "accepted", "adr_session_decision_authority": "accepted"},
+      "insufficient_evidence": false,
+      "allowed_citations": ["adr_mcp_decision_envelope_review", "adr_session_decision_authority", "mse_17d0qqh34a07qp5b:d1"]
+    },
+    {
+      "task_id": "CTX-07",
+      "required_adr_ids": ["adr_branching_queue"],
+      "authoritative_refs": ["mse_ctxbrgood:d1"],
+      "required_lineage_edges": [
+        {"source": "mse_ctxbrgood:d1", "target": "mse_ctxbrroot:d1", "type": "evolves"},
+        {"source": "mse_ctxbrbad:d1", "target": "mse_ctxbrroot:d1", "type": "evolves"}
+      ],
+      "relevant_refs": ["mse_ctxbrroot:d1", "mse_ctxbrgood:d1", "mse_ctxbrbad:d1"],
+      "distractor_refs": ["mse_ctxbrnoise:d1"],
+      "expected_statuses": {"adr_branching_queue": "accepted"},
+      "insufficient_evidence": false,
+      "allowed_citations": ["adr_branching_queue", "mse_ctxbrroot:d1", "mse_ctxbrgood:d1", "mse_ctxbrbad:d1"]
+    },
+    {
+      "task_id": "CTX-08",
+      "required_adr_ids": ["adr_converged_reads"],
+      "authoritative_refs": ["mse_ctxconvmerge:d1"],
+      "required_lineage_edges": [
+        {"source": "mse_ctxconvmerge:d1", "target": "mse_ctxconva:d1", "type": "evolves"},
+        {"source": "mse_ctxconvmerge:d1", "target": "mse_ctxconvb:d1", "type": "evolves"}
+      ],
+      "relevant_refs": ["mse_ctxconva:d1", "mse_ctxconvb:d1", "mse_ctxconvmerge:d1"],
+      "distractor_refs": ["mse_ctxconvnoise:d1"],
+      "expected_statuses": {"adr_converged_reads": "accepted"},
+      "insufficient_evidence": false,
+      "allowed_citations": ["adr_converged_reads", "mse_ctxconva:d1", "mse_ctxconvb:d1", "mse_ctxconvmerge:d1"]
+    },
+    {
+      "task_id": "CTX-09",
+      "required_adr_ids": ["adr_shared_audit", "adr_shared_cache"],
+      "authoritative_refs": ["mse_ctxshared:d1"],
+      "required_lineage_edges": [
+        {"source": "mse_ctxshared:d1", "target": "mse_ctxshareda:d1", "type": "evolves"},
+        {"source": "mse_ctxshared:d1", "target": "mse_ctxsharedb:d1", "type": "evolves"}
+      ],
+      "relevant_refs": ["mse_ctxshareda:d1", "mse_ctxsharedb:d1", "mse_ctxshared:d1"],
+      "distractor_refs": ["mse_ctxsharednoise:d1"],
+      "expected_statuses": {"adr_shared_audit": "accepted", "adr_shared_cache": "accepted"},
+      "insufficient_evidence": false,
+      "allowed_citations": ["adr_shared_audit", "adr_shared_cache", "mse_ctxshareda:d1", "mse_ctxsharedb:d1", "mse_ctxshared:d1"]
+    },
+    {
+      "task_id": "CTX-10",
+      "required_adr_ids": ["adr_pending_storage"],
+      "authoritative_refs": ["mse_ctxpendinghead:d1"],
+      "required_lineage_edges": [
+        {"source": "mse_ctxpendingnew:d1", "target": "mse_ctxpendinghead:d1", "type": "replaces"}
+      ],
+      "relevant_refs": ["mse_ctxpendinghead:d1", "mse_ctxpendingnew:d1"],
+      "distractor_refs": ["mse_ctxpendingnoise:d1"],
+      "expected_statuses": {"adr_pending_storage": "accepted"},
+      "insufficient_evidence": false,
+      "allowed_citations": ["adr_pending_storage", "mse_ctxpendinghead:d1", "mse_ctxpendingnew:d1"]
+    },
+    {
+      "task_id": "CTX-11",
+      "required_adr_ids": ["adr_related_encryption"],
+      "authoritative_refs": ["mse_ctxrelhead:d1"],
+      "required_lineage_edges": [],
+      "required_related_edges": [{"source": "mse_ctxrelcontext:d1", "target": "mse_ctxrelhead:d1", "type": "related"}],
+      "relevant_refs": ["mse_ctxrelhead:d1", "mse_ctxrelcontext:d1"],
+      "distractor_refs": ["mse_ctxrelnoise:d1"],
+      "expected_statuses": {"adr_related_encryption": "accepted"},
+      "insufficient_evidence": false,
+      "allowed_citations": ["adr_related_encryption", "mse_ctxrelhead:d1", "mse_ctxrelcontext:d1"]
+    },
+    {
+      "task_id": "CTX-12",
+      "required_adr_ids": ["adr_missing_compaction"],
+      "authoritative_refs": ["mse_ctxmissinghead:d1"],
+      "required_lineage_edges": [],
+      "relevant_refs": ["mse_ctxmissinghead:d1"],
+      "distractor_refs": ["mse_ctxmissingnoise:d1"],
+      "expected_statuses": {"adr_missing_compaction": "accepted"},
+      "insufficient_evidence": true,
+      "allowed_citations": ["adr_missing_compaction", "mse_ctxmissinghead:d1"]
+    }
+  ]
+}
