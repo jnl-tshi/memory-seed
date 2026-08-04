@@ -81,6 +81,16 @@ After M3 passes its fixture and accessibility gates, continue to M4 Quick Open/s
 M5 deterministic resume/attention remains later and must expose a stated evidence rule rather than a
 hidden priority score.
 
+**Attention retrieval signal (2026-08-04, capture + exposure shipped):**
+[`attention-retrieval-signal-proposal.md`](attention-retrieval-signal-proposal.md) un-defers P2 of the
+interaction-frequency plan — MCP fetches (`memory_get_chunk`) are logged and exposed as decayed
+`attention_score`/`fetch_count`/`last_fetch` on every retrieval result, read-only. The default-ranking
+flip waits on real accumulated usage plus `memory-seed ranking-ab --signal attention` (Retrieval,
+Application). Companion proposal:
+[`file-touch-decision-surfacing-proposal.md`](file-touch-decision-surfacing-proposal.md) — surface
+decisions whose `F:` refs match a file the agent is editing (unbuilt; E7's answer to "records die
+because nothing surfaces them").
+
 ## Shipped 2026-07-28/29 — unreleased, on local main
 
 Two back-to-back tranches: the graph became explicitly ontology-aware and physically legible, then Trace
