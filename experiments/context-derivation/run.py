@@ -105,35 +105,103 @@ def _claude_mcp_config(run_dir: Path, arm: str, fixture: Path) -> Path:
     return config
 
 
-def _codex_config(run_dir: Path, arm: str, fixture: Path) -> Path:
-    config = run_dir / ".codex" / "config.toml"
-    config.parent.mkdir(exist_ok=True)
-    command = _wrapper_command(arm, fixture)
-    quote = lambda s: '"' + s.replace('\\', '\\\\').replace('"', '\\"') + '"'
-    config.write_text("[mcp_servers.context_fixture]\ncommand = " + quote(command[0]) +
-                      "\nargs = [" + ", ".join(quote(x) for x in command[1:]) + "]\n", encoding="utf-8")
-    return config
+def _codex_isolation_overrides(run_dir: Path, fixture: Path | None) -> list[str]:
+    values = [
+        'default_permissions="context_subject"',
+        'permissions.context_subject.description="ADR benchmark subject isolation"',
+        'permissions.context_subject.filesystem={":root"="deny",":minimal"="read",'
+        '":workspace_roots"={"."="read"}}',
+        'permissions.context_subject.network.enabled=false',
+        'shell_environment_policy.inherit="none"',
+        'features.apps=false',
+    ]
+    return [part for value in values for part in ("-c", value)]
+
+
+def subject_isolation(agent: str) -> str:
+    return "claude-builtins-disabled" if agent == "claude" else "codex-deny-read-permission-profile"
+
+
+def codex_interactive_ready() -> bool:
+    """Remain false until an owner-approved privilege broker is implemented."""
+    return False
+
+
+def subject_environment() -> dict[str, str]:
+    allowed = {
+        "PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "COMSPEC", "OS",
+        "TEMP", "TMP", "TMPDIR", "USERPROFILE", "HOMEDRIVE", "HOMEPATH",
+        "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "PROGRAMFILES",
+        "PROGRAMFILES(X86)", "COMMONPROGRAMFILES", "NUMBER_OF_PROCESSORS",
+        "PROCESSOR_ARCHITECTURE", "USERNAME", "LANG", "LC_ALL", "CODEX_HOME",
+    }
+    return {name: value for name, value in os.environ.items() if name.upper() in allowed}
+
+
+def redact_output(text: str) -> str:
+    redacted = text
+    secret_name = re.compile(r"(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH)", re.I)
+    for name, value in os.environ.items():
+        if secret_name.search(name) and len(value) >= 8:
+            redacted = redacted.replace(value, f"<redacted-env:{name}>")
+    redacted = re.sub(r"\b(?:sk|sess|oauth)-[A-Za-z0-9_-]{12,}\b", "<redacted-token>", redacted)
+    redacted = re.sub(r"(?i)\bBearer\s+[A-Za-z0-9._~+/-]{12,}=*", "Bearer <redacted-token>", redacted)
+    return redacted
+
+
+def installed_cli_version(agent: str) -> tuple[str, str]:
+    executable = "claude" if agent == "claude" else (shutil.which("codex") or "codex")
+    completed = subprocess.run(
+        [executable, "--version"], capture_output=True, text=True,
+        encoding="utf-8", errors="replace", timeout=30, env=subject_environment(),
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(f"{agent} --version failed: {redact_output(completed.stderr).strip()}")
+    raw = completed.stdout.strip()
+    if agent == "claude":
+        match = re.match(r"(\d+\.\d+\.\d+)", raw)
+        normalized = match.group(1) if match else raw
+    else:
+        normalized = raw
+    return raw, normalized
 
 
 def build_command(agent: str, run_dir: Path, prompt: str, *, arm: str, fixture: Path | None, model: str | None, effort: str | None) -> list[str]:
     interactive = arm in INTERACTIVE_ARMS
     if agent == "claude":
-        command = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose"]
+        command = [
+            "claude", "-p", prompt, "--output-format", "stream-json", "--verbose",
+            "--tools", "", "--disable-slash-commands", "--no-session-persistence",
+            "--disallowed-tools", "Bash,Read,Edit,Write,Glob,Grep,NotebookEdit,WebFetch,WebSearch,Task",
+            "--no-chrome", "--permission-mode", "dontAsk", "--setting-sources", "",
+        ]
         if interactive:
-            command += ["--dangerously-skip-permissions", "--mcp-config", str(_claude_mcp_config(run_dir, arm, fixture or run_dir)), "--strict-mcp-config"]
+            allowed = ",".join(
+                f"mcp__context-fixture__{name}"
+                for name in __import__("mcp_wrapper").allowed_names(arm)
+            )
+            command += [
+                "--mcp-config", str(_claude_mcp_config(run_dir, arm, fixture or run_dir)),
+                "--strict-mcp-config", "--allowed-tools", allowed,
+            ]
         else:
-            command += ["--safe-mode", "--tools", "", "--disable-slash-commands", "--no-session-persistence"]
+            command += ["--safe-mode"]
         if model: command += ["--model", model]
         return command
     if agent == "codex":
-        exe = shutil.which("codex") or shutil.which("codex.cmd") or "codex"
-        command = [exe, "exec", "--json", "-C", str(run_dir), "-o", "RUN_LAST_MESSAGE.txt", "--skip-git-repo-check", "-c", "features.apps=false"]
         if interactive:
-            _codex_config(run_dir, arm, fixture or run_dir)
-            trust = str(run_dir).replace("\\", "\\\\")
-            command += ["--dangerously-bypass-approvals-and-sandbox", "-c", f'projects={{ "{trust}" = {{ trust_level = "trusted" }} }}']
-        else:
-            command += ["--ephemeral", "--ignore-user-config", "--ignore-rules", "--sandbox", "read-only", "-c", "mcp_servers={}"]
+            raise RuntimeError(
+                "Codex interactive arms require an explicitly approved harness-owned broker; "
+                "stdio MCP cannot isolate the fixture from subject filesystem tools"
+            )
+        exe = shutil.which("codex") or shutil.which("codex.cmd") or "codex"
+        command = [
+            exe, "exec", "--json", "-C", str(run_dir), "-o", "RUN_LAST_MESSAGE.txt",
+            "--skip-git-repo-check", "--ephemeral", "--ignore-user-config",
+            "--ignore-rules", "--strict-config", "-c", 'approval_policy="never"',
+        ]
+        command += _codex_isolation_overrides(run_dir, fixture)
+        command += ["-c", "mcp_servers={}"]
         if effort: command += ["-c", f'model_reasoning_effort="{effort}"']
         if model: command += ["-m", model]
         return command + [prompt]
@@ -198,6 +266,22 @@ def _remove_run_dir(path: Path) -> None:
     shutil.rmtree(path, ignore_errors=True)
 
 
+def _remove_subject_configs(path: Path) -> None:
+    config = path / "mcp.json"
+    if config.exists():
+        config.unlink()
+
+
+def sanitize_subject_artifacts(path: Path) -> None:
+    """Redact provider-authored files before they enter retained artifacts."""
+    final = path / "RUN_LAST_MESSAGE.txt"
+    if final.exists():
+        final.write_text(
+            redact_output(final.read_text(encoding="utf-8", errors="replace")),
+            encoding="utf-8",
+        )
+
+
 def _temporary_work_dir(run_id: str) -> Path:
     path = Path(tempfile.mkdtemp(prefix=f"context-derivation-{run_id}-")).resolve()
     try:
@@ -249,10 +333,19 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--owner-approved is required for non-dry-run execution")
     if not args.dry_run and not live_execution_approved(HERE):
         parser.error("gold/preregistration approval, a frozen candidate, and pinned live matrix are required")
-    if not args.dry_run and not live_pin_matches(HERE, args.agent, args.model, args.cli_version):
+    if not args.dry_run and not live_pin_matches(
+        HERE, args.agent, args.model, args.cli_version, args.effort,
+    ):
         parser.error("requested model/CLI version does not match LIVE_MATRIX.json")
     if not args.dry_run and not live_tasks_match(HERE, _tasks_path(args.tasks)):
         parser.error("materialized live tasks do not match LIVE_MATRIX.json")
+    observed_cli_raw: str | None = None
+    if not args.dry_run:
+        observed_cli_raw, observed_cli = installed_cli_version(args.agent)
+        if observed_cli != args.cli_version:
+            parser.error(
+                f"installed {args.agent} CLI {observed_cli!r} does not match frozen pin {args.cli_version!r}"
+            )
     task = load_task(args.task, _tasks_path(args.tasks)); fixture_source = task.get("fixture")
     run_id = f"{args.agent}-{args.task}-{args.arm}-r{args.repetition}-{uuid.uuid4().hex[:10]}"
     run_dir = RUNS / run_id
@@ -273,16 +366,18 @@ def main(argv: list[str] | None = None) -> int:
         _remove_run_dir(work_dir)
         raise
     if args.dry_run:
-        manifest = {"schema": RUN_SCHEMA, "run_id": run_id, "task_id": args.task, "arm": args.arm, "agent": args.agent, "repetition": args.repetition, "schedule_seed": SCHEDULE_SEED, "model": args.model, "cli_version": args.cli_version, "started_at": dt.datetime.now(dt.timezone.utc).isoformat(), "dry_run": True, "command": ["<prompt>" if part == prompt else part for part in command]}
+        manifest = {"schema": RUN_SCHEMA, "run_id": run_id, "task_id": args.task, "arm": args.arm, "agent": args.agent, "repetition": args.repetition, "schedule_seed": SCHEDULE_SEED, "model": args.model, "cli_version": args.cli_version, "started_at": dt.datetime.now(dt.timezone.utc).isoformat(), "dry_run": True, "subject_isolation": subject_isolation(args.agent), "command": ["<prompt>" if part == prompt else part for part in command]}
         print(json.dumps(manifest)); _remove_run_dir(work_dir); return 0
     started = time.monotonic(); stdout = stderr = ""; exit_code: int | None = None; timed_out = False
     try:
-        done = subprocess.run(command, cwd=work_dir, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=args.timeout)
-        stdout, stderr, exit_code = done.stdout, done.stderr, done.returncode
+        done = subprocess.run(command, cwd=work_dir, env=subject_environment(), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=args.timeout)
+        stdout, stderr, exit_code = redact_output(done.stdout), redact_output(done.stderr), done.returncode
     except subprocess.TimeoutExpired as exc:
-        timed_out = True; stdout = (exc.stdout or "").decode() if isinstance(exc.stdout, bytes) else (exc.stdout or ""); stderr = (exc.stderr or "").decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+        timed_out = True; stdout = (exc.stdout or "").decode() if isinstance(exc.stdout, bytes) else (exc.stdout or ""); stderr = (exc.stderr or "").decode() if isinstance(exc.stderr, bytes) else (exc.stderr or ""); stdout, stderr = redact_output(stdout), redact_output(stderr)
     except OSError as exc:
         exit_code = -1; stderr = f"harness launch failed: {exc}"
+    sanitize_subject_artifacts(work_dir)
+    _remove_subject_configs(work_dir)
     duration_ms = round((time.monotonic() - started) * 1000)
     (work_dir / "transcript.jsonl").write_text(stdout, encoding="utf-8")
     if stderr: (work_dir / "stderr.log").write_text(stderr, encoding="utf-8")
@@ -292,7 +387,7 @@ def main(argv: list[str] | None = None) -> int:
     packet = _packet(task, args.arm) if args.arm in FIXED_ARMS else ""
     refs_by_arm = task.get("included_refs_by_arm") or {}
     tokens_by_arm = task.get("context_token_proxy_by_arm") or {}
-    manifest = {"schema": RUN_SCHEMA, "run_id": run_id, "task_id": args.task, "arm": args.arm, "agent": args.agent, "repetition": args.repetition, "schedule_seed": SCHEDULE_SEED, "model": args.model, "cli_version": args.cli_version, "effort": args.effort, "started_at": dt.datetime.now(dt.timezone.utc).isoformat(), "duration_ms": duration_ms, "exit_code": exit_code, "timed_out": timed_out, "transcript": "transcript.jsonl", "final_answer": "final_answer.txt", "interactive_fixture": "fixture" if fixture else None, "fixed_arm_no_fixture": args.arm in FIXED_ARMS, "mcp_enabled": args.arm in INTERACTIVE_ARMS, "included_refs": refs_by_arm.get(args.arm, []), "context_token_proxy": tokens_by_arm.get(args.arm, len(packet.split())), "tool_calls": calls, "undeclared_tool_calls": sorted(set(calls) - allowed), "direct_filesystem_retrieval": _direct_filesystem_retrieval(stdout), "parent_before": before, "parent_after": after, "parent_isolated": before == after, "fixture_before": fixture_before, "fixture_after": fixture_after, "fixture_isolated": fixture_before == fixture_after if fixture else True, "failure_classification": failure, "command": ["<prompt>" if part == prompt else part for part in command], **_usage(stdout)}
+    manifest = {"schema": RUN_SCHEMA, "run_id": run_id, "task_id": args.task, "arm": args.arm, "agent": args.agent, "repetition": args.repetition, "schedule_seed": SCHEDULE_SEED, "model": args.model, "cli_version": args.cli_version, "cli_version_observed_raw": observed_cli_raw, "effort": args.effort, "started_at": dt.datetime.now(dt.timezone.utc).isoformat(), "duration_ms": duration_ms, "exit_code": exit_code, "timed_out": timed_out, "transcript": "transcript.jsonl", "final_answer": "final_answer.txt", "interactive_fixture": "fixture" if fixture else None, "fixed_arm_no_fixture": args.arm in FIXED_ARMS, "mcp_enabled": args.arm in INTERACTIVE_ARMS, "subject_isolation": subject_isolation(args.agent), "included_refs": refs_by_arm.get(args.arm, []), "context_token_proxy": tokens_by_arm.get(args.arm, len(packet.split())), "tool_calls": calls, "undeclared_tool_calls": sorted(set(calls) - allowed), "direct_filesystem_retrieval": _direct_filesystem_retrieval(stdout), "parent_before": before, "parent_after": after, "parent_isolated": before == after, "fixture_before": fixture_before, "fixture_after": fixture_after, "fixture_isolated": fixture_before == fixture_after if fixture else True, "failure_classification": failure, "command": ["<prompt>" if part == prompt else part for part in command], **_usage(stdout)}
     (work_dir / "RUN_MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     _move_finalized_artifacts(work_dir, run_dir)
     print(json.dumps({"run_id": run_id, "exit_code": exit_code, "failure_classification": failure, "parent_isolated": before == after}))

@@ -124,6 +124,8 @@ def live_execution_approved(experiment_root: str | Path) -> bool:
     try:
         candidate = load_json(root / "FROZEN_CANDIDATE.json")
         matrix = load_json(root / "LIVE_MATRIX.json")
+        offline = load_json(root / "OFFLINE_SELECTION.json")
+        probes = load_json(root / "PROBE_PINS.json")
     except (OSError, json.JSONDecodeError):
         return False
     expected = {
@@ -140,27 +142,63 @@ def live_execution_approved(experiment_root: str | Path) -> bool:
         return False
     if matrix.get("schema") != LIVE_MATRIX_SCHEMA or matrix.get("status") != "FROZEN":
         return False
+    offline_stable = {key: value for key, value in offline.items() if key != "fingerprint"}
+    probes_stable = {key: value for key, value in probes.items() if key != "fingerprint"}
+    if (
+        offline.get("schema") != "context-offline-selection.v1"
+        or offline.get("fingerprint") != fingerprint(offline_stable)
+        or probes.get("schema") != "context-probe-pins.v1"
+        or probes.get("fingerprint") != fingerprint(probes_stable)
+        or matrix.get("offline_selection_fingerprint") != offline.get("fingerprint")
+        or matrix.get("probe_pins_fingerprint") != probes.get("fingerprint")
+        or candidate.get("strategy_fingerprint") != offline.get("selected_strategy_fingerprint")
+        or candidate.get("reduction_fingerprint") != offline.get("reduction_fingerprint")
+    ):
+        return False
+    try:
+        from sweep import resolver_implementation_fingerprint
+        if offline.get("resolver_fingerprint") != resolver_implementation_fingerprint():
+            return False
+    except (ImportError, OSError):
+        return False
     if any(matrix.get(key) != value for key, value in expected.items()):
         return False
     pins = matrix.get("pins") or {}
+    probe_agents = probes.get("agents") or {}
+    probe_fingerprints = matrix.get("probe_fingerprints") or {}
     return all(
         isinstance(pins.get(agent), dict)
         and pins[agent].get("model") not in (None, "", "PENDING_UNSCORED_PROBE")
         and pins[agent].get("cli_version") not in (None, "", "PENDING_UNSCORED_PROBE")
+        and isinstance(probe_agents.get(agent), dict)
+        and probe_agents[agent].get("observations") == 2
+        and probe_agents[agent].get("requested_model") == pins[agent].get("model")
+        and probe_agents[agent].get("resolved_model") == pins[agent].get("model")
+        and probe_agents[agent].get("cli_version") == pins[agent].get("cli_version")
+        and probe_agents[agent].get("effort") == pins[agent].get("effort")
+        and probe_agents[agent].get("probe_fingerprint") == probe_fingerprints.get(agent)
         for agent in AGENTS
-    ) and matrix.get("candidate_fingerprint") == candidate.get("strategy_fingerprint") \
+    ) and pins.get("codex", {}).get("effort") in {"low", "medium", "high", "xhigh", "max", "ultra"} \
+        and matrix.get("candidate_fingerprint") == candidate.get("strategy_fingerprint") \
         and isinstance(matrix.get("retrieval_v1_fingerprint"), str) \
         and bool(matrix.get("retrieval_v1_fingerprint")) \
         and isinstance(matrix.get("live_tasks_fingerprint"), str) \
         and bool(matrix.get("live_tasks_fingerprint"))
 
 
-def live_pin_matches(experiment_root: str | Path, agent: str, model: str, cli_version: str) -> bool:
+def live_pin_matches(
+    experiment_root: str | Path, agent: str, model: str, cli_version: str,
+    effort: str | None = None,
+) -> bool:
     if not live_execution_approved(experiment_root):
         return False
     matrix = load_json(Path(experiment_root) / "LIVE_MATRIX.json")
     pin = (matrix.get("pins") or {}).get(agent) or {}
-    return pin.get("model") == model and pin.get("cli_version") == cli_version
+    return (
+        pin.get("model") == model
+        and pin.get("cli_version") == cli_version
+        and pin.get("effort") == effort
+    )
 
 
 def live_tasks_match(experiment_root: str | Path, tasks_path: str | Path) -> bool:

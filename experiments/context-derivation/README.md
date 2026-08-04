@@ -14,8 +14,10 @@ change Memory Seed's production retrieval or MCP contracts.
    per-agent results and the recommendation packet.
 
 Generated fixtures, packs, shards, raw runs, and judgements are gitignored.
-The task manifest, gold labels, preregistration, frozen candidate, summary, and
-final report are the durable experiment artifacts.
+The task manifest, gold labels, preregistration, frozen candidate,
+`OFFLINE_SELECTION.json`, `PROBE_PINS.json`, `LIVE_MATRIX.json`, summary, and
+final report are the durable experiment artifacts. Live execution revalidates
+their fingerprints and the current resolver source before any subject call.
 
 No scored stage may start until `PREREGISTRATION.md` and `tasks/gold.json` have
 been approved by the repository owner. Calibration and unit tests are unscored.
@@ -59,16 +61,29 @@ both owner-review markers are approved.
    python experiments/context-derivation/materialize.py --tasks experiments/context-derivation/generated/tasks.json --shards experiments/context-derivation/shards --fixture-base experiments/context-derivation --candidate-manifest experiments/context-derivation/FROZEN_CANDIDATE.json --reduction experiments/context-derivation/generated/reduction.json --retrieval-fingerprint <frozen-v1-fingerprint> --output experiments/context-derivation/generated/live-tasks.json
    ```
 
-6. Run unscored Claude/Codex probes, then update and commit `LIVE_MATRIX.json`
-   with status `FROZEN`, exact model/CLI pins, candidate fingerprint, and v1
-   fingerprint. The committed `JUDGE_SELECTION.json` already freezes all 96
-   secondary-review cells before results exist.
+6. Run exactly two unscored observations per provider outside the repository,
+   then update and commit `LIVE_MATRIX.json` with status `FROZEN`, exact
+   model/CLI pins, candidate fingerprint, and v1 fingerprint. Codex requires a
+   canonical slug from its bundled model catalog; Claude records the canonical
+   model reported by its transcript. Probe artifacts never enter scored `runs/`:
+
+   ```text
+   python experiments/context-derivation/probe.py --owner-approved --agent claude --model <model> --cli-version <version> --output <os-temp-path>
+   python experiments/context-derivation/probe.py --owner-approved --agent codex --model <canonical-model-slug> --cli-version <version> --effort <effort> --output <os-temp-path>
+   ```
+
+   The committed `JUDGE_SELECTION.json` already freezes all 96 secondary-review
+   cells before results exist.
 7. Dry-run the exact 288-cell schedule, then launch only with the explicit flag:
 
    ```text
-   python experiments/context-derivation/batch.py --dry-run --claude-model <model> --codex-model <model> --claude-cli-version <version> --codex-cli-version <version>
-   python experiments/context-derivation/batch.py --owner-approved --claude-model <model> --codex-model <model> --claude-cli-version <version> --codex-cli-version <version>
+   python experiments/context-derivation/batch.py --dry-run --claude-model <model> --codex-model <model> --codex-effort <effort> --claude-cli-version <version> --codex-cli-version <version>
+   python experiments/context-derivation/batch.py --owner-approved --claude-model <model> --codex-model <model> --codex-effort <effort> --claude-cli-version <version> --codex-cli-version <version>
    ```
+
+   The scored batch fails before creating `runs/` or contacting either provider
+   until `codex_interactive_ready()` confirms an owner-approved privilege broker.
+   Fixed-arm cells cannot run early and leave a partial scored matrix.
 
 8. Collect, score, run the frozen blind reviews, and render the report. Scoring
    and judge execution also verify the frozen live artifacts. The report accepts
@@ -76,7 +91,12 @@ both owner-review markers are approved.
    it never authorizes a production change itself.
 
 Subject processes execute in OS-temporary directories outside the repository.
-Fixed packet arms have no MCP tools and no fixture copy. Interactive arms receive
-one immutable fixture copy and an experiment-local MCP allowlist. Parent and
+Fixed packet arms have no MCP tools and no fixture copy. Claude interactive arms
+receive one immutable fixture copy and an exact experiment-local MCP allowlist,
+with built-in filesystem, shell, web, and task tools disabled. Codex fixed arms
+use a deny-read/no-network permission profile. Codex interactive arms fail closed
+until the repository owner explicitly approves a harness-owned privilege broker;
+the experiment does not create a listener or broker implicitly. Parent and
 fixture fingerprints, undeclared tools, direct filesystem retrieval, model/CLI
-pins, and answer schemas are rechecked during collection and scoring.
+pins, answer schemas, and redacted retained provider artifacts are rechecked
+during collection and scoring.

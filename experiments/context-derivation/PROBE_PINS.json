@@ -1,0 +1,29 @@
+{
+  "schema": "context-probe-pins.v1",
+  "agents": {
+    "claude": {
+      "requested_model": "claude-sonnet-5",
+      "resolved_model": "claude-sonnet-5",
+      "observed_models": [
+        "claude-haiku-4-5-20251001",
+        "claude-sonnet-5"
+      ],
+      "cli_version": "2.1.221",
+      "effort": null,
+      "observations": 2,
+      "probe_fingerprint": "sha256:dffe1dd845909eb7260d3bcfa1da87fdbf48b2c36d894301bd7c2b0ccd9566d4"
+    },
+    "codex": {
+      "requested_model": "gpt-5.6-luna",
+      "resolved_model": "gpt-5.6-luna",
+      "observed_models": [
+        "gpt-5.6-luna"
+      ],
+      "cli_version": "codex-cli 0.146.0",
+      "effort": "medium",
+      "observations": 2,
+      "probe_fingerprint": "sha256:0692a42e75b1803f8aa082ca1c03c9c927c16c7b4aae6c04483a9777ef98026e"
+    }
+  },
+  "fingerprint": "sha256:219b5530ea3ab1229ca5b940c916a630b1ad7be7266992716aba82937dda5be6"
+}

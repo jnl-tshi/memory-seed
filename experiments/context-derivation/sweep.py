@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import importlib
+import inspect
 import json
 import os
 import tempfile
@@ -12,7 +13,7 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from contracts import TASK_SCHEMA, canonical_json, fingerprint, load_json, require_schema
+from contracts import TASK_SCHEMA, STRATEGY_SCHEMA, canonical_json, fingerprint, load_json, require_schema
 import strategies as strategies_module
 from strategies import clear_resolution_caches, normalize_strategy, resolve_strategy, stable_result, strategy_fingerprint
 
@@ -38,11 +39,7 @@ def resolver_implementation_fingerprint() -> str:
     )
     digest = hashlib.sha256()
     for label, root in groups:
-        paths = (
-            [root / "strategies.py", root / "contracts.py"]
-            if label == "experiment"
-            else sorted(root.rglob("*.py"))
-        )
+        paths = [root / "strategies.py"] if label == "experiment" else sorted(root.rglob("*.py"))
         for path in paths:
             if not path.is_file():
                 continue
@@ -50,6 +47,17 @@ def resolver_implementation_fingerprint() -> str:
             data = path.read_bytes()
             digest.update(f"{label}/{relative}\0{len(data)}\0".encode("utf-8"))
             digest.update(data)
+    # contracts.py also owns live-run gates. Bind only the symbols that the
+    # offline resolver executes so later harness pinning cannot stale a sweep.
+    contract_payload = "\n".join((
+        f"TASK_SCHEMA={TASK_SCHEMA!r}",
+        f"STRATEGY_SCHEMA={STRATEGY_SCHEMA!r}",
+        inspect.getsource(canonical_json),
+        inspect.getsource(fingerprint),
+        inspect.getsource(require_schema),
+    )).encode("utf-8")
+    digest.update(f"experiment/contracts-resolver\0{len(contract_payload)}\0".encode("utf-8"))
+    digest.update(contract_payload)
     return "sha256:" + digest.hexdigest()
 
 

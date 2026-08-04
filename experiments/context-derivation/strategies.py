@@ -451,8 +451,8 @@ def _lineage_closure(
 def _related_closure(
     roots: set[str], corpus: ExperimentCorpus, depth: int
 ) -> tuple[set[str], list[dict[str, str]]]:
-    entries = {ref.rsplit(":", 1)[0] for ref in roots}
-    seen, frontier, edges = set(entries), set(entries), []
+    root_entries = {ref.rsplit(":", 1)[0] for ref in roots}
+    seen, frontier, related_entries, edges = set(root_entries), set(root_entries), set(), []
     for _ in range(depth):
         upcoming: set[str] = set()
         for entry_id in sorted(frontier):
@@ -463,14 +463,23 @@ def _related_closure(
                 edges.append({"source": entry_id, "target": target, "type": "related"})
                 if target not in seen:
                     seen.add(target)
+                    related_entries.add(target)
                     upcoming.add(target)
             for source in sorted(set(node.inbound)):
                 edges.append({"source": source, "target": entry_id, "type": "related"})
                 if source not in seen:
                     seen.add(source)
+                    related_entries.add(source)
                     upcoming.add(source)
         frontier = upcoming
-    refs = {ref for ref in corpus.decisions if ref.rsplit(":", 1)[0] in seen}
+    # Roots are already decision-scoped. Expanding them back to entry scope
+    # would pull sibling decisions (and their ADR memberships) into context
+    # even at depth zero. Only decisions in newly traversed related entries
+    # belong to the supporting-context expansion.
+    refs = {
+        ref for ref in corpus.decisions
+        if ref.rsplit(":", 1)[0] in related_entries
+    }
     return refs, _dedupe_dicts(edges)
 
 

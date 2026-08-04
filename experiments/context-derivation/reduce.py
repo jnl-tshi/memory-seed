@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -16,6 +17,10 @@ from sweep import SHARD_SCHEMA
 REDUCTION_SCHEMA = "context-reduction.v1"
 CANDIDATE_SCHEMA = "context-candidate-manifest.v1"
 HERE = Path(__file__).resolve().parent
+
+
+def _read_shard(path: Path) -> tuple[Path, dict[str, Any]]:
+    return path, json.loads(path.read_text(encoding="utf-8"))
 
 
 def reduction_payload_fingerprint(value: Mapping[str, Any]) -> str:
@@ -50,10 +55,15 @@ def _gate(result: Mapping[str, Any], gold: Mapping[str, Any]) -> list[str]:
     failures: list[str] = []
     selected_adrs = result.get("selected_adrs", [])
     adr_ids = {str(item.get("adr_id")) for item in selected_adrs}
+    required_adr_ids = set(map(str, gold.get("required_adr_ids", [])))
+    authority_scope = [
+        item for item in selected_adrs
+        if not required_adr_ids or str(item.get("adr_id")) in required_adr_ids
+    ]
     refs = set(map(str, result.get("selected_refs", [])))
     authoritative_heads = {
         str(item["authoritative_ref"])
-        for item in selected_adrs
+        for item in authority_scope
         if item.get("authoritative_ref")
     }
     expected_heads = set(map(str, gold.get("authoritative_refs", [])))
@@ -61,7 +71,7 @@ def _gate(result: Mapping[str, Any], gold: Mapping[str, Any]) -> list[str]:
     related = {_edge_key(edge) for edge in result.get("related_edges", [])}
     required_edges = {_edge_key(edge) for edge in gold.get("required_lineage_edges", [])}
     required_related = {_edge_key(edge) for edge in gold.get("required_related_edges", [])}
-    missing_adrs = set(map(str, gold.get("required_adr_ids", []))) - adr_ids
+    missing_adrs = required_adr_ids - adr_ids
     missing_refs = expected_heads - refs
     if missing_adrs:
         failures.append("missing-required-adr:" + ",".join(sorted(missing_adrs)))
@@ -116,6 +126,7 @@ def reduce_shards(
     *,
     expected_strategy_fingerprints: Iterable[str],
     candidate_path: str | Path | None = None,
+    allow_empty_candidate_report: bool = False,
 ) -> dict[str, Any]:
     """Validate completeness, apply gates, Pareto-reduce, and optionally freeze."""
     if gold.get("schema") != "context-gold.v1":
@@ -124,44 +135,46 @@ def reduce_shards(
     if not gold_rows or len(gold_rows) != len(gold.get("tasks", [])):
         raise ValueError("gold tasks must be a non-empty list with unique task_id values")
     shard_by_cell: dict[tuple[str, str], dict[str, Any]] = {}
-    for path in sorted(Path(shard_dir).glob("*.json")):
-        value = json.loads(path.read_text(encoding="utf-8"))
-        if value.get("schema") != SHARD_SCHEMA:
-            raise ValueError(f"invalid shard schema: {path}")
-        for field in ("task_fingerprint", "runtime_fingerprint", "resolver_fingerprint"):
-            if not isinstance(value.get(field), str) or not value[field]:
-                raise ValueError(f"missing {field} in shard: {path}")
-        try:
-            normalized = normalize_strategy(value.get("strategy") or {})
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"invalid strategy in shard: {path}: {exc}") from exc
-        computed_strategy_fingerprint = strategy_fingerprint(normalized)
-        if value.get("strategy_fingerprint") != computed_strategy_fingerprint:
-            raise ValueError(f"tampered strategy fingerprint in shard: {path}")
-        result = value.get("result")
-        if not isinstance(result, Mapping):
-            raise ValueError(f"missing result in shard: {path}")
-        stable_result = {
-            key: item for key, item in result.items()
-            if key not in {"elapsed_ms", "fingerprint"}
-        }
-        if result.get("fingerprint") != fingerprint(stable_result):
-            raise ValueError(f"tampered result fingerprint in shard: {path}")
-        if (
-            result.get("task_id") != value.get("task_id")
-            or result.get("strategy_fingerprint") != computed_strategy_fingerprint
-            or normalize_strategy(result.get("strategy") or {}) != normalized
-        ):
-            raise ValueError(f"result/shard identity mismatch: {path}")
-        if not value.get("deterministic"):
-            value.setdefault("gate_failures", []).append("nondeterministic")
-        cell = (str(value.get("task_id")), str(value.get("strategy_fingerprint")))
-        previous = shard_by_cell.get(cell)
-        if previous is not None:
-            if canonical_json(previous) != canonical_json(value):
-                raise ValueError(f"conflicting duplicate shard: {cell}")
-            continue
-        shard_by_cell[cell] = value
+    paths = sorted(Path(shard_dir).glob("*.json"))
+    with ThreadPoolExecutor(max_workers=min(8, max(1, len(paths)))) as executor:
+        loaded = executor.map(_read_shard, paths)
+        for path, value in loaded:
+            if value.get("schema") != SHARD_SCHEMA:
+                raise ValueError(f"invalid shard schema: {path}")
+            for field in ("task_fingerprint", "runtime_fingerprint", "resolver_fingerprint"):
+                if not isinstance(value.get(field), str) or not value[field]:
+                    raise ValueError(f"missing {field} in shard: {path}")
+            try:
+                normalized = normalize_strategy(value.get("strategy") or {})
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"invalid strategy in shard: {path}: {exc}") from exc
+            computed_strategy_fingerprint = strategy_fingerprint(normalized)
+            if value.get("strategy_fingerprint") != computed_strategy_fingerprint:
+                raise ValueError(f"tampered strategy fingerprint in shard: {path}")
+            result = value.get("result")
+            if not isinstance(result, Mapping):
+                raise ValueError(f"missing result in shard: {path}")
+            stable_result = {
+                key: item for key, item in result.items()
+                if key not in {"elapsed_ms", "fingerprint"}
+            }
+            if result.get("fingerprint") != fingerprint(stable_result):
+                raise ValueError(f"tampered result fingerprint in shard: {path}")
+            if (
+                result.get("task_id") != value.get("task_id")
+                or result.get("strategy_fingerprint") != computed_strategy_fingerprint
+                or normalize_strategy(result.get("strategy") or {}) != normalized
+            ):
+                raise ValueError(f"result/shard identity mismatch: {path}")
+            if not value.get("deterministic"):
+                value.setdefault("gate_failures", []).append("nondeterministic")
+            cell = (str(value.get("task_id")), str(value.get("strategy_fingerprint")))
+            previous = shard_by_cell.get(cell)
+            if previous is not None:
+                if canonical_json(previous) != canonical_json(value):
+                    raise ValueError(f"conflicting duplicate shard: {cell}")
+                continue
+            shard_by_cell[cell] = value
     shards = list(shard_by_cell.values())
     if not shards:
         raise ValueError("no sweep shards found")
@@ -174,11 +187,16 @@ def reduce_shards(
     extras = sorted(actual - expected)
     if missing or extras:
         raise ValueError(f"incomplete shards: missing={missing}, extras={extras}")
+    shards_by_task: dict[str, list[dict[str, Any]]] = {}
+    shards_by_strategy: dict[str, list[dict[str, Any]]] = {}
+    for item in shards:
+        shards_by_task.setdefault(str(item["task_id"]), []).append(item)
+        shards_by_strategy.setdefault(str(item["strategy_fingerprint"]), []).append(item)
 
     task_fingerprints: dict[str, str] = {}
     runtime_fingerprints: dict[str, str] = {}
     for task_id in gold_rows:
-        task_cells = [item for item in shards if str(item["task_id"]) == task_id]
+        task_cells = shards_by_task[task_id]
         task_values = {str(item["task_fingerprint"]) for item in task_cells}
         runtime_values = {str(item["runtime_fingerprint"]) for item in task_cells}
         if len(task_values) != 1 or len(runtime_values) != 1:
@@ -196,7 +214,7 @@ def reduce_shards(
 
     summaries: list[dict[str, Any]] = []
     for sfp in sorted(strategy_fps):
-        cells = [item for item in shards if item["strategy_fingerprint"] == sfp]
+        cells = shards_by_strategy[sfp]
         failures: list[dict[str, Any]] = []
         total_tokens = irrelevant_tokens = 0
         timings: list[float] = []
@@ -254,6 +272,8 @@ def reduce_shards(
     reduction["fingerprint"] = reduction_payload_fingerprint(reduction)
     if candidate_path is not None:
         if selected is None:
+            if allow_empty_candidate_report:
+                return reduction
             raise ValueError("no eligible strategy to freeze")
         manifest = {
             "schema": CANDIDATE_SCHEMA,
@@ -298,12 +318,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.shards, load_json(args.gold),
         expected_strategy_fingerprints=expected,
         candidate_path=args.freeze_candidate,
+        allow_empty_candidate_report=True,
     )
     rendered = canonical_json(result) + "\n"
     if args.output:
         Path(args.output).write_text(rendered, encoding="utf-8", newline="\n")
     else:
         print(rendered, end="")
+    if args.freeze_candidate and not result.get("candidate_manifest"):
+        raise ValueError("no eligible strategy to freeze; reduction report was written")
     return 0
 
 

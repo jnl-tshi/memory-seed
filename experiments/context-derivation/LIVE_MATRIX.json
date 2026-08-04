@@ -1,6 +1,6 @@
 {
   "schema": "context-live-matrix.v1",
-  "status": "DRAFT-PENDING-OFFLINE-SELECTION",
+  "status": "FROZEN",
   "task_count": 12,
   "arms": [
     "search-mcp",
@@ -14,17 +14,25 @@
   "schedule_seed": 20260804,
   "max_agent_concurrency": 3,
   "max_total_concurrency": 6,
-  "candidate_fingerprint": null,
-  "retrieval_v1_fingerprint": null,
-  "live_tasks_fingerprint": null,
+  "candidate_fingerprint": "sha256:e499dd73eec9ce201aee44fb916a0a9c8356586e02ea926d0134b1533960a9a2",
+  "retrieval_v1_fingerprint": "sha256:a7084ddf4758ddb7876719e7688ad7018c5f530b5da193a8b1f729966e42c2db",
+  "live_tasks_fingerprint": "sha256:0c214e287015234febe0973aee26f55decf14e3651fdfad212c71dc85b9fdfa4",
+  "offline_selection_fingerprint": "sha256:638b01a9eddb6923b0792eb6512931500d539cfac4b4c1ab57ff58942abb8f03",
+  "probe_pins_fingerprint": "sha256:219b5530ea3ab1229ca5b940c916a630b1ad7be7266992716aba82937dda5be6",
+  "probe_fingerprints": {
+    "claude": "sha256:dffe1dd845909eb7260d3bcfa1da87fdbf48b2c36d894301bd7c2b0ccd9566d4",
+    "codex": "sha256:0692a42e75b1803f8aa082ca1c03c9c927c16c7b4aae6c04483a9777ef98026e"
+  },
   "pins": {
     "claude": {
-      "model": "PENDING_UNSCORED_PROBE",
-      "cli_version": "2.1.221"
+      "model": "claude-sonnet-5",
+      "cli_version": "2.1.221",
+      "effort": null
     },
     "codex": {
-      "model": "PENDING_UNSCORED_PROBE",
-      "cli_version": "codex-cli 0.146.0"
+      "model": "gpt-5.6-luna",
+      "cli_version": "codex-cli 0.146.0",
+      "effort": "medium"
     }
   }
 }

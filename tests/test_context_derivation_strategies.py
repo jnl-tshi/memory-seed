@@ -207,6 +207,50 @@ class ContextDerivationStrategyTests(unittest.TestCase):
         self.assertEqual(len(limited["evidence"]), 1)
         self.assertTrue(limited["omissions"])
 
+    def test_related_traversal_does_not_promote_sibling_decisions_from_root_entry(self):
+        session = self.root / ".memory-seed" / "sessions" / "2026-08" / "2026-08-01.md"
+        session.write_text(
+            session.read_text(encoding="utf-8")
+            + "\n## 2026-08-01 19:00 - Shared implementation entry\n\n"
+            + "```yaml\nentry_id: mse_shared\nuser_initials: JNL\nagent_type: codex\n"
+            + "project_path: .\nsubproject_path: null\ntopics:\n  - architecture\n```\n\n"
+            + "### Decisions\n\n#### D1 - Gamma concern\n\n- D: Use gamma.\n- R: Gamma rationale.\n\n"
+            + "#### D2 - Delta concern\n\n- D: Use delta.\n- R: Delta rationale.\n",
+            encoding="utf-8",
+        )
+        decisions = self.root / ".memory-seed" / "decisions"
+        gamma = AdrRecord(
+            1, "adr_gamma", "Gamma concern", (), "2026-08-01T19:00:00Z",
+            "JNL", "codex", "write-time",
+            [
+                _event("revision-proposed", "adre_gam000000000000001", "mse_shared:d1"),
+                _event("revision-accepted", "adre_gam000000000000002", "mse_shared:d1"),
+            ],
+            decisions / "adr_gamma.md",
+        )
+        delta = AdrRecord(
+            1, "adr_delta", "Delta concern", (), "2026-08-01T19:00:00Z",
+            "JNL", "codex", "write-time",
+            [
+                _event("revision-proposed", "adre_del000000000000001", "mse_shared:d2"),
+                _event("revision-accepted", "adre_del000000000000002", "mse_shared:d2"),
+            ],
+            decisions / "adr_delta.md",
+        )
+        for record in (gamma, delta):
+            record.path.write_text(render_adr(record), encoding="utf-8")
+        load_corpus(self.root, refresh=True)
+
+        task = self._task(adrs=("adr_gamma",))
+        for depth in (0, 1):
+            result = resolve_strategy(
+                task, self._strategy(lineage_depth=0, related_depth=depth), self.root,
+            )
+            self.assertEqual(
+                ["adr_gamma"], [item["adr_id"] for item in result["selected_adrs"]],
+            )
+            self.assertEqual(["mse_shared:d1"], result["selected_refs"])
+
     def test_missing_evidence_and_materialization(self):
         strategy = {"schema": STRATEGY_SCHEMA, "strategy_id": "oracle", "family": "oracle", "parameters": {}}
         result = resolve_strategy(self._task(adrs=(), refs=("mse_missing:d1",)), strategy, self.root)
@@ -521,6 +565,29 @@ class ReducerTests(unittest.TestCase):
             "insufficient_evidence": False, "allowed_citations": [],
         }
         self.assertIn("wrong-authoritative-head", _gate(result, gold))
+
+    def test_extra_adr_context_does_not_change_required_authority_accuracy(self):
+        result = {
+            "selected_adrs": [
+                {
+                    "adr_id": "adr_alpha", "status": "accepted",
+                    "authoritative_ref": "mse_head:d1",
+                },
+                {
+                    "adr_id": "adr_distractor", "status": "accepted",
+                    "authoritative_ref": "mse_other:d1",
+                },
+            ],
+            "selected_refs": ["mse_head:d1", "mse_other:d1"],
+            "lineage_edges": [], "related_edges": [], "evidence": [],
+            "absence": [], "insufficient_evidence": False,
+        }
+        gold = {
+            "required_adr_ids": ["adr_alpha"],
+            "authoritative_refs": ["mse_head:d1"],
+            "expected_statuses": {"adr_alpha": "accepted"},
+        }
+        self.assertNotIn("wrong-authoritative-head", _gate(result, gold))
 
     def test_hard_gates_pareto_and_deterministic_tiebreak(self):
         with tempfile.TemporaryDirectory() as temp:

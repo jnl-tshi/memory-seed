@@ -1,0 +1,30 @@
+{
+  "schema": "context-offline-selection.v1",
+  "task_count": 12,
+  "strategy_count": 7060,
+  "shard_count": 84720,
+  "eligible_non_oracle": 3890,
+  "eligible_by_family": {
+    "adr-hybrid": 2917,
+    "adr-structural": 973
+  },
+  "resolver_fingerprint": "sha256:641a2ba4c2f7c38e7141af684b2b23ab1e6863e66c7cb3ccaaca1e5399c28fc6",
+  "reduction_fingerprint": "sha256:fc91cea8d5e1b05d802d4439f24beeec0eacb69b84f7de2127584fe952924fcb",
+  "selected_strategy_fingerprint": "sha256:e499dd73eec9ce201aee44fb916a0a9c8356586e02ea926d0134b1533960a9a2",
+  "pareto_frontier": [
+    "sha256:e499dd73eec9ce201aee44fb916a0a9c8356586e02ea926d0134b1533960a9a2",
+    "sha256:a9a794d1af7d00273ee3b5f638f781b9f2f1373f023f841e97228db57692bf64"
+  ],
+  "selected_metrics": {
+    "irrelevant_token_proxy": 46,
+    "total_token_proxy": 232,
+    "p95_latency_ms": 2.3551
+  },
+  "selection_rule": [
+    "irrelevant_token_proxy",
+    "total_token_proxy",
+    "p95_latency_ms",
+    "strategy_fingerprint"
+  ],
+  "fingerprint": "sha256:638b01a9eddb6923b0792eb6512931500d539cfac4b4c1ab57ff58942abb8f03"
+}

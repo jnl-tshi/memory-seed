@@ -134,15 +134,24 @@ def assemble_live_tasks(
         or set(map(str, (reduction.get("runtime_fingerprints") or {}).keys())) != task_ids
     ):
         raise ValueError("reduction task provenance does not match current tasks")
-    by_cell: dict[tuple[str, str], Mapping[str, Any]] = {}
-    for path in sorted(Path(shard_dir).glob("*.json")):
+    shard_root = Path(shard_dir)
+
+    def selected_shard(task_id: str, strategy_fp: str) -> Mapping[str, Any] | None:
+        if not strategy_fp.startswith("sha256:"):
+            raise ValueError(f"invalid selected strategy fingerprint: {strategy_fp!r}")
+        path = shard_root / f"{task_id}--{strategy_fp.split(':', 1)[1]}.json"
+        if not path.is_file():
+            return None
         shard = load_json(path)
         if shard.get("schema") != SHARD_SCHEMA:
             raise ValueError(f"invalid materialization shard schema: {path}")
-        key = (str(shard.get("task_id")), str(shard.get("strategy_fingerprint")))
-        if key in by_cell:
-            raise ValueError(f"duplicate shard cell: {key}")
-        by_cell[key] = shard
+        if (
+            str(shard.get("task_id")) != task_id
+            or str(shard.get("strategy_fingerprint")) != strategy_fp
+        ):
+            raise ValueError(f"materialization shard identity mismatch: {path}")
+        return shard
+
     output = []
     current_resolver_fingerprint = resolver_implementation_fingerprint()
     for task in tasks:
@@ -150,8 +159,8 @@ def assemble_live_tasks(
         current_runtime_fingerprint = runtime_fingerprint(
             task_runtime(task, fixture_base), task
         )
-        retrieval = by_cell.get((task_id, retrieval_strategy_fingerprint))
-        candidate = by_cell.get((task_id, candidate_fingerprint))
+        retrieval = selected_shard(task_id, retrieval_strategy_fingerprint)
+        candidate = selected_shard(task_id, candidate_fingerprint)
         if not retrieval or not candidate:
             raise ValueError(f"missing materialization shard for {task_id}")
         for label, shard in (("retrieval", retrieval), ("candidate", candidate)):
