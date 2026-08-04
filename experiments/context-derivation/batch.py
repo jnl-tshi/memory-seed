@@ -1,0 +1,120 @@
+"""Deterministically schedule the frozen 288-cell context experiment."""
+from __future__ import annotations
+
+import argparse
+import concurrent.futures
+import json
+import random
+import subprocess
+import sys
+import time
+from collections import Counter
+from pathlib import Path
+from typing import Any, Iterable
+
+HERE = Path(__file__).resolve().parent
+RUNS = HERE / "runs"
+TASKS = HERE / "tasks" / "tasks.json"
+sys.path.insert(0, str(HERE))
+from contracts import AGENTS, ARMS, MAX_AGENT_CONCURRENCY, MAX_TOTAL_CONCURRENCY, REPETITIONS, SCHEDULE_SEED, TASK_COUNT  # noqa: E402
+
+
+def task_ids(path: Path = TASKS) -> list[str]:
+    if path.exists():
+        data = json.loads(path.read_text(encoding="utf-8")); items = data.get("tasks", data)
+        return [x.get("task_id", x.get("id")) for x in items]
+    return [f"CTX-{i:02d}" for i in range(1, TASK_COUNT + 1)]
+
+
+def build_schedule(tasks: Iterable[str] | None = None, *, seed: int = SCHEDULE_SEED) -> list[dict[str, Any]]:
+    """Rep-major shuffled schedule.  Every frozen cell occurs exactly once."""
+    ids = list(tasks or task_ids())
+    if len(ids) != TASK_COUNT: raise ValueError(f"frozen matrix requires {TASK_COUNT} tasks, got {len(ids)}")
+    cells: list[dict[str, Any]] = []
+    for repetition in range(1, REPETITIONS + 1):
+        chunk = [{"task_id": task_id, "arm": arm, "agent": agent, "repetition": repetition}
+                 for task_id in ids for arm in ARMS for agent in AGENTS]
+        random.Random(seed + repetition).shuffle(chunk)
+        cells.extend(chunk)
+    return cells
+
+
+def completed_cells(runs: Path = RUNS) -> Counter[tuple[str, str, str]]:
+    result: Counter[tuple[str, str, str]] = Counter()
+    if not runs.exists(): return result
+    for path in runs.glob("*/RUN_MANIFEST.json"):
+        try: value = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError: continue
+        # A top-up replaces only recorded harness/provider/timeout failures.  A substantive
+        # non-zero response remains a completed observation.
+        if value.get("failure_classification") in {"timeout", "provider_throttled", "provider_outage", "harness_error"}: continue
+        key = (value.get("task_id"), value.get("arm"), value.get("agent"))
+        result[key] += 1
+    return result
+
+
+def top_up(schedule: list[dict[str, Any]], counts: Counter[tuple[str, str, str]]) -> list[dict[str, Any]]:
+    remaining = Counter(counts); output = []
+    for cell in schedule:
+        key = (cell["task_id"], cell["arm"], cell["agent"])
+        if remaining[key]: remaining[key] -= 1
+        else: output.append(cell)
+    return output
+
+
+def _parse_result(done: subprocess.CompletedProcess[str], cell: dict[str, Any]) -> dict[str, Any]:
+    result = dict(cell); result["returncode"] = done.returncode
+    for line in reversed(done.stdout.splitlines()):
+        try:
+            payload = json.loads(line)
+            if isinstance(payload, dict): result.update(payload); break
+        except json.JSONDecodeError: pass
+    result["stdout_tail"] = done.stdout[-500:]; result["stderr_tail"] = done.stderr[-500:]
+    return result
+
+
+def run_cell(cell: dict[str, Any], *, model_by_agent: dict[str, str], cli_versions: dict[str, str], timeout: int) -> dict[str, Any]:
+    command = [sys.executable, str(HERE / "run.py"), "--task", cell["task_id"], "--arm", cell["arm"], "--agent", cell["agent"], "--repetition", str(cell["repetition"]), "--model", model_by_agent[cell["agent"]], "--cli-version", cli_versions[cell["agent"]], "--timeout", str(timeout)]
+    done = subprocess.run(command, cwd=HERE.parents[1], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    return _parse_result(done, cell)
+
+
+def _run_queue(cells: list[dict[str, Any]], *, agent: str, jobs: int, model_by_agent: dict[str, str], cli_versions: dict[str, str], timeout: int, backoff: float, runner=run_cell) -> list[dict[str, Any]]:
+    """Agent-local queue. Throttling retries the same cell after a local backoff."""
+    results: list[dict[str, Any]] = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
+        pending = [pool.submit(runner, cell, model_by_agent=model_by_agent, cli_versions=cli_versions, timeout=timeout) for cell in cells]
+        for future in concurrent.futures.as_completed(pending):
+            result = future.result(); result["agent"] = agent
+            if result.get("failure_classification") == "provider_throttled":
+                time.sleep(backoff)
+                retry = runner({k: v for k, v in result.items() if k in {"task_id", "arm", "agent", "repetition"}}, model_by_agent=model_by_agent, cli_versions=cli_versions, timeout=timeout)
+                retry["throttle_retry"] = True; result = retry
+            results.append(result)
+    return results
+
+
+def run_parallel(schedule: list[dict[str, Any]], *, jobs_per_agent: int = MAX_AGENT_CONCURRENCY, model_by_agent: dict[str, str], cli_versions: dict[str, str], timeout: int = 900, throttle_backoff: float = 30.0, runner=run_cell) -> list[dict[str, Any]]:
+    if jobs_per_agent > MAX_AGENT_CONCURRENCY: raise ValueError("per-agent concurrency exceeds frozen limit")
+    if jobs_per_agent * len(AGENTS) > MAX_TOTAL_CONCURRENCY: raise ValueError("total concurrency exceeds frozen limit")
+    groups = {agent: [c for c in schedule if c["agent"] == agent] for agent in AGENTS}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(AGENTS)) as pools:
+        futures = [pools.submit(_run_queue, groups[a], agent=a, jobs=jobs_per_agent, model_by_agent=model_by_agent, cli_versions=cli_versions, timeout=timeout, backoff=throttle_backoff, runner=runner) for a in AGENTS]
+        return [row for future in futures for row in future.result()]
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(); parser.add_argument("--claude-model", required=True); parser.add_argument("--codex-model", required=True)
+    parser.add_argument("--claude-cli-version", required=True); parser.add_argument("--codex-cli-version", required=True)
+    parser.add_argument("--jobs-per-agent", type=int, default=MAX_AGENT_CONCURRENCY); parser.add_argument("--timeout", type=int, default=900); parser.add_argument("--top-up", action="store_true"); parser.add_argument("--dry-run", action="store_true"); parser.add_argument("--throttle-backoff", type=float, default=30.0)
+    args = parser.parse_args(argv); schedule = build_schedule()
+    if args.top_up: schedule = top_up(schedule, completed_cells())
+    if args.dry_run:
+        print(json.dumps(schedule, indent=2)); return 0
+    RUNS.mkdir(exist_ok=True)
+    results = run_parallel(schedule, jobs_per_agent=args.jobs_per_agent, model_by_agent={"claude": args.claude_model, "codex": args.codex_model}, cli_versions={"claude": args.claude_cli_version, "codex": args.codex_cli_version}, timeout=args.timeout, throttle_backoff=args.throttle_backoff)
+    (RUNS / "batch-results.json").write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
+    return 0
+
+
+if __name__ == "__main__": raise SystemExit(main())
