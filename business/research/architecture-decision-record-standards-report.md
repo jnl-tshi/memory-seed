@@ -327,6 +327,32 @@ facts; rendering them into any of these templates is a projection problem, not a
 
 ---
 
+> **Amendment, 2026-08-04 — the field says the trigger matters more than the format (E7).** A
+> 45K-view thread asking practitioners what actually made them stop writing ADRs produced a
+> challenge this report did not consider: three responders independently argued that decisions
+> belong in **executable checks**, not records. The sharpest version — half of one practitioner's
+> ADRs were read once at write time, and the half that got read again were read *because a test
+> failed and pointed back at them*. Another: the only thing that kept a team honest was making the
+> build go red, explicitly because an agent will not follow a requirement it never loaded.
+>
+> **This report optimised the wrong variable.** Sections 3–6 refine what a record contains and how
+> it is named, versioned and superseded. Nobody in the field reported the format as their reason for
+> quitting. They reported that nothing ever surfaced the record again. A validated schema constrains
+> what gets *written*; it does nothing about what gets *read*.
+>
+> **The gap in the counter-position** is that a test encodes what is forbidden, never why, and
+> cannot carry a rejected alternative — which is the exact failure the r/ClaudeAI thread describes
+> (an agent re-proposing an approach abandoned in June). The synthesis nobody in the field stated:
+> **tests are an excellent trigger and a poor record.** The product implication is to surface the
+> relevant decision when an execution artefact fails or is touched, using the file references and
+> typed edges the schema already carries — not to refine the schema further.
+>
+> **One new failure mode to design against**, also unreported until now: a practitioner found an ADR
+> made the agent refuse a *new* product decision, because it did not understand the existing record.
+> A validated, agent-loaded, enforced store makes a stale record harder to override, not easier.
+> Retrieval must surface current status prominently, and agents must treat records as evidence
+> rather than instruction. Worth an explicit test.
+
 ## 7. Automation — the state of validation
 
 | Tool | What it does | Status |
