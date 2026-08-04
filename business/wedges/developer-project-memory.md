@@ -179,9 +179,15 @@ Before broadening the wedge, collect evidence from at least:
   0.77 to 0.91 is the open commercial question — direction consistent, significance not reached.
 - Does the one-line result hold outside this stub project, these three tasks, and this model family?
   This is now the load-bearing generalisation question, and it is the cheapest remaining test.
-- Is the L1→L3 climb real? Unlike the threshold verdict, this one *is* resolvable by more data — it
-  is a trend, not a knife-edge against a fixed line. Worth pricing before it is worth running: it
-  decides whether the hooks and rules contract are load-bearing for capture, or merely for form.
+- Do hooks earn their place under context pressure? The aggregate L1→L3 climb is flat, but a
+  post-hoc split at median session length shows the L3−L1 gap running −0.20 in short sessions and
+  **+0.34 in long ones** — L1 capture falling 1.00 → 0.62 as sessions lengthen while L3 holds at
+  0.96. That split conditions on a post-treatment variable (scaffolding itself lengthens sessions,
+  L0 16.6 → L3 28.1 mean turns) so it is **not** quotable, but it agrees with the maintainer's build
+  experience and has a plausible mechanism: the fixtures' 12–27 turn tasks gave a `Stop` or
+  `SessionStart` hook nothing to do. **Deferred, not scheduled** — design recorded as Test 4 in the
+  roadmap report. Until it runs, argue the control plane on structure, retrieval and governance,
+  not on capture.
 - Is the beachhead solo developers, technical founders, or an engineering-platform team?
 - Is the decisive paid feature hosted retrieval, team governance, Memory Trace, or handover reporting?
 - How much deliberate authoring can users tolerate before passive assistance becomes necessary?

@@ -393,6 +393,23 @@ Report 2 ordering.
 
 ---
 
+> **Amendment, 2026-08-04 — the capture claim is now measured (E5/E6).** 120 controlled sessions,
+> blind cross-model judged. Two corrections to how this report's positioning should be stated.
+>
+> **(a) Do not say "install it and agents document themselves."** With the MCP write path present
+> and no routing instruction, capture is 5%. The honest and still-strong claim is **"one line, then
+> it's automatic"**: setup cost is a single `AGENTS.md` line, ongoing human cost is zero. This
+> answers the standing objection in the competitive section — that enforcement is not the same as
+> cheapness — better than a stronger claim would. The critic is right that the tool alone does
+> nothing, and wrong that the price is a whole control plane.
+>
+> **(b) Differentiate on faithfulness, not capture volume.** Of 121 recorded decisions, zero were
+> judged post-hoc reconstructions, and noise was ~0 across 120 sessions. Against passive-capture
+> competitors, "we capture more" is unevidenced and probably unwinnable; **"what we capture is the
+> reasoning that actually drove the decision, validated, with rationale enforced at write time"** is
+> now evidenced and is the sharper wedge. Note the bound: the judge used *unclear* rather than
+> *unfaithful* throughout, so read it as "no detected fabrication", not "fabrication is impossible".
+
 ## 6. Recommended positioning
 
 The existing wedge from the commercialisation report is *"Git-native institutional memory for software

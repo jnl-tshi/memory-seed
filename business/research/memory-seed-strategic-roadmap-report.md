@@ -57,6 +57,32 @@ disconfirmations come first, precisely because of that.
 
 ---
 
+> **Amendment, 2026-08-04 — the capture experiment has run (E5/E6).** 120 controlled headless
+> sessions across four scaffolding levels, blind cross-model judged. Three revisions.
+>
+> **(a) The MCP server is not the product; the routing line is.** With the write path installed and
+> nothing else said, agents record 5% of their decisions. One line in `AGENTS.md` naming the store
+> takes that to 77%. This is the hardest number in the programme (ladder p ≈ 7e-14, replicated
+> across two independent 60-session matrices). **Install correctness therefore outranks feature
+> depth in §4 and §9**: any integration path that registers the MCP server without writing a routing
+> instruction ships a 5%-capture product. It also kills any "just add our MCP server" distribution
+> story — a marketplace one-click MCP install, absent a routing line, will underperform badly and
+> generate churn that reads as product failure.
+>
+> **(b) Recorded rationale is trustworthy, and that is the claim to sell.** Of 121 recorded
+> decisions, **zero** were judged post-hoc reconstructions (104 faithful, 17 unclear). Noise was
+> ~0 across 120 sessions. §7's benchmark list should lead with faithfulness and noise, which are now
+> evidenced, rather than capture volume, which is not differentiating.
+>
+> **(c) Hooks look load-bearing under context pressure, not in short sessions.** Pooled L1→L3 is
+> flat and non-significant, but that average hides an interaction: splitting at the median session
+> length, the L3-minus-L1 gap is −0.20 in short sessions and **+0.34 in long ones** — L1 capture
+> collapses from 1.00 to 0.62 as sessions lengthen while L3 holds at 0.96. This is a post-hoc split
+> on a post-treatment variable and is **not** quotable as a result, but it agrees with the
+> maintainer's independent build experience and has a plausible mechanism. It means the fixtures
+> (12–27 turn tasks) were blind to what hooks are for. **Do not claim hooks improve capture; do not
+> conclude they don't.** The properly-designed test is noted in §4 as deferred.
+
 ## 1. Executive summary
 
 **What the programme established.**
@@ -251,6 +277,26 @@ negative controls.
 
 **If the corpus arm does not beat the baseline arm on the corpus you maintain yourself, stop.** That is
 the cheapest possible disconfirmation and it costs four weeks.
+
+### Test 4 — Do hooks earn their place under context pressure? *(DEFERRED — noted, not scheduled)*
+
+**Status: deliberately not running.** Recorded here so it is not lost, and so nobody re-derives it.
+
+E5/E6 found the L1→L3 climb flat in aggregate but strongly length-dependent in a post-hoc split
+(L3−L1 = −0.20 in short sessions, +0.34 in long ones), which the maintainer's build experience
+independently corroborates. The existing fixtures cannot settle it: their tasks run 12–27 turns, and
+a `SessionStart` orientation or `Stop` session-log check has nothing to do in a session that short.
+
+**The design, when it is worth running:** long multi-decision tasks where session length is fixed
+*by design* rather than measured after the fact — otherwise the analysis conditions on a
+post-treatment variable, since scaffolding itself lengthens sessions (mean turns L0 16.6 → L3 28.1).
+Score capture of decisions made **early** in a long session specifically; that is the decision a
+`Stop` hook exists to rescue, and it is where the mechanism should show up if it is real.
+
+**Why it matters commercially:** it decides whether the hooks and rules contract are load-bearing
+for *capture*, or only for structure, retrieval, and governance. Until it runs, the control plane
+must be argued on the latter. Unlike the 0.80 threshold question, this one is genuinely resolvable
+by more data — it is a trend and an interaction, not a knife-edge against a fixed line.
 
 ### Then, and only then
 
