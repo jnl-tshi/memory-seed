@@ -75,6 +75,8 @@ def score_run(run: Mapping[str, Any], gold: Mapping[str, Any]) -> dict[str, Any]
     distractors = _as_set(gold.get("distractor_refs"))
     expected_absence = bool(gold.get("insufficient_evidence"))
     actual_absence = bool(answer.get("insufficient_evidence"))
+    expected_missing = _as_set(gold.get("required_missing_refs"))
+    actual_missing = _as_set(answer.get("missing_refs"))
 
     adr_recall = required_adrs <= actual_adrs
     head_correct = actual_heads == required_heads
@@ -90,6 +92,7 @@ def score_run(run: Mapping[str, Any], gold: Mapping[str, Any]) -> dict[str, Any]
     citation_resolves = citations <= included
     citation_allowed = not allowed_citations or citations <= allowed_citations
     absence_correct = actual_absence == expected_absence
+    missing_refs_correct = actual_missing == expected_missing
     distractor_clean = not (distractors & (actual_heads | citations | {part for edge in actual_edges for part in edge[:2]}))
     protocol_ok = not bool(run.get("protocol_failure"))
     harness_ok = not bool(run.get("harness_failure")) and not run.get("exclusion_reason")
@@ -106,6 +109,7 @@ def score_run(run: Mapping[str, Any], gold: Mapping[str, Any]) -> dict[str, Any]
             citation_resolves,
             citation_allowed,
             absence_correct,
+            missing_refs_correct,
             distractor_clean,
             protocol_ok,
             harness_ok,
@@ -128,6 +132,7 @@ def score_run(run: Mapping[str, Any], gold: Mapping[str, Any]) -> dict[str, Any]
         "citation_resolves": citation_resolves,
         "citation_allowed": citation_allowed,
         "absence_correct": absence_correct,
+        "missing_refs_correct": missing_refs_correct,
         "distractor_clean": distractor_clean,
         "protocol_ok": protocol_ok,
         "harness_ok": harness_ok,
@@ -158,6 +163,7 @@ def _aggregate(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
         "citation_present",
         "citation_resolves",
         "absence_correct",
+        "missing_refs_correct",
         "protocol_ok",
         "complete_correct",
     ):
@@ -253,7 +259,7 @@ def score_experiment(summary: Mapping[str, Any], gold_payload: Mapping[str, Any]
         baseline_tokens = baseline["context_tokens"]["median"]
         if baseline_tokens and (candidate_tokens is None or candidate_tokens > baseline_tokens * 0.5):
             gates["failures"].append(f"{agent}: candidate median context is not at least 50% smaller")
-        for metric in ("citation_present", "citation_resolves", "absence_correct", "lineage_exact", "related_exact", "relation_types_correct", "protocol_ok"):
+        for metric in ("citation_present", "citation_resolves", "absence_correct", "missing_refs_correct", "lineage_exact", "related_exact", "relation_types_correct", "protocol_ok"):
             if candidate["metrics"][metric]["successes"] != candidate["runs"]:
                 gates["failures"].append(f"{agent}: candidate failed {metric}")
     gates["passed"] = not gates["failures"]

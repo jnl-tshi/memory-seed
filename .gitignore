@@ -60,6 +60,7 @@ experiments/agent-capture/runs-*/
 
 # ADR context-derivation experiment: all generated fixtures and scored output.
 experiments/context-derivation/fixtures/
+experiments/context-derivation/generated/
 experiments/context-derivation/runs/
 experiments/context-derivation/shards/
 experiments/context-derivation/packs/

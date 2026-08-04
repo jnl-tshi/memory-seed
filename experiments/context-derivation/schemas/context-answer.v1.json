@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "context-answer.v1",
   "type": "object",
-  "required": ["schema", "adr_ids", "authoritative_refs", "adr_statuses", "lineage_edges", "related_edges", "citations", "explanation", "insufficient_evidence"],
+  "required": ["schema", "adr_ids", "authoritative_refs", "adr_statuses", "lineage_edges", "related_edges", "citations", "explanation", "insufficient_evidence", "missing_refs"],
   "properties": {
     "schema": {"const": "context-answer.v1"},
     "adr_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
@@ -39,7 +39,8 @@
     },
     "citations": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
     "explanation": {"type": "string"},
-    "insufficient_evidence": {"type": "boolean"}
+    "insufficient_evidence": {"type": "boolean"},
+    "missing_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
   },
   "additionalProperties": false
 }

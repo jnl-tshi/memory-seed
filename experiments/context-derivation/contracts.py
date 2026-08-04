@@ -57,6 +57,7 @@ def answer_template() -> dict[str, Any]:
         "citations": [],
         "explanation": "",
         "insufficient_evidence": False,
+        "missing_refs": [],
     }
 
 

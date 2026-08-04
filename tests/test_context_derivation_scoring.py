@@ -24,6 +24,7 @@ class ContextDerivationScoringTests(unittest.TestCase):
             "expected_status": "accepted",
             "insufficient_evidence": False,
             "allowed_citations": ["mse_new:d1", "mse_old:d1"],
+            "required_missing_refs": [],
         }
 
     def sample_run(self, **overrides):
@@ -43,6 +44,7 @@ class ContextDerivationScoringTests(unittest.TestCase):
                 "citations": ["mse_new:d1"],
                 "explanation": "The new decision evolves the old one.",
                 "insufficient_evidence": False,
+                "missing_refs": [],
             },
             "included_refs": ["mse_new:d1", "mse_old:d1"],
             "context_token_proxy": 1000,
@@ -90,6 +92,14 @@ class ContextDerivationScoringTests(unittest.TestCase):
         run["answer"] = dict(run["answer"], lineage_edges=[{"source": "mse_new:d1", "target": "mse_old:d1", "type": "related"}])
         result = score_run(run, self.gold())
         self.assertFalse(result["relation_types_correct"])
+
+    def test_missing_evidence_requires_exact_missing_refs(self):
+        gold = dict(self.gold(), insufficient_evidence=True, required_missing_refs=["mse_absent:d1"])
+        run = self.sample_run()
+        run["answer"] = dict(run["answer"], insufficient_evidence=True, missing_refs=[])
+        result = score_run(run, gold)
+        self.assertFalse(result["missing_refs_correct"])
+        self.assertFalse(result["complete_correct"])
 
     def test_wilson_is_bounded(self):
         low, high = wilson(9, 10)

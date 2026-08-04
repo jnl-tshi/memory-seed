@@ -47,7 +47,7 @@ class HarnessTests(unittest.TestCase):
             manifest = {"schema": "context-run-manifest.v1", "run_id": "r", "task_id": "CTX-01", "arm": "search-mcp", "agent": "codex", "repetition": 1, "schedule_seed": 20260804, "model": "m", "cli_version": "v", "started_at": "2026-08-04T10:00:00Z", "transcript": "transcript.jsonl", "final_answer": "final_answer.txt", "duration_ms": 2, "parent_isolated": True}
             (run / "RUN_MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
             (run / "transcript.jsonl").write_text(json.dumps({"type": "item.completed", "item": {"type": "mcp_tool_call", "tool": "memory_search"}}) + "\n", encoding="utf-8")
-            answer = {"schema": "context-answer.v1", "adr_ids": [], "authoritative_refs": [], "adr_statuses": {}, "lineage_edges": [], "related_edges": [], "citations": [], "explanation": "none", "insufficient_evidence": True}
+            answer = {"schema": "context-answer.v1", "adr_ids": [], "authoritative_refs": [], "adr_statuses": {}, "lineage_edges": [], "related_edges": [], "citations": [], "explanation": "none", "insufficient_evidence": True, "missing_refs": []}
             (run / "final_answer.txt").write_text(json.dumps(answer), encoding="utf-8")
             row = collect.collect(Path(temp))["runs"][0]
             self.assertEqual("memory_search", row["tool_calls"][0]); self.assertEqual(answer, row["answer"]); self.assertIsNone(row["harness_failure"])
