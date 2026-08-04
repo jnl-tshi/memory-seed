@@ -65,8 +65,13 @@ def _packet(task: dict[str, Any], arm: str) -> str:
 
 
 def subject_prompt(task: dict[str, Any], arm: str) -> str:
-    prompt = ("Return only one JSON object conforming to context-answer.v1. "
-              "Do not modify files.\n\nQuestion:\n" + task["question"] + "\n")
+    prompt = (
+        "Return only one JSON object. Do not modify files. Its required exact shape is "
+        '{"schema":"context-answer.v1","adr_ids":[string],"authoritative_refs":[string],'
+        '"lineage_edges":[{"source":string,"target":string,"type":"evolves"|"replaces"}],'
+        '"citations":[string],"explanation":string,"insufficient_evidence":boolean}. '
+        "No extra keys.\n\nQuestion:\n" + task["question"] + "\n"
+    )
     if arm in FIXED_ARMS:
         prompt += "\nEvidence packet (the only available corpus):\n" + _packet(task, arm)
     else:
@@ -174,8 +179,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--task", required=True); parser.add_argument("--arm", required=True, choices=ARMS)
     parser.add_argument("--agent", required=True, choices=("claude", "codex")); parser.add_argument("--repetition", type=int, required=True)
     parser.add_argument("--model", required=True); parser.add_argument("--cli-version", required=True)
-    parser.add_argument("--effort"); parser.add_argument("--timeout", type=int, default=900); parser.add_argument("--tasks")
+    parser.add_argument("--effort"); parser.add_argument("--timeout", type=int, default=900); parser.add_argument("--tasks"); parser.add_argument("--dry-run", action="store_true"); parser.add_argument("--owner-approved", action="store_true", help="required before paid/scored execution")
     args = parser.parse_args(argv)
+    if not args.dry_run and not args.owner_approved:
+        # Check before creating a run directory or copying a fixture, and crucially
+        # before either subject CLI can be invoked.
+        parser.error("--owner-approved is required for non-dry-run execution")
     task = load_task(args.task, _tasks_path(args.tasks)); fixture_source = task.get("fixture")
     run_id = f"{args.agent}-{args.task}-{args.arm}-r{args.repetition}-{uuid.uuid4().hex[:10]}"
     run_dir = RUNS / run_id; run_dir.mkdir(parents=True, exist_ok=False)
@@ -188,6 +197,10 @@ def main(argv: list[str] | None = None) -> int:
         fixture = run_dir / "fixture"
         _make_immutable(fixture)
     prompt = subject_prompt(task, args.arm); before = parent_fingerprint(); command = build_command(args.agent, run_dir, prompt, arm=args.arm, fixture=fixture, model=args.model, effort=args.effort)
+    if args.dry_run:
+        manifest = {"schema": RUN_SCHEMA, "run_id": run_id, "task_id": args.task, "arm": args.arm, "agent": args.agent, "repetition": args.repetition, "schedule_seed": SCHEDULE_SEED, "dry_run": True, "command": ["<prompt>" if part == prompt else part for part in command]}
+        (run_dir / "RUN_MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        print(json.dumps(manifest)); return 0
     started = time.monotonic(); stdout = stderr = ""; exit_code: int | None = None; timed_out = False
     try:
         done = subprocess.run(command, cwd=run_dir, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=args.timeout)

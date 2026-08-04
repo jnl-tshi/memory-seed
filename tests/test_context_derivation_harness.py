@@ -37,7 +37,7 @@ class HarnessTests(unittest.TestCase):
         tasks = [f"CTX-{i:02d}" for i in range(1, 13)]
         first, second = batch.build_schedule(tasks), batch.build_schedule(tasks)
         self.assertEqual(first, second); self.assertEqual(288, len(first))
-        counts = batch.Counter({("CTX-01", "search-mcp", "claude"): 2})
+        counts = batch.Counter({("CTX-01", "search-mcp", "claude", 1): 1, ("CTX-01", "search-mcp", "claude", 2): 1})
         left = batch.top_up(first, counts)
         self.assertEqual(286, len(left)); self.assertEqual(1, sum(c["task_id"] == "CTX-01" and c["arm"] == "search-mcp" and c["agent"] == "claude" for c in left))
 
@@ -62,10 +62,39 @@ class HarnessTests(unittest.TestCase):
             command = runner.build_command("claude", root, "prompt", arm="retrieval-v1-packet", fixture=None, model="m", effort=None)
             self.assertNotIn("--mcp-config", command)
             with patch.object(runner, "RUNS", runs), patch.object(runner, "REPO_ROOT", root), patch.object(runner.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stream, "")):
-                self.assertEqual(0, runner.main(["--task", "CTX-01", "--arm", "retrieval-v1-packet", "--agent", "claude", "--repetition", "1", "--model", "m", "--cli-version", "v", "--tasks", str(tasks)]))
+                self.assertEqual(0, runner.main(["--owner-approved", "--task", "CTX-01", "--arm", "retrieval-v1-packet", "--agent", "claude", "--repetition", "1", "--model", "m", "--cli-version", "v", "--tasks", str(tasks)]))
             manifest = json.loads(next(runs.glob("*/RUN_MANIFEST.json")).read_text(encoding="utf-8"))
             self.assertTrue(manifest["fixed_arm_no_fixture"]); self.assertFalse(manifest["mcp_enabled"]); self.assertEqual(3, manifest["input_tokens"])
             self.assertEqual("provider_throttled", runner.classify_failure(timed_out=False, exit_code=1, stderr="429 rate limit", transcript=""))
+            self.assertIn('"lineage_edges"', runner.subject_prompt(task, "retrieval-v1-packet"))
+
+    def test_throttling_reduces_only_that_agent_and_keeps_order(self):
+        cells = [{"task_id": f"CTX-{i:02d}", "arm": "search-mcp", "agent": "claude", "repetition": 1} for i in range(1, 5)]
+        calls = []
+        def fake(cell, **_kwargs):
+            calls.append(cell["task_id"])
+            return {**cell, "failure_classification": "provider_throttled" if cell["task_id"] == "CTX-01" and calls.count("CTX-01") == 1 else None}
+        with patch.object(batch.time, "sleep"):
+            result = batch._run_queue(cells, agent="claude", jobs=3, model_by_agent={}, cli_versions={}, timeout=1, backoff=0, runner=fake)
+        self.assertEqual([cell["task_id"] for cell in cells], [row["task_id"] for row in result])
+        self.assertEqual([3, 3, 3, 2], [row["queue_concurrency"] for row in result])
+        self.assertTrue(result[0]["throttle_retry"])
+
+    def test_owner_approval_gate_prevents_non_dry_run(self):
+        with self.assertRaises(SystemExit):
+            batch.main(["--claude-model", "c", "--codex-model", "x", "--claude-cli-version", "1", "--codex-cli-version", "1"])
+        with self.assertRaises(SystemExit):
+            runner.main(["--task", "CTX-01", "--arm", "search-mcp", "--agent", "claude", "--repetition", "1", "--model", "m", "--cli-version", "v"])
+
+    def test_parallel_results_retain_schedule_order(self):
+        schedule = [
+            {"task_id": "CTX-01", "arm": "search-mcp", "agent": "codex", "repetition": 1},
+            {"task_id": "CTX-02", "arm": "search-mcp", "agent": "claude", "repetition": 1},
+            {"task_id": "CTX-03", "arm": "search-mcp", "agent": "codex", "repetition": 1},
+        ]
+        def fake(cell, **_kwargs): return {**cell, "failure_classification": None}
+        result = batch.run_parallel(schedule, jobs_per_agent=1, model_by_agent={}, cli_versions={}, timeout=1, throttle_backoff=0, runner=fake)
+        self.assertEqual([batch.cell_key(cell) for cell in schedule], [batch.cell_key(row) for row in result])
 
 
 if __name__ == "__main__": unittest.main()
