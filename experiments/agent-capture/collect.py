@@ -336,7 +336,7 @@ def main() -> int:
                 **{k: analysis[k] for k in (
                     "run_id", "level", "task", "agent", "exit_code",
                     "entry_count", "decision_entry_count", "decision_count",
-                    "guard_called", "guard_blocked",
+                    "guard_called", "guard_blocked", "guard_signal_reliable",
                 )},
                 "expected_required_decisions": expected.get("required"),
                 "expected_optional_decisions": expected.get("optional"),
