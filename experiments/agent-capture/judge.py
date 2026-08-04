@@ -124,7 +124,14 @@ def log(message: str) -> None:
 
 
 def _codex(prompt: str, schema: dict, cwd: Path, label: str) -> dict | None:
-    """One structured Codex call. Read-only work, so no sandbox bypass is needed."""
+    """One structured Codex call. Read-only work, so no sandbox bypass is needed.
+
+    The prompt goes over STDIN (`codex exec -`), never argv. On Windows `codex` resolves to
+    `codex.CMD`, a batch shim, and a prompt containing double quotes or parentheses gets truncated
+    by cmd's parser - the judge then answers a fragment. That failed silently and at scale: 56 of
+    60 first-pass judgements came back empty with the model reporting "the request appears
+    incomplete", which would have been read as "the judge found no decisions".
+    """
     schema_path = cwd / f".judge-schema-{label}.json"
     schema_path.write_text(json.dumps(schema), encoding="utf-8")
     out_path = cwd / f".judge-out-{label}.txt"
@@ -145,10 +152,16 @@ def _codex(prompt: str, schema: dict, cwd: Path, label: str) -> dict | None:
         "read-only",
         "-c",
         'approval_policy="never"',
-        prompt,
+        "-",
     ]
     completed = subprocess.run(
-        command, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace"
+        command,
+        cwd=cwd,
+        input=prompt,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     if completed.returncode != 0 or not out_path.exists():
         return {"error": (completed.stderr or "")[-300:] or f"rc={completed.returncode}"}
@@ -166,6 +179,14 @@ def judge_run(run_dir: Path, seeded: dict) -> dict:
     stage1 = _codex(STAGE1_PROMPT.format(packet=packet.name), STAGE1_SCHEMA, run_dir, "s1")
     result = {"run_id": run_dir.name, "stage1": stage1}
     if not stage1 or stage1.get("error"):
+        return result
+
+    # Stage 2 is forced by its schema to emit exactly one verdict per seeded key. Given an empty
+    # stage 1 it will still emit them - inventing judgements with nothing underneath. A session
+    # that genuinely made no decisions is indistinguishable here from a stage 1 that failed, so
+    # neither is handed to stage 2; both are marked and excluded from scoring.
+    if not stage1.get("decisions"):
+        result["stage1_empty"] = True
         return result
 
     manifest = json.loads((run_dir / "RUN_MANIFEST.json").read_text(encoding="utf-8"))
