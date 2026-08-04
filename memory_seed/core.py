@@ -6893,6 +6893,7 @@ SKILL_PROFILES: dict[str, SkillProfile] = {
         "Source exploration, local validation, rendered-UI debugging, and durable data-structure work.",
         (
             "code_search.md",
+            "graphify_analysis.md",
             "local_compilation.md",
             "data_architecture.md",
             "developer-rendered-ui-debugging.md",
@@ -6950,6 +6951,7 @@ SKILL_DESCRIPTIONS = {
     "developer-rendered-ui-debugging.md": "Debug rendered browser UI: stale assets, hit targets, SVG/canvas, panes.",
     "docx_render_windows.md": "Render DOCX pages to images for Windows visual QA.",
     "document_ingestion.md": "Convert binary documents into readable Markdown/text.",
+    "graphify_analysis.md": "Run Graphify structural analysis for architecture, dependency-impact, and call-path evidence.",
     "link_swarm.md": "Enrich lifecycle edges at scale via a human-gated model-judgment swarm.",
     "local_compilation.md": "Validate local build, test, package, and CLI behavior.",
     "office_document_editing.md": "Create or edit Office documents programmatically.",
