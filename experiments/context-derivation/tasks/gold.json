@@ -149,6 +149,7 @@
       "required_adr_ids": ["adr_missing_compaction"],
       "authoritative_refs": ["mse_ctxmissinghead:d1"],
       "required_lineage_edges": [],
+      "required_missing_refs": ["mse_ctxmissingbenchmark:d1"],
       "relevant_refs": ["mse_ctxmissinghead:d1"],
       "distractor_refs": ["mse_ctxmissingnoise:d1"],
       "expected_statuses": {"adr_missing_compaction": "accepted"},

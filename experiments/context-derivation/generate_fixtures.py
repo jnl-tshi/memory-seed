@@ -174,6 +174,7 @@ def validate_gold(value: Mapping[str, Any], tasks: Sequence[Mapping[str, Any]]) 
         for edge in related:
             if not isinstance(edge, dict) or set(edge) != {"source", "target", "type"} or edge["type"] != "related":
                 raise ValueError(f"{task_id} has malformed related edge")
+        _require_unique_strings(row.get("required_missing_refs", []), f"{task_id}.required_missing_refs")
     if actual_ids != expected_ids:
         raise ValueError("gold rows must be in the same order as the task manifest")
     return rows

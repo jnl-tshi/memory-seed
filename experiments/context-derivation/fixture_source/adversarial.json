@@ -105,7 +105,7 @@
       ],
       "adrs": [
         {"adr_id": "adr_missing_compaction", "title": "Incremental compaction", "events": [
-          {"kind": "revision-proposed", "decision_ref": "mse_ctxmissinghead:d1", "decision": "Use incremental compaction.", "why": "The governing decision cites a benchmark whose measurements are absent here.", "evolution": "Initial compaction decision."},
+          {"kind": "revision-proposed", "decision_ref": "mse_ctxmissinghead:d1", "supporting_decisions": ["mse_ctxmissingbenchmark:d1"], "decision": "Use incremental compaction.", "why": "The governing decision cites a benchmark whose measurements are absent here.", "evolution": "Initial compaction decision."},
           {"kind": "revision-accepted", "decision_ref": "mse_ctxmissinghead:d1", "expected_head": null, "reason": "Accepted before this evidence-isolation fixture was created."}
         ]}
       ]

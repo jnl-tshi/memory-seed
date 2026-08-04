@@ -54,7 +54,12 @@ class ContextDerivationFixtureTests(unittest.TestCase):
             )
             for item in first:
                 ok, issues = check_adrs(item.path)
-                self.assertTrue(ok, f"{item.fixture_id}: {issues}")
+                if item.fixture_id == "adversarial-missing-evidence":
+                    self.assertFalse(ok)
+                    self.assertEqual(1, len(issues), issues)
+                    self.assertIn("supporting decision references missing entry mse_ctxmissingbenchmark", issues[0])
+                else:
+                    self.assertTrue(ok, f"{item.fixture_id}: {issues}")
                 link_result = check_session_links(item.path)
                 self.assertTrue(link_result.ok, f"{item.fixture_id}: {link_result.issues}")
                 fixture_manifest = json.loads((item.path / "FIXTURE_MANIFEST.json").read_text(encoding="utf-8"))
@@ -109,6 +114,30 @@ class ContextDerivationFixtureTests(unittest.TestCase):
             )
             self.assertIn("mse_ctxrelhead:d1", adr_membership(record))
             self.assertNotIn("mse_ctxrelcontext:d1", adr_membership(record))
+
+    def test_missing_supporting_evidence_is_declared_but_not_materialized(self):
+        _manifest, gold, _tasks = fixture_builder.load_definitions()
+        row = next(item for item in gold["tasks"] if item["task_id"] == "CTX-12")
+        self.assertEqual(["mse_ctxmissingbenchmark:d1"], row["required_missing_refs"])
+
+        with tempfile.TemporaryDirectory() as temporary:
+            built = {item.fixture_id: item for item in fixture_builder.build_all(Path(temporary) / "fixtures")}
+            fixture = built["adversarial-missing-evidence"].path
+            record = parse_adr(
+                fixture / ".memory-seed" / "decisions" / "adr_missing_compaction.md"
+            )
+            declared_support = {
+                ref
+                for event in record.events
+                if event.kind == "revision-proposed"
+                for ref in event.supporting_decisions
+            }
+            self.assertIn("mse_ctxmissingbenchmark:d1", declared_support)
+            session_text = "\n".join(
+                path.read_text(encoding="utf-8")
+                for path in (fixture / ".memory-seed" / "sessions").rglob("*.md")
+            )
+            self.assertNotIn("mse_ctxmissingbenchmark", session_text)
 
 
 if __name__ == "__main__":
