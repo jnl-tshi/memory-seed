@@ -61,6 +61,11 @@ def _guard_signals(run_dir: Path) -> dict:
     return {
         "guard_called": "worktree_guard" in text,
         "guard_blocked": '"safe_to_write": false' in text.replace("\\", ""),
+        # UNRELIABLE on the Claude arm: `--output-format json` preserves only the final message,
+        # not the tool-call stream, so a guard call that happened mid-session leaves no trace here.
+        # These read false almost everywhere regardless of what occurred. Do not report "the guard
+        # never fired" from them - re-run with --output-format stream-json to measure it.
+        "guard_signal_reliable": text.lstrip().startswith("{\"type\"") or "mcp_tool_call" in text,
     }
 
 

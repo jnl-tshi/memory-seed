@@ -412,6 +412,13 @@ The judge found 203 decisions across the 60 sessions (mean 3.4 each, range 1–7
 - **The tool alone does nothing.** L0 is 0/18 across fifteen sessions, and all fifteen stores are
   empty files-on-disk, not merely unparsed. An agent that can see `memory_session_append` and is
   told nothing about it does not use it. This is the strongest and least equivocal number here.
+  Verified rather than assumed: a probe under the identical scored-run configuration confirmed the
+  L0 session saw all 18 `memory-seed` tools and that `memory_topics_list` resolved to the fixture's
+  own vocabulary — so "had the tool and did not use it" is not silently "had no tool". Read with
+  one qualifier: in this harness MCP tools are *deferred*, so the agent sees tool **names** and must
+  fetch a schema before calling one. L0 therefore measures "the tool's name is visible", a weaker
+  stimulus than a tool whose description is in the prompt, and weaker than the pre-registration's
+  limitation 2 assumed.
 - **Against the pre-registered threshold (≥0.8 capture, ≤0.3 noise), only L3 is reliable.** The
   pre-registration defined that outcome in advance as the **mechanical-cheapness claim failing**:
   the honest claim becomes "the shipped control plane makes agents record", and E2's
@@ -433,6 +440,11 @@ The judge found 203 decisions across the 60 sessions (mean 3.4 each, range 1–7
   independently limits the Codex arm. Re-run with `--output-format stream-json` before making any
   faithfulness claim.
 - **Noise rate is likewise unvaried** (0 in every arm) and should not be quoted as a result.
+- **The `guard_called` / `guard_blocked` columns in `summary.json` are unreliable for the same
+  reason** — they match on transcript text, and the transcript holds only the final message. They
+  read `false` almost everywhere regardless of what the session actually did, so "the worktree
+  guard never fired" is *unmeasured*, not observed. The pre-registered confound it was meant to
+  track therefore remains open.
 - **Single stub project, three tasks, one model family as subject.** Generalises to these task
   classes and this agent, not to engineering work at large. The experimenter is also the subject
   population — the standing limitation from the pre-registration.
