@@ -232,6 +232,13 @@ class ContextDerivationStrategyTests(unittest.TestCase):
         self.assertEqual(resumed, paths)
         self.assertEqual(paths[0].read_bytes(), first_bytes)
 
+    def test_atomic_shard_temp_name_does_not_repeat_long_destination(self):
+        from sweep import _write_unique
+        deep = self.root / ("nested-" + "x" * 80)
+        destination = deep / ("CTX-01--" + "a" * 64 + ".json")
+        _write_unique(destination, {"ok": True})
+        self.assertEqual({"ok": True}, json.loads(destination.read_text(encoding="utf-8")))
+
     def test_sweep_resolves_each_task_against_its_own_fixture_runtime(self):
         fixture_base = self.root / "fixture-base"
         populated = fixture_base / "populated"

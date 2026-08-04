@@ -39,7 +39,9 @@ def _valid_resume(path: Path, task: Mapping[str, Any], strategy: Mapping[str, An
 
 def _write_unique(path: Path, payload: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)
+    # Keep the atomic sibling short enough for Windows worktree paths. The
+    # destination already carries the task and strategy identity.
+    fd, temporary = tempfile.mkstemp(prefix="shard-", suffix=".tmp", dir=path.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(canonical_json(payload) + "\n")
