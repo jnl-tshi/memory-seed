@@ -387,6 +387,10 @@ delta was ~2× here, so large between-level effects at L2→L3 are plausible.
 
 ---
 
+> **Read E5 together with E6.** A second 60-session replication reversed E5's threshold verdict.
+> The dose-response below stands; the binary "only L3 is reliable" call does not. E6 has the pooled
+> estimate and the reason the threshold question is unanswerable at this sample size.
+
 ## E5 — Controlled experiment: scaffolding dose-response, 2026-08-04
 
 **Source:** `experiments/agent-capture/`, 60 scored headless Claude sessions across four scaffolding
@@ -456,6 +460,76 @@ The judge found 203 decisions across the 60 sessions (mean 3.4 each, range 1–7
   verdict per seeded key, confidently filled in all of them. Both were caught only by distrusting
   results that looked too clean. Treat this harness as failing silently *in the direction of
   success* until proven otherwise.
+
+---
+
+## E6 — Replication of E5, and what it overturns, 2026-08-04
+
+**Source:** a second full 60-session matrix (`experiments/agent-capture/runs/`, v1 archived to
+`runs-v1-json/`), identical fixtures, briefs, tasks and harness constants. The only change was the
+transcript format — `--output-format stream-json` instead of `json` — which the agent never sees.
+Run to measure faithfulness, which v1 could not. It also, unintentionally, became the more valuable
+result: a like-for-like replication.
+
+### The threshold verdict did not replicate
+
+| Level | v1 capture | v2 capture | Pooled | 95% CI (Wilson) |
+|---|---|---|---|---|
+| L0 | 0/18 · 0.00 | 2/20 · 0.10 | **2/38 · 0.05** | [0.01, 0.17] |
+| L1 | 14/19 · 0.74 | 13/16 · 0.81 | **27/35 · 0.77** | [0.61, 0.88] |
+| L2 | 15/19 · 0.79 | 15/17 · 0.88 | **30/36 · 0.83** | [0.68, 0.92] |
+| L3 | 17/18 · 0.94 | 14/16 · 0.88 | **31/34 · 0.91** | [0.77, 0.97] |
+
+v1 concluded *only L3 is reliable → the cheapness claim fails*. v2 concluded *L1, L2 and L3 are all
+reliable → the cheapness claim survives*. Same instrument, opposite verdicts, and **every arm's
+interval straddles the 0.80 threshold — including L3**. The pre-registered binary question is not
+answerable at this sample size; the two runs disagreed because the point estimates sit on top of the
+threshold, not because anything changed.
+
+Distinguishing 0.83 from 0.80 with confidence needs hundreds of seeded decisions per arm — an order
+of magnitude more spend than the ~$200 both matrices cost together. **That is not planned.** The
+threshold was the wrong instrument for a question at this cost.
+
+### What both runs agree on, and what it means
+
+- **The write path alone is not used.** Pooled L0 = 0.05, and its interval [0.01, 0.17] does not come
+  near any other arm's. This is the one conclusion with real separation, and it survived a
+  replication that overturned everything else.
+- **Everything from L1 upward clusters in one band (0.77–0.91) that this data cannot separate.**
+  The practical reading is that **one line in `AGENTS.md` naming the store gets most of the
+  available capture**, and the marginal value of the full contract and hooks over that single line
+  is real in direction but not demonstrable at this N. That is a different claim from either
+  matrix's headline, and it is the one the pooled data supports.
+- **L0's zero was a small-sample artefact.** One of thirty L0 sessions recorded unprompted — and did
+  so in full `### Decision` / `D:` / `R:` form despite L0 carrying no rules file, apparently
+  inferring the shape from the tool schema. State L0 as ~3–5%, never as "never".
+
+### Faithfulness — measured for the first time, and it holds
+
+With reasoning in the transcript, the judge could finally check stated reasons against what actually
+happened. Across 121 recorded decisions: **104 judged faithful, 17 unclear, 0 judged unfaithful.**
+The 17 "unclear" verdicts matter — they show the judge discriminating rather than rubber-stamping,
+which is precisely what the v1 faithfulness numbers could not demonstrate. No recorded rationale was
+found to be a post-hoc reconstruction.
+
+This is the strongest positive result in the programme so far: when an agent records a reason, the
+reason appears to be the real one. It speaks directly to the product's core promise, and it is the
+claim E5 had to retract as unmeasured.
+
+### The worktree-guard confound, now measured and closed
+
+`guard_called` was true in **0 of 60** sessions with a reliable event stream. Agents do not consult
+`memory_worktree_guard` during ordinary task work, so the confound registered before the first
+scored run — that a guard block might suppress capture at L2/L3 — **did not materialise** and can be
+retired rather than left open.
+
+### What it does not establish
+
+- Nothing about the ordering *within* L1–L3. Those arms are statistically indistinguishable here.
+- Faithfulness is measured on the Claude arm only, and "0 unfaithful" is bounded by the judge's
+  willingness to call one — it used "unclear" rather than "no" throughout, so read it as "no
+  detected fabrication", not "fabrication is impossible".
+- Still a single stub project, three tasks, one subject model family, experimenter as subject.
 
 ---
 

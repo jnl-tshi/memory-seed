@@ -57,6 +57,49 @@ def build_schedule(levels: list[str], tasks: list[str], reps: int) -> list[tuple
     return schedule
 
 
+def existing_counts(agent: str) -> dict[tuple[str, str], int]:
+    """Completed scored runs per (level, task) already on disk.
+
+    A run counts only once RUN_MANIFEST.json exists - run.py writes it last, so a killed or
+    in-flight session is correctly treated as absent rather than as a completed cell.
+    """
+    counts: dict[tuple[str, str], int] = {}
+    if not RUNS.is_dir():
+        return counts
+    for run_dir in RUNS.iterdir():
+        manifest_path = run_dir / "RUN_MANIFEST.json"
+        if not run_dir.is_dir() or not manifest_path.exists():
+            continue
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        if manifest.get("agent") != agent or manifest.get("brief_override"):
+            continue
+        cell = (manifest.get("level"), manifest.get("task"))
+        counts[cell] = counts.get(cell, 0) + 1
+    return counts
+
+
+def trim_to_shortfall(
+    schedule: list[tuple[int, str, str]], counts: dict[tuple[str, str], int]
+) -> list[tuple[int, str, str]]:
+    """Drop as many scheduled runs per cell as that cell already has on disk.
+
+    Lets an interrupted batch be resumed - or relaunched at a different concurrency - without
+    over-running cells that already finished, which would silently unbalance N across the matrix.
+    """
+    remaining = dict(counts)
+    trimmed = []
+    for rep, level, task in schedule:
+        cell = (level, task)
+        if remaining.get(cell, 0) > 0:
+            remaining[cell] -= 1
+            continue
+        trimmed.append((rep, level, task))
+    return trimmed
+
+
 def run_one(level: str, task: str, agent: str, timeout: int, model: str | None) -> dict:
     command = [
         sys.executable,
@@ -101,6 +144,12 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=900)
     parser.add_argument("--model", default=None)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--top-up",
+        action="store_true",
+        help="only run the shortfall per cell, counting runs already on disk. Use to resume an "
+        "interrupted batch or relaunch it at a different concurrency without unbalancing N.",
+    )
     args = parser.parse_args()
 
     levels = [item.strip() for item in args.levels.split(",") if item.strip()]
@@ -116,7 +165,15 @@ def main() -> int:
     )
 
     schedule = build_schedule(levels, tasks, args.reps)
-    log(f"{len(schedule)} run(s): {len(levels)} level(s) x {len(tasks)} task(s) x {args.reps} rep(s)")
+    planned = len(schedule)
+    if args.top_up:
+        counts = existing_counts(args.agent)
+        schedule = trim_to_shortfall(schedule, counts)
+        log(f"top-up: {sum(counts.values())} run(s) already complete, {len(schedule)} to go")
+    log(
+        f"{len(schedule)} run(s) of {planned}: {len(levels)} level(s) x {len(tasks)} task(s) "
+        f"x {args.reps} rep(s), {args.jobs} at a time"
+    )
 
     if args.dry_run:
         for index, (rep, level, task) in enumerate(schedule, 1):
