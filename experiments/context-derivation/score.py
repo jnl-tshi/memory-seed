@@ -21,6 +21,15 @@ def _as_set(value: Any) -> set[str]:
     return {str(item) for item in value or ()}
 
 
+def _expected_statuses(gold: Mapping[str, Any], adr_ids: set[str]) -> dict[str, str]:
+    value = gold.get("expected_statuses", gold.get("expected_status", {}))
+    if isinstance(value, Mapping):
+        return {str(key): str(status) for key, status in value.items()}
+    if isinstance(value, str):
+        return {adr_id: value for adr_id in adr_ids}
+    return {}
+
+
 def _percentile(values: Iterable[float], percentile: float) -> float | None:
     ordered = sorted(float(item) for item in values)
     if not ordered:
@@ -47,10 +56,19 @@ def score_run(run: Mapping[str, Any], gold: Mapping[str, Any]) -> dict[str, Any]
     answer = run.get("answer") if isinstance(run.get("answer"), Mapping) else {}
     required_adrs = _as_set(gold.get("required_adr_ids"))
     required_heads = _as_set(gold.get("authoritative_refs"))
-    expected_edges = {_edge_key(item) for item in gold.get("required_lineage_edges", ())}
+    all_expected_edges = {_edge_key(item) for item in gold.get("required_lineage_edges", ())}
+    expected_edges = {edge for edge in all_expected_edges if edge[2] in {"evolves", "replaces"}}
+    expected_related = {
+        _edge_key(item) for item in gold.get("required_related_edges", ())
+    } | {edge for edge in all_expected_edges if edge[2] == "related"}
     actual_adrs = _as_set(answer.get("adr_ids"))
     actual_heads = _as_set(answer.get("authoritative_refs"))
     actual_edges = {_edge_key(item) for item in answer.get("lineage_edges", ()) if isinstance(item, Mapping)}
+    actual_related = {_edge_key(item) for item in answer.get("related_edges", ()) if isinstance(item, Mapping)}
+    actual_statuses = {
+        str(key): str(value) for key, value in (answer.get("adr_statuses") or {}).items()
+    } if isinstance(answer.get("adr_statuses"), Mapping) else {}
+    expected_statuses = _expected_statuses(gold, required_adrs)
     citations = _as_set(answer.get("citations"))
     included = _as_set(run.get("included_refs"))
     allowed_citations = _as_set(gold.get("allowed_citations"))
@@ -60,8 +78,15 @@ def score_run(run: Mapping[str, Any], gold: Mapping[str, Any]) -> dict[str, Any]
 
     adr_recall = required_adrs <= actual_adrs
     head_correct = actual_heads == required_heads
+    status_correct = actual_statuses == expected_statuses
     lineage_recall = expected_edges <= actual_edges
-    relation_types_correct = all(edge[2] in {"evolves", "replaces"} for edge in actual_edges)
+    lineage_exact = actual_edges == expected_edges
+    related_exact = actual_related == expected_related
+    relation_types_correct = (
+        all(edge[2] in {"evolves", "replaces"} for edge in actual_edges)
+        and all(edge[2] == "related" for edge in actual_related)
+    )
+    citation_present = expected_absence or bool(citations)
     citation_resolves = citations <= included
     citation_allowed = not allowed_citations or citations <= allowed_citations
     absence_correct = actual_absence == expected_absence
@@ -72,8 +97,12 @@ def score_run(run: Mapping[str, Any], gold: Mapping[str, Any]) -> dict[str, Any]
         (
             adr_recall,
             head_correct,
+            status_correct,
             lineage_recall,
+            lineage_exact,
+            related_exact,
             relation_types_correct,
+            citation_present,
             citation_resolves,
             citation_allowed,
             absence_correct,
@@ -90,8 +119,12 @@ def score_run(run: Mapping[str, Any], gold: Mapping[str, Any]) -> dict[str, Any]
         "repetition": run.get("repetition"),
         "adr_recall": adr_recall,
         "head_correct": head_correct,
+        "status_correct": status_correct,
         "lineage_recall": lineage_recall,
+        "lineage_exact": lineage_exact,
+        "related_exact": related_exact,
         "relation_types_correct": relation_types_correct,
+        "citation_present": citation_present,
         "citation_resolves": citation_resolves,
         "citation_allowed": citation_allowed,
         "absence_correct": absence_correct,
@@ -104,6 +137,9 @@ def score_run(run: Mapping[str, Any], gold: Mapping[str, Any]) -> dict[str, Any]
         "input_tokens": run.get("input_tokens"),
         "output_tokens": run.get("output_tokens"),
         "cost_usd": run.get("cost_usd"),
+        "tool_calls": list(run.get("tool_calls") or ()),
+        "context_utilization": (len(citations) / len(included)) if included else (1.0 if expected_absence else 0.0),
+        "exclusion_reason": run.get("exclusion_reason"),
     }
 
 
@@ -114,8 +150,12 @@ def _aggregate(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
     for name in (
         "adr_recall",
         "head_correct",
+        "status_correct",
         "lineage_recall",
+        "lineage_exact",
+        "related_exact",
         "relation_types_correct",
+        "citation_present",
         "citation_resolves",
         "absence_correct",
         "protocol_ok",
@@ -131,6 +171,18 @@ def _aggregate(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
     tokens = [float(row["context_token_proxy"]) for row in rows if row.get("context_token_proxy") is not None]
     durations = [float(row["duration_ms"]) for row in rows if row.get("duration_ms") is not None]
     costs = [float(row["cost_usd"]) for row in rows if row.get("cost_usd") is not None]
+    inputs = [float(row["input_tokens"]) for row in rows if row.get("input_tokens") is not None]
+    outputs = [float(row["output_tokens"]) for row in rows if row.get("output_tokens") is not None]
+    utilization = [float(row["context_utilization"]) for row in rows if row.get("context_utilization") is not None]
+    tool_sequences: dict[str, int] = defaultdict(int)
+    exclusions: dict[str, int] = defaultdict(int)
+    task_failures: dict[str, int] = defaultdict(int)
+    for row in rows:
+        tool_sequences[" -> ".join(row.get("tool_calls") or ()) or "(none)"] += 1
+        if row.get("exclusion_reason"):
+            exclusions[str(row["exclusion_reason"])] += 1
+        if not row["complete_correct"]:
+            task_failures[str(row.get("task_id"))] += 1
     return {
         "runs": total,
         "complete": complete,
@@ -143,6 +195,12 @@ def _aggregate(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
             "median": statistics.median(durations) if durations else None,
             "p95": _percentile(durations, 0.95),
         },
+        "input_tokens": {"median": statistics.median(inputs) if inputs else None, "p95": _percentile(inputs, 0.95)},
+        "output_tokens": {"median": statistics.median(outputs) if outputs else None, "p95": _percentile(outputs, 0.95)},
+        "context_utilization": {"median": statistics.median(utilization) if utilization else None, "p95": _percentile(utilization, 0.95)},
+        "tool_sequences": dict(sorted(tool_sequences.items())),
+        "exclusions": dict(sorted(exclusions.items())),
+        "task_failures": dict(sorted(task_failures.items())),
         "cost_usd": sum(costs) if costs else None,
     }
 
@@ -179,7 +237,8 @@ def score_experiment(summary: Mapping[str, Any], gold_payload: Mapping[str, Any]
         candidate = aggregates[agent]["adr-candidate-packet"]
         workflow = aggregates[agent]["adr-mcp-workflow"]
         baseline = aggregates[agent]["retrieval-v1-packet"]
-        if candidate["metrics"]["head_correct"]["successes"] != candidate["runs"]:
+        if (candidate["metrics"]["head_correct"]["successes"] != candidate["runs"]
+                or candidate["metrics"]["status_correct"]["successes"] != candidate["runs"]):
             gates["failures"].append(f"{agent}: candidate has accepted-head/status errors")
         candidate_rate = candidate["metrics"]["complete_correct"]["rate"]
         workflow_rate = workflow["metrics"]["complete_correct"]["rate"]
@@ -194,7 +253,7 @@ def score_experiment(summary: Mapping[str, Any], gold_payload: Mapping[str, Any]
         baseline_tokens = baseline["context_tokens"]["median"]
         if baseline_tokens and (candidate_tokens is None or candidate_tokens > baseline_tokens * 0.5):
             gates["failures"].append(f"{agent}: candidate median context is not at least 50% smaller")
-        for metric in ("citation_resolves", "absence_correct", "relation_types_correct", "protocol_ok"):
+        for metric in ("citation_present", "citation_resolves", "absence_correct", "lineage_exact", "related_exact", "relation_types_correct", "protocol_ok"):
             if candidate["metrics"][metric]["successes"] != candidate["runs"]:
                 gates["failures"].append(f"{agent}: candidate failed {metric}")
     gates["passed"] = not gates["failures"]

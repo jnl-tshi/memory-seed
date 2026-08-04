@@ -5,6 +5,10 @@ and `tasks/gold.json`.**
 
 Base revision: `f11a5dcb453f1a160864a10c7c5a1ee81ade0e48`.
 
+The frozen answer contract reports ADR status explicitly and keeps `related`
+supporting edges separate from `evolves`/`replaces` lineage edges. This prevents
+prose-only inference from masking an authority or edge-typing error.
+
 ## Question
 
 Which deterministic context policy gives Claude and Codex the smallest packet

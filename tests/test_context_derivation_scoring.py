@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPERIMENT = ROOT / "experiments" / "context-derivation"
 sys.path.insert(0, str(EXPERIMENT))
 
-from judge import select_reviews, selected_repetition  # noqa: E402
+from judge import execute_manifest, select_reviews, selected_repetition  # noqa: E402
 from report import render_report  # noqa: E402
 from score import score_experiment, score_run, wilson  # noqa: E402
 
@@ -37,7 +37,9 @@ class ContextDerivationScoringTests(unittest.TestCase):
                 "schema": "context-answer.v1",
                 "adr_ids": ["adr_a"],
                 "authoritative_refs": ["mse_new:d1"],
+                "adr_statuses": {"adr_a": "accepted"},
                 "lineage_edges": [{"source": "mse_new:d1", "target": "mse_old:d1", "type": "evolves"}],
+                "related_edges": [],
                 "citations": ["mse_new:d1"],
                 "explanation": "The new decision evolves the old one.",
                 "insufficient_evidence": False,
@@ -60,6 +62,7 @@ class ContextDerivationScoringTests(unittest.TestCase):
         result = score_run(self.sample_run(), self.gold())
         self.assertTrue(result["complete_correct"])
         self.assertTrue(result["head_correct"])
+        self.assertTrue(result["status_correct"])
 
     def test_extra_authoritative_ref_fails_head(self):
         run = self.sample_run()
@@ -72,6 +75,21 @@ class ContextDerivationScoringTests(unittest.TestCase):
         result = score_run(run, self.gold())
         self.assertFalse(result["citation_resolves"])
         self.assertFalse(result["complete_correct"])
+
+    def test_status_and_related_are_scored_separately(self):
+        gold = dict(self.gold(), required_related_edges=[{"source": "mse_new:d1", "target": "mse_note:d1", "type": "related"}])
+        run = self.sample_run()
+        run["answer"] = dict(run["answer"], adr_statuses={"adr_a": "proposed"}, related_edges=[])
+        result = score_run(run, gold)
+        self.assertFalse(result["status_correct"])
+        self.assertFalse(result["related_exact"])
+        self.assertFalse(result["complete_correct"])
+
+    def test_related_cannot_be_reported_as_lineage(self):
+        run = self.sample_run()
+        run["answer"] = dict(run["answer"], lineage_edges=[{"source": "mse_new:d1", "target": "mse_old:d1", "type": "related"}])
+        result = score_run(run, self.gold())
+        self.assertFalse(result["relation_types_correct"])
 
     def test_wilson_is_bounded(self):
         low, high = wilson(9, 10)
@@ -86,6 +104,10 @@ class ContextDerivationScoringTests(unittest.TestCase):
                 for repetition in (1, 2, 3):
                     runs.append({"task_id": "CTX-01", "arm": arm, "agent": agent, "repetition": repetition})
         self.assertEqual(len(select_reviews({"runs": runs})), 8)
+
+    def test_judge_concurrency_is_bounded(self):
+        with self.assertRaises(ValueError):
+            execute_manifest([], Path("unused"), jobs_per_agent=4)
 
     def test_report_keeps_agents_separate(self):
         score = {

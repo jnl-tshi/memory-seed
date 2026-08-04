@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import hashlib
 import json
 import random
@@ -110,6 +111,28 @@ def execute_review(packet: Path, judge: str, output: Path) -> None:
     output.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def execute_manifest(manifest: list[Mapping[str, Any]], output: Path, *, jobs_per_agent: int = 3) -> None:
+    """Run two isolated judge queues, each bounded to three concurrent calls."""
+    if jobs_per_agent < 1 or jobs_per_agent > 3:
+        raise ValueError("judge concurrency must be between one and three per agent")
+
+    def run_queue(judge: str, items: list[Mapping[str, Any]]) -> None:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=jobs_per_agent) as pool:
+            futures = []
+            for item in items:
+                packet = Path(str(item["packet"]))
+                destination = output / f"{packet.stem}.judgement.json"
+                futures.append(pool.submit(execute_review, packet, judge, destination))
+            for future in futures:
+                future.result()
+
+    grouped = {agent: [item for item in manifest if item["judge"] == agent] for agent in AGENTS}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(AGENTS)) as pool:
+        futures = [pool.submit(run_queue, agent, grouped[agent]) for agent in AGENTS]
+        for future in futures:
+            future.result()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--summary", required=True)
@@ -117,6 +140,7 @@ def main() -> int:
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--owner-approved", action="store_true")
+    parser.add_argument("--jobs-per-agent", type=int, default=3)
     args = parser.parse_args()
     summary = json.loads(Path(args.summary).read_text(encoding="utf-8"))
     tasks = json.loads(Path(args.tasks).read_text(encoding="utf-8"))
@@ -126,9 +150,7 @@ def main() -> int:
     if args.execute:
         if not args.owner_approved:
             raise SystemExit("refusing paid judge calls without --owner-approved")
-        for item in manifest:
-            packet = Path(item["packet"])
-            execute_review(packet, item["judge"], output / f"{packet.stem}.judgement.json")
+        execute_manifest(manifest, output, jobs_per_agent=args.jobs_per_agent)
     print(f"prepared {len(manifest)} cross-family review packets")
     return 0
 
