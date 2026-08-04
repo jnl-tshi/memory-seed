@@ -6,6 +6,12 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- **ESR orphan-worktree residue detection.** The read-only Worktrees section now compares Git's
+  registered worktrees with physical checkout directories beneath the Claude, Codex, Gemini, and
+  Cursor worktree namespaces, including when ESR runs from a secondary checkout. Deregistered
+  directories are surfaced as `ORPHAN RESIDUE CANDIDATE`; the End Of Turn runbook adds a fail-closed
+  audit, recovery, consent, Windows long-path cleanup, and verification pass so partial Git removal
+  cannot silently accumulate multi-gigabyte checkouts again.
 - **Stale-console-script guard** (`package_provenance()` in `core.py`). When a `memory_seed/` source
   tree exists at or above the working directory and the imported package resolves **outside** it, the
   CLI refuses with exit code 2 and prints both resolved paths, both versions, and the working

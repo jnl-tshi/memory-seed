@@ -13,7 +13,8 @@ Use this skill when running the Memory Seed end-of-turn routine, `/esr`, or any 
 ## Procedure
 
 0. Run `memory-seed esr` (add `--date YYYY-MM-DD` for a session crossing midnight): one read-only
-   report covering integrity, topics, lifecycle link gaps, worktree posture, and seed-twin drift.
+   report covering integrity, topics, lifecycle link gaps, registered worktree posture,
+   unregistered physical worktree residue, and seed-twin drift.
    Read every section - each prints even when clean, so a skipped check is visible. Use its
    sections for steps 5, 12, and 13 instead of re-running the underlying commands one by one.
 1. Resolve the active session target with `memory-seed session target` when the target is uncertain.
@@ -111,8 +112,10 @@ just ones this session created - other agents (Claude, Codex, or otherwise) may 
 too.
 
 - Start from the "Worktrees" section of the `memory-seed esr` report (step 0): it already lists
-  every worktree with its branch, commits ahead of the integration branch, and dirty-file count,
-  and marks merged-and-clean ones as STALE CANDIDATE. Fall back to `git worktree list` +
+  every registered worktree with its branch, commits ahead of the integration branch, and dirty-file
+  count, marks merged-and-clean ones as STALE CANDIDATE, and separately marks physical directories
+  beneath agent worktree namespaces that Git no longer registers as ORPHAN RESIDUE CANDIDATE. Fall
+  back to `git worktree list` +
   `git log <integration>..<branch>` + `git status --short` per worktree only when the report is
   unavailable.
 - A merged branch can still carry working-tree state its own history never saw - the dirty count
@@ -129,6 +132,33 @@ too.
 - Prefer the platform's worktree-removal tool when the worktree was entered via `EnterWorktree`;
   otherwise `git worktree remove` (add `--force` only after the above checks pass), then
   `git worktree prune` to clear stale metadata.
+
+### Deregistered Worktree Residue Pass
+
+Run this pass whenever ESR reports an ORPHAN RESIDUE CANDIDATE. The report is intentionally read-only:
+an unregistered directory is evidence of partial cleanup, not permission to delete it.
+
+- Re-read `git worktree list --porcelain` immediately before acting and normalize absolute paths.
+  The candidate must still be absent from Git's registered set and must resolve to one exact immediate
+  child beneath `.claude/worktrees/`, `.codex/worktrees/`, `.gemini/worktrees/`, or
+  `.cursor/worktrees/`. Reject a namespace root, nested computed target, unresolved variable, glob,
+  symlink that escapes the namespace, or any path outside the repository's primary checkout.
+- Audit ownership and recoverability. If a `.git` pointer or matching branch survives, resolve it and
+  confirm the branch tip is already an ancestor of the integration branch. Inspect the directory for
+  unique or uncommitted content even when Git metadata is broken; recover uncertain content into a
+  proper branch before cleanup. A branchless partial directory may be removed only when its contents
+  are proven duplicated, generated, or incomplete residue.
+- Stop processes whose executable, current directory, or served files are rooted in the candidate.
+  Re-check the exact path after stopping them; a transient lock is not authority to broaden deletion.
+- Removal is a destructive action: name the audited candidates and obtain live user consent unless the
+  current request explicitly authorized deleting those exact residues. Prefer `git worktree remove`
+  while the checkout is registered. For an already-deregistered candidate, remove only the validated
+  absolute directory; on Windows, use the extended-length path form when long generated paths defeat
+  ordinary removal. Never build a recursive delete from enumeration output, wildcards, or an
+  unvalidated variable.
+- Finish with `git worktree prune`, then rerun the ESR Worktrees section. Permission-denied metadata
+  stubs under `.git/worktrees/` should be reported for later repair, but they are not registered
+  worktrees and normally contribute negligible disk usage compared with physical checkout residue.
 
 ## Persona Evolution Check
 
