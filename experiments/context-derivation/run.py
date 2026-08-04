@@ -154,6 +154,13 @@ def _make_immutable(path: Path) -> None:
         except OSError: pass
 
 
+def _remove_run_dir(path: Path) -> None:
+    for item in sorted(path.rglob("*"), key=lambda value: len(value.parts), reverse=True):
+        try: item.chmod(item.stat().st_mode | stat.S_IWRITE)
+        except OSError: pass
+    shutil.rmtree(path, ignore_errors=True)
+
+
 def _final_answer(run_dir: Path, transcript: str) -> str:
     final = run_dir / "RUN_LAST_MESSAGE.txt"
     if final.exists(): return final.read_text(encoding="utf-8")
@@ -199,9 +206,8 @@ def main(argv: list[str] | None = None) -> int:
         _make_immutable(fixture)
     prompt = subject_prompt(task, args.arm); before = parent_fingerprint(); command = build_command(args.agent, run_dir, prompt, arm=args.arm, fixture=fixture, model=args.model, effort=args.effort)
     if args.dry_run:
-        manifest = {"schema": RUN_SCHEMA, "run_id": run_id, "task_id": args.task, "arm": args.arm, "agent": args.agent, "repetition": args.repetition, "schedule_seed": SCHEDULE_SEED, "dry_run": True, "command": ["<prompt>" if part == prompt else part for part in command]}
-        (run_dir / "RUN_MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-        print(json.dumps(manifest)); return 0
+        manifest = {"schema": RUN_SCHEMA, "run_id": run_id, "task_id": args.task, "arm": args.arm, "agent": args.agent, "repetition": args.repetition, "schedule_seed": SCHEDULE_SEED, "model": args.model, "cli_version": args.cli_version, "started_at": dt.datetime.now(dt.timezone.utc).isoformat(), "dry_run": True, "command": ["<prompt>" if part == prompt else part for part in command]}
+        print(json.dumps(manifest)); _remove_run_dir(run_dir); return 0
     started = time.monotonic(); stdout = stderr = ""; exit_code: int | None = None; timed_out = False
     try:
         done = subprocess.run(command, cwd=run_dir, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=args.timeout)
@@ -215,7 +221,9 @@ def main(argv: list[str] | None = None) -> int:
     final = _final_answer(run_dir, stdout); (run_dir / "final_answer.txt").write_text(final, encoding="utf-8")
     after = parent_fingerprint(); failure = classify_failure(timed_out=timed_out, exit_code=exit_code, stderr=stderr, transcript=stdout)
     packet = _packet(task, args.arm) if args.arm in FIXED_ARMS else ""
-    manifest = {"schema": RUN_SCHEMA, "run_id": run_id, "task_id": args.task, "arm": args.arm, "agent": args.agent, "repetition": args.repetition, "schedule_seed": SCHEDULE_SEED, "model": args.model, "cli_version": args.cli_version, "effort": args.effort, "started_at": dt.datetime.now(dt.timezone.utc).isoformat(), "duration_ms": duration_ms, "exit_code": exit_code, "timed_out": timed_out, "transcript": "transcript.jsonl", "final_answer": "final_answer.txt", "interactive_fixture": str(fixture) if fixture else None, "fixed_arm_no_fixture": args.arm in FIXED_ARMS, "mcp_enabled": args.arm in INTERACTIVE_ARMS, "included_refs": task.get("included_refs", []), "context_token_proxy": task.get("context_token_proxy", len(packet.split())), "tool_calls": calls, "undeclared_tool_calls": sorted(set(calls) - allowed), "direct_filesystem_retrieval": bool(DIRECT_FS_RE.search(stdout)), "parent_before": before, "parent_after": after, "parent_isolated": before == after, "failure_classification": failure, "command": ["<prompt>" if part == prompt else part for part in command], **_usage(stdout)}
+    refs_by_arm = task.get("included_refs_by_arm") or {}
+    tokens_by_arm = task.get("context_token_proxy_by_arm") or {}
+    manifest = {"schema": RUN_SCHEMA, "run_id": run_id, "task_id": args.task, "arm": args.arm, "agent": args.agent, "repetition": args.repetition, "schedule_seed": SCHEDULE_SEED, "model": args.model, "cli_version": args.cli_version, "effort": args.effort, "started_at": dt.datetime.now(dt.timezone.utc).isoformat(), "duration_ms": duration_ms, "exit_code": exit_code, "timed_out": timed_out, "transcript": "transcript.jsonl", "final_answer": "final_answer.txt", "interactive_fixture": str(fixture) if fixture else None, "fixed_arm_no_fixture": args.arm in FIXED_ARMS, "mcp_enabled": args.arm in INTERACTIVE_ARMS, "included_refs": refs_by_arm.get(args.arm, []), "context_token_proxy": tokens_by_arm.get(args.arm, len(packet.split())), "tool_calls": calls, "undeclared_tool_calls": sorted(set(calls) - allowed), "direct_filesystem_retrieval": bool(DIRECT_FS_RE.search(stdout)), "parent_before": before, "parent_after": after, "parent_isolated": before == after, "failure_classification": failure, "command": ["<prompt>" if part == prompt else part for part in command], **_usage(stdout)}
     (run_dir / "RUN_MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"run_id": run_id, "exit_code": exit_code, "failure_classification": failure, "parent_isolated": before == after}))
     return 0 if exit_code == 0 and not timed_out else 1

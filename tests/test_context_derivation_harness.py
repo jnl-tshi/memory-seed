@@ -44,7 +44,7 @@ class HarnessTests(unittest.TestCase):
     def test_collects_codex_and_claude_shape_without_gold(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Path(temp) / "r"; run.mkdir()
-            manifest = {"schema": "context-run-manifest.v1", "run_id": "r", "task_id": "CTX-01", "arm": "search-mcp", "agent": "codex", "repetition": 1, "schedule_seed": 20260804, "transcript": "transcript.jsonl", "final_answer": "final_answer.txt", "duration_ms": 2, "parent_isolated": True}
+            manifest = {"schema": "context-run-manifest.v1", "run_id": "r", "task_id": "CTX-01", "arm": "search-mcp", "agent": "codex", "repetition": 1, "schedule_seed": 20260804, "model": "m", "cli_version": "v", "started_at": "2026-08-04T10:00:00Z", "transcript": "transcript.jsonl", "final_answer": "final_answer.txt", "duration_ms": 2, "parent_isolated": True}
             (run / "RUN_MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
             (run / "transcript.jsonl").write_text(json.dumps({"type": "item.completed", "item": {"type": "mcp_tool_call", "tool": "memory_search"}}) + "\n", encoding="utf-8")
             answer = {"schema": "context-answer.v1", "adr_ids": [], "authoritative_refs": [], "adr_statuses": {}, "lineage_edges": [], "related_edges": [], "citations": [], "explanation": "none", "insufficient_evidence": True}
@@ -95,6 +95,15 @@ class HarnessTests(unittest.TestCase):
             batch.main(["--claude-model", "c", "--codex-model", "x", "--claude-cli-version", "1", "--codex-cli-version", "1"])
         with self.assertRaises(SystemExit):
             runner.main(["--task", "CTX-01", "--arm", "search-mcp", "--agent", "claude", "--repetition", "1", "--model", "m", "--cli-version", "v"])
+
+    def test_single_run_dry_run_leaves_no_run_artifact(self):
+        task = {"schema": "context-benchmark-task.v1", "task_id": "CTX-01", "fixture": "unused", "question": "q", "task_type": "accepted-head", "resolver_hints": {}, "packets": {"retrieval-v1-packet": "evidence"}}
+        with tempfile.TemporaryDirectory() as temp:
+            root, runs, tasks = Path(temp), Path(temp) / "runs", Path(temp) / "tasks.json"
+            tasks.write_text(json.dumps({"tasks": [task]}), encoding="utf-8")
+            with patch.object(runner, "RUNS", runs), patch.object(runner, "REPO_ROOT", root):
+                self.assertEqual(0, runner.main(["--dry-run", "--task", "CTX-01", "--arm", "retrieval-v1-packet", "--agent", "claude", "--repetition", "1", "--model", "m", "--cli-version", "v", "--tasks", str(tasks)]))
+            self.assertFalse(runs.exists() and any(runs.iterdir()))
 
     def test_parallel_results_retain_schedule_order(self):
         schedule = [

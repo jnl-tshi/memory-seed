@@ -18,6 +18,22 @@
         "paths": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
       },
       "additionalProperties": false
+    },
+    "packets": {
+      "type": "object",
+      "properties": {
+        "retrieval-v1-packet": {"type": "string"},
+        "adr-candidate-packet": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "included_refs_by_arm": {
+      "type": "object",
+      "additionalProperties": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+    },
+    "context_token_proxy_by_arm": {
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 0}
     }
   },
   "additionalProperties": false
