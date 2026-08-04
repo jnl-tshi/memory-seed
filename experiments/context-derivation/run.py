@@ -67,10 +67,11 @@ def _packet(task: dict[str, Any], arm: str) -> str:
 def subject_prompt(task: dict[str, Any], arm: str) -> str:
     prompt = (
         "Return only one JSON object. Do not modify files. Its required exact shape is "
-        '{"schema":"context-answer.v1","adr_ids":[string],"authoritative_refs":[string],'
-        '"lineage_edges":[{"source":string,"target":string,"type":"evolves"|"replaces"}],'
-        '"citations":[string],"explanation":string,"insufficient_evidence":boolean}. '
-        "No extra keys.\n\nQuestion:\n" + task["question"] + "\n"
+        + json.dumps(answer_template(), separators=(",", ":"))
+        + '. adr_statuses maps each reported ADR ID to accepted, proposed, rejected, '
+        'superseded, or empty. lineage_edges may contain only evolves/replaces; put '
+        'supporting related relationships in related_edges. No extra keys. '
+        "\n\nQuestion:\n" + task["question"] + "\n"
     )
     if arm in FIXED_ARMS:
         prompt += "\nEvidence packet (the only available corpus):\n" + _packet(task, arm)

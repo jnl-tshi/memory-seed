@@ -47,7 +47,7 @@ class HarnessTests(unittest.TestCase):
             manifest = {"schema": "context-run-manifest.v1", "run_id": "r", "task_id": "CTX-01", "arm": "search-mcp", "agent": "codex", "repetition": 1, "schedule_seed": 20260804, "transcript": "transcript.jsonl", "final_answer": "final_answer.txt", "duration_ms": 2, "parent_isolated": True}
             (run / "RUN_MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
             (run / "transcript.jsonl").write_text(json.dumps({"type": "item.completed", "item": {"type": "mcp_tool_call", "tool": "memory_search"}}) + "\n", encoding="utf-8")
-            answer = {"schema": "context-answer.v1", "adr_ids": [], "authoritative_refs": [], "lineage_edges": [], "citations": [], "explanation": "none", "insufficient_evidence": True}
+            answer = {"schema": "context-answer.v1", "adr_ids": [], "authoritative_refs": [], "adr_statuses": {}, "lineage_edges": [], "related_edges": [], "citations": [], "explanation": "none", "insufficient_evidence": True}
             (run / "final_answer.txt").write_text(json.dumps(answer), encoding="utf-8")
             row = collect.collect(Path(temp))["runs"][0]
             self.assertEqual("memory_search", row["tool_calls"][0]); self.assertEqual(answer, row["answer"]); self.assertIsNone(row["harness_failure"])
@@ -66,7 +66,17 @@ class HarnessTests(unittest.TestCase):
             manifest = json.loads(next(runs.glob("*/RUN_MANIFEST.json")).read_text(encoding="utf-8"))
             self.assertTrue(manifest["fixed_arm_no_fixture"]); self.assertFalse(manifest["mcp_enabled"]); self.assertEqual(3, manifest["input_tokens"])
             self.assertEqual("provider_throttled", runner.classify_failure(timed_out=False, exit_code=1, stderr="429 rate limit", transcript=""))
-            self.assertIn('"lineage_edges"', runner.subject_prompt(task, "retrieval-v1-packet"))
+            prompt = runner.subject_prompt(task, "retrieval-v1-packet")
+            self.assertIn('"lineage_edges"', prompt); self.assertIn('"adr_statuses"', prompt); self.assertIn('"related_edges"', prompt)
+
+    def test_collect_extracts_only_tool_result_evidence_refs(self):
+        raw = [{"message": {"content": [
+            {"type": "text", "text": "ignore mse_prompt:d1"},
+            {"type": "tool_result", "content": "accepted adr_alpha at mse_source:d2"},
+        ]}}]
+        excerpt, refs = collect.transcript_evidence(raw)
+        self.assertIn("mse_source:d2", excerpt)
+        self.assertEqual(["adr_alpha", "mse_source:d2"], refs)
 
     def test_throttling_reduces_only_that_agent_and_keeps_order(self):
         cells = [{"task_id": f"CTX-{i:02d}", "arm": "search-mcp", "agent": "claude", "repetition": 1} for i in range(1, 5)]

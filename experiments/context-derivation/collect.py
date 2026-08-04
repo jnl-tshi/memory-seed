@@ -13,6 +13,7 @@ from contracts import ANSWER_SCHEMA, RUN_SCHEMA, answer_template, require_schema
 
 SUMMARY_SCHEMA = "context-run-summary.v1"
 _JSON_OBJECT = re.compile(r"\{.*\}", re.S)
+_EVIDENCE_REF = re.compile(r"\b(?:mse_[a-z0-9]+:d[0-9]+|adr_[a-z0-9_]+)\b", re.I)
 
 
 def events(path: Path) -> list[dict[str, Any]]:
@@ -34,6 +35,25 @@ def transcript_tool_calls(raw_events: list[dict[str, Any]]) -> list[str]:
         for block in (event.get("message") or {}).get("content", []):
             if block.get("type") == "tool_use": found.append(str(block.get("name", "")))
     return found
+
+
+def transcript_evidence(raw_events: list[dict[str, Any]], *, limit: int = 12000) -> tuple[str, list[str]]:
+    """Extract observable tool results only; prompts and model prose are not evidence."""
+    chunks: list[str] = []
+    for event in raw_events:
+        item = event.get("item") or {}
+        if item.get("type") == "mcp_tool_call" and item.get("result") is not None:
+            chunks.append(json.dumps(item.get("result"), ensure_ascii=False))
+        for block in (event.get("message") or {}).get("content", []):
+            if block.get("type") != "tool_result":
+                continue
+            content = block.get("content", "")
+            if isinstance(content, list):
+                chunks.extend(str(part.get("text", "")) for part in content if isinstance(part, dict))
+            else:
+                chunks.append(str(content))
+    excerpt = "\n".join(chunk for chunk in chunks if chunk)[:limit]
+    return excerpt, sorted(set(_EVIDENCE_REF.findall(excerpt)))
 
 
 def usage(raw_events: list[dict[str, Any]]) -> dict[str, Any]:
@@ -63,7 +83,7 @@ def parse_answer(text: str) -> dict[str, Any] | None:
 
 def analyse_run(run_dir: Path) -> dict[str, Any]:
     defaults = {"run_id": run_dir.name, "task_id": None, "arm": None, "agent": None, "repetition": None,
-                "answer": None, "included_refs": [], "context_token_proxy": None, "duration_ms": None,
+                "answer": None, "included_refs": [], "evidence_excerpt": "", "context_token_proxy": None, "duration_ms": None,
                 "input_tokens": None, "output_tokens": None, "cost_usd": None, "tool_calls": [],
                 "protocol_failure": None, "harness_failure": None, "exclusion_reason": None}
     manifest_path = run_dir / "RUN_MANIFEST.json"
@@ -78,6 +98,7 @@ def analyse_run(run_dir: Path) -> dict[str, Any]:
     final_path = run_dir / manifest.get("final_answer", "final_answer.txt")
     final = final_path.read_text(encoding="utf-8", errors="replace") if final_path.exists() else ""
     calls = transcript_tool_calls(raw) or list(manifest.get("tool_calls") or [])
+    evidence_excerpt, observed_refs = transcript_evidence(raw)
     unallowed = list(manifest.get("undeclared_tool_calls") or [])
     protocol: list[str] = []
     if not raw: protocol.append("missing_or_unparseable_transcript")
@@ -87,7 +108,8 @@ def analyse_run(run_dir: Path) -> dict[str, Any]:
     parsed = parse_answer(final)
     if parsed is None and not manifest.get("failure_classification"): protocol.append("invalid_or_missing_answer")
     tokens = usage(raw)
-    defaults.update({"run_id": manifest["run_id"], "task_id": manifest["task_id"], "arm": manifest["arm"], "agent": manifest["agent"], "repetition": manifest["repetition"], "answer": parsed, "included_refs": manifest.get("included_refs") or [], "context_token_proxy": manifest.get("context_token_proxy"), "duration_ms": manifest.get("duration_ms"), "tool_calls": calls, "protocol_failure": ";".join(protocol) or None, "harness_failure": manifest.get("failure_classification")})
+    included_refs = sorted(set(manifest.get("included_refs") or ()) | set(observed_refs))
+    defaults.update({"run_id": manifest["run_id"], "task_id": manifest["task_id"], "arm": manifest["arm"], "agent": manifest["agent"], "repetition": manifest["repetition"], "answer": parsed, "included_refs": included_refs, "evidence_excerpt": evidence_excerpt, "context_token_proxy": manifest.get("context_token_proxy"), "duration_ms": manifest.get("duration_ms"), "tool_calls": calls, "protocol_failure": ";".join(protocol) or None, "harness_failure": manifest.get("failure_classification")})
     defaults.update(tokens)
     if defaults["harness_failure"]: defaults["exclusion_reason"] = defaults["harness_failure"]
     elif defaults["protocol_failure"]: defaults["exclusion_reason"] = defaults["protocol_failure"]

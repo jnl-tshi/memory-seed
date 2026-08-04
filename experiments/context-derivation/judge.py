@@ -63,7 +63,7 @@ def build_packets(summary: Mapping[str, Any], tasks_payload: Mapping[str, Any], 
             "answer": run.get("answer"),
             "included_refs": run.get("included_refs", []),
             "tool_calls": run.get("tool_calls", []),
-            "transcript_excerpt": run.get("transcript_excerpt", ""),
+            "evidence_excerpt": run.get("evidence_excerpt", ""),
         }
         raw = json.dumps(packet, indent=2, ensure_ascii=False) + "\n"
         digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
