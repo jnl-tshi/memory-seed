@@ -98,7 +98,7 @@ class ContextDerivationStrategyTests(unittest.TestCase):
                 _event("revision-proposed", "adre_bra000000000000003", a, predecessors=[AdrPredecessor(old, f"link:{a}:evolves:{old}")]),
                 _event("revision-accepted", "adre_bra000000000000004", a),
                 _event("revision-proposed", "adre_brb000000000000005", b, predecessors=[AdrPredecessor(old, f"link:{b}:evolves:{old}")]),
-                _event("revision-proposed", "adre_hea000000000000006", head, predecessors=[AdrPredecessor(a, f"link:{head}:evolves:{a}"), AdrPredecessor(b, f"link:{head}:evolves:{b}")], supporting=["mse_support_missing:d1"]),
+                _event("revision-proposed", "adre_hea000000000000006", head, predecessors=[AdrPredecessor(a, f"link:{head}:evolves:{a}"), AdrPredecessor(b, f"link:{head}:evolves:{b}")], supporting=["mse_related:d1", "mse_support_missing:d1"]),
                 _event("revision-accepted", "adre_hea000000000000007", head),
                 AdrEvent("reviewed-no-change", "adre_noc000000000000008", "2026-08-01T08:00:00Z", "write-time", decision_ref=head, update_entry_id="mse_head", reason="The accepted head remains valid."),
                 _event("revision-proposed", "adre_pen000000000000008", pending),
@@ -197,8 +197,10 @@ class ContextDerivationStrategyTests(unittest.TestCase):
         self.assertEqual({item["adr_id"] for item in result["selected_adrs"]}, {"adr_alpha", "adr_beta"})
         self.assertIn("mse_pending:d1", result["selected_refs"])
         self.assertIn("mse_rejected:d1", result["selected_refs"])
-        self.assertTrue(any(edge["type"] == "related" for edge in result["typed_edges"]))
-        self.assertTrue(result["related_edges"])
+        self.assertEqual(
+            [{"source": "mse_related:d1", "target": "mse_head:d1", "type": "related"}],
+            result["related_edges"],
+        )
         self.assertFalse(any(edge["type"] == "related" for edge in result["lineage_edges"]))
         self.assertTrue(any(item["kind"] == "adr-event" for item in result["evidence"]))
         limited = resolve_strategy(self._task(), self._strategy(max_items=1), self.root)
@@ -217,6 +219,23 @@ class ContextDerivationStrategyTests(unittest.TestCase):
         result = resolve_strategy(self._task(), self._strategy(), self.root)
         self.assertTrue(result["evidence"])
         self.assertTrue(result["insufficient_evidence"])
+        self.assertIn(
+            {
+                "source": "mse_related:d1",
+                "target": "mse_head:d1",
+                "type": "related",
+            },
+            result["related_edges"],
+        )
+        self.assertNotIn(
+            {
+                "source": "mse_support_missing:d1",
+                "target": "mse_head:d1",
+                "type": "related",
+            },
+            result["related_edges"],
+        )
+        self.assertFalse(any(edge["type"] == "related" for edge in result["lineage_edges"]))
         self.assertTrue(any(
             item["kind"] == "missing-decision-evidence"
             and "mse_support_missing:d1" in item["refs"]

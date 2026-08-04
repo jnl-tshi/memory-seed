@@ -9,6 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "experiments" / "context-derivation" / "generate_fixtures.py"
+sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("context_fixture_builder", SCRIPT)
 assert SPEC and SPEC.loader
 fixture_builder = importlib.util.module_from_spec(SPEC)
@@ -17,6 +18,8 @@ SPEC.loader.exec_module(fixture_builder)
 
 from memory_seed.adr import adr_membership, check_adrs, parse_adr
 from memory_seed.core import check_session_links
+from contracts import STRATEGY_SCHEMA
+from strategies import load_corpus, resolve_strategy
 
 
 class ContextDerivationFixtureTests(unittest.TestCase):
@@ -115,6 +118,38 @@ class ContextDerivationFixtureTests(unittest.TestCase):
             self.assertIn("mse_ctxrelhead:d1", adr_membership(record))
             self.assertNotIn("mse_ctxrelcontext:d1", adr_membership(record))
 
+            task = next(item for item in _tasks if item["task_id"] == "CTX-11")
+            task = dict(task, fixture=str(built["adversarial-related-only"].path))
+            expected = [{
+                "source": "mse_ctxrelcontext:d1",
+                "target": "mse_ctxrelhead:d1",
+                "type": "related",
+            }]
+            corpus = load_corpus(built["adversarial-related-only"].path, refresh=True)
+            self.assertIn("mse_ctxrelcontext", corpus.graph["mse_ctxrelhead"].outbound)
+            self.assertIn("mse_ctxrelhead", corpus.graph["mse_ctxrelcontext"].outbound)
+            for family in ("adr-structural", "adr-hybrid"):
+                for depth in (0, 1, 2):
+                    result = resolve_strategy(
+                        task,
+                        {
+                            "schema": STRATEGY_SCHEMA,
+                            "strategy_id": f"{family}-{depth}",
+                            "family": family,
+                            "parameters": {"related_depth": depth},
+                        },
+                        corpus=corpus,
+                    )
+                    self.assertEqual(expected, result["related_edges"])
+                    self.assertFalse(any(edge["type"] == "related" for edge in result["lineage_edges"]))
+                    self.assertIn("mse_ctxrelcontext:d1", result["selected_refs"])
+            oracle = resolve_strategy(
+                task,
+                {"schema": STRATEGY_SCHEMA, "strategy_id": "oracle", "family": "oracle", "parameters": {}},
+                corpus=corpus,
+            )
+            self.assertEqual(expected, oracle["related_edges"])
+
     def test_missing_supporting_evidence_is_declared_but_not_materialized(self):
         _manifest, gold, _tasks = fixture_builder.load_definitions()
         row = next(item for item in gold["tasks"] if item["task_id"] == "CTX-12")
@@ -138,6 +173,25 @@ class ContextDerivationFixtureTests(unittest.TestCase):
                 for path in (fixture / ".memory-seed" / "sessions").rglob("*.md")
             )
             self.assertNotIn("mse_ctxmissingbenchmark", session_text)
+            task = next(item for item in _tasks if item["task_id"] == "CTX-12")
+            task = dict(task, fixture=str(fixture))
+            result = resolve_strategy(
+                task,
+                {
+                    "schema": STRATEGY_SCHEMA,
+                    "strategy_id": "missing-support",
+                    "family": "adr-structural",
+                    "parameters": {},
+                },
+                corpus=load_corpus(fixture, refresh=True),
+            )
+            self.assertEqual([], result["related_edges"])
+            self.assertTrue(result["insufficient_evidence"])
+            self.assertTrue(any(
+                "mse_ctxmissingbenchmark:d1" in item["refs"]
+                for item in result["absence"]
+                if item["kind"] == "missing-decision-evidence"
+            ))
 
 
 if __name__ == "__main__":

@@ -404,6 +404,19 @@ def _adr_edges(record: AdrRecord) -> list[dict[str, str]]:
     return _dedupe_dicts(edges)
 
 
+def _adr_supporting_edges(record: AdrRecord) -> list[dict[str, str]]:
+    return _dedupe_dicts(
+        {
+            "source": supporting,
+            "target": event.decision_ref,
+            "type": "related",
+        }
+        for event in record.events
+        if event.kind == "revision-proposed" and event.decision_ref
+        for supporting in event.supporting_decisions
+    )
+
+
 def _dedupe_dicts(items: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
     unique = {canonical_json(dict(item)): dict(item) for item in items}
     return [unique[key] for key in sorted(unique)]
@@ -705,8 +718,12 @@ def resolve_strategy(
             refs = {str(item) for item in _task_hints(task).get("decision_refs", [])}
             for record in selected_records:
                 refs.update(_record_refs(record, {**DEFAULTS["adr-structural"], "scope": "full", "include_non_authoritative": True}))
-            all_edges = [edge for record in corpus.adrs for edge in _adr_edges(record)]
-            typed_edges = [edge for edge in all_edges if edge["source"] in refs or edge["target"] in refs]
+            typed_edges = [
+                edge
+                for record in selected_records
+                for edge in _adr_edges(record)
+                if edge["source"] in refs or edge["target"] in refs
+            ]
         else:
             selected_records = _root_records(task, corpus)
             refs = {ref for record in selected_records for ref in _record_refs(record, parameters)}
@@ -714,21 +731,26 @@ def resolve_strategy(
             refs, typed_edges = _lineage_closure(
                 refs, all_edges, parameters["lineage_depth"], parameters["lineage_direction"]
             )
-            related_refs, related_edges = _related_closure(refs, corpus, int(parameters["related_depth"]))
+            related_refs, _traversal_edges = _related_closure(
+                refs, corpus, int(parameters["related_depth"])
+            )
             refs.update(related_refs)
-            typed_edges.extend(related_edges)
-        if family in {"adr-structural", "adr-hybrid"}:
+        if family in {"oracle", "adr-structural", "adr-hybrid"}:
             # Supporting refs are source evidence, not lineage.  Include them
             # for every selected revision so a dangling support claim becomes
             # an explicit material absence instead of silently disappearing.
-            supporting_refs = {
-                supporting
+            supporting_edges = [
+                edge
                 for record in selected_records
-                for event in record.events
-                if event.kind == "revision-proposed" and event.decision_ref in refs
-                for supporting in event.supporting_decisions
-            }
-            refs.update(supporting_refs)
+                for edge in _adr_supporting_edges(record)
+                if edge["target"] in refs
+            ]
+            typed_edges.extend(
+                edge
+                for edge in supporting_edges
+                if edge["source"] in corpus.decisions and edge["target"] in corpus.decisions
+            )
+            refs.update(edge["source"] for edge in supporting_edges)
         detail = parameters["detail"]
         evidence = [
             _decision_evidence(corpus.decisions[ref], corpus, family, detail)
