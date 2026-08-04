@@ -6,6 +6,11 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- **Graphify structural-analysis skill ships in the coding profile** (`graphify_analysis.md`).
+  The skill had been registered in both trigger registries and `SEED_FILES` without a profile,
+  description, or package-data entry, so `init` never installed it and wheels would not have
+  shipped it. It now installs with `--profile coding` alongside `code_search.md`, covering
+  architecture, dependency-impact, call-path, and community-level structural questions.
 - **ESR orphan-worktree residue detection.** The read-only Worktrees section now compares Git's
   registered worktrees with physical checkout directories beneath the Claude, Codex, Gemini, and
   Cursor worktree namespaces, including when ESR runs from a secondary checkout. Deregistered
