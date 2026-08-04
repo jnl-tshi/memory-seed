@@ -149,8 +149,13 @@ def build_command(agent: str, run_dir: Path, brief: str, args) -> list[str]:
             "claude",
             "-p",
             brief,
+            # stream-json (v2), not json (v1). Plain `json` preserves only the final message, so
+            # there is no record of what actually drove a decision - which left faithfulness
+            # unmeasurable and the worktree-guard confound untestable in the v1 matrix. --verbose
+            # is required alongside it for --print.
             "--output-format",
-            "json",
+            "stream-json",
+            "--verbose",
             "--dangerously-skip-permissions",
             # The fixture's OWN .mcp.json, and nothing else. Without --strict-mcp-config the
             # operator's user-level servers leak in: probe A saw `semble` contribute 2 tools and a
@@ -187,8 +192,8 @@ def build_command(agent: str, run_dir: Path, brief: str, args) -> list[str]:
 
 
 def transcript_name(agent: str) -> str:
-    """Codex `--json` emits JSONL; Claude `--output-format json` emits one object."""
-    return "transcript.jsonl" if agent == "codex" else "transcript.json"
+    """Both arms now emit JSONL: Codex `--json`, Claude `--output-format stream-json`."""
+    return "transcript.jsonl"
 
 
 def main() -> int:
@@ -235,6 +240,10 @@ def main() -> int:
         "template": str(template.relative_to(HERE)),
         "mcp_cwd_pinned": pinned_cwd,
         "brief_override": bool(args.brief),
+        # Instrument generation. v1 (--output-format json) transcripts carry only the final
+        # message; v2 carries the tool-call stream. Results from the two must not be pooled -
+        # faithfulness and guard signals are measurable in one and structurally absent in the other.
+        "transcript_format": "v2-stream-json",
         "parent_before": _parent_fingerprint(),
         # Elide by identity, not position: the brief sits at a different index per agent.
         "command": [BRIEF_MARKER if part == brief else part for part in command],

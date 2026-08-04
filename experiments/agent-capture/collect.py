@@ -42,6 +42,70 @@ def split_entries(text: str) -> list[str]:
     return entries
 
 
+def _iter_events(run_dir: Path) -> list[dict]:
+    """Parse a v2 transcript (JSONL). Returns [] for a v1 transcript or a missing file."""
+    path = run_dir / "transcript.jsonl"
+    if not path.exists():
+        return []
+    events = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            events.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return events
+
+
+def _blocks(event: dict) -> list[dict]:
+    content = (event.get("message") or {}).get("content")
+    return content if isinstance(content, list) else []
+
+
+def distil_transcript(run_dir: Path, tool_result_chars: int = 700) -> str:
+    """Render the session as readable narration + tool calls, for the judge to check reasons against.
+
+    The raw stream is mostly bookkeeping and some tool results run to tens of thousands of
+    characters, so results are truncated while assistant text - the thing a stated reason has to be
+    checked against - is kept whole. Codex transcripts use `mcp_tool_call` items instead and are
+    handled by the same walk.
+    """
+    lines: list[str] = []
+    for event in _iter_events(run_dir):
+        kind = event.get("type")
+        if kind in ("assistant", "user"):
+            for block in _blocks(event):
+                btype = block.get("type")
+                if btype == "text" and block.get("text", "").strip():
+                    lines.append(f"[agent] {block['text'].strip()}")
+                elif btype == "tool_use":
+                    args = json.dumps(block.get("input", {}))[:400]
+                    lines.append(f"[tool call] {block.get('name')} {args}")
+                elif btype == "tool_result":
+                    parts = block.get("content")
+                    text = ""
+                    if isinstance(parts, list):
+                        text = " ".join(
+                            p.get("text", p.get("tool_name", "")) for p in parts if isinstance(p, dict)
+                        )
+                    elif isinstance(parts, str):
+                        text = parts
+                    text = text.strip().replace("\n", " ")
+                    if text:
+                        clipped = text[:tool_result_chars]
+                        suffix = " ...[truncated]" if len(text) > tool_result_chars else ""
+                        lines.append(f"[tool result] {clipped}{suffix}")
+        elif kind == "item.completed":  # codex
+            item = event.get("item") or {}
+            if item.get("type") == "mcp_tool_call":
+                lines.append(f"[tool call] {item.get('server')}.{item.get('tool')}")
+            elif item.get("type") == "agent_message":
+                lines.append(f"[agent] {(item.get('text') or '').strip()}")
+    return "\n\n".join(lines)
+
+
 def _guard_signals(run_dir: Path) -> dict:
     """Did the worktree guard tell this session not to write, and did it write anyway?
 
@@ -52,20 +116,28 @@ def _guard_signals(run_dir: Path) -> dict:
     contract prompt an agent to consult the guard at all, so left unmeasured this could masquerade
     as scaffolding suppressing capture. Cheap textual detection over whichever transcript exists.
     """
-    text = ""
-    for name in ("transcript.json", "transcript.jsonl"):
-        path = run_dir / name
-        if path.exists():
-            text = path.read_text(encoding="utf-8")
-            break
+    events = _iter_events(run_dir)
+    called = blocked = False
+    for event in events:
+        for block in _blocks(event):
+            if block.get("type") == "tool_use" and "worktree_guard" in (block.get("name") or ""):
+                called = True
+            if block.get("type") == "tool_result":
+                parts = block.get("content")
+                text = (
+                    " ".join(p.get("text", "") for p in parts if isinstance(p, dict))
+                    if isinstance(parts, list)
+                    else (parts or "")
+                )
+                if '"safe_to_write": false' in text or '"safe_to_write":false' in text:
+                    blocked = True
     return {
-        "guard_called": "worktree_guard" in text,
-        "guard_blocked": '"safe_to_write": false' in text.replace("\\", ""),
-        # UNRELIABLE on the Claude arm: `--output-format json` preserves only the final message,
-        # not the tool-call stream, so a guard call that happened mid-session leaves no trace here.
-        # These read false almost everywhere regardless of what occurred. Do not report "the guard
-        # never fired" from them - re-run with --output-format stream-json to measure it.
-        "guard_signal_reliable": text.lstrip().startswith("{\"type\"") or "mcp_tool_call" in text,
+        "guard_called": called,
+        "guard_blocked": blocked,
+        # v1 transcripts (--output-format json) carry only the final message, so no tool call
+        # leaves a trace and both flags read false regardless of what happened. Reliable only
+        # where an actual event stream exists.
+        "guard_signal_reliable": bool(events),
     }
 
 
@@ -81,17 +153,22 @@ def _harness_failure(run_dir: Path, manifest: dict) -> str | None:
         return "timed_out"
     if manifest.get("exit_code") not in (0, None):
         return f"exit_code={manifest.get('exit_code')}"
-    transcript = run_dir / "transcript.json"
-    if transcript.exists():
+    events = _iter_events(run_dir)
+    if events:
+        final = next((e for e in reversed(events) if e.get("type") == "result"), None)
+        if final is None:
+            return "no_result_event"
+        if final.get("is_error"):
+            return f"session_error:{final.get('subtype') or final.get('stop_reason')}"
+        return None
+    legacy = run_dir / "transcript.json"
+    if legacy.exists():
         try:
-            payload = json.loads(transcript.read_text(encoding="utf-8"))
+            payload = json.loads(legacy.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             return "unparseable_transcript"
-        if isinstance(payload, dict):
-            if payload.get("is_error"):
-                return f"session_error:{payload.get('subtype') or payload.get('stop_reason')}"
-            if payload.get("stop_reason") not in (None, "end_turn", "stop_sequence", "tool_use"):
-                return f"stop_reason={payload.get('stop_reason')}"
+        if isinstance(payload, dict) and payload.get("is_error"):
+            return f"session_error:{payload.get('subtype') or payload.get('stop_reason')}"
     return None
 
 
@@ -147,15 +224,14 @@ def write_judge_packet(run_dir: Path, analysis: dict) -> None:
                 brief_text = (TASKS / task["brief"]).read_text(encoding="utf-8")
                 break
 
-    # Claude writes transcript.json (one object); Codex `--json` writes transcript.jsonl.
-    # Resolve by existence rather than by agent so a packet is never silently transcript-less.
-    transcript, fence = "", "json"
-    for name in ("transcript.json", "transcript.jsonl"):
-        path = run_dir / name
-        if path.exists():
-            transcript = path.read_text(encoding="utf-8")
-            fence = "jsonl" if name.endswith(".jsonl") else "json"
-            break
+    # Prefer the distilled event stream: narration and tool calls are what a stated reason has to
+    # be checked against. Fall back to the v1 single-object transcript (final message only), so an
+    # archived run still produces a packet rather than a silently empty one.
+    transcript, fence = distil_transcript(run_dir), "text"
+    if not transcript:
+        legacy = run_dir / "transcript.json"
+        transcript = legacy.read_text(encoding="utf-8") if legacy.exists() else ""
+        fence = "json"
 
     recorded = "\n\n---\n\n".join(entry["body"] for entry in analysis["entries"]) or "(nothing recorded)"
 
