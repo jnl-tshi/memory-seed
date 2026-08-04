@@ -57,17 +57,18 @@ def attach_task_packets(
         "adr-candidate-packet": candidate_result,
     }
     payload = dict(task)
-    payload["packets"] = {
-        arm: packet_json(result)
-        for arm, result in arms.items()
-    }
+    rendered = {arm: packet_json(result) for arm, result in arms.items()}
+    payload["packets"] = rendered
     payload["included_refs_by_arm"] = {
-        arm: list(result.get("selected_refs", []))
+        arm: sorted(
+            set(map(str, result.get("selected_refs", [])))
+            | {str(item["adr_id"]) for item in result.get("selected_adrs", []) if item.get("adr_id")}
+        )
         for arm, result in arms.items()
     }
     payload["context_token_proxy_by_arm"] = {
-        arm: int(result.get("token_proxy", 0))
-        for arm, result in arms.items()
+        arm: max(1, (len(packet.encode("utf-8")) + 3) // 4)
+        for arm, packet in rendered.items()
     }
     return payload
 

@@ -179,10 +179,12 @@ class ContextDerivationStrategyTests(unittest.TestCase):
             candidate["selected_refs"],
         )
         self.assertEqual(
-            payload["included_refs_by_arm"]["retrieval-v1-packet"], retrieval["selected_refs"]
+            set(payload["included_refs_by_arm"]["retrieval-v1-packet"]),
+            set(retrieval["selected_refs"]) | {item["adr_id"] for item in retrieval["selected_adrs"]},
         )
         self.assertEqual(
-            payload["context_token_proxy_by_arm"]["adr-candidate-packet"], candidate["token_proxy"]
+            payload["context_token_proxy_by_arm"]["adr-candidate-packet"],
+            (len(payload["packets"]["adr-candidate-packet"].encode("utf-8")) + 3) // 4,
         )
 
     def test_grid_covers_frozen_dimensions(self):

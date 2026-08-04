@@ -794,8 +794,13 @@ def strategy_manifest(*, families: Sequence[str] | None = None) -> dict[str, Any
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Emit the frozen context strategy manifest")
     parser.add_argument("--family", action="append", choices=FAMILIES)
+    parser.add_argument("--output")
     args = parser.parse_args(argv)
-    print(canonical_json(strategy_manifest(families=args.family)))
+    rendered = canonical_json(strategy_manifest(families=args.family)) + "\n"
+    if args.output:
+        Path(args.output).write_text(rendered, encoding="utf-8", newline="\n")
+    else:
+        print(rendered, end="")
     return 0
 
 
