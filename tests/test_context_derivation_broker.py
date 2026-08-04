@@ -295,6 +295,10 @@ class BrokerTests(unittest.TestCase):
                 self.assertEqual("streamable_http", payload["transport"]["type"])
                 self.assertEqual(broker.TOKEN_ENV, payload["transport"]["bearer_token_env_var"])
                 self.assertEqual(sorted(mcp_wrapper.allowed_names("search-mcp")), payload["enabled_tools"])
+                self.assertIn(
+                    'mcp_servers.context_fixture.default_tools_approval_mode="approve"',
+                    endpoint.codex_config_overrides(),
+                )
                 self.assertNotIn(endpoint.token, completed.stdout + completed.stderr)
 
     def test_secret_is_environment_only_and_readiness_failure_closes_port(self):
@@ -304,6 +308,9 @@ class BrokerTests(unittest.TestCase):
             command = endpoint.codex_config_overrides()
             self.assertNotIn(endpoint.token, " ".join(command))
             self.assertIn(broker.TOKEN_ENV, " ".join(command))
+            self.assertIn(
+                'mcp_servers.context_fixture.default_tools_approval_mode="approve"', command,
+            )
             environment = endpoint.inject_environment({"SAFE": "yes"})
             self.assertEqual(endpoint.token, environment[broker.TOKEN_ENV])
             with self.assertRaisesRegex(broker.BrokerError, "exact IPv4 loopback"):

@@ -15,6 +15,7 @@ from typing import Any, Iterable, Mapping
 from contracts import AGENTS, ARMS, EXPECTED_SUBJECT_RUNS, REPETITIONS, canonical_json, live_execution_approved
 
 HERE = Path(__file__).resolve().parent
+SMOKE_EXCLUSION = "unscored_or_smoke_artifact"
 
 
 def _edge_key(value: Mapping[str, Any]) -> tuple[str, str, str]:
@@ -239,6 +240,15 @@ def write_score_shards(rows: list[Mapping[str, Any]], output_dir: str | Path) ->
 def score_experiment(summary: Mapping[str, Any], gold_payload: Mapping[str, Any], *, require_complete: bool = True, live_matrix: Mapping[str, Any] | None = None) -> dict[str, Any]:
     gold = {str(item["task_id"]): item for item in gold_payload.get("tasks", ())}
     runs = list(summary.get("runs", ()))
+    smoke_rows = [
+        str(run.get("run_id"))
+        for run in runs
+        if SMOKE_EXCLUSION in set(str(run.get("protocol_failure") or "").split(";"))
+        or run.get("smoke") is True
+        or run.get("scored") is False
+    ]
+    if smoke_rows:
+        raise ValueError(f"smoke or unscored artifacts are not scorable: {smoke_rows}")
     cells = [(str(run.get("task_id")), str(run.get("arm")), str(run.get("agent")), int(run.get("repetition", 0))) for run in runs]
     duplicates = sorted({cell for cell in cells if cells.count(cell) > 1})
     issues: list[str] = []

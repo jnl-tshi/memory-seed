@@ -337,6 +337,7 @@ def codex_config_overrides(arm: str, url: str) -> list[str]:
         f'mcp_servers.context_fixture.bearer_token_env_var="{TOKEN_ENV}"',
         "mcp_servers.context_fixture.enabled=true",
         f"mcp_servers.context_fixture.enabled_tools={tools}",
+        'mcp_servers.context_fixture.default_tools_approval_mode="approve"',
         "mcp_servers.context_fixture.startup_timeout_sec=10",
         "mcp_servers.context_fixture.tool_timeout_sec=30",
     ]

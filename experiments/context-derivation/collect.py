@@ -13,6 +13,7 @@ from contracts import ANSWER_SCHEMA, RUN_SCHEMA, require_schema, validate_answer
 from mcp_wrapper import allowed_names  # noqa: E402
 
 SUMMARY_SCHEMA = "context-run-summary.v1"
+SMOKE_EXCLUSION = "unscored_or_smoke_artifact"
 _JSON_OBJECT = re.compile(r"\{.*\}", re.S)
 _EVIDENCE_REF = re.compile(r"\b(?:mse_[a-z0-9]+:d[0-9]+|adr_[a-z0-9_]+)\b", re.I)
 
@@ -112,6 +113,8 @@ def analyse_run(run_dir: Path) -> dict[str, Any]:
     allowed = set(allowed_names(arm)) if arm in {"search-mcp", "adr-mcp-workflow"} else set()
     unallowed = sorted(set(manifest.get("undeclared_tool_calls") or ()) | (set(calls) - allowed))
     protocol: list[str] = []
+    if manifest.get("scored") is not True or manifest.get("smoke") is True:
+        protocol.append(SMOKE_EXCLUSION)
     if not raw: protocol.append("missing_or_unparseable_transcript")
     if unallowed: protocol.append("undeclared_tool_call")
     if manifest.get("direct_filesystem_retrieval"): protocol.append("direct_filesystem_retrieval")
@@ -129,7 +132,14 @@ def analyse_run(run_dir: Path) -> dict[str, Any]:
 
 
 def collect(runs: Path = RUNS) -> dict[str, Any]:
-    rows = [analyse_run(path) for path in sorted(runs.iterdir()) if path.is_dir()] if runs.exists() else []
+    rows = []
+    for path in sorted(runs.iterdir()) if runs.exists() else ():
+        if not path.is_dir():
+            continue
+        row = analyse_run(path)
+        failures = set(str(row.get("protocol_failure") or "").split(";"))
+        if SMOKE_EXCLUSION not in failures:
+            rows.append(row)
     return {"schema": SUMMARY_SCHEMA, "runs": rows}
 
 

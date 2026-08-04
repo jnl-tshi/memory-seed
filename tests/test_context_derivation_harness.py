@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import importlib.util
+import http.client
 import io
 import json
+import socket
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.parse import urlsplit
 from unittest.mock import patch
 
 HERE = Path(__file__).resolve().parents[1] / "experiments" / "context-derivation"
@@ -20,7 +23,7 @@ def load(name: str):
     return module
 
 
-mcp = load("mcp_wrapper"); batch = load("batch"); collect = load("collect"); runner = load("run"); judge = load("judge"); contracts = load("contracts"); probe = load("probe")
+mcp = load("mcp_wrapper"); batch = load("batch"); collect = load("collect"); score = load("score"); runner = load("run"); judge = load("judge"); contracts = load("contracts"); probe = load("probe")
 
 
 def answer(**overrides):
@@ -61,7 +64,7 @@ class HarnessTests(unittest.TestCase):
     def test_collects_codex_and_claude_shape_without_gold(self):
         with tempfile.TemporaryDirectory() as temp:
             run = Path(temp) / "r"; run.mkdir()
-            manifest = {"schema": "context-run-manifest.v1", "run_id": "r", "task_id": "CTX-01", "arm": "search-mcp", "agent": "codex", "repetition": 1, "schedule_seed": 20260804, "model": "m", "cli_version": "v", "started_at": "2026-08-04T10:00:00Z", "transcript": "transcript.jsonl", "final_answer": "final_answer.txt", "duration_ms": 2, "parent_isolated": True}
+            manifest = {"schema": "context-run-manifest.v1", "run_id": "r", "task_id": "CTX-01", "arm": "search-mcp", "agent": "codex", "repetition": 1, "schedule_seed": 20260804, "model": "m", "cli_version": "v", "started_at": "2026-08-04T10:00:00Z", "transcript": "transcript.jsonl", "final_answer": "final_answer.txt", "duration_ms": 2, "parent_isolated": True, "scored": True, "smoke": False}
             (run / "RUN_MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
             (run / "transcript.jsonl").write_text(json.dumps({"type": "item.completed", "item": {"type": "mcp_tool_call", "tool": "memory_search"}}) + "\n", encoding="utf-8")
             result = answer(explanation="none", insufficient_evidence=True)
@@ -82,7 +85,7 @@ class HarnessTests(unittest.TestCase):
             def fake_run(*args, **kwargs):
                 seen["cwd"] = Path(kwargs["cwd"]).resolve()
                 return subprocess.CompletedProcess([], 0, stream, "")
-            with patch.object(runner, "RUNS", runs), patch.object(runner, "REPO_ROOT", root), patch.object(runner, "live_execution_approved", return_value=True), patch.object(runner, "live_pin_matches", return_value=True), patch.object(runner, "live_tasks_match", return_value=True), patch.object(runner, "installed_cli_version", return_value=("v", "v")), patch.object(runner.subprocess, "run", side_effect=fake_run):
+            with patch.object(runner, "RUNS", runs), patch.object(runner, "REPO_ROOT", root), patch.object(runner, "scored_execution_ready", return_value=True), patch.object(runner, "live_execution_approved", return_value=True), patch.object(runner, "live_pin_matches", return_value=True), patch.object(runner, "live_tasks_match", return_value=True), patch.object(runner, "installed_cli_version", return_value=("v", "v")), patch.object(runner.subprocess, "run", side_effect=fake_run):
                 self.assertEqual(0, runner.main(["--owner-approved", "--task", "CTX-01", "--arm", "retrieval-v1-packet", "--agent", "claude", "--repetition", "1", "--model", "m", "--cli-version", "v", "--tasks", str(tasks)]))
             with self.assertRaises(ValueError):
                 seen["cwd"].relative_to(root.resolve())
@@ -127,6 +130,10 @@ class HarnessTests(unittest.TestCase):
             self.assertNotIn("CONTEXT_DERIVATION_MCP_TOKEN=", " ".join(interactive_codex))
             self.assertIn(
                 'mcp_servers.context_fixture.bearer_token_env_var="CONTEXT_DERIVATION_MCP_TOKEN"',
+                interactive_codex,
+            )
+            self.assertIn(
+                'mcp_servers.context_fixture.default_tools_approval_mode="approve"',
                 interactive_codex,
             )
             self.assertIn('features.shell_tool=false', interactive_codex)
@@ -224,7 +231,7 @@ class HarnessTests(unittest.TestCase):
         self.assertFalse(runner._direct_filesystem_retrieval(json.dumps({"type": "result", "result": "I did not read the ADR files"})))
         with tempfile.TemporaryDirectory() as temp:
             run = Path(temp)
-            manifest = {"schema": "context-run-manifest.v1", "run_id": "r", "task_id": "CTX-01", "arm": "retrieval-v1-packet", "agent": "codex", "repetition": 1, "schedule_seed": 20260804, "model": "m", "cli_version": "v", "started_at": "2026-08-04T10:00:00Z", "transcript": "transcript.jsonl", "final_answer": "final_answer.txt", "duration_ms": 2, "parent_isolated": True, "tool_calls": [], "undeclared_tool_calls": [], "direct_filesystem_retrieval": True}
+            manifest = {"schema": "context-run-manifest.v1", "run_id": "r", "task_id": "CTX-01", "arm": "retrieval-v1-packet", "agent": "codex", "repetition": 1, "schedule_seed": 20260804, "model": "m", "cli_version": "v", "started_at": "2026-08-04T10:00:00Z", "transcript": "transcript.jsonl", "final_answer": "final_answer.txt", "duration_ms": 2, "parent_isolated": True, "tool_calls": [], "undeclared_tool_calls": [], "direct_filesystem_retrieval": True, "scored": True, "smoke": False}
             (run / "RUN_MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
             (run / "transcript.jsonl").write_text(json.dumps(raw[0]) + "\n", encoding="utf-8")
             (run / "final_answer.txt").write_text(json.dumps(answer()), encoding="utf-8")
@@ -281,6 +288,177 @@ class HarnessTests(unittest.TestCase):
                 "--cli-version", "old",
             ])
 
+    def test_all_scored_single_run_shapes_are_blocked_before_provider(self):
+        self.assertFalse(runner.scored_execution_ready())
+        shapes = [
+            ("claude", "retrieval-v1-packet"), ("claude", "adr-mcp-workflow"),
+            ("codex", "adr-candidate-packet"), ("codex", "search-mcp"),
+        ]
+        with patch.object(runner.subprocess, "run") as provider:
+            for agent, arm in shapes:
+                with self.assertRaises(SystemExit):
+                    runner.main([
+                        "--owner-approved", "--task", "CTX-01", "--arm", arm,
+                        "--agent", agent, "--repetition", "1", "--model", "m",
+                        "--cli-version", "v",
+                    ])
+        provider.assert_not_called()
+
+    def test_smoke_scope_is_exact_and_blocked_before_provider(self):
+        invalid_scopes = [
+            ("CTX-02", "adr-mcp-workflow", 1),
+            ("CTX-01", "search-mcp", 1),
+            ("CTX-01", "adr-mcp-workflow", 2),
+        ]
+        with patch.object(runner.subprocess, "run") as provider:
+            for task, arm, repetition in invalid_scopes:
+                with self.assertRaises(SystemExit):
+                    runner.main([
+                        "--owner-approved", "--unscored-smoke-output", str(Path(tempfile.gettempdir()) / "unused-smoke"),
+                        "--task", task, "--arm", arm, "--agent", "codex",
+                        "--repetition", str(repetition), "--model", "m", "--cli-version", "v",
+                        "--effort", "medium",
+                    ])
+        provider.assert_not_called()
+
+    def test_unscored_smoke_requires_a_dedicated_empty_os_temp_directory(self):
+        with self.assertRaisesRegex(ValueError, "dedicated"):
+            runner._unscored_smoke_root(tempfile.gettempdir())
+        with self.assertRaisesRegex(ValueError, "under the OS temporary directory"):
+            runner._unscored_smoke_root(str(runner.REPO_ROOT / "smoke"))
+        with tempfile.TemporaryDirectory() as temp:
+            occupied = Path(temp) / "occupied"
+            occupied.mkdir()
+            (occupied / "result.txt").write_text("already used", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "must be empty"):
+                runner._unscored_smoke_root(str(occupied))
+
+    def test_collector_excludes_unscored_and_smoke_artifacts(self):
+        base_manifest = {"schema": "context-run-manifest.v1", "run_id": "r", "task_id": "CTX-01", "arm": "adr-mcp-workflow", "agent": "codex", "repetition": 1, "schedule_seed": 20260804, "model": "m", "cli_version": "v", "started_at": "2026-08-04T10:00:00Z", "transcript": "transcript.jsonl", "final_answer": "final_answer.txt", "duration_ms": 2, "parent_isolated": True}
+        with tempfile.TemporaryDirectory() as temp:
+            for name, fields in (("unscored", {"scored": False, "smoke": False}), ("smoke", {"scored": True, "smoke": True})):
+                run = Path(temp) / name; run.mkdir()
+                (run / "RUN_MANIFEST.json").write_text(json.dumps({**base_manifest, "run_id": name, **fields}), encoding="utf-8")
+                (run / "transcript.jsonl").write_text(json.dumps({"type": "result", "result": json.dumps(answer())}) + "\n", encoding="utf-8")
+                (run / "final_answer.txt").write_text(json.dumps(answer()), encoding="utf-8")
+                row = collect.analyse_run(run)
+                self.assertIn("unscored_or_smoke_artifact", row["protocol_failure"])
+                self.assertIn("unscored_or_smoke_artifact", row["exclusion_reason"])
+            self.assertEqual([], collect.collect(Path(temp))["runs"])
+
+    def test_score_rejects_smoke_rows_even_when_incomplete_is_allowed(self):
+        smoke = {
+            "run_id": "smoke", "task_id": "CTX-01", "arm": "adr-mcp-workflow",
+            "agent": "codex", "repetition": 1,
+            "protocol_failure": "unscored_or_smoke_artifact",
+        }
+        with self.assertRaisesRegex(ValueError, "not scorable"):
+            score.score_experiment({"runs": [smoke]}, {"tasks": []}, require_complete=False)
+
+    def test_unscored_codex_smoke_uses_live_broker_and_cleans_up(self):
+        task = {
+            "schema": "context-benchmark-task.v1",
+            "task_id": "CTX-01",
+            "fixture": "",
+            "question": "Which ADR is authoritative?",
+            "task_type": "accepted-head",
+            "resolver_hints": {},
+            "packets": {},
+        }
+        result = answer(insufficient_evidence=True, missing_refs=["mse_missing:d1"])
+        stream = json.dumps({
+            "type": "item.completed",
+            "item": {"type": "agent_message", "text": json.dumps(result)},
+        }) + "\n"
+        captured = {}
+        real_factory = runner.mcp_broker.localhost_mcp_broker
+
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            source = base / "source"
+            source.mkdir()
+            (source / "evidence.md").write_text("fixture evidence", encoding="utf-8")
+            task["fixture"] = str(source)
+            tasks = base / "tasks.json"
+            tasks.write_text(json.dumps({"tasks": [task]}), encoding="utf-8")
+            smoke = base / "smoke"
+            claim = base / "smoke-claim"
+            smoke_again = base / "smoke-again"
+
+            def broker_factory(**kwargs):
+                endpoint = real_factory(**kwargs)
+                captured["endpoint"] = endpoint
+                return endpoint
+
+            def fake_run(command, **kwargs):
+                captured["provider_calls"] = captured.get("provider_calls", 0) + 1
+                endpoint = captured["endpoint"]
+                captured["token"] = endpoint.token
+                captured["port"] = endpoint.port
+                cwd = Path(kwargs["cwd"]).resolve()
+                self.assertFalse((cwd / "fixture").exists())
+                self.assertNotEqual(endpoint.fixture_cwd.parent, cwd)
+                self.assertEqual(endpoint.token, kwargs["env"][runner.mcp_broker.TOKEN_ENV])
+                self.assertNotIn(endpoint.token, " ".join(command))
+                parsed = urlsplit(endpoint.url)
+                connection = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=2)
+                connection.request(
+                    "POST", parsed.path,
+                    body=json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}),
+                    headers={
+                        "Authorization": f"Bearer {endpoint.token}",
+                        "Content-Type": "application/json",
+                    },
+                )
+                response = connection.getresponse()
+                payload = json.loads(response.read())
+                connection.close()
+                self.assertEqual(200, response.status)
+                names = {tool["name"] for tool in payload["result"]["tools"]}
+                self.assertEqual(set(mcp.allowed_names("adr-mcp-workflow")), names)
+                return subprocess.CompletedProcess(command, 0, stream, "")
+
+            try:
+                with patch.object(runner.mcp_broker, "localhost_mcp_broker", side_effect=broker_factory), patch.object(
+                    runner, "live_execution_approved", return_value=True,
+                ), patch.object(runner, "live_pin_matches", return_value=True), patch.object(
+                    runner, "live_tasks_match", return_value=True,
+                ), patch.object(runner, "installed_cli_version", return_value=("codex-cli 0.146.0", "codex-cli 0.146.0")), patch.object(
+                    runner.subprocess, "run", side_effect=fake_run,
+                ), patch.object(runner, "SMOKE_CLAIM_PATH", claim):
+                    args = [
+                        "--owner-approved", "--unscored-smoke-output", str(smoke),
+                        "--task", "CTX-01", "--arm", "adr-mcp-workflow",
+                        "--agent", "codex", "--repetition", "1",
+                        "--model", "gpt-5.6-luna", "--cli-version", "codex-cli 0.146.0",
+                        "--effort", "medium", "--tasks", str(tasks),
+                    ]
+                    status = runner.main(args)
+                    self.assertEqual("consumed\n", claim.read_text(encoding="utf-8"))
+                    repeat_args = [*args]
+                    repeat_args[repeat_args.index(str(smoke))] = str(smoke_again)
+                    with self.assertRaisesRegex(RuntimeError, "already been consumed"):
+                        runner.main(repeat_args)
+                self.assertEqual(0, status)
+                self.assertEqual(1, captured["provider_calls"])
+                run_dir = next(smoke.iterdir())
+                manifest = json.loads((run_dir / "RUN_MANIFEST.json").read_text(encoding="utf-8"))
+                self.assertFalse(manifest["scored"])
+                self.assertTrue(manifest["smoke"])
+                self.assertEqual("streamable_http", manifest["mcp_transport"])
+                self.assertTrue(manifest["broker_teardown_verified"])
+                self.assertTrue(manifest["parent_isolated"])
+                self.assertTrue(manifest["fixture_isolated"])
+                self.assertTrue((run_dir / "fixture" / "evidence.md").is_file())
+                retained = b"\n".join(
+                    path.read_bytes() for path in run_dir.rglob("*") if path.is_file()
+                )
+                self.assertNotIn(captured["token"].encode(), retained)
+                with self.assertRaises(OSError):
+                    socket.create_connection((runner.mcp_broker.HOST, captured["port"]), timeout=0.2)
+            finally:
+                runner._remove_run_dir(smoke)
+
     def test_live_gate_requires_candidate_matrix_pins_and_matching_tasks(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp); (root / "tasks").mkdir()
@@ -335,6 +513,30 @@ class HarnessTests(unittest.TestCase):
             with patch.object(runner, "RUNS", runs), patch.object(runner, "REPO_ROOT", root):
                 self.assertEqual(0, runner.main(["--dry-run", "--task", "CTX-01", "--arm", "retrieval-v1-packet", "--agent", "claude", "--repetition", "1", "--model", "m", "--cli-version", "v", "--tasks", str(tasks)]))
             self.assertFalse(runs.exists() and any(runs.iterdir()))
+
+    def test_run_entrypoint_imports_repository_package_directly(self):
+        task = {
+            "schema": "context-benchmark-task.v1", "task_id": "CTX-01",
+            "fixture": "unused", "question": "q", "task_type": "accepted-head",
+            "resolver_hints": {}, "packets": {"retrieval-v1-packet": "evidence"},
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            tasks = Path(temp) / "tasks.json"
+            tasks.write_text(json.dumps({"tasks": [task]}), encoding="utf-8")
+            environment = dict(runner.os.environ)
+            environment["PYTHONDONTWRITEBYTECODE"] = "1"
+            completed = subprocess.run(
+                [
+                    runner.sys.executable, str(HERE / "run.py"), "--dry-run",
+                    "--task", "CTX-01", "--arm", "retrieval-v1-packet",
+                    "--agent", "claude", "--repetition", "1", "--model", "m",
+                    "--cli-version", "v", "--tasks", str(tasks),
+                ],
+                cwd=runner.REPO_ROOT, env=environment, capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=30,
+            )
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertTrue(json.loads(completed.stdout)["dry_run"])
 
     def test_parallel_results_retain_schedule_order(self):
         schedule = [

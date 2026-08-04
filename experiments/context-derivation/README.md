@@ -81,9 +81,26 @@ both owner-review markers are approved.
    python experiments/context-derivation/batch.py --owner-approved --claude-model <model> --codex-model <model> --codex-effort <effort> --claude-cli-version <version> --codex-cli-version <version>
    ```
 
-   The scored batch fails before creating `runs/` or contacting either provider
-   until `codex_interactive_ready()` confirms an owner-approved privilege broker.
-   Fixed-arm cells cannot run early and leave a partial scored matrix.
+   Every scored single-run subject invocation remains fail-closed before creating
+   `runs/` or contacting either provider, including Claude/Codex and fixed/
+   interactive shapes. There is no command-line flag that enables it.
+
+   One separately approved Codex broker smoke can exercise the live Streamable
+   HTTP boundary without enabling scored execution. It is bound to `CTX-01`,
+   `adr-mcp-workflow`, and repetition `1`; model, CLI, and effort must still
+   match the frozen live pins. Its dedicated output directory must be empty,
+   under the OS temporary directory, and outside the repository:
+
+   ```text
+   python experiments/context-derivation/run.py --owner-approved --unscored-smoke-output <os-temp-path> --task CTX-01 --arm adr-mcp-workflow --agent codex --repetition 1 --model <model> --cli-version <version> --effort <effort> --tasks experiments/context-derivation/generated/live-tasks.json
+   ```
+
+   Immediately before the provider subprocess, after broker and configuration
+   setup, the harness atomically writes a stable machine-local OS-temporary
+   claim. It is non-secret, is never deleted by the harness, and consumes the
+   smoke even if the provider call fails. A smoke also exits nonzero with a
+   harness failure classification if tool, fixture, broker-teardown, direct-read,
+   or parent memory-store isolation checks fail.
 
 8. Collect, score, run the frozen blind reviews, and render the report. Scoring
    and judge execution also verify the frozen live artifacts. The report accepts
@@ -102,10 +119,15 @@ forces deterministic lexical search, and drains active handlers before verified
 teardown. Codex keeps the deny-read, no-network, no-shell, no-web, no-apps
 permission profile.
 
-The scored Codex path remains deliberately disconnected from the broker and
-`codex_interactive_ready()` remains false. Building and locally validating the
-approved trust boundary therefore cannot start either a single provider subject
-or the 288-run matrix. Connecting that final path requires a separate live
-execution approval. Parent and fixture fingerprints, undeclared tools, direct
-filesystem retrieval, model/CLI pins, answer schemas, and redacted retained
-provider artifacts are rechecked during collection and scoring.
+Codex pre-approves only the broker's exact read-only, allowlisted MCP tools;
+filesystem, shell, web, apps, and every other MCP tool remain blocked.
+
+Only the explicit, one-shot unscored smoke path is connected to the Codex broker.
+All scored subject paths remain deliberately blocked, so neither an ordinary
+single run nor the 288-run matrix can start. Enabling scored execution requires a
+separate implementation and live approval. Parent memory-store and fixture
+fingerprints, undeclared tools, direct filesystem retrieval, model/CLI pins,
+answer schemas, and redacted retained provider artifacts are rechecked during
+collection and scoring. The collector marks any manifest where `scored` is not
+exactly `true`, or where `smoke` is `true`, as a protocol failure; smoke artifacts
+cannot be copied or pointed into a scored collection.

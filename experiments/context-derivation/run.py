@@ -26,11 +26,18 @@ REPO_ROOT = HERE.parents[1]
 RUNS = HERE / "runs"
 TASKS = HERE / "tasks"
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(REPO_ROOT))
 import broker as mcp_broker  # noqa: E402
 from contracts import ARMS, RUN_SCHEMA, SCHEDULE_SEED, answer_template, fingerprint, live_execution_approved, live_pin_matches, live_tasks_match, require_schema  # noqa: E402
 
 INTERACTIVE_ARMS = frozenset({"search-mcp", "adr-mcp-workflow"})
 FIXED_ARMS = frozenset(ARMS) - INTERACTIVE_ARMS
+SMOKE_TASK_ID = "CTX-01"
+SMOKE_ARM = "adr-mcp-workflow"
+SMOKE_REPETITION = 1
+# A stable, machine-local marker.  It deliberately contains no credential and is
+# never removed by this harness: the smoke is an approval-consuming observation.
+SMOKE_CLAIM_PATH = Path(tempfile.gettempdir()) / "memory-seed-context-derivation-ctx-01-adr-mcp-workflow-r1.claim"
 DIRECT_FS_RE = re.compile(
     r"(?:\bread(?:_file)?\b|\bcat\b|\bsed\b|\brg\b|Get-Content|type\s).{0,160}"
     r"(?:\.memory-seed|\bgold(?:\.json)?\b|\btasks?\b|preregistration|context-derivation|\badr)",
@@ -127,6 +134,11 @@ def subject_isolation(agent: str) -> str:
 
 def codex_interactive_ready() -> bool:
     """Keep the scored matrix held until its separate live execution approval."""
+    return False
+
+
+def scored_execution_ready() -> bool:
+    """Fail closed until a separate implementation removes this test seam."""
     return False
 
 
@@ -334,10 +346,40 @@ def _temporary_work_dir(run_id: str) -> Path:
 
 
 def _move_finalized_artifacts(work_dir: Path, final_dir: Path) -> Path:
-    RUNS.mkdir(parents=True, exist_ok=True)
+    final_dir.parent.mkdir(parents=True, exist_ok=True)
     if final_dir.exists():
         raise FileExistsError(final_dir)
     return Path(shutil.move(str(work_dir), str(final_dir)))
+
+
+def _unscored_smoke_root(value: str) -> Path:
+    root = Path(value).resolve()
+    temp_root = Path(tempfile.gettempdir()).resolve()
+    if root == temp_root:
+        raise ValueError("unscored smoke output must be a dedicated OS-temporary directory")
+    try:
+        root.relative_to(temp_root)
+    except ValueError as exc:
+        raise ValueError("unscored smoke output must be under the OS temporary directory") from exc
+    try:
+        root.relative_to(REPO_ROOT.resolve())
+    except ValueError:
+        pass
+    else:
+        raise ValueError("unscored smoke output must be outside the repository")
+    if root.exists() and any(root.iterdir()):
+        raise ValueError("unscored smoke output directory must be empty")
+    return root
+
+
+def _consume_smoke_claim() -> None:
+    """Atomically record the one permitted local broker-smoke invocation."""
+    try:
+        descriptor = os.open(SMOKE_CLAIM_PATH, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError as exc:
+        raise RuntimeError("the one-shot Codex broker smoke has already been consumed on this machine") from exc
+    with os.fdopen(descriptor, "w", encoding="utf-8") as claim:
+        claim.write("consumed\n")
 
 
 def _final_answer(run_dir: Path, transcript: str) -> str:
@@ -367,7 +409,25 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--agent", required=True, choices=("claude", "codex")); parser.add_argument("--repetition", type=int, required=True)
     parser.add_argument("--model", required=True); parser.add_argument("--cli-version", required=True)
     parser.add_argument("--effort"); parser.add_argument("--timeout", type=int, default=900); parser.add_argument("--tasks"); parser.add_argument("--dry-run", action="store_true"); parser.add_argument("--owner-approved", action="store_true", help="required before paid/scored execution")
+    parser.add_argument(
+        "--unscored-smoke-output",
+        help="OS-temporary output root for one owner-approved, unscored Codex broker smoke",
+    )
     args = parser.parse_args(argv)
+    interactive_codex = args.agent == "codex" and args.arm in INTERACTIVE_ARMS
+    smoke_requested = args.unscored_smoke_output is not None
+    if smoke_requested and (
+        not interactive_codex
+        or args.task != SMOKE_TASK_ID
+        or args.arm != SMOKE_ARM
+        or args.repetition != SMOKE_REPETITION
+    ):
+        parser.error(
+            "--unscored-smoke-output is only valid for Codex CTX-01 "
+            "adr-mcp-workflow repetition 1"
+        )
+    if not args.dry_run and not smoke_requested and not scored_execution_ready():
+        parser.error("scored subject execution remains blocked pending a separate live approval")
     if not args.dry_run and not args.owner_approved:
         # Check before creating a run directory or copying a fixture, and crucially
         # before either subject CLI can be invoked.
@@ -387,52 +447,134 @@ def main(argv: list[str] | None = None) -> int:
             parser.error(
                 f"installed {args.agent} CLI {observed_cli!r} does not match frozen pin {args.cli_version!r}"
             )
+    smoke_root = _unscored_smoke_root(args.unscored_smoke_output) if smoke_requested else None
     task = load_task(args.task, _tasks_path(args.tasks)); fixture_source = task.get("fixture")
     run_id = f"{args.agent}-{args.task}-{args.arm}-r{args.repetition}-{uuid.uuid4().hex[:10]}"
-    run_dir = RUNS / run_id
+    run_dir = (smoke_root or RUNS) / run_id
     work_dir = _temporary_work_dir(run_id)
+    fixture_parent: Path | None = None
     fixture: Path | None = None
+    endpoint: mcp_broker.BrokerEndpoint | None = None
+    broker_token = ""
+    broker_teardown_verified: bool | None = None
+    finalized = False
     try:
         if args.arm in INTERACTIVE_ARMS:
             if not fixture_source: raise ValueError("interactive arm requires a fixture")
-            fixture = Path(fixture_source)
-            if not fixture.is_absolute(): fixture = (HERE / fixture).resolve()
-            if not fixture.is_dir(): raise ValueError(f"fixture is missing: {fixture}")
-            shutil.copytree(fixture, work_dir / "fixture")
-            fixture = work_dir / "fixture"
+            fixture_source_path = Path(fixture_source)
+            if not fixture_source_path.is_absolute():
+                fixture_source_path = (HERE / fixture_source_path).resolve()
+            mcp_broker.validate_fixture_tree(
+                fixture_source_path, require_immutable=False, require_isolated=False,
+            )
+            if interactive_codex:
+                fixture_parent = mcp_broker.isolated_fixture_parent(run_id)
+                fixture = fixture_parent / "fixture"
+            else:
+                fixture = work_dir / "fixture"
+            shutil.copytree(fixture_source_path, fixture)
             _make_immutable(fixture)
+            mcp_broker.validate_fixture_tree(
+                fixture, require_isolated=interactive_codex,
+            )
         fixture_before = tree_fingerprint(fixture) if fixture else None
-        prompt = subject_prompt(task, args.arm); before = parent_fingerprint(); command = build_command(args.agent, work_dir, prompt, arm=args.arm, fixture=fixture, model=args.model, effort=args.effort)
-    except Exception:
-        _remove_run_dir(work_dir)
-        raise
-    if args.dry_run:
-        manifest = {"schema": RUN_SCHEMA, "run_id": run_id, "task_id": args.task, "arm": args.arm, "agent": args.agent, "repetition": args.repetition, "schedule_seed": SCHEDULE_SEED, "model": args.model, "cli_version": args.cli_version, "started_at": dt.datetime.now(dt.timezone.utc).isoformat(), "dry_run": True, "subject_isolation": subject_isolation(args.agent), "command": ["<prompt>" if part == prompt else part for part in command]}
-        print(json.dumps(manifest)); _remove_run_dir(work_dir); return 0
-    started = time.monotonic(); stdout = stderr = ""; exit_code: int | None = None; timed_out = False
-    try:
-        done = subprocess.run(command, cwd=work_dir, env=subject_environment(), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=args.timeout)
-        stdout, stderr, exit_code = redact_output(done.stdout), redact_output(done.stderr), done.returncode
-    except subprocess.TimeoutExpired as exc:
-        timed_out = True; stdout = (exc.stdout or "").decode() if isinstance(exc.stdout, bytes) else (exc.stdout or ""); stderr = (exc.stderr or "").decode() if isinstance(exc.stderr, bytes) else (exc.stderr or ""); stdout, stderr = redact_output(stdout), redact_output(stderr)
-    except OSError as exc:
-        exit_code = -1; stderr = f"harness launch failed: {exc}"
-    sanitize_subject_artifacts(work_dir)
-    _remove_subject_configs(work_dir)
-    duration_ms = round((time.monotonic() - started) * 1000)
-    (work_dir / "transcript.jsonl").write_text(stdout, encoding="utf-8")
-    if stderr: (work_dir / "stderr.log").write_text(stderr, encoding="utf-8")
-    calls = _tool_calls(stdout); allowed = set() if args.arm in FIXED_ARMS else set(__import__("mcp_wrapper").allowed_names(args.arm))
-    final = _final_answer(work_dir, stdout); (work_dir / "final_answer.txt").write_text(final, encoding="utf-8")
-    after = parent_fingerprint(); fixture_after = tree_fingerprint(fixture) if fixture else None; failure = classify_failure(timed_out=timed_out, exit_code=exit_code, stderr=stderr, transcript=stdout)
-    packet = _packet(task, args.arm) if args.arm in FIXED_ARMS else ""
-    refs_by_arm = task.get("included_refs_by_arm") or {}
-    tokens_by_arm = task.get("context_token_proxy_by_arm") or {}
-    manifest = {"schema": RUN_SCHEMA, "run_id": run_id, "task_id": args.task, "arm": args.arm, "agent": args.agent, "repetition": args.repetition, "schedule_seed": SCHEDULE_SEED, "model": args.model, "cli_version": args.cli_version, "cli_version_observed_raw": observed_cli_raw, "effort": args.effort, "started_at": dt.datetime.now(dt.timezone.utc).isoformat(), "duration_ms": duration_ms, "exit_code": exit_code, "timed_out": timed_out, "transcript": "transcript.jsonl", "final_answer": "final_answer.txt", "interactive_fixture": "fixture" if fixture else None, "fixed_arm_no_fixture": args.arm in FIXED_ARMS, "mcp_enabled": args.arm in INTERACTIVE_ARMS, "subject_isolation": subject_isolation(args.agent), "included_refs": refs_by_arm.get(args.arm, []), "context_token_proxy": tokens_by_arm.get(args.arm, len(packet.split())), "tool_calls": calls, "undeclared_tool_calls": sorted(set(calls) - allowed), "direct_filesystem_retrieval": _direct_filesystem_retrieval(stdout), "parent_before": before, "parent_after": after, "parent_isolated": before == after, "fixture_before": fixture_before, "fixture_after": fixture_after, "fixture_isolated": fixture_before == fixture_after if fixture else True, "failure_classification": failure, "command": ["<prompt>" if part == prompt else part for part in command], **_usage(stdout)}
-    (work_dir / "RUN_MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    _move_finalized_artifacts(work_dir, run_dir)
-    print(json.dumps({"run_id": run_id, "exit_code": exit_code, "failure_classification": failure, "parent_isolated": before == after}))
-    return 0 if exit_code == 0 and not timed_out else 1
+        prompt = subject_prompt(task, args.arm)
+        before = parent_fingerprint()
+        environment = subject_environment()
+        broker_url: str | None = None
+        if interactive_codex:
+            if args.dry_run:
+                broker_url = f"http://{mcp_broker.HOST}:0{mcp_broker.PATH}"
+            else:
+                endpoint = mcp_broker.localhost_mcp_broker(
+                    arm=args.arm, fixture_cwd=fixture or work_dir,
+                ).start()
+                broker_url = endpoint.url
+                broker_token = endpoint.token
+                environment = endpoint.inject_environment(environment)
+        command = build_command(
+            args.agent, work_dir, prompt, arm=args.arm, fixture=fixture,
+            model=args.model, effort=args.effort, broker_url=broker_url,
+        )
+        if args.dry_run:
+            manifest = {"schema": RUN_SCHEMA, "run_id": run_id, "task_id": args.task, "arm": args.arm, "agent": args.agent, "repetition": args.repetition, "schedule_seed": SCHEDULE_SEED, "model": args.model, "cli_version": args.cli_version, "started_at": dt.datetime.now(dt.timezone.utc).isoformat(), "dry_run": True, "scored": False if smoke_root else None, "subject_isolation": subject_isolation(args.agent), "command": ["<prompt>" if part == prompt else part for part in command]}
+            print(json.dumps(manifest))
+            return 0
+
+        started = time.monotonic(); stdout = stderr = ""; exit_code: int | None = None; timed_out = False
+        try:
+            if smoke_root is not None:
+                _consume_smoke_claim()
+            done = subprocess.run(command, cwd=work_dir, env=environment, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=args.timeout)
+            stdout = redact_output(done.stdout, secrets=(broker_token,))
+            stderr = redact_output(done.stderr, secrets=(broker_token,))
+            exit_code = done.returncode
+        except subprocess.TimeoutExpired as exc:
+            timed_out = True
+            stdout = (exc.stdout or "").decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+            stderr = (exc.stderr or "").decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+            stdout = redact_output(stdout, secrets=(broker_token,))
+            stderr = redact_output(stderr, secrets=(broker_token,))
+        except OSError:
+            exit_code = -1
+            stderr = "harness launch failed"
+        finally:
+            if endpoint is not None:
+                try:
+                    endpoint.close()
+                    broker_teardown_verified = True
+                except mcp_broker.BrokerError:
+                    broker_teardown_verified = False
+                    exit_code = -1
+                    stderr = (stderr + "\nbroker teardown failed").strip()
+
+        sanitize_subject_artifacts(work_dir, secrets=(broker_token,))
+        _remove_subject_configs(work_dir)
+        duration_ms = round((time.monotonic() - started) * 1000)
+        (work_dir / "transcript.jsonl").write_text(stdout, encoding="utf-8")
+        if stderr: (work_dir / "stderr.log").write_text(stderr, encoding="utf-8")
+        calls = _tool_calls(stdout)
+        broker_calls = list(endpoint.calls) if endpoint is not None else []
+        allowed = set() if args.arm in FIXED_ARMS else set(__import__("mcp_wrapper").allowed_names(args.arm))
+        undeclared_tool_calls = sorted((set(calls) | set(broker_calls)) - allowed)
+        final = _final_answer(work_dir, stdout); (work_dir / "final_answer.txt").write_text(final, encoding="utf-8")
+        after = parent_fingerprint()
+        fixture_after = tree_fingerprint(fixture) if fixture else None
+        direct_filesystem_retrieval = _direct_filesystem_retrieval(stdout)
+        parent_isolated = before == after
+        fixture_isolated = fixture_before == fixture_after if fixture else True
+        integrity_failures: list[str] = []
+        if smoke_root is not None:
+            if undeclared_tool_calls: integrity_failures.append("undeclared_tool_call")
+            if direct_filesystem_retrieval: integrity_failures.append("direct_filesystem_retrieval")
+            if not parent_isolated: integrity_failures.append("parent_memory_store_isolation_failure")
+            if not fixture_isolated: integrity_failures.append("fixture_isolation_failure")
+            if broker_teardown_verified is not True: integrity_failures.append("broker_teardown_failure")
+            if integrity_failures:
+                exit_code = -1
+                stderr = (stderr + "\nsmoke integrity failure: " + ", ".join(integrity_failures)).strip()
+        failure = "smoke_integrity_failure" if integrity_failures else classify_failure(
+            timed_out=timed_out, exit_code=exit_code, stderr=stderr, transcript=stdout,
+        )
+        packet = _packet(task, args.arm) if args.arm in FIXED_ARMS else ""
+        refs_by_arm = task.get("included_refs_by_arm") or {}
+        tokens_by_arm = task.get("context_token_proxy_by_arm") or {}
+        if fixture and interactive_codex:
+            shutil.copytree(fixture, work_dir / "fixture")
+            _make_immutable(work_dir / "fixture")
+        manifest = {"schema": RUN_SCHEMA, "run_id": run_id, "task_id": args.task, "arm": args.arm, "agent": args.agent, "repetition": args.repetition, "schedule_seed": SCHEDULE_SEED, "model": args.model, "cli_version": args.cli_version, "cli_version_observed_raw": observed_cli_raw, "effort": args.effort, "started_at": dt.datetime.now(dt.timezone.utc).isoformat(), "duration_ms": duration_ms, "exit_code": exit_code, "timed_out": timed_out, "scored": smoke_root is None, "smoke": smoke_root is not None, "transcript": "transcript.jsonl", "final_answer": "final_answer.txt", "interactive_fixture": "fixture" if fixture else None, "fixed_arm_no_fixture": args.arm in FIXED_ARMS, "mcp_enabled": args.arm in INTERACTIVE_ARMS, "mcp_transport": "streamable_http" if endpoint else ("stdio" if args.arm in INTERACTIVE_ARMS else None), "broker_teardown_verified": broker_teardown_verified, "broker_tool_calls": broker_calls, "subject_isolation": subject_isolation(args.agent), "included_refs": refs_by_arm.get(args.arm, []), "context_token_proxy": tokens_by_arm.get(args.arm, len(packet.split())), "tool_calls": calls, "undeclared_tool_calls": undeclared_tool_calls, "direct_filesystem_retrieval": direct_filesystem_retrieval, "parent_before": before, "parent_after": after, "parent_isolated": parent_isolated, "fixture_before": fixture_before, "fixture_after": fixture_after, "fixture_isolated": fixture_isolated, "integrity_failures": integrity_failures, "failure_classification": failure, "command": ["<prompt>" if part == prompt else part for part in command], **_usage(stdout)}
+        (work_dir / "RUN_MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        _move_finalized_artifacts(work_dir, run_dir)
+        finalized = True
+        print(json.dumps({"run_id": run_id, "output": str(run_dir), "exit_code": exit_code, "failure_classification": failure, "parent_isolated": before == after, "scored": smoke_root is None}))
+        return 0 if exit_code == 0 and not timed_out else 1
+    finally:
+        if endpoint is not None and broker_teardown_verified is None:
+            endpoint.close()
+        if fixture_parent is not None:
+            _remove_run_dir(fixture_parent)
+        if not finalized:
+            _remove_run_dir(work_dir)
 
 
 if __name__ == "__main__": raise SystemExit(main())
