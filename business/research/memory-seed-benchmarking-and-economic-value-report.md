@@ -193,6 +193,21 @@ deliberately froze.
 > set, no grader, and no survey — which makes it cheaper and more direct than anything designed in §5, and
 > it measures the outcome rather than a proxy for it. It does not replace the gold set (which controls
 > conditions); it is what to watch in production.
+
+> **Amendment, 2026-08-04 — two designed metrics now have values, and one is retired (E5/E6).**
+>
+> - **Capture rate** — measured. 0.05 with the write path alone, 0.77 with one `AGENTS.md` line,
+>   0.83 / 0.91 at higher scaffolding. Report it as a *ladder*, never as a single headline number:
+>   the figure is meaningless without stating the scaffolding level it was measured at.
+> - **Faithfulness** — measured, and it is the strongest result available: 0 of 121 recorded reasons
+>   judged a post-hoc reconstruction. Promote this above capture rate in any benchmark pack. It is
+>   the only metric here that speaks to the product's actual promise rather than its throughput.
+> - **Noise rate** — ~0 across 120 sessions. Worth quoting defensively (it answers "won't the store
+>   fill with junk?") but it is not a selling metric.
+> - **Threshold pass/fail verdicts — retired.** A pre-registered 0.80 reliability threshold flipped
+>   between two identical 60-session matrices because every arm's confidence interval straddled it.
+>   Any benchmark of this kind must report the interval, and must not be published as a binary at
+>   feasible sample sizes. This is a lesson about the whole §5 benchmark design, not about capture.
 >
 > **Second amendment — token cost is a live counter-pressure, not a theoretical one.** Another responder
 > deletes their context file once a problem is solved: *"removing it clears up context so lower token

@@ -528,9 +528,41 @@ claim E5 had to retract as unmeasured.
 scored run — that a guard block might suppress capture at L2/L3 — **did not materialise** and can be
 retired rather than left open.
 
+### Session length: why the L1–L3 comparison was flat (added after JNL's field observation)
+
+JNL, from building the product: hooks clearly help on long-context tasks. The fixtures could not
+have seen that — the three tasks finish in 12–27 turns, and a `SessionStart` orientation or `Stop`
+session-log check has almost nothing to do in a session that short. Splitting the 120 judged runs at
+the median session length (22 turns):
+
+| Session length | L1 | L3 | L3 − L1 |
+|---|---|---|---|
+| short (≤22 turns) | 1.00 | 0.80 | **−0.20** |
+| long (>22 turns) | 0.62 | 0.96 | **+0.34** |
+
+**L1 capture collapses as sessions lengthen (1.00 → 0.62); L3 holds (0.80 → 0.96).** Averaging two
+gaps of opposite sign is what produced the flat, non-significant pooled L1→L3 result. The pooled
+comparison was masking an interaction, not measuring its absence — which is the more likely
+explanation for the flat band than "hooks don't help".
+
+**This analysis is compromised and must not be quoted as a result.** Session length is an *outcome*,
+not a randomised condition, and scaffolding itself lengthens sessions (mean turns: L0 16.6, L1 22.6,
+L2 23.8, L3 28.1). Splitting on realised length conditions on a consequence of the treatment, so the
+"long" L1 and L3 groups are not comparable populations. It is a post-hoc subgroup analysis on a
+post-treatment variable — the weakest form of quantitative evidence, and the classic way false
+findings are generated. Its value is that it agrees with an independent field observation and has a
+plausible mechanism, not that it demonstrates anything.
+
+**It does sharpen the open question**, from "is the L1→L3 climb real?" to "**does the hook benefit
+appear only under context pressure?**" — which is properly testable with long multi-decision tasks
+where length is fixed by design rather than measured after the fact, scoring capture of decisions
+made *early* in a long session. That is the experiment worth pricing.
+
 ### What it does not establish
 
-- Nothing about the ordering *within* L1–L3. Those arms are statistically indistinguishable here.
+- Nothing about the ordering *within* L1–L3 from the pooled comparison alone. Those arms are
+  statistically indistinguishable in aggregate, for reasons the session-length split above suggests
+  are an artefact of task design rather than an absence of effect.
 - Faithfulness is measured on the Claude arm only, and "0 unfaithful" is bounded by the judge's
   willingness to call one — it used "unclear" rather than "no" throughout, so read it as "no
   detected fabrication", not "fabrication is impossible".
