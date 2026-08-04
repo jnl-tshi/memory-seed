@@ -182,18 +182,28 @@ def print_dose_response(summary: list[dict]) -> None:
         return
 
     width = max(len(t) for t in tasks) if tasks else 4
-    print("\nRecorded a decision-bearing entry (mechanical, NOT the judged capture rate)")
-    print("  level | " + " | ".join(f"{t:>{width}}" for t in tasks) + " |    all")
+    print("\nRecorded ANY entry, by level x task (mechanical, NOT the judged capture rate)")
+    print("  level | " + " | ".join(f"{t:>{width}}" for t in tasks) + " |    all | structured")
     for level in levels:
         cells = []
         for task in tasks:
             rows = [r for r in summary if r["level"] == level and r["task"] == task]
-            hits = sum(1 for r in rows if r["decision_entry_count"])
+            hits = sum(1 for r in rows if r["entry_count"])
             cells.append(f"{hits}/{len(rows)}".rjust(width) if rows else "-".rjust(width))
         rows = [r for r in summary if r["level"] == level]
-        hits = sum(1 for r in rows if r["decision_entry_count"])
+        hits = sum(1 for r in rows if r["entry_count"])
+        structured = sum(1 for r in rows if r["decision_entry_count"])
         rate = f"{hits / len(rows):.2f}" if rows else "-"
-        print(f"  {level:>5} | " + " | ".join(cells) + f" | {hits:>2}/{len(rows):<2} {rate}")
+        print(
+            f"  {level:>5} | " + " | ".join(cells)
+            + f" | {hits:>2}/{len(rows):<2} {rate} | {structured:>2}/{len(rows):<2}"
+        )
+    print(
+        "  'any entry' is the headline: an agent with no format instruction records in prose, and\n"
+        "  counting only the DRAFT '### Decision' shape scored those as silence - it understated the\n"
+        "  low-scaffolding arms by exactly the treatment being dosed. 'structured' is a separate\n"
+        "  question (does scaffolding shape the FORM), not evidence about whether anything was kept."
+    )
 
     guarded = [r for r in summary if r.get("guard_blocked")]
     if guarded:
