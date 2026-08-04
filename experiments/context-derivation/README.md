@@ -91,12 +91,21 @@ both owner-review markers are approved.
    it never authorizes a production change itself.
 
 Subject processes execute in OS-temporary directories outside the repository.
-Fixed packet arms have no MCP tools and no fixture copy. Claude interactive arms
-receive one immutable fixture copy and an exact experiment-local MCP allowlist,
-with built-in filesystem, shell, web, and task tools disabled. Codex fixed arms
-use a deny-read/no-network permission profile. Codex interactive arms fail closed
-until the repository owner explicitly approves a harness-owned privilege broker;
-the experiment does not create a listener or broker implicitly. Parent and
-fixture fingerprints, undeclared tools, direct filesystem retrieval, model/CLI
-pins, answer schemas, and redacted retained provider artifacts are rechecked
-during collection and scoring.
+Fixed packet arms have no MCP tools and no fixture copy. Interactive fixtures are
+immutable, regular-file-only copies outside the subject workspace. Claude reaches
+its copy through the narrow stdio facade with built-in filesystem, shell, web, and
+task tools disabled. The provider-free Codex broker binds a kernel-assigned
+`127.0.0.1` port, requires a fresh per-run bearer token supplied only through the
+subject environment, advertises the exact arm allowlist, forces every tool `cwd`
+to its isolated fixture, validates ADR IDs against traversal, redacts host paths,
+forces deterministic lexical search, and drains active handlers before verified
+teardown. Codex keeps the deny-read, no-network, no-shell, no-web, no-apps
+permission profile.
+
+The scored Codex path remains deliberately disconnected from the broker and
+`codex_interactive_ready()` remains false. Building and locally validating the
+approved trust boundary therefore cannot start either a single provider subject
+or the 288-run matrix. Connecting that final path requires a separate live
+execution approval. Parent and fixture fingerprints, undeclared tools, direct
+filesystem retrieval, model/CLI pins, answer schemas, and redacted retained
+provider artifacts are rechecked during collection and scoring.

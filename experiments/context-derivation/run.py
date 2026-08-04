@@ -26,6 +26,7 @@ REPO_ROOT = HERE.parents[1]
 RUNS = HERE / "runs"
 TASKS = HERE / "tasks"
 sys.path.insert(0, str(HERE))
+import broker as mcp_broker  # noqa: E402
 from contracts import ARMS, RUN_SCHEMA, SCHEDULE_SEED, answer_template, fingerprint, live_execution_approved, live_pin_matches, live_tasks_match, require_schema  # noqa: E402
 
 INTERACTIVE_ARMS = frozenset({"search-mcp", "adr-mcp-workflow"})
@@ -113,7 +114,9 @@ def _codex_isolation_overrides(run_dir: Path, fixture: Path | None) -> list[str]
         '":workspace_roots"={"."="read"}}',
         'permissions.context_subject.network.enabled=false',
         'shell_environment_policy.inherit="none"',
+        'features.shell_tool=false',
         'features.apps=false',
+        'web_search="disabled"',
     ]
     return [part for value in values for part in ("-c", value)]
 
@@ -123,11 +126,16 @@ def subject_isolation(agent: str) -> str:
 
 
 def codex_interactive_ready() -> bool:
-    """Remain false until an owner-approved privilege broker is implemented."""
+    """Keep the scored matrix held until its separate live execution approval."""
     return False
 
 
-def subject_environment() -> dict[str, str]:
+def codex_broker_capable() -> bool:
+    """Implementation preflight used by provider-free broker tests."""
+    return mcp_broker.loopback_capable()
+
+
+def subject_environment(extra: dict[str, str] | None = None) -> dict[str, str]:
     allowed = {
         "PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "COMSPEC", "OS",
         "TEMP", "TMP", "TMPDIR", "USERPROFILE", "HOMEDRIVE", "HOMEPATH",
@@ -135,15 +143,21 @@ def subject_environment() -> dict[str, str]:
         "PROGRAMFILES(X86)", "COMMONPROGRAMFILES", "NUMBER_OF_PROCESSORS",
         "PROCESSOR_ARCHITECTURE", "USERNAME", "LANG", "LC_ALL", "CODEX_HOME",
     }
-    return {name: value for name, value in os.environ.items() if name.upper() in allowed}
+    environment = {name: value for name, value in os.environ.items() if name.upper() in allowed}
+    if extra:
+        environment.update(extra)
+    return environment
 
 
-def redact_output(text: str) -> str:
+def redact_output(text: str, *, secrets: tuple[str, ...] = ()) -> str:
     redacted = text
     secret_name = re.compile(r"(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH)", re.I)
     for name, value in os.environ.items():
         if secret_name.search(name) and len(value) >= 8:
             redacted = redacted.replace(value, f"<redacted-env:{name}>")
+    for value in secrets:
+        if value:
+            redacted = redacted.replace(value, "<redacted-broker-token>")
     redacted = re.sub(r"\b(?:sk|sess|oauth)-[A-Za-z0-9_-]{12,}\b", "<redacted-token>", redacted)
     redacted = re.sub(r"(?i)\bBearer\s+[A-Za-z0-9._~+/-]{12,}=*", "Bearer <redacted-token>", redacted)
     return redacted
@@ -166,7 +180,17 @@ def installed_cli_version(agent: str) -> tuple[str, str]:
     return raw, normalized
 
 
-def build_command(agent: str, run_dir: Path, prompt: str, *, arm: str, fixture: Path | None, model: str | None, effort: str | None) -> list[str]:
+def build_command(
+    agent: str,
+    run_dir: Path,
+    prompt: str,
+    *,
+    arm: str,
+    fixture: Path | None,
+    model: str | None,
+    effort: str | None,
+    broker_url: str | None = None,
+) -> list[str]:
     interactive = arm in INTERACTIVE_ARMS
     if agent == "claude":
         command = [
@@ -189,11 +213,8 @@ def build_command(agent: str, run_dir: Path, prompt: str, *, arm: str, fixture: 
         if model: command += ["--model", model]
         return command
     if agent == "codex":
-        if interactive:
-            raise RuntimeError(
-                "Codex interactive arms require an explicitly approved harness-owned broker; "
-                "stdio MCP cannot isolate the fixture from subject filesystem tools"
-            )
+        if interactive and not broker_url:
+            raise RuntimeError("Codex interactive arms require a running harness-owned broker")
         exe = shutil.which("codex") or shutil.which("codex.cmd") or "codex"
         command = [
             exe, "exec", "--json", "-C", str(run_dir), "-o", "RUN_LAST_MESSAGE.txt",
@@ -201,7 +222,10 @@ def build_command(agent: str, run_dir: Path, prompt: str, *, arm: str, fixture: 
             "--ignore-rules", "--strict-config", "-c", 'approval_policy="never"',
         ]
         command += _codex_isolation_overrides(run_dir, fixture)
-        command += ["-c", "mcp_servers={}"]
+        command += (
+            mcp_broker.codex_config_overrides(arm, broker_url)
+            if interactive else ["-c", "mcp_servers={}"]
+        )
         if effort: command += ["-c", f'model_reasoning_effort="{effort}"']
         if model: command += ["-m", model]
         return command + [prompt]
@@ -209,17 +233,25 @@ def build_command(agent: str, run_dir: Path, prompt: str, *, arm: str, fixture: 
 
 
 def _tool_calls(text: str) -> list[str]:
+    def normalized(value: Any) -> str:
+        name = str(value)
+        known = set(__import__("mcp_wrapper").WORKFLOW_TOOLS)
+        for candidate in (name, name.rsplit("__", 1)[-1], name.rsplit(".", 1)[-1]):
+            if candidate in known:
+                return candidate
+        return name
+
     calls: list[str] = []
     for line in text.splitlines():
         try: event = json.loads(line)
         except json.JSONDecodeError: continue
         item = event.get("item", {})
         item_type = str(item.get("type", ""))
-        if item_type == "mcp_tool_call": calls.append(str(item.get("tool", "")))
+        if item_type == "mcp_tool_call": calls.append(normalized(item.get("tool", "")))
         elif item_type and any(marker in item_type for marker in ("tool", "command", "file", "function_call", "web_search")):
             calls.append(item_type)
         for block in (event.get("message") or {}).get("content", []):
-            if block.get("type") == "tool_use": calls.append(str(block.get("name", "")))
+            if block.get("type") == "tool_use": calls.append(normalized(block.get("name", "")))
     return calls
 
 
@@ -257,12 +289,18 @@ def _make_immutable(path: Path) -> None:
     for item in sorted(path.rglob("*"), key=lambda p: len(p.parts), reverse=True):
         try: item.chmod(item.stat().st_mode & ~stat.S_IWRITE)
         except OSError: pass
+    try: path.chmod(path.stat().st_mode & ~stat.S_IWRITE)
+    except OSError: pass
 
 
 def _remove_run_dir(path: Path) -> None:
+    if not path.exists():
+        return
     for item in sorted(path.rglob("*"), key=lambda value: len(value.parts), reverse=True):
         try: item.chmod(item.stat().st_mode | stat.S_IWRITE)
         except OSError: pass
+    try: path.chmod(path.stat().st_mode | stat.S_IWRITE)
+    except OSError: pass
     shutil.rmtree(path, ignore_errors=True)
 
 
@@ -272,12 +310,15 @@ def _remove_subject_configs(path: Path) -> None:
         config.unlink()
 
 
-def sanitize_subject_artifacts(path: Path) -> None:
+def sanitize_subject_artifacts(path: Path, *, secrets: tuple[str, ...] = ()) -> None:
     """Redact provider-authored files before they enter retained artifacts."""
     final = path / "RUN_LAST_MESSAGE.txt"
     if final.exists():
         final.write_text(
-            redact_output(final.read_text(encoding="utf-8", errors="replace")),
+            redact_output(
+                final.read_text(encoding="utf-8", errors="replace"),
+                secrets=secrets,
+            ),
             encoding="utf-8",
         )
 

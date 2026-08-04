@@ -113,11 +113,25 @@ class HarnessTests(unittest.TestCase):
             self.assertIn("--no-chrome", claude)
             self.assertIn("Bash,Read,Edit,Write,Glob,Grep,NotebookEdit,WebFetch,WebSearch,Task", claude)
 
-            with self.assertRaisesRegex(RuntimeError, "explicitly approved harness-owned broker"):
+            with self.assertRaisesRegex(RuntimeError, "running harness-owned broker"):
                 runner.build_command(
                     "codex", root, "prompt", arm="adr-mcp-workflow", fixture=fixture,
                     model="codex-model", effort="medium",
                 )
+            interactive_codex = runner.build_command(
+                "codex", root, "prompt", arm="adr-mcp-workflow", fixture=fixture,
+                model="codex-model", effort="medium",
+                broker_url="http://127.0.0.1:43123/mcp",
+            )
+            self.assertNotIn("mcp_servers={}", interactive_codex)
+            self.assertNotIn("CONTEXT_DERIVATION_MCP_TOKEN=", " ".join(interactive_codex))
+            self.assertIn(
+                'mcp_servers.context_fixture.bearer_token_env_var="CONTEXT_DERIVATION_MCP_TOKEN"',
+                interactive_codex,
+            )
+            self.assertIn('features.shell_tool=false', interactive_codex)
+            self.assertIn('features.apps=false', interactive_codex)
+            self.assertIn('web_search="disabled"', interactive_codex)
             codex = runner.build_command(
                 "codex", root, "prompt", arm="adr-candidate-packet", fixture=None,
                 model="codex-model", effort="medium",
@@ -144,6 +158,10 @@ class HarnessTests(unittest.TestCase):
             self.assertNotIn("SAFE_SENTINEL", environment)
             with patch.dict(runner.os.environ, {"UNLISTED_TOKEN": "oauth-abcdefghijklmnop"}):
                 self.assertNotIn("oauth-abcdefghijklmnop", runner.redact_output("oauth-abcdefghijklmnop"))
+            generated = "broker-secret-value"
+            self.assertNotIn(generated, runner.redact_output(generated, secrets=(generated,)))
+            self.assertTrue(runner.codex_broker_capable())
+            self.assertFalse(runner.codex_interactive_ready())
 
     def test_subject_last_message_is_redacted_before_archival(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(
