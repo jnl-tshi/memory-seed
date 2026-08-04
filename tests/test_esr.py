@@ -205,6 +205,35 @@ class EsrReportTests(unittest.TestCase):
         self.assertTrue(secondary[0].stale_candidate)
         self.assertIn("STALE CANDIDATE", format_esr_report(report))
 
+    @pytest.mark.integration
+    def test_git_worktree_posture_surfaces_unregistered_physical_residue(self):
+        (self.sessions / "2026-06-01.md").write_text(_entry("2026-06-01 09:00", A), encoding="utf-8")
+
+        def git(*args, cwd=None):
+            subprocess.run(["git", "-C", str(cwd or self.cwd), *args], check=True, capture_output=True)
+
+        git("init", "-b", "main")
+        git("config", "user.email", "t@example.com")
+        git("config", "user.name", "T")
+        git("add", "-A")
+        git("commit", "-m", "base")
+        registered = self.cwd / ".codex" / "worktrees" / "registered"
+        git("worktree", "add", "-b", "feature-registered", str(registered))
+        residue = self.cwd / ".codex" / "worktrees" / "deregistered-residue"
+        residue.mkdir(parents=True)
+        (residue / ".git").write_text("gitdir: missing-admin-entry\n", encoding="utf-8")
+
+        # Run from the secondary checkout: ESR must still inspect the primary
+        # checkout's physical agent-worktree namespaces.
+        report = esr_report(cwd=registered, session_date="2026-06-01")
+        text = format_esr_report(report)
+
+        self.assertEqual([item.path for item in report.worktree_residues], [str(residue.resolve())])
+        self.assertTrue(report.worktree_residues[0].git_file_present)
+        self.assertEqual(report.to_dict()["worktrees"]["residues"][0]["namespace"], ".codex/worktrees")
+        self.assertIn("ORPHAN RESIDUE CANDIDATE", text)
+        self.assertNotIn(f"{registered}  [.codex/worktrees]  ORPHAN", text)
+
 
 if __name__ == "__main__":
     unittest.main()

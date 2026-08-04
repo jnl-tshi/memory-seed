@@ -10,7 +10,8 @@ Sections:
 - topics: controlled-vocabulary check
 - link_gaps: ``link audit`` scoped to the session date (lifecycle sweep input)
 - worktrees: per-worktree branch / commits-ahead-of-integration / dirty count
-  (stale-sweep candidates are the merged-and-clean ones)
+  (stale-sweep candidates are the merged-and-clean ones), plus physical agent
+  worktree directories that Git no longer registers
 - seed_twins: live skill vs ``memory_seed/seed`` twin drift - only meaningful
   in the control-plane development repo itself, where the twins ship from;
   ordinary projects adapt their live skills freely and are never flagged.
@@ -18,6 +19,7 @@ Sections:
 
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass, field
 from datetime import date
@@ -41,6 +43,13 @@ class WorktreePosture:
         return not self.is_primary and self.ahead == 0 and self.dirty == 0
 
 
+@dataclass(frozen=True)
+class WorktreeResidue:
+    path: str
+    namespace: str
+    git_file_present: bool
+
+
 @dataclass
 class EsrReport:
     session_date: str
@@ -53,6 +62,7 @@ class EsrReport:
     link_gaps: list[dict[str, Any]] = field(default_factory=list)
     open_link_stubs: int = 0
     worktrees: list[WorktreePosture] = field(default_factory=list)
+    worktree_residues: list[WorktreeResidue] = field(default_factory=list)
     worktrees_available: bool = False
     seed_twins_checked: bool = False
     seed_twin_drift: list[str] = field(default_factory=list)
@@ -102,6 +112,14 @@ class EsrReport:
                         "stale_candidate": w.stale_candidate,
                     }
                     for w in self.worktrees
+                ],
+                "residues": [
+                    {
+                        "path": residue.path,
+                        "namespace": residue.namespace,
+                        "git_file_present": residue.git_file_present,
+                    }
+                    for residue in self.worktree_residues
                 ],
             },
             "seed_twins": {"checked": self.seed_twins_checked, "drift": self.seed_twin_drift},
@@ -226,6 +244,60 @@ def _worktree_posture(root: Path) -> tuple[bool, list[WorktreePosture]]:
     return True, postures
 
 
+def _normalised_path(path: Path) -> str:
+    """Stable path identity using the host filesystem's case semantics."""
+    return os.path.normcase(os.path.abspath(path))
+
+
+def _worktree_storage_root(root: Path) -> Path:
+    """Return the primary checkout root even when ESR runs in a worktree."""
+    lines = _git_lines(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    if not lines:
+        lines = _git_lines(root, "rev-parse", "--git-common-dir")
+    if not lines:
+        return root
+    common_dir = Path(lines[0].strip())
+    if not common_dir.is_absolute():
+        common_dir = root / common_dir
+    common_dir = common_dir.resolve(strict=False)
+    return common_dir.parent if common_dir.name == ".git" else root
+
+
+def _worktree_residues(root: Path, postures: list[WorktreePosture]) -> list[WorktreeResidue]:
+    """Find physical agent worktree directories Git no longer registers.
+
+    This is deliberately read-only and shallow. A residue candidate is not
+    deletion authority: ESR surfaces the physical-vs-registered mismatch and
+    the End Of Turn runbook owns the audit and consent gate.
+    """
+    storage_root = _worktree_storage_root(root)
+    registered = {_normalised_path(Path(posture.path)) for posture in postures}
+    residues: list[WorktreeResidue] = []
+    for owner in ("claude", "codex", "gemini", "cursor"):
+        namespace = storage_root / f".{owner}" / "worktrees"
+        if not namespace.is_dir():
+            continue
+        try:
+            children = sorted(namespace.iterdir(), key=lambda item: item.name.casefold())
+        except OSError:
+            continue
+        for child in children:
+            try:
+                is_directory = child.is_dir()
+            except OSError:
+                continue
+            if not is_directory or _normalised_path(child) in registered:
+                continue
+            residues.append(
+                WorktreeResidue(
+                    path=str(child.resolve(strict=False)),
+                    namespace=f".{owner}/worktrees",
+                    git_file_present=(child / ".git").is_file(),
+                )
+            )
+    return residues
+
+
 def _seed_twin_drift(root: Path) -> tuple[bool, list[str]]:
     """Live-vs-seed skill drift, control-plane dev repo only.
 
@@ -309,6 +381,8 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
         )
 
     report.worktrees_available, report.worktrees = _worktree_posture(root)
+    if report.worktrees_available:
+        report.worktree_residues = _worktree_residues(root, report.worktrees)
     report.seed_twins_checked, report.seed_twin_drift = _seed_twin_drift(root)
 
     from .docs_check import check_docs
@@ -440,7 +514,7 @@ def format_esr_report(report: EsrReport) -> str:
     lines.append("## Worktrees")
     if not report.worktrees_available:
         lines.append("Not a git repository (or git unavailable) — nothing to sweep.")
-    elif len(report.worktrees) <= 1:
+    elif len(report.worktrees) <= 1 and not report.worktree_residues:
         lines.append("Only the primary checkout — nothing to sweep.")
     else:
         for wt in report.worktrees:
@@ -451,6 +525,14 @@ def format_esr_report(report: EsrReport) -> str:
             dirty = "?" if wt.dirty is None else wt.dirty
             marker = "  STALE CANDIDATE (merged + clean)" if wt.stale_candidate else ""
             lines.append(f"- {wt.path}  [{wt.branch or 'detached'}]  ahead: {ahead}  dirty: {dirty}{marker}")
+        if report.worktree_residues:
+            lines.append("Unregistered physical directories — audit before removal:")
+            for residue in report.worktree_residues:
+                metadata = ".git pointer present" if residue.git_file_present else ".git pointer absent"
+                lines.append(
+                    f"- {residue.path}  [{residue.namespace}]  "
+                    f"ORPHAN RESIDUE CANDIDATE ({metadata})"
+                )
     lines.append("")
 
     lines.append("## Docs lifecycle")
