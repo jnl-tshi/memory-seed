@@ -495,11 +495,16 @@ threshold was the wrong instrument for a question at this cost.
 - **The write path alone is not used.** Pooled L0 = 0.05, and its interval [0.01, 0.17] does not come
   near any other arm's. This is the one conclusion with real separation, and it survived a
   replication that overturned everything else.
-- **Everything from L1 upward clusters in one band (0.77–0.91) that this data cannot separate.**
-  The practical reading is that **one line in `AGENTS.md` naming the store gets most of the
-  available capture**, and the marginal value of the full contract and hooks over that single line
-  is real in direction but not demonstrable at this N. That is a different claim from either
-  matrix's headline, and it is the one the pooled data supports.
+- **One line in `AGENTS.md` naming the store gets most of the available capture** (L0 0.05 → L1
+  0.77), and capture continues to climb with scaffolding: pooled L1 0.77 → L2 0.83 → L3 0.91.
+  A Cochran-Armitage trend test across the full ladder is overwhelming (p ≈ 7e-14), driven by L0.
+  Across L1–L3 alone it gives **z = 1.58, p ≈ 0.11** — suggestive of a real further climb, not
+  established, and the ordering did not itself replicate (v2 placed L2 at 0.882 fractionally above
+  L3 at 0.875, so the pooled monotonicity leans on v1). Direct L3 vs L1 is one-sided Fisher
+  p ≈ 0.10. Read it as: the entry price is one line; whether the rest of the control plane buys the
+  further ~14 points is directionally supported and worth resolving, but not shown here.
+  **Unlike the threshold verdict, this question is resolvable by more data** — it is a trend rather
+  than a knife-edge against a fixed line.
 - **L0's zero was a small-sample artefact.** One of thirty L0 sessions recorded unprompted — and did
   so in full `### Decision` / `D:` / `R:` form despite L0 carrying no rules file, apparently
   inferring the shape from the tool schema. State L0 as ~3–5%, never as "never".

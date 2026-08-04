@@ -162,9 +162,26 @@ Before broadening the wedge, collect evidence from at least:
 
 ## Unresolved validation questions
 
-- Do agents with the MCP write path available record decisions without being prompted, in real
-  sessions? This is the untested defence of write-time capture (field evidence E2) and now the
-  premise's most important test.
+- ~~Do agents with the MCP write path available record decisions without being prompted?~~
+  **ANSWERED (E5/E6, 120 sessions across two matrices).** Essentially never on the tool alone —
+  pooled capture 0.05, an interval that does not approach any other arm; the full ladder L0→L3 is
+  a trend at p ≈ 7e-14. **One line in `AGENTS.md` naming the store lifts it to ~0.77**, and capture
+  keeps climbing with scaffolding: pooled L1 0.77 → L2 0.83 → L3 0.91. That further climb is
+  *suggestive but not established* — Cochran-Armitage across L1–L3 gives p ≈ 0.11, and the ordering
+  itself did not replicate (v2 put L2 fractionally above L3). Faithfulness held where it could be
+  measured: 0 of 121 recorded reasons judged a post-hoc reconstruction. Treat the *pattern* as the
+  finding; the pre-registered 0.80 threshold verdict flipped between two identical runs and is not
+  a basis for any decision at feasible sample sizes.
+  **Consequence for the premise:** write-time capture through the deciding agent works, but it is
+  not free — it needs a routing instruction present, not merely a tool installed. E2's
+  enforcement-is-not-cheapness criticism lands softer than v1 suggested and harder than v2 did: the
+  entry price is one line. Whether the rest of the control plane buys the further ~14 points from
+  0.77 to 0.91 is the open commercial question — direction consistent, significance not reached.
+- Does the one-line result hold outside this stub project, these three tasks, and this model family?
+  This is now the load-bearing generalisation question, and it is the cheapest remaining test.
+- Is the L1→L3 climb real? Unlike the threshold verdict, this one *is* resolvable by more data — it
+  is a trend, not a knife-edge against a fixed line. Worth pricing before it is worth running: it
+  decides whether the hooks and rules contract are load-bearing for capture, or merely for form.
 - Is the beachhead solo developers, technical founders, or an engineering-platform team?
 - Is the decisive paid feature hosted retrieval, team governance, Memory Trace, or handover reporting?
 - How much deliberate authoring can users tolerate before passive assistance becomes necessary?
@@ -173,6 +190,10 @@ Before broadening the wedge, collect evidence from at least:
 
 ## Change log
 
+- **2026-08-04:** Closed the unprompted-agent-authoring question with E5/E6 (120 controlled
+  sessions). The tool alone is not used; one `AGENTS.md` line carries most of the gain. Ratified by
+  JNL that the pre-registered threshold verdict is not decision-grade at this sample size and that
+  the replicated pattern, not the binary, governs. Added the generalisation question that replaces it.
 - **2026-08-03:** Ratified the operating premise — agents are the primary readers and writers; one
   authoritative store with derived views; Trace as the human cold-lookup and trust surface;
   write-time capture through the deciding agent — with field evidence E1–E3 attached. Added the
