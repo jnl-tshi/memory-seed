@@ -41,12 +41,35 @@ that exact class of action in the current context:
   encryption, privileged network dependencies, or user-data exposure.
 - **Shared / control-plane state** - routing files, `.memory-seed/` control files, skill registry
   entries, seed templates, lockfiles, or session/memory files outside the assigned scope.
-- **Constitutional / architectural conflict** - anything contradicting a ratified invariant in
-  `docs/CONSTITUTION.md`, or an established architectural decision recorded in a spec or the memory
-  corpus. Per Constitution §11, such a change "is rejected or must first amend the invariant - it
-  cannot silently override it". There is no tier below Stop here: an agent may not decide for itself
-  that an invariant does not apply. Either the user grants live consent for a change that stays
-  inside the invariant, or the invariant is formally amended first.
+- **Constitutional conflict** - anything contradicting a ratified invariant in
+  `docs/CONSTITUTION.md`. Per Constitution §11, such a change "is rejected or must first amend the
+  invariant - it cannot silently override it". There is no tier below Stop here: an agent may not
+  decide for itself that an invariant does not apply. Either the user grants live consent for a
+  change that stays inside the invariant, or the invariant is formally amended first.
+- **Incidental recorded-decision conflict** - the work would contradict an established decision
+  recorded in a spec or the memory corpus, and the user's instruction does NOT explicitly target
+  that decision's subject. Surface the conflict and the recorded rationale before proceeding
+  (Propose-and-wait): the user may be unaware of the record, and you cannot tell a deliberate
+  amendment from an unaware override without asking.
+
+### Reversing a recorded decision on live instruction is NOT a Stop
+
+When the **current conversation's live instruction explicitly requests the very change a recorded
+decision rejected or reversed**, the instruction is itself the amendment authority - Constitution
+Invariant #2's mechanism for ordinary recorded decisions is "extend and supersede, never rewrite",
+and a live explicit instruction is how a supersession starts. Recorded decisions are evidence, not
+law; only constitutional invariants get the hard Stop above. Tier: **Proceed-and-flag**, with two
+mandatory parts:
+
+1. **Flag**: name the recorded decision in the reply and carry its `R:` forward, so the user
+   decides with the old rationale in view rather than without it.
+2. **Record**: append a superseding entry in the same turn, with a `replaces` or `evolves` edge to
+   the decision being reversed (the three-way rule in `session_logging.md` decides which). The
+   reversal is the most valuable decision to record - it retires a live record; skipping the entry
+   leaves the store asserting the opposite of the code.
+
+This path requires a live instruction in the current conversation. Unattended runs working from a
+plan still park recorded-decision conflicts per "live consent" below.
 - **External / irrevocable communication** - remote pushes, pull-request or issue comments, emails,
   chat messages, public posts, or other visible external actions.
 - **Financial** - payments, billing, pricing, invoices, subscriptions, or financial configuration.

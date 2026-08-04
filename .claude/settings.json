@@ -29,6 +29,16 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .memory-seed/hooks/file-touch-decisions.py"
+          }
+        ]
+      }
     ]
   }
 }
