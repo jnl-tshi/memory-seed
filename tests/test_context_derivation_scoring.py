@@ -129,6 +129,24 @@ class ContextDerivationScoringTests(unittest.TestCase):
         self.assertIn("### Codex", report)
         self.assertIn("does not authorize", report)
 
+    def test_complete_matrix_rejects_out_of_range_repetition(self):
+        runs = []
+        for arm in ("search-mcp", "retrieval-v1-packet", "adr-candidate-packet", "adr-mcp-workflow"):
+            for agent in ("claude", "codex"):
+                for repetition in (1, 2, 3):
+                    run = self.sample_run(arm=arm, agent=agent, repetition=repetition)
+                    runs.append(run)
+        # Repeat the one-task matrix to the nominal 288 count, but inject an
+        # invalid unique cell that the old count-only check accepted.
+        runs = [dict(run, run_id=f"r-{index}", task_id=f"CTX-{index // 24 + 1:02d}") for index, run in enumerate(runs * 12)]
+        runs[-1]["repetition"] = 4
+        gold_rows = []
+        for number in range(1, 13):
+            row = dict(self.gold(), task_id=f"CTX-{number:02d}")
+            gold_rows.append(row)
+        with self.assertRaisesRegex(ValueError, "live matrix mismatch"):
+            score_experiment({"runs": runs}, {"tasks": gold_rows})
+
 
 if __name__ == "__main__":
     unittest.main()

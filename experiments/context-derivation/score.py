@@ -10,7 +10,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from contracts import AGENTS, ARMS, EXPECTED_SUBJECT_RUNS, canonical_json
+from contracts import AGENTS, ARMS, EXPECTED_SUBJECT_RUNS, REPETITIONS, canonical_json
 
 
 def _edge_key(value: Mapping[str, Any]) -> tuple[str, str, str]:
@@ -221,6 +221,21 @@ def score_experiment(summary: Mapping[str, Any], gold_payload: Mapping[str, Any]
         issues.append(f"duplicate run cells: {duplicates}")
     if require_complete and len(runs) != EXPECTED_SUBJECT_RUNS:
         issues.append(f"expected {EXPECTED_SUBJECT_RUNS} subject runs, found {len(runs)}")
+    if require_complete:
+        expected_cells = {
+            (task_id, arm, agent, repetition)
+            for task_id in gold
+            for arm in ARMS
+            for agent in AGENTS
+            for repetition in range(1, REPETITIONS + 1)
+        }
+        actual_cells = set(cells)
+        missing_cells = sorted(expected_cells - actual_cells)
+        extra_cells = sorted(actual_cells - expected_cells)
+        if missing_cells or extra_cells:
+            issues.append(
+                f"live matrix mismatch: missing={missing_cells}, extra={extra_cells}"
+            )
     for run in runs:
         if str(run.get("task_id")) not in gold:
             issues.append(f"run {run.get('run_id')} has no gold task")
