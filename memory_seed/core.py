@@ -6670,6 +6670,10 @@ SEED_FILES = [
         SEED_ROOT / MEMORY_DIR_NAME / "hooks" / "prepare-commit-msg.py",
         ".memory-seed/hooks/prepare-commit-msg.py",
     ),
+    SeedFile(
+        SEED_ROOT / MEMORY_DIR_NAME / "hooks" / "file-touch-decisions.py",
+        ".memory-seed/hooks/file-touch-decisions.py",
+    ),
 ]
 
 # Shim written into .git/hooks/ so git runs the repo-tracked trailer stamper.
@@ -6980,6 +6984,13 @@ _CODEX_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py
 _CURSOR_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py --cursor"
 _GEMINI_RETRIEVAL_COMMAND = "python3 .memory-seed/hooks/memory-retrieval-check.py --gemini"
 
+# PostToolUse file-touch hook: when an edit touches a file named in a live
+# decision's F: refs, inject that decision + lifecycle status + the duty to
+# record replaces/evolves if contradicted. Mid-turn by design - the only point
+# a single-turn headless session can still be influenced (field evidence E8).
+# The hook filters tool_name itself, so no matcher is needed in the config.
+_CLAUDE_FILE_TOUCH_COMMAND = "python3 .memory-seed/hooks/file-touch-decisions.py"
+
 # SessionStart orientation hook: routes agents through AGENTS.md and injects the
 # five newest session entries directly so agents do not lean on semantic search
 # (which can bury the newest entry) to establish current state. Fires once per
@@ -7138,6 +7149,16 @@ def _merge_claude_hook(target_root: Path) -> bool:
         "Stop",
         _CLAUDE_HOOK_COMMAND,
         "session-log-check.py",
+    )
+
+
+def _merge_claude_file_touch_hook(target_root: Path) -> bool:
+    """Upsert the file-touch decision-surfacing PostToolUse hook in .claude/settings.json."""
+    return _merge_grouped_hook(
+        target_root / ".claude" / "settings.json",
+        "PostToolUse",
+        _CLAUDE_FILE_TOUCH_COMMAND,
+        "file-touch-decisions.py",
     )
 
 
@@ -7668,6 +7689,7 @@ _AGENT_MERGES: dict[str, tuple[tuple, ...]] = {
         (_merge_claude_hook, ".claude/settings.json"),
         (_merge_claude_retrieval_hook, ".claude/settings.json"),
         (_merge_claude_startup_hook, ".claude/settings.json"),
+        (_merge_claude_file_touch_hook, ".claude/settings.json"),
         (_merge_claude_mcp, ".mcp.json"),
         (_strip_claude_settings_mcp, ".claude/settings.json"),
     ),
@@ -7716,6 +7738,7 @@ _OUR_HOOK_SCRIPTS = (
     "session-log-check.py",
     "memory-retrieval-check.py",
     "session-start-context.py",
+    "file-touch-decisions.py",
 )
 
 

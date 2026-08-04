@@ -2,9 +2,9 @@
 title: "File-Touch Decision Surfacing Proposal"
 date: "2026-08-04"
 project: "memory-seed"
-status: "proposed - unbuilt"
+status: "shipped-v1 (Claude PostToolUse); other agents deferred"
 priority: "P2"
-next_action: "JNL decides whether this ships before or after the attention signal's ranking gate; then implement the PostToolUse hook behind a fixture."
+next_action: "Observe the hook in real sessions; extend to Codex/Gemini/Cursor events when their PostToolUse equivalents are verified."
 related:
   - "docs/2_Todo/attention-retrieval-signal-proposal.md"
   - "docs/3_Spec/graph-edge-contract.md"
@@ -13,7 +13,7 @@ related:
 
 # File-Touch Decision Surfacing Proposal
 
-Status: **proposed, unbuilt.** Five-question test: **Retrieval, Application**.
+Status: **v1 SHIPPED 2026-08-04** - `.memory-seed/hooks/file-touch-decisions.py` (live + seed), registered as a Claude PostToolUse hook by `init_project`; tests in `tests/test_file_touch_hook.py`. Built the same day E8 showed the record-side alone cannot carry reversals and mid-turn injection is the only reach into a single-turn headless session. Five-question test: **Retrieval, Application**.
 
 ## Problem — the strongest field challenge on record
 
