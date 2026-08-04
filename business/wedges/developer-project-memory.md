@@ -188,7 +188,21 @@ Before broadening the wedge, collect evidence from at least:
   `SessionStart` hook nothing to do. **Deferred, not scheduled** — design recorded as Test 4 in the
   roadmap report. Until it runs, argue the control plane on structure, retrieval and governance,
   not on capture.
-- Is the beachhead solo developers, technical founders, or an engineering-platform team?
+- **What surfaces a decision again?** E7's strongest field challenge is that records read only at
+  write time are dead weight, and that the half worth writing are the half a failing test pointed
+  back at. Capture is measured and largely solved; the retrieval trigger is the contested ground.
+  The concrete unbuilt move: surface the relevant decision when an execution artefact fails or is
+  touched, using the `F:` file references and typed edges already recorded. Tests are a good
+  trigger and a poor record — they carry no rejected alternative — so this is complementary to the
+  store, not a substitute for it.
+- **Can a stale record veto the user?** E7 records a practitioner whose ADR made the agent refuse a
+  new product decision. Every property that makes this store reliable — validated, agent-loaded,
+  enforced — also makes a stale record harder to override. Supersession is the designed answer;
+  whether retrieval surfaces current status prominently enough is untested.
+- Is the beachhead solo developers, technical founders, or an engineering-platform team? **E7
+  complicates this**: the sharpest cost analysis in the field research says a solo developer does
+  not need a decision record. The reconciliation — the solo developer is not the reader, their agent
+  is — must be argued rather than assumed.
 - Is the decisive paid feature hosted retrieval, team governance, Memory Trace, or handover reporting?
 - How much deliberate authoring can users tolerate before passive assistance becomes necessary?
 - Which outcome is easiest to measure: reduced re-explanation, faster onboarding, fewer repeated mistakes,

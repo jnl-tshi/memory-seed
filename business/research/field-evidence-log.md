@@ -570,6 +570,168 @@ made *early* in a long session. That is the experiment worth pricing.
 
 ---
 
+---
+
+## E7 — ADR abandonment thread and DM follow-up, 2026-08-04
+
+**Source:** r/softwarearchitecture, *"If you stopped writing ADRs, what actually made you stop?"*
+(45K views, 21 upvotes, ~18 comments), the parallel r/ClaudeAI thread on agents re-deciding settled
+questions (4.5K views), and a follow-up DM exchange with `Environmental_Ask675` (the E2 practitioner).
+Posted as a practitioner question; no pitch. Supersedes nothing — E3 covered an earlier, smaller
+snapshot of the architecture thread.
+
+### The strongest challenge yet: decisions belong in tests, not records
+
+Three responders independently converged on executable enforcement over written records, and this is
+the sharpest competing architecture the programme has encountered.
+
+- `Mountain_Extent_6021` (r/ClaudeAI) gave the most economical statement of it: half his ADRs are
+  read once, at write time; the other half get read **because a test failed and pointed back at
+  them** — and only the second half were worth writing.
+- `ellicottvilleny` put it as a rule: tests are where decisions live, they *make noise* when broken,
+  and "no test = no rules".
+- `aboothe726` reported the only method that kept a team honest was **making the build go red** —
+  ArchUnit assertions, aggressive linting — framed explicitly for the agent case: if the build does
+  not fail, the AI will not follow the requirement, "at best because it never loaded them into
+  context".
+
+**Why this matters more than the usual "ADRs are overhead" complaint.** It is not an argument that
+decisions don't need recording. It is an argument that a record with **no execution path that
+surfaces it** is dead weight, and that the retrieval trigger — not the record — is the product. That
+is a direct challenge to a Markdown decision store, and the honest answer is not "but ours is
+validated": validation constrains what gets written, not what gets read.
+
+**What it does not cover.** A test encodes *what* is forbidden, not *why*, and cannot carry a
+rejected alternative. `aboothe726`'s own framing concedes the gap — the build going red is what makes
+an agent obey a rule it never loaded; it says nothing about an agent proposing an approach that was
+tried and abandoned for reasons no test can express. The synthesis, which nobody in the thread
+stated, is that tests are an excellent *trigger* and a poor *record*.
+
+**Product consequence (unbuilt):** surface the relevant decision at the moment an execution artefact
+fails or is touched — the `F:` file references and typed edges already carry the linkage needed to do
+it. This is the single most specific product idea to come out of the field research so far.
+
+### The economics: no gate means volunteer work
+
+`c1rno123` gave the clearest cost analysis in any thread to date — ask what it costs and who it pays;
+note that there is usually no gate that fails when the record is missing, which makes writing one
+volunteer work; then name the value per seat: what the reviewer does with it, what the on-call
+engineer opens at 3am, what the person joining in eight months reads first.
+
+**This directly challenges the ICP.** The same comment states plainly that a solo developer does not
+really need an ADR. Report 6 named solo developers as a candidate beachhead. The reconciliation the
+agent era offers — and it must be argued, not assumed — is that the solo developer is not the reader;
+**their agent is**, and the agent re-derives abandoned approaches at a cost the solo developer pays
+directly. E5/E6 supply the mechanism (capture is near-free once a routing line exists); this comment
+supplies the objection that must be answered in the same breath.
+
+### Third independent corroboration of the loading lesson
+
+`aboothe726`'s "it never loaded them into context" is now the **third** independent statement of the
+finding first recorded in E2 and measured in E4: a rule binds only where it is loaded. E2 learned it
+from months of practice, E4 measured it as a doubling of compliance at the rule→mechanism boundary,
+and E7 now has a practitioner reaching it from a completely different direction (build-breaking
+architecture tests). This is the most robustly corroborated claim in the entire evidence base.
+
+### Why practices died — causes named, unprompted
+
+- **Distance from code.** `amendCommit`: a manager moved ADRs out of the repos into a central
+  architecture repo, away from runnable code and behind a review nobody owned. Practice died; the
+  author is leaving. `heavy-minium` argues the same structurally — put decisions where people already
+  look, not in one central register.
+- **No outcomes, no incentive.** `vivshaw`: never reviewed, code drifted away from the decision,
+  sometimes the decision was never followed at all, and nobody was rewarded for writing them. Notes
+  the pockets where it *worked*: a guild model for alignment, enforcement mechanisms, a clear
+  organisational vision.
+- **Design artefact, not archive.** `svhelloworld` and `Lilacsoftlips` both report value in ADRs as
+  a *conversation* device moving through PR review, and near-zero value as history —
+  `Lilacsoftlips` would read the code, not a decision log likely to be incomplete or out of step
+  with it. This is the E3 register critique restated by different people.
+- **Tenure.** `Clyde_Frag`: 3–4 year average tenure makes the investment feel pointless.
+- **Simple forgetting.** `DevAlaska` and the original poster of the r/ClaudeAI thread both describe
+  the same failure — a notes file that works until you forget to update it, which is most weeks.
+
+### New failure mode: the record becomes over-authoritative
+
+`biohackeddad` reported ADRs causing a problem not previously recorded anywhere in this programme:
+the agent refuses to go along with a *new* product decision because it does not understand the
+existing ADR. The record stops being evidence and starts being a veto.
+
+**This is a live risk for Memory Seed specifically**, because the store is validated, agent-loaded
+and enforced — every property that makes capture reliable also makes a stale record harder to
+override. The supersession and `evolves` machinery is the designed answer, but it only works if
+retrieval surfaces *current* status prominently and the agent treats records as evidence rather than
+instruction. Worth an explicit test: does an agent handed a superseded record argue against the user?
+
+### Someone has already built it
+
+`Beerbrewing` describes deliberation files recording what was decided *and what was rejected and
+why*, per-build handoffs carrying their reasoning, all of it in Markdown, exposed to Claude through
+**a custom MCP server over a RAG-indexed database**. That is Memory Seed's architecture, hand-rolled.
+By this programme's own rule — effort already spent is the strongest signal short of payment — this
+is the highest-value demand datum in the log. Others are further down the same path:
+`MaterialHead4801` (per-project wiki with a ledger of "traps"), `Maleficent-Tone4274` (AGENTS.md for
+how, ADRs for why, temp files for failed experiments), `Do_not_use_after` (spec folder with ADRs and
+a planning skill, plus a rule that decisions are not permitted during implementation).
+
+### Agent use is creating new ADR demand among people who never wrote them
+
+`He_knows` never bothered with ADRs but now writes them **to document for the agent**. `Toren6969`
+uses ADRs with AI as a validation reference point. This is the market-timing signal the programme has
+been looking for: the reader changing from a future human to a present agent is what changes the
+economics `c1rno123` describes.
+
+### DM follow-up: five pains that survive a working system
+
+`Environmental_Ask675`, asked what would have saved six months and whether an out-of-box tool would
+have been adopted, answered that early on yes — but that what makes the system work is not the
+decision log; it is that rules live inside the instructions each agent actually loads, plus
+co-evolution with real failures. The bar stated for any product: **make capturing a decision cheaper
+than not capturing it, at the moment it happens** — otherwise people stop feeding it, exactly as
+their own notes file failed. Another file format plus discipline is explicitly called insufficient,
+because people already have that and it already fails.
+
+Five pains persist despite the system:
+
+1. **The human is the message bus.** Agents cannot notify each other across tools, so finished work
+   travels via copy-paste; three handoffs were dropped in one weekend. Detection exists; prevention
+   does not.
+2. **Rules bind only where loaded — permanently.** Every *new kind* of session starts rule-naked,
+   and each missing preamble is discovered by a rule being broken.
+3. **Platforms do not know the agent org exists.** Every agent authenticates as the one human, so
+   reviewer-approves-PR is impossible and every marker is self-attested. **Directly relevant to the
+   eight-question evidence spine (E7 "who approved"):** a store that records `agent_type` /
+   `agent_name` / `user_initials` per entry can distinguish actors where the platform cannot. This
+   is an unexploited differentiator for the governance story.
+4. **Confident narration drifts from ground truth.** Agents describe state from memory of their own
+   actions while reality has moved. The rule they settled on — session narration is a claim, the
+   merge on main is the truth — is an independent restatement of Constitution invariant #4
+   (first-hand versus reconstructed provenance) and of what the `Memory-Entry:` commit trailer
+   mechanically enforces.
+5. **Gates erode by convenience.** One-click approval replies turn deliberate authorisation into two
+   keystrokes and half a glance. Individually fine; the trend is the risk.
+
+### What this establishes
+
+- **The retrieval trigger, not the record, is the contested ground.** Capture is now measured and
+  largely solved (E5/E6); this thread says nobody's problem was writing the record.
+- **The loading lesson is the most corroborated finding in the programme** — three independent
+  sources, one controlled measurement.
+- **Demand is real among people already paying the build cost themselves**, and is newly appearing
+  among people who never wrote ADRs for humans.
+
+### What it does not establish
+
+- **Nothing about willingness to pay.** Not one responder mentioned buying anything, and the one
+  detailed cost analysis concludes a solo developer does not need this. Enthusiasm for a hand-rolled
+  system is not evidence of budget.
+- **Self-selection throughout.** These are people who read an architecture subreddit and answered a
+  question about ADRs; the silent majority who never adopted the practice are unrepresented.
+- **The tests-versus-records challenge is unanswered, not refuted.** No responder was asked to
+  compare the two, and the synthesis offered above is this log's inference, not a reported finding.
+
+---
+
 - **Post as a practitioner with a real question.** Never pitch. If the pain is not described unprompted, that
   is the finding.
 - **Ask about past behaviour and specific incidents**, never opinions or hypotheticals. Perceived and measured

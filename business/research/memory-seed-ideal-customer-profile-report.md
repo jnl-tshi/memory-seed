@@ -308,6 +308,26 @@ ICP-5 (only after retention evidence).
 
 ---
 
+> **Amendment, 2026-08-04 — the beachhead took a direct hit (E7).** The clearest cost analysis the
+> field research has produced states plainly that a **solo developer does not really need an ADR**,
+> and frames the general failure as an absence of any gate that fails when the record is missing —
+> which makes writing one volunteer work. It then asks the question this report should have led
+> with: name the value per seat. What does the reviewer do with the record; what does the on-call
+> engineer open at 3am; what does the person joining in eight months read first.
+>
+> **The solo-developer ICP now has to be argued, not assumed.** The available reconciliation is that
+> the solo developer is *not the reader* — their agent is — and the agent re-derives abandoned
+> approaches at a cost the solo developer pays directly and immediately. E5/E6 supply the mechanism
+> (capture is near-free once a routing line exists) and E7 supplies corroboration that the demand is
+> newly appearing among people who never wrote ADRs for humans and now write them for agents.
+> **But that argument must be made in the same breath as the objection**, because the objection is
+> from a practitioner and the reconciliation is from us.
+>
+> **Willingness to pay remains untested and this thread does not move it.** Not one responder
+> mentioned buying anything. Enthusiasm for a hand-rolled system — and at least one responder has
+> hand-rolled Memory Seed's whole architecture, Markdown plus a custom MCP server over a RAG index —
+> is evidence of need, not of budget. §7's cheapest demand test is still the binding next step.
+
 ## 5. The revenue fork — the most important finding
 
 `market-size.md` records a five-year obtainable range of **$15M–$55M ARR**, explicitly labelled *"low;
