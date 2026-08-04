@@ -1,6 +1,6 @@
 {
   "schema": "context-benchmark-manifest.v1",
-  "status": "DRAFT-PENDING-OWNER-APPROVAL",
+  "status": "APPROVED",
   "base_sha": "f11a5dcb453f1a160864a10c7c5a1ee81ade0e48",
   "task_count": 12,
   "tasks": [

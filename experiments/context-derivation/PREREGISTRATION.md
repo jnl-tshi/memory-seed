@@ -1,7 +1,9 @@
 # Preregistration: ADR context derivation
 
-Status: **DRAFT — scored execution blocked pending owner approval of this file
-and `tasks/gold.json`.**
+Status: **APPROVED**
+
+Approved by JNL on 2026-08-04 after review of the twelve frozen questions,
+task manifest, and candidate gold definitions.
 
 Base revision: `f11a5dcb453f1a160864a10c7c5a1ee81ade0e48`.
 

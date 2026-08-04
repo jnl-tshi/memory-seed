@@ -1,8 +1,8 @@
 {
   "schema": "context-gold.v1",
-  "approval_status": "DRAFT-PENDING-OWNER-APPROVAL",
+  "approval_status": "APPROVED",
   "base_sha": "f11a5dcb453f1a160864a10c7c5a1ee81ade0e48",
-  "notice": "Candidate labels for review. Scored execution is forbidden until the repository owner changes approval_status in a separate approval commit.",
+  "notice": "Approved by repository owner JNL on 2026-08-04 for the preregistered scored experiment.",
   "tasks": [
     {
       "task_id": "CTX-01",

@@ -28,8 +28,8 @@ class ContextDerivationFixtureTests(unittest.TestCase):
         self.assertEqual(6, sum(task["fixture"] == "real-current" for task in tasks))
         self.assertEqual(6, sum(task["fixture"] != "real-current" for task in tasks))
         self.assertEqual(6, len({task["fixture"] for task in tasks if task["fixture"] != "real-current"}))
-        self.assertEqual("DRAFT-PENDING-OWNER-APPROVAL", gold["approval_status"])
-        self.assertFalse(fixture_builder.scored_execution_approved())
+        self.assertEqual("APPROVED", gold["approval_status"])
+        self.assertTrue(fixture_builder.scored_execution_approved())
 
     def test_frozen_real_sources_are_verified(self):
         source = fixture_builder.load_json(fixture_builder.SOURCE_DIR / "real-current.json")
