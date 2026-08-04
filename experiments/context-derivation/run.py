@@ -15,6 +15,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -25,11 +26,15 @@ REPO_ROOT = HERE.parents[1]
 RUNS = HERE / "runs"
 TASKS = HERE / "tasks"
 sys.path.insert(0, str(HERE))
-from contracts import ARMS, RUN_SCHEMA, SCHEDULE_SEED, answer_template, execution_approved, fingerprint, require_schema  # noqa: E402
+from contracts import ARMS, RUN_SCHEMA, SCHEDULE_SEED, answer_template, fingerprint, live_execution_approved, live_pin_matches, live_tasks_match, require_schema  # noqa: E402
 
 INTERACTIVE_ARMS = frozenset({"search-mcp", "adr-mcp-workflow"})
 FIXED_ARMS = frozenset(ARMS) - INTERACTIVE_ARMS
-DIRECT_FS_RE = re.compile(r"(?:\bread(?:_file)?\b|\bcat\b|\bsed\b|\brg\b|Get-Content).{0,120}(?:\.memory-seed|adr|fixture)", re.I)
+DIRECT_FS_RE = re.compile(
+    r"(?:\bread(?:_file)?\b|\bcat\b|\bsed\b|\brg\b|Get-Content|type\s).{0,160}"
+    r"(?:\.memory-seed|\bgold(?:\.json)?\b|\btasks?\b|preregistration|context-derivation|\badr)",
+    re.I,
+)
 
 
 def parent_fingerprint() -> dict[str, Any]:
@@ -41,6 +46,15 @@ def parent_fingerprint() -> dict[str, Any]:
         digest.update(str(path.relative_to(root)).replace("\\", "/").encode())
         digest.update(path.read_bytes())
     return {"files": len(files), "bytes": sum(p.stat().st_size for p in files), "fingerprint": "sha256:" + digest.hexdigest()}
+
+
+def tree_fingerprint(root: Path) -> dict[str, Any]:
+    files = sorted(path for path in root.rglob("*") if path.is_file()) if root.exists() else []
+    digest = hashlib.sha256()
+    for path in files:
+        digest.update(path.relative_to(root).as_posix().encode("utf-8"))
+        digest.update(path.read_bytes())
+    return {"files": len(files), "bytes": sum(path.stat().st_size for path in files), "fingerprint": "sha256:" + digest.hexdigest()}
 
 
 def _tasks_path(value: str | None) -> Path:
@@ -104,18 +118,22 @@ def _codex_config(run_dir: Path, arm: str, fixture: Path) -> Path:
 def build_command(agent: str, run_dir: Path, prompt: str, *, arm: str, fixture: Path | None, model: str | None, effort: str | None) -> list[str]:
     interactive = arm in INTERACTIVE_ARMS
     if agent == "claude":
-        command = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose", "--dangerously-skip-permissions"]
+        command = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose"]
         if interactive:
-            command += ["--mcp-config", str(_claude_mcp_config(run_dir, arm, fixture or run_dir)), "--strict-mcp-config"]
+            command += ["--dangerously-skip-permissions", "--mcp-config", str(_claude_mcp_config(run_dir, arm, fixture or run_dir)), "--strict-mcp-config"]
+        else:
+            command += ["--safe-mode", "--tools", "", "--disable-slash-commands", "--no-session-persistence"]
         if model: command += ["--model", model]
         return command
     if agent == "codex":
         exe = shutil.which("codex") or shutil.which("codex.cmd") or "codex"
-        command = [exe, "exec", "--json", "-C", str(run_dir), "-o", "RUN_LAST_MESSAGE.txt", "--dangerously-bypass-approvals-and-sandbox", "-c", "features.apps=false"]
+        command = [exe, "exec", "--json", "-C", str(run_dir), "-o", "RUN_LAST_MESSAGE.txt", "--skip-git-repo-check", "-c", "features.apps=false"]
         if interactive:
             _codex_config(run_dir, arm, fixture or run_dir)
             trust = str(run_dir).replace("\\", "\\\\")
-            command += ["-c", f'projects={{ "{trust}" = {{ trust_level = "trusted" }} }}']
+            command += ["--dangerously-bypass-approvals-and-sandbox", "-c", f'projects={{ "{trust}" = {{ trust_level = "trusted" }} }}']
+        else:
+            command += ["--ephemeral", "--ignore-user-config", "--ignore-rules", "--sandbox", "read-only", "-c", "mcp_servers={}"]
         if effort: command += ["-c", f'model_reasoning_effort="{effort}"']
         if model: command += ["-m", model]
         return command + [prompt]
@@ -128,10 +146,29 @@ def _tool_calls(text: str) -> list[str]:
         try: event = json.loads(line)
         except json.JSONDecodeError: continue
         item = event.get("item", {})
-        if item.get("type") == "mcp_tool_call": calls.append(str(item.get("tool", "")))
+        item_type = str(item.get("type", ""))
+        if item_type == "mcp_tool_call": calls.append(str(item.get("tool", "")))
+        elif item_type and any(marker in item_type for marker in ("tool", "command", "file", "function_call", "web_search")):
+            calls.append(item_type)
         for block in (event.get("message") or {}).get("content", []):
             if block.get("type") == "tool_use": calls.append(str(block.get("name", "")))
     return calls
+
+
+def _direct_filesystem_retrieval(text: str) -> bool:
+    """Inspect tool payloads only, so explanatory prose cannot self-incriminate."""
+    for line in text.splitlines():
+        try: event = json.loads(line)
+        except json.JSONDecodeError: continue
+        item = event.get("item") or {}
+        item_type = str(item.get("type", ""))
+        if item_type and any(marker in item_type for marker in ("tool", "command", "file", "function_call")):
+            if DIRECT_FS_RE.search(json.dumps(item, ensure_ascii=False)):
+                return True
+        for block in (event.get("message") or {}).get("content", []):
+            if block.get("type") == "tool_use" and DIRECT_FS_RE.search(json.dumps(block, ensure_ascii=False)):
+                return True
+    return False
 
 
 def _usage(text: str) -> dict[str, Any]:
@@ -159,6 +196,23 @@ def _remove_run_dir(path: Path) -> None:
         try: item.chmod(item.stat().st_mode | stat.S_IWRITE)
         except OSError: pass
     shutil.rmtree(path, ignore_errors=True)
+
+
+def _temporary_work_dir(run_id: str) -> Path:
+    path = Path(tempfile.mkdtemp(prefix=f"context-derivation-{run_id}-")).resolve()
+    try:
+        path.relative_to(REPO_ROOT.resolve())
+    except ValueError:
+        return path
+    _remove_run_dir(path)
+    raise RuntimeError("refusing to execute a subject in a temporary directory inside the repository")
+
+
+def _move_finalized_artifacts(work_dir: Path, final_dir: Path) -> Path:
+    RUNS.mkdir(parents=True, exist_ok=True)
+    if final_dir.exists():
+        raise FileExistsError(final_dir)
+    return Path(shutil.move(str(work_dir), str(final_dir)))
 
 
 def _final_answer(run_dir: Path, transcript: str) -> str:
@@ -193,40 +247,54 @@ def main(argv: list[str] | None = None) -> int:
         # Check before creating a run directory or copying a fixture, and crucially
         # before either subject CLI can be invoked.
         parser.error("--owner-approved is required for non-dry-run execution")
-    if not args.dry_run and not execution_approved(HERE):
-        parser.error("PREREGISTRATION.md and tasks/gold.json must both be owner-approved")
+    if not args.dry_run and not live_execution_approved(HERE):
+        parser.error("gold/preregistration approval, a frozen candidate, and pinned live matrix are required")
+    if not args.dry_run and not live_pin_matches(HERE, args.agent, args.model, args.cli_version):
+        parser.error("requested model/CLI version does not match LIVE_MATRIX.json")
+    if not args.dry_run and not live_tasks_match(HERE, _tasks_path(args.tasks)):
+        parser.error("materialized live tasks do not match LIVE_MATRIX.json")
     task = load_task(args.task, _tasks_path(args.tasks)); fixture_source = task.get("fixture")
     run_id = f"{args.agent}-{args.task}-{args.arm}-r{args.repetition}-{uuid.uuid4().hex[:10]}"
-    run_dir = RUNS / run_id; run_dir.mkdir(parents=True, exist_ok=False)
+    run_dir = RUNS / run_id
+    work_dir = _temporary_work_dir(run_id)
     fixture: Path | None = None
-    if args.arm in INTERACTIVE_ARMS:
-        if not fixture_source: raise ValueError("interactive arm requires a fixture")
-        fixture = Path(fixture_source)
-        if not fixture.is_absolute(): fixture = (HERE / fixture).resolve()
-        shutil.copytree(fixture, run_dir / "fixture")
-        fixture = run_dir / "fixture"
-        _make_immutable(fixture)
-    prompt = subject_prompt(task, args.arm); before = parent_fingerprint(); command = build_command(args.agent, run_dir, prompt, arm=args.arm, fixture=fixture, model=args.model, effort=args.effort)
+    try:
+        if args.arm in INTERACTIVE_ARMS:
+            if not fixture_source: raise ValueError("interactive arm requires a fixture")
+            fixture = Path(fixture_source)
+            if not fixture.is_absolute(): fixture = (HERE / fixture).resolve()
+            if not fixture.is_dir(): raise ValueError(f"fixture is missing: {fixture}")
+            shutil.copytree(fixture, work_dir / "fixture")
+            fixture = work_dir / "fixture"
+            _make_immutable(fixture)
+        fixture_before = tree_fingerprint(fixture) if fixture else None
+        prompt = subject_prompt(task, args.arm); before = parent_fingerprint(); command = build_command(args.agent, work_dir, prompt, arm=args.arm, fixture=fixture, model=args.model, effort=args.effort)
+    except Exception:
+        _remove_run_dir(work_dir)
+        raise
     if args.dry_run:
         manifest = {"schema": RUN_SCHEMA, "run_id": run_id, "task_id": args.task, "arm": args.arm, "agent": args.agent, "repetition": args.repetition, "schedule_seed": SCHEDULE_SEED, "model": args.model, "cli_version": args.cli_version, "started_at": dt.datetime.now(dt.timezone.utc).isoformat(), "dry_run": True, "command": ["<prompt>" if part == prompt else part for part in command]}
-        print(json.dumps(manifest)); _remove_run_dir(run_dir); return 0
+        print(json.dumps(manifest)); _remove_run_dir(work_dir); return 0
     started = time.monotonic(); stdout = stderr = ""; exit_code: int | None = None; timed_out = False
     try:
-        done = subprocess.run(command, cwd=run_dir, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=args.timeout)
+        done = subprocess.run(command, cwd=work_dir, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=args.timeout)
         stdout, stderr, exit_code = done.stdout, done.stderr, done.returncode
     except subprocess.TimeoutExpired as exc:
         timed_out = True; stdout = (exc.stdout or "").decode() if isinstance(exc.stdout, bytes) else (exc.stdout or ""); stderr = (exc.stderr or "").decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+    except OSError as exc:
+        exit_code = -1; stderr = f"harness launch failed: {exc}"
     duration_ms = round((time.monotonic() - started) * 1000)
-    (run_dir / "transcript.jsonl").write_text(stdout, encoding="utf-8")
-    if stderr: (run_dir / "stderr.log").write_text(stderr, encoding="utf-8")
+    (work_dir / "transcript.jsonl").write_text(stdout, encoding="utf-8")
+    if stderr: (work_dir / "stderr.log").write_text(stderr, encoding="utf-8")
     calls = _tool_calls(stdout); allowed = set() if args.arm in FIXED_ARMS else set(__import__("mcp_wrapper").allowed_names(args.arm))
-    final = _final_answer(run_dir, stdout); (run_dir / "final_answer.txt").write_text(final, encoding="utf-8")
-    after = parent_fingerprint(); failure = classify_failure(timed_out=timed_out, exit_code=exit_code, stderr=stderr, transcript=stdout)
+    final = _final_answer(work_dir, stdout); (work_dir / "final_answer.txt").write_text(final, encoding="utf-8")
+    after = parent_fingerprint(); fixture_after = tree_fingerprint(fixture) if fixture else None; failure = classify_failure(timed_out=timed_out, exit_code=exit_code, stderr=stderr, transcript=stdout)
     packet = _packet(task, args.arm) if args.arm in FIXED_ARMS else ""
     refs_by_arm = task.get("included_refs_by_arm") or {}
     tokens_by_arm = task.get("context_token_proxy_by_arm") or {}
-    manifest = {"schema": RUN_SCHEMA, "run_id": run_id, "task_id": args.task, "arm": args.arm, "agent": args.agent, "repetition": args.repetition, "schedule_seed": SCHEDULE_SEED, "model": args.model, "cli_version": args.cli_version, "effort": args.effort, "started_at": dt.datetime.now(dt.timezone.utc).isoformat(), "duration_ms": duration_ms, "exit_code": exit_code, "timed_out": timed_out, "transcript": "transcript.jsonl", "final_answer": "final_answer.txt", "interactive_fixture": str(fixture) if fixture else None, "fixed_arm_no_fixture": args.arm in FIXED_ARMS, "mcp_enabled": args.arm in INTERACTIVE_ARMS, "included_refs": refs_by_arm.get(args.arm, []), "context_token_proxy": tokens_by_arm.get(args.arm, len(packet.split())), "tool_calls": calls, "undeclared_tool_calls": sorted(set(calls) - allowed), "direct_filesystem_retrieval": bool(DIRECT_FS_RE.search(stdout)), "parent_before": before, "parent_after": after, "parent_isolated": before == after, "failure_classification": failure, "command": ["<prompt>" if part == prompt else part for part in command], **_usage(stdout)}
-    (run_dir / "RUN_MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    manifest = {"schema": RUN_SCHEMA, "run_id": run_id, "task_id": args.task, "arm": args.arm, "agent": args.agent, "repetition": args.repetition, "schedule_seed": SCHEDULE_SEED, "model": args.model, "cli_version": args.cli_version, "effort": args.effort, "started_at": dt.datetime.now(dt.timezone.utc).isoformat(), "duration_ms": duration_ms, "exit_code": exit_code, "timed_out": timed_out, "transcript": "transcript.jsonl", "final_answer": "final_answer.txt", "interactive_fixture": "fixture" if fixture else None, "fixed_arm_no_fixture": args.arm in FIXED_ARMS, "mcp_enabled": args.arm in INTERACTIVE_ARMS, "included_refs": refs_by_arm.get(args.arm, []), "context_token_proxy": tokens_by_arm.get(args.arm, len(packet.split())), "tool_calls": calls, "undeclared_tool_calls": sorted(set(calls) - allowed), "direct_filesystem_retrieval": _direct_filesystem_retrieval(stdout), "parent_before": before, "parent_after": after, "parent_isolated": before == after, "fixture_before": fixture_before, "fixture_after": fixture_after, "fixture_isolated": fixture_before == fixture_after if fixture else True, "failure_classification": failure, "command": ["<prompt>" if part == prompt else part for part in command], **_usage(stdout)}
+    (work_dir / "RUN_MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    _move_finalized_artifacts(work_dir, run_dir)
     print(json.dumps({"run_id": run_id, "exit_code": exit_code, "failure_classification": failure, "parent_isolated": before == after}))
     return 0 if exit_code == 0 and not timed_out else 1
 

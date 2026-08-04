@@ -14,9 +14,9 @@ from typing import Any, Iterable
 
 HERE = Path(__file__).resolve().parent
 RUNS = HERE / "runs"
-TASKS = HERE / "tasks" / "tasks.json"
+TASKS = HERE / "generated" / "live-tasks.json"
 sys.path.insert(0, str(HERE))
-from contracts import AGENTS, ARMS, MAX_AGENT_CONCURRENCY, MAX_TOTAL_CONCURRENCY, REPETITIONS, SCHEDULE_SEED, TASK_COUNT, execution_approved  # noqa: E402
+from contracts import AGENTS, ARMS, MAX_AGENT_CONCURRENCY, MAX_TOTAL_CONCURRENCY, REPETITIONS, SCHEDULE_SEED, TASK_COUNT, live_execution_approved  # noqa: E402
 
 
 def task_ids(path: Path = TASKS) -> list[str]:
@@ -77,13 +77,13 @@ def _parse_result(done: subprocess.CompletedProcess[str], cell: dict[str, Any]) 
     return result
 
 
-def run_cell(cell: dict[str, Any], *, model_by_agent: dict[str, str], cli_versions: dict[str, str], timeout: int) -> dict[str, Any]:
-    command = [sys.executable, str(HERE / "run.py"), "--owner-approved", "--task", cell["task_id"], "--arm", cell["arm"], "--agent", cell["agent"], "--repetition", str(cell["repetition"]), "--model", model_by_agent[cell["agent"]], "--cli-version", cli_versions[cell["agent"]], "--timeout", str(timeout)]
+def run_cell(cell: dict[str, Any], *, model_by_agent: dict[str, str], cli_versions: dict[str, str], timeout: int, tasks_path: Path = TASKS) -> dict[str, Any]:
+    command = [sys.executable, str(HERE / "run.py"), "--owner-approved", "--task", cell["task_id"], "--arm", cell["arm"], "--agent", cell["agent"], "--repetition", str(cell["repetition"]), "--model", model_by_agent[cell["agent"]], "--cli-version", cli_versions[cell["agent"]], "--timeout", str(timeout), "--tasks", str(tasks_path)]
     done = subprocess.run(command, cwd=HERE.parents[1], capture_output=True, text=True, encoding="utf-8", errors="replace")
     return _parse_result(done, cell)
 
 
-def _run_queue(cells: list[dict[str, Any]], *, agent: str, jobs: int, model_by_agent: dict[str, str], cli_versions: dict[str, str], timeout: int, backoff: float, runner=run_cell) -> list[dict[str, Any]]:
+def _run_queue(cells: list[dict[str, Any]], *, agent: str, jobs: int, model_by_agent: dict[str, str], cli_versions: dict[str, str], timeout: int, backoff: float, tasks_path: Path = TASKS, runner=run_cell) -> list[dict[str, Any]]:
     """Run ordered waves, decreasing only this agent's future concurrency after a 429.
 
     We intentionally do not pre-submit the entire queue: doing so makes a later
@@ -95,7 +95,7 @@ def _run_queue(cells: list[dict[str, Any]], *, agent: str, jobs: int, model_by_a
     while offset < len(cells):
         wave = cells[offset : offset + concurrency]
         with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
-            futures = [pool.submit(runner, cell, model_by_agent=model_by_agent, cli_versions=cli_versions, timeout=timeout) for cell in wave]
+            futures = [pool.submit(runner, cell, model_by_agent=model_by_agent, cli_versions=cli_versions, timeout=timeout, tasks_path=tasks_path) for cell in wave]
             wave_results = [future.result() for future in futures]
         throttled = False
         for index, (cell, result) in enumerate(zip(wave, wave_results)):
@@ -104,7 +104,7 @@ def _run_queue(cells: list[dict[str, Any]], *, agent: str, jobs: int, model_by_a
                 throttled = True
                 time.sleep(backoff)
                 # The exact same cell is retried; unscheduled cells never move.
-                result = runner(cell, model_by_agent=model_by_agent, cli_versions=cli_versions, timeout=timeout)
+                result = runner(cell, model_by_agent=model_by_agent, cli_versions=cli_versions, timeout=timeout, tasks_path=tasks_path)
                 result["agent"] = agent; result["queue_concurrency"] = concurrency
                 result["throttle_retry"] = True
             results[offset + index] = result
@@ -114,12 +114,12 @@ def _run_queue(cells: list[dict[str, Any]], *, agent: str, jobs: int, model_by_a
     return [result for result in results if result is not None]
 
 
-def run_parallel(schedule: list[dict[str, Any]], *, jobs_per_agent: int = MAX_AGENT_CONCURRENCY, model_by_agent: dict[str, str], cli_versions: dict[str, str], timeout: int = 900, throttle_backoff: float = 30.0, runner=run_cell) -> list[dict[str, Any]]:
+def run_parallel(schedule: list[dict[str, Any]], *, jobs_per_agent: int = MAX_AGENT_CONCURRENCY, model_by_agent: dict[str, str], cli_versions: dict[str, str], timeout: int = 900, throttle_backoff: float = 30.0, tasks_path: Path = TASKS, runner=run_cell) -> list[dict[str, Any]]:
     if jobs_per_agent > MAX_AGENT_CONCURRENCY: raise ValueError("per-agent concurrency exceeds frozen limit")
     if jobs_per_agent * len(AGENTS) > MAX_TOTAL_CONCURRENCY: raise ValueError("total concurrency exceeds frozen limit")
     groups = {agent: [c for c in schedule if c["agent"] == agent] for agent in AGENTS}
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(AGENTS)) as pools:
-        futures = [pools.submit(_run_queue, groups[a], agent=a, jobs=jobs_per_agent, model_by_agent=model_by_agent, cli_versions=cli_versions, timeout=timeout, backoff=throttle_backoff, runner=runner) for a in AGENTS]
+        futures = [pools.submit(_run_queue, groups[a], agent=a, jobs=jobs_per_agent, model_by_agent=model_by_agent, cli_versions=cli_versions, timeout=timeout, backoff=throttle_backoff, tasks_path=tasks_path, runner=runner) for a in AGENTS]
         # Pool completion is intentionally irrelevant to reporting order.
         by_key = {cell_key(row): row for future in futures for row in future.result()}
         return [by_key[cell_key(cell)] for cell in schedule]
@@ -128,17 +128,19 @@ def run_parallel(schedule: list[dict[str, Any]], *, jobs_per_agent: int = MAX_AG
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(); parser.add_argument("--claude-model", required=True); parser.add_argument("--codex-model", required=True)
     parser.add_argument("--claude-cli-version", required=True); parser.add_argument("--codex-cli-version", required=True)
-    parser.add_argument("--jobs-per-agent", type=int, default=MAX_AGENT_CONCURRENCY); parser.add_argument("--timeout", type=int, default=900); parser.add_argument("--top-up", action="store_true"); parser.add_argument("--dry-run", action="store_true"); parser.add_argument("--owner-approved", action="store_true", help="required before paid/scored execution"); parser.add_argument("--throttle-backoff", type=float, default=30.0)
-    args = parser.parse_args(argv); schedule = build_schedule()
+    parser.add_argument("--jobs-per-agent", type=int, default=MAX_AGENT_CONCURRENCY); parser.add_argument("--timeout", type=int, default=900); parser.add_argument("--top-up", action="store_true"); parser.add_argument("--dry-run", action="store_true"); parser.add_argument("--owner-approved", action="store_true", help="required before paid/scored execution"); parser.add_argument("--throttle-backoff", type=float, default=30.0); parser.add_argument("--tasks", default=str(TASKS))
+    args = parser.parse_args(argv); tasks_path = Path(args.tasks); schedule = build_schedule(task_ids(tasks_path))
     if args.top_up: schedule = top_up(schedule, completed_cells())
     if args.dry_run:
         print(json.dumps(schedule, indent=2)); return 0
     if not args.owner_approved:
         parser.error("--owner-approved is required for non-dry-run execution")
-    if not execution_approved(HERE):
-        parser.error("PREREGISTRATION.md and tasks/gold.json must both be owner-approved")
+    if not live_execution_approved(HERE):
+        parser.error("gold/preregistration approval, a frozen candidate, and pinned live matrix are required")
+    if not tasks_path.is_file():
+        parser.error(f"materialized live tasks are missing: {tasks_path}")
     RUNS.mkdir(exist_ok=True)
-    results = run_parallel(schedule, jobs_per_agent=args.jobs_per_agent, model_by_agent={"claude": args.claude_model, "codex": args.codex_model}, cli_versions={"claude": args.claude_cli_version, "codex": args.codex_cli_version}, timeout=args.timeout, throttle_backoff=args.throttle_backoff)
+    results = run_parallel(schedule, jobs_per_agent=args.jobs_per_agent, model_by_agent={"claude": args.claude_model, "codex": args.codex_model}, cli_versions={"claude": args.claude_cli_version, "codex": args.codex_cli_version}, timeout=args.timeout, throttle_backoff=args.throttle_backoff, tasks_path=tasks_path)
     (RUNS / "batch-results.json").write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
     return 0
 

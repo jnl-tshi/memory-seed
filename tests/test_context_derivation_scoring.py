@@ -1,4 +1,5 @@
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -9,7 +10,7 @@ sys.path.insert(0, str(EXPERIMENT))
 
 from judge import execute_manifest, select_reviews, selected_repetition  # noqa: E402
 from report import render_report  # noqa: E402
-from score import score_experiment, score_run, wilson  # noqa: E402
+from score import score_experiment, score_run, wilson, write_score_shards  # noqa: E402
 
 
 class ContextDerivationScoringTests(unittest.TestCase):
@@ -34,6 +35,8 @@ class ContextDerivationScoringTests(unittest.TestCase):
             "arm": "adr-candidate-packet",
             "agent": "claude",
             "repetition": 1,
+            "model": "model-a",
+            "cli_version": "cli-a",
             "answer": {
                 "schema": "context-answer.v1",
                 "adr_ids": ["adr_a"],
@@ -106,6 +109,20 @@ class ContextDerivationScoringTests(unittest.TestCase):
         self.assertGreaterEqual(low, 0)
         self.assertLessEqual(high, 1)
 
+    def test_parallel_score_shards_are_unique_and_complete(self):
+        rows = [score_run(self.sample_run(run_id=f"r{index}"), self.gold()) for index in range(3)]
+        with tempfile.TemporaryDirectory() as temp:
+            paths = write_score_shards(rows, temp)
+            self.assertEqual(3, len(paths))
+            with self.assertRaises(ValueError):
+                write_score_shards(rows, temp)
+
+    def test_protocol_failure_in_any_arm_fails_production_gate(self):
+        run = self.sample_run(arm="search-mcp", protocol_failure="undeclared_tool_call")
+        result = score_experiment({"runs": [run]}, {"tasks": [self.gold()]}, require_complete=False)
+        self.assertFalse(result["production_recommendation_gate"]["passed"])
+        self.assertTrue(any("integrity failure" in item for item in result["production_recommendation_gate"]["failures"]))
+
     def test_judge_selection_is_stable(self):
         self.assertEqual(selected_repetition("CTX-01", "search-mcp", "claude"), selected_repetition("CTX-01", "search-mcp", "claude"))
         runs = []
@@ -128,6 +145,15 @@ class ContextDerivationScoringTests(unittest.TestCase):
         self.assertIn("### Claude", report)
         self.assertIn("### Codex", report)
         self.assertIn("does not authorize", report)
+
+    def test_report_cannot_pass_without_offline_judges_and_recommendations(self):
+        score = {
+            "production_recommendation_gate": {"passed": True, "failures": []},
+            "aggregates": {agent: {arm: {"runs": 0, "metrics": {}, "context_tokens": {}} for arm in ("search-mcp", "retrieval-v1-packet", "adr-candidate-packet", "adr-mcp-workflow")} for agent in ("claude", "codex")},
+        }
+        report = render_report(score, {"complete": True, "selected_strategy_fingerprint": "sha256:x", "strategies": [], "pareto_frontier": []}, [], {})
+        self.assertIn("FAIL / INCOMPLETE", report)
+        self.assertIn("exactly 96", report)
 
     def test_complete_matrix_rejects_out_of_range_repetition(self):
         runs = []

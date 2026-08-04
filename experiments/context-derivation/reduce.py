@@ -8,12 +8,13 @@ import math
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
-from contracts import canonical_json, fingerprint, load_json
+from contracts import canonical_json, execution_approved, fingerprint, load_json
 from sweep import SHARD_SCHEMA
 
 
 REDUCTION_SCHEMA = "context-reduction.v1"
 CANDIDATE_SCHEMA = "context-candidate-manifest.v1"
+HERE = Path(__file__).resolve().parent
 
 
 def _edge_key(edge: Mapping[str, Any]) -> tuple[str, str, str]:
@@ -75,6 +76,14 @@ def _gate(result: Mapping[str, Any], gold: Mapping[str, Any]) -> list[str]:
         failures.append("missing-abstention")
     if expected_absence and not result.get("absence"):
         failures.append("absence-not-explicit")
+    required_missing = set(map(str, gold.get("required_missing_refs", [])))
+    reported_missing = {
+        str(ref)
+        for item in result.get("absence", [])
+        for ref in item.get("refs", [])
+    }
+    if required_missing and not required_missing <= reported_missing:
+        failures.append("wrong-missing-evidence-ref")
     if not expected_absence and result.get("insufficient_evidence"):
         failures.append("unexpected-abstention")
     allowed = set(map(str, gold.get("allowed_citations", [])))
@@ -96,7 +105,7 @@ def reduce_shards(
     shard_dir: str | Path,
     gold: Mapping[str, Any],
     *,
-    expected_strategy_fingerprints: Iterable[str] | None = None,
+    expected_strategy_fingerprints: Iterable[str],
     candidate_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Validate completeness, apply gates, Pareto-reduce, and optionally freeze."""
@@ -122,7 +131,9 @@ def reduce_shards(
     shards = list(shard_by_cell.values())
     if not shards:
         raise ValueError("no sweep shards found")
-    strategy_fps = set(expected_strategy_fingerprints or (s["strategy_fingerprint"] for s in shards))
+    strategy_fps = set(expected_strategy_fingerprints)
+    if not strategy_fps:
+        raise ValueError("expected strategy fingerprints are required for completeness")
     expected = {(task_id, sfp) for task_id in gold_rows for sfp in strategy_fps}
     actual = {(str(s["task_id"]), str(s["strategy_fingerprint"])) for s in shards}
     missing = sorted(expected - actual)
@@ -149,8 +160,9 @@ def reduce_shards(
             distractors = set(map(str, row.get("distractor_refs", [])))
             for item in result.get("evidence", []):
                 ref = str(item.get("ref"))
-                covers_relevant = ref in relevant or any(value.startswith(ref + ":") for value in relevant)
-                covers_distractor = ref in distractors or any(value.startswith(ref + ":") for value in distractors)
+                entry_ref = str(item.get("entry_id") or ref)
+                covers_relevant = ref in relevant or entry_ref in relevant or any(value.startswith(entry_ref + ":") for value in relevant)
+                covers_distractor = ref in distractors or entry_ref in distractors or any(value.startswith(entry_ref + ":") for value in distractors)
                 if covers_distractor or (relevant and not covers_relevant):
                     irrelevant_tokens += int(item.get("token_proxy", 0))
             timings.extend(float(value) for value in cell.get("timings_ms", []))
@@ -208,27 +220,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--shards", required=True)
     parser.add_argument("--gold", required=True)
-    parser.add_argument("--strategies")
+    parser.add_argument("--strategies", required=True)
     parser.add_argument("--freeze-candidate")
+    parser.add_argument("--output")
+    parser.add_argument("--owner-approved", action="store_true")
     args = parser.parse_args(argv)
-    expected = None
-    if args.strategies:
-        from strategies import strategy_fingerprint
+    if not args.owner_approved or not execution_approved(HERE):
+        parser.error("owner-approved PREREGISTRATION.md and tasks/gold.json are required for reduction")
+    from strategies import strategy_fingerprint
 
-        value = load_json(args.strategies)
-        rows = value.get("strategies", value) if isinstance(value, Mapping) else value
-        expected = [
-            str(row["strategy_fingerprint"])
-            if row.get("strategy_fingerprint")
-            else strategy_fingerprint(row)
-            for row in rows
-        ]
+    value = load_json(args.strategies)
+    rows = value.get("strategies", value) if isinstance(value, Mapping) else value
+    expected = [
+        str(row["strategy_fingerprint"])
+        if row.get("strategy_fingerprint")
+        else strategy_fingerprint(row)
+        for row in rows
+    ]
     result = reduce_shards(
         args.shards, load_json(args.gold),
         expected_strategy_fingerprints=expected,
         candidate_path=args.freeze_candidate,
     )
-    print(canonical_json(result))
+    rendered = canonical_json(result) + "\n"
+    if args.output:
+        Path(args.output).write_text(rendered, encoding="utf-8", newline="\n")
+    else:
+        print(rendered, end="")
     return 0
 
 

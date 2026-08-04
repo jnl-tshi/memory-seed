@@ -12,7 +12,10 @@ import subprocess
 from pathlib import Path
 from typing import Any, Mapping
 
-from contracts import ARMS, AGENTS, SCHEDULE_SEED
+from contracts import ARMS, AGENTS, SCHEDULE_SEED, live_execution_approved
+
+HERE = Path(__file__).resolve().parent
+SELECTION_PATH = HERE / "JUDGE_SELECTION.json"
 
 
 JUDGE_SCHEMA = {
@@ -29,9 +32,25 @@ JUDGE_SCHEMA = {
 }
 
 
+def require_execution_approval(*, owner_approved: bool, experiment_root: Path | None = None) -> None:
+    """Fail closed before any paid blind-judge subprocess is started."""
+    if not owner_approved:
+        raise SystemExit("refusing paid judge calls without --owner-approved")
+    root = experiment_root or Path(__file__).resolve().parent
+    if not live_execution_approved(root):
+        raise SystemExit("gold/preregistration approval, a frozen candidate, and pinned live matrix are required")
+
+
 def selected_repetition(task_id: str, arm: str, agent: str) -> int:
-    seed = f"{SCHEDULE_SEED}:{task_id}:{arm}:{agent}"
-    return random.Random(seed).choice((1, 2, 3))
+    payload = json.loads(SELECTION_PATH.read_text(encoding="utf-8"))
+    for cell in payload.get("cells", []):
+        if (cell.get("task_id"), cell.get("arm"), cell.get("subject_agent")) == (task_id, arm, agent):
+            repetition = int(cell["repetition"])
+            expected = random.Random(f"{SCHEDULE_SEED}:{task_id}:{arm}:{agent}").choice((1, 2, 3))
+            if repetition != expected:
+                raise ValueError("frozen judge selection does not match the committed seed")
+            return repetition
+    raise ValueError(f"missing frozen judge selection for {(task_id, arm, agent)}")
 
 
 def select_reviews(summary: Mapping[str, Any]) -> list[Mapping[str, Any]]:
@@ -133,6 +152,21 @@ def execute_manifest(manifest: list[Mapping[str, Any]], output: Path, *, jobs_pe
             future.result()
 
 
+def collect_results(manifest: list[Mapping[str, Any]], output: Path) -> list[dict[str, Any]]:
+    rows = []
+    for item in manifest:
+        packet = Path(str(item["packet"]))
+        path = output / f"{packet.stem}.judgement.json"
+        value = json.loads(path.read_text(encoding="utf-8"))
+        if value.get("schema") != "context-judge.v1":
+            raise ValueError(f"invalid judge result: {path}")
+        rows.append({**value, "run_id": item["run_id"], "judge": item["judge"], "subject": item["subject"]})
+    if len(rows) != 96:
+        raise ValueError(f"expected 96 blind judgements, found {len(rows)}")
+    (output / "results.json").write_text(json.dumps(rows, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return rows
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--summary", required=True)
@@ -148,9 +182,9 @@ def main() -> int:
     manifest = build_packets(summary, tasks, output / "packets")
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     if args.execute:
-        if not args.owner_approved:
-            raise SystemExit("refusing paid judge calls without --owner-approved")
+        require_execution_approval(owner_approved=args.owner_approved)
         execute_manifest(manifest, output, jobs_per_agent=args.jobs_per_agent)
+        collect_results(manifest, output)
     print(f"prepared {len(manifest)} cross-family review packets")
     return 0
 

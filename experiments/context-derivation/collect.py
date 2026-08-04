@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Any
 
 HERE = Path(__file__).resolve().parent; RUNS = HERE / "runs"; sys.path.insert(0, str(HERE))
-from contracts import ANSWER_SCHEMA, RUN_SCHEMA, answer_template, require_schema  # noqa: E402
+from contracts import ANSWER_SCHEMA, RUN_SCHEMA, require_schema, validate_answer  # noqa: E402
+from mcp_wrapper import allowed_names  # noqa: E402
 
 SUMMARY_SCHEMA = "context-run-summary.v1"
 _JSON_OBJECT = re.compile(r"\{.*\}", re.S)
@@ -31,7 +32,10 @@ def transcript_tool_calls(raw_events: list[dict[str, Any]]) -> list[str]:
     found = []
     for event in raw_events:
         item = event.get("item") or {}
-        if item.get("type") == "mcp_tool_call": found.append(str(item.get("tool", "")))
+        item_type = str(item.get("type", ""))
+        if item_type == "mcp_tool_call": found.append(str(item.get("tool", "")))
+        elif item_type and any(marker in item_type for marker in ("tool", "command", "file", "function_call", "web_search")):
+            found.append(item_type)
         for block in (event.get("message") or {}).get("content", []):
             if block.get("type") == "tool_use": found.append(str(block.get("name", "")))
     return found
@@ -74,10 +78,11 @@ def parse_answer(text: str) -> dict[str, Any] | None:
         try: value = json.loads(candidate)
         except json.JSONDecodeError: continue
         if isinstance(value, dict) and value.get("schema") == ANSWER_SCHEMA:
-            try: require_schema(value, ANSWER_SCHEMA)
-            except ValueError: continue
-            # Schema-level essentials are checked without importing score/gold machinery.
-            if set(answer_template()).issubset(value): return value
+            try:
+                require_schema(value, ANSWER_SCHEMA)
+                return validate_answer(value)
+            except ValueError:
+                continue
     return None
 
 
@@ -85,6 +90,7 @@ def analyse_run(run_dir: Path) -> dict[str, Any]:
     defaults = {"run_id": run_dir.name, "task_id": None, "arm": None, "agent": None, "repetition": None,
                 "answer": None, "included_refs": [], "evidence_excerpt": "", "context_token_proxy": None, "duration_ms": None,
                 "input_tokens": None, "output_tokens": None, "cost_usd": None, "tool_calls": [],
+                "model": None, "cli_version": None, "parent_isolated": None, "fixture_isolated": None,
                 "protocol_failure": None, "harness_failure": None, "exclusion_reason": None}
     manifest_path = run_dir / "RUN_MANIFEST.json"
     if not manifest_path.exists():
@@ -97,19 +103,25 @@ def analyse_run(run_dir: Path) -> dict[str, Any]:
     raw = events(run_dir / manifest.get("transcript", "transcript.jsonl"))
     final_path = run_dir / manifest.get("final_answer", "final_answer.txt")
     final = final_path.read_text(encoding="utf-8", errors="replace") if final_path.exists() else ""
-    calls = transcript_tool_calls(raw) or list(manifest.get("tool_calls") or [])
+    calls = transcript_tool_calls(raw)
+    for call in manifest.get("tool_calls") or []:
+        if call not in calls:
+            calls.append(call)
     evidence_excerpt, observed_refs = transcript_evidence(raw)
-    unallowed = list(manifest.get("undeclared_tool_calls") or [])
+    arm = str(manifest.get("arm", ""))
+    allowed = set(allowed_names(arm)) if arm in {"search-mcp", "adr-mcp-workflow"} else set()
+    unallowed = sorted(set(manifest.get("undeclared_tool_calls") or ()) | (set(calls) - allowed))
     protocol: list[str] = []
     if not raw: protocol.append("missing_or_unparseable_transcript")
     if unallowed: protocol.append("undeclared_tool_call")
     if manifest.get("direct_filesystem_retrieval"): protocol.append("direct_filesystem_retrieval")
     if manifest.get("parent_isolated") is False: protocol.append("parent_isolation_failure")
+    if manifest.get("fixture_isolated") is False: protocol.append("fixture_isolation_failure")
     parsed = parse_answer(final)
     if parsed is None and not manifest.get("failure_classification"): protocol.append("invalid_or_missing_answer")
     tokens = usage(raw)
     included_refs = sorted(set(manifest.get("included_refs") or ()) | set(observed_refs))
-    defaults.update({"run_id": manifest["run_id"], "task_id": manifest["task_id"], "arm": manifest["arm"], "agent": manifest["agent"], "repetition": manifest["repetition"], "answer": parsed, "included_refs": included_refs, "evidence_excerpt": evidence_excerpt, "context_token_proxy": manifest.get("context_token_proxy"), "duration_ms": manifest.get("duration_ms"), "tool_calls": calls, "protocol_failure": ";".join(protocol) or None, "harness_failure": manifest.get("failure_classification")})
+    defaults.update({"run_id": manifest["run_id"], "task_id": manifest["task_id"], "arm": manifest["arm"], "agent": manifest["agent"], "repetition": manifest["repetition"], "answer": parsed, "included_refs": included_refs, "evidence_excerpt": evidence_excerpt, "context_token_proxy": manifest.get("context_token_proxy"), "duration_ms": manifest.get("duration_ms"), "tool_calls": calls, "model": manifest.get("model"), "cli_version": manifest.get("cli_version"), "parent_isolated": manifest.get("parent_isolated"), "fixture_isolated": manifest.get("fixture_isolated"), "protocol_failure": ";".join(protocol) or None, "harness_failure": manifest.get("failure_classification")})
     defaults.update(tokens)
     if defaults["harness_failure"]: defaults["exclusion_reason"] = defaults["harness_failure"]
     elif defaults["protocol_failure"]: defaults["exclusion_reason"] = defaults["protocol_failure"]

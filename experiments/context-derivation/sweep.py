@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import tempfile
@@ -10,8 +11,8 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from contracts import TASK_SCHEMA, canonical_json, load_json, require_schema
-from strategies import normalize_strategy, resolve_strategy, stable_result, strategy_fingerprint
+from contracts import TASK_SCHEMA, canonical_json, fingerprint, load_json, require_schema
+from strategies import clear_resolution_caches, normalize_strategy, resolve_strategy, stable_result, strategy_fingerprint
 
 
 SHARD_SCHEMA = "context-sweep-shard.v1"
@@ -22,7 +23,7 @@ def shard_name(task: Mapping[str, Any], strategy: Mapping[str, Any]) -> str:
     return f"{task['task_id']}--{digest}.json"
 
 
-def _valid_resume(path: Path, task: Mapping[str, Any], strategy: Mapping[str, Any]) -> bool:
+def _valid_resume(path: Path, task: Mapping[str, Any], strategy: Mapping[str, Any], runtime_fingerprint: str) -> bool:
     if not path.is_file():
         return False
     try:
@@ -33,6 +34,8 @@ def _valid_resume(path: Path, task: Mapping[str, Any], strategy: Mapping[str, An
         value.get("schema") == SHARD_SCHEMA
         and value.get("task_id") == task.get("task_id")
         and value.get("strategy_fingerprint") == strategy_fingerprint(strategy)
+        and value.get("task_fingerprint") == fingerprint(task)
+        and value.get("runtime_fingerprint") == runtime_fingerprint
         and value.get("deterministic") is True
     )
 
@@ -53,14 +56,17 @@ def _write_unique(path: Path, payload: Mapping[str, Any]) -> None:
             pass
 
 
-def _resolve_job(job: tuple[dict[str, Any], dict[str, Any], str]) -> str:
-    task, strategy, root = job
+def _resolve_job(job: tuple[dict[str, Any], dict[str, Any], str, str]) -> str:
+    task, strategy, root, corpus_fingerprint = job
     first = resolve_strategy(task, strategy, root)
+    clear_resolution_caches()
     second = resolve_strategy(task, strategy, root)
     deterministic = stable_result(first) == stable_result(second)
     payload = {
         "schema": SHARD_SCHEMA,
         "task_id": task["task_id"],
+        "task_fingerprint": fingerprint(task),
+        "runtime_fingerprint": corpus_fingerprint,
         "strategy": normalize_strategy(strategy),
         "strategy_fingerprint": strategy_fingerprint(strategy),
         "deterministic": deterministic,
@@ -74,7 +80,30 @@ def _resolve_job(job: tuple[dict[str, Any], dict[str, Any], str]) -> str:
 def task_runtime(task: Mapping[str, Any], fixture_base: str | Path) -> Path:
     """Resolve a task's fixture runtime without assuming one global corpus."""
     fixture = Path(str(task["fixture"]))
-    return fixture.resolve() if fixture.is_absolute() else (Path(fixture_base) / fixture).resolve()
+    runtime = fixture.resolve() if fixture.is_absolute() else (Path(fixture_base) / fixture).resolve()
+    if not (runtime / ".memory-seed").is_dir():
+        raise ValueError(f"fixture runtime is missing .memory-seed: {runtime}")
+    return runtime
+
+
+def runtime_fingerprint(runtime: Path, task: Mapping[str, Any]) -> str:
+    digest = hashlib.sha256()
+    candidates = [path for path in (runtime / ".memory-seed").rglob("*") if path.is_file()]
+    candidates.extend(path for path in (runtime / "CONSTITUTION.md", runtime / "docs" / "CONSTITUTION.md") if path.is_file())
+    for hinted in (task.get("resolver_hints") or {}).get("paths", []):
+        path = (runtime / str(hinted)).resolve()
+        try:
+            path.relative_to(runtime.resolve())
+        except ValueError:
+            raise ValueError(f"hinted path escapes fixture runtime: {hinted}")
+        if path.is_file():
+            candidates.append(path)
+        elif path.is_dir():
+            candidates.extend(item for item in path.rglob("*") if item.is_file())
+    for path in sorted(set(candidates)):
+        digest.update(path.relative_to(runtime).as_posix().encode("utf-8"))
+        digest.update(path.read_bytes())
+    return "sha256:" + digest.hexdigest()
 
 
 def run_sweep(
@@ -101,23 +130,30 @@ def run_sweep(
     }.values())
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
+    runtime_by_task = {task["task_id"]: task_runtime(task, runtime) for task in normalized_tasks}
+    runtime_fingerprints = {
+        task["task_id"]: runtime_fingerprint(runtime_by_task[task["task_id"]], task)
+        for task in normalized_tasks
+    }
     pending, paths = [], []
     for task in sorted(normalized_tasks, key=lambda item: item["task_id"]):
         for strategy in sorted(normalized_strategies, key=strategy_fingerprint):
             path = output / shard_name(task, strategy)
             paths.append(path)
-            if not (resume and _valid_resume(path, task, strategy)):
-                pending.append((task, strategy, str(task_runtime(task, runtime)), path))
+            task_root = runtime_by_task[task["task_id"]]
+            corpus_fingerprint = runtime_fingerprints[task["task_id"]]
+            if not (resume and _valid_resume(path, task, strategy, corpus_fingerprint)):
+                pending.append((task, strategy, str(task_root), corpus_fingerprint, path))
     cpu_default = max(1, (os.cpu_count() or 2) - 1)
     count = min(8, cpu_default, workers or cpu_default)
-    jobs = [(task, strategy, root) for task, strategy, root, _ in pending]
+    jobs = [(task, strategy, root, corpus_fingerprint) for task, strategy, root, corpus_fingerprint, _ in pending]
     if count == 1:
         encoded = map(_resolve_job, jobs)
-        for (_, _, _, path), raw in zip(pending, encoded):
+        for (_, _, _, _, path), raw in zip(pending, encoded):
             _write_unique(path, json.loads(raw))
     elif jobs:
         with ProcessPoolExecutor(max_workers=count) as executor:
-            for (_, _, _, path), raw in zip(pending, executor.map(_resolve_job, jobs)):
+            for (_, _, _, _, path), raw in zip(pending, executor.map(_resolve_job, jobs)):
                 _write_unique(path, json.loads(raw))
     return paths
 

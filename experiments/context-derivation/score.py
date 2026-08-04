@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import math
+import os
 import statistics
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from contracts import AGENTS, ARMS, EXPECTED_SUBJECT_RUNS, REPETITIONS, canonical_json
+from contracts import AGENTS, ARMS, EXPECTED_SUBJECT_RUNS, REPETITIONS, canonical_json, live_execution_approved
+
+HERE = Path(__file__).resolve().parent
 
 
 def _edge_key(value: Mapping[str, Any]) -> tuple[str, str, str]:
@@ -211,7 +215,28 @@ def _aggregate(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
     }
 
 
-def score_experiment(summary: Mapping[str, Any], gold_payload: Mapping[str, Any], *, require_complete: bool = True) -> dict[str, Any]:
+def write_score_shards(rows: list[Mapping[str, Any]], output_dir: str | Path) -> list[Path]:
+    output = Path(output_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    paths = [output / f"{row['run_id']}.json" for row in rows]
+    if len(paths) != len(set(paths)) or any(path.exists() for path in paths):
+        raise ValueError("score shard directory must be empty and run IDs unique")
+
+    def write(cell: tuple[Path, Mapping[str, Any]]) -> Path:
+        path, row = cell
+        with path.open("x", encoding="utf-8", newline="\n") as handle:
+            handle.write(canonical_json(row) + "\n")
+        return path
+
+    workers = min(8, max(1, (os.cpu_count() or 2) - 1))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        written = list(pool.map(write, zip(paths, rows)))
+    if len(written) != len(rows):
+        raise ValueError("incomplete mechanical scoring shards")
+    return written
+
+
+def score_experiment(summary: Mapping[str, Any], gold_payload: Mapping[str, Any], *, require_complete: bool = True, live_matrix: Mapping[str, Any] | None = None) -> dict[str, Any]:
     gold = {str(item["task_id"]): item for item in gold_payload.get("tasks", ())}
     runs = list(summary.get("runs", ()))
     cells = [(str(run.get("task_id")), str(run.get("arm")), str(run.get("agent")), int(run.get("repetition", 0))) for run in runs]
@@ -244,7 +269,9 @@ def score_experiment(summary: Mapping[str, Any], gold_payload: Mapping[str, Any]
     if issues:
         raise ValueError("; ".join(issues))
 
-    scored = [score_run(run, gold[str(run["task_id"])]) for run in runs]
+    workers = min(8, max(1, (os.cpu_count() or 2) - 1))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        scored = list(pool.map(lambda run: score_run(run, gold[str(run["task_id"])]), runs))
     grouped: dict[tuple[str, str], list[Mapping[str, Any]]] = defaultdict(list)
     for row in scored:
         grouped[(str(row["agent"]), str(row["arm"]))].append(row)
@@ -254,6 +281,26 @@ def score_experiment(summary: Mapping[str, Any], gold_payload: Mapping[str, Any]
     }
 
     gates: dict[str, Any] = {"passed": True, "failures": []}
+    for row in scored:
+        if not row["protocol_ok"] or not row["harness_ok"]:
+            gates["failures"].append(f"{row['run_id']}: harness/protocol integrity failure")
+        if not row["citation_resolves"]:
+            gates["failures"].append(f"{row['run_id']}: citation does not resolve to included evidence")
+        if not row["related_exact"]:
+            gates["failures"].append(f"{row['run_id']}: related edge was omitted or classified as lineage")
+        expected = gold[str(row["task_id"])]
+        if expected.get("insufficient_evidence") and (not row["absence_correct"] or not row["missing_refs_correct"]):
+            gates["failures"].append(f"{row['run_id']}: missing-evidence abstention is incorrect")
+    for agent in AGENTS:
+        agent_runs = [run for run in runs if run.get("agent") == agent]
+        models = {run.get("model") for run in agent_runs}
+        versions = {run.get("cli_version") for run in agent_runs}
+        if len(models) != 1 or None in models or len(versions) != 1 or None in versions:
+            gates["failures"].append(f"{agent}: mid-trial model or CLI configuration change")
+        if live_matrix:
+            pin = ((live_matrix.get("pins") or {}).get(agent) or {})
+            if models != {pin.get("model")} or versions != {pin.get("cli_version")}:
+                gates["failures"].append(f"{agent}: observed model/CLI does not match LIVE_MATRIX.json")
     for agent in AGENTS:
         candidate = aggregates[agent]["adr-candidate-packet"]
         workflow = aggregates[agent]["adr-mcp-workflow"]
@@ -277,6 +324,7 @@ def score_experiment(summary: Mapping[str, Any], gold_payload: Mapping[str, Any]
         for metric in ("citation_present", "citation_resolves", "absence_correct", "missing_refs_correct", "lineage_exact", "related_exact", "relation_types_correct", "protocol_ok"):
             if candidate["metrics"][metric]["successes"] != candidate["runs"]:
                 gates["failures"].append(f"{agent}: candidate failed {metric}")
+    gates["failures"] = sorted(set(gates["failures"]))
     gates["passed"] = not gates["failures"]
     return {
         "schema": "context-score.v1",
@@ -293,11 +341,17 @@ def main() -> int:
     parser.add_argument("--summary", required=True)
     parser.add_argument("--gold", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--shards", required=True)
     parser.add_argument("--allow-incomplete", action="store_true")
+    parser.add_argument("--owner-approved", action="store_true")
     args = parser.parse_args()
+    if not args.owner_approved or not live_execution_approved(HERE):
+        parser.error("frozen and owner-approved live experiment artifacts are required for scoring")
     summary = json.loads(Path(args.summary).read_text(encoding="utf-8"))
     gold = json.loads(Path(args.gold).read_text(encoding="utf-8"))
-    result = score_experiment(summary, gold, require_complete=not args.allow_incomplete)
+    live_matrix = json.loads((HERE / "LIVE_MATRIX.json").read_text(encoding="utf-8"))
+    result = score_experiment(summary, gold, require_complete=not args.allow_incomplete, live_matrix=live_matrix)
+    write_score_shards(result["rows"], args.shards)
     Path(args.output).write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(canonical_json({"runs": result["subject_runs"], "gate": result["production_recommendation_gate"]}))
     return 0 if result["production_recommendation_gate"]["passed"] else 1

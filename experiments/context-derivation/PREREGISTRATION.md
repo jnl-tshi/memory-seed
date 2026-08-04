@@ -25,6 +25,10 @@ typed lifecycle links, source evidence, and honest absence?
 - Subject runs: `12 * 4 * 3 * 2 = 288`.
 - Schedule seed: `20260804`.
 - Maximum subject concurrency: three per agent and six total.
+- Frozen judge-selection manifest: `JUDGE_SELECTION.json` (96 cells).
+- Observed CLI versions before model probes: Claude Code `2.1.221`; Codex
+  `codex-cli 0.146.0`. Exact model IDs remain pending unscored probes and are
+  therefore deliberately unfrozen in `LIVE_MATRIX.json`.
 
 ## Offline selection rule
 
@@ -34,6 +38,9 @@ accepted head/status is wrong; if `related` is promoted to lineage; if an
 expected absence is not explicit; or if selection order/fingerprint changes.
 
 Eligible strategies are deduplicated by normalized strategy fingerprint. The
+ADR grid uses a bounded factorial for the structural axes plus explicit pairwise
+probes for all pending/rejected/no-change combinations and every item/token
+budget pairing; it is not an uncontrolled million-cell full factorial. The
 Pareto frontier is computed over irrelevant token proxy, total token proxy,
 and latency. The live candidate is chosen lexicographically by:
 

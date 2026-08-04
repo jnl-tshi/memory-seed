@@ -7,10 +7,12 @@ parse session or ADR Markdown itself and has no production write surface.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import re
 import sys
 import time
 from dataclasses import dataclass
+from datetime import date
 from functools import lru_cache
 from itertools import product
 from pathlib import Path
@@ -44,6 +46,7 @@ from contracts import STRATEGY_SCHEMA, canonical_json, fingerprint, require_sche
 RESULT_SCHEMA = "context-strategy-result.v1"
 FAMILIES = ("search", "timeline", "retrieval-v1", "adr-structural", "adr-hybrid", "oracle")
 LINEAGE_TYPES = frozenset({"evolves", "replaces"})
+FROZEN_RANKING_DATE = date(2026, 8, 4)
 _RELATION_RE = re.compile(
     r"^link:(?P<source>[^:]+:d\d+):(?P<type>evolves|replaces):(?P<target>[^:]+:d\d+)$"
 )
@@ -110,6 +113,8 @@ class DecisionEvidence:
 @dataclass(frozen=True)
 class ExperimentCorpus:
     root: Path
+    raw_entries: tuple[MemoryChunk, ...]
+    raw_sections: tuple[MemoryChunk, ...]
     chunks: tuple[MemoryChunk, ...]
     by_entry: Mapping[str, MemoryChunk]
     graph: Mapping[str, Any]
@@ -121,10 +126,12 @@ class ExperimentCorpus:
 
 def _load_corpus_uncached(cwd: str | Path) -> ExperimentCorpus:
     root = Path(resolve_runtime(cwd).workspace_root).resolve()
+    raw_entries = tuple(extract_memory_chunks(root, granularity="entry"))
+    raw_sections = tuple(extract_memory_chunks(root, granularity="section"))
     chunks = tuple(
         augment_chunks_with_topic_sidecars(
             augment_chunks_with_link_sidecars(
-                extract_memory_chunks(root, granularity="entry"), root
+                raw_entries, root
             ),
             root,
         )
@@ -149,6 +156,8 @@ def _load_corpus_uncached(cwd: str | Path) -> ExperimentCorpus:
             adr_by_ref.setdefault(ref, []).append(record.adr_id)
     return ExperimentCorpus(
         root=root,
+        raw_entries=raw_entries,
+        raw_sections=raw_sections,
         chunks=chunks,
         by_entry=by_entry,
         graph=build_related_entry_graph(root, chunks=chunks),
@@ -172,6 +181,12 @@ def load_corpus(cwd: str | Path = ".", *, refresh: bool = False) -> ExperimentCo
         _retrieval_v1_pack.cache_clear()
         _timeline_pack.cache_clear()
     return _cached_corpus(root)
+
+
+def clear_resolution_caches() -> None:
+    """Rebuild strategy outputs while retaining the canonical parsed corpus."""
+    _retrieval_v1_pack.cache_clear()
+    _timeline_pack.cache_clear()
 
 
 def normalize_strategy(strategy: Mapping[str, Any]) -> dict[str, Any]:
@@ -299,20 +314,22 @@ def strategy_grid() -> list[dict[str, Any]]:
                 normalized = {"schema": STRATEGY_SCHEMA, "family": family, "parameters": parameters}
                 fp = fingerprint(normalized).split(":", 1)[1][:16]
                 result.append({**normalized, "strategy_id": f"{family}-{fp}"})
-        # Isolated probes make each non-authoritative state observable without
-        # multiplying the full factorial by three additional boolean axes.
-        for label, flags in (
-            ("pending", (True, False, False)),
-            ("rejected", (False, True, False)),
-            ("no-change", (False, False, True)),
-        ):
-            pending, rejected, no_change = flags
+        # Bounded pairwise probes identify non-authoritative-state and budget
+        # interactions without creating a million-shard full factorial.
+        for pending, rejected, no_change in product((False, True), repeat=3):
             parameters = {
-                **DEFAULTS[family], "include_pending": pending,
-                "include_rejected": rejected, "include_no_change": no_change,
+                **DEFAULTS[family],
+                "include_non_authoritative": pending and rejected and no_change,
+                "include_pending": pending,
+                "include_rejected": rejected,
+                "include_no_change": no_change,
             }
             normalized = {"schema": STRATEGY_SCHEMA, "family": family, "parameters": parameters}
-            result.append({**normalized, "strategy_id": f"{family}-{label}"})
+            result.append({**normalized, "strategy_id": f"{family}-states-{int(pending)}{int(rejected)}{int(no_change)}"})
+        for item_limit, token_limit in product((8, 16, 32, 40), (2_000, 4_000, 8_000, 16_000)):
+            parameters = {**DEFAULTS[family], "max_items": item_limit, "max_tokens": token_limit}
+            normalized = {"schema": STRATEGY_SCHEMA, "family": family, "parameters": parameters}
+            result.append({**normalized, "strategy_id": f"{family}-budget-{item_limit}-{token_limit}"})
     return list({strategy_fingerprint(item): item for item in result}.values())
 
 
@@ -505,6 +522,7 @@ def _baseline_refs(task: Mapping[str, Any], corpus: ExperimentCorpus, family: st
     query = _query(task)
     selected = [item.chunk for item in rank_session_memory(
         query, corpus.root, top_k=int(parameters.get("top_k", 8)),
+        today=FROZEN_RANKING_DATE,
         embedding_provider=None, chunks=corpus.chunks,
         supersession_damping=True, replacing_successor_boost=True,
     )]
@@ -527,11 +545,30 @@ def _timeline_builder() -> Any:
     return build_timeline_evidence_pack
 
 
+@contextlib.contextmanager
+def _reuse_canonical_extraction(module: Any, corpus: ExperimentCorpus):
+    """Route production packet builders through the process-local frozen corpus."""
+    original = module.extract_memory_chunks
+
+    def cached(_cwd: str | Path = ".", *, granularity: str = "entry", **_kwargs: Any):
+        return list(corpus.raw_sections if granularity == "section" else corpus.raw_entries)
+
+    module.extract_memory_chunks = cached
+    try:
+        yield
+    finally:
+        module.extract_memory_chunks = original
+
+
 @lru_cache(maxsize=256)
 def _timeline_pack(root: str, arguments_json: str) -> Mapping[str, Any]:
     import json
+    import importlib
 
-    return _timeline_builder()(root, **json.loads(arguments_json))
+    builder = _timeline_builder()
+    module = importlib.import_module(builder.__module__)
+    with _reuse_canonical_extraction(module, _cached_corpus(str(Path(root).resolve()))):
+        return builder(root, **json.loads(arguments_json))
 
 
 def _timeline_baseline(
@@ -562,6 +599,7 @@ def _timeline_baseline(
         text = str(item.get("text", ""))
         evidence.append({
             "ref": str(item.get("chunk_id", "")), "kind": "section", "source": item.get("path"),
+            "entry_id": item.get("entry_id"),
             "chunk_id": item.get("chunk_id"), "session_date": item.get("session_date"),
             "selected_by": ["timeline"], "text": text, "token_proxy": _token_proxy(text),
         })
@@ -573,8 +611,10 @@ def _timeline_baseline(
 @lru_cache(maxsize=256)
 def _retrieval_v1_pack(root: str, spec_json: str) -> Mapping[str, Any]:
     import json
+    import memory_seed.retrieval as retrieval_module
 
-    return resolve_retrieval_spec(json.loads(spec_json), root)
+    with _reuse_canonical_extraction(retrieval_module, _cached_corpus(str(Path(root).resolve()))):
+        return resolve_retrieval_spec(json.loads(spec_json), root)
 
 
 def _retrieval_v1_baseline(
@@ -712,6 +752,7 @@ def resolve_strategy(
             selected_entries = {ref.rsplit(":", 1)[0] for ref in refs}
             ranked = rank_session_memory(
                 _query(task), corpus.root, top_k=max(top_k * 3, top_k),
+                today=FROZEN_RANKING_DATE,
                 embedding_provider=None, chunks=corpus.chunks,
                 supersession_damping=True, replacing_successor_boost=True,
             )

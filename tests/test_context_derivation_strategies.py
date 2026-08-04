@@ -8,8 +8,8 @@ from pathlib import Path
 EXPERIMENT = Path(__file__).parents[1] / "experiments" / "context-derivation"
 sys.path.insert(0, str(EXPERIMENT))
 
-from contracts import STRATEGY_SCHEMA, TASK_SCHEMA  # noqa: E402
-from materialize import attach_task_packets, materialize_packet  # noqa: E402
+from contracts import STRATEGY_SCHEMA, TASK_SCHEMA, fingerprint  # noqa: E402
+from materialize import assemble_live_tasks, attach_task_packets, materialize_packet  # noqa: E402
 from reduce import _gate, reduce_shards  # noqa: E402
 from strategies import load_corpus, resolve_strategy, strategy_grid, strategy_manifest  # noqa: E402
 from sweep import SHARD_SCHEMA, run_sweep, task_runtime  # noqa: E402
@@ -42,6 +42,18 @@ class ContextDerivationStrategyTests(unittest.TestCase):
         decisions = self.root / ".memory-seed" / "decisions"
         sessions.mkdir(parents=True)
         decisions.mkdir(parents=True)
+        (self.root / "CONSTITUTION.md").write_text("# Test Constitution\n", encoding="utf-8")
+        (self.root / ".memory-seed" / "topics.yaml").write_text(
+            "schema_version: 2\n"
+            "topics:\n"
+            "  - slug: architecture\n"
+            "    label: Architecture\n"
+            "    description: Test architecture decisions.\n"
+            "    status: active\n"
+            "    axis: area\n"
+            "    aliases: []\n",
+            encoding="utf-8",
+        )
         entries = [
             ("mse_old", "Old", "", "Use the old design."),
             ("mse_a", "Branch A", "evolves:\n  - mse_old", "Refine branch A."),
@@ -58,6 +70,7 @@ class ContextDerivationStrategyTests(unittest.TestCase):
                 f"## 2026-08-01 {hour:02d}:00 - {title}", "", "```yaml",
                 f"entry_id: {entry_id}", "user_initials: JNL", "agent_type: codex",
                 "project_path: .", "subproject_path: null",
+                "topics:", "  - architecture",
             ])
             if links:
                 body.extend(links.splitlines())
@@ -187,6 +200,24 @@ class ContextDerivationStrategyTests(unittest.TestCase):
             (len(payload["packets"]["adr-candidate-packet"].encode("utf-8")) + 3) // 4,
         )
 
+    def test_assembles_all_fixed_arm_packets_from_frozen_shards(self):
+        task = self._task()
+        result = resolve_strategy(task, self._strategy(), self.root)
+        with tempfile.TemporaryDirectory() as temp:
+            shard_dir = Path(temp)
+            for label, strategy_fingerprint in (("retrieval", "sha256:retrieval"), ("candidate", "sha256:candidate")):
+                payload = dict(result, strategy_fingerprint=strategy_fingerprint)
+                family = "retrieval-v1" if label == "retrieval" else "adr-structural"
+                shard = {"task_id": "CTX-01", "task_fingerprint": fingerprint(task), "runtime_fingerprint": "sha256:runtime", "strategy_fingerprint": strategy_fingerprint, "strategy": {"family": family}, "deterministic": True, "repeat_fingerprint": payload["fingerprint"], "result": payload}
+                (shard_dir / f"{label}.json").write_text(json.dumps(shard), encoding="utf-8")
+            live = assemble_live_tasks(
+                {"tasks": [task]}, shard_dir,
+                {"schema": "context-candidate-manifest.v1", "strategy_fingerprint": "sha256:candidate", "strategy": {"family": "adr-structural"}},
+                "sha256:retrieval",
+            )
+        self.assertEqual("context-live-tasks.v1", live["schema"])
+        self.assertEqual({"retrieval-v1-packet", "adr-candidate-packet"}, set(live["tasks"][0]["packets"]))
+
     def test_grid_covers_frozen_dimensions(self):
         grid = strategy_grid()
         families = {item["family"] for item in grid}
@@ -195,9 +226,11 @@ class ContextDerivationStrategyTests(unittest.TestCase):
         self.assertEqual({item["semantic_gap_top_k"] for item in hybrid}, {0, 3, 6})
         self.assertEqual({item["max_tokens"] for item in hybrid}, {2000, 4000, 8000, 16000})
         self.assertEqual({item["max_items"] for item in hybrid}, {8, 16, 32, 40})
+        self.assertTrue(any(item["max_items"] == 8 and item["max_tokens"] == 16000 for item in hybrid))
         self.assertTrue(any(item["include_pending"] and not item["include_rejected"] for item in hybrid))
         self.assertTrue(any(item["include_rejected"] and not item["include_pending"] for item in hybrid))
         self.assertTrue(any(item["include_no_change"] and not item["include_pending"] for item in hybrid))
+        self.assertTrue(any(item["include_pending"] and item["include_no_change"] and not item["include_rejected"] for item in hybrid))
         timelines = [item["parameters"] for item in grid if item["family"] == "timeline"]
         self.assertEqual({item["graph_depth"] for item in timelines}, {1, 2})
         self.assertEqual({item["include_sections"] for item in timelines}, {False, True})
@@ -216,9 +249,22 @@ class ContextDerivationStrategyTests(unittest.TestCase):
             "schema": STRATEGY_SCHEMA, "strategy_id": "timeline", "family": "timeline",
             "parameters": {"graph_depth": 1, "edge_types": ["related", "evolves"], "include_sections": False, "max_entries": 20},
         }
-        result = resolve_strategy(self._task(refs=("mse_head:d1",)), strategy, self.root)
+        task = self._task(refs=("mse_head:d1",))
+        task["resolver_hints"]["topics"] = ["architecture"]
+        result = resolve_strategy(task, strategy, self.root)
         self.assertTrue(result["evidence"])
         self.assertFalse(any(edge["type"] == "related" for edge in result["lineage_edges"]))
+
+    def test_retrieval_v1_fixture_has_required_constitution_and_evidence(self):
+        strategy = {
+            "schema": STRATEGY_SCHEMA, "strategy_id": "v1", "family": "retrieval-v1",
+            "parameters": {"related_depth": 2, "neighbouring_entries": 4, "max_items": 40, "max_tokens": 16000},
+        }
+        task = self._task(refs=("mse_head:d1",))
+        task["resolver_hints"]["topics"] = ["architecture"]
+        result = resolve_strategy(task, strategy, self.root)
+        self.assertTrue(result["evidence"])
+        self.assertFalse(any(item.get("kind") == "retrieval-v1-missing" for item in result["absence"]))
 
     def test_sweep_resolves_twice_writes_unique_shard_and_resumes(self):
         output = self.root / "shards"
@@ -231,6 +277,15 @@ class ContextDerivationStrategyTests(unittest.TestCase):
         resumed = run_sweep([self._task()], [self._strategy()], self.root, output, workers=1)
         self.assertEqual(resumed, paths)
         self.assertEqual(paths[0].read_bytes(), first_bytes)
+        changed = self._task()
+        changed["question"] = "changed query"
+        run_sweep([changed], [self._strategy()], self.root, output, workers=1)
+        refreshed = json.loads(paths[0].read_text(encoding="utf-8"))
+        self.assertNotEqual(shard["task_fingerprint"], refreshed["task_fingerprint"])
+
+    def test_missing_fixture_fails_closed_instead_of_using_parent_runtime(self):
+        with self.assertRaisesRegex(ValueError, "missing .memory-seed"):
+            task_runtime({"fixture": "does-not-exist"}, self.root)
 
     def test_atomic_shard_temp_name_does_not_repeat_long_destination(self):
         from sweep import _write_unique
@@ -266,6 +321,15 @@ class ContextDerivationStrategyTests(unittest.TestCase):
 
 
 class ReducerTests(unittest.TestCase):
+    def test_missing_evidence_gate_requires_the_named_reference(self):
+        result = {
+            "selected_adrs": [], "selected_refs": [], "lineage_edges": [], "related_edges": [],
+            "absence": [{"kind": "missing-decision-evidence", "refs": ["mse_wrong:d1"]}],
+            "insufficient_evidence": True, "citations": [], "evidence": [],
+        }
+        gold = {"insufficient_evidence": True, "required_missing_refs": ["mse_expected:d1"]}
+        self.assertIn("wrong-missing-evidence-ref", _gate(result, gold))
+
     def test_historical_ref_does_not_mask_wrong_authoritative_head(self):
         result = {
             "selected_adrs": [{

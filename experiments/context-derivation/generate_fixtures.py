@@ -13,6 +13,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -258,6 +259,10 @@ def _render_entry(
         "subproject_path: null",
         "topics:",
         "  - architecture",
+        "  - schema",
+        "  - mcp-tools",
+        "  - session-fuse",
+        "  - feature-build",
     ]
     for key, values in (("evolves", evolves), ("replaces", replaces), ("related_entries", related_entries)):
         if values:
@@ -478,7 +483,10 @@ def _safe_reset_fixture(path: Path, output_root: Path) -> None:
     if resolved_path.parent != resolved_output or not path.name:
         raise ValueError(f"refusing to replace fixture outside output root: {path}")
     if path.exists():
-        shutil.rmtree(path)
+        def remove_readonly(function, target, _error):
+            os.chmod(target, stat.S_IWRITE)
+            function(target)
+        shutil.rmtree(path, onerror=remove_readonly)
     path.mkdir(parents=True)
 
 
@@ -504,6 +512,10 @@ def build_all(output_root: Path = DEFAULT_OUTPUT) -> list[BuiltFixture]:
     for fixture_id in fixture_ids:
         root = output_root / fixture_id
         _safe_reset_fixture(root, output_root)
+        _write_text(
+            root / "CONSTITUTION.md",
+            "# Fixture Constitution\n\nEvidence must be read-only, attributable, and explicit about missing sources.\n",
+        )
         if fixture_id == real["fixture_id"]:
             _build_real(root, real)
         else:
