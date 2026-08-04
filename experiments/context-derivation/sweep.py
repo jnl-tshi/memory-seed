@@ -69,6 +69,12 @@ def _resolve_job(job: tuple[dict[str, Any], dict[str, Any], str]) -> str:
     return canonical_json(payload)
 
 
+def task_runtime(task: Mapping[str, Any], fixture_base: str | Path) -> Path:
+    """Resolve a task's fixture runtime without assuming one global corpus."""
+    fixture = Path(str(task["fixture"]))
+    return fixture.resolve() if fixture.is_absolute() else (Path(fixture_base) / fixture).resolve()
+
+
 def run_sweep(
     tasks: Sequence[Mapping[str, Any]],
     strategies: Sequence[Mapping[str, Any]],
@@ -99,7 +105,7 @@ def run_sweep(
             path = output / shard_name(task, strategy)
             paths.append(path)
             if not (resume and _valid_resume(path, task, strategy)):
-                pending.append((task, strategy, str(Path(runtime).resolve()), path))
+                pending.append((task, strategy, str(task_runtime(task, runtime)), path))
     cpu_default = max(1, (os.cpu_count() or 2) - 1)
     count = min(8, cpu_default, workers or cpu_default)
     jobs = [(task, strategy, root) for task, strategy, root, _ in pending]
@@ -126,7 +132,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--tasks", required=True)
     parser.add_argument("--strategies", required=True)
-    parser.add_argument("--runtime", required=True)
+    parser.add_argument(
+        "--fixture-base", "--runtime", dest="fixture_base", required=True,
+        help="base directory for relative task.fixture paths",
+    )
     parser.add_argument("--output", required=True)
     parser.add_argument("--workers", type=int)
     parser.add_argument("--no-resume", action="store_true")
@@ -134,7 +143,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     paths = run_sweep(
         _rows(load_json(args.tasks), "tasks"),
         _rows(load_json(args.strategies), "strategies"),
-        args.runtime, args.output, workers=args.workers, resume=not args.no_resume,
+        args.fixture_base, args.output, workers=args.workers, resume=not args.no_resume,
     )
     print(canonical_json({"shards": len(paths), "output": str(Path(args.output).resolve())}))
     return 0

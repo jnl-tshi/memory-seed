@@ -6,13 +6,22 @@ parse session or ADR Markdown itself and has no production write surface.
 
 from __future__ import annotations
 
+import argparse
 import re
+import sys
 import time
 from dataclasses import dataclass
 from functools import lru_cache
 from itertools import product
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
+
+# Direct ``python experiments/context-derivation/strategies.py`` execution puts
+# only this directory on sys.path. Add the source checkout root so the CLI uses
+# the same production readers as an installed package invocation.
+_SOURCE_ROOT = Path(__file__).resolve().parents[2]
+if str(_SOURCE_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SOURCE_ROOT))
 
 from memory_seed.adr import AdrRecord, adr_membership, iter_adrs
 from memory_seed.core import entry_body_decisions, resolve_runtime
@@ -245,7 +254,7 @@ def strategy_grid() -> list[dict[str, Any]]:
         }
         normalized = {"schema": STRATEGY_SCHEMA, "family": "timeline", "parameters": parameters}
         result.append({**normalized, "strategy_id": "timeline-" + fingerprint(normalized).split(":", 1)[1][:16]})
-    for related, neighbours, entries, tokens in product((1, 2, 3), (1, 4, 8), (20, 40), (4_000, 8_000, 16_000)):
+    for related, neighbours, entries, tokens in product((1, 2, 3), (1, 4, 8), (20, 40), (2_000, 4_000, 8_000, 16_000)):
         parameters = {
             **DEFAULTS["retrieval-v1"], "related_depth": related,
             "neighbouring_entries": neighbours, "max_items": entries,
@@ -668,6 +677,18 @@ def resolve_strategy(
             related_refs, related_edges = _related_closure(refs, corpus, int(parameters["related_depth"]))
             refs.update(related_refs)
             typed_edges.extend(related_edges)
+        if family in {"adr-structural", "adr-hybrid"}:
+            # Supporting refs are source evidence, not lineage.  Include them
+            # for every selected revision so a dangling support claim becomes
+            # an explicit material absence instead of silently disappearing.
+            supporting_refs = {
+                supporting
+                for record in selected_records
+                for event in record.events
+                if event.kind == "revision-proposed" and event.decision_ref in refs
+                for supporting in event.supporting_decisions
+            }
+            refs.update(supporting_refs)
         detail = parameters["detail"]
         evidence = [
             _decision_evidence(corpus.decisions[ref], corpus, family, detail)
@@ -736,7 +757,7 @@ def resolve_strategy(
         "evidence": evidence,
         "omissions": omissions,
         "absence": absence,
-        "insufficient_evidence": bool(absence) and not evidence,
+        "insufficient_evidence": bool(absence),
         "token_proxy": sum(int(item["token_proxy"]) for item in evidence),
         "elapsed_ms": round((time.perf_counter() - started) * 1000, 6),
     }
@@ -748,3 +769,35 @@ def resolve_strategy(
 def stable_result(result: Mapping[str, Any]) -> dict[str, Any]:
     """Projection used by the sweep's repeatability gate."""
     return {key: value for key, value in result.items() if key != "elapsed_ms"}
+
+
+def strategy_manifest(*, families: Sequence[str] | None = None) -> dict[str, Any]:
+    """Build the executable normalized/deduplicated sweep manifest."""
+    wanted = set(families or FAMILIES)
+    unknown = wanted - set(FAMILIES)
+    if unknown:
+        raise ValueError("unknown strategy families: " + ", ".join(sorted(unknown)))
+    rows = []
+    for strategy in strategy_grid():
+        if strategy["family"] not in wanted:
+            continue
+        normalized = normalize_strategy(strategy)
+        rows.append({
+            **normalized,
+            "strategy_id": strategy["strategy_id"],
+            "strategy_fingerprint": fingerprint(normalized),
+        })
+    rows.sort(key=lambda item: item["strategy_fingerprint"])
+    return {"schema": "context-strategy-manifest.v1", "strategies": rows}
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Emit the frozen context strategy manifest")
+    parser.add_argument("--family", action="append", choices=FAMILIES)
+    args = parser.parse_args(argv)
+    print(canonical_json(strategy_manifest(families=args.family)))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

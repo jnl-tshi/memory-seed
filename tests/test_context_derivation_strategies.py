@@ -1,4 +1,5 @@
 import json
+import shutil
 import sys
 import tempfile
 import unittest
@@ -8,15 +9,15 @@ EXPERIMENT = Path(__file__).parents[1] / "experiments" / "context-derivation"
 sys.path.insert(0, str(EXPERIMENT))
 
 from contracts import STRATEGY_SCHEMA, TASK_SCHEMA  # noqa: E402
-from materialize import materialize_packet  # noqa: E402
-from reduce import reduce_shards  # noqa: E402
-from strategies import load_corpus, resolve_strategy, strategy_grid  # noqa: E402
-from sweep import SHARD_SCHEMA, run_sweep  # noqa: E402
+from materialize import attach_task_packets, materialize_packet  # noqa: E402
+from reduce import _gate, reduce_shards  # noqa: E402
+from strategies import load_corpus, resolve_strategy, strategy_grid, strategy_manifest  # noqa: E402
+from sweep import SHARD_SCHEMA, run_sweep, task_runtime  # noqa: E402
 
 from memory_seed.adr import AdrEvent, AdrPredecessor, AdrRecord, render_adr  # noqa: E402
 
 
-def _event(kind, event_id, ref=None, *, predecessors=(), replacement=None):
+def _event(kind, event_id, ref=None, *, predecessors=(), supporting=(), replacement=None):
     return AdrEvent(
         kind=kind,
         event_id=event_id,
@@ -25,6 +26,7 @@ def _event(kind, event_id, ref=None, *, predecessors=(), replacement=None):
         decision_ref=ref,
         update_entry_id=ref.split(":", 1)[0] if ref else "mse_status",
         predecessors=tuple(predecessors),
+        supporting_decisions=tuple(supporting),
         decision=f"Decision for {ref}." if ref else "",
         why="Fixture rationale.",
         evolution="Fixture evolution.",
@@ -77,7 +79,7 @@ class ContextDerivationStrategyTests(unittest.TestCase):
                 _event("revision-proposed", "adre_bra000000000000003", a, predecessors=[AdrPredecessor(old, f"link:{a}:evolves:{old}")]),
                 _event("revision-accepted", "adre_bra000000000000004", a),
                 _event("revision-proposed", "adre_brb000000000000005", b, predecessors=[AdrPredecessor(old, f"link:{b}:evolves:{old}")]),
-                _event("revision-proposed", "adre_hea000000000000006", head, predecessors=[AdrPredecessor(a, f"link:{head}:evolves:{a}"), AdrPredecessor(b, f"link:{head}:evolves:{b}")]),
+                _event("revision-proposed", "adre_hea000000000000006", head, predecessors=[AdrPredecessor(a, f"link:{head}:evolves:{a}"), AdrPredecessor(b, f"link:{head}:evolves:{b}")], supporting=["mse_support_missing:d1"]),
                 _event("revision-accepted", "adre_hea000000000000007", head),
                 AdrEvent("reviewed-no-change", "adre_noc000000000000008", "2026-08-01T08:00:00Z", "write-time", decision_ref=head, update_entry_id="mse_head", reason="The accepted head remains valid."),
                 _event("revision-proposed", "adre_pen000000000000008", pending),
@@ -103,7 +105,7 @@ class ContextDerivationStrategyTests(unittest.TestCase):
 
     def _task(self, *, task_id="CTX-01", adrs=("adr_alpha",), refs=()):
         return {
-            "schema": TASK_SCHEMA, "task_id": task_id, "fixture": "minimal",
+            "schema": TASK_SCHEMA, "task_id": task_id, "fixture": str(self.root),
             "question": "What is the current alpha architecture?", "task_type": "accepted-head",
             "resolver_hints": {"adr_ids": list(adrs), "decision_refs": list(refs), "topics": [], "paths": []},
         }
@@ -149,6 +151,40 @@ class ContextDerivationStrategyTests(unittest.TestCase):
         packet = materialize_packet(result)
         self.assertEqual(packet["strategy_fingerprint"], result["strategy_fingerprint"])
 
+    def test_missing_support_marks_partial_structural_context_insufficient(self):
+        result = resolve_strategy(self._task(), self._strategy(), self.root)
+        self.assertTrue(result["evidence"])
+        self.assertTrue(result["insufficient_evidence"])
+        self.assertTrue(any(
+            item["kind"] == "missing-decision-evidence"
+            and "mse_support_missing:d1" in item["refs"]
+            for item in result["absence"]
+        ))
+
+    def test_attaches_inline_packets_and_per_arm_accounting(self):
+        retrieval = resolve_strategy(
+            self._task(),
+            {"schema": STRATEGY_SCHEMA, "strategy_id": "search", "family": "search", "parameters": {}},
+            self.root,
+        )
+        candidate = resolve_strategy(self._task(), self._strategy(), self.root)
+        payload = attach_task_packets(
+            self._task(), retrieval_v1_result=retrieval, candidate_result=candidate
+        )
+        self.assertEqual(
+            set(payload["packets"]), {"retrieval-v1-packet", "adr-candidate-packet"}
+        )
+        self.assertEqual(
+            json.loads(payload["packets"]["adr-candidate-packet"])["selected_refs"],
+            candidate["selected_refs"],
+        )
+        self.assertEqual(
+            payload["included_refs_by_arm"]["retrieval-v1-packet"], retrieval["selected_refs"]
+        )
+        self.assertEqual(
+            payload["context_token_proxy_by_arm"]["adr-candidate-packet"], candidate["token_proxy"]
+        )
+
     def test_grid_covers_frozen_dimensions(self):
         grid = strategy_grid()
         families = {item["family"] for item in grid}
@@ -166,8 +202,12 @@ class ContextDerivationStrategyTests(unittest.TestCase):
         retrieval = [item["parameters"] for item in grid if item["family"] == "retrieval-v1"]
         self.assertEqual({item["related_depth"] for item in retrieval}, {1, 2, 3})
         self.assertEqual({item["neighbouring_entries"] for item in retrieval}, {1, 4, 8})
+        self.assertEqual({item["max_tokens"] for item in retrieval}, {2000, 4000, 8000, 16000})
         search = [item["parameters"] for item in grid if item["family"] == "search"]
         self.assertEqual({item["top_k"] for item in search}, {4, 8, 16})
+        manifest = strategy_manifest()
+        fingerprints = [item["strategy_fingerprint"] for item in manifest["strategies"]]
+        self.assertEqual(len(fingerprints), len(set(fingerprints)))
 
     def test_timeline_uses_canonical_pack_and_separates_edges(self):
         strategy = {
@@ -190,8 +230,50 @@ class ContextDerivationStrategyTests(unittest.TestCase):
         self.assertEqual(resumed, paths)
         self.assertEqual(paths[0].read_bytes(), first_bytes)
 
+    def test_sweep_resolves_each_task_against_its_own_fixture_runtime(self):
+        fixture_base = self.root / "fixture-base"
+        populated = fixture_base / "populated"
+        empty = fixture_base / "empty"
+        shutil.copytree(self.root / ".memory-seed", populated / ".memory-seed")
+        (empty / ".memory-seed" / "sessions").mkdir(parents=True)
+        (empty / ".memory-seed" / "decisions").mkdir(parents=True)
+        first = self._task(task_id="CTX-01")
+        first["fixture"] = "populated"
+        second = self._task(task_id="CTX-02")
+        second["fixture"] = "empty"
+        oracle = {
+            "schema": STRATEGY_SCHEMA, "strategy_id": "oracle",
+            "family": "oracle", "parameters": {},
+        }
+        paths = run_sweep(
+            [first, second], [oracle], fixture_base,
+            self.root / "multi-runtime-shards", workers=1,
+        )
+        shards = {json.loads(path.read_text(encoding="utf-8"))["task_id"]: json.loads(path.read_text(encoding="utf-8")) for path in paths}
+        self.assertTrue(shards["CTX-01"]["result"]["evidence"])
+        self.assertFalse(shards["CTX-02"]["result"]["evidence"])
+        self.assertTrue(shards["CTX-02"]["result"]["insufficient_evidence"])
+        self.assertEqual(task_runtime({"fixture": str(populated)}, fixture_base), populated.resolve())
+
 
 class ReducerTests(unittest.TestCase):
+    def test_historical_ref_does_not_mask_wrong_authoritative_head(self):
+        result = {
+            "selected_adrs": [{
+                "adr_id": "adr_alpha", "status": "accepted",
+                "authoritative_ref": "mse_old:d1",
+            }],
+            "selected_refs": ["mse_old:d1", "mse_head:d1"],
+            "lineage_edges": [], "related_edges": [], "evidence": [],
+            "absence": [], "insufficient_evidence": False,
+        }
+        gold = {
+            "required_adr_ids": ["adr_alpha"], "authoritative_refs": ["mse_head:d1"],
+            "required_lineage_edges": [], "expected_statuses": {"adr_alpha": "accepted"},
+            "insufficient_evidence": False, "allowed_citations": [],
+        }
+        self.assertIn("wrong-authoritative-head", _gate(result, gold))
+
     def test_hard_gates_pareto_and_deterministic_tiebreak(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -206,23 +288,31 @@ class ReducerTests(unittest.TestCase):
                     "expected_statuses": {"adr_alpha": "accepted"},
                 }],
             }
-            for suffix, sfp, tokens, latency in (("a", "sha256:a", 10, 2.0), ("b", "sha256:b", 10, 2.0)):
+            for suffix, sfp, tokens, latency, family in (
+                ("a", "sha256:a", 10, 2.0, "adr-structural"),
+                ("b", "sha256:b", 10, 2.0, "adr-structural"),
+                ("oracle", "sha256:oracle", 1, 1.0, "oracle"),
+            ):
                 result = {
-                    "fingerprint": f"sha256:r{suffix}", "selected_adrs": [{"adr_id": "adr_alpha", "status": "accepted"}],
+                    "fingerprint": f"sha256:r{suffix}", "selected_adrs": [{"adr_id": "adr_alpha", "status": "accepted", "authoritative_ref": "mse_head:d1"}],
                     "selected_refs": ["mse_head:d1"], "lineage_edges": [], "absence": [],
                     "insufficient_evidence": False, "token_proxy": tokens,
                     "evidence": [{"ref": "mse_head:d1", "token_proxy": tokens}],
                 }
                 shard = {
                     "schema": SHARD_SCHEMA, "task_id": "CTX-01", "strategy_fingerprint": sfp,
-                    "strategy": {"schema": STRATEGY_SCHEMA, "family": "oracle", "parameters": {}},
+                    "strategy": {"schema": STRATEGY_SCHEMA, "family": family, "parameters": {}},
                     "deterministic": True, "result": result,
                     "repeat_fingerprint": result["fingerprint"], "timings_ms": [latency, latency],
                 }
                 (root / f"CTX-01--{suffix}.json").write_text(json.dumps(shard), encoding="utf-8")
-            reduced = reduce_shards(root, gold, expected_strategy_fingerprints=["sha256:a", "sha256:b"])
+            reduced = reduce_shards(root, gold, expected_strategy_fingerprints=["sha256:a", "sha256:b", "sha256:oracle"])
             self.assertEqual(reduced["selected_strategy_fingerprint"], "sha256:a")
             self.assertEqual(reduced["pareto_frontier"], ["sha256:a", "sha256:b"])
+            oracle = next(item for item in reduced["strategies"] if item["strategy_fingerprint"] == "sha256:oracle")
+            self.assertTrue(oracle["eligible"])
+            self.assertFalse(oracle["selection_eligible"])
+            self.assertEqual(oracle["selection_exclusion"], "oracle-lower-bound-only")
 
 
 if __name__ == "__main__":

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+import argparse
+from pathlib import Path
+from typing import Any, Mapping, Sequence
 
-from contracts import canonical_json, fingerprint
+from contracts import canonical_json, fingerprint, load_json
 from strategies import RESULT_SCHEMA
 
 
@@ -41,3 +43,54 @@ def materialize_packet(result: Mapping[str, Any], *, include_text: bool = True) 
 
 def packet_json(result: Mapping[str, Any], *, include_text: bool = True) -> str:
     return canonical_json(materialize_packet(result, include_text=include_text))
+
+
+def attach_task_packets(
+    task: Mapping[str, Any],
+    *,
+    retrieval_v1_result: Mapping[str, Any],
+    candidate_result: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Attach both inline packet arms and their accounting to a task payload."""
+    arms = {
+        "retrieval-v1-packet": retrieval_v1_result,
+        "adr-candidate-packet": candidate_result,
+    }
+    payload = dict(task)
+    payload["packets"] = {
+        arm: packet_json(result)
+        for arm, result in arms.items()
+    }
+    payload["included_refs_by_arm"] = {
+        arm: list(result.get("selected_refs", []))
+        for arm, result in arms.items()
+    }
+    payload["context_token_proxy_by_arm"] = {
+        arm: int(result.get("token_proxy", 0))
+        for arm, result in arms.items()
+    }
+    return payload
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Attach fixed offline packet arms to one task")
+    parser.add_argument("--task", required=True)
+    parser.add_argument("--retrieval-result", required=True)
+    parser.add_argument("--candidate-result", required=True)
+    parser.add_argument("--output")
+    args = parser.parse_args(argv)
+    payload = attach_task_packets(
+        load_json(args.task),
+        retrieval_v1_result=load_json(args.retrieval_result),
+        candidate_result=load_json(args.candidate_result),
+    )
+    rendered = canonical_json(payload) + "\n"
+    if args.output:
+        Path(args.output).write_text(rendered, encoding="utf-8", newline="\n")
+    else:
+        print(rendered, end="")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

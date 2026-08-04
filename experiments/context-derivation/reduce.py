@@ -41,16 +41,24 @@ def _gate(result: Mapping[str, Any], gold: Mapping[str, Any]) -> list[str]:
     selected_adrs = result.get("selected_adrs", [])
     adr_ids = {str(item.get("adr_id")) for item in selected_adrs}
     refs = set(map(str, result.get("selected_refs", [])))
+    authoritative_heads = {
+        str(item["authoritative_ref"])
+        for item in selected_adrs
+        if item.get("authoritative_ref")
+    }
+    expected_heads = set(map(str, gold.get("authoritative_refs", [])))
     lineage = {_edge_key(edge) for edge in result.get("lineage_edges", [])}
     related = {_edge_key(edge) for edge in result.get("related_edges", [])}
     required_edges = {_edge_key(edge) for edge in gold.get("required_lineage_edges", [])}
     required_related = {_edge_key(edge) for edge in gold.get("required_related_edges", [])}
     missing_adrs = set(map(str, gold.get("required_adr_ids", []))) - adr_ids
-    missing_refs = set(map(str, gold.get("authoritative_refs", []))) - refs
+    missing_refs = expected_heads - refs
     if missing_adrs:
         failures.append("missing-required-adr:" + ",".join(sorted(missing_adrs)))
     if missing_refs:
         failures.append("missing-authoritative-ref:" + ",".join(sorted(missing_refs)))
+    if authoritative_heads != expected_heads:
+        failures.append("wrong-authoritative-head")
     if not required_edges <= lineage:
         failures.append("missing-lineage-edge")
     if not required_related <= related:
@@ -146,16 +154,19 @@ def reduce_shards(
                 if covers_distractor or (relevant and not covers_relevant):
                     irrelevant_tokens += int(item.get("token_proxy", 0))
             timings.extend(float(value) for value in cell.get("timings_ms", []))
+        family = cells[0]["strategy"].get("family")
         summaries.append({
             "strategy_fingerprint": sfp,
             "strategy": cells[0]["strategy"],
             "eligible": not failures,
+            "selection_eligible": not failures and family != "oracle",
+            "selection_exclusion": "oracle-lower-bound-only" if family == "oracle" else None,
             "failures": failures,
             "irrelevant_token_proxy": irrelevant_tokens,
             "total_token_proxy": total_tokens,
             "p95_latency_ms": _p95(timings),
         })
-    eligible = [item for item in summaries if item["eligible"]]
+    eligible = [item for item in summaries if item["selection_eligible"]]
     frontier = [item for item in eligible if not any(_dominates(other, item) for other in eligible if other is not item)]
     frontier.sort(key=lambda item: (
         item["irrelevant_token_proxy"], item["total_token_proxy"],
