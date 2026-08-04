@@ -16,7 +16,7 @@ HERE = Path(__file__).resolve().parent
 RUNS = HERE / "runs"
 TASKS = HERE / "tasks" / "tasks.json"
 sys.path.insert(0, str(HERE))
-from contracts import AGENTS, ARMS, MAX_AGENT_CONCURRENCY, MAX_TOTAL_CONCURRENCY, REPETITIONS, SCHEDULE_SEED, TASK_COUNT  # noqa: E402
+from contracts import AGENTS, ARMS, MAX_AGENT_CONCURRENCY, MAX_TOTAL_CONCURRENCY, REPETITIONS, SCHEDULE_SEED, TASK_COUNT, execution_approved  # noqa: E402
 
 
 def task_ids(path: Path = TASKS) -> list[str]:
@@ -135,6 +135,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(schedule, indent=2)); return 0
     if not args.owner_approved:
         parser.error("--owner-approved is required for non-dry-run execution")
+    if not execution_approved(HERE):
+        parser.error("PREREGISTRATION.md and tasks/gold.json must both be owner-approved")
     RUNS.mkdir(exist_ok=True)
     results = run_parallel(schedule, jobs_per_agent=args.jobs_per_agent, model_by_agent={"claude": args.claude_model, "codex": args.codex_model}, cli_versions={"claude": args.claude_cli_version, "codex": args.codex_cli_version}, timeout=args.timeout, throttle_backoff=args.throttle_backoff)
     (RUNS / "batch-results.json").write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")

@@ -61,7 +61,7 @@ class HarnessTests(unittest.TestCase):
             tasks.write_text(json.dumps({"tasks": [task]}), encoding="utf-8")
             command = runner.build_command("claude", root, "prompt", arm="retrieval-v1-packet", fixture=None, model="m", effort=None)
             self.assertNotIn("--mcp-config", command)
-            with patch.object(runner, "RUNS", runs), patch.object(runner, "REPO_ROOT", root), patch.object(runner.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stream, "")):
+            with patch.object(runner, "RUNS", runs), patch.object(runner, "REPO_ROOT", root), patch.object(runner, "execution_approved", return_value=True), patch.object(runner.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stream, "")):
                 self.assertEqual(0, runner.main(["--owner-approved", "--task", "CTX-01", "--arm", "retrieval-v1-packet", "--agent", "claude", "--repetition", "1", "--model", "m", "--cli-version", "v", "--tasks", str(tasks)]))
             manifest = json.loads(next(runs.glob("*/RUN_MANIFEST.json")).read_text(encoding="utf-8"))
             self.assertTrue(manifest["fixed_arm_no_fixture"]); self.assertFalse(manifest["mcp_enabled"]); self.assertEqual(3, manifest["input_tokens"])
@@ -95,6 +95,8 @@ class HarnessTests(unittest.TestCase):
             batch.main(["--claude-model", "c", "--codex-model", "x", "--claude-cli-version", "1", "--codex-cli-version", "1"])
         with self.assertRaises(SystemExit):
             runner.main(["--task", "CTX-01", "--arm", "search-mcp", "--agent", "claude", "--repetition", "1", "--model", "m", "--cli-version", "v"])
+        with self.assertRaises(SystemExit):
+            batch.main(["--owner-approved", "--claude-model", "c", "--codex-model", "x", "--claude-cli-version", "1", "--codex-cli-version", "1"])
 
     def test_single_run_dry_run_leaves_no_run_artifact(self):
         task = {"schema": "context-benchmark-task.v1", "task_id": "CTX-01", "fixture": "unused", "question": "q", "task_type": "accepted-head", "resolver_hints": {}, "packets": {"retrieval-v1-packet": "evidence"}}

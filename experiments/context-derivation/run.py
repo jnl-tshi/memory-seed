@@ -25,7 +25,7 @@ REPO_ROOT = HERE.parents[1]
 RUNS = HERE / "runs"
 TASKS = HERE / "tasks"
 sys.path.insert(0, str(HERE))
-from contracts import ARMS, RUN_SCHEMA, SCHEDULE_SEED, answer_template, fingerprint, require_schema  # noqa: E402
+from contracts import ARMS, RUN_SCHEMA, SCHEDULE_SEED, answer_template, execution_approved, fingerprint, require_schema  # noqa: E402
 
 INTERACTIVE_ARMS = frozenset({"search-mcp", "adr-mcp-workflow"})
 FIXED_ARMS = frozenset(ARMS) - INTERACTIVE_ARMS
@@ -193,6 +193,8 @@ def main(argv: list[str] | None = None) -> int:
         # Check before creating a run directory or copying a fixture, and crucially
         # before either subject CLI can be invoked.
         parser.error("--owner-approved is required for non-dry-run execution")
+    if not args.dry_run and not execution_approved(HERE):
+        parser.error("PREREGISTRATION.md and tasks/gold.json must both be owner-approved")
     task = load_task(args.task, _tasks_path(args.tasks)); fixture_source = task.get("fixture")
     run_id = f"{args.agent}-{args.task}-{args.arm}-r{args.repetition}-{uuid.uuid4().hex[:10]}"
     run_dir = RUNS / run_id; run_dir.mkdir(parents=True, exist_ok=False)

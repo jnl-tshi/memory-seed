@@ -58,3 +58,18 @@ def answer_template() -> dict[str, Any]:
         "explanation": "",
         "insufficient_evidence": False,
     }
+
+
+def execution_approved(experiment_root: str | Path) -> bool:
+    """Require both owner-reviewed artifacts; a CLI flag alone cannot unfreeze scoring."""
+    root = Path(experiment_root)
+    preregistration = root / "PREREGISTRATION.md"
+    gold_path = root / "tasks" / "gold.json"
+    if not preregistration.exists() or not gold_path.exists():
+        return False
+    preregistered = "Status: **APPROVED**" in preregistration.read_text(encoding="utf-8")
+    try:
+        gold = load_json(gold_path)
+    except (OSError, json.JSONDecodeError):
+        return False
+    return preregistered and gold.get("approval_status") == "APPROVED"
