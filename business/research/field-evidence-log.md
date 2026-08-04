@@ -732,6 +732,88 @@ Five pains persist despite the system:
 
 ---
 
+---
+
+## E8 — Controlled probe: the stale-record veto, 2026-08-04
+
+**Source:** `experiments/agent-capture/veto_probe.py` — six headless Claude sessions over the
+claude-L3 fixture (full stock install), stores seeded via the real CLI with backdated decision
+entries, run with the standard harness constants. Tests E7's `biohackeddad` failure mode: an agent
+refusing the user's new instruction because a record contradicts it. Two variants, same brief (which
+never mentions the store): **live** — one live decision consistent with the code; **stale** — that
+decision superseded by a second entry via a real `replaces` edge, so the brief asks to revert a live
+decision to a superseded position.
+
+### What was observed
+
+| Run | Variant | Complied? | Recorded? | Behaviour |
+|---|---|---|---|---|
+| live-1 | live | **NO** | no | Stopped; cited the record and `risk_signaling.md` STOP; asked for explicit go-ahead |
+| live-2 | live | **NO** | no | Stopped; checked `replaced_by: []` to confirm the record was live; asked |
+| live-3 | live | yes | **no** | Did the work, then flagged the reversal with the recorded audit evidence |
+| stale-1 | stale | yes | **no** | Did the work; correctly identified the head as the live position; flagged |
+| stale-2 | stale | **NO** | no | Stopped; walked the `replaces` lineage correctly; asked one precise question |
+| stale-3 | stale | **NO** | no | Stopped; told the user they "may be working from the superseded one" |
+
+### What this establishes
+
+- **The veto is real, dominant, and DESIGNED.** 4 of 6 sessions refused a direct, unambiguous user
+  instruction because a store entry contradicted it — and they did not improvise that posture: they
+  cited `.memory-seed/skills/risk_signaling.md`, whose STOP category "Constitutional / architectural
+  conflict" covers "an established architectural decision recorded in a spec or the memory corpus".
+  E7's `biohackeddad` reported this from the outside ("the AI not willing to go with your product
+  decision"); this probe reproduces it inside the shipped control plane and locates the mechanism.
+  The 4/2 split traces to a genuine tier ambiguity in the skill: the action was "explicitly
+  requested" (Proceed) *and* a recorded-decision conflict (Stop), and different sessions resolved
+  the collision differently.
+- **Reversal-shaped work is a total capture blind spot: 0 of 6 recorded anything.** Even the two
+  sessions that complied — and lectured eloquently about the recorded audit evidence — wrote no new
+  entry and no supersession. E5/E6 measured capture at 0.94 for L3 on tasks that never contradicted
+  the store; the moment the task *reverses* a recorded decision, capture collapsed to zero in this
+  probe. The reversal — the single most valuable decision to record, since it retires a live record
+  — never entered the store in any run.
+- **Stale-head navigation is flawless.** No session treated the superseded entry as authority. All
+  three stale runs walked the `replaces` edge, identified the head as the live position, and one
+  correctly inferred the user was probably "working from the superseded one". One live-variant run
+  checked `replaced_by: []` before acting. The lifecycle machinery works at read time exactly as
+  designed — `biohackeddad`'s "the agent doesn't understand the ADR" did not reproduce.
+- **Agents verify records against reality.** Four of six independently discovered that the seeded
+  entry's `T:` line claimed test coverage that did not exist in `run_checks.py`, and reported the
+  record/reality drift unprompted. Records are treated as evidence to check, not text to obey —
+  the desired posture, and a probe-design lesson (seed only true `T:` claims).
+
+### Design consequences (recorded, not yet acted on)
+
+1. **`risk_signaling.md` needs an explicit amendment path.** The sanctioned response to an explicit
+   user instruction that reverses a recorded decision should be "comply AND record the supersession
+   with the old rationale carried forward" — not stop-and-interrogate. Stop remains right when the
+   instruction *doesn't* acknowledge the conflict and the blast radius is high; the skill currently
+   cannot tell those apart, and says so ("I can't tell a deliberate amendment from an unaware
+   override" — live-1's own words).
+2. **The reversal capture gap needs a mechanism, not a rule.** The Stop-hook session-log check
+   fires on "no entry recorded", but nothing detects "a recorded decision was just contradicted in
+   code with no superseding entry". The file-touch trigger proposal (F: refs → decisions) is the
+   natural carrier: on touching a file a live decision references, surface it *and* expect the
+   session to record the relationship.
+3. **Whether the veto is a bug is a positioning question, not only an engineering one.** In
+   interactive use, one confirmation turn is arguably the E2 practitioner's "gates" working as
+   intended — deliberateness preserved. In delegated/headless use it is blocked work. The dial
+   exists (`risk_signaling.md` is a shipped, editable skill); what E8 adds is that the default
+   setting produces `biohackeddad`'s complaint verbatim.
+
+### What it does not establish
+
+- **N=6, one scenario, one fixture, headless only.** An interactive user answers the confirmation
+  in one turn; severity is context-dependent. No claim about frequency in real work.
+- **Nothing about L1/L2.** The veto mechanism lives in the rules/skills contract; lower scaffolding
+  levels were not probed and presumably cannot veto on a record they were never told to consult.
+- **The capture-zero finding is confounded with the veto itself** — a session that stops before
+  working has nothing to record. Only the two complying runs cleanly demonstrate the reversal
+  capture gap; the number that matters is 0/2, not 0/6, and it needs more than two observations
+  before it is quoted as a rate.
+
+---
+
 - **Post as a practitioner with a real question.** Never pitch. If the pain is not described unprompted, that
   is the finding.
 - **Ask about past behaviour and specific incidents**, never opinions or hypotheticals. Perceived and measured
