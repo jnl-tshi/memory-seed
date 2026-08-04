@@ -7738,6 +7738,7 @@ _OUR_HOOK_SCRIPTS = (
     "session-log-check.py",
     "memory-retrieval-check.py",
     "session-start-context.py",
+    "file-touch-decisions.py",
 )
 
 
