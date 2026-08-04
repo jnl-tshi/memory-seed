@@ -385,6 +385,68 @@ delta was ~2× here, so large between-level effects at L2→L3 are plausible.
 - **The 28% residual in the hook era is unaudited** — some of it is commits the hook legitimately
   skips; a commit-level audit would be needed before treating 72% as the mechanism's ceiling.
 
+---
+
+## E5 — Controlled experiment: scaffolding dose-response, 2026-08-04
+
+**Source:** `experiments/agent-capture/`, 60 scored headless Claude sessions across four scaffolding
+levels × three frozen tasks × five repetitions, pre-registered in `PREREGISTRATION.md` before any
+scored run. Blind judging by Codex (a different model family), in two stages so the answer key never
+reached a blind judge. Every run reported `parent_isolated: true`; zero harness failures. Cost
+$99.29, 1,366 turns, ~80 minutes wall clock.
+
+### What was observed
+
+| Level | Scaffolding | Seeded decisions made | Recorded | **Judged capture** |
+|---|---|---|---|---|
+| L0 | MCP write path only | 18 | 0 | **0.00** |
+| L1 | + one `AGENTS.md` line naming the store | 19 | 14 | **0.74** |
+| L2 | + full rules contract and skills, hooks removed | 19 | 15 | **0.79** |
+| L3 | + agent hooks and the git commit hook (stock install) | 18 | 17 | **0.94** |
+
+The judge found 203 decisions across the 60 sessions (mean 3.4 each, range 1–7) and split them
+128 recorded / 75 not, so it discriminated rather than rubber-stamping.
+
+### What this establishes
+
+- **The tool alone does nothing.** L0 is 0/18 across fifteen sessions, and all fifteen stores are
+  empty files-on-disk, not merely unparsed. An agent that can see `memory_session_append` and is
+  told nothing about it does not use it. This is the strongest and least equivocal number here.
+- **Against the pre-registered threshold (≥0.8 capture, ≤0.3 noise), only L3 is reliable.** The
+  pre-registration defined that outcome in advance as the **mechanical-cheapness claim failing**:
+  the honest claim becomes "the shipped control plane makes agents record", and E2's
+  enforcement-is-not-cheapness criticism stands. The kill condition (L3 < 0.5) was not triggered.
+- **It corroborates E4 from the other direction.** E4 measured rule → mechanism inside this repo's
+  own history and found compliance roughly doubling; E5 finds the same ordering under controlled
+  conditions, with the rules contract alone (L2, 0.79) below the mechanism-bearing install
+  (L3, 0.94).
+
+### What it does not establish
+
+- **The L2 verdict rests on one decision.** 15/19 = 0.789; one further capture makes it 0.84 and
+  flips "fails" to "survives". A binary threshold decided by a single unit at n=19 is a coin near
+  the line, not a finding. Treat "only L3 is reliable" as directional.
+- **Faithfulness was not measured.** The judge called 124 recorded decisions faithful and none
+  unfaithful. `claude -p --output-format json` emits the final message and usage but no tool-call
+  or reasoning stream, so there was no record of actual reasoning for a stated reason to contradict.
+  Zero variance across 128 judgements is a null instrument, not a perfect score. The same thinness
+  independently limits the Codex arm. Re-run with `--output-format stream-json` before making any
+  faithfulness claim.
+- **Noise rate is likewise unvaried** (0 in every arm) and should not be quoted as a result.
+- **Single stub project, three tasks, one model family as subject.** Generalises to these task
+  classes and this agent, not to engineering work at large. The experimenter is also the subject
+  population — the standing limitation from the pre-registration.
+- **Two silent measurement bugs were found and fixed mid-run**, both of which produced clean,
+  plausible, publishable-looking numbers. A counter that recognised only the DRAFT `### Decision`
+  heading scored prose captures as silence, and manufactured an L2 dip that did not exist. Judge
+  prompts passed as argv were truncated by the Windows `codex.CMD` shim, so 56 of 60 first-pass
+  judgements answered a fragment — while the keyed second stage, obliged by its schema to emit one
+  verdict per seeded key, confidently filled in all of them. Both were caught only by distrusting
+  results that looked too clean. Treat this harness as failing silently *in the direction of
+  success* until proven otherwise.
+
+---
+
 - **Post as a practitioner with a real question.** Never pitch. If the pain is not described unprompted, that
   is the finding.
 - **Ask about past behaviour and specific incidents**, never opinions or hypotheticals. Perceived and measured
