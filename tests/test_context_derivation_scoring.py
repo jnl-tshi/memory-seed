@@ -8,7 +8,14 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPERIMENT = ROOT / "experiments" / "context-derivation"
 sys.path.insert(0, str(EXPERIMENT))
 
-from judge import execute_manifest, select_reviews, selected_repetition  # noqa: E402
+from judge import (  # noqa: E402
+    collect_results,
+    execute_manifest,
+    expected_review_cells,
+    select_reviews,
+    selected_repetition,
+    validate_review_cells,
+)
 from report import render_report  # noqa: E402
 from score import score_experiment, score_run, wilson, write_score_shards  # noqa: E402
 
@@ -135,6 +142,28 @@ class ContextDerivationScoringTests(unittest.TestCase):
     def test_judge_concurrency_is_bounded(self):
         with self.assertRaises(ValueError):
             execute_manifest([], Path("unused"), jobs_per_agent=4)
+
+    def test_judge_requires_exact_cells_and_unique_run_ids(self):
+        tasks = {"tasks": [{"task_id": "CTX-01"}, {"task_id": "CTX-02"}]}
+        expected = expected_review_cells(tasks)
+        selected = [
+            {"task_id": task, "arm": arm, "agent": agent, "repetition": repetition,
+             "run_id": f"r-{index}"}
+            for index, (task, arm, agent, repetition) in enumerate(sorted(expected))
+        ]
+        validate_review_cells(selected, expected)
+        malformed = [*selected[:-1], dict(selected[0], run_id="r-replaced")]
+        with self.assertRaisesRegex(ValueError, "selected review cells mismatch"):
+            validate_review_cells(malformed, expected)
+        duplicate_ids = [dict(row) for row in selected]
+        duplicate_ids[-1]["run_id"] = duplicate_ids[0]["run_id"]
+        with self.assertRaisesRegex(ValueError, "duplicate run_id"):
+            validate_review_cells(duplicate_ids, expected)
+
+    def test_returned_judgements_require_exact_manifest_cells(self):
+        expected = {("CTX-01", "search-mcp", "claude", 1)}
+        with self.assertRaisesRegex(ValueError, "exact frozen review cells"):
+            collect_results([], Path("unused"), expected_cells=expected)
 
     def test_report_keeps_agents_separate(self):
         score = {

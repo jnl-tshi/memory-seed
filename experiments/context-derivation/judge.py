@@ -62,11 +62,42 @@ def select_reviews(summary: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     return selected
 
 
+def expected_review_cells(tasks_payload: Mapping[str, Any]) -> set[tuple[str, str, str, int]]:
+    task_ids = [str(item["task_id"]) for item in tasks_payload.get("tasks", ())]
+    if len(task_ids) != len(set(task_ids)):
+        raise ValueError("judge tasks must have unique task IDs")
+    return {
+        (task_id, arm, subject, selected_repetition(task_id, arm, subject))
+        for task_id in task_ids
+        for arm in ARMS
+        for subject in AGENTS
+    }
+
+
+def validate_review_cells(selected: list[Mapping[str, Any]], expected: set[tuple[str, str, str, int]]) -> None:
+    """Count equality is insufficient: duplicates can hide omitted blind cells."""
+    cells = [
+        (str(run.get("task_id")), str(run.get("arm")), str(run.get("agent")), int(run.get("repetition", 0)))
+        for run in selected
+    ]
+    run_ids = [run.get("run_id") for run in selected]
+    if any(not isinstance(run_id, str) or not run_id for run_id in run_ids):
+        raise ValueError("selected reviews must have non-empty run_id values")
+    if len(run_ids) != len(set(run_ids)):
+        raise ValueError("selected reviews contain duplicate run_id values")
+    actual = set(cells)
+    if len(cells) != len(actual) or actual != expected:
+        raise ValueError(
+            "selected review cells mismatch: "
+            f"missing={sorted(expected - actual)}, extra={sorted(actual - expected)}, "
+            f"duplicates={len(cells) - len(actual)}"
+        )
+
+
 def build_packets(summary: Mapping[str, Any], tasks_payload: Mapping[str, Any], output: Path) -> list[dict[str, Any]]:
     tasks = {str(item["task_id"]): item for item in tasks_payload.get("tasks", ())}
     selected = select_reviews(summary)
-    if len(selected) != len(tasks) * len(ARMS) * len(AGENTS):
-        raise ValueError(f"expected {len(tasks) * len(ARMS) * len(AGENTS)} selected reviews, found {len(selected)}")
+    validate_review_cells(selected, expected_review_cells(tasks_payload))
     output.mkdir(parents=True, exist_ok=True)
     manifest = []
     for run in selected:
@@ -88,7 +119,10 @@ def build_packets(summary: Mapping[str, Any], tasks_payload: Mapping[str, Any], 
         digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
         path = output / f"{run['task_id']}-{run['arm']}-{subject}-{digest}.json"
         path.write_text(raw, encoding="utf-8")
-        manifest.append({"packet": str(path), "judge": judge, "subject": subject, "run_id": run.get("run_id")})
+        manifest.append({
+            "packet": str(path), "judge": judge, "subject": subject, "run_id": run["run_id"],
+            "task_id": run["task_id"], "arm": run["arm"], "repetition": run["repetition"],
+        })
     return manifest
 
 
@@ -152,7 +186,19 @@ def execute_manifest(manifest: list[Mapping[str, Any]], output: Path, *, jobs_pe
             future.result()
 
 
-def collect_results(manifest: list[Mapping[str, Any]], output: Path) -> list[dict[str, Any]]:
+def collect_results(
+    manifest: list[Mapping[str, Any]], output: Path, *, expected_cells: set[tuple[str, str, str, int]]
+) -> list[dict[str, Any]]:
+    """Verify returned files retain the exact pre-selected blind-cell identity."""
+    manifest_cells = {
+        (str(item.get("task_id")), str(item.get("arm")), str(item.get("subject")), int(item.get("repetition", 0)))
+        for item in manifest
+    }
+    run_ids = [item.get("run_id") for item in manifest]
+    if len(manifest) != len(manifest_cells) or manifest_cells != expected_cells:
+        raise ValueError("judge manifest does not contain the exact frozen review cells")
+    if any(not isinstance(run_id, str) or not run_id for run_id in run_ids) or len(run_ids) != len(set(run_ids)):
+        raise ValueError("judge manifest has missing or duplicate run_id values")
     rows = []
     for item in manifest:
         packet = Path(str(item["packet"]))
@@ -160,9 +206,10 @@ def collect_results(manifest: list[Mapping[str, Any]], output: Path) -> list[dic
         value = json.loads(path.read_text(encoding="utf-8"))
         if value.get("schema") != "context-judge.v1":
             raise ValueError(f"invalid judge result: {path}")
-        rows.append({**value, "run_id": item["run_id"], "judge": item["judge"], "subject": item["subject"]})
-    if len(rows) != 96:
-        raise ValueError(f"expected 96 blind judgements, found {len(rows)}")
+        rows.append({**value, "run_id": item["run_id"], "judge": item["judge"], "subject": item["subject"], "task_id": item["task_id"], "arm": item["arm"], "repetition": item["repetition"]})
+    result_cells = {(row["task_id"], row["arm"], row["subject"], row["repetition"]) for row in rows}
+    if len(rows) != len(result_cells) or result_cells != expected_cells:
+        raise ValueError("returned judgements do not cover the exact frozen review cells")
     (output / "results.json").write_text(json.dumps(rows, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return rows
 
@@ -184,7 +231,7 @@ def main() -> int:
     if args.execute:
         require_execution_approval(owner_approved=args.owner_approved)
         execute_manifest(manifest, output, jobs_per_agent=args.jobs_per_agent)
-        collect_results(manifest, output)
+        collect_results(manifest, output, expected_cells=expected_review_cells(tasks))
     print(f"prepared {len(manifest)} cross-family review packets")
     return 0
 
