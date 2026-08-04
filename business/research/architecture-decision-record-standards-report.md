@@ -351,7 +351,7 @@ facts; rendering them into any of these templates is a projection problem, not a
 > made the agent refuse a *new* product decision, because it did not understand the existing record.
 > A validated, agent-loaded, enforced store makes a stale record harder to override, not easier.
 > Retrieval must surface current status prominently, and agents must treat records as evidence
-> rather than instruction. Worth an explicit test.
+> rather than instruction. Worth an explicit test. **Run 2026-08-04 as E8** (field evidence log): the veto is real, dominant (4 of 6 sessions refused a direct instruction), and comes from the shipped `risk_signaling.md` STOP category, not agent confusion - lineage navigation was flawless. Reversal-shaped work also exposed a capture blind spot: no session recorded the reversal it was asked to make.
 
 ## 7. Automation — the state of validation
 
