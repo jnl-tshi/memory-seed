@@ -9,6 +9,7 @@ EXPERIMENT = ROOT / "experiments" / "context-derivation"
 sys.path.insert(0, str(EXPERIMENT))
 
 from judge import (  # noqa: E402
+    build_packets,
     collect_results,
     execute_manifest,
     expected_review_cells,
@@ -21,6 +22,75 @@ from score import score_experiment, score_run, wilson, write_score_shards  # noq
 
 
 class ContextDerivationScoringTests(unittest.TestCase):
+    def valid_report_inputs(self):
+        arms = ("search-mcp", "retrieval-v1-packet", "adr-candidate-packet", "adr-mcp-workflow")
+        agents = ("claude", "codex")
+        score_rows = []
+        judgements = []
+        for number in range(1, 13):
+            task_id = f"CTX-{number:02d}"
+            for arm in arms:
+                for agent in agents:
+                    for repetition in (1, 2, 3):
+                        run_id = f"{task_id}-{arm}-{agent}-r{repetition}"
+                        score_rows.append({
+                            "run_id": run_id,
+                            "task_id": task_id,
+                            "arm": arm,
+                            "agent": agent,
+                            "repetition": repetition,
+                        })
+                        if repetition == selected_repetition(task_id, arm, agent):
+                            judgements.append({
+                                "schema": "context-judge.v1",
+                                "run_id": run_id,
+                                "task_id": task_id,
+                                "arm": arm,
+                                "repetition": repetition,
+                                "subject": agent,
+                                "judge": "codex" if agent == "claude" else "claude",
+                                "explanation_supported": True,
+                                "explanation_complete": True,
+                                "unsupported_claims": [],
+                                "notes": "",
+                            })
+        score = {
+            "production_recommendation_gate": {"passed": True, "failures": []},
+            "rows": score_rows,
+            "aggregates": {
+                agent: {arm: {"runs": 36, "metrics": {}, "context_tokens": {}} for arm in arms}
+                for agent in agents
+            },
+        }
+        candidate = {
+            "strategy_fingerprint": "sha256:candidate",
+            "strategy": {"family": "adr-structural"},
+            "eligible": True,
+            "selection_eligible": True,
+            "failures": [],
+            "irrelevant_token_proxy": 10,
+            "total_token_proxy": 100,
+            "p95_latency_ms": 5.0,
+        }
+        offline = {
+            "schema": "context-reduction.v1",
+            "complete": True,
+            "task_count": 12,
+            "strategy_count": 1,
+            "strategies": [candidate],
+            "pareto_frontier": [candidate["strategy_fingerprint"]],
+            "selected_strategy_fingerprint": candidate["strategy_fingerprint"],
+            "fingerprint": "sha256:reduction",
+        }
+        recommendations = {
+            "required_related_adrs": "yes",
+            "adr_review_profile": "yes",
+            "shared_resolver": "yes",
+            "workflow_prompts": "no changes",
+            "evolves": [],
+        }
+        return score, offline, judgements, recommendations
+
     def gold(self):
         return {
             "task_id": "CTX-01",
@@ -144,7 +214,7 @@ class ContextDerivationScoringTests(unittest.TestCase):
             execute_manifest([], Path("unused"), jobs_per_agent=4)
 
     def test_judge_requires_exact_cells_and_unique_run_ids(self):
-        tasks = {"tasks": [{"task_id": "CTX-01"}, {"task_id": "CTX-02"}]}
+        tasks = {"tasks": [{"task_id": f"CTX-{number:02d}"} for number in range(1, 13)]}
         expected = expected_review_cells(tasks)
         selected = [
             {"task_id": task, "arm": arm, "agent": agent, "repetition": repetition,
@@ -165,6 +235,27 @@ class ContextDerivationScoringTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exact frozen review cells"):
             collect_results([], Path("unused"), expected_cells=expected)
 
+    def test_judge_packets_require_exact_unique_frozen_cells(self):
+        score, _offline, _judgements, _recommendations = self.valid_report_inputs()
+        tasks = {"tasks": [
+            {"task_id": f"CTX-{number:02d}", "question": "q"}
+            for number in range(1, 13)
+        ]}
+        with tempfile.TemporaryDirectory() as temporary:
+            manifest = build_packets({"runs": score["rows"]}, tasks, Path(temporary))
+            self.assertEqual(96, len(manifest))
+            self.assertTrue(all({"task_id", "arm", "repetition", "subject", "judge", "run_id"} <= set(item) for item in manifest))
+
+            selected_indexes = [
+                index for index, row in enumerate(score["rows"])
+                if row["repetition"] == selected_repetition(row["task_id"], row["arm"], row["agent"])
+            ]
+            omitted_index, duplicated_index = selected_indexes[:2]
+            duplicate = dict(score["rows"][duplicated_index], run_id="different-run-id")
+            broken = [*score["rows"][:omitted_index], *score["rows"][omitted_index + 1:], duplicate]
+            with self.assertRaisesRegex(ValueError, "selected review cells mismatch"):
+                build_packets({"runs": broken}, tasks, Path(temporary) / "broken")
+
     def test_report_keeps_agents_separate(self):
         score = {
             "production_recommendation_gate": {"passed": False, "failures": ["not run"]},
@@ -182,7 +273,42 @@ class ContextDerivationScoringTests(unittest.TestCase):
         }
         report = render_report(score, {"complete": True, "selected_strategy_fingerprint": "sha256:x", "strategies": [], "pareto_frontier": []}, [], {})
         self.assertIn("FAIL / INCOMPLETE", report)
-        self.assertIn("exactly 96", report)
+        self.assertIn("blind", report)
+
+    def test_report_passes_only_for_exact_bound_judge_matrix_and_eligible_candidate(self):
+        score, offline, judgements, recommendations = self.valid_report_inputs()
+        report = render_report(score, offline, judgements, recommendations)
+        self.assertIn("Production recommendation gate: **PASS**", report)
+
+    def test_report_rejects_96_unique_fabricated_or_duplicate_judge_cells(self):
+        score, offline, judgements, recommendations = self.valid_report_inputs()
+        fabricated = [
+            {
+                **judgements[0],
+                "run_id": f"fabricated-{index}",
+                "notes": str(index),
+            }
+            for index in range(96)
+        ]
+        report = render_report(score, offline, fabricated, recommendations)
+        self.assertIn("FAIL / INCOMPLETE", report)
+        self.assertIn("exact unique frozen 12x4x2", report)
+
+        duplicated = [dict(item) for item in judgements]
+        duplicated[-1].update({
+            key: duplicated[0][key]
+            for key in ("task_id", "arm", "repetition", "subject", "judge")
+        })
+        report = render_report(score, offline, duplicated, recommendations)
+        self.assertIn("FAIL / INCOMPLETE", report)
+        self.assertIn("not bound to its preselected scored run", report)
+
+    def test_report_rejects_arbitrary_unresolved_offline_fingerprint(self):
+        score, offline, judgements, recommendations = self.valid_report_inputs()
+        offline = {**offline, "strategies": [], "strategy_count": 0, "selected_strategy_fingerprint": "sha256:arbitrary"}
+        report = render_report(score, offline, judgements, recommendations)
+        self.assertIn("FAIL / INCOMPLETE", report)
+        self.assertIn("resolve to exactly one reduction row", report)
 
     def test_complete_matrix_rejects_out_of_range_repetition(self):
         runs = []

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 from typing import Any, Mapping
 
-from contracts import AGENTS, ARMS
+from contracts import AGENTS, ARMS, REPETITIONS, TASK_COUNT
+from judge import selected_repetition
 
 
 def _rate(value: Any) -> str:
@@ -27,6 +29,124 @@ def _number(value: Any) -> str:
     return f"{float(value):.1f}"
 
 
+def _offline_readiness(offline: Mapping[str, Any] | None) -> tuple[list[str], Mapping[str, Any]]:
+    failures: list[str] = []
+    if not offline or offline.get("complete") is not True:
+        return ["offline reduction is missing or incomplete"], {}
+    strategies = offline.get("strategies")
+    selected_fingerprint = offline.get("selected_strategy_fingerprint")
+    if not isinstance(strategies, list) or not isinstance(selected_fingerprint, str) or not selected_fingerprint:
+        return ["offline reduction has no frozen selected strategy"], {}
+    matches = [
+        item for item in strategies
+        if isinstance(item, Mapping) and item.get("strategy_fingerprint") == selected_fingerprint
+    ]
+    if len(matches) != 1:
+        return ["selected strategy fingerprint must resolve to exactly one reduction row"], {}
+    selected = matches[0]
+    family = (selected.get("strategy") or {}).get("family")
+    evidence_fields = ("irrelevant_token_proxy", "total_token_proxy", "p95_latency_ms")
+    if (offline.get("task_count") != TASK_COUNT
+            or offline.get("strategy_count") != len(strategies)
+            or not isinstance(offline.get("fingerprint"), str)
+            or not offline.get("fingerprint")
+            or selected.get("eligible") is not True
+            or selected.get("selection_eligible") is not True
+            or selected.get("failures") != []
+            or not isinstance(selected.get("strategy"), Mapping)
+            or family in (None, "", "oracle")
+            or selected_fingerprint not in (offline.get("pareto_frontier") or ())
+            or any(not isinstance(selected.get(key), (int, float)) or isinstance(selected.get(key), bool)
+                   or not math.isfinite(float(selected[key])) or float(selected[key]) < 0
+                   for key in evidence_fields)):
+        failures.append("selected offline strategy lacks complete eligible non-oracle gate evidence")
+    return failures, selected
+
+
+def _judgement_readiness(
+    score: Mapping[str, Any],
+    judgements: list[Mapping[str, Any]] | None,
+) -> list[str]:
+    failures: list[str] = []
+    expected_task_ids = {f"CTX-{number:02d}" for number in range(1, TASK_COUNT + 1)}
+    expected_score_cells = {
+        (task_id, arm, agent, repetition)
+        for task_id in expected_task_ids
+        for arm in ARMS
+        for agent in AGENTS
+        for repetition in range(1, REPETITIONS + 1)
+    }
+    score_rows = score.get("rows")
+    if not isinstance(score_rows, list):
+        return ["mechanical score rows are missing; blind judgements cannot be bound"]
+    actual_score_cells: list[tuple[str, str, str, int]] = []
+    score_by_run_id: dict[str, Mapping[str, Any]] = {}
+    for row in score_rows:
+        if not isinstance(row, Mapping):
+            failures.append("mechanical score rows are malformed")
+            continue
+        try:
+            cell = (str(row.get("task_id")), str(row.get("arm")), str(row.get("agent")), int(row.get("repetition", 0)))
+        except (TypeError, ValueError):
+            failures.append("mechanical score rows are malformed")
+            continue
+        run_id = str(row.get("run_id") or "")
+        actual_score_cells.append(cell)
+        if not run_id or run_id in score_by_run_id:
+            failures.append("mechanical score run IDs must be unique and non-empty")
+        else:
+            score_by_run_id[run_id] = row
+    if (len(actual_score_cells) != len(expected_score_cells)
+            or set(actual_score_cells) != expected_score_cells
+            or len(set(actual_score_cells)) != len(actual_score_cells)):
+        failures.append("mechanical score rows do not contain the exact frozen 12x4x2x3 matrix")
+
+    judge_rows = judgements or []
+    expected_judge_cells = {
+        (task_id, arm, agent)
+        for task_id in expected_task_ids
+        for arm in ARMS
+        for agent in AGENTS
+    }
+    actual_judge_cells: list[tuple[str, str, str]] = []
+    judge_run_ids: list[str] = []
+    for row in judge_rows:
+        if not isinstance(row, Mapping):
+            failures.append("blind judgement rows are malformed")
+            continue
+        task_id = str(row.get("task_id"))
+        arm = str(row.get("arm"))
+        subject = str(row.get("subject"))
+        judge = str(row.get("judge"))
+        run_id = str(row.get("run_id") or "")
+        try:
+            repetition = int(row.get("repetition", 0))
+        except (TypeError, ValueError):
+            repetition = 0
+        try:
+            frozen_repetition = selected_repetition(task_id, arm, subject)
+        except (OSError, ValueError, json.JSONDecodeError):
+            frozen_repetition = 0
+        actual_judge_cells.append((task_id, arm, subject))
+        judge_run_ids.append(run_id)
+        expected_judge = "codex" if subject == "claude" else "claude" if subject == "codex" else ""
+        scored = score_by_run_id.get(run_id)
+        if (row.get("schema") != "context-judge.v1"
+                or judge != expected_judge
+                or repetition != frozen_repetition
+                or scored is None
+                or (str(scored.get("task_id")), str(scored.get("arm")), str(scored.get("agent")), int(scored.get("repetition", 0)))
+                    != (task_id, arm, subject, repetition)):
+            failures.append("blind judgement is invalid or not bound to its preselected scored run")
+    if (len(actual_judge_cells) != len(expected_judge_cells)
+            or set(actual_judge_cells) != expected_judge_cells
+            or len(set(actual_judge_cells)) != len(actual_judge_cells)
+            or any(not run_id for run_id in judge_run_ids)
+            or len(set(judge_run_ids)) != len(judge_run_ids)):
+        failures.append("blind review is not the exact unique frozen 12x4x2 judgement matrix")
+    return sorted(set(failures))
+
+
 def render_report(
     score: Mapping[str, Any],
     offline: Mapping[str, Any] | None = None,
@@ -34,22 +154,16 @@ def render_report(
     recommendations: Mapping[str, Any] | None = None,
 ) -> str:
     gate = score.get("production_recommendation_gate", {})
-    readiness_failures: list[str] = []
-    if not offline or not offline.get("complete") or not offline.get("selected_strategy_fingerprint"):
-        readiness_failures.append("offline reduction/candidate is missing or incomplete")
-    judge_rows = judgements or []
-    judge_ids = {str(item.get("run_id")) for item in judge_rows}
-    if (len(judge_rows) != 96 or len(judge_ids) != 96
-            or any(item.get("schema") != "context-judge.v1" for item in judge_rows)
-            or any(item.get("judge") == item.get("subject") for item in judge_rows)):
-        readiness_failures.append("blind cross-family review is not exactly 96 valid unique judgements")
+    offline_failures, candidate = _offline_readiness(offline)
+    readiness_failures = [*offline_failures, *_judgement_readiness(score, judgements)]
     required_recommendations = {
         "required_related_adrs", "adr_review_profile", "shared_resolver",
         "workflow_prompts", "evolves",
     }
     if (not recommendations or not required_recommendations <= set(recommendations)
             or not isinstance(recommendations.get("evolves"), list)
-            or any(recommendations.get(key) in (None, "", "PENDING OWNER REVIEW", "PENDING FAILURE ANALYSIS") for key in required_recommendations - {"evolves"})):
+            or any(recommendations.get(key) in (None, "", "PENDING OWNER REVIEW", "PENDING FAILURE ANALYSIS")
+                   for key in required_recommendations - {"evolves"})):
         readiness_failures.append("reviewed production recommendations are incomplete")
     report_passed = bool(gate.get("passed")) and not readiness_failures
     lines = [
@@ -65,17 +179,13 @@ def render_report(
         lines.extend(["Failures:", "", *[f"- {item}" for item in all_failures], ""])
     if offline:
         selected_fingerprint = offline.get("selected_strategy_fingerprint")
-        candidate = next(
-            (item for item in offline.get("strategies", []) if item.get("strategy_fingerprint") == selected_fingerprint),
-            {},
-        )
         lines.extend(
             [
                 "## Frozen offline candidate",
                 "",
                 f"- Strategy family: `{(candidate.get('strategy') or {}).get('family', 'not frozen')}`",
                 f"- Fingerprint: `{selected_fingerprint or 'not frozen'}`",
-                f"- Eligible strategies: {sum(bool(item.get('selection_eligible')) for item in offline.get('strategies', []))}",
+                f"- Eligible strategies: {sum(bool(item.get('selection_eligible')) for item in offline.get('strategies', []) if isinstance(item, Mapping))}",
                 f"- Pareto strategies: {len(offline.get('pareto_frontier', []))}",
                 "",
             ]
@@ -153,9 +263,9 @@ def main() -> int:
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     score = json.loads(Path(args.score).read_text(encoding="utf-8"))
-    offline = json.loads(Path(args.offline).read_text(encoding="utf-8")) if args.offline else None
-    judgements = json.loads(Path(args.judgements).read_text(encoding="utf-8")) if args.judgements else None
-    recommendations = json.loads(Path(args.recommendations).read_text(encoding="utf-8")) if args.recommendations else None
+    offline = json.loads(Path(args.offline).read_text(encoding="utf-8"))
+    judgements = json.loads(Path(args.judgements).read_text(encoding="utf-8"))
+    recommendations = json.loads(Path(args.recommendations).read_text(encoding="utf-8"))
     Path(args.output).write_text(render_report(score, offline, judgements, recommendations), encoding="utf-8")
     return 0
 

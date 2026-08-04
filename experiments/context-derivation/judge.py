@@ -12,7 +12,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Mapping
 
-from contracts import ARMS, AGENTS, SCHEDULE_SEED, live_execution_approved
+from contracts import ARMS, AGENTS, SCHEDULE_SEED, TASK_COUNT, live_execution_approved
 
 HERE = Path(__file__).resolve().parent
 SELECTION_PATH = HERE / "JUDGE_SELECTION.json"
@@ -66,6 +66,9 @@ def expected_review_cells(tasks_payload: Mapping[str, Any]) -> set[tuple[str, st
     task_ids = [str(item["task_id"]) for item in tasks_payload.get("tasks", ())]
     if len(task_ids) != len(set(task_ids)):
         raise ValueError("judge tasks must have unique task IDs")
+    expected_task_ids = {f"CTX-{number:02d}" for number in range(1, TASK_COUNT + 1)}
+    if set(task_ids) != expected_task_ids:
+        raise ValueError("judge tasks must be the exact frozen CTX-01..CTX-12 set")
     return {
         (task_id, arm, subject, selected_repetition(task_id, arm, subject))
         for task_id in task_ids
@@ -120,8 +123,13 @@ def build_packets(summary: Mapping[str, Any], tasks_payload: Mapping[str, Any], 
         path = output / f"{run['task_id']}-{run['arm']}-{subject}-{digest}.json"
         path.write_text(raw, encoding="utf-8")
         manifest.append({
-            "packet": str(path), "judge": judge, "subject": subject, "run_id": run["run_id"],
-            "task_id": run["task_id"], "arm": run["arm"], "repetition": run["repetition"],
+            "packet": str(path),
+            "task_id": str(run["task_id"]),
+            "arm": str(run["arm"]),
+            "repetition": int(run["repetition"]),
+            "judge": judge,
+            "subject": subject,
+            "run_id": str(run["run_id"]),
         })
     return manifest
 
@@ -206,7 +214,15 @@ def collect_results(
         value = json.loads(path.read_text(encoding="utf-8"))
         if value.get("schema") != "context-judge.v1":
             raise ValueError(f"invalid judge result: {path}")
-        rows.append({**value, "run_id": item["run_id"], "judge": item["judge"], "subject": item["subject"], "task_id": item["task_id"], "arm": item["arm"], "repetition": item["repetition"]})
+        rows.append({
+            **value,
+            "run_id": str(item["run_id"]),
+            "task_id": str(item["task_id"]),
+            "arm": str(item["arm"]),
+            "repetition": int(item["repetition"]),
+            "judge": str(item["judge"]),
+            "subject": str(item["subject"]),
+        })
     result_cells = {(row["task_id"], row["arm"], row["subject"], row["repetition"]) for row in rows}
     if len(rows) != len(result_cells) or result_cells != expected_cells:
         raise ValueError("returned judgements do not cover the exact frozen review cells")
