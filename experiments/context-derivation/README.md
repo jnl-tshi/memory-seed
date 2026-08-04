@@ -56,7 +56,7 @@ both owner-review markers are approved.
    the predeclared current Retrieval Spec v1 fingerprint:
 
    ```text
-   python experiments/context-derivation/materialize.py --tasks experiments/context-derivation/generated/tasks.json --shards experiments/context-derivation/shards --candidate-manifest experiments/context-derivation/FROZEN_CANDIDATE.json --retrieval-fingerprint <frozen-v1-fingerprint> --output experiments/context-derivation/generated/live-tasks.json
+   python experiments/context-derivation/materialize.py --tasks experiments/context-derivation/generated/tasks.json --shards experiments/context-derivation/shards --fixture-base experiments/context-derivation --candidate-manifest experiments/context-derivation/FROZEN_CANDIDATE.json --reduction experiments/context-derivation/generated/reduction.json --retrieval-fingerprint <frozen-v1-fingerprint> --output experiments/context-derivation/generated/live-tasks.json
    ```
 
 6. Run unscored Claude/Codex probes, then update and commit `LIVE_MATRIX.json`

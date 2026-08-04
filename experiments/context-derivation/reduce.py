@@ -9,12 +9,21 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 from contracts import canonical_json, execution_approved, fingerprint, load_json
+from strategies import normalize_strategy, strategy_fingerprint
 from sweep import SHARD_SCHEMA
 
 
 REDUCTION_SCHEMA = "context-reduction.v1"
 CANDIDATE_SCHEMA = "context-candidate-manifest.v1"
 HERE = Path(__file__).resolve().parent
+
+
+def reduction_payload_fingerprint(value: Mapping[str, Any]) -> str:
+    """Recompute the immutable reduction identity, excluding output metadata."""
+    payload = dict(value)
+    payload.pop("fingerprint", None)
+    payload.pop("candidate_manifest", None)
+    return fingerprint(payload)
 
 
 def _edge_key(edge: Mapping[str, Any]) -> tuple[str, str, str]:
@@ -119,6 +128,31 @@ def reduce_shards(
         value = json.loads(path.read_text(encoding="utf-8"))
         if value.get("schema") != SHARD_SCHEMA:
             raise ValueError(f"invalid shard schema: {path}")
+        for field in ("task_fingerprint", "runtime_fingerprint", "resolver_fingerprint"):
+            if not isinstance(value.get(field), str) or not value[field]:
+                raise ValueError(f"missing {field} in shard: {path}")
+        try:
+            normalized = normalize_strategy(value.get("strategy") or {})
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"invalid strategy in shard: {path}: {exc}") from exc
+        computed_strategy_fingerprint = strategy_fingerprint(normalized)
+        if value.get("strategy_fingerprint") != computed_strategy_fingerprint:
+            raise ValueError(f"tampered strategy fingerprint in shard: {path}")
+        result = value.get("result")
+        if not isinstance(result, Mapping):
+            raise ValueError(f"missing result in shard: {path}")
+        stable_result = {
+            key: item for key, item in result.items()
+            if key not in {"elapsed_ms", "fingerprint"}
+        }
+        if result.get("fingerprint") != fingerprint(stable_result):
+            raise ValueError(f"tampered result fingerprint in shard: {path}")
+        if (
+            result.get("task_id") != value.get("task_id")
+            or result.get("strategy_fingerprint") != computed_strategy_fingerprint
+            or normalize_strategy(result.get("strategy") or {}) != normalized
+        ):
+            raise ValueError(f"result/shard identity mismatch: {path}")
         if not value.get("deterministic"):
             value.setdefault("gate_failures", []).append("nondeterministic")
         cell = (str(value.get("task_id")), str(value.get("strategy_fingerprint")))
@@ -140,6 +174,25 @@ def reduce_shards(
     extras = sorted(actual - expected)
     if missing or extras:
         raise ValueError(f"incomplete shards: missing={missing}, extras={extras}")
+
+    task_fingerprints: dict[str, str] = {}
+    runtime_fingerprints: dict[str, str] = {}
+    for task_id in gold_rows:
+        task_cells = [item for item in shards if str(item["task_id"]) == task_id]
+        task_values = {str(item["task_fingerprint"]) for item in task_cells}
+        runtime_values = {str(item["runtime_fingerprint"]) for item in task_cells}
+        if len(task_values) != 1 or len(runtime_values) != 1:
+            raise ValueError(f"mixed task/runtime fingerprints for {task_id}")
+        task_fingerprints[task_id] = next(iter(task_values))
+        runtime_fingerprints[task_id] = next(iter(runtime_values))
+    resolver_fingerprints = {str(item["resolver_fingerprint"]) for item in shards}
+    if len(resolver_fingerprints) != 1:
+        raise ValueError("mixed resolver fingerprints across sweep shards")
+    resolver_fingerprint = next(iter(resolver_fingerprints))
+    shard_fingerprints = {
+        f"{item['task_id']}|{item['strategy_fingerprint']}": fingerprint(item)
+        for item in shards
+    }
 
     summaries: list[dict[str, Any]] = []
     for sfp in sorted(strategy_fps):
@@ -190,11 +243,15 @@ def reduce_shards(
         "task_count": len(gold_rows),
         "strategy_count": len(strategy_fps),
         "complete": True,
+        "task_fingerprints": dict(sorted(task_fingerprints.items())),
+        "runtime_fingerprints": dict(sorted(runtime_fingerprints.items())),
+        "resolver_fingerprint": resolver_fingerprint,
+        "shard_fingerprints": dict(sorted(shard_fingerprints.items())),
         "strategies": summaries,
         "pareto_frontier": [item["strategy_fingerprint"] for item in frontier],
         "selected_strategy_fingerprint": selected["strategy_fingerprint"] if selected else None,
     }
-    reduction["fingerprint"] = fingerprint(reduction)
+    reduction["fingerprint"] = reduction_payload_fingerprint(reduction)
     if candidate_path is not None:
         if selected is None:
             raise ValueError("no eligible strategy to freeze")

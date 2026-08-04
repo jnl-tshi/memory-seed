@@ -7,7 +7,14 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from contracts import canonical_json, fingerprint, load_json
-from strategies import RESULT_SCHEMA
+from reduce import REDUCTION_SCHEMA, reduction_payload_fingerprint
+from strategies import RESULT_SCHEMA, normalize_strategy, strategy_fingerprint
+from sweep import (
+    SHARD_SCHEMA,
+    resolver_implementation_fingerprint,
+    runtime_fingerprint,
+    task_runtime,
+)
 
 
 PACKET_SCHEMA = "context-packet.v1"
@@ -78,7 +85,10 @@ def assemble_live_tasks(
     tasks_payload: Mapping[str, Any],
     shard_dir: str | Path,
     candidate_manifest: Mapping[str, Any],
+    reduction: Mapping[str, Any],
     retrieval_strategy_fingerprint: str,
+    *,
+    fixture_base: str | Path,
 ) -> dict[str, Any]:
     """Assemble every fixed-arm packet from the frozen offline shards."""
     candidate_fingerprint = str(candidate_manifest.get("strategy_fingerprint", ""))
@@ -86,31 +96,92 @@ def assemble_live_tasks(
         raise ValueError("a frozen context-candidate-manifest.v1 is required")
     if (candidate_manifest.get("strategy") or {}).get("family") not in {"adr-structural", "adr-hybrid"}:
         raise ValueError("frozen candidate must be ADR-aware")
+    if reduction.get("schema") != REDUCTION_SCHEMA:
+        raise ValueError("a context-reduction.v1 artifact is required")
+    if reduction.get("complete") is not True:
+        raise ValueError("reduction artifact must be complete")
+    computed_reduction_fingerprint = reduction_payload_fingerprint(reduction)
+    if reduction.get("fingerprint") != computed_reduction_fingerprint:
+        raise ValueError("reduction artifact fingerprint is invalid")
+    if candidate_manifest.get("reduction_fingerprint") != computed_reduction_fingerprint:
+        raise ValueError("candidate is not bound to the supplied reduction")
+    if reduction.get("selected_strategy_fingerprint") != candidate_fingerprint:
+        raise ValueError("candidate does not match the reduction selection")
+    selected_rows = [
+        row for row in reduction.get("strategies", ())
+        if row.get("strategy_fingerprint") == candidate_fingerprint
+    ]
+    if len(selected_rows) != 1:
+        raise ValueError("reduction must contain exactly one selected strategy row")
+    selected_row = selected_rows[0]
+    if (
+        not selected_row.get("eligible")
+        or not selected_row.get("selection_eligible")
+        or (selected_row.get("strategy") or {}).get("family") == "oracle"
+    ):
+        raise ValueError("reduction selected row is not an eligible non-oracle strategy")
+    candidate_strategy = normalize_strategy(candidate_manifest.get("strategy") or {})
+    if (
+        strategy_fingerprint(candidate_strategy) != candidate_fingerprint
+        or normalize_strategy(selected_row.get("strategy") or {}) != candidate_strategy
+    ):
+        raise ValueError("candidate strategy does not match the selected reduction row")
     tasks = list(tasks_payload.get("tasks", ()))
+    task_ids = {str(task["task_id"]) for task in tasks}
+    if (
+        reduction.get("task_count") != len(tasks)
+        or set(map(str, (reduction.get("task_fingerprints") or {}).keys())) != task_ids
+        or set(map(str, (reduction.get("runtime_fingerprints") or {}).keys())) != task_ids
+    ):
+        raise ValueError("reduction task provenance does not match current tasks")
     by_cell: dict[tuple[str, str], Mapping[str, Any]] = {}
     for path in sorted(Path(shard_dir).glob("*.json")):
         shard = load_json(path)
+        if shard.get("schema") != SHARD_SCHEMA:
+            raise ValueError(f"invalid materialization shard schema: {path}")
         key = (str(shard.get("task_id")), str(shard.get("strategy_fingerprint")))
         if key in by_cell:
             raise ValueError(f"duplicate shard cell: {key}")
         by_cell[key] = shard
     output = []
+    current_resolver_fingerprint = resolver_implementation_fingerprint()
     for task in tasks:
         task_id = str(task["task_id"])
+        current_runtime_fingerprint = runtime_fingerprint(
+            task_runtime(task, fixture_base), task
+        )
         retrieval = by_cell.get((task_id, retrieval_strategy_fingerprint))
         candidate = by_cell.get((task_id, candidate_fingerprint))
         if not retrieval or not candidate:
             raise ValueError(f"missing materialization shard for {task_id}")
         for label, shard in (("retrieval", retrieval), ("candidate", candidate)):
+            shard_key = f"{task_id}|{shard.get('strategy_fingerprint')}"
+            if (reduction.get("shard_fingerprints") or {}).get(shard_key) != fingerprint(shard):
+                raise ValueError(f"{label} shard is not represented by the reduction for {task_id}")
             if not shard.get("deterministic") or shard.get("repeat_fingerprint") != (shard.get("result") or {}).get("fingerprint"):
                 raise ValueError(f"{label} shard is nondeterministic for {task_id}")
-            if shard.get("task_fingerprint") != fingerprint(task) or not shard.get("runtime_fingerprint"):
+            if (
+                shard.get("task_fingerprint") != fingerprint(task)
+                or shard.get("task_fingerprint") != (reduction.get("task_fingerprints") or {}).get(task_id)
+                or shard.get("runtime_fingerprint") != current_runtime_fingerprint
+                or shard.get("runtime_fingerprint") != (reduction.get("runtime_fingerprints") or {}).get(task_id)
+                or shard.get("resolver_fingerprint") != current_resolver_fingerprint
+                or shard.get("resolver_fingerprint") != reduction.get("resolver_fingerprint")
+            ):
                 raise ValueError(f"{label} shard is stale for {task_id}")
+            try:
+                normalized = normalize_strategy(shard.get("strategy") or {})
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"invalid {label} shard strategy for {task_id}: {exc}") from exc
+            if strategy_fingerprint(normalized) != shard.get("strategy_fingerprint"):
+                raise ValueError(f"tampered {label} shard strategy for {task_id}")
         if retrieval.get("runtime_fingerprint") != candidate.get("runtime_fingerprint"):
             raise ValueError(f"fixed-arm shards use different runtimes for {task_id}")
         if ((retrieval.get("strategy") or {}).get("family") != "retrieval-v1"
                 or (candidate.get("strategy") or {}).get("family") not in {"adr-structural", "adr-hybrid"}):
             raise ValueError(f"wrong strategy family for {task_id}")
+        if normalize_strategy(candidate.get("strategy") or {}) != candidate_strategy:
+            raise ValueError(f"candidate shard does not match frozen candidate for {task_id}")
         output.append(attach_task_packets(
             task,
             retrieval_v1_result=retrieval["result"],
@@ -133,17 +204,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--candidate-result")
     parser.add_argument("--tasks")
     parser.add_argument("--shards")
+    parser.add_argument("--fixture-base")
     parser.add_argument("--candidate-manifest")
+    parser.add_argument("--reduction")
     parser.add_argument("--retrieval-fingerprint")
     parser.add_argument("--output")
     args = parser.parse_args(argv)
     if args.tasks:
-        required = (args.shards, args.candidate_manifest, args.retrieval_fingerprint, args.output)
+        required = (
+            args.shards, args.fixture_base, args.candidate_manifest,
+            args.reduction, args.retrieval_fingerprint, args.output,
+        )
         if not all(required):
-            parser.error("assembly requires --tasks, --shards, --candidate-manifest, --retrieval-fingerprint, and --output")
+            parser.error("assembly requires --tasks, --shards, --fixture-base, --candidate-manifest, --reduction, --retrieval-fingerprint, and --output")
         payload = assemble_live_tasks(
             load_json(args.tasks), args.shards, load_json(args.candidate_manifest),
-            args.retrieval_fingerprint,
+            load_json(args.reduction), args.retrieval_fingerprint,
+            fixture_base=args.fixture_base,
         )
     else:
         if not all((args.task, args.retrieval_result, args.candidate_result)):

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
 import json
 import os
 import tempfile
@@ -12,6 +13,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from contracts import TASK_SCHEMA, canonical_json, fingerprint, load_json, require_schema
+import strategies as strategies_module
 from strategies import clear_resolution_caches, normalize_strategy, resolve_strategy, stable_result, strategy_fingerprint
 
 
@@ -23,7 +25,41 @@ def shard_name(task: Mapping[str, Any], strategy: Mapping[str, Any]) -> str:
     return f"{task['task_id']}--{digest}.json"
 
 
-def _valid_resume(path: Path, task: Mapping[str, Any], strategy: Mapping[str, Any], runtime_fingerprint: str) -> bool:
+def resolver_implementation_fingerprint() -> str:
+    """Fingerprint the exact experiment and production resolver Python sources."""
+    import memory_seed
+
+    timeline_builder = strategies_module._timeline_builder()
+    timeline_module = importlib.import_module(timeline_builder.__module__)
+    groups = (
+        ("experiment", Path(strategies_module.__file__).resolve().parent),
+        ("memory_seed", Path(memory_seed.__file__).resolve().parent),
+        ("memory_trace", Path(timeline_module.__file__).resolve().parent),
+    )
+    digest = hashlib.sha256()
+    for label, root in groups:
+        paths = (
+            [root / "strategies.py", root / "contracts.py"]
+            if label == "experiment"
+            else sorted(root.rglob("*.py"))
+        )
+        for path in paths:
+            if not path.is_file():
+                continue
+            relative = path.name if label == "experiment" else path.relative_to(root).as_posix()
+            data = path.read_bytes()
+            digest.update(f"{label}/{relative}\0{len(data)}\0".encode("utf-8"))
+            digest.update(data)
+    return "sha256:" + digest.hexdigest()
+
+
+def _valid_resume(
+    path: Path,
+    task: Mapping[str, Any],
+    strategy: Mapping[str, Any],
+    runtime_fingerprint: str,
+    resolver_fingerprint: str,
+) -> bool:
     if not path.is_file():
         return False
     try:
@@ -36,7 +72,9 @@ def _valid_resume(path: Path, task: Mapping[str, Any], strategy: Mapping[str, An
         and value.get("strategy_fingerprint") == strategy_fingerprint(strategy)
         and value.get("task_fingerprint") == fingerprint(task)
         and value.get("runtime_fingerprint") == runtime_fingerprint
+        and value.get("resolver_fingerprint") == resolver_fingerprint
         and value.get("deterministic") is True
+        and value.get("repeat_fingerprint") == (value.get("result") or {}).get("fingerprint")
     )
 
 
@@ -56,8 +94,8 @@ def _write_unique(path: Path, payload: Mapping[str, Any]) -> None:
             pass
 
 
-def _resolve_job(job: tuple[dict[str, Any], dict[str, Any], str, str]) -> str:
-    task, strategy, root, corpus_fingerprint = job
+def _resolve_job(job: tuple[dict[str, Any], dict[str, Any], str, str, str]) -> str:
+    task, strategy, root, corpus_fingerprint, resolver_fingerprint = job
     first = resolve_strategy(task, strategy, root)
     clear_resolution_caches()
     second = resolve_strategy(task, strategy, root)
@@ -67,6 +105,7 @@ def _resolve_job(job: tuple[dict[str, Any], dict[str, Any], str, str]) -> str:
         "task_id": task["task_id"],
         "task_fingerprint": fingerprint(task),
         "runtime_fingerprint": corpus_fingerprint,
+        "resolver_fingerprint": resolver_fingerprint,
         "strategy": normalize_strategy(strategy),
         "strategy_fingerprint": strategy_fingerprint(strategy),
         "deterministic": deterministic,
@@ -135,6 +174,7 @@ def run_sweep(
         task["task_id"]: runtime_fingerprint(runtime_by_task[task["task_id"]], task)
         for task in normalized_tasks
     }
+    resolver_fingerprint = resolver_implementation_fingerprint()
     pending, paths = [], []
     for task in sorted(normalized_tasks, key=lambda item: item["task_id"]):
         for strategy in sorted(normalized_strategies, key=strategy_fingerprint):
@@ -142,18 +182,29 @@ def run_sweep(
             paths.append(path)
             task_root = runtime_by_task[task["task_id"]]
             corpus_fingerprint = runtime_fingerprints[task["task_id"]]
-            if not (resume and _valid_resume(path, task, strategy, corpus_fingerprint)):
-                pending.append((task, strategy, str(task_root), corpus_fingerprint, path))
+            if not (
+                resume
+                and _valid_resume(
+                    path, task, strategy, corpus_fingerprint, resolver_fingerprint
+                )
+            ):
+                pending.append((
+                    task, strategy, str(task_root), corpus_fingerprint,
+                    resolver_fingerprint, path,
+                ))
     cpu_default = max(1, (os.cpu_count() or 2) - 1)
     count = min(8, cpu_default, workers or cpu_default)
-    jobs = [(task, strategy, root, corpus_fingerprint) for task, strategy, root, corpus_fingerprint, _ in pending]
+    jobs = [
+        (task, strategy, root, corpus_fingerprint, implementation_fingerprint)
+        for task, strategy, root, corpus_fingerprint, implementation_fingerprint, _ in pending
+    ]
     if count == 1:
         encoded = map(_resolve_job, jobs)
-        for (_, _, _, _, path), raw in zip(pending, encoded):
+        for (_, _, _, _, _, path), raw in zip(pending, encoded):
             _write_unique(path, json.loads(raw))
     elif jobs:
         with ProcessPoolExecutor(max_workers=count) as executor:
-            for (_, _, _, _, path), raw in zip(pending, executor.map(_resolve_job, jobs)):
+            for (_, _, _, _, _, path), raw in zip(pending, executor.map(_resolve_job, jobs)):
                 _write_unique(path, json.loads(raw))
     return paths
 

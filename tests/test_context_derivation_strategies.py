@@ -10,9 +10,15 @@ sys.path.insert(0, str(EXPERIMENT))
 
 from contracts import STRATEGY_SCHEMA, TASK_SCHEMA, fingerprint  # noqa: E402
 from materialize import assemble_live_tasks, attach_task_packets, materialize_packet  # noqa: E402
-from reduce import _gate, reduce_shards  # noqa: E402
-from strategies import load_corpus, resolve_strategy, strategy_grid, strategy_manifest  # noqa: E402
-from sweep import SHARD_SCHEMA, run_sweep, task_runtime  # noqa: E402
+from reduce import _gate, reduce_shards, reduction_payload_fingerprint  # noqa: E402
+from strategies import (  # noqa: E402
+    load_corpus, normalize_strategy, resolve_strategy, strategy_fingerprint,
+    strategy_grid, strategy_manifest,
+)
+from sweep import (  # noqa: E402
+    SHARD_SCHEMA, resolver_implementation_fingerprint, run_sweep,
+    task_runtime,
+)
 
 from memory_seed.adr import AdrEvent, AdrPredecessor, AdrRecord, render_adr  # noqa: E402
 
@@ -132,6 +138,49 @@ class ContextDerivationStrategyTests(unittest.TestCase):
         defaults.update(parameters)
         return {"schema": STRATEGY_SCHEMA, "strategy_id": "test", "family": "adr-structural", "parameters": defaults}
 
+    def _live_materialization_inputs(self, shard_dir):
+        task = self._task()
+        candidate_strategy = self._strategy()
+        retrieval_strategy = {
+            "schema": STRATEGY_SCHEMA, "strategy_id": "retrieval",
+            "family": "retrieval-v1", "parameters": {},
+        }
+        run_sweep(
+            [task], [candidate_strategy, retrieval_strategy], self.root,
+            shard_dir, workers=1,
+        )
+        candidate = normalize_strategy(candidate_strategy)
+        candidate_fingerprint = strategy_fingerprint(candidate)
+        retrieval_fingerprint = strategy_fingerprint(retrieval_strategy)
+        shards = [json.loads(path.read_text(encoding="utf-8")) for path in shard_dir.glob("*.json")]
+        exemplar = shards[0]
+        reduction = {
+            "schema": "context-reduction.v1", "task_count": 1,
+            "strategy_count": 2, "complete": True,
+            "task_fingerprints": {task["task_id"]: exemplar["task_fingerprint"]},
+            "runtime_fingerprints": {task["task_id"]: exemplar["runtime_fingerprint"]},
+            "resolver_fingerprint": exemplar["resolver_fingerprint"],
+            "shard_fingerprints": {
+                f"{shard['task_id']}|{shard['strategy_fingerprint']}": fingerprint(shard)
+                for shard in shards
+            },
+            "strategies": [{
+                "strategy_fingerprint": candidate_fingerprint,
+                "strategy": candidate, "eligible": True,
+                "selection_eligible": True,
+            }],
+            "pareto_frontier": [candidate_fingerprint],
+            "selected_strategy_fingerprint": candidate_fingerprint,
+        }
+        reduction["fingerprint"] = reduction_payload_fingerprint(reduction)
+        manifest = {
+            "schema": "context-candidate-manifest.v1",
+            "strategy_fingerprint": candidate_fingerprint,
+            "strategy": candidate,
+            "reduction_fingerprint": reduction["fingerprint"],
+        }
+        return task, manifest, reduction, retrieval_fingerprint
+
     def test_current_head_historical_lineage_convergence_and_repeatability(self):
         first = resolve_strategy(self._task(), self._strategy(), self.root)
         second = resolve_strategy(self._task(), self._strategy(), self.root)
@@ -201,22 +250,57 @@ class ContextDerivationStrategyTests(unittest.TestCase):
         )
 
     def test_assembles_all_fixed_arm_packets_from_frozen_shards(self):
-        task = self._task()
-        result = resolve_strategy(task, self._strategy(), self.root)
         with tempfile.TemporaryDirectory() as temp:
             shard_dir = Path(temp)
-            for label, strategy_fingerprint in (("retrieval", "sha256:retrieval"), ("candidate", "sha256:candidate")):
-                payload = dict(result, strategy_fingerprint=strategy_fingerprint)
-                family = "retrieval-v1" if label == "retrieval" else "adr-structural"
-                shard = {"task_id": "CTX-01", "task_fingerprint": fingerprint(task), "runtime_fingerprint": "sha256:runtime", "strategy_fingerprint": strategy_fingerprint, "strategy": {"family": family}, "deterministic": True, "repeat_fingerprint": payload["fingerprint"], "result": payload}
-                (shard_dir / f"{label}.json").write_text(json.dumps(shard), encoding="utf-8")
+            task, manifest, reduction, retrieval_fingerprint = self._live_materialization_inputs(shard_dir)
             live = assemble_live_tasks(
-                {"tasks": [task]}, shard_dir,
-                {"schema": "context-candidate-manifest.v1", "strategy_fingerprint": "sha256:candidate", "strategy": {"family": "adr-structural"}},
-                "sha256:retrieval",
+                {"tasks": [task]}, shard_dir, manifest, reduction,
+                retrieval_fingerprint, fixture_base=self.root,
             )
         self.assertEqual("context-live-tasks.v1", live["schema"])
         self.assertEqual({"retrieval-v1-packet", "adr-candidate-packet"}, set(live["tasks"][0]["packets"]))
+
+    def test_materialization_rejects_equally_stale_arms_after_corpus_mutation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            shard_dir = Path(temp)
+            task, manifest, reduction, retrieval_fingerprint = self._live_materialization_inputs(shard_dir)
+            session = self.root / ".memory-seed" / "sessions" / "2026-08" / "2026-08-01.md"
+            session.write_text(session.read_text(encoding="utf-8") + "\nCorpus changed.\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "stale"):
+                assemble_live_tasks(
+                    {"tasks": [task]}, shard_dir, manifest, reduction,
+                    retrieval_fingerprint, fixture_base=self.root,
+                )
+
+    def test_materialization_rejects_tampered_reduction_and_candidate_binding(self):
+        with tempfile.TemporaryDirectory() as temp:
+            shard_dir = Path(temp)
+            task, manifest, reduction, retrieval_fingerprint = self._live_materialization_inputs(shard_dir)
+            tampered = dict(reduction, task_count=2)
+            with self.assertRaisesRegex(ValueError, "fingerprint is invalid"):
+                assemble_live_tasks(
+                    {"tasks": [task]}, shard_dir, manifest, tampered,
+                    retrieval_fingerprint, fixture_base=self.root,
+                )
+            unbound = dict(manifest, reduction_fingerprint="sha256:wrong")
+            with self.assertRaisesRegex(ValueError, "not bound"):
+                assemble_live_tasks(
+                    {"tasks": [task]}, shard_dir, unbound, reduction,
+                    retrieval_fingerprint, fixture_base=self.root,
+                )
+            candidate_path = next(
+                path for path in shard_dir.glob("*.json")
+                if json.loads(path.read_text(encoding="utf-8"))["strategy_fingerprint"]
+                == manifest["strategy_fingerprint"]
+            )
+            shard = json.loads(candidate_path.read_text(encoding="utf-8"))
+            shard["timings_ms"] = [999.0, 999.0]
+            candidate_path.write_text(json.dumps(shard), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "not represented by the reduction"):
+                assemble_live_tasks(
+                    {"tasks": [task]}, shard_dir, manifest, reduction,
+                    retrieval_fingerprint, fixture_base=self.root,
+                )
 
     def test_grid_covers_frozen_dimensions(self):
         grid = strategy_grid()
@@ -274,6 +358,7 @@ class ContextDerivationStrategyTests(unittest.TestCase):
         shard = json.loads(first_bytes)
         self.assertTrue(shard["deterministic"])
         self.assertEqual(shard["result"]["fingerprint"], shard["repeat_fingerprint"])
+        self.assertEqual(shard["resolver_fingerprint"], resolver_implementation_fingerprint())
         resumed = run_sweep([self._task()], [self._strategy()], self.root, output, workers=1)
         self.assertEqual(resumed, paths)
         self.assertEqual(paths[0].read_bytes(), first_bytes)
@@ -282,6 +367,22 @@ class ContextDerivationStrategyTests(unittest.TestCase):
         run_sweep([changed], [self._strategy()], self.root, output, workers=1)
         refreshed = json.loads(paths[0].read_text(encoding="utf-8"))
         self.assertNotEqual(shard["task_fingerprint"], refreshed["task_fingerprint"])
+
+    def test_sweep_resume_rejects_tampered_repeat_and_resolver_fingerprints(self):
+        output = self.root / "tampered-shards"
+        task, strategy = self._task(), self._strategy()
+        path = run_sweep([task], [strategy], self.root, output, workers=1)[0]
+        shard = json.loads(path.read_text(encoding="utf-8"))
+        shard["repeat_fingerprint"] = "sha256:tampered"
+        path.write_text(json.dumps(shard), encoding="utf-8")
+        run_sweep([task], [strategy], self.root, output, workers=1)
+        repaired = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(repaired["repeat_fingerprint"], repaired["result"]["fingerprint"])
+        repaired["resolver_fingerprint"] = "sha256:old-resolver"
+        path.write_text(json.dumps(repaired), encoding="utf-8")
+        run_sweep([task], [strategy], self.root, output, workers=1)
+        repaired = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(repaired["resolver_fingerprint"], resolver_implementation_fingerprint())
 
     def test_missing_fixture_fails_closed_instead_of_using_parent_runtime(self):
         with self.assertRaisesRegex(ValueError, "missing .memory-seed"):
@@ -321,6 +422,61 @@ class ContextDerivationStrategyTests(unittest.TestCase):
 
 
 class ReducerTests(unittest.TestCase):
+    def _write_valid_shards(self, root):
+        gold = {
+            "schema": "context-gold.v1",
+            "tasks": [{
+                "task_id": "CTX-01", "required_adr_ids": ["adr_alpha"],
+                "authoritative_refs": ["mse_head:d1"],
+                "required_lineage_edges": [], "relevant_refs": ["mse_head:d1"],
+                "distractor_refs": ["mse_noise:d1"],
+                "insufficient_evidence": False,
+                "allowed_citations": ["mse_head:d1", "mse_noise:d1"],
+                "expected_statuses": {"adr_alpha": "accepted"},
+            }],
+        }
+        strategies = [
+            {"schema": STRATEGY_SCHEMA, "family": "adr-structural", "parameters": {"max_items": 8}},
+            {"schema": STRATEGY_SCHEMA, "family": "adr-structural", "parameters": {"max_items": 16}},
+            {"schema": STRATEGY_SCHEMA, "family": "oracle", "parameters": {}},
+        ]
+        paths, fingerprints = [], []
+        for index, strategy in enumerate(strategies):
+            normalized = normalize_strategy(strategy)
+            strategy_fp = strategy_fingerprint(normalized)
+            fingerprints.append(strategy_fp)
+            result = {
+                "schema": "context-strategy-result.v1", "task_id": "CTX-01",
+                "strategy": normalized, "strategy_fingerprint": strategy_fp,
+                "selected_adrs": [{
+                    "adr_id": "adr_alpha", "status": "accepted",
+                    "authoritative_ref": "mse_head:d1",
+                }],
+                "selected_refs": ["mse_head:d1"], "lineage_edges": [],
+                "related_edges": [], "citations": [], "absence": [],
+                "insufficient_evidence": False, "token_proxy": 10 if index < 2 else 1,
+                "evidence": [{"ref": "mse_head:d1", "token_proxy": 10 if index < 2 else 1}],
+                "elapsed_ms": 2.0 if index < 2 else 1.0,
+            }
+            result["fingerprint"] = fingerprint({
+                key: value for key, value in result.items()
+                if key not in {"elapsed_ms", "fingerprint"}
+            })
+            shard = {
+                "schema": SHARD_SCHEMA, "task_id": "CTX-01",
+                "task_fingerprint": "sha256:task",
+                "runtime_fingerprint": "sha256:runtime",
+                "resolver_fingerprint": "sha256:resolver",
+                "strategy_fingerprint": strategy_fp, "strategy": normalized,
+                "deterministic": True, "result": result,
+                "repeat_fingerprint": result["fingerprint"],
+                "timings_ms": [result["elapsed_ms"], result["elapsed_ms"]],
+            }
+            path = root / f"CTX-01--{index}.json"
+            path.write_text(json.dumps(shard), encoding="utf-8")
+            paths.append(path)
+        return gold, fingerprints, paths
+
     def test_missing_evidence_gate_requires_the_named_reference(self):
         result = {
             "selected_adrs": [], "selected_refs": [], "lineage_edges": [], "related_edges": [],
@@ -350,42 +506,45 @@ class ReducerTests(unittest.TestCase):
     def test_hard_gates_pareto_and_deterministic_tiebreak(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            gold = {
-                "schema": "context-gold.v1",
-                "tasks": [{
-                    "task_id": "CTX-01", "required_adr_ids": ["adr_alpha"],
-                    "authoritative_refs": ["mse_head:d1"],
-                    "required_lineage_edges": [], "relevant_refs": ["mse_head:d1"],
-                    "distractor_refs": ["mse_noise:d1"], "expected_status": {"adr_alpha": "accepted"},
-                    "insufficient_evidence": False, "allowed_citations": ["mse_head:d1", "mse_noise:d1"],
-                    "expected_statuses": {"adr_alpha": "accepted"},
-                }],
-            }
-            for suffix, sfp, tokens, latency, family in (
-                ("a", "sha256:a", 10, 2.0, "adr-structural"),
-                ("b", "sha256:b", 10, 2.0, "adr-structural"),
-                ("oracle", "sha256:oracle", 1, 1.0, "oracle"),
-            ):
-                result = {
-                    "fingerprint": f"sha256:r{suffix}", "selected_adrs": [{"adr_id": "adr_alpha", "status": "accepted", "authoritative_ref": "mse_head:d1"}],
-                    "selected_refs": ["mse_head:d1"], "lineage_edges": [], "absence": [],
-                    "insufficient_evidence": False, "token_proxy": tokens,
-                    "evidence": [{"ref": "mse_head:d1", "token_proxy": tokens}],
-                }
-                shard = {
-                    "schema": SHARD_SCHEMA, "task_id": "CTX-01", "strategy_fingerprint": sfp,
-                    "strategy": {"schema": STRATEGY_SCHEMA, "family": family, "parameters": {}},
-                    "deterministic": True, "result": result,
-                    "repeat_fingerprint": result["fingerprint"], "timings_ms": [latency, latency],
-                }
-                (root / f"CTX-01--{suffix}.json").write_text(json.dumps(shard), encoding="utf-8")
-            reduced = reduce_shards(root, gold, expected_strategy_fingerprints=["sha256:a", "sha256:b", "sha256:oracle"])
-            self.assertEqual(reduced["selected_strategy_fingerprint"], "sha256:a")
-            self.assertEqual(reduced["pareto_frontier"], ["sha256:a", "sha256:b"])
-            oracle = next(item for item in reduced["strategies"] if item["strategy_fingerprint"] == "sha256:oracle")
+            gold, fingerprints, _ = self._write_valid_shards(root)
+            reduced = reduce_shards(root, gold, expected_strategy_fingerprints=fingerprints)
+            candidate_fingerprints = fingerprints[:2]
+            self.assertEqual(reduced["selected_strategy_fingerprint"], min(candidate_fingerprints))
+            self.assertEqual(reduced["pareto_frontier"], sorted(candidate_fingerprints))
+            oracle = next(item for item in reduced["strategies"] if item["strategy_fingerprint"] == fingerprints[2])
             self.assertTrue(oracle["eligible"])
             self.assertFalse(oracle["selection_eligible"])
             self.assertEqual(oracle["selection_exclusion"], "oracle-lower-bound-only")
+            self.assertEqual(reduced["resolver_fingerprint"], "sha256:resolver")
+
+    def test_reducer_rejects_missing_mixed_and_tampered_provenance(self):
+        mutations = (
+            ("missing task fingerprint", lambda shard: shard.pop("task_fingerprint"), "missing task_fingerprint"),
+            ("mixed task", lambda shard: shard.__setitem__("task_fingerprint", "sha256:other"), "mixed task/runtime"),
+            ("mixed runtime", lambda shard: shard.__setitem__("runtime_fingerprint", "sha256:other"), "mixed task/runtime"),
+            ("mixed resolver", lambda shard: shard.__setitem__("resolver_fingerprint", "sha256:other"), "mixed resolver"),
+            ("tampered strategy", lambda shard: shard["strategy"]["parameters"].__setitem__("max_items", 40), "tampered strategy fingerprint"),
+            ("tampered result", lambda shard: shard["result"]["selected_refs"].append("mse_tampered:d1"), "tampered result fingerprint"),
+        )
+        for label, mutate, message in mutations:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                gold, fingerprints, paths = self._write_valid_shards(root)
+                shard = json.loads(paths[0].read_text(encoding="utf-8"))
+                mutate(shard)
+                paths[0].write_text(json.dumps(shard), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, message):
+                    reduce_shards(root, gold, expected_strategy_fingerprints=fingerprints)
+
+    def test_reducer_rejects_conflicting_duplicate_cells(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            gold, fingerprints, paths = self._write_valid_shards(root)
+            duplicate = json.loads(paths[0].read_text(encoding="utf-8"))
+            duplicate["timings_ms"] = [3.0, 3.0]
+            (root / "duplicate.json").write_text(json.dumps(duplicate), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "conflicting duplicate shard"):
+                reduce_shards(root, gold, expected_strategy_fingerprints=fingerprints)
 
 
 if __name__ == "__main__":
