@@ -206,6 +206,14 @@ def _terminal_replacing_heads(cwd: Path, corpus: Sequence[MemoryChunk]) -> set[s
     return heads
 
 
+def _attended_ids(cwd: Path, corpus: Sequence[MemoryChunk]) -> set[str]:
+    """Entries with a positive decayed attention score in this runtime's log."""
+    from .attention import attention_scores
+    from .core import resolve_runtime
+
+    return set(attention_scores(resolve_runtime(cwd).memory_dir))
+
+
 def _replacing_head_queries(cwd: Path, corpus: Sequence[MemoryChunk]) -> list[QuerySpec]:
     """One query per retired entry, expecting the terminal live replacement to
     enter the default result window."""
@@ -262,6 +270,19 @@ SIGNAL_REGISTRY: dict[str, Signal] = {
         affected=_terminal_replacing_heads,
         default_queries=_replacing_head_queries,
         requires_no_hit_control=True,
+    ),
+    "attention": Signal(
+        name="attention",
+        describe="decayed fetch-frequency lift for entries agents actually open via memory_get_chunk",
+        off_kwargs={"attention_boost": False},
+        on_kwargs={"attention_boost": True},
+        affected=_attended_ids,
+        # Attention has no lineage to derive queries from; a meaningful A/B needs
+        # --query over real accumulated usage (same posture as recency). The gate
+        # therefore cannot pass on an empty log - which is the point: the default
+        # flip waits for evidence.
+        default_queries=lambda cwd, corpus: [],
+        requires_no_hit_control=False,
     ),
 }
 

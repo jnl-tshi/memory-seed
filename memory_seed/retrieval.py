@@ -82,6 +82,7 @@ def search_memory(
     exclude_replaced: bool = False,
     supersession_damping: bool = True,
     replacing_successor_boost: bool = True,
+    attention_boost: bool = False,
     topics: list[str] | None = None,
 ) -> dict[str, Any]:
     """Search session memory and return the canonical result payload.
@@ -108,6 +109,12 @@ def search_memory(
     passed. Pass ``False`` to restore damp-only ordering. Even when enabled,
     only terminal live replacements that already match the query can be lifted;
     nothing is hard-injected.
+
+    ``attention_boost`` (attention-retrieval-signal-proposal.md) folds the
+    decayed fetch-frequency signal into ranking. OFF by default and stays off
+    until `memory-seed ranking-ab --signal attention` passes on real accumulated
+    usage - until then the signal is exposure-only (`attention_score` /
+    `fetch_count` / `last_fetch` on every result row).
     """
     provider, provider_name, fallback_reason = resolve_semantic_provider(
         query,
@@ -141,6 +148,7 @@ def search_memory(
         exclude_replaced=exclude_replaced,
         supersession_damping=supersession_damping,
         replacing_successor_boost=replacing_successor_boost,
+        attention_boost=attention_boost,
         chunks=chunks,
         topics=topic_filter,
     )
@@ -158,9 +166,23 @@ def search_memory(
     # get_chunk round trip. Additive, read-only, and reuses the corpus
     # extracted above - ranking and result order are untouched.
     graph = build_related_entry_graph(cwd, chunks=chunks)
+    # Attention exposure (attention-retrieval-signal-proposal.md): decayed
+    # fetch-frequency per entry, shown beside the lifecycle heads so "most
+    # looked-at" and "most evolved" read side by side. Read-only metadata in the
+    # importance_score mould - computed, surfaced, and deliberately NOT blended
+    # into default ranking until the ranking-ab gate passes ("expose before you
+    # rank", Constitution §3).
+    from .attention import load_attention
+    from .core import resolve_runtime as _resolve_runtime
+
+    attention = load_attention(_resolve_runtime(cwd).memory_dir)
     for result in payload["results"]:
         entry_id = result.get("entry_id") or ""
         node = graph.get(entry_id)
+        attended = attention.get(entry_id)
+        result["attention_score"] = attended["attention_score"] if attended else 0.0
+        result["fetch_count"] = attended["fetch_count"] if attended else 0
+        result["last_fetch"] = attended["last_fetch"] if attended else None
         result["replaced_by"] = list(node.replaced_by) if node else []
         result["replacing_head"] = list(replacing_lineage_heads(graph, entry_id))
         result["evolved_by"] = list(node.evolved_by) if node else []
@@ -238,6 +260,14 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
     payload["inbound_relation_count"] = inbound_relation_count
     payload["importance_score"] = importance_score
     payload["commit_reference_count"] = commit_reference_count
+    # Attention exposure - same read-only contract as importance_score above.
+    from .attention import load_attention
+    from .core import resolve_runtime as _resolve_runtime
+
+    attended = load_attention(_resolve_runtime(cwd).memory_dir).get(found.entry_id or "")
+    payload["attention_score"] = attended["attention_score"] if attended else 0.0
+    payload["fetch_count"] = attended["fetch_count"] if attended else 0
+    payload["last_fetch"] = attended["last_fetch"] if attended else None
     if include_diagrams:
         sidecar = entry_diagram_sidecars(cwd).get(found.entry_id or "")
         payload["diagrams"] = [sidecar] if sidecar else []

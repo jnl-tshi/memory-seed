@@ -205,6 +205,11 @@ TOOLS: list[dict[str, Any]] = [
                     "default": True,
                     "description": "On by default bounded successor lift: when a retired entry matches the query, its terminal live replacement may be boosted only if that replacement already has positive query relevance. Never hard-injects, never bypasses exclude_replaced; pass false to restore damp-only ordering.",
                 },
+                "attention_boost": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "Opt-in: fold decayed fetch-frequency (how often agents actually opened each entry via memory_get_chunk) into ranking. Off by default pending the ranking-ab gate; the signal is always exposed read-only as attention_score/fetch_count/last_fetch on every result.",
+                },
                 "topics": {
                     "type": "array",
                     "items": {"type": "string"},
@@ -606,6 +611,7 @@ def call_tool(
             ),  # legacy param spelling accepted (renamed 2026-07-24)
             supersession_damping=bool(args.get("supersession_damping", True)),
             replacing_successor_boost=bool(args.get("replacing_successor_boost", True)),
+            attention_boost=bool(args.get("attention_boost", False)),
             topics=list(args.get("topics") or []) or None,
         )
 
@@ -1089,6 +1095,38 @@ def call_tool(
     raise ValueError(f"Unknown tool: {name}")
 
 
+def _record_retrieval_attention(name: Any, arguments: dict[str, Any], tool_result: Any) -> None:
+    """Log retrieval events at the dispatch choke point (attention-retrieval-signal-proposal).
+
+    ``memory_get_chunk`` results are fetches (they score); ``memory_search``
+    results are impressions (logged, weigh zero - counting the ranker's own
+    output would be a feedback loop). Fail-open: attention is telemetry and must
+    never break the tool call it observed.
+    """
+    try:
+        if name not in ("memory_get_chunk", "memory_search"):
+            return
+        if not isinstance(tool_result, dict):
+            return
+        from .attention import compact_if_needed, record_event
+        from .core import resolve_runtime
+
+        memory_dir = resolve_runtime(arguments.get("cwd") or ".").memory_dir
+        if name == "memory_get_chunk":
+            # The tool wraps its payload: {"chunk": {..., "entry_id": ...}}.
+            chunk = tool_result.get("chunk")
+            entry_id = chunk.get("entry_id") if isinstance(chunk, dict) else None
+            if entry_id:
+                record_event(memory_dir, "memory_get_chunk", entry_id)
+        else:
+            for row in tool_result.get("results") or []:
+                if isinstance(row, dict) and row.get("entry_id"):
+                    record_event(memory_dir, "memory_search", row["entry_id"])
+        compact_if_needed(memory_dir)
+    except Exception:
+        return
+
+
 def handle_jsonrpc_message(
     message: dict[str, Any],
     *,
@@ -1116,6 +1154,7 @@ def handle_jsonrpc_message(
             if params.get("name") == "memory_search" and "semantic_enabled" not in arguments:
                 arguments = {**arguments, "semantic_enabled": default_semantic_enabled}
             tool_result = call_tool(params.get("name"), arguments)
+            _record_retrieval_attention(params.get("name"), arguments, tool_result)
             tool_text = (
                 canonical_retrieval_json(tool_result)
                 if params.get("name")

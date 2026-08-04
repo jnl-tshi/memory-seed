@@ -61,6 +61,14 @@ REPLACING_SUCCESSOR_BOOST = 0.75
 # contribute ~nothing via the idf weighting.
 FILE_OVERLAP_BOOST = 0.75
 
+# Scale for the opt-in attention boost (attention-retrieval-signal-proposal.md):
+# final_score *= 1 + ATTENTION_RANK_BOOST * log1p(decayed_fetch_score). Log-
+# scaled to blunt rich-get-richer; DEFAULT-OFF - rank_memory_chunks only applies
+# it when handed an attention_scores map (gated by the attention_boost flag),
+# and the default flip is gated behind `memory-seed ranking-ab --signal
+# attention` on real accumulated usage. The shape is provisional until that gate.
+ATTENTION_RANK_BOOST = 0.5
+
 
 @dataclass(frozen=True)
 class ContinuityBlock:
@@ -259,6 +267,7 @@ def rank_session_memory(
     exclude_replaced: bool = False,
     supersession_damping: bool = False,
     replacing_successor_boost: bool = False,
+    attention_boost: bool = False,
     chunks: Sequence[MemoryChunk] | None = None,
     topics: set[str] | None = None,
 ) -> list[RankedMemoryChunk]:
@@ -297,6 +306,15 @@ def rank_session_memory(
             for entry_id in replaced_ids
             if (heads := replacing_lineage_heads(graph, entry_id))
         }
+    attention: dict[str, float] | None = None
+    if attention_boost:
+        # DEFAULT-OFF like the dampener: attention data is loaded and applied
+        # only when the caller opts in, so default ordering stays byte-for-byte
+        # identical. I/O stays here (this function already owns cwd); the pure
+        # ranking loop below only ever sees a plain dict.
+        from .attention import attention_scores as _attention_scores
+
+        attention = _attention_scores(resolve_runtime(cwd).memory_dir)
     return rank_memory_chunks(
         query,
         chunks,
@@ -310,6 +328,7 @@ def rank_session_memory(
         # default ranking order stays byte-for-byte identical to today.
         replaced_ids=replaced_ids if supersession_damping else None,
         replacing_heads_by_id=replacing_heads_by_id,
+        attention_scores=attention,
     )
 
 
@@ -887,6 +906,7 @@ def rank_memory_chunks(
     embedding_provider: EmbeddingProvider | None = None,
     replaced_ids: set[str] | None = None,
     replacing_heads_by_id: dict[str, tuple[str, ...]] | None = None,
+    attention_scores: dict[str, float] | None = None,
 ) -> list[RankedMemoryChunk]:
     # ``replaced_ids`` is the opt-in supersession rank-dampener input
     # (freshness-aware-memory-ranking-proposal.md): the entry_ids that a later
@@ -918,6 +938,15 @@ def rank_memory_chunks(
             # Down-rank only, never hide: the replaced entry stays in the
             # results, just multiplicatively demoted beneath a fresher match.
             final_score *= REPLACED_RANK_DAMPING
+        if attention_scores and chunk.entry_id:
+            # Opt-in attention boost (attention-retrieval-signal-proposal.md):
+            # decayed fetch frequency, log-scaled so a heavily-fetched entry is
+            # lifted without runaway rich-get-richer. DEFAULT None -> byte-for-
+            # byte-identical ordering; the multiplier shape is provisional until
+            # the ranking-ab gate decides the default.
+            attended = attention_scores.get(chunk.entry_id, 0.0)
+            if attended > 0.0:
+                final_score *= 1.0 + ATTENTION_RANK_BOOST * math.log1p(attended)
         ranked.append(
             RankedMemoryChunk(
                 chunk=chunk,
