@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "context-answer.v1",
+  "type": "object",
+  "required": ["schema", "adr_ids", "authoritative_refs", "lineage_edges", "citations", "explanation", "insufficient_evidence"],
+  "properties": {
+    "schema": {"const": "context-answer.v1"},
+    "adr_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "authoritative_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "lineage_edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "target", "type"],
+        "properties": {
+          "source": {"type": "string"},
+          "target": {"type": "string"},
+          "type": {"enum": ["evolves", "replaces"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "citations": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "explanation": {"type": "string"},
+    "insufficient_evidence": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}

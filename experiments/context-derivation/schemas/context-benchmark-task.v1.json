@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "context-benchmark-task.v1",
+  "type": "object",
+  "required": ["schema", "task_id", "fixture", "question", "task_type", "resolver_hints"],
+  "properties": {
+    "schema": {"const": "context-benchmark-task.v1"},
+    "task_id": {"type": "string", "pattern": "^CTX-[0-9]{2}$"},
+    "fixture": {"type": "string", "minLength": 1},
+    "question": {"type": "string", "minLength": 1},
+    "task_type": {"enum": ["accepted-head", "explain-evolution", "change-impact", "insufficient-evidence"]},
+    "resolver_hints": {
+      "type": "object",
+      "properties": {
+        "adr_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "decision_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "topics": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "paths": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
