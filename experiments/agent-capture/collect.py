@@ -42,6 +42,54 @@ def split_entries(text: str) -> list[str]:
     return entries
 
 
+def _guard_signals(run_dir: Path) -> dict:
+    """Did the worktree guard tell this session not to write, and did it write anyway?
+
+    `memory_worktree_guard` classifies every fixture as `root-checkout` and blocks write intent
+    without `allow_root_write` (core.py:1580-1585). That is stock behaviour, so the fixtures keep
+    it - but it means a session can fail to record because it was *told not to*, which is a
+    different finding from an agent that never thought to record. Only levels carrying the rules
+    contract prompt an agent to consult the guard at all, so left unmeasured this could masquerade
+    as scaffolding suppressing capture. Cheap textual detection over whichever transcript exists.
+    """
+    text = ""
+    for name in ("transcript.json", "transcript.jsonl"):
+        path = run_dir / name
+        if path.exists():
+            text = path.read_text(encoding="utf-8")
+            break
+    return {
+        "guard_called": "worktree_guard" in text,
+        "guard_blocked": '"safe_to_write": false' in text.replace("\\", ""),
+    }
+
+
+def _harness_failure(run_dir: Path, manifest: dict) -> str | None:
+    """Why this run is not evidence about capture behaviour, or None if it is.
+
+    A rate-limited, timed-out or crashed session records nothing - and an empty store is exactly
+    what "the agent did not capture" also looks like. Scoring the two the same way would turn every
+    harness problem into a false negative, biasing capture rate DOWN in whichever arm happened to
+    hit the limits. These are separated out and counted, never silently dropped.
+    """
+    if manifest.get("timed_out"):
+        return "timed_out"
+    if manifest.get("exit_code") not in (0, None):
+        return f"exit_code={manifest.get('exit_code')}"
+    transcript = run_dir / "transcript.json"
+    if transcript.exists():
+        try:
+            payload = json.loads(transcript.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return "unparseable_transcript"
+        if isinstance(payload, dict):
+            if payload.get("is_error"):
+                return f"session_error:{payload.get('subtype') or payload.get('stop_reason')}"
+            if payload.get("stop_reason") not in (None, "end_turn", "stop_sequence", "tool_use"):
+                return f"stop_reason={payload.get('stop_reason')}"
+    return None
+
+
 def analyse_run(run_dir: Path) -> dict:
     manifest_path = run_dir / "RUN_MANIFEST.json"
     manifest = (
@@ -74,6 +122,8 @@ def analyse_run(run_dir: Path) -> dict:
         "agent": manifest.get("agent"),
         "exit_code": manifest.get("exit_code"),
         "brief_override": bool(manifest.get("brief_override")),
+        "harness_failure": _harness_failure(run_dir, manifest),
+        **_guard_signals(run_dir),
         "entry_count": len(entries),
         "decision_entry_count": sum(1 for e in entries if e["decision_count"]),
         "decision_count": sum(e["decision_count"] for e in entries),
@@ -118,6 +168,53 @@ def write_judge_packet(run_dir: Path, analysis: dict) -> None:
     (run_dir / "judge_packet.md").write_text(packet, encoding="utf-8")
 
 
+def print_dose_response(summary: list[dict]) -> None:
+    """The pre-registered shape: recorded-anything rate per level, broken out by task.
+
+    Deliberately NOT the capture rate from the thresholds - that one is judged (does the recorded
+    reason match what actually happened?) and cannot be computed from counts. This is the mechanical
+    precursor: did the session write a decision-bearing entry at all. Reading it as the capture rate
+    would overstate every arm, since an entry that records the wrong decision still counts here.
+    """
+    levels = sorted({row["level"] for row in summary if row.get("level")})
+    tasks = sorted({row["task"] for row in summary if row.get("task")})
+    if not levels:
+        return
+
+    width = max(len(t) for t in tasks) if tasks else 4
+    print("\nRecorded ANY entry, by level x task (mechanical, NOT the judged capture rate)")
+    print("  level | " + " | ".join(f"{t:>{width}}" for t in tasks) + " |    all | structured")
+    for level in levels:
+        cells = []
+        for task in tasks:
+            rows = [r for r in summary if r["level"] == level and r["task"] == task]
+            hits = sum(1 for r in rows if r["entry_count"])
+            cells.append(f"{hits}/{len(rows)}".rjust(width) if rows else "-".rjust(width))
+        rows = [r for r in summary if r["level"] == level]
+        hits = sum(1 for r in rows if r["entry_count"])
+        structured = sum(1 for r in rows if r["decision_entry_count"])
+        rate = f"{hits / len(rows):.2f}" if rows else "-"
+        print(
+            f"  {level:>5} | " + " | ".join(cells)
+            + f" | {hits:>2}/{len(rows):<2} {rate} | {structured:>2}/{len(rows):<2}"
+        )
+    print(
+        "  'any entry' is the headline: an agent with no format instruction records in prose, and\n"
+        "  counting only the DRAFT '### Decision' shape scored those as silence - it understated the\n"
+        "  low-scaffolding arms by exactly the treatment being dosed. 'structured' is a separate\n"
+        "  question (does scaffolding shape the FORM), not evidence about whether anything was kept."
+    )
+
+    guarded = [r for r in summary if r.get("guard_blocked")]
+    if guarded:
+        silent = [r for r in guarded if not r["decision_entry_count"]]
+        print(
+            f"\n  worktree guard returned a block in {len(guarded)} run(s); "
+            f"{len(silent)} of those recorded nothing - "
+            "check these before reading a low arm as disinterest."
+        )
+
+
 def main() -> int:
     if not RUNS.is_dir():
         raise SystemExit("no runs/ directory - nothing to collect")
@@ -133,13 +230,23 @@ def main() -> int:
 
     summary = []
     skipped: list[str] = []
+    failed: list[tuple[str, str]] = []
+    in_flight: list[str] = []
     for run_dir in sorted(path for path in RUNS.iterdir() if path.is_dir()):
+        # run.py writes RUN_MANIFEST.json last, so its absence means the session is still going.
+        # Without this guard a collect() during a batch scores in-flight runs as empty stores.
+        if not (run_dir / "RUN_MANIFEST.json").exists():
+            in_flight.append(run_dir.name)
+            continue
         analysis = analyse_run(run_dir)
         # Instrument probes ran a substituted brief, so their store is not evidence about
         # capture behaviour. Excluded here rather than filtered later, so they can never be
         # pooled into a capture-rate table by accident.
         if analysis.get("brief_override"):
             skipped.append(run_dir.name)
+            continue
+        if analysis.get("harness_failure"):
+            failed.append((run_dir.name, analysis["harness_failure"]))
             continue
         write_judge_packet(run_dir, analysis)
         expected = expected_by_task.get(analysis.get("task") or "", {})
@@ -148,6 +255,7 @@ def main() -> int:
                 **{k: analysis[k] for k in (
                     "run_id", "level", "task", "agent", "exit_code",
                     "entry_count", "decision_entry_count", "decision_count",
+                    "guard_called", "guard_blocked",
                 )},
                 "expected_required_decisions": expected.get("required"),
                 "expected_optional_decisions": expected.get("optional"),
@@ -155,10 +263,17 @@ def main() -> int:
         )
 
     (RUNS / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps(summary, indent=2))
+    print_dose_response(summary)
     print(f"\n{len(summary)} run(s) collected; judge packets written per run (answer key withheld)")
+    if in_flight:
+        print(f"{len(in_flight)} run(s) still in flight, not collected: {', '.join(in_flight)}")
     if skipped:
         print(f"{len(skipped)} instrument probe(s) excluded: {', '.join(skipped)}")
+    if failed:
+        print(f"{len(failed)} harness failure(s) excluded (NOT zero-capture evidence):")
+        for run_id, reason in failed:
+            print(f"  {run_id}: {reason}")
+        print("  Re-run these cells to restore balance before reading the matrix.")
     return 0
 
 

@@ -152,6 +152,12 @@ def build_command(agent: str, run_dir: Path, brief: str, args) -> list[str]:
             "--output-format",
             "json",
             "--dangerously-skip-permissions",
+            # The fixture's OWN .mcp.json, and nothing else. Without --strict-mcp-config the
+            # operator's user-level servers leak in: probe A saw `semble` contribute 2 tools and a
+            # claude.ai connector offer more. Same purpose as the Codex arm's features.apps=false.
+            "--mcp-config",
+            str(run_dir / ".mcp.json"),
+            "--strict-mcp-config",
             *(["--model", args.model] if args.model else []),
             *args.extra_arg,
         ]

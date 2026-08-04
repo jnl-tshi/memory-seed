@@ -115,15 +115,43 @@ judge packet for them, so a probe can never be pooled into a scored table.
 | L3 git hook stamps the fixture's own commit | PASS — `Memory-Entry: mse_dm8fjga4gn7znzg8` on fixture commit `94b7cd9` |
 | L0 fires nothing | PASS — no orientation output, no `prepare-commit-msg`, no `.codex/hooks.json` |
 
-**Open items — the Claude arm is NOT validated by association.** Every hazard the Codex probes
-found has a Claude analogue that has never been checked, because the Claude probes were blocked on
-expired CLI auth. These block scoring on the Claude arm; they do not block scoring on Codex.
+**Open items — CLOSED 2026-08-04 by the Claude probes.** These were listed as blocking scoring on
+the Claude arm. Both were probed once auth was restored; the results and the constant each forced
+are recorded below.
 
-| Open item | What must be shown, and how |
+| Open item | Resolution |
 |---|---|
-| MCP process cwd | That the Claude-spawned server resolves to the fixture store, not the parent. `.mcp.json` has no `cwd` field, so this arm relies entirely on `subprocess.run(cwd=run_dir)` being inherited — the exact assumption that was refused for Codex, against an `H1` that has no boundary guard. Run the same probe: call `memory_topics_list` and check the vocabulary returns the stock seed placeholders (deliverable / research / operations / planning) rather than the parent's 69 topics. That single signal discriminates |
-| Account-level tool surface | That the measured tool surface is the fixture's, not the operator's. Codex silently contributed 240 tools (~139k input tokens per turn) from account-level connectors; `~/.claude/` may carry its own user-level MCP servers. Count the tools a fixture session actually sees and record it per run |
-| User-level instructions | The Design section above lists `~/.claude/CLAUDE.md` as a constant that differences out. That holds *within* the Claude arm and is false as a claim about cross-agent comparability — a second reason for the no-pooling rule, not an argument that pooling is safe |
+| MCP process cwd | **CLOSED — PASS.** `.mcp.json` has no `cwd` field, so this arm depends on `subprocess.run(cwd=run_dir)` being inherited. Probed exactly as specified: `memory_topics_list` returned the fixture's stock 8-slug seed vocabulary (deliverable / research / operations / planning / drafting / review / correction / publishing), not the parent's 69 topics, and the append landed in the run's own store with `parent_isolated: true`. Inheritance holds; no pin needed on this arm |
+| Account-level tool surface | **CLOSED — leak found and fixed.** The first probe saw 57 tools, of which 2 came from the operator's user-level `semble` MCP server, with a claude.ai connector offering more had it been authorised. New constant: `--mcp-config <run dir>/.mcp.json --strict-mcp-config`, which restricts the session to the fixture's own server. Re-probed at L3: 52 tools, exactly 18 MCP, all `mcp__memory-seed__*`. This is the Claude analogue of the Codex `features.apps=false` trim |
+| User-level instructions | **Unchanged and accepted.** `~/.claude/CLAUDE.md` still applies to every Claude run. It is constant within the arm and is one more reason the arms are not pooled — not an argument that pooling is safe |
+
+**Claude validation results (2026-08-04, both probes `parent_isolated: true`).**
+
+| Assertion | Result |
+|---|---|
+| L0 MCP write resolves to the fixture store | PASS — see the cwd row above. $0.81, 7 turns |
+| L3 git hook stamps the fixture's own commit | PASS — `Memory-Entry: mse_bzay589p4catwkd8` on fixture commit `35ec9e3`, and the session confirmed the trailer was **not** in the message it passed to `git commit -F`; the fixture's `prepare-commit-msg` added it. $2.38, 27 turns |
+| Tool surface is the fixture's, not the operator's | PASS after adding `--strict-mcp-config` — 18 MCP tools, single server |
+
+**Named confound (registered before the first scored run): the worktree guard blocks root-checkout
+writes.** `memory_worktree_guard` classifies every fixture as `root-checkout` and returns
+`safe_to_write: false`, `severity: block` for any write intent without `allow_root_write`
+(`core.py:1580-1585`). This is stock behaviour, not a fixture artefact — a solo user working on
+their own main checkout gets the same block — so the fixtures keep it rather than papering over it.
+Two consequences, stated in advance:
+
+1. **It can invert the dose-response.** The guard is an MCP tool, so it exists from L0 up, but only
+   L2/L3 carry the rules contract that tells an agent to consult it. An agent that calls it, is told
+   `block`, and then declines to record would show as *lower* capture at *higher* scaffolding. That
+   pattern must not be read as "scaffolding suppresses capture" without checking the guard.
+2. **It is a floor on absolute capture rate**, which is what the ≥0.8 reliability threshold is set
+   against. Between-level comparison survives (the guard is identical in every arm); the absolute
+   threshold is the part at risk.
+
+Mitigation is measurement, not removal: `collect.py` records per run whether the guard was called,
+what it returned, and whether the session recorded anyway, so guard-attributable non-capture is
+visible in the table instead of silently counted as an agent that did not care. In probe B the agent
+called the guard, received the block, reasoned about it explicitly, and recorded anyway.
 
 **Identity in fixture stores.** Probe A's fixture entry recorded `user_initials: JNL`, inherited from
 the parent's identity default. Harmless internally, but judge packets are built out of these stores:
