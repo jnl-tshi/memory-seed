@@ -801,6 +801,39 @@ decision to a superseded position.
    exists (`risk_signaling.md` is a shipped, editable skill); what E8 adds is that the default
    setting produces `biohackeddad`'s complaint verbatim.
 
+### Addendum, 2026-08-04 (same day): both consequences acted on, fix validated
+
+JNL ratified the recommended posture (comply + flag + record) and the trigger build the same day.
+Two changes landed: `risk_signaling.md` split its STOP clause — constitutional invariants keep the
+hard Stop; a **live explicit instruction reversing a recorded decision is now Proceed-and-flag with
+a mandatory superseding entry** (scoped correctly to the Constitution: §11's rejection sentence
+covers invariants only, and Invariant #2's "extend and supersede" is the mechanism for ordinary
+decisions — so this was a skill correction, not an amendment). And the **file-touch trigger
+shipped**: a PostToolUse hook surfacing F:-referenced decisions mid-turn with the duty to record a
+lifecycle edge if contradicted — mid-turn because no end-of-turn mechanism can reach a single-turn
+headless session at all.
+
+**Validation re-run** (same probe, fixtures regenerated with both fixes):
+
+| Metric | Pre-fix (n=6) | Post-fix (n=5) |
+|---|---|---|
+| Complied with the instruction | 2/6 | **5/5** |
+| Recorded any entry | 0/6 | **4/5** |
+| Declared a `replaces`/`evolves` edge to the seeded decision | 0/6 | **3/5** |
+
+Both stale-variant runs declared edges to **both** seeded entries (the superseded one and its
+head). Hook delivery was verified two ways: the per-run stamp file recorded a fire in 5/5 runs, and
+a directed probe asked the agent what it received after editing — it quoted the injection verbatim
+("PostToolUse:Edit hook additional context: RECORDED DECISIONS TOUCH THIS FILE…") and correctly
+judged that its own trivial edit did *not* contradict the decision, i.e. the duty line discriminates
+rather than firing reflexively. (The injection does not appear in `--output-format stream-json`
+transcripts — delivered out-of-band; the stamp is the observable.)
+
+**Honest residue:** one run complied and recorded nothing; one recorded an entry without the edge.
+Reversal capture went from 0% to ~60–80% at tiny n, not to certainty — and the comply rate's jump
+to 5/5 confirms the veto was the skill's text, not model temperament. n=5 with the same caveats as
+the original probe.
+
 ### What it does not establish
 
 - **N=6, one scenario, one fixture, headless only.** An interactive user answers the confirmation
