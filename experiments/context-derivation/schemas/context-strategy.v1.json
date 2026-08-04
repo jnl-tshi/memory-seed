@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "context-strategy.v1",
+  "type": "object",
+  "required": ["schema", "strategy_id", "family", "parameters"],
+  "properties": {
+    "schema": {"const": "context-strategy.v1"},
+    "strategy_id": {"type": "string", "minLength": 1},
+    "family": {"enum": ["search", "timeline", "retrieval-v1", "adr-structural", "adr-hybrid", "oracle"]},
+    "parameters": {"type": "object"}
+  },
+  "additionalProperties": false
+}

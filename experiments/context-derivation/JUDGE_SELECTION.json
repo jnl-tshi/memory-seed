@@ -1,0 +1,679 @@
+{
+  "schema": "context-judge-selection.v1",
+  "status": "FROZEN-BEFORE-RESULTS",
+  "schedule_seed": 20260804,
+  "cells": [
+    {
+      "task_id": "CTX-01",
+      "arm": "search-mcp",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-01",
+      "arm": "search-mcp",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-01",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-01",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-01",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-01",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-01",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-01",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-02",
+      "arm": "search-mcp",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-02",
+      "arm": "search-mcp",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-02",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-02",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-02",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-02",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-02",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-02",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-03",
+      "arm": "search-mcp",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-03",
+      "arm": "search-mcp",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-03",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-03",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-03",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-03",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-03",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-03",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-04",
+      "arm": "search-mcp",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-04",
+      "arm": "search-mcp",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-04",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-04",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-04",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-04",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-04",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-04",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-05",
+      "arm": "search-mcp",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-05",
+      "arm": "search-mcp",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-05",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-05",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-05",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-05",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-05",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-05",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-06",
+      "arm": "search-mcp",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-06",
+      "arm": "search-mcp",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-06",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-06",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-06",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-06",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-06",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-06",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-07",
+      "arm": "search-mcp",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-07",
+      "arm": "search-mcp",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-07",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-07",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-07",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-07",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-07",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-07",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-08",
+      "arm": "search-mcp",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-08",
+      "arm": "search-mcp",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-08",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-08",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-08",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-08",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-08",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-08",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-09",
+      "arm": "search-mcp",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-09",
+      "arm": "search-mcp",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-09",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-09",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-09",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-09",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-09",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-09",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-10",
+      "arm": "search-mcp",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-10",
+      "arm": "search-mcp",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-10",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-10",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-10",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-10",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-10",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-10",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-11",
+      "arm": "search-mcp",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-11",
+      "arm": "search-mcp",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-11",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-11",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-11",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-11",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-11",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-11",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-12",
+      "arm": "search-mcp",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-12",
+      "arm": "search-mcp",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-12",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-12",
+      "arm": "retrieval-v1-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 3
+    },
+    {
+      "task_id": "CTX-12",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 1
+    },
+    {
+      "task_id": "CTX-12",
+      "arm": "adr-candidate-packet",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-12",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "claude",
+      "judge_agent": "codex",
+      "repetition": 2
+    },
+    {
+      "task_id": "CTX-12",
+      "arm": "adr-mcp-workflow",
+      "subject_agent": "codex",
+      "judge_agent": "claude",
+      "repetition": 2
+    }
+  ]
+}

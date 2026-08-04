@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "context-answer.v1",
+  "type": "object",
+  "required": ["schema", "adr_ids", "authoritative_refs", "adr_statuses", "lineage_edges", "related_edges", "citations", "explanation", "insufficient_evidence", "missing_refs"],
+  "properties": {
+    "schema": {"const": "context-answer.v1"},
+    "adr_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "authoritative_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "adr_statuses": {
+      "type": "object",
+      "additionalProperties": {"enum": ["accepted", "proposed", "rejected", "superseded", "empty"]}
+    },
+    "lineage_edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "target", "type"],
+        "properties": {
+          "source": {"type": "string"},
+          "target": {"type": "string"},
+          "type": {"enum": ["evolves", "replaces"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "related_edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "target", "type"],
+        "properties": {
+          "source": {"type": "string"},
+          "target": {"type": "string"},
+          "type": {"const": "related"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "citations": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "explanation": {"type": "string"},
+    "insufficient_evidence": {"type": "boolean"},
+    "missing_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  },
+  "additionalProperties": false
+}

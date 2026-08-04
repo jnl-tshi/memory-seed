@@ -1,0 +1,30 @@
+{
+  "schema": "context-live-matrix.v1",
+  "status": "DRAFT-PENDING-OFFLINE-SELECTION",
+  "task_count": 12,
+  "arms": [
+    "search-mcp",
+    "retrieval-v1-packet",
+    "adr-candidate-packet",
+    "adr-mcp-workflow"
+  ],
+  "repetitions": 3,
+  "agents": ["claude", "codex"],
+  "subject_runs": 288,
+  "schedule_seed": 20260804,
+  "max_agent_concurrency": 3,
+  "max_total_concurrency": 6,
+  "candidate_fingerprint": null,
+  "retrieval_v1_fingerprint": null,
+  "live_tasks_fingerprint": null,
+  "pins": {
+    "claude": {
+      "model": "PENDING_UNSCORED_PROBE",
+      "cli_version": "2.1.221"
+    },
+    "codex": {
+      "model": "PENDING_UNSCORED_PROBE",
+      "cli_version": "codex-cli 0.146.0"
+    }
+  }
+}

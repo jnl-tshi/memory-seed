@@ -1,0 +1,47 @@
+{
+  "schema": "context-fixture-source.v1",
+  "fixture_id": "real-current",
+  "base_sha": "f11a5dcb453f1a160864a10c7c5a1ee81ade0e48",
+  "description": "Frozen slice of the three live ADRs and the six session entries needed to validate their decision evidence.",
+  "adr_sources": [
+    {
+      "path": ".memory-seed/decisions/adr_mcp_decision_envelope_review.md",
+      "sha256": "66e5e1e89cfc495156eac95227c236c8eecbb5b640cec2edf7a685053b9127c7"
+    },
+    {
+      "path": ".memory-seed/decisions/adr_parent_first_sidecar_transaction.md",
+      "sha256": "5de5097a6fa5a52b24dc34bbd327d16c08127d091bacce31342992d58d286f0b"
+    },
+    {
+      "path": ".memory-seed/decisions/adr_session_decision_authority.md",
+      "sha256": "7c843ccf0849e0d1a9a4a23af8ea8695a0a8b46e10aaa2a8fa6e07f4dd9e9858"
+    }
+  ],
+  "session_sources": [
+    {
+      "path": ".memory-seed/sessions/2026-07/2026-07-26.md",
+      "sha256": "2e6b8dfdc84c7687ad48ae511ef47af0bebfcf8e2ef0dd4a6af98f6e9bca54a9",
+      "entry_ids": ["mse_z7rfq8x5qjfbyzdc"]
+    },
+    {
+      "path": ".memory-seed/sessions/2026-07/2026-07-30.md",
+      "sha256": "be953b785cda448f6fabfc97cca20977defb52382d0e102ba43ec4fa541cf000",
+      "entry_ids": ["mse_ddeat5w29spep3qw", "mse_qbp1ndbnhezj34eb"]
+    },
+    {
+      "path": ".memory-seed/sessions/2026-07/2026-07-31.md",
+      "sha256": "de380fae18ae95665b121256fa5be7d142bac1a6bd159e4c37fa5d3a4b344d7e",
+      "entry_ids": ["mse_d06t9bccm3yykfqs"]
+    },
+    {
+      "path": ".memory-seed/sessions/2026-08/2026-08-03.md",
+      "sha256": "f8202516418d4298e1994c528b30a676c4385839b54f122859aa0bd98aea0aa7",
+      "entry_ids": ["mse_kbc2mq9972ppy1vw", "mse_17d0qqh34a07qp5b"]
+    }
+  ],
+  "distractor_refs": [
+    "mse_d06t9bccm3yykfqs:d2",
+    "mse_kbc2mq9972ppy1vw:d1",
+    "mse_kbc2mq9972ppy1vw:d2"
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "schema": "context-adversarial-corpus.v1",
+  "fixtures": [
+    {
+      "fixture_id": "adversarial-branch-reject",
+      "description": "Two siblings branch from one accepted head; one sibling is rejected and the other becomes authoritative.",
+      "entries": [
+        {"entry_id": "mse_ctxbrroot", "title": "Choose the durable queue", "decisions": [{"ordinal": "d1", "title": "Use the journal queue", "decision": "Use a journal-backed queue.", "why": "It survives process interruption."}]},
+        {"entry_id": "mse_ctxbrgood", "title": "Evolve the durable queue", "evolves": ["d1 -> mse_ctxbrroot:d1"], "decisions": [{"ordinal": "d1", "title": "Batch journal replay", "decision": "Replay the journal in bounded batches.", "why": "Bounded replay preserves recovery while limiting latency."}]},
+        {"entry_id": "mse_ctxbrbad", "title": "Try volatile replay", "evolves": ["d1 -> mse_ctxbrroot:d1"], "decisions": [{"ordinal": "d1", "title": "Use memory-only replay", "decision": "Use an in-memory replay queue.", "why": "It appeared simpler but loses crash recovery."}]},
+        {"entry_id": "mse_ctxbrnoise", "title": "Unrelated interface colour", "decisions": [{"ordinal": "d1", "title": "Use blue status labels", "decision": "Use blue labels.", "why": "It is a visual convention unrelated to queue authority."}]}
+      ],
+      "adrs": [
+        {"adr_id": "adr_branching_queue", "title": "Durable queue replay", "events": [
+          {"kind": "revision-proposed", "decision_ref": "mse_ctxbrroot:d1", "decision": "Use a journal-backed queue.", "why": "It survives process interruption.", "evolution": "Initial concern decision."},
+          {"kind": "revision-accepted", "decision_ref": "mse_ctxbrroot:d1", "expected_head": null, "reason": "Initial governing head."},
+          {"kind": "revision-proposed", "decision_ref": "mse_ctxbrgood:d1", "predecessors": [{"decision": "mse_ctxbrroot:d1", "type": "evolves"}], "decision": "Replay the journal in bounded batches.", "why": "It preserves recovery with bounded latency.", "evolution": "Evolves the durable root with bounded replay."},
+          {"kind": "revision-proposed", "decision_ref": "mse_ctxbrbad:d1", "predecessors": [{"decision": "mse_ctxbrroot:d1", "type": "evolves"}], "decision": "Use an in-memory replay queue.", "why": "It appeared simpler.", "evolution": "Branches from the durable root but gives up crash recovery."},
+          {"kind": "revision-rejected", "decision_ref": "mse_ctxbrbad:d1", "reason": "Rejected because it loses durable recovery."},
+          {"kind": "revision-accepted", "decision_ref": "mse_ctxbrgood:d1", "expected_head": "mse_ctxbrroot:d1", "reason": "Accepted after bounded replay validation."}
+        ]}
+      ]
+    },
+    {
+      "fixture_id": "adversarial-converging",
+      "description": "An accepted revision converges two independently proposed predecessors.",
+      "entries": [
+        {"entry_id": "mse_ctxconva", "title": "Choose local reads", "decisions": [{"ordinal": "d1", "title": "Use local reads", "decision": "Read from the local ledger.", "why": "Local reads are fast and offline."}]},
+        {"entry_id": "mse_ctxconvb", "title": "Try remote verification", "decisions": [{"ordinal": "d1", "title": "Use remote verification", "decision": "Verify every read remotely.", "why": "Remote verification is authoritative but unavailable offline."}]},
+        {"entry_id": "mse_ctxconvmerge", "title": "Converge local reads and verification", "evolves": ["d1 -> mse_ctxconva:d1", "d1 -> mse_ctxconvb:d1"], "decisions": [{"ordinal": "d1", "title": "Use locally cached verification", "decision": "Read locally and refresh signed verification asynchronously.", "why": "This preserves offline speed and eventual verification."}]},
+        {"entry_id": "mse_ctxconvnoise", "title": "Unrelated log format", "decisions": [{"ordinal": "d1", "title": "Use compact logs", "decision": "Use compact logs.", "why": "Log formatting is outside this concern."}]}
+      ],
+      "adrs": [
+        {"adr_id": "adr_converged_reads", "title": "Verified local reads", "events": [
+          {"kind": "revision-proposed", "decision_ref": "mse_ctxconva:d1", "decision": "Read from the local ledger.", "why": "Local reads are fast and offline.", "evolution": "Initial concern decision."},
+          {"kind": "revision-accepted", "decision_ref": "mse_ctxconva:d1", "expected_head": null, "reason": "Initial governing head."},
+          {"kind": "revision-proposed", "decision_ref": "mse_ctxconvb:d1", "decision": "Verify every read remotely.", "why": "Remote verification is authoritative.", "evolution": "Independent verification branch."},
+          {"kind": "revision-rejected", "decision_ref": "mse_ctxconvb:d1", "reason": "Rejected as the sole strategy because it cannot work offline."},
+          {"kind": "revision-proposed", "decision_ref": "mse_ctxconvmerge:d1", "predecessors": [{"decision": "mse_ctxconva:d1", "type": "evolves"}, {"decision": "mse_ctxconvb:d1", "type": "evolves"}], "decision": "Read locally and refresh signed verification asynchronously.", "why": "It preserves offline speed and eventual verification.", "evolution": "Converges the local and remote branches."},
+          {"kind": "revision-accepted", "decision_ref": "mse_ctxconvmerge:d1", "expected_head": "mse_ctxconva:d1", "reason": "Accepted as the converged governing head."}
+        ]}
+      ]
+    },
+    {
+      "fixture_id": "adversarial-shared-decision",
+      "description": "One decision is the accepted head of two distinct architectural concerns.",
+      "entries": [
+        {"entry_id": "mse_ctxshareda", "title": "Initial cache policy", "decisions": [{"ordinal": "d1", "title": "Cache locally", "decision": "Cache only locally.", "why": "It minimizes coordination."}]},
+        {"entry_id": "mse_ctxsharedb", "title": "Initial audit policy", "decisions": [{"ordinal": "d1", "title": "Audit asynchronously", "decision": "Audit asynchronously.", "why": "It keeps writes fast."}]},
+        {"entry_id": "mse_ctxshared", "title": "Share signed checkpoints", "evolves": ["d1 -> mse_ctxshareda:d1", "d1 -> mse_ctxsharedb:d1"], "decisions": [{"ordinal": "d1", "title": "Use signed checkpoints", "decision": "Use signed checkpoints for cache synchronization and audit recovery.", "why": "One checkpoint supports both concerns without merging their authority."}]},
+        {"entry_id": "mse_ctxsharednoise", "title": "Unrelated help text", "decisions": [{"ordinal": "d1", "title": "Shorten help text", "decision": "Shorten help text.", "why": "It is unrelated to either concern."}]}
+      ],
+      "adrs": [
+        {"adr_id": "adr_shared_cache", "title": "Cache synchronization", "events": [
+          {"kind": "revision-proposed", "decision_ref": "mse_ctxshareda:d1", "decision": "Cache only locally.", "why": "It minimizes coordination.", "evolution": "Initial cache decision."},
+          {"kind": "revision-accepted", "decision_ref": "mse_ctxshareda:d1", "expected_head": null, "reason": "Initial cache head."},
+          {"kind": "revision-proposed", "decision_ref": "mse_ctxshared:d1", "predecessors": [{"decision": "mse_ctxshareda:d1", "type": "evolves"}], "decision": "Use signed checkpoints for cache synchronization.", "why": "It enables safe reconciliation.", "evolution": "Evolves the local-only cache."},
+          {"kind": "revision-accepted", "decision_ref": "mse_ctxshared:d1", "expected_head": "mse_ctxshareda:d1", "reason": "Accepted for cache synchronization."}
+        ]},
+        {"adr_id": "adr_shared_audit", "title": "Audit recovery", "events": [
+          {"kind": "revision-proposed", "decision_ref": "mse_ctxsharedb:d1", "decision": "Audit asynchronously.", "why": "It keeps writes fast.", "evolution": "Initial audit decision."},
+          {"kind": "revision-accepted", "decision_ref": "mse_ctxsharedb:d1", "expected_head": null, "reason": "Initial audit head."},
+          {"kind": "revision-proposed", "decision_ref": "mse_ctxshared:d1", "predecessors": [{"decision": "mse_ctxsharedb:d1", "type": "evolves"}], "decision": "Use signed checkpoints for audit recovery.", "why": "It makes recovery independently verifiable.", "evolution": "Evolves asynchronous audit recovery."},
+          {"kind": "revision-accepted", "decision_ref": "mse_ctxshared:d1", "expected_head": "mse_ctxsharedb:d1", "reason": "Accepted for audit recovery."}
+        ]}
+      ]
+    },
+    {
+      "fixture_id": "adversarial-pending",
+      "description": "A pending proposal exists after an accepted revision and must not displace it.",
+      "entries": [
+        {"entry_id": "mse_ctxpendinghead", "title": "Choose append-only storage", "decisions": [{"ordinal": "d1", "title": "Append events", "decision": "Store append-only events.", "why": "Events preserve history."}]},
+        {"entry_id": "mse_ctxpendingnew", "title": "Propose mutable snapshots", "replaces": ["d1 -> mse_ctxpendinghead:d1"], "decisions": [{"ordinal": "d1", "title": "Use mutable snapshots", "decision": "Replace events with mutable snapshots.", "why": "Snapshots may be smaller but have not passed integrity review."}]},
+        {"entry_id": "mse_ctxpendingnoise", "title": "Unrelated font choice", "decisions": [{"ordinal": "d1", "title": "Use a monospace font", "decision": "Use a monospace font.", "why": "It is unrelated to persistence authority."}]}
+      ],
+      "adrs": [
+        {"adr_id": "adr_pending_storage", "title": "History storage", "events": [
+          {"kind": "revision-proposed", "decision_ref": "mse_ctxpendinghead:d1", "decision": "Store append-only events.", "why": "Events preserve history.", "evolution": "Initial storage decision."},
+          {"kind": "revision-accepted", "decision_ref": "mse_ctxpendinghead:d1", "expected_head": null, "reason": "Accepted governing head."},
+          {"kind": "revision-proposed", "decision_ref": "mse_ctxpendingnew:d1", "predecessors": [{"decision": "mse_ctxpendinghead:d1", "type": "replaces"}], "decision": "Replace events with mutable snapshots.", "why": "Snapshots may be smaller.", "evolution": "Pending replacement proposal; not accepted."}
+        ]}
+      ]
+    },
+    {
+      "fixture_id": "adversarial-related-only",
+      "description": "A related supporting reference is present but must never become a lifecycle edge.",
+      "entries": [
+        {"entry_id": "mse_ctxrelhead", "title": "Choose local encryption", "related_entries": ["mse_ctxrelcontext"], "decisions": [{"ordinal": "d1", "title": "Encrypt locally", "decision": "Encrypt records locally.", "why": "Keys remain under workspace control."}]},
+        {"entry_id": "mse_ctxrelcontext", "title": "Document remote backup", "related_entries": ["mse_ctxrelhead"], "decisions": [{"ordinal": "d1", "title": "Document backup options", "decision": "Document remote backup options.", "why": "This is supporting context and does not evolve encryption authority."}]},
+        {"entry_id": "mse_ctxrelnoise", "title": "Unrelated pagination", "decisions": [{"ordinal": "d1", "title": "Paginate results", "decision": "Paginate results.", "why": "Pagination is unrelated to encryption."}]}
+      ],
+      "adrs": [
+        {"adr_id": "adr_related_encryption", "title": "Local encryption", "events": [
+          {"kind": "revision-proposed", "decision_ref": "mse_ctxrelhead:d1", "supporting_decisions": ["mse_ctxrelcontext:d1"], "decision": "Encrypt records locally.", "why": "Keys remain under workspace control.", "evolution": "Initial encryption decision; remote backup is supporting context only."},
+          {"kind": "revision-accepted", "decision_ref": "mse_ctxrelhead:d1", "expected_head": null, "reason": "Accepted encryption head."}
+        ]}
+      ]
+    },
+    {
+      "fixture_id": "adversarial-missing-evidence",
+      "description": "The ADR names its authority but the benchmark result asked for by the task is intentionally absent.",
+      "entries": [
+        {"entry_id": "mse_ctxmissinghead", "title": "Choose incremental compaction", "decisions": [{"ordinal": "d1", "title": "Compact incrementally", "decision": "Use incremental compaction.", "why": "A benchmark was cited during the decision, but its measurements are intentionally omitted from this fixture."}]},
+        {"entry_id": "mse_ctxmissingnoise", "title": "Unrelated benchmark", "decisions": [{"ordinal": "d1", "title": "Benchmark theme rendering", "decision": "Render themes in batches.", "why": "This benchmark concerns UI themes, not compaction."}]}
+      ],
+      "adrs": [
+        {"adr_id": "adr_missing_compaction", "title": "Incremental compaction", "events": [
+          {"kind": "revision-proposed", "decision_ref": "mse_ctxmissinghead:d1", "supporting_decisions": ["mse_ctxmissingbenchmark:d1"], "decision": "Use incremental compaction.", "why": "The governing decision cites a benchmark whose measurements are absent here.", "evolution": "Initial compaction decision."},
+          {"kind": "revision-accepted", "decision_ref": "mse_ctxmissinghead:d1", "expected_head": null, "reason": "Accepted before this evidence-isolation fixture was created."}
+        ]}
+      ]
+    }
+  ]
+}
