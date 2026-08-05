@@ -235,6 +235,16 @@ Before choosing the entry shape, harvest the durable decisions made this turn.
 8. Ask: did this turn **rename, relocate, or remove any artifact** (file, directory, command,
    concept/product name)? If so, record a `continuity:` block with the old and new names — that
    mapping is what keeps file-overlap ranking and traceability working across the change.
+9. Ask: did this turn **establish durable project facts that are not decisions**? Roles and
+   ownership ("Marcus owns the benchmark suite"), names and codenames, cadences, thresholds and
+   budgets, environments, external locations. A fact is not a decision - it has no `R:` to give -
+   so the harvest above will not catch it, and it has no home in an entry body. Promote it to
+   `.memory-seed/index.md` under `## Active State` (short, current-state only, per
+   `memory_consolidation.md`) in the same turn it was established, and name the promotion in the
+   entry. **A turn that establishes only facts and changes no code still records.** Measured
+   2026-08-05: a kickoff session that set the maintainer roster, release cadence, CI budget and
+   1.0 codename recorded nothing at all, and every one of those facts was unanswerable afterwards -
+   not because retrieval failed, but because nothing ever stored them.
 
 `F` fields should support later lexical search. Prefer exact changed file paths and filenames as
 standalone tokens, backtick-quoted and repo-relative (backtick-quoted path tokens are what

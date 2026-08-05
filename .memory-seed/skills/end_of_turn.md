@@ -23,7 +23,10 @@ Use this skill when running the Memory Seed end-of-turn routine, `/esr`, or any 
    entries from that list. The harvest includes the lifecycle questions: does any harvested decision
    replace/remove (`replaces`) or extend-while-still-valid (`evolves`) an earlier entry, and did
    the turn rename, relocate, or remove any artifact (record a `continuity:` block with old and new
-   names).
+   names). It also asks whether the turn established durable project facts that are
+   not decisions (roles, codenames, cadences, budgets) - those are promoted to
+   `.memory-seed/index.md` under `## Active State` in the same turn, because an entry body
+   has no home for a fact with no `R:`.
 3. Append the session entry to the active session target before doing other closeout work. Use
    `.memory-seed/skills/session_logging.md` for the exact entry schema, DRAFT labels,
    `related_entries`, timestamp, and append-only rules.
