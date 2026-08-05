@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from memory_seed.semantic_cache import (
+    RECENCY_FLOOR,
     REPLACED_IMPORTANCE_DAMPING,
     REPLACED_RANK_DAMPING,
     MemoryChunk,
@@ -16,6 +17,7 @@ from memory_seed.semantic_cache import (
     extract_memory_chunks,
     rank_memory_chunks,
     rank_session_memory,
+    semantic_text,
     suggest_related_entries,
     replacing_lineage_heads,
 )
@@ -328,7 +330,10 @@ class SemanticCacheTests(unittest.TestCase):
         provider = StaticEmbeddingProvider(
             {
                 "architecture query": (1.0, 0.0),
-                "semantic payload": (1.0, 0.0),
+                # Keyed off semantic_text() rather than a hard-coded string: the embedded surface
+                # is heading_path + tags + contexts + text, and a literal here would silently
+                # desync the moment that composition changes again.
+                semantic_text(chunk): (1.0, 0.0),
             }
         )
 
@@ -439,10 +444,21 @@ class SemanticCacheTests(unittest.TestCase):
             end_line=2,
         )
 
-        structural = rank_memory_chunks("architecture baseline", [chunk], today=today, lambda_days=0.02)
-        normal = rank_memory_chunks("recent note", [chunk], today=today, lambda_days=0.02)
+        # The structural halving is dominated by RECENCY_FLOOR (0.98 as of 2026-08-05) and is only
+        # observable below it. Drop the floor to assert the mechanism itself, then assert separately
+        # that at the shipped default recency cannot meaningfully reorder anything - which is the
+        # property the new default exists to guarantee.
+        structural = rank_memory_chunks(
+            "architecture baseline", [chunk], today=today, lambda_days=0.02, recency_floor=0.0
+        )
+        normal = rank_memory_chunks(
+            "recent note", [chunk], today=today, lambda_days=0.02, recency_floor=0.0
+        )
 
         self.assertGreater(structural[0].recency_multiplier, normal[0].recency_multiplier)
+
+        at_default = rank_memory_chunks("recent note", [chunk], today=today, lambda_days=0.02)
+        self.assertGreaterEqual(at_default[0].recency_multiplier, RECENCY_FLOOR)
 
     def test_rank_session_memory_extracts_and_ranks_project_sessions(self):
         cwd = self.make_project()

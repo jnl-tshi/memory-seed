@@ -44,7 +44,11 @@ REPLACED_IMPORTANCE_DAMPING = 0.25
 # set (gated by rank_session_memory / search_memory's supersession_damping flag).
 # It composes multiplicatively with recency_multiplier and never hard-excludes
 # (that stays exclude_replaced): a replaced entry is down-ranked, not hidden.
-REPLACED_RANK_DAMPING = 0.25
+# Strengthened 0.25 -> 0.10 so supersession does its own job. With recency neutralised, the
+# replacement out-ranked the entry it retired in 21 of 23 cases at 0.25 and 22 of 23 at 0.10 -
+# recovering the single case a global recency penalty had been covering, at no measured recall
+# cost (paraphrase@8 unchanged at 115/180 across the sweep).
+REPLACED_RANK_DAMPING = 0.10
 
 # Fractional multiplier applied to a live terminal replacement when the caller
 # opts into the bounded successor boost. One strongest-matching replaced
@@ -68,6 +72,44 @@ FILE_OVERLAP_BOOST = 0.75
 # and the default flip is gated behind `memory-seed ranking-ab --signal
 # attention` on real accumulated usage. The shape is provisional until that gate.
 ATTENTION_RANK_BOOST = 0.5
+
+# Weight on model2vec cosine when blending semantic similarity into the lexical
+# match score. Cosine is bounded to [0,1]; the lexical score is not - one tag
+# term match alone is 12.0 - so this weight is what decides whether semantic
+# similarity can reorder anything at all. `retrieval.SEMANTIC_OVERLAP_BOOST`
+# solves the same scale mismatch for link suggestion and sits at 160.0, with the
+# note that the two components are "on different scales, not different
+# importances". This value was never fitted; see the blend function below.
+SEMANTIC_BLEND_WEIGHT = 60.0
+
+# Floor on the recency multiplier: max(floor, exp(-lambda * age_days)). At 0.98 recency can only
+# reorder near-ties, which is what it is FOR - preferring the current form of a decision is the
+# lifecycle graph's job, done precisely by replaces/evolves edges, not a global decay applied to
+# every result. Measured on 180 paired paraphrase queries, moving off 0.15 gains 9 answers into the
+# top 8 (p=0.052 alone) and costs nothing on the lifecycle guard once REPLACED_RANK_DAMPING is
+# strengthened. It also bounds the penalty permanently: at 0.15 the spread is 2.2x on an 80-day-old
+# corpus and reaches 6.7x past ~190 days, so the old default got worse as the archive aged - exactly
+# backwards for a decision store.
+RECENCY_FLOOR = 0.98
+
+
+def blend_match_score(
+    lexical_score: float,
+    semantic_score: float | None,
+    query_term_count: int,
+) -> float:
+    """Combine the lexical and semantic components into one match score.
+
+    Extracted so the blend is a single named place rather than an expression buried in the ranking
+    loop, and so an experiment can substitute a different shape without reimplementing ranking
+    (which is how a harness ends up measuring something production does not do).
+
+    ``query_term_count`` is unused by the current additive form and is passed because it is the
+    axis the additive form is suspected to get wrong: lexical accumulates over matched terms and
+    fields while cosine is a single bounded number, so one constant cannot be right for a 3-term
+    and a 20-term query.
+    """
+    return lexical_score + SEMANTIC_BLEND_WEIGHT * max(semantic_score or 0.0, 0.0)
 
 
 @dataclass(frozen=True)
@@ -258,7 +300,7 @@ def rank_session_memory(
     today: date | None = None,
     lambda_days: float = 0.01,
     recency_enabled: bool = True,
-    recency_floor: float = 0.15,
+    recency_floor: float = RECENCY_FLOOR,
     embedding_provider: EmbeddingProvider | None = None,
     granularity: str = "decision",
     user: str | None = None,
@@ -902,7 +944,7 @@ def rank_memory_chunks(
     today: date | None = None,
     lambda_days: float = 0.01,
     recency_enabled: bool = True,
-    recency_floor: float = 0.15,
+    recency_floor: float = RECENCY_FLOOR,
     embedding_provider: EmbeddingProvider | None = None,
     replaced_ids: set[str] | None = None,
     replacing_heads_by_id: dict[str, tuple[str, ...]] | None = None,
@@ -924,8 +966,7 @@ def rank_memory_chunks(
     for index, chunk in enumerate(chunks):
         lexical_score, matched_terms, matched_fields = _lexical_score(query_terms, chunk)
         semantic_score = semantic_scores[index] if semantic_scores is not None else None
-        semantic_component = max(semantic_score or 0.0, 0.0) * 3.0
-        match_score = lexical_score + semantic_component
+        match_score = blend_match_score(lexical_score, semantic_score, len(query_terms))
         age_days = max((current_date - chunk.session_date).days, 0)
         recency_multiplier = _recency_multiplier(
             age_days,
@@ -1767,6 +1808,30 @@ def _term_matches_value(term: str, value: str) -> bool:
     return normalized_term == normalized_value or normalized_term in normalized_value
 
 
+def semantic_text(chunk: MemoryChunk) -> str:
+    """The surface the semantic side scores - the same one the lexical side scores.
+
+    `_lexical_score` reads tags (weight 12), contexts (8), heading_path (6), lexical_terms (4) and
+    the body text (1 per term). Embedding only `chunk.text` therefore compared two different things:
+    lexical over title + tags + body against semantic over body alone. Any blend weight fitted on
+    that mismatch is fitting the mismatch as much as the weighting.
+
+    It also explains a specific observed effect: raising the semantic weight used to DEGRADE
+    title-query accuracy, because it added body-similarity noise to a judgement lexical was getting
+    right from `heading_path` - a field the embedding never saw.
+
+    Titles first: the heading is the most information-dense description of a decision, and putting
+    it at the front keeps it inside the model's context for long bodies.
+    """
+    parts = [
+        " ".join(chunk.heading_path or ()),
+        " ".join(chunk.tags or ()),
+        " ".join(chunk.contexts or ()),
+        chunk.text or "",
+    ]
+    return "\n".join(part for part in parts if part).strip()
+
+
 def _semantic_scores(
     query: str,
     chunks: Sequence[MemoryChunk],
@@ -1775,7 +1840,7 @@ def _semantic_scores(
     if embedding_provider is None or not chunks:
         return None
     try:
-        vectors = embedding_provider.embed([query, *(chunk.text for chunk in chunks)])
+        vectors = embedding_provider.embed([query, *(semantic_text(chunk) for chunk in chunks)])
     except Exception:
         return None
     if len(vectors) != len(chunks) + 1:
@@ -1796,6 +1861,15 @@ def _cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
 
 
 def _effective_lambda(query: str, lambda_days: float) -> float:
+    """Halve the decay rate for structural queries.
+
+    RETAINED BUT DOMINATED as of 2026-08-05. `RECENCY_FLOOR` is now 0.98, so the whole recency
+    multiplier spans [0.98, 1.0] and halving the exponent inside that band moves a score by well
+    under a percent - far less than the gap between adjacent results. It is kept rather than deleted
+    because it costs nothing and becomes meaningful again if a future recalibration lowers the
+    floor; it is documented rather than left as a second, silent recency mechanism, which is the
+    overlap that produced the previous state.
+    """
     normalized_query = _normalize(query)
     if any(term in normalized_query for term in STRUCTURAL_QUERY_TERMS):
         return lambda_days / 2.0

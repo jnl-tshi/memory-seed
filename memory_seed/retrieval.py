@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from .core import DecisionSummary
 
 from .semantic_cache import (
+    RECENCY_FLOOR,
     EmbeddingProvider,
     MemoryChunk,
     Model2VecEmbeddingProvider,
@@ -72,7 +73,7 @@ def search_memory(
     today: date | None = None,
     lambda_days: float = 0.01,
     recency_enabled: bool = True,
-    recency_floor: float = 0.15,
+    recency_floor: float = RECENCY_FLOOR,
     semantic_enabled: bool = True,
     embedding_provider: Any = None,
     granularity: str = "decision",

@@ -1,0 +1,340 @@
+[
+  {
+    "shape": "A",
+    "weight": 3.0,
+    "by_source": {
+      "P_terms15": {
+        "n": 30,
+        "at_1": 18,
+        "at_k": 23
+      },
+      "P_terms3": {
+        "n": 30,
+        "at_1": 7,
+        "at_k": 9
+      },
+      "P_terms7": {
+        "n": 30,
+        "at_1": 7,
+        "at_k": 20
+      },
+      "P_title": {
+        "n": 60,
+        "at_1": 56,
+        "at_k": 58
+      }
+    }
+  },
+  {
+    "shape": "A",
+    "weight": 10.0,
+    "by_source": {
+      "P_terms15": {
+        "n": 30,
+        "at_1": 18,
+        "at_k": 23
+      },
+      "P_terms3": {
+        "n": 30,
+        "at_1": 7,
+        "at_k": 8
+      },
+      "P_terms7": {
+        "n": 30,
+        "at_1": 7,
+        "at_k": 20
+      },
+      "P_title": {
+        "n": 60,
+        "at_1": 56,
+        "at_k": 58
+      }
+    }
+  },
+  {
+    "shape": "A",
+    "weight": 30.0,
+    "by_source": {
+      "P_terms15": {
+        "n": 30,
+        "at_1": 20,
+        "at_k": 24
+      },
+      "P_terms3": {
+        "n": 30,
+        "at_1": 6,
+        "at_k": 8
+      },
+      "P_terms7": {
+        "n": 30,
+        "at_1": 8,
+        "at_k": 22
+      },
+      "P_title": {
+        "n": 60,
+        "at_1": 53,
+        "at_k": 58
+      }
+    }
+  },
+  {
+    "shape": "A",
+    "weight": 60.0,
+    "by_source": {
+      "P_terms15": {
+        "n": 30,
+        "at_1": 19,
+        "at_k": 25
+      },
+      "P_terms3": {
+        "n": 30,
+        "at_1": 4,
+        "at_k": 10
+      },
+      "P_terms7": {
+        "n": 30,
+        "at_1": 8,
+        "at_k": 21
+      },
+      "P_title": {
+        "n": 60,
+        "at_1": 52,
+        "at_k": 57
+      }
+    }
+  },
+  {
+    "shape": "A",
+    "weight": 120.0,
+    "by_source": {
+      "P_terms15": {
+        "n": 30,
+        "at_1": 18,
+        "at_k": 26
+      },
+      "P_terms3": {
+        "n": 30,
+        "at_1": 5,
+        "at_k": 9
+      },
+      "P_terms7": {
+        "n": 30,
+        "at_1": 6,
+        "at_k": 21
+      },
+      "P_title": {
+        "n": 60,
+        "at_1": 51,
+        "at_k": 56
+      }
+    }
+  },
+  {
+    "shape": "B",
+    "weight": 1.0,
+    "by_source": {
+      "P_terms15": {
+        "n": 30,
+        "at_1": 18,
+        "at_k": 23
+      },
+      "P_terms3": {
+        "n": 30,
+        "at_1": 7,
+        "at_k": 9
+      },
+      "P_terms7": {
+        "n": 30,
+        "at_1": 7,
+        "at_k": 20
+      },
+      "P_title": {
+        "n": 60,
+        "at_1": 56,
+        "at_k": 58
+      }
+    }
+  },
+  {
+    "shape": "B",
+    "weight": 3.0,
+    "by_source": {
+      "P_terms15": {
+        "n": 30,
+        "at_1": 19,
+        "at_k": 25
+      },
+      "P_terms3": {
+        "n": 30,
+        "at_1": 7,
+        "at_k": 8
+      },
+      "P_terms7": {
+        "n": 30,
+        "at_1": 8,
+        "at_k": 20
+      },
+      "P_title": {
+        "n": 60,
+        "at_1": 55,
+        "at_k": 58
+      }
+    }
+  },
+  {
+    "shape": "B",
+    "weight": 6.0,
+    "by_source": {
+      "P_terms15": {
+        "n": 30,
+        "at_1": 18,
+        "at_k": 26
+      },
+      "P_terms3": {
+        "n": 30,
+        "at_1": 6,
+        "at_k": 8
+      },
+      "P_terms7": {
+        "n": 30,
+        "at_1": 8,
+        "at_k": 21
+      },
+      "P_title": {
+        "n": 60,
+        "at_1": 52,
+        "at_k": 57
+      }
+    }
+  },
+  {
+    "shape": "B",
+    "weight": 12.0,
+    "by_source": {
+      "P_terms15": {
+        "n": 30,
+        "at_1": 13,
+        "at_k": 24
+      },
+      "P_terms3": {
+        "n": 30,
+        "at_1": 4,
+        "at_k": 12
+      },
+      "P_terms7": {
+        "n": 30,
+        "at_1": 7,
+        "at_k": 21
+      },
+      "P_title": {
+        "n": 60,
+        "at_1": 50,
+        "at_k": 55
+      }
+    }
+  },
+  {
+    "shape": "C",
+    "weight": 0.25,
+    "by_source": {
+      "P_terms15": {
+        "n": 30,
+        "at_1": 18,
+        "at_k": 23
+      },
+      "P_terms3": {
+        "n": 30,
+        "at_1": 7,
+        "at_k": 9
+      },
+      "P_terms7": {
+        "n": 30,
+        "at_1": 7,
+        "at_k": 20
+      },
+      "P_title": {
+        "n": 60,
+        "at_1": 56,
+        "at_k": 58
+      }
+    }
+  },
+  {
+    "shape": "C",
+    "weight": 0.5,
+    "by_source": {
+      "P_terms15": {
+        "n": 30,
+        "at_1": 18,
+        "at_k": 24
+      },
+      "P_terms3": {
+        "n": 30,
+        "at_1": 7,
+        "at_k": 9
+      },
+      "P_terms7": {
+        "n": 30,
+        "at_1": 8,
+        "at_k": 20
+      },
+      "P_title": {
+        "n": 60,
+        "at_1": 56,
+        "at_k": 58
+      }
+    }
+  },
+  {
+    "shape": "C",
+    "weight": 1.0,
+    "by_source": {
+      "P_terms15": {
+        "n": 30,
+        "at_1": 19,
+        "at_k": 25
+      },
+      "P_terms3": {
+        "n": 30,
+        "at_1": 7,
+        "at_k": 8
+      },
+      "P_terms7": {
+        "n": 30,
+        "at_1": 8,
+        "at_k": 20
+      },
+      "P_title": {
+        "n": 60,
+        "at_1": 52,
+        "at_k": 58
+      }
+    }
+  },
+  {
+    "shape": "C",
+    "weight": 2.0,
+    "by_source": {
+      "P_terms15": {
+        "n": 30,
+        "at_1": 20,
+        "at_k": 26
+      },
+      "P_terms3": {
+        "n": 30,
+        "at_1": 6,
+        "at_k": 9
+      },
+      "P_terms7": {
+        "n": 30,
+        "at_1": 8,
+        "at_k": 22
+      },
+      "P_title": {
+        "n": 60,
+        "at_1": 51,
+        "at_k": 57
+      }
+    }
+  }
+]

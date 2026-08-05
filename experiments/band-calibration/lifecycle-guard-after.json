@@ -1,0 +1,14 @@
+{
+  "top_k": 8,
+  "replaces": {
+    "n": 23,
+    "head_surfaced": 20,
+    "beats_rival": 22
+  },
+  "evolves": {
+    "n": 97,
+    "head_surfaced": 45,
+    "origin_surfaced": 89
+  },
+  "arm": "lexical"
+}

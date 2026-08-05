@@ -1,0 +1,252 @@
+{
+  "current": {
+    "params": {
+      "recency_enabled": true,
+      "lambda_days": 0.01,
+      "recency_floor": 0.15
+    },
+    "recall": {
+      "P_terms3": {
+        "n": 60,
+        "at_1": 11,
+        "at_k": 21
+      },
+      "P_terms7": {
+        "n": 60,
+        "at_1": 17,
+        "at_k": 39
+      },
+      "P_terms15": {
+        "n": 60,
+        "at_1": 32,
+        "at_k": 47
+      },
+      "P_title": {
+        "n": 120,
+        "at_1": 110,
+        "at_k": 115
+      },
+      "N_hard": {
+        "n": 24,
+        "at_1": 0,
+        "at_k": 0
+      },
+      "N_none": {
+        "n": 10,
+        "at_1": 0,
+        "at_k": 0
+      }
+    },
+    "lifecycle": {
+      "replaces": {
+        "n": 23,
+        "surfaced": 20,
+        "beats_rival": 22
+      },
+      "evolves": {
+        "n": 97,
+        "head_surfaced": 36
+      }
+    }
+  },
+  "off": {
+    "params": {
+      "recency_enabled": false,
+      "lambda_days": 0.01,
+      "recency_floor": 0.15
+    },
+    "recall": {
+      "P_terms3": {
+        "n": 60,
+        "at_1": 10,
+        "at_k": 21
+      },
+      "P_terms7": {
+        "n": 60,
+        "at_1": 20,
+        "at_k": 42
+      },
+      "P_terms15": {
+        "n": 60,
+        "at_1": 37,
+        "at_k": 52
+      },
+      "P_title": {
+        "n": 120,
+        "at_1": 114,
+        "at_k": 116
+      },
+      "N_hard": {
+        "n": 24,
+        "at_1": 0,
+        "at_k": 0
+      },
+      "N_none": {
+        "n": 10,
+        "at_1": 0,
+        "at_k": 0
+      }
+    },
+    "lifecycle": {
+      "replaces": {
+        "n": 23,
+        "surfaced": 20,
+        "beats_rival": 21
+      },
+      "evolves": {
+        "n": 97,
+        "head_surfaced": 45
+      }
+    }
+  },
+  "floor_05": {
+    "params": {
+      "recency_enabled": true,
+      "lambda_days": 0.01,
+      "recency_floor": 0.5
+    },
+    "recall": {
+      "P_terms3": {
+        "n": 60,
+        "at_1": 11,
+        "at_k": 21
+      },
+      "P_terms7": {
+        "n": 60,
+        "at_1": 17,
+        "at_k": 39
+      },
+      "P_terms15": {
+        "n": 60,
+        "at_1": 32,
+        "at_k": 47
+      },
+      "P_title": {
+        "n": 120,
+        "at_1": 111,
+        "at_k": 115
+      },
+      "N_hard": {
+        "n": 24,
+        "at_1": 0,
+        "at_k": 0
+      },
+      "N_none": {
+        "n": 10,
+        "at_1": 0,
+        "at_k": 0
+      }
+    },
+    "lifecycle": {
+      "replaces": {
+        "n": 23,
+        "surfaced": 20,
+        "beats_rival": 22
+      },
+      "evolves": {
+        "n": 97,
+        "head_surfaced": 36
+      }
+    }
+  },
+  "lambda_low": {
+    "params": {
+      "recency_enabled": true,
+      "lambda_days": 0.002,
+      "recency_floor": 0.15
+    },
+    "recall": {
+      "P_terms3": {
+        "n": 60,
+        "at_1": 10,
+        "at_k": 21
+      },
+      "P_terms7": {
+        "n": 60,
+        "at_1": 19,
+        "at_k": 42
+      },
+      "P_terms15": {
+        "n": 60,
+        "at_1": 37,
+        "at_k": 52
+      },
+      "P_title": {
+        "n": 120,
+        "at_1": 114,
+        "at_k": 116
+      },
+      "N_hard": {
+        "n": 24,
+        "at_1": 0,
+        "at_k": 0
+      },
+      "N_none": {
+        "n": 10,
+        "at_1": 0,
+        "at_k": 0
+      }
+    },
+    "lifecycle": {
+      "replaces": {
+        "n": 23,
+        "surfaced": 20,
+        "beats_rival": 21
+      },
+      "evolves": {
+        "n": 97,
+        "head_surfaced": 45
+      }
+    }
+  },
+  "tiebreak": {
+    "params": {
+      "recency_enabled": true,
+      "lambda_days": 0.01,
+      "recency_floor": 0.98
+    },
+    "recall": {
+      "P_terms3": {
+        "n": 60,
+        "at_1": 10,
+        "at_k": 21
+      },
+      "P_terms7": {
+        "n": 60,
+        "at_1": 20,
+        "at_k": 42
+      },
+      "P_terms15": {
+        "n": 60,
+        "at_1": 37,
+        "at_k": 52
+      },
+      "P_title": {
+        "n": 120,
+        "at_1": 114,
+        "at_k": 116
+      },
+      "N_hard": {
+        "n": 24,
+        "at_1": 0,
+        "at_k": 0
+      },
+      "N_none": {
+        "n": 10,
+        "at_1": 0,
+        "at_k": 0
+      }
+    },
+    "lifecycle": {
+      "replaces": {
+        "n": 23,
+        "surfaced": 20,
+        "beats_rival": 21
+      },
+      "evolves": {
+        "n": 97,
+        "head_surfaced": 45
+      }
+    }
+  }
+}
