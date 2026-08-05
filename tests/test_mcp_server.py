@@ -247,7 +247,7 @@ class MemoryMcpServerTests(unittest.TestCase):
         self.assertTrue(payload["semantic_enabled"])
         self.assertEqual(payload["semantic_provider"], "model2vec:minishlab/potion-base-8M")
         self.assertIsNotNone(payload["results"][0]["semantic_score"])
-        self.assertIn("tags", payload["results"][0]["matched_fields"])
+        self.assertIn("topics", payload["results"][0]["matched_fields"])  # tags score within topics under BM25F
         self.assertIn("text", payload["results"][0]["matched_fields"])
         self.assertIn("Compact command agent routine", payload["human_report"])
 
