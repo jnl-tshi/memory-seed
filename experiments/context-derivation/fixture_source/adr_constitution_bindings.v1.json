@@ -1,0 +1,97 @@
+{
+  "schema": "context-adr-constitution-bindings.v1",
+  "sections": [
+    {
+      "ref": "constitution:v1#provenance",
+      "title": "Attributable evidence",
+      "text": "Architectural claims must identify their source decisions and preserve an attributable chain of evidence.",
+      "digest": "2767a271f4e3e6c9b54cbf6400637c3fa0289b12c4bbdd67c5d17bc1afa6971a"
+    },
+    {
+      "ref": "constitution:v1#authority",
+      "title": "Accepted authority",
+      "text": "Accepted ADR heads govern their architectural concern until an explicit accepted revision supersedes them.",
+      "digest": "ae596021a6ef84bccc1d2e65bcc8d0d01dd94556b394c5aea82110beded2f048"
+    },
+    {
+      "ref": "constitution:v1#lineage",
+      "title": "Typed lineage",
+      "text": "evolves and replaces are decision-lineage edges; related is supporting context and never changes authority.",
+      "digest": "867f5d21eafca4fd834edad9684be54288f1f9503bff66635d4103e2608f0d7b"
+    },
+    {
+      "ref": "constitution:v1#locality",
+      "title": "Smallest relevant context",
+      "text": "Context should include the smallest relevant evidence slice before broader project material.",
+      "digest": "07de80298218ce705ca0a10d7213bf206851965917160f574050613e750671a9"
+    },
+    {
+      "ref": "constitution:v1#recoverability",
+      "title": "Recoverable history",
+      "text": "Writes and sidecars must preserve recoverable history across interruption.",
+      "digest": "64bb2251eb90727eaaf268f3063ad7791debacdbf5519efbdc3a9e06018d8d79"
+    }
+  ],
+  "bindings": [
+    {
+      "fixture_id": "real-current",
+      "adr_id": "adr_mcp_decision_envelope_review",
+      "decision_refs": ["mse_ddeat5w29spep3qw:d1", "mse_17d0qqh34a07qp5b:d1"],
+      "constitution_refs": [{"ref": "constitution:v1#authority", "role": "governing"}, {"ref": "constitution:v1#lineage", "role": "supporting"}]
+    },
+    {
+      "fixture_id": "real-current",
+      "adr_id": "adr_parent_first_sidecar_transaction",
+      "decision_refs": ["mse_d06t9bccm3yykfqs:d1", "mse_17d0qqh34a07qp5b:d2"],
+      "constitution_refs": [{"ref": "constitution:v1#recoverability", "role": "governing"}, {"ref": "constitution:v1#provenance", "role": "supporting"}]
+    },
+    {
+      "fixture_id": "real-current",
+      "adr_id": "adr_session_decision_authority",
+      "decision_refs": ["mse_ddeat5w29spep3qw:d1", "mse_17d0qqh34a07qp5b:d1"],
+      "constitution_refs": [{"ref": "constitution:v1#provenance", "role": "governing"}, {"ref": "constitution:v1#authority", "role": "supporting"}]
+    },
+    {
+      "fixture_id": "adversarial-branch-reject",
+      "adr_id": "adr_branching_queue",
+      "decision_refs": ["mse_ctxbrroot:d1", "mse_ctxbrgood:d1", "mse_ctxbrbad:d1"],
+      "constitution_refs": [{"ref": "constitution:v1#recoverability", "role": "governing"}]
+    },
+    {
+      "fixture_id": "adversarial-converging",
+      "adr_id": "adr_converged_reads",
+      "decision_refs": ["mse_ctxconva:d1", "mse_ctxconvb:d1", "mse_ctxconvmerge:d1"],
+      "constitution_refs": [{"ref": "constitution:v1#locality", "role": "governing"}, {"ref": "constitution:v1#lineage", "role": "supporting"}]
+    },
+    {
+      "fixture_id": "adversarial-shared-decision",
+      "adr_id": "adr_shared_cache",
+      "decision_refs": ["mse_ctxshareda:d1", "mse_ctxshared:d1"],
+      "constitution_refs": [{"ref": "constitution:v1#locality", "role": "governing"}]
+    },
+    {
+      "fixture_id": "adversarial-shared-decision",
+      "adr_id": "adr_shared_audit",
+      "decision_refs": ["mse_ctxsharedb:d1", "mse_ctxshared:d1"],
+      "constitution_refs": [{"ref": "constitution:v1#recoverability", "role": "governing"}]
+    },
+    {
+      "fixture_id": "adversarial-pending",
+      "adr_id": "adr_pending_storage",
+      "decision_refs": ["mse_ctxpendinghead:d1", "mse_ctxpendingnew:d1"],
+      "constitution_refs": [{"ref": "constitution:v1#provenance", "role": "governing"}]
+    },
+    {
+      "fixture_id": "adversarial-related-only",
+      "adr_id": "adr_related_encryption",
+      "decision_refs": ["mse_ctxrelhead:d1"],
+      "constitution_refs": [{"ref": "constitution:v1#authority", "role": "governing"}, {"ref": "constitution:v1#lineage", "role": "supporting"}]
+    },
+    {
+      "fixture_id": "adversarial-missing-evidence",
+      "adr_id": "adr_missing_compaction",
+      "decision_refs": ["mse_ctxmissinghead:d1"],
+      "constitution_refs": [{"ref": "constitution:v1#locality", "role": "governing"}]
+    }
+  ]
+}
