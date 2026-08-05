@@ -39,7 +39,7 @@ def request(arm="decision-only", cwd=None):
 
 
 def pin(subject="local", model="qwen2.5:0.5b"):
-    return module.SubjectPin(subject, model, model, "sha256:digest", "Q4_K_M", 4096, {"temperature": 0}, "1.0")
+    return module.SubjectPin(subject, model, model, "sha256:digest", "Q4_K_M", 4096, module.frozen_decoding({"temperature": 0}), "1.0")
 
 
 def result(**overrides):
@@ -66,6 +66,10 @@ def test_protocol_validation_rejects_citation_claim_context_and_isolation_failur
     assert module.protocol_failure(result(transcript="I used a tool"), req) == "forbidden-tool-or-filesystem-claim"
     assert module.protocol_failure(result(usage={"input_tokens": 5000}), req) == "context-overflow"
     assert module.protocol_failure(result(isolation={"empty_cwd": False, "repo_access": False, "mcp_enabled": False}), req) == "isolation-failure"
+    question_ref = {**query(), "question": "Does mse_question999:d1 change the answer?"}
+    packet = module.build_packet("decision-only", question_ref, evidence())
+    question_request = module.SubjectRequest("CTX-01.V01", "CTX-01", "decision-only", packet, req.corpus_fingerprint, req.task_fingerprint, req.isolation_cwd)
+    assert module.protocol_failure(result(raw_answer=json.dumps(answer(citations=["mse_question999:d1"]))), question_request) == "citation-outside-evidence"
 
 
 def test_schedule_is_exact_deterministic_and_rejects_missing_duplicate_or_extra_cells():
@@ -77,6 +81,8 @@ def test_schedule_is_exact_deterministic_and_rejects_missing_duplicate_or_extra_
     with pytest.raises(ValueError): module.validate_schedule([*first[:-1], first[-2]], rows)
     extra = [*first]; extra[-1] = {**extra[-1], "subject": "other"}
     with pytest.raises(ValueError): module.validate_schedule(extra, rows)
+    wrong_parent = [*first]; wrong_parent[0] = {**wrong_parent[0], "parent_task_id": "CTX-12"}
+    with pytest.raises(ValueError, match="parent_task_id"): module.validate_schedule(wrong_parent, rows)
 
 
 def test_ollama_ladder_selects_first_protocol_valid_installed_model_and_never_pulls():
@@ -98,6 +104,12 @@ def test_ollama_ladder_selects_first_protocol_valid_installed_model_and_never_pu
         assert chosen.model == "qwen2.5:1.5b"
         assert not any("pull" in url for url in calls)
         with pytest.raises(ValueError): module.OllamaAdapter("qwen2.5-coder:1.5b-base", probe_request=probe, transport=transport)
+        observed = chosen.run(probe)
+        assert observed.pin.fingerprint.startswith("sha256:")
+        assert json.loads(json.dumps(observed.pin.as_dict()))["decoding"] == {"seed": 20260805, "temperature": 0}
+        artifact = module.SubjectHarness(Path(temp) / "runs", ROOT).run(chosen, probe)
+        manifest = json.loads((artifact / "RUN_MANIFEST.json").read_text())
+        assert manifest["pin"]["decoding"] == {"seed": 20260805, "temperature": 0}
 
 
 def test_content_error_does_not_promote_ladder_model():
@@ -109,22 +121,51 @@ def test_content_error_does_not_promote_ladder_model():
     assert module.select_ollama_adapter(Adapter).model == "qwen2.5:0.5b"
 
 
+@pytest.mark.parametrize("changed", ["digest", "version", "context"])
+def test_ollama_reobserves_show_and_version_and_rejects_pin_drift(changed):
+    with tempfile.TemporaryDirectory() as temp:
+        state = {"digest": "sha256:stable", "version": "0.5", "context": 4096}
+        def transport(method, url, payload):
+            if url.endswith("/api/tags"):
+                return {"models": [{"name": "qwen2.5:0.5b", "digest": state["digest"], "details": {"quantization_level": "Q4"}}]}
+            if url.endswith("/api/show"):
+                return {"name": "qwen2.5:0.5b", "digest": state["digest"], "details": {"quantization_level": "Q4"}, "model_info": {"llama.context_length": state["context"]}}
+            if url.endswith("/api/version"): return {"version": state["version"]}
+            if url.endswith("/api/generate"):
+                return {"response": json.dumps(answer()), "done": True, "done_reason": "stop", "prompt_eval_count": 3, "eval_count": 2}
+            raise AssertionError(url)
+        probe = request(cwd=temp)
+        adapter = module.OllamaAdapter("qwen2.5:0.5b", probe_request=probe, transport=transport)
+        adapter.probe()
+        state[changed] = {"digest": "sha256:changed", "version": "0.6", "context": 8192}[changed]
+        with pytest.raises(RuntimeError, match="pin drift"):
+            adapter.run(probe)
+
+
 def test_pin_drift_fails_and_luna_uses_empty_minimal_environment_with_mocked_runner():
     with pytest.raises(RuntimeError, match="pin drift"):
         module.assert_pin(pin(), pin(model="qwen2.5:1.5b"))
     seen = {}
     def fake_runner(command, **kwargs):
         seen.update(command=command, **kwargs)
+        if command[-1] == "--version":
+            return subprocess.CompletedProcess(command, 0, "luna-cli 2.0\n", "")
         response = {"model": "luna-small", "model_digest": "sha256:luna", "quantization": "Q4", "context_window": 2048, "provider_version": "2.0", "answer": json.dumps(answer()), "usage": {"input_tokens": 4}, "completion_reason": "stop", "stable_completion": True}
         return subprocess.CompletedProcess(command, 0, json.dumps(response), "")
     with tempfile.TemporaryDirectory() as temp:
         cwd = Path(temp)
-        adapter = module.LunaAdapter(["luna"], "luna-small", probe_request=request(cwd=cwd), runner=fake_runner)
+        adapter = module.LunaAdapter(["luna"], "luna-small", probe_request=request(cwd=cwd), runner=fake_runner, decoding={"temperature": 0, "seed": 7})
         observed = adapter.run(request(cwd=cwd))
         assert observed.pin.reported_model == "luna-small"
+        assert observed.pin.cli_version == "luna-cli 2.0"
         assert Path(seen["cwd"]) == cwd and not list(cwd.iterdir())
         assert set(seen["env"]) == {"PATH", "LANG", "LC_ALL", "HOME", "USERPROFILE"}
         assert "--model" in seen["command"]
+        assert json.loads(seen["command"][-1]) == {"seed": 7, "temperature": 0}
+        expected = module.SubjectPin("luna", "luna-small", "luna-small", "sha256:luna", "Q4", 2048, module.frozen_decoding({"temperature": 0}), "2.0", "different-cli")
+        mismatched = module.LunaAdapter(["luna"], "luna-small", probe_request=request(cwd=cwd), runner=fake_runner, expected_pin=expected)
+        with pytest.raises(RuntimeError, match="pin drift"):
+            mismatched.run(request(cwd=cwd))
 
 
 def test_harness_writes_unique_redacted_manifest_and_fresh_cwd_outside_repo():

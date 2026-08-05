@@ -7,7 +7,7 @@ access, a model download, or a Luna installation.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 import hashlib
 import importlib.util
 import json
@@ -95,13 +95,24 @@ class SubjectPin:
     model_digest: str
     quantization: str
     context_window: int
-    decoding: Mapping[str, Any]
+    decoding: tuple[tuple[str, Any], ...]
     provider_version: str
+    cli_version: str | None = None
     adapter_version: str = ADAPTER_VERSION
 
     @property
     def fingerprint(self) -> str:
-        return fingerprint(asdict(self))
+        return fingerprint(self.as_dict())
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the immutable pin in a JSON-serializable manifest shape."""
+        return {
+            "subject": self.subject, "requested_model": self.requested_model,
+            "reported_model": self.reported_model, "model_digest": self.model_digest,
+            "quantization": self.quantization, "context_window": self.context_window,
+            "decoding": dict(self.decoding), "provider_version": self.provider_version,
+            "cli_version": self.cli_version, "adapter_version": self.adapter_version,
+        }
 
     def validate(self) -> None:
         if self.subject not in SUBJECTS or not all(isinstance(item, str) and item for item in (
@@ -111,8 +122,17 @@ class SubjectPin:
             raise ValueError("pin fields must be non-empty")
         if not isinstance(self.context_window, int) or self.context_window <= 0:
             raise ValueError("pin context_window must be positive")
-        if not isinstance(self.decoding, Mapping):
-            raise ValueError("pin decoding must be an object")
+        if not isinstance(self.decoding, tuple) or any(not isinstance(item, tuple) or len(item) != 2 or not isinstance(item[0], str) for item in self.decoding):
+            raise ValueError("pin decoding must be immutable key/value pairs")
+        if self.cli_version is not None and (not isinstance(self.cli_version, str) or not self.cli_version):
+            raise ValueError("pin cli_version must be a non-empty string or null")
+
+
+def frozen_decoding(value: Mapping[str, Any]) -> tuple[tuple[str, Any], ...]:
+    """Pin only deterministic JSON-compatible decoding configuration."""
+    encoded = canonical_json(dict(value))
+    decoded = json.loads(encoded)
+    return tuple((str(key), decoded[key]) for key in sorted(decoded))
 
 
 @dataclass(frozen=True)
@@ -220,19 +240,37 @@ def build_schedule(query_rows: Sequence[Mapping[str, Any]]) -> list[dict[str, An
 def validate_schedule(cells: Sequence[Mapping[str, Any]], query_rows: Sequence[Mapping[str, Any]]) -> None:
     expected = build_schedule(query_rows)
     expected_keys = {(row["query_id"], row["arm"], row["subject"], row["repetition"]) for row in expected}
+    parent_by_query = {row["query_id"]: row["parent_task_id"] for row in query_rows}
     actual_keys = []
     for row in cells:
         if not isinstance(row, Mapping) or row.get("schema") != SCHEDULE_SCHEMA:
             raise ValueError("schedule cells must use lightweight-subject-schedule.v1")
         actual_keys.append((row.get("query_id"), row.get("arm"), row.get("subject"), row.get("repetition")))
+        if row.get("parent_task_id") != parent_by_query.get(row.get("query_id")):
+            raise ValueError("schedule parent_task_id must match the frozen query")
     if len(cells) != 360 or len(actual_keys) != len(set(actual_keys)) or set(actual_keys) != expected_keys:
         raise ValueError("schedule must contain exactly one of the 360 fixed cells")
 
 
 def _evidence_refs(packet: SubjectPacket) -> set[str]:
-    text = packet.json()
     import re
-    return set(re.findall(r"(?:mse_[A-Za-z0-9]+:d\d+|constitution:[A-Za-z0-9._-]+(?:#[A-Za-z0-9._-]+)?)", text))
+    refs: set[str] = set()
+
+    def collect(value: Any) -> None:
+        if isinstance(value, Mapping):
+            for item in value.values():
+                collect(item)
+        elif isinstance(value, tuple) or isinstance(value, list):
+            for item in value:
+                collect(item)
+        elif isinstance(value, str):
+            refs.update(re.findall(r"(?:mse_[A-Za-z0-9]+:d\d+|constitution:[A-Za-z0-9._-]+(?:#[A-Za-z0-9._-]+)?)", value))
+
+    evidence = packet.payload["evidence"]
+    for field in ("decisions", "adrs", "constitution"):
+        if field in evidence:
+            collect(evidence[field])
+    return refs
 
 
 def _forbidden_claim(text: str) -> bool:
@@ -314,15 +352,18 @@ class OllamaAdapter:
         version = self._call("GET", "/api/version").get("version")
         pin = SubjectPin("local", self.model, str(shown.get("name") or row.get("name")), str(shown.get("digest") or row.get("digest") or ""),
                          str(details.get("quantization_level") or details.get("quantization") or ""), int(context or 0),
-                         MappingProxyType(dict(self.decoding)), str(version or ""))
+                         frozen_decoding(self.decoding), str(version or ""))
         pin.validate()
         if self.expected_pin is not None:
             assert_pin(self.expected_pin, pin)
-        self._pin = pin
         return pin
 
     def run(self, request: SubjectRequest) -> SubjectResult:
-        pin = self._pin or self._observe_pin()
+        observed = self._observe_pin()
+        if self._pin is not None:
+            assert_pin(self._pin, observed)
+        self._pin = observed
+        pin = observed
         started = time.perf_counter()
         response = self._call("POST", "/api/generate", {"model": self.model, "prompt": request.prompt, "stream": False, "format": "json", "options": dict(self.decoding)})
         elapsed = (time.perf_counter() - started) * 1000
@@ -332,7 +373,6 @@ class OllamaAdapter:
                              {"empty_cwd": request.isolation_cwd.exists() and not any(request.isolation_cwd.iterdir()), "repo_access": False, "mcp_enabled": False})
 
     def probe(self) -> SubjectResult:
-        self._observe_pin()
         return self.run(self.probe_request)
 
 
@@ -371,7 +411,7 @@ class LunaAdapter:
     def _invoke(self, prompt: str, cwd: Path) -> Mapping[str, Any]:
         if not cwd.exists() or any(cwd.iterdir()):
             raise RuntimeError("Luna cwd must be a fresh empty directory")
-        completed = self.runner([*self.command, "--model", self.model], input=prompt, cwd=str(cwd), env=self._minimal_env(cwd), text=True, capture_output=True, check=False)
+        completed = self.runner([*self.command, "--model", self.model, "--decoding-json", canonical_json(self.decoding)], input=prompt, cwd=str(cwd), env=self._minimal_env(cwd), text=True, capture_output=True, check=False)
         if completed.returncode != 0:
             raise RuntimeError("Luna command failed")
         value = json.loads(completed.stdout)
@@ -379,16 +419,25 @@ class LunaAdapter:
             raise RuntimeError("Luna command returned a non-object response")
         return value
 
+    def _cli_version(self, cwd: Path) -> str:
+        completed = self.runner([*self.command, "--version"], input="", cwd=str(cwd), env=self._minimal_env(cwd), text=True, capture_output=True, check=False)
+        if completed.returncode != 0 or not completed.stdout.strip():
+            raise RuntimeError("Luna CLI version probe failed")
+        return completed.stdout.strip()
+
     def run(self, request: SubjectRequest) -> SubjectResult:
         started = time.perf_counter()
+        cli_version = self._cli_version(request.isolation_cwd)
         response = self._invoke(request.prompt, request.isolation_cwd)
         elapsed = (time.perf_counter() - started) * 1000
         pin = SubjectPin("luna", self.model, str(response.get("model") or ""), str(response.get("model_digest") or ""),
                          str(response.get("quantization") or ""), int(response.get("context_window") or 0),
-                         MappingProxyType(dict(self.decoding)), str(response.get("provider_version") or ""))
+                         frozen_decoding(self.decoding), str(response.get("provider_version") or ""), cli_version)
         pin.validate()
         if self.expected_pin is not None:
             assert_pin(self.expected_pin, pin)
+        if self._pin is not None:
+            assert_pin(self._pin, pin)
         self._pin = pin
         return SubjectResult(str(response.get("answer", "")), canonical_json(response), pin, elapsed,
                              response.get("usage") if isinstance(response.get("usage"), Mapping) else {},
@@ -428,7 +477,7 @@ class SubjectHarness:
         manifest = {"schema": RESULT_SCHEMA, "query_id": request.query_id, "parent_task_id": request.parent_task_id,
                     "arm": request.arm, "subject": result.pin.subject, "packet_fingerprint": request.packet.fingerprint,
                     "context_fingerprint": fingerprint(_thaw(request.packet.payload)["evidence"]), "task_fingerprint": request.task_fingerprint,
-                    "corpus_fingerprint": request.corpus_fingerprint, "pin": asdict(result.pin), "pin_fingerprint": result.pin.fingerprint,
+                    "corpus_fingerprint": request.corpus_fingerprint, "pin": result.pin.as_dict(), "pin_fingerprint": result.pin.fingerprint,
                     "duration_ms": result.duration_ms, "usage": dict(result.usage), "token_proxy": max(1, len(request.prompt.encode("utf-8")) // 4),
                     "transcript": "transcript.json", "parsed_answer": parsed, "protocol_failure": failure,
                     "isolation": dict(result.isolation)}
