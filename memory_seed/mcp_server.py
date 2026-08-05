@@ -186,9 +186,9 @@ TOOLS: list[dict[str, Any]] = [
                 },
                 "granularity": {
                     "type": "string",
-                    "enum": ["entry", "section"],
-                    "default": "entry",
-                    "description": "Return coherent ## entries by default, or narrower ###+ sections when requested.",
+                    "enum": ["decision", "entry", "section"],
+                    "default": "decision",
+                    "description": "Default 'decision': one result per recorded decision, keyed by its canonical mse_<id>:dN identity and carrying that decision's whole DRAFT block (D/R/A/F/T) plus only its own topics and lifecycle edges; entries without decision headings return whole. 'entry' returns the ## entry as one unit; 'section' splits on ###+ headings.",
                 },
                 "exclude_replaced": {
                     "type": "boolean",
@@ -602,7 +602,7 @@ def call_tool(
             recency_floor=float(args.get("recency_floor", 0.15)),
             semantic_enabled=bool(args.get("semantic_enabled", True)),
             embedding_provider=args.get("_embedding_provider"),
-            granularity=str(args.get("granularity", "entry")),
+            granularity=str(args.get("granularity", "decision")),
             user=_optional_str(args, "user"),
             date_from=_optional_date(args, "date_from"),
             date_to=_optional_date(args, "date_to"),

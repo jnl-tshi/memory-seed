@@ -117,6 +117,27 @@ These MCP tools close the *authoring* loop — find what to link, then write the
 
 If MCP tools are unavailable, read recent and relevant `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md` and `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md` files directly, with legacy flat/day paths still readable. Start with the last two session documents, then search older dated files by keyword if needed.
 
+## Trusting The Tool's Relevance Verdict
+
+`memory_search` classifies every result mechanically and states the rule it used:
+
+- `relevance: strong` - the result cleared the absolute floor and holds the top band. **Read the
+  served DRAFT block and answer from it.** A strong result is the tool asserting this decision is
+  responsive; second-guessing it is how a recorded fact gets reported as missing.
+- `relevance: weak` - above the floor but well below the top hit. Usable as context, not as the
+  answer on its own.
+- `no_match_above_threshold: true` on the payload - nothing cleared the bar. **This, and only this,
+  licenses "not recorded."** Saying a fact is unrecorded while a strong result sits in the payload
+  is a retrieval error, not caution.
+
+Results are decision-granular by default (`mse_<entry>:dN`) and carry the decision's whole DRAFT
+block, so the answer is usually in the payload already - `memory_get_chunk` is for the truncation
+marker or for an entry-level view, not a routine second hop.
+
+Measured 2026-08-05: agents denied facts that were present in the results they had been served,
+which is the failure this section exists to prevent. Honest abstention stays correct - it is the
+*ungrounded* denial that is the error.
+
 ## Authority And Conflict Resolution
 
 Current files are the active authority: `.memory-seed/index.md`, `.memory-seed/policy.md`, active `.memory-seed/skills/*.md`, and source/config files for implementation truth. Session history is evidence and reason, not automatic authority.

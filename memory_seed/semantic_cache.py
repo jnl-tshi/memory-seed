@@ -226,8 +226,8 @@ def extract_memory_chunks(
     reparse exactly the files that changed instead of the whole corpus. None
     (the default) keeps the historical parse-everything behavior.
     """
-    if granularity not in ("entry", "section"):
-        raise ValueError("granularity must be 'entry' or 'section'")
+    if granularity not in ("entry", "section", "decision"):
+        raise ValueError("granularity must be 'entry', 'decision' or 'section'")
     runtime = resolve_runtime(cwd)
     target_root = runtime.workspace_root
     sessions_dir = runtime.memory_dir / "sessions"
@@ -260,7 +260,7 @@ def rank_session_memory(
     recency_enabled: bool = True,
     recency_floor: float = 0.15,
     embedding_provider: EmbeddingProvider | None = None,
-    granularity: str = "entry",
+    granularity: str = "decision",
     user: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
@@ -1183,7 +1183,72 @@ def _extract_entry_chunks_from_file(
         heading_path = (title,)
         entry_range = (start_line, end_line)
 
-        if granularity == "entry":
+        # Decision granularity: one chunk per `#### Dn - ...` DRAFT block, keyed by the
+        # canonical `mse_x:dN` identity that topics, lifecycle edges, ADRs and Trace already
+        # speak. Entries without decision headings fall through to the entry unit below - the
+        # 2026-05-26 reasoning (a decision must never be separated from its rationale) still
+        # governs those, and is *preserved* here because a `#### Dn` block carries its own
+        # D/R/A/F/T by construction.
+        if granularity == "decision":
+            decision_ranges = _find_decision_ranges(entry_lines, start_line)
+            if decision_ranges:
+                for d_start, d_end, d_title, ordinal in decision_ranges:
+                    d_lines = list(lines[d_start:d_end])
+                    d_heading_path = (title, d_title)
+                    text = "\n".join(d_lines).strip()
+                    payload = "\n".join((*d_heading_path, text)).strip()
+                    chunk_id = (
+                        f"{entry_id}:{ordinal}"
+                        if entry_id
+                        else _chunk_id(source_path, d_start, d_heading_path, payload)
+                    )
+                    chunks.append(
+                        MemoryChunk(
+                            chunk_id=chunk_id,
+                            source_path=source_path,
+                            source_file=path.name,
+                            session_date=session_date,
+                            entry_datetime=_entry_datetime(title),
+                            heading_path=d_heading_path,
+                            heading_level=4,
+                            title=d_title,
+                            text=text,
+                            tags=_extract_tags(d_lines),
+                            contexts=_extract_contexts(d_heading_path),
+                            lexical_terms=_extract_lexical_terms(payload),
+                            start_line=d_start,
+                            end_line=d_end,
+                            entry_id=entry_id,
+                            user_initials=_metadata_value(metadata, "user_initials"),
+                            agent_type=_metadata_value(metadata, "agent_type"),
+                            project_path=_metadata_value(metadata, "project_path"),
+                            subproject_path=_metadata_value(metadata, "subproject_path"),
+                            user=user,
+                            file_hash_id=file_hash_id,
+                            related_entries=related_entries,
+                            replaces=replaces,
+                            evolves=evolves,
+                            # Only the edges this decision authors, plus untargeted entry-level
+                            # ones - so a decision row carries its own lifecycle, not its
+                            # siblings'.
+                            decision_edges=tuple(
+                                edge
+                                for edge in entry_decision_edges
+                                if edge[1] in ("", ordinal)
+                            ),
+                            commits=commits,
+                            continuity=continuity,
+                            topics=_decision_topics(entry_topics, ordinal),
+                            branch=_metadata_value(metadata, "branch"),
+                            entry_title=title,
+                            entry_line_range=entry_range,
+                            sections=sections,
+                            granularity="decision",
+                        )
+                    )
+                continue
+
+        if granularity in ("entry", "decision"):
             text = "\n".join(entry_lines).strip()
             payload = "\n".join((title, text)).strip()
             chunk_id = entry_id or _chunk_id(source_path, start_line, heading_path, payload)
@@ -1539,6 +1604,58 @@ def _find_section_ranges(
         end = headings[index + 1][0] - 1 if index + 1 < len(headings) else entry_start_line + len(entry_lines)
         ranges.append((start, end, title, section_path))
     return ranges
+
+
+_DECISION_HEADING_RE = re.compile(r"^\s*#{4}\s+(D(\d+))\s*[-–—]\s*(.+?)\s*$")
+
+
+def _find_decision_ranges(
+    entry_lines: Sequence[str],
+    entry_start_line: int,
+) -> list[tuple[int, int, str, str]]:
+    """Line ranges for each `#### Dn - title` DRAFT block: (start, end, title, ordinal).
+
+    A decision block runs to the next decision heading or to the next heading at level 3 or
+    shallower (so trailing entry sections after the decisions are not swallowed). Returns []
+    for entries with no decision headings - those keep the whole-entry unit.
+    """
+    starts: list[tuple[int, str, str]] = []
+    boundaries: list[int] = []
+    for offset, line in enumerate(entry_lines, start=entry_start_line + 1):
+        decision = _DECISION_HEADING_RE.match(line)
+        if decision:
+            ordinal = decision.group(1).lower()
+            starts.append((offset, f"{decision.group(1)} - {decision.group(3)}", ordinal))
+            boundaries.append(offset)
+            continue
+        heading = HEADING_RE.match(line)
+        if heading and len(heading.group(1)) <= 3:
+            boundaries.append(offset)
+
+    ranges: list[tuple[int, int, str, str]] = []
+    entry_end = entry_start_line + len(entry_lines)
+    for start, title, ordinal in starts:
+        following = [b for b in boundaries if b > start]
+        end = (following[0] - 1) if following else entry_end
+        ranges.append((start, end, title, ordinal))
+    return ranges
+
+
+def _decision_topics(entry_topics: Sequence[str], ordinal: str) -> tuple[str, ...]:
+    """Topics scoped to one decision.
+
+    Authored topics may be decision-qualified (`operations:d1`). Keep those matching this
+    decision (unqualified, so downstream vocabulary checks still match) plus any bare
+    entry-level topics, which apply to every decision in the entry.
+    """
+    scoped: list[str] = []
+    for topic in entry_topics:
+        slug, _, qualifier = topic.partition(":")
+        if not qualifier:
+            scoped.append(topic)
+        elif qualifier.strip().lower() == ordinal:
+            scoped.append(slug.strip())
+    return tuple(dict.fromkeys(scoped))
 
 
 def _extract_tags(lines: Sequence[str]) -> tuple[str, ...]:

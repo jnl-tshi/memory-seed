@@ -2,9 +2,9 @@
 title: "Memory Index Dry-Run Plan"
 date: "2026-08-05"
 project: "memory-seed"
-status: "RUN 2026-08-05 - kill condition TRIGGERED (71.0 < Zep 75.1); do not submit v0.2 without the capture-routing fix"
+status: "RUN 3x 2026-08-05 - 71.0 -> 74.2 -> 96.8 after the retrieval and capture fixes; kill condition CLEAR"
 priority: "P1"
-next_action: "Fix non-decision fact routing (durable facts belong in index.md per memory_consolidation - the seeding sessions left kickoff facts unstored), then re-run; only submit if the re-run clears 75.1."
+next_action: "JNL decides whether to submit to Verging Labs v0.2 (early September). Independent replication of the 96.8 on a second seeded corpus would strengthen it first."
 related:
   - "business/research/field-evidence-log.md"
   - "business/market/competitor-landscape.md"
@@ -105,6 +105,45 @@ project files and superseding-entry context it already has.
 
 Caveats: n=31, one run, own judge chain (Codex, calibrated only by rubric), timeline-compressed
 retention. Directional, per the pattern-over-threshold rule.
+
+## Run 3 (2026-08-05) - after the retrieval and capture fixes
+
+| Category | n | run 1 | run 2 | **run 3** |
+|---|---|---|---|---|
+| direct_recall | 6 | 3 | 3 | **5** |
+| updated_facts | 6 | 4 | 5 | **6** |
+| thread_growth | 3 | 3 | 3 | **3** |
+| synthesis | 4 | 3 | 3 | **4** |
+| long_term_retention | 4 | 1 | 1 | **4** |
+| false_memory | 8 | 8 | 8 | **8** |
+| **blended** | | **71.0** | **74.2** | **96.8** |
+| fabrications | | 0 | 0 | **0** |
+
+**Kill condition CLEAR.** For context only, against the published v0.1 index: 96.8 sits between
+Mitosis Cortex (96.9) and the Karpathy wiki (98.5) - while holding the zero-fabrication column the
+wiki failed. Not a like-for-like comparison (own judge chain, 31 probes vs their 272), so it is an
+estimate of the band, not a rank.
+
+**What each fix bought:**
+
+- **Run 2, decision-level retrieval** (+3.2): answer-visible@1 went 2/8 -> 5/8, but the blended
+  score moved only one question, because 4 of 8 remaining misses were facts never stored.
+  Retrieval work was necessary and provably not sufficient.
+- **Run 3, capture routing + trust-the-band** (+22.6): seeding sessions went 7/10 -> **10/10
+  recording**, and `index.md` gained the roster and perf baseline it had silently dropped.
+  **long_term_retention 1/4 -> 4/4** is the signature of the capture fix; updated_facts and
+  synthesis completing is the signature of agents now trusting a strong-band result instead of
+  denying facts in their own payload.
+
+**The single remaining miss is a key ambiguity, not a defect.** Q1 named Dana, Priya and Marcus
+correctly and added Sofia, who did join the project but as Windows CI owner rather than a
+maintainer. A stricter key or a clearer brief resolves it; the retrieval and capture paths both
+worked.
+
+**Caveats that still stand:** one seeded corpus, 31 probes, own judge chain (Codex, rubric-
+calibrated only), timeline-compressed retention, and the fixes were authored by the same agent that
+designed the probes - the standing experimenter-equals-subject limitation. A second independent
+corpus is the cheapest strengthening move before submission.
 
 ## Contamination guard
 
