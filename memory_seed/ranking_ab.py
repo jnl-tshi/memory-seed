@@ -10,6 +10,16 @@ signal helps live queries without regressing ordinary ones.
 A ranking *signal* is a named on/off knob in the ranking pipeline. Signals live
 in ``SIGNAL_REGISTRY`` so this generalizes to any future default-ranking signal,
 not just the supersession dampener that motivated it.
+
+SCOPE: this gate covers **signal flips over a fixed corpus**, and nothing else.
+It cannot validate a change to the retrieval *unit* (entry vs decision
+granularity). The corpus is extracted once before the arms split, ``_rank``
+pins ``chunks=`` so the granularity kwarg is dead, the rank maps key on
+``entry_id`` which decision chunks share, and a unit flip affects every entry so
+the no-hit control has no control bucket to draw from. Such a run would report
+numbers rather than refuse, which is why this note is here. Validate unit
+changes by measurement instead -- see
+``docs/2_Todo/ranking-ab-unit-change-gate-proposal.md``.
 """
 
 from __future__ import annotations
