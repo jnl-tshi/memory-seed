@@ -6,6 +6,51 @@ All notable changes to Memory Seed are summarized here.
 
 ### Added
 
+- **Decision-level retrieval is the default memory unit** (`granularity="decision"`). `memory_search`
+  now returns one result per recorded decision, keyed by the canonical `mse_<entry>:dN` identity that
+  topics, lifecycle edges, ADRs and Trace already use, and each result carries that decision's
+  **whole DRAFT block** rather than a 280-character preview. Entries without `#### Dn` headings keep
+  the whole-entry unit, which preserves the 2026-05-26 rule that a decision must never be separated
+  from its rationale - a `Dn` block satisfies it by construction. Measured cost: ~1,800 tokens per
+  eight-result search against ~560 for entry granularity, on an 836-entry corpus.
+- **Attention signal: retrieval events are logged and exposed read-only.** `memory_get_chunk`
+  fetches score into a decayed per-entry `attention_score` (30-day half-life) alongside
+  `fetch_count` and `last_fetch` on every search result and chunk payload; `memory_search`
+  impressions are logged at weight zero so the ranker cannot feed on its own output. Both state
+  files are gitignored and self-registering. Default ranking is unchanged and the flip stays behind
+  `memory-seed ranking-ab --signal attention`.
+- **File-touch decision surfacing** (`.memory-seed/hooks/file-touch-decisions.py`). A Claude
+  PostToolUse hook: editing a file named in a decision's `F:` refs injects that decision mid-turn,
+  names its supersession successors, and states the duty to record a `replaces`/`evolves` edge if
+  the change contradicts it. Fail-open, rate-limited per session and file.
+- **Durable non-decision facts route to `index.md` at capture time.** The Decision Harvest gained a
+  step for facts that have no `R:` to give - roles, codenames, cadences, budgets - which previously
+  fell through every capture path; a turn that establishes only facts and changes no code now
+  records. One claim per Active State bullet, filed by its own predicate.
+
+### Changed
+
+- **Reversing a recorded decision on a live instruction is no longer a STOP.**
+  `.memory-seed/skills/risk_signaling.md` splits its former "Constitutional / architectural
+  conflict" category: ratified invariants keep the hard Stop, while an explicit live instruction to
+  reverse a *recorded decision* is Proceed-and-flag with two mandatory parts - carry the old
+  rationale forward in the reply, and record a superseding entry with a `replaces`/`evolves` edge in
+  the same turn. Constitution §11's rejection sentence covers invariants; Invariant #2's "extend and
+  supersede" is the mechanism for ordinary decisions. Unattended plan-driven runs still park.
+
+### Fixed
+
+- `memory-seed ranking-ab` no longer reports a vacuous PASS for a signal whose evidence base is
+  empty. Signals may declare `requires_affected_hits`; the `attention` signal does, so an empty
+  retrieval log now refuses with a stated reason and a non-zero exit instead of certifying nothing.
+- The retrieval relevance band (`relevance`, `no_match_above_threshold`) is labelled
+  **uncalibrated**: measured on the 836-entry corpus it does not discriminate - nonsense queries
+  band `strong` and the no-match signal never fires. `search_memory` now returns
+  `relevance_calibrated: False` and the retrieval guidance tells agents to judge relevance from the
+  served content rather than the band.
+
+### Added
+
 - **Graphify structural-analysis skill ships in the coding profile** (`graphify_analysis.md`).
   The skill had been registered in both trigger registries and `SEED_FILES` without a profile,
   description, or package-data entry, so `init` never installed it and wheels would not have
