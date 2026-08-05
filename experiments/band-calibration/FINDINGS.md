@@ -13,6 +13,34 @@ related:
 
 # Relevance band calibration - findings
 
+> **Correction, 2026-08-05 (later the same day). Read this before any number below.**
+>
+> This run's harness did not mirror the production read path, in two ways, so some figures are void.
+> Both were caught after publication - the first by JNL doubting a number that looked too small.
+>
+> **(a) The corpus was read raw.** `extract_memory_chunks` carries no sidecar edges, and lifecycle
+> edges are authored into link sidecars *after* an entry is written. Read through `load_corpus`
+> (added 2026-08-05), the corpus holds **23 `replaced_by` and 290 `evolved_by`**, not the 4 and 136
+> reported below. The statement "the corpus contains only 4 `replaced_by` edges across 808 nodes" is
+> **wrong**, and every lifecycle figure derived from it is withdrawn.
+>
+> **(b) The ranker was called bare.** `rank_session_memory` defaults `supersession_damping` and
+> `replacing_successor_boost` to False; `search_memory` sets both True. The harness took the
+> defaults, so it measured a configuration nobody runs.
+>
+> **What survives**, because it depends on neither defect: score invariance across corpus size (§1),
+> the best spurious match rising with N (§1), the shipped rule's specificity of 0.00 over 34
+> negatives (§2 - negatives carry no lifecycle edges), cost being flat in corpus size (§4), and the
+> semantic component's 21.6% share with the weight sweep's 62% → 78% (§4b).
+>
+> **What is withdrawn pending re-measurement:** all of §5's lifecycle rows and the `P_life` sample of
+> 4; and §4c's 8.3-point recency figure, measured with supersession damping off. Re-baselined
+> lifecycle numbers are in `lifecycle-guard-baseline.json` - replaces n=23, replacement surfaces
+> 20/23 and outranks the retired entry 22/23; evolves n=97, newer form surfaces 36/97.
+>
+> The stored `results-*.json` were deleted rather than kept: a saved result produced by a broken
+> instrument invites exactly the mistake that produced it. The scripts regenerate them.
+
 Corpus: 842 entries / 1,252 decision chunks. 278 labelled queries (244 positives from three
 mechanical sources, 34 negatives). Fit/held-out split stratified by source. Kill condition stated
 before the run: *if no statistic reaches 0.80 held-out balanced accuracy with a CI excluding 0.5,

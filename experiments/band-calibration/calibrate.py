@@ -169,9 +169,24 @@ def wilson(successes: int, total: int, z: float = 1.96) -> tuple:
 PROVIDER = None  # set by --arm semantic; None keeps the deterministic lexical baseline
 
 
+# `rank_session_memory` defaults these OFF; `search_memory` - the production path - turns them ON
+# (retrieval.py:148-150). The first calibration run called the ranker bare and so measured a
+# configuration nobody runs. The effect on the headline numbers should be small (only 4 of 842
+# entries are replaced) but "should be small" is not "checked" - it is re-baselined, not assumed.
+PRODUCTION_RANKING = {
+    "supersession_damping": True,
+    "replacing_successor_boost": True,
+}
+
+
 def rank(query: str, cwd: Path, chunks: list, k: int = TOP_K) -> list:
     return rank_session_memory(
-        query, cwd, top_k=max(k, 1), chunks=list(chunks), embedding_provider=PROVIDER
+        query,
+        cwd,
+        top_k=max(k, 1),
+        chunks=list(chunks),
+        embedding_provider=PROVIDER,
+        **PRODUCTION_RANKING,
     )
 
 
