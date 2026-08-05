@@ -137,7 +137,17 @@ def _exact(expected: Iterable[Any], found: Iterable[Any]) -> dict[str, Any]:
     return {
         "required": len(expected_set), "found": sorted(found_set),
         "missing": sorted(expected_set - found_set), "extra": sorted(found_set - expected_set),
-        "complete": bool(expected_set) and expected_set == found_set,
+        "complete": expected_set == found_set,
+    }
+
+
+def _coverage(expected: Iterable[Any], found: Iterable[Any]) -> dict[str, Any]:
+    """Typed ancestry may include valid extra historical edges in the packet."""
+    expected_set, found_set = set(expected), set(found)
+    return {
+        "required": len(expected_set), "found": sorted(found_set),
+        "missing": sorted(expected_set - found_set), "extra": sorted(found_set - expected_set),
+        "complete": expected_set <= found_set,
     }
 
 
@@ -237,6 +247,19 @@ def _packet_facts(packet: Mapping[str, Any], ranked_prefix: Sequence[Mapping[str
                 for predecessor in row.get("predecessors", []):
                     if isinstance(predecessor, Mapping) and all(isinstance(value, str) for value in (source, predecessor.get("ref"), predecessor.get("type"))):
                         facts["lineage"].add((source, predecessor["ref"], predecessor["type"]))
+        # A later ranked revision can reuse an ADR already expanded by an
+        # earlier rank. Its typed history is carried as a delta, not a second
+        # ADR body; it remains just as material packet evidence.
+        for delta in tier.get("lineage_deltas", []):
+            if not isinstance(delta, Mapping):
+                continue
+            for row in delta.get("relevant_lineage", []):
+                if not isinstance(row, Mapping):
+                    continue
+                source = row.get("ref")
+                for predecessor in row.get("predecessors", []):
+                    if isinstance(predecessor, Mapping) and all(isinstance(value, str) for value in (source, predecessor.get("ref"), predecessor.get("type"))):
+                        facts["lineage"].add((source, predecessor["ref"], predecessor["type"]))
     if isinstance(scoped, list):
         for binding in scoped:
             if not isinstance(binding, Mapping) or set(binding) != {"adr_id", "decision_ref", "constitution"}:
@@ -262,7 +285,51 @@ def _packet_facts(packet: Mapping[str, Any], ranked_prefix: Sequence[Mapping[str
     return facts, failures
 
 
-def _revision_scoped_packet(packet: Mapping[str, Any], ranked_prefix: Sequence[Mapping[str, Any]], revision_bindings: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+def _resolver_adr_scope(query: Mapping[str, Any]) -> frozenset[str]:
+    """Read the pre-frozen routing scope; score gold is never consulted."""
+    hints = query.get("resolver_hints")
+    if not isinstance(hints, Mapping):
+        raise ValueError("query must include pre-frozen resolver_hints")
+    adr_ids = hints.get("adr_ids")
+    if (not isinstance(adr_ids, list) or not all(isinstance(adr_id, str) and adr_id for adr_id in adr_ids)
+            or len(adr_ids) != len(set(adr_ids))):
+        raise ValueError("resolver_hints.adr_ids must be unique non-empty strings")
+    return frozenset(adr_ids)
+
+
+def _apply_resolver_adr_scope(packet: Mapping[str, Any], scope: frozenset[str]) -> dict[str, Any]:
+    """Mechanically hide matched ADRs outside a non-empty frozen concern scope."""
+    if not scope:
+        return dict(packet)
+    result = {key: value for key, value in packet.items() if key != "fingerprint"}
+    tiers: list[dict[str, Any]] = []
+    for tier in packet.get("tiers", []):
+        if not isinstance(tier, Mapping):
+            continue
+        scoped_tier = dict(tier)
+        if isinstance(tier.get("adrs"), list):
+            scoped_tier["adrs"] = [row for row in tier["adrs"] if isinstance(row, Mapping) and row.get("adr_id") in scope]
+        if isinstance(tier.get("adr_refs"), list):
+            scoped_tier["adr_refs"] = [adr_id for adr_id in tier["adr_refs"] if adr_id in scope]
+        if isinstance(tier.get("lineage_deltas"), list):
+            scoped_tier["lineage_deltas"] = [row for row in tier["lineage_deltas"] if isinstance(row, Mapping) and row.get("adr_id") in scope]
+        tiers.append(scoped_tier)
+    trace: list[dict[str, Any]] = []
+    for row in packet.get("trace", []):
+        if not isinstance(row, Mapping):
+            continue
+        scoped_row = dict(row)
+        for field in ("matched_adr_ids", "included_adr_ids", "skipped_adr_ids"):
+            if isinstance(row.get(field), list):
+                scoped_row[field] = [adr_id for adr_id in row[field] if adr_id in scope]
+        trace.append(scoped_row)
+    result["tiers"] = tiers
+    result["trace"] = trace
+    result["fingerprint"] = fingerprint(result)
+    return result
+
+
+def _revision_scoped_packet(packet: Mapping[str, Any], ranked_prefix: Sequence[Mapping[str, Any]], revision_bindings: Sequence[Mapping[str, Any]], *, scope: frozenset[str], index: Any) -> dict[str, Any]:
     """Attach fixture-declared revision evidence without repeating ADR prose.
 
     Packet construction is deliberately score-gold-free: direct ranked
@@ -275,16 +342,30 @@ def _revision_scoped_packet(packet: Mapping[str, Any], ranked_prefix: Sequence[M
         if isinstance(trace, Mapping) and isinstance(trace.get("ref"), str)
         and isinstance(trace.get("matched_adr_ids"), list)
     }
-    scoped: list[dict[str, Any]] = []
+    selected: list[Mapping[str, Any]] = []
     for binding in revision_bindings:
         adr_id, decision_ref = binding.get("adr_id"), binding.get("decision_ref")
         if (not isinstance(adr_id, str) or not isinstance(decision_ref, str)
                 or decision_ref not in ranked_refs or adr_id not in trace_adrs.get(decision_ref, set())):
             continue
+        selected.append(binding)
+    selected_refs_by_adr: dict[str, set[str]] = {}
+    for binding in selected:
+        selected_refs_by_adr.setdefault(str(binding["adr_id"]), set()).add(str(binding["decision_ref"]))
+    scoped: list[dict[str, Any]] = []
+    for binding in selected:
+        adr_id, decision_ref = str(binding["adr_id"]), str(binding["decision_ref"])
         constitution = binding.get("constitution")
         if not isinstance(constitution, list):
             raise ValueError("fixture revision Constitution mapping is malformed")
-        scoped.append({"adr_id": adr_id, "decision_ref": decision_ref, "constitution": [dict(item) for item in constitution]})
+        if not scope:
+            constitution = [item for item in constitution if isinstance(item, Mapping) and item.get("role") == "governing"]
+        else:
+            authoritative = index.by_id[adr_id]["current"]["authoritative_ref"]
+            if authoritative == decision_ref and len(selected_refs_by_adr[adr_id]) > 1:
+                constitution = [item for item in constitution if isinstance(item, Mapping) and item.get("role") == "governing"]
+        if constitution:
+            scoped.append({"adr_id": adr_id, "decision_ref": decision_ref, "constitution": [dict(item) for item in constitution]})
     scoped.sort(key=lambda row: (row["adr_id"], row["decision_ref"]))
     result = {key: value for key, value in packet.items() if key != "fingerprint"}
     result["revision_constitution_bindings"] = scoped
@@ -316,7 +397,7 @@ def score_query_cell(query: Mapping[str, Any], gold: Mapping[str, Any], ranked_r
         "adr_closure": _exact(target["adrs"], facts["adrs"]),
         "authority": _exact(target["authorities"], facts["authorities"]),
         "status": _status_exact(target["statuses"], facts["statuses"]),
-        "lineage": _exact(target["lineage"], facts["lineage"]),
+        "lineage": _coverage(target["lineage"], facts["lineage"]),
         "related": _exact(target["related"], facts["related"]),
         "constitution_binding": _exact(target["bindings"], facts["bindings"]),
     }
@@ -433,9 +514,11 @@ def _evaluate_query_offline(query: Mapping[str, Any], gold: Mapping[str, Any], f
     binding_cap = max((len(adr["constitution_refs"]) for adr in index.adrs), default=0)
     ranking_fingerprint = fingerprint(ranking["rows"])
     cells = []
+    scope = _resolver_adr_scope(query)
     for k in K_VALUES:
         packet = resolver.resolve_strong_context(ranking["rows"], index, {"result_cap": k, "strong_cap": k, "adr_cap": len(index.adrs), "constitution_binding_cap": binding_cap, "lineage_item_cap": 999, "expansion_policy": "ranked", "relevance_calibrated": ranking["relevance_calibrated"]})
-        packet = _revision_scoped_packet(packet, ranking["rows"][:k], revision_bindings)
+        packet = _apply_resolver_adr_scope(packet, scope)
+        packet = _revision_scoped_packet(packet, ranking["rows"][:k], revision_bindings, scope=scope, index=index)
         cells.append(score_query_cell(query, gold, ranking["rows"], packet, k=k, query_corpus_fingerprint=query_corpus_fingerprint, ranking_fingerprint=ranking_fingerprint, ranking_arm=ranking_arm, latency_ms=elapsed_ms))
     return cells
 

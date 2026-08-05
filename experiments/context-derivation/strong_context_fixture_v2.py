@@ -257,11 +257,24 @@ def materialize_revision_constitution_bindings(fixture_root: str | Path, binding
 
 
 def _fixture_content_fingerprint(fixture_root: str | Path) -> str:
-    manifest = _read_json(Path(fixture_root) / "FIXTURE_MANIFEST.json")
-    value = manifest.get("content_fingerprint")
-    if manifest.get("schema") != "context-fixture-manifest.v1" or not isinstance(value, str) or not value.startswith("sha256:"):
+    root = Path(fixture_root).resolve()
+    manifest = _read_json(root / "FIXTURE_MANIFEST.json")
+    if manifest.get("schema") != "context-fixture-manifest.v1" or not isinstance(manifest.get("fixture_id"), str):
         raise RuntimeError("ranking receipt fixture manifest is invalid")
-    return value
+    required = (root / "CONSTITUTION.md", root / "CONSTITUTION_BINDINGS.json", root / "REVISION_CONSTITUTION_BINDINGS.json")
+    if any(not path.is_file() for path in required):
+        raise RuntimeError("ranking receipt fixture content is incomplete")
+    content_paths = list(required)
+    for directory in (root / ".memory-seed" / "sessions", root / ".memory-seed" / "decisions"):
+        if not directory.is_dir():
+            raise RuntimeError("ranking receipt fixture content is incomplete")
+        content_paths.extend(path for path in directory.rglob("*") if path.is_file())
+    files = [
+        {"path": path.relative_to(root).as_posix(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+        for path in sorted(set(content_paths), key=lambda item: item.relative_to(root).as_posix())
+    ]
+    manifest_relevant = {key: value for key, value in manifest.items() if key != "content_fingerprint"}
+    return fingerprint({"manifest": manifest_relevant, "files": files})
 
 
 def _ranking_request_fingerprint(query: str, *, top_k: int, lexical_only: bool) -> str:

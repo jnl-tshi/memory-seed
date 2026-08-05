@@ -210,11 +210,9 @@ def test_offline_evaluator_materializes_fixture_revision_bindings_without_duplic
         receipt = approved_ranking_receipt(query["question"], roots[query["fixture"]])
         cells = module.evaluate_query_offline(query, gold, roots[query["fixture"]], query_corpus_fingerprint=module.queries.load_query_variants()[0]["canonical_fingerprint"], frozen_run=approved_topk_receipt(roots), ranking_receipt=receipt)
         cell = next(item for item in cells if item["k"] == 3)
-        index = module.resolver.load_bindings(module.bridge.materialize_fixture_bindings(roots[query["fixture"]]))
         expected = {
-            (binding["adr_id"], binding["decision_ref"], tuple(sorted(item["ref"] for item in binding["constitution"])))
-            for binding in module.bridge.materialize_revision_constitution_bindings(roots[query["fixture"]], index)
-            if binding["decision_ref"] in {row["ref"] for row in rows}
+            (binding["adr_id"], binding["decision_ref"], tuple(sorted(binding["constitution_refs"])))
+            for binding in gold["required_constitution_bindings"]
         }
         assert len(expected) == 2
         assert set(cell["critical"]["constitution_binding"]["found"]) == expected
@@ -237,3 +235,39 @@ def test_offline_evaluator_gate_blocks_ranking_before_any_reader_call(monkeypatc
     with pytest.raises(RuntimeError, match="frozen-run|approved frozen-run"):
         module.evaluate_corpus_offline(fixture_roots, frozen_run=receipt)
     assert calls == []
+
+
+def test_perfect_rankings_close_all_base_task_gates_without_gold_packet_construction(monkeypatch) -> None:
+    """Gold supplies test expectations only; packets read ranked refs plus frozen scope."""
+    with tempfile.TemporaryDirectory() as temporary:
+        built = {item.fixture_id: item.path for item in fixture_builder.build_all(Path(temporary) / "fixtures")}
+        cases = [pair for pair in module.queries.join_queries_to_gold() if pair[0]["variant_index"] == 1]
+        ranking_by_question = {}
+        for query, gold in cases:
+            related = {}
+            for edge in gold.get("required_related_edges", []):
+                related.setdefault(edge["source"], []).append(edge["target"])
+            ranking_by_question[query["question"]] = [
+                {"ref": ref, "relevance": "strong", "excerpt": ref, "links": {"evolves": [], "replaces": [], "related": related.get(ref, [])}}
+                for ref in gold["relevant_refs"]
+            ]
+        monkeypatch.setattr(module.bridge, "ranked_fixture_payload", lambda question, *_args, **_kwargs: {"rows": ranking_by_question[question], "relevance_calibrated": False})
+        found_by_parent = {}
+        for query, gold in cases:
+            roots = {query["fixture"]: built[query["fixture"]]}
+            cells = module.evaluate_query_offline(
+                query, gold, roots[query["fixture"]],
+                query_corpus_fingerprint=module.queries.load_query_variants()[0]["canonical_fingerprint"],
+                frozen_run=approved_topk_receipt(roots),
+                ranking_receipt=approved_ranking_receipt(query["question"], roots[query["fixture"]]),
+            )
+            cell = next(row for row in cells if row["k"] == 5)
+            assert cell["failures"] == []
+            found_by_parent[query["parent_task_id"]] = set(cell["critical"]["constitution_binding"]["found"])
+        assert set(found_by_parent) == {f"CTX-{number:02d}" for number in range(1, 13)}
+        assert found_by_parent["CTX-01"] == {("adr_mcp_decision_envelope_review", "mse_17d0qqh34a07qp5b:d1", ("constitution:v1#authority", "constitution:v1#lineage"))}
+        assert found_by_parent["CTX-05"] == {("adr_session_decision_authority", "mse_17d0qqh34a07qp5b:d1", ("constitution:v1#authority", "constitution:v1#provenance"))}
+        assert found_by_parent["CTX-06"] == {
+            ("adr_mcp_decision_envelope_review", "mse_17d0qqh34a07qp5b:d1", ("constitution:v1#authority",)),
+            ("adr_session_decision_authority", "mse_17d0qqh34a07qp5b:d1", ("constitution:v1#provenance",)),
+        }

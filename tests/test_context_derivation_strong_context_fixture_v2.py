@@ -183,6 +183,18 @@ def test_ranking_receipt_gate_makes_zero_reader_calls(monkeypatch, fixtures, sta
     assert calls == []
 
 
+def test_ranking_receipt_rehashes_live_session_content_before_reader_call(monkeypatch, fixtures):
+    calls = []
+    root, query = fixtures["adversarial-pending"], "pending storage authority"
+    receipt = approved_ranking_receipt(query, root)
+    session = next((root / ".memory-seed" / "sessions").rglob("*.md"))
+    session.write_text(session.read_text(encoding="utf-8") + "\nmutated after approval\n", encoding="utf-8")
+    monkeypatch.setattr(bridge, "search_memory", lambda *_args, **_kwargs: calls.append("reader") or {"results": []})
+    with pytest.raises(RuntimeError, match="fixture content drift"):
+        bridge.ranked_fixture_payload(query, root, ranking_receipt=receipt)
+    assert calls == []
+
+
 def test_missing_adr_ledger_fails_closed(fixtures):
     root = fixtures["adversarial-pending"]
     for path in (root / ".memory-seed" / "decisions").glob("*.md"):

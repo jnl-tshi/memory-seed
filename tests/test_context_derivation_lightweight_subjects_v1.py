@@ -26,7 +26,7 @@ def answer(**overrides):
 
 
 def query():
-    return {"query_id": "CTX-01.V01", "parent_task_id": "CTX-01", "variant_index": 1, "question": "What changed?"}
+    return {"query_id": "CTX-01.V01", "parent_task_id": "CTX-01", "variant_index": 1, "question": "What changed?", "resolver_hints": {"adr_ids": ["adr_alpha"], "decision_refs": [], "topics": [], "paths": []}}
 
 
 def evidence():
@@ -78,6 +78,8 @@ def test_packets_are_fixed_immutable_and_expose_no_mcp_or_repository_config():
     assert set(module.ARMS) == {"decision-only", "adr-current", "adr-constitution"}
     assert current.payload["evidence"]["decisions"][1] == {"rank": 2, "ref": "mse_beta456:d1", "excerpt": "compact"}
     assert "constitution" in constitution.payload["evidence"]
+    assert set(current.payload["evidence"]["query"]) == {"query_id", "parent_task_id", "variant_index", "question"}
+    assert "resolver_hints" not in current.json()
     with pytest.raises(TypeError): current.payload["arm"] = "changed"
     with pytest.raises(ValueError, match="MCP"):
         module.build_packet("decision-only", query(), {**arm_evidence("decision-only"), "mcp": {"enabled": True}})
