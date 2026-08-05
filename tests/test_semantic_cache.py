@@ -307,7 +307,10 @@ class SemanticCacheTests(unittest.TestCase):
         ranked = rank_memory_chunks("#target-discovery", [body_chunk, metadata_chunk], today=today)
 
         self.assertEqual(ranked[0].chunk.chunk_id, "a")
-        self.assertIn("tags", ranked[0].matched_fields)
+        # `tags` is scored as part of the `topics` field under BM25F: tags were the original
+        # spelling of the topic idea and survive on 1% of the corpus, so they share a weight
+        # with the curated vocabulary rather than holding one of their own.
+        self.assertIn("topics", ranked[0].matched_fields)
 
     def test_semantic_provider_contributes_cosine_similarity(self):
         today = date(2026, 5, 19)

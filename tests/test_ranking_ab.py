@@ -81,11 +81,13 @@ class RankingABTests(unittest.TestCase):
             day=4,
             replaces=("ms-b0b0b0b0",),
         )
+        # As above: distractors must not repeat the query terms, or BM25F correctly concludes those
+        # terms discriminate nothing in this corpus and the ordering carries no signal to test.
         distractors = [
             _chunk(
                 f"ms-d15a00{i:02x}",
-                f"Distractor plan decisions {i}",
-                "Plan decisions distractor text.",
+                f"Unrelated distractor {i}",
+                "Build cache warmup note.",
                 day=5 + i,
             )
             for i in range(8)
@@ -147,11 +149,15 @@ class RankingABTests(unittest.TestCase):
             day=3,
             replaces=("mse_mid",),
         )
+        # Distractors deliberately do NOT repeat the query terms. Under BM25F a term that appears
+        # in every document carries almost no information, so a fixture where all 11 chunks say
+        # "Alpha ranking policy" makes every score collapse toward zero and the ordering becomes
+        # noise - a correct verdict about that corpus, and a useless test of the successor boost.
         distractors = [
             _chunk(
                 f"mse_other{i}",
-                f"Alpha distractor {i}",
-                f"Alpha ranking policy distractor {i}.",
+                f"Unrelated topic {i}",
+                f"Deployment pipeline note number {i}.",
                 day=4 + i,
             )
             for i in range(8)

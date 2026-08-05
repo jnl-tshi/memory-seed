@@ -200,7 +200,15 @@ def search_memory(
     return payload
 
 
-RELEVANCE_FLOOR = 6.0
+# INERT as of 2026-08-05. BM25F derives term rarity from the corpus, so a chunk's score now
+# depends on how much is stored - the same chunk scores lower in a 7-entry fixture than in a
+# 1259-chunk store. An ABSOLUTE floor cannot survive that, on top of already being uncalibrated
+# (it banded 34 of 34 negatives answerable). Set to 0.0 so the band stops making a threshold claim
+# in either direction rather than swapping "everything is strong" for "everything is no-match",
+# which is what 6.0 became under the new scorer. The replacement is `top_over_median`, which is
+# scale-free by construction and measured at 0.87 held-out balanced accuracy - it needs refitting
+# against the BM25F distribution before it ships.
+RELEVANCE_FLOOR = 0.0
 RELEVANCE_STRONG_RATIO = 0.55
 
 
