@@ -117,26 +117,32 @@ These MCP tools close the *authoring* loop — find what to link, then write the
 
 If MCP tools are unavailable, read recent and relevant `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md` and `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD/<user>.md` files directly, with legacy flat/day paths still readable. Start with the last two session documents, then search older dated files by keyword if needed.
 
-## Trusting The Tool's Relevance Verdict
+## The Relevance Band Is UNCALIBRATED - Do Not Treat It As Evidence
 
-`memory_search` classifies every result mechanically and states the rule it used:
+`memory_search` attaches `relevance` (strong/weak/none) and `no_match_above_threshold`. **Measured
+2026-08-05 on the 836-entry corpus, these do not discriminate**: pure-nonsense queries ("recipe for
+sourdough starter hydration", "premier league transfer window rules") return eight results banded
+`strong`, and `no_match_above_threshold` fired for **zero** of twelve queries - real and nonsense
+alike. Neither the absolute score nor the top-versus-pack gap separated them, with semantic ranking
+on or off. The thresholds were set against a 7-entry fixture where everything banded `strong` and
+the answer happened to be present, which hid the saturation.
 
-- `relevance: strong` - the result cleared the absolute floor and holds the top band. **Read the
-  served DRAFT block and answer from it.** A strong result is the tool asserting this decision is
-  responsive; second-guessing it is how a recorded fact gets reported as missing.
-- `relevance: weak` - above the floor but well below the top hit. Usable as context, not as the
-  answer on its own.
-- `no_match_above_threshold: true` on the payload - nothing cleared the bar. **This, and only this,
-  licenses "not recorded."** Saying a fact is unrecorded while a strong result sits in the payload
-  is a retrieval error, not caution.
+Until they are recalibrated with evidence:
 
-Results are decision-granular by default (`mse_<entry>:dN`) and carry the decision's whole DRAFT
-block, so the answer is usually in the payload already - `memory_get_chunk` is for the truncation
-marker or for an entry-level view, not a routine second hop.
+- **A `strong` band is not a claim that the result answers your question.** Read the served DRAFT
+  block and judge relevance yourself from its content.
+- **Do not treat `no_match_above_threshold: false` as evidence that something was recorded.** It is
+  currently false always. Abstain when the served content does not answer the question, regardless
+  of the band.
+- Decision-granular results carry the whole DRAFT block, so the material you need to make that
+  judgement is already in the payload - which is what makes judging from content, rather than from
+  a score, practical.
 
-Measured 2026-08-05: agents denied facts that were present in the results they had been served,
-which is the failure this section exists to prevent. Honest abstention stays correct - it is the
-*ungrounded* denial that is the error.
+The honest posture is unchanged from before the band existed: **ungrounded denial is an error, and
+so is a confident answer from content that does not support it.** The band was intended to make
+abstention tool-reported rather than guessed; it does not yet do that, and saying so here is
+cheaper than an agent trusting it.
+
 
 ## Authority And Conflict Resolution
 

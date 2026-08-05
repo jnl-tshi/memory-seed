@@ -72,3 +72,4 @@ experiments/context-derivation/runs/
 experiments/context-derivation/shards/
 experiments/context-derivation/packs/
 experiments/context-derivation/judgements/
+experiments/decision-retrieval-scale/scale-report.json

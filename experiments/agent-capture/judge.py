@@ -140,6 +140,10 @@ def _codex(prompt: str, schema: dict, cwd: Path, label: str) -> dict | None:
         "exec",
         "-C",
         str(cwd),
+        # Judging happens in scratch dirs as well as fixture repos; without this a non-git cwd
+        # fails with "Not inside a trusted directory", which the caller then reads as an empty
+        # judgement rather than an error.
+        "--skip-git-repo-check",
         "-c",
         "features.apps=false",
         "-c",
