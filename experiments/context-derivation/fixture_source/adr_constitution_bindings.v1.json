@@ -43,7 +43,7 @@
       "fixture_id": "real-current",
       "adr_id": "adr_parent_first_sidecar_transaction",
       "decision_refs": ["mse_d06t9bccm3yykfqs:d1", "mse_17d0qqh34a07qp5b:d2"],
-      "constitution_refs": [{"ref": "constitution:v1#recoverability", "role": "governing"}, {"ref": "constitution:v1#provenance", "role": "supporting"}]
+      "constitution_refs": [{"ref": "constitution:v1#recoverability", "role": "governing"}, {"ref": "constitution:v1#provenance", "role": "supporting"}, {"ref": "constitution:v1#lineage", "role": "supporting"}]
     },
     {
       "fixture_id": "real-current",
@@ -55,7 +55,7 @@
       "fixture_id": "adversarial-branch-reject",
       "adr_id": "adr_branching_queue",
       "decision_refs": ["mse_ctxbrroot:d1", "mse_ctxbrgood:d1", "mse_ctxbrbad:d1"],
-      "constitution_refs": [{"ref": "constitution:v1#recoverability", "role": "governing"}]
+      "constitution_refs": [{"ref": "constitution:v1#recoverability", "role": "governing"}, {"ref": "constitution:v1#lineage", "role": "supporting"}]
     },
     {
       "fixture_id": "adversarial-converging",
@@ -79,7 +79,7 @@
       "fixture_id": "adversarial-pending",
       "adr_id": "adr_pending_storage",
       "decision_refs": ["mse_ctxpendinghead:d1", "mse_ctxpendingnew:d1"],
-      "constitution_refs": [{"ref": "constitution:v1#provenance", "role": "governing"}]
+      "constitution_refs": [{"ref": "constitution:v1#provenance", "role": "governing"}, {"ref": "constitution:v1#authority", "role": "supporting"}, {"ref": "constitution:v1#lineage", "role": "supporting"}]
     },
     {
       "fixture_id": "adversarial-related-only",

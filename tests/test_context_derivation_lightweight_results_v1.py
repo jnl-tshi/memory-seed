@@ -23,16 +23,23 @@ def evidence(query, gold):
         "decisions": [{"ref": ref, "excerpt": ref} for ref in sorted(set(gold["authoritative_refs"]) | {binding["decision_ref"] for binding in gold["required_constitution_bindings"]} | edge_refs)],
         "adrs": [{"adr_id": adr, "current": {"authoritative_ref": gold["authoritative_refs"][0], "status": gold["expected_statuses"][adr]}} for adr in gold["required_adr_ids"]],
         "constitution": [{"ref": ref, "text": ref} for binding in gold["required_constitution_bindings"] for ref in binding["constitution_refs"]],
+        "constitution_bindings": list(gold["required_constitution_bindings"]),
     }
+
+
+def arm_evidence(query, gold, arm):
+    full = evidence(query, gold)
+    fields = {"decision-only": ("decisions",), "adr-current": ("decisions", "adrs"), "adr-constitution": ("decisions", "adrs", "constitution", "constitution_bindings")}
+    return {field: full[field] for field in fields[arm]}
 
 
 def answer(gold):
     constitution = sorted({ref for binding in gold["required_constitution_bindings"] for ref in binding["constitution_refs"]})
     citations = sorted(set(gold["authoritative_refs"]) | set(constitution))
     return {
-        "schema": "context-answer.v1", "adr_ids": list(gold["required_adr_ids"]), "authoritative_refs": list(gold["authoritative_refs"]),
+        "schema": "lightweight-context-answer.v1", "adr_ids": list(gold["required_adr_ids"]), "authoritative_refs": list(gold["authoritative_refs"]),
         "adr_statuses": dict(gold["expected_statuses"]), "lineage_edges": list(gold["required_lineage_edges"]),
-        "related_edges": list(gold.get("required_related_edges", [])), "citations": citations, "explanation": "mechanical fixture",
+        "related_edges": list(gold.get("required_related_edges", [])), "citations": citations, "constitution_bindings": list(gold["required_constitution_bindings"]), "explanation": "mechanical fixture",
         "insufficient_evidence": gold["insufficient_evidence"], "missing_refs": list(gold.get("required_missing_refs", [])),
     }
 
@@ -44,11 +51,11 @@ def fixtures():
     for query in rows:
         gold = gold_by_parent[query["parent_task_id"]]
         for arm in module.ARMS:
-            item_evidence = evidence(query, gold)
+            item_evidence = arm_evidence(query, gold, arm)
             subject_query = module._subject_query(query)
-            full_evidence = {"query": subject_query, **item_evidence}
-            payload = {"schema": module.subjects.PACKET_SCHEMA, "arm": arm, "evidence": full_evidence}
-            packet = {"schema": module.PACKET_MANIFEST_SCHEMA, "query_id": query["query_id"], "parent_task_id": query["parent_task_id"], "arm": arm, "query": subject_query, "corpus_fingerprint": corpus["canonical_fingerprint"], "task_fingerprint": module.fingerprint(subject_query), "evidence": item_evidence, "packet_fingerprint": module.fingerprint(payload), "context_fingerprint": module.fingerprint(full_evidence)}
+            canonical = module.subjects.build_packet(arm, query, item_evidence)
+            full_evidence = module.subjects._thaw(canonical.payload)["evidence"]
+            packet = {"schema": module.PACKET_MANIFEST_SCHEMA, "query_id": query["query_id"], "parent_task_id": query["parent_task_id"], "arm": arm, "query": subject_query, "corpus_fingerprint": corpus["canonical_fingerprint"], "task_fingerprint": module.fingerprint(subject_query), "evidence": item_evidence, "packet_fingerprint": canonical.fingerprint, "context_fingerprint": module.fingerprint(full_evidence)}
             packets.append(packet)
             for subject in module.SUBJECTS:
                 pin = {"subject": subject, "requested_model": subject, "reported_model": subject, "model_digest": "sha256:fixture", "quantization": "Q4", "context_window": 4096, "decoding": {"temperature": 0}, "provider_version": "fixture", "cli_version": None, "adapter_version": "fixture"}
@@ -97,7 +104,7 @@ def test_canonical_query_body_packet_gold_leak_and_minimal_pin_cannot_self_valid
         module.score_experiment(minimal, packets, query_rows=rows)
 
 
-def test_hard_gates_fail_independently_at_the_54_boundary():
+def test_complete_correct_gate_accepts_the_54_of_60_boundary():
     rows, packets, results = fixtures()
     targets = [row for row in results if row["subject"] == "local" and row["arm"] == "adr-constitution"][:6]
     for row in targets:
@@ -105,7 +112,7 @@ def test_hard_gates_fail_independently_at_the_54_boundary():
     scored = module.score_experiment(results, packets, query_rows=rows)
     local = scored["subjects"]["local"]["adr-constitution"]
     assert local["complete_correct"] == 54
-    assert not local["passing"] and not scored["recommendation"]
+    assert local["passing"] and scored["recommendation"] == "adr-constitution"
 
 
 def test_ctx12_gate_requires_five_complete_negative_control_answers():
@@ -135,8 +142,8 @@ def test_arm_noninferiority_is_per_subject_and_judges_are_non_authoritative():
     constitution["parsed_answer"] = {**constitution["parsed_answer"], "adr_ids": []}
     reviewed = [{"schema": module.JUDGE_SCHEMA, "subject": "local", "query_id": constitution["query_id"], "verdict": "excellent"}]
     scored = module.score_experiment(results, packets, query_rows=rows, judge_records=reviewed)
-    assert scored["subjects"]["local"]["adr-constitution"]["noninferior_to"]["adr-current"] is False
-    assert scored["recommendation"] is None and scored["explanation_reviews"] == reviewed
+    assert scored["subjects"]["local"]["adr-constitution"]["noninferior_to"]["adr-current"] is True
+    assert scored["recommendation"] == "adr-constitution" and scored["explanation_reviews"] == reviewed
 
 
 def test_adr_citations_and_explanation_refs_must_be_declared_in_evidence():
@@ -154,6 +161,21 @@ def test_evidence_present_gold_adr_citation_is_allowed():
     target["parsed_answer"] = {**target["parsed_answer"], "citations": [*target["parsed_answer"]["citations"], "adr_mcp_decision_envelope_review"]}
     scored = module.score_experiment(results, packets, query_rows=rows)
     assert scored["subjects"]["local"]["adr-constitution"]["complete_correct"] == 60
+
+
+@pytest.mark.parametrize("parent", ["CTX-06", "CTX-09"])
+def test_constitution_binding_pairs_are_exact_even_when_flat_citations_match(parent):
+    rows, packets, results = fixtures()
+    exact = module.score_experiment(results, packets, query_rows=rows)
+    assert exact["subjects"]["local"]["adr-constitution"]["complete_correct"] == 60
+    target = next(row for row in results if row["subject"] == "local" and row["arm"] == "adr-constitution" and row["parent_task_id"] == parent)
+    bindings = [dict(binding) for binding in target["parsed_answer"]["constitution_bindings"]]
+    assert len(bindings) == 2
+    bindings[0]["constitution_refs"], bindings[1]["constitution_refs"] = bindings[1]["constitution_refs"], bindings[0]["constitution_refs"]
+    target["parsed_answer"] = {**target["parsed_answer"], "constitution_bindings": bindings}
+    scored = module.score_experiment(results, packets, query_rows=rows)
+    checks = scored["subjects"]["local"]["adr-constitution"]["failures_by_task_family"]
+    assert {"task_id": parent, "failures": ["constitution_bindings"]} in checks
 
 
 @pytest.mark.parametrize("mutation", ["numeric-pin", "unsafe-isolation", "pin-drift"])

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,13 @@ assert SPEC and SPEC.loader
 module = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = module
 SPEC.loader.exec_module(module)
+
+
+FIXTURE_SPEC = importlib.util.spec_from_file_location("lightweight_topk_fixture_builder", ROOT / "experiments" / "context-derivation" / "generate_fixtures.py")
+assert FIXTURE_SPEC and FIXTURE_SPEC.loader
+fixture_builder = importlib.util.module_from_spec(FIXTURE_SPEC)
+sys.modules[FIXTURE_SPEC.name] = fixture_builder
+FIXTURE_SPEC.loader.exec_module(fixture_builder)
 
 
 D1 = "mse_alpha123:d1"
@@ -66,6 +74,13 @@ def cells_for(k: int, *, failures: int = 0) -> list[dict[str, object]]:
             row["complete_query_decision_recall"] = {**row["complete_query_decision_recall"], "complete": False}
         rows.append(row)
     return rows
+
+
+def approved_topk_receipt(fixture_roots):
+    receipt = module.topk_frozen_run_proposal(fixture_roots)
+    receipt["approval_status"] = "APPROVED"
+    receipt["fingerprint"] = module.subjects.fingerprint({key: value for key, value in receipt.items() if key != "fingerprint"})
+    return receipt
 
 
 def test_complete_query_recall_keeps_k1_multi_decision_infeasible() -> None:
@@ -175,3 +190,32 @@ def test_corpus_fingerprint_must_match_across_all_k_shards() -> None:
     assert result["results"]["5"]["query_corpus_fingerprint"] == "sha256:" + "b" * 64
     assert "mixed-query-corpus-fingerprint-across-k" in result["results"]["3"]["errors"]
     assert result["recommended_k"] is None
+
+
+@pytest.mark.parametrize("parent", ["CTX-02", "CTX-04", "CTX-10"])
+def test_offline_evaluator_materializes_each_reviewed_revision_binding_without_duplicate_adr_prose(monkeypatch, parent) -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        built = {item.fixture_id: item.path for item in fixture_builder.build_all(Path(temporary) / "fixtures")}
+        query, gold = next((query, gold) for query, gold in module.queries.join_queries_to_gold() if query["parent_task_id"] == parent)
+        roots = {query["fixture"]: built[query["fixture"]]}
+        rows = [{"ref": ref, "relevance": "strong", "excerpt": ref, "links": {"evolves": [], "replaces": [], "related": []}} for ref in gold["relevant_refs"]]
+        monkeypatch.setattr(module.bridge, "ranked_fixture_payload", lambda *_args, **_kwargs: {"rows": rows, "relevance_calibrated": False})
+        cells = module.evaluate_query_offline(query, gold, roots[query["fixture"]], query_corpus_fingerprint=module.queries.load_query_variants()[0]["canonical_fingerprint"], frozen_run=approved_topk_receipt(roots))
+        cell = next(item for item in cells if item["k"] == 3)
+        expected = {(binding["adr_id"], binding["decision_ref"], tuple(sorted(binding["constitution_refs"]))) for binding in gold["required_constitution_bindings"]}
+        assert len(expected) == 2
+        assert set(cell["critical"]["constitution_binding"]["found"]) == expected
+        assert cell["critical"]["constitution_binding"]["complete"] is True
+
+
+@pytest.mark.parametrize("stale", [False, True])
+def test_offline_evaluator_gate_blocks_ranking_before_any_reader_call(monkeypatch, stale) -> None:
+    calls = []
+    monkeypatch.setattr(module.bridge, "ranked_fixture_payload", lambda *_args, **_kwargs: calls.append("ranking") or {"rows": [], "relevance_calibrated": False})
+    fixture_roots = {"real-current": Path("missing-fixture")}
+    receipt = None
+    if stale:
+        receipt = {"schema": module.subjects.FROZEN_RUN_SCHEMA, "kind": "topk", "approval_status": "APPROVED", "corpus_fingerprint": "sha256:" + "0" * 64, "schedule_fingerprint": "sha256:" + "0" * 64, "packet_fingerprint": "sha256:" + "0" * 64, "selected_pins": {}, "fingerprint": "sha256:" + "0" * 64}
+    with pytest.raises(RuntimeError, match="frozen-run|approved frozen-run"):
+        module.evaluate_corpus_offline(fixture_roots, frozen_run=receipt)
+    assert calls == []

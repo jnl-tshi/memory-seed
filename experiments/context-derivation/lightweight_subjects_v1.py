@@ -43,11 +43,18 @@ SCHEMA = "lightweight-subject-harness.v1"
 RESULT_SCHEMA = "lightweight-subject-result.v1"
 SCHEDULE_SCHEMA = "lightweight-subject-schedule.v1"
 PACKET_SCHEMA = "lightweight-subject-packet.v1"
+ANSWER_SCHEMA = "lightweight-context-answer.v1"
+FROZEN_RUN_SCHEMA = "lightweight-frozen-run.v1"
 LADDER = ("qwen2.5:0.5b", "qwen2.5:1.5b", "qwen2.5:3b")
 SUBJECTS = ("local", "luna")
 ARMS = ("decision-only", "adr-current", "adr-constitution")
 ADAPTER_VERSION = "lightweight-subjects-v1"
 FORBIDDEN_PACKET_KEYS = frozenset({"mcp", "mcp_config", "tools", "tool_config", "filesystem", "repository"})
+_ARM_EVIDENCE_FIELDS = {
+    "decision-only": frozenset({"decisions"}),
+    "adr-current": frozenset({"decisions", "adrs"}),
+    "adr-constitution": frozenset({"decisions", "adrs", "constitution", "constitution_bindings"}),
+}
 
 
 def canonical_json(value: Any) -> str:
@@ -56,6 +63,38 @@ def canonical_json(value: Any) -> str:
 
 def fingerprint(value: Any) -> str:
     return "sha256:" + hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
+
+
+def answer_template() -> dict[str, Any]:
+    """The lightweight-only answer contract adds explicit binding triples."""
+    return {**contracts.answer_template(), "schema": ANSWER_SCHEMA, "constitution_bindings": []}
+
+
+def validate_answer(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != set(answer_template()):
+        raise ValueError("answer must contain exactly the lightweight context-answer keys")
+    if value.get("schema") != ANSWER_SCHEMA:
+        raise ValueError(f"answer schema must be {ANSWER_SCHEMA}")
+    legacy = {key: item for key, item in value.items() if key != "constitution_bindings"}
+    legacy["schema"] = contracts.ANSWER_SCHEMA
+    contracts.validate_answer(legacy)
+    bindings = value["constitution_bindings"]
+    if not isinstance(bindings, list):
+        raise ValueError("constitution_bindings must be an array")
+    seen: set[tuple[str, str, tuple[str, ...]]] = set()
+    for binding in bindings:
+        if not isinstance(binding, Mapping) or set(binding) != {"adr_id", "decision_ref", "constitution_refs"}:
+            raise ValueError("constitution_bindings must use ADR/revision/Constitution triples")
+        adr_id, decision_ref, refs = binding["adr_id"], binding["decision_ref"], binding["constitution_refs"]
+        if (not isinstance(adr_id, str) or not adr_id or not isinstance(decision_ref, str) or not decision_ref
+                or not isinstance(refs, list) or not refs or not all(isinstance(ref, str) and ref for ref in refs)
+                or len(refs) != len(set(refs))):
+            raise ValueError("constitution_bindings contains an invalid triple")
+        row = (adr_id, decision_ref, tuple(sorted(refs)))
+        if row in seen:
+            raise ValueError("constitution_bindings must be unique")
+        seen.add(row)
+    return value
 
 
 def _freeze(value: Any) -> Any:
@@ -154,11 +193,12 @@ class SubjectRequest:
     corpus_fingerprint: str
     task_fingerprint: str
     isolation_cwd: Path
+    frozen_run: Mapping[str, Any] | None = None
 
     @property
     def prompt(self) -> str:
         return (
-            "Answer only with one JSON object matching context-answer.v1. "
+            "Answer only with one JSON object matching lightweight-context-answer.v1. "
             "Use only the supplied evidence; do not use tools, files, MCP, or a repository.\n"
             + self.packet.json()
         )
@@ -174,6 +214,72 @@ class SubjectResult:
     completion_reason: str
     stable_completion: bool
     isolation: Mapping[str, Any]
+
+
+def _receipt_fingerprint(receipt: Mapping[str, Any]) -> str:
+    return fingerprint({key: value for key, value in receipt.items() if key != "fingerprint"})
+
+
+def frozen_run_proposal(request: SubjectRequest, selected_pins: Mapping[str, SubjectPin]) -> dict[str, Any]:
+    """Create a content-bound proposal; only an owner may change it to approved."""
+    pins = {subject: pin.as_dict() for subject, pin in selected_pins.items()}
+    payload = {
+        "schema": FROZEN_RUN_SCHEMA,
+        "kind": "subject",
+        "approval_status": "PROPOSED",
+        "corpus_fingerprint": request.corpus_fingerprint,
+        "schedule_fingerprint": fingerprint(build_schedule(queries.subject_visible_queries())),
+        "packet_fingerprint": request.packet.fingerprint,
+        "selected_pins": pins,
+    }
+    payload["fingerprint"] = _receipt_fingerprint(payload)
+    return payload
+
+
+def _pin_from_receipt(value: Any, subject: str) -> SubjectPin:
+    fields = {"subject", "requested_model", "reported_model", "model_digest", "quantization", "context_window", "decoding", "provider_version", "cli_version", "adapter_version"}
+    if not isinstance(value, Mapping) or set(value) != fields or value.get("subject") != subject:
+        raise RuntimeError("frozen run selected pin is malformed")
+    try:
+        pin = SubjectPin(
+            subject=str(value["subject"]), requested_model=str(value["requested_model"]),
+            reported_model=str(value["reported_model"]), model_digest=str(value["model_digest"]),
+            quantization=str(value["quantization"]), context_window=value["context_window"],
+            decoding=frozen_decoding(value["decoding"]), provider_version=str(value["provider_version"]),
+            cli_version=value["cli_version"], adapter_version=str(value["adapter_version"]),
+        )
+        pin.validate()
+    except (KeyError, TypeError, ValueError) as error:
+        raise RuntimeError("frozen run selected pin is malformed") from error
+    return pin
+
+
+def require_frozen_run(request: SubjectRequest, *, subject: str | None = None) -> SubjectPin | None:
+    """Fail closed before an adapter can make a scored provider request."""
+    receipt = request.frozen_run
+    required = {"schema", "kind", "approval_status", "corpus_fingerprint", "schedule_fingerprint", "packet_fingerprint", "selected_pins", "fingerprint"}
+    if not isinstance(receipt, Mapping) or set(receipt) != required:
+        raise RuntimeError("approved frozen-run receipt is required")
+    if receipt.get("schema") != FROZEN_RUN_SCHEMA or receipt.get("kind") != "subject" or receipt.get("approval_status") != "APPROVED":
+        raise RuntimeError("approved frozen-run receipt is required")
+    if receipt.get("fingerprint") != _receipt_fingerprint(receipt):
+        raise RuntimeError("frozen-run receipt fingerprint is stale")
+    corpus, _rows = queries.load_query_variants()
+    if request.corpus_fingerprint != corpus["canonical_fingerprint"] or receipt.get("corpus_fingerprint") != request.corpus_fingerprint:
+        raise RuntimeError("frozen-run corpus fingerprint drift")
+    if receipt.get("schedule_fingerprint") != fingerprint(build_schedule(queries.subject_visible_queries())):
+        raise RuntimeError("frozen-run schedule fingerprint drift")
+    if receipt.get("packet_fingerprint") != request.packet.fingerprint:
+        raise RuntimeError("frozen-run packet fingerprint drift")
+    pins = receipt.get("selected_pins")
+    if not isinstance(pins, Mapping) or set(pins) != set(SUBJECTS):
+        raise RuntimeError("frozen-run selected pins must be exact and non-optional")
+    parsed = {name: _pin_from_receipt(pins[name], name) for name in SUBJECTS}
+    if subject is None:
+        return None
+    if subject not in parsed:
+        raise RuntimeError("frozen-run selected pin is missing")
+    return parsed[subject]
 
 
 class SubjectAdapter(Protocol):
@@ -211,15 +317,18 @@ def build_packet(arm: str, query: Mapping[str, Any], evidence: Mapping[str, Any]
     if arm not in ARMS:
         raise ValueError("unknown lightweight subject arm")
     _assert_no_provider_config(evidence)
+    if not isinstance(evidence, Mapping) or set(evidence) != _ARM_EVIDENCE_FIELDS[arm]:
+        raise ValueError(f"{arm} evidence must contain exactly its fixed arm fields")
     included: dict[str, Any] = {"query": _query_payload(query), "decisions": _compact_decisions(evidence.get("decisions"), compact_lower_ranked=arm != "decision-only")}
     if arm in {"adr-current", "adr-constitution"}:
         if not isinstance(evidence.get("adrs"), list):
             raise ValueError("enriched arms require ADR evidence")
         included["adrs"] = list(evidence["adrs"])
     if arm == "adr-constitution":
-        if not isinstance(evidence.get("constitution"), list):
+        if not isinstance(evidence.get("constitution"), list) or not isinstance(evidence.get("constitution_bindings"), list):
             raise ValueError("constitution arm requires Constitution evidence")
         included["constitution"] = list(evidence["constitution"])
+        included["constitution_bindings"] = list(evidence["constitution_bindings"])
     payload = {"schema": PACKET_SCHEMA, "arm": arm, "evidence": included}
     _assert_no_provider_config(payload)
     return SubjectPacket(arm=arm, payload=_freeze(payload), fingerprint=fingerprint(payload))
@@ -285,7 +394,7 @@ def protocol_failure(result: SubjectResult, request: SubjectRequest) -> str | No
     """Validate the provider-independent probe/run protocol, not answer quality."""
     try:
         answer = json.loads(result.raw_answer)
-        contracts.validate_answer(answer)
+        validate_answer(answer)
     except (ValueError, TypeError, json.JSONDecodeError):
         return "invalid-answer-schema"
     if not result.stable_completion or result.completion_reason not in {"stop", "done", "completed"}:
@@ -361,8 +470,10 @@ class OllamaAdapter:
             assert_pin(self.expected_pin, pin)
         return pin
 
-    def run(self, request: SubjectRequest) -> SubjectResult:
+    def _run(self, request: SubjectRequest, selected_pin: SubjectPin | None = None) -> SubjectResult:
         observed = self._observe_pin()
+        if selected_pin is not None:
+            assert_pin(selected_pin, observed)
         if self._pin is not None:
             assert_pin(self._pin, observed)
         self._pin = observed
@@ -375,8 +486,15 @@ class OllamaAdapter:
                              str(response.get("done_reason") or "done"), bool(response.get("done")),
                              {"empty_cwd": request.isolation_cwd.exists() and not any(request.isolation_cwd.iterdir()), "repo_access": False, "mcp_enabled": False})
 
+    def run(self, request: SubjectRequest) -> SubjectResult:
+        selected = require_frozen_run(request, subject="local")
+        if self.expected_pin is None:
+            raise RuntimeError("selected local pin must be non-optional")
+        assert_pin(selected, self.expected_pin)
+        return self._run(request, selected)
+
     def probe(self) -> SubjectResult:
-        return self.run(self.probe_request)
+        return self._run(self.probe_request)
 
 
 def select_ollama_adapter(make_adapter: Callable[[str], OllamaAdapter]) -> OllamaAdapter:
@@ -432,7 +550,7 @@ class LunaAdapter:
             raise RuntimeError("Luna CLI version probe failed")
         return completed.stdout.strip()
 
-    def run(self, request: SubjectRequest) -> SubjectResult:
+    def _run(self, request: SubjectRequest, selected_pin: SubjectPin | None = None) -> SubjectResult:
         self._require_empty_cwd(request.isolation_cwd)
         started = time.perf_counter()
         cli_version = self._cli_version(request.isolation_cwd)
@@ -442,6 +560,8 @@ class LunaAdapter:
                          str(response.get("quantization") or ""), int(response.get("context_window") or 0),
                          frozen_decoding(self.decoding), str(response.get("provider_version") or ""), cli_version)
         pin.validate()
+        if selected_pin is not None:
+            assert_pin(selected_pin, pin)
         if self.expected_pin is not None:
             assert_pin(self.expected_pin, pin)
         if self._pin is not None:
@@ -452,8 +572,15 @@ class LunaAdapter:
                              str(response.get("completion_reason") or ""), bool(response.get("stable_completion")),
                              {"empty_cwd": not any(request.isolation_cwd.iterdir()), "repo_access": False, "mcp_enabled": False, "minimal_env": True})
 
+    def run(self, request: SubjectRequest) -> SubjectResult:
+        selected = require_frozen_run(request, subject="luna")
+        if self.expected_pin is None:
+            raise RuntimeError("selected Luna pin must be non-optional")
+        assert_pin(selected, self.expected_pin)
+        return self._run(request, selected)
+
     def probe(self) -> SubjectResult:
-        return self.run(self.probe_request)
+        return self._run(self.probe_request)
 
 
 class SubjectHarness:
@@ -463,6 +590,7 @@ class SubjectHarness:
         self.output_root, self.repo_root = Path(output_root), Path(repo_root).resolve()
 
     def run(self, adapter: SubjectAdapter, request: SubjectRequest) -> Path:
+        require_frozen_run(request)
         self.output_root.mkdir(parents=True, exist_ok=True)
         output = self.output_root / f"{request.query_id}-{request.arm}-{uuid.uuid4().hex}"
         output.mkdir()
@@ -474,12 +602,12 @@ class SubjectHarness:
             except ValueError:
                 pass
             isolated_request = SubjectRequest(request.query_id, request.parent_task_id, request.arm, request.packet,
-                                              request.corpus_fingerprint, request.task_fingerprint, cwd)
+                                              request.corpus_fingerprint, request.task_fingerprint, cwd, request.frozen_run)
             result = adapter.run(isolated_request)
         failure = protocol_failure(result, isolated_request)
         try:
             parsed = json.loads(result.raw_answer)
-            contracts.validate_answer(parsed)
+            validate_answer(parsed)
         except (ValueError, TypeError, json.JSONDecodeError):
             parsed = None
         manifest = {"schema": RESULT_SCHEMA, "query_id": request.query_id, "parent_task_id": request.parent_task_id,

@@ -128,10 +128,19 @@ def _gold(gold: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(bindings, list):
         raise ValueError("required_constitution_bindings must be an array")
     constitution: set[str] = set()
+    binding_rows: set[tuple[str, str, tuple[str, ...]]] = set()
     for binding in bindings:
         if not isinstance(binding, Mapping) or set(binding) != {"adr_id", "decision_ref", "constitution_refs"}:
             raise ValueError("constitution gold must use reviewed v2 binding triples")
-        constitution.update(_set(binding["constitution_refs"], "constitution_refs"))
+        refs = _set(binding["constitution_refs"], "constitution_refs")
+        adr_id, decision_ref = binding["adr_id"], binding["decision_ref"]
+        if not isinstance(adr_id, str) or not adr_id or not isinstance(decision_ref, str) or not decision_ref:
+            raise ValueError("constitution gold must use non-empty ADR/revision pairs")
+        row = (adr_id, decision_ref, tuple(sorted(refs)))
+        if row in binding_rows:
+            raise ValueError("constitution gold bindings must be unique")
+        binding_rows.add(row)
+        constitution.update(refs)
     return {
         "adrs": _set(gold["required_adr_ids"], "required_adr_ids"),
         "authorities": _set(gold["authoritative_refs"], "authoritative_refs"),
@@ -139,6 +148,7 @@ def _gold(gold: Mapping[str, Any]) -> dict[str, Any]:
         "lineage": _edges(gold["required_lineage_edges"], "required_lineage_edges", allowed_types={"evolves", "replaces"}),
         "related": _edges(gold.get("required_related_edges", []), "required_related_edges", allowed_types={"related"}),
         "constitution": constitution,
+        "constitution_bindings": binding_rows,
         "citation_refs": _set(gold.get("relevant_refs", []), "relevant_refs")
         | _set(gold["required_adr_ids"], "required_adr_ids") | constitution,
         "material_refs": _set(gold["required_adr_ids"], "required_adr_ids")
@@ -213,9 +223,12 @@ def validate_packet_manifests(packet_manifests: Sequence[Mapping[str, Any]], que
             raise ValueError("packet manifest is not bound to the canonical frozen query corpus")
         _reject_gold_leak(packet["query"])
         _reject_gold_leak(evidence)
-        full_evidence = {"query": subject_query, **dict(evidence)}
-        payload = {"schema": subjects.PACKET_SCHEMA, "arm": key[1], "evidence": full_evidence}
-        if packet.get("packet_fingerprint") != fingerprint(payload) or packet.get("context_fingerprint") != fingerprint(full_evidence):
+        try:
+            canonical = subjects.build_packet(key[1], query, evidence)
+        except (TypeError, ValueError) as error:
+            raise ValueError("packet manifest does not materialize the canonical fixed arm") from error
+        full_evidence = subjects._thaw(canonical.payload)["evidence"]
+        if packet.get("packet_fingerprint") != canonical.fingerprint or packet.get("context_fingerprint") != fingerprint(full_evidence):
             raise ValueError("packet manifest fingerprint mismatch")
         packets[key] = packet
     if set(packets) != expected:
@@ -263,7 +276,7 @@ def _validate_result_manifest(
         raise ValueError("protocol-failed result cannot be mechanically scored")
     if not isinstance(result.get("parsed_answer"), Mapping):
         raise ValueError("result must contain a parsed answer")
-    contracts.validate_answer(dict(result["parsed_answer"]))
+    subjects.validate_answer(dict(result["parsed_answer"]))
     if not isinstance(result.get("duration_ms"), (int, float)) or result["duration_ms"] < 0:
         raise ValueError("result duration_ms must be non-negative")
     if not isinstance(result.get("token_proxy"), int) or result["token_proxy"] <= 0 or not isinstance(result.get("usage"), Mapping) or not isinstance(result.get("transcript"), str) or not isinstance(result.get("isolation"), Mapping):
@@ -274,7 +287,7 @@ def _validate_result_manifest(
 
 def score_cell(result: Mapping[str, Any], gold: Mapping[str, Any], evidence: Mapping[str, Any]) -> dict[str, Any]:
     """Score one answer with exact, evidence-bounded mechanical checks."""
-    answer = contracts.validate_answer(dict(result["parsed_answer"]))
+    answer = subjects.validate_answer(dict(result["parsed_answer"]))
     target = _gold(gold)
     citations = _set(answer["citations"], "citations")
     evidence_refs = _evidence_refs(evidence)
@@ -284,6 +297,10 @@ def score_cell(result: Mapping[str, Any], gold: Mapping[str, Any], evidence: Map
     related_pairs = {(source, target) for source, target, _kind in target["related"]}
     related_as_lineage = sorted(edge for edge in lineage if edge[:2] in related_pairs)
     constitution_citations = {citation for citation in citations if citation.startswith("constitution:")}
+    actual_bindings = {
+        (binding["adr_id"], binding["decision_ref"], tuple(sorted(binding["constitution_refs"])))
+        for binding in answer["constitution_bindings"]
+    }
     checks = {
         "insufficient_evidence": {"expected": target["insufficient"], "found": answer["insufficient_evidence"], "complete": answer["insufficient_evidence"] == target["insufficient"]},
         "adr_ids": _exact(target["adrs"], _set(answer["adr_ids"], "adr_ids")),
@@ -291,6 +308,7 @@ def score_cell(result: Mapping[str, Any], gold: Mapping[str, Any], evidence: Map
         "statuses": _status_exact(target["statuses"], answer["adr_statuses"]),
         "lineage_edges": _exact(target["lineage"], lineage),
         "constitution_refs": _exact(target["constitution"], constitution_citations),
+        "constitution_bindings": _exact(target["constitution_bindings"], actual_bindings),
         "citations": {"required": len(citations), "found": sorted(citations), "outside_evidence": sorted(citations - evidence_refs), "extra_material_refs": sorted(citations - target["citation_refs"]), "complete": bool(citations) and citations <= evidence_refs and citations <= target["citation_refs"]},
         "material_refs": {"found": sorted(material_refs), "outside_evidence": sorted(material_refs - evidence_refs - target["missing"]), "extra": sorted(material_refs - target["material_refs"]), "complete": material_refs <= evidence_refs | target["missing"] and material_refs <= target["material_refs"]},
         "related_safety": {"required": len(target["related"]), "found": sorted(related), "related_as_lineage": related_as_lineage, "complete": related == target["related"] and not related_as_lineage},

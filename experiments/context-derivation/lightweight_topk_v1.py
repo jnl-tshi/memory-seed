@@ -38,6 +38,7 @@ def _load(name: str, filename: str) -> Any:
 queries = _load("lightweight_topk_queries", "revision_constitution_queries_v1.py")
 resolver = _load("lightweight_topk_resolver", "strong_context_v2.py")
 bridge = _load("lightweight_topk_bridge", "strong_context_fixture_v2.py")
+subjects = _load("lightweight_topk_subjects", "lightweight_subjects_v1.py")
 
 
 def canonical_json(value: Any) -> str:
@@ -46,6 +47,49 @@ def canonical_json(value: Any) -> str:
 
 def fingerprint(value: Any) -> str:
     return "sha256:" + hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
+
+
+def _offline_packet_fingerprint(fixture_roots: Mapping[str, str | Path]) -> str:
+    """Bind the evaluator to the exact generated fixture packets before ranking."""
+    manifests: dict[str, Any] = {}
+    for fixture, root in sorted(fixture_roots.items()):
+        try:
+            manifests[fixture] = json.loads((Path(root) / "FIXTURE_MANIFEST.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise RuntimeError("frozen-run fixture packet is unavailable") from error
+    return fingerprint(manifests)
+
+
+def topk_frozen_run_proposal(fixture_roots: Mapping[str, str | Path]) -> dict[str, Any]:
+    """Produce a proposal only; owner approval is a separate, explicit act."""
+    corpus, _rows = queries.load_query_variants()
+    receipt = {
+        "schema": subjects.FROZEN_RUN_SCHEMA, "kind": "topk", "approval_status": "PROPOSED",
+        "corpus_fingerprint": corpus["canonical_fingerprint"],
+        "schedule_fingerprint": subjects.fingerprint(subjects.build_schedule(subjects.queries.subject_visible_queries())),
+        "packet_fingerprint": _offline_packet_fingerprint(fixture_roots), "selected_pins": {},
+    }
+    receipt["fingerprint"] = subjects.fingerprint(receipt)
+    return receipt
+
+
+def require_topk_frozen_run(receipt: Mapping[str, Any] | None, fixture_roots: Mapping[str, str | Path]) -> None:
+    required = {"schema", "kind", "approval_status", "corpus_fingerprint", "schedule_fingerprint", "packet_fingerprint", "selected_pins", "fingerprint"}
+    if not isinstance(receipt, Mapping) or set(receipt) != required:
+        raise RuntimeError("approved frozen-run receipt is required before offline ranking")
+    if receipt.get("schema") != subjects.FROZEN_RUN_SCHEMA or receipt.get("kind") != "topk" or receipt.get("approval_status") != "APPROVED":
+        raise RuntimeError("approved frozen-run receipt is required before offline ranking")
+    if receipt.get("fingerprint") != subjects.fingerprint({key: value for key, value in receipt.items() if key != "fingerprint"}):
+        raise RuntimeError("frozen-run receipt fingerprint is stale")
+    corpus, _rows = queries.load_query_variants()
+    if receipt.get("corpus_fingerprint") != corpus["canonical_fingerprint"]:
+        raise RuntimeError("frozen-run corpus fingerprint drift")
+    if receipt.get("schedule_fingerprint") != subjects.fingerprint(subjects.build_schedule(subjects.queries.subject_visible_queries())):
+        raise RuntimeError("frozen-run schedule fingerprint drift")
+    if receipt.get("packet_fingerprint") != _offline_packet_fingerprint(fixture_roots):
+        raise RuntimeError("frozen-run packet fingerprint drift")
+    if receipt.get("selected_pins") != {}:
+        raise RuntimeError("offline ranking receipt must not carry subject pins")
 
 
 def _unique_strings(value: Any, field: str) -> tuple[str, ...]:
@@ -138,6 +182,13 @@ def _packet_facts(packet: Mapping[str, Any], ranked_prefix: Sequence[Mapping[str
     ranked_by_ref = {row.get("ref"): row for row in ranked_prefix}
     facts = {"adrs": set(), "authorities": set(), "statuses": {}, "lineage": set(), "related": set(), "bindings": set()}
     failures: list[str] = []
+    scoped = packet.get("revision_constitution_bindings")
+    trace_adrs: dict[str, set[str]] = {}
+    if scoped is not None and not isinstance(scoped, list):
+        failures.append("invalid-revision-constitution-bindings")
+    for trace in packet.get("trace", []):
+        if isinstance(trace, Mapping) and isinstance(trace.get("ref"), str) and isinstance(trace.get("matched_adr_ids"), list):
+            trace_adrs[trace["ref"]] = {adr_id for adr_id in trace["matched_adr_ids"] if isinstance(adr_id, str)}
     for tier in packet["tiers"]:
         decision = tier.get("decision", {})
         direct_ref = decision.get("ref")
@@ -177,7 +228,8 @@ def _packet_facts(packet: Mapping[str, Any], ranked_prefix: Sequence[Mapping[str
             for binding in adr.get("constitution", []):
                 if isinstance(binding, Mapping) and isinstance(binding.get("ref"), str):
                     constitution_refs.append(binding["ref"])
-            facts["bindings"].add((adr_id, trigger_ref, tuple(sorted(constitution_refs))))
+            if scoped is None:
+                facts["bindings"].add((adr_id, trigger_ref, tuple(sorted(constitution_refs))))
             for row in adr.get("relevant_lineage", []):
                 if not isinstance(row, Mapping):
                     continue
@@ -185,7 +237,55 @@ def _packet_facts(packet: Mapping[str, Any], ranked_prefix: Sequence[Mapping[str
                 for predecessor in row.get("predecessors", []):
                     if isinstance(predecessor, Mapping) and all(isinstance(value, str) for value in (source, predecessor.get("ref"), predecessor.get("type"))):
                         facts["lineage"].add((source, predecessor["ref"], predecessor["type"]))
+    if isinstance(scoped, list):
+        for binding in scoped:
+            if not isinstance(binding, Mapping) or set(binding) != {"adr_id", "decision_ref", "constitution"}:
+                failures.append("invalid-revision-constitution-binding")
+                continue
+            adr_id, decision_ref, constitution = binding["adr_id"], binding["decision_ref"], binding["constitution"]
+            if (not isinstance(adr_id, str) or not isinstance(decision_ref, str)
+                    or decision_ref not in ranked_by_ref or adr_id not in facts["adrs"]
+                    or adr_id not in trace_adrs.get(decision_ref, set()) or not isinstance(constitution, list)):
+                failures.append("invalid-revision-constitution-provenance")
+                continue
+            refs: list[str] = []
+            for item in constitution:
+                if not isinstance(item, Mapping) or not isinstance(item.get("ref"), str):
+                    failures.append("invalid-revision-constitution-evidence")
+                    break
+                refs.append(item["ref"])
+            else:
+                if not refs or len(refs) != len(set(refs)):
+                    failures.append("invalid-revision-constitution-evidence")
+                else:
+                    facts["bindings"].add((adr_id, decision_ref, tuple(sorted(refs))))
     return facts, failures
+
+
+def _revision_scoped_packet(packet: Mapping[str, Any], gold: Mapping[str, Any], index: Any) -> dict[str, Any]:
+    """Attach reviewed v2 bindings without repeating the surrounding ADR prose.
+
+    The fixture's ADR-wide section inventory supplies excerpts; the reviewed
+    task gold selects the exact ADR/revision/section triples.  A multi-revision
+    query therefore carries one ADR body plus compact binding deltas.
+    """
+    scoped: list[dict[str, Any]] = []
+    for adr_id, decision_ref, refs in sorted(_binding_set(gold["required_constitution_bindings"])):
+        adr = index.by_id.get(adr_id)
+        if adr is None or decision_ref not in adr["membership"]:
+            raise ValueError("reviewed Constitution binding is not ADR membership")
+        available = {row["ref"]: row for row in adr["constitution_refs"]}
+        if not set(refs) <= set(available):
+            raise ValueError("fixture lacks reviewed revision-scoped Constitution evidence")
+        scoped.append({
+            "adr_id": adr_id,
+            "decision_ref": decision_ref,
+            "constitution": [dict(available[ref]) for ref in refs],
+        })
+    result = {key: value for key, value in packet.items() if key != "fingerprint"}
+    result["revision_constitution_bindings"] = scoped
+    result["fingerprint"] = fingerprint(result)
+    return result
 
 
 def score_query_cell(query: Mapping[str, Any], gold: Mapping[str, Any], ranked_rows: Sequence[Mapping[str, Any]], packet: Mapping[str, Any], *, k: int, query_corpus_fingerprint: str, ranking_fingerprint: str | None = None, ranking_arm: str = "production-default", latency_ms: float = 0.0, token_proxy: int | None = None) -> dict[str, Any]:
@@ -312,7 +412,7 @@ def aggregate_cells(cells: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def evaluate_query_offline(query: Mapping[str, Any], gold: Mapping[str, Any], fixture_root: str | Path, *, query_corpus_fingerprint: str, ranking_arm: str = "production-default") -> list[dict[str, Any]]:
+def _evaluate_query_offline(query: Mapping[str, Any], gold: Mapping[str, Any], fixture_root: str | Path, *, query_corpus_fingerprint: str, ranking_arm: str = "production-default") -> list[dict[str, Any]]:
     """Run one offline query through production-default ranking and the existing materializer.
 
     ``lexical-diagnostic`` is intentionally returned as a diagnostic cell set;
@@ -330,17 +430,25 @@ def evaluate_query_offline(query: Mapping[str, Any], gold: Mapping[str, Any], fi
     cells = []
     for k in K_VALUES:
         packet = resolver.resolve_strong_context(ranking["rows"], index, {"result_cap": k, "strong_cap": k, "adr_cap": len(index.adrs), "constitution_binding_cap": binding_cap, "lineage_item_cap": 999, "expansion_policy": "ranked", "relevance_calibrated": ranking["relevance_calibrated"]})
+        packet = _revision_scoped_packet(packet, gold, index)
         cells.append(score_query_cell(query, gold, ranking["rows"], packet, k=k, query_corpus_fingerprint=query_corpus_fingerprint, ranking_fingerprint=ranking_fingerprint, ranking_arm=ranking_arm, latency_ms=elapsed_ms))
     return cells
 
 
-def evaluate_corpus_offline(fixture_roots: Mapping[str, str | Path], *, ranking_arm: str = "production-default") -> list[dict[str, Any]]:
+def evaluate_query_offline(query: Mapping[str, Any], gold: Mapping[str, Any], fixture_root: str | Path, *, query_corpus_fingerprint: str, ranking_arm: str = "production-default", frozen_run: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
+    """Owner-gated public entry point for one scored offline query."""
+    require_topk_frozen_run(frozen_run, {str(query.get("fixture", "query")): fixture_root})
+    return _evaluate_query_offline(query, gold, fixture_root, query_corpus_fingerprint=query_corpus_fingerprint, ranking_arm=ranking_arm)
+
+
+def evaluate_corpus_offline(fixture_roots: Mapping[str, str | Path], *, ranking_arm: str = "production-default", frozen_run: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
     """Explicit, non-CLI evaluator; callers must obtain scored-run approval."""
     corpus, _rows = queries.load_query_variants()
+    require_topk_frozen_run(frozen_run, fixture_roots)
     output: list[dict[str, Any]] = []
     for query, gold in queries.join_queries_to_gold():
         fixture = query["fixture"]
         if fixture not in fixture_roots:
             raise ValueError(f"missing fixture root for {fixture}")
-        output.extend(evaluate_query_offline(query, gold, fixture_roots[fixture], query_corpus_fingerprint=corpus["canonical_fingerprint"], ranking_arm=ranking_arm))
+        output.extend(_evaluate_query_offline(query, gold, fixture_roots[fixture], query_corpus_fingerprint=corpus["canonical_fingerprint"], ranking_arm=ranking_arm))
     return output
