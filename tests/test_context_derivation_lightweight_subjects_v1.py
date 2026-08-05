@@ -70,6 +70,8 @@ def test_protocol_validation_rejects_citation_claim_context_and_isolation_failur
     packet = module.build_packet("decision-only", question_ref, evidence())
     question_request = module.SubjectRequest("CTX-01.V01", "CTX-01", "decision-only", packet, req.corpus_fingerprint, req.task_fingerprint, req.isolation_cwd)
     assert module.protocol_failure(result(raw_answer=json.dumps(answer(citations=["mse_question999:d1"]))), question_request) == "citation-outside-evidence"
+    enriched = request("adr-current")
+    assert module.protocol_failure(result(raw_answer=json.dumps(answer(citations=["adr_alpha"]))), enriched) is None
 
 
 def test_schedule_is_exact_deterministic_and_rejects_missing_duplicate_or_extra_cells():
@@ -166,6 +168,20 @@ def test_pin_drift_fails_and_luna_uses_empty_minimal_environment_with_mocked_run
         mismatched = module.LunaAdapter(["luna"], "luna-small", probe_request=request(cwd=cwd), runner=fake_runner, expected_pin=expected)
         with pytest.raises(RuntimeError, match="pin drift"):
             mismatched.run(request(cwd=cwd))
+
+
+def test_luna_rejects_non_empty_cwd_before_any_subprocess():
+    calls = []
+    def runner(*args, **kwargs):
+        calls.append((args, kwargs))
+        raise AssertionError("runner must not be called")
+    with tempfile.TemporaryDirectory() as temp:
+        cwd = Path(temp)
+        (cwd / "unexpected.txt").write_text("occupied")
+        adapter = module.LunaAdapter(["luna"], "luna-small", probe_request=request(cwd=cwd), runner=runner)
+        with pytest.raises(RuntimeError, match="fresh empty"):
+            adapter.run(request(cwd=cwd))
+    assert calls == []
 
 
 def test_harness_writes_unique_redacted_manifest_and_fresh_cwd_outside_repo():

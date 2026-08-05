@@ -255,16 +255,19 @@ def validate_schedule(cells: Sequence[Mapping[str, Any]], query_rows: Sequence[M
 def _evidence_refs(packet: SubjectPacket) -> set[str]:
     import re
     refs: set[str] = set()
+    singular_identifier_fields = frozenset({"adr_id", "ref", "authoritative_ref", "decision_ref", "source", "target"})
+    plural_identifier_fields = frozenset({"adr_ids", "refs", "authoritative_refs", "decision_refs", "citations"})
+    identifier = re.compile(r"(?:adr_[A-Za-z0-9._-]+|mse_[A-Za-z0-9]+:d\d+|constitution:[A-Za-z0-9._-]+(?:#[A-Za-z0-9._-]+)?)")
 
-    def collect(value: Any) -> None:
+    def collect(value: Any, *, identifier_field: bool = False) -> None:
         if isinstance(value, Mapping):
-            for item in value.values():
-                collect(item)
+            for key, item in value.items():
+                collect(item, identifier_field=key in singular_identifier_fields or key in plural_identifier_fields)
         elif isinstance(value, tuple) or isinstance(value, list):
             for item in value:
-                collect(item)
-        elif isinstance(value, str):
-            refs.update(re.findall(r"(?:mse_[A-Za-z0-9]+:d\d+|constitution:[A-Za-z0-9._-]+(?:#[A-Za-z0-9._-]+)?)", value))
+                collect(item, identifier_field=identifier_field)
+        elif identifier_field and isinstance(value, str) and identifier.fullmatch(value):
+            refs.add(value)
 
     evidence = packet.payload["evidence"]
     for field in ("decisions", "adrs", "constitution"):
@@ -408,9 +411,13 @@ class LunaAdapter:
     def _minimal_env(cwd: Path) -> dict[str, str]:
         return {"PATH": os.defpath, "LANG": "C", "LC_ALL": "C", "HOME": str(cwd), "USERPROFILE": str(cwd)}
 
-    def _invoke(self, prompt: str, cwd: Path) -> Mapping[str, Any]:
+    @staticmethod
+    def _require_empty_cwd(cwd: Path) -> None:
         if not cwd.exists() or any(cwd.iterdir()):
             raise RuntimeError("Luna cwd must be a fresh empty directory")
+
+    def _invoke(self, prompt: str, cwd: Path) -> Mapping[str, Any]:
+        self._require_empty_cwd(cwd)
         completed = self.runner([*self.command, "--model", self.model, "--decoding-json", canonical_json(self.decoding)], input=prompt, cwd=str(cwd), env=self._minimal_env(cwd), text=True, capture_output=True, check=False)
         if completed.returncode != 0:
             raise RuntimeError("Luna command failed")
@@ -426,6 +433,7 @@ class LunaAdapter:
         return completed.stdout.strip()
 
     def run(self, request: SubjectRequest) -> SubjectResult:
+        self._require_empty_cwd(request.isolation_cwd)
         started = time.perf_counter()
         cli_version = self._cli_version(request.isolation_cwd)
         response = self._invoke(request.prompt, request.isolation_cwd)
