@@ -121,10 +121,7 @@ def search_memory(
         embedding_provider,
         enabled=semantic_enabled,
     )
-    chunks = augment_chunks_with_topic_sidecars(
-        augment_chunks_with_link_sidecars(extract_memory_chunks(cwd, granularity=granularity), cwd),
-        cwd,
-    )
+    chunks = load_corpus(cwd, granularity)
     topic_filter: set[str] | None = None
     if topics:
         # Alias-aware expansion (canonical + aliases both match); fail-open on
@@ -2002,6 +1999,32 @@ def augment_chunks_with_link_sidecars(
             )
         )
     return augmented
+
+
+def load_corpus(cwd: str | Path = ".", granularity: str = "decision") -> list[MemoryChunk]:
+    """The canonical corpus read: extraction plus EVERY sidecar augmentation.
+
+    Sidecars are append-only edits authored after an entry is written - link sidecars carry the
+    typed lifecycle edges (`replaces` / `evolves` / `related_entries`), topic sidecars carry topic
+    assignments. `extract_memory_chunks` alone returns none of them, so a caller that skips the
+    augmenters silently reads a PARTIAL corpus: the chunks look well-formed, the counts look
+    plausible, and the lifecycle graph is simply missing most of its edges.
+
+    That failure has now happened three times in this project, twice in measurement harnesses and
+    once in a shipped gate (`ranking_ab.run_ab`, which computed the supersession signal's affected
+    set from a raw corpus and therefore A/B-tested against a fraction of the real edges). It fails
+    silently in every case, which is why the fix is a default rather than documentation.
+
+    Use this instead of calling `extract_memory_chunks` directly. `tests/test_corpus_read_path.py`
+    holds the allowlist of the remaining direct callers and the reason each is exempt; adding a new
+    one fails that test.
+    """
+    return augment_chunks_with_topic_sidecars(
+        augment_chunks_with_link_sidecars(
+            extract_memory_chunks(cwd, granularity=granularity), cwd
+        ),
+        cwd,
+    )
 
 
 # Weight on idf-summed shared TITLE terms, alongside FILE_OVERLAP_BOOST on

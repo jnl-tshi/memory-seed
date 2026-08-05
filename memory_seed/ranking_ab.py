@@ -33,7 +33,6 @@ from typing import Callable, Sequence
 from .semantic_cache import (
     MemoryChunk,
     build_related_entry_graph,
-    extract_memory_chunks,
     rank_session_memory,
     replacing_lineage_heads,
 )
@@ -473,7 +472,14 @@ def run_ab(
 
     path = Path(cwd).resolve()
     if corpus is None:
-        corpus = extract_memory_chunks(path, granularity="entry")
+        # Sidecar-augmented, not raw. This gate previously read `extract_memory_chunks` directly,
+        # so `signal.affected` built its lifecycle graph from entry-YAML edges alone and missed
+        # every edge authored into a link sidecar afterwards - the majority of them. The A/B then
+        # compared arms over a fraction of the entries the signal actually touches and reported a
+        # verdict as if it had covered them all.
+        from .retrieval import load_corpus
+
+        corpus = load_corpus(path, granularity="entry")
 
     affected_ids = signal.affected(path, corpus)
 
