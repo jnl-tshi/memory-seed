@@ -847,6 +847,55 @@ the original probe.
 
 ---
 
+## E9 — Market signal: an independent Agentic Memory Index exists, 2026-08-04
+
+**Source:** [verginglabs.com](https://verginglabs.com/) — Verging Labs, an independent AI
+benchmarking firm ("no provider pays for placement, ordering, or scores"). Surfaced by JNL.
+Unlike E1–E8 this is a market observation, not practitioner testimony or a controlled run.
+
+### What was observed
+
+An **Agentic Memory Index v0.1 (August 2026)**: 272 scored probes across 56 simulated sessions,
+six probe categories (direct recall, updated facts, thread growth, synthesis, long-term retention,
+false memory check), shared verdict buckets including *Fabricated Citation*, cross-validated
+judging (94.1% agreement, kappa 0.85, on the sibling search index). Nine tools ranked: Karpathy
+Wiki 98.5, Mitosis Cortex 96.9, gbrain 92.9, Hyperspell 92.4, Mem0 92.3, Anthropic Memory 84.0,
+Supermemory 77.1, Zep 75.1, Claude Code built-in memory 67.7. Submissions accepted at
+contact@verginglabs.com.
+
+### What this establishes
+
+- **The agent-memory category is now independently measured** — a category-formation signal that
+  qualifies Report 3's "unoccupied" finding for the recall layer specifically. Four of the top
+  five scorers were unknown to the competitor dossier before today.
+- **Independent instrument convergence.** Their probe taxonomy maps nearly one-to-one onto the
+  measures this programme designed without knowledge of theirs (capture ↔ nothing, supersession ↔
+  "updated facts", faithfulness/fabrication ↔ "false memory check", retrieval ↔ "synthesis").
+  Convergent instrument design by two independent teams is evidence for the instrument, and the
+  probes that separate tools are the ones Memory Seed's E8/v2 results are strongest on.
+- **A concrete vehicle for the external-replication gap** E5/E6 recorded as their standing
+  limitation: someone else's harness, someone else's corpus, published independently.
+
+### What it does not establish
+
+- **Nothing about Memory Seed's fit or score.** The harness plausibly assumes an
+  arbitrary-fact store/recall API (what Mem0/Zep expose); a decision-shaped, validated store may
+  need an adapter or may be structurally penalised on arbitrary-fact recall probes. Unknown until
+  a private dry-run against their taxonomy.
+- **Nothing about capture.** No probe measures unprompted recording — the E5 question and the
+  programme's core evidence remain unbenchmarked externally.
+- **Methodology quality is self-reported** (kappa, rotation, no-payment policy) and the index is
+  v0.1 — one month old, small history, unproven authority.
+
+### Agreed sequence (2026-08-04, not yet started)
+
+1. Profile the four unknown top scorers (Karpathy Wiki, Mitosis Cortex, gbrain, Hyperspell).
+2. Dry-run the six probe categories privately against Memory Seed (~$20–30 with the existing
+   agent-capture harness machinery). Know the score before anyone publishes it.
+3. Only then email for v0.2 inclusion.
+
+---
+
 - **Post as a practitioner with a real question.** Never pitch. If the pain is not described unprompted, that
   is the finding.
 - **Ask about past behaviour and specific incidents**, never opinions or hypotheticals. Perceived and measured
