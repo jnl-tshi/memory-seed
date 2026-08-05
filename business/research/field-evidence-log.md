@@ -887,12 +887,45 @@ contact@verginglabs.com.
 - **Methodology quality is self-reported** (kappa, rotation, no-payment policy) and the index is
   v0.1 — one month old, small history, unproven authority.
 
-### Agreed sequence (2026-08-04, not yet started)
+### Addendum, 2026-08-05: the author's own thread, and the profiles
 
-1. Profile the four unknown top scorers (Karpathy Wiki, Mitosis Cortex, gbrain, Hyperspell).
-2. Dry-run the six probe categories privately against Memory Seed (~$20–30 with the existing
-   agent-capture harness machinery). Know the score before anyone publishes it.
-3. Only then email for v0.2 inclusion.
+JNL surfaced the index author's r/AI_Agents launch thread (137 upvotes; the author's earlier
+"second brains" thread reportedly read by ~75k). New facts, source: the author's own posts:
+
+- **"The winner is not a product."** Agent-curated Markdown (Karpathy's April 2026 `llm-wiki`
+  pattern) beat every hosted product. Garry Tan's open-source `gbrain` (Markdown + typed graph +
+  MCP) beat every hosted API but one. **The category's two most influential figures bet on
+  agent-curated Markdown in the same month, and the benchmark validates the bet** — which is
+  Memory Seed's substrate philosophy, externally confirmed.
+- **The winner's failure is governance-shaped.** The wiki was *the only system that hallucinated
+  on a never-stored question* (author, in-thread). A top comment supplies the thesis unprompted:
+  the wiki "wins because it's inspectable… The durable memory layer isn't recall, it's
+  provenance, an append-only record." Another commenter: fabrication and a miss are priced
+  equally by a blended score but are nowhere near equal for an *acting* agent — a miss stalls
+  loudly, an invention proceeds confidently. That asymmetry is Memory Seed's validated-write and
+  provenance case, argued by strangers.
+- **Products fail on updates, not recall**: Zep passed 8/24 update questions (162.7s median
+  freshness); Supermemory 59/60 on recent recall but 11/72 long-horizon. "Updated facts" — the
+  supersession problem — is where the market's products are weakest and where Memory Seed's E8
+  result (flawless stale-head navigation) is strongest.
+- **Field staleness critique** (multiple commenters, one running file-per-fact + index at scale):
+  the failure a simulated benchmark cannot see is *stored-true-now-false* — and their mitigations
+  (timestamp facts at write, never store what the source of truth records, verify before acting)
+  are Memory Seed's shipped conventions.
+- **Mechanics**: each tool's agent gets the tool's own docs and follows them across simulated
+  multi-week sessions — a Memory Seed entry would measure the shipped instruction surface end to
+  end. Submissions via verginglabs.com/radar; **v0.2 planned early September 2026**.
+- **Credibility check run**: a commenter alleged Mitosis Cortex was a hallucinated product; it is
+  real (mitosislabs.ai, ex-Meta founder) but recently launched with no independent footprint. The
+  index itself is one month old; treat single-benchmark ranks accordingly.
+
+### Agreed sequence (updated 2026-08-05)
+
+1. ~~Profile the four unknown top scorers~~ — **done**, folded into the competitor landscape.
+2. Dry-run the six probe categories privately against Memory Seed — **designed**,
+   `docs/2_Todo/memory-index-dry-run-plan.md` (~$20–30, agent-capture machinery). Know the score
+   before anyone publishes it.
+3. Only then submit via /radar — decision deadline set by v0.2, early September.
 
 ---
 
