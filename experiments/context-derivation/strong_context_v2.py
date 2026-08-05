@@ -88,6 +88,8 @@ def _normalized_current(value: object, adr_id: str) -> dict[str, Any]:
         raise ValueError(f"ADR {adr_id} authoritative_ref must be canonical or null")
     if not all(isinstance(value[key], str) for key in ("status", "decision", "why", "evolution")):
         raise ValueError(f"ADR {adr_id} current fields must be strings")
+    if value["status"] not in {"accepted", "proposed", "rejected", "superseded", "invalid"}:
+        raise ValueError(f"ADR {adr_id} current status is invalid")
     return dict(value)
 
 
@@ -97,18 +99,48 @@ def _normalized_lineage(value: object, adr_id: str, membership: set[str]) -> lis
     seen: set[str] = set()
     rows: list[dict[str, Any]] = []
     for row in value:
-        if not isinstance(row, Mapping) or set(row) != {"ref", "predecessors", "decision", "why", "evolution"}:
+        if not isinstance(row, Mapping) or set(row) != {"ref", "predecessors", "decision", "why", "evolution", "status"}:
             raise ValueError(f"ADR {adr_id} lineage rows have an invalid shape")
         ref = row["ref"]
         if not is_canonical_decision_ref(ref) or ref not in membership or ref in seen:
             raise ValueError(f"ADR {adr_id} lineage ref must be a unique membership ref")
-        predecessors = _unique_strings(row["predecessors"], f"ADR {adr_id} lineage predecessors", canonical=True)
-        if not set(predecessors) <= membership:
-            raise ValueError(f"ADR {adr_id} lineage predecessors must be ADR membership refs")
+        if row["status"] not in {"accepted", "proposed", "rejected"}:
+            raise ValueError(f"ADR {adr_id} lineage status is invalid")
+        predecessors: list[dict[str, str]] = []
+        predecessor_refs: set[str] = set()
+        if not isinstance(row["predecessors"], list):
+            raise ValueError(f"ADR {adr_id} lineage predecessors must be an array")
+        for predecessor in row["predecessors"]:
+            if not isinstance(predecessor, Mapping) or set(predecessor) != {"ref", "type"}:
+                raise ValueError(f"ADR {adr_id} lineage predecessor has an invalid shape")
+            target, kind = predecessor["ref"], predecessor["type"]
+            if not is_canonical_decision_ref(target) or target not in membership or target in predecessor_refs:
+                raise ValueError(f"ADR {adr_id} lineage predecessors must be unique membership refs")
+            if kind not in {"evolves", "replaces"}:
+                raise ValueError(f"ADR {adr_id} lineage predecessor type is invalid")
+            predecessor_refs.add(target)
+            predecessors.append({"ref": target, "type": kind})
         if not all(isinstance(row[key], str) for key in ("decision", "why", "evolution")):
             raise ValueError(f"ADR {adr_id} lineage text fields must be strings")
         seen.add(ref)
-        rows.append({**dict(row), "predecessors": list(predecessors)})
+        rows.append({**dict(row), "predecessors": predecessors})
+    by_ref = {row["ref"]: row for row in rows}
+    for row in rows:
+        if any(predecessor["ref"] == row["ref"] for predecessor in row["predecessors"]):
+            raise ValueError(f"ADR {adr_id} lineage must not contain a self predecessor")
+    visiting, visited = set(), set()
+    def visit(ref: str) -> None:
+        if ref in visiting:
+            raise ValueError(f"ADR {adr_id} lineage must not contain a cycle")
+        if ref in visited or ref not in by_ref:
+            return
+        visiting.add(ref)
+        for predecessor in by_ref[ref]["predecessors"]:
+            visit(predecessor["ref"])
+        visiting.remove(ref)
+        visited.add(ref)
+    for ref in by_ref:
+        visit(ref)
     return rows
 
 
@@ -156,11 +188,20 @@ def load_bindings(value: Mapping[str, Any]) -> BindingIndex:
         current = _normalized_current(raw["current"], adr_id)
         if current["authoritative_ref"] is not None and current["authoritative_ref"] not in membership:
             raise ValueError(f"ADR {adr_id} authoritative_ref must be ADR membership")
+        lineage = _normalized_lineage(raw["lineage"], adr_id, set(membership))
+        lineage_by_ref = {item["ref"]: item for item in lineage}
+        head = current["authoritative_ref"]
+        if head is not None and (head not in lineage_by_ref or lineage_by_ref[head]["status"] != "accepted"):
+            raise ValueError(f"ADR {adr_id} authoritative_ref must be an accepted lineage revision")
+        if head is not None and current["status"] not in {"accepted", "superseded"}:
+            raise ValueError(f"ADR {adr_id} authoritative status conflicts with its accepted head")
+        if head is None and current["status"] in {"accepted", "superseded"}:
+            raise ValueError(f"ADR {adr_id} accepted status requires an authoritative_ref")
         row = {
             "adr_id": adr_id,
             "membership": list(membership),
             "current": current,
-            "lineage": _normalized_lineage(raw["lineage"], adr_id, set(membership)),
+            "lineage": lineage,
             "constitution_refs": _normalized_constitution(raw["constitution_refs"], adr_id),
             "related_refs": list(related),
         }
@@ -221,31 +262,51 @@ def _truncate(text: str, limit: int) -> tuple[str, bool]:
 
 
 def _lineage_slice(adr: Mapping[str, Any], matched: Sequence[str], cap: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Return paths from current authority backwards to matched lineage nodes."""
+    """Return accepted authority plus the matched revision's evidence path.
+
+    A pending/rejected branch can be relevant to a query even when it does not
+    descend from the accepted head.  Preserve that branch (and its typed
+    predecessors) alongside the governing path rather than silently dropping
+    it from the context.
+    """
     nodes = {row["ref"]: row for row in adr["lineage"]}
     current = adr["current"]["authoritative_ref"]
     wanted = set(matched) & set(nodes)
     included: set[str] = set()
-    if current in nodes and wanted:
-        stack: list[tuple[str, tuple[str, ...]]] = [(current, ())]
-        while stack:
-            ref, trail = stack.pop()
-            if ref in trail:
-                continue
-            next_trail = (*trail, ref)
-            if ref in wanted:
-                included.update(next_trail)
-            for predecessor in reversed(nodes[ref]["predecessors"]):
-                if predecessor in nodes:
-                    stack.append((predecessor, next_trail))
+    roots = [ref for ref in (current, *sorted(wanted)) if ref in nodes]
+    stack = list(dict.fromkeys(roots))
+    while stack:
+        ref = stack.pop()
+        if ref in included:
+            continue
+        included.add(ref)
+        stack.extend(
+            predecessor["ref"]
+            for predecessor in reversed(nodes[ref]["predecessors"])
+            if predecessor["ref"] in nodes
+        )
     # A predecessor can be curated membership without being a revision node.
     # Keep that match visible but do not invent a lineage block for it.
     dangling = sorted(set(matched) - set(nodes))
     ordered = [row for row in adr["lineage"] if row["ref"] in included]
     omissions: list[dict[str, Any]] = []
     if cap < len(ordered):
-        omissions.append({"kind": "lineage-cap", "adr_id": adr["adr_id"], "omitted_refs": [row["ref"] for row in ordered[cap:]]})
-        ordered = ordered[:cap]
+        required = list(dict.fromkeys(ref for ref in (current, *sorted(wanted)) if ref in nodes))
+        mandatory_roots = tuple(required)
+        required.extend(
+            predecessor["ref"]
+            for ref in mandatory_roots
+            for predecessor in nodes[ref]["predecessors"]
+            if predecessor["ref"] in nodes
+        )
+        required = list(dict.fromkeys(required))
+        selected = list(required)
+        selected.extend(row["ref"] for row in ordered if row["ref"] not in selected)
+        # A cap is a budget for supplementary history.  It may never remove
+        # the accepted head, the matched revision, or its direct typed link.
+        kept = set(selected[:max(cap, len(required))])
+        omissions.append({"kind": "lineage-cap", "adr_id": adr["adr_id"], "omitted_refs": [row["ref"] for row in ordered if row["ref"] not in kept]})
+        ordered = [row for row in ordered if row["ref"] in kept]
     if dangling:
         omissions.append({"kind": "membership-without-revision-node", "adr_id": adr["adr_id"], "refs": dangling})
     return [dict(row) for row in ordered], omissions
@@ -301,12 +362,20 @@ def resolve_strong_context(
         candidate_ids = index.by_member.get(ref, ())
         included_adrs: list[dict[str, Any]] = []
         skipped_adrs: list[str] = []
+        reused_adrs: list[str] = []
+        lineage_deltas: list[dict[str, Any]] = []
         for adr_id in candidate_ids:
+            adr = index.by_id[adr_id]
+            if adr_id in selected_adrs:
+                reused_adrs.append(adr_id)
+                lineage, lineage_omissions = _lineage_slice(adr, (ref,), config["lineage_item_cap"])
+                omissions.extend(lineage_omissions)
+                lineage_deltas.append({"adr_id": adr_id, "matched_decision_refs": [ref], "relevant_lineage": lineage})
+                continue
             if adr_id not in selected_adrs and len(selected_adrs) >= config["adr_cap"]:
                 skipped_adrs.append(adr_id)
                 continue
             selected_adrs.add(adr_id)
-            adr = index.by_id[adr_id]
             lineage, lineage_omissions = _lineage_slice(adr, (ref,), config["lineage_item_cap"])
             omissions.extend(lineage_omissions)
             constitution: list[dict[str, Any]] = []
@@ -324,6 +393,7 @@ def resolve_strong_context(
                 "current": dict(adr["current"]),
                 "relevant_lineage": lineage,
                 "constitution": constitution,
+                "related_refs": list(adr["related_refs"]),
             })
         if skipped_adrs:
             omissions.append({"kind": "adr-cap", "rank": item["rank"], "ref": ref, "adr_ids": skipped_adrs})
@@ -337,6 +407,8 @@ def resolve_strong_context(
             "rank": item["rank"],
             "decision": {"ref": ref, "relevance": item["relevance"], "excerpt": item["excerpt"], "links": item["links"]},
             "adrs": included_adrs,
+            "adr_refs": reused_adrs,
+            "lineage_deltas": lineage_deltas,
         })
     payload = {
         "schema": RESULT_SCHEMA,

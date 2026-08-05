@@ -17,6 +17,8 @@ REF_OLD = "mse_alpha1234:d1"
 REF_HEAD = "mse_beta5678:d1"
 REF_SHARED = "mse_gamma9012:d1"
 REF_RELATED = "mse_delta3456:d1"
+REF_MID_ONE = "mse_epsilon6789:d1"
+REF_MID_TWO = "mse_zeta0123:d1"
 
 
 def binding_document():
@@ -33,8 +35,8 @@ def binding_document():
                     "evolution": "It superseded the initial index.",
                 },
                 "lineage": [
-                    {"ref": REF_OLD, "predecessors": [], "decision": "Use a full rebuild.", "why": "Initial design.", "evolution": "Initial."},
-                    {"ref": REF_HEAD, "predecessors": [REF_OLD], "decision": "Use an incremental index.", "why": "Scale test.", "evolution": "Evolves the full rebuild."},
+                    {"ref": REF_OLD, "predecessors": [], "status": "accepted", "decision": "Use a full rebuild.", "why": "Initial design.", "evolution": "Initial."},
+                    {"ref": REF_HEAD, "predecessors": [{"ref": REF_OLD, "type": "evolves"}], "status": "accepted", "decision": "Use an incremental index.", "why": "Scale test.", "evolution": "Evolves the full rebuild."},
                 ],
                 "constitution_refs": [
                     {"ref": "constitution:v1#local-first", "role": "governing", "excerpt": "Local-first state is the governing constraint."},
@@ -52,7 +54,7 @@ def binding_document():
                     "evolution": "Initial.",
                 },
                 "lineage": [
-                    {"ref": REF_SHARED, "predecessors": [], "decision": "Keep shared evidence explicit.", "why": "Two concerns.", "evolution": "Initial."},
+                    {"ref": REF_SHARED, "predecessors": [], "status": "accepted", "decision": "Keep shared evidence explicit.", "why": "Two concerns.", "evolution": "Initial."},
                 ],
                 "constitution_refs": [
                     {"ref": "constitution:v1#provenance", "role": "governing", "excerpt": "Provenance must be explicit."},
@@ -87,6 +89,7 @@ class StrongContextV2Tests(unittest.TestCase):
         self.assertEqual([REF_OLD, REF_HEAD], [item["ref"] for item in adr["relevant_lineage"]])
         self.assertEqual("constitution:v1#local-first", adr["constitution"][0]["ref"])
         self.assertEqual("governing", adr["constitution"][0]["role"])
+        self.assertEqual([{"ref": REF_OLD, "type": "evolves"}], adr["relevant_lineage"][1]["predecessors"])
 
     def test_strong_and_adr_caps_preserve_rank_order_and_emit_deterministic_omissions(self):
         result = module.resolve_strong_context(ranked(), self.bindings, {"strong_cap": 2, "adr_cap": 1})
@@ -95,7 +98,9 @@ class StrongContextV2Tests(unittest.TestCase):
         # The shared decision belongs to two concerns.  The unique ADR cap
         # blocks the new concern but may reuse an ADR already admitted at a
         # higher rank without consuming another slot.
-        self.assertEqual(["adr_indexing"], [item["adr_id"] for item in result["tiers"][1]["adrs"]])
+        self.assertEqual([], result["tiers"][1]["adrs"])
+        self.assertEqual(["adr_indexing"], result["tiers"][1]["adr_refs"])
+        self.assertEqual("adr_indexing", result["tiers"][1]["lineage_deltas"][0]["adr_id"])
         self.assertIn({"kind": "adr-cap", "rank": 2, "ref": REF_SHARED, "adr_ids": ["adr_shared_concern"]}, result["omissions"])
         self.assertIn({"kind": "strong-cap", "rank": 3, "ref": REF_HEAD}, result["omissions"])
         self.assertEqual(result, module.resolve_strong_context(ranked(), binding_document(), {"strong_cap": 2, "adr_cap": 1}))
@@ -143,6 +148,50 @@ class StrongContextV2Tests(unittest.TestCase):
         invalid["adrs"][0]["related_refs"] = [REF_OLD]
         with self.assertRaisesRegex(ValueError, "related_refs must not"):
             module.load_bindings(invalid)
+
+    def test_current_authority_and_lineage_cycles_fail_closed(self):
+        invalid = binding_document()
+        invalid["adrs"][0]["current"]["status"] = "proposed"
+        with self.assertRaisesRegex(ValueError, "conflicts"):
+            module.load_bindings(invalid)
+
+        missing_head = binding_document()
+        missing_head["adrs"][0]["current"]["authoritative_ref"] = REF_SHARED
+        with self.assertRaisesRegex(ValueError, "accepted lineage"):
+            module.load_bindings(missing_head)
+
+        cyclic = binding_document()
+        cyclic["adrs"][0]["lineage"][0]["predecessors"] = [{"ref": REF_HEAD, "type": "evolves"}]
+        with self.assertRaisesRegex(ValueError, "cycle"):
+            module.load_bindings(cyclic)
+
+    def test_zero_lineage_budget_keeps_only_mandatory_direct_evidence(self):
+        long_chain = binding_document()
+        adr = long_chain["adrs"][0]
+        adr["membership"] = [REF_OLD, REF_MID_ONE, REF_MID_TWO, REF_HEAD]
+        adr["lineage"] = [
+            {"ref": REF_OLD, "predecessors": [], "status": "accepted", "decision": "root", "why": "root", "evolution": "root"},
+            {"ref": REF_MID_ONE, "predecessors": [{"ref": REF_OLD, "type": "evolves"}], "status": "accepted", "decision": "one", "why": "one", "evolution": "one"},
+            {"ref": REF_MID_TWO, "predecessors": [{"ref": REF_MID_ONE, "type": "evolves"}], "status": "accepted", "decision": "two", "why": "two", "evolution": "two"},
+            {"ref": REF_HEAD, "predecessors": [{"ref": REF_MID_TWO, "type": "evolves"}], "status": "accepted", "decision": "head", "why": "head", "evolution": "head"},
+        ]
+        resolved = module.resolve_strong_context(
+            [{"ref": REF_OLD, "relevance": "strong", "excerpt": "root", "links": {"evolves": [], "replaces": [], "related": []}}],
+            long_chain,
+            {"lineage_item_cap": 0},
+        )
+        lineage = resolved["tiers"][0]["adrs"][0]["relevant_lineage"]
+        self.assertEqual([REF_OLD, REF_MID_TWO, REF_HEAD], [row["ref"] for row in lineage])
+        self.assertIn({"kind": "lineage-cap", "adr_id": "adr_indexing", "omitted_refs": [REF_MID_ONE]}, resolved["omissions"])
+
+        head_match = module.resolve_strong_context(
+            [{"ref": REF_HEAD, "relevance": "strong", "excerpt": "head", "links": {"evolves": [], "replaces": [], "related": []}}],
+            long_chain,
+            {"lineage_item_cap": 0},
+        )
+        head_lineage = head_match["tiers"][0]["adrs"][0]["relevant_lineage"]
+        self.assertEqual([REF_MID_TWO, REF_HEAD], [row["ref"] for row in head_lineage])
+        self.assertIn({"kind": "lineage-cap", "adr_id": "adr_indexing", "omitted_refs": [REF_OLD, REF_MID_ONE]}, head_match["omissions"])
 
 
 if __name__ == "__main__":

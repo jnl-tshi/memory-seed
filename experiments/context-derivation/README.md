@@ -20,6 +20,17 @@ final report are the durable experiment artifacts.
 No scored stage may start until `PREREGISTRATION.md` and `tasks/gold.json` have
 been approved by the repository owner. Calibration and unit tests are unscored.
 
+## Draft strong-context supplement
+
+`strong_context_fixture_v2.py` joins a generated fixture's parsed ADR ledgers,
+explicit Constitution blocks, and the production decision-level ranking reader
+in memory only. `strong_context_sweep_v2.py` compares bounded high-signal
+allocations in parallel; its top-K output is an offline diagnostic, never an
+MCP field. See `STRONG_CONTEXT_V2_NOTES.md` for the proposed revision-scoped
+Constitution binding to evaluate. These files cannot select a candidate or
+authorize scored/offline-agent execution until versioned Constitution-aware
+task and gold definitions receive review.
+
 ## Freeze and execution sequence
 
 The gates are intentionally split. Before approval, only definition checks,
