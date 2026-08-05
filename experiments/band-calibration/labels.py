@@ -36,9 +36,15 @@ import random
 import re
 from pathlib import Path
 
+# load_corpus, never extract_memory_chunks. The first version of this file used the raw extractor
+# and reported "the corpus has 4 replaces edges". The augmented read shows 23 replaced_by and 290
+# evolved_by - lifecycle edges are authored into link sidecars after the entry is written, and the
+# raw extractor carries none of them. tests/test_corpus_read_path.py makes that mistake loud inside
+# the package; experiments sit outside its scope, so here the discipline is this import.
+from memory_seed.retrieval import load_corpus
 from memory_seed.semantic_cache import (
     build_related_entry_graph,
-    extract_memory_chunks,
+    evolves_lineage_heads,
     replacing_lineage_heads,
 )
 
@@ -97,32 +103,95 @@ def _content_words(text: str, minimum: int = 4) -> list[str]:
     return [w for w in words if w not in _STOP]
 
 
+def _title_of(chunk) -> str | None:
+    if chunk is None or not chunk.entry_title:
+        return None
+    title = chunk.entry_title.split(" - ", 1)[-1].strip()
+    return title if len(title.split()) >= 3 else None
+
+
 def lifecycle_positives(cwd: Path, limit: int = 200) -> list[dict]:
-    """(query, expected entry) from supersession edges - the query text is not from the target."""
-    chunks = extract_memory_chunks(cwd, granularity="entry")
+    """Lifecycle targets from BOTH typed edge kinds, scored by different rules.
+
+    Read through `load_corpus`, the corpus carries 23 `replaced_by` and 290 `evolved_by`. Read raw
+    it appears to carry 4 and 136, because the majority of lifecycle edges are authored into link
+    sidecars after the entry is written. Both kinds are used: supersession alone would still be a
+    thin guard, and this set is what protects changes to recency (recency is partly doing
+    supersession's job by accident).
+
+    The two kinds are NOT interchangeable and pooling them would manufacture failures:
+
+      replaces  retires its target. Querying the retired title should surface the replacement, and
+                the replacement should outrank the entry it retired. Both are scored.
+      evolves   explicitly does NOT retire: `evolves_lineage_heads` exists to "point a reader at the
+                up-to-date form without burying the still-valid original", and evolves is never
+                dampened. The original outranking its head is CORRECT here, so the only thing worth
+                scoring is whether the newer form also surfaces.
+
+    Rows carry `edge_kind` so the two are always reported separately. `rival` is set only for
+    `replaces`, and is the entry the expected answer is supposed to outrank.
+    """
+    chunks = load_corpus(cwd, "entry")
     graph = build_related_entry_graph(cwd, chunks=chunks)
     by_id = {c.entry_id: c for c in chunks if c.entry_id}
     out: list[dict] = []
+
     for node in graph.values():
         if not node.replaced_by:
             continue
         heads = replacing_lineage_heads(graph, node.entry_id)
-        chunk = by_id.get(node.entry_id)
-        if not heads or chunk is None or not chunk.entry_title:
+        title = _title_of(by_id.get(node.entry_id))
+        if not heads or title is None:
             continue
-        title = chunk.entry_title.split(" - ", 1)[-1].strip()
-        if len(title.split()) < 3:
+        out.append(
+            {
+                "query": title,
+                "expected": heads[0],
+                "accepted": tuple(heads),
+                # The retired entry the replacement must beat. Recency currently suppresses this
+                # entry by age; weakening recency is exactly what could let it climb back above.
+                "rival": node.entry_id,
+                "edge_kind": "replaces",
+                "source": "P_life_replaces",
+            }
+        )
+        if len(out) >= limit:
+            return out
+
+    for node in graph.values():
+        if not node.evolved_by:
             continue
-        out.append({"query": title, "expected": heads[0], "source": "P_life"})
+        heads = evolves_lineage_heads(graph, node.entry_id)
+        title = _title_of(by_id.get(node.entry_id))
+        if not heads or title is None:
+            continue
+        out.append(
+            {
+                "query": title,
+                # The newer form is what we are testing for. The original is also a correct answer
+                # and is expected to rank first - that is self-retrieval and is not scored here.
+                "expected": heads[0],
+                "accepted": tuple(heads),
+                # The entry the query text came from. Named explicitly so a scorer can exclude it
+                # rather than inferring it from position in `accepted`.
+                "origin": node.entry_id,
+                "rival": None,
+                "edge_kind": "evolves",
+                "source": "P_life_evolves",
+            }
+        )
         if len(out) >= limit:
             break
     return out
 
 
+QUERY_LENGTHS = (3, 7, 15)
+
+
 def term_positives(cwd: Path, limit: int = 200, sample: int = 7, seed: int = 20260805) -> list[dict]:
     """A subset of an entry's own decision text, as a query, should surface that entry."""
     rng = random.Random(seed)
-    chunks = [c for c in extract_memory_chunks(cwd, granularity="decision") if c.entry_id]
+    chunks = [c for c in load_corpus(cwd, "decision") if c.entry_id]
     rng.shuffle(chunks)
     out: list[dict] = []
     for chunk in chunks:
@@ -132,16 +201,45 @@ def term_positives(cwd: Path, limit: int = 200, sample: int = 7, seed: int = 202
         if len(unique) < sample + 3:
             continue
         picked = rng.sample(unique, sample)
-        out.append({"query": " ".join(picked), "expected": chunk.entry_id, "source": "P_terms"})
+        out.append(
+            {
+                "query": " ".join(picked),
+                "expected": chunk.entry_id,
+                "source": "P_terms",
+                "n_terms": sample,
+            }
+        )
         if len(out) >= limit:
             break
+    return out
+
+
+def term_positives_by_length(
+    cwd: Path, limit_per_length: int = 60, lengths: tuple[int, ...] = QUERY_LENGTHS
+) -> list[dict]:
+    """The same construction at several query lengths, tagged by length.
+
+    Lexical score accumulates over matched terms and fields while cosine is a single bounded
+    number, so the two components scale differently with query length. A blend tuned at one length
+    is not evidence about another - which is precisely the flaw in the weight-60 sweep, whose
+    queries were all 7 terms. Stratifying by length is the point of the experiment, so the label
+    set has to carry the strata.
+    """
+    out: list[dict] = []
+    for index, length in enumerate(lengths):
+        # Distinct seed per length, or the shuffles align and the same entries supply every stratum,
+        # which would hide a length effect behind a fixed entry sample.
+        rows = term_positives(cwd, limit=limit_per_length, sample=length, seed=20260805 + index * 97)
+        for row in rows:
+            row["source"] = f"P_terms{length}"
+        out.extend(rows)
     return out
 
 
 def title_positives(cwd: Path, limit: int = 200, seed: int = 20260805) -> list[dict]:
     """An entry's title should surface that entry. Sanity floor only."""
     rng = random.Random(seed + 1)
-    chunks = [c for c in extract_memory_chunks(cwd, granularity="entry") if c.entry_id]
+    chunks = [c for c in load_corpus(cwd, "entry") if c.entry_id]
     rng.shuffle(chunks)
     out: list[dict] = []
     for chunk in chunks:
@@ -163,9 +261,16 @@ def negatives() -> list[dict]:
 
 
 def build(cwd: Path, per_source: int = 120) -> list[dict]:
+    """The label set.
+
+    Paraphrase positives come from `term_positives_by_length`, so `P_terms` is replaced by
+    `P_terms3` / `P_terms7` / `P_terms15`. That changes the mix, so numbers from this set are NOT
+    comparable to runs made before the strata existed - re-baseline rather than diffing against
+    `results-lexical.json` from the first calibration run.
+    """
     rows = (
         lifecycle_positives(cwd, per_source)
-        + term_positives(cwd, per_source)
+        + term_positives_by_length(cwd, limit_per_length=per_source // 2)
         + title_positives(cwd, per_source)
         + negatives()
     )
