@@ -82,6 +82,7 @@ class HarnessTests(unittest.TestCase):
             tasks.write_text(json.dumps({"tasks": [task]}), encoding="utf-8")
             command = runner.build_command("claude", root, "prompt", arm="retrieval-v1-packet", fixture=None, model="m", effort=None)
             self.assertNotIn("--mcp-config", command); self.assertNotIn("--dangerously-skip-permissions", command); self.assertIn("--tools", command)
+            self.assertEqual("", command[command.index("--tools") + 1])
             seen = {}
             def fake_run(*args, **kwargs):
                 seen["cwd"] = Path(kwargs["cwd"]).resolve()
@@ -106,7 +107,7 @@ class HarnessTests(unittest.TestCase):
                 model="claude-model", effort=None,
             )
             self.assertNotIn("--dangerously-skip-permissions", claude)
-            self.assertEqual("", claude[claude.index("--tools") + 1])
+            self.assertNotIn("--tools", claude)
             allowed = claude[claude.index("--allowed-tools") + 1].split(",")
             self.assertEqual(
                 {f"mcp__context-fixture__{name}" for name in mcp.allowed_names("search-mcp")},
@@ -170,6 +171,21 @@ class HarnessTests(unittest.TestCase):
             self.assertNotIn(generated, runner.redact_output(generated, secrets=(generated,)))
             self.assertTrue(runner.codex_broker_capable())
             self.assertFalse(runner.codex_interactive_ready())
+
+    def test_pilot_zero_call_protocol_gate_only_applies_to_interactive_arms(self):
+        allowed = set(mcp.allowed_names("search-mcp"))
+        self.assertEqual(
+            ["interactive_no_mcp_calls"],
+            runner._pilot_protocol_failures("search-mcp", [], [], allowed),
+        )
+        self.assertEqual(
+            [],
+            runner._pilot_protocol_failures("search-mcp", ["memory_search"], [], allowed),
+        )
+        self.assertEqual(
+            [],
+            runner._pilot_protocol_failures("retrieval-v1-packet", [], [], set()),
+        )
 
     def test_subject_last_message_is_redacted_before_archival(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(

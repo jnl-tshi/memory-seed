@@ -116,6 +116,27 @@ both owner-review markers are approved.
    claim is consumed even on provider failure. Collection and scoring exclude
    both smoke kinds structurally.
 
+   Before any scored batch, the separately approved end-to-end pilot exercises
+   one synthetic `PILOT-01` task across all four arms and both pinned agents
+   exactly once (eight paid calls). It runs two serial queues—one per agent—with
+   at most two calls total, never retries or resumes, stops queued launches after
+   any containment failure, and requires a fresh nonexistent OS-temporary output
+   path (an existing directory, even empty, is rejected):
+
+   ```text
+   python experiments/context-derivation/pilot.py --owner-approved --output <fresh-nonexistent-os-temp-path> --claude-executable <exact-archived-2.1.221-executable>
+   ```
+
+   The archived Claude executable must be an exact resolved regular non-reparse
+   file whose SHA256 is the approved archive digest. The same file is used for
+   version verification and execution, but its machine path is not retained.
+   A stable machine-local claim is consumed immediately before the two queues
+   start, so failure cannot be topped up with a ninth call. Pilot fixtures and
+   packets are deterministic; their private gold never enters subject
+   directories. `PILOT_SUMMARY.json` performs pilot-only mechanical validation
+   and is explicitly `scored: false`. Normal collection, scoring, judging, and
+   the 288-cell live matrix remain unchanged and reject pilot artifacts.
+
 8. Collect, score, run the frozen blind reviews, and render the report. Scoring
    and judge execution also verify the frozen live artifacts. The report accepts
    the offline reduction, all 96 judgements, and a reviewed recommendation JSON;
