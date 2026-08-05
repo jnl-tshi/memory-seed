@@ -43,7 +43,7 @@ ARMS = subjects.ARMS
 SUBJECTS = subjects.SUBJECTS
 QUERY_COUNT = 60
 EXPECTED_CELL_COUNT = QUERY_COUNT * len(ARMS) * len(SUBJECTS)
-_REF = re.compile(r"(?:mse_[A-Za-z0-9]+:d[1-9][0-9]*|constitution:[A-Za-z0-9._-]+(?:#[A-Za-z0-9._-]+)?|adr_[A-Za-z0-9_]+)")
+_REF = re.compile(r"(?:mse_[A-Za-z0-9]+:d[1-9][0-9]*|constitution:[A-Za-z0-9._-]+(?:#[A-Za-z0-9._-]+)?|adr_[a-z0-9_]+(?![A-Za-z0-9_-]))")
 _GOLD_KEYS = frozenset(queries._GOLD_FIELD_NAMES | {"gold", "answer_key", "answer-key", "labels"})
 
 
@@ -139,7 +139,8 @@ def _gold(gold: Mapping[str, Any]) -> dict[str, Any]:
         "lineage": _edges(gold["required_lineage_edges"], "required_lineage_edges", allowed_types={"evolves", "replaces"}),
         "related": _edges(gold.get("required_related_edges", []), "required_related_edges", allowed_types={"related"}),
         "constitution": constitution,
-        "citation_refs": _set(gold.get("relevant_refs", []), "relevant_refs") | constitution,
+        "citation_refs": _set(gold.get("relevant_refs", []), "relevant_refs")
+        | _set(gold["required_adr_ids"], "required_adr_ids") | constitution,
         "material_refs": _set(gold["required_adr_ids"], "required_adr_ids")
         | _set(gold["authoritative_refs"], "authoritative_refs")
         | set(map(str, gold["expected_statuses"]))
@@ -246,12 +247,14 @@ def _validate_result_manifest(
     pin_fields = {"subject", "requested_model", "reported_model", "model_digest", "quantization", "context_window", "decoding", "provider_version", "cli_version", "adapter_version"}
     if not isinstance(pin, Mapping) or set(pin) != pin_fields or pin.get("subject") != subject or result.get("pin_fingerprint") != fingerprint(pin):
         raise ValueError("result pin fingerprint mismatch")
+    if not all(isinstance(pin[name], str) and pin[name] for name in ("subject", "requested_model", "reported_model", "model_digest", "quantization", "provider_version", "adapter_version")) or not isinstance(pin["context_window"], int) or isinstance(pin["context_window"], bool) or not isinstance(pin["decoding"], Mapping) or (pin["cli_version"] is not None and (not isinstance(pin["cli_version"], str) or not pin["cli_version"])):
+        raise ValueError("result pin is malformed")
     try:
         observed_pin = subjects.SubjectPin(
-            subject=str(pin["subject"]), requested_model=str(pin["requested_model"]), reported_model=str(pin["reported_model"]),
-            model_digest=str(pin["model_digest"]), quantization=str(pin["quantization"]), context_window=pin["context_window"],
-            decoding=subjects.frozen_decoding(pin["decoding"]), provider_version=str(pin["provider_version"]),
-            cli_version=pin["cli_version"], adapter_version=str(pin["adapter_version"]),
+            subject=pin["subject"], requested_model=pin["requested_model"], reported_model=pin["reported_model"],
+            model_digest=pin["model_digest"], quantization=pin["quantization"], context_window=pin["context_window"],
+            decoding=subjects.frozen_decoding(pin["decoding"]), provider_version=pin["provider_version"],
+            cli_version=pin["cli_version"], adapter_version=pin["adapter_version"],
         )
         observed_pin.validate()
     except (KeyError, TypeError, ValueError) as error:
@@ -265,7 +268,7 @@ def _validate_result_manifest(
         raise ValueError("result duration_ms must be non-negative")
     if not isinstance(result.get("token_proxy"), int) or result["token_proxy"] <= 0 or not isinstance(result.get("usage"), Mapping) or not isinstance(result.get("transcript"), str) or not isinstance(result.get("isolation"), Mapping):
         raise ValueError("result token usage is malformed")
-    if not {"empty_cwd", "repo_access", "mcp_enabled"} <= set(result["isolation"]):
+    if not {"empty_cwd", "repo_access", "mcp_enabled"} <= set(result["isolation"]) or result["isolation"].get("empty_cwd") is not True or result["isolation"].get("repo_access") is not False or result["isolation"].get("mcp_enabled") is not False:
         raise ValueError("result isolation evidence is malformed")
 
 
@@ -409,15 +412,24 @@ def _topk_input(topk_aggregate: Mapping[str, Any] | None) -> dict[str, Any]:
             raise ValueError("topk aggregate contains an incomplete, non-canonical shard")
         recall = shard["complete_query_recall"]
         gates = shard["critical_gates"]
-        if not isinstance(recall, Mapping) or recall.get("required") != QUERY_COUNT or recall.get("threshold") != 57 or not isinstance(gates, Mapping) or set(gates) != set(topk.CRITICAL_DIMENSIONS):
+        if not isinstance(recall, Mapping) or set(recall) != {"passing", "required", "threshold", "rate", "complete"} or recall.get("required") != QUERY_COUNT or recall.get("threshold") != 57 or not isinstance(recall.get("passing"), int) or isinstance(recall.get("passing"), bool) or not 0 <= recall["passing"] <= QUERY_COUNT or not isinstance(recall.get("rate"), (int, float)) or recall["rate"] != recall["passing"] / QUERY_COUNT or recall.get("complete") is not (recall["passing"] >= 57) or not isinstance(gates, Mapping) or set(gates) != set(topk.CRITICAL_DIMENSIONS):
             raise ValueError("topk aggregate lacks Task 2 recall or critical-gate denominators")
+        semantic_errors: set[str] = set()
+        if not recall["complete"]:
+            semantic_errors.add("complete-query-recall")
         for name in topk.CRITICAL_DIMENSIONS:
             gate = gates[name]
-            if not isinstance(gate, Mapping) or set(gate) != {"applicable", "passing", "required", "complete"} or not isinstance(gate["complete"], bool) or gate["required"] != gate["applicable"]:
+            if not isinstance(gate, Mapping) or set(gate) != {"applicable", "passing", "required", "complete"} or not all(isinstance(gate[field], int) and not isinstance(gate[field], bool) and gate[field] >= 0 for field in ("applicable", "passing", "required")) or gate["passing"] > gate["required"] or not isinstance(gate["complete"], bool) or gate["required"] != gate["applicable"] or gate["complete"] is not (bool(gate["applicable"]) and gate["passing"] == gate["applicable"]):
                 raise ValueError("topk aggregate has a malformed Task 2 critical gate")
+            if not gate["complete"]:
+                semantic_errors.add(f"{name}-gate")
         expected = bool(shard.get("passing"))
         if bool(shard.get("passing")) != (not shard.get("errors")):
             raise ValueError("topk aggregate passing flag is inconsistent")
+        if semantic_errors and not semantic_errors <= set(shard["errors"]):
+            raise ValueError("topk aggregate suppresses a semantic Task 2 failure")
+        if semantic_errors and expected:
+            raise ValueError("topk aggregate marks a semantic Task 2 failure as passing")
         expected_passing[k] = expected
     if topk_aggregate.get("ranking_arm") != "production-default":
         raise ValueError("topk aggregate must be production-default, not diagnostic")
@@ -451,6 +463,7 @@ def score_experiment(
     packets = validate_packet_manifests(packet_manifests, rows)
     expected = {(row["query_id"], arm, subject) for row in rows for arm in ARMS for subject in SUBJECTS}
     seen: set[tuple[str, str, str]] = set()
+    pin_fingerprint_by_subject: dict[str, str] = {}
     cells: list[dict[str, Any]] = []
     for result in result_manifests:
         if not isinstance(result, Mapping):
@@ -464,6 +477,10 @@ def score_experiment(
         query = next(row for row in rows if row["query_id"] == key[0])
         packet = packets[(key[0], key[1])]
         _validate_result_manifest(result, query=query, packet=packet, corpus_fingerprint=corpus["canonical_fingerprint"])
+        pinned = result["pin_fingerprint"]
+        prior = pin_fingerprint_by_subject.setdefault(key[2], pinned)
+        if prior != pinned:
+            raise ValueError("subject runtime pin drift across result cells")
         cells.append(score_cell(result, gold_by_parent[key[0].split(".")[0]], {"query": packet["query"], **packet["evidence"]}))
     if len(cells) != EXPECTED_CELL_COUNT or seen != expected:
         raise ValueError("results must contain exactly the 360 frozen cells")
@@ -504,8 +521,8 @@ def render_markdown(result: Mapping[str, Any]) -> str:
                 continue
             gates = summary["gates"]
             noninferiority = summary.get("noninferior_to", "n/a")
-            lines.append("| {} | {} | {}/{} | {}/{} | {}/{} | {}/{} | {}/0 | {}/{} | {} |".format(
-                subject, arm, summary["complete_correct"], summary["cell_count"],
+            lines.append("| {} | {} | {}/{} (threshold {}) | {}/{} | {}/{} | {}/{} | {}/0 | {}/{} | {} |".format(
+                subject, arm, gates["complete_correct"]["passing"], gates["complete_correct"]["required"], gates["complete_correct"]["threshold"],
                 gates["authority"]["passing"], gates["authority"]["required"], gates["status"]["passing"], gates["status"]["required"],
                 gates["missing_evidence_abstention"]["passing"], gates["missing_evidence_abstention"]["required"],
                 gates["related_as_lineage"]["passing"], gates["resolvable_citations"]["passing"], gates["resolvable_citations"]["required"], canonical_json(noninferiority) if isinstance(noninferiority, Mapping) else noninferiority,

@@ -145,13 +145,38 @@ def test_adr_citations_and_explanation_refs_must_be_declared_in_evidence():
     target["parsed_answer"] = {**target["parsed_answer"], "citations": ["adr_mcp_decision_envelope_review"], "explanation": "See adr_undeclared."}
     scored = module.score_experiment(results, packets, query_rows=rows)
     checks = scored["subjects"]["local"]["adr-constitution"]["failures_by_task_family"]
-    assert {"task_id": "CTX-01", "failures": ["citations", "constitution_refs", "material_refs"]} in checks
+    assert {"task_id": "CTX-01", "failures": ["constitution_refs", "material_refs"]} in checks
+
+
+def test_evidence_present_gold_adr_citation_is_allowed():
+    rows, packets, results = fixtures()
+    target = next(row for row in results if row["subject"] == "local" and row["arm"] == "adr-constitution" and row["parent_task_id"] == "CTX-01")
+    target["parsed_answer"] = {**target["parsed_answer"], "citations": [*target["parsed_answer"]["citations"], "adr_mcp_decision_envelope_review"]}
+    scored = module.score_experiment(results, packets, query_rows=rows)
+    assert scored["subjects"]["local"]["adr-constitution"]["complete_correct"] == 60
+
+
+@pytest.mark.parametrize("mutation", ["numeric-pin", "unsafe-isolation", "pin-drift"])
+def test_pin_types_safe_isolation_and_subject_pin_consistency_are_enforced(mutation):
+    rows, packets, results = fixtures()
+    target = results[0]
+    if mutation == "numeric-pin":
+        pin = {**target["pin"], "requested_model": 7}
+        results[0] = {**target, "pin": pin, "pin_fingerprint": module.fingerprint(pin)}
+    elif mutation == "unsafe-isolation":
+        results[0] = {**target, "isolation": {**target["isolation"], "empty_cwd": False}}
+    else:
+        target = next(row for row in results if row["subject"] == "local" and row["query_id"] != results[0]["query_id"])
+        pin = {**target["pin"], "model_digest": "sha256:changed"}
+        target.update(pin=pin, pin_fingerprint=module.fingerprint(pin))
+    with pytest.raises(ValueError, match="pin|isolation"):
+        module.score_experiment(results, packets, query_rows=rows)
 
 
 def valid_topk_aggregate():
     shards = {}
     for k in (1, 3, 5):
-        shards[str(k)] = {"k": k, "cell_count": 60, "query_corpus_fingerprint": module.queries.load_query_variants()[0]["canonical_fingerprint"], "complete_query_recall": {"required": 60, "threshold": 57, "complete": True}, "critical_gates": {name: {"applicable": 1, "passing": 1, "required": 1, "complete": True} for name in module.topk.CRITICAL_DIMENSIONS}, "errors": [], "passing": True}
+        shards[str(k)] = {"k": k, "cell_count": 60, "query_corpus_fingerprint": module.queries.load_query_variants()[0]["canonical_fingerprint"], "complete_query_recall": {"passing": 60, "required": 60, "threshold": 57, "rate": 1.0, "complete": True}, "critical_gates": {name: {"applicable": 1, "passing": 1, "required": 1, "complete": True} for name in module.topk.CRITICAL_DIMENSIONS}, "errors": [], "passing": True}
     result = {"schema": module.topk.SCHEMA, "k_values": [1, 3, 5], "results": shards, "ranking_arm": "production-default", "recommended_k": 1}
     result["fingerprint"] = module.fingerprint(result)
     return result
@@ -165,6 +190,23 @@ def test_topk_rejects_self_fingerprinted_empty_shards():
     assert module.score_experiment([], [], topk_aggregate=valid_topk_aggregate())["topk"]["recommended_k"] == 1
 
 
+def test_topk_rejects_semantic_failure_hidden_by_empty_errors_and_passing_flag():
+    aggregate = valid_topk_aggregate()
+    shard = aggregate["results"]["3"]
+    shard["complete_query_recall"] = {"passing": 0, "required": 60, "threshold": 57, "rate": 0.0, "complete": False}
+    aggregate["fingerprint"] = module.fingerprint({key: value for key, value in aggregate.items() if key != "fingerprint"})
+    with pytest.raises(ValueError, match="semantic"):
+        module.score_experiment([], [], topk_aggregate=aggregate)
+
+
+def test_topk_rejects_hidden_critical_gate_numerator_failure():
+    aggregate = valid_topk_aggregate()
+    aggregate["results"]["5"]["critical_gates"]["authority"] = {"applicable": 60, "passing": 59, "required": 60, "complete": False}
+    aggregate["fingerprint"] = module.fingerprint({key: value for key, value in aggregate.items() if key != "fingerprint"})
+    with pytest.raises(ValueError, match="semantic"):
+        module.score_experiment([], [], topk_aggregate=aggregate)
+
+
 def test_not_run_is_explicit_and_non_vacuous():
     result = module.score_experiment([], [])
     assert result["status"] == "not_run"
@@ -173,4 +215,4 @@ def test_not_run_is_explicit_and_non_vacuous():
     assert result["subjects"]["luna"]["adr-constitution"]["gates"]["complete_correct"]["threshold"] == 54
     assert result["subjects"]["local"]["adr-constitution"]["noninferior_to"]["decision-only"] == "not_evaluated"
     markdown = module.render_markdown(result)
-    assert "Task-family failures and distributions" in markdown and "not_evaluated" in markdown
+    assert "0/60 (threshold 54)" in markdown and "Task-family failures and distributions" in markdown and "not_evaluated" in markdown
