@@ -4,12 +4,16 @@ import contextlib
 import io
 import json
 import unittest
+from dataclasses import replace
 from datetime import date
+from pathlib import Path
 from unittest import mock
 
 from memory_seed.cli import main
 from memory_seed.ranking_ab import (
     ABResult,
+    SIGNAL_REGISTRY,
+    format_ab_report,
     QueryABResult,
     RankChange,
     ab_result_to_dict,
@@ -309,6 +313,64 @@ class RankingABTests(unittest.TestCase):
         self.assertTrue(payload["directional_queries_pass"])
         self.assertIsNone(payload["queries"][0]["winner_beats_loser"])
         self.assertIsNone(payload["queries"][0]["winner_within_max_rank"])
+
+
+class AttentionSignalGateTests(unittest.TestCase):
+    """The attention signal draws its evidence from the retrieval log, not from corpus structure.
+
+    An empty log means "no evidence yet". Before 2026-08-05 the gate reported PASS in that state -
+    nothing was affected, so both arms were trivially identical - which is a vacuous approval of
+    exactly the kind expose-before-you-rank exists to prevent.
+    """
+
+    def _corpus(self):
+        return [
+            _chunk("mse_att001", "Retrieval ranking notes", "Ranking notes about retrieval.", day=1),
+            _chunk("mse_att002", "Retrieval caching notes", "Caching notes about retrieval.", day=2),
+        ]
+
+    def test_empty_log_refuses_rather_than_passing(self):
+        corpus = self._corpus()
+        with mock.patch.dict(
+            "memory_seed.ranking_ab.SIGNAL_REGISTRY",
+            {
+                "attention": replace(
+                    SIGNAL_REGISTRY["attention"], affected=lambda cwd, c: set()
+                )
+            },
+        ):
+            result = run_ab(
+                "attention", cwd=Path("."), corpus=corpus, queries=["retrieval"],
+                today=date(2026, 7, 20),
+            )
+        self.assertEqual(result.affected_ids, ())
+        self.assertTrue(result.queries, "the query still runs; it is the verdict that must refuse")
+        self.assertTrue(result.no_hit_queries_identical)
+        self.assertFalse(result.passed, "an empty evidence base must fail closed, not pass")
+        self.assertIn("REFUSED", format_ab_report(result))
+
+    def test_populated_log_can_pass(self):
+        corpus = self._corpus()
+        with mock.patch.dict(
+            "memory_seed.ranking_ab.SIGNAL_REGISTRY",
+            {
+                "attention": replace(
+                    SIGNAL_REGISTRY["attention"], affected=lambda cwd, c: {"mse_att001"}
+                )
+            },
+        ):
+            result = run_ab(
+                "attention", cwd=Path("."), corpus=corpus, queries=["retrieval"],
+                today=date(2026, 7, 20),
+            )
+        self.assertEqual(result.affected_ids, ("mse_att001",))
+        self.assertTrue(result.passed)
+        self.assertNotIn("REFUSED", format_ab_report(result))
+
+    def test_other_signals_are_unaffected_by_the_refusal(self):
+        """requires_affected_hits is opt-in; a structural signal with nothing affected still passes."""
+        self.assertFalse(SIGNAL_REGISTRY["supersession_damping"].requires_affected_hits)
+        self.assertTrue(SIGNAL_REGISTRY["attention"].requires_affected_hits)
 
 
 class RankingABCliTests(unittest.TestCase):

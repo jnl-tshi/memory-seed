@@ -145,6 +145,48 @@ calibrated only), timeline-compressed retention, and the fixes were authored by 
 designed the probes - the standing experimenter-equals-subject limitation. A second independent
 corpus is the cheapest strengthening move before submission.
 
+## Scale addendum (2026-08-05): what the 7-entry store could not show
+
+Re-measured on the live corpus — **836 entries / 1,241 decision chunks** — via
+`experiments/decision-retrieval-scale/measure.py`.
+
+**Token cost, measured not estimated** (8 results, mean served characters):
+
+| granularity | mean served | ~tokens |
+|---|---|---|
+| entry | 2,239 chars | ~560 |
+| decision | 7,203 chars (median 7,612, max 10,649) | ~1,800 |
+
+Decision granularity costs **~3.2x** entry granularity per search. The earlier estimate of ~2,250
+tokens was low but the right order; 1,800 mean / 2,660 max is an acceptable price for serving whole
+DRAFT blocks, and it is a real budget line for a busy session.
+
+**The relevance band does not work at scale — a defect, found here.** Bands came out 88% `strong`
+at *both* granularities, and `no_match_above_threshold` fired for **0 of 12** probe queries. Pure
+nonsense ("recipe for sourdough starter hydration", "premier league transfer window rules")
+returned eight results banded `strong`. Neither discriminator separates real from nonsense:
+
+| | real queries | nonsense queries |
+|---|---|---|
+| top score | 17.9 – 53.5 | 8.8 – 19.3 (**overlapping**) |
+| top ÷ median | 1.11 – 2.12 | 1.00 – 1.41 (**overlapping**) |
+
+Semantic ranking on or off makes no difference to the verdict. The constants were fitted to a
+7-entry store where everything banded `strong` and the answer was present anyway — the saturation
+was invisible there, and the 96.8 dry-run score does not validate the band for the same reason.
+
+**Consequence, corrected the same day.** The shipped `history_retrieval` guidance said a `strong`
+band should be answered from and that `no_match_above_threshold` alone licenses "not recorded".
+Against a signal that never fires and bands noise as strong, that instruction told agents to answer
+confidently from irrelevant content and never abstain. It has been replaced with an explicit
+uncalibrated warning, and `search_memory` now returns `relevance_calibrated: False` so no consumer
+can read the band as evidence. Recalibration needs a wider probe set than twelve queries and is not
+attempted here — the distribution above is the evidence a future attempt should start from.
+
+**Lifecycle top-1 stability** was measured over only 4 derivable supersession lineages (entry 3/4
+head@1, decision 2/4) — too few to distinguish the granularities, and reported only so the number
+is not silently omitted.
+
 ## Contamination guard
 
 Dry-run materials stay out of the published store paths (`experiments/memory-index-dryrun/`,

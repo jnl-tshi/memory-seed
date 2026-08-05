@@ -105,6 +105,29 @@ multiplier shape is provisional until that gate.
   for v1: the primary checkout carries most retrieval traffic.
 - **Session-start surfacing** — "most-attended decisions" in the SessionStart hook context.
 
+## Observability: why the log is still empty (2026-08-05)
+
+`.memory-seed/.retrieval-log.jsonl` does not exist in this repository, and that is expected rather
+than a fault. This project's `.mcp.json` registers `uvx --from memory-seed memory-seed-mcp` - the
+**published** package - so the instrumentation added on 2026-08-05 is not the code any session here
+actually runs. The signal starts accumulating only after a release carries it, or under an MCP
+config pinned to the local working tree (`python -m memory_seed.mcp_server` with `PYTHONPATH`, the
+pattern the agent-capture fixtures use). Same class as the recorded stale-console-script hazard:
+the file on disk is not necessarily the code in the loop.
+
+Consequence for the gate: `memory-seed ranking-ab --signal attention` cannot pass here yet, and as
+of 2026-08-05 it correctly **refuses** rather than reporting a vacuous PASS - see below.
+
+## Correction, 2026-08-05: the gate could be passed on no evidence
+
+As shipped, the signal's registry comment claimed the gate "cannot pass on an empty log". That was
+false whenever `--query` was supplied: with nothing in the log, `affected` returned an empty set,
+every query fell into the control bucket, both arms were byte-identical, and `ABResult.passed`
+returned **True** - a pass certifying nothing. Fixed by adding `requires_affected_hits` to `Signal`
+and `ABResult`: a signal whose evidence base is accumulated runtime data fails closed when that
+base is empty, and the report says so in words. Covered by `tests/test_ranking_ab.py`
+(`AttentionSignalGateTests`), which had zero attention coverage before this.
+
 ## Promotion gate
 
 Default flip requires: (1) weeks of real accumulated usage in this repo's log, (2)

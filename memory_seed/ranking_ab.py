@@ -107,6 +107,9 @@ class ABResult:
     affected_ids: tuple[str, ...]
     queries: tuple[QueryABResult, ...]
     requires_no_hit_control: bool = False
+    # Signals whose evidence comes from accumulated runtime data (rather than from corpus
+    # structure) must refuse to pass when that data is absent - see `passed`.
+    requires_affected_hits: bool = False
 
     @property
     def no_hit_queries_identical(self) -> bool:
@@ -128,6 +131,11 @@ class ABResult:
 
     @property
     def passed(self) -> bool:
+        # An empty affected set means the signal touched nothing this run: every query lands in the
+        # control bucket, off and on are trivially identical, and the gate would report PASS on
+        # evidence it never had. Fail closed - "no data yet" is a refusal, not a pass.
+        if self.requires_affected_hits and not self.affected_ids:
+            return False
         return bool(self.queries) and self.no_hit_queries_identical and self.directional_queries_pass
 
 
@@ -161,6 +169,8 @@ class Signal:
     # queries derived from the corpus when the caller passes none
     default_queries: Callable[[Path, Sequence[MemoryChunk]], list[QuerySpec]]
     requires_no_hit_control: bool
+    # True when an empty `affected` set means "no evidence yet" rather than "nothing to change".
+    requires_affected_hits: bool = False
 
 
 def _replaced_ids(cwd: Path, corpus: Sequence[MemoryChunk]) -> set[str]:
@@ -283,6 +293,11 @@ SIGNAL_REGISTRY: dict[str, Signal] = {
         # flip waits for evidence.
         default_queries=lambda cwd, corpus: [],
         requires_no_hit_control=False,
+        # The retrieval log is the whole evidence base for this signal. Measured 2026-08-05: with
+        # --query supplied against an empty log the gate reported PASS, because nothing was
+        # affected so both arms were trivially identical - the exact vacuous approval the
+        # expose-before-you-rank rule exists to prevent.
+        requires_affected_hits=True,
     ),
 }
 
@@ -467,6 +482,7 @@ def run_ab(
         affected_ids=tuple(sorted(affected_ids)),
         queries=results,
         requires_no_hit_control=signal.requires_no_hit_control,
+        requires_affected_hits=signal.requires_affected_hits,
     )
 
 
@@ -486,6 +502,14 @@ def format_ab_report(result: ABResult) -> str:
     if not result.queries:
         lines.append("No queries to run. This signal has no derived default queries -- pass --query <q>.")
         return "\n".join(lines)
+
+    if result.requires_affected_hits and not result.affected_ids:
+        lines.append(
+            "REFUSED: this signal draws its evidence from accumulated runtime data, and there is "
+            "none yet -- nothing is affected, so both arms are trivially identical and a PASS here "
+            "would mean nothing. Accumulate real usage first."
+        )
+        lines.append("")
 
     for q in result.queries:
         header = f"- {q.label}"

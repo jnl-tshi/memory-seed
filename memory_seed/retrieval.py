@@ -212,8 +212,16 @@ def _classify_relevance(payload: dict[str, Any]) -> None:
     Deterministic and explainable (Constitution §3 - a stated rule, not a hidden score):
     a result is `strong` when it clears an absolute floor AND holds at least
     RELEVANCE_STRONG_RATIO of the top score; `weak` when it clears the floor only; `none`
-    otherwise. When nothing is strong, the payload says so, which is the signal an agent
-    needs to abstain honestly instead of guessing from raw floats.
+    otherwise.
+
+    UNCALIBRATED as of 2026-08-05. Measured on the 836-entry corpus, these thresholds do not
+    discriminate: nonsense queries return results banded `strong`, and `no_match_above_threshold`
+    fired for zero of twelve probe queries, with semantic ranking on or off. Neither the absolute
+    score nor the top-versus-pack gap separated real queries from nonsense. The constants were set
+    against a 7-entry fixture where every result banded `strong` and the answer was present anyway,
+    which hid the saturation. The payload therefore carries `relevance_calibrated: False` and
+    consumers must judge relevance from the served content; see
+    `experiments/decision-retrieval-scale/` for the distribution the recalibration needs.
     """
     results = payload.get("results") or []
     if not results:
@@ -222,6 +230,7 @@ def _classify_relevance(payload: dict[str, Any]) -> None:
             f"strong: score >= {RELEVANCE_FLOOR} and >= {RELEVANCE_STRONG_RATIO:.0%} of top; "
             f"weak: score >= {RELEVANCE_FLOOR}; else none"
         )
+        payload["relevance_calibrated"] = False
         return
     top = max(float(row.get("score") or 0.0) for row in results)
     for row in results:
@@ -239,6 +248,7 @@ def _classify_relevance(payload: dict[str, Any]) -> None:
         f"strong: score >= {RELEVANCE_FLOOR} and >= {RELEVANCE_STRONG_RATIO:.0%} of top; "
         f"weak: score >= {RELEVANCE_FLOOR}; else none"
     )
+    payload["relevance_calibrated"] = False
 
 
 def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = False) -> dict[str, Any]:
