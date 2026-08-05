@@ -1,7 +1,7 @@
 ---
 title: "Memory Seed Competitor Landscape"
 status: active
-last_reviewed: "2026-08-04"
+last_reviewed: "2026-08-05"
 next_review_due: "2026-11-01"
 confidence: medium
 ---
@@ -76,6 +76,39 @@ independent benchmark existing at all is a category-formation signal that qualif
 | 8 | Zep | 75.1 | Yes |
 | — | Claude Code built-in memory | 67.7 | (platform built-in) |
 
+**Profiles of the four unknowns (checked 2026-08-05):**
+
+- **Karpathy Wiki (98.5) — a pattern, not a product.** Andrej Karpathy's April 2026 `llm-wiki`
+  gist (5,000+ stars in days): agent-curated interlinked Markdown, `raw/` immutable sources,
+  `wiki/` generated pages, a schema file, ingest/query/lint operations — "agent memory should
+  compound, not re-retrieve." Per the index author it was also **the only system that hallucinated
+  on a never-stored question**, and its $568.93/1k answers is ~2x the cheapest tool.
+  [gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
+- **Mitosis Cortex (96.9) — real, but brand new.** A Reddit commenter claimed the product was
+  hallucinated; it is not — [Mitosis Labs](https://mitosislabs.ai/) exists (ex-Meta founder,
+  "agent colonies" infrastructure; Cortex is a private memory layer building a knowledge graph over
+  Google Workspace/WhatsApp/GitHub). Recently launched, essentially no independent footprint yet;
+  its #1-hosted rank rests on one v0.1 benchmark.
+- **gbrain (92.9) — Garry Tan's (YC CEO) open-source memory system**, April 2026, MIT: Markdown +
+  Postgres/pgvector, vector + keyword + **typed knowledge graph**, imports Markdown, **CLI + MCP
+  surfaces**, PGLite local / Postgres shared. The closest new neighbour to Memory Seed's shape,
+  carrying the most influential distribution in startups.
+  [overview](https://vectorize.io/articles/what-is-gbrain)
+- **Hyperspell (92.4) — YC F25, ~$1M seed**: connector-based passive memory (Slack, Gmail, Notion,
+  Drive), continuous indexing. Belongs to the Unblocked/Pieces reconstruct-from-systems lens, not
+  the authored-record lens. [site](https://hyperspell.com/)
+
+**The category event behind the index:** Karpathy's gist and Tan's gbrain both landed in
+**April 2026** — the two most influential figures in the space independently bet on
+agent-curated Markdown, and four months later an independent benchmark shows that bet beating
+every hosted memory API. **Memory Seed's substrate philosophy is now market-validated by the
+category's biggest names.** The contested ground is what Memory Seed adds on top: the index
+author's own data shows the wiki pattern's failures are exactly governance-shaped — the sole
+never-stored hallucination (no validated write path), staleness and update weakness across
+products (Zep passed 8/24 update questions; Supermemory 11/72 long-horizon), and collaboration.
+One top thread comment states the differentiation thesis verbatim: the wiki "wins because it's
+inspectable… The durable memory layer isn't recall, it's provenance, an append-only record."
+
 Readings, marked as interpretation:
 
 - **The four unknown top scorers need profiling.** Anything at 92+ on probes that include "updated
@@ -93,10 +126,15 @@ Readings, marked as interpretation:
 - **The index measures recall, not capture.** No probe tests whether an agent *records* unprompted
   - the E5 question. Memory Seed's capture-side evidence has no external benchmark yet.
 
-**Path to external validation:** the index accepts submissions (contact@verginglabs.com). Sequence
-agreed 2026-08-04: profile the four unknown tools; dry-run their probe taxonomy privately against
-Memory Seed (fit is unverified - the harness likely assumes an arbitrary-fact store/recall API,
-and a decision-shaped store may need an adapter); only then submit. Never enter a benchmark blind.
+**Path to external validation:** submissions go via the form at
+[verginglabs.com/radar](https://verginglabs.com/radar); **v0.2 is planned for early September
+2026**, which puts a real deadline on the sequence agreed 2026-08-04: profile the unknowns (done
+2026-08-05, above), dry-run their probe taxonomy privately against Memory Seed (design:
+`docs/2_Todo/memory-index-dry-run-plan.md`), only then submit. Never enter a benchmark blind.
+Benchmark mechanics that matter for the dry-run: each tool's agent is **given the tool's own docs
+and left to follow them** across simulated multi-week sessions — so a Memory Seed run would
+measure the shipped instruction surface end-to-end, and (per a sharp thread critique) part of any
+score is really the curation strategy the docs induce, not the storage format.
 
 ## Strategic watch points
 
@@ -124,6 +162,7 @@ and a decision-shaped store may need an adapter); only then submit. Never enter 
 
 ## Change log
 
+- **2026-08-05:** Profiled the four unknown top scorers (Karpathy pattern, Mitosis Cortex real-but-new, gbrain, Hyperspell); added the April-2026 category event, the provenance-shaped gap in the winners, the /radar submission path and the v0.2 early-September deadline.
 - **2026-08-04:** Added the Verging Labs Agentic Memory Index section: four new competitor names, the category-formation signal, probe-taxonomy convergence with E5/E6/E8, and the profile -> dry-run -> submit sequence.
 - **2026-08-01:** Created the canonical ten-company landscape and separated vendor framing from Memory
   Seed's strategic interpretation.

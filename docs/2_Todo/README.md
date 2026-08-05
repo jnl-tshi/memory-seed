@@ -5,6 +5,7 @@
 |---|---|---|---|
 | [declarative-retrieval-specification-proposal.md](declarative-retrieval-specification-proposal.md) | P1 | [] | Keep the delivered M0/M1 inline slice stable; evaluate the enabling M2 profile work only after … |
 | [derived-projection-implementation-plan.md](derived-projection-implementation-plan.md) | P1 | — | Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, … |
+| [memory-index-dry-run-plan.md](memory-index-dry-run-plan.md) | P1 | — | JNL approves the run; execute before the v0.2 submission decision (Verging Labs v0.2 lands earl… |
 | [memory-provenance-and-authority-taxonomy-proposal.md](memory-provenance-and-authority-taxonomy-proposal.md) | P1 | — | Steps 5–6 (GATED on the participant/role model + a user go): implement actionability as a polic… |
 | [memory-quality-metrics-v0-proposal.md](memory-quality-metrics-v0-proposal.md) | P1 | user review — is the baseline useful and repeatable? (propo… | JNL reviews docs/4_Reference/memory-quality-v0-baseline.md. Only then propose targets, ESR surf… |
 | [memory-seed-semantic-record-and-signal-foundation-plan.md](memory-seed-semantic-record-and-signal-foundation-plan.md) | P1 | — | Evaluate the remaining record_kind and retrieval-signal work after the provenance and quality g… |
@@ -18,7 +19,7 @@
 | [adjudication-queue.md](adjudication-queue.md) | P2 | — | JNL to rule each row; the rulings become the project's only validity ground truth. |
 | [attention-retrieval-signal-proposal.md](attention-retrieval-signal-proposal.md) | P2 | — | Accumulate real MCP usage, then run `memory-seed ranking-ab --signal attention --query ...` bef… |
 | [document-lifecycle-system-plan.md](document-lifecycle-system-plan.md) | P2 | — | Phases 2-3 COMPLETE 2026-07-17: migration, `docs check` (also in esr + CI), and `docs index` (m… |
-| [file-touch-decision-surfacing-proposal.md](file-touch-decision-surfacing-proposal.md) | P2 | — | JNL decides whether this ships before or after the attention signal's ranking gate; then implem… |
+| [file-touch-decision-surfacing-proposal.md](file-touch-decision-surfacing-proposal.md) | P2 | — | Observe the hook in real sessions; extend to Codex/Gemini/Cursor events when their PostToolUse … |
 | [hierarchical-topic-vocabulary-proposal.md](hierarchical-topic-vocabulary-proposal.md) | P2 | — | JNL to accept or reject. If accepted the order is - (1) `parent:` field + schema_version 2 + re… |
 | [link-audit-decision-judgment-swarm-proposal.md](link-audit-decision-judgment-swarm-proposal.md) | P2 | — | In-core foundation SHIPPED 2026-07-23 (link audit --json judgment-ready candidates). Open befor… |
 | [memory-seed-workflow-evidence-and-review-workbench-plan.md](memory-seed-workflow-evidence-and-review-workbench-plan.md) | P2 | — | Reconstruct three completed project journeys from existing entries, documents, and Git referenc… |
