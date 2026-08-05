@@ -256,9 +256,24 @@ def aggregate_cells(cells: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         item_hits = sum(int(row["item_decision_recall"]["hits"]) for row in rows)
         item_required = sum(int(row["item_decision_recall"]["required"]) for row in rows)
         complete = sum(bool(row["complete_query_decision_recall"]["complete"]) for row in rows)
+        provenance_failures = [
+            {"query_id": row.get("query_id"), "failures": list(row.get("provenance_failures", []))}
+            for row in rows if row.get("provenance_failures")
+        ]
+        if provenance_failures:
+            errors.append("provenance-gate")
         gates: dict[str, Any] = {}
         for name in CRITICAL_DIMENSIONS:
-            applicable = [row for row in rows if int(row["critical"][name]["required"]) > 0]
+            # A zero-denominator negative control is not applicable when it
+            # remains empty.  It becomes applicable (and must fail) the
+            # instant it reports an unexpected fact, so extras can never hide
+            # behind a required=0 denominator.
+            applicable = [
+                row for row in rows
+                if int(row["critical"][name]["required"]) > 0
+                or bool(row["critical"][name].get("found"))
+                or bool(row["critical"][name].get("extra"))
+            ]
             passing = sum(bool(row["critical"][name]["complete"]) for row in applicable)
             gate = {"applicable": len(applicable), "passing": passing, "required": len(applicable), "complete": bool(applicable) and passing == len(applicable)}
             if not gate["complete"]: errors.append(f"{name}-gate")
@@ -271,12 +286,18 @@ def aggregate_cells(cells: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
                    "mrr": sum(float(row["mrr"]) for row in rows) / len(rows) if rows else 0.0,
                    "first_hit_ranks": [row["first_hit_rank"] for row in rows], "critical_gates": gates,
                    "failures_by_query": [{"query_id": row.get("query_id"), "failures": row.get("failures", [])} for row in rows if row.get("failures")],
+                   "provenance_failures_by_query": provenance_failures,
                    "latency_ms": {"total": sum(float(row["latency_ms"]) for row in rows), "mean": sum(float(row["latency_ms"]) for row in rows) / len(rows) if rows else 0.0},
                    "token_proxy": {"total": sum(int(row["token_proxy"]) for row in rows), "mean": sum(int(row["token_proxy"]) for row in rows) / len(rows) if rows else 0.0},
                    "errors": sorted(set(errors))}
         summary["passing"] = not summary["errors"]
         summaries[str(k)] = summary
     result = {"schema": SCHEMA, "k_values": list(K_VALUES), "results": summaries}
+    corpus_fingerprints = {summary["query_corpus_fingerprint"] for summary in summaries.values()}
+    if len(corpus_fingerprints) != 1 or None in corpus_fingerprints:
+        for summary in summaries.values():
+            summary["errors"] = sorted(set(summary["errors"] + ["mixed-query-corpus-fingerprint-across-k"]))
+            summary["passing"] = False
     arms = {row.get("ranking_arm") for rows in by_k.values() for row in rows}
     if len(arms) != 1:
         for summary in summaries.values():

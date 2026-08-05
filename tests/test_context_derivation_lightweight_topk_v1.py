@@ -137,3 +137,41 @@ def test_vacuous_critical_coverage_fails_closed() -> None:
     result = module.aggregate_cells(rows)
     assert result["results"]["1"]["critical_gates"]["lineage"] == {"applicable": 0, "passing": 0, "required": 0, "complete": False}
     assert result["recommended_k"] is None
+
+
+def test_aggregate_provenance_failure_blocks_k_selection_even_when_recall_and_critical_gates_pass() -> None:
+    rows = cells_for(1) + cells_for(3) + cells_for(5)
+    for k in module.K_VALUES:
+        row = next(row for row in rows if row["k"] == k and row["query_id"] == "CTX-01.V01")
+        row["provenance_failures"] = ["adr_alpha:related-trigger-leakage"]
+        row["failures"] = ["adr_alpha:related-trigger-leakage"]
+    result = module.aggregate_cells(rows)
+    assert result["results"]["3"]["critical_gates"]["related"]["complete"] is True
+    assert result["results"]["3"]["provenance_failures_by_query"] == [{"query_id": "CTX-01.V01", "failures": ["adr_alpha:related-trigger-leakage"]}]
+    assert "provenance-gate" in result["results"]["3"]["errors"]
+    assert result["recommended_k"] is None
+
+
+@pytest.mark.parametrize("dimension", ["related", "constitution_binding"])
+def test_zero_denominator_extras_are_hard_failures_for_negative_controls(dimension: str) -> None:
+    rows = cells_for(1) + cells_for(3) + cells_for(5)
+    unexpected = "unexpected-related" if dimension == "related" else "unexpected-binding"
+    for k in module.K_VALUES:
+        row = next(row for row in rows if row["k"] == k and row["query_id"] == "CTX-01.V01")
+        row["critical"][dimension] = {"required": 0, "found": [unexpected], "extra": [unexpected], "complete": False}
+    result = module.aggregate_cells(rows)
+    assert result["results"]["5"]["critical_gates"][dimension]["applicable"] == 60
+    assert f"{dimension}-gate" in result["results"]["5"]["errors"]
+    assert result["recommended_k"] is None
+
+
+def test_corpus_fingerprint_must_match_across_all_k_shards() -> None:
+    rows = cells_for(1) + cells_for(3) + cells_for(5)
+    for row in rows:
+        if row["k"] == 5:
+            row["query_corpus_fingerprint"] = "sha256:" + "b" * 64
+    result = module.aggregate_cells(rows)
+    assert result["results"]["1"]["query_corpus_fingerprint"] == CORPUS
+    assert result["results"]["5"]["query_corpus_fingerprint"] == "sha256:" + "b" * 64
+    assert "mixed-query-corpus-fingerprint-across-k" in result["results"]["3"]["errors"]
+    assert result["recommended_k"] is None
