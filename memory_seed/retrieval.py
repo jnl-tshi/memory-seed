@@ -75,7 +75,7 @@ def search_memory(
     recency_floor: float = 0.15,
     semantic_enabled: bool = True,
     embedding_provider: Any = None,
-    granularity: str = "entry",
+    granularity: str = "decision",
     user: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
@@ -166,6 +166,11 @@ def search_memory(
     # get_chunk round trip. Additive, read-only, and reuses the corpus
     # extracted above - ranking and result order are untouched.
     graph = build_related_entry_graph(cwd, chunks=chunks)
+    # Mechanical relevance classification: the tool, not the model, decides whether a
+    # result is a real match. Bands come from the score distribution (absolute floor plus
+    # the gap to the pack), so "not recorded" becomes a tool-reported fact an agent may
+    # repeat rather than a judgement it has to make from raw floats.
+    _classify_relevance(payload)
     # Attention exposure (attention-retrieval-signal-proposal.md): decayed
     # fetch-frequency per entry, shown beside the lifecycle heads so "most
     # looked-at" and "most evolved" read side by side. Read-only metadata in the
@@ -195,6 +200,45 @@ def search_memory(
         # augmented) graph.
         result["evolved_head"] = list(evolves_lineage_heads(graph, entry_id))
     return payload
+
+
+RELEVANCE_FLOOR = 6.0
+RELEVANCE_STRONG_RATIO = 0.55
+
+
+def _classify_relevance(payload: dict[str, Any]) -> None:
+    """Attach `relevance` per result and `no_match_above_threshold` to the payload.
+
+    Deterministic and explainable (Constitution §3 - a stated rule, not a hidden score):
+    a result is `strong` when it clears an absolute floor AND holds at least
+    RELEVANCE_STRONG_RATIO of the top score; `weak` when it clears the floor only; `none`
+    otherwise. When nothing is strong, the payload says so, which is the signal an agent
+    needs to abstain honestly instead of guessing from raw floats.
+    """
+    results = payload.get("results") or []
+    if not results:
+        payload["no_match_above_threshold"] = True
+        payload["relevance_rule"] = (
+            f"strong: score >= {RELEVANCE_FLOOR} and >= {RELEVANCE_STRONG_RATIO:.0%} of top; "
+            f"weak: score >= {RELEVANCE_FLOOR}; else none"
+        )
+        return
+    top = max(float(row.get("score") or 0.0) for row in results)
+    for row in results:
+        score = float(row.get("score") or 0.0)
+        if score >= RELEVANCE_FLOOR and top > 0 and score >= RELEVANCE_STRONG_RATIO * top:
+            row["relevance"] = "strong"
+        elif score >= RELEVANCE_FLOOR:
+            row["relevance"] = "weak"
+        else:
+            row["relevance"] = "none"
+    payload["no_match_above_threshold"] = not any(
+        row.get("relevance") == "strong" for row in results
+    )
+    payload["relevance_rule"] = (
+        f"strong: score >= {RELEVANCE_FLOOR} and >= {RELEVANCE_STRONG_RATIO:.0%} of top; "
+        f"weak: score >= {RELEVANCE_FLOOR}; else none"
+    )
 
 
 def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = False) -> dict[str, Any]:
@@ -1206,7 +1250,15 @@ def _evidence_record(
         "reasons": sorted(candidate.reasons),
         "token_estimate": candidate.token_estimate,
         "fetch": fetch,
-        "excerpt": _excerpt(candidate.text) if include_excerpt else None,
+        "excerpt": (
+            (
+                _decision_body(candidate.text)
+                if getattr(candidate, "granularity", "") == "decision"
+                else _excerpt(candidate.text)
+            )
+            if include_excerpt
+            else None
+        ),
     }
 
 
@@ -2526,7 +2578,13 @@ def ranked_to_dict(result: RankedMemoryChunk) -> dict[str, Any]:
         "heading_path": list(chunk.heading_path),
         "matched_terms": list(result.matched_terms),
         "matched_fields": list(result.matched_fields),
-        "excerpt": _excerpt(chunk.text),
+        # Decision results carry the complete DRAFT block; entry/section results keep the
+        # short preview (the whole entry is too large to serve inline).
+        "excerpt": (
+            _decision_body(chunk.text)
+            if chunk.granularity == "decision"
+            else _excerpt(chunk.text)
+        ),
         "entry_id": chunk.entry_id,
         "user_initials": chunk.user_initials,
         "agent_type": chunk.agent_type,
@@ -2701,8 +2759,24 @@ def _human_report(query: str, results: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+# A decision result is served WHOLE: the agent gets the complete DRAFT block (D/R/A/F/T),
+# not a preview of it, because the block is the unit it must reason about. 2500 chars covers
+# 97.6% of recorded decisions in the reference corpus; the rest are truncated with an explicit
+# marker so an agent knows to fetch rather than assuming it saw everything.
+DECISION_TEXT_LIMIT = 2500
+
+
 def _excerpt(text: str, limit: int = 280) -> str:
     compact = " ".join(text.split())
     if len(compact) <= limit:
         return compact
     return compact[: limit - 3].rstrip() + "..."
+
+
+def _decision_body(text: str, limit: int = DECISION_TEXT_LIMIT) -> str:
+    """The whole decision block, newlines preserved, truncated only past the cap."""
+    body = text.strip()
+    if len(body) <= limit:
+        return body
+    marker = "\n\n[truncated - call memory_get_chunk for the full decision]"
+    return body[:limit].rstrip() + marker
