@@ -1809,27 +1809,28 @@ def _term_matches_value(term: str, value: str) -> bool:
 
 
 def semantic_text(chunk: MemoryChunk) -> str:
-    """The surface the semantic side scores - the same one the lexical side scores.
+    """The surface the semantic side scores. Body text only.
 
-    `_lexical_score` reads tags (weight 12), contexts (8), heading_path (6), lexical_terms (4) and
-    the body text (1 per term). Embedding only `chunk.text` therefore compared two different things:
-    lexical over title + tags + body against semantic over body alone. Any blend weight fitted on
-    that mismatch is fitting the mismatch as much as the weighting.
+    It is reasonable to expect this should match what the lexical side reads - `_lexical_score`
+    also scores tags (12), contexts (8), heading_path (6) and lexical_terms (4), so embedding the
+    body alone compares two different things, and any blend weight fitted on that partly fits the
+    mismatch rather than the weighting. That argument was acted on, then tested, and the test did
+    not support it. Holding everything else at the shipped configuration and varying ONLY this
+    surface, over 180 paraphrase and 120 title queries:
 
-    It also explains a specific observed effect: raising the semantic weight used to DEGRADE
-    title-query accuracy, because it added body-similarity noise to a judgement lexical was getting
-    right from `heading_path` - a field the embedding never saw.
+        paraphrase@8   body-only 132/180    heading+tags+body 130/180   (net -2, p = 0.48)
+        title@8        body-only 114/120    heading+tags+body 114/120   (no query changed)
 
-    Titles first: the heading is the most information-dense description of a decision, and putting
-    it at the front keeps it inside the model's context for long bodies.
+    The composed surface bought nothing and cost two answers, so it was reverted. This stays a
+    named function rather than being inlined back into `_semantic_scores` because the argument is
+    not wrong in principle - it simply does not pay on this corpus with this model - and it is
+    worth re-testing if either changes.
+
+    One caveat on the title result: those probes use exact entry titles, which lexical already
+    matches through `heading_path`, so the comparison ran on queries where semantic similarity has
+    little left to contribute. Near-miss titles could still separate the two.
     """
-    parts = [
-        " ".join(chunk.heading_path or ()),
-        " ".join(chunk.tags or ()),
-        " ".join(chunk.contexts or ()),
-        chunk.text or "",
-    ]
-    return "\n".join(part for part in parts if part).strip()
+    return chunk.text or ""
 
 
 def _semantic_scores(
