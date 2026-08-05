@@ -1,0 +1,42 @@
+{
+  "weights": [
+    {
+      "weight": 0.0,
+      "answer_at_1": 36,
+      "answer_at_k": 73,
+      "n": 120
+    },
+    {
+      "weight": 3.0,
+      "answer_at_1": 38,
+      "answer_at_k": 74,
+      "n": 120
+    },
+    {
+      "weight": 10.0,
+      "answer_at_1": 39,
+      "answer_at_k": 79,
+      "n": 120
+    },
+    {
+      "weight": 30.0,
+      "answer_at_1": 45,
+      "answer_at_k": 85,
+      "n": 120
+    },
+    {
+      "weight": 60.0,
+      "answer_at_1": 54,
+      "answer_at_k": 94,
+      "n": 120
+    },
+    {
+      "weight": 120.0,
+      "answer_at_1": 55,
+      "answer_at_k": 93,
+      "n": 120
+    }
+  ],
+  "n_positives": 120,
+  "semantic_share_at_3": 0.21613207318023428
+}
