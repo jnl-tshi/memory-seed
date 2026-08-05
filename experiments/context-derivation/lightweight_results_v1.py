@@ -33,6 +33,7 @@ def _load(name: str, filename: str) -> Any:
 contracts = _load("lightweight_results_contracts", "contracts.py")
 queries = _load("lightweight_results_queries", "revision_constitution_queries_v1.py")
 subjects = _load("lightweight_results_subjects", "lightweight_subjects_v1.py")
+topk = _load("lightweight_results_topk", "lightweight_topk_v1.py")
 
 SCHEMA = "lightweight-results.v1"
 CELL_SCHEMA = "lightweight-result-cell.v1"
@@ -42,7 +43,8 @@ ARMS = subjects.ARMS
 SUBJECTS = subjects.SUBJECTS
 QUERY_COUNT = 60
 EXPECTED_CELL_COUNT = QUERY_COUNT * len(ARMS) * len(SUBJECTS)
-_REF = re.compile(r"(?:mse_[A-Za-z0-9]+:d[1-9][0-9]*|constitution:[A-Za-z0-9._-]+(?:#[A-Za-z0-9._-]+)?)")
+_REF = re.compile(r"(?:mse_[A-Za-z0-9]+:d[1-9][0-9]*|constitution:[A-Za-z0-9._-]+(?:#[A-Za-z0-9._-]+)?|adr_[A-Za-z0-9_]+)")
+_GOLD_KEYS = frozenset(queries._GOLD_FIELD_NAMES | {"gold", "answer_key", "answer-key", "labels"})
 
 
 def canonical_json(value: Any) -> str:
@@ -59,6 +61,23 @@ def _set(value: Any, field: str) -> set[str]:
     if len(value) != len(set(value)):
         raise ValueError(f"{field} must not contain duplicates")
     return set(value)
+
+
+def _subject_query(query: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the exact Task 3 subject-visible portion of a frozen query."""
+    return {field: query[field] for field in ("query_id", "parent_task_id", "variant_index", "question")}
+
+
+def _reject_gold_leak(value: Any) -> None:
+    """Gold labels cannot be embedded in immutable subject packets."""
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            if str(key).lower() in _GOLD_KEYS:
+                raise ValueError("gold field leaked into subject packet")
+            _reject_gold_leak(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _reject_gold_leak(item)
 
 
 def _edges(value: Any, field: str, *, allowed_types: set[str]) -> set[tuple[str, str, str]]:
@@ -121,13 +140,19 @@ def _gold(gold: Mapping[str, Any]) -> dict[str, Any]:
         "related": _edges(gold.get("required_related_edges", []), "required_related_edges", allowed_types={"related"}),
         "constitution": constitution,
         "citation_refs": _set(gold.get("relevant_refs", []), "relevant_refs") | constitution,
+        "material_refs": _set(gold["required_adr_ids"], "required_adr_ids")
+        | _set(gold["authoritative_refs"], "authoritative_refs")
+        | set(map(str, gold["expected_statuses"]))
+        | {ref for edge in _edges(gold["required_lineage_edges"], "required_lineage_edges", allowed_types={"evolves", "replaces"}) for ref in edge[:2]}
+        | {ref for edge in _edges(gold.get("required_related_edges", []), "required_related_edges", allowed_types={"related"}) for ref in edge[:2]}
+        | constitution | _set(gold.get("required_missing_refs", []), "required_missing_refs"),
         "insufficient": bool(gold["insufficient_evidence"]),
         "missing": _set(gold.get("required_missing_refs", []), "required_missing_refs"),
     }
 
 
 def _evidence_refs(evidence: Any) -> set[str]:
-    """Return every canonical decision/Constitution reference in fixed evidence."""
+    """Return every canonical decision, ADR, or Constitution reference in evidence."""
     refs: set[str] = set()
 
     def visit(value: Any) -> None:
@@ -144,18 +169,35 @@ def _evidence_refs(evidence: Any) -> set[str]:
     return refs
 
 
+def _material_refs(answer: Mapping[str, Any]) -> set[str]:
+    """Find references in every answer claim, including the free-text explanation."""
+    return _evidence_refs(answer)
+
+
 def _packet_key(packet: Mapping[str, Any]) -> tuple[str, str]:
     return str(packet.get("query_id")), str(packet.get("arm"))
 
 
+def _canonical_frozen_rows(query_rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Reject caller-supplied rows unless they are byte-for-byte frozen rows."""
+    _corpus, expected = queries.load_query_variants()
+    if canonical_json(list(query_rows)) != canonical_json(expected):
+        raise ValueError("results require the ordered frozen 60-query corpus")
+    return expected
+
+
 def validate_packet_manifests(packet_manifests: Sequence[Mapping[str, Any]], query_rows: Sequence[Mapping[str, Any]]) -> dict[tuple[str, str], Mapping[str, Any]]:
     """Validate one immutable fixed packet for every query/arm pair."""
+    query_rows = _canonical_frozen_rows(query_rows)
     query_by_id = {str(row.get("query_id")): row for row in query_rows}
     expected = {(query_id, arm) for query_id in query_by_id for arm in ARMS}
     packets: dict[tuple[str, str], Mapping[str, Any]] = {}
     for packet in packet_manifests:
         if not isinstance(packet, Mapping) or packet.get("schema") != PACKET_MANIFEST_SCHEMA:
             raise ValueError("packet manifests must use lightweight-subject-packet-manifest.v1")
+        required_fields = {"schema", "query_id", "parent_task_id", "arm", "query", "corpus_fingerprint", "task_fingerprint", "evidence", "packet_fingerprint", "context_fingerprint"}
+        if set(packet) != required_fields:
+            raise ValueError("packet manifest must use the complete immutable manifest shape")
         key = _packet_key(packet)
         query = query_by_id.get(key[0])
         if key in packets:
@@ -165,8 +207,14 @@ def validate_packet_manifests(packet_manifests: Sequence[Mapping[str, Any]], que
         evidence = packet.get("evidence")
         if not isinstance(evidence, Mapping):
             raise ValueError("packet manifest evidence must be an object")
-        payload = {"schema": subjects.PACKET_SCHEMA, "arm": key[1], "evidence": dict(evidence)}
-        if packet.get("packet_fingerprint") != fingerprint(payload) or packet.get("context_fingerprint") != fingerprint(evidence):
+        subject_query = _subject_query(query)
+        if packet.get("query") != subject_query or packet.get("corpus_fingerprint") != queries.load_query_variants()[0]["canonical_fingerprint"] or packet.get("task_fingerprint") != fingerprint(subject_query):
+            raise ValueError("packet manifest is not bound to the canonical frozen query corpus")
+        _reject_gold_leak(packet["query"])
+        _reject_gold_leak(evidence)
+        full_evidence = {"query": subject_query, **dict(evidence)}
+        payload = {"schema": subjects.PACKET_SCHEMA, "arm": key[1], "evidence": full_evidence}
+        if packet.get("packet_fingerprint") != fingerprint(payload) or packet.get("context_fingerprint") != fingerprint(full_evidence):
             raise ValueError("packet manifest fingerprint mismatch")
         packets[key] = packet
     if set(packets) != expected:
@@ -179,6 +227,9 @@ def _validate_result_manifest(
 ) -> None:
     if result.get("schema") != subjects.RESULT_SCHEMA:
         raise ValueError("subject result must use lightweight-subject-result.v1")
+    required_fields = {"schema", "query_id", "parent_task_id", "arm", "subject", "packet_fingerprint", "context_fingerprint", "task_fingerprint", "corpus_fingerprint", "pin", "pin_fingerprint", "duration_ms", "usage", "token_proxy", "transcript", "parsed_answer", "protocol_failure", "isolation"}
+    if set(result) != required_fields:
+        raise ValueError("subject result must use the complete runtime manifest shape")
     for name in ("query_id", "parent_task_id"):
         if result.get(name) != query.get(name):
             raise ValueError("result identity does not match frozen query")
@@ -186,14 +237,25 @@ def _validate_result_manifest(
         raise ValueError("result arm does not match the fixed packet")
     if result.get("packet_fingerprint") != packet.get("packet_fingerprint") or result.get("context_fingerprint") != packet.get("context_fingerprint"):
         raise ValueError("result packet/context fingerprint mismatch")
-    if result.get("corpus_fingerprint") != corpus_fingerprint or result.get("task_fingerprint") != fingerprint(query):
+    if result.get("corpus_fingerprint") != corpus_fingerprint or result.get("corpus_fingerprint") != packet.get("corpus_fingerprint") or result.get("task_fingerprint") != fingerprint(_subject_query(query)) or result.get("task_fingerprint") != packet.get("task_fingerprint"):
         raise ValueError("result corpus/task fingerprint mismatch")
     subject = result.get("subject")
     if subject not in SUBJECTS:
         raise ValueError("result has an unknown subject")
     pin = result.get("pin")
-    if not isinstance(pin, Mapping) or pin.get("subject") != subject or result.get("pin_fingerprint") != fingerprint(pin):
+    pin_fields = {"subject", "requested_model", "reported_model", "model_digest", "quantization", "context_window", "decoding", "provider_version", "cli_version", "adapter_version"}
+    if not isinstance(pin, Mapping) or set(pin) != pin_fields or pin.get("subject") != subject or result.get("pin_fingerprint") != fingerprint(pin):
         raise ValueError("result pin fingerprint mismatch")
+    try:
+        observed_pin = subjects.SubjectPin(
+            subject=str(pin["subject"]), requested_model=str(pin["requested_model"]), reported_model=str(pin["reported_model"]),
+            model_digest=str(pin["model_digest"]), quantization=str(pin["quantization"]), context_window=pin["context_window"],
+            decoding=subjects.frozen_decoding(pin["decoding"]), provider_version=str(pin["provider_version"]),
+            cli_version=pin["cli_version"], adapter_version=str(pin["adapter_version"]),
+        )
+        observed_pin.validate()
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError("result pin is malformed") from error
     if result.get("protocol_failure") is not None:
         raise ValueError("protocol-failed result cannot be mechanically scored")
     if not isinstance(result.get("parsed_answer"), Mapping):
@@ -201,8 +263,10 @@ def _validate_result_manifest(
     contracts.validate_answer(dict(result["parsed_answer"]))
     if not isinstance(result.get("duration_ms"), (int, float)) or result["duration_ms"] < 0:
         raise ValueError("result duration_ms must be non-negative")
-    if not isinstance(result.get("token_proxy"), int) or result["token_proxy"] <= 0 or not isinstance(result.get("usage"), Mapping):
+    if not isinstance(result.get("token_proxy"), int) or result["token_proxy"] <= 0 or not isinstance(result.get("usage"), Mapping) or not isinstance(result.get("transcript"), str) or not isinstance(result.get("isolation"), Mapping):
         raise ValueError("result token usage is malformed")
+    if not {"empty_cwd", "repo_access", "mcp_enabled"} <= set(result["isolation"]):
+        raise ValueError("result isolation evidence is malformed")
 
 
 def score_cell(result: Mapping[str, Any], gold: Mapping[str, Any], evidence: Mapping[str, Any]) -> dict[str, Any]:
@@ -211,6 +275,7 @@ def score_cell(result: Mapping[str, Any], gold: Mapping[str, Any], evidence: Map
     target = _gold(gold)
     citations = _set(answer["citations"], "citations")
     evidence_refs = _evidence_refs(evidence)
+    material_refs = _material_refs(answer)
     lineage = _edges(answer["lineage_edges"], "lineage_edges", allowed_types={"evolves", "replaces"})
     related = _edges(answer["related_edges"], "related_edges", allowed_types={"related"})
     related_pairs = {(source, target) for source, target, _kind in target["related"]}
@@ -224,6 +289,7 @@ def score_cell(result: Mapping[str, Any], gold: Mapping[str, Any], evidence: Map
         "lineage_edges": _exact(target["lineage"], lineage),
         "constitution_refs": _exact(target["constitution"], constitution_citations),
         "citations": {"required": len(citations), "found": sorted(citations), "outside_evidence": sorted(citations - evidence_refs), "extra_material_refs": sorted(citations - target["citation_refs"]), "complete": bool(citations) and citations <= evidence_refs and citations <= target["citation_refs"]},
+        "material_refs": {"found": sorted(material_refs), "outside_evidence": sorted(material_refs - evidence_refs - target["missing"]), "extra": sorted(material_refs - target["material_refs"]), "complete": material_refs <= evidence_refs | target["missing"] and material_refs <= target["material_refs"]},
         "related_safety": {"required": len(target["related"]), "found": sorted(related), "related_as_lineage": related_as_lineage, "complete": related == target["related"] and not related_as_lineage},
         "missing_refs": _exact(target["missing"], _set(answer["missing_refs"], "missing_refs")),
     }
@@ -254,7 +320,9 @@ def _aggregate(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     citations = sum(bool(row["checks"]["citations"]["complete"]) for row in rows)
     related_leaks = sum(not bool(row["checks"]["related_safety"]["complete"]) for row in rows)
     missing = [row for row in rows if row["parent_task_id"] == "CTX-12"]
-    abstentions = sum(bool(row["checks"]["insufficient_evidence"]["complete"]) and bool(row["checks"]["missing_refs"]["complete"]) for row in missing)
+    # CTX-12 is a full negative-control answer, not merely a boolean abstain:
+    # an unsupported ADR, citation, or explanation claim makes it fail.
+    abstentions = sum(bool(row["complete_correct"]) for row in missing)
     gates = {
         "complete_correct": {"passing": complete, "required": QUERY_COUNT, "threshold": 54, "complete": len(rows) == QUERY_COUNT and complete >= 54},
         "authority": {"passing": authority, "required": QUERY_COUNT, "threshold": QUERY_COUNT, "complete": authority == QUERY_COUNT},
@@ -292,13 +360,30 @@ def validate_judge_records(records: Sequence[Mapping[str, Any]] | None) -> list[
     return sorted(normalized, key=canonical_json)
 
 
+def _empty_summary(arm: str) -> dict[str, Any]:
+    """Preserve every denominator when a subject arm has intentionally not run."""
+    gates = {
+        "complete_correct": {"passing": 0, "required": QUERY_COUNT, "threshold": 54, "complete": False, "status": "not_evaluated"},
+        "authority": {"passing": 0, "required": QUERY_COUNT, "threshold": QUERY_COUNT, "complete": False, "status": "not_evaluated"},
+        "status": {"passing": 0, "required": QUERY_COUNT, "threshold": QUERY_COUNT, "complete": False, "status": "not_evaluated"},
+        "missing_evidence_abstention": {"passing": 0, "required": 5, "threshold": 5, "complete": False, "status": "not_evaluated"},
+        "related_as_lineage": {"passing": 0, "required": 0, "threshold": 0, "complete": False, "status": "not_evaluated"},
+        "resolvable_citations": {"passing": 0, "required": QUERY_COUNT, "threshold": QUERY_COUNT, "complete": False, "status": "not_evaluated"},
+    }
+    summary = {"cell_count": 0, "complete_correct": 0, "gates": gates, "passing": False,
+               "failures_by_task_family": [], "duration_ms": _distribution([]), "token_proxy": _distribution([])}
+    if arm == "adr-constitution":
+        summary["noninferior_to"] = {"decision-only": "not_evaluated", "adr-current": "not_evaluated"}
+    return summary
+
+
 def not_run_report(*, topk_aggregate: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Produce the explicit, non-vacuous report used before subject execution."""
     topk = _topk_input(topk_aggregate)
     result = {
         "schema": SCHEMA, "status": "not_run", "expected_cell_count": EXPECTED_CELL_COUNT,
         "observed_cell_count": 0, "exclusions": [{"reason": "no subject run artifacts"}],
-        "topk": topk, "subjects": {}, "recommendation": None,
+        "topk": topk, "subjects": {subject: {arm: _empty_summary(arm) for arm in ARMS} for subject in SUBJECTS}, "recommendation": None,
         "minimum_capability_conclusion": "not_run: no minimum capability recommendation",
         "explanation_reviews": [],
     }
@@ -310,11 +395,35 @@ def _topk_input(topk_aggregate: Mapping[str, Any] | None) -> dict[str, Any]:
     """Keep the Task 2 K=1/3/5 result as validated input, never recomputed."""
     if topk_aggregate is None:
         return {"status": "not_provided", "reference": "validated Task 2 aggregate required"}
-    if topk_aggregate.get("schema") != "lightweight-top-k-result.v1" or topk_aggregate.get("k_values") != [1, 3, 5]:
+    if topk_aggregate.get("schema") != topk.SCHEMA or topk_aggregate.get("k_values") != list(topk.K_VALUES):
         raise ValueError("topk aggregate must be a validated Task 2 K=1/3/5 result")
     results = topk_aggregate.get("results")
     if not isinstance(results, Mapping) or set(results) != {"1", "3", "5"} or any(not isinstance(results[key], Mapping) for key in results):
         raise ValueError("topk aggregate must contain all Task 2 K shards")
+    corpus, _rows = queries.load_query_variants()
+    expected_passing: dict[int, bool] = {}
+    for k in topk.K_VALUES:
+        shard = results[str(k)]
+        required = {"k", "cell_count", "query_corpus_fingerprint", "complete_query_recall", "critical_gates", "errors", "passing"}
+        if not required <= set(shard) or shard.get("k") != k or shard.get("cell_count") != QUERY_COUNT or shard.get("query_corpus_fingerprint") != corpus["canonical_fingerprint"]:
+            raise ValueError("topk aggregate contains an incomplete, non-canonical shard")
+        recall = shard["complete_query_recall"]
+        gates = shard["critical_gates"]
+        if not isinstance(recall, Mapping) or recall.get("required") != QUERY_COUNT or recall.get("threshold") != 57 or not isinstance(gates, Mapping) or set(gates) != set(topk.CRITICAL_DIMENSIONS):
+            raise ValueError("topk aggregate lacks Task 2 recall or critical-gate denominators")
+        for name in topk.CRITICAL_DIMENSIONS:
+            gate = gates[name]
+            if not isinstance(gate, Mapping) or set(gate) != {"applicable", "passing", "required", "complete"} or not isinstance(gate["complete"], bool) or gate["required"] != gate["applicable"]:
+                raise ValueError("topk aggregate has a malformed Task 2 critical gate")
+        expected = bool(shard.get("passing"))
+        if bool(shard.get("passing")) != (not shard.get("errors")):
+            raise ValueError("topk aggregate passing flag is inconsistent")
+        expected_passing[k] = expected
+    if topk_aggregate.get("ranking_arm") != "production-default":
+        raise ValueError("topk aggregate must be production-default, not diagnostic")
+    recommended = next((k for k in topk.K_VALUES if expected_passing[k]), None) if expected_passing[5] else None
+    if topk_aggregate.get("recommended_k") != recommended:
+        raise ValueError("topk aggregate recommendation is inconsistent with Task 2 gates")
     stable = {key: value for key, value in topk_aggregate.items() if key != "fingerprint"}
     if topk_aggregate.get("fingerprint") != fingerprint(stable):
         raise ValueError("topk aggregate fingerprint mismatch")
@@ -329,12 +438,10 @@ def score_experiment(
     """Validate and reduce the frozen 360-cell experiment without executing it."""
     if not result_manifests:
         if packet_manifests:
-            validate_packet_manifests(packet_manifests, query_rows or queries.subject_visible_queries())
+            validate_packet_manifests(packet_manifests, query_rows or queries.load_query_variants()[1])
         return not_run_report(topk_aggregate=topk_aggregate)
-    rows = list(query_rows or queries.subject_visible_queries())
-    expected_rows = queries.subject_visible_queries()
-    if [row.get("query_id") for row in rows] != [row["query_id"] for row in expected_rows]:
-        raise ValueError("results require the ordered frozen 60-query corpus")
+    _corpus, expected_rows = queries.load_query_variants()
+    rows = _canonical_frozen_rows(query_rows or expected_rows)
     corpus, joined = queries.load_query_variants()[0], queries.join_queries_to_gold()
     gold_by_parent = {query["parent_task_id"]: gold for query, gold in joined}
     if gold_rows is not None:
@@ -357,7 +464,7 @@ def score_experiment(
         query = next(row for row in rows if row["query_id"] == key[0])
         packet = packets[(key[0], key[1])]
         _validate_result_manifest(result, query=query, packet=packet, corpus_fingerprint=corpus["canonical_fingerprint"])
-        cells.append(score_cell(result, gold_by_parent[key[0].split(".")[0]], packet["evidence"]))
+        cells.append(score_cell(result, gold_by_parent[key[0].split(".")[0]], {"query": packet["query"], **packet["evidence"]}))
     if len(cells) != EXPECTED_CELL_COUNT or seen != expected:
         raise ValueError("results must contain exactly the 360 frozen cells")
     cells.sort(key=lambda row: (row["subject"], row["arm"], row["query_id"]))
@@ -389,19 +496,26 @@ def score_experiment(
 
 def render_markdown(result: Mapping[str, Any]) -> str:
     """Render a stable human summary without changing the JSON result."""
-    lines = ["# Lightweight context-derivation results", "", f"Status: `{result['status']}`", "", f"Minimum capability conclusion: {result['minimum_capability_conclusion']}", "", "| Subject | Arm | Complete | Authority | Status | Missing evidence | Related leaks | Citations |", "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |"]
+    lines = ["# Lightweight context-derivation results", "", f"Status: `{result['status']}`", "", f"Minimum capability conclusion: {result['minimum_capability_conclusion']}", "", "| Subject | Arm | Complete | Authority | Status | Missing evidence | Related leaks | Citations | Non-inferiority |", "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |"]
     for subject in SUBJECTS:
         for arm in ARMS:
             summary = (result.get("subjects") or {}).get(subject, {}).get(arm)
             if summary is None:
                 continue
             gates = summary["gates"]
-            lines.append("| {} | {} | {}/{} | {}/{} | {}/{} | {}/{} | {}/0 | {}/{} |".format(
+            noninferiority = summary.get("noninferior_to", "n/a")
+            lines.append("| {} | {} | {}/{} | {}/{} | {}/{} | {}/{} | {}/0 | {}/{} | {} |".format(
                 subject, arm, summary["complete_correct"], summary["cell_count"],
                 gates["authority"]["passing"], gates["authority"]["required"], gates["status"]["passing"], gates["status"]["required"],
                 gates["missing_evidence_abstention"]["passing"], gates["missing_evidence_abstention"]["required"],
-                gates["related_as_lineage"]["passing"], gates["resolvable_citations"]["passing"], gates["resolvable_citations"]["required"],
+                gates["related_as_lineage"]["passing"], gates["resolvable_citations"]["passing"], gates["resolvable_citations"]["required"], canonical_json(noninferiority) if isinstance(noninferiority, Mapping) else noninferiority,
             ))
+    lines.extend(["", "## Task-family failures and distributions", ""])
+    for subject in SUBJECTS:
+        for arm in ARMS:
+            summary = (result.get("subjects") or {}).get(subject, {}).get(arm)
+            if summary is not None:
+                lines.append(f"- {subject}/{arm}: failures={canonical_json(summary['failures_by_task_family'])}; duration_ms={canonical_json(summary['duration_ms'])}; token_proxy={canonical_json(summary['token_proxy'])}")
     lines.extend(["", "## Retrieval input", "", canonical_json(result["topk"]), "", "## Exclusions", ""])
     for exclusion in result.get("exclusions", []):
         lines.append("- " + canonical_json(exclusion))
