@@ -112,16 +112,28 @@ class StrongContextV2Tests(unittest.TestCase):
         self.assertEqual([], resolved["tiers"][0]["adrs"])
         self.assertEqual([], resolved["trace"][0]["matched_adr_ids"])
 
-    def test_noncanonical_or_nonstrong_result_is_compact_with_adr_refs_only(self):
+    def test_noncanonical_result_is_compact_but_ranked_canonical_result_expands(self):
         results = [
             {"ref": "mse_alpha1234", "relevance": "strong", "excerpt": "not a decision", "links": {"evolves": [], "replaces": [], "related": []}},
             {"ref": REF_SHARED, "relevance": "weak", "excerpt": "x" * 30, "links": {"evolves": [], "replaces": [], "related": []}},
         ]
         resolved = module.resolve_strong_context(results, self.bindings, {"compact_decision_chars": 10})
-        self.assertEqual(["compact", "compact"], [item["tier"] for item in resolved["tiers"]])
+        self.assertEqual(["compact", "full"], [item["tier"] for item in resolved["tiers"]])
         self.assertEqual([], resolved["tiers"][0]["adr_refs"])
-        self.assertEqual(["adr_indexing", "adr_shared_concern"], resolved["tiers"][1]["adr_refs"])
-        self.assertTrue(resolved["tiers"][1]["decision"]["truncated"])
+        self.assertEqual(["adr_indexing", "adr_shared_concern"], [row["adr_id"] for row in resolved["tiers"][1]["adrs"]])
+
+    def test_uncalibrated_band_never_decides_expansion(self):
+        weak = [{"ref": REF_SHARED, "relevance": "weak", "excerpt": "shared", "links": {"evolves": [], "replaces": [], "related": []}}]
+        ranked = module.resolve_strong_context(weak, self.bindings)
+        self.assertEqual("full", ranked["tiers"][0]["tier"])
+        guarded = module.resolve_strong_context(weak, self.bindings, {"expansion_policy": "calibrated-strong", "relevance_calibrated": False})
+        self.assertEqual("compact", guarded["tiers"][0]["tier"])
+        self.assertEqual("uncalibrated-band", guarded["trace"][0]["reason"])
+        calibrated = module.resolve_strong_context(
+            [{**weak[0], "relevance": "strong"}], self.bindings,
+            {"expansion_policy": "calibrated-strong", "relevance_calibrated": True},
+        )
+        self.assertEqual("full", calibrated["tiers"][0]["tier"])
 
     def test_top_k_recall_is_mechanical_and_related_does_not_count(self):
         metrics = module.top_k_recall(

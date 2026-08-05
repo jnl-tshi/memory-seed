@@ -74,7 +74,7 @@ def test_metrics_measure_decision_adr_and_constitution_recall_at_each_supported_
     assert result["metrics"]["2"]["mrr_at_k"] == 0.5
 
 
-def test_only_strong_canonical_non_related_rows_expand_to_adrs() -> None:
+def test_ranked_canonical_non_related_rows_expand_to_adrs_while_band_stays_visible() -> None:
     result = topk.measure_top_k(
         [
             {"decision_ref": D2, "relevance": "strong"},
@@ -90,19 +90,21 @@ def test_only_strong_canonical_non_related_rows_expand_to_adrs() -> None:
     )
 
     cell = result["metrics"]["5"]
-    assert cell["expanded_decision_refs"] == [D2]
-    assert cell["selected_adr_ids"] == ["adr_storage"]
-    assert cell["selected_constitution_refs"] == ["constitution:v1#local-first"]
+    assert cell["expanded_decision_refs"] == [D2, D5]
+    assert cell["selected_adr_ids"] == ["adr_storage", "adr_weak"]
+    assert cell["selected_constitution_refs"] == ["constitution:v1#local-first", "constitution:v1#weak"]
+    assert cell["rank_selected_decision_refs"] == [D2, D5]
+    assert cell["banded_strong_canonical_decision_refs"] == [D2]
     assert cell["false_expansion"] == {
         "invalid_decision_refs": [],
-        "suppressed_decision_refs": [D4, D5],
-        "attempted": 1,
+        "suppressed_decision_refs": [D4],
+        "attempted": 2,
         "count": 0,
         "rate": 0.0,
     }
 
 
-def test_instrumented_weak_none_and_related_expansions_are_false_and_never_contribute_recall() -> None:
+def test_related_expansions_are_false_but_ranked_weak_none_rows_are_valid() -> None:
     result = topk.measure_top_k(
         [
             {"decision_ref": D2, "relevance": "strong"},
@@ -122,15 +124,25 @@ def test_instrumented_weak_none_and_related_expansions_are_false_and_never_contr
     )
 
     cell = result["metrics"]["5"]
-    assert cell["expanded_decision_refs"] == [D2]
-    assert cell["adr_trigger_recall"] == {"hits": 1, "required": 3, "rate": pytest.approx(1 / 3)}
+    assert cell["expanded_decision_refs"] == [D1, D2, D5]
+    assert cell["adr_trigger_recall"] == {"hits": 2, "required": 3, "rate": pytest.approx(2 / 3)}
     assert cell["false_expansion"] == {
-        "invalid_decision_refs": [D1, D4, D5],
+        "invalid_decision_refs": [D4],
         "suppressed_decision_refs": [],
         "attempted": 4,
-        "count": 3,
-        "rate": 0.75,
+        "count": 1,
+        "rate": 0.25,
     }
+
+
+def test_band_strong_remains_an_explicit_ablation() -> None:
+    result = topk.measure_top_k(
+        [{"decision_ref": D2, "relevance": "strong"}, {"decision_ref": D5, "relevance": "weak"}],
+        {"required_decision_refs": [D2], "required_adr_ids": ["adr_storage"], "required_constitution_refs": ["constitution:v1#local-first"]},
+        adr_membership=_memberships(), constitution_bindings=_bindings(), selection_policy="band-strong",
+    )
+    assert result["selection_policy"] == "band-strong"
+    assert result["metrics"]["5"]["expanded_decision_refs"] == [D2]
 
 
 def test_validation_rejects_noncanonical_duplicate_and_unsupported_k_values() -> None:

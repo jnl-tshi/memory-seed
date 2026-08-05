@@ -147,6 +147,12 @@ def test_production_decision_ranking_feeds_the_experiment_adapter(fixtures):
     assert all({"ref", "relevance", "excerpt", "links"} == set(row) for row in rows)
     assert "mse_ctxshared:d1" in [row["ref"] for row in rows]
     assert all(row["relevance"] in {"strong", "weak", "none"} for row in rows)
+    payload = bridge.ranked_fixture_payload(
+        "signed checkpoints cache synchronization audit recovery",
+        fixtures["adversarial-shared-decision"], top_k=4,
+    )
+    assert payload["rows"] == rows
+    assert payload["relevance_calibrated"] is False
 
 
 def test_missing_adr_ledger_fails_closed(fixtures):

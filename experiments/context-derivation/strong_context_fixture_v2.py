@@ -198,7 +198,7 @@ def materialize_fixture_bindings(fixture_root: str | Path) -> dict[str, Any]:
     return materialized
 
 
-def ranked_fixture_results(query: str, fixture_root: str | Path, *, top_k: int = 8) -> list[dict[str, Any]]:
+def ranked_fixture_payload(query: str, fixture_root: str | Path, *, top_k: int = 8) -> dict[str, Any]:
     """Adapt real decision-level retrieval rows for the experiment resolver.
 
     This is an offline evaluator helper.  It deliberately exposes no new MCP
@@ -223,4 +223,13 @@ def ranked_fixture_results(query: str, fixture_root: str | Path, *, top_k: int =
                 },
             }
         )
-    return rows
+    return {
+        "rows": rows,
+        "relevance_calibrated": bool(payload.get("relevance_calibrated", False)),
+        "relevance_rule": payload.get("relevance_rule"),
+    }
+
+
+def ranked_fixture_results(query: str, fixture_root: str | Path, *, top_k: int = 8) -> list[dict[str, Any]]:
+    """Compatibility wrapper for callers that only need ranked rows."""
+    return ranked_fixture_payload(query, fixture_root, top_k=top_k)["rows"]

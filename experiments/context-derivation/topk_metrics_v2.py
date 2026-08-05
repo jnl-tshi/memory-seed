@@ -105,25 +105,29 @@ def _normalize_rows(ranked_rows: Sequence[Mapping[str, Any]]) -> list[dict[str, 
     return rows
 
 
-def _eligible(row: Mapping[str, Any]) -> bool:
+def _eligible(row: Mapping[str, Any], policy: str) -> bool:
     """Return whether a row may mechanically trigger ADR expansion."""
-    return row["relevance"] == "strong" and row["relation_type"] != "related"
+    if policy == "ranked":
+        return row["relation_type"] != "related"
+    if policy == "band-strong":
+        return row["relevance"] == "strong" and row["relation_type"] != "related"
+    raise ValueError("selection_policy must be ranked or band-strong")
 
 
 def _selected_expansions(
-    prefix: Sequence[Mapping[str, Any]], requested: set[str] | None
+    prefix: Sequence[Mapping[str, Any]], requested: set[str] | None, policy: str
 ) -> tuple[set[str], set[str], set[str]]:
     """Return valid, invalid, and suppressed expansion refs for one K prefix."""
     prefix_by_ref = {str(row["decision_ref"]): row for row in prefix}
     if requested is None:
-        chosen = {ref for ref, row in prefix_by_ref.items() if _eligible(row)}
+        chosen = {ref for ref, row in prefix_by_ref.items() if _eligible(row, policy)}
     else:
         chosen = requested & set(prefix_by_ref)
-    valid = {ref for ref in chosen if _eligible(prefix_by_ref[ref])}
+    valid = {ref for ref in chosen if _eligible(prefix_by_ref[ref], policy)}
     invalid = chosen - valid
     suppressed = {
         ref for ref, row in prefix_by_ref.items()
-        if not _eligible(row) and ref not in chosen
+        if not _eligible(row, policy) and ref not in chosen
     }
     return valid, invalid, suppressed
 
@@ -136,15 +140,16 @@ def measure_top_k(
     constitution_bindings: Mapping[str, Sequence[str]],
     expanded_decision_refs: Iterable[str] | None = None,
     k_values: Iterable[int] = K_VALUES,
+    selection_policy: str = "ranked",
 ) -> dict[str, Any]:
     """Measure decision-to-ADR-to-Constitution recall at deterministic K values.
 
     ``expanded_decision_refs`` is optional instrumentation from a future
-    resolver.  If absent, this diagnostic applies the proposed policy itself.
-    If supplied, it exposes a resolver that attempted to expand weak, none, or
-    related rows through ``false_expansion`` while ensuring those rows never
-    contribute ADR or Constitution recall.
+    resolver.  Rank position is the experiment's selection authority; today’s
+    relevance band is retained only as an ablation because it is uncalibrated.
     """
+    if selection_policy not in {"ranked", "band-strong"}:
+        raise ValueError("selection_policy must be ranked or band-strong")
     rows = _normalize_rows(ranked_rows)
     required_decisions, required_adrs, required_constitution = _validate_gold(gold)
     memberships = _validate_mapping(adr_membership, field="adr_membership", keys_are_decisions=True)
@@ -177,7 +182,7 @@ def measure_top_k(
     for k in sorted(values):
         prefix = rows[:k]
         ranked_refs = {str(row["decision_ref"]) for row in prefix}
-        valid_expansions, invalid_expansions, suppressed = _selected_expansions(prefix, requested)
+        valid_expansions, invalid_expansions, suppressed = _selected_expansions(prefix, requested, selection_policy)
         selected_adrs = {
             adr_id for ref in valid_expansions for adr_id in memberships.get(ref, ())
         }
@@ -190,8 +195,11 @@ def measure_top_k(
             "adr_trigger_recall": _rate(selected_adrs, required_adrs),
             "constitution_binding_recall": _rate(selected_constitution, required_constitution),
             "mrr_at_k": (1 / first_hit_rank) if first_hit_rank is not None and first_hit_rank <= k else 0.0,
-            "strong_canonical_decision_refs": sorted(
-                row["decision_ref"] for row in prefix if _eligible(row)
+            "rank_selected_decision_refs": sorted(
+                row["decision_ref"] for row in prefix if row["relation_type"] != "related"
+            ),
+            "banded_strong_canonical_decision_refs": sorted(
+                row["decision_ref"] for row in prefix if _eligible(row, "band-strong")
             ),
             "expanded_decision_refs": sorted(valid_expansions),
             "selected_adr_ids": sorted(selected_adrs),
@@ -206,6 +214,7 @@ def measure_top_k(
         }
     return {
         "schema": SCHEMA,
+        "selection_policy": selection_policy,
         "k_values": sorted(values),
         "first_hit_rank": first_hit_rank,
         "mrr": (1 / first_hit_rank) if first_hit_rank is not None else 0.0,

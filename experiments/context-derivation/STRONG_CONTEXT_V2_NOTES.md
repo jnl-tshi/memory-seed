@@ -4,7 +4,7 @@ Status: **DRAFT — no production contract change**
 
 ## Hypothesis
 
-For a high-ranked, `strong` decision result, an answer needs three mechanically
+For a high-ranked canonical decision result, an answer needs three mechanically
 joined layers: the full decision block, each ADR whose validated lineage
 contains that decision, and the text of the Constitution sections bound to the
 relevant ADR revision. Lower-ranked results should remain compact and only
@@ -14,7 +14,9 @@ lineage or ADR-discovery edge.
 The offline sweep measures whether that tiering preserves the required
 decision, authority, typed lineage, ADR, and Constitution evidence at the
 smallest token proxy. Recall at K=1/2/3/5/8 measures ranking quality only; it
-is not an MCP setting, field, or persistence surface.
+is not an MCP setting, field, or persistence surface. The present
+`strong`/`weak`/`none` band is explicitly uncalibrated at live scale, so it is
+only a side-by-side diagnostic; rank decides expansion in this experiment.
 
 ## Proposed ADR representation to evaluate
 

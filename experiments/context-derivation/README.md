@@ -29,7 +29,9 @@ allocations in parallel; its top-K output is an offline diagnostic, never an
 MCP field. See `STRONG_CONTEXT_V2_NOTES.md` for the proposed revision-scoped
 Constitution binding to evaluate. These files cannot select a candidate or
 authorize scored/offline-agent execution until versioned Constitution-aware
-task and gold definitions receive review.
+task and gold definitions receive review. Rank position selects canonical
+decision expansion; the production relevance band is currently uncalibrated
+and is measured only as an ablation.
 
 ## Freeze and execution sequence
 

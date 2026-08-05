@@ -8,7 +8,8 @@ before any public contract changes.
 
 The materialization policy is intentionally mechanical:
 
-* only a ``strong`` result with a canonical decision identity may expand;
+* expansion is selected by canonical decision rank, not an uncalibrated
+  relevance band; the band remains visible as a diagnostic;
 * the first configured strong signals receive full decision, ADR, lineage, and
   Constitution context, subject to global ADR and local detail caps;
 * every other result is compact and names ADRs but never expands them;
@@ -43,6 +44,8 @@ DEFAULT_CONFIGURATION: dict[str, int] = {
     "constitution_excerpt_chars": 800,
     "compact_decision_chars": 400,
 }
+
+EXPANSION_POLICIES = frozenset({"ranked", "calibrated-strong", "legacy-band-strong"})
 
 
 def canonical_json(value: Any) -> str:
@@ -216,16 +219,23 @@ def load_bindings(value: Mapping[str, Any]) -> BindingIndex:
     )
 
 
-def normalize_configuration(configuration: Mapping[str, Any] | None = None) -> dict[str, int]:
+def normalize_configuration(configuration: Mapping[str, Any] | None = None) -> dict[str, Any]:
     configuration = configuration or {}
     if not isinstance(configuration, Mapping):
         raise ValueError("configuration must be an object")
-    unknown = set(configuration) - set(DEFAULT_CONFIGURATION)
+    unknown = set(configuration) - (set(DEFAULT_CONFIGURATION) | {"expansion_policy", "relevance_calibrated"})
     if unknown:
         raise ValueError(f"unknown configuration field(s): {', '.join(sorted(unknown))}")
-    normalized = {**DEFAULT_CONFIGURATION, **configuration}
-    if not all(isinstance(value, int) and value >= 0 for value in normalized.values()):
+    normalized: dict[str, Any] = {**DEFAULT_CONFIGURATION, **configuration}
+    numeric = {key: normalized[key] for key in DEFAULT_CONFIGURATION}
+    if not all(isinstance(value, int) and value >= 0 for value in numeric.values()):
         raise ValueError("configuration values must be non-negative integers")
+    normalized.setdefault("expansion_policy", "ranked")
+    normalized.setdefault("relevance_calibrated", False)
+    if normalized["expansion_policy"] not in EXPANSION_POLICIES:
+        raise ValueError("expansion_policy must be ranked, calibrated-strong, or legacy-band-strong")
+    if not isinstance(normalized["relevance_calibrated"], bool):
+        raise ValueError("relevance_calibrated must be boolean")
     return normalized
 
 
@@ -312,7 +322,7 @@ def _lineage_slice(adr: Mapping[str, Any], matched: Sequence[str], cap: int) -> 
     return [dict(row) for row in ordered], omissions
 
 
-def _compact(item: Mapping[str, Any], index: BindingIndex, configuration: Mapping[str, int]) -> dict[str, Any]:
+def _compact(item: Mapping[str, Any], index: BindingIndex, configuration: Mapping[str, Any]) -> dict[str, Any]:
     text, truncated = _truncate(item["excerpt"], configuration["compact_decision_chars"])
     refs = list(index.by_member.get(item["ref"], ())) if is_canonical_decision_ref(item["ref"]) else []
     result = {
@@ -347,9 +357,21 @@ def resolve_strong_context(
     selected_adrs: set[str] = set()
     for item in ranked:
         ref = item["ref"]
-        eligible = item["relevance"] == "strong" and is_canonical_decision_ref(ref)
+        policy = config["expansion_policy"]
+        canonical = is_canonical_decision_ref(ref)
+        if policy == "ranked":
+            eligible = canonical
+        elif policy == "calibrated-strong":
+            eligible = canonical and config["relevance_calibrated"] and item["relevance"] == "strong"
+        else:
+            eligible = canonical and item["relevance"] == "strong"
         if not eligible:
-            reason = "non-strong" if item["relevance"] != "strong" else "non-canonical-ref"
+            if not canonical:
+                reason = "non-canonical-ref"
+            elif policy == "calibrated-strong" and not config["relevance_calibrated"]:
+                reason = "uncalibrated-band"
+            else:
+                reason = "non-strong"
             trace.append({"rank": item["rank"], "ref": ref, "action": "compact", "reason": reason})
             tiers.append(_compact(item, index, config))
             continue

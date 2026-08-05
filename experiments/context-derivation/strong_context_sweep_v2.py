@@ -42,7 +42,7 @@ def _fingerprint(value: Any) -> str:
     return "sha256:" + hashlib.sha256(rendered.encode("utf-8")).hexdigest()
 
 
-def configuration_grid() -> list[dict[str, int]]:
+def configuration_grid() -> list[dict[str, Any]]:
     """A bounded allocation grid; top-K is deliberately not a configuration."""
     rows = []
     for result_cap, strong_cap, adr_cap, binding_cap, excerpt_chars, lineage_cap in product(
@@ -56,6 +56,7 @@ def configuration_grid() -> list[dict[str, int]]:
                 "constitution_binding_cap": binding_cap,
                 "constitution_excerpt_chars": excerpt_chars,
                 "lineage_item_cap": lineage_cap,
+                "expansion_policy": "ranked",
             }
         )
     return rows
@@ -195,7 +196,12 @@ def sweep_task(
     normalized = [resolver.normalize_configuration(row) for row in (configurations or configuration_grid())]
     deduped = { _fingerprint(row): row for row in normalized }
     configurations = [deduped[key] for key in sorted(deduped)]
-    ranked = bridge.ranked_fixture_results(question, fixture_root, top_k=max(row["result_cap"] for row in configurations))
+    ranking = bridge.ranked_fixture_payload(question, fixture_root, top_k=max(row["result_cap"] for row in configurations))
+    ranked = ranking["rows"]
+    configurations = [
+        {**row, "relevance_calibrated": ranking["relevance_calibrated"]}
+        for row in configurations
+    ]
     membership, constitution = _mappings(bindings)
     derived_gold = _derived_topk_gold(gold, constitution)
     top_k = topk.measure_top_k(
@@ -218,6 +224,8 @@ def sweep_task(
         "fixture_root": str(Path(fixture_root).resolve()),
         "question_fingerprint": _fingerprint(question),
         "ranked_fingerprint": _fingerprint(ranked),
+        "relevance_calibrated": ranking["relevance_calibrated"],
+        "relevance_rule": ranking["relevance_rule"],
         "binding_fingerprint": resolver.load_bindings(bindings).fingerprint,
         "derived_topk_gold": derived_gold,
         "top_k_metrics": top_k,
