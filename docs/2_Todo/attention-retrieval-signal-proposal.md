@@ -105,6 +105,24 @@ multiplier shape is provisional until that gate.
   for v1: the primary checkout carries most retrieval traffic.
 - **Session-start surfacing** — "most-attended decisions" in the SessionStart hook context.
 
+> **Resolved 2026-08-05 (later the same day).** The repo's `.mcp.json` now runs
+> `uv run --no-sync python -m memory_seed.mcp_server --stdio`, so this checkout dogfoods its own
+> build and the log accumulates from real sessions. Verified end to end: a `memory_search` call
+> through the local server created `.memory-seed/.retrieval-log.jsonl`, where the published package
+> had produced nothing. Two things came out of wiring it up:
+>
+> - **Impressions were being double-counted.** Under decision granularity one entry supplies several
+>   result rows, and the recorder logged each - a single search wrote 8 events across 6 entries.
+>   Scores were unaffected (impressions weigh zero at `attention.py:184`), but the log inflated
+>   toward compaction and any future impression weighting would have quietly favoured entries with
+>   the most decisions. Now one impression per entry per search.
+> - **The config survives `update` only because `"uv"` is absent from `_OWN_MCP_COMMANDS`.** That is
+>   load-bearing behaviour resting on the absence of a string. `tests/test_mcp_local_build.py` pins
+>   it, and the failure was confirmed reachable by adding `"uv"` to the set and watching the entry
+>   revert to the published package.
+>
+> The section below is kept as the record of why the log was empty for a day.
+
 ## Observability: why the log is still empty (2026-08-05)
 
 `.memory-seed/.retrieval-log.jsonl` does not exist in this repository, and that is expected rather
