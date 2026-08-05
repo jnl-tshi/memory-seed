@@ -1,0 +1,68 @@
+{
+  "schema": "lightweight-terra-smoke.v1",
+  "date": "2026-08-05",
+  "status": "exploratory",
+  "subject": {
+    "model": "gpt-5.6-terra",
+    "runtime": "codex-cli 0.146.0",
+    "local_subject_status": "not_run: no eligible ladder model installed",
+    "luna_status": "replaced_by_owner_with_terra"
+  },
+  "scope": {
+    "queries": 12,
+    "variants": ["V01"],
+    "arms": ["decision-only", "adr-current", "adr-constitution"],
+    "cells": 36,
+    "k": 5,
+    "query_corpus_fingerprint": "sha256:25ed830fb2d253c60a3c59f372506687b76af1ec34298060202b677a20cb7b4a",
+    "topk_aggregate_fingerprint": "sha256:d112c81cad819afd00f1d7075ea51bb2bf480981153d69221a0f73b1fe93a183"
+  },
+  "retrieval": {
+    "recall_at_1": {"passing": 13, "required": 60, "rate": 0.21666666666666667},
+    "recall_at_3": {"passing": 38, "required": 60, "rate": 0.6333333333333333},
+    "recall_at_5": {"passing": 47, "required": 60, "rate": 0.7833333333333333},
+    "target": {"passing": 57, "required": 60, "rate": 0.95},
+    "recommended_k": null
+  },
+  "terra": {
+    "protocol": {"corrected_schema_valid": 36, "required": 36},
+    "decision-only": {
+      "complete_correct": 0,
+      "required": 12,
+      "adr_ids": 0,
+      "authoritative_refs": 0,
+      "statuses": 0,
+      "lineage_edges": 6,
+      "constitution_bindings": 1,
+      "citations": 7
+    },
+    "adr-current": {
+      "complete_correct": 0,
+      "required": 12,
+      "adr_ids": 12,
+      "authoritative_refs": 12,
+      "statuses": 12,
+      "lineage_edges": 2,
+      "constitution_bindings": 1,
+      "citations": 7
+    },
+    "adr-constitution": {
+      "complete_correct": 0,
+      "required": 12,
+      "adr_ids": 12,
+      "authoritative_refs": 12,
+      "statuses": 12,
+      "lineage_edges": 2,
+      "constitution_bindings": 8,
+      "citations": 9,
+      "insufficient_evidence": 12
+    }
+  },
+  "limitations": [
+    "Exploratory 12-task smoke, not the frozen 360-cell preregistered trial.",
+    "Terra replaced Luna by explicit owner instruction; results are not pooled with Luna.",
+    "The eligible local-model ladder could not run because only qwen2.5-coder:1.5b-base was installed.",
+    "Complete correctness is exact-match across every required field; one reversed or extra edge fails the cell.",
+    "The first Terra transport attempt is retained as a protocol failure because the prompt named but did not spell out the inner schema."
+  ]
+}
