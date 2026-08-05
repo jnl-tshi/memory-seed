@@ -1119,8 +1119,17 @@ def _record_retrieval_attention(name: Any, arguments: dict[str, Any], tool_resul
             if entry_id:
                 record_event(memory_dir, "memory_get_chunk", entry_id)
         else:
+            # One entry supplies several rows under decision granularity, so
+            # logging every row counts a single search as N impressions. That
+            # inflates the log toward compaction and would bias any future
+            # impression weighting toward whichever entries hold the most
+            # decisions. One impression per entry per search.
+            seen: set[str] = set()
             for row in tool_result.get("results") or []:
                 if isinstance(row, dict) and row.get("entry_id"):
+                    if row["entry_id"] in seen:
+                        continue
+                    seen.add(row["entry_id"])
                     record_event(memory_dir, "memory_search", row["entry_id"])
         compact_if_needed(memory_dir)
     except Exception:

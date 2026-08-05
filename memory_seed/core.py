@@ -7003,6 +7003,14 @@ _GEMINI_STARTUP_COMMAND = "python3 .memory-seed/hooks/session-start-context.py -
 _MCP_SERVER_COMMAND = "uvx"
 _MCP_SERVER_ARGS = ["--from", "memory-seed", "memory-seed-mcp", "--stdio"]
 _MCP_SERVER_KEY = "memory-seed"
+# Commands the _merge_*_mcp upserts will overwrite. Anything else on our key is
+# left alone, which is what lets a checkout point .mcp.json at its own build
+# (`uv run --no-sync python -m memory_seed.mcp_server`) and keep it across an
+# update. DO NOT add "uv" here: this repo dogfoods itself through exactly that
+# entry, and adding it would silently revert the config on the next update, at
+# which point the MCP server goes back to the published package and the
+# attention log stops accumulating with nothing to show it stopped.
+# tests/test_mcp_local_build.py pins this.
 _OWN_MCP_COMMANDS = {"uvx", "memory-seed-mcp"}
 
 # GitHub Copilot CLI integration. Its MCP config is repo-local at .github/mcp.json

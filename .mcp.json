@@ -1,11 +1,13 @@
 {
   "mcpServers": {
     "memory-seed": {
-      "command": "uvx",
+      "command": "uv",
       "args": [
-        "--from",
-        "memory-seed",
-        "memory-seed-mcp",
+        "run",
+        "--no-sync",
+        "python",
+        "-m",
+        "memory_seed.mcp_server",
         "--stdio"
       ]
     }
