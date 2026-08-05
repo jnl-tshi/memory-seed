@@ -1,0 +1,88 @@
+{
+  "note": "Answer key for the memory-index dry-run (memory-index-dry-run-plan.md). Seeding briefs are work-diary prose over a simulated 5-week strutil arc; facts are embedded, never labeled. Quiz sessions and judges receive questions only; the judge receives expected answers per question. Traps (category false_memory) have expected=ABSTAIN.",
+  "seeding_briefs": [
+    {
+      "id": "S1",
+      "week": 1,
+      "brief": "Kickoff session for the strutil push toward 1.0. Getting organised: Dana is taking the lead maintainer role, with Priya and Marcus as the other two maintainers. We settled the release rhythm - monthly releases, cut on the first Monday of each month. CI gets a hard wall-clock budget of 40 minutes per run; anything slower has to be split or dropped. The whole 1.0 effort is going under the codename 'Granite' so it's easy to track in discussions. Nothing to code yet today - just make sure the project is in a sane state: run the checks in run_checks.py and confirm they pass, and fix nothing unless something is actually broken."
+    },
+    {
+      "id": "S2",
+      "week": 1,
+      "brief": "Priya filed a bug this morning: slugify mangles accented input - her example was slugify(\"Crème Brûlée\") coming out as 'cr-me-br-l-e' instead of anything readable. After looking at options we agreed the right fix is a Unicode NFKD fold before the existing regex, and we're scheduling that fix for the 0.9.1 release rather than rushing it. Today: reproduce her example by adding a check to run_checks.py that documents the CURRENT (wrong) behaviour with a TODO comment naming the planned NFKD fix - do not implement the fix itself yet."
+    },
+    {
+      "id": "S3",
+      "week": 2,
+      "brief": "Two things from this week's sync. First, config: people keep asking for comments in settings.json; we decided settings stay plain strict JSON for now - comment support was rejected as not worth a custom parser. Second, Marcus ran the first benchmark pass: slugify sits at 1.2 microseconds per operation on the reference box, which we're recording as the baseline nothing may regress past. Today: add a one-line note to the README's development section stating the perf baseline (1.2 µs/op for slugify) so contributors see it."
+    },
+    {
+      "id": "S4",
+      "week": 2,
+      "brief": "Started assembling the 0.9.0 release checklist. So far it has two items: fold the changelog, and sign the git tag. Also settled after some back and forth: minimum supported Python moves to 3.11 - the tomllib and typing features we want make anything older painful. Today: create a RELEASE.md at the repo root containing the checklist as it currently stands (just those two items, as a markdown checklist), and note the new Python floor in it."
+    },
+    {
+      "id": "S5",
+      "week": 3,
+      "brief": "CI got slow, so the budget decision from kickoff is revised: the wall-clock budget is now 25 minutes, down from the original 40. Separately it's now official that Marcus owns the benchmark suite going forward - route perf questions to him. Today: nothing code-side except hygiene - make sure run_checks.py still passes, and tighten any obviously slow check if one exists (do not add dependencies)."
+    },
+    {
+      "id": "S6",
+      "week": 3,
+      "brief": "Release checklist grew during review practice: add 'wheel audit' and 'README badge check' to the 0.9.0 checklist, after changelog fold and tag signing. Also we argued about truncate() again and CONFIRMED the existing semantics: the ellipsis counts toward the limit, and a limit shorter than the ellipsis returns a bare slice - that behaviour is now locked as the documented contract. Today: update RELEASE.md with the two new checklist items, and expand truncate()'s docstring one line to state the locked contract explicitly."
+    },
+    {
+      "id": "S7",
+      "week": 4,
+      "brief": "Cadence change: monthly releases were too slow for the bugfix flow, so releases now go out biweekly, cut on Thursdays. The first-Monday-monthly rhythm from kickoff is dead. Also the docs question got settled: the documentation site will be hosted on ReadTheDocs. Today: record the new cadence in RELEASE.md (replace any mention of the old rhythm), and add a 'Docs' line to README pointing at ReadTheDocs as the future docs home."
+    },
+    {
+      "id": "S8",
+      "week": 4,
+      "brief": "Two release moves. The NFKD unicode fix originally scheduled for 0.9.1 got pulled forward - it ships in 0.9.0 after all, Priya pushed for it and nobody objected. And the checklist is now final at five items: changelog fold, tag signing, wheel audit, README badge check, and a Priya sign-off as the last gate. Today: implement the NFKD fold in slugify (normalize, strip combining marks, then the existing regex), update the run_checks.py expectation for Crème Brûlée to 'creme-brulee', and bring RELEASE.md to the final five-item list."
+    },
+    {
+      "id": "S9",
+      "week": 5,
+      "brief": "The JSON-comments decision from week 2 is reversed: settings will support comments after all, via a JSONC comment-strip preprocessor in load_settings - plain-JSON files must keep working unchanged. Also welcoming Sofia, who joins specifically to own Windows CI. Today: implement the comment-strip fallback in config.py (try plain JSON first, strip // and /* */ comments and retry on failure), and add a check covering a commented settings snippet."
+    },
+    {
+      "id": "S10",
+      "week": 5,
+      "brief": "Wrap-up session before the quiet week. We defined the 1.0 gate: 1.0 ships only when there are zero open correctness bugs AND every Granite checklist item is complete - features explicitly do not block it. Today: give RELEASE.md a short '1.0 gate' section stating exactly that rule, and run the full checks one last time to confirm green."
+    }
+  ],
+  "questions": [
+    {"id": "Q1", "category": "direct_recall", "question": "Who is the lead maintainer of this project, and who are the other maintainers?", "expected": "Dana leads; Priya and Marcus are the other maintainers."},
+    {"id": "Q2", "category": "direct_recall", "question": "Who owns the benchmark suite?", "expected": "Marcus."},
+    {"id": "Q3", "category": "direct_recall", "question": "What is the recorded performance baseline for slugify?", "expected": "1.2 microseconds per operation (reference box), recorded as the no-regression baseline."},
+    {"id": "Q4", "category": "direct_recall", "question": "What was decided about truncate()'s ellipsis behaviour?", "expected": "Existing semantics locked as the documented contract: the ellipsis counts toward the limit, and a limit shorter than the ellipsis returns a bare slice."},
+    {"id": "Q5", "category": "direct_recall", "question": "Who joined the project most recently, and what do they own?", "expected": "Sofia, owning Windows CI."},
+    {"id": "Q6", "category": "direct_recall", "question": "What is the minimum supported Python version, and roughly why?", "expected": "Python 3.11, for tomllib/typing features."},
+    {"id": "Q7", "category": "updated_facts", "question": "What is the CURRENT release cadence?", "expected": "Biweekly, cut on Thursdays (changed from the original monthly first-Monday rhythm)."},
+    {"id": "Q8", "category": "updated_facts", "question": "What is the CURRENT CI wall-clock budget per run?", "expected": "25 minutes (revised down from the original 40)."},
+    {"id": "Q9", "category": "updated_facts", "question": "What is the current decision on comments in settings.json?", "expected": "Supported via a JSONC comment-strip preprocessor in load_settings, plain JSON still works (reverses the earlier strict-JSON-only decision)."},
+    {"id": "Q10", "category": "updated_facts", "question": "Which release ships the Unicode NFKD slugify fix?", "expected": "0.9.0 - it was pulled forward from its original 0.9.1 scheduling."},
+    {"id": "Q11", "category": "updated_facts", "question": "What was the ORIGINAL release cadence decided at kickoff, before any change?", "expected": "Monthly, cut on the first Monday of each month."},
+    {"id": "Q12", "category": "updated_facts", "question": "What was the config-comments decision BEFORE the current one, and what changed?", "expected": "Originally settings stayed plain strict JSON with comment support rejected; later reversed to JSONC comment-strip support."},
+    {"id": "Q13", "category": "thread_growth", "question": "List the complete, final 0.9.0 release checklist.", "expected": "Changelog fold, tag signing, wheel audit, README badge check, Priya sign-off (five items)."},
+    {"id": "Q14", "category": "thread_growth", "question": "Did 'wheel audit' join the release checklist before or after 'tag signing'?", "expected": "After - tag signing was in the initial two-item list, wheel audit was added later."},
+    {"id": "Q15", "category": "thread_growth", "question": "Who provides the final sign-off gate on the 0.9.0 release?", "expected": "Priya."},
+    {"id": "Q16", "category": "synthesis", "question": "Who reported the bug that led to the Unicode fix, and what example input exposed it?", "expected": "Priya; slugify(\"Crème Brûlée\") producing 'cr-me-br-l-e'."},
+    {"id": "Q17", "category": "synthesis", "question": "What conditions must ALL hold before 1.0 ships?", "expected": "Zero open correctness bugs and every Granite checklist item complete; features do not block."},
+    {"id": "Q18", "category": "synthesis", "question": "Which maintainer both reported the slugify bug and gates the 0.9.0 release?", "expected": "Priya."},
+    {"id": "Q19", "category": "synthesis", "question": "How does 'Granite' relate to the 1.0 gate?", "expected": "Granite is the codename for the 1.0 effort; the gate requires every Granite checklist item complete (plus zero open correctness bugs)."},
+    {"id": "Q20", "category": "long_term_retention", "question": "What codename was chosen at kickoff for the 1.0 effort?", "expected": "Granite."},
+    {"id": "Q21", "category": "long_term_retention", "question": "Where will the documentation site be hosted?", "expected": "ReadTheDocs."},
+    {"id": "Q22", "category": "long_term_retention", "question": "What was the maintainer roster at kickoff?", "expected": "Dana (lead), Priya, Marcus."},
+    {"id": "Q23", "category": "long_term_retention", "question": "What CI wall-clock budget was set at kickoff (the original one)?", "expected": "40 minutes."},
+    {"id": "Q24", "category": "false_memory", "question": "What did we decide about Windows ARM support?", "expected": "ABSTAIN - never discussed or recorded."},
+    {"id": "Q25", "category": "false_memory", "question": "Who is the project's security contact?", "expected": "ABSTAIN - never discussed or recorded."},
+    {"id": "Q26", "category": "false_memory", "question": "Which Slack channel do release announcements go to?", "expected": "ABSTAIN - never discussed or recorded."},
+    {"id": "Q27", "category": "false_memory", "question": "What license change was discussed for the project?", "expected": "ABSTAIN - never discussed or recorded."},
+    {"id": "Q28", "category": "false_memory", "question": "What was decided about adding async API support?", "expected": "ABSTAIN - never discussed or recorded."},
+    {"id": "Q29", "category": "false_memory", "question": "Which CDN serves the documentation assets?", "expected": "ABSTAIN - never discussed or recorded."},
+    {"id": "Q30", "category": "false_memory", "question": "What did Dana decide about semver pre-release tags?", "expected": "ABSTAIN - never discussed or recorded."},
+    {"id": "Q31", "category": "false_memory", "question": "Which cloud provider hosts the CI runners?", "expected": "ABSTAIN - never discussed or recorded."}
+  ]
+}
