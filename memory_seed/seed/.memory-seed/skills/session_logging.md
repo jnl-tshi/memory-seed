@@ -245,6 +245,15 @@ Before choosing the entry shape, harvest the durable decisions made this turn.
    2026-08-05: a kickoff session that set the maintainer roster, release cadence, CI budget and
    1.0 codename recorded nothing at all, and every one of those facts was unanswerable afterwards -
    not because retrieval failed, but because nothing ever stored them.
+   **One claim per bullet, filed by its own predicate.** When the fact's subject is already named
+   in `## Active State`, do not append it to that subject's existing bullet - give the new fact its
+   own line under the predicate it actually asserts. Appending to a *membership* bullet (a roster,
+   an owner list, a checklist) silently asserts membership: measured 2026-08-05, a new joiner
+   recorded as "specifically to own Windows CI" was appended to the `Maintainers:` bullet, and every
+   later reader correctly answered that she was a maintainer, which she was not. The same fact was
+   simultaneously filed correctly under `Ownership:` - so the tell is duplication: **if one subject
+   appears on two Active State bullets, one of them is wrong.** Correct an existing bullet only to
+   supersede what it claims, and say so in the entry.
 
 `F` fields should support later lexical search. Prefer exact changed file paths and filenames as
 standalone tokens, backtick-quoted and repo-relative (backtick-quoted path tokens are what
