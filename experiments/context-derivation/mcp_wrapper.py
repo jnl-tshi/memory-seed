@@ -21,7 +21,12 @@ WORKFLOW_TOOLS = frozenset({
     "memory_adrs_list", "memory_adr_show", "memory_adr_review", "memory_adrs_check",
     "memory_retrieval_spec_preview", "memory_retrieval_spec_resolve",
 })
-ARM_TOOLS = {"search-mcp": SEARCH_TOOLS, "adr-mcp-workflow": WORKFLOW_TOOLS}
+APPROVAL_SMOKE_TOOLS = frozenset({"memory_adrs_list"})
+ARM_TOOLS = {
+    "search-mcp": SEARCH_TOOLS,
+    "adr-mcp-workflow": WORKFLOW_TOOLS,
+    "approval-smoke": APPROVAL_SMOKE_TOOLS,
+}
 
 
 def allowed_names(arm: str) -> frozenset[str]:

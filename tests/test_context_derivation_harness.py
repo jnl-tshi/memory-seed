@@ -47,6 +47,7 @@ class HarnessTests(unittest.TestCase):
     def test_allowlists_never_advertise_write_tools_and_pin_cwd(self):
         names = {item["name"] for item in mcp.filtered_tools("adr-mcp-workflow")}
         self.assertIn("memory_adr_show", names); self.assertNotIn("memory_session_append", names)
+        self.assertEqual(frozenset({"memory_adrs_list"}), mcp.allowed_names("approval-smoke"))
         with tempfile.TemporaryDirectory() as temp, patch.object(mcp.mcp_server, "call_tool", return_value={"ok": True}) as call:
             response = mcp.handle_message({"id": 1, "method": "tools/call", "params": {"name": "memory_search", "arguments": {"cwd": "wrong"}}}, arm="search-mcp", fixture_cwd=Path(temp))
             self.assertIn("result", response); self.assertEqual(call.call_args.args[1]["cwd"], str(Path(temp)))
@@ -320,6 +321,159 @@ class HarnessTests(unittest.TestCase):
                         "--effort", "medium",
                     ])
         provider.assert_not_called()
+
+    def test_approval_smoke_scope_and_pins_are_blocked_before_provider(self):
+        base = [
+            "--owner-approved", "--approval-smoke-output", str(Path(tempfile.gettempdir()) / "unused-approval-smoke"),
+            "--task", "CTX-01", "--arm", "approval-smoke", "--agent", "codex",
+            "--repetition", "1", "--model", "luna", "--cli-version", "v", "--effort", "low",
+        ]
+        invalid = [
+            [*base[:4], "--task", "CTX-02", "--arm", "approval-smoke", "--agent", "codex", "--repetition", "1", "--model", "luna", "--cli-version", "v", "--effort", "low"],
+            [*base[:4], "--task", "CTX-01", "--arm", "search-mcp", "--agent", "codex", "--repetition", "1", "--model", "luna", "--cli-version", "v", "--effort", "low"],
+            [*base[:4], "--task", "CTX-01", "--arm", "approval-smoke", "--agent", "claude", "--repetition", "1", "--model", "luna", "--cli-version", "v", "--effort", "low"],
+            [*base[:4], "--task", "CTX-01", "--arm", "approval-smoke", "--agent", "codex", "--repetition", "2", "--model", "luna", "--cli-version", "v", "--effort", "low"],
+        ]
+        with patch.object(runner.subprocess, "run") as provider:
+            for args in invalid:
+                with self.assertRaises(SystemExit):
+                    runner.main(args)
+            with patch.object(runner, "live_execution_approved", return_value=True), patch.object(
+                runner, "live_pin_matches", return_value=True,
+            ):
+                wrong_effort = [*base]; wrong_effort[wrong_effort.index("low")] = "medium"
+                with self.assertRaises(SystemExit):
+                    runner.main(wrong_effort)
+            with patch.object(runner, "live_execution_approved", return_value=True), patch.object(
+                runner, "live_pin_matches", return_value=False,
+            ):
+                with self.assertRaises(SystemExit):
+                    runner.main(base)
+        provider.assert_not_called()
+
+    def test_approval_smoke_requires_one_exact_broker_call_and_consumes_its_claim(self):
+        task = {
+            "schema": "context-benchmark-task.v1", "task_id": "CTX-01", "fixture": "",
+            "question": "unused", "task_type": "accepted-head", "resolver_hints": {}, "packets": {},
+        }
+        real_factory = runner.mcp_broker.localhost_mcp_broker
+
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            source = base / "source"; source.mkdir()
+            (source / "evidence.md").write_text("fixture evidence", encoding="utf-8")
+            task["fixture"] = str(source)
+            tasks = base / "tasks.json"; tasks.write_text(json.dumps({"tasks": [task]}), encoding="utf-8")
+
+            def execute(
+                name: str, calls: list[str | tuple[str, dict[str, object]]], *, repeat: bool = False,
+                final_text: str = '{"smoke":"approval-mode"}', handler_failure: bool = False,
+                oversized_result: bool = False,
+            ):
+                output, claim, captured = base / name, base / f"{name}.claim", {}
+                def broker_factory(**kwargs):
+                    endpoint = real_factory(**kwargs); captured["endpoint"] = endpoint; return endpoint
+                def fake_run(command, **kwargs):
+                    captured["provider_calls"] = captured.get("provider_calls", 0) + 1
+                    endpoint = captured["endpoint"]
+                    captured["token"], captured["port"] = endpoint.token, endpoint.port
+                    self.assertEqual(endpoint.token, kwargs["env"][runner.mcp_broker.TOKEN_ENV])
+                    self.assertNotIn(endpoint.token, " ".join(command))
+                    transcript_events = []
+                    for call in calls:
+                        tool, arguments = call if isinstance(call, tuple) else (call, {})
+                        transcript_events.append({"type": "item.completed", "item": {
+                            "type": "mcp_tool_call", "tool": tool, "arguments": arguments,
+                        }})
+                        connection = http.client.HTTPConnection(runner.mcp_broker.HOST, endpoint.port, timeout=2)
+                        connection.request("POST", runner.mcp_broker.PATH, body=json.dumps({
+                            "jsonrpc": "2.0", "id": tool, "method": "tools/call",
+                            "params": {"name": tool, "arguments": arguments},
+                        }), headers={"Authorization": f"Bearer {endpoint.token}", "Content-Type": "application/json"})
+                        response = connection.getresponse(); response.read(); connection.close()
+                        self.assertEqual(500 if oversized_result else 200, response.status)
+                    transcript_events.append({"type": "item.completed", "item": {
+                        "type": "agent_message", "text": final_text,
+                    }})
+                    stream = "\n".join(json.dumps(event) for event in transcript_events) + "\n"
+                    return subprocess.CompletedProcess(command, 0, stream, "")
+                args = [
+                    "--owner-approved", "--approval-smoke-output", str(output), "--task", "CTX-01",
+                    "--arm", "approval-smoke", "--agent", "codex", "--repetition", "1",
+                    "--model", "gpt-5.6-luna", "--cli-version", "codex-cli 0.146.0", "--effort", "low",
+                    "--tasks", str(tasks),
+                ]
+                with patch.object(runner.mcp_broker, "localhost_mcp_broker", side_effect=broker_factory), patch.object(
+                    runner, "live_execution_approved", return_value=True,
+                ), patch.object(runner, "live_pin_matches", return_value=True) as pins, patch.object(
+                    runner, "live_tasks_match", return_value=True,
+                ), patch.object(runner, "installed_cli_version", return_value=("codex-cli 0.146.0", "codex-cli 0.146.0")), patch.object(
+                    runner.subprocess, "run", side_effect=fake_run,
+                ), patch.object(
+                    runner.mcp_broker.mcp_wrapper.mcp_server, "call_tool",
+                    side_effect=RuntimeError("handler failure") if handler_failure else None,
+                    return_value=(
+                        {"payload": "x" * (runner.mcp_broker.MAX_RESPONSE_BYTES + 1)}
+                        if oversized_result else {"adrs": []}
+                    ),
+                ), patch.object(runner, "APPROVAL_SMOKE_CLAIM_PATH", claim):
+                    status = runner.main(args)
+                    self.assertEqual((runner.HERE, "codex", "gpt-5.6-luna", "codex-cli 0.146.0", "medium"), pins.call_args.args)
+                    if repeat:
+                        repeat_args = [*args]; repeat_args[repeat_args.index(str(output))] = str(base / f"{name}-repeat")
+                        with self.assertRaisesRegex(RuntimeError, "already been consumed"):
+                            runner.main(repeat_args)
+                manifest = json.loads(next(output.glob("*/RUN_MANIFEST.json")).read_text(encoding="utf-8"))
+                retained = b"\n".join(path.read_bytes() for path in output.rglob("*") if path.is_file())
+                captured["retained"] = retained
+                self.assertNotIn(captured["token"].encode(), retained)
+                with self.assertRaises(OSError):
+                    socket.create_connection((runner.mcp_broker.HOST, captured["port"]), timeout=0.2)
+                self.assertEqual("consumed\n", claim.read_text(encoding="utf-8"))
+                return status, manifest, captured
+
+            status, manifest, captured = execute("correct", ["memory_adrs_list"], repeat=True)
+            self.assertEqual(0, status); self.assertEqual(1, captured["provider_calls"])
+            self.assertTrue(manifest["smoke"]); self.assertFalse(manifest["scored"])
+            self.assertEqual("approval-mode", manifest["smoke_kind"])
+            self.assertEqual(["memory_adrs_list"], manifest["broker_tool_calls"])
+            self.assertEqual([{
+                "name": "memory_adrs_list", "arguments_exact_empty": True, "succeeded": True,
+            }], manifest["broker_call_records"])
+            self.assertTrue(manifest["broker_teardown_verified"])
+            self.assertTrue(manifest["parent_isolated"]); self.assertTrue(manifest["fixture_isolated"])
+            self.assertEqual([], manifest["integrity_failures"])
+
+            for name, calls in (("missing", []), ("wrong", ["memory_search"]), ("extra", ["memory_adrs_list", "memory_adrs_list"])):
+                status, manifest, _ = execute(name, calls)
+                self.assertEqual(1, status)
+                self.assertEqual("smoke_integrity_failure", manifest["failure_classification"])
+                self.assertIn("approval_smoke_tool_sequence", manifest["integrity_failures"])
+
+            for name, final_text in (
+                ("wrong-json", '{"smoke":"wrong"}'),
+                ("extra-key", '{"smoke":"approval-mode","extra":true}'),
+                ("non-json", "not json"),
+            ):
+                status, manifest, _ = execute(name, ["memory_adrs_list"], final_text=final_text)
+                self.assertEqual(1, status)
+                self.assertEqual("smoke_integrity_failure", manifest["failure_classification"])
+                self.assertIn("approval_smoke_final_answer", manifest["integrity_failures"])
+
+            for name, calls, handler_failure, oversized_result in (
+                ("nonempty-arguments", [("memory_adrs_list", {"secret_probe": "DO_NOT_RETAIN_MCP_ARGUMENT"})], False, False),
+                ("handler-error", ["memory_adrs_list"], True, False),
+                ("oversized-result", ["memory_adrs_list"], False, True),
+            ):
+                status, manifest, _ = execute(
+                    name, calls, handler_failure=handler_failure, oversized_result=oversized_result,
+                )
+                self.assertEqual(1, status)
+                self.assertEqual("smoke_integrity_failure", manifest["failure_classification"])
+                self.assertIn("approval_smoke_tool_sequence", manifest["integrity_failures"])
+                self.assertFalse(manifest["broker_call_records"][0]["succeeded"])
+                if name == "nonempty-arguments":
+                    self.assertNotIn(b"DO_NOT_RETAIN_MCP_ARGUMENT", _["retained"])
 
     def test_unscored_smoke_requires_a_dedicated_empty_os_temp_directory(self):
         with self.assertRaisesRegex(ValueError, "dedicated"):

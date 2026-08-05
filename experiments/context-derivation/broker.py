@@ -133,6 +133,7 @@ class BrokerEndpoint:
         self.token = secrets.token_urlsafe(32)
         self._semaphore = threading.BoundedSemaphore(MAX_CONCURRENT_REQUESTS)
         self._calls: list[str] = []
+        self._call_records: list[dict[str, str | bool]] = []
         self._calls_lock = threading.Lock()
         self._handlers = 0
         self._handlers_condition = threading.Condition()
@@ -174,26 +175,31 @@ class BrokerEndpoint:
             def log_message(self, _format: str, *_args: Any) -> None:
                 return
 
-            def _reply(self, status: int, payload: dict[str, Any] | None = None, *, authenticate: bool = False) -> None:
+            def _reply(self, status: int, payload: dict[str, Any] | None = None, *, authenticate: bool = False) -> bool:
                 body = b"" if payload is None else json.dumps(
                     payload, separators=(",", ":"), ensure_ascii=False,
                 ).encode("utf-8")
+                oversized = len(body) > MAX_RESPONSE_BYTES
                 if len(body) > MAX_RESPONSE_BYTES:
                     status = 500
                     body = json.dumps(mcp_wrapper.rpc_error(None, -32603, "tool response exceeded broker limit"), separators=(",", ":")).encode("utf-8")
-                self.send_response(status)
-                self.send_header("Cache-Control", "no-store")
-                self.send_header("X-Content-Type-Options", "nosniff")
-                if authenticate:
-                    self.send_header("WWW-Authenticate", "Bearer")
-                if body:
-                    self.send_header("Content-Type", "application/json")
-                    self.send_header("Content-Length", str(len(body)))
-                else:
-                    self.send_header("Content-Length", "0")
-                self.end_headers()
-                if body:
-                    self.wfile.write(body)
+                try:
+                    self.send_response(status)
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("X-Content-Type-Options", "nosniff")
+                    if authenticate:
+                        self.send_header("WWW-Authenticate", "Bearer")
+                    if body:
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Content-Length", str(len(body)))
+                    else:
+                        self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    if body:
+                        self.wfile.write(body)
+                except OSError:
+                    return False
+                return not oversized and 200 <= status < 300
 
             def _trusted_request(self) -> bool:
                 expected_host = f"{HOST}:{endpoint.port}"
@@ -246,15 +252,34 @@ class BrokerEndpoint:
                         self._reply(400, mcp_wrapper.rpc_error(None, -32600, "JSON-RPC request must be an object"))
                         return
                     method = message.get("method")
+                    call_record: dict[str, str | bool] | None = None
                     if method == "tools/call":
-                        name = (message.get("params") or {}).get("name")
-                        if isinstance(name, str):
-                            with endpoint._calls_lock:
-                                endpoint._calls.append(name)
+                        params = message.get("params") or {}
+                        name = params.get("name") if isinstance(params, dict) else None
+                        arguments = params.get("arguments") if isinstance(params, dict) else None
+                        call_record = {
+                            "name": name if isinstance(name, str) else "",
+                            "arguments_exact_empty": (
+                                isinstance(params, dict)
+                                and "arguments" in params
+                                and isinstance(arguments, dict)
+                                and not arguments
+                            ),
+                            "succeeded": False,
+                        }
                     response = mcp_wrapper.handle_message(
                         message, arm=endpoint.arm, fixture_cwd=endpoint.fixture_cwd,
                     )
-                    self._reply(202 if response is None else 200, response)
+                    delivered = self._reply(202 if response is None else 200, response)
+                    if call_record is not None:
+                        result = response.get("result") if isinstance(response, dict) else None
+                        call_record["succeeded"] = (
+                            delivered and isinstance(result, dict) and not bool(result.get("isError"))
+                        )
+                        with endpoint._calls_lock:
+                            if call_record["name"]:
+                                endpoint._calls.append(str(call_record["name"]))
+                            endpoint._call_records.append(call_record)
                 finally:
                     endpoint._semaphore.release()
 
@@ -264,6 +289,12 @@ class BrokerEndpoint:
     def calls(self) -> tuple[str, ...]:
         with self._calls_lock:
             return tuple(self._calls)
+
+    @property
+    def call_records(self) -> tuple[dict[str, str | bool], ...]:
+        """Sanitized post-handler call evidence; raw arguments are never retained."""
+        with self._calls_lock:
+            return tuple(dict(record) for record in self._call_records)
 
     def inject_environment(self, base: dict[str, str]) -> dict[str, str]:
         return {**base, TOKEN_ENV: self.token}

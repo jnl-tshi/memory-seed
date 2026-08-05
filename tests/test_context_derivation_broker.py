@@ -79,6 +79,21 @@ def post(endpoint: broker.BrokerEndpoint, payload: object, *, token: str | None 
 
 
 class BrokerTests(unittest.TestCase):
+    def test_approval_smoke_exposes_only_adrs_list(self):
+        with tempfile.TemporaryDirectory() as temp:
+            fixture = immutable_fixture(Path(temp))
+            with patch.object(mcp_wrapper.mcp_server, "call_tool", return_value={"ok": True}):
+                with broker.localhost_mcp_broker(arm="approval-smoke", fixture_cwd=fixture) as endpoint:
+                    status, listed = post(endpoint, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+                    self.assertEqual(200, status)
+                    self.assertEqual({"memory_adrs_list"}, {item["name"] for item in listed["result"]["tools"]})
+                    status, denied = post(endpoint, {
+                        "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                        "params": {"name": "memory_search", "arguments": {}},
+                    })
+                    self.assertEqual(200, status)
+                    self.assertEqual(-32602, denied["error"]["code"])
+
     def test_authenticated_protocol_and_exact_allowlist(self):
         with tempfile.TemporaryDirectory() as temp:
             fixture = immutable_fixture(Path(temp))

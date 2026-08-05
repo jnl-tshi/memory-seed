@@ -102,6 +102,20 @@ both owner-review markers are approved.
    harness failure classification if tool, fixture, broker-teardown, direct-read,
    or parent memory-store isolation checks fail.
 
+   A separate, equally one-shot approval-mode smoke verifies Codex MCP tool
+   approval as cheaply as possible. It is bound to `CTX-01`, `approval-smoke`,
+   and repetition `1`, exposes only `memory_adrs_list`, and requires the frozen
+   Codex Luna model and CLI pins with `--effort low`:
+
+   ```text
+   python experiments/context-derivation/run.py --owner-approved --approval-smoke-output <os-temp-path> --task CTX-01 --arm approval-smoke --agent codex --repetition 1 --model <frozen-luna-model> --cli-version <frozen-cli-version> --effort low --tasks experiments/context-derivation/generated/live-tasks.json
+   ```
+
+   Its prompt permits exactly one `memory_adrs_list` call, no retries or other
+   tools, followed by a tiny JSON result. The separate non-secret OS-temporary
+   claim is consumed even on provider failure. Collection and scoring exclude
+   both smoke kinds structurally.
+
 8. Collect, score, run the frozen blind reviews, and render the report. Scoring
    and judge execution also verify the frozen live artifacts. The report accepts
    the offline reduction, all 96 judgements, and a reviewed recommendation JSON;
