@@ -61,6 +61,10 @@ experiments/agent-capture/runs/
 # Archived run sets from a superseded transcript format (v1 = --output-format json).
 experiments/agent-capture/runs-*/
 
+# Memory-index dry-run: tracked definition is dryrun.py + facts.json;
+# workspaces, answers, and verdicts are disposable readouts.
+experiments/memory-index-dryrun/runs/
+
 # ADR context-derivation experiment: all generated fixtures and scored output.
 experiments/context-derivation/fixtures/
 experiments/context-derivation/generated/
