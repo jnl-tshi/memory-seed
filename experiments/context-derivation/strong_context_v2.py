@@ -247,9 +247,12 @@ def _ranked_results(value: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
         if not isinstance(raw, Mapping):
             raise ValueError("ranked results must contain objects")
         ref, relevance = raw.get("ref"), raw.get("relevance")
+        trigger_kind = raw.get("trigger_kind", "ranked")
         text = raw.get("excerpt", raw.get("text", ""))
         if not isinstance(ref, str) or relevance not in {"strong", "weak", "none"} or not isinstance(text, str):
             raise ValueError("each ranked result requires string ref, relevance, and excerpt/text")
+        if trigger_kind not in {"ranked", "related"}:
+            raise ValueError("ranked result trigger_kind must be ranked or related")
         links = raw.get("links", {})
         if not isinstance(links, Mapping):
             raise ValueError("ranked result links must be an object")
@@ -261,7 +264,7 @@ def _ranked_results(value: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
             if not isinstance(values, list) or not all(isinstance(item, str) for item in values):
                 raise ValueError(f"ranked result {kind} links must be an array of strings")
             normalized_links[kind] = list(values)
-        result.append({"rank": rank, "ref": ref, "relevance": relevance, "excerpt": text, "links": normalized_links})
+        result.append({"rank": rank, "ref": ref, "relevance": relevance, "excerpt": text, "links": normalized_links, "trigger_kind": trigger_kind})
     return result
 
 
@@ -328,7 +331,7 @@ def _compact(item: Mapping[str, Any], index: BindingIndex, configuration: Mappin
     result = {
         "tier": "compact",
         "rank": item["rank"],
-        "decision": {"ref": item["ref"], "relevance": item["relevance"], "excerpt": text, "links": item["links"]},
+        "decision": {"ref": item["ref"], "relevance": item["relevance"], "excerpt": text, "links": item["links"], "trigger_kind": item["trigger_kind"]},
         "adr_refs": refs,
     }
     if truncated:
@@ -360,14 +363,16 @@ def resolve_strong_context(
         policy = config["expansion_policy"]
         canonical = is_canonical_decision_ref(ref)
         if policy == "ranked":
-            eligible = canonical
+            eligible = canonical and item["trigger_kind"] != "related"
         elif policy == "calibrated-strong":
-            eligible = canonical and config["relevance_calibrated"] and item["relevance"] == "strong"
+            eligible = canonical and item["trigger_kind"] != "related" and config["relevance_calibrated"] and item["relevance"] == "strong"
         else:
-            eligible = canonical and item["relevance"] == "strong"
+            eligible = canonical and item["trigger_kind"] != "related" and item["relevance"] == "strong"
         if not eligible:
             if not canonical:
                 reason = "non-canonical-ref"
+            elif item["trigger_kind"] == "related":
+                reason = "related-trigger"
             elif policy == "calibrated-strong" and not config["relevance_calibrated"]:
                 reason = "uncalibrated-band"
             else:
@@ -412,6 +417,7 @@ def resolve_strong_context(
             included_adrs.append({
                 "adr_id": adr_id,
                 "matched_decision_refs": [ref],
+                "trigger": {"decision_ref": ref, "kind": item["trigger_kind"]},
                 "current": dict(adr["current"]),
                 "relevant_lineage": lineage,
                 "constitution": constitution,
@@ -427,7 +433,7 @@ def resolve_strong_context(
         tiers.append({
             "tier": "full",
             "rank": item["rank"],
-            "decision": {"ref": ref, "relevance": item["relevance"], "excerpt": item["excerpt"], "links": item["links"]},
+            "decision": {"ref": ref, "relevance": item["relevance"], "excerpt": item["excerpt"], "links": item["links"], "trigger_kind": item["trigger_kind"]},
             "adrs": included_adrs,
             "adr_refs": reused_adrs,
             "lineage_deltas": lineage_deltas,

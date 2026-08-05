@@ -1,0 +1,139 @@
+from __future__ import annotations
+
+import copy
+import importlib.util
+import sys
+from pathlib import Path
+
+import pytest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+PATH = ROOT / "experiments" / "context-derivation" / "lightweight_topk_v1.py"
+SPEC = importlib.util.spec_from_file_location("lightweight_topk_v1", PATH)
+assert SPEC and SPEC.loader
+module = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = module
+SPEC.loader.exec_module(module)
+
+
+D1 = "mse_alpha123:d1"
+D2 = "mse_bravo234:d1"
+CORPUS = "sha256:" + "a" * 64
+
+
+def query(query_id: str = "CTX-01.V01") -> dict[str, object]:
+    return {"query_id": query_id, "parent_task_id": query_id.split(".")[0], "question": "test"}
+
+
+def gold(*, decisions: list[str] | None = None, binding_decision: str = D1) -> dict[str, object]:
+    return {
+        "relevant_refs": decisions or [D1],
+        "required_adr_ids": ["adr_alpha"],
+        "authoritative_refs": [D1],
+        "expected_statuses": {"adr_alpha": "accepted"},
+        "required_lineage_edges": [{"source": D1, "target": D2, "type": "evolves"}],
+        "required_related_edges": [{"source": D1, "target": D2, "type": "related"}],
+        "required_constitution_bindings": [{"adr_id": "adr_alpha", "decision_ref": binding_decision, "constitution_refs": ["constitution:v1#authority"]}],
+    }
+
+
+def packet(*, trigger_ref: str = D1, trigger_kind: str = "ranked", extra_adr: bool = False) -> dict[str, object]:
+    adrs = [{
+        "adr_id": "adr_alpha", "trigger": {"decision_ref": trigger_ref, "kind": trigger_kind},
+        "current": {"authoritative_ref": D1, "status": "accepted"},
+        "constitution": [{"ref": "constitution:v1#authority"}],
+        "relevant_lineage": [{"ref": D1, "predecessors": [{"ref": D2, "type": "evolves"}]}],
+    }]
+    if extra_adr:
+        adrs.append({"adr_id": "adr_extra", "trigger": {"decision_ref": trigger_ref, "kind": trigger_kind}, "current": {"authoritative_ref": D1, "status": "accepted"}, "constitution": [], "relevant_lineage": []})
+    return {"schema": module.resolver.RESULT_SCHEMA, "tiers": [{"decision": {"ref": trigger_ref, "links": {"related": [D2]}}, "adrs": adrs}], "fingerprint": "packet"}
+
+
+def ranked(*, related: bool = False) -> list[dict[str, object]]:
+    return [{"ref": D1, "relevance": "strong", "excerpt": "one", "links": {"related": [D2]}, "trigger_kind": "related" if related else "ranked"}, {"ref": D2, "relevance": "strong", "excerpt": "two", "links": {"related": []}, "trigger_kind": "ranked"}]
+
+
+def cell(query_id: str = "CTX-01.V01", *, k: int = 1) -> dict[str, object]:
+    return module.score_query_cell(query(query_id), gold(), ranked(), packet(), k=k, query_corpus_fingerprint=CORPUS)
+
+
+def cells_for(k: int, *, failures: int = 0) -> list[dict[str, object]]:
+    rows = []
+    for index, query_id in enumerate(module.QUERY_IDS):
+        row = cell(query_id, k=k)
+        if index < failures:
+            row["complete_query_decision_recall"] = {**row["complete_query_decision_recall"], "complete": False}
+        rows.append(row)
+    return rows
+
+
+def test_complete_query_recall_keeps_k1_multi_decision_infeasible() -> None:
+    result = module.score_query_cell(query(), gold(decisions=[D1, D2]), ranked(), packet(), k=1, query_corpus_fingerprint=CORPUS)
+    assert result["complete_query_decision_recall"] == {"hits": 1, "required": 2, "complete": False, "infeasible": True}
+    assert "incomplete-query-decision-recall" in result["failures"]
+
+
+def test_one_error_in_any_critical_dimension_fails_exact_closure() -> None:
+    result = module.score_query_cell(query(), gold(), ranked(), packet(extra_adr=True), k=1, query_corpus_fingerprint=CORPUS)
+    assert result["critical"]["adr_closure"]["extra"] == ["adr_extra"]
+    assert "adr_closure" in result["failures"]
+
+
+def test_binding_pair_mismatch_fails_even_when_the_flat_constitution_ref_matches() -> None:
+    result = module.score_query_cell(query(), gold(binding_decision=D1), ranked(), packet(trigger_ref=D2), k=3, query_corpus_fingerprint=CORPUS)
+    assert result["critical"]["constitution_binding"]["missing"]
+    assert result["critical"]["constitution_binding"]["extra"]
+    assert "constitution_binding" in result["failures"]
+
+
+def test_related_trigger_leakage_is_a_hard_failure() -> None:
+    result = module.score_query_cell(query(), gold(), ranked(related=True), packet(trigger_kind="related"), k=1, query_corpus_fingerprint=CORPUS)
+    assert result["provenance_failures"] == ["adr_alpha:related-trigger-leakage"]
+    assert "adr_alpha:related-trigger-leakage" in result["failures"]
+
+
+def test_reducer_enforces_57_of_60_and_deterministically_selects_smallest_passing_k() -> None:
+    result = module.aggregate_cells(cells_for(1, failures=4) + cells_for(3, failures=3) + cells_for(5, failures=3))
+    assert result["results"]["1"]["complete_query_recall"]["passing"] == 56
+    assert result["results"]["1"]["passing"] is False
+    assert result["results"]["3"]["complete_query_recall"]["passing"] == 57
+    assert result["results"]["3"]["passing"] is True
+    assert result["recommended_k"] == 3
+
+
+def test_reducer_fails_closed_for_missing_duplicate_and_mixed_fingerprint_cells() -> None:
+    complete = cells_for(1) + cells_for(3) + cells_for(5)
+    missing = module.aggregate_cells(complete[:-1])
+    assert "incomplete-shard" in missing["results"]["5"]["errors"]
+    duplicate = copy.deepcopy(complete)
+    duplicate[-1]["query_id"] = duplicate[-2]["query_id"]
+    reduced = module.aggregate_cells(duplicate)
+    assert "duplicate-query-cell" in reduced["results"]["5"]["errors"]
+    mixed = copy.deepcopy(complete)
+    mixed[0]["query_corpus_fingerprint"] = "sha256:" + "b" * 64
+    reduced = module.aggregate_cells(mixed)
+    assert "mixed-query-corpus-fingerprint" in reduced["results"]["1"]["errors"]
+
+
+def test_lexical_diagnostic_cells_can_never_select_a_k() -> None:
+    rows = cells_for(1) + cells_for(3) + cells_for(5)
+    for row in rows:
+        row["ranking_arm"] = "lexical-diagnostic"
+    assert module.aggregate_cells(rows)["recommended_k"] is None
+
+
+def test_k5_failure_removes_any_recommendation() -> None:
+    result = module.aggregate_cells(cells_for(1) + cells_for(3) + cells_for(5, failures=4))
+    assert result["results"]["3"]["passing"] is True
+    assert result["results"]["5"]["passing"] is False
+    assert result["recommended_k"] is None
+
+
+def test_vacuous_critical_coverage_fails_closed() -> None:
+    rows = cells_for(1) + cells_for(3) + cells_for(5)
+    for row in rows:
+        row["critical"]["lineage"] = {"required": 0, "complete": True}
+    result = module.aggregate_cells(rows)
+    assert result["results"]["1"]["critical_gates"]["lineage"] == {"applicable": 0, "passing": 0, "required": 0, "complete": False}
+    assert result["recommended_k"] is None

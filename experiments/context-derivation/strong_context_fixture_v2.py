@@ -198,17 +198,16 @@ def materialize_fixture_bindings(fixture_root: str | Path) -> dict[str, Any]:
     return materialized
 
 
-def ranked_fixture_payload(query: str, fixture_root: str | Path, *, top_k: int = 8) -> dict[str, Any]:
+def ranked_fixture_payload(query: str, fixture_root: str | Path, *, top_k: int = 8, lexical_only: bool = False) -> dict[str, Any]:
     """Adapt real decision-level retrieval rows for the experiment resolver.
 
     This is an offline evaluator helper.  It deliberately exposes no new MCP
-    field and turns semantic ranking off so a fixture remains deterministic
-    across machines while still exercising the production lexical ranking and
-    relevance classifier.
+    field. Production-default ranking is the primary arm; lexical-only is an
+    explicit diagnostic arm and may not select a Top-K recommendation.
     """
     if not isinstance(query, str) or not query.strip() or not isinstance(top_k, int) or top_k < 1:
         raise ValueError("query must be non-empty and top_k must be positive")
-    payload = search_memory(query, cwd=fixture_root, top_k=top_k, semantic_enabled=False, granularity="decision")
+    payload = search_memory(query, cwd=fixture_root, top_k=top_k, semantic_enabled=not lexical_only, granularity="decision")
     rows: list[dict[str, Any]] = []
     for result in payload["results"]:
         rows.append(
@@ -227,9 +226,10 @@ def ranked_fixture_payload(query: str, fixture_root: str | Path, *, top_k: int =
         "rows": rows,
         "relevance_calibrated": bool(payload.get("relevance_calibrated", False)),
         "relevance_rule": payload.get("relevance_rule"),
+        "ranking_arm": "lexical-diagnostic" if lexical_only else "production-default",
     }
 
 
-def ranked_fixture_results(query: str, fixture_root: str | Path, *, top_k: int = 8) -> list[dict[str, Any]]:
+def ranked_fixture_results(query: str, fixture_root: str | Path, *, top_k: int = 8, lexical_only: bool = False) -> list[dict[str, Any]]:
     """Compatibility wrapper for callers that only need ranked rows."""
-    return ranked_fixture_payload(query, fixture_root, top_k=top_k)["rows"]
+    return ranked_fixture_payload(query, fixture_root, top_k=top_k, lexical_only=lexical_only)["rows"]
