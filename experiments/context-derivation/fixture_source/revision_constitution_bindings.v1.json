@@ -1,0 +1,18 @@
+{
+  "schema": "context-revision-constitution-bindings.v1",
+  "bindings": [
+    {"fixture_id": "real-current", "adr_id": "adr_mcp_decision_envelope_review", "decision_ref": "mse_ddeat5w29spep3qw:d1", "constitution_refs": [{"ref": "constitution:v1#lineage", "role": "supporting"}]},
+    {"fixture_id": "real-current", "adr_id": "adr_mcp_decision_envelope_review", "decision_ref": "mse_17d0qqh34a07qp5b:d1", "constitution_refs": [{"ref": "constitution:v1#authority", "role": "governing"}, {"ref": "constitution:v1#lineage", "role": "supporting"}]},
+    {"fixture_id": "real-current", "adr_id": "adr_parent_first_sidecar_transaction", "decision_ref": "mse_d06t9bccm3yykfqs:d1", "constitution_refs": [{"ref": "constitution:v1#recoverability", "role": "governing"}, {"ref": "constitution:v1#lineage", "role": "supporting"}]},
+    {"fixture_id": "real-current", "adr_id": "adr_parent_first_sidecar_transaction", "decision_ref": "mse_17d0qqh34a07qp5b:d2", "constitution_refs": [{"ref": "constitution:v1#recoverability", "role": "governing"}, {"ref": "constitution:v1#provenance", "role": "supporting"}]},
+    {"fixture_id": "real-current", "adr_id": "adr_session_decision_authority", "decision_ref": "mse_ddeat5w29spep3qw:d1", "constitution_refs": [{"ref": "constitution:v1#provenance", "role": "governing"}, {"ref": "constitution:v1#authority", "role": "supporting"}]},
+    {"fixture_id": "real-current", "adr_id": "adr_session_decision_authority", "decision_ref": "mse_17d0qqh34a07qp5b:d1", "constitution_refs": [{"ref": "constitution:v1#provenance", "role": "governing"}, {"ref": "constitution:v1#authority", "role": "supporting"}]},
+    {"fixture_id": "adversarial-branch-reject", "adr_id": "adr_branching_queue", "decision_ref": "mse_ctxbrgood:d1", "constitution_refs": [{"ref": "constitution:v1#recoverability", "role": "governing"}, {"ref": "constitution:v1#lineage", "role": "supporting"}]},
+    {"fixture_id": "adversarial-converging", "adr_id": "adr_converged_reads", "decision_ref": "mse_ctxconvmerge:d1", "constitution_refs": [{"ref": "constitution:v1#locality", "role": "governing"}, {"ref": "constitution:v1#lineage", "role": "supporting"}]},
+    {"fixture_id": "adversarial-shared-decision", "adr_id": "adr_shared_cache", "decision_ref": "mse_ctxshared:d1", "constitution_refs": [{"ref": "constitution:v1#locality", "role": "governing"}]},
+    {"fixture_id": "adversarial-shared-decision", "adr_id": "adr_shared_audit", "decision_ref": "mse_ctxshared:d1", "constitution_refs": [{"ref": "constitution:v1#recoverability", "role": "governing"}]},
+    {"fixture_id": "adversarial-pending", "adr_id": "adr_pending_storage", "decision_ref": "mse_ctxpendinghead:d1", "constitution_refs": [{"ref": "constitution:v1#provenance", "role": "governing"}]},
+    {"fixture_id": "adversarial-pending", "adr_id": "adr_pending_storage", "decision_ref": "mse_ctxpendingnew:d1", "constitution_refs": [{"ref": "constitution:v1#authority", "role": "supporting"}, {"ref": "constitution:v1#lineage", "role": "supporting"}]},
+    {"fixture_id": "adversarial-related-only", "adr_id": "adr_related_encryption", "decision_ref": "mse_ctxrelhead:d1", "constitution_refs": [{"ref": "constitution:v1#authority", "role": "governing"}, {"ref": "constitution:v1#lineage", "role": "supporting"}]}
+  ]
+}

@@ -21,6 +21,13 @@ fixture_builder = _load("strong_context_sweep_fixture_builder", "generate_fixtur
 sweep = _load("strong_context_sweep", "strong_context_sweep_v2.py")
 
 
+def approved_ranking_receipt(question, fixture_root, *, top_k):
+    receipt = sweep.bridge.ranking_receipt_proposal(question, fixture_root, top_k=top_k)
+    receipt["approval_status"] = "APPROVED"
+    receipt["fingerprint"] = sweep.bridge.fingerprint({key: value for key, value in receipt.items() if key != "fingerprint"})
+    return receipt
+
+
 def test_configuration_grid_is_bounded_unique_and_keeps_top_k_out_of_the_packet_policy():
     grid = sweep.configuration_grid()
 
@@ -39,6 +46,7 @@ def test_sweep_uses_literal_question_and_reports_top_k_only_as_offline_metrics()
         result = sweep.sweep_task(
             task, label, root,
             [{"result_cap": 3, "strong_cap": 1, "adr_cap": 1, "constitution_binding_cap": 1, "constitution_excerpt_chars": 96, "lineage_item_cap": 4}],
+            ranking_receipt=approved_ranking_receipt(task["question"], root, top_k=3),
         )
 
     assert result["schema"] == "strong-context-v2-offline-sweep.v1"
@@ -85,7 +93,8 @@ def test_parallel_cell_resolution_has_the_same_deterministic_result():
     with tempfile.TemporaryDirectory() as temporary:
         built = fixture_builder.build_all(Path(temporary) / "fixtures")
         root = next(item.path for item in built if item.fixture_id == task["fixture"])
-        serial = sweep.sweep_task(task, label, root, configurations, workers=1)
-        parallel = sweep.sweep_task(task, label, root, configurations, workers=2)
+        receipt = approved_ranking_receipt(task["question"], root, top_k=5)
+        serial = sweep.sweep_task(task, label, root, configurations, workers=1, ranking_receipt=receipt)
+        parallel = sweep.sweep_task(task, label, root, configurations, workers=2, ranking_receipt=receipt)
 
     assert parallel == serial

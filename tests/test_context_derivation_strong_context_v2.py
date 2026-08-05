@@ -112,6 +112,12 @@ class StrongContextV2Tests(unittest.TestCase):
         self.assertEqual([], resolved["tiers"][0]["adrs"])
         self.assertEqual([], resolved["trace"][0]["matched_adr_ids"])
 
+    def test_related_trigger_kind_never_expands_an_adr(self):
+        results = [{"ref": REF_SHARED, "relevance": "strong", "trigger_kind": "related", "excerpt": "RELATED", "links": {"evolves": [], "replaces": [], "related": []}}]
+        resolved = module.resolve_strong_context(results, self.bindings)
+        self.assertEqual("compact", resolved["tiers"][0]["tier"])
+        self.assertEqual("related-trigger", resolved["trace"][0]["reason"])
+
     def test_noncanonical_result_is_compact_but_ranked_canonical_result_expands(self):
         results = [
             {"ref": "mse_alpha1234", "relevance": "strong", "excerpt": "not a decision", "links": {"evolves": [], "replaces": [], "related": []}},

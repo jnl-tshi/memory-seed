@@ -39,6 +39,7 @@ MANIFEST_PATH = TASK_DIR / "manifest.json"
 GOLD_PATH = TASK_DIR / "gold.json"
 PREREGISTRATION_PATH = EXPERIMENT_ROOT / "PREREGISTRATION.md"
 CONSTITUTION_BINDINGS_PATH = SOURCE_DIR / "adr_constitution_bindings.v1.json"
+REVISION_CONSTITUTION_BINDINGS_PATH = SOURCE_DIR / "revision_constitution_bindings.v1.json"
 
 TASK_KEYS = {"schema", "task_id", "fixture", "question", "task_type", "resolver_hints"}
 HINT_KEYS = {"adr_ids", "decision_refs", "topics", "paths"}
@@ -458,6 +459,61 @@ def validate_constitution_bindings(
     return [sections_by_ref[ref] for ref in sorted(sections_by_ref)], normalized
 
 
+def validate_revision_constitution_bindings(
+    value: Mapping[str, Any], records_by_fixture: Mapping[str, Mapping[str, AdrRecord]],
+    adr_bindings: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Validate per-revision evidence independently of score gold.
+
+    This versioned fixture declaration narrows an ADR's available Constitution
+    sections for a particular decision revision.  It is intentionally not part
+    of the established ADR-to-Constitution v1 contract and has no task/gold
+    identifiers, so packet construction never needs score gold to select it.
+    """
+    if set(value) != {"schema", "bindings"} or value.get("schema") != "context-revision-constitution-bindings.v1":
+        raise ValueError("revision Constitution bindings must use context-revision-constitution-bindings.v1")
+    bindings = value.get("bindings")
+    if not isinstance(bindings, list):
+        raise ValueError("revision Constitution bindings must be an array")
+    adr_by_key = {(row["fixture_id"], row["adr_id"]): row for row in adr_bindings}
+    normalized: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for index, binding in enumerate(bindings):
+        required = {"fixture_id", "adr_id", "decision_ref", "constitution_refs"}
+        if not isinstance(binding, dict) or set(binding) != required:
+            raise ValueError(f"revision Constitution binding {index} has malformed fields")
+        fixture_id, adr_id, decision_ref = binding.get("fixture_id"), binding.get("adr_id"), binding.get("decision_ref")
+        if (not isinstance(fixture_id, str) or fixture_id not in records_by_fixture
+                or not isinstance(adr_id, str) or adr_id not in records_by_fixture[fixture_id]
+                or not isinstance(decision_ref, str) or not decision_ref):
+            raise ValueError(f"revision Constitution binding {index} has an unknown fixture, ADR, or decision")
+        key = (fixture_id, adr_id, decision_ref)
+        if key in seen:
+            raise ValueError(f"duplicate revision Constitution binding for {fixture_id}/{adr_id}/{decision_ref}")
+        seen.add(key)
+        if decision_ref not in adr_membership(records_by_fixture[fixture_id][adr_id]):
+            raise ValueError(f"revision Constitution binding {fixture_id}/{adr_id} names a non-member decision")
+        adr_binding = adr_by_key.get((fixture_id, adr_id))
+        if adr_binding is None:
+            raise ValueError(f"revision Constitution binding {fixture_id}/{adr_id} has no ADR binding")
+        available = {(item["ref"], item["role"]) for item in adr_binding["constitution_refs"]}
+        refs = binding.get("constitution_refs")
+        if not isinstance(refs, list) or not refs:
+            raise ValueError(f"revision Constitution binding {fixture_id}/{adr_id}/{decision_ref} must bind sections")
+        chosen: list[dict[str, str]] = []
+        seen_refs: set[str] = set()
+        for item in refs:
+            if not isinstance(item, dict) or set(item) != {"ref", "role"}:
+                raise ValueError("revision Constitution binding has malformed section refs")
+            ref, role = item.get("ref"), item.get("role")
+            if not isinstance(ref, str) or ref in seen_refs or (ref, role) not in available:
+                raise ValueError("revision Constitution binding references unavailable ADR section evidence")
+            seen_refs.add(ref)
+            chosen.append({"ref": ref, "role": role})
+        normalized.append({"fixture_id": fixture_id, "adr_id": adr_id, "decision_ref": decision_ref, "constitution_refs": chosen})
+    return sorted(normalized, key=lambda row: (row["fixture_id"], row["adr_id"], row["decision_ref"]))
+
+
 def _render_constitution(sections: Sequence[Mapping[str, Any]]) -> str:
     lines = ["# Fixture Constitution", ""]
     for section in sections:
@@ -491,6 +547,20 @@ def _fixture_binding_document(
     }
 
 
+def _fixture_revision_binding_document(
+    fixture_id: str, bindings: Sequence[Mapping[str, Any]]
+) -> dict[str, Any]:
+    return {
+        "schema": "context-fixture-revision-constitution-bindings.v1",
+        "fixture_id": fixture_id,
+        "bindings": [
+            {
+                "adr_id": binding["adr_id"], "decision_ref": binding["decision_ref"],
+                "constitution_refs": binding["constitution_refs"],
+            }
+            for binding in bindings if binding["fixture_id"] == fixture_id
+        ],
+    }
 def _build_real(root: Path, source: Mapping[str, Any]) -> None:
     adr_records: list[AdrRecord] = []
     for adr_spec in source["adr_sources"]:
@@ -665,6 +735,7 @@ def build_all(output_root: Path = DEFAULT_OUTPUT) -> list[BuiltFixture]:
     real = load_json(SOURCE_DIR / "real-current.json")
     adversarial = load_json(SOURCE_DIR / "adversarial.json")
     constitution_source = load_json(CONSTITUTION_BINDINGS_PATH)
+    revision_constitution_source = load_json(REVISION_CONSTITUTION_BINDINGS_PATH)
     if not isinstance(real, dict) or real.get("schema") != "context-fixture-source.v1":
         raise ValueError("real fixture source has the wrong schema")
     if not isinstance(adversarial, dict) or adversarial.get("schema") != "context-adversarial-corpus.v1":
@@ -674,6 +745,9 @@ def build_all(output_root: Path = DEFAULT_OUTPUT) -> list[BuiltFixture]:
     source_by_id = {str(item["fixture_id"]): item for item in adversarial["fixtures"]}
     constitution_sections, constitution_bindings = validate_constitution_bindings(
         constitution_source, _source_adr_records(real, adversarial)
+    )
+    revision_constitution_bindings = validate_revision_constitution_bindings(
+        revision_constitution_source, _source_adr_records(real, adversarial), constitution_bindings
     )
     fixture_ids = sorted({str(task["fixture"]) for task in tasks})
     expected_ids = {str(real["fixture_id"]), *source_by_id}
@@ -697,6 +771,15 @@ def build_all(output_root: Path = DEFAULT_OUTPUT) -> list[BuiltFixture]:
             root / "CONSTITUTION_BINDINGS.json",
             json.dumps(
                 _fixture_binding_document(fixture_id, constitution_sections, constitution_bindings),
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+        )
+        _write_text(
+            root / "REVISION_CONSTITUTION_BINDINGS.json",
+            json.dumps(
+                _fixture_revision_binding_document(fixture_id, revision_constitution_bindings),
                 indent=2,
                 sort_keys=True,
             )

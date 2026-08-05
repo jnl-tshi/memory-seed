@@ -185,6 +185,7 @@ def sweep_task(
     configurations: Sequence[Mapping[str, int]] | None = None,
     *,
     workers: int = 1,
+    ranking_receipt: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Evaluate one task using its literal question, independent of hints."""
     question = task.get("question")
@@ -196,7 +197,7 @@ def sweep_task(
     normalized = [resolver.normalize_configuration(row) for row in (configurations or configuration_grid())]
     deduped = { _fingerprint(row): row for row in normalized }
     configurations = [deduped[key] for key in sorted(deduped)]
-    ranking = bridge.ranked_fixture_payload(question, fixture_root, top_k=max(row["result_cap"] for row in configurations))
+    ranking = bridge.ranked_fixture_payload(question, fixture_root, top_k=max(row["result_cap"] for row in configurations), ranking_receipt=ranking_receipt)
     ranked = ranking["rows"]
     configurations = [
         {**row, "relevance_calibrated": ranking["relevance_calibrated"]}

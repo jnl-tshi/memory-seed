@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lightweight-context-answer.v1",
+  "type": "object",
+  "required": ["schema", "adr_ids", "authoritative_refs", "adr_statuses", "lineage_edges", "related_edges", "citations", "constitution_bindings", "explanation", "insufficient_evidence", "missing_refs"],
+  "properties": {
+    "schema": {"const": "lightweight-context-answer.v1"},
+    "adr_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "authoritative_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "adr_statuses": {"type": "object", "additionalProperties": {"enum": ["accepted", "proposed", "rejected", "superseded", "empty"]}},
+    "lineage_edges": {"type": "array"},
+    "related_edges": {"type": "array"},
+    "citations": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "constitution_bindings": {"type": "array", "items": {"type": "object", "required": ["adr_id", "decision_ref", "constitution_refs"], "properties": {"adr_id": {"type": "string"}, "decision_ref": {"type": "string"}, "constitution_refs": {"type": "array", "minItems": 1, "items": {"type": "string"}, "uniqueItems": true}}, "additionalProperties": false}},
+    "explanation": {"type": "string"},
+    "insufficient_evidence": {"type": "boolean"},
+    "missing_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  },
+  "additionalProperties": false
+}
