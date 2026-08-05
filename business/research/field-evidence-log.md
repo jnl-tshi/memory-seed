@@ -448,7 +448,9 @@ The judge found 203 decisions across the 60 sessions (mean 3.4 each, range 1–7
   reason** — they match on transcript text, and the transcript holds only the final message. They
   read `false` almost everywhere regardless of what the session actually did, so "the worktree
   guard never fired" is *unmeasured*, not observed. The pre-registered confound it was meant to
-  track therefore remains open.
+  track therefore remains open. **Resolved 2026-08-05** on the v2 matrix, whose transcripts carry
+  real tool-call events: 60/60 runs now report a reliable guard signal, `guard_called` 0/60 and
+  `guard_blocked` 0/60 — measured, not merely unobserved. See E6.
 - **Single stub project, three tasks, one model family as subject.** Generalises to these task
   classes and this agent, not to engineering work at large. The experimenter is also the subject
   population — the standing limitation from the pre-registration.
@@ -527,6 +529,11 @@ claim E5 had to retract as unmeasured.
 `memory_worktree_guard` during ordinary task work, so the confound registered before the first
 scored run — that a guard block might suppress capture at L2/L3 — **did not materialise** and can be
 retired rather than left open.
+
+*Re-measured 2026-08-05 after the collector learned to read tool-call events: 60/60 runs now carry a
+reliable guard signal, where previously every row was flagged unreliable because the v1 transcript
+held only the final message. `guard_called` 0/60 confirmed. The retirement rests on a measurement
+rather than on an absence of evidence.*
 
 ### Session length: why the L1–L3 comparison was flat (added after JNL's field observation)
 

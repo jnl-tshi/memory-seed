@@ -83,6 +83,27 @@ disconfirmations come first, precisely because of that.
 > (12–27 turn tasks) were blind to what hooks are for. **Do not claim hooks improve capture; do not
 > conclude they don't.** The properly-designed test is noted in §4 as deferred.
 
+> **Amendment, 2026-08-05 — the veto and the benchmark (E8/E9).** Two revisions to §4 and §7.
+>
+> **(a) The shipped control plane refused user instructions, and that was a product decision nobody
+> had made.** A seeded probe found 4 of 6 sessions declining a direct instruction that reversed a
+> recorded decision, citing `risk_signaling.md`'s STOP category by name — reproducing verbatim the
+> complaint a practitioner reported in E1. It is fixed (a live instruction is now the amendment
+> authority, with a mandatory superseding entry; 6/6 comply post-fix), but the lesson generalises:
+> **the control plane can encode a posture the roadmap never chose.** §7's research gaps should
+> include periodic probes of what the shipped rules actually make agents *refuse*, not only what
+> they make agents record.
+>
+> **(b) An independent benchmark now exists for this category, and the top of it is a Markdown
+> pattern.** Verging Labs' Agentic Memory Index (v0.1, August 2026) ranks a self-curated Markdown
+> wiki above every hosted product; Garry Tan's `gbrain` beats every hosted API but one. Both landed
+> in April 2026. **That is market validation of the substrate, and it compresses the differentiation
+> onto everything above the substrate** — validated writes, supersession, provenance — which is
+> exactly where the benchmark's winners fail (the wiki was the only system to hallucinate on a
+> never-stored question). §4 gains a dated decision point: v0.2 lands early September, submission is
+> via their radar form, and a private dry-run precedes any submission. Do not quote an internal
+> score externally.
+
 ## 1. Executive summary
 
 **What the programme established.**

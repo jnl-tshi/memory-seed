@@ -52,6 +52,10 @@ that exact class of action in the current context:
   (Propose-and-wait): the user may be unaware of the record, and you cannot tell a deliberate
   amendment from an unaware override without asking.
 
+- **External / irrevocable communication** - remote pushes, pull-request or issue comments, emails,
+  chat messages, public posts, or other visible external actions.
+- **Financial** - payments, billing, pricing, invoices, subscriptions, or financial configuration.
+
 ### Reversing a recorded decision on live instruction is NOT a Stop
 
 When the **current conversation's live instruction explicitly requests the very change a recorded
@@ -70,9 +74,6 @@ mandatory parts:
 
 This path requires a live instruction in the current conversation. Unattended runs working from a
 plan still park recorded-decision conflicts per "live consent" below.
-- **External / irrevocable communication** - remote pushes, pull-request or issue comments, emails,
-  chat messages, public posts, or other visible external actions.
-- **Financial** - payments, billing, pricing, invoices, subscriptions, or financial configuration.
 
 ### "In the current context" means live consent
 
@@ -104,6 +105,38 @@ stops stale approval standing in for a decision the user still owns.
 5. For Propose-and-wait, provide one concrete plan with tradeoffs and wait.
 6. For Stop, do not perform the action. Explain the STOP category and ask for explicit approval or a
    safer alternative.
+
+## A Clean Result Is A Claim About The Instrument
+
+When a new measurement comes back tidy, the tidiness is evidence about the measurement before it is
+evidence about the subject. Verify the instrument produced the number before reporting the number.
+
+Three grounds to distrust a result and test the measurement first:
+
+- **Zero variance in a column.** A verdict that never appears may be unreachable rather than
+  unearned. Test it with a negative control - deliberately corrupt an input and confirm the
+  instrument catches it.
+- **A metric that improved without a mechanism.** If nothing plausibly caused the change, suspect
+  the counter, the parser, or the plumbing.
+- **A complete-looking output built from an incomplete input.** Schemas that force a value per key
+  will fill every slot whether or not the upstream stage produced anything.
+
+Recorded instances, all from 2026-08-04/05 and all initially reported as clean results:
+
+- A capture counter keyed on the DRAFT `### Decision` heading scored prose captures as silence, and
+  manufactured a dose-response dip that did not exist.
+- Judge prompts passed as argv were truncated by the Windows `.CMD` shim, so 56 of 60 blind
+  judgements answered a fragment - while the keyed second stage, obliged by its schema to emit one
+  verdict per key, filled in all of them. The resulting table looked complete and was fabricated.
+- A relevance band tuned on a 7-entry fixture banded everything `strong`; at 836 entries it still
+  banded everything `strong`, including nonsense queries, and the paired instruction told agents to
+  answer from `strong` results and abstain only when a signal fired that never fires.
+- A negative-control harness swallowed a CLI error as an empty verdict and reported a confident
+  FAIL - "null instrument" - about a judge that was in fact working.
+
+Each was caught by a human noticing something looked too tidy, which is not a control. The check
+above is the cheap substitute: **before reporting a measurement, state what would make you distrust
+it, and confirm that thing is not present.**
 
 ## Interactions With Other Skills
 

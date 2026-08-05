@@ -410,6 +410,21 @@ Report 2 ordering.
 > now evidenced and is the sharper wedge. Note the bound: the judge used *unclear* rather than
 > *unfaithful* throughout, so read it as "no detected fabrication", not "fabrication is impossible".
 
+> **Amendment, 2026-08-05 — competitive position after the index (E9).** One correction to §3.
+>
+> This report's competitor map treated the category as unoccupied at the decision layer. An
+> independent benchmark now measures the *recall* layer with nine entrants, four of whom this
+> dossier had never named, and the two highest scorers are **agent-curated Markdown**: Karpathy's
+> `llm-wiki` pattern (98.5) and Garry Tan's open-source `gbrain` (92.9), both released April 2026.
+>
+> **Read this as substrate validation, not encroachment.** Neither carries validated writes,
+> lifecycle edges, or enforced rationale, and the index's own data shows where they break: the
+> winning wiki was the only system to fabricate on a never-stored question, and the hosted APIs
+> failed hardest on *updated facts* (Zep passed 8 of 24). Those are precisely the properties §3
+> identifies as unoccupied. The correction is to the *framing*: "nobody is doing decision memory"
+> is no longer the claim to lead with, because a lot of people are now doing memory. The claim is
+> **"the substrate everyone just converged on, plus the governance it demonstrably lacks."**
+
 ## 6. Recommended positioning
 
 The existing wedge from the commercialisation report is *"Git-native institutional memory for software
