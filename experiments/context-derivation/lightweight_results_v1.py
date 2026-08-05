@@ -466,14 +466,18 @@ def _topk_input(topk_aggregate: Mapping[str, Any] | None) -> dict[str, Any]:
     expected_passing: dict[int, bool] = {}
     for k in topk.K_VALUES:
         shard = results[str(k)]
-        required = {"k", "cell_count", "query_corpus_fingerprint", "complete_query_recall", "critical_gates", "errors", "passing"}
+        required = {"k", "cell_count", "query_corpus_fingerprint", "complete_query_recall", "critical_gates", "diagnostics", "errors", "passing"}
         if not required <= set(shard) or shard.get("k") != k or shard.get("cell_count") != QUERY_COUNT or shard.get("query_corpus_fingerprint") != corpus["canonical_fingerprint"]:
             raise ValueError("topk aggregate contains an incomplete, non-canonical shard")
         recall = shard["complete_query_recall"]
         gates = shard["critical_gates"]
         if not isinstance(recall, Mapping) or set(recall) != {"passing", "required", "threshold", "rate", "complete"} or recall.get("required") != QUERY_COUNT or recall.get("threshold") != 57 or not isinstance(recall.get("passing"), int) or isinstance(recall.get("passing"), bool) or not 0 <= recall["passing"] <= QUERY_COUNT or not isinstance(recall.get("rate"), (int, float)) or recall["rate"] != recall["passing"] / QUERY_COUNT or recall.get("complete") is not (recall["passing"] >= 57) or not isinstance(gates, Mapping) or set(gates) != set(topk.CRITICAL_DIMENSIONS):
             raise ValueError("topk aggregate lacks Task 2 recall or critical-gate denominators")
+        if (not isinstance(shard["errors"], list) or not isinstance(shard["diagnostics"], list)
+                or not all(isinstance(value, str) for value in [*shard["errors"], *shard["diagnostics"]])):
+            raise ValueError("topk aggregate has malformed Task 2 status reporting")
         semantic_errors: set[str] = set()
+        expected_diagnostics: set[str] = set()
         if not recall["complete"]:
             semantic_errors.add("complete-query-recall")
         for name in topk.CRITICAL_DIMENSIONS:
@@ -481,12 +485,20 @@ def _topk_input(topk_aggregate: Mapping[str, Any] | None) -> dict[str, Any]:
             if not isinstance(gate, Mapping) or set(gate) != {"applicable", "passing", "required", "complete"} or not all(isinstance(gate[field], int) and not isinstance(gate[field], bool) and gate[field] >= 0 for field in ("applicable", "passing", "required")) or gate["passing"] > gate["required"] or not isinstance(gate["complete"], bool) or gate["required"] != gate["applicable"] or gate["complete"] is not (bool(gate["applicable"]) and gate["passing"] == gate["applicable"]):
                 raise ValueError("topk aggregate has a malformed Task 2 critical gate")
             if not gate["complete"]:
-                semantic_errors.add(f"{name}-gate")
+                if name in topk.SELECTION_SAFETY_DIMENSIONS:
+                    semantic_errors.add(f"{name}-gate")
+                else:
+                    expected_diagnostics.add(f"{name}-diagnostic")
         expected = bool(shard.get("passing"))
         if bool(shard.get("passing")) != (not shard.get("errors")):
             raise ValueError("topk aggregate passing flag is inconsistent")
         if semantic_errors and not semantic_errors <= set(shard["errors"]):
             raise ValueError("topk aggregate suppresses a semantic Task 2 failure")
+        if expected_diagnostics and not expected_diagnostics <= set(shard["diagnostics"]):
+            raise ValueError("topk aggregate suppresses a Task 2 closure diagnostic")
+        diagnostic_gate_names = {f"{name}-gate" for name in topk.DIAGNOSTIC_DIMENSIONS}
+        if set(shard["errors"]) & diagnostic_gate_names:
+            raise ValueError("topk aggregate incorrectly blocks selection on a closure diagnostic")
         if semantic_errors and expected:
             raise ValueError("topk aggregate marks a semantic Task 2 failure as passing")
         expected_passing[k] = expected

@@ -183,12 +183,18 @@ def test_ranking_receipt_gate_makes_zero_reader_calls(monkeypatch, fixtures, sta
     assert calls == []
 
 
-def test_ranking_receipt_rehashes_live_session_content_before_reader_call(monkeypatch, fixtures):
+@pytest.mark.parametrize("drift_target", ["session", "adr", "revision-map"])
+def test_ranking_receipt_rehashes_live_canonical_content_before_reader_call(monkeypatch, fixtures, drift_target):
     calls = []
     root, query = fixtures["adversarial-pending"], "pending storage authority"
     receipt = approved_ranking_receipt(query, root)
-    session = next((root / ".memory-seed" / "sessions").rglob("*.md"))
-    session.write_text(session.read_text(encoding="utf-8") + "\nmutated after approval\n", encoding="utf-8")
+    if drift_target == "session":
+        path = next((root / ".memory-seed" / "sessions").rglob("*.md"))
+    elif drift_target == "adr":
+        path = next((root / ".memory-seed" / "decisions").glob("*.md"))
+    else:
+        path = root / "REVISION_CONSTITUTION_BINDINGS.json"
+    path.write_text(path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
     monkeypatch.setattr(bridge, "search_memory", lambda *_args, **_kwargs: calls.append("reader") or {"results": []})
     with pytest.raises(RuntimeError, match="fixture content drift"):
         bridge.ranked_fixture_payload(query, root, ranking_receipt=receipt)

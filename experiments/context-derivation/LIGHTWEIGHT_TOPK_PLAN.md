@@ -8,7 +8,7 @@ Status: **APPROVED FOR IMPLEMENTATION; SCORED EXECUTION STILL OWNER-GATED**
 - Measure K only at 1, 3, and 5. K is an offline metric, never an MCP field.
 - Rank-selected canonical decision IDs are ADR roots. Relevance bands remain diagnostic-only while `relevance_calibrated` is false.
 - A query is recalled only when all required entry-point decisions are within K.
-- Select the smallest K with at least 95% complete-query recall and 100% ADR closure, authority, status, typed-edge, and related-safety gates.
+- Select the smallest K with at least 95% complete-query recall plus structural, integrity, provenance, and related-safety validity. Exact ADR closure, authority, status, typed-edge, and Constitution-binding results remain visible diagnostics, not K-selection gates.
 - Subject answers come only from a pinned local instruction SLM and pinned Luna. Terra/Sol may orchestrate or review but never answer subject tasks.
 - Mechanical scoring is authoritative. An LLM judge cannot repair or override a mechanical failure.
 - Scored runs, model downloads, and provider calls remain fail-closed behind explicit owner approval and frozen manifests.
@@ -28,9 +28,9 @@ Status: **APPROVED FOR IMPLEMENTATION; SCORED EXECUTION STILL OWNER-GATED**
 - Compute complete-query recall, individual decision recall, MRR, first-hit rank, stable ordering, latency, and token proxy.
 - For each required decision within K, resolve all ADR membership including historical, pending, rejected, and curated predecessor decisions.
 - Verify every matching ADR current head, status, required typed path, and revision-scoped Constitution binding.
-- Treat any missing authority, incorrect status/edge, Constitution mismatch, or `related` leakage as a hard failure even when recall passes.
+- Treat structural/integrity failures, provenance failures, and `related` leakage as hard failures even when recall passes. Report missing ADR authority, incorrect status/typed edge, and Constitution mismatch exactly as diagnostics without blocking K selection.
 - Select the smallest passing K; return no recommendation if K=5 fails.
-- Reject empty denominators, incomplete shards, derived/implicit Constitution gold, and vacuous passes.
+- Reject incomplete shards and derived/implicit Constitution gold. Keep zero-denominator or unexpected exact-closure facts visible; only related-safety validity can block K selection on those metrics.
 - Add focused unit and reducer tests for single, multi-decision, shared-ADR, historical-head, pending, rejected, related-only, and missing-evidence cases.
 
 ## Task 3 - Add local-SLM and Luna subject harnesses

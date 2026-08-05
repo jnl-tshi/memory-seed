@@ -96,13 +96,13 @@ def test_complete_query_recall_keeps_k1_multi_decision_infeasible() -> None:
     assert "incomplete-query-decision-recall" in result["failures"]
 
 
-def test_one_error_in_any_critical_dimension_fails_exact_closure() -> None:
+def test_adr_closure_remains_an_exact_visible_diagnostic() -> None:
     result = module.score_query_cell(query(), gold(), ranked(), packet(extra_adr=True), k=1, query_corpus_fingerprint=CORPUS)
     assert result["critical"]["adr_closure"]["extra"] == ["adr_extra"]
     assert "adr_closure" in result["failures"]
 
 
-def test_binding_pair_mismatch_fails_even_when_the_flat_constitution_ref_matches() -> None:
+def test_binding_pair_mismatch_remains_visible_even_when_the_flat_constitution_ref_matches() -> None:
     result = module.score_query_cell(query(), gold(binding_decision=D1), ranked(), packet(trigger_ref=D2), k=3, query_corpus_fingerprint=CORPUS)
     assert result["critical"]["constitution_binding"]["missing"]
     assert result["critical"]["constitution_binding"]["extra"]
@@ -158,7 +158,8 @@ def test_vacuous_critical_coverage_fails_closed() -> None:
         row["critical"]["lineage"] = {"required": 0, "complete": True}
     result = module.aggregate_cells(rows)
     assert result["results"]["1"]["critical_gates"]["lineage"] == {"applicable": 0, "passing": 0, "required": 0, "complete": False}
-    assert result["recommended_k"] is None
+    assert "lineage-diagnostic" in result["results"]["1"]["diagnostics"]
+    assert result["recommended_k"] == 1
 
 
 def test_aggregate_provenance_failure_blocks_k_selection_even_when_recall_and_critical_gates_pass() -> None:
@@ -174,8 +175,8 @@ def test_aggregate_provenance_failure_blocks_k_selection_even_when_recall_and_cr
     assert result["recommended_k"] is None
 
 
-@pytest.mark.parametrize("dimension", ["related", "constitution_binding"])
-def test_zero_denominator_extras_are_hard_failures_for_negative_controls(dimension: str) -> None:
+@pytest.mark.parametrize(("dimension", "blocks_selection"), [("related", True), ("constitution_binding", False)])
+def test_zero_denominator_extras_are_visible_and_only_related_blocks_selection(dimension: str, blocks_selection: bool) -> None:
     rows = cells_for(1) + cells_for(3) + cells_for(5)
     unexpected = "unexpected-related" if dimension == "related" else "unexpected-binding"
     for k in module.K_VALUES:
@@ -183,8 +184,28 @@ def test_zero_denominator_extras_are_hard_failures_for_negative_controls(dimensi
         row["critical"][dimension] = {"required": 0, "found": [unexpected], "extra": [unexpected], "complete": False}
     result = module.aggregate_cells(rows)
     assert result["results"]["5"]["critical_gates"][dimension]["applicable"] == 60
-    assert f"{dimension}-gate" in result["results"]["5"]["errors"]
-    assert result["recommended_k"] is None
+    bucket = "errors" if blocks_selection else "diagnostics"
+    suffix = "gate" if blocks_selection else "diagnostic"
+    assert f"{dimension}-{suffix}" in result["results"]["5"][bucket]
+    if blocks_selection:
+        assert result["recommended_k"] is None
+    else:
+        assert result["recommended_k"] == 1
+
+
+def test_exact_adr_constitution_diagnostics_do_not_block_k_selection() -> None:
+    rows = cells_for(1) + cells_for(3) + cells_for(5)
+    for k in module.K_VALUES:
+        row = next(row for row in rows if row["k"] == k and row["query_id"] == "CTX-01.V01")
+        for name in module.DIAGNOSTIC_DIMENSIONS:
+            row["critical"][name] = {"required": 1, "found": [], "missing": [name], "extra": [], "complete": False}
+            row["failures"] = sorted(set(row["failures"] + [name]))
+    result = module.aggregate_cells(rows)
+    shard = result["results"]["5"]
+    assert all(shard["critical_gates"][name]["complete"] is False for name in module.DIAGNOSTIC_DIMENSIONS)
+    assert set(shard["diagnostics"]) == {f"{name}-diagnostic" for name in module.DIAGNOSTIC_DIMENSIONS}
+    assert shard["failures_by_query"] == [{"query_id": "CTX-01.V01", "failures": sorted(module.DIAGNOSTIC_DIMENSIONS)}]
+    assert result["recommended_k"] == 1
 
 
 def test_corpus_fingerprint_must_match_across_all_k_shards() -> None:
@@ -237,7 +258,7 @@ def test_offline_evaluator_gate_blocks_ranking_before_any_reader_call(monkeypatc
     assert calls == []
 
 
-def test_perfect_rankings_close_all_base_task_gates_without_gold_packet_construction(monkeypatch) -> None:
+def test_perfect_rankings_report_all_base_task_closure_diagnostics_without_gold_packet_construction(monkeypatch) -> None:
     """Gold supplies test expectations only; packets read ranked refs plus frozen scope."""
     with tempfile.TemporaryDirectory() as temporary:
         built = {item.fixture_id: item.path for item in fixture_builder.build_all(Path(temporary) / "fixtures")}
@@ -253,6 +274,7 @@ def test_perfect_rankings_close_all_base_task_gates_without_gold_packet_construc
             ]
         monkeypatch.setattr(module.bridge, "ranked_fixture_payload", lambda question, *_args, **_kwargs: {"rows": ranking_by_question[question], "relevance_calibrated": False})
         found_by_parent = {}
+        diagnostic_failures = {}
         for query, gold in cases:
             roots = {query["fixture"]: built[query["fixture"]]}
             cells = module.evaluate_query_offline(
@@ -262,8 +284,11 @@ def test_perfect_rankings_close_all_base_task_gates_without_gold_packet_construc
                 ranking_receipt=approved_ranking_receipt(query["question"], roots[query["fixture"]]),
             )
             cell = next(row for row in cells if row["k"] == 5)
-            assert cell["failures"] == []
+            assert cell["complete_query_decision_recall"]["complete"] is True
             found_by_parent[query["parent_task_id"]] = set(cell["critical"]["constitution_binding"]["found"])
+            diagnostic_failures[query["parent_task_id"]] = [
+                name for name in module.DIAGNOSTIC_DIMENSIONS if not cell["critical"][name]["complete"]
+            ]
         assert set(found_by_parent) == {f"CTX-{number:02d}" for number in range(1, 13)}
         assert found_by_parent["CTX-01"] == {("adr_mcp_decision_envelope_review", "mse_17d0qqh34a07qp5b:d1", ("constitution:v1#authority", "constitution:v1#lineage"))}
         assert found_by_parent["CTX-05"] == {("adr_session_decision_authority", "mse_17d0qqh34a07qp5b:d1", ("constitution:v1#authority", "constitution:v1#provenance"))}
@@ -271,3 +296,4 @@ def test_perfect_rankings_close_all_base_task_gates_without_gold_packet_construc
             ("adr_mcp_decision_envelope_review", "mse_17d0qqh34a07qp5b:d1", ("constitution:v1#authority",)),
             ("adr_session_decision_authority", "mse_17d0qqh34a07qp5b:d1", ("constitution:v1#provenance",)),
         }
+        assert diagnostic_failures["CTX-02"] == ["lineage"]

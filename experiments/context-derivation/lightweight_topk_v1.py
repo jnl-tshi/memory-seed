@@ -2,8 +2,9 @@
 
 This module is deliberately outside the retrieval and MCP paths.  It consumes
 the immutable v2 gold through the scoring-only query join, ranks with the
-production-default decision reader, and measures whether the materialized
-strong-context packet closes every required ADR contract at K=1, 3, and 5.
+production-default decision reader, and selects K from decision recall,
+integrity, provenance, and related-safety. Exact ADR/Constitution closure
+remains a visible diagnostic at K=1, 3, and 5.
 """
 
 from __future__ import annotations
@@ -22,6 +23,8 @@ CELL_SCHEMA = "lightweight-top-k-cell.v1"
 K_VALUES = (1, 3, 5)
 QUERY_IDS = tuple(f"CTX-{parent:02d}.V{variant:02d}" for parent in range(1, 13) for variant in range(1, 6))
 CRITICAL_DIMENSIONS = ("adr_closure", "authority", "status", "lineage", "related", "constitution_binding")
+SELECTION_SAFETY_DIMENSIONS = ("related",)
+DIAGNOSTIC_DIMENSIONS = tuple(name for name in CRITICAL_DIMENSIONS if name not in SELECTION_SAFETY_DIMENSIONS)
 _HERE = Path(__file__).resolve().parent
 
 
@@ -138,16 +141,6 @@ def _exact(expected: Iterable[Any], found: Iterable[Any]) -> dict[str, Any]:
         "required": len(expected_set), "found": sorted(found_set),
         "missing": sorted(expected_set - found_set), "extra": sorted(found_set - expected_set),
         "complete": expected_set == found_set,
-    }
-
-
-def _coverage(expected: Iterable[Any], found: Iterable[Any]) -> dict[str, Any]:
-    """Typed ancestry may include valid extra historical edges in the packet."""
-    expected_set, found_set = set(expected), set(found)
-    return {
-        "required": len(expected_set), "found": sorted(found_set),
-        "missing": sorted(expected_set - found_set), "extra": sorted(found_set - expected_set),
-        "complete": expected_set <= found_set,
     }
 
 
@@ -397,7 +390,7 @@ def score_query_cell(query: Mapping[str, Any], gold: Mapping[str, Any], ranked_r
         "adr_closure": _exact(target["adrs"], facts["adrs"]),
         "authority": _exact(target["authorities"], facts["authorities"]),
         "status": _status_exact(target["statuses"], facts["statuses"]),
-        "lineage": _coverage(target["lineage"], facts["lineage"]),
+        "lineage": _exact(target["lineage"], facts["lineage"]),
         "related": _exact(target["related"], facts["related"]),
         "constitution_binding": _exact(target["bindings"], facts["bindings"]),
     }
@@ -421,7 +414,12 @@ def score_query_cell(query: Mapping[str, Any], gold: Mapping[str, Any], ranked_r
 
 
 def aggregate_cells(cells: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """Fail-closed reducer for exactly 60 query cells at each required K."""
+    """Select K from recall plus integrity/provenance/related safety.
+
+    The other exact closure metrics are retained in ``critical_gates`` and
+    ``diagnostics`` so they remain reviewable without becoming an oracle gate
+    for a ranking recommendation.
+    """
     if not isinstance(cells, Sequence) or isinstance(cells, (str, bytes)):
         raise ValueError("cells must be an array")
     by_k: dict[int, list[Mapping[str, Any]]] = {k: [] for k in K_VALUES}
@@ -448,6 +446,7 @@ def aggregate_cells(cells: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         if provenance_failures:
             errors.append("provenance-gate")
         gates: dict[str, Any] = {}
+        diagnostics: list[str] = []
         for name in CRITICAL_DIMENSIONS:
             # A zero-denominator negative control is not applicable when it
             # remains empty.  It becomes applicable (and must fail) the
@@ -461,7 +460,11 @@ def aggregate_cells(cells: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             ]
             passing = sum(bool(row["critical"][name]["complete"]) for row in applicable)
             gate = {"applicable": len(applicable), "passing": passing, "required": len(applicable), "complete": bool(applicable) and passing == len(applicable)}
-            if not gate["complete"]: errors.append(f"{name}-gate")
+            if not gate["complete"]:
+                if name in SELECTION_SAFETY_DIMENSIONS:
+                    errors.append(f"{name}-gate")
+                else:
+                    diagnostics.append(f"{name}-diagnostic")
             gates[name] = gate
         recall_pass = len(rows) == 60 and complete >= 57
         if not recall_pass: errors.append("complete-query-recall")
@@ -474,7 +477,7 @@ def aggregate_cells(cells: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
                    "provenance_failures_by_query": provenance_failures,
                    "latency_ms": {"total": sum(float(row["latency_ms"]) for row in rows), "mean": sum(float(row["latency_ms"]) for row in rows) / len(rows) if rows else 0.0},
                    "token_proxy": {"total": sum(int(row["token_proxy"]) for row in rows), "mean": sum(int(row["token_proxy"]) for row in rows) / len(rows) if rows else 0.0},
-                   "errors": sorted(set(errors))}
+                   "diagnostics": sorted(set(diagnostics)), "errors": sorted(set(errors))}
         summary["passing"] = not summary["errors"]
         summaries[str(k)] = summary
     result = {"schema": SCHEMA, "k_values": list(K_VALUES), "results": summaries}

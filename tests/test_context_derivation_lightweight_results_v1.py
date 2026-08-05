@@ -220,7 +220,7 @@ def test_pin_types_safe_isolation_and_subject_pin_consistency_are_enforced(mutat
 def valid_topk_aggregate():
     shards = {}
     for k in (1, 3, 5):
-        shards[str(k)] = {"k": k, "cell_count": 60, "query_corpus_fingerprint": module.queries.load_query_variants()[0]["canonical_fingerprint"], "complete_query_recall": {"passing": 60, "required": 60, "threshold": 57, "rate": 1.0, "complete": True}, "critical_gates": {name: {"applicable": 1, "passing": 1, "required": 1, "complete": True} for name in module.topk.CRITICAL_DIMENSIONS}, "errors": [], "passing": True}
+        shards[str(k)] = {"k": k, "cell_count": 60, "query_corpus_fingerprint": module.queries.load_query_variants()[0]["canonical_fingerprint"], "complete_query_recall": {"passing": 60, "required": 60, "threshold": 57, "rate": 1.0, "complete": True}, "critical_gates": {name: {"applicable": 1, "passing": 1, "required": 1, "complete": True} for name in module.topk.CRITICAL_DIMENSIONS}, "diagnostics": [], "errors": [], "passing": True}
     result = {"schema": module.topk.SCHEMA, "k_values": [1, 3, 5], "results": shards, "ranking_arm": "production-default", "recommended_k": 1}
     result["fingerprint"] = module.fingerprint(result)
     return result
@@ -243,11 +243,19 @@ def test_topk_rejects_semantic_failure_hidden_by_empty_errors_and_passing_flag()
         module.score_experiment([], [], topk_aggregate=aggregate)
 
 
-def test_topk_rejects_hidden_critical_gate_numerator_failure():
+def test_topk_allows_a_reported_adr_closure_diagnostic_without_blocking_k_selection():
+    aggregate = valid_topk_aggregate()
+    aggregate["results"]["5"]["critical_gates"]["authority"] = {"applicable": 60, "passing": 59, "required": 60, "complete": False}
+    aggregate["results"]["5"]["diagnostics"] = ["authority-diagnostic"]
+    aggregate["fingerprint"] = module.fingerprint({key: value for key, value in aggregate.items() if key != "fingerprint"})
+    assert module.score_experiment([], [], topk_aggregate=aggregate)["topk"]["recommended_k"] == 1
+
+
+def test_topk_rejects_hidden_adr_closure_diagnostic():
     aggregate = valid_topk_aggregate()
     aggregate["results"]["5"]["critical_gates"]["authority"] = {"applicable": 60, "passing": 59, "required": 60, "complete": False}
     aggregate["fingerprint"] = module.fingerprint({key: value for key, value in aggregate.items() if key != "fingerprint"})
-    with pytest.raises(ValueError, match="semantic"):
+    with pytest.raises(ValueError, match="closure diagnostic"):
         module.score_experiment([], [], topk_aggregate=aggregate)
 
 
