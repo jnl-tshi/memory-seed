@@ -39,6 +39,7 @@ SCHEMA = "lightweight-results.v1"
 CELL_SCHEMA = "lightweight-result-cell.v1"
 PACKET_MANIFEST_SCHEMA = "lightweight-subject-packet-manifest.v1"
 JUDGE_SCHEMA = "lightweight-explanation-review.v1"
+SCORING_RECEIPT_SCHEMA = "lightweight-scoring-receipt.v1"
 ARMS = subjects.ARMS
 SUBJECTS = subjects.SUBJECTS
 QUERY_COUNT = 60
@@ -53,6 +54,46 @@ def canonical_json(value: Any) -> str:
 
 def fingerprint(value: Any) -> str:
     return "sha256:" + hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
+
+
+def _frozen_manifest_fingerprint(rows: Sequence[Mapping[str, Any]]) -> str:
+    if isinstance(rows, (str, bytes)) or not isinstance(rows, Sequence) or not all(isinstance(row, Mapping) for row in rows):
+        raise ValueError("frozen manifest inputs must be object arrays")
+    return fingerprint(sorted(canonical_json(dict(row)) for row in rows))
+
+
+def scoring_receipt_proposal(
+    result_manifests: Sequence[Mapping[str, Any]], packet_manifests: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Create a non-scoring owner proposal bound to exact frozen inputs."""
+    corpus, _rows = queries.load_query_variants()
+    receipt = {
+        "schema": SCORING_RECEIPT_SCHEMA, "kind": "scoring", "approval_status": "PROPOSED",
+        "corpus_fingerprint": corpus["canonical_fingerprint"],
+        "result_manifests_fingerprint": _frozen_manifest_fingerprint(result_manifests),
+        "packet_manifests_fingerprint": _frozen_manifest_fingerprint(packet_manifests),
+    }
+    receipt["fingerprint"] = fingerprint(receipt)
+    return receipt
+
+
+def require_scoring_receipt(
+    receipt: Mapping[str, Any] | None, result_manifests: Sequence[Mapping[str, Any]], packet_manifests: Sequence[Mapping[str, Any]],
+) -> None:
+    required = {"schema", "kind", "approval_status", "corpus_fingerprint", "result_manifests_fingerprint", "packet_manifests_fingerprint", "fingerprint"}
+    if not isinstance(receipt, Mapping) or set(receipt) != required:
+        raise RuntimeError("approved scoring receipt is required before reducing results")
+    if receipt.get("schema") != SCORING_RECEIPT_SCHEMA or receipt.get("kind") != "scoring" or receipt.get("approval_status") != "APPROVED":
+        raise RuntimeError("approved scoring receipt is required before reducing results")
+    if receipt.get("fingerprint") != fingerprint({key: value for key, value in receipt.items() if key != "fingerprint"}):
+        raise RuntimeError("scoring receipt fingerprint is stale")
+    corpus, _rows = queries.load_query_variants()
+    if receipt.get("corpus_fingerprint") != corpus["canonical_fingerprint"]:
+        raise RuntimeError("scoring receipt corpus drift")
+    if receipt.get("result_manifests_fingerprint") != _frozen_manifest_fingerprint(result_manifests):
+        raise RuntimeError("scoring receipt result manifest drift")
+    if receipt.get("packet_manifests_fingerprint") != _frozen_manifest_fingerprint(packet_manifests):
+        raise RuntimeError("scoring receipt packet manifest drift")
 
 
 def _set(value: Any, field: str) -> set[str]:
@@ -464,12 +505,14 @@ def score_experiment(
     result_manifests: Sequence[Mapping[str, Any]], packet_manifests: Sequence[Mapping[str, Any]], *,
     query_rows: Sequence[Mapping[str, Any]] | None = None, gold_rows: Sequence[Mapping[str, Any]] | None = None,
     topk_aggregate: Mapping[str, Any] | None = None, judge_records: Sequence[Mapping[str, Any]] | None = None,
+    scoring_receipt: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Validate and reduce the frozen 360-cell experiment without executing it."""
     if not result_manifests:
         if packet_manifests:
             validate_packet_manifests(packet_manifests, query_rows or queries.load_query_variants()[1])
         return not_run_report(topk_aggregate=topk_aggregate)
+    require_scoring_receipt(scoring_receipt, result_manifests, packet_manifests)
     _corpus, expected_rows = queries.load_query_variants()
     rows = _canonical_frozen_rows(query_rows or expected_rows)
     corpus, joined = queries.load_query_variants()[0], queries.join_queries_to_gold()

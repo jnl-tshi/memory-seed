@@ -34,6 +34,13 @@ def fixtures():
         yield {item.fixture_id: item.path for item in built}
 
 
+def approved_ranking_receipt(query, fixture_root, *, top_k=8):
+    receipt = bridge.ranking_receipt_proposal(query, fixture_root, top_k=top_k)
+    receipt["approval_status"] = "APPROVED"
+    receipt["fingerprint"] = bridge.fingerprint({key: value for key, value in receipt.items() if key != "fingerprint"})
+    return receipt
+
+
 def test_materializes_actual_adr_ledgers_and_constitution_bindings(fixtures):
     document = bridge.materialize_fixture_bindings(fixtures["adversarial-shared-decision"])
 
@@ -46,6 +53,11 @@ def test_materializes_actual_adr_ledgers_and_constitution_bindings(fixtures):
         "ref": "constitution:v1#locality",
         "role": "governing",
         "excerpt": "Context should include the smallest relevant evidence slice before broader project material.",
+    }
+    index = strong.load_bindings(document)
+    revision = bridge.materialize_revision_constitution_bindings(fixtures["adversarial-shared-decision"], index)
+    assert {(row["adr_id"], row["decision_ref"]) for row in revision} == {
+        ("adr_shared_cache", "mse_ctxshared:d1"), ("adr_shared_audit", "mse_ctxshared:d1"),
     }
 
 
@@ -137,10 +149,13 @@ def test_related_supporting_evidence_is_exposed_without_becoming_lineage(fixture
 
 
 def test_production_decision_ranking_feeds_the_experiment_adapter(fixtures):
+    query = "signed checkpoints cache synchronization audit recovery"
+    receipt = approved_ranking_receipt(query, fixtures["adversarial-shared-decision"], top_k=4)
     rows = bridge.ranked_fixture_results(
-        "signed checkpoints cache synchronization audit recovery",
+        query,
         fixtures["adversarial-shared-decision"],
         top_k=4,
+        ranking_receipt=receipt,
     )
 
     assert rows
@@ -148,11 +163,24 @@ def test_production_decision_ranking_feeds_the_experiment_adapter(fixtures):
     assert "mse_ctxshared:d1" in [row["ref"] for row in rows]
     assert all(row["relevance"] in {"strong", "weak", "none"} for row in rows)
     payload = bridge.ranked_fixture_payload(
-        "signed checkpoints cache synchronization audit recovery",
-        fixtures["adversarial-shared-decision"], top_k=4,
+        query, fixtures["adversarial-shared-decision"], top_k=4, ranking_receipt=receipt,
     )
     assert payload["rows"] == rows
     assert payload["relevance_calibrated"] is False
+
+
+@pytest.mark.parametrize("stale", [False, True])
+def test_ranking_receipt_gate_makes_zero_reader_calls(monkeypatch, fixtures, stale):
+    calls = []
+    monkeypatch.setattr(bridge, "search_memory", lambda *_args, **_kwargs: calls.append("reader") or {"results": []})
+    root, query = fixtures["adversarial-pending"], "pending storage authority"
+    receipt = None
+    if stale:
+        receipt = approved_ranking_receipt(query, root)
+        receipt["fingerprint"] = "sha256:" + "0" * 64
+    with pytest.raises(RuntimeError, match="ranking receipt"):
+        bridge.ranked_fixture_payload(query, root, ranking_receipt=receipt)
+    assert calls == []
 
 
 def test_missing_adr_ledger_fails_closed(fixtures):

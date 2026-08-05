@@ -159,7 +159,7 @@ class SubjectPin:
             self.provider_version, self.adapter_version,
         )):
             raise ValueError("pin fields must be non-empty")
-        if not isinstance(self.context_window, int) or self.context_window <= 0:
+        if not isinstance(self.context_window, int) or isinstance(self.context_window, bool) or self.context_window <= 0:
             raise ValueError("pin context_window must be positive")
         if not isinstance(self.decoding, tuple) or any(not isinstance(item, tuple) or len(item) != 2 or not isinstance(item[0], str) for item in self.decoding):
             raise ValueError("pin decoding must be immutable key/value pairs")
@@ -194,6 +194,7 @@ class SubjectRequest:
     task_fingerprint: str
     isolation_cwd: Path
     frozen_run: Mapping[str, Any] | None = None
+    execution_kind: str = "scored"
 
     @property
     def prompt(self) -> str:
@@ -220,6 +221,77 @@ def _receipt_fingerprint(receipt: Mapping[str, Any]) -> str:
     return fingerprint({key: value for key, value in receipt.items() if key != "fingerprint"})
 
 
+_PROBE_QUERY = {
+    "query_id": "PROBE.V01", "parent_task_id": "PROBE", "variant_index": 0,
+    "question": "Return a protocol-valid JSON answer using only this synthetic evidence.",
+}
+_PROBE_EVIDENCE = {
+    "decisions": [{"rank": 1, "ref": "mse_alpha123:d1", "excerpt": "Synthetic protocol-only evidence."}],
+}
+_PROBE_CORPUS_FINGERPRINT = fingerprint({"schema": "lightweight-protocol-probe.v1", "query": _PROBE_QUERY, "evidence": _PROBE_EVIDENCE})
+
+
+def protocol_probe_request(isolation_cwd: str | Path, *, receipt: Mapping[str, Any] | None = None) -> SubjectRequest:
+    """Return the sole synthetic request shape allowed to exercise a provider."""
+    packet = build_packet("decision-only", _PROBE_QUERY, _PROBE_EVIDENCE)
+    return SubjectRequest(
+        _PROBE_QUERY["query_id"], _PROBE_QUERY["parent_task_id"], "decision-only", packet,
+        _PROBE_CORPUS_FINGERPRINT, fingerprint(_PROBE_QUERY), Path(isolation_cwd), receipt, "protocol-probe",
+    )
+
+
+def _probe_request_fingerprint(request: SubjectRequest) -> str:
+    return fingerprint({
+        "query_id": request.query_id, "parent_task_id": request.parent_task_id,
+        "arm": request.arm, "packet_fingerprint": request.packet.fingerprint,
+        "corpus_fingerprint": request.corpus_fingerprint, "task_fingerprint": request.task_fingerprint,
+        "execution_kind": request.execution_kind,
+    })
+
+
+def _is_synthetic_protocol_probe(request: SubjectRequest) -> bool:
+    expected = protocol_probe_request(request.isolation_cwd)
+    return (
+        request.execution_kind == "protocol-probe"
+        and request.query_id == expected.query_id and request.parent_task_id == expected.parent_task_id
+        and request.arm == expected.arm and request.packet.fingerprint == expected.packet.fingerprint
+        and request.corpus_fingerprint == expected.corpus_fingerprint
+        and request.task_fingerprint == expected.task_fingerprint
+    )
+
+
+def probe_run_proposal(request: SubjectRequest, *, subject: str, requested_model: str) -> dict[str, Any]:
+    """Create an owner-approval proposal without contacting a provider."""
+    if subject not in SUBJECTS or not isinstance(requested_model, str) or not requested_model or not _is_synthetic_protocol_probe(request):
+        raise ValueError("probe proposals require a synthetic protocol request and explicit subject/model")
+    receipt = {
+        "schema": FROZEN_RUN_SCHEMA, "kind": "probe", "approval_status": "PROPOSED",
+        "probe_fingerprint": _probe_request_fingerprint(request), "subject": subject,
+        "requested_model": requested_model,
+    }
+    receipt["fingerprint"] = _receipt_fingerprint(receipt)
+    return receipt
+
+
+def require_probe_run(request: SubjectRequest, *, subject: str, requested_model: str) -> None:
+    """Fail closed before any protocol-probe provider I/O."""
+    required = {"schema", "kind", "approval_status", "probe_fingerprint", "subject", "requested_model", "fingerprint"}
+    receipt = request.frozen_run
+    if not _is_synthetic_protocol_probe(request):
+        raise RuntimeError("provider probes require the explicit synthetic protocol request")
+    if not isinstance(receipt, Mapping) or set(receipt) != required:
+        raise RuntimeError("approved probe receipt is required before provider probing")
+    if (receipt.get("schema") != FROZEN_RUN_SCHEMA or receipt.get("kind") != "probe"
+            or receipt.get("approval_status") != "APPROVED"):
+        raise RuntimeError("approved probe receipt is required before provider probing")
+    if receipt.get("fingerprint") != _receipt_fingerprint(receipt):
+        raise RuntimeError("probe receipt fingerprint is stale")
+    if receipt.get("probe_fingerprint") != _probe_request_fingerprint(request):
+        raise RuntimeError("probe receipt request drift")
+    if receipt.get("subject") != subject or receipt.get("requested_model") != requested_model:
+        raise RuntimeError("probe receipt provider identity drift")
+
+
 def frozen_run_proposal(request: SubjectRequest, selected_pins: Mapping[str, SubjectPin]) -> dict[str, Any]:
     """Create a content-bound proposal; only an owner may change it to approved."""
     pins = {subject: pin.as_dict() for subject, pin in selected_pins.items()}
@@ -240,13 +312,20 @@ def _pin_from_receipt(value: Any, subject: str) -> SubjectPin:
     fields = {"subject", "requested_model", "reported_model", "model_digest", "quantization", "context_window", "decoding", "provider_version", "cli_version", "adapter_version"}
     if not isinstance(value, Mapping) or set(value) != fields or value.get("subject") != subject:
         raise RuntimeError("frozen run selected pin is malformed")
+    string_fields = ("subject", "requested_model", "reported_model", "model_digest", "quantization", "provider_version", "adapter_version")
+    if (any(not isinstance(value[field], str) or not value[field] for field in string_fields)
+            or value["subject"] != subject
+            or not isinstance(value["context_window"], int) or isinstance(value["context_window"], bool) or value["context_window"] <= 0
+            or not isinstance(value["decoding"], Mapping)
+            or (value["cli_version"] is not None and (not isinstance(value["cli_version"], str) or not value["cli_version"]))):
+        raise RuntimeError("frozen run selected pin is malformed")
     try:
         pin = SubjectPin(
-            subject=str(value["subject"]), requested_model=str(value["requested_model"]),
-            reported_model=str(value["reported_model"]), model_digest=str(value["model_digest"]),
-            quantization=str(value["quantization"]), context_window=value["context_window"],
-            decoding=frozen_decoding(value["decoding"]), provider_version=str(value["provider_version"]),
-            cli_version=value["cli_version"], adapter_version=str(value["adapter_version"]),
+            subject=value["subject"], requested_model=value["requested_model"],
+            reported_model=value["reported_model"], model_digest=value["model_digest"],
+            quantization=value["quantization"], context_window=value["context_window"],
+            decoding=frozen_decoding(value["decoding"]), provider_version=value["provider_version"],
+            cli_version=value["cli_version"], adapter_version=value["adapter_version"],
         )
         pin.validate()
     except (KeyError, TypeError, ValueError) as error:
@@ -447,6 +526,7 @@ class OllamaAdapter:
         return self.transport(method, self.base_url + route, payload)
 
     def installed_models(self) -> Mapping[str, Mapping[str, Any]]:
+        require_probe_run(self.probe_request, subject="local", requested_model=self.model)
         models = self._call("GET", "/api/tags").get("models", [])
         if not isinstance(models, list):
             raise RuntimeError("Ollama /api/tags models must be a list")
@@ -494,17 +574,20 @@ class OllamaAdapter:
         return self._run(request, selected)
 
     def probe(self) -> SubjectResult:
+        require_probe_run(self.probe_request, subject="local", requested_model=self.model)
         return self._run(self.probe_request)
 
 
 def select_ollama_adapter(make_adapter: Callable[[str], OllamaAdapter]) -> OllamaAdapter:
     """Choose the first installed model with a valid protocol probe; quality never promotes."""
     first = make_adapter(LADDER[0])
+    require_probe_run(first.probe_request, subject="local", requested_model=LADDER[0])
     installed = first.installed_models()
     for model in LADDER:
         if model not in installed:
             continue
         adapter = first if model == LADDER[0] else make_adapter(model)
+        require_probe_run(adapter.probe_request, subject="local", requested_model=model)
         result = adapter.probe()
         if protocol_failure(result, adapter.probe_request) is None:
             return adapter
@@ -545,6 +628,7 @@ class LunaAdapter:
         return value
 
     def _cli_version(self, cwd: Path) -> str:
+        require_probe_run(self.probe_request, subject="luna", requested_model=self.model)
         completed = self.runner([*self.command, "--version"], input="", cwd=str(cwd), env=self._minimal_env(cwd), text=True, capture_output=True, check=False)
         if completed.returncode != 0 or not completed.stdout.strip():
             raise RuntimeError("Luna CLI version probe failed")
@@ -580,6 +664,7 @@ class LunaAdapter:
         return self._run(request, selected)
 
     def probe(self) -> SubjectResult:
+        require_probe_run(self.probe_request, subject="luna", requested_model=self.model)
         return self._run(self.probe_request)
 
 

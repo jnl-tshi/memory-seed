@@ -58,6 +58,14 @@ def approved_request(*, arm="decision-only", cwd=None, local=None, luna=None):
     return module.SubjectRequest(base.query_id, base.parent_task_id, base.arm, base.packet, base.corpus_fingerprint, base.task_fingerprint, base.isolation_cwd, proposal)
 
 
+def approved_probe_request(*, cwd=None, subject="local", model="qwen2.5:0.5b"):
+    base = module.protocol_probe_request(Path(cwd or tempfile.gettempdir()))
+    proposal = module.probe_run_proposal(base, subject=subject, requested_model=model)
+    proposal["approval_status"] = "APPROVED"
+    proposal["fingerprint"] = module._receipt_fingerprint(proposal)
+    return module.protocol_probe_request(base.isolation_cwd, receipt=proposal)
+
+
 def result(**overrides):
     value = {"raw_answer": json.dumps(answer()), "transcript": "{}", "pin": pin(), "duration_ms": 1.0, "usage": {"input_tokens": 20}, "completion_reason": "stop", "stable_completion": True, "isolation": {"empty_cwd": True, "repo_access": False, "mcp_enabled": False}}
     value.update(overrides)
@@ -110,7 +118,6 @@ def test_schedule_is_exact_deterministic_and_rejects_missing_duplicate_or_extra_
 def test_ollama_ladder_selects_first_protocol_valid_installed_model_and_never_pulls():
     calls = []
     with tempfile.TemporaryDirectory() as temp:
-        probe = request(cwd=temp)
         def transport(method, url, payload):
             calls.append(url)
             if url.endswith("/api/tags"):
@@ -122,10 +129,10 @@ def test_ollama_ladder_selects_first_protocol_valid_installed_model_and_never_pu
                 bad = payload["model"] == "qwen2.5:0.5b"
                 return {"response": "{}" if bad else json.dumps(answer()), "done": True, "done_reason": "stop", "prompt_eval_count": 10, "eval_count": 5}
             raise AssertionError(url)
-        chosen = module.select_ollama_adapter(lambda model: module.OllamaAdapter(model, probe_request=probe, transport=transport))
+        chosen = module.select_ollama_adapter(lambda model: module.OllamaAdapter(model, probe_request=approved_probe_request(cwd=temp, model=model), transport=transport))
         assert chosen.model == "qwen2.5:1.5b"
         assert not any("pull" in url for url in calls)
-        with pytest.raises(ValueError): module.OllamaAdapter("qwen2.5-coder:1.5b-base", probe_request=probe, transport=transport)
+        with pytest.raises(ValueError): module.OllamaAdapter("qwen2.5-coder:1.5b-base", probe_request=approved_probe_request(cwd=temp), transport=transport)
         expected = module.SubjectPin("local", "qwen2.5:1.5b", "qwen2.5:1.5b", "sha256:qwen2.5:1.5b", "Q4", 4096, module.frozen_decoding({"temperature": 0, "seed": 20260805}), "0.5")
         chosen.expected_pin = expected
         scored = approved_request(cwd=temp, local=expected)
@@ -138,7 +145,7 @@ def test_ollama_ladder_selects_first_protocol_valid_installed_model_and_never_pu
 
 
 def test_content_error_does_not_promote_ladder_model():
-    probe = request(cwd=tempfile.gettempdir())
+    probe = approved_probe_request(cwd=tempfile.gettempdir())
     class Adapter:
         def __init__(self, model): self.model, self.probe_request = model, probe
         def installed_models(self): return {name: {} for name in module.LADDER}
@@ -159,7 +166,7 @@ def test_ollama_reobserves_show_and_version_and_rejects_pin_drift(changed):
             if url.endswith("/api/generate"):
                 return {"response": json.dumps(answer()), "done": True, "done_reason": "stop", "prompt_eval_count": 3, "eval_count": 2}
             raise AssertionError(url)
-        probe = request(cwd=temp)
+        probe = approved_probe_request(cwd=temp)
         expected = module.SubjectPin("local", "qwen2.5:0.5b", "qwen2.5:0.5b", "sha256:stable", "Q4", 4096, module.frozen_decoding({"temperature": 0, "seed": 20260805}), "0.5")
         adapter = module.OllamaAdapter("qwen2.5:0.5b", probe_request=probe, transport=transport, expected_pin=expected)
         adapter.probe()
@@ -181,7 +188,7 @@ def test_pin_drift_fails_and_luna_uses_empty_minimal_environment_with_mocked_run
     with tempfile.TemporaryDirectory() as temp:
         cwd = Path(temp)
         expected = module.SubjectPin("luna", "luna-small", "luna-small", "sha256:luna", "Q4", 2048, module.frozen_decoding({"temperature": 0, "seed": 7}), "2.0", "luna-cli 2.0")
-        adapter = module.LunaAdapter(["luna"], "luna-small", probe_request=request(cwd=cwd), runner=fake_runner, decoding={"temperature": 0, "seed": 7}, expected_pin=expected)
+        adapter = module.LunaAdapter(["luna"], "luna-small", probe_request=approved_probe_request(cwd=cwd, subject="luna", model="luna-small"), runner=fake_runner, decoding={"temperature": 0, "seed": 7}, expected_pin=expected)
         observed = adapter.run(approved_request(cwd=cwd, luna=expected))
         assert observed.pin.reported_model == "luna-small"
         assert observed.pin.cli_version == "luna-cli 2.0"
@@ -190,7 +197,7 @@ def test_pin_drift_fails_and_luna_uses_empty_minimal_environment_with_mocked_run
         assert "--model" in seen["command"]
         assert json.loads(seen["command"][-1]) == {"seed": 7, "temperature": 0}
         mismatched_expected = module.SubjectPin("luna", "luna-small", "luna-small", "sha256:luna", "Q4", 2048, module.frozen_decoding({"temperature": 0}), "2.0", "different-cli")
-        mismatched = module.LunaAdapter(["luna"], "luna-small", probe_request=request(cwd=cwd), runner=fake_runner, expected_pin=mismatched_expected)
+        mismatched = module.LunaAdapter(["luna"], "luna-small", probe_request=approved_probe_request(cwd=cwd, subject="luna", model="luna-small"), runner=fake_runner, expected_pin=mismatched_expected)
         with pytest.raises(RuntimeError, match="pin drift"):
             mismatched.run(approved_request(cwd=cwd, luna=expected))
 
@@ -247,6 +254,35 @@ def test_direct_adapter_gate_makes_zero_provider_transport_calls(stale):
         adapter = module.OllamaAdapter("qwen2.5:0.5b", probe_request=req, expected_pin=expected, transport=lambda *_args: calls.append("provider") or {})
         with pytest.raises(RuntimeError, match="frozen-run|approved frozen-run"):
             adapter.run(gated)
+    assert calls == []
+
+
+@pytest.mark.parametrize("normal_request", [False, True])
+def test_provider_probe_gate_requires_an_approved_synthetic_request_before_transport(normal_request):
+    calls = []
+    with tempfile.TemporaryDirectory() as temp:
+        probe = request(cwd=temp) if normal_request else module.protocol_probe_request(temp)
+        adapter = module.OllamaAdapter("qwen2.5:0.5b", probe_request=probe, transport=lambda *_args: calls.append("provider") or {})
+        with pytest.raises(RuntimeError, match="probe receipt|synthetic protocol"):
+            adapter.probe()
+    assert calls == []
+
+
+@pytest.mark.parametrize("field,value", [("requested_model", 7), ("context_window", True), ("decoding", [("temperature", 0)]), ("cli_version", "")])
+def test_malformed_frozen_pin_fails_before_any_transport_call(field, value):
+    calls = []
+    with tempfile.TemporaryDirectory() as temp:
+        expected = pin()
+        req = approved_request(cwd=temp, local=expected)
+        receipt = dict(req.frozen_run)
+        selected = {name: dict(raw) for name, raw in receipt["selected_pins"].items()}
+        selected["local"][field] = value
+        receipt["selected_pins"] = selected
+        receipt["fingerprint"] = module._receipt_fingerprint(receipt)
+        malformed = module.SubjectRequest(req.query_id, req.parent_task_id, req.arm, req.packet, req.corpus_fingerprint, req.task_fingerprint, req.isolation_cwd, receipt)
+        adapter = module.OllamaAdapter("qwen2.5:0.5b", probe_request=approved_probe_request(cwd=temp), expected_pin=expected, transport=lambda *_args: calls.append("provider") or {})
+        with pytest.raises(RuntimeError, match="selected pin is malformed"):
+            adapter.run(malformed)
     assert calls == []
 
 

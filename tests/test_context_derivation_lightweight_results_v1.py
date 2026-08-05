@@ -63,10 +63,32 @@ def fixtures():
     return rows, packets, results
 
 
+def score(results, packets, **kwargs):
+    receipt = module.scoring_receipt_proposal(results, packets)
+    receipt["approval_status"] = "APPROVED"
+    receipt["fingerprint"] = module.fingerprint({key: value for key, value in receipt.items() if key != "fingerprint"})
+    return module.score_experiment(results, packets, scoring_receipt=receipt, **kwargs)
+
+
+@pytest.mark.parametrize("stale", [False, True])
+def test_scoring_receipt_gate_makes_zero_score_calls(monkeypatch, stale):
+    rows, packets, results = fixtures()
+    calls = []
+    monkeypatch.setattr(module, "score_cell", lambda *_args, **_kwargs: calls.append("score") or {})
+    receipt = None
+    if stale:
+        receipt = module.scoring_receipt_proposal(results, packets)
+        receipt["approval_status"] = "APPROVED"
+        receipt["fingerprint"] = "sha256:" + "0" * 64
+    with pytest.raises(RuntimeError, match="scoring receipt"):
+        module.score_experiment(results, packets, query_rows=rows, scoring_receipt=receipt)
+    assert calls == []
+
+
 def test_complete_360_results_score_and_render_deterministically(tmp_path):
     rows, packets, results = fixtures()
-    first = module.score_experiment(results, packets, query_rows=rows)
-    second = module.score_experiment(list(reversed(results)), packets, query_rows=rows)
+    first = score(results, packets, query_rows=rows)
+    second = score(list(reversed(results)), packets, query_rows=rows)
     assert first == second
     assert first["recommendation"] == "adr-constitution"
     assert first["subjects"]["local"]["adr-constitution"]["gates"]["complete_correct"] == {"passing": 60, "required": 60, "threshold": 54, "complete": True}
@@ -85,7 +107,7 @@ def test_results_reject_incomplete_or_untrusted_cells(mutation):
     elif mutation == "protocol": results[0] = {**results[0], "protocol_failure": "invalid-answer-schema"}
     else: results[0] = {**results[0], "packet_fingerprint": "sha256:" + "0" * 64}
     with pytest.raises(ValueError):
-        module.score_experiment(results, packets, query_rows=rows)
+        score(results, packets, query_rows=rows)
 
 
 def test_canonical_query_body_packet_gold_leak_and_minimal_pin_cannot_self_validate():
@@ -93,15 +115,15 @@ def test_canonical_query_body_packet_gold_leak_and_minimal_pin_cannot_self_valid
     altered_rows = [dict(row) for row in rows]
     altered_rows[0]["question"] = "same id but a different caller-supplied question"
     with pytest.raises(ValueError, match="frozen 60-query"):
-        module.score_experiment(results, packets, query_rows=altered_rows)
+        score(results, packets, query_rows=altered_rows)
     leaked = [dict(packet) for packet in packets]
     leaked[0]["evidence"] = {**leaked[0]["evidence"], "required_adr_ids": ["adr_leak"]}
     with pytest.raises(ValueError, match="gold"):
-        module.score_experiment(results, leaked, query_rows=rows)
+        score(results, leaked, query_rows=rows)
     minimal = list(results)
     minimal[0] = {**minimal[0], "pin": {"subject": "local"}, "pin_fingerprint": module.fingerprint({"subject": "local"})}
     with pytest.raises(ValueError, match="pin"):
-        module.score_experiment(minimal, packets, query_rows=rows)
+        score(minimal, packets, query_rows=rows)
 
 
 def test_complete_correct_gate_accepts_the_54_of_60_boundary():
@@ -109,7 +131,7 @@ def test_complete_correct_gate_accepts_the_54_of_60_boundary():
     targets = [row for row in results if row["subject"] == "local" and row["arm"] == "adr-constitution"][:6]
     for row in targets:
         row["parsed_answer"] = {**row["parsed_answer"], "adr_ids": []}
-    scored = module.score_experiment(results, packets, query_rows=rows)
+    scored = score(results, packets, query_rows=rows)
     local = scored["subjects"]["local"]["adr-constitution"]
     assert local["complete_correct"] == 54
     assert local["passing"] and scored["recommendation"] == "adr-constitution"
@@ -119,7 +141,7 @@ def test_ctx12_gate_requires_five_complete_negative_control_answers():
     rows, packets, results = fixtures()
     for row in [row for row in results if row["subject"] == "local" and row["arm"] == "adr-constitution" and row["parent_task_id"] == "CTX-12"]:
         row["parsed_answer"] = {**row["parsed_answer"], "adr_ids": ["adr_unsupported_claim"]}
-    scored = module.score_experiment(results, packets, query_rows=rows)
+    scored = score(results, packets, query_rows=rows)
     gate = scored["subjects"]["local"]["adr-constitution"]["gates"]["missing_evidence_abstention"]
     assert gate == {"passing": 0, "required": 5, "threshold": 5, "complete": False}
 
@@ -131,7 +153,7 @@ def test_authority_status_citation_and_related_failures_cannot_be_repaired_by_hi
     bad = dict(target["parsed_answer"])
     bad[field] = {} if field == "adr_statuses" else []
     target.update(parsed_answer=bad)
-    scored = module.score_experiment(results, packets, query_rows=rows)
+    scored = score(results, packets, query_rows=rows)
     assert scored["subjects"]["luna"]["adr-constitution"]["complete_correct"] == 59
     assert scored["recommendation"] is None
 
@@ -141,7 +163,7 @@ def test_arm_noninferiority_is_per_subject_and_judges_are_non_authoritative():
     constitution = next(row for row in results if row["subject"] == "local" and row["arm"] == "adr-constitution")
     constitution["parsed_answer"] = {**constitution["parsed_answer"], "adr_ids": []}
     reviewed = [{"schema": module.JUDGE_SCHEMA, "subject": "local", "query_id": constitution["query_id"], "verdict": "excellent"}]
-    scored = module.score_experiment(results, packets, query_rows=rows, judge_records=reviewed)
+    scored = score(results, packets, query_rows=rows, judge_records=reviewed)
     assert scored["subjects"]["local"]["adr-constitution"]["noninferior_to"]["adr-current"] is True
     assert scored["recommendation"] == "adr-constitution" and scored["explanation_reviews"] == reviewed
 
@@ -150,7 +172,7 @@ def test_adr_citations_and_explanation_refs_must_be_declared_in_evidence():
     rows, packets, results = fixtures()
     target = next(row for row in results if row["subject"] == "local" and row["arm"] == "adr-constitution" and row["parent_task_id"] == "CTX-01")
     target["parsed_answer"] = {**target["parsed_answer"], "citations": ["adr_mcp_decision_envelope_review"], "explanation": "See adr_undeclared."}
-    scored = module.score_experiment(results, packets, query_rows=rows)
+    scored = score(results, packets, query_rows=rows)
     checks = scored["subjects"]["local"]["adr-constitution"]["failures_by_task_family"]
     assert {"task_id": "CTX-01", "failures": ["constitution_refs", "material_refs"]} in checks
 
@@ -159,21 +181,21 @@ def test_evidence_present_gold_adr_citation_is_allowed():
     rows, packets, results = fixtures()
     target = next(row for row in results if row["subject"] == "local" and row["arm"] == "adr-constitution" and row["parent_task_id"] == "CTX-01")
     target["parsed_answer"] = {**target["parsed_answer"], "citations": [*target["parsed_answer"]["citations"], "adr_mcp_decision_envelope_review"]}
-    scored = module.score_experiment(results, packets, query_rows=rows)
+    scored = score(results, packets, query_rows=rows)
     assert scored["subjects"]["local"]["adr-constitution"]["complete_correct"] == 60
 
 
 @pytest.mark.parametrize("parent", ["CTX-06", "CTX-09"])
 def test_constitution_binding_pairs_are_exact_even_when_flat_citations_match(parent):
     rows, packets, results = fixtures()
-    exact = module.score_experiment(results, packets, query_rows=rows)
+    exact = score(results, packets, query_rows=rows)
     assert exact["subjects"]["local"]["adr-constitution"]["complete_correct"] == 60
     target = next(row for row in results if row["subject"] == "local" and row["arm"] == "adr-constitution" and row["parent_task_id"] == parent)
     bindings = [dict(binding) for binding in target["parsed_answer"]["constitution_bindings"]]
     assert len(bindings) == 2
     bindings[0]["constitution_refs"], bindings[1]["constitution_refs"] = bindings[1]["constitution_refs"], bindings[0]["constitution_refs"]
     target["parsed_answer"] = {**target["parsed_answer"], "constitution_bindings": bindings}
-    scored = module.score_experiment(results, packets, query_rows=rows)
+    scored = score(results, packets, query_rows=rows)
     checks = scored["subjects"]["local"]["adr-constitution"]["failures_by_task_family"]
     assert {"task_id": parent, "failures": ["constitution_bindings"]} in checks
 
@@ -192,7 +214,7 @@ def test_pin_types_safe_isolation_and_subject_pin_consistency_are_enforced(mutat
         pin = {**target["pin"], "model_digest": "sha256:changed"}
         target.update(pin=pin, pin_fingerprint=module.fingerprint(pin))
     with pytest.raises(ValueError, match="pin|isolation"):
-        module.score_experiment(results, packets, query_rows=rows)
+        score(results, packets, query_rows=rows)
 
 
 def valid_topk_aggregate():

@@ -83,6 +83,13 @@ def approved_topk_receipt(fixture_roots):
     return receipt
 
 
+def approved_ranking_receipt(question, fixture_root):
+    receipt = module.bridge.ranking_receipt_proposal(question, fixture_root, top_k=max(module.K_VALUES))
+    receipt["approval_status"] = "APPROVED"
+    receipt["fingerprint"] = module.bridge.fingerprint({key: value for key, value in receipt.items() if key != "fingerprint"})
+    return receipt
+
+
 def test_complete_query_recall_keeps_k1_multi_decision_infeasible() -> None:
     result = module.score_query_cell(query(), gold(decisions=[D1, D2]), ranked(), packet(), k=1, query_corpus_fingerprint=CORPUS)
     assert result["complete_query_decision_recall"] == {"hits": 1, "required": 2, "complete": False, "infeasible": True}
@@ -193,19 +200,30 @@ def test_corpus_fingerprint_must_match_across_all_k_shards() -> None:
 
 
 @pytest.mark.parametrize("parent", ["CTX-02", "CTX-04", "CTX-10"])
-def test_offline_evaluator_materializes_each_reviewed_revision_binding_without_duplicate_adr_prose(monkeypatch, parent) -> None:
+def test_offline_evaluator_materializes_fixture_revision_bindings_without_duplicate_adr_prose(monkeypatch, parent) -> None:
     with tempfile.TemporaryDirectory() as temporary:
         built = {item.fixture_id: item.path for item in fixture_builder.build_all(Path(temporary) / "fixtures")}
         query, gold = next((query, gold) for query, gold in module.queries.join_queries_to_gold() if query["parent_task_id"] == parent)
         roots = {query["fixture"]: built[query["fixture"]]}
         rows = [{"ref": ref, "relevance": "strong", "excerpt": ref, "links": {"evolves": [], "replaces": [], "related": []}} for ref in gold["relevant_refs"]]
         monkeypatch.setattr(module.bridge, "ranked_fixture_payload", lambda *_args, **_kwargs: {"rows": rows, "relevance_calibrated": False})
-        cells = module.evaluate_query_offline(query, gold, roots[query["fixture"]], query_corpus_fingerprint=module.queries.load_query_variants()[0]["canonical_fingerprint"], frozen_run=approved_topk_receipt(roots))
+        receipt = approved_ranking_receipt(query["question"], roots[query["fixture"]])
+        cells = module.evaluate_query_offline(query, gold, roots[query["fixture"]], query_corpus_fingerprint=module.queries.load_query_variants()[0]["canonical_fingerprint"], frozen_run=approved_topk_receipt(roots), ranking_receipt=receipt)
         cell = next(item for item in cells if item["k"] == 3)
-        expected = {(binding["adr_id"], binding["decision_ref"], tuple(sorted(binding["constitution_refs"]))) for binding in gold["required_constitution_bindings"]}
+        index = module.resolver.load_bindings(module.bridge.materialize_fixture_bindings(roots[query["fixture"]]))
+        expected = {
+            (binding["adr_id"], binding["decision_ref"], tuple(sorted(item["ref"] for item in binding["constitution"])))
+            for binding in module.bridge.materialize_revision_constitution_bindings(roots[query["fixture"]], index)
+            if binding["decision_ref"] in {row["ref"] for row in rows}
+        }
         assert len(expected) == 2
         assert set(cell["critical"]["constitution_binding"]["found"]) == expected
-        assert cell["critical"]["constitution_binding"]["complete"] is True
+        altered_gold = copy.deepcopy(gold)
+        altered_gold["required_constitution_bindings"] = []
+        altered = module.evaluate_query_offline(query, altered_gold, roots[query["fixture"]], query_corpus_fingerprint=module.queries.load_query_variants()[0]["canonical_fingerprint"], frozen_run=approved_topk_receipt(roots), ranking_receipt=receipt)
+        altered_cell = next(item for item in altered if item["k"] == 3)
+        assert altered_cell["packet_fingerprint"] == cell["packet_fingerprint"]
+        assert altered_cell["critical"]["constitution_binding"]["found"] == cell["critical"]["constitution_binding"]["found"]
 
 
 @pytest.mark.parametrize("stale", [False, True])

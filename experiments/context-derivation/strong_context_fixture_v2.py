@@ -21,7 +21,17 @@ from memory_seed.retrieval import search_memory
 
 
 FIXTURE_BINDINGS_SCHEMA = "context-fixture-adr-constitution-bindings.v1"
+REVISION_BINDINGS_SCHEMA = "context-fixture-revision-constitution-bindings.v1"
 MATERIALIZED_SCHEMA = "strong-context-v2-bindings.v1"
+RANKING_RECEIPT_SCHEMA = "lightweight-ranking-receipt.v1"
+
+
+def canonical_json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def fingerprint(value: Any) -> str:
+    return "sha256:" + hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
 
 
 def _load_strong_context() -> Any:
@@ -194,19 +204,108 @@ def materialize_fixture_bindings(fixture_root: str | Path) -> dict[str, Any]:
             }
         )
     materialized = {"schema": MATERIALIZED_SCHEMA, "adrs": rows}
-    strong.load_bindings(materialized)
+    index = strong.load_bindings(materialized)
+    materialize_revision_constitution_bindings(root, index)
     return materialized
 
 
-def ranked_fixture_payload(query: str, fixture_root: str | Path, *, top_k: int = 8, lexical_only: bool = False) -> dict[str, Any]:
+def materialize_revision_constitution_bindings(fixture_root: str | Path, binding_index: Any) -> list[dict[str, Any]]:
+    """Load the fixture's independent revision-to-Constitution evidence map.
+
+    Validation is tied to the resolver's already-validated ADR membership and
+    section inventory.  The returned rows are packet-ready excerpts and never
+    consult benchmark score gold.
+    """
+    root = Path(fixture_root).resolve()
+    document = _read_json(root / "REVISION_CONSTITUTION_BINDINGS.json")
+    if set(document) != {"schema", "fixture_id", "bindings"} or document.get("schema") != REVISION_BINDINGS_SCHEMA:
+        raise ValueError(f"fixture revision binding document must use {REVISION_BINDINGS_SCHEMA!r}")
+    manifest = _read_json(root / "FIXTURE_MANIFEST.json")
+    if manifest.get("schema") != "context-fixture-manifest.v1" or manifest.get("fixture_id") != document.get("fixture_id"):
+        raise ValueError("fixture manifest does not match the revision binding document")
+    bindings = document.get("bindings")
+    if not isinstance(bindings, list):
+        raise ValueError("fixture revision bindings must be an array")
+    output: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for binding in bindings:
+        if not isinstance(binding, Mapping) or set(binding) != {"adr_id", "decision_ref", "constitution_refs"}:
+            raise ValueError("fixture revision binding has an invalid shape")
+        adr_id, decision_ref = binding.get("adr_id"), binding.get("decision_ref")
+        if not isinstance(adr_id, str) or not isinstance(decision_ref, str) or (adr_id, decision_ref) in seen:
+            raise ValueError("fixture revision bindings must use unique ADR/revision pairs")
+        seen.add((adr_id, decision_ref))
+        adr = binding_index.by_id.get(adr_id)
+        if adr is None or decision_ref not in adr["membership"]:
+            raise ValueError("fixture revision binding is not valid resolver membership")
+        refs = binding.get("constitution_refs")
+        if not isinstance(refs, list) or not refs:
+            raise ValueError("fixture revision binding must contain Constitution sections")
+        available = {(row["ref"], row["role"]): row for row in adr["constitution_refs"]}
+        constitution: list[dict[str, Any]] = []
+        seen_refs: set[str] = set()
+        for item in refs:
+            if not isinstance(item, Mapping) or set(item) != {"ref", "role"}:
+                raise ValueError("fixture revision Constitution section has an invalid shape")
+            ref, role = item.get("ref"), item.get("role")
+            if not isinstance(ref, str) or ref in seen_refs or (ref, role) not in available:
+                raise ValueError("fixture revision Constitution section is unavailable for this ADR")
+            seen_refs.add(ref)
+            constitution.append(dict(available[(ref, role)]))
+        output.append({"adr_id": adr_id, "decision_ref": decision_ref, "constitution": constitution})
+    return sorted(output, key=lambda row: (row["adr_id"], row["decision_ref"]))
+
+
+def _fixture_content_fingerprint(fixture_root: str | Path) -> str:
+    manifest = _read_json(Path(fixture_root) / "FIXTURE_MANIFEST.json")
+    value = manifest.get("content_fingerprint")
+    if manifest.get("schema") != "context-fixture-manifest.v1" or not isinstance(value, str) or not value.startswith("sha256:"):
+        raise RuntimeError("ranking receipt fixture manifest is invalid")
+    return value
+
+
+def _ranking_request_fingerprint(query: str, *, top_k: int, lexical_only: bool) -> str:
+    return fingerprint({"query": query, "top_k": top_k, "ranking_arm": "lexical-diagnostic" if lexical_only else "production-default"})
+
+
+def ranking_receipt_proposal(query: str, fixture_root: str | Path, *, top_k: int = 8, lexical_only: bool = False) -> dict[str, Any]:
+    """Build a non-executing proposal for one content-bound ranking request."""
+    if not isinstance(query, str) or not query.strip() or not isinstance(top_k, int) or isinstance(top_k, bool) or top_k < 1 or not isinstance(lexical_only, bool):
+        raise ValueError("ranking proposal requires a non-empty query, positive top_k, and boolean lexical_only")
+    receipt = {
+        "schema": RANKING_RECEIPT_SCHEMA, "kind": "ranking", "approval_status": "PROPOSED",
+        "fixture_content_fingerprint": _fixture_content_fingerprint(fixture_root),
+        "request_fingerprint": _ranking_request_fingerprint(query, top_k=top_k, lexical_only=lexical_only),
+    }
+    receipt["fingerprint"] = fingerprint(receipt)
+    return receipt
+
+
+def require_ranking_receipt(receipt: Mapping[str, Any] | None, query: str, fixture_root: str | Path, *, top_k: int, lexical_only: bool) -> None:
+    required = {"schema", "kind", "approval_status", "fixture_content_fingerprint", "request_fingerprint", "fingerprint"}
+    if not isinstance(receipt, Mapping) or set(receipt) != required:
+        raise RuntimeError("approved ranking receipt is required before offline ranking")
+    if receipt.get("schema") != RANKING_RECEIPT_SCHEMA or receipt.get("kind") != "ranking" or receipt.get("approval_status") != "APPROVED":
+        raise RuntimeError("approved ranking receipt is required before offline ranking")
+    if receipt.get("fingerprint") != fingerprint({key: value for key, value in receipt.items() if key != "fingerprint"}):
+        raise RuntimeError("ranking receipt fingerprint is stale")
+    if receipt.get("fixture_content_fingerprint") != _fixture_content_fingerprint(fixture_root):
+        raise RuntimeError("ranking receipt fixture content drift")
+    if receipt.get("request_fingerprint") != _ranking_request_fingerprint(query, top_k=top_k, lexical_only=lexical_only):
+        raise RuntimeError("ranking receipt request drift")
+
+
+def ranked_fixture_payload(query: str, fixture_root: str | Path, *, top_k: int = 8, lexical_only: bool = False, ranking_receipt: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Adapt real decision-level retrieval rows for the experiment resolver.
 
     This is an offline evaluator helper.  It deliberately exposes no new MCP
     field. Production-default ranking is the primary arm; lexical-only is an
     explicit diagnostic arm and may not select a Top-K recommendation.
     """
-    if not isinstance(query, str) or not query.strip() or not isinstance(top_k, int) or top_k < 1:
-        raise ValueError("query must be non-empty and top_k must be positive")
+    if (not isinstance(query, str) or not query.strip() or not isinstance(top_k, int)
+            or isinstance(top_k, bool) or top_k < 1 or not isinstance(lexical_only, bool)):
+        raise ValueError("query must be non-empty, top_k must be positive, and lexical_only must be boolean")
+    require_ranking_receipt(ranking_receipt, query, fixture_root, top_k=top_k, lexical_only=lexical_only)
     payload = search_memory(query, cwd=fixture_root, top_k=top_k, semantic_enabled=not lexical_only, granularity="decision")
     rows: list[dict[str, Any]] = []
     for result in payload["results"]:
@@ -230,6 +329,6 @@ def ranked_fixture_payload(query: str, fixture_root: str | Path, *, top_k: int =
     }
 
 
-def ranked_fixture_results(query: str, fixture_root: str | Path, *, top_k: int = 8, lexical_only: bool = False) -> list[dict[str, Any]]:
+def ranked_fixture_results(query: str, fixture_root: str | Path, *, top_k: int = 8, lexical_only: bool = False, ranking_receipt: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
     """Compatibility wrapper for callers that only need ranked rows."""
-    return ranked_fixture_payload(query, fixture_root, top_k=top_k, lexical_only=lexical_only)["rows"]
+    return ranked_fixture_payload(query, fixture_root, top_k=top_k, lexical_only=lexical_only, ranking_receipt=ranking_receipt)["rows"]

@@ -262,26 +262,30 @@ def _packet_facts(packet: Mapping[str, Any], ranked_prefix: Sequence[Mapping[str
     return facts, failures
 
 
-def _revision_scoped_packet(packet: Mapping[str, Any], gold: Mapping[str, Any], index: Any) -> dict[str, Any]:
-    """Attach reviewed v2 bindings without repeating the surrounding ADR prose.
+def _revision_scoped_packet(packet: Mapping[str, Any], ranked_prefix: Sequence[Mapping[str, Any]], revision_bindings: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Attach fixture-declared revision evidence without repeating ADR prose.
 
-    The fixture's ADR-wide section inventory supplies excerpts; the reviewed
-    task gold selects the exact ADR/revision/section triples.  A multi-revision
-    query therefore carries one ADR body plus compact binding deltas.
+    Packet construction is deliberately score-gold-free: direct ranked
+    decision refs select compact rows from the independent fixture-side map.
     """
+    ranked_refs = {row.get("ref") for row in ranked_prefix if isinstance(row, Mapping)}
+    trace_adrs = {
+        trace["ref"]: set(trace["matched_adr_ids"])
+        for trace in packet.get("trace", [])
+        if isinstance(trace, Mapping) and isinstance(trace.get("ref"), str)
+        and isinstance(trace.get("matched_adr_ids"), list)
+    }
     scoped: list[dict[str, Any]] = []
-    for adr_id, decision_ref, refs in sorted(_binding_set(gold["required_constitution_bindings"])):
-        adr = index.by_id.get(adr_id)
-        if adr is None or decision_ref not in adr["membership"]:
-            raise ValueError("reviewed Constitution binding is not ADR membership")
-        available = {row["ref"]: row for row in adr["constitution_refs"]}
-        if not set(refs) <= set(available):
-            raise ValueError("fixture lacks reviewed revision-scoped Constitution evidence")
-        scoped.append({
-            "adr_id": adr_id,
-            "decision_ref": decision_ref,
-            "constitution": [dict(available[ref]) for ref in refs],
-        })
+    for binding in revision_bindings:
+        adr_id, decision_ref = binding.get("adr_id"), binding.get("decision_ref")
+        if (not isinstance(adr_id, str) or not isinstance(decision_ref, str)
+                or decision_ref not in ranked_refs or adr_id not in trace_adrs.get(decision_ref, set())):
+            continue
+        constitution = binding.get("constitution")
+        if not isinstance(constitution, list):
+            raise ValueError("fixture revision Constitution mapping is malformed")
+        scoped.append({"adr_id": adr_id, "decision_ref": decision_ref, "constitution": [dict(item) for item in constitution]})
+    scoped.sort(key=lambda row: (row["adr_id"], row["decision_ref"]))
     result = {key: value for key, value in packet.items() if key != "fingerprint"}
     result["revision_constitution_bindings"] = scoped
     result["fingerprint"] = fingerprint(result)
@@ -412,7 +416,7 @@ def aggregate_cells(cells: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def _evaluate_query_offline(query: Mapping[str, Any], gold: Mapping[str, Any], fixture_root: str | Path, *, query_corpus_fingerprint: str, ranking_arm: str = "production-default") -> list[dict[str, Any]]:
+def _evaluate_query_offline(query: Mapping[str, Any], gold: Mapping[str, Any], fixture_root: str | Path, *, query_corpus_fingerprint: str, ranking_arm: str = "production-default", ranking_receipt: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
     """Run one offline query through production-default ranking and the existing materializer.
 
     ``lexical-diagnostic`` is intentionally returned as a diagnostic cell set;
@@ -421,34 +425,38 @@ def _evaluate_query_offline(query: Mapping[str, Any], gold: Mapping[str, Any], f
     if ranking_arm not in {"production-default", "lexical-diagnostic"}:
         raise ValueError("ranking_arm must be production-default or lexical-diagnostic")
     started = time.perf_counter()
-    ranking = bridge.ranked_fixture_payload(query["question"], fixture_root, top_k=max(K_VALUES), lexical_only=ranking_arm == "lexical-diagnostic")
+    ranking = bridge.ranked_fixture_payload(query["question"], fixture_root, top_k=max(K_VALUES), lexical_only=ranking_arm == "lexical-diagnostic", ranking_receipt=ranking_receipt)
     elapsed_ms = (time.perf_counter() - started) * 1000
     bindings = bridge.materialize_fixture_bindings(fixture_root)
     index = resolver.load_bindings(bindings)
+    revision_bindings = bridge.materialize_revision_constitution_bindings(fixture_root, index)
     binding_cap = max((len(adr["constitution_refs"]) for adr in index.adrs), default=0)
     ranking_fingerprint = fingerprint(ranking["rows"])
     cells = []
     for k in K_VALUES:
         packet = resolver.resolve_strong_context(ranking["rows"], index, {"result_cap": k, "strong_cap": k, "adr_cap": len(index.adrs), "constitution_binding_cap": binding_cap, "lineage_item_cap": 999, "expansion_policy": "ranked", "relevance_calibrated": ranking["relevance_calibrated"]})
-        packet = _revision_scoped_packet(packet, gold, index)
+        packet = _revision_scoped_packet(packet, ranking["rows"][:k], revision_bindings)
         cells.append(score_query_cell(query, gold, ranking["rows"], packet, k=k, query_corpus_fingerprint=query_corpus_fingerprint, ranking_fingerprint=ranking_fingerprint, ranking_arm=ranking_arm, latency_ms=elapsed_ms))
     return cells
 
 
-def evaluate_query_offline(query: Mapping[str, Any], gold: Mapping[str, Any], fixture_root: str | Path, *, query_corpus_fingerprint: str, ranking_arm: str = "production-default", frozen_run: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
+def evaluate_query_offline(query: Mapping[str, Any], gold: Mapping[str, Any], fixture_root: str | Path, *, query_corpus_fingerprint: str, ranking_arm: str = "production-default", frozen_run: Mapping[str, Any] | None = None, ranking_receipt: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
     """Owner-gated public entry point for one scored offline query."""
     require_topk_frozen_run(frozen_run, {str(query.get("fixture", "query")): fixture_root})
-    return _evaluate_query_offline(query, gold, fixture_root, query_corpus_fingerprint=query_corpus_fingerprint, ranking_arm=ranking_arm)
+    return _evaluate_query_offline(query, gold, fixture_root, query_corpus_fingerprint=query_corpus_fingerprint, ranking_arm=ranking_arm, ranking_receipt=ranking_receipt)
 
 
-def evaluate_corpus_offline(fixture_roots: Mapping[str, str | Path], *, ranking_arm: str = "production-default", frozen_run: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
+def evaluate_corpus_offline(fixture_roots: Mapping[str, str | Path], *, ranking_arm: str = "production-default", frozen_run: Mapping[str, Any] | None = None, ranking_receipts: Mapping[str, Mapping[str, Any]] | None = None) -> list[dict[str, Any]]:
     """Explicit, non-CLI evaluator; callers must obtain scored-run approval."""
     corpus, _rows = queries.load_query_variants()
     require_topk_frozen_run(frozen_run, fixture_roots)
+    expected_receipts = {query["query_id"] for query, _gold in queries.join_queries_to_gold()}
+    if not isinstance(ranking_receipts, Mapping) or set(ranking_receipts) != expected_receipts:
+        raise RuntimeError("approved ranking receipts are required for every offline query")
     output: list[dict[str, Any]] = []
     for query, gold in queries.join_queries_to_gold():
         fixture = query["fixture"]
         if fixture not in fixture_roots:
             raise ValueError(f"missing fixture root for {fixture}")
-        output.extend(_evaluate_query_offline(query, gold, fixture_roots[fixture], query_corpus_fingerprint=corpus["canonical_fingerprint"], ranking_arm=ranking_arm))
+        output.extend(_evaluate_query_offline(query, gold, fixture_roots[fixture], query_corpus_fingerprint=corpus["canonical_fingerprint"], ranking_arm=ranking_arm, ranking_receipt=ranking_receipts[query["query_id"]]))
     return output
