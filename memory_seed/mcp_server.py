@@ -308,7 +308,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "memory_get_chunk",
-        "description": "Fetch an exact Memory Seed chunk by chunk_id. Decision ids (entry_id:d1) resolve, and a decision payload carries `entry_context`: the entry-level sections that frame it - Summary, Follow-up, Validation, Facts - since a decision block alone omits what the session was doing and what was left open. Sibling decisions are not included.",
+        "description": "Fetch an exact Memory Seed chunk by chunk_id. Decision ids (entry_id:d1) resolve, and a decision payload carries `entry_context`: the entry-level sections that frame it - Summary, Follow-up, Validation - since a decision block alone omits what the session was doing and what was left open. Sibling decisions are not included. The payload is a projection of the full record: exact aliases (path/date/source_file/entry_title) and the lexical_terms scoring index are omitted, as are empty optional fields - but lifecycle fields (replaces/replaced_by/evolves/evolved_by/replacing_head) and the attention triple are always present, because their emptiness is a statement: unsuperseded, never fetched.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -727,7 +727,7 @@ def call_tool(
 
     if name == "memory_get_chunk":
         chunk_id = _required_str(args, "chunk_id")
-        return {"chunk": get_chunk(chunk_id, args.get("cwd", "."))}
+        return {"chunk": _project_chunk_payload(get_chunk(chunk_id, args.get("cwd", ".")))}
 
     if name == "memory_topics_list":
         from .topics import load_topic_index
@@ -1273,6 +1273,49 @@ def _required_str(arguments: dict[str, Any], key: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"Missing required string argument: {key}")
     return value
+
+
+# Exact aliases of fields that stay: `path` == `source`, `date` == `session_date`, `source_file`
+# is the basename of `source`, `entry_title` == `heading_path[0]`. Plus `lexical_terms`, which
+# earns its BM25F weight for SCORING but, serialised, restates strings already present in `text` -
+# an index the reading agent cannot query. `chunk_to_dict` keeps all of them: Trace hard-indexes
+# `payload["entry_title"]`, `payload["source_file"]`, `payload["contexts"]`,
+# `payload["lexical_terms"]` and `payload["path"]`, so this projection exists at the MCP boundary
+# precisely so the internal record does not have to change.
+_CHUNK_PROJECTION_DROP = frozenset(
+    {"path", "date", "source_file", "entry_title", "lexical_terms"}
+)
+
+# Empty here is a CLAIM, not an absence, and must survive the empty-field omission below. Empty
+# lifecycle fields say "this decision stands unsuperseded"; fetch_count 0 says "never fetched".
+# Omitting them would make those statements indistinguishable from "the server did not say" -
+# exactly the ambiguity a memory system exists to avoid.
+_CHUNK_PROJECTION_KEEP_EMPTY = frozenset(
+    {
+        "replaces",
+        "replaced_by",
+        "replacing_head",
+        "evolves",
+        "evolved_by",
+        "attention_score",
+        "fetch_count",
+        "last_fetch",
+        "entry_context",
+        "text",
+    }
+)
+
+
+def _project_chunk_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """The agent-facing view of a chunk: full record minus aliases and silent empties."""
+    projected: dict[str, Any] = {}
+    for key, value in payload.items():
+        if key in _CHUNK_PROJECTION_DROP:
+            continue
+        if key not in _CHUNK_PROJECTION_KEEP_EMPTY and value in ([], None, "", {}):
+            continue
+        projected[key] = value
+    return projected
 
 
 def _optional_str(arguments: dict[str, Any], key: str) -> str | None:
