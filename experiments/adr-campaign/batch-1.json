@@ -1,0 +1,75 @@
+[
+ {
+  "adr_id": "adr_session_layout",
+  "title": "Month-grouped session layout; per-user gated on 2+ participants",
+  "sources": [
+   ".memory-seed/index.md#L147"
+  ],
+  "binding": "markdown-authority"
+ },
+ {
+  "adr_id": "adr_entry_id_scheme",
+  "title": "Deterministic 80-bit mse_ ids; legacy ms- never rewritten",
+  "sources": [
+   ".memory-seed/index.md#L149"
+  ],
+  "binding": "append-only"
+ },
+ {
+  "adr_id": "adr_draft_format",
+  "title": "DRAFT single-decision baseline; D/R mandatory; numbered decisions canonical",
+  "sources": [
+   ".memory-seed/index.md#L143"
+  ],
+  "binding": "draft-format"
+ },
+ {
+  "adr_id": "adr_branch_session_fuse",
+  "title": "Branch-session fuse: branch-only, chronological, immutable relative to base",
+  "sources": [
+   ".memory-seed/index.md#L153"
+  ],
+  "binding": "append-only"
+ },
+ {
+  "adr_id": "adr_merge_branch_primitive",
+  "title": "session merge-branch is the one-step integration primitive, not a git merge driver",
+  "sources": [
+   ".memory-seed/index.md#L172"
+  ],
+  "binding": "write-surface-parity"
+ },
+ {
+  "adr_id": "adr_integration_mode",
+  "title": "Configurable integration_mode: local-merge vs PR",
+  "sources": [
+   ".memory-seed/index.md#L173"
+  ],
+  "binding": "integration-mode"
+ },
+ {
+  "adr_id": "adr_forward_only_edges",
+  "title": "Forward-only authoring with read-time bidirectional traversal",
+  "sources": [
+   ".memory-seed/index.md#L174"
+  ],
+  "binding": "append-only"
+ },
+ {
+  "adr_id": "adr_semantic_provider",
+  "title": "Model2Vec default provider; silent lexical degrade; model2vec the only required dep",
+  "sources": [
+   ".memory-seed/index.md#L85",
+   ".memory-seed/index.md#L139"
+  ],
+  "binding": "model-independence"
+ },
+ {
+  "adr_id": "adr_foreign_file_routing",
+  "title": "Non-destructive routing into foreign entry-point files",
+  "sources": [
+   ".memory-seed/index.md#L146"
+  ],
+  "binding": "ownership"
+ }
+]

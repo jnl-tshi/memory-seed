@@ -1,0 +1,283 @@
+{
+ "concerns": [
+  {
+   "adr_id": "adr_runtime_discovery",
+   "title": "Runtime discovery walks to the nearest .memory-seed",
+   "sources": [
+    ".memory-seed/index.md#L120",
+    ".memory-seed/index.md#L121"
+   ],
+   "binding": "authority"
+  },
+  {
+   "adr_id": "adr_control_file_authority",
+   "title": "Control-file authority partition (index/policy/skills/sessions)",
+   "sources": [
+    ".memory-seed/index.md#L129",
+    ".memory-seed/policy.md#L49"
+   ],
+   "binding": "authority"
+  },
+  {
+   "adr_id": "adr_subproject_scoping",
+   "title": "Sub-project runtime scoping and inheritance defaults",
+   "sources": [
+    ".memory-seed/index.md#L127",
+    ".memory-seed/policy.md#L78"
+   ],
+   "binding": "authority"
+  },
+  {
+   "adr_id": "adr_edge_kinds",
+   "title": "Four never-merged edge kinds, forward-only and acyclic",
+   "sources": [
+    ".memory-seed/index.md#L171"
+   ],
+   "binding": "edge-kinds"
+  },
+  {
+   "adr_id": "adr_link_retraction",
+   "title": "Append-only link retraction via retracts: blocks",
+   "sources": [
+    ".memory-seed/index.md#L196",
+    ".memory-seed/policy.md#L43"
+   ],
+   "binding": "link-corrections"
+  },
+  {
+   "adr_id": "adr_edge_confidence",
+   "title": "edge_confidence on machine-suggested edges; consumers fade low tiers",
+   "sources": [
+    ".memory-seed/index.md#L186"
+   ],
+   "binding": "provenance"
+  },
+  {
+   "adr_id": "adr_topic_authority",
+   "title": "Topic sidecar is the topic authority (sidecar > authored > hashtag)",
+   "sources": [
+    ".memory-seed/index.md#L158"
+   ],
+   "binding": "provenance"
+  },
+  {
+   "adr_id": "adr_derived_precedence",
+   "title": "Derived never implicitly overrides write-time",
+   "sources": [
+    ".memory-seed/policy.md#L44"
+   ],
+   "binding": "provenance"
+  },
+  {
+   "adr_id": "adr_topic_backfill_rejected",
+   "title": "Scored topic auto-backfill rejected; curated-evidence premise adopted",
+   "sources": [
+    ".memory-seed/index.md#L187"
+   ],
+   "binding": "prove-automation",
+   "status": "rejected"
+  },
+  {
+   "adr_id": "adr_session_layout",
+   "title": "Month-grouped session layout; per-user gated on 2+ participants",
+   "sources": [
+    ".memory-seed/index.md#L147"
+   ],
+   "binding": "markdown-authority"
+  },
+  {
+   "adr_id": "adr_entry_id_scheme",
+   "title": "Deterministic 80-bit mse_ ids; legacy ms- never rewritten",
+   "sources": [
+    ".memory-seed/index.md#L149"
+   ],
+   "binding": "append-only"
+  },
+  {
+   "adr_id": "adr_draft_format",
+   "title": "DRAFT single-decision baseline; D/R mandatory; numbered decisions canonical",
+   "sources": [
+    ".memory-seed/index.md#L143"
+   ],
+   "binding": "draft-format"
+  },
+  {
+   "adr_id": "adr_branch_session_fuse",
+   "title": "Branch-session fuse: branch-only, chronological, immutable relative to base",
+   "sources": [
+    ".memory-seed/index.md#L153"
+   ],
+   "binding": "append-only"
+  },
+  {
+   "adr_id": "adr_merge_branch_primitive",
+   "title": "session merge-branch is the one-step integration primitive, not a git merge driver",
+   "sources": [
+    ".memory-seed/index.md#L172"
+   ],
+   "binding": "write-surface-parity"
+  },
+  {
+   "adr_id": "adr_integration_mode",
+   "title": "Configurable integration_mode: local-merge vs PR",
+   "sources": [
+    ".memory-seed/index.md#L173"
+   ],
+   "binding": "integration-mode"
+  },
+  {
+   "adr_id": "adr_forward_only_edges",
+   "title": "Forward-only authoring with read-time bidirectional traversal",
+   "sources": [
+    ".memory-seed/index.md#L174"
+   ],
+   "binding": "append-only"
+  },
+  {
+   "adr_id": "adr_semantic_provider",
+   "title": "Model2Vec default provider; silent lexical degrade; model2vec the only required dep",
+   "sources": [
+    ".memory-seed/index.md#L85",
+    ".memory-seed/index.md#L139"
+   ],
+   "binding": "model-independence"
+  },
+  {
+   "adr_id": "adr_foreign_file_routing",
+   "title": "Non-destructive routing into foreign entry-point files",
+   "sources": [
+    ".memory-seed/index.md#L146"
+   ],
+   "binding": "ownership"
+  },
+  {
+   "adr_id": "adr_agent_config_merge",
+   "title": "Agent-config JSON/TOML merge, never seed-copy",
+   "sources": [
+    ".memory-seed/index.md#L124"
+   ],
+   "binding": "single-source"
+  },
+  {
+   "adr_id": "adr_agent_selective_install",
+   "title": "Agent-selective install driven by project.yaml; remove strips only our entries",
+   "sources": [
+    ".memory-seed/index.md#L199"
+   ],
+   "binding": "ownership"
+  },
+  {
+   "adr_id": "adr_archive_before_replace",
+   "title": "Archive control-plane snapshots before replacing versioned artifacts",
+   "sources": [
+    ".memory-seed/policy.md#L74"
+   ],
+   "binding": "append-only"
+  },
+  {
+   "adr_id": "adr_release_topology",
+   "title": "Publish via GitHub Release with manual PyPI gate",
+   "sources": [
+    ".memory-seed/policy.md#L72"
+   ],
+   "binding": "prove-automation"
+  },
+  {
+   "adr_id": "adr_trace_boundary",
+   "title": "Trace ships as memory-seed[trace]; core carries no web framework",
+   "sources": [
+    ".memory-seed/index.md#L101"
+   ],
+   "binding": "open-core"
+  },
+  {
+   "adr_id": "adr_trace_incremental_startup",
+   "title": "Trace startup incremental; immutable git derivations persist",
+   "sources": [
+    ".memory-seed/index.md#L83"
+   ],
+   "binding": "markdown-authority"
+  },
+  {
+   "adr_id": "adr_trail_derived_lanes",
+   "title": "Trail derives display lanes without authored graph edges",
+   "sources": [
+    ".memory-seed/index.md#L171"
+   ],
+   "binding": "markdown-authority"
+  },
+  {
+   "adr_id": "adr_community_detection_rejected",
+   "title": "Topology-community detection measured and rejected",
+   "sources": [
+    ".memory-seed/index.md#L73"
+   ],
+   "binding": "evidence-first",
+   "status": "rejected"
+  },
+  {
+   "adr_id": "adr_encoding_policy",
+   "title": "Encoding policy owned by Seed, never duplicated in Trace",
+   "sources": [
+    ".memory-seed/index.md#L183"
+   ],
+   "binding": "single-source"
+  },
+  {
+   "adr_id": "adr_docs_lifecycle_folders",
+   "title": "Docs taxonomy: folder is lifecycle state",
+   "sources": [
+    ".memory-seed/index.md#L105"
+   ],
+   "binding": "folder-lifecycle"
+  },
+  {
+   "adr_id": "adr_business_separation",
+   "title": "business/ separate from docs/; documents move, never copy",
+   "sources": [
+    ".memory-seed/index.md#L106"
+   ],
+   "binding": "single-source"
+  },
+  {
+   "adr_id": "adr_experiment_isolation",
+   "title": "Experiment fixture isolation is structural via nearest-runtime discovery",
+   "sources": [
+    ".memory-seed/index.md#L107"
+   ],
+   "binding": "authority"
+  },
+  {
+   "adr_id": "adr_markdown_substrate",
+   "title": "Plain-Markdown core for file-reading agents",
+   "sources": [
+    ".memory-seed/policy.md#L21"
+   ],
+   "binding": "markdown-authority"
+  },
+  {
+   "adr_id": "adr_legacy_agents_compat",
+   "title": "Legacy .AGENTS/ compatibility retained until intentional removal",
+   "sources": [
+    ".memory-seed/policy.md#L22"
+   ],
+   "binding": "ownership"
+  },
+  {
+   "adr_id": "adr_worktree_convention",
+   "title": "Worktree=session, branch=task, agent-namespaced branch names",
+   "sources": [
+    ".memory-seed/index.md#L81"
+   ],
+   "binding": "integration-mode"
+  },
+  {
+   "adr_id": "adr_topic_vocabulary",
+   "title": "Controlled topic vocabulary with axis hierarchy and seed/live parity",
+   "sources": [
+    ".memory-seed/index.md#L158"
+   ],
+   "binding": "topic-vocabulary"
+  }
+ ]
+}

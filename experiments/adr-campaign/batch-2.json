@@ -1,0 +1,75 @@
+[
+ {
+  "adr_id": "adr_agent_config_merge",
+  "title": "Agent-config JSON/TOML merge, never seed-copy",
+  "sources": [
+   ".memory-seed/index.md#L124"
+  ],
+  "binding": "single-source"
+ },
+ {
+  "adr_id": "adr_agent_selective_install",
+  "title": "Agent-selective install driven by project.yaml; remove strips only our entries",
+  "sources": [
+   ".memory-seed/index.md#L199"
+  ],
+  "binding": "ownership"
+ },
+ {
+  "adr_id": "adr_archive_before_replace",
+  "title": "Archive control-plane snapshots before replacing versioned artifacts",
+  "sources": [
+   ".memory-seed/policy.md#L74"
+  ],
+  "binding": "append-only"
+ },
+ {
+  "adr_id": "adr_release_topology",
+  "title": "Publish via GitHub Release with manual PyPI gate",
+  "sources": [
+   ".memory-seed/policy.md#L72"
+  ],
+  "binding": "prove-automation"
+ },
+ {
+  "adr_id": "adr_trace_boundary",
+  "title": "Trace ships as memory-seed[trace]; core carries no web framework",
+  "sources": [
+   ".memory-seed/index.md#L101"
+  ],
+  "binding": "open-core"
+ },
+ {
+  "adr_id": "adr_trace_incremental_startup",
+  "title": "Trace startup incremental; immutable git derivations persist",
+  "sources": [
+   ".memory-seed/index.md#L83"
+  ],
+  "binding": "markdown-authority"
+ },
+ {
+  "adr_id": "adr_trail_derived_lanes",
+  "title": "Trail derives display lanes without authored graph edges",
+  "sources": [
+   ".memory-seed/index.md#L171"
+  ],
+  "binding": "markdown-authority"
+ },
+ {
+  "adr_id": "adr_community_detection_rejected",
+  "title": "Topology-community detection measured and rejected",
+  "sources": [
+   ".memory-seed/index.md#L73"
+  ],
+  "binding": "evidence-first",
+  "status": "rejected"
+ },
+ {
+  "adr_id": "adr_encoding_policy",
+  "title": "Encoding policy owned by Seed, never duplicated in Trace",
+  "sources": [
+   ".memory-seed/index.md#L183"
+  ],
+  "binding": "single-source"
+ }
+]
