@@ -1665,6 +1665,15 @@ def _find_section_ranges(
 
 _DECISION_HEADING_RE = re.compile(r"^\s*#{4}\s+(D(\d+))\s*[-–—]\s*(.+?)\s*$")
 
+# LEGACY. The entry format used to have two shapes for decisions: `#### Dn - title` under a
+# `### Decisions` heading for two or more, and a bare singular `### Decision` for one. As of
+# 2026-08-06 the numbered form is the only one authored - see session_logging.md - but 494 entries
+# already use the singular form and the store is append-only, so the reader must keep seeing them.
+# Matched here rather than treated as a co-equal shape: there is one concept of a decision, and this
+# regex exists only to map old markdown onto it. `Decisions` plural is deliberately excluded, since
+# that heading owns `#### Dn` children and must not also become a chunk.
+_LEGACY_SINGLE_DECISION_RE = re.compile(r"^\s*#{3}\s+Decision\s*$", re.IGNORECASE)
+
 
 def _find_decision_ranges(
     entry_lines: Sequence[str],
@@ -1678,6 +1687,7 @@ def _find_decision_ranges(
     """
     starts: list[tuple[int, str, str]] = []
     boundaries: list[int] = []
+    legacy_single: tuple[int, str, str] | None = None
     for offset, line in enumerate(entry_lines, start=entry_start_line + 1):
         decision = _DECISION_HEADING_RE.match(line)
         if decision:
@@ -1688,6 +1698,13 @@ def _find_decision_ranges(
         heading = HEADING_RE.match(line)
         if heading and len(heading.group(1)) <= 3:
             boundaries.append(offset)
+            if legacy_single is None and _LEGACY_SINGLE_DECISION_RE.match(line):
+                # Held, not appended: an entry could in principle carry both shapes, and the
+                # numbered blocks win. Only usable once the whole entry has been scanned.
+                legacy_single = (offset, "D1 - Decision", "d1")
+
+    if not starts and legacy_single is not None:
+        starts.append(legacy_single)
 
     ranges: list[tuple[int, int, str, str]] = []
     entry_end = entry_start_line + len(entry_lines)
