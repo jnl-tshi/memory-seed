@@ -106,6 +106,23 @@ project files and superseding-entry context it already has.
 Caveats: n=31, one run, own judge chain (Codex, calibrated only by rubric), timeline-compressed
 retention. Directional, per the pattern-over-threshold rule.
 
+> **Attribution correction, 2026-08-06.** A free pre-check before a planned run 4 found that this
+> score is carried by `index.md`, not by ranked retrieval. The expected answers - the maintainer
+> roster, benchmark ownership, the 1.2us baseline - live in `.memory-seed/index.md`;
+> `memory_search` indexes only `.memory-seed/sessions/**`; and the fixture's `AGENTS.md` instructs
+> the agent to read `index.md` as step 2 of orientation. That is consistent with what this document
+> already records - decision-level retrieval was worth +3.2 of the +25.8 - and it explains the rest.
+>
+> The blended figure is a fair measure of the product, because agents really do read that file. It
+> is **not** evidence about the retrieval layer, and it should not be quoted as a recall result
+> beside index entrants whose scores are recall measurements.
+>
+> Run 4 was therefore **not run**: after the 2026-08-05 ranking rebuild it would have returned
+> roughly 96.8 whatever the ranker did, and that null invited being read as "the rebuild did no
+> harm". The measurement that would test retrieval end to end is a quiz with `index.md` withheld,
+> so `memory_search` is the only route to an answer - a new measurement, not a comparison with
+> run 3. See `experiments/memory-index-dryrun/answer_visible.py`.
+
 ## Run 3 (2026-08-05) - after the retrieval and capture fixes
 
 | Category | n | run 1 | run 2 | **run 3** |
