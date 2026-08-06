@@ -775,10 +775,15 @@ class FreshnessRankingTests(unittest.TestCase):
         # Only the replaced entry is damped; the replacement's score is untouched.
         self.assertEqual(by_on[self.NEW]["score"], by_off[self.NEW]["score"])
         self.assertLess(by_on[self.OLD]["score"], by_off[self.OLD]["score"])
+        # Relative, not absolute: this asserts the DAMPING RELATIONSHIP, and pinning it to six
+        # decimal places of an absolute score made it a hostage to magnitude - BM25F changed the
+        # scale and tripped it at a 5e-7 difference while the relationship held. Five places rather
+        # than six because the payload rounds scores before serving them, so a ratio of two rounded
+        # values cannot be exact at the sixth.
         self.assertAlmostEqual(
-            by_on[self.OLD]["score"],
-            by_off[self.OLD]["score"] * REPLACED_RANK_DAMPING,
-            places=6,
+            by_on[self.OLD]["score"] / (by_off[self.OLD]["score"] or 1.0),
+            REPLACED_RANK_DAMPING,
+            places=5,
         )
 
     def test_supersession_damping_from_link_sidecar(self):

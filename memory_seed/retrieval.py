@@ -283,6 +283,20 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
         )
         found = next((chunk for chunk in section_chunks if chunk.chunk_id == chunk_id), None)
     if found is None:
+        # Decision chunks were unreachable here until 2026-08-06, which made two shipped behaviours
+        # dead letters: the truncation marker on a long decision reads "call memory_get_chunk for
+        # the full decision" and that call raised, and the attention layer scores on
+        # `memory_get_chunk` fetches, so no decision chunk could ever register one. Searched last
+        # because entry and section ids are more common and cheaper to match.
+        decision_chunks = augment_chunks_with_topic_sidecars(
+            augment_chunks_with_link_sidecars(
+                extract_memory_chunks(cwd, granularity="decision"),
+                cwd,
+            ),
+            cwd,
+        )
+        found = next((chunk for chunk in decision_chunks if chunk.chunk_id == chunk_id), None)
+    if found is None:
         raise ValueError(f"chunk_id not found: {chunk_id}")
     payload = chunk_to_dict(found)
     replaced_by: list[str] = []

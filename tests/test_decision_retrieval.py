@@ -54,6 +54,19 @@ replaces:
 - F: `RELEASE.md`.
 """
 
+NO_DECISION = """## 2026-06-12 09:00 - Notes with no decision section
+
+```yaml
+entry_id: mse_nodecision00001
+user_initials: JN
+agent_type: claude
+```
+
+### Summary
+
+- Read through the release checklist; nothing was decided.
+"""
+
 SINGLE = """## 2026-06-11 10:00 - A plain entry with no decision headings
 
 ```yaml
@@ -81,6 +94,7 @@ class DecisionRetrievalTests(unittest.TestCase):
         sessions.mkdir(parents=True)
         (sessions / "2026-06-10.md").write_text(MULTI, encoding="utf-8")
         (sessions / "2026-06-11.md").write_text(SINGLE, encoding="utf-8")
+        (sessions / "2026-06-12.md").write_text(NO_DECISION, encoding="utf-8")
         return root
 
     def chunks(self, root):
@@ -91,10 +105,26 @@ class DecisionRetrievalTests(unittest.TestCase):
         self.assertIn("mse_multidecision1:d1", chunks)
         self.assertIn("mse_multidecision1:d2", chunks)
 
-    def test_entry_without_decision_headings_stays_whole(self):
+    def test_legacy_singular_decision_becomes_a_decision_chunk(self):
+        """The `### Decision` form is the same concept as `#### D1`, and is chunked as one.
+
+        This fixture is titled "no decision headings" but carries a singular `### Decision` section
+        with D/R bullets - which is exactly the shape 494 entries in the real store use. Until
+        2026-08-06 it produced no decision chunk, fell back to the whole-entry unit, and was then
+        served as a 280-character preview: 45% of the corpus, 51% of its text, invisible.
+        """
         chunks = self.chunks(self.make_store())
-        self.assertIn("mse_plainentry0001", chunks)
-        self.assertEqual(chunks["mse_plainentry0001"].granularity, "entry")
+        self.assertIn("mse_plainentry0001:d1", chunks)
+        block = chunks["mse_plainentry0001:d1"]
+        self.assertEqual(block.granularity, "decision")
+        self.assertIn("- D: Keep the changelog folded", block.text)
+        self.assertIn("- R: Unreleased sections rot", block.text)
+
+    def test_entry_with_no_decision_section_at_all_stays_whole(self):
+        """The property the test above used to claim, with a fixture that actually has it."""
+        chunks = self.chunks(self.make_store())
+        self.assertIn("mse_nodecision00001", chunks)
+        self.assertEqual(chunks["mse_nodecision00001"].granularity, "entry")
 
     def test_decision_block_keeps_its_own_rationale(self):
         """The property that exempts decision chunks from the 2026-05-26 objection."""

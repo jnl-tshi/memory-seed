@@ -272,7 +272,9 @@ Use for one durable decision.
 
 - Summarize the coherent task.
 
-### Decision
+### Decisions
+
+#### D1 - Short decision name
 
 - D: State the decision. (mandatory)
 - R: Explain the decisive reason in 1-3 bullets. (mandatory)
@@ -280,6 +282,16 @@ Use for one durable decision.
 - F: Files, artifacts, or behaviors changed. (optional)
 - T: Tests or validation outcome. (optional)
 ```
+
+**One decision still uses `### Decisions` and `#### D1`.** There is one shape, whatever the count.
+The singular `### Decision` heading is LEGACY: it is still read, because the store is append-only and
+494 entries already use it, but it is no longer authored.
+
+The reason is not tidiness. Until 2026-08-06 the reader recognised only `#### Dn`, so a singular
+entry produced no decision chunk, fell back to the whole-entry unit, and retrieval served 280
+characters of it instead of the whole block - 45% of the corpus and 51% of its text, invisible, with
+nothing reporting a problem. Numbering every decision also makes `entry_id:d1` addressing universal,
+which lifecycle edges, ADR sidecars and decision-level topics already assume.
 
 ### Small work entry
 
