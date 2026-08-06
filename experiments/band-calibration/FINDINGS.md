@@ -48,6 +48,14 @@ delete the band rather than ship a retuned version of the same false confidence.
 
 ## 1. The premise of the proposal was wrong, and the conclusion survives anyway
 
+> **Superseded in part, 2026-08-05 evening.** This section's central measurement - that a chunk's
+> score is *exactly* invariant to corpus size, 17.962 at every N from 25 to 800 - was a property of
+> the binary-per-field scorer described here. **BM25F replaced it**, and BM25F derives term rarity
+> from the corpus, so scores now change with how much is stored. The reasoning below is still the
+> correct account of why the old floor could not work; the invariance result no longer describes the
+> shipped system, and the conclusion it supported - that an absolute threshold is the wrong shape -
+> is now true for two independent reasons rather than one.
+
 The plan assumed the constants failed because scores drift with corpus size (IDF). Reading
 `_lexical_score` contradicted that - it is pure per-chunk term overlap with fixed field weights
 (tags 12, contexts 8, heading_path 6, lexical_terms 4, +1 per term in body text), with no corpus

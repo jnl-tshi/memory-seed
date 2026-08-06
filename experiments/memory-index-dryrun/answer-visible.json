@@ -1,0 +1,780 @@
+{
+  "old": {
+    "totals": {
+      "1": 6,
+      "3": 7,
+      "8": 7
+    },
+    "per_category": {
+      "direct_recall": {
+        "1": 1,
+        "3": 1,
+        "8": 1
+      },
+      "updated_facts": {
+        "1": 1,
+        "3": 1,
+        "8": 1
+      },
+      "thread_growth": {
+        "1": 2,
+        "3": 3,
+        "8": 3
+      },
+      "synthesis": {
+        "1": 2,
+        "3": 2,
+        "8": 2
+      },
+      "long_term_retention": {
+        "1": 0,
+        "3": 0,
+        "8": 0
+      }
+    },
+    "n": 23,
+    "detail": [
+      {
+        "id": "Q1",
+        "category": "direct_recall",
+        "terms": [
+          "dana",
+          "priya",
+          "marcus",
+          "maintainers"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q2",
+        "category": "direct_recall",
+        "terms": [
+          "marcus"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q3",
+        "category": "direct_recall",
+        "terms": [
+          "1.2",
+          "microseconds",
+          "operation",
+          "reference",
+          "box",
+          "no-regression",
+          "baseline"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q4",
+        "category": "direct_recall",
+        "terms": [
+          "existing",
+          "semantics",
+          "locked",
+          "documented",
+          "contract",
+          "ellipsis",
+          "counts",
+          "toward",
+          "limit",
+          "shorter",
+          "than",
+          "returns",
+          "bare",
+          "slice"
+        ],
+        "at_1": true,
+        "at_3": true,
+        "at_8": true
+      },
+      {
+        "id": "Q5",
+        "category": "direct_recall",
+        "terms": [
+          "sofia",
+          "owning",
+          "windows"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q6",
+        "category": "direct_recall",
+        "terms": [
+          "python",
+          "3.11",
+          "tomllib",
+          "typing",
+          "features"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q7",
+        "category": "updated_facts",
+        "terms": [
+          "biweekly",
+          "cut",
+          "thursdays",
+          "changed",
+          "original",
+          "monthly",
+          "first-monday",
+          "rhythm"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q8",
+        "category": "updated_facts",
+        "terms": [
+          "minutes",
+          "revised",
+          "down",
+          "original"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q9",
+        "category": "updated_facts",
+        "terms": [
+          "supported",
+          "jsonc",
+          "comment-strip",
+          "preprocessor",
+          "load_settings",
+          "plain",
+          "json",
+          "still",
+          "works",
+          "reverses",
+          "earlier",
+          "strict-json-only",
+          "decision"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q10",
+        "category": "updated_facts",
+        "terms": [
+          "0.9.0",
+          "pulled",
+          "forward",
+          "original",
+          "0.9.1",
+          "scheduling"
+        ],
+        "at_1": true,
+        "at_3": true,
+        "at_8": true
+      },
+      {
+        "id": "Q11",
+        "category": "updated_facts",
+        "terms": [
+          "monthly",
+          "cut",
+          "first",
+          "monday",
+          "each",
+          "month"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q12",
+        "category": "updated_facts",
+        "terms": [
+          "originally",
+          "settings",
+          "stayed",
+          "plain",
+          "strict",
+          "json",
+          "comment",
+          "support",
+          "rejected",
+          "later",
+          "reversed",
+          "jsonc",
+          "comment-strip"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q13",
+        "category": "thread_growth",
+        "terms": [
+          "changelog",
+          "fold",
+          "tag",
+          "signing",
+          "wheel",
+          "audit",
+          "readme",
+          "badge",
+          "check",
+          "priya",
+          "sign-off",
+          "five",
+          "items"
+        ],
+        "at_1": false,
+        "at_3": true,
+        "at_8": true
+      },
+      {
+        "id": "Q14",
+        "category": "thread_growth",
+        "terms": [
+          "after",
+          "tag",
+          "signing",
+          "initial",
+          "two-item",
+          "list",
+          "wheel",
+          "audit",
+          "added",
+          "later"
+        ],
+        "at_1": true,
+        "at_3": true,
+        "at_8": true
+      },
+      {
+        "id": "Q15",
+        "category": "thread_growth",
+        "terms": [
+          "priya"
+        ],
+        "at_1": true,
+        "at_3": true,
+        "at_8": true
+      },
+      {
+        "id": "Q16",
+        "category": "synthesis",
+        "terms": [
+          "priya",
+          "slugify",
+          "producing",
+          "cr-me-br-l-e"
+        ],
+        "at_1": true,
+        "at_3": true,
+        "at_8": true
+      },
+      {
+        "id": "Q17",
+        "category": "synthesis",
+        "terms": [
+          "zero",
+          "open",
+          "correctness",
+          "bugs",
+          "every",
+          "granite",
+          "checklist",
+          "item",
+          "complete",
+          "features",
+          "block"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q18",
+        "category": "synthesis",
+        "terms": [
+          "priya"
+        ],
+        "at_1": true,
+        "at_3": true,
+        "at_8": true
+      },
+      {
+        "id": "Q19",
+        "category": "synthesis",
+        "terms": [
+          "granite",
+          "codename",
+          "1.0",
+          "effort",
+          "gate",
+          "requires",
+          "every",
+          "checklist",
+          "item",
+          "complete",
+          "plus",
+          "zero",
+          "open",
+          "correctness",
+          "bugs"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q20",
+        "category": "long_term_retention",
+        "terms": [
+          "granite"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q21",
+        "category": "long_term_retention",
+        "terms": [
+          "readthedocs"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q22",
+        "category": "long_term_retention",
+        "terms": [
+          "dana",
+          "priya",
+          "marcus"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q23",
+        "category": "long_term_retention",
+        "terms": [
+          "minutes"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      }
+    ]
+  },
+  "new": {
+    "totals": {
+      "1": 6,
+      "3": 7,
+      "8": 7
+    },
+    "per_category": {
+      "direct_recall": {
+        "1": 1,
+        "3": 1,
+        "8": 1
+      },
+      "updated_facts": {
+        "1": 1,
+        "3": 1,
+        "8": 1
+      },
+      "thread_growth": {
+        "1": 2,
+        "3": 3,
+        "8": 3
+      },
+      "synthesis": {
+        "1": 2,
+        "3": 2,
+        "8": 2
+      },
+      "long_term_retention": {
+        "1": 0,
+        "3": 0,
+        "8": 0
+      }
+    },
+    "n": 23,
+    "detail": [
+      {
+        "id": "Q1",
+        "category": "direct_recall",
+        "terms": [
+          "dana",
+          "priya",
+          "marcus",
+          "maintainers"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q2",
+        "category": "direct_recall",
+        "terms": [
+          "marcus"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q3",
+        "category": "direct_recall",
+        "terms": [
+          "1.2",
+          "microseconds",
+          "operation",
+          "reference",
+          "box",
+          "no-regression",
+          "baseline"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q4",
+        "category": "direct_recall",
+        "terms": [
+          "existing",
+          "semantics",
+          "locked",
+          "documented",
+          "contract",
+          "ellipsis",
+          "counts",
+          "toward",
+          "limit",
+          "shorter",
+          "than",
+          "returns",
+          "bare",
+          "slice"
+        ],
+        "at_1": true,
+        "at_3": true,
+        "at_8": true
+      },
+      {
+        "id": "Q5",
+        "category": "direct_recall",
+        "terms": [
+          "sofia",
+          "owning",
+          "windows"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q6",
+        "category": "direct_recall",
+        "terms": [
+          "python",
+          "3.11",
+          "tomllib",
+          "typing",
+          "features"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q7",
+        "category": "updated_facts",
+        "terms": [
+          "biweekly",
+          "cut",
+          "thursdays",
+          "changed",
+          "original",
+          "monthly",
+          "first-monday",
+          "rhythm"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q8",
+        "category": "updated_facts",
+        "terms": [
+          "minutes",
+          "revised",
+          "down",
+          "original"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q9",
+        "category": "updated_facts",
+        "terms": [
+          "supported",
+          "jsonc",
+          "comment-strip",
+          "preprocessor",
+          "load_settings",
+          "plain",
+          "json",
+          "still",
+          "works",
+          "reverses",
+          "earlier",
+          "strict-json-only",
+          "decision"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q10",
+        "category": "updated_facts",
+        "terms": [
+          "0.9.0",
+          "pulled",
+          "forward",
+          "original",
+          "0.9.1",
+          "scheduling"
+        ],
+        "at_1": true,
+        "at_3": true,
+        "at_8": true
+      },
+      {
+        "id": "Q11",
+        "category": "updated_facts",
+        "terms": [
+          "monthly",
+          "cut",
+          "first",
+          "monday",
+          "each",
+          "month"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q12",
+        "category": "updated_facts",
+        "terms": [
+          "originally",
+          "settings",
+          "stayed",
+          "plain",
+          "strict",
+          "json",
+          "comment",
+          "support",
+          "rejected",
+          "later",
+          "reversed",
+          "jsonc",
+          "comment-strip"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q13",
+        "category": "thread_growth",
+        "terms": [
+          "changelog",
+          "fold",
+          "tag",
+          "signing",
+          "wheel",
+          "audit",
+          "readme",
+          "badge",
+          "check",
+          "priya",
+          "sign-off",
+          "five",
+          "items"
+        ],
+        "at_1": false,
+        "at_3": true,
+        "at_8": true
+      },
+      {
+        "id": "Q14",
+        "category": "thread_growth",
+        "terms": [
+          "after",
+          "tag",
+          "signing",
+          "initial",
+          "two-item",
+          "list",
+          "wheel",
+          "audit",
+          "added",
+          "later"
+        ],
+        "at_1": true,
+        "at_3": true,
+        "at_8": true
+      },
+      {
+        "id": "Q15",
+        "category": "thread_growth",
+        "terms": [
+          "priya"
+        ],
+        "at_1": true,
+        "at_3": true,
+        "at_8": true
+      },
+      {
+        "id": "Q16",
+        "category": "synthesis",
+        "terms": [
+          "priya",
+          "slugify",
+          "producing",
+          "cr-me-br-l-e"
+        ],
+        "at_1": true,
+        "at_3": true,
+        "at_8": true
+      },
+      {
+        "id": "Q17",
+        "category": "synthesis",
+        "terms": [
+          "zero",
+          "open",
+          "correctness",
+          "bugs",
+          "every",
+          "granite",
+          "checklist",
+          "item",
+          "complete",
+          "features",
+          "block"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q18",
+        "category": "synthesis",
+        "terms": [
+          "priya"
+        ],
+        "at_1": true,
+        "at_3": true,
+        "at_8": true
+      },
+      {
+        "id": "Q19",
+        "category": "synthesis",
+        "terms": [
+          "granite",
+          "codename",
+          "1.0",
+          "effort",
+          "gate",
+          "requires",
+          "every",
+          "checklist",
+          "item",
+          "complete",
+          "plus",
+          "zero",
+          "open",
+          "correctness",
+          "bugs"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q20",
+        "category": "long_term_retention",
+        "terms": [
+          "granite"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q21",
+        "category": "long_term_retention",
+        "terms": [
+          "readthedocs"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q22",
+        "category": "long_term_retention",
+        "terms": [
+          "dana",
+          "priya",
+          "marcus"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      },
+      {
+        "id": "Q23",
+        "category": "long_term_retention",
+        "terms": [
+          "minutes"
+        ],
+        "at_1": false,
+        "at_3": false,
+        "at_8": false
+      }
+    ]
+  }
+}
