@@ -45,11 +45,32 @@ EVENT_RE = re.compile(
 JSON_RE = re.compile(r"```json\s*\n(?P<json>.*?)\n```", re.DOTALL)
 ALLOWED_SOURCES = {"write-time", "derived"}
 
+# Constitution bindings live IN the ADR event ledger (JNL, 2026-08-06: "why can't the adr
+# reference the constitution location directly?") rather than a separate sidecar family. A ref
+# resolves against the anchor markers in docs/CONSTITUTION.md; `governing` names the clause the
+# concern answers to, `supporting` a clause it touches.
+CONSTITUTION_REF_RE = re.compile(r"^constitution:v\d+#[a-z0-9][a-z0-9-]*$")
+CONSTITUTION_ANCHOR_RE = re.compile(r"<!--\s*constitution-ref:\s*(constitution:v\d+#[a-z0-9-]+)\s*-->")
+ALLOWED_BINDING_ROLES = {"governing", "supporting"}
+
+# Founding sources let an ADR exist before any session decision does. Two shapes: a control-file
+# line (the index/policy bullet being lifted, e.g. ".memory-seed/index.md#L134") or the literal
+# "bootstrap" (S3: a fresh project has no session corpus at all, so the machinery must support
+# decision-less founding). A founding event carries a verbatim grounding quote instead of a
+# decision_ref; later `revise` events attach real decisions as work touches the concern.
+FOUNDING_SOURCE_RE = re.compile(r"^(bootstrap|[^\s#]+\.(?:md|yaml)#L\d+(?:-L?\d+)?)$")
+
 
 @dataclass(frozen=True)
 class AdrPredecessor:
     decision: str
     relation_assertion: str
+
+
+@dataclass(frozen=True)
+class ConstitutionRef:
+    ref: str
+    role: str
 
 
 @dataclass(frozen=True)
@@ -69,6 +90,20 @@ class AdrEvent:
     evolution: str = ""
     reason: str = ""
     replacement_adr: str | None = None
+    # Optional extensions (2026-08-06). Both render omit-empty, so every ADR written before they
+    # existed stays byte-canonical.
+    constitution_refs: tuple[ConstitutionRef, ...] = ()
+    founding_source: str | None = None
+    founding_quote: str = ""
+
+    @property
+    def revision_key(self) -> str | None:
+        """The key a revision is tracked under: its decision_ref, or a founding pseudo-ref."""
+        if self.decision_ref:
+            return self.decision_ref
+        if self.founding_source:
+            return f"founding:{self.founding_source}"
+        return None
 
 
 @dataclass(frozen=True)
@@ -176,7 +211,9 @@ def _section(block: str, heading: str) -> str:
 def proposal_for(record: AdrRecord, decision_ref: str | None) -> AdrEvent | None:
     if decision_ref is None:
         return None
-    return next((e for e in record.events if e.kind == "revision-proposed" and e.decision_ref == decision_ref), None)
+    # Matches on revision_key so founding pseudo-refs ("founding:<source>") resolve to their
+    # proposal exactly as decision refs do.
+    return next((e for e in record.events if e.kind == "revision-proposed" and e.revision_key == decision_ref), None)
 
 
 def replay_adr(record: AdrRecord) -> AdrState:
@@ -184,13 +221,14 @@ def replay_adr(record: AdrRecord) -> AdrState:
     authoritative: str | None = None
     superseded_by: str | None = None
     for event in record.events:
-        if event.kind == "revision-proposed" and event.decision_ref:
-            statuses[event.decision_ref] = "proposed"
-        elif event.kind == "revision-accepted" and event.decision_ref:
-            statuses[event.decision_ref] = "accepted"
-            authoritative = event.decision_ref
-        elif event.kind == "revision-rejected" and event.decision_ref:
-            statuses[event.decision_ref] = "rejected"
+        key = event.revision_key
+        if event.kind == "revision-proposed" and key:
+            statuses[key] = "proposed"
+        elif event.kind == "revision-accepted" and key:
+            statuses[key] = "accepted"
+            authoritative = key
+        elif event.kind == "revision-rejected" and key:
+            statuses[key] = "rejected"
         elif event.kind == "adr-superseded":
             superseded_by = event.replacement_adr
     pending = tuple(ref for ref, status in statuses.items() if status == "proposed")
@@ -218,6 +256,9 @@ def event_to_dict(event: AdrEvent) -> dict[str, Any]:
         "matched_decisions": list(event.matched_decisions), "decision": event.decision,
         "why": event.why, "evolution": event.evolution, "reason": event.reason,
         "replacement_adr": event.replacement_adr,
+        "constitution_refs": [{"ref": r.ref, "role": r.role} for r in event.constitution_refs],
+        "founding_source": event.founding_source,
+        "founding_quote": event.founding_quote,
     }
 
 
@@ -243,8 +284,15 @@ def render_adr(record: AdrRecord) -> str:
         "### Decision", "", proposal.decision if proposal else "Not recorded.", "",
         "### Why", "", proposal.why if proposal else "Not recorded.", "",
         "### How it evolved", "", proposal.evolution if proposal else "No evolution has been recorded.", "",
-        "<!-- memory-seed-derived-current-view:end -->", "", "## Event ledger", "", "",
     ]
+    if proposal and proposal.constitution_refs:
+        # Rendered only when bindings exist, so every ADR written before the field stays
+        # byte-canonical. The head proposal's bindings ARE the ADR's current bindings.
+        view.extend([
+            "### Constitution", "",
+            *(f"- `{item.ref}` ({item.role})" for item in proposal.constitution_refs), "",
+        ])
+    view.extend(["<!-- memory-seed-derived-current-view:end -->", "", "## Event ledger", "", ""])
     events = "\n\n".join(render_event(event) for event in record.events)
     return "\n".join(front + view) + events + "\n"
 
@@ -266,11 +314,13 @@ def parse_adr_text(text: str, *, path: Path | None = None) -> AdrRecord:
             raise ValueError(f"{match.group('kind')} event has no JSON metadata")
         meta = json.loads(json_match.group("json"))
         predecessors = tuple(AdrPredecessor(str(item.get("decision", "")), str(item.get("relation_assertion", ""))) for item in meta.get("predecessors", []) if isinstance(item, Mapping))
+        bindings = tuple(ConstitutionRef(str(item.get("ref", "")), str(item.get("role", ""))) for item in meta.get("constitution_refs", []) if isinstance(item, Mapping))
         events.append(AdrEvent(
             match.group("kind"), str(meta.get("event_id", "")), match.group("timestamp").strip(), str(meta.get("source", "")),
             meta.get("decision_ref"), meta.get("update_entry_id"), meta.get("expected_authoritative_decision"), predecessors,
             tuple(str(x) for x in meta.get("supporting_decisions", [])), tuple(str(x) for x in meta.get("matched_decisions", [])),
             _section(body, "Decision"), _section(body, "Why"), _section(body, "Evolution"), _section(body, "Reason"), meta.get("replacement_adr"),
+            bindings, meta.get("founding_source"), str(meta.get("founding_quote", "")),
         ))
     return AdrRecord(int(required["schema_version"] or "0"), required["adr_id"] or "", required["title"] or "", _list(front, "topics"), required["created_at"] or "", required["user_initials"] or "", required["agent_type"] or "", required["source"] or "", events, path)
 
@@ -365,6 +415,38 @@ def _entry_decisions(cwd: str | Path) -> tuple[set[str], dict[str, set[str]]]:
     return known, ordinals
 
 
+def _constitution_anchors(cwd: str | Path) -> set[str]:
+    """Anchor refs declared in docs/CONSTITUTION.md via constitution-ref markers.
+
+    Empty set when the document or its markers are absent - in which case any binding fails
+    validation with a message naming the missing anchors, rather than resolving against nothing.
+    """
+    path = resolve_runtime(cwd).workspace_root / "docs" / "CONSTITUTION.md"
+    try:
+        text = read_text_file(path)
+    except OSError:
+        return set()
+    return set(CONSTITUTION_ANCHOR_RE.findall(text))
+
+
+def _binding_issues(event: AdrEvent, label: str, anchors: set[str]) -> list[str]:
+    issues: list[str] = []
+    seen: set[str] = set()
+    for item in event.constitution_refs:
+        if item.role not in ALLOWED_BINDING_ROLES:
+            issues.append(f"{label} constitution ref role must be governing or supporting")
+        if not CONSTITUTION_REF_RE.fullmatch(item.ref):
+            issues.append(f"{label} constitution ref '{item.ref}' must match constitution:vN#slug")
+        elif item.ref not in anchors:
+            issues.append(
+                f"{label} constitution ref '{item.ref}' does not resolve to an anchor in docs/CONSTITUTION.md"
+            )
+        if item.ref in seen:
+            issues.append(f"{label} duplicates constitution ref '{item.ref}'")
+        seen.add(item.ref)
+    return issues
+
+
 def _ref_issues(ref: str, known: set[str], ordinals: dict[str, set[str]], label: str, pending: set[str]) -> list[str]:
     match = DECISION_REF_RE.fullmatch(ref)
     if not match:
@@ -405,6 +487,7 @@ def adr_membership(record: AdrRecord) -> set[str]:
 
 def validate_adr(record: AdrRecord, cwd: str | Path = ".", *, pending_decisions: Sequence[str] = (), pending_entries: Sequence[str] = ()) -> list[str]:
     known, ordinals = _entry_decisions(cwd)
+    anchors = _constitution_anchors(cwd)
     pending, pending_entry_ids = set(pending_decisions), set(pending_entries)
     issues: list[str] = []
     if record.schema_version != 1:
@@ -453,13 +536,28 @@ def validate_adr(record: AdrRecord, cwd: str | Path = ".", *, pending_decisions:
             if last_timestamp is not None and event_timestamp < last_timestamp:
                 issues.append(f"{label} is not in ascending timestamp order")
             last_timestamp = event_timestamp
+        founding = event.founding_source is not None
         if not event.update_entry_id:
-            issues.append(f"{label} requires update_entry_id")
+            # Founding events may predate any session corpus (bootstrap on a fresh project),
+            # so the update-entry requirement applies only to decision-sourced events.
+            if not founding:
+                issues.append(f"{label} requires update_entry_id")
         elif event.update_entry_id not in known | pending_entry_ids:
             issues.append(f"{label} references missing update entry {event.update_entry_id}")
+        issues.extend(_binding_issues(event, label, anchors))
         if event.kind == "revision-proposed":
-            ref = event.decision_ref or ""
-            issues.extend(_ref_issues(ref, known, ordinals, f"{label} decision", pending))
+            ref = event.revision_key or ""
+            if founding:
+                if event.decision_ref:
+                    issues.append(f"{label} may carry a decision_ref or a founding_source, not both")
+                if not FOUNDING_SOURCE_RE.fullmatch(event.founding_source or ""):
+                    issues.append(f"{label} founding_source must be 'bootstrap' or '<control-file>#L<n>'")
+                if not event.founding_quote.strip():
+                    issues.append(f"{label} founding events require a verbatim founding_quote")
+                if event.predecessors:
+                    issues.append(f"{label} founding events cannot assert predecessors (no decision to anchor the link grammar)")
+            else:
+                issues.extend(_ref_issues(ref, known, ordinals, f"{label} decision", pending))
             if ref in statuses:
                 issues.append(f"{label} duplicates revision {ref}")
             statuses[ref] = "proposed"
@@ -475,8 +573,9 @@ def validate_adr(record: AdrRecord, cwd: str | Path = ".", *, pending_decisions:
             if ref in ancestors(record, ref):
                 issues.append(f"{label} creates a lineage cycle")
         elif event.kind in {"revision-accepted", "revision-rejected"}:
-            ref = event.decision_ref or ""
-            issues.extend(_ref_issues(ref, known, ordinals, f"{label} decision", pending))
+            ref = event.revision_key or ""
+            if not ref.startswith("founding:"):
+                issues.extend(_ref_issues(ref, known, ordinals, f"{label} decision", pending))
             if statuses.get(ref) != "proposed":
                 issues.append(f"{label} targets revision in state {statuses.get(ref) or 'missing'}")
             elif event.kind == "revision-accepted":
@@ -620,16 +719,34 @@ def _save(record: AdrRecord, cwd: str | Path, dry_run: bool, *, pending_decision
     return AdrOperationResult(True, path, record.adr_id, record.current_status, record.authoritative_decision, (), not dry_run, rendered if dry_run else None)
 
 
-def promote_decision(cwd: str | Path = ".", *, adr_id: str, source_entry_id: str, source_decision: str, title: str, topics: Sequence[str], user_initials: str, agent_type: str, source: str, decision: str = "See the authoritative session decision.", why: str = "See the authoritative session decision rationale.", evolution: str = "This is the first revision of this architectural concern.", update_entry_id: str | None = None, direct_predecessors: Sequence[AdrPredecessor] = (), supporting_decisions: Sequence[str] = (), timestamp: str | None = None, dry_run: bool = False) -> AdrOperationResult:
+def promote_decision(cwd: str | Path = ".", *, adr_id: str, source_entry_id: str | None = None, source_decision: str | None = None, title: str, topics: Sequence[str], user_initials: str, agent_type: str, source: str, decision: str = "See the authoritative session decision.", why: str = "See the authoritative session decision rationale.", evolution: str = "This is the first revision of this architectural concern.", update_entry_id: str | None = None, direct_predecessors: Sequence[AdrPredecessor] = (), supporting_decisions: Sequence[str] = (), constitution_refs: Sequence[ConstitutionRef] = (), founding_source: str | None = None, founding_quote: str = "", timestamp: str | None = None, dry_run: bool = False) -> AdrOperationResult:
+    """Create a new ADR from a session decision OR from a founding source.
+
+    Decision-sourced (the original path): `source_entry_id` + `source_decision` name the
+    authoritative session decision. Founding-sourced (2026-08-06): `founding_source` names a
+    control-file line (".memory-seed/index.md#L134") or "bootstrap", with a verbatim
+    `founding_quote` as the grounding evidence - for concerns whose decision predates the session
+    corpus, or for bootstrap on a fresh project that has no corpus at all. Exactly one of the two
+    shapes must be supplied; later `revise` events attach real decisions as work touches the
+    concern.
+    """
     path = resolve_runtime(cwd).memory_dir / "decisions" / f"{adr_id}.md"
     if path.exists():
         return AdrOperationResult(False, path, adr_id, issues=("ADR already exists",))
-    stamp, ref = timestamp or _now(), f"{source_entry_id}:{source_decision}"
-    event = AdrEvent("revision-proposed", _event_id(adr_id, "proposed", ref, stamp), stamp, source, ref, update_entry_id or source_entry_id, predecessors=tuple(direct_predecessors), supporting_decisions=tuple(supporting_decisions), decision=decision, why=why, evolution=evolution)
+    stamp = timestamp or _now()
+    if founding_source is not None:
+        if source_entry_id or source_decision:
+            return AdrOperationResult(False, path, adr_id, issues=("supply a session decision or a founding source, not both",))
+        event = AdrEvent("revision-proposed", _event_id(adr_id, "proposed", founding_source, stamp), stamp, source, None, update_entry_id, predecessors=(), supporting_decisions=tuple(supporting_decisions), decision=decision, why=why, evolution=evolution, constitution_refs=tuple(constitution_refs), founding_source=founding_source, founding_quote=founding_quote)
+    else:
+        if not source_entry_id or not source_decision:
+            return AdrOperationResult(False, path, adr_id, issues=("promotion requires source_entry_id and source_decision (or a founding_source)",))
+        ref = f"{source_entry_id}:{source_decision}"
+        event = AdrEvent("revision-proposed", _event_id(adr_id, "proposed", ref, stamp), stamp, source, ref, update_entry_id or source_entry_id, predecessors=tuple(direct_predecessors), supporting_decisions=tuple(supporting_decisions), decision=decision, why=why, evolution=evolution, constitution_refs=tuple(constitution_refs))
     return _save(AdrRecord(1, adr_id, title, tuple(dict.fromkeys(topics)), stamp, user_initials, agent_type, source, [event], path), cwd, dry_run)
 
 
-def revise_adr(cwd: str | Path = ".", *, adr_id: str, decision_ref: str, decision: str, why: str, evolution: str, update_entry_id: str, source: str, predecessors: Sequence[AdrPredecessor], supporting_decisions: Sequence[str] = (), timestamp: str | None = None, dry_run: bool = False) -> AdrOperationResult:
+def revise_adr(cwd: str | Path = ".", *, adr_id: str, decision_ref: str, decision: str, why: str, evolution: str, update_entry_id: str, source: str, predecessors: Sequence[AdrPredecessor], supporting_decisions: Sequence[str] = (), constitution_refs: Sequence[ConstitutionRef] = (), timestamp: str | None = None, dry_run: bool = False) -> AdrOperationResult:
     path = resolve_runtime(cwd).memory_dir / "decisions" / f"{adr_id}.md"
     if not path.exists():
         return AdrOperationResult(False, path, adr_id, issues=("ADR does not exist",))
@@ -637,7 +754,7 @@ def revise_adr(cwd: str | Path = ".", *, adr_id: str, decision_ref: str, decisio
     if record is None:
         return AdrOperationResult(False, path, adr_id, issues=existing_issues)
     stamp = timestamp or _now()
-    record.events.append(AdrEvent("revision-proposed", _event_id(adr_id, "proposed", decision_ref, stamp), stamp, source, decision_ref, update_entry_id, predecessors=tuple(predecessors), supporting_decisions=tuple(supporting_decisions), decision=decision, why=why, evolution=evolution))
+    record.events.append(AdrEvent("revision-proposed", _event_id(adr_id, "proposed", decision_ref, stamp), stamp, source, decision_ref, update_entry_id, predecessors=tuple(predecessors), supporting_decisions=tuple(supporting_decisions), decision=decision, why=why, evolution=evolution, constitution_refs=tuple(constitution_refs)))
     return _save(record, cwd, dry_run)
 
 
@@ -659,7 +776,12 @@ def transition_adr(cwd: str | Path = ".", *, adr_id: str, status: str, decision_
         return AdrOperationResult(False, path, adr_id, issues=("unsupported ADR status",))
     if expected_authoritative_decision is None and expected_previous_status == "proposed":
         expected_authoritative_decision = record.authoritative_decision
-    record.events.append(AdrEvent(kind, _event_id(adr_id, kind, decision_ref, update_entry_id, stamp), stamp, source, decision_ref, update_entry_id, expected_authoritative_decision, reason=reason, replacement_adr=replacement_adr))
+    # A founding revision is tracked under its pseudo-ref. Store it back on the event's founding
+    # side, never in decision_ref - decision_ref carries only <entry_id>:dN grammar.
+    founding_source: str | None = None
+    if decision_ref and decision_ref.startswith("founding:"):
+        founding_source, decision_ref = decision_ref[len("founding:"):], None
+    record.events.append(AdrEvent(kind, _event_id(adr_id, kind, decision_ref or founding_source, update_entry_id, stamp), stamp, source, decision_ref, update_entry_id, expected_authoritative_decision, reason=reason, replacement_adr=replacement_adr, founding_source=founding_source))
     return _save(record, cwd, dry_run)
 
 
