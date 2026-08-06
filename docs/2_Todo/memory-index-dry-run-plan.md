@@ -123,6 +123,45 @@ retention. Directional, per the pattern-over-threshold rule.
 > so `memory_search` is the only route to an answer - a new measurement, not a comparison with
 > run 3. See `experiments/memory-index-dryrun/answer_visible.py`.
 
+## Run 5 (2026-08-06) - retrieval ENFORCED as the only route
+
+Run 4's caveat was that agents could still read the session file directly, and 2 of 8 batches
+demonstrably did. Two further runs closed it:
+
+**5a, instruction only.** The preamble told agents to use `memory_search` and `memory_get_chunk`
+exclusively and not to open anything under `.memory-seed/`. **It did not hold.** All 8 batches used
+file tools anyway - 16 `Grep` and 13 `Read` calls against 19 `memory_search`. Roughly half the
+lookups bypassed retrieval in direct contravention of an explicit instruction. That is a finding
+about instructions, not about retrieval, and it is why compliance is now recorded per batch in
+`tools_used` rather than assumed.
+
+**5b, enforced.** `--disallowedTools Read Grep Glob LS Bash`, verified to survive
+`--dangerously-skip-permissions` on a single-batch probe first. Result: **zero file-access calls
+across all 8 batches**; the MCP tools were the only route.
+
+| Category | n | run 3 | run 4 (readable) | **run 5b (enforced)** |
+|---|---|---|---|---|
+| direct_recall | 6 | 5 | 6 | **5** |
+| updated_facts | 6 | 6 | 6 | **6** |
+| thread_growth | 3 | 3 | 3 | **3** |
+| synthesis | 4 | 4 | 4 | **4** |
+| long_term_retention | 4 | 4 | 4 | **4** |
+| false_memory | 8 | 8 | 8 | **8** |
+| **blended** | | 96.8 | 100.0 | **96.8** |
+| fabrications | | 0 | 0 | **0** |
+
+**This is the first properly isolated retrieval measurement.** No index.md facts, no file reads,
+enforced rather than requested. 96.8 with `memory_search` and `memory_get_chunk` as the only way in,
+and the fabrication column still zero.
+
+The single miss is Q1, and it is a fixture ambiguity rather than a retrieval failure: the agent
+answered Dana, Priya and Marcus **plus Sofia**, while the key predates Sofia. The store says she
+"joined 2026-08-05, specifically to own Windows CI", which does not settle whether she is a
+maintainer. Retrieval surfaced the later update and was marked wrong against the earlier key.
+
+**Caveats.** Own judge chain, n=31, one run per arm, timeline-compressed. The enforced arm also
+denies reading committed project files, which no question here needed but a future fixture might.
+
 ## Run 4 (2026-08-06) - retrieval-only arm, index.md's Active State blanked
 
 Same seeded store, same 31 questions, no re-seeding. The one change: each quiz copy had the

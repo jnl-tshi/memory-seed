@@ -83,8 +83,8 @@ def rmtree_force(path: Path) -> None:
     shutil.rmtree(path, onerror=_onerror)
 
 
-def run_claude(cwd: Path, brief: str, timeout: int = 900) -> dict:
-    args = argparse.Namespace(model=None, effort=None, extra_arg=[])
+def run_claude(cwd: Path, brief: str, timeout: int = 900, extra: list[str] | None = None) -> dict:
+    args = argparse.Namespace(model=None, effort=None, extra_arg=list(extra or []))
     command = harness.build_command("claude", cwd, brief, args)
     completed = subprocess.run(
         command, cwd=cwd, capture_output=True, text=True,
@@ -98,7 +98,22 @@ def run_claude(cwd: Path, brief: str, timeout: int = 900) -> dict:
             continue
         if obj.get("type") == "result":
             result_text = obj.get("result") or ""
-    return {"exit": completed.returncode, "result": result_text, "stdout": completed.stdout}
+    tools: list[str] = []
+    for line in completed.stdout.splitlines():
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        message = obj.get("message") or {}
+        for block in message.get("content") or []:
+            if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name"):
+                tools.append(block["name"])
+    return {
+        "exit": completed.returncode,
+        "result": result_text,
+        "stdout": completed.stdout,
+        "tools": tools,
+    }
 
 
 def phase_seed() -> None:
@@ -198,7 +213,21 @@ def strip_index_facts(copy_dir: Path) -> bool:
     return True
 
 
-def phase_quiz(jobs: int = 3, no_index_facts: bool = False) -> None:
+QUIZ_PREAMBLE_RETRIEVAL_ONLY = (
+    "You are answering questions about this project's history for a teammate.\n\n"
+    "IMPORTANT - how you may look things up. Use ONLY the memory-seed MCP tools: `memory_search` "
+    "to find relevant decisions and `memory_get_chunk` to read one in full. Do NOT open, read, "
+    "grep or list any file under `.memory-seed/` - not the session logs, not index.md, not the "
+    "skills. This run measures whether retrieval alone surfaces what you need, so reading the "
+    "store directly would silently answer a different question. Committed project files outside "
+    "`.memory-seed/` (README, source) remain fair game.\n\n"
+    "Do NOT guess: if something was never recorded, say exactly that it is not recorded. Do not "
+    "modify any files and do not append any session entries - this is a read-only consultation. "
+    "Answer each question in 1-3 sentences, numbered.\n\n"
+)
+
+
+def phase_quiz(jobs: int = 3, no_index_facts: bool = False, retrieval_only: bool = False) -> None:
     if not WORKSPACE.exists():
         raise SystemExit("no seeded workspace - run the seed phase first")
     batches = quiz_batches()
@@ -215,13 +244,22 @@ def phase_quiz(jobs: int = 3, no_index_facts: bool = False) -> None:
         brief = QUIZ_PREAMBLE + "\n".join(
             f"{n+1}. {q['question']}" for n, q in enumerate(batch)
         )
-        out = run_claude(copy_dir, brief)
+        # Instruction alone did not hold: told explicitly not to read files under .memory-seed/,
+        # all 8 batches did anyway - 16 Grep and 13 Read calls against 19 memory_search. So the
+        # retrieval-only arm denies the tools rather than asking. `tools_used` records what was
+        # actually called, because an instruction whose compliance nobody measures is a wish.
+        out = run_claude(
+            copy_dir,
+            brief,
+            extra=["--disallowedTools", "Read", "Grep", "Glob", "LS", "Bash"] if retrieval_only else None,
+        )
         payload = {
             "batch": batch_index,
             "exit": out["exit"],
             "question_ids": [q["id"] for q in batch],
             "questions": [q["question"] for q in batch],
             "answer_text": out["result"],
+            "tools_used": out.get("tools", []),
         }
         (answers_dir / f"batch-{batch_index:02d}.json").write_text(
             json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
@@ -336,11 +374,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("phase", choices=("seed", "quiz", "judge", "score"))
     parser.add_argument("--jobs", type=int, default=3)
+    parser.add_argument("--retrieval-only", action="store_true",
+                        help="instruct agents to use ONLY memory_search/memory_get_chunk; tool use is recorded so compliance is checked, not trusted")
     parser.add_argument("--no-index-facts", action="store_true",
                         help="quiz with index.md's Active State blanked, so memory_search "
                              "is the only route to an answer")
     args = parser.parse_args()
-    {"seed": phase_seed, "quiz": lambda: phase_quiz(args.jobs, args.no_index_facts),
+    {"seed": phase_seed, "quiz": lambda: phase_quiz(args.jobs, args.no_index_facts, args.retrieval_only),
      "judge": phase_judge, "score": phase_score}[args.phase]()
     return 0
 
