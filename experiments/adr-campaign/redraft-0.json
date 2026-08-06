@@ -1,0 +1,177 @@
+[
+ {
+  "adr_id": "adr_control_file_authority",
+  "title": "Control-file authority partition (index/policy/skills/sessions)",
+  "sources": [
+   ".memory-seed/index.md#L129",
+   ".memory-seed/policy.md#L49"
+  ],
+  "binding": "authority",
+  "candidate_refs": [
+   {
+    "ref": "mse_vzsef0fmpsde2jh4:d2",
+    "title": ""
+   },
+   {
+    "ref": "ms-845042c7:d3",
+    "title": ""
+   },
+   {
+    "ref": "mse_ddba1ztxqhasfbwf:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_vzsef0fmpsde2jh4:d3",
+    "title": ""
+   },
+   {
+    "ref": "mse_vzsef0fmpsde2jh4:d4",
+    "title": ""
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_subproject_scoping",
+  "title": "Sub-project runtime scoping and inheritance defaults",
+  "sources": [
+   ".memory-seed/index.md#L127",
+   ".memory-seed/policy.md#L78"
+  ],
+  "binding": "authority",
+  "candidate_refs": [
+   {
+    "ref": "ms-0bd3d8b2:d2",
+    "title": ""
+   },
+   {
+    "ref": "ms-demo-root-summary:d2",
+    "title": ""
+   },
+   {
+    "ref": "ms-f776aff0:d1",
+    "title": ""
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_link_retraction",
+  "title": "Append-only link retraction via retracts: blocks",
+  "sources": [
+   ".memory-seed/index.md#L196",
+   ".memory-seed/policy.md#L43"
+  ],
+  "binding": "link-corrections",
+  "candidate_refs": [
+   {
+    "ref": "mse_c3a4z35t4m4rjf1n:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_fsdq53qa5ak68xqh:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_03bwbpzck2qdkeh7:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_dqwvb8gxnn88ch3b:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_s0kh1h39kzdgyk38:d2",
+    "title": ""
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_edge_confidence",
+  "title": "edge_confidence on machine-suggested edges; consumers fade low tiers",
+  "sources": [
+   ".memory-seed/index.md#L186"
+  ],
+  "binding": "provenance",
+  "candidate_refs": [
+   {
+    "ref": "mse_7a6wgm62nty5ynkh:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_qyp5p2w8z1gtmb37:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_p4xd3wqf214nqtmv:d3",
+    "title": ""
+   },
+   {
+    "ref": "mse_hdfv52yz74wk9js1:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_p4xd3wqf214nqtmv:d2",
+    "title": ""
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_topic_authority",
+  "title": "Topic sidecar is the topic authority (sidecar > authored > hashtag)",
+  "sources": [
+   ".memory-seed/index.md#L158"
+  ],
+  "binding": "provenance",
+  "candidate_refs": [
+   {
+    "ref": "mse_8qmv0m07sy95vjm9:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_ypmrtzfmw4qwtbnn:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_cfatzzv84kmp4k7v:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_ypmrtzfmw4qwtbnn:d2",
+    "title": ""
+   },
+   {
+    "ref": "mse_zm2h343r4shfre3j:d1",
+    "title": ""
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_derived_precedence",
+  "title": "Derived never implicitly overrides write-time",
+  "sources": [
+   ".memory-seed/policy.md#L44"
+  ],
+  "binding": "provenance",
+  "candidate_refs": [
+   {
+    "ref": "mse_dqwvb8gxnn88ch3b:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_x1ha2e26md3q83zv:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_5zg50mzrmtx80c80:d2",
+    "title": ""
+   },
+   {
+    "ref": "mse_4670mpw532yec14w:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_ntdqdynf37akrdk3:d2",
+    "title": ""
+   }
+  ]
+ }
+]

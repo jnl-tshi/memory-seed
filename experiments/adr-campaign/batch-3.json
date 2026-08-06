@@ -1,0 +1,58 @@
+[
+ {
+  "adr_id": "adr_docs_lifecycle_folders",
+  "title": "Docs taxonomy: folder is lifecycle state",
+  "sources": [
+   ".memory-seed/index.md#L105"
+  ],
+  "binding": "folder-lifecycle"
+ },
+ {
+  "adr_id": "adr_business_separation",
+  "title": "business/ separate from docs/; documents move, never copy",
+  "sources": [
+   ".memory-seed/index.md#L106"
+  ],
+  "binding": "single-source"
+ },
+ {
+  "adr_id": "adr_experiment_isolation",
+  "title": "Experiment fixture isolation is structural via nearest-runtime discovery",
+  "sources": [
+   ".memory-seed/index.md#L107"
+  ],
+  "binding": "authority"
+ },
+ {
+  "adr_id": "adr_markdown_substrate",
+  "title": "Plain-Markdown core for file-reading agents",
+  "sources": [
+   ".memory-seed/policy.md#L21"
+  ],
+  "binding": "markdown-authority"
+ },
+ {
+  "adr_id": "adr_legacy_agents_compat",
+  "title": "Legacy .AGENTS/ compatibility retained until intentional removal",
+  "sources": [
+   ".memory-seed/policy.md#L22"
+  ],
+  "binding": "ownership"
+ },
+ {
+  "adr_id": "adr_worktree_convention",
+  "title": "Worktree=session, branch=task, agent-namespaced branch names",
+  "sources": [
+   ".memory-seed/index.md#L81"
+  ],
+  "binding": "integration-mode"
+ },
+ {
+  "adr_id": "adr_topic_vocabulary",
+  "title": "Controlled topic vocabulary with axis hierarchy and seed/live parity",
+  "sources": [
+   ".memory-seed/index.md#L158"
+  ],
+  "binding": "topic-vocabulary"
+ }
+]

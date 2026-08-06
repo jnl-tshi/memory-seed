@@ -1,0 +1,889 @@
+{
+ "survivors": [
+  {
+   "adr_id": "adr_runtime_discovery",
+   "title": "Runtime discovery walks to the nearest .memory-seed",
+   "topics": [
+    "control-plane",
+    "agent-rules"
+   ],
+   "decision": "Runtime discovery uses nearest-ancestor `.memory-seed/` directory, walking upward from current working directory to find the active runtime.",
+   "why": "Canonical runtime location enables portable memory systems and supports nested sub-project runtimes with automatic scoping.",
+   "evolution": "Founded from the control file; no session lineage attached yet.",
+   "source_quote": "Runtime discovery walks upward from `cwd` and uses the nearest `.memory-seed/`.",
+   "source_file": ".memory-seed/index.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#authority",
+     "role": "governing"
+    }
+   ],
+   "binding_note": "",
+   "_assigned": {
+    "adr_id": "adr_runtime_discovery",
+    "title": "Runtime discovery walks to the nearest .memory-seed",
+    "sources": [
+     ".memory-seed/index.md#L120",
+     ".memory-seed/index.md#L121"
+    ],
+    "binding": "authority"
+   }
+  },
+  {
+   "adr_id": "adr_edge_kinds",
+   "title": "Four never-merged edge kinds, forward-only and acyclic",
+   "topics": [
+    "lifecycle-edges",
+    "graph"
+   ],
+   "decision": "Lifecycle edges comprise four never-merged kinds: `replaces`, `evolves`, `related_entries`, and `evolved_by` (inverse). Edges are forward-only and acyclic by contract.",
+   "why": "Four independent relationship claims deserve distinct semantic labels. Forward-only and acyclic structure ensures the edge graph is append-only and prevents cycles in artifact lineage.",
+   "evolution": "Founded from the control file; no session lineage attached yet.",
+   "source_quote": "Evolution edges and artifact lineage (core shipped in 2.18.0; Trace continuity completed 2026-07-15): typed `evolves:` plus read-time `evolved_by`, inverse-field and continuity validation",
+   "source_file": ".memory-seed/index.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#edge-kinds",
+     "role": "governing"
+    }
+   ],
+   "binding_note": "",
+   "_assigned": {
+    "adr_id": "adr_edge_kinds",
+    "title": "Four never-merged edge kinds, forward-only and acyclic",
+    "sources": [
+     ".memory-seed/index.md#L171"
+    ],
+    "binding": "edge-kinds"
+   }
+  },
+  {
+   "adr_id": "adr_topic_backfill_rejected",
+   "title": "Scored topic auto-backfill rejected; curated-evidence premise adopted",
+   "topics": [
+    "topic-vocabulary",
+    "decision-harvest"
+   ],
+   "decision": "Automated topic backfill with scoring gates is rejected. Manual, curated attribution is adopted: one worker per batch judges all decision units and writes final topic assignments without automated scoring.",
+   "why": "Two pilot runs scored macro-recall at 58.3% and 61.3% against a 0.70 gate, falling short. The curated-evidence premise succeeded: a human worker with swarm output as evidence judged 1,030 units and wrote 2,013 attributions (95% carrying both axes).",
+   "evolution": "Founded from the control file; no session lineage attached yet.",
+   "source_quote": "Decision-level topic judgment swarm \u2014 **the scored auto-backfill was piloted twice and explicitly ABORTED (2026-07-26)**: two pilot runs scored macro-recall 0.583 and 0.613 against a 0.70 gate",
+   "source_file": ".memory-seed/index.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#prove-automation",
+     "role": "governing"
+    }
+   ],
+   "binding_note": "Status: rejected. Scored automation was empirically measured and fell short of the gate; curated-evidence pathway succeeded instead.",
+   "_assigned": {
+    "adr_id": "adr_topic_backfill_rejected",
+    "title": "Scored topic auto-backfill rejected; curated-evidence premise adopted",
+    "sources": [
+     ".memory-seed/index.md#L187"
+    ],
+    "binding": "prove-automation",
+    "status": "rejected"
+   }
+  },
+  {
+   "adr_id": "adr_session_layout",
+   "title": "Month-grouped session layout; per-user gated on 2+ participants",
+   "topics": [
+    "session-logging",
+    "multi-user-sessions"
+   ],
+   "decision": "Session document discovery uses iter_session_documents() to read legacy flat session files (sessions/YYYY-MM-DD.md), new month-grouped flat files (sessions/YYYY-MM/YYYY-MM-DD.md), and new month-grouped per-user files (sessions/YYYY-MM/YYYY-MM-DD/<user>.md). Per-user layout activates only when 2+ participants are registered.",
+   "why": "Month grouping organizes session history by calendar period for better discoverability; per-user gating prevents fragmentation for single-user projects while supporting team workflows when participants are declared.",
+   "evolution": "Founded from the control file; no session lineage attached yet.",
+   "source_quote": "Session document discovery: package readers use `iter_session_documents()` in `core.py` to read legacy flat session files (`sessions/YYYY-MM-DD.md`), legacy per-day/per-user files (`sessions/YYYY-MM-DD/<user>.md`), new month-grouped flat files (`sessions/YYYY-MM/YYYY-MM-DD.md`), and new month-grouped per-user files (`sessions/YYYY-MM/YYYY-MM-DD/<user>.md`).",
+   "source_file": ".memory-seed/index.md",
+   "supporting": [
+    {
+     "ref": "mse_ed8zaf52k3eyaxqv:d1",
+     "quote": "The migration parses each legacy `sessions/YYYY-MM-DD.md` entry, maps entry `user_initials` through `.memory-seed/project.yaml` `participants:`, writes/appends to `sessions/YYYY-MM-DD/<user>.md`"
+    }
+   ],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#markdown-authority",
+     "role": "governing"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_session_layout",
+    "title": "Month-grouped session layout; per-user gated on 2+ participants",
+    "sources": [
+     ".memory-seed/index.md#L147"
+    ],
+    "binding": "markdown-authority"
+   }
+  },
+  {
+   "adr_id": "adr_entry_id_scheme",
+   "title": "Deterministic 80-bit mse_ ids; legacy ms- never rewritten",
+   "topics": [
+    "schema"
+   ],
+   "decision": "New generated session entry_id values use deterministic 80-bit mse_ IDs encoded in 16 lower-case Base32 characters. Legacy ms- IDs remain valid forever and are never rewritten.",
+   "why": "80 bits is the practical middle ground for collision risk at team scale, materially shorter than 128-bit visible IDs, and negligible collision risk for plausible Memory Seed corpora. Preserving legacy IDs maintains append-only immutability and backward compatibility.",
+   "evolution": "Evolved in mse_77cn2v0rg9na3w0v:d1 where generate_session_entry_id() was implemented to emit deterministic mse_ IDs using SHA-256 and Crockford/Base32 alphabet.",
+   "source_quote": "Entry-ID widening + MCP metadata filters (shipped 2.12.0): new generated session `entry_id` values use deterministic 80-bit `mse_` IDs while legacy `ms-` IDs remain valid and are never rewritten.",
+   "source_file": ".memory-seed/index.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#append-only",
+     "role": "governing"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_entry_id_scheme",
+    "title": "Deterministic 80-bit mse_ ids; legacy ms- never rewritten",
+    "sources": [
+     ".memory-seed/index.md#L149"
+    ],
+    "binding": "append-only"
+   }
+  },
+  {
+   "adr_id": "adr_draft_format",
+   "title": "DRAFT single-decision baseline; D/R mandatory; numbered decisions canonical",
+   "topics": [
+    "session-logging",
+    "schema"
+   ],
+   "decision": "The single-decision DRAFT record is the baseline session-entry shape. D/R (Decision/Rationale) are mandatory fields; A/F/T (Alternatives/Findings/Tests) are optional. Multi-decision entries use numbered #### Dn headings as the canonical form.",
+   "why": "A baseline structure with mandatory decision rationale ensures every memory entry captures the core reasoning. Explicit numbering makes multi-decision entries unambiguous and discoverable.",
+   "evolution": "Founded from the control file; established as baseline in 2.4.0 per the control plane history.",
+   "source_quote": "The single-decision DRAFT record is the **baseline** session-entry shape (since 2.4.0); the bare summary (simpler) and multi-decision (richer) shapes are explicit routes off it. D/R are mandatory, A/F/T optional.",
+   "source_file": ".memory-seed/index.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#draft-format",
+     "role": "governing"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_draft_format",
+    "title": "DRAFT single-decision baseline; D/R mandatory; numbered decisions canonical",
+    "sources": [
+     ".memory-seed/index.md#L143"
+    ],
+    "binding": "draft-format"
+   }
+  },
+  {
+   "adr_id": "adr_branch_session_fuse",
+   "title": "Branch-session fuse: branch-only, chronological, immutable relative to base",
+   "topics": [
+    "git-workflow",
+    "branch-history"
+   ],
+   "decision": "memory-seed session fuse --branch <branch> dry-runs and applies branch-local session entries and diagram sidecars. Imported entries must be branch-only, chronological, immutable relative to base, and carry `branch: <branch>` metadata.",
+   "why": "Chronological immutability relative to the base preserves append-only ordering when merging branch work. The branch metadata enables recovery and validation during structured fuse.",
+   "evolution": "Founded from the control file; implements the structural session merge capability.",
+   "source_quote": "Branch-session fuse (current unreleased worktree): `memory-seed session fuse --branch <branch>` dry-runs branch-local session entries and diagram sidecars before promotion, and `--apply` writes only during an in-progress `git merge --no-ff --no-commit <branch>`. Imported entries must be branch-only, chronological, immutable relative to base, and carry `branch: <branch>`.",
+   "source_file": ".memory-seed/index.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#append-only",
+     "role": "governing"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_branch_session_fuse",
+    "title": "Branch-session fuse: branch-only, chronological, immutable relative to base",
+    "sources": [
+     ".memory-seed/index.md#L153"
+    ],
+    "binding": "append-only"
+   }
+  },
+  {
+   "adr_id": "adr_integration_mode",
+   "title": "Configurable integration_mode: local-merge vs PR",
+   "topics": [
+    "control-plane",
+    "git-workflow"
+   ],
+   "decision": "integration_mode is a project-local default read fail-open as local-merge, surfaced by ESR, obeyed by live+seed agent contracts, and implemented by mode-aware session integrate plus session open-pr.",
+   "why": "Different workflows require different integration strategies: local-merge for single-developer rapid iteration, PR for team review gates. Configurable mode lets projects choose without code changes.",
+   "evolution": "Founded from the control file; completed 2026-07-15 per the control plane history.",
+   "source_quote": "Configurable integration mode (completed 2026-07-15): `integration_mode: local-merge|pr` is a project-local default read fail-open as `local-merge`, surfaced by ESR, obeyed by live+seed agent contracts, and implemented by mode-aware `session integrate` plus `session open-pr`.",
+   "source_file": ".memory-seed/index.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#integration-mode",
+     "role": "governing"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_integration_mode",
+    "title": "Configurable integration_mode: local-merge vs PR",
+    "sources": [
+     ".memory-seed/index.md#L173"
+    ],
+    "binding": "integration-mode"
+   }
+  },
+  {
+   "adr_id": "adr_agent_config_merge",
+   "title": "Agent-config JSON/TOML merge, never seed-copy",
+   "topics": [
+    "cli",
+    "control-plane",
+    "process-correction"
+   ],
+   "decision": "Handle agent config files as JSON/TOML merge targets during init/update, preserving existing project configuration rather than overwriting.",
+   "why": "Most projects already have .claude/settings.json with permissions, model, and other settings. Using seed-file copy would fail on existing projects or silently wipe their configuration.",
+   "evolution": "Founded May 2026 (ms-56fdf2ad); merge pattern established in core.py _merge_claude_hook and _merge_codex_hook functions.",
+   "source_quote": "`.claude/settings.json` and `.codex/hooks.json` are handled as JSON merge targets during init/update \u2014 not seed file copies \u2014 so existing agent config is preserved.",
+   "source_file": ".memory-seed/index.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#single-source",
+     "role": "governing"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_agent_config_merge",
+    "title": "Agent-config JSON/TOML merge, never seed-copy",
+    "sources": [
+     ".memory-seed/index.md#L124"
+    ],
+    "binding": "single-source"
+   }
+  },
+  {
+   "adr_id": "adr_archive_before_replace",
+   "title": "Archive control-plane snapshots before replacing versioned artifacts",
+   "topics": [
+    "control-plane",
+    "release",
+    "process-management"
+   ],
+   "decision": "Archive prior control-plane snapshots under .memory-seed/archive/<version>/ before replacing reusable versioned artifacts.",
+   "why": "Preserves audit trail of control-plane evolution and enables recovery if a replacement is found to be incorrect or incomplete.",
+   "evolution": "Founded from the control file; no session lineage attached yet.",
+   "source_quote": "Archive prior control-plane snapshots under `.memory-seed/archive/<version>/` before replacing reusable versioned artifacts.",
+   "source_file": ".memory-seed/policy.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#append-only",
+     "role": "governing"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_archive_before_replace",
+    "title": "Archive control-plane snapshots before replacing versioned artifacts",
+    "sources": [
+     ".memory-seed/policy.md#L74"
+    ],
+    "binding": "append-only"
+   }
+  },
+  {
+   "adr_id": "adr_release_topology",
+   "title": "Publish via GitHub Release with manual PyPI gate",
+   "topics": [
+    "release",
+    "release-packaging",
+    "git-publishing"
+   ],
+   "decision": "Publishing is triggered by GitHub Release creation, which activates the publish.yml workflow. The pypi environment has a manual-approval gate that a reviewer must approve before the PyPI push executes.",
+   "why": "GitHub Release creation produces labeled versions in the Actions UI. Manual approval gate ensures human review before the irreversible PyPI deployment and catches any unintended releases.",
+   "evolution": "Founded May 2026 (ms-1e38c75c); established as core release policy with multiple releases following the pattern.",
+   "source_quote": "Publishing should be triggered by GitHub Release creation, not direct workflow dispatch.",
+   "source_file": ".memory-seed/policy.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#prove-automation",
+     "role": "governing"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_release_topology",
+    "title": "Publish via GitHub Release with manual PyPI gate",
+    "sources": [
+     ".memory-seed/policy.md#L72"
+    ],
+    "binding": "prove-automation"
+   }
+  },
+  {
+   "adr_id": "adr_trace_incremental_startup",
+   "title": "Trace startup incremental; immutable git derivations persist",
+   "topics": [
+    "memory-trace",
+    "performance",
+    "seed-core"
+   ],
+   "decision": "Memory Trace startup is incremental: immutable git derivations (fork points, commit parents, changed paths) persist across rebuilds, reconciliation is incremental, and file-entry index is lazy.",
+   "why": "Incremental startup drastically improves performance. Warm start reduced from 44.25s to ~308ms; persisted derivations and lazy indexing enable efficient rebuilds and reconciliation.",
+   "evolution": "Implemented 2026-07-21 (mse_42e8zzd7); completed the derived-projection plan's final deferred piece.",
+   "source_quote": "Memory Trace startup is incremental as of 2026-07-21: immutable git derivations (fork points, commit parents, changed paths) persist across rebuilds, reconciliation is incremental, and the file-entry index is lazy.",
+   "source_file": ".memory-seed/index.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#markdown-authority",
+     "role": "governing"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_trace_incremental_startup",
+    "title": "Trace startup incremental; immutable git derivations persist",
+    "sources": [
+     ".memory-seed/index.md#L83"
+    ],
+    "binding": "markdown-authority"
+   }
+  },
+  {
+   "adr_id": "adr_trail_derived_lanes",
+   "title": "Trail derives display lanes without authored graph edges",
+   "topics": [
+    "memory-trace",
+    "trail",
+    "graph"
+   ],
+   "decision": "Trail generates continuity lanes derived from lifecycle edges without requiring or adding authored graph edges.",
+   "why": "Reduces manual edge annotation burden; derived lanes stay synchronized with true causality and evolution chain topology without user needing to draw additional edges.",
+   "evolution": "Shipped in Wave 1 (2026-07-15) as part of Trace continuity features; plan documented in docs/5_Completed/evolution-edges-plan.md.",
+   "source_quote": "Trail derives display lanes without adding authored graph edges.",
+   "source_file": ".memory-seed/index.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#markdown-authority",
+     "role": "governing"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_trail_derived_lanes",
+    "title": "Trail derives display lanes without authored graph edges",
+    "sources": [
+     ".memory-seed/index.md#L171"
+    ],
+    "binding": "markdown-authority"
+   }
+  },
+  {
+   "adr_id": "adr_community_detection_rejected",
+   "title": "Topology-community detection measured and rejected",
+   "topics": [
+    "memory-trace",
+    "graph",
+    "design-evaluation"
+   ],
+   "decision": "Reject topology-community detection for graph layout based on corpus-density measurement. The feature does not gate B0b acceptance.",
+   "why": "Measured corpus density and found community detection does not improve layout effectiveness for this corpus. Alternative force-based layout achieves the required visualization quality.",
+   "evolution": "Measured and rejected 2026-07-26 (mse_fud39yw86e7v2uy); decision recorded to document evaluation rather than defer the feature.",
+   "source_quote": "Topology-community detection was measured and closed 2026-07-26 (rejected, not deferred)",
+   "source_file": ".memory-seed/index.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#evidence-first",
+     "role": "governing"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_community_detection_rejected",
+    "title": "Topology-community detection measured and rejected",
+    "sources": [
+     ".memory-seed/index.md#L73"
+    ],
+    "binding": "evidence-first",
+    "status": "rejected"
+   }
+  },
+  {
+   "adr_id": "adr_encoding_policy",
+   "title": "Encoding policy owned by Seed, never duplicated in Trace",
+   "topics": [
+    "control-plane",
+    "windows-encoding",
+    "seed-core"
+   ],
+   "decision": "Encoding policy (UTF-8, LF, NFC normalization) is owned and enforced by Memory Seed core, never duplicated in Memory Trace.",
+   "why": "Memory Trace depends on the core package. One owner keeps UTF-8/LF/NFC policy, exclusions, and backup behavior consistent across the system.",
+   "evolution": "Established 2026-07-08 (mse_ejpbz4qqsbdx0hvc); encoding hardening P0 completed with explicit check/repair tooling in Seed.",
+   "source_quote": "Encoding policy stays owned by Memory Seed rather than being duplicated in Memory Trace, and `doctor` provides a non-fatal summary.",
+   "source_file": ".memory-seed/index.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#single-source",
+     "role": "governing"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_encoding_policy",
+    "title": "Encoding policy owned by Seed, never duplicated in Trace",
+    "sources": [
+     ".memory-seed/index.md#L183"
+    ],
+    "binding": "single-source"
+   }
+  },
+  {
+   "adr_id": "adr_docs_lifecycle_folders",
+   "title": "Docs taxonomy: folder is lifecycle state",
+   "topics": [
+    "documentation",
+    "docs-lifecycle",
+    "governance-profile"
+   ],
+   "decision": "Document lifecycle state is encoded in folder structure. Incoming material enters `docs/1_Inbox/`, active roadmap items sit in `docs/2_Todo/`, live normative specs occupy `docs/3_Spec/` (with candidates in `draft/`), source research lives in `docs/4_Reference/`, and terminal outcomes occupy `docs/5_Completed/`, `6_Rejected/`, `7_Replaced/`, or `8_Deferred/`.",
+   "why": "Folder structure makes lifecycle state transparent and queryable. The legacy archive `docs/2_Todo/completed/` was retired 2026-07-17, moving its 43 documents and nested structures to `docs/5_Completed/`, ensuring every terminal document sits in a designated lane.",
+   "evolution": "Control-plane decision recorded and codified in the runtime index. Session decision mse_m0xs623m4cs0kjag:d1 (2026-07-15) captured the seeded docs lifecycle as an unapproved proposal, noting that richer lifecycle behavior requires local proof and non-destructive adoption semantics before becoming reusable seed behavior.",
+   "source_quote": "Docs taxonomy: `docs/1_Inbox/` holds unassessed incoming material; `docs/2_Todo/` holds active roadmap proposals; `docs/3_Spec/` holds live normative specs (with candidates in `draft/`); `docs/4_Reference/` holds source research; and terminal outcomes live in `docs/5_Completed/`, `6_Rejected/`, `7_Replaced/`, or `8_Deferred/`.",
+   "source_file": ".memory-seed/index.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#folder-lifecycle",
+     "role": "governing"
+    },
+    {
+     "ref": "constitution:v1#metadata-curation",
+     "role": "supporting"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_docs_lifecycle_folders",
+    "title": "Docs taxonomy: folder is lifecycle state",
+    "sources": [
+     ".memory-seed/index.md#L105"
+    ],
+    "binding": "folder-lifecycle"
+   }
+  },
+  {
+   "adr_id": "adr_business_separation",
+   "title": "business/ separate from docs/; documents move, never copy",
+   "topics": [
+    "documentation",
+    "governance-profile",
+    "decision-harvest"
+   ],
+   "decision": "Commercial strategy material lives in `business/` as authoritative dossiers and supporting provenance reports, deliberately separated from `docs/` which holds product specification and implementation lifecycle. Documents move from `docs/4_Reference/` into `business/` rather than being copied; a document has one canonical home.",
+   "why": "This separation preserves single-source authority for business strategy while keeping `docs/` focused on product and implementation. Moving documents (not copying) ensures consistency and eliminates duplication.",
+   "evolution": "Founded from the control file. Session decision mse_5y962348e85x7grr (2026-08-03) registered `business/` in the runtime index's Topology section after the area was created but initially undocumented, correcting a gap in agent orientation.",
+   "source_quote": "**Business knowledge area: `business/`** \u2014 commercial strategy, kept deliberately separate from `docs/`, which holds product specification and implementation lifecycle.",
+   "source_file": ".memory-seed/index.md",
+   "supporting": [
+    {
+     "ref": "mse_5y962348e85x7grr:d1",
+     "quote": "Add `business/` to the runtime index's Topology section"
+    }
+   ],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#single-source",
+     "role": "governing"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_business_separation",
+    "title": "business/ separate from docs/; documents move, never copy",
+    "sources": [
+     ".memory-seed/index.md#L106"
+    ],
+    "binding": "single-source"
+   }
+  },
+  {
+   "adr_id": "adr_experiment_isolation",
+   "title": "Experiment fixture isolation is structural via nearest-runtime discovery",
+   "topics": [
+    "testing",
+    "seed-core",
+    "functionality-audit"
+   ],
+   "decision": "Experimental fixtures achieve isolation through structural design via nearest-runtime discovery. Each generated fixture is a standalone git repository with its own `.memory-seed/` runtime. Fixture runtimes are throwaway sub-project runtimes deliberately not individually registered in the parent index.",
+   "why": "Isolation is structural and was proven at build time: a fixture write left the parent corpus counts unchanged. Nearest-runtime discovery provides automatic, predictable fixture isolation without requiring manual registration or explicit isolation machinery.",
+   "evolution": "Founded from the control file; outlined in the agent-capture experiment specification. Session decision mse_vaz9d3h7x4bcmd1t:d1 (2026-08-04) narrowed isolation assertion to the parent session store specifically, refining the validation claim while preserving structural isolation.",
+   "source_quote": "Isolation is structural (nearest-runtime discovery) and was proven at build time: a fixture write left the parent corpus counts unchanged.",
+   "source_file": ".memory-seed/index.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#authority",
+     "role": "governing"
+    },
+    {
+     "ref": "constitution:v1#prove-automation",
+     "role": "supporting"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_experiment_isolation",
+    "title": "Experiment fixture isolation is structural via nearest-runtime discovery",
+    "sources": [
+     ".memory-seed/index.md#L107"
+    ],
+    "binding": "authority"
+   }
+  },
+  {
+   "adr_id": "adr_markdown_substrate",
+   "title": "Plain-Markdown core for file-reading agents",
+   "topics": [
+    "documentation",
+    "seed-core",
+    "control-plane"
+   ],
+   "decision": "The memory core is kept as plain Markdown and predictable for file-reading agents. All critical control-plane files, session logs, and decision records are encoded in readable, human-editable Markdown rather than binary or structured formats.",
+   "why": "Plain Markdown preserves local ownership, direct human editing, attribution, and immutable source entries while remaining accessible to file-reading agents without special parsing libraries. This enables append-only discipline and supports both human review and automated agent access.",
+   "evolution": "Control-plane behavioral constraint. Session decision mse_ddba1ztxqhasfbwf:d1 (2026-07-16) ratified partitioned Markdown authority with an append-only ADR sidecar, formalizing that original entries and decision updates own rationale/evidence while derived artifacts (registries, indexes, databases) remain secondary.",
+   "source_quote": "Keep the memory core plain Markdown and predictable for file-reading agents.",
+   "source_file": ".memory-seed/policy.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#markdown-authority",
+     "role": "governing"
+    },
+    {
+     "ref": "constitution:v1#evidence-first",
+     "role": "supporting"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_markdown_substrate",
+    "title": "Plain-Markdown core for file-reading agents",
+    "sources": [
+     ".memory-seed/policy.md#L21"
+    ],
+    "binding": "markdown-authority"
+   }
+  },
+  {
+   "adr_id": "adr_legacy_agents_compat",
+   "title": "Legacy .AGENTS/ compatibility retained until intentional removal",
+   "topics": [
+    "control-plane",
+    "agent-collaboration",
+    "memory-repair"
+   ],
+   "decision": "Legacy `.AGENTS/` projects continue to be supported in code. Compatibility is preserved unless intentionally removed through an explicit deprecation process, ensuring that existing projects remain functional across version updates.",
+   "why": "Removing legacy support silently breaks existing projects. Backward compatibility ensures smooth adoption and gives projects clear signal when a legacy feature is being retired. Ours-only deletion logic (only removing entries we authored, not foreign customizations) protects user investments.",
+   "evolution": "Founded from the control file; control-plane policy ratified 2.3.0+. Session decision ms-6a09aea8:d2 (2026-06-03) implemented the specific legacy compatibility mechanism: stripping the obsolete `mcpServers` block from `.claude/settings.json` only when Memory Seed authored the entry.",
+   "source_quote": "Preserve compatibility for legacy `.AGENTS/` projects in code unless intentionally removing a legacy path.",
+   "source_file": ".memory-seed/policy.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#ownership",
+     "role": "governing"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_legacy_agents_compat",
+    "title": "Legacy .AGENTS/ compatibility retained until intentional removal",
+    "sources": [
+     ".memory-seed/policy.md#L22"
+    ],
+    "binding": "ownership"
+   }
+  },
+  {
+   "adr_id": "adr_worktree_convention",
+   "title": "Worktree=session, branch=task, agent-namespaced branch names",
+   "topics": [
+    "git-workflow",
+    "agent-collaboration",
+    "continuity"
+   ],
+   "decision": "Worktree hygiene follows a strict naming and lifecycle convention: one worktree per session, one branch per task or feature. New branches follow the pattern `<agent>/<kind>/<topic>` to encode agent identity, work kind (fix, feature, docs, etc.), and topic area.",
+   "why": "This convention ensures clear traceability between Git artifacts, session scope, and agent work. Agent-namespaced branches prevent collisions in shared environments and make it easy to identify which agent or session created which branch. Single worktree per session simplifies cleanup and lifecycle management.",
+   "evolution": "Founded from the control file; no session lineage attached yet.",
+   "source_quote": "The worktree hygiene plan uses worktree=session, branch=task, and `<agent>/<kind>/<topic>` for new branches.",
+   "source_file": ".memory-seed/index.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#integration-mode",
+     "role": "governing"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_worktree_convention",
+    "title": "Worktree=session, branch=task, agent-namespaced branch names",
+    "sources": [
+     ".memory-seed/index.md#L81"
+    ],
+    "binding": "integration-mode"
+   }
+  },
+  {
+   "adr_id": "adr_topic_vocabulary",
+   "title": "Controlled topic vocabulary with axis hierarchy and seed/live parity",
+   "topics": [
+    "topic-vocabulary",
+    "governance-profile",
+    "schema"
+   ],
+   "decision": "`topics:` is a first-class entry field resolved against the project-local `.memory-seed/topics.yaml` registry, which implements a two-axis hierarchical vocabulary. The starter vocabulary shipped with Memory Seed is domain-neutral and flat, carrying two axes: areas and activities. Authored topics rank in a declared precedence order with sidecar and inferred topics.",
+   "why": "A controlled vocabulary ensures consistent topic use across the corpus and enables coherent navigation and filtering. Two axes (area and activity) remain orthogonal and domain-neutral, supporting software projects, legal matters, research, and other domains. Flat starter vocabulary respects the principle that depth is earned through concentration.",
+   "evolution": "Implemented 2026-07-15; redesigned into two-axis hierarchy 2026-07-26/27. Session decision mse_zhf4a0fsgwh47c9j:d1 (2026-07-26) shipped the neutral starter vocabulary, replacing a software-centric starter that had no area axis at all.",
+   "source_quote": "Indexed topics (completed 2026-07-15; **redesigned into a two-axis hierarchy 2026-07-26/27**): `topics:` is a first-class entry field resolved against the deploy-once project-local `.memory-seed/topics.yaml`",
+   "source_file": ".memory-seed/index.md",
+   "supporting": [],
+   "constitution_refs": [
+    {
+     "ref": "constitution:v1#topic-vocabulary",
+     "role": "governing"
+    },
+    {
+     "ref": "constitution:v1#metadata-curation",
+     "role": "supporting"
+    }
+   ],
+   "binding_note": "",
+   "skip": "",
+   "_assigned": {
+    "adr_id": "adr_topic_vocabulary",
+    "title": "Controlled topic vocabulary with axis hierarchy and seed/live parity",
+    "sources": [
+     ".memory-seed/index.md#L158"
+    ],
+    "binding": "topic-vocabulary"
+   }
+  }
+ ],
+ "drops": [
+  {
+   "adr_id": "adr_control_file_authority",
+   "batch": "drafts-0.json",
+   "reason": "non-canonical topic among ['control-plane', 'authority']"
+  },
+  {
+   "adr_id": "adr_subproject_scoping",
+   "batch": "drafts-0.json",
+   "reason": "non-canonical topic among ['control-plane', 'authority']"
+  },
+  {
+   "adr_id": "adr_link_retraction",
+   "batch": "drafts-0.json",
+   "reason": "source_quote not grounded in source file"
+  },
+  {
+   "adr_id": "adr_edge_confidence",
+   "batch": "drafts-0.json",
+   "reason": "source_quote not grounded in source file"
+  },
+  {
+   "adr_id": "adr_topic_authority",
+   "batch": "drafts-0.json",
+   "reason": "source_quote not grounded in source file"
+  },
+  {
+   "adr_id": "adr_derived_precedence",
+   "batch": "drafts-0.json",
+   "reason": "non-canonical topic among ['provenance', 'metadata-curation']"
+  },
+  {
+   "adr_id": "adr_merge_branch_primitive",
+   "batch": "drafts-1.json",
+   "reason": "source_quote not grounded in source file"
+  },
+  {
+   "adr_id": "adr_forward_only_edges",
+   "batch": "drafts-1.json",
+   "reason": "non-canonical topic among ['related-entries', 'append-only']"
+  },
+  {
+   "adr_id": "adr_semantic_provider",
+   "batch": "drafts-1.json",
+   "reason": "non-canonical topic among ['retrieval', 'model-independence']"
+  },
+  {
+   "adr_id": "adr_foreign_file_routing",
+   "batch": "drafts-1.json",
+   "reason": "source_quote not grounded in source file"
+  },
+  {
+   "adr_id": "adr_agent_selective_install",
+   "batch": "drafts-2.json",
+   "reason": "source_quote not grounded in source file"
+  },
+  {
+   "adr_id": "adr_trace_boundary",
+   "batch": "drafts-2.json",
+   "reason": "non-canonical topic among ['release-packaging', 'open-core', 'package']"
+  }
+ ],
+ "attachment_drops": [
+  {
+   "adr_id": "adr_control_file_authority",
+   "ref": ".memory-seed/policy.md#L49",
+   "reason": "ref is not <entry_id>:dN"
+  },
+  {
+   "adr_id": "adr_subproject_scoping",
+   "ref": ".memory-seed/policy.md#L78",
+   "reason": "ref is not <entry_id>:dN"
+  },
+  {
+   "adr_id": "adr_entry_id_scheme",
+   "ref": "mse_a4282580:d2",
+   "reason": "ref does not resolve in the session corpus"
+  },
+  {
+   "adr_id": "adr_forward_only_edges",
+   "ref": "mse_a67jnwa1048dn3wc:d1",
+   "reason": "quote not grounded in the cited decision"
+  },
+  {
+   "adr_id": "adr_semantic_provider",
+   "ref": "mse_kbc2mq9972ppy1vw:d1",
+   "reason": "quote not grounded in the cited decision"
+  },
+  {
+   "adr_id": "adr_agent_config_merge",
+   "ref": "ms-56fdf2ad:d1",
+   "reason": "ref does not resolve in the session corpus"
+  },
+  {
+   "adr_id": "adr_release_topology",
+   "ref": "ms-1e38c75c:d1",
+   "reason": "ref does not resolve in the session corpus"
+  },
+  {
+   "adr_id": "adr_trace_incremental_startup",
+   "ref": "mse_42e8zzd7:d1",
+   "reason": "ref does not resolve in the session corpus"
+  },
+  {
+   "adr_id": "adr_community_detection_rejected",
+   "ref": "mse_fud39yw86e7v2uy:d1",
+   "reason": "ref does not resolve in the session corpus"
+  },
+  {
+   "adr_id": "adr_encoding_policy",
+   "ref": "mse_ejpbz4qqsbdx0hvc:d1",
+   "reason": "quote not grounded in the cited decision"
+  },
+  {
+   "adr_id": "adr_docs_lifecycle_folders",
+   "ref": "mse_m0xs623m4cs0kjag:d1",
+   "reason": "quote not grounded in the cited decision"
+  },
+  {
+   "adr_id": "adr_experiment_isolation",
+   "ref": "mse_vaz9d3h7x4bcmd1t:d1",
+   "reason": "quote not grounded in the cited decision"
+  },
+  {
+   "adr_id": "adr_markdown_substrate",
+   "ref": "mse_ddba1ztxqhasfbwf:d1",
+   "reason": "quote not grounded in the cited decision"
+  },
+  {
+   "adr_id": "adr_legacy_agents_compat",
+   "ref": "ms-6a09aea8:d2",
+   "reason": "quote not grounded in the cited decision"
+  },
+  {
+   "adr_id": "adr_topic_vocabulary",
+   "ref": "mse_zhf4a0fsgwh47c9j:d1",
+   "reason": "quote not grounded in the cited decision"
+  }
+ ],
+ "normalised_source_files": [
+  {
+   "adr_id": "adr_session_layout",
+   "from": ".memory-seed/index.md#L147",
+   "to": ".memory-seed/index.md"
+  },
+  {
+   "adr_id": "adr_entry_id_scheme",
+   "from": ".memory-seed/index.md#L149",
+   "to": ".memory-seed/index.md"
+  },
+  {
+   "adr_id": "adr_draft_format",
+   "from": ".memory-seed/index.md#L143",
+   "to": ".memory-seed/index.md"
+  },
+  {
+   "adr_id": "adr_branch_session_fuse",
+   "from": ".memory-seed/index.md#L153",
+   "to": ".memory-seed/index.md"
+  },
+  {
+   "adr_id": "adr_merge_branch_primitive",
+   "from": ".memory-seed/index.md#L172",
+   "to": ".memory-seed/index.md"
+  },
+  {
+   "adr_id": "adr_integration_mode",
+   "from": ".memory-seed/index.md#L173",
+   "to": ".memory-seed/index.md"
+  },
+  {
+   "adr_id": "adr_forward_only_edges",
+   "from": ".memory-seed/index.md#L174",
+   "to": ".memory-seed/index.md"
+  },
+  {
+   "adr_id": "adr_semantic_provider",
+   "from": ".memory-seed/index.md#L85",
+   "to": ".memory-seed/index.md"
+  },
+  {
+   "adr_id": "adr_foreign_file_routing",
+   "from": ".memory-seed/index.md#L146",
+   "to": ".memory-seed/index.md"
+  }
+ ]
+}

@@ -1,0 +1,93 @@
+---
+format: memory-seed-adr/1
+schema_version: 1
+adr_id: adr_derived_precedence
+title: Derived never implicitly overrides write-time
+topics:
+  - control-plane
+created_at: 2026-08-06T19:05:00Z
+user_initials: JNL
+agent_type: claude
+source: derived
+---
+
+# Derived never implicitly overrides write-time
+
+## Current view
+
+<!-- memory-seed-derived-current-view:start -->
+Status: **Accepted**
+
+Authoritative decision: `founding:.memory-seed/policy.md#L44`
+
+### Decision
+
+Sidecar precedence across families is source rank first, then recency. A `derived` block may never implicitly override a `write-time` block on the same subject - it may only fill a gap where no write-time value exists. An explicit override is possible but requires a human-reviewed `retracts:` naming the block it supersedes. Within a single source class most-recent-wins is unchanged. Provenance is recorded as first-hand versus reconstructed, not human versus machine.
+
+### Why
+
+Once write-time values live in sidecars, plain most-recent-wins would let a later sweep supersede a first-hand value merely by being newer, contradicting the ratified position that the two are not equal evidence. Half the rule alone would make write-time values permanently uncorrectable, so the reviewed retraction keeps a wrong first-hand value fixable while guaranteeing a reconstructed value never displaces a first-hand one silently. Approving a sweep batch was rejected as approval of a specific displacement.
+
+### How it evolved
+
+Closed 2026-07-26 as a precedence hole in the accepted consolidation proposal, where source was made to outrank recency, then corrected hours later the same day to add the human-reviewed `retracts:` override so first-hand values stay correctable.
+
+### Constitution
+
+- `constitution:v1#provenance` (governing)
+- `constitution:v1#append-only` (supporting)
+
+<!-- memory-seed-derived-current-view:end -->
+
+## Event ledger
+
+### revision-proposed - 2026-08-06T19:05:00Z
+
+```json
+{
+  "constitution_refs": [
+    {
+      "ref": "constitution:v1#provenance",
+      "role": "governing"
+    },
+    {
+      "ref": "constitution:v1#append-only",
+      "role": "supporting"
+    }
+  ],
+  "event_id": "adre_c01b6c6318447dbe1e2f",
+  "founding_quote": "a `derived` block may never *implicitly* override a `write-time` block on recency alone",
+  "founding_source": ".memory-seed/policy.md#L44",
+  "source": "derived",
+  "supporting_decisions": [
+    "mse_dqwvb8gxnn88ch3b:d1",
+    "mse_x1ha2e26md3q83zv:d1"
+  ]
+}
+```
+
+#### Decision
+
+Sidecar precedence across families is source rank first, then recency. A `derived` block may never implicitly override a `write-time` block on the same subject - it may only fill a gap where no write-time value exists. An explicit override is possible but requires a human-reviewed `retracts:` naming the block it supersedes. Within a single source class most-recent-wins is unchanged. Provenance is recorded as first-hand versus reconstructed, not human versus machine.
+
+#### Why
+
+Once write-time values live in sidecars, plain most-recent-wins would let a later sweep supersede a first-hand value merely by being newer, contradicting the ratified position that the two are not equal evidence. Half the rule alone would make write-time values permanently uncorrectable, so the reviewed retraction keeps a wrong first-hand value fixable while guaranteeing a reconstructed value never displaces a first-hand one silently. Approving a sweep batch was rejected as approval of a specific displacement.
+
+#### Evolution
+
+Closed 2026-07-26 as a precedence hole in the accepted consolidation proposal, where source was made to outrank recency, then corrected hours later the same day to add the human-reviewed `retracts:` override so first-hand values stay correctable.
+
+### revision-accepted - 2026-08-06T21:06:00Z
+
+```json
+{
+  "event_id": "adre_56f4bf8804755f13fe2f",
+  "founding_source": ".memory-seed/policy.md#L44",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.

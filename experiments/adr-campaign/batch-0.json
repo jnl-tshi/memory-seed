@@ -1,0 +1,79 @@
+[
+ {
+  "adr_id": "adr_runtime_discovery",
+  "title": "Runtime discovery walks to the nearest .memory-seed",
+  "sources": [
+   ".memory-seed/index.md#L120",
+   ".memory-seed/index.md#L121"
+  ],
+  "binding": "authority"
+ },
+ {
+  "adr_id": "adr_control_file_authority",
+  "title": "Control-file authority partition (index/policy/skills/sessions)",
+  "sources": [
+   ".memory-seed/index.md#L129",
+   ".memory-seed/policy.md#L49"
+  ],
+  "binding": "authority"
+ },
+ {
+  "adr_id": "adr_subproject_scoping",
+  "title": "Sub-project runtime scoping and inheritance defaults",
+  "sources": [
+   ".memory-seed/index.md#L127",
+   ".memory-seed/policy.md#L78"
+  ],
+  "binding": "authority"
+ },
+ {
+  "adr_id": "adr_edge_kinds",
+  "title": "Four never-merged edge kinds, forward-only and acyclic",
+  "sources": [
+   ".memory-seed/index.md#L171"
+  ],
+  "binding": "edge-kinds"
+ },
+ {
+  "adr_id": "adr_link_retraction",
+  "title": "Append-only link retraction via retracts: blocks",
+  "sources": [
+   ".memory-seed/index.md#L196",
+   ".memory-seed/policy.md#L43"
+  ],
+  "binding": "link-corrections"
+ },
+ {
+  "adr_id": "adr_edge_confidence",
+  "title": "edge_confidence on machine-suggested edges; consumers fade low tiers",
+  "sources": [
+   ".memory-seed/index.md#L186"
+  ],
+  "binding": "provenance"
+ },
+ {
+  "adr_id": "adr_topic_authority",
+  "title": "Topic sidecar is the topic authority (sidecar > authored > hashtag)",
+  "sources": [
+   ".memory-seed/index.md#L158"
+  ],
+  "binding": "provenance"
+ },
+ {
+  "adr_id": "adr_derived_precedence",
+  "title": "Derived never implicitly overrides write-time",
+  "sources": [
+   ".memory-seed/policy.md#L44"
+  ],
+  "binding": "provenance"
+ },
+ {
+  "adr_id": "adr_topic_backfill_rejected",
+  "title": "Scored topic auto-backfill rejected; curated-evidence premise adopted",
+  "sources": [
+   ".memory-seed/index.md#L187"
+  ],
+  "binding": "prove-automation",
+  "status": "rejected"
+ }
+]

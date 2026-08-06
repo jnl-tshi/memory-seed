@@ -18,8 +18,8 @@ This file contains behavioral constraints only. Functional runbooks belong in `.
 - Apply nearest-runtime discovery for all work.
 - Do not preload skills. Load `.memory-seed/skills/*.md` only when the task calls for that runbook.
 - Keep root routing files thin and vendor-neutral.
-- Keep the memory core plain Markdown and predictable for file-reading agents.
-- Preserve compatibility for legacy `.AGENTS/` projects in code unless intentionally removing a legacy path.
+- Keep the memory core plain Markdown and predictable for file-reading agents. (ADR [`adr_markdown_substrate`](decisions/adr_markdown_substrate.md))
+- Preserve compatibility for legacy `.AGENTS/` projects in code unless intentionally removing a legacy path. (ADR [`adr_legacy_agents_compat`](decisions/adr_legacy_agents_compat.md))
 
 ## Orientation
 
@@ -40,8 +40,8 @@ This file contains behavioral constraints only. Functional runbooks belong in `.
 - Preserve user changes and unrelated worktree changes.
 - Prefer dry-run, preview, or targeted verification when available.
 - Prefer local deterministic behavior over hosted or vendor-specific assumptions.
-- Correct a published lifecycle edge (downgrade or remove) through an append-only `retracts:` block in a NEW sidecar block — never by editing the published block in place. `session merge-branch` refuses in-place edits to existing link sidecars (Invariant #2); do not bypass it. Machine-suggested edges (a link swarm) only suggest — the mechanical validator and a human approval gate every write.
-- General precedence rule across sidecar families (Constitution v1.6, 2026-07-26): a `derived` block may never *implicitly* override a `write-time` block on recency alone — it may only fill a gap. An explicit override requires a human-reviewed `retracts:` naming the block it supersedes. Provenance is recorded as **first-hand vs reconstructed** (who observed the fact directly), not human-vs-machine — every YAML topic/edge in this corpus is agent-chosen, so that axis was never the real distinction.
+- Correct a published lifecycle edge (downgrade or remove) through an append-only `retracts:` block in a NEW sidecar block — never by editing the published block in place. `session merge-branch` refuses in-place edits to existing link sidecars (Invariant #2); do not bypass it. Machine-suggested edges (a link swarm) only suggest — the mechanical validator and a human approval gate every write. (ADR [`adr_link_retraction`](decisions/adr_link_retraction.md))
+- General precedence rule across sidecar families (Constitution v1.6, 2026-07-26): a `derived` block may never *implicitly* override a `write-time` block on recency alone — it may only fill a gap. An explicit override requires a human-reviewed `retracts:` naming the block it supersedes. Provenance is recorded as **first-hand vs reconstructed** (who observed the fact directly), not human-vs-machine — every YAML topic/edge in this corpus is agent-chosen, so that axis was never the real distinction. (ADR [`adr_derived_precedence`](decisions/adr_derived_precedence.md))
 - Before trusting a subagent's file reads, citations, or "this doesn't exist" claims for this repository, verify `pwd` and `git rev-parse HEAD` against the intended base commit — a pinned or frozen worktree can silently diverge from the live tree.
 
 ## File Ownership
@@ -49,7 +49,7 @@ This file contains behavioral constraints only. Functional runbooks belong in `.
 - `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` route tools into the shared runtime.
 - `.memory-seed/agent-rules.md` owns operating-mode rules.
 - `.memory-seed/project-bootstrap.md` owns bootstrap and repair procedures.
-- `.memory-seed/index.md` owns topology, active state, inheritance rules, and skill pointers.
+- `.memory-seed/index.md` owns topology, active state, inheritance rules, and skill pointers. (ADR [`adr_control_file_authority`](decisions/adr_control_file_authority.md))
 - `.memory-seed/policy.md` owns behavioral constraints.
 - `.memory-seed/skills/*.md` owns task-specific execution runbooks.
 - `.memory-seed/sessions/YYYY-MM/YYYY-MM-DD.md` owns chronological work history.
@@ -69,13 +69,13 @@ This file contains behavioral constraints only. Functional runbooks belong in `.
 
 - Use tests before behavior changes.
 - Keep CLI output explicit about what writes and what does not write.
-- Publishing should be triggered by GitHub Release creation, not direct workflow dispatch.
+- Publishing should be triggered by GitHub Release creation, not direct workflow dispatch. (ADR [`adr_release_topology`](decisions/adr_release_topology.md))
 - Package version and git tag must match for release work.
-- Archive prior control-plane snapshots under `.memory-seed/archive/<version>/` before replacing reusable versioned artifacts.
+- Archive prior control-plane snapshots under `.memory-seed/archive/<version>/` before replacing reusable versioned artifacts. (ADR [`adr_archive_before_replace`](decisions/adr_archive_before_replace.md))
 
 ## Sub-Projects
 
-- A nested `.memory-seed/` runtime scopes work under its containing folder.
+- A nested `.memory-seed/` runtime scopes work under its containing folder. (ADR [`adr_subproject_scoping`](decisions/adr_subproject_scoping.md))
 - Sub-project active state is local by default.
 - Sub-project skills inherit parent skills by default and use local skill files only for overrides or genuinely local runbooks.
 - Parent policy is inherited by default unless a sub-project index explicitly disables it.
