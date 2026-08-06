@@ -1,0 +1,148 @@
+[
+  {
+    "adr_id": "adr_docs_lifecycle_folders",
+    "title": "Docs taxonomy: folder is lifecycle state",
+    "topics": ["documentation", "docs-lifecycle", "governance-profile"],
+    "decision": "Document lifecycle state is encoded in folder structure. Incoming material enters `docs/1_Inbox/`, active roadmap items sit in `docs/2_Todo/`, live normative specs occupy `docs/3_Spec/` (with candidates in `draft/`), source research lives in `docs/4_Reference/`, and terminal outcomes occupy `docs/5_Completed/`, `6_Rejected/`, `7_Replaced/`, or `8_Deferred/`.",
+    "why": "Folder structure makes lifecycle state transparent and queryable. The legacy archive `docs/2_Todo/completed/` was retired 2026-07-17, moving its 43 documents and nested structures to `docs/5_Completed/`, ensuring every terminal document sits in a designated lane.",
+    "evolution": "Control-plane decision recorded and codified in the runtime index. Session decision mse_m0xs623m4cs0kjag:d1 (2026-07-15) captured the seeded docs lifecycle as an unapproved proposal, noting that richer lifecycle behavior requires local proof and non-destructive adoption semantics before becoming reusable seed behavior.",
+    "source_quote": "Docs taxonomy: `docs/1_Inbox/` holds unassessed incoming material; `docs/2_Todo/` holds active roadmap proposals; `docs/3_Spec/` holds live normative specs (with candidates in `draft/`); `docs/4_Reference/` holds source research; and terminal outcomes live in `docs/5_Completed/`, `6_Rejected/`, `7_Replaced/`, or `8_Deferred/`.",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [
+      {
+        "ref": "mse_m0xs623m4cs0kjag:d1",
+        "quote": "Keep seeded docs lifecycle optional and proposal-gated"
+      }
+    ],
+    "constitution_refs": [
+      {"ref": "constitution:v1#folder-lifecycle", "role": "governing"},
+      {"ref": "constitution:v1#metadata-curation", "role": "supporting"}
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_business_separation",
+    "title": "business/ separate from docs/; documents move, never copy",
+    "topics": ["documentation", "governance-profile", "decision-harvest"],
+    "decision": "Commercial strategy material lives in `business/` as authoritative dossiers and supporting provenance reports, deliberately separated from `docs/` which holds product specification and implementation lifecycle. Documents move from `docs/4_Reference/` into `business/` rather than being copied; a document has one canonical home.",
+    "why": "This separation preserves single-source authority for business strategy while keeping `docs/` focused on product and implementation. Moving documents (not copying) ensures consistency and eliminates duplication.",
+    "evolution": "Founded from the control file. Session decision mse_5y962348e85x7grr (2026-08-03) registered `business/` in the runtime index's Topology section after the area was created but initially undocumented, correcting a gap in agent orientation.",
+    "source_quote": "**Business knowledge area: `business/`** — commercial strategy, kept deliberately separate from `docs/`, which holds product specification and implementation lifecycle.",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [
+      {
+        "ref": "mse_5y962348e85x7grr:d1",
+        "quote": "Add `business/` to the runtime index's Topology section"
+      }
+    ],
+    "constitution_refs": [
+      {"ref": "constitution:v1#single-source", "role": "governing"}
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_experiment_isolation",
+    "title": "Experiment fixture isolation is structural via nearest-runtime discovery",
+    "topics": ["testing", "seed-core", "functionality-audit"],
+    "decision": "Experimental fixtures achieve isolation through structural design via nearest-runtime discovery. Each generated fixture is a standalone git repository with its own `.memory-seed/` runtime. Fixture runtimes are throwaway sub-project runtimes deliberately not individually registered in the parent index.",
+    "why": "Isolation is structural and was proven at build time: a fixture write left the parent corpus counts unchanged. Nearest-runtime discovery provides automatic, predictable fixture isolation without requiring manual registration or explicit isolation machinery.",
+    "evolution": "Founded from the control file; outlined in the agent-capture experiment specification. Session decision mse_vaz9d3h7x4bcmd1t:d1 (2026-08-04) narrowed isolation assertion to the parent session store specifically, refining the validation claim while preserving structural isolation.",
+    "source_quote": "Isolation is structural (nearest-runtime discovery) and was proven at build time: a fixture write left the parent corpus counts unchanged.",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [
+      {
+        "ref": "mse_vaz9d3h7x4bcmd1t:d1",
+        "quote": "Assert isolation on the store alone; report working-tree dirtiness as informational"
+      }
+    ],
+    "constitution_refs": [
+      {"ref": "constitution:v1#authority", "role": "governing"},
+      {"ref": "constitution:v1#prove-automation", "role": "supporting"}
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_markdown_substrate",
+    "title": "Plain-Markdown core for file-reading agents",
+    "topics": ["documentation", "seed-core", "control-plane"],
+    "decision": "The memory core is kept as plain Markdown and predictable for file-reading agents. All critical control-plane files, session logs, and decision records are encoded in readable, human-editable Markdown rather than binary or structured formats.",
+    "why": "Plain Markdown preserves local ownership, direct human editing, attribution, and immutable source entries while remaining accessible to file-reading agents without special parsing libraries. This enables append-only discipline and supports both human review and automated agent access.",
+    "evolution": "Control-plane behavioral constraint. Session decision mse_ddba1ztxqhasfbwf:d1 (2026-07-16) ratified partitioned Markdown authority with an append-only ADR sidecar, formalizing that original entries and decision updates own rationale/evidence while derived artifacts (registries, indexes, databases) remain secondary.",
+    "source_quote": "Keep the memory core plain Markdown and predictable for file-reading agents.",
+    "source_file": ".memory-seed/policy.md",
+    "supporting": [
+      {
+        "ref": "mse_ddba1ztxqhasfbwf:d1",
+        "quote": "Partition Markdown authority by concern"
+      }
+    ],
+    "constitution_refs": [
+      {"ref": "constitution:v1#markdown-authority", "role": "governing"},
+      {"ref": "constitution:v1#evidence-first", "role": "supporting"}
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_legacy_agents_compat",
+    "title": "Legacy .AGENTS/ compatibility retained until intentional removal",
+    "topics": ["control-plane", "agent-collaboration", "memory-repair"],
+    "decision": "Legacy `.AGENTS/` projects continue to be supported in code. Compatibility is preserved unless intentionally removed through an explicit deprecation process, ensuring that existing projects remain functional across version updates.",
+    "why": "Removing legacy support silently breaks existing projects. Backward compatibility ensures smooth adoption and gives projects clear signal when a legacy feature is being retired. Ours-only deletion logic (only removing entries we authored, not foreign customizations) protects user investments.",
+    "evolution": "Founded from the control file; control-plane policy ratified 2.3.0+. Session decision ms-6a09aea8:d2 (2026-06-03) implemented the specific legacy compatibility mechanism: stripping the obsolete `mcpServers` block from `.claude/settings.json` only when Memory Seed authored the entry.",
+    "source_quote": "Preserve compatibility for legacy `.AGENTS/` projects in code unless intentionally removing a legacy path.",
+    "source_file": ".memory-seed/policy.md",
+    "supporting": [
+      {
+        "ref": "ms-6a09aea8:d2",
+        "quote": "Strip the legacy settings.json block on init/update, ours-only"
+      }
+    ],
+    "constitution_refs": [
+      {"ref": "constitution:v1#ownership", "role": "governing"}
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_worktree_convention",
+    "title": "Worktree=session, branch=task, agent-namespaced branch names",
+    "topics": ["git-workflow", "agent-collaboration", "continuity"],
+    "decision": "Worktree hygiene follows a strict naming and lifecycle convention: one worktree per session, one branch per task or feature. New branches follow the pattern `<agent>/<kind>/<topic>` to encode agent identity, work kind (fix, feature, docs, etc.), and topic area.",
+    "why": "This convention ensures clear traceability between Git artifacts, session scope, and agent work. Agent-namespaced branches prevent collisions in shared environments and make it easy to identify which agent or session created which branch. Single worktree per session simplifies cleanup and lifecycle management.",
+    "evolution": "Founded from the control file; no session lineage attached yet.",
+    "source_quote": "The worktree hygiene plan uses worktree=session, branch=task, and `<agent>/<kind>/<topic>` for new branches.",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [],
+    "constitution_refs": [
+      {"ref": "constitution:v1#integration-mode", "role": "governing"}
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_topic_vocabulary",
+    "title": "Controlled topic vocabulary with axis hierarchy and seed/live parity",
+    "topics": ["topic-vocabulary", "governance-profile", "schema"],
+    "decision": "`topics:` is a first-class entry field resolved against the project-local `.memory-seed/topics.yaml` registry, which implements a two-axis hierarchical vocabulary. The starter vocabulary shipped with Memory Seed is domain-neutral and flat, carrying two axes: areas and activities. Authored topics rank in a declared precedence order with sidecar and inferred topics.",
+    "why": "A controlled vocabulary ensures consistent topic use across the corpus and enables coherent navigation and filtering. Two axes (area and activity) remain orthogonal and domain-neutral, supporting software projects, legal matters, research, and other domains. Flat starter vocabulary respects the principle that depth is earned through concentration.",
+    "evolution": "Implemented 2026-07-15; redesigned into two-axis hierarchy 2026-07-26/27. Session decision mse_zhf4a0fsgwh47c9j:d1 (2026-07-26) shipped the neutral starter vocabulary, replacing a software-centric starter that had no area axis at all.",
+    "source_quote": "Indexed topics (completed 2026-07-15; **redesigned into a two-axis hierarchy 2026-07-26/27**): `topics:` is a first-class entry field resolved against the deploy-once project-local `.memory-seed/topics.yaml`",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [
+      {
+        "ref": "mse_zhf4a0fsgwh47c9j:d1",
+        "quote": "Ship one flat, two-axis, domain-neutral starter vocabulary"
+      }
+    ],
+    "constitution_refs": [
+      {"ref": "constitution:v1#topic-vocabulary", "role": "governing"},
+      {"ref": "constitution:v1#metadata-curation", "role": "supporting"}
+    ],
+    "binding_note": "",
+    "skip": ""
+  }
+]

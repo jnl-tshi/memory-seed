@@ -1,0 +1,183 @@
+[
+ {
+  "adr_id": "adr_merge_branch_primitive",
+  "title": "session merge-branch is the one-step integration primitive, not a git merge driver",
+  "sources": [
+   ".memory-seed/index.md#L172"
+  ],
+  "binding": "write-surface-parity",
+  "candidate_refs": [
+   {
+    "ref": "mse_dr5eprnhrctqeeg3:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_9c151e4gbkkv1w5v:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_dr5eprnhrctqeeg3:d2",
+    "title": ""
+   },
+   {
+    "ref": "mse_vzsef0fmpsde2jh4:d2",
+    "title": ""
+   },
+   {
+    "ref": "mse_znfnyxssvhz5srz9:d1",
+    "title": ""
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_forward_only_edges",
+  "title": "Forward-only authoring with read-time bidirectional traversal",
+  "sources": [
+   ".memory-seed/index.md#L174"
+  ],
+  "binding": "append-only",
+  "candidate_refs": [
+   {
+    "ref": "mse_dvzh6fkn4d98cd6y:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_vzsef0fmpsde2jh4:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_jg33a730vpr4085a:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_a7zs346tqznzpexn:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_w5nfex8b4bdmn438:d1",
+    "title": ""
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_semantic_provider",
+  "title": "Model2Vec default provider; silent lexical degrade; model2vec the only required dep",
+  "sources": [
+   ".memory-seed/index.md#L85",
+   ".memory-seed/index.md#L139"
+  ],
+  "binding": "model-independence",
+  "candidate_refs": [
+   {
+    "ref": "mse_trt2tdzxw9jx6h2a:d2",
+    "title": ""
+   },
+   {
+    "ref": "mse_9r00krq403dsmdnq:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_9r00krq403dsmdnq:d2",
+    "title": ""
+   },
+   {
+    "ref": "mse_xfbcr3n4vet62hmh:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_nf7re4qekngvnnbx:d1",
+    "title": ""
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_foreign_file_routing",
+  "title": "Non-destructive routing into foreign entry-point files",
+  "sources": [
+   ".memory-seed/index.md#L146"
+  ],
+  "binding": "ownership",
+  "candidate_refs": [
+   {
+    "ref": "ms-7c2f1d90:d1",
+    "title": ""
+   },
+   {
+    "ref": "ms-demo-root-summary:d2",
+    "title": ""
+   },
+   {
+    "ref": "mse_m0xs623m4cs0kjag:d1",
+    "title": ""
+   },
+   {
+    "ref": "ms-1bcfcc91:d3",
+    "title": ""
+   },
+   {
+    "ref": "mse_3d80z4k6hb4rftq1:d1",
+    "title": ""
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_agent_selective_install",
+  "title": "Agent-selective install driven by project.yaml; remove strips only our entries",
+  "sources": [
+   ".memory-seed/index.md#L199"
+  ],
+  "binding": "ownership",
+  "candidate_refs": [
+   {
+    "ref": "ms-1bcfcc91:d3",
+    "title": ""
+   },
+   {
+    "ref": "ms-1bcfcc91:d1",
+    "title": ""
+   },
+   {
+    "ref": "ms-1bcfcc91:d2",
+    "title": ""
+   },
+   {
+    "ref": "ms-1bcfcc91:d4",
+    "title": ""
+   },
+   {
+    "ref": "mse_vzsef0fmpsde2jh4:d1",
+    "title": ""
+   }
+  ]
+ },
+ {
+  "adr_id": "adr_trace_boundary",
+  "title": "Trace ships as memory-seed[trace]; core carries no web framework",
+  "sources": [
+   ".memory-seed/index.md#L101"
+  ],
+  "binding": "open-core",
+  "candidate_refs": [
+   {
+    "ref": "mse_fcecj9hpq4qj16ay:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_mq6rwk820ykmap5c:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_kq3ba0cy9nkpqkm0:d2",
+    "title": ""
+   },
+   {
+    "ref": "mse_ztcsrx4hw0b6kxdv:d1",
+    "title": ""
+   },
+   {
+    "ref": "mse_v26pem9hsvsbjbge:d1",
+    "title": ""
+   }
+  ]
+ }
+]

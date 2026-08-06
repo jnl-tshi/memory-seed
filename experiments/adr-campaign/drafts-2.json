@@ -1,0 +1,203 @@
+[
+  {
+    "adr_id": "adr_agent_config_merge",
+    "title": "Agent-config JSON/TOML merge, never seed-copy",
+    "topics": ["cli", "control-plane", "process-correction"],
+    "decision": "Handle agent config files as JSON/TOML merge targets during init/update, preserving existing project configuration rather than overwriting.",
+    "why": "Most projects already have .claude/settings.json with permissions, model, and other settings. Using seed-file copy would fail on existing projects or silently wipe their configuration.",
+    "evolution": "Founded May 2026 (ms-56fdf2ad); merge pattern established in core.py _merge_claude_hook and _merge_codex_hook functions.",
+    "source_quote": "`.claude/settings.json` and `.codex/hooks.json` are handled as JSON merge targets during init/update — not seed file copies — so existing agent config is preserved.",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [
+      {
+        "ref": "ms-56fdf2ad:d1",
+        "quote": "Handle `.claude/settings.json` as a JSON merge rather than a seed file copy."
+      }
+    ],
+    "constitution_refs": [
+      {
+        "ref": "constitution:v1#single-source",
+        "role": "governing"
+      }
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_agent_selective_install",
+    "title": "Agent-selective install driven by project.yaml; remove strips only our entries",
+    "topics": ["cli", "control-plane", "ownership"],
+    "decision": "Memory Seed init installs only chosen agents' files per project.yaml; when removing an agent, strip only Memory Seed entries to preserve foreign configuration in shared directories.",
+    "why": "Agents may share configuration files like .github/mcp.json. Safe removal preserves existing project configuration and respects agent coexistence in the same workspace.",
+    "evolution": "Implemented in 2.6.0 (2026-06-13, ms-1bcfcc91); evolved through 2.14.0 with refined UX and participant-count gating.",
+    "source_quote": "Agent-selective install driven by project.yaml; remove strips only our entries",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [
+      {
+        "ref": "ms-1bcfcc91:d1",
+        "quote": "init installs only the chosen agents' files; the set is persisted in `.memory-seed/project.yaml`"
+      }
+    ],
+    "constitution_refs": [
+      {
+        "ref": "constitution:v1#ownership",
+        "role": "governing"
+      }
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_archive_before_replace",
+    "title": "Archive control-plane snapshots before replacing versioned artifacts",
+    "topics": ["control-plane", "release", "process-management"],
+    "decision": "Archive prior control-plane snapshots under .memory-seed/archive/<version>/ before replacing reusable versioned artifacts.",
+    "why": "Preserves audit trail of control-plane evolution and enables recovery if a replacement is found to be incorrect or incomplete.",
+    "evolution": "Founded from the control file; no session lineage attached yet.",
+    "source_quote": "Archive prior control-plane snapshots under `.memory-seed/archive/<version>/` before replacing reusable versioned artifacts.",
+    "source_file": ".memory-seed/policy.md",
+    "supporting": [],
+    "constitution_refs": [
+      {
+        "ref": "constitution:v1#append-only",
+        "role": "governing"
+      }
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_release_topology",
+    "title": "Publish via GitHub Release with manual PyPI gate",
+    "topics": ["release", "release-packaging", "git-publishing"],
+    "decision": "Publishing is triggered by GitHub Release creation, which activates the publish.yml workflow. The pypi environment has a manual-approval gate that a reviewer must approve before the PyPI push executes.",
+    "why": "GitHub Release creation produces labeled versions in the Actions UI. Manual approval gate ensures human review before the irreversible PyPI deployment and catches any unintended releases.",
+    "evolution": "Founded May 2026 (ms-1e38c75c); established as core release policy with multiple releases following the pattern.",
+    "source_quote": "Publishing should be triggered by GitHub Release creation, not direct workflow dispatch.",
+    "source_file": ".memory-seed/policy.md",
+    "supporting": [
+      {
+        "ref": "ms-1e38c75c:d1",
+        "quote": "always publish via GitHub Release (`gh release create`), not `gh workflow run`, so the Actions UI shows a labelled version."
+      }
+    ],
+    "constitution_refs": [
+      {
+        "ref": "constitution:v1#prove-automation",
+        "role": "governing"
+      }
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_trace_boundary",
+    "title": "Trace ships as memory-seed[trace]; core carries no web framework",
+    "topics": ["release-packaging", "open-core", "package"],
+    "decision": "Memory Trace (Trace UI source and command) ships as an optional extra under memory-seed[trace] install path rather than a separate PyPI project. Plain memory-seed must continue to ship no web framework.",
+    "why": "Simplifies release coordination and packaging strategy; maintains core lightweight, local-first, and importable without web dependencies.",
+    "evolution": "Evolved from separate memory-trace project (2026-07-12); folded into root memory-seed[trace] extra to align with commercial packaging and reduce distribution complexity.",
+    "source_quote": "The release strategy now folds Trace into the root `memory-seed[trace]` install path rather than a separate PyPI project; plain `memory-seed` must still ship no web framework",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [],
+    "constitution_refs": [
+      {
+        "ref": "constitution:v1#open-core",
+        "role": "governing"
+      }
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_trace_incremental_startup",
+    "title": "Trace startup incremental; immutable git derivations persist",
+    "topics": ["memory-trace", "performance", "seed-core"],
+    "decision": "Memory Trace startup is incremental: immutable git derivations (fork points, commit parents, changed paths) persist across rebuilds, reconciliation is incremental, and file-entry index is lazy.",
+    "why": "Incremental startup drastically improves performance. Warm start reduced from 44.25s to ~308ms; persisted derivations and lazy indexing enable efficient rebuilds and reconciliation.",
+    "evolution": "Implemented 2026-07-21 (mse_42e8zzd7); completed the derived-projection plan's final deferred piece.",
+    "source_quote": "Memory Trace startup is incremental as of 2026-07-21: immutable git derivations (fork points, commit parents, changed paths) persist across rebuilds, reconciliation is incremental, and the file-entry index is lazy.",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [
+      {
+        "ref": "mse_42e8zzd7:d1",
+        "quote": "Persist immutable git derivations per sha; bulk-read history in single passes"
+      }
+    ],
+    "constitution_refs": [
+      {
+        "ref": "constitution:v1#markdown-authority",
+        "role": "governing"
+      }
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_trail_derived_lanes",
+    "title": "Trail derives display lanes without authored graph edges",
+    "topics": ["memory-trace", "trail", "graph"],
+    "decision": "Trail generates continuity lanes derived from lifecycle edges without requiring or adding authored graph edges.",
+    "why": "Reduces manual edge annotation burden; derived lanes stay synchronized with true causality and evolution chain topology without user needing to draw additional edges.",
+    "evolution": "Shipped in Wave 1 (2026-07-15) as part of Trace continuity features; plan documented in docs/5_Completed/evolution-edges-plan.md.",
+    "source_quote": "Trail derives display lanes without adding authored graph edges.",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [],
+    "constitution_refs": [
+      {
+        "ref": "constitution:v1#markdown-authority",
+        "role": "governing"
+      }
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_community_detection_rejected",
+    "title": "Topology-community detection measured and rejected",
+    "topics": ["memory-trace", "graph", "design-evaluation"],
+    "decision": "Reject topology-community detection for graph layout based on corpus-density measurement. The feature does not gate B0b acceptance.",
+    "why": "Measured corpus density and found community detection does not improve layout effectiveness for this corpus. Alternative force-based layout achieves the required visualization quality.",
+    "evolution": "Measured and rejected 2026-07-26 (mse_fud39yw86e7v2uy); decision recorded to document evaluation rather than defer the feature.",
+    "source_quote": "Topology-community detection was measured and closed 2026-07-26 (rejected, not deferred)",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [
+      {
+        "ref": "mse_fud39yw86e7v2uy:d1",
+        "quote": "Topology-community detection was measured and closed"
+      }
+    ],
+    "constitution_refs": [
+      {
+        "ref": "constitution:v1#evidence-first",
+        "role": "governing"
+      }
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_encoding_policy",
+    "title": "Encoding policy owned by Seed, never duplicated in Trace",
+    "topics": ["control-plane", "windows-encoding", "seed-core"],
+    "decision": "Encoding policy (UTF-8, LF, NFC normalization) is owned and enforced by Memory Seed core, never duplicated in Memory Trace.",
+    "why": "Memory Trace depends on the core package. One owner keeps UTF-8/LF/NFC policy, exclusions, and backup behavior consistent across the system.",
+    "evolution": "Established 2026-07-08 (mse_ejpbz4qqsbdx0hvc); encoding hardening P0 completed with explicit check/repair tooling in Seed.",
+    "source_quote": "Encoding policy stays owned by Memory Seed rather than being duplicated in Memory Trace, and `doctor` provides a non-fatal summary.",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [
+      {
+        "ref": "mse_ejpbz4qqsbdx0hvc:d1",
+        "quote": "Keep encoding policy in Memory Seed and add explicit check/repair tooling"
+      }
+    ],
+    "constitution_refs": [
+      {
+        "ref": "constitution:v1#single-source",
+        "role": "governing"
+      }
+    ],
+    "binding_note": "",
+    "skip": ""
+  }
+]

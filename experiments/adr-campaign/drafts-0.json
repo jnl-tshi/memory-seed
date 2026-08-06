@@ -1,0 +1,155 @@
+[
+  {
+    "adr_id": "adr_runtime_discovery",
+    "title": "Runtime discovery walks to the nearest .memory-seed",
+    "topics": ["control-plane", "agent-rules"],
+    "decision": "Runtime discovery uses nearest-ancestor `.memory-seed/` directory, walking upward from current working directory to find the active runtime.",
+    "why": "Canonical runtime location enables portable memory systems and supports nested sub-project runtimes with automatic scoping.",
+    "evolution": "Founded from the control file; no session lineage attached yet.",
+    "source_quote": "Runtime discovery walks upward from `cwd` and uses the nearest `.memory-seed/`.",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [],
+    "constitution_refs": [
+      {"ref": "constitution:v1#authority", "role": "governing"}
+    ],
+    "binding_note": ""
+  },
+  {
+    "adr_id": "adr_control_file_authority",
+    "title": "Control-file authority partition (index/policy/skills/sessions)",
+    "topics": ["control-plane", "authority"],
+    "decision": "Authority for project topology, active state, and behavioral constraints is partitioned across four files: `index.md` (state and topology), `policy.md` (constraints), `skills/` (execution runbooks), and `sessions/` (chronological history).",
+    "why": "Separation of concerns makes each file discoverable and maintainable. `index.md` combines topology and priorities; `policy.md` contains constraints only; routing files expose the runtime to agents.",
+    "evolution": "Founded from the control file; no session lineage attached yet.",
+    "source_quote": "`index.md` combines topology, active state, durable project context, current priorities, workflows, risks, inheritance, and skill activation.",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [
+      {
+        "ref": ".memory-seed/policy.md#L49",
+        "quote": "`AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` route tools into the shared runtime."
+      }
+    ],
+    "constitution_refs": [
+      {"ref": "constitution:v1#authority", "role": "governing"}
+    ],
+    "binding_note": ""
+  },
+  {
+    "adr_id": "adr_subproject_scoping",
+    "title": "Sub-project runtime scoping and inheritance defaults",
+    "topics": ["control-plane", "authority"],
+    "decision": "Sub-projects are normal folders with their own `.memory-seed/` directory that is not nested inside the root. Policy is inherited by default; skills inherit by default unless overridden locally.",
+    "why": "Nearest-runtime discovery scopes work under each `.memory-seed/`, and inheritance defaults reduce duplication while allowing local customization.",
+    "evolution": "Founded from the control file; no session lineage attached yet.",
+    "source_quote": "Sub-projects live as normal folders with their own `.memory-seed/`; they are not nested inside the root `.memory-seed/`.",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [
+      {
+        "ref": ".memory-seed/policy.md#L78",
+        "quote": "A nested `.memory-seed/` runtime scopes work under its containing folder."
+      }
+    ],
+    "constitution_refs": [
+      {"ref": "constitution:v1#authority", "role": "governing"}
+    ],
+    "binding_note": ""
+  },
+  {
+    "adr_id": "adr_edge_kinds",
+    "title": "Four never-merged edge kinds, forward-only and acyclic",
+    "topics": ["lifecycle-edges", "graph"],
+    "decision": "Lifecycle edges comprise four never-merged kinds: `replaces`, `evolves`, `related_entries`, and `evolved_by` (inverse). Edges are forward-only and acyclic by contract.",
+    "why": "Four independent relationship claims deserve distinct semantic labels. Forward-only and acyclic structure ensures the edge graph is append-only and prevents cycles in artifact lineage.",
+    "evolution": "Founded from the control file; no session lineage attached yet.",
+    "source_quote": "Evolution edges and artifact lineage (core shipped in 2.18.0; Trace continuity completed 2026-07-15): typed `evolves:` plus read-time `evolved_by`, inverse-field and continuity validation",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [],
+    "constitution_refs": [
+      {"ref": "constitution:v1#edge-kinds", "role": "governing"}
+    ],
+    "binding_note": ""
+  },
+  {
+    "adr_id": "adr_link_retraction",
+    "title": "Append-only link retraction via retracts: blocks",
+    "topics": ["lifecycle-edges", "append-only"],
+    "decision": "A published lifecycle edge is downgraded or removed through a new `retracts:` block appended to the same sidecar file, never by editing the published block in place. A downgrade is a retract of the old kind plus a fresh edge of the new kind.",
+    "why": "Append-only architecture forbids in-place edits to published history. Retraction blocks provide an explicit, auditable correction mechanism that preserves the original edge and the correction.",
+    "evolution": "Founded from the control file; no session lineage attached yet.",
+    "source_quote": "Append-only link retraction (current unreleased worktree, 2026-07-25): a published lifecycle edge is downgraded or removed via a NEW `retracts: <kind> <ref>` block",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [
+      {
+        "ref": ".memory-seed/policy.md#L43",
+        "quote": "Correct a published lifecycle edge (downgrade or remove) through an append-only `retracts:` block in a NEW sidecar block"
+      }
+    ],
+    "constitution_refs": [
+      {"ref": "constitution:v1#link-corrections", "role": "governing"},
+      {"ref": "constitution:v1#append-only", "role": "supporting"}
+    ],
+    "binding_note": ""
+  },
+  {
+    "adr_id": "adr_edge_confidence",
+    "title": "edge_confidence on machine-suggested edges; consumers fade low tiers",
+    "topics": ["lifecycle-edges", "retrieval"],
+    "decision": "Machine-suggested lifecycle edges carry a structured `edge_confidence` field with confidence tier (`low`, `review`, `high`). Consumers fade low-confidence edges by opacity; the graph offers a threshold filter.",
+    "why": "Distinguishing authored edges from machine-suggested ones with confidence tiers makes the provenance transparent and lets readers see which relationships require human verification.",
+    "evolution": "Founded from the control file; no session lineage attached yet.",
+    "source_quote": "Lifecycle-link judgment swarm + confidence (current unreleased worktree, 2026-07-25): the `link_swarm` skill drives an optional, network-using fan-out of small models that judge edges; stored edges carry a structured **`edge_confidence`** field",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [],
+    "constitution_refs": [
+      {"ref": "constitution:v1#provenance", "role": "governing"}
+    ],
+    "binding_note": ""
+  },
+  {
+    "adr_id": "adr_topic_authority",
+    "title": "Topic sidecar is the topic authority (sidecar > authored > hashtag)",
+    "topics": ["topic-vocabulary", "metadata-curation"],
+    "decision": "Topics are resolved in precedence order: topic sidecar (authoritative), authored entry-level topics, then hashtags (fallback). Sidecar is the source of truth for decision-level topic attribution.",
+    "why": "A dedicated sidecar family for decision-level topics enables fine-grained topic attribution and provides a clean, explicit override point for curation.",
+    "evolution": "Founded from the control file; no session lineage attached yet.",
+    "source_quote": "**The topic sidecar is now the topic authority, not a derived overlay**: a fourth sidecar family declares `area:`/`activity:` per DECISION, and `_topics()` reads sidecar → authored → hashtag in that precedence",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [],
+    "constitution_refs": [
+      {"ref": "constitution:v1#single-source", "role": "governing"},
+      {"ref": "constitution:v1#provenance", "role": "supporting"}
+    ],
+    "binding_note": ""
+  },
+  {
+    "adr_id": "adr_derived_precedence",
+    "title": "Derived never implicitly overrides write-time",
+    "topics": ["provenance", "metadata-curation"],
+    "decision": "A `derived` sidecar block may never implicitly override a `write-time` block on recency alone; it may only fill a gap. Explicit override requires a human-reviewed `retracts:` naming the block it supersedes.",
+    "why": "Protecting authored intent against silent machine override preserves the authority of human judgment. Explicit retraction keeps every correction auditable.",
+    "evolution": "Founded from the control file; no session lineage attached yet.",
+    "source_quote": "General precedence rule across sidecar families (Constitution v1.6, 2026-07-26): a `derived` block may never *implicitly* override a `write-time` block on recency alone — it may only fill a gap.",
+    "source_file": ".memory-seed/policy.md",
+    "supporting": [],
+    "constitution_refs": [
+      {"ref": "constitution:v1#provenance", "role": "governing"},
+      {"ref": "constitution:v1#evidence-first", "role": "supporting"}
+    ],
+    "binding_note": ""
+  },
+  {
+    "adr_id": "adr_topic_backfill_rejected",
+    "title": "Scored topic auto-backfill rejected; curated-evidence premise adopted",
+    "topics": ["topic-vocabulary", "decision-harvest"],
+    "decision": "Automated topic backfill with scoring gates is rejected. Manual, curated attribution is adopted: one worker per batch judges all decision units and writes final topic assignments without automated scoring.",
+    "why": "Two pilot runs scored macro-recall at 58.3% and 61.3% against a 0.70 gate, falling short. The curated-evidence premise succeeded: a human worker with swarm output as evidence judged 1,030 units and wrote 2,013 attributions (95% carrying both axes).",
+    "evolution": "Founded from the control file; no session lineage attached yet.",
+    "source_quote": "Decision-level topic judgment swarm — **the scored auto-backfill was piloted twice and explicitly ABORTED (2026-07-26)**: two pilot runs scored macro-recall 0.583 and 0.613 against a 0.70 gate",
+    "source_file": ".memory-seed/index.md",
+    "supporting": [],
+    "constitution_refs": [
+      {"ref": "constitution:v1#prove-automation", "role": "governing"}
+    ],
+    "binding_note": "Status: rejected. Scored automation was empirically measured and fell short of the gate; curated-evidence pathway succeeded instead."
+  }
+]

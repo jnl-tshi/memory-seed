@@ -1,12 +1,23 @@
 """Phase-4 mechanical validation of swarm ADR drafts. Drop-never-repair.
 
-Every check drops the whole concern on failure and logs why. Nothing is repaired: a repaired
-verdict is the orchestrator's judgement wearing the swarm's provenance. Quote grounding is the
-hallucination guard that survived every prior campaign - a claim whose quote is not a verbatim
-(whitespace-normalised) substring of the cited file is treated as ungrounded, whatever it says.
+Quote grounding is the hallucination guard that survived every prior campaign - a claim whose
+quote is not a verbatim (whitespace-normalised) substring of the cited file is ungrounded,
+whatever it says. Nothing is repaired: a repaired verdict is the orchestrator's judgement wearing
+the swarm's provenance.
+
+Two deliberate refinements over a flat drop-everything rule, both recorded rather than silent:
+
+1. The unit of judgement is (concern, claim), not the whole worker payload. Each ADR has ONE core
+   claim - grounded by `source_quote`, mandatory - plus 0-3 optional ATTACHMENTS (session decision
+   refs). An ungrounded attachment is dropped and logged; the ADR survives on its own grounded
+   evidence. An ungrounded core drops the ADR. This mirrors the link campaign, which dropped
+   ungrounded edges individually rather than voiding a worker's whole batch.
+2. `source_file` carrying a `#L<n>` fragment is NOTATION, not substance - the fragment is stripped
+   and the bare path must still be an assigned source. Precedent: the link campaign normalised 117
+   redundant ordinals to bare rather than dropping them. Counted and reported.
 
 Usage:
-  python experiments/adr-campaign/validate_drafts.py drafts-*.json
+  python experiments/adr-campaign/validate_drafts.py
 """
 
 from __future__ import annotations
@@ -49,7 +60,7 @@ def main() -> int:
         c.chunk_id: norm(c.text or "") for c in load_corpus(REPO, "decision") if c.chunk_id
     }
 
-    survivors, drops = [], []
+    survivors, drops, attachment_drops, normalised = [], [], [], []
     seen_ids = set()
     for path in sorted(HERE.glob("drafts-*.json")):
         for item in json.loads(path.read_text(encoding="utf-8")):
@@ -76,7 +87,11 @@ def main() -> int:
             if not item.get("decision", "").strip() or not item.get("why", "").strip():
                 drop("empty decision or why")
                 continue
-            source_file = item.get("source_file", "")
+            raw_source_file = item.get("source_file", "")
+            source_file = raw_source_file.split("#")[0]
+            if source_file != raw_source_file:
+                normalised.append({"adr_id": adr_id, "from": raw_source_file, "to": source_file})
+            item["source_file"] = source_file
             quote = item.get("source_quote", "")
             allowed_files = {s.split("#")[0] for s in assigned[adr_id]["sources"]}
             if source_file not in allowed_files:
@@ -90,14 +105,18 @@ def main() -> int:
             if len(quote) < 25 or norm(quote) not in body:
                 drop("source_quote not grounded in source file")
                 continue
+            # Attachments are judged one at a time (see module docstring): a bad attachment is
+            # dropped and logged; it never voids an otherwise-grounded ADR.
             good_support = []
-            support_ok = True
             for support in item.get("supporting", [])[:3]:
                 ref, squote = support.get("ref", ""), support.get("quote", "")
+
+                def drop_attachment(reason: str) -> None:
+                    attachment_drops.append({"adr_id": adr_id, "ref": ref, "reason": reason})
+
                 if not DECISION_REF_RE.fullmatch(ref):
-                    support_ok = False
-                    drop(f"supporting ref malformed: {ref}")
-                    break
+                    drop_attachment("ref is not <entry_id>:dN")
+                    continue
                 sbody = decision_bodies.get(ref)
                 if sbody is None:
                     try:
@@ -105,22 +124,18 @@ def main() -> int:
                     except Exception:
                         sbody = None
                 if not sbody:
-                    support_ok = False
-                    drop(f"supporting ref unresolvable: {ref}")
-                    break
+                    drop_attachment("ref does not resolve in the session corpus")
+                    continue
                 if len(squote) < 25 or norm(squote) not in sbody:
-                    support_ok = False
-                    drop(f"supporting quote not grounded in {ref}")
-                    break
+                    drop_attachment("quote not grounded in the cited decision")
+                    continue
                 if ref in claimed:
-                    # A decision may legitimately belong to two ADRs, but a swarm draft claiming an
-                    # already-claimed decision is a collision risk - flag by dropping to review.
-                    support_ok = False
-                    drop(f"supporting ref already in an existing ADR's membership: {ref}")
-                    break
+                    # A decision may legitimately belong to two ADRs, but a swarm draft claiming a
+                    # decision an existing ADR already owns is a collision the human gate should
+                    # see, not something to write silently.
+                    drop_attachment("decision already claimed by an existing ADR")
+                    continue
                 good_support.append({"ref": ref, "quote": squote})
-            if not support_ok:
-                continue
             topics = [t for t in item.get("topics", [])[:3]]
             if any(t not in canonical for t in topics):
                 drop(f"non-canonical topic among {topics}")
@@ -138,10 +153,19 @@ def main() -> int:
             item["_assigned"] = assigned[adr_id]
             survivors.append(item)
 
-    (HERE / "validated.json").write_text(json.dumps({"survivors": survivors, "drops": drops}, indent=1), encoding="utf-8")
-    print(f"survivors: {len(survivors)}  drops: {len(drops)}")
+    report = {
+        "survivors": survivors, "drops": drops,
+        "attachment_drops": attachment_drops, "normalised_source_files": normalised,
+    }
+    (HERE / "validated.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
+    attached = sum(len(s["supporting"]) for s in survivors)
+    print(f"survivors: {len(survivors)}  ADR drops: {len(drops)}")
+    print(f"attachments kept: {attached}  attachment drops: {len(attachment_drops)}")
+    print(f"source_file fragments normalised: {len(normalised)}")
     for d in drops:
-        print(f"  DROP {d['adr_id']:<36} {d['reason'][:80]}")
+        print(f"  DROP-ADR        {d['adr_id']:<34} {d['reason'][:70]}")
+    for d in attachment_drops:
+        print(f"  DROP-ATTACHMENT {d['adr_id']:<34} {d['ref'][:28]:<30} {d['reason'][:44]}")
     return 0
 
 

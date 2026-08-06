@@ -1,0 +1,166 @@
+[
+  {
+    "adr_id": "adr_session_layout",
+    "title": "Month-grouped session layout; per-user gated on 2+ participants",
+    "topics": ["session-logging", "multi-user-sessions"],
+    "decision": "Session document discovery uses iter_session_documents() to read legacy flat session files (sessions/YYYY-MM-DD.md), new month-grouped flat files (sessions/YYYY-MM/YYYY-MM-DD.md), and new month-grouped per-user files (sessions/YYYY-MM/YYYY-MM-DD/<user>.md). Per-user layout activates only when 2+ participants are registered.",
+    "why": "Month grouping organizes session history by calendar period for better discoverability; per-user gating prevents fragmentation for single-user projects while supporting team workflows when participants are declared.",
+    "evolution": "Founded from the control file; no session lineage attached yet.",
+    "source_quote": "Session document discovery: package readers use `iter_session_documents()` in `core.py` to read legacy flat session files (`sessions/YYYY-MM-DD.md`), legacy per-day/per-user files (`sessions/YYYY-MM-DD/<user>.md`), new month-grouped flat files (`sessions/YYYY-MM/YYYY-MM-DD.md`), and new month-grouped per-user files (`sessions/YYYY-MM/YYYY-MM-DD/<user>.md`).",
+    "source_file": ".memory-seed/index.md#L147",
+    "supporting": [
+      {
+        "ref": "mse_ed8zaf52k3eyaxqv:d1",
+        "quote": "The migration parses each legacy `sessions/YYYY-MM-DD.md` entry, maps entry `user_initials` through `.memory-seed/project.yaml` `participants:`, writes/appends to `sessions/YYYY-MM-DD/<user>.md`"
+      }
+    ],
+    "constitution_refs": [
+      {"ref": "constitution:v1#markdown-authority", "role": "governing"}
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_entry_id_scheme",
+    "title": "Deterministic 80-bit mse_ ids; legacy ms- never rewritten",
+    "topics": ["schema"],
+    "decision": "New generated session entry_id values use deterministic 80-bit mse_ IDs encoded in 16 lower-case Base32 characters. Legacy ms- IDs remain valid forever and are never rewritten.",
+    "why": "80 bits is the practical middle ground for collision risk at team scale, materially shorter than 128-bit visible IDs, and negligible collision risk for plausible Memory Seed corpora. Preserving legacy IDs maintains append-only immutability and backward compatibility.",
+    "evolution": "Evolved in mse_77cn2v0rg9na3w0v:d1 where generate_session_entry_id() was implemented to emit deterministic mse_ IDs using SHA-256 and Crockford/Base32 alphabet.",
+    "source_quote": "Entry-ID widening + MCP metadata filters (shipped 2.12.0): new generated session `entry_id` values use deterministic 80-bit `mse_` IDs while legacy `ms-` IDs remain valid and are never rewritten.",
+    "source_file": ".memory-seed/index.md#L149",
+    "supporting": [
+      {
+        "ref": "mse_a4282580:d2",
+        "quote": "New generated entry IDs are planned as `mse_` plus 80 bits encoded in 16 lower-case Base32 characters; legacy `ms-` IDs remain valid forever."
+      }
+    ],
+    "constitution_refs": [
+      {"ref": "constitution:v1#append-only", "role": "governing"}
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_draft_format",
+    "title": "DRAFT single-decision baseline; D/R mandatory; numbered decisions canonical",
+    "topics": ["session-logging", "schema"],
+    "decision": "The single-decision DRAFT record is the baseline session-entry shape. D/R (Decision/Rationale) are mandatory fields; A/F/T (Alternatives/Findings/Tests) are optional. Multi-decision entries use numbered #### Dn headings as the canonical form.",
+    "why": "A baseline structure with mandatory decision rationale ensures every memory entry captures the core reasoning. Explicit numbering makes multi-decision entries unambiguous and discoverable.",
+    "evolution": "Founded from the control file; established as baseline in 2.4.0 per the control plane history.",
+    "source_quote": "The single-decision DRAFT record is the **baseline** session-entry shape (since 2.4.0); the bare summary (simpler) and multi-decision (richer) shapes are explicit routes off it. D/R are mandatory, A/F/T optional.",
+    "source_file": ".memory-seed/index.md#L143",
+    "supporting": [],
+    "constitution_refs": [
+      {"ref": "constitution:v1#draft-format", "role": "governing"}
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_branch_session_fuse",
+    "title": "Branch-session fuse: branch-only, chronological, immutable relative to base",
+    "topics": ["git-workflow", "branch-history"],
+    "decision": "memory-seed session fuse --branch <branch> dry-runs and applies branch-local session entries and diagram sidecars. Imported entries must be branch-only, chronological, immutable relative to base, and carry `branch: <branch>` metadata.",
+    "why": "Chronological immutability relative to the base preserves append-only ordering when merging branch work. The branch metadata enables recovery and validation during structured fuse.",
+    "evolution": "Founded from the control file; implements the structural session merge capability.",
+    "source_quote": "Branch-session fuse (current unreleased worktree): `memory-seed session fuse --branch <branch>` dry-runs branch-local session entries and diagram sidecars before promotion, and `--apply` writes only during an in-progress `git merge --no-ff --no-commit <branch>`. Imported entries must be branch-only, chronological, immutable relative to base, and carry `branch: <branch>`.",
+    "source_file": ".memory-seed/index.md#L153",
+    "supporting": [],
+    "constitution_refs": [
+      {"ref": "constitution:v1#append-only", "role": "governing"}
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_merge_branch_primitive",
+    "title": "session merge-branch is the one-step integration primitive, not a git merge driver",
+    "topics": ["git-workflow", "git-publishing"],
+    "decision": "memory-seed session merge-branch --branch <branch> wraps fuse dry-run, git merge --no-ff --no-commit, session-path reset, fuse apply, staging, and merge commit into one command. It fails closed: fuse issues abort before any merge state exists; requires a clean working tree.",
+    "why": "One-step integration prevents manual skipping of fuse steps that previously led to out-of-order session entries landing via raw git line-merges. Failing closed on fuse issues ensures no corrupted merge state.",
+    "evolution": "Founded from the control file; implemented after incidents where manual fuse steps were skipped.",
+    "source_quote": "One-step branch integration (current unreleased worktree): `memory-seed session merge-branch --branch <branch> [--dry-run]` wraps fuse dry-run, `git merge --no-ff --no-commit`, session-path reset to base content, fuse apply, staging, and the merge commit into one command, added after two incidents where the manual fuse steps were skipped and raw git line-merges landed session entries out of chronological order. Fails closed: fuse issues abort before any merge state exists.",
+    "source_file": ".memory-seed/index.md#L172",
+    "supporting": [],
+    "constitution_refs": [
+      {"ref": "constitution:v1#write-surface-parity", "role": "governing"}
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_integration_mode",
+    "title": "Configurable integration_mode: local-merge vs PR",
+    "topics": ["control-plane", "git-workflow"],
+    "decision": "integration_mode is a project-local default read fail-open as local-merge, surfaced by ESR, obeyed by live+seed agent contracts, and implemented by mode-aware session integrate plus session open-pr.",
+    "why": "Different workflows require different integration strategies: local-merge for single-developer rapid iteration, PR for team review gates. Configurable mode lets projects choose without code changes.",
+    "evolution": "Founded from the control file; completed 2026-07-15 per the control plane history.",
+    "source_quote": "Configurable integration mode (completed 2026-07-15): `integration_mode: local-merge|pr` is a project-local default read fail-open as `local-merge`, surfaced by ESR, obeyed by live+seed agent contracts, and implemented by mode-aware `session integrate` plus `session open-pr`.",
+    "source_file": ".memory-seed/index.md#L173",
+    "supporting": [],
+    "constitution_refs": [
+      {"ref": "constitution:v1#integration-mode", "role": "governing"}
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_forward_only_edges",
+    "title": "Forward-only authoring with read-time bidirectional traversal",
+    "topics": ["related-entries", "append-only"],
+    "decision": "related-entries edges are authored forward-only in source entry YAML. Bidirectional traversal happens at read time by computing inbound backlinks from all resolvable outbound refs. No historical entries are rewritten.",
+    "why": "Forward-only authoring with read-time inversion preserves append-only without ever editing a historical entry. This gives the old-to-new relationship view without breaking immutability.",
+    "evolution": "Evolved in mse_a67jnwa1048dn3wc:d1 where bidirectional read-time traversal was chosen over sidecar files, preserving Markdown as single source of truth.",
+    "source_quote": "Forward-only authoring + read-time bidirectional traversal preserves append-only; backfill between pre-existing entries and an optional `link add` writer are deferred (P2).",
+    "source_file": ".memory-seed/index.md#L174",
+    "supporting": [
+      {
+        "ref": "mse_a67jnwa1048dn3wc:d1",
+        "quote": "Settled the four open decisions (bidirectional read-time traversal of directed forward edges; backfill between pre-existing entries out of 3.0 scope)"
+      }
+    ],
+    "constitution_refs": [
+      {"ref": "constitution:v1#append-only", "role": "governing"}
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_semantic_provider",
+    "title": "Model2Vec default provider; silent lexical degrade; model2vec the only required dep",
+    "topics": ["retrieval", "model-independence"],
+    "decision": "model2vec (minishlab/potion-base-8M) is a REQUIRED dependency and the package's only one. pip install --no-deps memory-seed is the supported lightweight install. MCP memory search uses Model2Vec by default and falls back to lexical, metadata, and recency ranking if semantic scoring fails or is disabled.",
+    "why": "Model2Vec provides deterministic semantic ranking without external APIs. Silent fallback to lexical ranking tolerates provider unavailability without breaking core functionality. Single required dep keeps the core package minimal.",
+    "evolution": "Founded from the control file; reaffirmed in control plane versions 2.11 onwards.",
+    "source_quote": "`model2vec` is a REQUIRED dependency and the package's only one; `pip install --no-deps memory-seed` is the supported lightweight install without semantic ranking.",
+    "source_file": ".memory-seed/index.md#L85",
+    "supporting": [
+      {
+        "ref": "mse_kbc2mq9972ppy1vw:d1",
+        "quote": "MCP memory search uses the Model2Vec static embedding provider `model2vec:minishlab/potion-base-8M` by default and falls back to lexical, metadata, and recency ranking"
+      }
+    ],
+    "constitution_refs": [
+      {"ref": "constitution:v1#model-independence", "role": "governing"}
+    ],
+    "binding_note": "",
+    "skip": ""
+  },
+  {
+    "adr_id": "adr_foreign_file_routing",
+    "title": "Non-destructive routing into foreign entry-point files",
+    "topics": ["control-plane", "documentation"],
+    "decision": "AGENTS.md, CLAUDE.md, GEMINI.md, .github/copilot-instructions.md follow a 4-way ownership branch: greenfield writes full seed file; ours (has memory-system-version frontmatter) archive+replace version-gated; foreign with markers re-sync managed block in place; foreign without markers inject marker-delimited routing block. Foreign files are never overwritten.",
+    "why": "Sub-projects may inherit Memory Seed but own their own entry-point routing files. Non-destructive injection preserves foreign content while wiring up the seed system.",
+    "evolution": "Founded from the control file; implemented in 2.8.0 per the control plane history.",
+    "source_quote": "Non-destructive routing into foreign entry-point files (2.8.0): the four routing files follow a 4-way ownership branch: greenfield → write full seed file; ours → version-gated archive+replace; foreign with our markers → re-sync the managed block in place; foreign without markers → inject a marker-delimited routing block",
+    "source_file": ".memory-seed/index.md#L146",
+    "supporting": [],
+    "constitution_refs": [
+      {"ref": "constitution:v1#ownership", "role": "governing"}
+    ],
+    "binding_note": "",
+    "skip": ""
+  }
+]

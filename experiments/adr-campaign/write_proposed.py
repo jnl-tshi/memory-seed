@@ -34,6 +34,13 @@ def main() -> int:
     for i, item in enumerate(data["survivors"]):
         assigned = item["_assigned"]
         stamp = BASE_TS.format(m=i % 60)
+        # Found on the source the worker actually quoted, not merely the first assigned one -
+        # several concerns cite both index.md and policy.md, and the founding line must be the
+        # one the grounding quote came from.
+        founding = next(
+            (s for s in assigned["sources"] if s.split("#")[0] == item["source_file"]),
+            assigned["sources"][0],
+        )
         refs = tuple(ConstitutionRef(r["ref"], r["role"]) for r in item["constitution_refs"])
         kwargs = dict(
             adr_id=item["adr_id"], title=item["title"],
@@ -42,7 +49,7 @@ def main() -> int:
             decision=item["decision"], why=item["why"], evolution=item["evolution"],
             supporting_decisions=tuple(s["ref"] for s in item.get("supporting", [])),
             constitution_refs=refs,
-            founding_source=assigned["sources"][0],
+            founding_source=founding,
             founding_quote=item["source_quote"],
             timestamp=stamp,
         )
