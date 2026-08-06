@@ -581,7 +581,14 @@ def validate_adr(record: AdrRecord, cwd: str | Path = ".", *, pending_decisions:
             elif event.kind == "revision-accepted":
                 if event.expected_authoritative_decision != authoritative:
                     issues.append(f"{label} has stale expected_authoritative_decision")
-                if authoritative and authoritative not in ancestors(record, ref):
+                # A founding head is a PLACEHOLDER for "this concern as recorded in the control
+                # file", not a decision in the lineage graph - so no real decision can ever descend
+                # from it, and requiring descent would strand every founded ADR at its founding
+                # head forever. A real session decision naming the concern supersedes the
+                # placeholder; that convergence is the whole point of founding sources. Descent is
+                # still required between two real decisions.
+                founding_head = bool(authoritative and authoritative.startswith("founding:"))
+                if authoritative and not founding_head and authoritative not in ancestors(record, ref):
                     issues.append(f"{label} does not descend from authoritative decision {authoritative}")
                 authoritative, statuses[ref] = ref, "accepted"
             else:
