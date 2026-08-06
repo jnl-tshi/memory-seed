@@ -1,0 +1,233 @@
+{
+ "adrs": [
+  {
+   "adr_id": "adr_mcp_decision_envelope_review",
+   "title": "MCP decision envelope and mandatory ADR review",
+   "pinned": true,
+   "current_head": "mse_17d0qqh34a07qp5b:d1",
+   "members": [
+    "mse_17d0qqh34a07qp5b:d1",
+    "mse_ddeat5w29spep3qw:d1",
+    "mse_z7rfq8x5qjfbyzdc:d1"
+   ],
+   "walks": [
+    {
+     "seed": "mse_17d0qqh34a07qp5b:d1",
+     "head": "mse_17d0qqh34a07qp5b:d1",
+     "path": [],
+     "related": [],
+     "stop_reason": "no-successor"
+    },
+    {
+     "seed": "mse_ddeat5w29spep3qw:d1",
+     "head": "mse_ddeat5w29spep3qw:d1",
+     "path": [],
+     "related": [],
+     "stop_reason": "fan-out"
+    },
+    {
+     "seed": "mse_z7rfq8x5qjfbyzdc:d1",
+     "head": "mse_17d0qqh34a07qp5b:d1",
+     "path": [
+      {
+       "from": "mse_z7rfq8x5qjfbyzdc:d1",
+       "kind": "evolves",
+       "to": "mse_17d0qqh34a07qp5b:d1",
+       "confidence": null
+      }
+     ],
+     "related": [],
+     "stop_reason": "no-successor"
+    }
+   ],
+   "authored_head": "mse_17d0qqh34a07qp5b:d1",
+   "suggested_heads": [],
+   "related_refs": []
+  },
+  {
+   "adr_id": "adr_merge_branch_primitive",
+   "title": "session merge-branch is the one-step integration primitive, not a git merge driver",
+   "pinned": false,
+   "current_head": "founding:.memory-seed/index.md#L172",
+   "members": [
+    "mse_9c151e4gbkkv1w5v:d1",
+    "mse_dr5eprnhrctqeeg3:d1"
+   ],
+   "walks": [
+    {
+     "seed": "mse_9c151e4gbkkv1w5v:d1",
+     "head": "mse_9c151e4gbkkv1w5v:d1",
+     "path": [],
+     "related": [],
+     "stop_reason": "no-successor"
+    },
+    {
+     "seed": "mse_dr5eprnhrctqeeg3:d1",
+     "head": "mse_dr5eprnhrctqeeg3:d1",
+     "path": [],
+     "related": [
+      {
+       "from": "mse_dr5eprnhrctqeeg3:d1",
+       "ref": "mse_v26pem9hsvsbjbge:d3",
+       "confidence": 0.7
+      }
+     ],
+     "stop_reason": "fan-out"
+    }
+   ],
+   "authored_head": null,
+   "suggested_heads": [],
+   "related_refs": [
+    "mse_v26pem9hsvsbjbge:d3"
+   ]
+  },
+  {
+   "adr_id": "adr_parent_first_sidecar_transaction",
+   "title": "Parent-first recoverable sidecar transaction",
+   "pinned": true,
+   "current_head": "mse_17d0qqh34a07qp5b:d2",
+   "members": [
+    "mse_17d0qqh34a07qp5b:d2",
+    "mse_d06t9bccm3yykfqs:d1",
+    "mse_qbp1ndbnhezj34eb:d1"
+   ],
+   "walks": [
+    {
+     "seed": "mse_17d0qqh34a07qp5b:d2",
+     "head": "mse_17d0qqh34a07qp5b:d2",
+     "path": [],
+     "related": [],
+     "stop_reason": "no-successor"
+    },
+    {
+     "seed": "mse_d06t9bccm3yykfqs:d1",
+     "head": "mse_17d0qqh34a07qp5b:d2",
+     "path": [
+      {
+       "from": "mse_d06t9bccm3yykfqs:d1",
+       "kind": "evolves",
+       "to": "mse_17d0qqh34a07qp5b:d2",
+       "confidence": null
+      }
+     ],
+     "related": [
+      {
+       "from": "mse_d06t9bccm3yykfqs:d1",
+       "ref": "mse_ypmrtzfmw4qwtbnn:d1",
+       "confidence": null
+      },
+      {
+       "from": "mse_d06t9bccm3yykfqs:d1",
+       "ref": "mse_ypmrtzfmw4qwtbnn:d2",
+       "confidence": null
+      }
+     ],
+     "stop_reason": "no-successor"
+    },
+    {
+     "seed": "mse_qbp1ndbnhezj34eb:d1",
+     "head": "mse_qbp1ndbnhezj34eb:d1",
+     "path": [],
+     "related": [],
+     "stop_reason": "no-successor"
+    }
+   ],
+   "authored_head": "mse_17d0qqh34a07qp5b:d2",
+   "suggested_heads": [],
+   "related_refs": [
+    "mse_ypmrtzfmw4qwtbnn:d1",
+    "mse_ypmrtzfmw4qwtbnn:d2"
+   ]
+  },
+  {
+   "adr_id": "adr_session_decision_authority",
+   "title": "Session-decision authority and ADR-curated synopsis",
+   "pinned": true,
+   "current_head": "mse_17d0qqh34a07qp5b:d1",
+   "members": [
+    "mse_17d0qqh34a07qp5b:d1",
+    "mse_ddeat5w29spep3qw:d1",
+    "mse_z7rfq8x5qjfbyzdc:d1"
+   ],
+   "walks": [
+    {
+     "seed": "mse_17d0qqh34a07qp5b:d1",
+     "head": "mse_17d0qqh34a07qp5b:d1",
+     "path": [],
+     "related": [],
+     "stop_reason": "no-successor"
+    },
+    {
+     "seed": "mse_ddeat5w29spep3qw:d1",
+     "head": "mse_ddeat5w29spep3qw:d1",
+     "path": [],
+     "related": [],
+     "stop_reason": "fan-out"
+    },
+    {
+     "seed": "mse_z7rfq8x5qjfbyzdc:d1",
+     "head": "mse_17d0qqh34a07qp5b:d1",
+     "path": [
+      {
+       "from": "mse_z7rfq8x5qjfbyzdc:d1",
+       "kind": "evolves",
+       "to": "mse_17d0qqh34a07qp5b:d1",
+       "confidence": null
+      }
+     ],
+     "related": [],
+     "stop_reason": "no-successor"
+    }
+   ],
+   "authored_head": "mse_17d0qqh34a07qp5b:d1",
+   "suggested_heads": [],
+   "related_refs": []
+  },
+  {
+   "adr_id": "adr_subproject_scoping",
+   "title": "Sub-project runtime scoping and inheritance defaults",
+   "pinned": false,
+   "current_head": "founding:.memory-seed/policy.md#L78",
+   "members": [
+    "ms-0bd3d8b2:d2",
+    "ms-f776aff0:d1"
+   ],
+   "walks": [
+    {
+     "seed": "ms-0bd3d8b2:d2",
+     "head": "ms-0bd3d8b2:d2",
+     "path": [],
+     "related": [],
+     "stop_reason": "no-successor"
+    },
+    {
+     "seed": "ms-f776aff0:d1",
+     "head": "ms-0bd3d8b2:d1",
+     "path": [
+      {
+       "from": "ms-f776aff0:d1",
+       "kind": "evolves",
+       "to": "ms-0bd3d8b2:d1",
+       "confidence": 0.75
+      }
+     ],
+     "related": [],
+     "stop_reason": "fan-out"
+    }
+   ],
+   "authored_head": null,
+   "suggested_heads": [
+    {
+     "head": "ms-0bd3d8b2:d1",
+     "head_title": "D1 - Use a seeded trigger registry instead of only prose triggers",
+     "seed": "ms-f776aff0:d1",
+     "seed_title": "D1 - Restore operational guardrails in v2 language",
+     "confidences": [
+      0.75
+     ]
+    }
+   ],
+   "related_refs": []
+  }
+ ]
+}

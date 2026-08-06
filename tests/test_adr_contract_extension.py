@@ -18,6 +18,7 @@ import unittest
 from pathlib import Path
 
 from memory_seed.adr import (
+    revise_adr,
     ConstitutionRef,
     check_adrs,
     parse_adr,
@@ -212,6 +213,77 @@ class FoundingSourceTests(ProjectFixture):
         self.assertFalse(bad_source.ok)
         neither = promote_decision(root, adr_id="adr_g4", **base)
         self.assertFalse(neither.ok)
+
+    def test_a_real_decision_supersedes_a_founding_head(self):
+        """Convergence: a founded ADR must be able to accept a real decision as its head.
+
+        No real decision can descend from a `founding:` placeholder, so requiring lineage descent
+        would strand every founded ADR at its founding head forever.
+        """
+        root = self.make_project()
+        promote_decision(
+            root, adr_id="adr_converge", title="Converging concern", topics=(),
+            user_initials="JNL", agent_type="claude", source="derived",
+            decision="D.", why="W.",
+            founding_source=".memory-seed/index.md#L120", founding_quote="Runtime discovery",
+            timestamp="2026-08-07T01:00:00Z",
+        )
+        accepted = transition_adr(
+            root, adr_id="adr_converge", status="accepted", update_entry_id=None,
+            source="derived", timestamp="2026-08-07T01:01:00Z",
+        )
+        self.assertTrue(accepted.ok, accepted.issues)
+        revised = revise_adr(
+            root, adr_id="adr_converge", decision_ref="mse_extension0000001:d1",
+            decision="Now anchored on a real decision.", why="A session decision landed.",
+            evolution="Converged from the control-file founding onto its session decision.",
+            update_entry_id="mse_extension0000001", source="derived", predecessors=(),
+            timestamp="2026-08-07T01:02:00Z",
+        )
+        self.assertTrue(revised.ok, revised.issues)
+        head = transition_adr(
+            root, adr_id="adr_converge", status="accepted",
+            decision_ref="mse_extension0000001:d1",
+            update_entry_id="mse_extension0000001", source="derived",
+            expected_authoritative_decision="founding:.memory-seed/index.md#L120",
+            timestamp="2026-08-07T01:03:00Z",
+        )
+        self.assertTrue(head.ok, head.issues)
+        self.assertEqual(head.authoritative_decision, "mse_extension0000001:d1")
+
+    def test_descent_is_still_required_between_two_real_decisions(self):
+        """The founding carve-out must not become a general bypass."""
+        root = self.make_project()
+        (root / ".memory-seed" / "sessions" / "2026-08-06.md").write_text(
+            ENTRY + "\n#### D2 - An unrelated decision\n\n- D: Elsewhere.\n- R: Unrelated.\n",
+            encoding="utf-8",
+        )
+        promote_decision(
+            root, adr_id="adr_strict", source_entry_id="mse_extension0000001",
+            source_decision="d1", title="Strict", topics=(), user_initials="JNL",
+            agent_type="claude", source="derived", decision="D.", why="W.",
+            timestamp="2026-08-07T01:00:00Z",
+        )
+        transition_adr(
+            root, adr_id="adr_strict", status="accepted",
+            update_entry_id="mse_extension0000001", source="derived",
+            timestamp="2026-08-07T01:01:00Z",
+        )
+        revise_adr(
+            root, adr_id="adr_strict", decision_ref="mse_extension0000001:d2",
+            decision="Unlinked successor.", why="No lineage asserted.", evolution="None.",
+            update_entry_id="mse_extension0000001", source="derived", predecessors=(),
+            timestamp="2026-08-07T01:02:00Z",
+        )
+        blocked = transition_adr(
+            root, adr_id="adr_strict", status="accepted",
+            decision_ref="mse_extension0000001:d2",
+            update_entry_id="mse_extension0000001", source="derived",
+            expected_authoritative_decision="mse_extension0000001:d1",
+            timestamp="2026-08-07T01:03:00Z",
+        )
+        self.assertFalse(blocked.ok)
+        self.assertTrue(any("does not descend" in i for i in blocked.issues), blocked.issues)
 
     def test_corpus_check_stays_green_with_extended_records(self):
         root = self.make_project()
