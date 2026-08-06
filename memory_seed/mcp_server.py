@@ -308,7 +308,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "memory_get_chunk",
-        "description": "Fetch an exact Memory Seed chunk by chunk_id.",
+        "description": "Fetch an exact Memory Seed chunk by chunk_id. Decision ids (entry_id:d1) resolve, and a decision payload carries `entry_context`: the entry-level sections that frame it - Summary, Follow-up, Validation, Facts - since a decision block alone omits what the session was doing and what was left open. Sibling decisions are not included.",
         "inputSchema": {
             "type": "object",
             "properties": {
