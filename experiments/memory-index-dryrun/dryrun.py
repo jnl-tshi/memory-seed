@@ -162,7 +162,43 @@ QUIZ_PREAMBLE = (
 )
 
 
-def phase_quiz(jobs: int = 3) -> None:
+def strip_index_facts(copy_dir: Path) -> bool:
+    """Blank `## Active State` in the copy's index.md, leaving the rest of the file intact.
+
+    The retrieval-only arm. Every seeded answer lives in that one section - the maintainer roster,
+    benchmark ownership, the 1.2us baseline, the release cadence - and nothing outside it leaks a
+    fact, which was checked term by term before this was written.
+
+    The file is kept rather than deleted on purpose: `AGENTS.md` treats a missing index.md as "seeded
+    but not bootstrapped" and sends the agent into bootstrap mode, which would have it try to REBUILD
+    the index instead of answering questions. Blanking one section leaves a normally-bootstrapped
+    project whose durable facts simply are not written down anywhere except the session entries.
+    """
+    index = copy_dir / ".memory-seed" / "index.md"
+    if not index.exists():
+        return False
+    lines = index.read_text(encoding="utf-8").splitlines()
+    out: list[str] = []
+    skipping = False
+    for line in lines:
+        if line.startswith("## Active State"):
+            out.append(line)
+            out.append("")
+            out.append("- Not recorded here. Consult the session memory for current state.")
+            out.append("")
+            skipping = True
+            continue
+        if skipping:
+            if line.startswith("## "):
+                skipping = False
+            else:
+                continue
+        out.append(line)
+    index.write_text("\n".join(out) + "\n", encoding="utf-8")
+    return True
+
+
+def phase_quiz(jobs: int = 3, no_index_facts: bool = False) -> None:
     if not WORKSPACE.exists():
         raise SystemExit("no seeded workspace - run the seed phase first")
     batches = quiz_batches()
@@ -174,6 +210,8 @@ def phase_quiz(jobs: int = 3) -> None:
         if copy_dir.exists():
             rmtree_force(copy_dir)
         shutil.copytree(WORKSPACE, copy_dir)
+        if no_index_facts:
+            strip_index_facts(copy_dir)
         brief = QUIZ_PREAMBLE + "\n".join(
             f"{n+1}. {q['question']}" for n, q in enumerate(batch)
         )
@@ -298,8 +336,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("phase", choices=("seed", "quiz", "judge", "score"))
     parser.add_argument("--jobs", type=int, default=3)
+    parser.add_argument("--no-index-facts", action="store_true",
+                        help="quiz with index.md's Active State blanked, so memory_search "
+                             "is the only route to an answer")
     args = parser.parse_args()
-    {"seed": phase_seed, "quiz": lambda: phase_quiz(args.jobs),
+    {"seed": phase_seed, "quiz": lambda: phase_quiz(args.jobs, args.no_index_facts),
      "judge": phase_judge, "score": phase_score}[args.phase]()
     return 0
 

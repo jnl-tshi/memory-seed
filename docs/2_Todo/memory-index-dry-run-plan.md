@@ -123,6 +123,42 @@ retention. Directional, per the pattern-over-threshold rule.
 > so `memory_search` is the only route to an answer - a new measurement, not a comparison with
 > run 3. See `experiments/memory-index-dryrun/answer_visible.py`.
 
+## Run 4 (2026-08-06) - retrieval-only arm, index.md's Active State blanked
+
+Same seeded store, same 31 questions, no re-seeding. The one change: each quiz copy had the
+`## Active State` section of `.memory-seed/index.md` blanked, so the durable facts existed only in
+the session entries. The file itself was kept, because `AGENTS.md` treats a missing index.md as
+"seeded but not bootstrapped" and would have sent the agent to rebuild it instead of answering.
+Every seeded answer lives in that one section; nothing outside it leaks a fact, checked term by term.
+
+| Category | n | run 3 | **run 4 (no index facts)** |
+|---|---|---|---|
+| direct_recall | 6 | 5 | **6** |
+| updated_facts | 6 | 6 | **6** |
+| thread_growth | 3 | 3 | **3** |
+| synthesis | 4 | 4 | **4** |
+| long_term_retention | 4 | 4 | **4** |
+| false_memory | 8 | 8 | **8** |
+| **blended** | | **96.8** | **100.0** |
+| fabrications | | 0 | **0** |
+
+**What this establishes.** Every one of the 31 answers is recoverable from the session entries
+alone - previously unproven, and the reason run 3's dependence on `index.md` looked like a design
+choice rather than a symptom. Abstention holds under the harder condition: 8/8 on the false-memory
+traps with the summary stripped, zero fabrications.
+
+**What it does NOT establish, and this is the important caveat.** It does not isolate retrieval. The
+quiz preamble permits reading "files under `.memory-seed/`", the whole store is a single 10-entry
+file, and 2 of the 8 answer batches explicitly cite that file path as their source. Agents do not
+narrate tool use, so the artifacts cannot tell us how the other 6 answered. **The 100.0 is evidence
+that the store contains the answers and agents can reach them - not that ranked retrieval surfaced
+them.**
+
+Isolating retrieval needs a harness change rather than a fixture change: deny filesystem reads of
+`.memory-seed/sessions/**` so the MCP tools are the only route. Until then, the sharpest retrieval
+instrument remains `experiments/memory-index-dryrun/answer_visible.py`, which measures the search
+path directly and went 7/23 to 22/23 on the same store when the excerpt-fallback defect was fixed.
+
 ## Run 3 (2026-08-05) - after the retrieval and capture fixes
 
 | Category | n | run 1 | run 2 | **run 3** |
