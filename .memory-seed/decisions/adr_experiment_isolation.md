@@ -18,9 +18,9 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `founding:.memory-seed/index.md#L107`
 
 ### Decision
 
@@ -75,3 +75,17 @@ Isolation is structural and was proven at build time: a fixture write left the p
 #### Evolution
 
 Founded from the control file; outlined in the agent-capture experiment specification. Session decision mse_vaz9d3h7x4bcmd1t:d1 (2026-08-04) narrowed isolation assertion to the parent session store specifically, refining the validation claim while preserving structural isolation.
+
+### revision-accepted - 2026-08-06T21:13:00Z
+
+```json
+{
+  "event_id": "adre_6dbed6aaba81a0747e0e",
+  "founding_source": ".memory-seed/index.md#L107",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.

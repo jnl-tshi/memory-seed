@@ -18,9 +18,9 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `founding:.memory-seed/policy.md#L22`
 
 ### Decision
 
@@ -70,3 +70,17 @@ Removing legacy support silently breaks existing projects. Backward compatibilit
 #### Evolution
 
 Founded from the control file; control-plane policy ratified 2.3.0+. Session decision ms-6a09aea8:d2 (2026-06-03) implemented the specific legacy compatibility mechanism: stripping the obsolete `mcpServers` block from `.claude/settings.json` only when Memory Seed authored the entry.
+
+### revision-accepted - 2026-08-06T21:17:00Z
+
+```json
+{
+  "event_id": "adre_71773f40862a785d6e64",
+  "founding_source": ".memory-seed/policy.md#L22",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.

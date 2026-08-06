@@ -18,9 +18,9 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `founding:.memory-seed/index.md#L183`
 
 ### Decision
 
@@ -70,3 +70,17 @@ Memory Trace depends on the core package. One owner keeps UTF-8/LF/NFC policy, e
 #### Evolution
 
 Established 2026-07-08 (mse_ejpbz4qqsbdx0hvc); encoding hardening P0 completed with explicit check/repair tooling in Seed.
+
+### revision-accepted - 2026-08-06T21:11:00Z
+
+```json
+{
+  "event_id": "adre_d48875abf6634b606d3c",
+  "founding_source": ".memory-seed/index.md#L183",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.

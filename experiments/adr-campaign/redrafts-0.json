@@ -1,0 +1,122 @@
+[
+ {
+  "adr_id": "adr_control_file_authority",
+  "title": "Control-file authority partition (index/policy/skills/sessions)",
+  "topics": ["control-plane"],
+  "decision": "Memory Seed partitions control-plane authority by file rather than centralising it. `.memory-seed/index.md` owns topology, active state, durable context, inheritance rules and skill pointers; `.memory-seed/policy.md` owns behavioural constraints only; `.memory-seed/skills/*.md` own task runbooks; `.memory-seed/sessions/` owns chronological history and rationale. Current control files are the active authority, session entries are evidence and rationale, and registries, indexes and Trace views are derived projections of them.",
+  "why": "One file per concern keeps each surface small enough for a fresh agent to load and keeps unrelated edits from colliding. Session history is deliberately not authority: when it conflicts with current files and no clear supersession boundary exists, agents must ask rather than infer. The complementary ADR contract keeps the curated synopsis and lineage in the ADR while original entries keep detailed rationale, so nothing derived can claim authorship.",
+  "evolution": "Established with the earliest runtime layout, tightened on 2026-05-26 by the rule that current files are active authority and history is evidence, and again on 2026-07-16 when Constitution v1.1 partitioned Markdown authority by concern.",
+  "source_quote": "`.memory-seed/index.md` owns topology, active state, inheritance rules, and skill pointers.",
+  "source_file": ".memory-seed/policy.md",
+  "supporting": [
+   {"ref": "mse_ddba1ztxqhasfbwf:d1", "quote": "current status, registries, indexes, databases, and Trace views are derived."},
+   {"ref": "ms-845042c7:d3", "quote": "Current `index.md`, `policy.md`, active skills, and source/config files are active authority"}
+  ],
+  "constitution_refs": [
+   {"ref": "constitution:v1#authority", "role": "governing"},
+   {"ref": "constitution:v1#single-source", "role": "supporting"}
+  ],
+  "binding_note": "",
+  "skip": ""
+ },
+ {
+  "adr_id": "adr_subproject_scoping",
+  "title": "Sub-project runtime scoping and inheritance defaults",
+  "topics": ["control-plane"],
+  "decision": "A sub-project is a normal folder carrying its own nested `.memory-seed/` runtime, never a folder nested inside the root runtime. The nested runtime scopes work under its containing folder: active state is local by default, detailed session logs stay in the nearest runtime, and parent active state is not read unless the sub-project index explicitly links to it. Parent policy and parent skills are inherited by default; local skill files exist only to override parent behaviour or to hold genuinely local runbooks.",
+  "why": "Runtime discovery walks upward to the nearest `.memory-seed/`, so co-locating the runtime with the folder it governs makes scope a property of position rather than configuration. Keeping detail local preserves runtime isolation while a coordination summary keeps the root aware of cross-project consequences; mirroring sub-project sessions upward was rejected as duplicated noise. Inheriting by default keeps a sub-project small, with an explicit index override as the single escape hatch.",
+  "evolution": "Recorded 2026-05-26 alongside the deterministic skill trigger registry, which set the local-logs and parent-summary split, and reinforced when the restored v1.4 guardrails added explicit sub-project inheritance-conflict guidance.",
+  "source_quote": "A nested `.memory-seed/` runtime scopes work under its containing folder.",
+  "source_file": ".memory-seed/policy.md",
+  "supporting": [
+   {"ref": "ms-0bd3d8b2:d2", "quote": "Detailed session logs remain in the nearest active runtime; parent/root memory gets only coordination"},
+   {"ref": "ms-f776aff0:d1", "quote": "sub-project inheritance conflict guidance, and target bootstrap boundaries"}
+  ],
+  "constitution_refs": [
+   {"ref": "constitution:v1#authority", "role": "governing"},
+   {"ref": "constitution:v1#ownership", "role": "supporting"}
+  ],
+  "binding_note": "",
+  "skip": ""
+ },
+ {
+  "adr_id": "adr_link_retraction",
+  "title": "Append-only link retraction via retracts: blocks",
+  "topics": ["lifecycle-edges", "graph"],
+  "decision": "A published lifecycle edge is never edited in place. A downgrade or removal is expressed by appending a NEW sidecar block declaring `retracts: <kind> <ref> [(date)]`; the reader unions all edges then subtracts the retracted ones, and `links check` validates malformed, dangling and forward-only violations. A downgrade is a retract of the old kind plus a fresh edge of the new kind, authored together. `session merge-branch` refuses in-place edits to published link sidecars, and that guard is not to be bypassed.",
+  "why": "Append-only is the corpus invariant, so a correction must be an addition rather than a rewrite: the evidence that an edge was once asserted is itself worth keeping. The gap surfaced when the fuse correctly refused hand-audit edits and the only way through was bypassing the guard. Editing blocks in place was rejected for defeating that guard and deleting them for destroying evidence; a combined shorthand was deferred as less legible than an explicit retract-plus-readd pair.",
+  "evolution": "Built 2026-07-25 as the sanctioned correction path after the fuse refused in-place sidecar edits, then exercised the same evening by converting five hand-audit downgrades back to append-only retracts, which also exposed and fixed the arrow-bare twin-edge reader bug.",
+  "source_quote": "Correct a published lifecycle edge (downgrade or remove) through an append-only `retracts:` block",
+  "source_file": ".memory-seed/policy.md",
+  "supporting": [
+   {"ref": "mse_c3a4z35t4m4rjf1n:d1", "quote": "Added an append-only `retracts:` mechanism to link sidecars so a published lifecycle edge can be"},
+   {"ref": "mse_fsdq53qa5ak68xqh:d1", "quote": "Converted the 5 hand-audit downgrades from in-place link-sidecar edits (an Invariant #2 violation)"}
+  ],
+  "constitution_refs": [
+   {"ref": "constitution:v1#link-corrections", "role": "governing"},
+   {"ref": "constitution:v1#append-only", "role": "supporting"}
+  ],
+  "binding_note": "",
+  "skip": ""
+ },
+ {
+  "adr_id": "adr_edge_confidence",
+  "title": "edge_confidence on machine-suggested edges; consumers fade low tiers",
+  "topics": ["lifecycle-edges", "graph"],
+  "decision": "Every machine-suggested lifecycle edge carries a structured `edge_confidence` entry of `{ref, confidence, tier}` keyed to the exact edge token, stored as YAML rather than prose. `links check` tolerates it as an unknown sibling key with no parser change. Consumers read it: the Trace graph and Trail fade low-confidence edges by opacity so an unverified suggestion never renders as settled fact, while authored edges carry no confidence attribute and render at full strength.",
+  "why": "Discarding low-confidence edges would waste judged work, but writing them indistinguishably from human-authored edges would let a guess masquerade as fact; marking them structurally keeps both. Structured YAML lets a later stage weight or filter without re-parsing prose. Fading them in the view the user actually looks at is what delivers the guarantee, and omitting the attribute rather than nulling it avoids a coercion trap that would silently dim authored edges.",
+  "evolution": "Introduced 2026-07-25 during the 1,108-pair link campaign with consumption deliberately deferred; the backend read path threading confidence into the graph payload landed the same day, and the client fade in graph and Trail completed it.",
+  "source_quote": "Each machine-suggested edge carries a structured **`edge_confidence`** field",
+  "source_file": ".memory-seed/index.md",
+  "supporting": [
+   {"ref": "mse_p4xd3wqf214nqtmv:d2", "quote": "Each campaign edge carries its model confidence in a new `edge_confidence:` list of"},
+   {"ref": "mse_7a6wgm62nty5ynkh:d1", "quote": "The campaign's whole point was to keep weak edges but never let them read as settled fact"}
+  ],
+  "constitution_refs": [
+   {"ref": "constitution:v1#provenance", "role": "governing"},
+   {"ref": "constitution:v1#explainability", "role": "supporting"}
+  ],
+  "binding_note": "",
+  "skip": ""
+ },
+ {
+  "adr_id": "adr_topic_authority",
+  "title": "Topic sidecar is the topic authority (sidecar > authored > hashtag)",
+  "topics": ["topic-vocabulary", "memory-trace"],
+  "decision": "The topic sidecar is the topic authority, not a derived overlay. Topic resolution follows strict precedence - sidecar attributions first, then the entry's authored `topics:` field, then hashtag and heading axes - instead of unioning sidecar and authored topics. Where an entry has sidecar attributions, those are its topics. Nothing authored is edited or deleted on disk; only which reading a consumer is shown changes, which is what keeps the switch reversible.",
+  "why": "A union is right while sidecars are sparse enrichment, but wrong once the sidecar carries a complete two-axis reading of every decision, because unioning re-admits the coarse pre-axis label the sweep exists to supersede and leaves a reader unable to tell which classification the corpus currently believes. The authored YAML stays intact and readable as what its author wrote. Inferring topics from link neighbours was removed for the same reason: link structure explains relationships, not classification.",
+  "evolution": "Adopted 2026-07-27 when the two-axis decision-level attribution campaign completed and the union stopped being correct, then extended 2026-07-31 by making authored sidecars the only Trace and MCP topic truth and dropping link-neighbour inference.",
+  "source_quote": "**The topic sidecar is now the topic authority, not a derived overlay**",
+  "source_file": ".memory-seed/index.md",
+  "supporting": [
+   {"ref": "mse_8qmv0m07sy95vjm9:d1", "quote": "`_topics()` now falls back in order: sidecar `inferred_topics`, then authored `topics:`"},
+   {"ref": "mse_ypmrtzfmw4qwtbnn:d1", "quote": "Project entry and decision topics only from their authored topic sidecars"}
+  ],
+  "constitution_refs": [
+   {"ref": "constitution:v1#provenance", "role": "governing"},
+   {"ref": "constitution:v1#topic-vocabulary", "role": "supporting"}
+  ],
+  "binding_note": "",
+  "skip": ""
+ },
+ {
+  "adr_id": "adr_derived_precedence",
+  "title": "Derived never implicitly overrides write-time",
+  "topics": ["control-plane"],
+  "decision": "Sidecar precedence across families is source rank first, then recency. A `derived` block may never implicitly override a `write-time` block on the same subject - it may only fill a gap where no write-time value exists. An explicit override is possible but requires a human-reviewed `retracts:` naming the block it supersedes. Within a single source class most-recent-wins is unchanged. Provenance is recorded as first-hand versus reconstructed, not human versus machine.",
+  "why": "Once write-time values live in sidecars, plain most-recent-wins would let a later sweep supersede a first-hand value merely by being newer, contradicting the ratified position that the two are not equal evidence. Half the rule alone would make write-time values permanently uncorrectable, so the reviewed retraction keeps a wrong first-hand value fixable while guaranteeing a reconstructed value never displaces a first-hand one silently. Approving a sweep batch was rejected as approval of a specific displacement.",
+  "evolution": "Closed 2026-07-26 as a precedence hole in the accepted consolidation proposal, where source was made to outrank recency, then corrected hours later the same day to add the human-reviewed `retracts:` override so first-hand values stay correctable.",
+  "source_quote": "a `derived` block may never *implicitly* override a `write-time` block on recency alone",
+  "source_file": ".memory-seed/policy.md",
+  "supporting": [
+   {"ref": "mse_dqwvb8gxnn88ch3b:d1", "quote": "The rule now has two halves. (1) A `derived` block never **implicitly** supersedes a `write-time`"},
+   {"ref": "mse_x1ha2e26md3q83zv:d1", "quote": "Sidecar precedence becomes `(source rank, then recency)` rather than recency alone"}
+  ],
+  "constitution_refs": [
+   {"ref": "constitution:v1#provenance", "role": "governing"},
+   {"ref": "constitution:v1#append-only", "role": "supporting"}
+  ],
+  "binding_note": "",
+  "skip": ""
+ }
+]

@@ -18,9 +18,9 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `founding:.memory-seed/index.md#L106`
 
 ### Decision
 
@@ -73,3 +73,17 @@ This separation preserves single-source authority for business strategy while ke
 #### Evolution
 
 Founded from the control file. Session decision mse_5y962348e85x7grr (2026-08-03) registered `business/` in the runtime index's Topology section after the area was created but initially undocumented, correcting a gap in agent orientation.
+
+### revision-accepted - 2026-08-06T21:04:00Z
+
+```json
+{
+  "event_id": "adre_2a218ce4048716282a9f",
+  "founding_source": ".memory-seed/index.md#L106",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.

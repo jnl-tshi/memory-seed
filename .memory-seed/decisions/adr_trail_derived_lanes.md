@@ -18,9 +18,9 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `founding:.memory-seed/index.md#L171`
 
 ### Decision
 
@@ -70,3 +70,17 @@ Reduces manual edge annotation burden; derived lanes stay synchronized with true
 #### Evolution
 
 Shipped in Wave 1 (2026-07-15) as part of Trace continuity features; plan documented in docs/5_Completed/evolution-edges-plan.md.
+
+### revision-accepted - 2026-08-06T21:30:00Z
+
+```json
+{
+  "event_id": "adre_4d4d1d741f0f77e7522a",
+  "founding_source": ".memory-seed/index.md#L171",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.

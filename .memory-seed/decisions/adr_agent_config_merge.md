@@ -18,9 +18,9 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `founding:.memory-seed/index.md#L124`
 
 ### Decision
 
@@ -70,3 +70,17 @@ Most projects already have .claude/settings.json with permissions, model, and ot
 #### Evolution
 
 Founded May 2026 (ms-56fdf2ad); merge pattern established in core.py _merge_claude_hook and _merge_codex_hook functions.
+
+### revision-accepted - 2026-08-06T21:00:00Z
+
+```json
+{
+  "event_id": "adre_86af263c06df74dff10c",
+  "founding_source": ".memory-seed/index.md#L124",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.

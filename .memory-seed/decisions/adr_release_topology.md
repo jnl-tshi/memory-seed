@@ -18,9 +18,9 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `founding:.memory-seed/policy.md#L72`
 
 ### Decision
 
@@ -70,3 +70,17 @@ GitHub Release creation produces labeled versions in the Actions UI. Manual appr
 #### Evolution
 
 Founded May 2026 (ms-1e38c75c); established as core release policy with multiple releases following the pattern.
+
+### revision-accepted - 2026-08-06T21:21:00Z
+
+```json
+{
+  "event_id": "adre_d74a70d35153c3ae635e",
+  "founding_source": ".memory-seed/policy.md#L72",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.

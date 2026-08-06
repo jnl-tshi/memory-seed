@@ -24,12 +24,13 @@ sys.path.insert(0, str(REPO))
 
 from memory_seed.adr import ConstitutionRef, check_adrs, promote_decision, transition_adr  # noqa: E402
 
-BASE_TS = "2026-08-06T17:{m:02d}:00Z"
+BASE_TS = "2026-08-06T20:{m:02d}:00Z"
 
 
 def main() -> int:
     commit = "--commit" in sys.argv
-    data = json.loads((HERE / "validated.json").read_text(encoding="utf-8"))
+    named = [a for a in sys.argv[1:] if not a.startswith("--")]
+    data = json.loads((HERE / (named[0] if named else "validated.json")).read_text(encoding="utf-8"))
     written, failed = [], []
     for i, item in enumerate(data["survivors"]):
         assigned = item["_assigned"]

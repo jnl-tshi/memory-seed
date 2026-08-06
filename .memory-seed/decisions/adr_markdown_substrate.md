@@ -18,9 +18,9 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `founding:.memory-seed/policy.md#L21`
 
 ### Decision
 
@@ -75,3 +75,17 @@ Plain Markdown preserves local ownership, direct human editing, attribution, and
 #### Evolution
 
 Control-plane behavioral constraint. Session decision mse_ddba1ztxqhasfbwf:d1 (2026-07-16) ratified partitioned Markdown authority with an append-only ADR sidecar, formalizing that original entries and decision updates own rationale/evidence while derived artifacts (registries, indexes, databases) remain secondary.
+
+### revision-accepted - 2026-08-06T21:19:00Z
+
+```json
+{
+  "event_id": "adre_c47b07517f893153ed66",
+  "founding_source": ".memory-seed/policy.md#L21",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.

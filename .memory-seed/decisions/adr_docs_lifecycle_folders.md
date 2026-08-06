@@ -18,9 +18,9 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `founding:.memory-seed/index.md#L105`
 
 ### Decision
 
@@ -75,3 +75,17 @@ Folder structure makes lifecycle state transparent and queryable. The legacy arc
 #### Evolution
 
 Control-plane decision recorded and codified in the runtime index. Session decision mse_m0xs623m4cs0kjag:d1 (2026-07-15) captured the seeded docs lifecycle as an unapproved proposal, noting that richer lifecycle behavior requires local proof and non-destructive adoption semantics before becoming reusable seed behavior.
+
+### revision-accepted - 2026-08-06T21:07:00Z
+
+```json
+{
+  "event_id": "adre_ef242579bdc912ba0e49",
+  "founding_source": ".memory-seed/index.md#L105",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.

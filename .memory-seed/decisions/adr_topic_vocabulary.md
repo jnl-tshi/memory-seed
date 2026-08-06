@@ -18,9 +18,9 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `founding:.memory-seed/index.md#L158`
 
 ### Decision
 
@@ -75,3 +75,17 @@ A controlled vocabulary ensures consistent topic use across the corpus and enabl
 #### Evolution
 
 Implemented 2026-07-15; redesigned into two-axis hierarchy 2026-07-26/27. Session decision mse_zhf4a0fsgwh47c9j:d1 (2026-07-26) shipped the neutral starter vocabulary, replacing a software-centric starter that had no area axis at all.
+
+### revision-accepted - 2026-08-06T21:27:00Z
+
+```json
+{
+  "event_id": "adre_87597b0d07f3b19b8c8d",
+  "founding_source": ".memory-seed/index.md#L158",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.

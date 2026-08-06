@@ -18,9 +18,9 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `founding:.memory-seed/index.md#L83`
 
 ### Decision
 
@@ -70,3 +70,17 @@ Incremental startup drastically improves performance. Warm start reduced from 44
 #### Evolution
 
 Implemented 2026-07-21 (mse_42e8zzd7); completed the derived-projection plan's final deferred piece.
+
+### revision-accepted - 2026-08-06T21:29:00Z
+
+```json
+{
+  "event_id": "adre_50fd63670bdba836dc6c",
+  "founding_source": ".memory-seed/index.md#L83",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.

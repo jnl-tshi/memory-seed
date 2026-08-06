@@ -17,9 +17,9 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `founding:.memory-seed/index.md#L147`
 
 ### Decision
 
@@ -72,3 +72,17 @@ Month grouping organizes session history by calendar period for better discovera
 #### Evolution
 
 Founded from the control file; no session lineage attached yet.
+
+### revision-accepted - 2026-08-06T21:24:00Z
+
+```json
+{
+  "event_id": "adre_0be6119941ae1278e8d2",
+  "founding_source": ".memory-seed/index.md#L147",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.

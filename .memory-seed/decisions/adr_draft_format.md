@@ -17,9 +17,9 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `founding:.memory-seed/index.md#L143`
 
 ### Decision
 
@@ -69,3 +69,17 @@ A baseline structure with mandatory decision rationale ensures every memory entr
 #### Evolution
 
 Founded from the control file; established as baseline in 2.4.0 per the control plane history.
+
+### revision-accepted - 2026-08-06T21:08:00Z
+
+```json
+{
+  "event_id": "adre_8396955a0aa57e737b22",
+  "founding_source": ".memory-seed/index.md#L143",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.

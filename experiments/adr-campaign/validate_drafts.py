@@ -60,9 +60,10 @@ def main() -> int:
         c.chunk_id: norm(c.text or "") for c in load_corpus(REPO, "decision") if c.chunk_id
     }
 
+    pattern = sys.argv[1] if len(sys.argv) > 1 else "drafts-*.json"
     survivors, drops, attachment_drops, normalised = [], [], [], []
     seen_ids = set()
-    for path in sorted(HERE.glob("drafts-*.json")):
+    for path in sorted(HERE.glob(pattern)):
         for item in json.loads(path.read_text(encoding="utf-8")):
             adr_id = item.get("adr_id", "?")
             def drop(reason: str) -> None:
@@ -154,10 +155,11 @@ def main() -> int:
             survivors.append(item)
 
     report = {
-        "survivors": survivors, "drops": drops,
+        "pattern": pattern, "survivors": survivors, "drops": drops,
         "attachment_drops": attachment_drops, "normalised_source_files": normalised,
     }
-    (HERE / "validated.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
+    out = "validated.json" if pattern == "drafts-*.json" else "validated-redrafts.json"
+    (HERE / out).write_text(json.dumps(report, indent=1), encoding="utf-8")
     attached = sum(len(s["supporting"]) for s in survivors)
     print(f"survivors: {len(survivors)}  ADR drops: {len(drops)}")
     print(f"attachments kept: {attached}  attachment drops: {len(attachment_drops)}")

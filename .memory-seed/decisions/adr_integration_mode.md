@@ -17,9 +17,9 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `founding:.memory-seed/index.md#L173`
 
 ### Decision
 
@@ -69,3 +69,17 @@ Different workflows require different integration strategies: local-merge for si
 #### Evolution
 
 Founded from the control file; completed 2026-07-15 per the control plane history.
+
+### revision-accepted - 2026-08-06T21:16:00Z
+
+```json
+{
+  "event_id": "adre_30ba7762d6095876e88c",
+  "founding_source": ".memory-seed/index.md#L173",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.

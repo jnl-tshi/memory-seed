@@ -17,9 +17,9 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `founding:.memory-seed/index.md#L120`
 
 ### Decision
 
@@ -69,3 +69,17 @@ Canonical runtime location enables portable memory systems and supports nested s
 #### Evolution
 
 Founded from the control file; no session lineage attached yet.
+
+### revision-accepted - 2026-08-06T21:22:00Z
+
+```json
+{
+  "event_id": "adre_ad94b19d6358fdc0c727",
+  "founding_source": ".memory-seed/index.md#L120",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.

@@ -18,9 +18,9 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `founding:.memory-seed/policy.md#L74`
 
 ### Decision
 
@@ -70,3 +70,17 @@ Preserves audit trail of control-plane evolution and enables recovery if a repla
 #### Evolution
 
 Founded from the control file; no session lineage attached yet.
+
+### revision-accepted - 2026-08-06T21:02:00Z
+
+```json
+{
+  "event_id": "adre_fe66e7e85d4a55bfbd32",
+  "founding_source": ".memory-seed/policy.md#L74",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.

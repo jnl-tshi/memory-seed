@@ -31,6 +31,17 @@ from memory_seed.core import read_text_file
 
 REPO = Path(__file__).resolve().parents[1]
 LIVE_ADRS = sorted((REPO / ".memory-seed" / "decisions").glob("adr_*.md"))
+# The three pre-extension records the codex fixtures pin by sha256. Every OTHER live ADR may (and
+# after the 2026-08-06 campaign does) carry the extension fields; these three must not, because
+# any change to their bytes is "frozen source drift" to test_context_derivation_*.
+PINNED_ADRS = sorted(
+    REPO / ".memory-seed" / "decisions" / f"{name}.md"
+    for name in (
+        "adr_mcp_decision_envelope_review",
+        "adr_parent_first_sidecar_transaction",
+        "adr_session_decision_authority",
+    )
+)
 
 CONSTITUTION = """# Constitution
 
@@ -82,18 +93,20 @@ class PinnedAdrByteCanonicalTests(unittest.TestCase):
     """The reason the fields are omit-empty."""
 
     def test_live_adrs_round_trip_byte_identical(self):
-        self.assertGreaterEqual(len(LIVE_ADRS), 3, "expected the three live ADRs")
+        """Every ADR in the live corpus renders back to its own bytes - extended or not."""
+        self.assertGreaterEqual(len(LIVE_ADRS), 3, "expected at least the three pinned ADRs")
         for path in LIVE_ADRS:
             source = read_text_file(path)
             record = parse_adr(path)
             self.assertEqual(render_adr(record), source, f"{path.name} no longer byte-canonical")
 
-    def test_live_adrs_have_no_extension_fields(self):
-        for path in LIVE_ADRS:
+    def test_pinned_adrs_have_no_extension_fields(self):
+        """The omit-empty guarantee, checked where it actually binds."""
+        for path in PINNED_ADRS:
             record = parse_adr(path)
             for event in record.events:
-                self.assertEqual(event.constitution_refs, ())
-                self.assertIsNone(event.founding_source)
+                self.assertEqual(event.constitution_refs, (), path.name)
+                self.assertIsNone(event.founding_source, path.name)
 
 
 class ConstitutionBindingTests(ProjectFixture):

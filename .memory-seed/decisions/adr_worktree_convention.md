@@ -18,9 +18,9 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `founding:.memory-seed/index.md#L81`
 
 ### Decision
 
@@ -70,3 +70,17 @@ This convention ensures clear traceability between Git artifacts, session scope,
 #### Evolution
 
 Founded from the control file; no session lineage attached yet.
+
+### revision-accepted - 2026-08-06T21:31:00Z
+
+```json
+{
+  "event_id": "adre_c5d20377e11567a8e9fa",
+  "founding_source": ".memory-seed/index.md#L81",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.

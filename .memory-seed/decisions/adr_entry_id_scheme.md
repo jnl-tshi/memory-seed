@@ -16,9 +16,9 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Accepted**
 
-Authoritative decision: not yet accepted
+Authoritative decision: `founding:.memory-seed/index.md#L149`
 
 ### Decision
 
@@ -68,3 +68,17 @@ New generated session entry_id values use deterministic 80-bit mse_ IDs encoded 
 #### Evolution
 
 Evolved in mse_77cn2v0rg9na3w0v:d1 where generate_session_entry_id() was implemented to emit deterministic mse_ IDs using SHA-256 and Crockford/Base32 alphabet.
+
+### revision-accepted - 2026-08-06T21:12:00Z
+
+```json
+{
+  "event_id": "adre_c5d98e19a6d25d5357ee",
+  "founding_source": ".memory-seed/index.md#L149",
+  "source": "derived"
+}
+```
+
+#### Reason
+
+Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
