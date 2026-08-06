@@ -36,15 +36,18 @@ the Git-history layer: decision and reasoning provenance. *(Ref: `../business/ma
 
 The sacred properties. Changing one is a [constitutional amendment](#11-governance).
 
+<!-- constitution-ref: constitution:v1#ownership -->
 1. **Users own their memory.** It lives as plain files in the user's repository; the **core** runs with no
    server, database, or network. Optional layers may add a cache, index, database, or hosted service for
    performance or collaboration — the core never depends on them. *(Cited: Markdown+YAML storage with no DB;
    `memory-seed situate`/`esr` and the core CLI/MCP are network-free; `memory-seed` installs
    web-framework-free; the `memory-seed[trace]` optional extra is the pattern.)*
+<!-- constitution-ref: constitution:v1#append-only -->
 2. **The past is append-only — extend and supersede, never rewrite or delete.** History is evidence;
    corrections are new entries that point back. *(Cited: append-only session logs; `links check`
    forward-only/acyclic guards; supersede-don't-delete in `.memory-seed/skills/proposal_lifecycle.md` and
    the memory graph.)*
+   <!-- constitution-ref: constitution:v1#metadata-curation -->
    **Narrow exception — human-gated metadata curation (1.2):** an existing entry's **untyped
    `related_entries` metadata** may be curated after the fact, under all of these conditions at once:
    it is a **one-off procedure, never core functionality** — no standing command, no automation, no
@@ -55,6 +58,7 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    condition fails, the invariant applies unchanged. The exception exists because an untyped "these two
    relate" pointer is a navigational aid rather than a claim about what was decided or why; it does not
    license editing the record of a decision.
+   <!-- constitution-ref: constitution:v1#write-surface-parity -->
    **Write-surface parity (1.3):** every write to memory passes the same validation, whatever surface
    performs it. No tool may author or integrate an entry by a path that skips the guards another
    surface enforces — chronology, ref existence, forward-only lifecycle edges, topic vocabulary, id
@@ -75,11 +79,14 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    capability is a standing invitation to edit history. Invariant #2 applies to diagram sidecars
    without exception. *(The 1.4 row stays in the amendment log: the exception was real while it
    existed, and one repair landed under it.)*
+<!-- constitution-ref: constitution:v1#explainability -->
 3. **Memory is explainable and attributable.** Every decision can be traced to who/what/when and the
    reasoning behind it. *(Cited: `Memory-Entry:` commit trailers; the decision-graph edges in
    `3_Spec/graph-edge-contract.md`; `3_Spec/memory-trace-derived-artifact-provenance-contract.md`.)*
+<!-- constitution-ref: constitution:v1#authority -->
 4. **Files are the authority for what is true *now*; memory is the authority for *why*.** Neither
    substitutes for the other. *(Cited: `.memory-seed/agent-rules.md` Working Principles.)*
+   <!-- constitution-ref: constitution:v1#provenance -->
    **Provenance is first-hand vs reconstructed, not human vs machine (1.6):** a value recorded when
    the work was done — by whoever or whatever did it — is **first-hand**; a value derived afterwards
    by reading the finished record is **reconstructed**. Both are legitimate; they are not equal
@@ -91,9 +98,11 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    topics from finished prose scored 0.583 and 0.613 macro-recall against the first-hand values
    (topic-swarm pilot, 2026-07-26). A reconstructed value is therefore sound as a **gap-filler where
    nothing was recorded**, and weak as a replacement for a first-hand one.
+<!-- constitution-ref: constitution:v1#model-independence -->
 5. **Memory is model-independent.** No entry's meaning depends on the agent or model that wrote it; it
    serves any agent and any human. *(Cited: `agent-rules.md` `vendor_neutral: true`; the seed ships for
    Claude, Codex, Gemini, Cursor, and Copilot alike.)*
+<!-- constitution-ref: constitution:v1#markdown-authority -->
 6. **Markdown is the authoritative memory substrate — human-readable, durable, and authoritative
    *everywhere*.** Authority may be partitioned across append-only primary entries and narrowly scoped
    Markdown sidecars, but every authoritative field or lifecycle has exactly one declared owner. Every other
@@ -107,6 +116,7 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
    rationale and evidence. *(Cited: the rebuildable SQLite cache outside the repo; per-user session files +
    `session merge-branch`/fuse; lifecycle and diagram sidecars; Constitution 1.1 amendment. "Markdown today,
    another durable format tomorrow" — the format may change; the source-of-truth role may not.)*
+<!-- constitution-ref: constitution:v1#retrieval-transparency -->
 7. **Retrieval never hides live history to flatter a ranking.** A superseded entry is down-ranked, never
    removed from results. *(Cited: `SUPERSEDED_RANK_DAMPING` down-rank-only rule in `graph-edge-contract.md`;
    `exclude_superseded` is a separate opt-in filter, never the default.)*
@@ -117,21 +127,28 @@ The sacred properties. Changing one is a [constitutional amendment](#11-governan
 
 How we decide. Amending these is heavier than a normal proposal but lighter than an invariant.
 
+<!-- constitution-ref: constitution:v1#evidence-first -->
 - **Evidence before opinion.** Ground decisions in what the code and corpus demonstrate; retrieve prior
   reasoning before re-deciding. *(Cited: `agent-rules.md` "retrieve the why"; this document's own method.)*
+<!-- constitution-ref: constitution:v1#expose-before-rank -->
 - **Expose before you rank.** A new signal is shown as inspectable metadata and proven on real data before
   it changes default retrieval order. *(Cited: `graph-edge-contract.md` "Standing rules".)*
+<!-- constitution-ref: constitution:v1#single-source -->
 - **Integrate, don't duplicate.** One canonical reader/service per concern; new surfaces consume it rather
   than fork logic. *(Cited: the single `build_related_entry_graph` reader + shared retrieval service; the
   "integrate with GitLens, don't rebuild it" stance.)*
+<!-- constitution-ref: constitution:v1#immediate-value -->
 - **Immediate value before future value.** Ship the smallest useful increment on the proven path before the
   ambitious rebuild. *(Cited: vanilla-first Trace with the versioned `/api/v1` contract held for the future
   React client; `3_Spec/memory-trace-vanilla-parity-checklist.md`.)*
+<!-- constitution-ref: constitution:v1#prove-automation -->
 - **Prove risky automation on a small case; don't remove guards you don't understand.** *(Cited:
   `agent-rules.md` Working Principles; `.memory-seed/skills/risk_signaling.md`.)*
+<!-- constitution-ref: constitution:v1#trust-first -->
 - **Trust before automation.** Establish that memory is trustworthy before acting on it automatically.
   **[candidate]** — partly aspirational; the content-trust taxonomy that would make it operational is not
   yet built (see [Open Questions](#10-open-questions--unresolved-tensions)).
+<!-- constitution-ref: constitution:v1#minimal-context -->
 - **Minimal but sufficient context.** Retrieval aims to provide the smallest context that preserves the
   ability to decide — maximise information per token; material that does not change the answer is
   omission, not loss. **[candidate]** — aspirational; no retrieval surface enforces or measures this yet.
@@ -141,6 +158,7 @@ How we decide. Amending these is heavier than a normal proposal but lighter than
   *Provenance note:* first written into §3 on 2026-07-25 **without** an amendment, which §11 requires
   for a core principle. Ratified retroactively as part of v1.5 rather than left as an unratified clause
   — a principle nobody approved is exactly the kind of silent override §11 forbids.
+<!-- constitution-ref: constitution:v1#open-core -->
 - **Open-core, one authoritative substrate.** The local Markdown truth is free and complete on its own; paid or
   hosted tiers add convenience, scale, and collaboration *on top of* it — never a second, authoritative
   store. **[direction — decided 2026-07-14; no paid tier exists yet.]**
@@ -152,16 +170,22 @@ How we decide. Amending these is heavier than a normal proposal but lighter than
 The current, deliberately-changeable *rules* through which the invariants are realised. Changing these is
 ordinary proposal work.
 
+<!-- constitution-ref: constitution:v1#folder-lifecycle -->
 - **The folder a document lives in is its lifecycle state** (`docs/README.md` front door).
+<!-- constitution-ref: constitution:v1#edge-kinds -->
 - **Four independent, never-merged edge kinds**; forward-only and acyclic (`graph-edge-contract.md`).
+<!-- constitution-ref: constitution:v1#link-corrections -->
 - **Link-edge corrections are append-only.** A published `replaces`/`evolves`/`related_entries` edge is
   downgraded or removed only through a **new-block `retracts:` correction** (the fuse refuses in-place
   edits to a published link sidecar), realizing Invariant #2 for lifecycle edges — the sanctioned path
   the v1.4 amendment noted was absent (`3_Spec/draft/link-retraction.md`). Machine-suggested edges (the
   optional link-judgment swarm) carry an advisory `edge_confidence` and are human-gated before any write.
+<!-- constitution-ref: constitution:v1#draft-format -->
 - **DRAFT session-entry format** (D/R/A/F/T) and append-only chronology (`session_logging.md`).
+<!-- constitution-ref: constitution:v1#topic-vocabulary -->
 - **Controlled topic vocabulary** in `.memory-seed/topics.yaml`; **seed/live twin parity** for shipped
   skills; **schema, API (`/api/v1`), and CLI surfaces** are versioned and may grow.
+<!-- constitution-ref: constitution:v1#integration-mode -->
 - **`integration_mode`** (local-merge vs PR); agent-namespaced branches/worktrees.
 
 ---
@@ -263,6 +287,7 @@ demonstrates them.
 
 | Version | Date | Change | Ratified by |
 |---|---|---|---|
+| 1.7 | 2026-08-06 | **Per-clause anchor markers** — every invariant (and its live sub-clauses), principle, and §4 policy clause gains an HTML-comment `constitution-ref` anchor (`constitution:v1#slug`, 24 in all). Structural only: zero content changed, verified by a markers-stripped byte comparison against v1.6. Added so ADR constitution bindings and the ESR ADR↔Constitution audit resolve against declared anchors rather than prose numbering (the ADR contract extension of the same date validates refs against these markers). Slugs are semantic, not positional, so renumbering never breaks a binding. | Claude, under JNL's delegated ratification (live instruction, 2026-08-06: "ratify for me and get me to the end goal and then i will iterate") |
 | 1.0 | 2026-07-14 | **Initial Constitution ratified** — the 7 invariants, principles, policies, four-layer model, five-question test, trust/quality candidates, and governance; includes the same-day derived-layer / optional-tier refinement (Invariants #1 & #6, §5, open-core principle). | JNL |
 | 1.1 | 2026-07-16 | **Partitioned Markdown authority** — Invariant #6 now permits narrowly scoped append-only Markdown sidecars to own declared fields or lifecycles while entries retain rationale/evidence and all indexes, snapshots, databases, and UI views remain derived. | JNL |
 | 1.2 | 2026-07-17 | **Human-gated metadata curation** — Invariant #2 now permits after-the-fact curation of an existing entry's *untyped* `related_entries` metadata, as a one-off, per-edge-approved procedure only: never core functionality, never automatic or batch, never touching prose, and never writing typed lifecycle edges into history. Raised by the Related-entries P2 plan, which was approved 2026-07-05 — before v1.0 — and whose backfill half conflicted with Invariant #2 as ratified. Rather than honour a pre-constitutional sign-off or silently override the invariant (§11 forbids both), the invariant was amended to the narrowest shape that permits the capability. | JNL |
