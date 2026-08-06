@@ -2,11 +2,6 @@ participants:
   - slug: jean
     initials: JNL
     display_name: Jean Nathan Tshibuyi
-  # Historical initials: entries before 2026-06 were authored as JN, prior to the
-  # registry standardising on JNL. Same person; the resolver maps both to jean.
-  - slug: jean
-    initials: JN
-    display_name: Jean Nathan Tshibuyi
 
 # Verified local integrations may land without a per-merge prompt. Agents still
 # use the session fuse and stop on validation failures or unresolved conflicts.
