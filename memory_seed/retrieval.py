@@ -299,6 +299,16 @@ def get_chunk(chunk_id: str, cwd: str | Path = ".", *, include_diagrams: bool = 
     if found is None:
         raise ValueError(f"chunk_id not found: {chunk_id}")
     payload = chunk_to_dict(found)
+    # A decision fetched on its own arrives without the entry that frames it. Attach the entry's
+    # non-decision sections - Summary, Follow-up, Validation, Facts, whatever the author wrote at
+    # entry level - so the caller sees the decision in the context it was recorded in rather than a
+    # bare D/R/A/F/T block. Sibling decisions are NOT included: the container is excluded, so asking
+    # for :d1 does not drag :d2 along with it.
+    payload["entry_context"] = []
+    if found.granularity == "decision" and found.entry_id:
+        parent = next((c for c in entry_chunks if c.chunk_id == found.entry_id), None)
+        if parent is not None:
+            payload["entry_context"] = entry_context_sections(parent.text or "")
     replaced_by: list[str] = []
     replacing_head: list[str] = []
     evolved_by: list[str] = []
@@ -2820,6 +2830,46 @@ def _human_report(query: str, results: list[dict[str, Any]]) -> str:
 # 97.6% of recorded decisions in the reference corpus; the rest are truncated with an explicit
 # marker so an agent knows to fetch rather than assuming it saw everything.
 DECISION_TEXT_LIMIT = 2500
+
+
+_ENTRY_SECTION_RE = re.compile(r"^###\s+(?!#)(.+?)\s*$")
+_DECISIONS_CONTAINER_RE = re.compile(r"^decisions?$", re.IGNORECASE)
+
+
+def entry_context_sections(entry_text: str) -> list[dict[str, str]]:
+    """The entry's non-decision `###` sections, in document order.
+
+    A decision block carries its own D/R/A/F/T, but that is not the whole record of the decision.
+    The `### Summary` that frames it and the `### Follow-up` that continues it belong to the entry,
+    and a reader handed only the block is missing context the author wrote deliberately - what the
+    session was doing, what was validated, what was left open. Anything the author put at entry
+    level may bear on any decision in that entry, so the whole set travels rather than a guess at
+    which parts are relevant.
+
+    The decisions container is excluded: its body IS the decision blocks, so including it would
+    return every sibling decision alongside the one that was asked for. `####` headings never start
+    a section here, so a decision heading inside the container cannot be mistaken for one.
+    """
+    sections: list[dict[str, str]] = []
+    heading: str | None = None
+    body: list[str] = []
+    for line in entry_text.splitlines():
+        match = _ENTRY_SECTION_RE.match(line)
+        if match:
+            if heading is not None:
+                sections.append({"heading": heading, "text": "\n".join(body).strip()})
+            heading = match.group(1).strip()
+            body = []
+            continue
+        if heading is not None:
+            body.append(line)
+    if heading is not None:
+        sections.append({"heading": heading, "text": "\n".join(body).strip()})
+    return [
+        section
+        for section in sections
+        if section["text"] and not _DECISIONS_CONTAINER_RE.match(section["heading"])
+    ]
 
 
 def _excerpt(text: str, limit: int = 280) -> str:

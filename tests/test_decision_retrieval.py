@@ -16,7 +16,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from memory_seed.retrieval import DECISION_TEXT_LIMIT, search_memory
+from memory_seed.retrieval import DECISION_TEXT_LIMIT, get_chunk, search_memory
 from memory_seed.semantic_cache import extract_memory_chunks
 
 MULTI = """## 2026-06-10 09:30 - Two decisions in one entry
@@ -179,6 +179,30 @@ class DecisionRetrievalTests(unittest.TestCase):
             "entry granularity must not return decision ids",
         )
 
+    def test_decision_fetch_carries_entry_level_sections(self):
+        """A decision fetched alone arrives with the entry sections that frame it."""
+        root = self.make_store()
+        payload = get_chunk("mse_multidecision1:d1", root)
+        headings = [s["heading"] for s in payload["entry_context"]]
+        self.assertIn("Summary", headings)
+        # The decision's own block is still the payload text, unchanged.
+        self.assertIn("- D: Cache widgets", payload["text"])
+
+    def test_entry_context_excludes_sibling_decisions(self):
+        """Asking for :d1 must not drag :d2 along inside the context."""
+        root = self.make_store()
+        payload = get_chunk("mse_multidecision1:d1", root)
+        joined = "\n".join(s["text"] for s in payload["entry_context"])
+        self.assertNotIn("#### D2", joined)
+        self.assertNotIn("Priya", joined)  # d2's distinctive content
+
+    def test_entry_granularity_fetch_has_no_entry_context(self):
+        """The whole entry already contains its sections; duplicating them would be noise."""
+        root = self.make_store()
+        payload = get_chunk("mse_plainentry0001", root)
+        self.assertEqual(payload["entry_context"], [])
+
 
 if __name__ == "__main__":
+    unittest.main()
     unittest.main()
