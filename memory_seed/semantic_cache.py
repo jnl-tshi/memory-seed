@@ -296,7 +296,37 @@ def extract_memory_chunks(
         except ValueError:
             continue
         chunks.extend(_extract_chunks_from_file(target_root, doc, session_date, granularity=granularity))
-    return chunks
+    return _resolve_chunk_users(target_root, chunks)
+
+
+def _resolve_chunk_users(target_root: Path, chunks: list[MemoryChunk]) -> list[MemoryChunk]:
+    """Fill ``chunk.user`` from the participant registry when the file layout did not.
+
+    ``user`` was only ever populated by the per-user session layout
+    (``sessions/YYYY-MM-DD/<user>.md``). A flat-layout project therefore carried ``user: null`` on
+    every chunk - measured at 856 of 856 - while ``user_initials`` sat right beside it, authored in
+    the entry YAML. The mapping between them is already declared: ``project.yaml`` lists
+    participants as slug + initials + display name, and ``local.yaml`` names the local slug. Leaving
+    the join to every consumer meant nobody did it.
+
+    The initials -> slug map comes from ``_participant_slug_by_initials``. Initials shared by two
+    participants stay unresolved rather than guessed - the resolver reports them as issues, and a
+    wrong identity is worse than a missing one. A file-layout ``user`` always wins over the derived
+    one: it is direct evidence, not a join.
+    """
+    from .core import _participant_slug_by_initials
+
+    slug_by_initials, _issues = _participant_slug_by_initials(target_root)
+    if not slug_by_initials:
+        return chunks
+    resolved: list[MemoryChunk] = []
+    for chunk in chunks:
+        if chunk.user is None and chunk.user_initials:
+            slug = slug_by_initials.get(chunk.user_initials.strip())
+            if slug:
+                chunk = replace(chunk, user=slug)
+        resolved.append(chunk)
+    return resolved
 
 
 def rank_session_memory(

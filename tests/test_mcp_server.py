@@ -692,7 +692,9 @@ class MemoryMcpServerTests(unittest.TestCase):
 
         self.assertEqual(payload["chunk"]["chunk_id"], chunk_id)
         self.assertEqual(payload["chunk"]["entry_id"], "ms-semble")
-        self.assertIsNone(payload["chunk"]["entry_datetime"])
+        # A null entry_datetime is mere absence (the heading carries no time), so the projection
+        # omits the key entirely rather than serialising "entry_datetime": null.
+        self.assertNotIn("entry_datetime", payload["chunk"])
         self.assertIn("Semble guidance", payload["chunk"]["text"])
 
     def test_call_tool_memory_get_chunk_exposes_replaces_and_replaced_by(self):
@@ -851,10 +853,13 @@ class MemoryMcpServerTests(unittest.TestCase):
         payload = call_tool("memory_get_chunk", {"cwd": str(cwd), "chunk_id": "ms-jean-mcp"})
 
         self.assertEqual(payload["chunk"]["chunk_id"], "ms-jean-mcp")
-        self.assertEqual(payload["chunk"]["date"], "2026-06-21")
         self.assertEqual(payload["chunk"]["session_date"], "2026-06-21")
         self.assertEqual(payload["chunk"]["source"], ".memory-seed/sessions/2026-06-21/jean.md")
-        self.assertEqual(payload["chunk"]["path"], ".memory-seed/sessions/2026-06-21/jean.md")
+        # The MCP payload is a PROJECTION (2026-08-06): exact aliases of retained fields are
+        # dropped at the boundary. The full record (`chunk_to_dict`) still carries them for Trace -
+        # pinned by ChunkPayloadProjectionTests.test_full_record_still_carries_the_aliases.
+        self.assertNotIn("date", payload["chunk"])
+        self.assertNotIn("path", payload["chunk"])
         self.assertEqual(payload["chunk"]["user"], "jean")
         self.assertEqual(payload["chunk"]["file_hash_id"], "msm_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         self.assertEqual(payload["chunk"]["related_entries"], ["ms-older-entry"])
@@ -1400,3 +1405,70 @@ class MemoryMcpServerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ChunkPayloadProjectionTests(unittest.TestCase):
+    """The MCP payload is a projection; the internal record is not."""
+
+    def test_projection_drops_aliases_and_silent_empties(self):
+        from memory_seed.mcp_server import _project_chunk_payload
+
+        payload = {
+            "chunk_id": "x:d1",
+            "source": "a.md", "path": "a.md",
+            "session_date": "2026-08-06", "date": "2026-08-06",
+            "source_file": "a.md", "entry_title": "T", "heading_path": ["T", "D1"],
+            "lexical_terms": ["a", "b"],
+            "file_hash_id": None, "tags": [], "subproject_path": None,
+            "text": "body",
+        }
+        projected = _project_chunk_payload(payload)
+        for gone in ("path", "date", "source_file", "entry_title", "lexical_terms",
+                     "file_hash_id", "tags", "subproject_path"):
+            self.assertNotIn(gone, projected)
+        self.assertEqual(projected["source"], "a.md")
+        self.assertEqual(projected["session_date"], "2026-08-06")
+
+    def test_projection_keeps_lifecycle_and_attention_even_when_empty(self):
+        """Empty lifecycle is the claim 'unsuperseded'; fetch_count 0 is 'never fetched'.
+
+        Dropping them would make those statements indistinguishable from the server simply not
+        saying - the one ambiguity a memory system must not introduce.
+        """
+        from memory_seed.mcp_server import _project_chunk_payload
+
+        payload = {
+            "chunk_id": "x:d1", "text": "body",
+            "replaces": [], "replaced_by": [], "replacing_head": [],
+            "evolves": [], "evolved_by": [],
+            "attention_score": 0.0, "fetch_count": 0, "last_fetch": None,
+            "entry_context": [],
+        }
+        projected = _project_chunk_payload(payload)
+        for kept in ("replaces", "replaced_by", "replacing_head", "evolves", "evolved_by",
+                     "attention_score", "fetch_count", "last_fetch", "entry_context"):
+            self.assertIn(kept, projected)
+
+    def test_full_record_still_carries_the_aliases(self):
+        """Trace and the contract tests read chunk_to_dict directly; the projection must not
+        leak into it."""
+        from memory_seed.retrieval import chunk_to_dict
+        from memory_seed.semantic_cache import extract_memory_chunks
+
+        # Any chunk will do; the point is the field set, not the content.
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sessions = root / ".memory-seed" / "sessions"
+            sessions.mkdir(parents=True)
+            (sessions / "2026-08-06.md").write_text(
+                "## 2026-08-06 10:00 - A chunk\n\n```yaml\nentry_id: mse_projtest0000001\n"
+                "user_initials: JNL\nagent_type: claude\nproject_path: .\n"
+                "subproject_path: null\n```\n\n### Summary\n\n- Body.\n",
+                encoding="utf-8",
+            )
+            chunk = extract_memory_chunks(root, granularity="entry")[0]
+            payload = chunk_to_dict(chunk)
+        for alias in ("path", "date", "source_file", "entry_title", "lexical_terms", "contexts"):
+            self.assertIn(alias, payload)

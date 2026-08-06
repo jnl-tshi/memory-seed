@@ -104,7 +104,11 @@ class RetrievalServiceParityTests(unittest.TestCase):
         cwd = self.make_memory_fixture()
         tool_result = call_tool("memory_get_chunk", {"chunk_id": "ms-bootstrap", "cwd": str(cwd)})
         service_result = get_chunk("ms-bootstrap", str(cwd))
-        self.assertEqual(tool_result, {"chunk": service_result})
+        # Parity holds THROUGH the projection (2026-08-06): the MCP boundary serves a projection
+        # of the service payload - aliases and silent empties dropped - never a divergent record.
+        from memory_seed.mcp_server import _project_chunk_payload
+
+        self.assertEqual(tool_result, {"chunk": _project_chunk_payload(service_result)})
         # Graph metrics from the edge contract ride along identically.
         self.assertEqual(service_result["inbound_relation_count"], 1)
         self.assertIn("importance_score", service_result)
@@ -157,9 +161,11 @@ class RetrievalServiceParityTests(unittest.TestCase):
         self.assertEqual(with_branch["branch"], "feature/trail-view")
         without_branch = get_chunk("ms-branchless", str(cwd))
         self.assertIsNone(without_branch["branch"])
+        from memory_seed.mcp_server import _project_chunk_payload
+
         self.assertEqual(
             call_tool("memory_get_chunk", {"chunk_id": "ms-branchful", "cwd": str(cwd)}),
-            {"chunk": with_branch},
+            {"chunk": _project_chunk_payload(with_branch)},
         )
 
         # search_memory result records carry it too.
