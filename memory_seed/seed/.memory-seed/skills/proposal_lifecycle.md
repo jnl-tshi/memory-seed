@@ -1,5 +1,6 @@
 ---
 memory-system-version: 2.19
+governing_adr: adr_docs_lifecycle_folders
 tags:
   - memory-seed
   - skill

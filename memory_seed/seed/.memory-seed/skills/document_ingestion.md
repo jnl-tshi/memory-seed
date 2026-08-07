@@ -1,5 +1,6 @@
 ---
 memory-system-version: 2.19
+governing_adr: adr_foreign_file_routing
 tags:
   - memory-seed
   - skill

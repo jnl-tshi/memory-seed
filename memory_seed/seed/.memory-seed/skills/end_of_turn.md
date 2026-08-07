@@ -1,5 +1,6 @@
 ---
 memory-system-version: 2.19
+governing_adr: adr_session_decision_authority
 tags:
   - memory-seed
   - skill

@@ -1,5 +1,6 @@
 ---
 memory-system-version: 2.19
+governing_adr: adr_control_file_authority
 tags:
   - memory-seed
   - skill

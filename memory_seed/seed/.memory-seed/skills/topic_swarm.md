@@ -119,7 +119,22 @@ but it is file-level and is not the judgment.
 ### 2. The judging criteria (what the swarm decides)
 
 Each agent returns, per judgment unit:
-`{entry_id, ordinal, slugs: [...], why, quote, confidence}` — `ordinal` is `null` for a bare-entry task.
+`{entry_id, ordinal, area, activities: [...], why, quote, confidence}` — `ordinal` is `null` for a
+bare-entry task.
+
+**Hand the worker TWO separately labelled closed lists, `areas` and `activities`, never one merged
+vocabulary.** The two axes are the same SHAPE (bare slugs), and the one time two same-shaped
+vocabularies shared a payload in this project six ADRs took a constitution slug into their topics
+field. Assert before fan-out that no slug appears in both lists; the separation is structural, not an
+instruction the worker can misread.
+
+**Always offer the escape hatch.** A worker that finds NO area honestly names what a decision is
+about may answer `area: null` plus `proposed_area: {slug, why}` instead of forcing one. Without it a
+genuine vocabulary gap is indistinguishable from carelessness: it comes back as a wrong-axis drop,
+and two campaigns read that pattern as a missing slug on exactly that evidence. Offered the hatch on
+2026-08-07, a worker used it zero times out of 4 and found existing areas instead — which is the
+kind of thing you can only learn by making declining possible. A proposal is a REQUEST routed to the
+ESR queue for a human to rule on; it never becomes vocabulary by being used.
 
 The conventions below are corpus-measured, not imposed; they are recorded live in
 `docs/2_Todo/decision-level-topics-proposal.md` and this prompt teaches them verbatim.
@@ -344,6 +359,15 @@ grounding quote, and the `why`. The user approves the batch, edits individual at
 never auto-*writes* them. Keep batches small enough to review — one campaign is many batches.
 
 ### 6. Write + check
+
+**A new block SUPERSEDES the entry's previous one wholesale — carry the old attributions
+forward.** `entry_topic_sidecars` is most-recent-wins **per ENTRY**, not per decision, so a block
+listing only the decisions this campaign judged silently un-attributes every sibling decision an
+earlier campaign had already keyed. Their slugs stay on disk and stop being readable, which is worse
+than losing them: nothing reports it. On 2026-08-07 this turned 14 already-attributed decisions into
+gaps, and was caught only because the resulting gap count did not match the arithmetic. Before
+writing, read the entry's current `decision_area`/`decision_activity` pairs and restate every one
+this batch is not itself replacing.
 
 **The file is keyed to the ENTRY's date, not to today.** This is the one place where copying
 `link_swarm.md` will burn you: link sidecars are filed under the day the edge was authored, but

@@ -1,5 +1,6 @@
 ---
 memory-system-version: 2.19
+governing_adr: adr_semantic_provider
 tags:
   - memory-seed
   - skill
