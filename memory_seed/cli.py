@@ -358,7 +358,11 @@ def main(argv: list[str] | None = None) -> int:
     session_append_parser.add_argument("--title", required=True, help="entry title (text after 'YYYY-MM-DD HH:MM - ')")
     session_append_parser.add_argument("--user-initials", required=True, help="user_initials field, e.g. JNL")
     session_append_parser.add_argument("--agent-type", required=True, help="agent_type field, e.g. claude")
-    session_append_parser.add_argument("--topics", default="", help="comma-separated controlled-vocabulary slugs or aliases")
+    session_append_parser.add_argument(
+        "--topics",
+        default="",
+        help="LEGACY entry-level slugs (no decision keying); prefer --decisions-file",
+    )
     session_append_parser.add_argument(
         "--decisions-file",
         default=None,
@@ -1339,6 +1343,22 @@ def main(argv: list[str] | None = None) -> int:
                     print("--decisions-file must contain a JSON list of decision objects.", file=sys.stderr)
                     return 1
                 decisions = decoded
+            elif args.topics or args.related or args.replaces or args.evolves:
+                # The entry-level flags attribute to the ENTRY, so every decision
+                # in a multi-decision entry inherits one shared list and none owns
+                # its own. Measured cost of leaving this silent: decision-keyed
+                # attribution across this corpus fell 92% (July) -> 8% (August)
+                # while coverage stayed at 100%, because `session append` accepted
+                # the entry-level form and session_logging.md documented it. MCP
+                # has required the envelope since 2026-07-31; this warns rather
+                # than refusing, so an existing script keeps working while its
+                # author is told what it costs and what to use instead.
+                print(
+                    "warning: --topics/--related/--replaces/--evolves attribute at ENTRY level, so no "
+                    "decision owns its own topics or links. Prefer --decisions-file with one object per "
+                    "decision (see session_logging.md). memory_session_append requires it.",
+                    file=sys.stderr,
+                )
 
             def _csv(raw: str) -> tuple[str, ...]:
                 return tuple(item.strip() for item in raw.split(",") if item.strip())

@@ -11,9 +11,13 @@ next_action: JNL to accept or reject; nothing is built, and the ADR-level mechan
 
 # Only ADR-Attached Decisions Earn a Diagram
 
-> **Status: PROPOSED 2026-08-07**, from JNL's suggestion during the ADR-diagram build. Written up
-> deliberately rather than built: the ADR-level requirement it extends landed the same day
-> (`55cc393`), and this is the larger question that mechanism raises.
+> **Status: ACCEPTED 2026-08-07 by JNL**, from JNL's own suggestion during the ADR-diagram build.
+> The ADR-level mechanism it extends landed the same day (`55cc393`).
+>
+> **Open question 3 is resolved: the per-entry trigger list is RETIRED, not kept alongside.** JNL's
+> reasoning, recorded verbatim in substance: the per-entry trigger is *shown to degrade and has no
+> teeth*, whereas the ADR link plus an ESR pass can make it an effective rule. `session_logging.md`
+> and its seed twin were updated in the same turn.
 
 ## The problem it answers
 
@@ -78,9 +82,10 @@ of decisions appearing in ADR event ledgers, which is small, enumerable, and alr
    belongs in the ADR review gate rather than in `session_logging.md`.
 2. **Does grounded evidence owe a diagram, or only the head?** Attaching five supporting decisions
    should probably not mint five obligations. The head is the defensible minimum.
-3. **Does this retire the per-entry trigger list?** Arguably it should — a rule nobody follows is
-   worse than no rule, and the triggers could become guidance for *what to draw* rather than *when*.
-   That is a deletion from `session_logging.md` and needs its own decision.
+3. ~~**Does this retire the per-entry trigger list?**~~ **RESOLVED 2026-08-07 — yes, retired.** The
+   trigger list degraded measurably and had no enforcement, while the ADR link plus an ESR pass can
+   hold. The shapes it named survive as guidance for *what to draw* once a diagram is owed; they no
+   longer govern *when* one is owed. Applied to `session_logging.md` (live and seed).
 4. **Interaction with the ADR backlog.** 36 of 38 ADRs are currently unanswered. This proposal adds
    obligations on top of that backlog; it should land after the backlog is drained, or it will read
    as a second unpaid debt.
