@@ -104,12 +104,17 @@ confidence floor may auto-*hide* low-confidence verdicts from the batch, but nev
 
 ### 5. Write + check
 
-Write approved edges into the day's link sidecar
-`.memory-seed/sessions/links/YYYY-MM/YYYY-MM-DD.md`, one block per SOURCE (newer) entry, keyed
-`## <source entry timestamp> - <short label>` + a fenced yaml with `entry_id:` and the
-`replaces:`/`evolves:`/`related_entries:` lists (arrow grammar for the source ordinal when the source
-is multi-decision). Never reopen a written entry — append-only. Then run `memory-seed links check` and
-confirm integrity OK before merging.
+Write approved edges into the link sidecar for the **source entry's own session date** —
+`.memory-seed/sessions/links/YYYY-MM/YYYY-MM-DD.md`, where the date is when that entry was logged,
+**not today**. A campaign spanning many dates therefore writes to many files; filing a block under any
+other date fails `links check` with `link-sidecar-date-mismatch`.
+
+One block per SOURCE (newer) entry, keyed `## <authoring wall clock> - <short label>` + a fenced yaml
+with `entry_id:` and the `replaces:`/`evolves:`/`related_entries:` lists (arrow grammar for the source
+ordinal when the source is multi-decision). Use the wall clock, **not** the entry's own timestamp:
+block identity is `(entry_id, heading timestamp)`, so a later pass needs a distinct stamp to append a
+second block for the same entry. Never reopen a written entry — append-only. Then run
+`memory-seed links check` and confirm integrity OK before merging.
 
 ## Guardrails
 

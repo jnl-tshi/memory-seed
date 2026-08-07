@@ -57,6 +57,7 @@ The larger archive in `docs/5_Completed/` (43 docs) migrates here in the P2 bulk
 | [graph recommendations.md](graph%20recommendations.md) | — | — | — |
 | [grounding-provenance-write-time-links-proposal.md](grounding-provenance-write-time-links-proposal.md) | — | — | — |
 | [interaction-frequency-ranking-plan.md](interaction-frequency-ranking-plan.md) | — | — | — |
+| [link-sidecar-placement-review.md](link-sidecar-placement-review.md) | — | — | — |
 | [memory-entry-trailer-plan.md](memory-entry-trailer-plan.md) | — | — | — |
 | [memory-explorer-entry-level-ui-results-plan.md](memory-explorer-entry-level-ui-results-plan.md) | — | — | — |
 | [Memory-Seed Logic Capture Improvement.md](Memory-Seed%20Logic%20Capture%20Improvement.md) | — | — | — |

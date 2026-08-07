@@ -367,6 +367,86 @@ class LinkAuditTests(unittest.TestCase):
         self.assertEqual(reapplied.skipped_entry_ids, (B, C))
         self.assertEqual(result.path.read_bytes(), before)
 
+    def test_apply_sorts_a_wall_clock_stamped_sidecar_instead_of_refusing(self):
+        # A sidecar is filed under its SOURCE entry's date, but a later
+        # enrichment pass stamps its blocks with the AUTHORING wall clock (block
+        # identity is (entry_id, heading timestamp), so a second block for one
+        # entry needs a distinct stamp). Those two rules together make a
+        # re-visited file legitimately non-chronological. `apply` used to refuse
+        # such a file outright, which permanently closed the date to further
+        # scaffolding - four dates in this repo's own corpus were stuck that way.
+        older = self.sessions / "2026-06-01.md"
+        audited = self.sessions / "2026-06-02.md"
+        older.write_text(_entry("2026-06-01 09:00", A, files=["pkg/foo.py"]), encoding="utf-8")
+        audited.write_text(
+            "\n".join(
+                [
+                    _entry("2026-06-02 09:00", B, files=["pkg/foo.py"]),
+                    _entry("2026-06-02 10:00", C, files=["pkg/foo.py"]),
+                ]
+            ),
+            encoding="utf-8",
+        )
+        links_dir = self.sessions / "links" / "2026-06"
+        links_dir.mkdir(parents=True, exist_ok=True)
+        sidecar = links_dir / "2026-06-02.md"
+        # Two passes over C, appended newest-first: out of chronological order.
+        second_pass = f"## 2026-07-25 20:02 - second pass\n\n```yaml\nentry_id: {C}\nevolves:\n  - {A}\n```"
+        first_pass = f"## 2026-07-25 17:58 - first pass\n\n```yaml\nentry_id: {C}\nrelated_entries:\n  - {B}\n```"
+        sidecar.write_text(
+            f"---\ntags:\n  - session-log-links\nlink_date: 2026-06-02\n---\n\n{second_pass}\n\n{first_pass}\n",
+            encoding="utf-8",
+        )
+
+        gaps = audit_link_gaps(cwd=self.cwd, session_date="2026-06-02")
+        result = apply_link_gap_stubs(gaps, session_date="2026-06-02", cwd=self.cwd)
+
+        # C already carries blocks, so only B is scaffolded.
+        self.assertEqual(result.added_entry_ids, (B,))
+        self.assertEqual(result.skipped_entry_ids, (C,))
+        text = sidecar.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("---\ntags:\n  - session-log-links\nlink_date: 2026-06-02\n---\n"))
+        # Sorted on write: B's stub (the entry's own stamp) precedes both
+        # wall-clock blocks, and those two are now in order.
+        self.assertLess(text.index("## 2026-06-02 09:00"), text.index("## 2026-07-25 17:58"))
+        self.assertLess(text.index("## 2026-07-25 17:58"), text.index("## 2026-07-25 20:02"))
+        # Reordering is a pure permutation - both published blocks survive verbatim.
+        self.assertIn(second_pass, text)
+        self.assertIn(first_pass, text)
+        self.assertEqual(text.count("classify_pending: true"), 1)
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
+
+    def test_apply_appends_to_a_frontmatter_only_sidecar_without_duplicating_it(self):
+        # The rewrite computes the preamble from the first block; a file with
+        # valid frontmatter and NO blocks has none, so this path takes the whole
+        # existing text as preamble. It must not duplicate or mangle it.
+        (self.sessions / "2026-06-01.md").write_text(
+            _entry("2026-06-01 09:00", A, files=["pkg/foo.py"]), encoding="utf-8"
+        )
+        (self.sessions / "2026-06-02.md").write_text(
+            _entry("2026-06-02 09:00", B, files=["pkg/foo.py"]), encoding="utf-8"
+        )
+        links_dir = self.sessions / "links" / "2026-06"
+        links_dir.mkdir(parents=True, exist_ok=True)
+        sidecar = links_dir / "2026-06-02.md"
+        sidecar.write_text("---\ntags:\n  - session-log-links\nlink_date: 2026-06-02\n---\n", encoding="utf-8")
+
+        result = apply_link_gap_stubs(
+            audit_link_gaps(cwd=self.cwd, session_date="2026-06-02"),
+            session_date="2026-06-02",
+            cwd=self.cwd,
+        )
+
+        self.assertEqual(result.added_entry_ids, (B,))
+        text = sidecar.read_text(encoding="utf-8")
+        self.assertEqual(text.count("link_date: 2026-06-02"), 1)
+        self.assertEqual(text.count("- session-log-links"), 1)
+        self.assertTrue(
+            text.startswith("---\ntags:\n  - session-log-links\nlink_date: 2026-06-02\n---\n\n## 2026-06-02 09:00"),
+            text[:160],
+        )
+        self.assertTrue(check_session_links(cwd=self.cwd).ok)
+
     def test_apply_stub_classify_check_round_trip(self):
         (self.sessions / "2026-06-01.md").write_text(
             _entry("2026-06-01 09:00", A, files=["pkg/foo.py"]), encoding="utf-8"

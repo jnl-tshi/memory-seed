@@ -30,6 +30,17 @@ All notable changes to Memory Seed are summarized here.
 
 ### Changed
 
+- **`link audit --apply` sorts a non-chronological sidecar instead of refusing it.** A link sidecar
+  is filed under its SOURCE entry's session date, but a later enrichment pass stamps its blocks with
+  the authoring wall clock (block identity is `(entry_id, heading timestamp)`, so a second block for
+  one entry needs a distinct stamp). Those two rules together make a re-visited file legitimately
+  non-chronological, and `apply_link_gap_stubs` used to raise `blocks are not chronological` — which
+  permanently closed that date to further scaffolding. It now re-sorts the block region on write, the
+  same stable sort `_write_chronological_link_sidecar_file` already used for the fuse; block content
+  is untouched, so the reorder stays inside the append-only contract. Four dates in this repo's own
+  corpus (`2026-07-03`, `-05`, `-12`, `-17`) were stuck this way and have been re-sorted.
+  `link_swarm.md` step 5 and the sidecar spec now state both rules explicitly — "the day's sidecar"
+  read as *today's*, which would have failed `links check` with `link-sidecar-date-mismatch`.
 - **Reversing a recorded decision on a live instruction is no longer a STOP.**
   `.memory-seed/skills/risk_signaling.md` splits its former "Constitutional / architectural
   conflict" category: ratified invariants keep the hard Stop, while an explicit live instruction to
