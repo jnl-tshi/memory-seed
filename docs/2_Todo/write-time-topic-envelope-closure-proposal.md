@@ -89,10 +89,15 @@ document is explicit: *"The sequence matters, because a sweep is worthless until
 place to compare against."* Backfilling now means mopping with the tap running, and repeating the
 campaign in a fortnight.
 
-## Carried-forward open question
+## Carried-forward open question — RESOLVED 2026-08-07
 
-The accepted proposal's own caveat still stands and still gates how much the eventual sweep is
-worth: the aborted pilot scored the swarm against authored topics **as if authored were ground
+> Leg B is measured: per-decision attribution carries non-arbitrary information, inheritance
+> over-attributes 42.8% on average, and 48% of the decisions a topic query returns under
+> inheritance are false positives. **The sweep is worth running.** See
+> [`../4_Reference/leg-b-per-decision-attribution-measurement.md`](../4_Reference/leg-b-per-decision-attribution-measurement.md).
+> Leg A — attribution ACCURACY — remains open and still needs adjudication.
+
+The original caveat, for the record: the aborted pilot scored the swarm against authored topics **as if authored were ground
 truth**. If both sides are model judgments, 0.613 is inter-annotator agreement, not accuracy. Leg B
 — per-decision attribution against free inheritance, which measures the campaign's actual value —
 never ran. Resolving it does not block anything proposed here.

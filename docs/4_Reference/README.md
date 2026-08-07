@@ -33,6 +33,7 @@ Current Memory Trace provenance:
 | [INBOX-ASSESSMENT.md](INBOX-ASSESSMENT.md) | — | — | inbox-assessed |
 | [INBOX-CAPABILITY-CROSSWALK.md](INBOX-CAPABILITY-CROSSWALK.md) | — | — | inbox-crosswalk |
 | [information-theoretic-evolution-disposition.md](information-theoretic-evolution-disposition.md) | — | — | disposition |
+| [leg-b-per-decision-attribution-measurement.md](leg-b-per-decision-attribution-measurement.md) | — | — | — |
 | [memory-quality-v0-baseline.md](memory-quality-v0-baseline.md) | — | — | — |
 | [memory-seed-rectification-priorities-report.md](memory-seed-rectification-priorities-report.md) | — | — | — |
 | [memory-trace-next-generation-plan-document-set.md](memory-trace-next-generation-plan-document-set.md) | — | — | — |
