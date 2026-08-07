@@ -32,10 +32,20 @@ of coverage a week later.
 *(34 attributions carry an empty ordinal — entry-level topics in a decision-keyed field. Benign;
 treat as applying to the entry's decisions.)*
 
-## Test 1 — can topics RANK attachment candidates? **No.**
+## Test 1 — RECALL works; ranking was never the job
 
-Ground truth: JNL's 5 approved picks from the screening shortlist. Each ADR offered 5 candidates,
-so random selection scores mean rank 3.0.
+**Framing correction (JNL).** Topics were always proposed for RECALL - bounding which decisions a
+swarm should even consider - never for ranking within that set. I tested them as a ranker, found
+them at chance, and wrote "abandon it", which generalised a failure at a job nobody asked them to
+do. The recall result below is the one that matters, and it is a success.
+
+**Recall: 5 of 5 approved picks appeared in the topic-matched candidate list**, out of ~1050
+topiced decisions in the corpus. That is the mechanism earning its place: it takes the swarm's
+search space from the whole corpus down to five per ADR, and the right answer was inside every
+time. Keep it, and keep using it to bound swarm candidate sets.
+
+Ranking within the shortlist is a separate job, and topics do not do it. Ground truth: JNL's 5
+approved picks. Each ADR offered 5 candidates, so random selection scores mean rank 3.0.
 
 | scorer | approved ranked #1 | mean rank |
 |---|---|---|
@@ -46,12 +56,11 @@ so random selection scores mean rank 3.0.
 
 **Do not build the rarity/semantic ranker.** I recommended it in the previous version of this
 document; it does not survive contact with the labelled set. The gains are inside noise at n=5, and
-the current scorer is indistinguishable from chance.
+the current scorer is indistinguishable from chance. This retires one proposed feature - it does
+not retire topic matching, which keeps its recall job.
 
-**But recall is excellent: 5 of 5 approved picks were present in the offered candidate list.** So
-topics do the surfacing job well and the selection job not at all. What actually selected correctly
-was a worker *reading the decision body*. Keep topics for bounding the candidate set; keep reading
-for choosing within it.
+So the division of labour is: **topics bound the candidate set, reading the decision body chooses
+within it.** That is what actually happened in the screening pass, and it worked.
 
 ## Test 2 — can topics SEGMENT lineage into concern chains? **Yes, clearly.**
 
@@ -100,13 +109,22 @@ labelled cases correctly).
 | job | use | evidence |
 |---|---|---|
 | **grouping** lineage into concern chains | **same-area filter** | coherent chains, 58 → 11 |
-| **recall** — bounding a candidate set | topic match | 5/5 golds surfaced |
+| **recall** — bounding a swarm's candidate set | **topic match** | 5/5 golds surfaced from ~1050 |
 | **ranking** within a candidate set | ~~topics~~ → **read the decision** | all scorers ≈ random |
 | **gating** a head move | **authorship** | topics fail at every granularity |
 
-Two of these were things I proposed and the data rejected. Worth stating plainly: the exploratory
-pass paid for itself twice.
+One proposed feature (the rarity/semantic ranker) died here, and one insight was found that nobody
+was looking for (unattached coherent chains as ADR candidates). The exploratory pass paid for
+itself in both directions.
 
 **Caveat: n=5 labelled picks and n=5 labelled hops.** Every claim about ranking and gating rests on
 that. Test 2's coherence result is qualitative but rests on all 231 edges, and is the most robust
 finding here.
+
+## Re-run after the topic swarm lands
+
+JNL has a topic swarm in flight to fill the August coverage gap (6% today). Every number above that
+depends on coverage should be recomputed once it lands - Test 2's segmentation especially, since
+more topiced decisions means more edges become evaluable and the chains should get both more
+numerous and more complete. `audit_link_topic_join.py` holds the shared join, so re-running is
+cheap and cannot reintroduce the bare-ref bug.
