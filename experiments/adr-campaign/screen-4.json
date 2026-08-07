@@ -1,0 +1,42 @@
+[
+  {
+    "adr_id": "adr_topic_backfill_rejected",
+    "verdict": "supporting",
+    "ref": "mse_25zzy3cmdjgrsf69:d2",
+    "quote": "Promote only the aliases the corpus actually authored",
+    "why": "This decision implements the curated-evidence premise by promoting only authored topic aliases, which directly supports the rejection of automated scoring.",
+    "runner_up": "mse_0n9nwq9qj6dp493f:d2"
+  },
+  {
+    "adr_id": "adr_topic_vocabulary",
+    "verdict": "primary",
+    "ref": "mse_25zzy3cmdjgrsf69:d1",
+    "quote": "axis: area / axis: activity is declared on the 23 root slugs",
+    "why": "This decision directly implements the two-axis hierarchical vocabulary with root axis declaration, which is the exact concern the ADR records.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_trace_incremental_startup",
+    "verdict": "supporting",
+    "ref": "mse_74f1jkr8rv4b7hrp:d5",
+    "quote": "The settle re-measures the camera 4x a second, and a warm mount stops early",
+    "why": "This decision optimizes Trace startup performance by reducing settle iterations, supporting the incremental startup efficiency goal.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_trail_derived_lanes",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "why": "The candidates (B0a renderer contract, graph edges, orphan handling) address graph rendering infrastructure but not the specific Trail lane derivation concern.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_worktree_convention",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "why": "While candidates discuss git workflow and branches, none address the worktree=session, branch=task, agent-namespaced naming convention itself.",
+    "runner_up": ""
+  }
+]

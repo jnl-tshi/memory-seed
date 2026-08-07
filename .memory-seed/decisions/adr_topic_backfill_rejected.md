@@ -83,3 +83,20 @@ Founded from the control file; no session lineage attached yet.
 #### Reason
 
 Two pilot runs scored macro-recall at 58.3% and 61.3% against a 0.70 gate, falling short. The curated-evidence premise succeeded: a human worker with swarm output as evidence judged 1,030 units and wrote 2,013 attributions (95% carrying both axes).
+
+### context-added - 2026-08-07T05:21:00Z
+
+```json
+{
+  "event_id": "adre_f3f9b1809e3ee0ee1f5f",
+  "source": "derived",
+  "supporting_decisions": [
+    "mse_25zzy3cmdjgrsf69:d2"
+  ],
+  "update_entry_id": "mse_ex5216t2hn30s5wx"
+}
+```
+
+#### Reason
+
+Expresses the curated-evidence premise this concern adopted in place of scored automation: a slug is promoted only where the corpus literally authored it.

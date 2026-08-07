@@ -19,24 +19,19 @@ source: derived
 <!-- memory-seed-derived-current-view:start -->
 Status: **Accepted**
 
-Authoritative decision: `founding:.memory-seed/index.md#L172`
+Authoritative decision: `mse_dr5eprnhrctqeeg3:d1`
 
 ### Decision
 
-Branch integration is one explicit CLI wrapper, `memory-seed session merge-branch --branch <branch>`, which sequences fuse dry-run, `git merge --no-ff --no-commit`, session-path reset to base content, fuse apply, staging and the merge commit. It fails closed: fuse issues abort before any merge state exists. It is deliberately NOT a git merge driver and not an enforcement-only pre-commit hook.
+Current authoritative decision for this concern: `mse_dr5eprnhrctqeeg3:d1`. See the source decision for its full statement.
 
 ### Why
 
-Git can merge text and preserve branch topology, but it cannot validate entry_id, branch provenance, or append-only session order - so raw line-merges landed session entries out of chronological order twice in a single day when the manual dry-run/apply dance was skipped. Making the correct sequence a single command removes the opportunity to skip a step, while keeping it an explicit command (rather than a driver that fires invisibly on every merge) keeps the Memory-Seed-aware validation visible and refusable.
+No lifecycle edge has carried this decision forward, so it remains current. Related decisions are recorded as supporting context only - the contract keeps related references out of lineage semantics.
 
 ### How it evolved
 
-Founded on the position that fuse is an explicit integration command rather than a Git union merge driver, then hardened into the one-step wrapper after the two out-of-order incidents.
-
-### Constitution
-
-- `constitution:v1#write-surface-parity` (governing)
-- `constitution:v1#append-only` (supporting)
+Re-anchored from the control-file founding onto its session decision; related decisions recorded as context: mse_v26pem9hsvsbjbge:d3.
 
 <!-- memory-seed-derived-current-view:end -->
 
@@ -92,3 +87,45 @@ Founded on the position that fuse is an explicit integration command rather than
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-07T01:00:00Z
+
+```json
+{
+  "decision_ref": "mse_dr5eprnhrctqeeg3:d1",
+  "event_id": "adre_2014f8c7d421d848f0f7",
+  "source": "derived",
+  "supporting_decisions": [
+    "mse_v26pem9hsvsbjbge:d3"
+  ],
+  "update_entry_id": "mse_ex5216t2hn30s5wx"
+}
+```
+
+#### Decision
+
+Current authoritative decision for this concern: `mse_dr5eprnhrctqeeg3:d1`. See the source decision for its full statement.
+
+#### Why
+
+No lifecycle edge has carried this decision forward, so it remains current. Related decisions are recorded as supporting context only - the contract keeps related references out of lineage semantics.
+
+#### Evolution
+
+Re-anchored from the control-file founding onto its session decision; related decisions recorded as context: mse_v26pem9hsvsbjbge:d3.
+
+### revision-accepted - 2026-08-07T03:00:00Z
+
+```json
+{
+  "decision_ref": "mse_dr5eprnhrctqeeg3:d1",
+  "event_id": "adre_db0cd093162d58ddc446",
+  "expected_authoritative_decision": "founding:.memory-seed/index.md#L172",
+  "source": "derived",
+  "update_entry_id": "mse_ex5216t2hn30s5wx"
+}
+```
+
+#### Reason
+
+Approved by JNL 2026-08-07: attach the related integration decision; head converges onto the ADR's own decision.

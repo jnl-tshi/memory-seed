@@ -1,0 +1,178 @@
+{
+ "picks": [
+  {
+   "adr_id": "adr_archive_before_replace",
+   "verdict": "supporting",
+   "ref": "ms-757053d4:d4",
+   "quote": "archived the true 2.5 reusable procedure files to `.memory-seed/archive/2.5/`",
+   "why": "D4 implements archiving control-plane files before version replacement, directly supporting the ADR's archiving-before-replace pattern",
+   "runner_up": ""
+  },
+  {
+   "adr_id": "adr_draft_format",
+   "verdict": "supporting",
+   "ref": "ms-2e9c5f31:d2",
+   "quote": "Add DRAFT label list to the `session-log-check.py` reminder text",
+   "why": "This decision directly implements the DRAFT format baseline by embedding DRAFT labels in session-log hooks so agents see the format when writing entries.",
+   "runner_up": "ms-2e9c5f31:d3"
+  },
+  {
+   "adr_id": "adr_markdown_substrate",
+   "verdict": "supporting",
+   "ref": "ms-a7d29f64:d2",
+   "quote": "The condensed one-liner was the outlier; the rest of the control plane and the schema test describe the two-step lazy-load contract. Restoring realigns them.",
+   "why": "Restoring consistent plain-Markdown documentation wording supports the ADR's concern about keeping Markdown predictable and synchronized across the control plane.",
+   "runner_up": ""
+  }
+ ],
+ "kept": [
+  {
+   "adr_id": "adr_agent_config_merge",
+   "verdict": "none",
+   "ref": "",
+   "quote": "",
+   "why": "Candidates address agent selection, CLI help, and routing; none directly implement the JSON merge pattern for .claude/settings.json that the ADR records",
+   "runner_up": ""
+  },
+  {
+   "adr_id": "adr_archive_before_replace",
+   "verdict": "supporting",
+   "ref": "ms-757053d4:d4",
+   "quote": "archived the true 2.5 reusable procedure files to `.memory-seed/archive/2.5/`",
+   "why": "D4 implements archiving control-plane files before version replacement, directly supporting the ADR's archiving-before-replace pattern",
+   "runner_up": ""
+  },
+  {
+   "adr_id": "adr_branch_session_fuse",
+   "verdict": "none",
+   "ref": "",
+   "quote": "",
+   "why": "Candidates address general git workflow and session branching but not the branch-local session entry import, chronological immutability, or branch metadata requirements",
+   "runner_up": ""
+  },
+  {
+   "adr_id": "adr_draft_format",
+   "verdict": "supporting",
+   "ref": "ms-2e9c5f31:d2",
+   "quote": "Add DRAFT label list to the `session-log-check.py` reminder text",
+   "why": "This decision directly implements the DRAFT format baseline by embedding DRAFT labels in session-log hooks so agents see the format when writing entries.",
+   "runner_up": "ms-2e9c5f31:d3"
+  },
+  {
+   "adr_id": "adr_edge_kinds",
+   "verdict": "none",
+   "ref": "",
+   "quote": "",
+   "why": "None of the candidates establish or enforce the four edge kinds (replaces, evolves, related_entries, evolved_by) or their acyclic/forward-only properties; all are tangential graph-topology work.",
+   "runner_up": ""
+  },
+  {
+   "adr_id": "adr_encoding_policy",
+   "verdict": "none",
+   "ref": "",
+   "quote": "",
+   "why": "All candidates share only the control-plane topic but concern configuration persistence, MCP routing, or release process - none address encoding policy (UTF-8, LF, NFC normalization) ownership or duplication prevention.",
+   "runner_up": ""
+  },
+  {
+   "adr_id": "adr_experiment_isolation",
+   "verdict": "none",
+   "ref": "",
+   "quote": "",
+   "why": "Candidates address format coupling tests, hygiene audits, and CI pipeline work but none concern experiment fixture isolation via nearest-runtime discovery or standalone fixture repositories.",
+   "runner_up": ""
+  },
+  {
+   "adr_id": "adr_integration_mode",
+   "verdict": "none",
+   "ref": "",
+   "quote": "",
+   "why": "Candidates are about control-plane versioning and agent selection, not git integration mode (local-merge vs PR) strategy.",
+   "runner_up": ""
+  },
+  {
+   "adr_id": "adr_legacy_agents_compat",
+   "verdict": "none",
+   "ref": "",
+   "quote": "",
+   "why": "Candidates focus on control-plane versioning and dependency strategy, not .AGENTS/ backward-compatibility mechanisms.",
+   "runner_up": ""
+  },
+  {
+   "adr_id": "adr_markdown_substrate",
+   "verdict": "supporting",
+   "ref": "ms-a7d29f64:d2",
+   "quote": "The condensed one-liner was the outlier; the rest of the control plane and the schema test describe the two-step lazy-load contract. Restoring realigns them.",
+   "why": "Restoring consistent plain-Markdown documentation wording supports the ADR's concern about keeping Markdown predictable and synchronized across the control plane.",
+   "runner_up": ""
+  },
+  {
+   "adr_id": "adr_runtime_discovery",
+   "verdict": "none",
+   "ref": "",
+   "quote": "",
+   "why": "No candidates address the runtime discovery mechanism of walking to the nearest .memory-seed/ directory.",
+   "runner_up": ""
+  },
+  {
+   "adr_id": "adr_trail_derived_lanes",
+   "verdict": "none",
+   "ref": "",
+   "quote": "",
+   "why": "The candidates (B0a renderer contract, graph edges, orphan handling) address graph rendering infrastructure but not the specific Trail lane derivation concern.",
+   "runner_up": ""
+  },
+  {
+   "adr_id": "adr_worktree_convention",
+   "verdict": "none",
+   "ref": "",
+   "quote": "",
+   "why": "While candidates discuss git workflow and branches, none address the worktree=session, branch=task, agent-namespaced naming convention itself.",
+   "runner_up": ""
+  }
+ ],
+ "drops": [
+  {
+   "adr_id": "adr_community_detection_rejected",
+   "ref": "mse_3yvakpxdshc95e68:d1",
+   "reason": "quote matches only the title in the cited decision",
+   "batch": "screen-1.json"
+  },
+  {
+   "adr_id": "adr_docs_lifecycle_folders",
+   "ref": "mse_m0xs623m4cs0kjag:d1",
+   "reason": "ref not in that ADR's candidate list (offered: ['ms-bde55cc2:d1', 'mse_21d4kcx6g1vxt0ky:d1', 'mse_5hgxywp0n3qsz0dw:d1', 'mse_9s1yhyh43qp1k3mx:d1', 'mse_a0bxp5n1wcnsjxvw:d4'])",
+   "batch": "screen-1.json"
+  },
+  {
+   "adr_id": "adr_entry_id_scheme",
+   "ref": "ms-a4282580:d2",
+   "reason": "quote is 27 chars, under the 40 minimum",
+   "batch": "screen-2.json"
+  },
+  {
+   "adr_id": "adr_release_topology",
+   "ref": "ms-6b21d9f4:d1",
+   "reason": "quote not found in the cited decision",
+   "batch": "screen-3.json"
+  },
+  {
+   "adr_id": "adr_topic_backfill_rejected",
+   "ref": "mse_25zzy3cmdjgrsf69:d2",
+   "reason": "quote matches only the title in the cited decision",
+   "batch": "screen-4.json"
+  },
+  {
+   "adr_id": "adr_topic_vocabulary",
+   "ref": "mse_25zzy3cmdjgrsf69:d1",
+   "reason": "quote not found in the cited decision",
+   "batch": "screen-4.json"
+  },
+  {
+   "adr_id": "adr_trace_incremental_startup",
+   "ref": "mse_74f1jkr8rv4b7hrp:d5",
+   "reason": "quote matches only the title in the cited decision",
+   "batch": "screen-4.json"
+  }
+ ]
+}

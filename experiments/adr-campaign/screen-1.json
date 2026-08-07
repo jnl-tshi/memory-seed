@@ -1,0 +1,42 @@
+[
+  {
+    "adr_id": "adr_agent_config_merge",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "why": "Candidates address agent selection, CLI help, and routing; none directly implement the JSON merge pattern for .claude/settings.json that the ADR records",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_archive_before_replace",
+    "verdict": "supporting",
+    "ref": "ms-757053d4:d4",
+    "quote": "archived the true 2.5 reusable procedure files to `.memory-seed/archive/2.5/`",
+    "why": "D4 implements archiving control-plane files before version replacement, directly supporting the ADR's archiving-before-replace pattern",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_branch_session_fuse",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "why": "Candidates address general git workflow and session branching but not the branch-local session entry import, chronological immutability, or branch metadata requirements",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_community_detection_rejected",
+    "verdict": "primary",
+    "ref": "mse_3yvakpxdshc95e68:d1",
+    "quote": "Communities come from authored topics, not from structural detection",
+    "why": "D1 directly rejects topology-community detection (Louvain/Leiden unimplemented) and is the founding decision the ADR records",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_docs_lifecycle_folders",
+    "verdict": "supporting",
+    "ref": "mse_m0xs623m4cs0kjag:d1",
+    "quote": "Added `seeded-document-lifecycle-control-plane-proposal.md` to `docs/1_Inbox/`",
+    "why": "D1 captured the seeded docs lifecycle proposal and made it explicit for adoption, supporting the folder-based lifecycle decision",
+    "runner_up": ""
+  }
+]

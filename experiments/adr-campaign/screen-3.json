@@ -1,0 +1,42 @@
+[
+  {
+    "adr_id": "adr_integration_mode",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "why": "Candidates are about control-plane versioning and agent selection, not git integration mode (local-merge vs PR) strategy.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_legacy_agents_compat",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "why": "Candidates focus on control-plane versioning and dependency strategy, not .AGENTS/ backward-compatibility mechanisms.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_markdown_substrate",
+    "verdict": "supporting",
+    "ref": "ms-a7d29f64:d2",
+    "quote": "The condensed one-liner was the outlier; the rest of the control plane and the schema test describe the two-step lazy-load contract. Restoring realigns them.",
+    "why": "Restoring consistent plain-Markdown documentation wording supports the ADR's concern about keeping Markdown predictable and synchronized across the control plane.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_release_topology",
+    "verdict": "primary",
+    "ref": "ms-6b21d9f4:d1",
+    "quote": "created the GitHub Release → `publish.yml` ... **approved the `pypi` gate** via `gh api`",
+    "why": "Directly implements the complete release topology: GitHub Release triggers publish workflow, which pauses at the manual PyPI approval gate before pushing to PyPI.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_runtime_discovery",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "why": "No candidates address the runtime discovery mechanism of walking to the nearest .memory-seed/ directory.",
+    "runner_up": ""
+  }
+]

@@ -84,3 +84,20 @@ Founded from the control file; no session lineage attached yet.
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### context-added - 2026-08-07T05:20:00Z
+
+```json
+{
+  "event_id": "adre_da9cb524e97d74ca89a1",
+  "source": "derived",
+  "supporting_decisions": [
+    "ms-757053d4:d4"
+  ],
+  "update_entry_id": "mse_ex5216t2hn30s5wx"
+}
+```
+
+#### Reason
+
+An instance of the archive-before-replace rule being followed: the 2.5 reusable procedure files were archived before the 2.6 control plane replaced them. Evidence of the practice, not the decision establishing it.
