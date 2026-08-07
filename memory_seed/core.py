@@ -5329,7 +5329,13 @@ def _plan_session_fuse(
     # they reconcile structurally rather than with line-based text merging.
     # Source events may refer to session entries imported by this same plan;
     # admit those identities during validation but write sessions first.
-    from .adr import parse_adr_text, reconcile_adr_records, render_adr, validate_adr
+    from .adr import (
+        parse_adr_text,
+        reconcile_adr_records,
+        render_adr,
+        unknown_event_kinds,
+        validate_adr,
+    )
 
     adr_writes: list[tuple[str, str]] = []
     pending_entries = tuple(record.entry_id for record in import_entries if record.entry_id)
@@ -5349,6 +5355,16 @@ def _plan_session_fuse(
             continue
         if source_text is None:
             # Deletions are never imported by the append-only fuse.
+            continue
+        # Check BEFORE parsing: an unrecognised event kind is invisible to the parser, so every
+        # downstream message would blame the ledger for what is really a stale build.
+        unknown_kinds = unknown_event_kinds(source_text)
+        if unknown_kinds:
+            issues.append(
+                f"{rel_path}: uses ADR event kind(s) {', '.join(unknown_kinds)} that this build "
+                "does not understand. Land the parser change (memory_seed/adr.py) as its own merge "
+                "first, then merge the ledger data."
+            )
             continue
         try:
             incoming_adr = parse_adr_text(source_text, path=root / rel_path)
