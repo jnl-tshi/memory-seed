@@ -850,6 +850,10 @@ MAX_INFERRED_TOPICS = 4
 # complementary, and the count is the half that still works on a vocabulary
 # which has not declared its axes.
 MAX_TOPICS_PER_DECISION = 3
+# Shape of a controlled-vocabulary slug. Used to check that a `proposed_topic`
+# REQUEST is at least well-formed - it never resolves and never enters the
+# vocabulary, so shape is the only thing that can be validated about it.
+TOPIC_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
 # A topic sidecar slug may name the decision it describes: `graph:d1`. A BARE
 # slug stays legal forever rather than being a migration stage - 33 corpus
@@ -3181,6 +3185,7 @@ class _DecisionSidecarWrite:
     replaces: tuple[str, ...]
     evolves: tuple[str, ...]
     adr: "_AdrPromotionWrite | None" = None
+    proposed_topic: str | None = None
 
 
 @dataclass(frozen=True)
@@ -3232,7 +3237,7 @@ def _normalise_decision_sidecars(
         if not isinstance(raw_topics, Mapping):
             issues.append(f"decisions[{index}].topics must be an object with optional area and activity")
             raw_topics = {}
-        unknown_topic_keys = set(raw_topics) - {"area", "activity", "source"}
+        unknown_topic_keys = set(raw_topics) - {"area", "activity", "source", "proposed_topic"}
         if unknown_topic_keys:
             issues.append(
                 f"decisions[{index}].topics has unsupported field(s): {', '.join(sorted(str(key) for key in unknown_topic_keys))}"
@@ -3280,6 +3285,45 @@ def _normalise_decision_sidecars(
             issues.append(
                 f"decisions[{index}] ({decision}) carries {len(canonical_topics)} topics; at most {MAX_TOPICS_PER_DECISION}"
             )
+
+        # Both axes are MANDATORY per decision, matching what the MCP schema has
+        # required since 2026-07-31. The CLI accepted a decision with neither and
+        # that asymmetry is the leak: decision-keyed attribution fell 92% -> 8%
+        # between July and August while coverage stayed at 100%, because entries
+        # kept being written through the entry-level path.
+        if not isinstance(raw_area, str) or not raw_area.strip():
+            issues.append(f"decisions[{index}] ({decision}) needs topics.area - one controlled-vocabulary Area slug")
+        if not activity_values:
+            issues.append(
+                f"decisions[{index}] ({decision}) needs topics.activity - at least one controlled-vocabulary Activity slug"
+            )
+
+        # A REQUEST for vocabulary that does not exist yet. Never a topic: it does
+        # not resolve, is never returned as an attribution, and cannot enter
+        # topics.yaml by being used. It rides alongside the still-mandatory real
+        # Area + Activity so the write is never blocked, and ESR surfaces it for
+        # adjudication with the requesting decision as evidence. This is the
+        # PROPOSE side of the split propose_topic_children.py already enforces -
+        # the promotion rule is evidence, not usage.
+        proposed_topic = raw_topics.get("proposed_topic")
+        if proposed_topic is not None:
+            if not isinstance(proposed_topic, str) or not proposed_topic.strip():
+                issues.append(f"decisions[{index}].topics.proposed_topic must be a non-empty slug-shaped string")
+                proposed_topic = None
+            elif not TOPIC_SLUG_RE.fullmatch(proposed_topic.strip()):
+                issues.append(
+                    f"decisions[{index}].topics.proposed_topic '{proposed_topic}' is not slug-shaped "
+                    "(lowercase letters, digits, hyphens)"
+                )
+                proposed_topic = None
+            elif topic_resolution.get(proposed_topic.strip()):
+                issues.append(
+                    f"decisions[{index}].topics.proposed_topic '{proposed_topic}' already resolves in "
+                    "topics.yaml - use it as area or activity instead of requesting it"
+                )
+                proposed_topic = None
+            else:
+                proposed_topic = proposed_topic.strip()
 
         raw_links = raw.get("links", {})
         if raw_links is None:
@@ -3375,6 +3419,7 @@ def _normalise_decision_sidecars(
                 replaces=rendered_links["replaces"],
                 evolves=rendered_links["evolves"],
                 adr=adr_write,
+                proposed_topic=proposed_topic if isinstance(proposed_topic, str) else None,
             )
         )
     return normalised, issues
@@ -3696,6 +3741,15 @@ def session_append_entry(
         for decision in decision_writes
         for slug in decision.topics
     ]
+    # A requested slug is written under its OWN key, never into `topics:`. Every
+    # topic reader treats that list as resolvable vocabulary, so a request
+    # sitting in it would become a topic by being read - which is precisely what
+    # the PROPOSE/ASSIGN split exists to prevent.
+    proposed_tokens = [
+        f"{decision.proposed_topic}:{decision.decision}"
+        for decision in decision_writes
+        if decision.proposed_topic
+    ]
     if topic_tokens:
         rendered_sidecars["topics"] = "\n".join(
             [
@@ -3706,6 +3760,8 @@ def session_append_entry(
                 "source: write-time",
                 "topics:",
                 *(f"  - {token}" for token in topic_tokens),
+                *(["proposed_topics:"] if proposed_tokens else []),
+                *(f"  - {token}" for token in proposed_tokens),
                 "```",
                 "",
             ]

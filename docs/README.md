@@ -127,5 +127,5 @@ Top open items (P0/P1 in `2_Todo/`):
 - **P1** [memory-trace-ux-reference-model-implementation-plan.md](2_Todo/memory-trace-ux-reference-model-implementation-plan.md) — Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-interaction-matrix.md.
 - **P1** [retrieval-recall-fixes-proposal.md](2_Todo/retrieval-recall-fixes-proposal.md) — Re-derive lifecycle labels from evolves edges (F0) - F2 cannot detect its own regression without them.
 - **P1** [retrieval-specification-m0-m1-implementation-plan.md](2_Todo/retrieval-specification-m0-m1-implementation-plan.md) — Obtain explicit user approval for the configured manual merge; do not merge or push before that approval.
-- **P1** [write-time-topic-envelope-closure-proposal.md](2_Todo/write-time-topic-envelope-closure-proposal.md) — JNL to accept or reject; this is step 3 of an already-accepted build order, plus one addition
+- **P1** [write-time-topic-envelope-closure-proposal.md](2_Todo/write-time-topic-envelope-closure-proposal.md) — none - accepted and implemented 2026-08-07; the topic swarm it unblocks is the next step
 <!-- docs-index:end -->

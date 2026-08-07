@@ -6,12 +6,12 @@ tags:
   - topic-vocabulary
   - control-plane
 priority: P1
-next_action: JNL to accept or reject; this is step 3 of an already-accepted build order, plus one addition
+next_action: none - accepted and implemented 2026-08-07; the topic swarm it unblocks is the next step
 ---
 
 # Write-Time Topic Envelope: Closing the Leak
 
-> **Status: PROPOSED 2026-08-07.** Successor to the **ACCEPTED**
+> **Status: ACCEPTED 2026-08-07 by JNL, and IMPLEMENTED the same day.** Successor to the **ACCEPTED**
 > [`write-time-sidecar-consolidation-proposal.md`](write-time-sidecar-consolidation-proposal.md),
 > whose build order this discharges. That document is accepted and is deliberately **not edited
 > here** — this one carries the amendment for JNL to accept or reject on its own terms.
@@ -96,6 +96,23 @@ worth: the aborted pilot scored the swarm against authored topics **as if author
 truth**. If both sides are model judgments, 0.613 is inter-annotator agreement, not accuracy. Leg B
 — per-decision attribution against free inheritance, which measures the campaign's actual value —
 never ran. Resolving it does not block anything proposed here.
+
+## As implemented (2026-08-07)
+
+One deliberate deviation from A, and the reason for it:
+
+- **Both axes are now mandatory whenever the envelope is used**, in `core` rather than only in the
+  MCP JSON schema — so the CLI and MCP paths finally agree. A decision without an Area, or without at
+  least one Activity, is refused on both.
+- **The legacy flags WARN rather than refuse.** Refusing outright would break any script still
+  passing `--topics` mid-flight, for no gain the warning does not already deliver: the warning names
+  the cost and the replacement, and the doc fix removed the instruction that was teaching the wrong
+  form in the first place. Tightening to a refusal is a one-line change once the corpus stops
+  producing entry-level writes; the ESR attribution-gap count is the signal for when that is safe.
+- `proposed_topic` landed as specified: refused if it already resolves, rendered under its own
+  `proposed_topics:` key in the topic sidecar (never inside `topics:`, which every reader treats as
+  resolvable vocabulary), and surfaced in the ESR Topics section with the requesting decision as
+  evidence.
 
 ## Not proposed
 

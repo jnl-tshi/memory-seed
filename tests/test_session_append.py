@@ -111,6 +111,83 @@ topics:
         self.assertIn(f"- d1 -> {older.entry_id}", link_path.read_text(encoding="utf-8"))
         self.assertTrue(check_session_links(cwd=self.cwd).ok)
 
+    def _vocabulary(self):
+        (self.cwd / MEMORY_DIR_NAME / "topics.yaml").write_text(
+            """schema_version: 2
+topics:
+  - slug: schema
+    axis: area
+  - slug: feature-build
+    axis: activity
+""",
+            encoding="utf-8",
+        )
+
+    def test_both_axes_are_mandatory_on_every_decision(self):
+        # The MCP schema has required area+activity since 2026-07-31; the CLI
+        # path accepted neither, and that asymmetry is what let decision-keyed
+        # attribution fall 92% -> 8% while coverage stayed at 100%.
+        self._vocabulary()
+
+        missing_activity = self._append(
+            title="No activity", decisions=[{"decision": "d1", "topics": {"area": "schema"}}]
+        )
+        self.assertFalse(missing_activity.ok)
+        self.assertIn("needs topics.activity", " ".join(missing_activity.issues))
+
+        missing_area = self._append(
+            title="No area", decisions=[{"decision": "d1", "topics": {"activity": "feature-build"}}]
+        )
+        self.assertFalse(missing_area.ok)
+        self.assertIn("needs topics.area", " ".join(missing_area.issues))
+
+    def test_a_proposed_topic_is_a_request_never_an_attribution(self):
+        # It rides ALONGSIDE the mandatory real pair, so the write is never
+        # blocked, and it lands under its own key - never in `topics:`, which
+        # every reader treats as resolvable vocabulary.
+        self._vocabulary()
+
+        result = self._append(
+            title="Requests vocabulary",
+            timestamp="2026-06-13 09:00",
+            decisions=[
+                {
+                    "decision": "d1",
+                    "topics": {
+                        "area": "schema",
+                        "activity": "feature-build",
+                        "proposed_topic": "swarm-orchestration",
+                    },
+                }
+            ],
+        )
+
+        self.assertTrue(result.ok, result.issues)
+        topics = (self.cwd / MEMORY_DIR_NAME / "sessions" / "topics" / "2026-06" / "2026-06-13.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("proposed_topics:\n  - swarm-orchestration:d1", topics)
+        self.assertIn("- schema:d1", topics)
+        self.assertIn("- feature-build:d1", topics)
+        self.assertTrue(check_session_links(cwd=self.cwd).ok, check_session_links(cwd=self.cwd).issues)
+
+    def test_a_proposed_topic_that_already_resolves_is_refused(self):
+        # Requesting vocabulary that exists is a mis-use, not a request: the
+        # author should be attributing with it instead.
+        self._vocabulary()
+
+        result = self._append(
+            decisions=[
+                {
+                    "decision": "d1",
+                    "topics": {"area": "schema", "activity": "feature-build", "proposed_topic": "schema"},
+                }
+            ],
+        )
+
+        self.assertFalse(result.ok)
+        self.assertIn("already resolves", " ".join(result.issues))
+
     def test_decision_envelope_refuses_legacy_semantic_fields_and_bad_ordinals(self):
         result = self._append(
             topics=["schema"],

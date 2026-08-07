@@ -75,6 +75,11 @@ class EsrReport:
     oldest_open_link_stub: str | None = None
     topic_attribution_gaps: int = 0
     oldest_topic_attribution_gap: str | None = None
+    # Vocabulary REQUESTS awaiting adjudication: `proposed_topic` values written
+    # at decision granularity. They are never topics and cannot become one by
+    # being used, so the only way they ever get considered is by being surfaced
+    # here with the decision that asked as evidence.
+    proposed_topics: list[str] = field(default_factory=list)
     worktrees: list[WorktreePosture] = field(default_factory=list)
     worktree_residues: list[WorktreeResidue] = field(default_factory=list)
     worktrees_available: bool = False
@@ -126,6 +131,7 @@ class EsrReport:
             "open_link_stubs": self.open_link_stubs,
             "oldest_open_link_stub": self.oldest_open_link_stub,
             "topic_attribution_gaps": self.topic_attribution_gaps,
+            "proposed_topics": self.proposed_topics,
             "oldest_topic_attribution_gap": self.oldest_topic_attribution_gap,
             "worktrees": {
                 "available": self.worktrees_available,
@@ -170,6 +176,35 @@ class EsrReport:
                 "adrs_without_diagram_answer": self.adrs_without_diagram_answer,
             },
         }
+
+
+def _proposed_topic_requests(memory_dir: Path) -> list[str]:
+    """``<slug> (requested by <entry_id>:<dN>)`` for every open vocabulary request.
+
+    Read straight from the `proposed_topics:` key in topic sidecars rather than
+    through a topic reader, deliberately: a request must never travel with the
+    resolvable slugs, or something downstream will eventually treat it as one.
+    """
+    topics_dir = memory_dir / "sessions" / "topics"
+    if not topics_dir.is_dir():
+        return []
+    requests: list[str] = []
+    for path in sorted(topics_dir.rglob("*.md")):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for block in re.finditer(r"```yaml\n(.*?)```", text, re.S):
+            body = block.group(1)
+            entry = re.search(r"entry_id:\s*(\S+)", body)
+            region = re.search(r"^proposed_topics:\s*\n((?:\s+-\s+\S+\s*\n)+)", body, re.M)
+            if not (entry and region):
+                continue
+            for item in re.finditer(r"-\s+(\S+)", region.group(1)):
+                slug, _, ordinal = item.group(1).partition(":")
+                who = f"{entry.group(1)}:{ordinal}" if ordinal else entry.group(1)
+                requests.append(f"{slug} (requested by {who})")
+    return sorted(set(requests))
 
 
 def _topic_attribution_gaps(cwd: str | Path) -> tuple[int, str | None]:
@@ -452,6 +487,7 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
     gaps, oldest_gap = _topic_attribution_gaps(cwd)
     report.topic_attribution_gaps = gaps
     report.oldest_topic_attribution_gap = oldest_gap
+    report.proposed_topics = _proposed_topic_requests(runtime.memory_dir)
 
     topics = check_topics(cwd=cwd)
     report.topics_ok = topics.ok
@@ -610,6 +646,12 @@ def format_esr_report(report: EsrReport) -> str:
         lines.append(
             f"Decisions without decision-keyed area+activity, corpus-wide: "
             f"{report.topic_attribution_gaps}{oldest} (topic_swarm.md backfills these)."
+        )
+    if report.proposed_topics:
+        lines.append(f"Vocabulary requests awaiting adjudication: {len(report.proposed_topics)}.")
+        lines.extend(f"- {request}" for request in report.proposed_topics)
+        lines.append(
+            "  Rule each: add to topics.yaml, or decline. A request never becomes a slug by being used."
         )
     lines.append("")
 
