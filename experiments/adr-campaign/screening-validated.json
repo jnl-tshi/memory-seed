@@ -141,13 +141,13 @@
   {
    "adr_id": "adr_docs_lifecycle_folders",
    "ref": "mse_m0xs623m4cs0kjag:d1",
-   "reason": "ref not in that ADR's candidate list (offered: ['ms-bde55cc2:d1', 'mse_21d4kcx6g1vxt0ky:d1', 'mse_5hgxywp0n3qsz0dw:d1', 'mse_9s1yhyh43qp1k3mx:d1', 'mse_a0bxp5n1wcnsjxvw:d4'])",
+   "reason": "ref not in that ADR's candidate list (offered: ['ms-bde55cc2:d1', 'mse_08nhq28nkm2ecpt4:d1', 'mse_21d4kcx6g1vxt0ky:d1', 'mse_5hgxywp0n3qsz0dw:d1', 'mse_61bnt9ty6rfgpw1e:d1'])",
    "batch": "screen-1.json"
   },
   {
    "adr_id": "adr_entry_id_scheme",
    "ref": "ms-a4282580:d2",
-   "reason": "quote is 27 chars, under the 40 minimum",
+   "reason": "ADR not in the attachment review",
    "batch": "screen-2.json"
   },
   {
@@ -159,13 +159,13 @@
   {
    "adr_id": "adr_topic_backfill_rejected",
    "ref": "mse_25zzy3cmdjgrsf69:d2",
-   "reason": "quote matches only the title in the cited decision",
+   "reason": "ADR not in the attachment review",
    "batch": "screen-4.json"
   },
   {
    "adr_id": "adr_topic_vocabulary",
    "ref": "mse_25zzy3cmdjgrsf69:d1",
-   "reason": "quote not found in the cited decision",
+   "reason": "ADR not in the attachment review",
    "batch": "screen-4.json"
   },
   {
@@ -173,6 +173,13 @@
    "ref": "mse_74f1jkr8rv4b7hrp:d5",
    "reason": "quote matches only the title in the cited decision",
    "batch": "screen-4.json"
+  }
+ ],
+ "length_outliers": [
+  {
+   "adr_id": "adr_markdown_substrate",
+   "ref": "ms-a7d29f64:d2",
+   "chars": 157
   }
  ]
 }
