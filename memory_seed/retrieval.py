@@ -2453,10 +2453,24 @@ def apply_link_gap_stubs(
 ) -> LinkAuditApplyResult:
     """Add inert classification stubs to one dated link sidecar.
 
-    Existing sidecar blocks are never changed. New blocks are inserted by the
-    source entry's timestamp, carry only ``classify_pending: true`` plus
-    comment-only candidate evidence, and are skipped when any sidecar block
-    already exists for that source entry. Session entries are read only.
+    Existing sidecar block CONTENT is never changed. New blocks carry only
+    ``classify_pending: true`` plus comment-only candidate evidence, and are
+    skipped when any sidecar block already exists for that source entry.
+    Session entries are read only.
+
+    The whole block region is re-sorted by heading timestamp on write, exactly
+    as ``_write_chronological_link_sidecar_file`` does for the fuse - a stable
+    sort, so existing blocks keep their relative order within a minute and new
+    blocks land after them. This used to REFUSE (``blocks are not
+    chronological``) instead, which permanently closed a date to further
+    scaffolding: a sidecar is filed under its SOURCE entry's date but a later
+    enrichment pass stamps its blocks with the AUTHORING wall clock (block
+    identity is ``(entry_id, heading timestamp)``, so a second block for one
+    entry needs a distinct stamp - see docs/3_Spec/lifecycle-edge-linking-
+    sidecars.md). Those two rules together make a re-visited file legitimately
+    non-chronological, and four dates in this repo's own corpus were stuck that
+    way. Reordering is a pure permutation, never a content edit, and only
+    happens as part of a write - a file with nothing to add is left untouched.
     """
     from .core import _parse_frontmatter_scalars, resolve_runtime
     from .semantic_cache import _entry_order_key, extract_memory_chunks
@@ -2525,9 +2539,6 @@ def apply_link_gap_stubs(
         existing_blocks = list(_LINK_ENTRY_RE.finditer(existing))
         if existing[frontmatter_match.end():].strip() and not existing_blocks:
             raise ValueError(f"Existing link sidecar has no parseable entry blocks: {target}")
-        timestamps = [match.group(1) for match in existing_blocks]
-        if timestamps != sorted(timestamps):
-            raise ValueError(f"Existing link sidecar blocks are not chronological: {target}")
     else:
         existing = frontmatter
 
@@ -2556,26 +2567,29 @@ def apply_link_gap_stubs(
         return timestamp, gap.entry_id, "\n".join(lines)
 
     rendered = [render_stub(gap) for gap in sorted(pending, key=lambda gap: _entry_order_key(chunks[gap.entry_id]))]
-    insertions: dict[int, list[tuple[str, str, str]]] = {}
-    for item in rendered:
-        timestamp = item[0]
-        offset = next(
-            (match.start() for match in existing_blocks if match.group(1) > timestamp),
-            len(existing),
-        )
-        insertions.setdefault(offset, []).append(item)
 
-    updated = existing
-    for offset in sorted(insertions, reverse=True):
-        items = sorted(insertions[offset], key=lambda item: (item[0], item[1]))
-        addition = "\n".join(item[2].rstrip("\n") for item in items) + "\n\n"
-        prefix = updated[:offset]
-        suffix = updated[offset:]
-        if prefix and not prefix.endswith("\n\n"):
-            prefix = prefix + ("\n" if prefix.endswith("\n") else "\n\n")
-        updated = prefix + addition + suffix
+    # Everything from the first block to EOF is the block region; anything
+    # before it (frontmatter, and any preamble prose) is preserved verbatim.
+    if existing_blocks:
+        preamble = existing[: existing_blocks[0].start()].rstrip() + "\n\n"
+        spans = [
+            (
+                match.group(1),
+                existing[match.start(): (existing_blocks[index + 1].start() if index + 1 < len(existing_blocks) else len(existing))].rstrip(),
+            )
+            for index, match in enumerate(existing_blocks)
+        ]
+    else:
+        preamble = existing.rstrip() + "\n\n"
+        spans = []
 
-    write_text_file(target, updated.rstrip("\n") + "\n")
+    # Existing first, incoming second, then a STABLE sort on the heading stamp:
+    # blocks already in the file keep their relative order (a write never
+    # re-positions history it did not touch) and new blocks land after existing
+    # ones sharing that minute, which is what "append" means. Same contract as
+    # _session_record_sort_key.
+    ordered = sorted(spans + [(item[0], item[2].rstrip()) for item in rendered], key=lambda item: item[0])
+    write_text_file(target, preamble + "\n\n".join(text for _timestamp, text in ordered).rstrip() + "\n")
     return LinkAuditApplyResult(
         path=target,
         added_entry_ids=tuple(item[1] for item in rendered),

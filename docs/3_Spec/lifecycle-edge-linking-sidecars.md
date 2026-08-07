@@ -346,6 +346,17 @@ focus and its write-time authoring is unchanged.
   their sources already had blocks. A later block may also revisit an earlier
   block's `edge_status: not_applicable` classification with new evidence; both
   statements stay in history, the union carrying the edge.
+- **A wall-clock heading inside an origin-date file is deliberate, not a
+  defect** (recorded 2026-08-07). The file is named for the SOURCE entry's
+  session date; a later pass stamps its blocks with the authoring clock. So a
+  re-visited sidecar is legitimately non-chronological, and any writer that
+  meets one must **sort**, never refuse. `_write_chronological_link_sidecar_file`
+  always did; `apply_link_gap_stubs` used to raise `blocks are not
+  chronological`, which permanently closed four dates in this corpus to further
+  scaffolding until they were re-sorted. Stamping the source entry's own
+  timestamp instead would restore file order at the cost of the identity rule
+  above — pass two's block would key identically to pass one's — so the wall
+  clock stays.
 
 ## Implementation order (as built - walking skeleton first)
 Because `TRAIL_EDGE_TYPES` already requests `supersedes`/`evolves`
