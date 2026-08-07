@@ -16,6 +16,7 @@ A head moves automatically only when every step of its chain is AUTHORED. Machin
 - `mse_z7rfq8x5qjfbyzdc:d1` => evolves `mse_17d0qqh34a07qp5b:d1` (authored)
     - from: D1 - Decision
     - to:   D1 - Bind lineage-linked MCP writes to living ADR review
+    - topics: NO OVERLAP - check concern drift  (proposal, topic-vocabulary vs feature-build, mcp-tools)
 
 ## adr_merge_branch_primitive
 *session merge-branch is the one-step integration primitive, not a git merge driver*
@@ -31,6 +32,7 @@ A head moves automatically only when every step of its chain is AUTHORED. Machin
 - `mse_d06t9bccm3yykfqs:d1` => evolves `mse_17d0qqh34a07qp5b:d2` (authored)
     - from: D1 - Publish the parent before decision sidecars
     - to:   D2 - Extend parent-first recovery and structural fusion to ADR events
+    - topics: NO OVERLAP - check concern drift  (bugfix, session-logging vs feature-build, session-fuse)
 - `mse_qbp1ndbnhezj34eb:d1` unmoved (no-successor)
 - related: `mse_ypmrtzfmw4qwtbnn:d1` - D1 - Use authored sidecars as the only Trace topic truth
 - related: `mse_ypmrtzfmw4qwtbnn:d2` - D2 - Require complete authored topics for MCP session writes
@@ -43,6 +45,7 @@ A head moves automatically only when every step of its chain is AUTHORED. Machin
 - `mse_z7rfq8x5qjfbyzdc:d1` => evolves `mse_17d0qqh34a07qp5b:d1` (authored)
     - from: D1 - Decision
     - to:   D1 - Bind lineage-linked MCP writes to living ADR review
+    - topics: NO OVERLAP - check concern drift  (proposal, topic-vocabulary vs feature-build, mcp-tools)
 
 ## adr_subproject_scoping
 *Sub-project runtime scoping and inheritance defaults*
@@ -51,4 +54,5 @@ A head moves automatically only when every step of its chain is AUTHORED. Machin
 - `ms-f776aff0:d1` => evolves `ms-0bd3d8b2:d1` (0.75)
     - from: D1 - Restore operational guardrails in v2 language
     - to:   D1 - Use a seeded trigger registry instead of only prose triggers
+    - topics: NO OVERLAP - check concern drift  (agent-rules, feature-build vs design-evaluation, skill-architecture)
 

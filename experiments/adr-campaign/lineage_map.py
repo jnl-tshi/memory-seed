@@ -126,6 +126,33 @@ def title_of(ref: str) -> str:
         return ""
 
 
+def _decision_topic_maps() -> tuple[dict, dict]:
+    """Sidecar is the topic authority: precedence sidecar -> authored, never a union."""
+    import collections
+
+    from memory_seed.retrieval import load_corpus
+
+    sidecar: dict[str, set[str]] = collections.defaultdict(set)
+    authored: dict[str, set[str]] = {}
+    for chunk in load_corpus(REPO, "decision"):
+        entry = (chunk.chunk_id or "").split(":")[0]
+        for ordinal, slug in (getattr(chunk, "inferred_decision_topics", None) or ()):
+            sidecar[f"{entry}:{ordinal}"].add(slug)
+        if chunk.chunk_id:
+            authored[chunk.chunk_id] = set(getattr(chunk, "topics", None) or ())
+    return sidecar, authored
+
+
+_SIDECAR_TOPICS, _AUTHORED_TOPICS = None, None
+
+
+def decision_topics(ref: str) -> set[str]:
+    global _SIDECAR_TOPICS, _AUTHORED_TOPICS
+    if _SIDECAR_TOPICS is None:
+        _SIDECAR_TOPICS, _AUTHORED_TOPICS = _decision_topic_maps()
+    return _SIDECAR_TOPICS.get(ref) or _AUTHORED_TOPICS.get(ref) or set()
+
+
 def main() -> int:
     index, total, unnormalised = build_successor_index(REPO)
     print(f"decision-level sidecar edges: {total} | unusable after normalisation: {unnormalised}")
@@ -187,6 +214,15 @@ def main() -> int:
                 lines.append(f"- `{w['seed']}` => {chain}")
                 lines.append(f"    - from: {title_of(w['seed'])}")
                 lines.append(f"    - to:   {title_of(w['head'])}")
+                # Topic agreement ANNOTATES rather than gates (see topic_candidates.py for why
+                # every granularity fails as a gate). Shared topics support a hop; no shared
+                # topic is the concern-drift smell that the bad 0.75 hop showed.
+                seed_t, head_t = decision_topics(w["seed"]), decision_topics(w["head"])
+                shared = sorted(seed_t & head_t)
+                lines.append(
+                    f"    - topics: {'shared ' + ', '.join(shared) if shared else 'NO OVERLAP - check concern drift'}"
+                    f"  ({', '.join(sorted(seed_t)) or 'none'} vs {', '.join(sorted(head_t)) or 'none'})"
+                )
             else:
                 lines.append(f"- `{w['seed']}` unmoved ({w['stop_reason']})")
         for ref in r["related_refs"]:
