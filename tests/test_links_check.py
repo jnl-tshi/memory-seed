@@ -607,6 +607,167 @@ class LinksCheckTests(unittest.TestCase):
         self.assertNotIn(("evolves", "mse_tttttttttttttttt"), kinds)
         self.assertIn(("related", "mse_tttttttttttttttt"), kinds)
 
+    def _adr_diagram(self, cwd, *, adr_ids=(), block_lines, heading_date="2026-06-01", file_date="2026-06-01"):
+        """One adr-keyed diagram block, plus the ADR files it names."""
+        decisions = cwd / MEMORY_DIR_NAME / "decisions"
+        decisions.mkdir(parents=True, exist_ok=True)
+        for adr_id in adr_ids:
+            (decisions / f"{adr_id}.md").write_text(f"---\nadr_id: {adr_id}\n---\n", encoding="utf-8")
+        path = cwd / MEMORY_DIR_NAME / "sessions" / "diagrams" / file_date[:7] / f"{file_date}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "\n".join(
+                [
+                    "---",
+                    "tags:",
+                    "  - session-log-diagrams",
+                    f"diagram_date: {file_date}",
+                    "---",
+                    "",
+                    f"## {heading_date} 10:00 - adr shape",
+                    "",
+                    "```yaml",
+                    *block_lines,
+                    "```",
+                    "",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    def _issue_kinds(self, cwd):
+        return [issue.kind for issue in check_session_links(cwd=cwd).issues]
+
+    def test_adr_diagram_block_validates_its_own_rules(self):
+        cwd = self.make_project()
+        self._flat_session(cwd, "2026-06-01.md", ("2026-06-01 09:00 - one", "mse_ffffffffffffffff", ()))
+        self._adr_diagram(
+            cwd,
+            adr_ids=("adr_real",),
+            block_lines=[
+                "adr_id: adr_real",
+                "grounded_in:",
+                "  - mse_ffffffffffffffff",
+                "```",
+                "",
+                "```mermaid",
+                "flowchart TD",
+                "  A --> B",
+            ],
+        )
+
+        result = check_session_links(cwd=cwd)
+        self.assertTrue(result.ok, result.issues)
+
+    def test_adr_diagram_rejects_an_unknown_adr_and_a_fabricated_grounding_ref(self):
+        cwd = self.make_project()
+        self._flat_session(cwd, "2026-06-01.md", ("2026-06-01 09:00 - one", "mse_ffffffffffffffff", ()))
+        self._adr_diagram(
+            cwd,
+            adr_ids=("adr_real",),
+            block_lines=[
+                "adr_id: adr_missing",
+                "grounded_in:",
+                "  - mse_aaaaaaaaaaaaaaaa",
+                "```",
+                "",
+                "```mermaid",
+                "flowchart TD",
+                "  A --> B",
+            ],
+        )
+
+        kinds = self._issue_kinds(cwd)
+        self.assertIn("orphan-diagram", kinds)
+        self.assertIn("dangling-diagram-ref", kinds)
+
+    def test_adr_diagram_needs_mermaid_unless_it_declares_not_applicable(self):
+        cwd = self.make_project()
+        self._flat_session(cwd, "2026-06-01.md", ("2026-06-01 09:00 - one", "mse_ffffffffffffffff", ()))
+        self._adr_diagram(cwd, adr_ids=("adr_real",), block_lines=["adr_id: adr_real"])
+
+        self.assertIn("malformed-diagram", self._issue_kinds(cwd))
+
+        # The sanctioned answer: looked, and there was nothing structural to draw.
+        self._adr_diagram(
+            cwd,
+            adr_ids=("adr_real",),
+            block_lines=["adr_id: adr_real", "diagram_status: not_applicable", "note: a policy, not a shape"],
+        )
+        result = check_session_links(cwd=cwd)
+        self.assertTrue(result.ok, result.issues)
+
+    def test_not_applicable_that_also_draws_something_is_a_contradiction(self):
+        cwd = self.make_project()
+        self._flat_session(cwd, "2026-06-01.md", ("2026-06-01 09:00 - one", "mse_ffffffffffffffff", ()))
+        self._adr_diagram(
+            cwd,
+            adr_ids=("adr_real",),
+            block_lines=[
+                "adr_id: adr_real",
+                "diagram_status: not_applicable",
+                "```",
+                "",
+                "```mermaid",
+                "flowchart TD",
+                "  A --> B",
+            ],
+        )
+
+        self.assertIn("malformed-diagram", self._issue_kinds(cwd))
+
+    def test_a_founding_adr_diagram_falls_back_to_the_day_it_was_drawn(self):
+        # An ADR still at a `founding:` placeholder has no authoritative decision
+        # to lend a date, so the heading date is the only anchor available.
+        cwd = self.make_project()
+        self._flat_session(cwd, "2026-06-01.md", ("2026-06-01 09:00 - one", "mse_ffffffffffffffff", ()))
+        self._adr_diagram(
+            cwd,
+            adr_ids=("adr_real",),
+            heading_date="2026-06-09",
+            file_date="2026-06-01",
+            block_lines=["adr_id: adr_real", "```", "", "```mermaid", "flowchart TD", "  A --> B"],
+        )
+
+        self.assertIn("diagram-date-mismatch", self._issue_kinds(cwd))
+
+    def test_adr_diagram_is_filed_under_its_authoritative_decision_not_the_drawing_day(self):
+        # The diagram belongs beside the decision whose shape it draws. When the
+        # ADR's head later moves to a newer decision, the file date stops
+        # matching - which is the signal that the picture predates the decision.
+        from unittest.mock import patch
+
+        cwd = self.make_project()
+        self._flat_session(cwd, "2026-06-01.md", ("2026-06-01 09:00 - head", "mse_ffffffffffffffff", ()))
+        self._adr_diagram(
+            cwd,
+            adr_ids=("adr_real",),
+            heading_date="2026-06-09",
+            file_date="2026-06-09",
+            block_lines=["adr_id: adr_real", "```", "", "```mermaid", "flowchart TD", "  A --> B"],
+        )
+
+        # Head resolves to an entry logged 2026-06-01, so 2026-06-09 is wrong.
+        with patch("memory_seed.core.adr_head_entry_ids", return_value={"adr_real": "mse_ffffffffffffffff"}):
+            issues = [i for i in check_session_links(cwd=cwd).issues if i.kind == "diagram-date-mismatch"]
+        self.assertEqual(len(issues), 1)
+        self.assertIn("belongs under 2026-06-01", issues[0].detail)
+        self.assertIn("its authoritative decision", issues[0].detail)
+
+        # Filed under the head's date instead: clean.
+        (cwd / MEMORY_DIR_NAME / "sessions" / "diagrams" / "2026-06" / "2026-06-09.md").unlink()
+        self._adr_diagram(
+            cwd,
+            adr_ids=("adr_real",),
+            heading_date="2026-06-09",
+            file_date="2026-06-01",
+            block_lines=["adr_id: adr_real", "```", "", "```mermaid", "flowchart TD", "  A --> B"],
+        )
+        with patch("memory_seed.core.adr_head_entry_ids", return_value={"adr_real": "mse_ffffffffffffffff"}):
+            result = check_session_links(cwd=cwd)
+        self.assertTrue(result.ok, result.issues)
+
     def _two_block_link_sidecar(self, cwd, file_date, entry_id, first, second):
         """Two blocks for one entry in one file. ``first``/``second`` are
         (heading_time, [extra yaml lines]) - the stub can be either one, which is

@@ -1815,6 +1815,80 @@ def entry_diagram_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     return sidecars
 
 
+def adr_diagram_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
+    """Diagram blocks keyed by ``adr_id`` instead of ``entry_id``.
+
+    A DELIBERATELY SEPARATE reader, not a widening of
+    ``entry_diagram_sidecars``. The two share the sidecar file family and the
+    block grammar and nothing else: an entry diagram is filed under its entry's
+    session date and is optional per entry, while an ADR diagram is filed under
+    the date it was drawn and every ADR owes an answer. Folding them into one
+    map would silently shift what ``diagrams_today`` and
+    ``entries_since_last_diagram`` count, and an adr-keyed block would
+    otherwise vanish from the entry reader with no match and no error.
+
+    ``grounded_in`` carries the decision refs whose shape the diagram draws -
+    the evidence that the picture is of something recorded rather than
+    invented. ``diagram_status: not_applicable`` is the sanctioned answer for
+    an ADR with nothing structural to draw; such a block needs no Mermaid, and
+    the reader surfaces it so a caller can tell "answered, nothing to draw"
+    from "never looked". Most-recent-wins per ``adr_id``, as for entries.
+    """
+    from .core import _frontmatter_list_refs, iter_diagram_sidecar_documents, resolve_runtime
+
+    runtime = resolve_runtime(cwd)
+    diagrams_dir = runtime.memory_dir / "sessions" / "diagrams"
+    sidecars: dict[str, dict[str, Any]] = {}
+    precedence_of: dict[str, tuple[str, int]] = {}
+    if not diagrams_dir.is_dir():
+        return sidecars
+    for diagram_doc in iter_diagram_sidecar_documents(runtime.memory_dir / "sessions"):
+        if diagram_doc.malformed_reason:
+            continue
+        path = diagram_doc.path
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        try:
+            rel = path.relative_to(runtime.workspace_root).as_posix()
+        except ValueError:
+            rel = path.as_posix()
+        blocks = list(_DIAGRAM_ENTRY_RE.finditer(text))
+        for index, block in enumerate(blocks):
+            heading_ts, title, yaml_block = block.groups()
+            scalars: dict[str, str] = {}
+            for line in yaml_block.splitlines():
+                stripped = line.strip()
+                if ":" in stripped and not stripped.startswith(("-", "#")):
+                    key, _, value = stripped.partition(":")
+                    scalars[key.strip()] = value.strip().strip("'\"")
+            adr_id = scalars.get("adr_id")
+            if not adr_id:
+                continue
+            precedence = (heading_ts, index)
+            if precedence < precedence_of.get(adr_id, ("", -1)):
+                continue
+            precedence_of[adr_id] = precedence
+            section_end = blocks[index + 1].start() if index + 1 < len(blocks) else len(text)
+            section_text = text[block.end():section_end]
+            sidecars[adr_id] = {
+                "adr_id": adr_id,
+                "path": rel,
+                "title": title.strip() or None,
+                "heading_datetime": heading_ts,
+                "status": (scalars.get("diagram_status") or "").strip().lower() or None,
+                "note": scalars.get("note") or None,
+                "grounded_in": tuple(
+                    parsed.raw for parsed in _frontmatter_list_refs(yaml_block, "grounded_in")
+                ),
+                "mermaid_blocks": [
+                    match.group(1).rstrip("\n") for match in _MERMAID_BLOCK_RE.finditer(section_text)
+                ],
+            }
+    return sidecars
+
+
 def entry_link_sidecars(cwd: str | Path = ".") -> dict[str, dict[str, Any]]:
     """Late-authored lifecycle edges, keyed by source ``entry_id``.
 

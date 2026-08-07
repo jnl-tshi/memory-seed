@@ -105,6 +105,15 @@ class EsrReport:
     entries_today: int = 0
     last_diagram_date: str | None = None
     entries_since_last_diagram: int = 0
+    # ADR diagram coverage IS mechanically determinable, unlike the per-entry
+    # question: the denominator is the ADR corpus and every ADR owes an answer -
+    # a diagram, or `diagram_status: not_applicable` recording that someone
+    # looked and there was nothing structural to draw. Reported as a backlog
+    # rather than enforced by `adrs check`, because landing the mechanism must
+    # not turn 38 unanswered ADRs into a red gate on the commit that introduces
+    # it. Tightening to a hard gate is the follow-up, once the corpus is answered.
+    adrs_total: int = 0
+    adrs_without_diagram_answer: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -157,6 +166,8 @@ class EsrReport:
                 "entries_today": self.entries_today,
                 "last_sidecar_date": self.last_diagram_date,
                 "entries_since_last_sidecar": self.entries_since_last_diagram,
+                "adrs_total": self.adrs_total,
+                "adrs_without_diagram_answer": self.adrs_without_diagram_answer,
             },
         }
 
@@ -528,6 +539,14 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
             for entry_id, entry_date in _entry_dates(runtime.memory_dir).items()
             if entry_date > report.last_diagram_date and entry_id not in sidecars
         )
+
+    from .core import known_adr_ids
+    from .retrieval import adr_diagram_sidecars
+
+    adr_ids = known_adr_ids(cwd)
+    answered = set(adr_diagram_sidecars(cwd))
+    report.adrs_total = len(adr_ids)
+    report.adrs_without_diagram_answer = len(adr_ids - answered)
     return report
 
 
@@ -566,6 +585,11 @@ def format_esr_report(report: EsrReport) -> str:
         lines.append(
             "- session_logging.md: when a positive trigger is present and no sidecar is written, "
             "state the reason under A: or Follow-up"
+        )
+    if report.adrs_without_diagram_answer:
+        lines.append(
+            f"- ADRs with no diagram answer: {report.adrs_without_diagram_answer} of {report.adrs_total} "
+            "(a diagram, or `diagram_status: not_applicable` recording that there is no shape to draw)"
         )
     lines.append("")
 

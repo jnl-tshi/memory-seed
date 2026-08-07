@@ -2286,7 +2286,13 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     known_hashes = set(hash_id_files)
 
     # Decision-diagram sidecars: old flat and new month-grouped sidecar files.
-    # Optional throughout - an entry without a sidecar is never an issue.
+    # Optional per ENTRY - an entry without a sidecar is never an issue. A block
+    # keyed by `adr_id` instead is the ADR's structural diagram; see
+    # `_validate_adr_diagram_block`. Coverage over ADRs is reported by ESR as a
+    # backlog, not enforced here, so landing the mechanism cannot turn 38
+    # unanswered ADRs into a red gate on the commit that introduces it.
+    known_adrs = known_adr_ids(cwd)
+    adr_head_entries = adr_head_entry_ids(cwd)
     for diagram_doc in iter_diagram_sidecar_documents(sessions_dir):
         files_checked += 1
         diagram_path = diagram_doc.path
@@ -2311,6 +2317,30 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
             continue
         for index, block in enumerate(blocks):
             heading_ts, yaml_block = block.groups()
+            section_end = blocks[index + 1].start() if index + 1 < len(blocks) else len(text)
+            # A diagram block keys on `entry_id` (a session entry's reasoning
+            # diagram) OR `adr_id` (the shape of a concern, drawn once and kept).
+            # The two families share this file and this grammar and nothing else,
+            # so the adr branch validates its own rules and returns.
+            adr_scalars = _parse_frontmatter_scalars(yaml_block)
+            adr_id = (adr_scalars.get("adr_id") or "").strip()
+            if adr_id:
+                issues.extend(
+                    _validate_adr_diagram_block(
+                        rel,
+                        heading_ts,
+                        yaml_block,
+                        text[block.end():section_end],
+                        adr_id=adr_id,
+                        file_date=file_date,
+                        known_adrs=known_adrs,
+                        known_entries=known_entries,
+                        entry_decision_ordinals=entry_decision_ordinals,
+                        adr_head_entries=adr_head_entries,
+                        entry_timestamps=entry_timestamps,
+                    )
+                )
+                continue
             entry_id_match = _ENTRY_ID_RE.search(yaml_block)
             if not entry_id_match:
                 issues.append(LinkIssue(rel, "malformed-diagram", f"diagram block at '{heading_ts}' has no entry_id"))
@@ -2327,7 +2357,6 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                         f"entry_id {entry_id} was logged on {entry_date}, but diagram is filed under {file_date}",
                     )
                 )
-            section_end = blocks[index + 1].start() if index + 1 < len(blocks) else len(text)
             section_text = text[block.end():section_end]
             fence_lines = [line.strip() for line in section_text.splitlines() if line.strip().startswith("```")]
             mermaid_opens = sum(1 for line in fence_lines if line.startswith("```mermaid"))
@@ -4318,6 +4347,162 @@ def _diagram_doc_from_relative_path(rel_path: str) -> tuple[str | None, str] | N
                 return date_str, "month-diagram"
         return None, "month-diagram"
     return None
+
+
+_ADR_DIAGRAM_STATUSES = {"not_applicable"}
+
+
+def known_adr_ids(cwd: Path | str = ".") -> set[str]:
+    """ADR ids from ``.memory-seed/decisions/``. The filename IS the id (held
+    true across all 38 records at 2026-08-07), so this needs no ADR parser and
+    therefore no import of ``adr`` into this module."""
+    directory = resolve_runtime(cwd).memory_dir / "decisions"
+    if not directory.is_dir():
+        return set()
+    return {path.stem for path in directory.glob("*.md")}
+
+
+def adr_head_entry_ids(cwd: Path | str = ".") -> dict[str, str]:
+    """``adr_id`` -> the entry_id of its CURRENT authoritative decision.
+
+    This is what anchors an ADR diagram in time. An entry diagram is filed under
+    its entry's session date; an ADR has no session, and filing under the day it
+    was drawn anchors it to nothing that can go stale. Filing it under the date
+    of the decision it draws means the diagram sits beside its ground truth -
+    and when the ADR's head later moves to a newer decision, the file date stops
+    matching, which is exactly the signal that the picture predates the decision
+    it claims to show.
+
+    Only real decision heads are returned: a ``founding:`` pseudo-ref is a
+    placeholder for "this concern as recorded in a control file", not a node in
+    the lineage, so it has no date to lend. Callers fall back to the heading
+    date for those. Silent on any failure - a diagram rule must not be able to
+    break `links check` over an unrelated ADR parse error.
+    """
+    directory = resolve_runtime(cwd).memory_dir / "decisions"
+    if not directory.is_dir():
+        return {}
+    heads: dict[str, str] = {}
+    try:
+        from .adr import parse_adr, replay_adr
+    except ImportError:
+        return {}
+    for path in sorted(directory.glob("*.md")):
+        try:
+            head = replay_adr(parse_adr(path)).authoritative_decision
+        except Exception:  # noqa: BLE001 - one bad ADR must not blind the rest
+            continue
+        if head and not head.startswith("founding:"):
+            heads[path.stem] = head.split(":", 1)[0]
+    return heads
+
+
+def _validate_adr_diagram_block(
+    rel: str,
+    heading_ts: str,
+    yaml_block: str,
+    section_text: str,
+    *,
+    adr_id: str,
+    file_date: str,
+    known_adrs: set[str],
+    known_entries: set[str],
+    entry_decision_ordinals: dict[str, set[str]],
+    adr_head_entries: dict[str, str],
+    entry_timestamps: dict[str, str],
+) -> list[LinkIssue]:
+    """An ADR diagram answers 'what shape is this concern?' - and the answer may
+    be 'none'. Rules, all mechanical:
+
+    * the ``adr_id`` must resolve to a real ADR (``orphan-diagram``);
+    * ``grounded_in`` refs must exist, with a real ordinal on a real entry
+      (``dangling-diagram-ref``) - a diagram claiming to draw decisions that do
+      not exist is worth less than no diagram;
+    * the file date must match the session date of the ADR's CURRENT
+      authoritative decision - the diagram is filed beside the decision whose
+      shape it draws, so a later head makes the mismatch a staleness signal.
+      An ADR still at a ``founding:`` placeholder has no such date, and falls
+      back to the date the block was drawn;
+    * a block must carry Mermaid unless it declares
+      ``diagram_status: not_applicable``, which is the sanctioned way to record
+      that someone looked and there was nothing structural to draw - the same
+      shape as a link sidecar's ``edge_status``.
+    """
+    issues: list[LinkIssue] = []
+    if adr_id not in known_adrs:
+        issues.append(LinkIssue(rel, "orphan-diagram", f"adr_id -> {adr_id} (no such ADR)"))
+    head_entry = adr_head_entries.get(adr_id)
+    head_date = entry_timestamps.get(head_entry, "")[:10] if head_entry else ""
+    expected_date, anchor = (
+        (head_date, f"its authoritative decision on {head_entry}")
+        if head_date
+        else (heading_ts[:10], "the date it was drawn (no authoritative decision yet)")
+    )
+    if file_date and expected_date and expected_date != file_date:
+        issues.append(
+            LinkIssue(
+                rel,
+                "diagram-date-mismatch",
+                f"adr_id {adr_id} is filed under {file_date} but belongs under {expected_date} - {anchor}",
+            )
+        )
+    for parsed in _frontmatter_list_refs(yaml_block, "grounded_in"):
+        if not parsed.ok:
+            issues.append(
+                LinkIssue(rel, "malformed-diagram", f"grounded_in -> {parsed.raw!r}: {parsed.reason}")
+            )
+            continue
+        if parsed.entry_id not in known_entries:
+            issues.append(
+                LinkIssue(rel, "dangling-diagram-ref", f"grounded_in -> {parsed.entry_id} (no such entry_id)")
+            )
+            continue
+        if parsed.decision is not None and parsed.decision not in entry_decision_ordinals.get(parsed.entry_id, set()):
+            issues.append(
+                LinkIssue(
+                    rel,
+                    "dangling-diagram-ref",
+                    f"grounded_in -> {parsed.raw}: {parsed.entry_id} has no {parsed.decision}",
+                )
+            )
+    status = (_parse_frontmatter_scalars(yaml_block).get("diagram_status") or "").strip().lower()
+    if status and status not in _ADR_DIAGRAM_STATUSES:
+        issues.append(
+            LinkIssue(
+                rel,
+                "malformed-diagram",
+                f"adr_id {adr_id} has unknown diagram_status '{status}' "
+                f"(expected one of: {', '.join(sorted(_ADR_DIAGRAM_STATUSES))})",
+            )
+        )
+        return issues
+    fence_lines = [line.strip() for line in section_text.splitlines() if line.strip().startswith("```")]
+    mermaid_opens = sum(1 for line in fence_lines if line.startswith("```mermaid"))
+    if status == "not_applicable":
+        # An answer of "nothing to draw" that then draws something is a
+        # contradiction, not a harmless extra.
+        if mermaid_opens:
+            issues.append(
+                LinkIssue(
+                    rel,
+                    "malformed-diagram",
+                    f"adr_id {adr_id} declares diagram_status: not_applicable but carries a ```mermaid block",
+                )
+            )
+        return issues
+    if mermaid_opens == 0:
+        issues.append(
+            LinkIssue(
+                rel,
+                "malformed-diagram",
+                f"adr_id {adr_id} block has no ```mermaid block and no diagram_status",
+            )
+        )
+    elif len(fence_lines) % 2 != 0:
+        issues.append(
+            LinkIssue(rel, "malformed-diagram", f"adr_id {adr_id} block has an unbalanced code fence")
+        )
+    return issues
 
 
 def _link_doc_from_relative_path(rel_path: str) -> tuple[str | None, str] | None:
