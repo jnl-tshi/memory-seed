@@ -32,15 +32,21 @@ LINK_ASSERTION_RE = re.compile(
     r"^link:(?P<source>(?:mse_[a-z0-9]+|ms-[a-z0-9]+):d[1-9][0-9]*):"
     r"(?P<kind>evolves|replaces):(?P<target>(?:mse_[a-z0-9]+|ms-[a-z0-9]+):d[1-9][0-9]*)$"
 )
+# `context-added` (2026-08-07) is the SOFT half of attachment: it records decisions that inform a
+# concern without claiming to move it. It touches no head and no status, so it is the only way to
+# attach evidence to an ADR whose status must not change - notably one recording a REJECTED
+# decision, where accepting a head would read as "this revision was accepted" rather than "we
+# decided against this". Hard attachment stays `revision-proposed` (decision_ref + predecessors =
+# membership, which is what triggers the MCP review gate); soft attachment costs nothing.
 EVENT_TYPES = {
     "revision-proposed", "revision-accepted", "revision-rejected",
-    "reviewed-no-change", "adr-superseded",
+    "reviewed-no-change", "adr-superseded", "context-added",
 }
 EVENT_RE = re.compile(
     r"^### (?P<kind>revision-proposed|revision-accepted|revision-rejected|"
-    r"reviewed-no-change|adr-superseded) - (?P<timestamp>[^\n]+)\n"
+    r"reviewed-no-change|adr-superseded|context-added) - (?P<timestamp>[^\n]+)\n"
     r"(?P<body>.*?)(?=^### (?:revision-proposed|revision-accepted|revision-rejected|"
-    r"reviewed-no-change|adr-superseded) - |\Z)", re.MULTILINE | re.DOTALL,
+    r"reviewed-no-change|adr-superseded|context-added) - |\Z)", re.MULTILINE | re.DOTALL,
 )
 JSON_RE = re.compile(r"```json\s*\n(?P<json>.*?)\n```", re.DOTALL)
 ALLOWED_SOURCES = {"write-time", "derived"}
@@ -593,6 +599,17 @@ def validate_adr(record: AdrRecord, cwd: str | Path = ".", *, pending_decisions:
                 authoritative, statuses[ref] = ref, "accepted"
             else:
                 statuses[ref] = "rejected"
+        elif event.kind == "context-added":
+            # Soft attachment: evidence only. No decision_ref, no predecessors, no status effect -
+            # every ref must still resolve, so context cannot smuggle in an unverifiable claim.
+            if not event.supporting_decisions:
+                issues.append(f"{label} requires at least one supporting decision")
+            if not event.reason.strip():
+                issues.append(f"{label} requires a Reason naming why the context is relevant")
+            if event.decision_ref or event.predecessors:
+                issues.append(f"{label} cannot carry a decision_ref or predecessors; it moves nothing")
+            for supporting in event.supporting_decisions:
+                issues.extend(_ref_issues(supporting, known, ordinals, f"{label} supporting decision", pending))
         elif event.kind == "reviewed-no-change":
             if not event.decision_ref or not event.matched_decisions or not event.reason.strip():
                 issues.append(f"{label} requires decision_ref, matched_decisions, and Reason")
@@ -789,6 +806,29 @@ def transition_adr(cwd: str | Path = ".", *, adr_id: str, status: str, decision_
     if decision_ref and decision_ref.startswith("founding:"):
         founding_source, decision_ref = decision_ref[len("founding:"):], None
     record.events.append(AdrEvent(kind, _event_id(adr_id, kind, decision_ref or founding_source, update_entry_id, stamp), stamp, source, decision_ref, update_entry_id, expected_authoritative_decision, reason=reason, replacement_adr=replacement_adr, founding_source=founding_source))
+    return _save(record, cwd, dry_run)
+
+
+def add_context(cwd: str | Path = ".", *, adr_id: str, supporting_decisions: Sequence[str], reason: str, update_entry_id: str, source: str, timestamp: str | None = None, dry_run: bool = False) -> AdrOperationResult:
+    """Attach decisions to a concern as SOFT context - no head move, no status change.
+
+    The counterpart to `revise_adr`. Use when a decision informs a concern without being the
+    decision the concern now rests on: an instance of a policy being followed, a related thread, or
+    any evidence for an ADR whose status must stay put (a `rejected` ADR accepting a head would
+    read as the revision being accepted). Supporting refs stay outside `adr_membership`, so they
+    never trigger the MCP review gate.
+    """
+    path = resolve_runtime(cwd).memory_dir / "decisions" / f"{adr_id}.md"
+    if not path.exists():
+        return AdrOperationResult(False, path, adr_id, issues=("ADR does not exist",))
+    record, existing_issues = load_adr_for_write(path, cwd)
+    if record is None:
+        return AdrOperationResult(False, path, adr_id, issues=existing_issues)
+    stamp = timestamp or _now()
+    record.events.append(AdrEvent(
+        "context-added", _event_id(adr_id, "context", tuple(supporting_decisions), stamp), stamp,
+        source, None, update_entry_id, supporting_decisions=tuple(supporting_decisions), reason=reason,
+    ))
     return _save(record, cwd, dry_run)
 
 

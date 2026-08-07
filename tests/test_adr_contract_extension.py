@@ -18,6 +18,8 @@ import unittest
 from pathlib import Path
 
 from memory_seed.adr import (
+    add_context,
+    adr_membership,
     revise_adr,
     ConstitutionRef,
     check_adrs,
@@ -300,3 +302,72 @@ class FoundingSourceTests(ProjectFixture):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SoftContextTests(ProjectFixture):
+    """`context-added`: attach evidence without moving a head or a status."""
+
+    def _founded(self, root, adr_id="adr_ctx", status=None):
+        promote_decision(
+            root, adr_id=adr_id, title="Concern", topics=(), user_initials="JNL",
+            agent_type="claude", source="derived", decision="D.", why="W.",
+            founding_source=".memory-seed/index.md#L1", founding_quote="A founding line quote.",
+            timestamp="2026-08-07T04:00:00Z",
+        )
+        if status:
+            transition_adr(
+                root, adr_id=adr_id, status=status, update_entry_id=None, source="derived",
+                reason="Recorded as decided-against.", timestamp="2026-08-07T04:01:00Z",
+            )
+
+    def test_context_leaves_head_and_status_untouched(self):
+        root = self.make_project()
+        self._founded(root)
+        before = parse_adr(root / ".memory-seed" / "decisions" / "adr_ctx.md")
+        result = add_context(
+            root, adr_id="adr_ctx", supporting_decisions=("mse_extension0000001:d1",),
+            reason="Informs the concern without moving it.",
+            update_entry_id="mse_extension0000001", source="derived",
+            timestamp="2026-08-07T04:02:00Z",
+        )
+        self.assertTrue(result.ok, result.issues)
+        after = parse_adr(result.path)
+        self.assertEqual(after.current_status, before.current_status)
+        self.assertEqual(after.authoritative_decision, before.authoritative_decision)
+        # The whole point: soft refs stay OUT of membership, so they never arm the review gate.
+        self.assertNotIn("mse_extension0000001:d1", adr_membership(after))
+        self.assertEqual(render_adr(after), read_text_file(result.path))
+
+    def test_context_can_attach_to_a_rejected_adr(self):
+        root = self.make_project()
+        self._founded(root, adr_id="adr_rej", status="rejected")
+        result = add_context(
+            root, adr_id="adr_rej", supporting_decisions=("mse_extension0000001:d1",),
+            reason="Evidence for a decision we declined.",
+            update_entry_id="mse_extension0000001", source="derived",
+            timestamp="2026-08-07T04:03:00Z",
+        )
+        self.assertTrue(result.ok, result.issues)
+        self.assertEqual(parse_adr(result.path).current_status, "rejected")
+
+    def test_context_refuses_unresolvable_or_empty_evidence(self):
+        root = self.make_project()
+        self._founded(root, adr_id="adr_bad2")
+        missing = add_context(
+            root, adr_id="adr_bad2", supporting_decisions=("mse_nope00000000000:d1",),
+            reason="r", update_entry_id="mse_extension0000001", source="derived",
+            timestamp="2026-08-07T04:04:00Z", dry_run=True,
+        )
+        self.assertFalse(missing.ok)
+        empty = add_context(
+            root, adr_id="adr_bad2", supporting_decisions=(), reason="r",
+            update_entry_id="mse_extension0000001", source="derived",
+            timestamp="2026-08-07T04:05:00Z", dry_run=True,
+        )
+        self.assertFalse(empty.ok)
+        no_reason = add_context(
+            root, adr_id="adr_bad2", supporting_decisions=("mse_extension0000001:d1",), reason="",
+            update_entry_id="mse_extension0000001", source="derived",
+            timestamp="2026-08-07T04:06:00Z", dry_run=True,
+        )
+        self.assertFalse(no_reason.ok)
