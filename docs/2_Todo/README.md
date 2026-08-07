@@ -5,7 +5,9 @@
 |---|---|---|---|
 | [declarative-retrieval-specification-proposal.md](declarative-retrieval-specification-proposal.md) | P1 | [] | Keep the delivered M0/M1 inline slice stable; evaluate the enabling M2 profile work only after … |
 | [derived-projection-implementation-plan.md](derived-projection-implementation-plan.md) | P1 | — | Phase 1 SHIPPED 2026-07-15 (warm start + atomic swap + perf). Remaining fast-follow (deferred, … |
-| [memory-index-dry-run-plan.md](memory-index-dry-run-plan.md) | P1 | — | JNL approves the run; execute before the v0.2 submission decision (Verging Labs v0.2 lands earl… |
+| [excerpt-fallback-defect.md](excerpt-fallback-defect.md) | P1 | — | None. Fixed at the cause: the reader now recognises the legacy singular decision form, so the f… |
+| [independent-validation-brief.md](independent-validation-brief.md) | P1 | — | Hand this file to an agent that has not worked on Memory Seed's experiments; it derives its own… |
+| [memory-index-dry-run-plan.md](memory-index-dry-run-plan.md) | P1 | — | JNL decides whether to submit to Verging Labs v0.2 (early September). Independent replication o… |
 | [memory-provenance-and-authority-taxonomy-proposal.md](memory-provenance-and-authority-taxonomy-proposal.md) | P1 | — | Steps 5–6 (GATED on the participant/role model + a user go): implement actionability as a polic… |
 | [memory-quality-metrics-v0-proposal.md](memory-quality-metrics-v0-proposal.md) | P1 | user review — is the baseline useful and repeatable? (propo… | JNL reviews docs/4_Reference/memory-quality-v0-baseline.md. Only then propose targets, ESR surf… |
 | [memory-seed-semantic-record-and-signal-foundation-plan.md](memory-seed-semantic-record-and-signal-foundation-plan.md) | P1 | — | Evaluate the remaining record_kind and retrieval-signal work after the provenance and quality g… |
@@ -15,6 +17,7 @@
 | [memory-trace-three-region-workspace-and-dockable-inspector-proposal.md](memory-trace-three-region-workspace-and-dockable-inspector-proposal.md) | P1 | — | promoted-to-todo |
 | [memory-trace-ux-m0-interaction-matrix.md](memory-trace-ux-m0-interaction-matrix.md) | P1 | [] | Implement M3 bounded graph perspectives and controlled expansion against the named fixtures. |
 | [memory-trace-ux-reference-model-implementation-plan.md](memory-trace-ux-reference-model-implementation-plan.md) | P1 | — | Implement M3 bounded graph perspectives and controlled expansion against memory-trace-ux-m0-int… |
+| [retrieval-recall-fixes-proposal.md](retrieval-recall-fixes-proposal.md) | P1 | — | Re-derive lifecycle labels from evolves edges (F0) - F2 cannot detect its own regression withou… |
 | [retrieval-specification-m0-m1-implementation-plan.md](retrieval-specification-m0-m1-implementation-plan.md) | P1 | — | Obtain explicit user approval for the configured manual merge; do not merge or push before that… |
 | [adjudication-queue.md](adjudication-queue.md) | P2 | — | JNL to rule each row; the rulings become the project's only validity ground truth. |
 | [attention-retrieval-signal-proposal.md](attention-retrieval-signal-proposal.md) | P2 | — | Accumulate real MCP usage, then run `memory-seed ranking-ab --signal attention --query ...` bef… |
@@ -25,6 +28,7 @@
 | [memory-seed-workflow-evidence-and-review-workbench-plan.md](memory-seed-workflow-evidence-and-review-workbench-plan.md) | P2 | — | Reconstruct three completed project journeys from existing entries, documents, and Git referenc… |
 | [memory-trace-children-proposal.md](memory-trace-children-proposal.md) | P2 | — | DONE 2026-07-27 - 17 slugs live in .memory-seed/topics.yaml and 166 entries attributed via topi… |
 | [memory-trace-living-archive-and-editorial-focus-proposal.md](memory-trace-living-archive-and-editorial-focus-proposal.md) | P2 | >- | >- |
+| [ranking-ab-unit-change-gate-proposal.md](ranking-ab-unit-change-gate-proposal.md) | P2 | — | Decide whether unit changes need a gate at all, or whether the real-corpus measurement harness … |
 | [superpowers-collaboration-integration-proposal.md](superpowers-collaboration-integration-proposal.md) | P2 | — | Complete Phase 0 routing checks, then use the adapter on the first suitable approved multi-task… |
 | [topic-discovery-from-evidence.md](topic-discovery-from-evidence.md) | P2 | — | JNL to accept or reject the model. Nothing is built. The DAG claim (S4) was MEASURED against th… |
 | [topic-vocabulary-concentration-review.md](topic-vocabulary-concentration-review.md) | P2 | — | SUPERSEDED 2026-07-26 as to remedy - the measurements here stand, but the flat splits recommend… |
