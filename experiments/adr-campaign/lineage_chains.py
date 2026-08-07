@@ -125,25 +125,25 @@ def main() -> int:
         "lineage and no ADR - the strongest kind of candidate, because the decisions are already "
         "connected and already topic-coherent.", "",
     ]
-    owed = 0
     for label, members, area_name in unclaimed:
-        owed += len(members)
         lines.append(f"- **{area_name}** ({len(members)} decisions, {label}): "
                      f"`{members[0]}` … `{members[-1]}`")
         lines.append(f"    - suggested head: `{members[-1]}` — {titles.get(members[-1], '?')[:66]}")
     lines += [
         "",
-        f"**Cost if all {len(unclaimed)} were founded and their members attached: {owed} diagram "
-        "answers owed** (a decision attached to an ADR owes a diagram or an explicit "
-        "`diagram_status: not_applicable` with a reason, per 2026-08-07). Choose the cost; do not "
-        "discover it.",
+        f"**Cost if all {len(unclaimed)} were founded: {len(unclaimed)} diagram answers** — one per "
+        "ADR, not one per attached decision. A diagram block keys on `adr_id` and is filed under "
+        "the head's session date, so an ADR is looked at once and the verdict recorded (a diagram, "
+        "or `diagram_status: not_applicable` with a reason); ESR counts "
+        "`adrs_without_diagram_answer` over ADR ids. Attaching 11 decisions to one ADR owes one "
+        "answer, not eleven.",
         "",
     ]
     (HERE / "LINEAGE-CHAINS.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     print(f"lineage edges: {len(edges)} | same-area edges: {len(same_area)}")
     print(f"chains of 3+: {len(chains)} | sizes: {[len(c) for c in chains[:8]]}")
-    print(f"UNCLAIMED chains: {len(unclaimed)} | diagram answers they would owe: {owed}")
+    print(f"UNCLAIMED chains: {len(unclaimed)} | diagram answers they would owe: {len(unclaimed)} (one per ADR)")
     for label, members, area_name in unclaimed[:8]:
         print(f"   {area_name:<20} {len(members):>2} decisions   ({label})")
     print("\nwrote LINEAGE-CHAINS.md")
