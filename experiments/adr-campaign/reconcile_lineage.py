@@ -34,7 +34,7 @@ sys.path.insert(0, str(REPO))
 
 from memory_seed.adr import AdrPredecessor, check_adrs, revise_adr  # noqa: E402
 
-UPDATE_ENTRY = "mse_wpp7dtp36ztkkv8k"  # the session entry recording this pass
+UPDATE_ENTRY = "mse_ex5216t2hn30s5wx"  # the published session entry recording this pass
 BASE_TS = "2026-08-07T01:{m:02d}:00Z"
 
 

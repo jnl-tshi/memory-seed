@@ -1,0 +1,42 @@
+[
+  {
+    "adr_id": "adr_draft_format",
+    "verdict": "supporting",
+    "ref": "ms-2e9c5f31:d2",
+    "quote": "Add DRAFT label list to the `session-log-check.py` reminder text",
+    "why": "This decision directly implements the DRAFT format baseline by embedding DRAFT labels in session-log hooks so agents see the format when writing entries.",
+    "runner_up": "ms-2e9c5f31:d3"
+  },
+  {
+    "adr_id": "adr_edge_kinds",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "why": "None of the candidates establish or enforce the four edge kinds (replaces, evolves, related_entries, evolved_by) or their acyclic/forward-only properties; all are tangential graph-topology work.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_encoding_policy",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "why": "All candidates share only the control-plane topic but concern configuration persistence, MCP routing, or release process - none address encoding policy (UTF-8, LF, NFC normalization) ownership or duplication prevention.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_entry_id_scheme",
+    "verdict": "supporting",
+    "ref": "ms-a4282580:d2",
+    "quote": "Entry IDs and related links",
+    "why": "This decision directly addresses entry ID generation and linking, which is the core concern of the entry_id_scheme ADR regarding deterministic ID allocation.",
+    "runner_up": ""
+  },
+  {
+    "adr_id": "adr_experiment_isolation",
+    "verdict": "none",
+    "ref": "",
+    "quote": "",
+    "why": "Candidates address format coupling tests, hygiene audits, and CI pipeline work but none concern experiment fixture isolation via nearest-runtime discovery or standalone fixture repositories.",
+    "runner_up": ""
+  }
+]

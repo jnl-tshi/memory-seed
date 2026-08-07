@@ -84,3 +84,20 @@ Measured and rejected 2026-07-26 (mse_fud39yw86e7v2uy); decision recorded to doc
 #### Reason
 
 Measured corpus density and found community detection does not improve layout effectiveness for this corpus. Alternative force-based layout achieves the required visualization quality.
+
+### context-added - 2026-08-07T05:22:00Z
+
+```json
+{
+  "event_id": "adre_3b40e48ffd4d4744a18d",
+  "source": "derived",
+  "supporting_decisions": [
+    "mse_3yvakpxdshc95e68:d1"
+  ],
+  "update_entry_id": "mse_ex5216t2hn30s5wx"
+}
+```
+
+#### Reason
+
+Records the implemented alternative and states plainly that Louvain/Leiden are not implemented - the concrete form of the rejection this concern holds.

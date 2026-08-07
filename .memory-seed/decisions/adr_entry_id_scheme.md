@@ -18,23 +18,19 @@ source: derived
 <!-- memory-seed-derived-current-view:start -->
 Status: **Accepted**
 
-Authoritative decision: `founding:.memory-seed/index.md#L149`
+Authoritative decision: `ms-a4282580:d2`
 
 ### Decision
 
-New generated session entry_id values use deterministic 80-bit mse_ IDs encoded in 16 lower-case Base32 characters. Legacy ms- IDs remain valid forever and are never rewritten.
+New generated entry IDs are `mse_` plus 80 bits in 16 lower-case Base32 characters; legacy `ms-` IDs remain valid forever and are never rewritten.
 
 ### Why
 
-80 bits is the practical middle ground for collision risk at team scale, materially shorter than 128-bit visible IDs, and negligible collision risk for plausible Memory Seed corpora. Preserving legacy IDs maintains append-only immutability and backward compatibility.
+80 bits is the practical middle ground for collision risk at team scale while staying materially shorter than a 128-bit visible id.
 
 ### How it evolved
 
-Evolved in mse_77cn2v0rg9na3w0v:d1 where generate_session_entry_id() was implemented to emit deterministic mse_ IDs using SHA-256 and Crockford/Base32 alphabet.
-
-### Constitution
-
-- `constitution:v1#append-only` (governing)
+Converged from the control-file founding onto the decision that set the scheme.
 
 <!-- memory-seed-derived-current-view:end -->
 
@@ -82,3 +78,42 @@ Evolved in mse_77cn2v0rg9na3w0v:d1 where generate_session_entry_id() was impleme
 #### Reason
 
 Accepted under JNL's delegated ratification (live instruction, 2026-08-06). Campaign-founded from the control file; grounding quote verified mechanically.
+
+### revision-proposed - 2026-08-07T05:00:00Z
+
+```json
+{
+  "decision_ref": "ms-a4282580:d2",
+  "event_id": "adre_a156a986253e675b6184",
+  "source": "derived",
+  "update_entry_id": "mse_ex5216t2hn30s5wx"
+}
+```
+
+#### Decision
+
+New generated entry IDs are `mse_` plus 80 bits in 16 lower-case Base32 characters; legacy `ms-` IDs remain valid forever and are never rewritten.
+
+#### Why
+
+80 bits is the practical middle ground for collision risk at team scale while staying materially shorter than a 128-bit visible id.
+
+#### Evolution
+
+Converged from the control-file founding onto the decision that set the scheme.
+
+### revision-accepted - 2026-08-07T05:10:00Z
+
+```json
+{
+  "decision_ref": "ms-a4282580:d2",
+  "event_id": "adre_6bf3e00c5eb21aa9deed",
+  "expected_authoritative_decision": "founding:.memory-seed/index.md#L149",
+  "source": "derived",
+  "update_entry_id": "mse_ex5216t2hn30s5wx"
+}
+```
+
+#### Reason
+
+Approved by JNL 2026-08-07 from the screening shortlist.
