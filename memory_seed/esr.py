@@ -104,6 +104,7 @@ class EsrReport:
     diagrams_today: int = 0
     entries_today: int = 0
     last_diagram_date: str | None = None
+    entries_since_last_diagram: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -155,6 +156,7 @@ class EsrReport:
                 "today": self.diagrams_today,
                 "entries_today": self.entries_today,
                 "last_sidecar_date": self.last_diagram_date,
+                "entries_since_last_sidecar": self.entries_since_last_diagram,
             },
         }
 
@@ -515,6 +517,17 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
     }
     report.entries_today = len(today_entries)
     report.diagrams_today = sum(1 for entry_id in today_entries if entry_id in sidecars)
+    # How far the practice has drifted, counted the only way that needs no
+    # judgment: entries logged since the last diagram was written. NOT "entries
+    # that owed one" - the heuristic for that was prototyped and rejected (see
+    # the field comment). A date alone reads as recent at a glance; "42 entries
+    # since" is the same fact with its weight attached.
+    if report.last_diagram_date:
+        report.entries_since_last_diagram = sum(
+            1
+            for entry_id, entry_date in _entry_dates(runtime.memory_dir).items()
+            if entry_date > report.last_diagram_date and entry_id not in sidecars
+        )
     return report
 
 
@@ -542,7 +555,12 @@ def format_esr_report(report: EsrReport) -> str:
         # empty days, which no single day's view shows.
         lines.append(f"None of today's {report.entries_today} entries carry a sidecar.")
         if report.last_diagram_date:
-            lines.append(f"- last sidecar anywhere: {report.last_diagram_date}")
+            since = (
+                f" ({report.entries_since_last_diagram} entries logged since)"
+                if report.entries_since_last_diagram
+                else ""
+            )
+            lines.append(f"- last sidecar anywhere: {report.last_diagram_date}{since}")
         else:
             lines.append("- no diagram sidecar exists in this project yet")
         lines.append(

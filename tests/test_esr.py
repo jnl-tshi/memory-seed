@@ -192,6 +192,50 @@ class EsrReportTests(unittest.TestCase):
         self.assertEqual(report.to_dict()["oldest_open_link_stub"], "2026-06-01")
         self.assertIn("Corpus-wide, not just today, oldest 2026-06-01", text)
 
+    def test_diagram_drift_is_counted_in_entries_not_just_dated(self):
+        # A date alone reads as recent at a glance. The lapse this surfaces is a
+        # RUN of entries with no diagram, which no single day's view shows - and
+        # counting entries needs no judgement about which of them owed one.
+        (self.sessions / "2026-06-01.md").write_text(_entry("2026-06-01 09:00", A), encoding="utf-8")
+        (self.sessions / "2026-06-09.md").write_text(
+            "\n".join([_entry("2026-06-09 09:00", B), _entry("2026-06-09 10:00", "mse_" + "c" * 16)]),
+            encoding="utf-8",
+        )
+        diagram = self.sessions / "diagrams" / "2026-06" / "2026-06-01.md"
+        diagram.parent.mkdir(parents=True)
+        diagram.write_text(
+            "\n".join(
+                [
+                    "---",
+                    "tags:",
+                    "  - session-log-diagrams",
+                    "diagram_date: 2026-06-01",
+                    "---",
+                    "",
+                    "## 2026-06-01 09:00 - flow",
+                    "",
+                    "```yaml",
+                    f"entry_id: {A}",
+                    "```",
+                    "",
+                    "```mermaid",
+                    "flowchart TD",
+                    "  A --> B",
+                    "```",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        report = esr_report(cwd=self.cwd, session_date="2026-06-09")
+        text = format_esr_report(report)
+
+        self.assertEqual(report.last_diagram_date, "2026-06-01")
+        self.assertEqual(report.entries_since_last_diagram, 2)
+        self.assertEqual(report.to_dict()["diagrams"]["entries_since_last_sidecar"], 2)
+        self.assertIn("last sidecar anywhere: 2026-06-01 (2 entries logged since)", text)
+
     def test_no_stub_backlog_prints_no_age_line(self):
         (self.sessions / "2026-06-01.md").write_text(_entry("2026-06-01 09:00", A), encoding="utf-8")
 
