@@ -6,20 +6,20 @@ The unfiltered graph's largest component is 67 decisions spanning six unrelated 
 
 Chains of 3+ decisions, largest first. **UNCLAIMED** means no ADR names any member (counting hard membership and soft `context-added` alike) - those are candidate concerns.
 
-## chain 1 — mcp-tools (11 decisions)  **UNCLAIMED**
+## chain 1 — mcp-tools (11 decisions)
 - areas: mcp-tools x11
-- claimed by: *nothing*
-    - `ms-4c8e2a17:d1`  2026-05-29 13:48  D1 - Write MCP config unconditionally, no PATH check at init time
-    - `ms-4c8e2a17:d2`  2026-05-29 13:48  D2 - Detect missing binary in the retrieval hook, not at init time
-    - `ms-4c8e2a17:d4`  2026-05-29 13:48  D4 - Claude MCP entry includes "type": "stdio"; Cursor and Gemini omit
-    - `ms-7b3f1e92:d3`  2026-05-29 14:07  D3 - MCP upsert: overwrite if command matches, skip if different comma
+- claimed by: `adr_mcp_integration_surface`
+    - `ms-4c8e2a17:d1`  2026-05-29 13:48  D1 - Write MCP config unconditionally, no PATH check at init time [`adr_mcp_integration_surface`]
+    - `ms-4c8e2a17:d2`  2026-05-29 13:48  D2 - Detect missing binary in the retrieval hook, not at init time [`adr_mcp_integration_surface`]
+    - `ms-4c8e2a17:d4`  2026-05-29 13:48  D4 - Claude MCP entry includes "type": "stdio"; Cursor and Gemini omit [`adr_mcp_integration_surface`]
+    - `ms-7b3f1e92:d3`  2026-05-29 14:07  D3 - MCP upsert: overwrite if command matches, skip if different comma [`adr_mcp_integration_surface`]
     - `ms-a3f91c2b:d1`  2026-05-29 15:17  D1 - Decision
-    - `ms-6a09aea8:d1`  2026-06-03 22:54  D1 - Claude MCP server belongs in project-root .mcp.json, not settings
-    - `ms-2cd452e4:d1`  2026-06-03 23:43  D1 - Codex MCP belongs in project .codex/config.toml, written via zero
-    - `ms-2cd452e4:d2`  2026-06-03 23:43  D2 - Surface the trust requirement (Codex's silent-failure trap)
+    - `ms-6a09aea8:d1`  2026-06-03 22:54  D1 - Claude MCP server belongs in project-root .mcp.json, not settings [`adr_mcp_integration_surface`]
+    - `ms-2cd452e4:d1`  2026-06-03 23:43  D1 - Codex MCP belongs in project .codex/config.toml, written via zero [`adr_mcp_integration_surface`]
+    - `ms-2cd452e4:d2`  2026-06-03 23:43  D2 - Surface the trust requirement (Codex's silent-failure trap) [`adr_mcp_integration_surface`]
     - `ms-6eeb512f:d1`  2026-06-03 23:55  D1 - Decision
-    - `mse_81v7vk4x5ys3k2n0:d3`  2026-07-10 04:27  D3 - Add MCP and skill surfaces
-    - `mse_vzsef0fmpsde2jh4:d1`  2026-07-19 20:01  D1 - Gate the MCP write surface, retire the ungated pair
+    - `mse_81v7vk4x5ys3k2n0:d3`  2026-07-10 04:27  D3 - Add MCP and skill surfaces [`adr_mcp_integration_surface`]
+    - `mse_vzsef0fmpsde2jh4:d1`  2026-07-19 20:01  D1 - Gate the MCP write surface, retire the ungated pair [`adr_mcp_integration_surface`]
 
 ## chain 2 — session-fuse (8 decisions)
 - areas: session-fuse x8
@@ -62,13 +62,13 @@ Chains of 3+ decisions, largest first. **UNCLAIMED** means no ADR names any memb
     - `ms-7b3f1e92:d1`  2026-05-29 14:07  D1 - Script filename as the stable identifier for hook upsert
     - `ms-5e366ef4:d2`  2026-06-11 16:58  D2 - Multi-agent wiring reuses the existing merge framework; Copilot a
 
-## chain 6 — skill-architecture (4 decisions)  **UNCLAIMED**
+## chain 6 — skill-architecture (4 decisions)
 - areas: skill-architecture x4
-- claimed by: *nothing*
-    - `ms-0bd3d8b2:d1`  2026-05-26 22:09  D1 - Use a seeded trigger registry instead of only prose triggers
-    - `mse_vexkm8da35zj856x:d1`  2026-06-29 21:37  D1 - Decision
-    - `mse_fp32yxbxy3k3r5x1:d1`  2026-07-05 02:23  D1 - Generic skill content, project specifics stripped
-    - `mse_542z3qn0azma9mmx:d1`  2026-07-07 12:52  D1 - Decision
+- claimed by: `adr_skill_registry_and_generic_skills`
+    - `ms-0bd3d8b2:d1`  2026-05-26 22:09  D1 - Use a seeded trigger registry instead of only prose triggers [`adr_skill_registry_and_generic_skills`]
+    - `mse_vexkm8da35zj856x:d1`  2026-06-29 21:37  D1 - Decision [`adr_skill_registry_and_generic_skills`]
+    - `mse_fp32yxbxy3k3r5x1:d1`  2026-07-05 02:23  D1 - Generic skill content, project specifics stripped [`adr_skill_registry_and_generic_skills`]
+    - `mse_542z3qn0azma9mmx:d1`  2026-07-07 12:52  D1 - Decision [`adr_skill_registry_and_generic_skills`]
 
 ## chain 7 — docs-lifecycle (4 decisions)  **UNCLAIMED**
 - areas: docs-lifecycle x4
@@ -144,18 +144,14 @@ Chains of 3+ decisions, largest first. **UNCLAIMED** means no ADR names any memb
 
 ## ADR candidates
 
-14 of 16 chains are unclaimed. Each is a concern with recorded lineage and no ADR - the strongest kind of candidate, because the decisions are already connected and already topic-coherent.
+12 of 16 chains are unclaimed. Each is a concern with recorded lineage and no ADR - the strongest kind of candidate, because the decisions are already connected and already topic-coherent.
 
-- **mcp-tools** (11 decisions, chain 1): `ms-4c8e2a17:d1` … `mse_vzsef0fmpsde2jh4:d1`
-    - suggested head: `mse_vzsef0fmpsde2jh4:d1` — D1 - Gate the MCP write surface, retire the ungated pair
 - **docs-lifecycle** (7 decisions, chain 3): `mse_d2daxtnv8eqx4vqr:d1` … `mse_2geqfa8tg182a77p:d1`
     - suggested head: `mse_2geqfa8tg182a77p:d1` — D1 - Decision
 - **trail** (6 decisions, chain 4): `mse_74fb71s2cdrwqrqp:d1` … `mse_zm2h343r4shfre3j:d2`
     - suggested head: `mse_zm2h343r4shfre3j:d2` — D2 - The Trail draws all lifecycle edges by default, weighted by a
 - **hooks** (4 decisions, chain 5): `ms-7c4e1f9a:d1` … `ms-5e366ef4:d2`
     - suggested head: `ms-5e366ef4:d2` — D2 - Multi-agent wiring reuses the existing merge framework; Copil
-- **skill-architecture** (4 decisions, chain 6): `ms-0bd3d8b2:d1` … `mse_542z3qn0azma9mmx:d1`
-    - suggested head: `mse_542z3qn0azma9mmx:d1` — D1 - Decision
 - **docs-lifecycle** (4 decisions, chain 7): `ms-a939b6b4:d2` … `mse_djvwtfx02kjr5j1n:d2`
     - suggested head: `mse_djvwtfx02kjr5j1n:d2` — D2 - Refreshed functionality-audit.md
 - **topic-vocabulary** (4 decisions, chain 8): `mse_ehm67mqpmsqm00md:d1` … `mse_jz0pwv0ngzzxr484:d1`
@@ -175,5 +171,5 @@ Chains of 3+ decisions, largest first. **UNCLAIMED** means no ADR names any memb
 - **memory-trace** (3 decisions, chain 16): `mse_loe4c3vbaeeq22dt:d1` … `mse_rqkgatgt5eh55yb8:d1`
     - suggested head: `mse_rqkgatgt5eh55yb8:d1` — D1 - Serve the React shell as an additive packaged route
 
-**Cost if all 14 were founded and their members attached: 61 diagram answers owed** (a decision attached to an ADR owes a diagram or an explicit `diagram_status: not_applicable` with a reason, per 2026-08-07). Choose the cost; do not discover it.
+**Cost if all 12 were founded: 12 diagram answers** — one per ADR, not one per attached decision. A diagram block keys on `adr_id` and is filed under the head's session date, so an ADR is looked at once and the verdict recorded (a diagram, or `diagram_status: not_applicable` with a reason); ESR counts `adrs_without_diagram_answer` over ADR ids. Attaching 11 decisions to one ADR owes one answer, not eleven.
 
