@@ -450,16 +450,24 @@ TOOLS: list[dict[str, Any]] = [
                                     },
                                     "source": {"type": "string", "enum": ["write-time"]},
                                     "proposed_topic": {
-                                        "type": "string",
-                                        "minLength": 1,
-                                        "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                                        "type": "object",
+                                        "properties": {
+                                            "slug": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                                            },
+                                            "axis": {"type": "string", "enum": ["area", "activity"]},
+                                        },
+                                        "required": ["slug", "axis"],
                                         "description": (
                                             "A REQUEST for vocabulary that does not exist yet. Never a topic: it does "
                                             "not resolve, is never returned as an attribution, and cannot enter "
                                             "topics.yaml by being used. Supply it ALONGSIDE the still-mandatory area "
                                             "and activity, so the write is never blocked; ESR surfaces it for "
-                                            "adjudication with this decision as the evidence. Refused if it already "
-                                            "resolves - use it as area or activity instead."
+                                            "adjudication with this decision as the evidence. `axis` is required - a "
+                                            "request nobody can place on an axis cannot be ruled on. Refused if the "
+                                            "slug already resolves; use it as area or activity instead."
                                         ),
                                     },
                                 },

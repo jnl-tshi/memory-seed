@@ -109,10 +109,28 @@ One deliberate deviation from A, and the reason for it:
   the cost and the replacement, and the doc fix removed the instruction that was teaching the wrong
   form in the first place. Tightening to a refusal is a one-line change once the corpus stops
   producing entry-level writes; the ESR attribution-gap count is the signal for when that is safe.
-- `proposed_topic` landed as specified: refused if it already resolves, rendered under its own
-  `proposed_topics:` key in the topic sidecar (never inside `topics:`, which every reader treats as
-  resolvable vocabulary), and surfaced in the ESR Topics section with the requesting decision as
-  evidence.
+- `proposed_topic` landed as specified, plus an addition JNL asked for: it is an object
+  `{slug, axis}` rather than a bare slug, because a request nobody can place on an axis cannot be
+  ruled on. Refused if the slug already resolves; rendered under its own `proposed_topics:` key
+  (never inside `topics:`, which every reader treats as resolvable vocabulary); surfaced in the ESR
+  Topics section with its axis and the requesting decision as evidence.
+- **Assigned topics now declare their axis too**, in the nested shape `entry_topic_sidecars` has
+  read since 2026-07-27 but no writer emitted:
+
+  ```yaml
+  topics:
+    area:
+      - lifecycle-edges:d1
+    activity:
+      - bugfix:d1
+  proposed_topics:
+    activity:
+      - swarm-orchestration:d1
+  ```
+
+  The flat form left the axis to be looked up in `topics.yaml`, so a sidecar could not be read on
+  its own terms. The nested form degrades safely — a reader that does not know the sub-keys still
+  collects the same `- ` lines, seeing a correct if axis-blind list rather than none.
 
 ## Not proposed
 

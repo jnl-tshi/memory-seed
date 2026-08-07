@@ -197,13 +197,20 @@ def _proposed_topic_requests(memory_dir: Path) -> list[str]:
         for block in re.finditer(r"```yaml\n(.*?)```", text, re.S):
             body = block.group(1)
             entry = re.search(r"entry_id:\s*(\S+)", body)
-            region = re.search(r"^proposed_topics:\s*\n((?:\s+-\s+\S+\s*\n)+)", body, re.M)
+            region = re.search(r"^proposed_topics:\s*\n((?:[ \t]+\S.*\n)+)", body, re.M)
             if not (entry and region):
                 continue
-            for item in re.finditer(r"-\s+(\S+)", region.group(1)):
-                slug, _, ordinal = item.group(1).partition(":")
+            axis = ""
+            for line in region.group(1).splitlines():
+                stripped = line.strip()
+                if stripped.rstrip(":") in ("area", "activity") and stripped.endswith(":"):
+                    axis = stripped.rstrip(":")
+                    continue
+                if not stripped.startswith("-"):
+                    continue
+                slug, _, ordinal = stripped[1:].strip().partition(":")
                 who = f"{entry.group(1)}:{ordinal}" if ordinal else entry.group(1)
-                requests.append(f"{slug} (requested by {who})")
+                requests.append(f"{slug} [{axis or 'axis not declared'}] (requested by {who})")
     return sorted(set(requests))
 
 

@@ -3185,7 +3185,13 @@ class _DecisionSidecarWrite:
     replaces: tuple[str, ...]
     evolves: tuple[str, ...]
     adr: "_AdrPromotionWrite | None" = None
+    # Kept apart from `topics` so the sidecar can DECLARE each slug's axis
+    # instead of leaving a reader to look it up. `topics` stays as the flat
+    # union for anything that only wants the slugs.
+    area: str | None = None
+    activities: tuple[str, ...] = ()
     proposed_topic: str | None = None
+    proposed_axis: str | None = None
 
 
 @dataclass(frozen=True)
@@ -3305,25 +3311,46 @@ def _normalise_decision_sidecars(
         # adjudication with the requesting decision as evidence. This is the
         # PROPOSE side of the split propose_topic_children.py already enforces -
         # the promotion rule is evidence, not usage.
-        proposed_topic = raw_topics.get("proposed_topic")
-        if proposed_topic is not None:
-            if not isinstance(proposed_topic, str) or not proposed_topic.strip():
-                issues.append(f"decisions[{index}].topics.proposed_topic must be a non-empty slug-shaped string")
-                proposed_topic = None
-            elif not TOPIC_SLUG_RE.fullmatch(proposed_topic.strip()):
+        raw_proposed = raw_topics.get("proposed_topic")
+        proposed_topic = proposed_axis = None
+        if raw_proposed is not None:
+            # `{slug, axis}`, not a bare string: a request nobody can place on an
+            # axis cannot be adjudicated. "Add `swarm-orchestration`" is not
+            # answerable until you know whether it is a thing being worked on or
+            # a kind of work, and the requester is the one who knows.
+            if not isinstance(raw_proposed, Mapping):
                 issues.append(
-                    f"decisions[{index}].topics.proposed_topic '{proposed_topic}' is not slug-shaped "
-                    "(lowercase letters, digits, hyphens)"
+                    f"decisions[{index}].topics.proposed_topic must be an object "
+                    "{slug, axis} - a request without an axis cannot be ruled on"
                 )
-                proposed_topic = None
-            elif topic_resolution.get(proposed_topic.strip()):
-                issues.append(
-                    f"decisions[{index}].topics.proposed_topic '{proposed_topic}' already resolves in "
-                    "topics.yaml - use it as area or activity instead of requesting it"
-                )
-                proposed_topic = None
             else:
-                proposed_topic = proposed_topic.strip()
+                unknown = set(raw_proposed) - {"slug", "axis"}
+                if unknown:
+                    issues.append(
+                        f"decisions[{index}].topics.proposed_topic has unsupported field(s): "
+                        f"{', '.join(sorted(str(key) for key in unknown))}"
+                    )
+                slug = raw_proposed.get("slug")
+                axis = raw_proposed.get("axis")
+                if not isinstance(slug, str) or not slug.strip():
+                    issues.append(f"decisions[{index}].topics.proposed_topic.slug must be a non-empty string")
+                elif not TOPIC_SLUG_RE.fullmatch(slug.strip()):
+                    issues.append(
+                        f"decisions[{index}].topics.proposed_topic.slug '{slug}' is not slug-shaped "
+                        "(lowercase letters, digits, hyphens, underscores)"
+                    )
+                elif topic_resolution.get(slug.strip()):
+                    issues.append(
+                        f"decisions[{index}].topics.proposed_topic.slug '{slug}' already resolves in "
+                        "topics.yaml - use it as area or activity instead of requesting it"
+                    )
+                elif axis not in ("area", "activity"):
+                    issues.append(
+                        f"decisions[{index}].topics.proposed_topic.axis must be 'area' or 'activity' "
+                        f"(got {axis!r})"
+                    )
+                else:
+                    proposed_topic, proposed_axis = slug.strip(), axis
 
         raw_links = raw.get("links", {})
         if raw_links is None:
@@ -3419,7 +3446,14 @@ def _normalise_decision_sidecars(
                 replaces=rendered_links["replaces"],
                 evolves=rendered_links["evolves"],
                 adr=adr_write,
-                proposed_topic=proposed_topic if isinstance(proposed_topic, str) else None,
+                area=topic_resolution.get(raw_area) if isinstance(raw_area, str) else None,
+                activities=tuple(
+                    canonical
+                    for canonical in (topic_resolution.get(value) for value in activity_values)
+                    if canonical
+                ),
+                proposed_topic=proposed_topic,
+                proposed_axis=proposed_axis,
             )
         )
     return normalised, issues
@@ -3741,15 +3775,37 @@ def session_append_entry(
         for decision in decision_writes
         for slug in decision.topics
     ]
-    # A requested slug is written under its OWN key, never into `topics:`. Every
-    # topic reader treats that list as resolvable vocabulary, so a request
-    # sitting in it would become a topic by being read - which is precisely what
-    # the PROPOSE/ASSIGN split exists to prevent.
-    proposed_tokens = [
-        f"{decision.proposed_topic}:{decision.decision}"
-        for decision in decision_writes
-        if decision.proposed_topic
-    ]
+    # Both lists DECLARE the axis structurally, in the nested shape
+    # `entry_topic_sidecars` has read since 2026-07-27. The flat form it also
+    # accepts leaves the axis to be looked up in topics.yaml, which makes a
+    # sidecar unreadable on its own terms - you cannot tell which slug is the
+    # thing worked on and which is the kind of work. The nested form degrades
+    # safely: a reader that does not know the sub-keys still collects the same
+    # `- ` lines, so it sees a correct if axis-blind list rather than none.
+    def _axis_lines(key: str, buckets: dict[str, list[str]]) -> list[str]:
+        if not any(buckets.values()):
+            return []
+        lines = [f"{key}:"]
+        for axis in ("area", "activity"):
+            if buckets[axis]:
+                lines.append(f"  {axis}:")
+                lines.extend(f"    - {token}" for token in buckets[axis])
+        return lines
+
+    assigned: dict[str, list[str]] = {"area": [], "activity": []}
+    # A requested slug goes under its OWN key, never into `topics:`. Every topic
+    # reader treats that list as resolvable vocabulary, so a request sitting in
+    # it would become a topic by being read - precisely what the PROPOSE/ASSIGN
+    # split exists to prevent. It carries an axis too: a request nobody can
+    # place on an axis cannot be ruled on.
+    requested: dict[str, list[str]] = {"area": [], "activity": []}
+    for decision in decision_writes:
+        if decision.area:
+            assigned["area"].append(f"{decision.area}:{decision.decision}")
+        for activity in decision.activities:
+            assigned["activity"].append(f"{activity}:{decision.decision}")
+        if decision.proposed_topic and decision.proposed_axis:
+            requested[decision.proposed_axis].append(f"{decision.proposed_topic}:{decision.decision}")
     if topic_tokens:
         rendered_sidecars["topics"] = "\n".join(
             [
@@ -3758,10 +3814,8 @@ def session_append_entry(
                 "```yaml",
                 f"entry_id: {entry_id}",
                 "source: write-time",
-                "topics:",
-                *(f"  - {token}" for token in topic_tokens),
-                *(["proposed_topics:"] if proposed_tokens else []),
-                *(f"  - {token}" for token in proposed_tokens),
+                *_axis_lines("topics", assigned),
+                *_axis_lines("proposed_topics", requested),
                 "```",
                 "",
             ]

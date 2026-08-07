@@ -22,6 +22,7 @@ from memory_seed.core import (
     resolve_runtime,
     session_append_entry,
 )
+from memory_seed.retrieval import entry_topic_sidecars
 
 BODY = "### Summary\n\n- Context for this entry.\n\n### Decision\n\n- D: Something durable.\n- R: Because."
 
@@ -141,10 +142,32 @@ topics:
         self.assertFalse(missing_area.ok)
         self.assertIn("needs topics.area", " ".join(missing_area.issues))
 
+    def test_the_sidecar_declares_each_slug_s_axis(self):
+        # A flat list leaves the axis to be looked up in topics.yaml, so the
+        # sidecar cannot be read on its own terms. The nested shape declares it,
+        # and entry_topic_sidecars has read that shape since 2026-07-27.
+        self._vocabulary()
+
+        result = self._append(
+            title="Axis declared",
+            timestamp="2026-06-13 09:00",
+            decisions=[{"decision": "d1", "topics": {"area": "schema", "activity": "feature-build"}}],
+        )
+
+        self.assertTrue(result.ok, result.issues)
+        topics = (self.cwd / MEMORY_DIR_NAME / "sessions" / "topics" / "2026-06" / "2026-06-13.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("topics:\n  area:\n    - schema:d1\n  activity:\n    - feature-build:d1", topics)
+        read = entry_topic_sidecars(cwd=self.cwd)[result.entry_id]
+        self.assertEqual(read["decision_area"], (("d1", "schema"),))
+        self.assertEqual(read["decision_activity"], (("d1", "feature-build"),))
+
     def test_a_proposed_topic_is_a_request_never_an_attribution(self):
         # It rides ALONGSIDE the mandatory real pair, so the write is never
         # blocked, and it lands under its own key - never in `topics:`, which
-        # every reader treats as resolvable vocabulary.
+        # every reader treats as resolvable vocabulary - carrying the axis it is
+        # being requested on, because a request without one cannot be ruled on.
         self._vocabulary()
 
         result = self._append(
@@ -156,7 +179,7 @@ topics:
                     "topics": {
                         "area": "schema",
                         "activity": "feature-build",
-                        "proposed_topic": "swarm-orchestration",
+                        "proposed_topic": {"slug": "swarm-orchestration", "axis": "activity"},
                     },
                 }
             ],
@@ -166,27 +189,50 @@ topics:
         topics = (self.cwd / MEMORY_DIR_NAME / "sessions" / "topics" / "2026-06" / "2026-06-13.md").read_text(
             encoding="utf-8"
         )
-        self.assertIn("proposed_topics:\n  - swarm-orchestration:d1", topics)
-        self.assertIn("- schema:d1", topics)
-        self.assertIn("- feature-build:d1", topics)
+        self.assertIn("proposed_topics:\n  activity:\n    - swarm-orchestration:d1", topics)
+        self.assertIn("topics:\n  area:\n    - schema:d1", topics)
+        # The request is NOT an attribution: the topic reader never returns it.
+        read = entry_topic_sidecars(cwd=self.cwd)[result.entry_id]
+        self.assertNotIn("swarm-orchestration", read["topics"])
+        self.assertNotIn(("d1", "swarm-orchestration"), read["decision_topics"])
         self.assertTrue(check_session_links(cwd=self.cwd).ok, check_session_links(cwd=self.cwd).issues)
 
-    def test_a_proposed_topic_that_already_resolves_is_refused(self):
-        # Requesting vocabulary that exists is a mis-use, not a request: the
-        # author should be attributing with it instead.
+    def test_a_proposed_topic_needs_an_axis_and_must_not_already_resolve(self):
         self._vocabulary()
 
-        result = self._append(
+        no_axis = self._append(
+            title="No axis",
             decisions=[
                 {
                     "decision": "d1",
-                    "topics": {"area": "schema", "activity": "feature-build", "proposed_topic": "schema"},
+                    "topics": {
+                        "area": "schema",
+                        "activity": "feature-build",
+                        "proposed_topic": {"slug": "swarm-orchestration"},
+                    },
                 }
             ],
         )
+        self.assertFalse(no_axis.ok)
+        self.assertIn("axis must be 'area' or 'activity'", " ".join(no_axis.issues))
 
-        self.assertFalse(result.ok)
-        self.assertIn("already resolves", " ".join(result.issues))
+        # Requesting vocabulary that exists is a mis-use, not a request: the
+        # author should be attributing with it instead.
+        existing = self._append(
+            title="Already resolves",
+            decisions=[
+                {
+                    "decision": "d1",
+                    "topics": {
+                        "area": "schema",
+                        "activity": "feature-build",
+                        "proposed_topic": {"slug": "schema", "axis": "area"},
+                    },
+                }
+            ],
+        )
+        self.assertFalse(existing.ok)
+        self.assertIn("already resolves", " ".join(existing.issues))
 
     def test_decision_envelope_refuses_legacy_semantic_fields_and_bad_ordinals(self):
         result = self._append(
