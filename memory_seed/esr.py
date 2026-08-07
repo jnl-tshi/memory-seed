@@ -20,11 +20,15 @@ Sections:
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 from typing import Any
+
+SESSION_DATE_IN_PATH_RE = re.compile(r"(\d{4}-\d{2}-\d{2})\.md$")
+DECISION_ORDINAL_RE = re.compile(r"d\d+")
 
 from .core import check_session_links, read_integration_mode, read_merge_trigger, resolve_runtime
 from .topics import check_topics
@@ -61,6 +65,16 @@ class EsrReport:
     topics_issues: list[str] = field(default_factory=list)
     link_gaps: list[dict[str, Any]] = field(default_factory=list)
     open_link_stubs: int = 0
+    # Backlog AGE, not just size. Both sweeps below find work every session but
+    # only a deliberate campaign clears it, so a raw count reads as steady state
+    # while the oldest item quietly rots - the link backlog cleared on
+    # 2026-08-07 had been accumulating since 2026-07-21 and nothing said so.
+    # Deliberately a count plus a date and NO verdict, for the same reason
+    # `diagram_*` below is a count: the threshold at which a backlog earns a
+    # campaign depends on cost and corpus state this report cannot see.
+    oldest_open_link_stub: str | None = None
+    topic_attribution_gaps: int = 0
+    oldest_topic_attribution_gap: str | None = None
     worktrees: list[WorktreePosture] = field(default_factory=list)
     worktree_residues: list[WorktreeResidue] = field(default_factory=list)
     worktrees_available: bool = False
@@ -100,6 +114,9 @@ class EsrReport:
             "topics": {"ok": self.topics_ok, "issues": self.topics_issues},
             "link_gaps": self.link_gaps,
             "open_link_stubs": self.open_link_stubs,
+            "oldest_open_link_stub": self.oldest_open_link_stub,
+            "topic_attribution_gaps": self.topic_attribution_gaps,
+            "oldest_topic_attribution_gap": self.oldest_topic_attribution_gap,
             "worktrees": {
                 "available": self.worktrees_available,
                 "entries": [
@@ -140,6 +157,66 @@ class EsrReport:
                 "last_sidecar_date": self.last_diagram_date,
             },
         }
+
+
+def _topic_attribution_gaps(cwd: str | Path) -> tuple[int, str | None]:
+    """Decisions whose Area+Activity is not attributed AT DECISION GRANULARITY,
+    where keying would actually add information.
+
+    Not counted: a single-decision entry carrying entry-level Area+Activity.
+    Its `dN` and its bare form denote the same thing, so keying it is the topic
+    analogue of `redundant-decision-ref` - noise, not coverage. Counted: a
+    multi-decision entry whose decisions can only inherit one shared list, and
+    any decision with no Area+Activity from either source.
+
+    Returns (count, oldest session date). Silent (0, None) on any failure - a
+    reminder must never be able to fail the preflight it rides in.
+    """
+    try:
+        from .retrieval import entry_topic_sidecars
+        from .semantic_cache import extract_memory_chunks
+        from .topics import load_topic_index
+
+        index = load_topic_index(cwd)
+        resolution = index.resolution()
+        canon = lambda slug: resolution.get(slug, slug)  # noqa: E731
+        both_axes = lambda slugs: {"area", "activity"} <= {  # noqa: E731
+            index.axis_of(canon(slug)) for slug in slugs
+        }
+
+        keyed: dict[tuple[str, str], set[str]] = {}
+        entry_level: dict[str, set[str]] = {}
+        for entry_id, record in entry_topic_sidecars(cwd).items():
+            for ordinal, slug in record.get("decision_topics", ()):
+                target = keyed.setdefault((entry_id, ordinal), set()) if ordinal else entry_level.setdefault(entry_id, set())
+                target.add(canon(slug))
+            for slug in record.get("topics", ()):
+                entry_level.setdefault(entry_id, set()).add(canon(slug))
+        for chunk in extract_memory_chunks(cwd, granularity="entry"):
+            if chunk.entry_id:
+                for slug in (getattr(chunk, "topics", None) or ()):
+                    entry_level.setdefault(chunk.entry_id, set()).add(canon(slug))
+
+        decisions = [
+            (chunk.session_date.isoformat(), chunk.entry_id, ordinal)
+            for chunk in extract_memory_chunks(cwd, granularity="decision")
+            if chunk.entry_id
+            and DECISION_ORDINAL_RE.fullmatch(ordinal := (chunk.chunk_id or "").rsplit(":", 1)[-1])
+        ]
+        per_entry: dict[str, int] = {}
+        for _date, entry_id, _ordinal in decisions:
+            per_entry[entry_id] = per_entry.get(entry_id, 0) + 1
+
+        gap_dates = []
+        for session_date, entry_id, ordinal in decisions:
+            if both_axes(keyed.get((entry_id, ordinal), set())):
+                continue
+            if both_axes(entry_level.get(entry_id, set())) and per_entry[entry_id] < 2:
+                continue
+            gap_dates.append(session_date)
+        return len(gap_dates), min(gap_dates) if gap_dates else None
+    except Exception:  # noqa: BLE001 - a reminder never fails the preflight
+        return 0, None
 
 
 def _entry_dates(memory_dir: Path) -> dict[str, str]:
@@ -346,9 +423,22 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
         for issue in links.issues
         if issue.severity == "error"
     ]
-    report.open_link_stubs = sum(
-        issue.kind == "sidecar-unclassified-stub" for issue in links.issues
+    stub_files = [
+        issue.file for issue in links.issues if issue.kind == "sidecar-unclassified-stub"
+    ]
+    report.open_link_stubs = len(stub_files)
+    # A link sidecar is filed under its SOURCE entry's session date, so the
+    # filename IS the age of the work waiting - no entry lookup needed.
+    stub_dates = sorted(
+        match.group(1)
+        for match in (SESSION_DATE_IN_PATH_RE.search(path) for path in stub_files)
+        if match
     )
+    report.oldest_open_link_stub = stub_dates[0] if stub_dates else None
+
+    gaps, oldest_gap = _topic_attribution_gaps(cwd)
+    report.topic_attribution_gaps = gaps
+    report.oldest_topic_attribution_gap = oldest_gap
 
     topics = check_topics(cwd=cwd)
     report.topics_ok = topics.ok
@@ -473,10 +563,19 @@ def format_esr_report(report: EsrReport) -> str:
         lines.append("OK")
     else:
         lines.extend(f"- {issue}" for issue in report.topics_issues)
+    if report.topic_attribution_gaps:
+        oldest = f", oldest {report.oldest_topic_attribution_gap}" if report.oldest_topic_attribution_gap else ""
+        lines.append(
+            f"Decisions without decision-keyed area+activity, corpus-wide: "
+            f"{report.topic_attribution_gaps}{oldest} (topic_swarm.md backfills these)."
+        )
     lines.append("")
 
     lines.append("## Lifecycle link gaps (today's entries)")
+    oldest = f", oldest {report.oldest_open_link_stub}" if report.oldest_open_link_stub else ""
     lines.append(f"Open classification stubs: {report.open_link_stubs}.")
+    if report.open_link_stubs:
+        lines.append(f"Corpus-wide, not just today{oldest} (link_swarm.md judges these at scale).")
     if not report.link_gaps:
         lines.append("None — no unlinked structural neighbours.")
     else:

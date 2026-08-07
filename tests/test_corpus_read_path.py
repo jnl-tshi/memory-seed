@@ -62,6 +62,15 @@ ALLOWLIST: dict[str, tuple[int, str]] = {
         "entry_link_sidecars separately for what is already recorded, so augmenting here would be "
         "redundant, not corrective.",
     ),
+    "esr.py": (
+        2,
+        "The topic-attribution reminder measures the DIFFERENCE between the two topic channels - "
+        "decision-keyed `<slug>:dN` against entry-level - to count decisions where keying would add "
+        "information. An augmenter merges those channels into one list, which is precisely the "
+        "distinction being measured, so load_corpus would report zero gaps forever. The two calls "
+        "are entry granularity (for entry-level topics) and decision granularity (for the decision "
+        "list); the sidecar channel is read separately via entry_topic_sidecars.",
+    ),
 }
 
 

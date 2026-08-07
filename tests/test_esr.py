@@ -154,6 +154,53 @@ class EsrReportTests(unittest.TestCase):
         self.assertEqual(report.to_dict()["open_link_stubs"], 1)
         self.assertIn("Open classification stubs: 1.", text)
 
+    def test_stub_backlog_reports_its_age_not_just_its_size(self):
+        # A raw count reads as steady state; the oldest date is what shows a
+        # backlog rotting. The link backlog cleared on 2026-08-07 had been
+        # accumulating since 2026-07-21 and no report said so.
+        (self.sessions / "2026-06-01.md").write_text(_entry("2026-06-01 09:00", A), encoding="utf-8")
+        (self.sessions / "2026-06-09.md").write_text(_entry("2026-06-09 09:00", B), encoding="utf-8")
+        stub_dir = self.sessions / "links" / "2026-06"
+        stub_dir.mkdir(parents=True)
+        for day, entry_id in (("2026-06-09", B), ("2026-06-01", A)):
+            (stub_dir / f"{day}.md").write_text(
+                "\n".join(
+                    [
+                        "---",
+                        "tags:",
+                        "  - session-log-links",
+                        f"link_date: {day}",
+                        "---",
+                        "",
+                        f"## {day} 09:00 - pending classification",
+                        "",
+                        "```yaml",
+                        f"entry_id: {entry_id}",
+                        "classify_pending: true",
+                        "```",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+        report = esr_report(cwd=self.cwd, session_date="2026-06-09")
+        text = format_esr_report(report)
+
+        self.assertEqual(report.open_link_stubs, 2)
+        self.assertEqual(report.oldest_open_link_stub, "2026-06-01")
+        self.assertEqual(report.to_dict()["oldest_open_link_stub"], "2026-06-01")
+        self.assertIn("Corpus-wide, not just today, oldest 2026-06-01", text)
+
+    def test_no_stub_backlog_prints_no_age_line(self):
+        (self.sessions / "2026-06-01.md").write_text(_entry("2026-06-01 09:00", A), encoding="utf-8")
+
+        report = esr_report(cwd=self.cwd, session_date="2026-06-01")
+
+        self.assertEqual(report.open_link_stubs, 0)
+        self.assertIsNone(report.oldest_open_link_stub)
+        self.assertNotIn("Corpus-wide, not just today", format_esr_report(report))
+
     def test_non_git_directory_reports_worktrees_unavailable(self):
         (self.sessions / "2026-06-01.md").write_text(_entry("2026-06-01 09:00", A), encoding="utf-8")
 
