@@ -1,15 +1,22 @@
 # ADR attachment candidates (topic-matched)
 
-Decisions ranked by topics shared with the ADR. Topics come from the decision-level sidecar, which is the authority (precedence sidecar -> authored, never a union).
+Decisions matched by topics shared with the ADR. Topics come from the decision-level sidecar, which is the authority (precedence sidecar -> authored, never a union).
 
-- ADRs with no attached decision and at least one topic: **20**
-- of those, with candidates: **20**
+- ADRs with no attached decision and at least one topic: **17**
+- of those, with candidates: **17**
+- pair-expanded candidates offered: **45** (recall widening only)
 
-Candidates only. Attaching a decision means a `revise` event, which moves the ADR head - the same stakes as a lineage move - so nothing here is applied without being named.
+**These are candidates, not a ranking.** Topic overlap earns its place on RECALL - all 5 of JNL's approved picks were surfaced from ~1050 topiced decisions - but every topic-derived scorer ranked those picks at chance. Read the decision body to choose.
+
+Entries marked **[pair-expanded]** share no topic with the ADR; they arrived through a high-lift area coupling measured across the corpus (e.g. `schema` <-> `lifecycle-edges`). That is a recall widening only - treat it as one more thing worth reading.
+
+Attaching a decision means a `revise` event, which moves the ADR head, so nothing here is applied without being named.
 
 ## adr_agent_config_merge
 *Agent-config JSON/TOML merge, never seed-copy*
 - ADR topics: cli, control-plane, process-correction
+- `mse_kq3ba0cy9nkpqkm0:d4` (2 shared: control-plane, process-correction)
+    - D4 - Defer local branch deletion after approval-gate block
 - `mse_m6amd5db4c7s8sfw:d3` (2 shared: control-plane, process-correction)
     - D3 - Keep live and seed runtime behavior aligned
 - `ms-1bcfcc91:d2` (1 shared: control-plane)
@@ -18,8 +25,6 @@ Candidates only. Attaching a decision means a `revise` event, which moves the AD
     - D3 - `agents add/remove` with strip-in-place uninstall
 - `ms-1bcfcc91:d4` (1 shared: control-plane)
     - D4 - Cursor needs no routing file (researched)
-- `ms-1c7b9e3a:d1` (1 shared: cli)
-    - D1 - help leans on argparse, not a hand-curated duplicate
 
 ## adr_archive_before_replace
 *Archive control-plane snapshots before replacing versioned artifacts*
@@ -46,8 +51,8 @@ Candidates only. Attaching a decision means a `revise` event, which moves the AD
     - 2026-07-15 19:01 - Integrate ranking and long-horizon workstream into main
 - `mse_5mv4dvxfp1tr8v16` (1 shared: git-workflow)
     - 2026-07-10 15:35 - Lifecycle clarification: merge-branch evolves the fuse workfl
-- `mse_61bnt9ty6rfgpw1e:d3` (1 shared: git-workflow)
-    - D3 - Wrote around a concurrent session rather than through it
+- `mse_a3wytbb3m7c4tj7w:d1` (1 shared: git-workflow)
+    - D1 - Decision
 
 ## adr_community_detection_rejected
 *Topology-community detection measured and rejected*
@@ -62,20 +67,40 @@ Candidates only. Attaching a decision means a `revise` event, which moves the AD
     - D1 - Communities come from authored topics, not from structural detection
 - `mse_3yvakpxdshc95e68:d2` (2 shared: design-evaluation, graph)
     - D2 - Most distinctive, not most common, and never first-listed
+- `mse_1xexde5bhezse690:d2` **[pair-expanded]** via `diagram-view` (lift 9.4, n=3)
+    - D2 - Zoomable diagram viewer (replaces the popover)
+- `mse_1xexde5bhezse690:d3` **[pair-expanded]** via `diagram-view` (lift 9.4, n=3)
+    - D3 - Arc 2d flowchart renderer honours `<br/>`
+- `mse_86mvcfdmcfjqmrvv:d1` **[pair-expanded]** via `diagram-view` (lift 9.4, n=3)
+    - D1 - Decision
+- `mse_aja6sm9019315yh1:d1` **[pair-expanded]** via `diagram-view` (lift 9.4, n=3)
+    - D1 - Decision
+- `mse_ey0rr8vgnc5hhrw0:d1` **[pair-expanded]** via `diagram-view` (lift 9.4, n=3)
+    - D1 - Colour at the root, justified by slot stability rather than a count that do
 
 ## adr_docs_lifecycle_folders
 *Docs taxonomy: folder is lifecycle state*
 - ADR topics: docs-lifecycle, documentation, governance-profile
 - `ms-bde55cc2:d1` (2 shared: docs-lifecycle, documentation)
     - D1 - Decision
+- `mse_08nhq28nkm2ecpt4:d1` (2 shared: docs-lifecycle, documentation)
+    - D1 - Decision
 - `mse_21d4kcx6g1vxt0ky:d1` (2 shared: docs-lifecycle, documentation)
     - D1 - Decision
 - `mse_5hgxywp0n3qsz0dw:d1` (2 shared: docs-lifecycle, documentation)
     - D1 - Decision
-- `mse_9s1yhyh43qp1k3mx:d1` (2 shared: docs-lifecycle, documentation)
+- `mse_61bnt9ty6rfgpw1e:d1` (2 shared: docs-lifecycle, documentation)
+    - D1 - The refresh records open threads, not just completed boxes
+- `ms-9066d377:d1` **[pair-expanded]** via `package` (lift 3.2, n=4)
+    - D1 - 2.4.0 minor + control-plane 2.3 -> 2.4
+- `ms-92f62f89:d1` **[pair-expanded]** via `package` (lift 3.2, n=4)
     - D1 - Decision
-- `mse_a0bxp5n1wcnsjxvw:d4` (2 shared: docs-lifecycle, documentation)
-    - D4 - Reconcile the canonical planning surfaces
+- `ms-a4282580:d1` **[pair-expanded]** via `package` (lift 3.2, n=4)
+    - D1 - Explorer package split
+- `ms-c0d56306:d1` **[pair-expanded]** via `package` (lift 3.2, n=4)
+    - D1 - Decision
+- `mse_0842kjv76f4btrr8:d4` **[pair-expanded]** via `package` (lift 3.2, n=4)
+    - D4 - Naming reconciliation Explorer -> Memory Lense
 
 ## adr_draft_format
 *DRAFT single-decision baseline; D/R mandatory; numbered decisions canonical*
@@ -90,6 +115,16 @@ Candidates only. Attaching a decision means a `revise` event, which moves the AD
     - D1 - Times are approximate for retroactively logged entries
 - `ms-3a9a99a6:d1` (1 shared: session-logging)
     - D1 - Decision
+- `mse_1cabc5sw1g4hkb25:d2` **[pair-expanded]** via `lifecycle-edges` (lift 11.1, n=3)
+    - D2 - The P2 historical backfill is blocked pending a constitutional ruling
+- `mse_1wz44tdd04pt5yx4:d1` **[pair-expanded]** via `lifecycle-edges` (lift 11.1, n=3)
+    - D1 - Decision
+- `mse_3e63pfckz4rzkw25:d1` **[pair-expanded]** via `lifecycle-edges` (lift 11.1, n=3)
+    - D1 - Decision edges are a separate stream, computed after row expansion and outs
+- `mse_3e63pfckz4rzkw25:d3` **[pair-expanded]** via `lifecycle-edges` (lift 11.1, n=3)
+    - D3 - A dangling ordinal on an expanded entry draws nothing, rather than falling 
+- `mse_3e63pfckz4rzkw25:d5` **[pair-expanded]** via `lifecycle-edges` (lift 11.1, n=3)
+    - D5 - Reverted the demonstration edge rather than bypassing the append-only guard
 
 ## adr_edge_kinds
 *Four never-merged edge kinds, forward-only and acyclic*
@@ -104,6 +139,16 @@ Candidates only. Attaching a decision means a `revise` event, which moves the AD
     - D1 - Topic is not a relationship, so it is not a default edge
 - `mse_0qycwt519qdggrpe:d2` (1 shared: graph)
     - D2 - The measurement that justified it was wrong the first time
+- `ms-8e44a1c7:d1` **[pair-expanded]** via `schema` (lift 11.1, n=3)
+    - D1 - Decision
+- `ms-a4282580:d2` **[pair-expanded]** via `schema` (lift 11.1, n=3)
+    - D2 - Entry IDs and related links
+- `mse_4670mpw532yec14w:d1` **[pair-expanded]** via `schema` (lift 11.1, n=3)
+    - D1 - Decision
+- `mse_5zg50mzrmtx80c80:d2` **[pair-expanded]** via `schema` (lift 11.1, n=3)
+    - D2 - Deterministic evidence score joins the edge-confidence spec as a derived re
+- `mse_67y44fsj2srz0eyz:d2` **[pair-expanded]** via `schema` (lift 11.1, n=3)
+    - D2 - A decision-level edge suppresses its pair in link audit
 
 ## adr_encoding_policy
 *Encoding policy owned by Seed, never duplicated in Trace*
@@ -112,39 +157,45 @@ Candidates only. Attaching a decision means a `revise` event, which moves the AD
     - D2 - Persist selection in project.yaml; absent = ALL (backward-compat)
 - `ms-1bcfcc91:d4` (1 shared: control-plane)
     - D4 - Cursor needs no routing file (researched)
+- `ms-3cad2a35:d1` (1 shared: seed-core)
+    - D1 - 2.8.0 release boundary
 - `ms-5c3b8e12:d2` (1 shared: control-plane)
     - D2 - Patch release 2.2.1 for control-plane version bump
-- `ms-6e1aadec:d1` (1 shared: control-plane)
+- `ms-6b21d9f4:d1` (1 shared: seed-core)
     - D1 - Decision
-- `ms-74475f71:d1` (1 shared: control-plane)
+- `ms-2b8e6f01:d1` **[pair-expanded]** via `docs-lifecycle` (lift 3.0, n=3)
+    - D1 - user-attachments URL for the inline player, release asset for the fallback 
+- `ms-4e1b8a07:d1` **[pair-expanded]** via `docs-lifecycle` (lift 3.0, n=3)
     - D1 - Decision
-
-## adr_entry_id_scheme
-*Deterministic 80-bit mse_ ids; legacy ms- never rewritten*
-- ADR topics: schema
-- `ms-8e44a1c7:d1` (1 shared: schema)
+- `ms-a939b6b4:d2` **[pair-expanded]** via `docs-lifecycle` (lift 3.0, n=3)
+    - D2 - Author the functionality audit with data-flow diagrams
+- `ms-bde55cc2:d1` **[pair-expanded]** via `docs-lifecycle` (lift 3.0, n=3)
     - D1 - Decision
-- `ms-a4282580:d2` (1 shared: schema)
-    - D2 - Entry IDs and related links
-- `mse_4670mpw532yec14w:d1` (1 shared: schema)
-    - D1 - Decision
-- `mse_5zg50mzrmtx80c80:d2` (1 shared: schema)
-    - D2 - Deterministic evidence score joins the edge-confidence spec as a derived re
-- `mse_67y44fsj2srz0eyz:d2` (1 shared: schema)
-    - D2 - A decision-level edge suppresses its pair in link audit
+- `ms-fbc65d3c:d1` **[pair-expanded]** via `docs-lifecycle` (lift 3.0, n=3)
+    - D1 - Make public and bootstrap docs match the active routing model
 
 ## adr_experiment_isolation
 *Experiment fixture isolation is structural via nearest-runtime discovery*
 - ADR topics: functionality-audit, seed-core, testing
+- `mse_aqsfm061kmekm87m:d1` (2 shared: seed-core, testing)
+    - D1 - Adopt four Codex harness constants, each forced by an observed failure
 - `mse_b1q6bjqv5w1zyn2k:d3` (2 shared: seed-core, testing)
     - D3 - Pinned the coupling to core's format parser with a test
+- `ms-3cad2a35:d1` (1 shared: seed-core)
+    - D1 - 2.8.0 release boundary
 - `ms-4e1b8a07:d1` (1 shared: functionality-audit)
     - D1 - Decision
-- `ms-757053d4:d3` (1 shared: seed-core)
-    - D3 - Hygiene: per-prompt hook reconcile + test trims + index staleness
-- `ms-8308e577:d1` (1 shared: testing)
+- `ms-6b21d9f4:d1` (1 shared: seed-core)
     - D1 - Decision
-- `ms-8e44a1c7:d1` (1 shared: testing)
+- `ms-2b8e6f01:d1` **[pair-expanded]** via `docs-lifecycle` (lift 3.0, n=3)
+    - D1 - user-attachments URL for the inline player, release asset for the fallback 
+- `ms-bde55cc2:d1` **[pair-expanded]** via `docs-lifecycle` (lift 3.0, n=3)
+    - D1 - Decision
+- `mse_08nhq28nkm2ecpt4:d1` **[pair-expanded]** via `docs-lifecycle` (lift 3.0, n=3)
+    - D1 - Decision
+- `mse_0c9aj0p67px02wcf:d1` **[pair-expanded]** via `docs-lifecycle` (lift 3.0, n=3)
+    - D1 - Decision
+- `mse_21d4kcx6g1vxt0ky:d1` **[pair-expanded]** via `docs-lifecycle` (lift 3.0, n=3)
     - D1 - Decision
 
 ## adr_integration_mode
@@ -182,11 +233,21 @@ Candidates only. Attaching a decision means a `revise` event, which moves the AD
     - D2 - Restore two-step skill-registry wording in AGENTS.md
 - `mse_03bwbpzck2qdkeh7:d1` (2 shared: documentation, seed-core)
     - D1 - Decision
-- `mse_52cw7g10wmaha5h4:d1` (2 shared: control-plane, documentation)
+- `mse_38hrm8xm2bx6y27t:d1` (2 shared: documentation, seed-core)
+    - D1 - Read the index as substrate validation with a governance-shaped gap, not as
+- `mse_4ch29yqmw7426pfw:d1` (2 shared: documentation, seed-core)
+    - D1 - Treat tests-versus-records as the strongest standing challenge, and record 
+- `mse_4ch29yqmw7426pfw:d2` (2 shared: documentation, seed-core)
+    - D2 - Register the direct hit on the solo-developer ICP instead of absorbing it
+- `ms-2b8e6f01:d1` **[pair-expanded]** via `docs-lifecycle` (lift 3.0, n=3)
+    - D1 - user-attachments URL for the inline player, release asset for the fallback 
+- `ms-4e1b8a07:d1` **[pair-expanded]** via `docs-lifecycle` (lift 3.0, n=3)
     - D1 - Decision
-- `mse_5p94m2c3rwy7kbtj:d2` (2 shared: control-plane, documentation)
-    - D2 - Developer persona evolution: verify ground-truth STATE from source of truth
-- `mse_5y962348e85x7grr:d1` (2 shared: control-plane, documentation)
+- `ms-a939b6b4:d2` **[pair-expanded]** via `docs-lifecycle` (lift 3.0, n=3)
+    - D2 - Author the functionality audit with data-flow diagrams
+- `ms-fbc65d3c:d1` **[pair-expanded]** via `docs-lifecycle` (lift 3.0, n=3)
+    - D1 - Make public and bootstrap docs match the active routing model
+- `mse_0c9aj0p67px02wcf:d1` **[pair-expanded]** via `docs-lifecycle` (lift 3.0, n=3)
     - D1 - Decision
 
 ## adr_release_topology
@@ -198,7 +259,7 @@ Candidates only. Attaching a decision means a `revise` event, which moves the AD
     - D2 - Patch release 2.2.1 for control-plane version bump
 - `ms-6b21d9f4:d1` (1 shared: release)
     - D1 - Decision
-- `ms-72aa01ec:d1` (1 shared: release)
+- `ms-72aa01ec:d1` (1 shared: git-publishing)
     - D1 - Decision
 - `ms-757053d4:d4` (1 shared: release)
     - D4 - Version bump 2.5→2.6 (release content)
@@ -206,8 +267,6 @@ Candidates only. Attaching a decision means a `revise` event, which moves the AD
 ## adr_runtime_discovery
 *Runtime discovery walks to the nearest .memory-seed*
 - ADR topics: agent-rules, control-plane
-- `mse_q0csfqb2darg474m:d1` (2 shared: agent-rules, control-plane)
-    - D1 - Decision
 - `ms-1bcfcc91:d1` (1 shared: agent-rules)
     - D1 - Central AGENTS registry + per-agent tagging
 - `ms-1bcfcc91:d2` (1 shared: control-plane)
@@ -216,34 +275,8 @@ Candidates only. Attaching a decision means a `revise` event, which moves the AD
     - D4 - Cursor needs no routing file (researched)
 - `ms-2e9c5f31:d1` (1 shared: agent-rules)
     - D1 - Move Reason Rules before Entry Shapes
-
-## adr_topic_backfill_rejected
-*Scored topic auto-backfill rejected; curated-evidence premise adopted*
-- ADR topics: decision-harvest, topic-vocabulary
-- `mse_0n9nwq9qj6dp493f:d2` (1 shared: decision-harvest)
-    - D2 - Fix: Decision Harvest + sidecar positive-trigger tightening missing/stale
-- `mse_25zzy3cmdjgrsf69:d1` (1 shared: topic-vocabulary)
-    - D1 - Declare the axis on roots only and let children inherit it
-- `mse_25zzy3cmdjgrsf69:d2` (1 shared: topic-vocabulary)
-    - D2 - Promote only the aliases the corpus actually authored
-- `mse_25zzy3cmdjgrsf69:d3` (1 shared: topic-vocabulary)
-    - D3 - Flag three aliases as wrong in place rather than rehome them
-- `mse_25zzy3cmdjgrsf69:d4` (1 shared: topic-vocabulary)
-    - D4 - Promote licensing and re-file audit against the incoming suspicion
-
-## adr_topic_vocabulary
-*Controlled topic vocabulary with axis hierarchy and seed/live parity*
-- ADR topics: governance-profile, schema, topic-vocabulary
-- `ms-8e44a1c7:d1` (1 shared: schema)
+- `ms-3f7c08e2:d1` (1 shared: agent-rules)
     - D1 - Decision
-- `ms-a4282580:d2` (1 shared: schema)
-    - D2 - Entry IDs and related links
-- `mse_03fpxwznab7efk1r:d1` (1 shared: governance-profile)
-    - D1 - Decision
-- `mse_25zzy3cmdjgrsf69:d1` (1 shared: topic-vocabulary)
-    - D1 - Declare the axis on roots only and let children inherit it
-- `mse_25zzy3cmdjgrsf69:d2` (1 shared: topic-vocabulary)
-    - D2 - Promote only the aliases the corpus actually authored
 
 ## adr_trace_incremental_startup
 *Trace startup incremental; immutable git derivations persist*
@@ -258,6 +291,16 @@ Candidates only. Attaching a decision means a `revise` event, which moves the AD
     - D2 - Share one parsed topic vocabulary per Trace request
 - `mse_r5m6rdypd34dz9j0:d1` (2 shared: memory-trace, performance)
     - D1 - Zonal settling is declined on measurement, not on taste
+- `mse_1xexde5bhezse690:d2` **[pair-expanded]** via `diagram-view` (lift 9.4, n=3)
+    - D2 - Zoomable diagram viewer (replaces the popover)
+- `mse_1xexde5bhezse690:d3` **[pair-expanded]** via `diagram-view` (lift 9.4, n=3)
+    - D3 - Arc 2d flowchart renderer honours `<br/>`
+- `mse_86mvcfdmcfjqmrvv:d1` **[pair-expanded]** via `diagram-view` (lift 9.4, n=3)
+    - D1 - Decision
+- `mse_aja6sm9019315yh1:d1` **[pair-expanded]** via `diagram-view` (lift 9.4, n=3)
+    - D1 - Decision
+- `mse_ey0rr8vgnc5hhrw0:d1` **[pair-expanded]** via `diagram-view` (lift 9.4, n=3)
+    - D1 - Colour at the root, justified by slot stability rather than a count that do
 
 ## adr_trail_derived_lanes
 *Trail derives display lanes without authored graph edges*
@@ -272,6 +315,16 @@ Candidates only. Attaching a decision means a `revise` event, which moves the AD
     - D3 - Overflow was minZoom clamping the fit, not a missing fit
 - `mse_07veztrwd4w9tfby:d4` (1 shared: memory-trace)
     - D4 - Reheat uses d3-force; the global layout stays cose
+- `mse_1xexde5bhezse690:d2` **[pair-expanded]** via `diagram-view` (lift 9.4, n=3)
+    - D2 - Zoomable diagram viewer (replaces the popover)
+- `mse_1xexde5bhezse690:d3` **[pair-expanded]** via `diagram-view` (lift 9.4, n=3)
+    - D3 - Arc 2d flowchart renderer honours `<br/>`
+- `mse_86mvcfdmcfjqmrvv:d1` **[pair-expanded]** via `diagram-view` (lift 9.4, n=3)
+    - D1 - Decision
+- `mse_aja6sm9019315yh1:d1` **[pair-expanded]** via `diagram-view` (lift 9.4, n=3)
+    - D1 - Decision
+- `mse_ey0rr8vgnc5hhrw0:d1` **[pair-expanded]** via `diagram-view` (lift 9.4, n=3)
+    - D1 - Colour at the root, justified by slot stability rather than a count that do
 
 ## adr_worktree_convention
 *Worktree=session, branch=task, agent-namespaced branch names*

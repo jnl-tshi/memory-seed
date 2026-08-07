@@ -19,18 +19,55 @@ REPO = HERE.parents[1]
 sys.path.insert(0, str(REPO))
 
 from memory_seed.adr import DECISION_REF_RE, _entry_decisions  # noqa: E402
-from memory_seed.retrieval import entry_link_sidecars, load_corpus  # noqa: E402
+from memory_seed.retrieval import (  # noqa: E402
+    entry_link_sidecars,
+    entry_topic_sidecars,
+    load_corpus,
+)
 
 LINEAGE = {"evolves", "replaces"}
 
 
+def decision_axes(cwd=REPO) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
+    """(area, activity) per decision ref, read from the DECLARED axis channel.
+
+    Topic sidecars emit nested `topics:` with `area:`/`activity:` sub-keys as of 2026-08-07, and
+    `entry_topic_sidecars` surfaces them as `decision_area`/`decision_activity`. Declared beats
+    inferred: the earlier approach flattened both axes into one set and recovered the axis by
+    walking `topics.yaml` ancestry, which is a second derivation of something the record now
+    states. It is also better covered - 1155 decisions resolve an area here against 1067 through
+    the flattened channel.
+
+    `proposed_topics` is deliberately NOT read. It holds vocabulary REQUESTS, which never resolve
+    and are never attributions; treating one as a topic is exactly what its separate key prevents.
+    """
+    area: dict[str, set[str]] = collections.defaultdict(set)
+    activity: dict[str, set[str]] = collections.defaultdict(set)
+    for entry, record in entry_topic_sidecars(cwd).items():
+        for key, target in (("decision_area", area), ("decision_activity", activity)):
+            for ordinal, slug in (record.get(key) or ()):
+                if ordinal:  # a blank ordinal is an entry-level attribution, not a decision's
+                    target[f"{entry}:{ordinal}"].add(slug)
+    return dict(area), dict(activity)
+
+
 def decision_topics(cwd=REPO) -> dict[str, set[str]]:
-    """Per-decision topics from the sidecar channel, which is the authority."""
+    """Both axes per decision ref, unioned - for callers that do not care which axis a slug is on.
+
+    Falls back to the flattened `inferred_decision_topics` for any decision the declared channel
+    does not cover (records predating the nested form).
+    """
+    area, activity = decision_axes(cwd)
     out: dict[str, set[str]] = collections.defaultdict(set)
+    for source in (area, activity):
+        for ref, slugs in source.items():
+            out[ref] |= slugs
     for chunk in load_corpus(cwd, "decision"):
         entry = (chunk.chunk_id or "").split(":")[0]
         for ordinal, slug in (getattr(chunk, "inferred_decision_topics", None) or ()):
-            out[f"{entry}:{ordinal}"].add(slug)
+            ref = f"{entry}:{ordinal}"
+            if ordinal and ref not in out:
+                out[ref].add(slug)
     return dict(out)
 
 
@@ -110,17 +147,19 @@ def main() -> int:
         cid = chunk.chunk_id or ""
         if ":" in cid:
             real[cid.split(":")[0]].add(cid.split(":")[1])
+    area, activity = decision_axes()
     topics = decision_topics()
     bad = sum(
         1 for ref in topics
         if ref.split(":")[1] not in real.get(ref.split(":")[0], set())
     )
-    sizes = collections.Counter(len(v) for v in topics.values())
     print(f"  decision chunks: {len(chunks)} | topiced decision refs: {len(topics)}")
+    print(f"  declared AREA: {len(area)} | declared ACTIVITY: {len(activity)}")
     print(f"  attributions pointing at a NON-EXISTENT ordinal: {bad}")
-    print(f"  topics-per-decision: {dict(sorted(sizes.items()))}")
     both = sum(1 for _k, o, n, _c in edges if topics.get(o) and topics.get(n))
+    both_area = sum(1 for _k, o, n, _c in edges if area.get(o) and area.get(n))
     print(f"  lineage edges with topics on BOTH ends: {both}/{len(edges)} ({100 * both // max(1, len(edges))}%)")
+    print(f"  lineage edges with AREA on both ends:  {both_area}/{len(edges)} ({100 * both_area // max(1, len(edges))}%)")
     return 0
 
 
