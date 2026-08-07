@@ -720,6 +720,8 @@ class LinksCheckTests(unittest.TestCase):
     def test_a_founding_adr_diagram_falls_back_to_the_day_it_was_drawn(self):
         # An ADR still at a `founding:` placeholder has no authoritative decision
         # to lend a date, so the heading date is the only anchor available.
+        # Mismatch is a WARNING asking for another look, never an error - nothing
+        # here mandates that an ADR carry a diagram.
         cwd = self.make_project()
         self._flat_session(cwd, "2026-06-01.md", ("2026-06-01 09:00 - one", "mse_ffffffffffffffff", ()))
         self._adr_diagram(
@@ -730,7 +732,7 @@ class LinksCheckTests(unittest.TestCase):
             block_lines=["adr_id: adr_real", "```", "", "```mermaid", "flowchart TD", "  A --> B"],
         )
 
-        self.assertIn("diagram-date-mismatch", self._issue_kinds(cwd))
+        self.assertIn("needs-diagram-review", self._issue_kinds(cwd))
 
     def test_adr_diagram_is_filed_under_its_authoritative_decision_not_the_drawing_day(self):
         # The diagram belongs beside the decision whose shape it draws. When the
@@ -748,12 +750,17 @@ class LinksCheckTests(unittest.TestCase):
             block_lines=["adr_id: adr_real", "```", "", "```mermaid", "flowchart TD", "  A --> B"],
         )
 
-        # Head resolves to an entry logged 2026-06-01, so 2026-06-09 is wrong.
+        # Head resolves to an entry logged 2026-06-01, so the review tick that
+        # was recorded against 2026-06-09 no longer matches: the ADR evolved and
+        # is owed another look.
         with patch("memory_seed.core.adr_head_entry_ids", return_value={"adr_real": "mse_ffffffffffffffff"}):
-            issues = [i for i in check_session_links(cwd=cwd).issues if i.kind == "diagram-date-mismatch"]
+            result = check_session_links(cwd=cwd)
+        issues = [i for i in result.issues if i.kind == "needs-diagram-review"]
         self.assertEqual(len(issues), 1)
-        self.assertIn("belongs under 2026-06-01", issues[0].detail)
-        self.assertIn("its authoritative decision", issues[0].detail)
+        self.assertEqual(issues[0].severity, "warning")
+        self.assertTrue(result.ok, "a cleared review tick must never fail the check")
+        self.assertIn("its authority is now 2026-06-01", issues[0].detail)
+        self.assertIn("deserves a diagram", issues[0].detail)
 
         # Filed under the head's date instead: clean.
         (cwd / MEMORY_DIR_NAME / "sessions" / "diagrams" / "2026-06" / "2026-06-09.md").unlink()

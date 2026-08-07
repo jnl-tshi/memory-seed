@@ -110,15 +110,20 @@ class EsrReport:
     entries_today: int = 0
     last_diagram_date: str | None = None
     entries_since_last_diagram: int = 0
-    # ADR diagram coverage IS mechanically determinable, unlike the per-entry
-    # question: the denominator is the ADR corpus and every ADR owes an answer -
-    # a diagram, or `diagram_status: not_applicable` recording that someone
-    # looked and there was nothing structural to draw. Reported as a backlog
-    # rather than enforced by `adrs check`, because landing the mechanism must
-    # not turn 38 unanswered ADRs into a red gate on the commit that introduces
-    # it. Tightening to a hard gate is the follow-up, once the corpus is answered.
+    # ADR diagram REVIEW STATE, not coverage (JNL, 2026-08-07). An ADR is looked
+    # at once for whether it deserves a diagram and the verdict is recorded - a
+    # diagram, or `diagram_status: not_applicable`. When the ADR later evolves
+    # onto a new decision that tick is cleared and another look is owed.
+    #
+    # Deliberately never a gate. An earlier attempt made a missing answer fail
+    # `adrs check`, which broke five test fixtures that create ADRs to exercise
+    # unrelated contract rules - and, worse, would have failed for any DOWNSTREAM
+    # project with ADRs the moment it upgraded, over a convention it never
+    # adopted. Reframing coverage as review state dissolves that: an unreviewed
+    # ADR is simply unreviewed, and only this report cares.
     adrs_total: int = 0
     adrs_without_diagram_answer: int = 0
+    adrs_needing_diagram_rereview: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -174,6 +179,7 @@ class EsrReport:
                 "entries_since_last_sidecar": self.entries_since_last_diagram,
                 "adrs_total": self.adrs_total,
                 "adrs_without_diagram_answer": self.adrs_without_diagram_answer,
+                "adrs_needing_diagram_rereview": self.adrs_needing_diagram_rereview,
             },
         }
 
@@ -590,6 +596,11 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
     answered = set(adr_diagram_sidecars(cwd))
     report.adrs_total = len(adr_ids)
     report.adrs_without_diagram_answer = len(adr_ids - answered)
+    # A cleared tick shows up as the `needs-diagram-review` warning links check
+    # raises when an answer's file date no longer matches the ADR's head.
+    report.adrs_needing_diagram_rereview = sum(
+        1 for issue in links.issues if issue.kind == "needs-diagram-review"
+    )
     return report
 
 
@@ -629,11 +640,19 @@ def format_esr_report(report: EsrReport) -> str:
             "- session_logging.md: when a positive trigger is present and no sidecar is written, "
             "state the reason under A: or Follow-up"
         )
-    if report.adrs_without_diagram_answer:
-        lines.append(
-            f"- ADRs with no diagram answer: {report.adrs_without_diagram_answer} of {report.adrs_total} "
-            "(a diagram, or `diagram_status: not_applicable` recording that there is no shape to draw)"
-        )
+    if report.adrs_total:
+        reviewed = report.adrs_total - report.adrs_without_diagram_answer
+        lines.append(f"- ADR diagram review: {reviewed} of {report.adrs_total} reviewed")
+        if report.adrs_without_diagram_answer:
+            lines.append(
+                f"  - {report.adrs_without_diagram_answer} never reviewed (record a diagram, or "
+                "`diagram_status: not_applicable` if there is no shape to draw)"
+            )
+        if report.adrs_needing_diagram_rereview:
+            lines.append(
+                f"  - {report.adrs_needing_diagram_rereview} evolved since review; the answer no "
+                "longer matches the ADR's current authority and is owed another look"
+            )
     lines.append("")
 
     lines.append("## Integrity (links check)")

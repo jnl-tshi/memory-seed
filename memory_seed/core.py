@@ -4529,10 +4529,15 @@ def _validate_adr_diagram_block(
       (``dangling-diagram-ref``) - a diagram claiming to draw decisions that do
       not exist is worth less than no diagram;
     * the file date must match the session date of the ADR's CURRENT
-      authoritative decision - the diagram is filed beside the decision whose
-      shape it draws, so a later head makes the mismatch a staleness signal.
-      An ADR still at a ``founding:`` placeholder has no such date, and falls
-      back to the date the block was drawn;
+      authoritative decision. This is the REVIEW TICK, and the mechanism that
+      clears it (JNL, 2026-08-07): an ADR is reviewed once for whether it
+      deserves a diagram, the verdict is recorded, and when the ADR later
+      EVOLVES onto a new decision the file date stops matching - which is the
+      tick being removed and another review being asked for. It is a
+      ``needs-diagram-review`` WARNING, never an error: nothing here mandates
+      that an ADR have a diagram, so nothing can fail for a project that has
+      not adopted the convention. An ADR still at a ``founding:`` placeholder
+      has no head date, and falls back to the date the block was drawn;
     * a block must carry Mermaid unless it declares
       ``diagram_status: not_applicable``, which is the sanctioned way to record
       that someone looked and there was nothing structural to draw - the same
@@ -4552,8 +4557,11 @@ def _validate_adr_diagram_block(
         issues.append(
             LinkIssue(
                 rel,
-                "diagram-date-mismatch",
-                f"adr_id {adr_id} is filed under {file_date} but belongs under {expected_date} - {anchor}",
+                "needs-diagram-review",
+                f"adr_id {adr_id} was reviewed against {file_date} but its authority is now "
+                f"{expected_date} ({anchor}) - the ADR evolved, so look again at whether it "
+                "deserves a diagram and re-file the answer under the new date",
+                severity="warning",
             )
         )
     for parsed in _frontmatter_list_refs(yaml_block, "grounded_in"):
