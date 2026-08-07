@@ -18,6 +18,7 @@ import unittest
 from pathlib import Path
 
 from memory_seed.adr import (
+    unknown_event_kinds,
     reconcile_adr_records,
     replay_adr,
     add_context,
@@ -425,3 +426,31 @@ class ReconcileFoundingTests(ProjectFixture):
         merged, issues = reconcile_adr_records(incoming, incoming)
         self.assertEqual(issues, [])
         self.assertEqual(len(merged.events), len(incoming.events))
+
+
+class UnknownEventKindGuardTests(unittest.TestCase):
+    """A newer ledger must read as 'newer', not as 'corrupt'."""
+
+    def test_detects_kinds_this_build_cannot_parse(self):
+        text = (
+            "## Event ledger\n\n"
+            "### revision-proposed - 2026-08-07T01:00:00Z\n\n"
+            "### some-future-kind - 2026-08-07T02:00:00Z\n\n"
+            "### another-new-kind - 2026-08-07T03:00:00Z\n"
+        )
+        self.assertEqual(
+            unknown_event_kinds(text), ("another-new-kind", "some-future-kind")
+        )
+
+    def test_known_kinds_and_current_view_headings_are_not_flagged(self):
+        text = read_text_file(PINNED_ADRS[0])
+        self.assertEqual(unknown_event_kinds(text), ())
+        # Current-view sections are capitalised and carry no " - <stamp>", so they must not match.
+        self.assertEqual(
+            unknown_event_kinds("### Decision\n\n### Why\n\n### How it evolved\n\n### Constitution\n"),
+            (),
+        )
+
+    def test_every_live_adr_parses_under_this_build(self):
+        for path in LIVE_ADRS:
+            self.assertEqual(unknown_event_kinds(read_text_file(path)), (), path.name)

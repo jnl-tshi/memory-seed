@@ -49,6 +49,10 @@ EVENT_RE = re.compile(
     r"reviewed-no-change|adr-superseded|context-added) - |\Z)", re.MULTILINE | re.DOTALL,
 )
 JSON_RE = re.compile(r"```json\s*\n(?P<json>.*?)\n```", re.DOTALL)
+# Any `### <lowercase-kind> - <stamp>` heading is an event heading. Current-view sections
+# ("### Decision", "### Why", "### Constitution") are capitalised and carry no " - <stamp>", so
+# this cannot mistake one for the other.
+EVENT_HEADING_RE = re.compile(r"^### (?P<kind>[a-z][a-z0-9-]*) - \S", re.MULTILINE)
 ALLOWED_SOURCES = {"write-time", "derived"}
 
 # Constitution bindings live IN the ADR event ledger (JNL, 2026-08-06: "why can't the adr
@@ -329,6 +333,17 @@ def parse_adr_text(text: str, *, path: Path | None = None) -> AdrRecord:
             bindings, meta.get("founding_source"), str(meta.get("founding_quote", "")),
         ))
     return AdrRecord(int(required["schema_version"] or "0"), required["adr_id"] or "", required["title"] or "", _list(front, "topics"), required["created_at"] or "", required["user_initials"] or "", required["agent_type"] or "", required["source"] or "", events, path)
+
+
+def unknown_event_kinds(text: str) -> tuple[str, ...]:
+    """Event kinds present in `text` that THIS build's parser does not recognise.
+
+    `EVENT_RE` only matches known kinds, so an unrecognised event is skipped silently - the record
+    then renders without it and reads as corrupt ("Current view is stale", "competing acceptance")
+    rather than as "you are running an older parser". The fuse calls this so a branch that adds an
+    event kind gets told to land its parser change first, instead of being accused of a conflict.
+    """
+    return tuple(sorted({m.group("kind") for m in EVENT_HEADING_RE.finditer(text)} - EVENT_TYPES))
 
 
 def parse_adr(path: Path) -> AdrRecord:

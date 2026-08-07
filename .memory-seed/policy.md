@@ -31,6 +31,7 @@ This file contains behavioral constraints only. Functional runbooks belong in `.
 - After every merge, verify the full changeset landed: run `git diff --stat <branch>..HEAD` and confirm it is empty, and explicitly check that sidecar and metadata files are present, not just session-log entries.
 - Never `git checkout` a branch while uncommitted edits exist — stash or commit first.
 - Prefer `session merge-branch` over a raw `git merge` for branches carrying session entries: it dry-runs the fuse, preserves chronology, and stamps `Memory-Entry:` trailers. A raw line-merge of a session file is what the fuse exists to prevent.
+- Land a format change BEFORE any data that uses it, as its own merge. The fuse validates a branch's records with the parser in the CHECKED-OUT tree, not the branch's, so a branch that both adds a format (an ADR event kind, a sidecar field) and writes records in it is unmergeable — the new form is invisible to the old parser and the records read as corrupt rather than as newer. Split it: merge the parser change first (it touches no data, so there is nothing to fuse), then merge the data.
 
 ## Safety
 
