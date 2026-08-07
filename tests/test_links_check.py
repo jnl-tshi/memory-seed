@@ -607,6 +607,70 @@ class LinksCheckTests(unittest.TestCase):
         self.assertNotIn(("evolves", "mse_tttttttttttttttt"), kinds)
         self.assertIn(("related", "mse_tttttttttttttttt"), kinds)
 
+    def _two_block_link_sidecar(self, cwd, file_date, entry_id, first, second):
+        """Two blocks for one entry in one file. ``first``/``second`` are
+        (heading_time, [extra yaml lines]) - the stub can be either one, which is
+        how the ordering half of the resolution rule gets exercised."""
+        d = cwd / MEMORY_DIR_NAME / "sessions" / "links" / file_date[:7]
+        d.mkdir(parents=True, exist_ok=True)
+        lines = []
+        for heading_time, extra in (first, second):
+            lines += [f"## {file_date} {heading_time} - edge", "", "```yaml", f"entry_id: {entry_id}"]
+            lines += extra
+            lines += ["```", ""]
+        (d / f"{file_date}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def test_a_later_sibling_block_resolves_an_unclassified_stub(self):
+        # Append-only forbids editing a stub to record its own resolution, so the
+        # answer arrives as a later sibling block. The warning is therefore an
+        # ENTRY-level question; decided per block it could never be cleared.
+        for resolution in (["evolves:", "  - mse_aaaaaaaaaaaaaaaa"], ["edge_status: not_applicable"]):
+            with self.subTest(resolution=resolution[0]):
+                cwd = self.make_project()
+                self._flat_session(
+                    cwd,
+                    "2026-06-13.md",
+                    ("2026-06-13 09:00 - older", "mse_aaaaaaaaaaaaaaaa", ()),
+                    ("2026-06-13 10:00 - stubbed then judged", "mse_ffffffffffffffff", ()),
+                )
+                self._two_block_link_sidecar(
+                    cwd,
+                    "2026-06-13",
+                    "mse_ffffffffffffffff",
+                    ("10:00", ["classify_pending: true"]),
+                    ("18:30", resolution),
+                )
+
+                result = check_session_links(cwd=cwd)
+
+                self.assertTrue(result.ok, result.issues)
+                self.assertEqual([i for i in result.issues if i.kind == "sidecar-unclassified-stub"], [])
+
+    def test_a_stub_written_after_a_resolution_still_warns(self):
+        # A fresh audit asking again about an already-classified entry is a real
+        # question, so resolution is later-wins, not ever-resolved.
+        cwd = self.make_project()
+        self._flat_session(
+            cwd,
+            "2026-06-13.md",
+            ("2026-06-13 09:00 - older", "mse_aaaaaaaaaaaaaaaa", ()),
+            ("2026-06-13 10:00 - judged then stubbed again", "mse_ffffffffffffffff", ()),
+        )
+        self._two_block_link_sidecar(
+            cwd,
+            "2026-06-13",
+            "mse_ffffffffffffffff",
+            ("10:00", ["evolves:", "  - mse_aaaaaaaaaaaaaaaa"]),
+            ("18:30", ["classify_pending: true"]),
+        )
+
+        result = check_session_links(cwd=cwd)
+
+        pending = [i for i in result.issues if i.kind == "sidecar-unclassified-stub"]
+        self.assertTrue(result.ok, result.issues)
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0].severity, "warning")
+
     def test_links_check_reports_unclassified_sidecar_stub_as_warning(self):
         cwd = self.make_project()
         self._flat_session(

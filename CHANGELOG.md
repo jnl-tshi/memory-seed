@@ -30,6 +30,15 @@ All notable changes to Memory Seed are summarized here.
 
 ### Changed
 
+- **`sidecar-unclassified-stub` is resolved by a later sibling block.** The warning was decided per
+  block, but append-only forbids editing a stub to record its own answer — the verdict always
+  arrives as a later sibling block, so the warning could never be cleared. It is now an entry-level
+  question decided after every block is read: a stub survives only when no later block for that
+  entry authors an edge or declares `edge_status: not_applicable`. Ordering is `(heading timestamp,
+  block index)`, the same later-and-more-specific precedence `edge_status` already used, so a
+  resolution written *before* a stub correctly leaves it standing. On this repo's corpus the count
+  fell 71 → 67 immediately: four 2026-07-21 stubs had been answered long ago and had been warning
+  falsely ever since. A subsequent link-swarm campaign over the remaining 67 took it to 9.
 - **`link audit --apply` sorts a non-chronological sidecar instead of refusing it.** A link sidecar
   is filed under its SOURCE entry's session date, but a later enrichment pass stamps its blocks with
   the authoring wall clock (block identity is `(entry_id, heading timestamp)`, so a second block for

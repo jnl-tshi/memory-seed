@@ -2556,6 +2556,17 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
     # iff A predates B no matter when the sidecar was written. Dangling checks
     # run inline here because the replaces/evolves dangling passes above have
     # already executed; the forward-only guard runs last and sees these edges.
+    # `sidecar-unclassified-stub` is decided per ENTRY, not per block. Append-only
+    # forbids editing a stub to record its own resolution, so the answer always
+    # arrives as a LATER sibling block - which meant emitting the warning inline
+    # made it permanent. Every verdict written beside a stub still left it reading
+    # "still requires lifecycle classification" (71 of them in this corpus, and a
+    # swarm's whole output would have been invisible). Collected here and resolved
+    # once every block is read, on the later-and-more-specific precedence
+    # `edge_status` already uses.
+    pending_stub_warnings: list[tuple[str, int, str, str]] = []
+    stub_resolutions: dict[str, list[tuple[str, int]]] = {}
+
     for link_doc in iter_link_sidecar_documents(sessions_dir):
         files_checked += 1
         link_path = link_doc.path
@@ -2578,7 +2589,7 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                 LinkIssue(rel, "malformed-link-sidecar", "no '## <timestamp> - <title>' + ```yaml entry_id block found")
             )
             continue
-        for block in blocks:
+        for block_index, block in enumerate(blocks):
             heading_ts, yaml_block = block.groups()
             entry_id_match = _ENTRY_ID_RE.search(yaml_block)
             if not entry_id_match:
@@ -2604,23 +2615,19 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                         )
                     )
                 elif edge_status == "unavailable":
-                    issues.append(
-                        LinkIssue(
-                            rel,
-                            "sidecar-unclassified-stub",
-                            f"entry_id {entry_id} still requires lifecycle classification",
-                            severity="warning",
-                        )
-                    )
+                    # Looked, could not determine - still unresolved.
+                    pending_stub_warnings.append((heading_ts, block_index, rel, entry_id))
+                elif edge_status == "not_applicable":
+                    # Looked, found nothing to link - a resolution.
+                    stub_resolutions.setdefault(entry_id, []).append((heading_ts, block_index))
             elif scalars.get("classify_pending", "").lower() == "true":
-                issues.append(
-                    LinkIssue(
-                        rel,
-                        "sidecar-unclassified-stub",
-                        f"entry_id {entry_id} still requires lifecycle classification",
-                        severity="warning",
-                    )
-                )
+                pending_stub_warnings.append((heading_ts, block_index, rel, entry_id))
+            elif any(
+                _frontmatter_list_refs(yaml_block, kind)
+                for kind in ("replaces", "supersedes", "evolves", "related_entries")
+            ):
+                # A block that authors an edge answers the stub beside it.
+                stub_resolutions.setdefault(entry_id, []).append((heading_ts, block_index))
             if entry_id not in known_entries:
                 issues.append(LinkIssue(rel, "orphan-link-sidecar", f"entry_id -> {entry_id} (no such entry_id)"))
             entry_date = entry_timestamps.get(entry_id, "")[:10]
@@ -2742,6 +2749,22 @@ def check_session_links(cwd: str | Path = ".") -> LinksCheckResult:
                     issues.append(LinkIssue(rel, "malformed-retract", f"retracts -> {_retract.raw!r}: {_retract.reason}"))
                     continue
                 retract_refs.append((rel, file_date, entry_id, _retract))
+
+    # A stub survives only when NO later block for its entry resolved it. Later
+    # is (heading timestamp, block index) - the same ordering the readers use, so
+    # a resolution written before the stub (an older classification, then a fresh
+    # audit asking again) correctly leaves the stub standing.
+    for heading_ts, block_index, rel, entry_id in pending_stub_warnings:
+        if any(key > (heading_ts, block_index) for key in stub_resolutions.get(entry_id, ())):
+            continue
+        issues.append(
+            LinkIssue(
+                rel,
+                "sidecar-unclassified-stub",
+                f"entry_id {entry_id} still requires lifecycle classification",
+                severity="warning",
+            )
+        )
 
     # Validate append-only retractions now that every declaration and its date
     # is known. A retract must name an edge the corpus actually declared for
