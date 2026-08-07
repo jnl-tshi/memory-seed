@@ -383,12 +383,18 @@ def reconcile_adr_records(base: AdrRecord, incoming: AdrRecord) -> tuple[AdrReco
     states: dict[str, str] = {}
     authority: str | None = None
     for event in merged.events:
-        if event.kind == "revision-proposed" and event.decision_ref:
-            if event.decision_ref in states:
-                issues.append(f"ADR {base.adr_id} has duplicate revision {event.decision_ref}")
-            states[event.decision_ref] = "proposed"
+        # revision_key, not decision_ref: a founding revision carries no decision_ref, and keying
+        # on decision_ref silently skipped it - so its acceptance then looked like a transition
+        # against a non-pending revision and every later acceptance looked like a competing one.
+        # This loop is a third copy of the replay rules (replay_adr and validate_adr hold the
+        # others); the founding extension updated those two and missed this one.
+        key = event.revision_key
+        if event.kind == "revision-proposed" and key:
+            if key in states:
+                issues.append(f"ADR {base.adr_id} has duplicate revision {key}")
+            states[key] = "proposed"
         elif event.kind in {"revision-accepted", "revision-rejected"}:
-            ref = event.decision_ref or ""
+            ref = key or ""
             if states.get(ref) != "proposed":
                 issues.append(f"ADR {base.adr_id} transition targets non-pending revision {ref}")
                 continue
@@ -398,7 +404,8 @@ def reconcile_adr_records(base: AdrRecord, incoming: AdrRecord) -> tuple[AdrReco
                         f"ADR {base.adr_id} has competing acceptance for {ref}; "
                         f"expected {event.expected_authoritative_decision or 'no head'}, replay has {authority or 'no head'}"
                     )
-                elif authority and authority not in ancestors(merged, ref):
+                # A founding head is a placeholder, not a graph node - nothing descends from it.
+                elif authority and not authority.startswith("founding:") and authority not in ancestors(merged, ref):
                     issues.append(f"ADR {base.adr_id} acceptance {ref} does not descend from {authority}")
                 authority = ref
                 states[ref] = "accepted"

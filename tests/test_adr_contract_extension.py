@@ -18,6 +18,8 @@ import unittest
 from pathlib import Path
 
 from memory_seed.adr import (
+    reconcile_adr_records,
+    replay_adr,
     add_context,
     adr_membership,
     revise_adr,
@@ -371,3 +373,55 @@ class SoftContextTests(ProjectFixture):
             timestamp="2026-08-07T04:06:00Z", dry_run=True,
         )
         self.assertFalse(no_reason.ok)
+
+
+class ReconcileFoundingTests(ProjectFixture):
+    """The fuse must accept a branch that appends events to a FOUNDED ADR.
+
+    Regression: `reconcile_adr_records` keyed its replay on `decision_ref`, which a founding
+    revision does not have - so the founding revision never entered `states`, its acceptance read
+    as a transition against a non-pending revision, and every later acceptance read as competing.
+    Every branch touching a founded ADR was unmergeable.
+    """
+
+    def _founded_then_revised(self, root):
+        promote_decision(
+            root, adr_id="adr_rec", title="Concern", topics=(), user_initials="JNL",
+            agent_type="claude", source="derived", decision="D.", why="W.",
+            founding_source=".memory-seed/index.md#L1", founding_quote="A founding line quote.",
+            timestamp="2026-08-07T06:00:00Z",
+        )
+        transition_adr(
+            root, adr_id="adr_rec", status="accepted", update_entry_id=None, source="derived",
+            timestamp="2026-08-07T06:01:00Z",
+        )
+        base = parse_adr(root / ".memory-seed" / "decisions" / "adr_rec.md")
+        revise_adr(
+            root, adr_id="adr_rec", decision_ref="mse_extension0000001:d1",
+            decision="Now anchored on a real decision.", why="A session decision landed.",
+            evolution="Converged off the founding placeholder.",
+            update_entry_id="mse_extension0000001", source="derived", predecessors=(),
+            timestamp="2026-08-07T06:02:00Z",
+        )
+        transition_adr(
+            root, adr_id="adr_rec", status="accepted", decision_ref="mse_extension0000001:d1",
+            update_entry_id="mse_extension0000001", source="derived",
+            expected_authoritative_decision=".memory-seed/index.md#L1".join(("founding:", "")),
+            timestamp="2026-08-07T06:03:00Z",
+        )
+        return base, parse_adr(root / ".memory-seed" / "decisions" / "adr_rec.md")
+
+    def test_appending_to_a_founded_adr_reconciles(self):
+        root = self.make_project()
+        base, incoming = self._founded_then_revised(root)
+        merged, issues = reconcile_adr_records(base, incoming)
+        self.assertEqual(issues, [])
+        self.assertIsNotNone(merged)
+        self.assertEqual(replay_adr(merged).authoritative_decision, "mse_extension0000001:d1")
+
+    def test_reconcile_is_idempotent_for_a_founded_adr(self):
+        root = self.make_project()
+        _, incoming = self._founded_then_revised(root)
+        merged, issues = reconcile_adr_records(incoming, incoming)
+        self.assertEqual(issues, [])
+        self.assertEqual(len(merged.events), len(incoming.events))
