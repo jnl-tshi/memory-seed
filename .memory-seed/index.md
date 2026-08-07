@@ -188,9 +188,11 @@ Use `.memory-seed/skills/index.md` as the deterministic trigger registry. Load t
   ABORTED (2026-07-26)**: two pilot runs scored macro-recall 0.583 and 0.613 against a 0.70 gate, so the
   gated ~922-unit swarm backfill never ran and the `topic_swarm` skill's scored/auto-applied path is
   retired as a dead end for this corpus, not merely unstarted. **What succeeded instead, same tranche
-  (2026-07-27): the premise changed from "score the swarm's own labels" to "swarm output is curated
-  evidence, a human/worker still decides."** One worker per batch, no scoring gate, judged all 1,030
-  decision units and wrote 2,013 attributions (95% carrying both axes) — see the topic-authority bullet
+  (2026-07-27): the premise changed from "score the swarm's own labels against pre-axes authored tags"
+  to "drop the agreement gate entirely."** It was still a SWARM - 58 batches of 12 entries, one haiku
+  worker per batch, no scoring gate - judging all 1,030 decision units and writing 2,013 attributions
+  (95% carrying both axes). What changed was the confound, not the judge: the old tags predate the
+  two-axis vocabulary, so agreeing with them was never evidence of a right answer — see the topic-authority bullet
   above for what that unblocked. Specs: `docs/3_Spec/draft/decision-level-topic-sidecars.md`,
   `docs/2_Todo/decision-level-topics-proposal.md`.
 - Append-only link retraction (current unreleased worktree, 2026-07-25): a published lifecycle edge is downgraded or removed via a NEW `retracts: <kind> <ref> [(date)]` block (the fuse refuses in-place edits to published blocks), the reader subtracts it, and `links check` validates malformed/dangling/forward-only. A downgrade is a retract of the old kind plus a fresh edge of the new kind — the sanctioned append-only correction path for link edges, realizing Invariant #2. Spec: `docs/3_Spec/draft/link-retraction.md`.

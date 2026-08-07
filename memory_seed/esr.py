@@ -124,6 +124,11 @@ class EsrReport:
     adrs_total: int = 0
     adrs_without_diagram_answer: int = 0
     adrs_needing_diagram_rereview: int = 0
+    # Skill -> governing ADR routing. A skill says what to DO; the ADR says
+    # what is AUTHORITATIVE. Unrouted, an agent can act on a skill that a
+    # rejection has since overtaken - which happened on 2026-08-07.
+    skills_without_governing_adr: list[str] = field(default_factory=list)
+    skills_with_dangling_governing_adr: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -180,8 +185,45 @@ class EsrReport:
                 "adrs_total": self.adrs_total,
                 "adrs_without_diagram_answer": self.adrs_without_diagram_answer,
                 "adrs_needing_diagram_rereview": self.adrs_needing_diagram_rereview,
+                "skills_without_governing_adr": self.skills_without_governing_adr,
+                "skills_with_dangling_governing_adr": self.skills_with_dangling_governing_adr,
             },
         }
+
+
+def _skill_governance(memory_dir: Path, known_adrs: set[str]) -> tuple[list[str], list[str]]:
+    """Skills that name no governing ADR, and skills naming one that does not resolve.
+
+    A skill says what to DO; the ADR says what is currently AUTHORITATIVE for
+    that concern. Nothing connected the two, and on 2026-08-07 that cost real
+    work: `topic_swarm.md` documents its own pilot abort in convincing detail,
+    so it reads as complete - while `adr_topic_backfill_rejected` held the
+    actual standing. An agent that reads the skill and acts is not being
+    careless; it has no route to the authority. This is the same `rule -> ADR ->
+    constitution clause` chain the ADR campaign gave `policy.md`, applied to the
+    other half of the control plane.
+
+    Reported, never enforced: a project may legitimately run skills with no ADR
+    corpus at all.
+    """
+    skills_dir = memory_dir / "skills"
+    if not skills_dir.is_dir():
+        return [], []
+    missing, dangling = [], []
+    for path in sorted(skills_dir.glob("*.md")):
+        if path.name == "index.md":
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        front = re.match(r"\A---\s*\n(.*?)^---\s*\n", text, re.MULTILINE | re.DOTALL)
+        found = re.search(r"^governing_adr:\s*(\S+)\s*$", front.group(1), re.M) if front else None
+        if not found:
+            missing.append(path.name)
+        elif known_adrs and found.group(1) not in known_adrs:
+            dangling.append(f"{path.name} -> {found.group(1)}")
+    return missing, dangling
 
 
 def _proposed_topic_requests(memory_dir: Path) -> list[str]:
@@ -601,6 +643,9 @@ def esr_report(cwd: str | Path = ".", *, session_date: str | None = None) -> Esr
     report.adrs_needing_diagram_rereview = sum(
         1 for issue in links.issues if issue.kind == "needs-diagram-review"
     )
+    report.skills_without_governing_adr, report.skills_with_dangling_governing_adr = _skill_governance(
+        runtime.memory_dir, adr_ids
+    )
     return report
 
 
@@ -752,6 +797,20 @@ def format_esr_report(report: EsrReport) -> str:
         lines.append(f"OK — links, lifecycle pointers, and spec bindings agree with the lanes{suffix}.")
     else:
         lines.extend(f"- {item}" for item in report.docs_errors)
+    lines.append("")
+
+    lines.append("## Skill governance")
+    if report.skills_with_dangling_governing_adr:
+        lines.append("Skills naming an ADR that does not resolve:")
+        lines.extend(f"- {item}" for item in report.skills_with_dangling_governing_adr)
+    if report.skills_without_governing_adr:
+        lines.append(
+            f"{len(report.skills_without_governing_adr)} skill(s) name no governing_adr - an agent "
+            "reading them has no route to what is currently authoritative:"
+        )
+        lines.extend(f"- {name}" for name in report.skills_without_governing_adr)
+    if not (report.skills_without_governing_adr or report.skills_with_dangling_governing_adr):
+        lines.append("OK - every skill names a governing ADR that resolves")
     lines.append("")
 
     lines.append("## Seed twins")
