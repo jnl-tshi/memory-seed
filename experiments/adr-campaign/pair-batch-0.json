@@ -1,0 +1,164 @@
+[
+ {
+  "areas": [
+   "session-logging"
+  ],
+  "suggested_head": "ms-db2d715c:d1",
+  "members": [
+   {
+    "ref": "ms-f83a27d3:d1",
+    "when": "2026-05-26 19:59",
+    "title": "D1 - Rationale is required only when it matters"
+   },
+   {
+    "ref": "ms-db2d715c:d1",
+    "when": "2026-05-26 20:40",
+    "title": "D1 - Use DRAFT for compact decision records"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "session-logging"
+  ],
+  "suggested_head": "ms-e30b9c47:d1",
+  "members": [
+   {
+    "ref": "ms-d15e8a03:d1",
+    "when": "2026-05-29 15:36",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "ms-e30b9c47:d1",
+    "when": "2026-05-29 16:26",
+    "title": "D1 - Reframe append rule as invariant, not mechanism"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "package"
+  ],
+  "suggested_head": "mse_38mmhbyvxyta2wgd:d1",
+  "members": [
+   {
+    "ref": "mse_x82bptzravde7h4x:d1",
+    "when": "2026-07-05 23:47",
+    "title": "D1 - Memory Trace name is clear; findings recorded in the Trace plan"
+   },
+   {
+    "ref": "mse_38mmhbyvxyta2wgd:d1",
+    "when": "2026-07-06 00:04",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "topic-vocabulary"
+  ],
+  "suggested_head": "mse_903jqy9v4pr8g388:d3",
+  "members": [
+   {
+    "ref": "mse_dpf02qvaymr40nm7:d3",
+    "when": "2026-07-10 15:05",
+    "title": "D3 - Topics starter vocabulary derived from existing slugs"
+   },
+   {
+    "ref": "mse_903jqy9v4pr8g388:d3",
+    "when": "2026-07-10 15:25",
+    "title": "D3 - Topics slug contract pinned (approved)"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "diagram-view"
+  ],
+  "suggested_head": "mse_fdt9nfjrtfep0d7z:d1",
+  "members": [
+   {
+    "ref": "mse_1xexde5bhezse690:d3",
+    "when": "2026-07-13 07:46",
+    "title": "D3 - Arc 2d flowchart renderer honours `<br/>`"
+   },
+   {
+    "ref": "mse_fdt9nfjrtfep0d7z:d1",
+    "when": "2026-07-16 20:20",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "docs-lifecycle"
+  ],
+  "suggested_head": "mse_ntkt6m0pqd0g8c9j:d1",
+  "members": [
+   {
+    "ref": "mse_5nr2pvjyrs92bvj2:d1",
+    "when": "2026-07-17 05:00",
+    "title": "D1 - Ship `docs check`; the missing gate was proven by the migration that preced"
+   },
+   {
+    "ref": "mse_ntkt6m0pqd0g8c9j:d1",
+    "when": "2026-07-17 14:10",
+    "title": "D1 - Decision"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "inspector"
+  ],
+  "suggested_head": "mse_2pgcs90wcbhhk2kc:d1",
+  "members": [
+   {
+    "ref": "mse_wv9pzg6ayy0wa61j:d1",
+    "when": "2026-07-17 17:35",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_2pgcs90wcbhhk2kc:d1",
+    "when": "2026-07-19 13:47",
+    "title": "D1 - Spell the DRAFT grammar out in the reader, with files as pills"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "inspector"
+  ],
+  "suggested_head": "mse_cdndmm2p0dmbkbq9:d2",
+  "members": [
+   {
+    "ref": "mse_9xfpvhqrm44jedce:d1",
+    "when": "2026-07-17 18:25",
+    "title": "D1 - Decision"
+   },
+   {
+    "ref": "mse_cdndmm2p0dmbkbq9:d2",
+    "when": "2026-07-21 19:25",
+    "title": "D2 - Following a link never disturbs the workspace"
+   }
+  ]
+ },
+ {
+  "areas": [
+   "session-fuse"
+  ],
+  "suggested_head": "mse_84hmbf34tw8mm9qe:d1",
+  "members": [
+   {
+    "ref": "mse_et9pkwnsm5cmz3h9:d1",
+    "when": "2026-07-24 12:35",
+    "title": "D1 - Fail-open to `automatic`, opt this repo into `manual`"
+   },
+   {
+    "ref": "mse_84hmbf34tw8mm9qe:d1",
+    "when": "2026-07-30 12:39",
+    "title": "D1 - Decision"
+   }
+  ]
+ }
+]

@@ -1,0 +1,82 @@
+[
+ {
+  "area": "session-logging",
+  "adr_id": "adr_append_rule_is_an_invariant",
+  "title": "The append rule is stated as an invariant, not as a mechanism",
+  "head": "ms-e30b9c47:d1",
+  "topics": [
+   "session-logging",
+   "agent-rules"
+  ],
+  "decision": "The agent contract states the append INVARIANT - an entry is added at the physical end of its file, never inserted above existing content, and chronological order holds - and does not mandate the tool that achieves it. Shell append and Python append mode are optional tips, not requirements.",
+  "why": "The contract is read by any file-reading agent, so mandating `>>` assumed shell or Python access and was platform-unsafe: the shell example simply fails for an agent that edits files directly. Stating the invariant lets each agent satisfy it with whatever writing surface it has, while the property that actually matters - nothing is inserted above existing content - is unchanged. This is distinct from Constitution Invariant #2, which says the past IS append-only; this concern is about how that rule is expressed to the agents bound by it.",
+  "evolution": "The rule first shipped as a mechanism, requiring shell append or Python append mode as the method for writing session entries; it was then reframed as a vendor-neutral invariant with the mechanism demoted to an optional shell tip.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#append-only",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#model-independence",
+    "role": "supporting"
+   }
+  ],
+  "quote": "Use `>>` / Python append mode as the required method for writing session entries.",
+  "quote_ref": "ms-d15e8a03:d1",
+  "note": "Re-framed by the orchestrator. The worker's pick was right but its title restated Constitution Invariant #2, which would have duplicated the Constitution; the concern is the rule's EXPRESSION, not the rule."
+ },
+ {
+  "area": "mermaid",
+  "adr_id": "adr_diagram_sidecar_structure",
+  "title": "Diagram sidecars: one dated file per day, keyed by entry, deterministically validated",
+  "head": "mse_0vbj4zdcc11s3ggj:d1",
+  "topics": [
+   "mermaid",
+   "session-logging",
+   "documentation"
+  ],
+  "decision": "Diagram sidecars are one dated file per day rather than one file per entry, with multiple diagram blocks appended and each block keyed by `entry_id` inside. Validation is deterministic and lives in the single sidecar validator, covering frontmatter integrity, block shape and orphan references.",
+  "why": "One file per entry multiplied files without adding information and made a day's diagrams impossible to browse together; keying the block by entry_id inside the file keeps the association exact while letting the filesystem mirror the session-log convention. Deterministic validation in one validator is what stops the sidecar family drifting from the rules the other families already follow.",
+  "evolution": "The sidecar family moved from per-entry files to one dated file per day with entry-keyed blocks, and its validation was folded into the single sidecar validator rather than kept as a separate check.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#single-source",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#markdown-authority",
+    "role": "supporting"
+   }
+  ],
+  "quote": "Sidecars now live at `.memory-seed/sessions/diagrams/YYYY-MM-DD.md` - one file per date.",
+  "quote_ref": "mse_0vbj4zdcc11s3ggj:d1",
+  "note": "Quote replaced by the orchestrator: the worker quoted the decision's title rather than its body."
+ },
+ {
+  "area": "lifecycle-edges",
+  "adr_id": "adr_lifecycle_link_audit_workflow",
+  "title": "Link audit writes inert stubs; only an approval turns one into an edge",
+  "head": "mse_63qcaab119xmyx0b:d2",
+  "topics": [
+   "lifecycle-edges",
+   "related-entries",
+   "session-fuse"
+  ],
+  "decision": "The link audit writes classified but INERT stubs for candidate lifecycle edges. A stub is never a live edge: it becomes one only through an explicit approval, and an entry whose candidates were all judged unrelated records that verdict rather than being left silently unexamined.",
+  "why": "A sweep that wrote live edges directly would let a mechanical candidate generator author lineage, which is the one thing the edge grammar reserves for a deliberate act. Keeping the stub inert separates 'this pair might be related' from 'this pair IS related' - the first is cheap and can be wrong, the second is a claim the graph carries. Recording the negative verdict matters for the same reason: 'looked and found nothing' and 'never looked' are different states.",
+  "evolution": "The audit gained stub creation for missed dates and flagged upgrade candidates for review, with conversion to a live edge gated behind explicit approval rather than following automatically from detection.",
+  "constitution_refs": [
+   {
+    "ref": "constitution:v1#evidence-first",
+    "role": "governing"
+   },
+   {
+    "ref": "constitution:v1#link-corrections",
+    "role": "supporting"
+   }
+  ],
+  "quote": "mechanical, safe, no live edge written by either",
+  "quote_ref": "mse_63qcaab119xmyx0b:d2",
+  "note": "Quote replaced by the orchestrator: the worker quoted the decision's title rather than its body."
+ }
+]
