@@ -1059,14 +1059,14 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertTrue(_is_recognized_session_tree_path(".memory-seed/sessions/diagrams/2026-07/2026-07-10.md"))
         self.assertTrue(_is_recognized_session_tree_path(".memory-seed/sessions/links/2026-07/2026-07-10.md"))
         self.assertTrue(_is_recognized_session_tree_path(".memory-seed/sessions/topics/2026-07/2026-07-10.md"))
-        # ADRs are the fifth fused family and the only one outside sessions/. They were the "next
-        # gap" this test was written to catch: `_changed_session_paths` has always scoped
-        # decisions/ and the apply step has always written reconciled records back, but the
-        # recognizer did not know the tree - so a branch that MODIFIED an existing ADR was refused
-        # at the base-reset guard while one that only ADDED files passed, because an added path is
-        # never in base_paths and so never reaches the reset loop.
-        self.assertTrue(_is_recognized_session_tree_path(".memory-seed/decisions/adr_edge_kinds.md"))
-        self.assertFalse(_is_recognized_session_tree_path(".memory-seed/decisions/notes.txt"))
+        # ADRs must NOT be recognized, and this assertion is the guard on that. Recognizing a path
+        # asserts the fuse can REBUILD it from parsed records after the base reset. Measured
+        # 2026-08-08: adding the family here let a merge reset a branch-MODIFIED ADR to base and
+        # never restore it, silently losing the branch's event. Refusing is correct until the ADR
+        # apply path demonstrably restores a reconciled record. An ADDED ADR is unaffected - it is
+        # not in base_paths, so it never reaches the reset loop, which is why 12 new ADRs merged
+        # cleanly while two revised ones were refused.
+        self.assertFalse(_is_recognized_session_tree_path(".memory-seed/decisions/adr_edge_kinds.md"))
         self.assertFalse(_is_recognized_session_tree_path(".memory-seed/sessions/decisions/2026-07-10.md"))
         self.assertFalse(_is_recognized_session_tree_path("notes.txt"))
 
@@ -1357,7 +1357,7 @@ class SessionFuseAndMergeTests(unittest.TestCase):
         self.assertFalse(result.committed)
         self.assertTrue(result.merge_in_progress)
         self.assertTrue(result.issues)
-        self.assertIn("not recognized by any session/diagram/link/topic/ADR classifier", result.issues[0])
+        self.assertIn("not recognized by any session/diagram/link/topic classifier", result.issues[0])
         self.assertTrue((cwd / ".git" / "MERGE_HEAD").exists())
 
     @pytest.mark.integration

@@ -4674,7 +4674,7 @@ def _topic_doc_from_relative_path(rel_path: str) -> tuple[str | None, str] | Non
 def _unfusable_session_path_reason(rel_path: str) -> str:
     """Why the fuse will not touch this path, in words an operator can act on."""
     return (
-        "changed under .memory-seed/ but is not recognized by any session/diagram/link/topic/ADR "
+        "changed under .memory-seed/ but is not recognized by any session/diagram/link/topic "
         "classifier."
     )
 
@@ -4694,22 +4694,15 @@ def _is_recognized_session_tree_path(rel_path: str) -> bool:
         or _diagram_doc_from_relative_path(rel_path) is not None
         or _link_doc_from_relative_path(rel_path) is not None
         or _topic_doc_from_relative_path(rel_path) is not None
-        or _is_adr_relative_path(rel_path)
     )
-
-
-def _is_adr_relative_path(rel_path: str) -> bool:
-    """True for an ADR record, which the fuse rebuilds through ``reconcile_adr_records``.
-
-    ADRs are the fifth family the fuse handles and the only one outside ``sessions/``.
-    ``_changed_session_paths`` has always scoped ``decisions/`` and the apply step has always
-    written reconciled records back, but this recognizer did not know the tree - so a branch that
-    MODIFIED an existing ADR was refused at the base-reset guard, while one that only ADDED files
-    sailed through (an added path is not in ``base_paths``, so it never reaches the reset loop).
-    That asymmetry is why 12 new ADRs merged cleanly and two revised ones did not.
-    """
-    prefix = f"{MEMORY_DIR_NAME}/decisions/"
-    return rel_path.startswith(prefix) and rel_path.endswith(".md")
+    # ADRs are deliberately NOT recognized here, and the omission is load-bearing. Recognizing a
+    # path asserts the fuse can REBUILD it from parsed records after the base reset. For a MODIFIED
+    # ADR that assertion is false: measured 2026-08-08, adding the family to this set let a merge
+    # reset a branch-modified ADR to base and never restore it - the branch's event was silently
+    # lost, which is precisely the data loss the guard exists to prevent. Refusing is the correct
+    # behaviour until the ADR apply path actually restores a reconciled record; only then may this
+    # recognizer claim the family. An ADDED ADR is unaffected either way: it is not in base_paths,
+    # so it never reaches the reset loop.
 
 
 def _session_target_relative_path(date_str: str, user: str | None = None) -> str:
