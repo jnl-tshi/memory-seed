@@ -16,7 +16,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from memory_seed.retrieval import DECISION_TEXT_LIMIT, get_chunk, search_memory
+from memory_seed.retrieval import (
+    DECISION_TEXT_LIMIT,
+    _selection_preview,
+    get_chunk,
+    load_corpus,
+    search_memory,
+)
 from memory_seed.semantic_cache import extract_memory_chunks
 
 MULTI = """## 2026-06-10 09:30 - Two decisions in one entry
@@ -201,6 +207,53 @@ class DecisionRetrievalTests(unittest.TestCase):
         root = self.make_store()
         payload = get_chunk("mse_plainentry0001", root)
         self.assertEqual(payload["entry_context"], [])
+
+
+class SelectionPreviewTests(unittest.TestCase):
+    """A preview answers "is this the one I want?", so it has to carry signal.
+
+    Before this, an entry preview was the first 280 characters of the raw chunk - which begins
+    with the YAML metadata fence. Measured on the live corpus: 857 of 891 entry chunks led with
+    the fence, it took a median 84% of the budget, and 124 previews never escaped it at all. Every
+    field in it is already a structured key on the same result, so the preview spent the reader's
+    whole selection budget restating the envelope.
+    """
+
+    FENCED = (
+        "```yaml\nentry_id: mse_preview00000001\nuser_initials: JNL\nbranch: main\n```\n\n"
+        "- D: " + ("filler prose. " * 40)
+        + "The distinctive phrase is nearest-runtime discovery. "
+        + ("trailing prose. " * 40)
+    )
+
+    def test_the_metadata_fence_never_reaches_the_preview(self):
+        preview = _selection_preview(self.FENCED)
+        self.assertNotIn("entry_id:", preview)
+        self.assertNotIn("```", preview)
+        self.assertTrue(preview.startswith("- D: filler prose."), preview[:60])
+
+    def test_the_window_opens_on_the_term_that_made_it_rank(self):
+        preview = _selection_preview(self.FENCED, matched_terms=("nearest-runtime",))
+        self.assertIn("nearest-runtime discovery", preview)
+        # The head was elided to reach it, and says so.
+        self.assertTrue(preview.startswith("... "), preview[:40])
+
+    def test_a_shortened_preview_names_the_call_that_returns_the_rest(self):
+        self.assertIn("memory_get_chunk", _selection_preview(self.FENCED))
+        # An unshortened preview claims nothing: no marker, no ellipsis.
+        whole = _selection_preview("```yaml\nentry_id: mse_x\n```\n\n- D: Short and complete.")
+        self.assertEqual(whole, "- D: Short and complete.")
+
+    def test_no_live_entry_chunk_is_previewed_as_metadata(self):
+        """The corpus-wide assertion: the 857 are 0, and none regressed to empty."""
+        repo = Path(__file__).resolve().parents[1]
+        for granularity in ("decision", "entry"):
+            for chunk in load_corpus(repo, granularity=granularity):
+                if chunk.granularity == "decision":
+                    continue
+                preview = _selection_preview(chunk.text)
+                self.assertTrue(preview.strip(), chunk.chunk_id)
+                self.assertNotIn("entry_id:", preview[:120], chunk.chunk_id)
 
 
 if __name__ == "__main__":

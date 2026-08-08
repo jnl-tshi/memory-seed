@@ -613,7 +613,7 @@ def call_tool(
 
     if name == "memory_search":
         query = _required_str(args, "query")
-        return search_memory(
+        return _project_search_payload(search_memory(
             query,
             args.get("cwd", "."),
             top_k=int(args.get("top_k", 8)),
@@ -634,7 +634,7 @@ def call_tool(
             replacing_successor_boost=bool(args.get("replacing_successor_boost", True)),
             attention_boost=bool(args.get("attention_boost", False)),
             topics=list(args.get("topics") or []) or None,
-        )
+        ))
 
     if name == "memory_link_suggest":
         entry_id = _optional_str(args, "entry_id")
@@ -1323,6 +1323,10 @@ _CHUNK_PROJECTION_KEEP_EMPTY = frozenset(
         "last_fetch",
         "entry_context",
         "text",
+        # Search results only: a null `semantic_score` says the semantic pass did not run - the
+        # other half of the sentence `semantic_fallback_reason` starts. Dropping it as "empty"
+        # would hide the fallback rather than report it.
+        "semantic_score",
     }
 )
 
@@ -1336,6 +1340,29 @@ def _project_chunk_payload(payload: dict[str, Any]) -> dict[str, Any]:
         if key not in _CHUNK_PROJECTION_KEEP_EMPTY and value in ([], None, "", {}):
             continue
         projected[key] = value
+    return projected
+
+
+def _project_search_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """The agent-facing view of a search result set: same alias pruning `memory_get_chunk` uses.
+
+    `_project_chunk_payload` has dropped `path`/`date`/`source_file`/`entry_title` from single
+    chunks since it was written - they are aliases of `source`/`session_date`/`heading_path[0]` in
+    the same object - but `memory_search` shipped all ~43 keys per result unprojected, so the two
+    agent-facing surfaces disagreed about what an alias was. This applies the same rule to each
+    result, at the MCP boundary rather than inside `search_memory`, so the library's return shape
+    stays stable for the experiments and tests that read it directly.
+
+    Deliberately NOT dropped: the scoring internals (`lexical_score`, `semantic_score`,
+    `recency_multiplier`, `match_score`). An agent cannot act on them, but they are the only
+    debuggability MCP output has, and removing them is a separate call.
+    """
+    projected = dict(payload)
+    results = payload.get("results")
+    if isinstance(results, list):
+        projected["results"] = [
+            _project_chunk_payload(item) if isinstance(item, dict) else item for item in results
+        ]
     return projected
 
 

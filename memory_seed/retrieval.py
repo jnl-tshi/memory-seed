@@ -1294,7 +1294,9 @@ def _evidence_record(
             (
                 _decision_body(candidate.text)
                 if getattr(candidate, "granularity", "") == "decision"
-                else _excerpt(candidate.text)
+                # A candidate carries no matched terms, so this degrades to the head of the
+                # fence-stripped text - query-blind, but never metadata.
+                else _selection_preview(candidate.text)
             )
             if include_excerpt
             else None
@@ -2732,12 +2734,15 @@ def ranked_to_dict(result: RankedMemoryChunk) -> dict[str, Any]:
         "heading_path": list(chunk.heading_path),
         "matched_terms": list(result.matched_terms),
         "matched_fields": list(result.matched_fields),
-        # Decision results carry the complete DRAFT block; entry/section results keep the
-        # short preview (the whole entry is too large to serve inline).
+        # Decision results carry the complete DRAFT block; everything else is windowed on the
+        # terms that made it rank. Note the branch is on the chunk's ACTUAL granularity, not the
+        # requested one - an entry with no decision section comes back labelled "entry" even on a
+        # decision-granularity search, which is why the preview path has to be good rather than
+        # merely a fallback.
         "excerpt": (
             _decision_body(chunk.text)
             if chunk.granularity == "decision"
-            else _excerpt(chunk.text)
+            else _selection_preview(chunk.text, matched_terms=result.matched_terms)
         ),
         "entry_id": chunk.entry_id,
         "user_initials": chunk.user_initials,
@@ -2892,7 +2897,9 @@ def rollup_entry_results(ranked: list[RankedMemoryChunk], *, top_k: int = 8) -> 
                 "chunk_id": section.chunk.chunk_id,
                 "heading_path": list(section.chunk.heading_path),
                 "line_range": [section.chunk.start_line, section.chunk.end_line],
-                "excerpt": _excerpt(section.chunk.text),
+                "excerpt": _selection_preview(
+                    section.chunk.text, matched_terms=section.matched_terms
+                ),
             }
             for section in rollup.sections
         ]
@@ -2960,11 +2967,58 @@ def entry_context_sections(entry_text: str) -> list[dict[str, str]]:
     ]
 
 
-def _excerpt(text: str, limit: int = 280) -> str:
-    compact = " ".join(text.split())
-    if len(compact) <= limit:
-        return compact
-    return compact[: limit - 3].rstrip() + "..."
+# A leading ```yaml ... ``` block is the entry's metadata fence. Non-greedy, so it stops at the
+# FIRST closing fence rather than swallowing a later code block in the body.
+_METADATA_FENCE_RE = re.compile(r"\A\s*```[a-zA-Z]*[ \t]*\n.*?\n[ \t]*```[ \t]*\n?", re.DOTALL)
+PREVIEW_LIMIT = 280
+_PREVIEW_LEAD = 60
+_PREVIEW_MARKER = " [preview - call memory_get_chunk for the full entry]"
+
+
+def _strip_metadata_fence(text: str) -> str:
+    """Drop a leading metadata fence: it is envelope, never prose.
+
+    Every field inside it - entry_id, user_initials, branch, topics, evolves - is already a
+    structured key on the same search result, so serving it as the preview spends the reader's
+    selection budget restating what it already has. Measured before removing it: 857 of 891 entry
+    chunks led with the fence, it took a median 84% of the 280-character budget, and 124 previews
+    never escaped it at all.
+    """
+    return _METADATA_FENCE_RE.sub("", text, count=1).lstrip()
+
+
+def _selection_preview(
+    text: str, *, matched_terms: Sequence[str] = (), limit: int = PREVIEW_LIMIT
+) -> str:
+    """The span a reader needs to decide whether to fetch this chunk in full.
+
+    A preview answers one question - "is this the one I want?" - so it is windowed on the terms
+    that made the chunk rank rather than taken from the head. `matched_terms` is already computed
+    by the ranker and already on the wire, so this costs no re-scoring. Without them (the
+    retrieval-spec path carries a candidate, not a ranked result) it degrades to the head of the
+    stripped text, still strictly better than leading with metadata.
+
+    Both cut ends are marked: an elided head with a leading ellipsis, an elided tail with a marker
+    naming the follow-up call - matching `_decision_body`, so a fragment never reaches a reader
+    announcing itself only as "...".
+    """
+    body = " ".join(_strip_metadata_fence(text).split())
+    if len(body) <= limit:
+        return body
+
+    start = 0
+    lowered = body.lower()
+    hits = [
+        found
+        for found in (lowered.find(term.lower()) for term in matched_terms if term)
+        if found >= 0
+    ]
+    if hits:
+        # Lead in a little so the window does not open mid-sentence.
+        start = max(0, min(hits) - _PREVIEW_LEAD)
+    room = max(limit - (4 if start else 0) - len(_PREVIEW_MARKER), 0)
+    window = body[start:start + room].rstrip()
+    return ("... " if start else "") + window + _PREVIEW_MARKER
 
 
 def _decision_body(text: str, limit: int = DECISION_TEXT_LIMIT) -> str:
