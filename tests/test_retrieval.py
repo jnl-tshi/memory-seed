@@ -97,8 +97,22 @@ class RetrievalServiceParityTests(unittest.TestCase):
                     today=date(2026, 5, 20),
                     **kwargs,
                 )
-                self.assertEqual(tool_result, service_result)
+                # Parity holds THROUGH the projection, exactly as `memory_get_chunk`'s does: the
+                # MCP boundary serves a projection of the service payload - aliases and silent
+                # empties dropped per result - never a divergent record. The guarantee
+                # `adr_retrieval_entry_granularity` rests on is that both surfaces run the same
+                # code and answer the same question, not that they serialise identically. That
+                # reading was ratified for get_chunk on 2026-08-06; search had simply never been
+                # projected, so the two agent-facing surfaces disagreed about what an alias is.
+                from memory_seed.mcp_server import _project_search_payload
+
+                self.assertEqual(tool_result, _project_search_payload(service_result))
                 self.assertTrue(service_result["results"])
+                # The projection prunes; it never invents or alters.
+                for served, source in zip(tool_result["results"], service_result["results"]):
+                    self.assertTrue(set(served) <= set(source))
+                    for key, value in served.items():
+                        self.assertEqual(value, source[key], key)
 
     def test_get_chunk_parity_with_mcp_tool(self):
         cwd = self.make_memory_fixture()

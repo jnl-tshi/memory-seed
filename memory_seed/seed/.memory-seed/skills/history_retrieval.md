@@ -73,7 +73,9 @@ Useful optional search fields:
 
 Recency is anchored to the current date read from the system clock at call time. There is no date-override field; the tool never trusts a caller-supplied "today".
 
-Search results include `chunk_id`, `entry_id`, `source`, `line_range`, `heading_path`, `excerpt`, matched fields, score fields, entry metadata, and `granularity`. Treat excerpts as previews only.
+Search results include `chunk_id`, `entry_id`, `source`, `line_range`, `heading_path`, `excerpt`, matched fields, score fields, entry metadata, and `granularity`. Keys that would be empty are omitted, except the lifecycle and attention fields, where empty is a claim rather than an absence.
+
+`excerpt` is sized to answer one question - *is this the result I want?* A **decision** result carries its whole DRAFT block. Anything else is a window around the terms that made it rank, with the entry's metadata block excluded because every field in it is already a key on the same result. A window that had to cut says so: a leading `...` where the head was elided, and `[preview - call memory_get_chunk for the full entry]` where the tail was. An excerpt carrying neither mark is the complete text.
 
 Fetch any result that may affect implementation, policy, bootstrap behavior, release behavior, or memory structure:
 
