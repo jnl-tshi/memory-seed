@@ -17,7 +17,7 @@ source: derived
 ## Current view
 
 <!-- memory-seed-derived-current-view:start -->
-Status: **Proposed**
+Status: **Rejected**
 
 Authoritative decision: not yet accepted
 
@@ -78,3 +78,18 @@ Memory Trace already depends on the core package, so one owner keeps UTF-8/LF/NF
 #### Evolution
 
 2026-07-07 implemented the encoding policy; 2026-07-08 added the encoding check slice, then confirmed Memory Seed as the single owner and added explicit check/repair tooling.
+
+### revision-rejected - 2026-08-08T20:43:00Z
+
+```json
+{
+  "decision_ref": "mse_74ddxsena9nj2afk:d1",
+  "event_id": "adre_35ce1e497e0146dbc9b7",
+  "source": "derived",
+  "update_entry_id": "mse_cq88k8kb8k3wp1cb"
+}
+```
+
+#### Reason
+
+Duplicate concern. This record and adr_encoding_policy proposed the same head, mse_74ddxsena9nj2afk:d1, and state the same rule. adr_encoding_policy survives: it is referenced by two skills governing_adr, by index.md#L183 and by a diagram sidecar, and its id is the honest scope - UTF-8/LF/NFC is not Windows-specific. Rejected rather than superseded because a supersession retires an accepted head and this record never had one. Its supporting decisions were carried across; the manual-review-not-auto-repair clause and the prove-automation binding remain readable here until folded.
