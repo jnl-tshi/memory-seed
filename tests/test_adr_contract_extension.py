@@ -568,3 +568,90 @@ class AwaitingReviewViewTests(ProjectFixture):
     def test_every_live_adr_is_unchanged_by_this_view(self):
         for path in LIVE_ADRS:
             self.assertEqual(render_adr(parse_adr(path)), read_text_file(path), path.name)
+
+
+class ReproposeAfterRejectTests(ProjectFixture):
+    """A revision's text is fixed at proposal time, so a rejected ref must be re-proposable.
+
+    Without this, a summary written from bad evidence can never be corrected: the ledger is
+    append-only, `revise_adr` keys on `decision_ref`, and the same decision is the only honest
+    thing to key a correction on. Inventing a different ref to carry the fix would put a false
+    head on an authority record.
+
+    What stays forbidden is duplicating a LIVE ref - proposed or accepted - which would leave two
+    competing texts with no way to tell which the ADR rests on.
+    """
+
+    def _founded(self, root, adr_id="adr_repropose"):
+        result = promote_decision(
+            root, adr_id=adr_id, title="Concern", topics=(), user_initials="JNL",
+            agent_type="claude", source="derived", decision="Founding position.", why="W.",
+            founding_source=".memory-seed/index.md#L1", founding_quote="A founding line.",
+            timestamp="2026-08-08T10:00:00Z",
+        )
+        self.assertTrue(result.ok, result.issues)
+        transition_adr(
+            root, adr_id=adr_id, status="accepted", update_entry_id=None,
+            source="derived", timestamp="2026-08-08T10:01:00Z",
+        )
+        return root / ".memory-seed" / "decisions" / f"{adr_id}.md"
+
+    def _propose(self, root, decision, stamp, adr_id="adr_repropose", dry_run=False):
+        return revise_adr(
+            root, adr_id=adr_id, decision_ref="mse_extension0000001:d1", decision=decision,
+            why="W.", evolution="E.", update_entry_id="mse_extension0000001", source="derived",
+            predecessors=(), timestamp=stamp, dry_run=dry_run,
+        )
+
+    def test_a_rejected_ref_may_be_proposed_again_with_corrected_text(self):
+        root = self.make_project()
+        path = self._founded(root)
+        self.assertTrue(self._propose(root, "First wording.", "2026-08-08T11:00:00Z").ok)
+        rejected = transition_adr(
+            root, adr_id="adr_repropose", status="rejected",
+            decision_ref="mse_extension0000001:d1", update_entry_id="mse_extension0000001",
+            source="derived", reason="Summary did not synthesise the live chain.",
+            timestamp="2026-08-08T11:01:00Z",
+        )
+        self.assertTrue(rejected.ok, rejected.issues)
+
+        again = self._propose(root, "Corrected wording.", "2026-08-08T11:02:00Z")
+        self.assertTrue(again.ok, again.issues)
+
+        record = parse_adr(path)
+        state = replay_adr(record)
+        # The re-proposal is live again, and the head has not moved - acceptance is still the gate.
+        self.assertEqual(state.pending_decisions, ("mse_extension0000001:d1",))
+        self.assertEqual(state.authoritative_decision, "founding:.memory-seed/index.md#L1")
+        # The CORRECTED text is what the view shows, not the wording that was rejected.
+        view = render_adr(record).split("## Event ledger")[0]
+        self.assertIn("Corrected wording.", view)
+        self.assertNotIn("First wording.", view)
+
+    def test_a_live_ref_still_cannot_be_duplicated(self):
+        root = self.make_project()
+        self._founded(root)
+        self.assertTrue(self._propose(root, "First wording.", "2026-08-08T11:00:00Z").ok)
+        # Still PROPOSED: a second text on the same decision is refused.
+        clash = self._propose(root, "Competing wording.", "2026-08-08T11:02:00Z", dry_run=True)
+        self.assertFalse(clash.ok)
+        self.assertTrue(any("duplicates revision" in issue for issue in clash.issues), clash.issues)
+
+        accepted = transition_adr(
+            root, adr_id="adr_repropose", status="accepted",
+            decision_ref="mse_extension0000001:d1", update_entry_id="mse_extension0000001",
+            source="derived",
+            expected_authoritative_decision="founding:.memory-seed/index.md#L1",
+            timestamp="2026-08-08T11:03:00Z",
+        )
+        self.assertTrue(accepted.ok, accepted.issues)
+        # ACCEPTED: still refused. Only rejection reopens the ref.
+        after = self._propose(root, "Post-acceptance wording.", "2026-08-08T11:04:00Z", dry_run=True)
+        self.assertFalse(after.ok)
+        self.assertTrue(any("duplicates revision" in issue for issue in after.issues), after.issues)
+
+    def test_the_live_corpus_is_untouched_by_this_relaxation(self):
+        """No live ADR has two proposals for one ref, so first-match and last-match agree."""
+        for path in LIVE_ADRS:
+            self.assertEqual(validate_adr(parse_adr(path), REPO), [], path.name)
+            self.assertEqual(render_adr(parse_adr(path)), read_text_file(path), path.name)

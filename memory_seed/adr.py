@@ -222,8 +222,10 @@ def proposal_for(record: AdrRecord, decision_ref: str | None) -> AdrEvent | None
     if decision_ref is None:
         return None
     # Matches on revision_key so founding pseudo-refs ("founding:<source>") resolve to their
-    # proposal exactly as decision refs do.
-    return next((e for e in record.events if e.kind == "revision-proposed" and e.revision_key == decision_ref), None)
+    # proposal exactly as decision refs do. The LAST match wins: a ref whose proposal was rejected
+    # may be proposed again with corrected text, and the live proposal is the newest one.
+    matches = [e for e in record.events if e.kind == "revision-proposed" and e.revision_key == decision_ref]
+    return matches[-1] if matches else None
 
 
 def replay_adr(record: AdrRecord) -> AdrState:
@@ -677,7 +679,12 @@ def validate_adr(record: AdrRecord, cwd: str | Path = ".", *, pending_decisions:
                     issues.append(f"{label} founding events cannot assert predecessors (no decision to anchor the link grammar)")
             else:
                 issues.extend(_ref_issues(ref, known, ordinals, f"{label} decision", pending))
-            if ref in statuses:
+            # A ref that is live - proposed or accepted - cannot be proposed twice; that would put
+            # two competing texts on one decision with no way to tell which the ADR rests on. A
+            # REJECTED ref may be proposed again, because the ledger is append-only and there is
+            # otherwise no way to correct a revision's wording: the text is fixed at proposal time
+            # and the same decision is the only honest thing to key the correction on.
+            if statuses.get(ref) in {"proposed", "accepted"}:
                 issues.append(f"{label} duplicates revision {ref}")
             statuses[ref] = "proposed"
             if not event.decision.strip() or not event.why.strip():
